@@ -188,3 +188,43 @@ Follow-up items:
 
 - Add Go contract structs and JSON serialization tests.
 - Add remaining schemas for EventArtifact, GraphMutationProposal, and InsightCandidate.
+
+## Gate G004: Go Event Contract Types
+
+Timestamp: `2026-07-06T20:31:01Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add typed Go representations for initial shared event contracts.
+
+Criteria:
+
+- Add Go enum-like constants for source domains, ingestion modes, and severity.
+- Add common entity/evidence reference structs.
+- Add `RawSignalEvent`, `NormalizedSignalEvent`, and `Signal` structs.
+- Use JSON tags matching the v1 schemas.
+- Add serialization tests for representative raw event and signal payloads.
+- Re-run Dockerized Go tests and schema validation.
+
+Evidence:
+
+- `pkg/contracts/events.go`
+- `pkg/contracts/events_test.go`
+- Dockerized `go test ./...` passed, including `pkg/contracts`.
+- Dockerized schema validation passed for all event schemas.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add remaining output contract schemas and Go types for artifacts, graph
+  mutation proposals, and insight candidates.

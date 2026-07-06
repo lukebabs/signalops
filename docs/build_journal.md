@@ -165,3 +165,37 @@ Next step:
 
 - Add Go contract types that mirror these schemas.
 - Add package-level tests for required field serialization and basic API behavior.
+
+## 2026-07-06T20:31:01Z
+
+Summary:
+
+- Added Go contract types for the first shared SignalOps event contracts.
+- Added JSON serialization tests for `RawSignalEvent` and `Signal`.
+
+Files changed:
+
+- `pkg/contracts/events.go`
+- `pkg/contracts/events_test.go`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- The Go core platform needs typed representations of cross-runtime contracts
+  before source adapters, broker publishers, and persistence code are added.
+- The structs mirror the v1 JSON Schema names for domain-neutral events and
+  preserve the Go/Python boundary through JSON field tags.
+
+Verification performed:
+
+- Captured current UTC timestamp with `date -u +%Y-%m-%dT%H:%M:%SZ`.
+- Ran Dockerized Go tests:
+  `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`.
+- Ran Dockerized schema validation:
+  `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`.
+
+Next step:
+
+- Add remaining shared output schemas and Go types for `EventArtifact`,
+  `GraphMutationProposal`, and `InsightCandidate`.
