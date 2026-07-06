@@ -141,3 +141,50 @@ Follow-up items:
 
 - Continue using Docker for build/test validation.
 - Add schema validation tooling through Docker.
+
+## Gate G003: Event Contract Schemas
+
+Timestamp: `2026-07-06T20:26:54Z`
+
+Status: `passed`
+
+Gate name:
+
+- Establish first versioned shared event contracts for Go/Python runtime boundaries.
+
+Criteria:
+
+- Add common JSON Schema definitions for source domains, ingestion modes,
+  timestamps, confidence, entity references, and evidence references.
+- Add `RawSignalEvent` v1 schema.
+- Add `NormalizedSignalEvent` v1 schema.
+- Add `Signal` v1 schema.
+- Add Dockerized schema validation tooling.
+- Verify schemas parse and expose required metadata.
+- Re-run Dockerized Go tests.
+
+Evidence:
+
+- `contracts/events/common.defs.v1.schema.json`
+- `contracts/events/raw_signal_event.v1.schema.json`
+- `contracts/events/normalized_signal_event.v1.schema.json`
+- `contracts/events/signal.v1.schema.json`
+- `scripts/validate_json_schemas.py`
+- `Makefile`
+- `docs/docker_development.md`
+- Schema validation output showed all four schemas as `ok`.
+- Dockerized `go test ./...` passed.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add Go contract structs and JSON serialization tests.
+- Add remaining schemas for EventArtifact, GraphMutationProposal, and InsightCandidate.

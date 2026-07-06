@@ -124,3 +124,44 @@ Next step:
 - Add versioned JSON Schema event contracts for `RawSignalEvent`,
   `NormalizedSignalEvent`, and `Signal`.
 - Use Dockerized validation for schema parsing and Go tests.
+
+## 2026-07-06T20:26:54Z
+
+Summary:
+
+- Added versioned JSON Schema contracts for the first cross-runtime event payloads.
+- Added Dockerized schema validation tooling.
+
+Files changed:
+
+- `contracts/events/common.defs.v1.schema.json`
+- `contracts/events/raw_signal_event.v1.schema.json`
+- `contracts/events/normalized_signal_event.v1.schema.json`
+- `contracts/events/signal.v1.schema.json`
+- `contracts/events/README.md`
+- `scripts/validate_json_schemas.py`
+- `Makefile`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- Phase 1 requires stable shared contracts before source adapters, broker workers,
+  or Python detector workers are implemented.
+- The schemas define the domain-neutral fields required for source domains,
+  adapters, ingestion modes, datasets, temporal semantics, correlation, and
+  idempotency.
+
+Verification performed:
+
+- Captured current UTC timestamp with `date -u +%Y-%m-%dT%H:%M:%SZ`.
+- Validated schema JSON metadata through Docker:
+  `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`.
+- Ran Dockerized Go tests:
+  `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`.
+
+Next step:
+
+- Add Go contract types that mirror these schemas.
+- Add package-level tests for required field serialization and basic API behavior.

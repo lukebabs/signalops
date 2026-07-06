@@ -23,6 +23,12 @@ Build the gateway image:
 make docker-build
 ```
 
+Validate JSON schemas:
+
+```bash
+make docker-validate-schemas
+```
+
 Open a Go toolchain shell:
 
 ```bash

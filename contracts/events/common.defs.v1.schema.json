@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.syncratic.local/signalops/events/common.defs.v1.schema.json",
+  "title": "SignalOps Common Event Definitions",
+  "$defs": {
+    "source_domain": {"type": "string", "enum": ["market_data", "crm", "security", "operations", "iot", "procurement", "custom"]},
+    "ingestion_mode": {"type": "string", "enum": ["push_event", "scheduled_pull", "bulk_file", "replay", "websocket_stream_future"]},
+    "non_empty_string": {"type": "string", "minLength": 1},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "entity_hint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "external_id"],
+      "properties": {
+        "type": {"$ref": "#/$defs/non_empty_string"},
+        "external_id": {"$ref": "#/$defs/non_empty_string"},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "metadata": {"type": "object"}
+      }
+    },
+    "entity_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": {"$ref": "#/$defs/non_empty_string"},
+        "id": {"$ref": "#/$defs/non_empty_string"},
+        "external_id": {"type": "string"},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "metadata": {"type": "object"}
+      }
+    },
+    "evidence_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "ref"],
+      "properties": {
+        "type": {"$ref": "#/$defs/non_empty_string"},
+        "ref": {"$ref": "#/$defs/non_empty_string"},
+        "summary": {"type": "string"},
+        "metadata": {"type": "object"}
+      }
+    }
+  }
+}
