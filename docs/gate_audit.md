@@ -272,3 +272,69 @@ Follow-up items:
 
 - Add broker topic constants and durable algorithm job/result contracts.
 - Defer gRPC Protobuf definitions until a bounded fast-sync use case is selected.
+
+## Gate G006: Local Redpanda Deployment
+
+Timestamp: `2026-07-06T20:45:00Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add and validate local Docker Compose deployment with Redpanda default broker.
+
+Criteria:
+
+- Add local Docker Compose stack for Redpanda, Redpanda Console, topic
+  bootstrap, and SignalOps gateway.
+- Add deterministic topic bootstrap for durable SignalOps topics.
+- Add deployment documentation and local environment example.
+- Validate compose syntax.
+- Run Dockerized Go tests and schema validation.
+- Start the stack successfully.
+- Verify gateway health/readiness endpoints.
+- Verify default topics exist.
+
+Evidence:
+
+- `compose.yaml`
+- `.env.example`
+- `deploy/docker/redpanda/create-topics.sh`
+- `docs/deployment.md`
+- `Makefile`
+- `docker compose config --quiet` passed.
+- Dockerized `go test ./...` passed.
+- Dockerized schema validation passed.
+- `docker compose ps` showed `redpanda` healthy, `redpanda-console` running,
+  and `gateway` running.
+- `GET /healthz` returned status `ok` from `http://127.0.0.1:18000`.
+- `GET /readyz` returned status `ready` from `http://127.0.0.1:18000`.
+- `rpk topic list` showed all default SignalOps topics.
+
+Issues found and resolved:
+
+- Initial Redpanda healthcheck used `rpk cluster health --brokers`, but this
+  `rpk` version does not support `--brokers` for that command. Healthcheck was
+  corrected to `rpk cluster health`.
+- Initial gateway host port `8080` conflicted with an existing local service.
+  The compose mapping was changed to `18000:8080`.
+
+Verification performed:
+
+- `docker compose version`
+- `docker compose config --quiet`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose up -d --build`
+- `curl -sS http://127.0.0.1:18000/healthz`
+- `curl -sS http://127.0.0.1:18000/readyz`
+- `docker compose exec redpanda rpk topic list --brokers localhost:9092`
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add broker topic constants and broker abstraction interfaces.
+- Add integration tests that use the local Redpanda stack.

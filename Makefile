@@ -2,8 +2,9 @@ GO_IMAGE ?= golang:1.22-bookworm
 PYTHON_IMAGE ?= python:3.12-slim
 DOCKER_WORKDIR ?= /workspace
 IMAGE ?= signalops-gateway:local
+COMPOSE ?= docker compose
 
-.PHONY: docker-test docker-build docker-shell docker-validate-schemas
+.PHONY: docker-test docker-build docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate
 
 docker-test:
 	docker run --rm \
@@ -29,3 +30,18 @@ docker-shell:
 		$(GO_IMAGE) \
 		bash
 
+
+compose-up:
+	$(COMPOSE) up -d --build
+
+compose-down:
+	$(COMPOSE) down
+
+compose-logs:
+	$(COMPOSE) logs -f
+
+compose-ps:
+	$(COMPOSE) ps
+
+compose-validate:
+	$(COMPOSE) config --quiet

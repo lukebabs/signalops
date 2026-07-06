@@ -238,3 +238,52 @@ Next step:
 - Add durable broker topic constants and interfaces for algorithm jobs/results.
 - Keep gRPC contracts as future fast-sync scope until a concrete use case needs
   them.
+
+## 2026-07-06T20:45:00Z
+
+Summary:
+
+- Added local Docker Compose deployment for SignalOps with Redpanda as the
+  default Kafka-compatible broker.
+- Added topic bootstrap job and deployment documentation.
+- Started and validated the local deployment stack.
+
+Files changed:
+
+- `.dockerignore`
+- `.env.example`
+- `Makefile`
+- `compose.yaml`
+- `deploy/docker/redpanda/create-topics.sh`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- SignalOps needs a reproducible local deployment before broker interfaces and
+  workers are implemented.
+- Redpanda is the default broker runtime while preserving Kafka-compatible
+  protocol boundaries.
+- Default topics should be created deterministically for the durable path.
+
+Verification performed:
+
+- Captured current UTC timestamp with `date -u +%Y-%m-%dT%H:%M:%SZ`.
+- Confirmed Docker Compose availability with `docker compose version`.
+- Validated compose syntax with `docker compose config --quiet`.
+- Ran Dockerized Go tests with `go test ./...`.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`.
+- Started the local stack with `docker compose up -d --build`.
+- Fixed Redpanda healthcheck after `rpk cluster health --brokers` was rejected
+  by the bundled `rpk` version.
+- Fixed gateway host port after local port `8080` was already allocated;
+  gateway now maps host port `18000` to container port `8080`.
+- Verified `GET /healthz` returned status `ok` on `http://127.0.0.1:18000`.
+- Verified `GET /readyz` returned status `ready` on `http://127.0.0.1:18000`.
+- Verified default Redpanda topics exist with 3 partitions and 1 replica.
+
+Next step:
+
+- Add broker topic constants and a Kafka-compatible broker abstraction in Go.
+- Keep the local stack available for broker integration tests.

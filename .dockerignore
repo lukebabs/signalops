@@ -6,3 +6,4 @@ tmp
 dist
 coverage
 
+deploy/docker/redpanda-data
