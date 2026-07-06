@@ -228,3 +228,47 @@ Follow-up items:
 
 - Add remaining output contract schemas and Go types for artifacts, graph
   mutation proposals, and insight candidates.
+
+## Gate G005: Internal Communication Protocol Decision
+
+Timestamp: `2026-07-06T20:39:12Z`
+
+Status: `passed`
+
+Gate name:
+
+- Codify durable path, fast sync path, and protocol decision rule.
+
+Criteria:
+
+- Document Kafka/Redpanda as the default durable protocol for Go/Python
+  algorithm communication.
+- Document JSON + JSON Schema as the v1 durable payload contract.
+- Document gRPC + Protobuf as the bounded fast-sync internal exception.
+- State that gRPC responses are not canonical truth until persisted or
+  republished by the Go core platform.
+- State the decision rule for Kafka/Redpanda, gRPC, REST, and prohibited
+  in-process Python calls.
+- Re-run Dockerized Go tests and schema validation.
+
+Evidence:
+
+- `docs/Syncratic_SignalOps_Processing_Specification.md`
+- `docs/signalops_extended_capabilities_spec.md`
+- `contracts/protocols.md`
+- Dockerized `go test ./...` passed.
+- Dockerized schema validation passed.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add broker topic constants and durable algorithm job/result contracts.
+- Defer gRPC Protobuf definitions until a bounded fast-sync use case is selected.

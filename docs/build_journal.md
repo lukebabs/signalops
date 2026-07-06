@@ -199,3 +199,42 @@ Next step:
 
 - Add remaining shared output schemas and Go types for `EventArtifact`,
   `GraphMutationProposal`, and `InsightCandidate`.
+
+## 2026-07-06T20:39:12Z
+
+Summary:
+
+- Documented SignalOps internal communication protocol decision.
+- Established Kafka/Redpanda as the durable default and gRPC as the bounded
+  fast-sync exception.
+
+Files changed:
+
+- `docs/Syncratic_SignalOps_Processing_Specification.md`
+- `docs/signalops_extended_capabilities_spec.md`
+- `contracts/protocols.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- Algorithm workers and Go infrastructure need an explicit communication rule
+  before broker interfaces or plugin runners are implemented.
+- Durable, replayable, retryable, and auditable work must use brokered events.
+- Fast synchronous calls may use gRPC only when bounded and non-authoritative
+  until the Go core persists or republishes the result.
+
+Verification performed:
+
+- Captured current UTC timestamp with `date -u +%Y-%m-%dT%H:%M:%SZ`.
+- Read back the updated processing and extended capability specs.
+- Ran Dockerized Go tests:
+  `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`.
+- Ran Dockerized schema validation:
+  `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`.
+
+Next step:
+
+- Add durable broker topic constants and interfaces for algorithm jobs/results.
+- Keep gRPC contracts as future fast-sync scope until a concrete use case needs
+  them.

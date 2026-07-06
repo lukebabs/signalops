@@ -49,6 +49,21 @@ Python owns:
 
 Python algorithm workers communicate with the Go platform through broker events or explicitly versioned internal service APIs. Container or HTTP plugins MAY be added after the Python plugin runner is stable.
 
+Internal communication decision rule:
+
+- Kafka or Redpanda is the default durable protocol for Go-to-Python algorithm
+  jobs and Python-to-Go results.
+- Kafka or Redpanda MUST be used when work must be durable, replayable,
+  retryable, auditable, or DLQ-routable.
+- gRPC with Protobuf MAY be used for bounded fast-sync internal calls such as
+  low-latency scoring, health/status/control APIs, or small lookups that are
+  safe to retry.
+- gRPC responses are not canonical truth until the Go core platform persists
+  or republishes the resulting SignalOps object.
+- REST is reserved for public APIs, tenant/admin APIs, and compatibility
+  boundaries.
+- Go services MUST NOT call Python libraries in process.
+
 ### 2.3 Use-Case Packs
 
 Use-case packs provide domain-specific behavior without changing core infrastructure.

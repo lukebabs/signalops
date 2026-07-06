@@ -22,6 +22,39 @@ SignalOps uses a polyglot runtime model:
 - Python algorithm workers must communicate through broker events or
   explicitly versioned internal service APIs.
 
+## Internal Communication Protocols
+
+SignalOps uses two internal communication paths between the Go core platform
+and the Python algorithm system.
+
+Durable path:
+
+- Protocol: Kafka or Redpanda broker topics.
+- Payload format v1: JSON.
+- Schema contract v1: JSON Schema under `contracts/`.
+- Use for Go-to-Python algorithm jobs, Python-to-Go algorithm results,
+  replayable processing, retries, DLQ routing, batch/windowed processing, and
+  any work that must survive process restarts.
+
+Fast sync path:
+
+- Protocol: gRPC with Protobuf contracts.
+- Use only for bounded request/response calls where the result is
+  non-authoritative until the Go core persists or republishes it.
+- Suitable for low-latency model scoring, health/status/control APIs, or
+  small internal lookups that are safe to retry from the caller.
+- gRPC responses from Python must not become canonical truth by themselves.
+
+Decision rule:
+
+- Use Kafka/Redpanda when work must be durable, replayable, retryable, or
+  auditable.
+- Use gRPC when work is short-lived, bounded, request/response, and safe to
+  retry from the caller.
+- Use REST only for public APIs, tenant/admin APIs, and compatibility
+  boundaries.
+- Do not use direct in-process Python calls from Go.
+
 Go responsibilities:
 
 - Signal Gateway and public REST APIs.
