@@ -4,7 +4,7 @@ DOCKER_WORKDIR ?= /workspace
 IMAGE ?= signalops-gateway:local
 COMPOSE ?= docker compose
 
-.PHONY: docker-test docker-build docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate
+.PHONY: docker-test docker-test-broker-integration docker-build docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate
 
 docker-test:
 	docker run --rm \
@@ -12,6 +12,16 @@ docker-test:
 		-w $(DOCKER_WORKDIR) \
 		$(GO_IMAGE) \
 		go test ./...
+
+docker-test-broker-integration:
+	docker run --rm --network host \
+		-e SIGNALOPS_BROKER_INTEGRATION=1 \
+		-e SIGNALOPS_BROKER_BROKERS=localhost:19092 \
+		-e SIGNALOPS_ENV=local \
+		-v $(CURDIR):$(DOCKER_WORKDIR) \
+		-w $(DOCKER_WORKDIR) \
+		$(GO_IMAGE) \
+		go test ./internal/broker/kafka -run TestPublishConsumeCommitAgainstRedpanda -count=1 -v
 
 docker-build:
 	docker build --target gateway -t $(IMAGE) .

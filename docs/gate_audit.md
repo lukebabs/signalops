@@ -386,3 +386,63 @@ Follow-up items:
 
 - Add a concrete Redpanda/Kafka client package implementing `pkg/broker`.
 - Add broker integration tests that can run against the Docker Compose stack.
+
+
+## Gate G008: Concrete Redpanda Kafka Client
+
+Timestamp: `2026-07-06T23:22:46Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add and validate the concrete Kafka-compatible Redpanda broker client.
+
+Criteria:
+
+- Add a concrete Go implementation of `pkg/broker` behind an internal package.
+- Preserve Kafka client types behind `internal/` and avoid leaking them into
+  public SignalOps contracts.
+- Implement synchronous publish acknowledgement with topic, partition, and offset.
+- Implement manual-commit consumer groups.
+- Preserve `correlation_id`, `causation_id`, and `trace_id` in Kafka headers.
+- Add unit tests and a live Redpanda publish/consume/commit integration test.
+- Add repeatable Docker documentation for the integration test.
+
+Evidence:
+
+- `internal/broker/kafka/client.go`
+- `internal/broker/kafka/client_test.go`
+- `internal/broker/kafka/client_integration_test.go`
+- `internal/broker/kafka/README.md`
+- `Makefile`
+- `docs/deployment.md`
+- `go.mod`
+- `go.sum`
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm gofmt -w internal/broker/kafka/client.go internal/broker/kafka/client_test.go internal/broker/kafka/client_integration_test.go`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go mod tidy`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker run --rm --network host -e SIGNALOPS_BROKER_INTEGRATION=1 -e SIGNALOPS_BROKER_BROKERS=localhost:19092 -e SIGNALOPS_ENV=local -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/broker/kafka -run TestPublishConsumeCommitAgainstRedpanda -count=1 -v`
+- `make docker-test-broker-integration`
+
+Issues found and resolved:
+
+- `github.com/twmb/franz-go@latest` requires Go 1.25, and `v1.19.5` requires
+  Go 1.23.8. The client is pinned to `v1.18.1`, which validates on Go 1.22.
+- A bridge-networked Docker integration test could not use the Redpanda
+  advertised `localhost:19092` listener. The repeatable integration target uses
+  Docker host networking.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Wire gateway ingestion to publish raw events through the broker client.
+- Add application-level publish error handling and readiness checks for broker
+  connectivity.

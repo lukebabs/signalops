@@ -332,3 +332,58 @@ Next step:
 - Add a concrete Kafka-compatible Redpanda client implementation behind the
   `pkg/broker` interfaces.
 - Add integration tests against the local Redpanda stack.
+
+
+## 2026-07-06T23:22:46Z
+
+Summary:
+
+- Added a concrete Kafka-compatible broker client for Redpanda using franz-go.
+- Implemented synchronous publish acknowledgement, manual consumer groups,
+  buffered consumption, and explicit offset commits behind `pkg/broker`.
+- Added broker integration testing against the local Redpanda compose stack.
+- Added a repeatable Dockerized Makefile target for the live broker test.
+
+Files changed:
+
+- `go.mod`
+- `go.sum`
+- `Makefile`
+- `internal/broker/kafka/client.go`
+- `internal/broker/kafka/client_test.go`
+- `internal/broker/kafka/client_integration_test.go`
+- `internal/broker/kafka/README.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- The previous broker gate defined interfaces only; SignalOps now needs a real
+  durable messaging implementation to prove Redpanda publish, consume, and
+  commit behavior.
+- The concrete client is kept under `internal/` so application code depends on
+  SignalOps-owned interfaces rather than franz-go types.
+- `github.com/twmb/franz-go` is pinned to `v1.18.1` because newer versions in
+  the tested series require Go versions newer than the current Go 1.22 toolchain.
+
+Verification performed:
+
+- Formatted Kafka client code with Dockerized `gofmt`.
+- Normalized module metadata with Dockerized `go mod tidy`.
+- Ran Dockerized `go test ./...`; all regular packages passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Ran live Redpanda integration test with Docker host networking:
+  `docker run --rm --network host -e SIGNALOPS_BROKER_INTEGRATION=1 -e SIGNALOPS_BROKER_BROKERS=localhost:19092 -e SIGNALOPS_ENV=local -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/broker/kafka -run TestPublishConsumeCommitAgainstRedpanda -count=1 -v`.
+- Verified the repeatable Makefile wrapper with `make docker-test-broker-integration`.
+
+Issue found and resolved:
+
+- A bridge-networked test container timed out because Redpanda advertises
+  `localhost:19092`; the repeatable integration target uses Docker host
+  networking so the advertised listener resolves correctly.
+
+Next step:
+
+- Wire the gateway ingestion path to publish accepted raw events to
+  `signalops.<env>.raw.v1` through the broker client.

@@ -23,6 +23,12 @@ Show services:
 make compose-ps
 ```
 
+Run the broker integration test against the local Redpanda listener:
+
+```bash
+make docker-test-broker-integration
+```
+
 Stop the stack:
 
 ```bash
@@ -81,3 +87,16 @@ Runtime config currently reads:
 Broker configuration is loaded now; concrete broker clients will be wired in a
 later gate. The shared Go broker boundary and topic constants live under
 `pkg/broker`.
+
+## Broker Client
+
+The concrete Kafka-compatible Go client lives under `internal/broker/kafka`.
+It uses the shared `pkg/broker` interfaces and preserves SignalOps metadata in
+Kafka record headers:
+
+- `correlation_id`
+- `causation_id`
+- `trace_id`
+
+Dockerized integration tests use host networking because the local Redpanda
+compose listener advertises `localhost:19092`.
