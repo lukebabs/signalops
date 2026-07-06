@@ -80,3 +80,47 @@ Next step:
 
 - Install or provide Go in the build environment, then run `go test ./...`.
 - Add contract schema files for `RawSignalEvent` and `NormalizedSignalEvent`.
+
+## 2026-07-06T20:18:13Z
+
+Summary:
+
+- Added Docker-first development and validation tooling.
+- Verified the Go scaffold through Docker instead of relying on host Go.
+- Built and smoke-tested the gateway container.
+
+Files changed:
+
+- `.dockerignore`
+- `Dockerfile`
+- `Makefile`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- Host Go is not installed in this environment.
+- Docker is available and provides a reproducible toolchain boundary for Go
+  tests, builds, and runtime smoke tests.
+- The project should standardize on Docker validation early so future gates do
+  not depend on workstation-specific tools.
+
+Verification performed:
+
+- Confirmed Docker availability with `docker --version`.
+- Ran Dockerized Go tests:
+  `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- Built the gateway image:
+  `docker build --target gateway -t signalops-gateway:local .`
+- Ran the gateway image and verified:
+  `GET /healthz` returned `{"service":"signalops-gateway","status":"ok",...}`.
+- Verified:
+  `GET /readyz` returned `{"service":"signalops-gateway","status":"ready",...}`.
+- Stopped the smoke-test container.
+
+Next step:
+
+- Add versioned JSON Schema event contracts for `RawSignalEvent`,
+  `NormalizedSignalEvent`, and `Signal`.
+- Use Dockerized validation for schema parsing and Go tests.
