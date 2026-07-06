@@ -71,13 +71,13 @@ Copy `.env.example` when local overrides are needed.
 cp .env.example .env
 ```
 
-The gateway currently reads:
+Runtime config currently reads:
 
 - `SIGNALOPS_HTTP_ADDR`
-
-Broker environment variables are documented now and will be wired into the
-broker abstraction implementation in a later gate:
-
 - `SIGNALOPS_BROKER_PROVIDER`
 - `SIGNALOPS_BROKER_BROKERS`
 - `SIGNALOPS_ENV`
+
+Broker configuration is loaded now; concrete broker clients will be wired in a
+later gate. The shared Go broker boundary and topic constants live under
+`pkg/broker`.

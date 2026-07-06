@@ -287,3 +287,48 @@ Next step:
 
 - Add broker topic constants and a Kafka-compatible broker abstraction in Go.
 - Keep the local stack available for broker integration tests.
+
+
+## 2026-07-06T20:56:06Z
+
+Summary:
+
+- Added the initial Go broker boundary for durable SignalOps messaging.
+- Added deterministic topic constants matching the Redpanda topic bootstrap.
+- Extended runtime config with broker provider, broker addresses, and environment.
+- Documented the broker boundary in implementation and protocol docs.
+
+Files changed:
+
+- `pkg/broker/broker.go`
+- `pkg/broker/topics.go`
+- `pkg/broker/topics_test.go`
+- `pkg/broker/README.md`
+- `internal/config/config.go`
+- `internal/config/config_test.go`
+- `contracts/protocols.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- SignalOps needs stable durable messaging interfaces before attaching a
+  concrete Redpanda/Kafka client.
+- Application code should depend on SignalOps-owned interfaces instead of
+  leaking broker client types across the codebase.
+- Topic constants must match the local deployment bootstrap so future
+  publishers and consumers cannot drift from runtime infrastructure.
+
+Verification performed:
+
+- Formatted Go code with Dockerized `gofmt`.
+- Ran Dockerized `go test ./...`; all packages passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Confirmed the running Redpanda stack still exposes the expected durable topics.
+
+Next step:
+
+- Add a concrete Kafka-compatible Redpanda client implementation behind the
+  `pkg/broker` interfaces.
+- Add integration tests against the local Redpanda stack.

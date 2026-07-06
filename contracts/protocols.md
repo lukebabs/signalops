@@ -24,6 +24,14 @@ Schema contract v1:
 
 - JSON Schema files under `contracts/`.
 
+Go implementation boundary:
+
+- shared topic names and broker interfaces live under `pkg/broker`.
+- application code depends on `pkg/broker` interfaces, not concrete
+  Redpanda/Kafka client types.
+- concrete broker clients must preserve `correlation_id`, `causation_id`, and
+  `trace_id` metadata when publishing derived work.
+
 ## Fast Sync Path
 
 Use gRPC with Protobuf for bounded synchronous internal calls.

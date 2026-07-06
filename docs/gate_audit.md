@@ -338,3 +338,51 @@ Follow-up items:
 
 - Add broker topic constants and broker abstraction interfaces.
 - Add integration tests that use the local Redpanda stack.
+
+
+## Gate G007: Broker Boundary And Topic Constants
+
+Timestamp: `2026-07-06T20:56:06Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add durable broker interfaces and canonical topic constants.
+
+Criteria:
+
+- Add Go topic constants that match the local Redpanda topic bootstrap.
+- Add publisher and consumer interfaces for Kafka-compatible durable messaging.
+- Add message metadata fields required for correlation, causation, traceability,
+  partition acknowledgement, and offset acknowledgement.
+- Extend process config with broker provider, broker addresses, and environment.
+- Document the broker boundary and protocol implications.
+- Validate Go tests, schema validation, and running Redpanda topic state.
+
+Evidence:
+
+- `pkg/broker/broker.go`
+- `pkg/broker/topics.go`
+- `pkg/broker/topics_test.go`
+- `pkg/broker/README.md`
+- `internal/config/config.go`
+- `internal/config/config_test.go`
+- `contracts/protocols.md`
+- `docs/deployment.md`
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm gofmt -w internal/config/config.go internal/config/config_test.go pkg/broker/broker.go pkg/broker/topics.go pkg/broker/topics_test.go`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose exec redpanda rpk topic list --brokers localhost:9092`
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add a concrete Redpanda/Kafka client package implementing `pkg/broker`.
+- Add broker integration tests that can run against the Docker Compose stack.
