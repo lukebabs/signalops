@@ -17,6 +17,7 @@ class WorkerConfig:
     input_topic: str
     retry_topic: str
     dlq_topic: str
+    signal_topic: str
     group_id: str
     poll_timeout_seconds: float
     max_messages: int
@@ -32,6 +33,7 @@ def load_config() -> WorkerConfig:
         input_topic=_env("SIGNALOPS_WORKER_INPUT_TOPIC", raw_topic(environment)),
         retry_topic=_env("SIGNALOPS_WORKER_RETRY_TOPIC", retry_topic(environment)),
         dlq_topic=_env("SIGNALOPS_WORKER_DLQ_TOPIC", dlq_topic(environment)),
+        signal_topic=_env("SIGNALOPS_WORKER_SIGNAL_TOPIC", signal_topic(environment)),
         group_id=_env("SIGNALOPS_WORKER_GROUP_ID", DEFAULT_GROUP_ID),
         poll_timeout_seconds=_float_env(
             "SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS", DEFAULT_POLL_TIMEOUT_SECONDS
@@ -50,6 +52,11 @@ def raw_topic(environment: str) -> str:
 def retry_topic(environment: str) -> str:
     environment = environment.strip() or DEFAULT_ENVIRONMENT
     return f"signalops.{environment}.retry.algorithm.v1"
+
+
+def signal_topic(environment: str) -> str:
+    environment = environment.strip() or DEFAULT_ENVIRONMENT
+    return f"signalops.{environment}.signal.v1"
 
 
 def dlq_topic(environment: str) -> str:

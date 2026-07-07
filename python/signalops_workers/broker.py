@@ -142,6 +142,43 @@ class RedpandaRetryPublisher:
         self._producer.flush(timeout=10)
 
 
+class RedpandaSignalPublisher:
+    def __init__(self, *, brokers: str, signal_topic: str) -> None:
+        self._topic = signal_topic
+        self._producer = Producer({"bootstrap.servers": brokers})
+
+    def publish(
+        self, signal_event: Mapping[str, object], source_message: BrokerMessage
+    ) -> None:
+        headers = [
+            ("content_type", "application/json"),
+            ("signalops_schema_id", "signalops.signal.v1"),
+            ("signalops_source_topic", source_message.topic),
+            ("signalops_source_partition", str(source_message.partition)),
+            ("signalops_source_offset", str(source_message.offset)),
+        ]
+        correlation_id = signal_event.get("correlation_id")
+        if isinstance(correlation_id, str) and correlation_id:
+            headers.append(("correlation_id", correlation_id))
+        trace_id = signal_event.get("trace_id")
+        if isinstance(trace_id, str) and trace_id:
+            headers.append(("trace_id", trace_id))
+
+        key = signal_event.get("signal_id")
+        self._producer.produce(
+            self._topic,
+            key=key if isinstance(key, str) else source_message.key,
+            value=json.dumps(signal_event, separators=(",", ":")).encode("utf-8"),
+            headers=headers,
+        )
+        remaining = self._producer.flush(timeout=10)
+        if remaining:
+            raise TimeoutError("timed out publishing signal message")
+
+    def close(self) -> None:
+        self._producer.flush(timeout=10)
+
+
 def _headers_to_mapping(headers: list[tuple[str, bytes | None]] | None) -> Mapping[str, str]:
     mapped: dict[str, str] = {}
     for key, value in headers or []:

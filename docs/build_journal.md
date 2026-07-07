@@ -730,3 +730,79 @@ Next step:
 - Add signal/result publishing for detectors that emit signals.
 - Add a reference detector that emits a deterministic low-severity test signal.
 - Add retry replay tooling and retry attempt limits.
+
+## 2026-07-07T02:25:49Z
+
+Summary:
+
+- Added detector signal/result publishing from Python workers to
+  `signalops.<environment>.signal.v1`.
+- Added a Redpanda signal publisher with source-topic, partition, offset,
+  correlation, and trace headers.
+- Added `signalops.static_test`, a deterministic low-severity signal-emitting
+  reference detector for contract and deployment validation.
+- Added worker mapping from `EmittedSignal` to the existing `signal.v1` event
+  schema.
+- Validated live signal emission from a gateway-ingested raw event through the
+  finite static detector worker.
+
+Files changed:
+
+- `compose.yaml`
+- `docs/Syncratic_SignalOps_Processing_Specification.md`
+- `docs/python_worker.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `python/signalops_plugins/README.md`
+- `python/signalops_plugins/detectors/noop.py`
+- `python/signalops_workers/__main__.py`
+- `python/signalops_workers/broker.py`
+- `python/signalops_workers/config.py`
+- `python/signalops_workers/detectors.py`
+- `python/signalops_workers/worker.py`
+- `python/tests/plugins/test_noop_detector.py`
+- `python/tests/test_detectors.py`
+- `python/tests/test_worker.py`
+
+Rationale:
+
+- The durable Python-to-Go result boundary needs a concrete signal event path
+  before real market, security, IoT, or CRM detector packs are introduced.
+- Detectors emit compact algorithm outputs; the worker owns infrastructure
+  enrichment, lineage, topic publication, and failure routing.
+- Signal-topic publish failures are retryable infrastructure failures and route
+  to the retry topic before source offsets are committed.
+
+Verification performed:
+
+- Validated compose syntax with `docker compose config --quiet`.
+- Ran Python unit tests with `make docker-test-python`; 21 tests passed.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all
+  schemas passed.
+- Built the worker image with `docker compose build raw-worker`.
+- Stopped the default no-op worker, posted `g014-live-event` through
+  `POST /v1/events/raw`, and ran a one-message worker with
+  `SIGNALOPS_WORKER_DETECTOR_ID=signalops.static_test`.
+- Consumed `signalops.local.signal.v1` and verified signal key
+  `signalops.static_test.low`, detector ID `signalops.static_test`, event ID
+  `g014-live-event`, source offset `3`, correlation ID
+  `g014-correlation-live`, and trace ID `g014-trace-live`.
+- Restarted the default no-op worker and verified gateway readiness plus stable
+  `signalops.raw-worker.v1` consumer group state with one member and total lag
+  `0`.
+
+Issue found and resolved:
+
+- Signal-topic publish failures were initially about to fall through generic
+  DLQ handling. The worker now converts signal publish failures into
+  `RetryableWorkerError` so the source event can be retried through the durable
+  retry topic.
+
+Next step:
+
+- Add retry replay tooling with attempt limits and escalation from retry to DLQ.
+- Add schema validation for emitted Python signal payloads before publication.
+- Add the first domain-specific market-data detector pack after the replay path
+  is safe.
+

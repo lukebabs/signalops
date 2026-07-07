@@ -22,11 +22,15 @@ The shared detector contract lives in:
 python/signalops_plugins/detectors/base.py
 ```
 
-## Reference Detector
+## Reference Detectors
 
-`signalops.noop` is the first reference detector. It is deterministic, emits no
-signals, and exists to prove worker/plugin lifecycle wiring before real
-algorithm behavior is introduced.
+`signalops.noop` is the default reference detector. It is deterministic, emits
+no signals, and exists to prove worker/plugin lifecycle wiring without producing
+algorithm results.
+
+`signalops.static_test` is a deterministic validation detector. It emits a low
+severity `EmittedSignal` so the worker can validate mapping and publishing to
+`signalops.<environment>.signal.v1`.
 
 The runnable worker runtime lives in `python/signalops_workers` and loads the
 configured detector through `SIGNALOPS_WORKER_DETECTOR_ID`.

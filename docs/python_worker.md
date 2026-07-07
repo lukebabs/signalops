@@ -1,8 +1,8 @@
 # SignalOps Python Worker
 
 The Python worker is the first runnable Python component in SignalOps. It proves
-the durable Go-to-Python boundary without introducing detector-specific
-algorithm behavior.
+the durable Go-to-Python boundary while keeping algorithm behavior inside
+Python detector plugins.
 
 ## Runtime
 
@@ -33,16 +33,19 @@ The worker:
 - parses the broker value as a JSON object;
 - resolves `event_id`, `idempotency_key`, and `correlation_id`;
 - invokes the configured detector plugin for valid raw events;
-- logs processed valid raw events and no-signal detector outcomes;
+- logs processed valid raw events and detector outcomes;
+- publishes emitted detector signals to `signalops.<environment>.signal.v1`;
 - publishes retryable processing failures to the configured retry topic;
 - publishes invalid raw events and non-retryable processing failures to the
   configured DLQ topic;
-- commits source offsets only after the event is processed, the retry publish is
-  acknowledged, or the DLQ publish is acknowledged;
+- commits source offsets only after the event is processed, signal publish is
+  acknowledged when a detector emits a signal, the retry publish is acknowledged,
+  or the DLQ publish is acknowledged;
 - manually commits explicit topic/partition offsets after each handled message.
 
-Detector execution and result emission are not implemented yet. Retry and
-DLQ publishing are implemented for worker failure routing.
+Detector execution and signal result emission are implemented. Signal publish
+failures are treated as retryable infrastructure failures and are routed through
+the retry topic before the source offset is committed.
 
 ## Configuration
 
@@ -53,6 +56,8 @@ DLQ publishing are implemented for worker failure routing.
   The default is `signalops.<environment>.retry.algorithm.v1`.
 - `SIGNALOPS_WORKER_DLQ_TOPIC`: DLQ topic for invalid raw events and processing failures.
   The default is `signalops.<environment>.dlq.algorithm.v1`.
+- `SIGNALOPS_WORKER_SIGNAL_TOPIC`: signal output topic for detector-emitted
+  results. The default is `signalops.<environment>.signal.v1`.
 - `SIGNALOPS_WORKER_GROUP_ID`: consumer group ID.
 - `SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS`: broker poll timeout.
 - `SIGNALOPS_WORKER_MAX_MESSAGES`: optional finite-run count for validation.
@@ -109,3 +114,14 @@ the retry publish is acknowledged.
 Detector contracts live under `python/signalops_plugins/detectors/base.py`.
 The default `signalops.noop` detector is deterministic, emits no signals, and
 proves the worker/plugin lifecycle before real detector logic is added.
+
+`signalops.static_test` is a deterministic reference detector that emits a low
+severity test signal. It is intended for contract and deployment validation, not
+production scoring.
+
+## Signal Contract
+
+Emitted detector signals use `contracts/events/signal.v1.schema.json`. The
+worker enriches the detector output with source lineage, source-domain metadata,
+timestamps, detector and model versions, evidence, and correlation fields before
+publishing to the configured signal topic.

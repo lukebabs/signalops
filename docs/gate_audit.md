@@ -833,3 +833,86 @@ Follow-up items:
 - Add detector signal/result publishing to `signalops.<environment>.signal.v1`.
 - Add a deterministic reference signal-emitting detector.
 - Add retry replay tooling and retry attempt limits.
+
+## Gate G014: Detector Signal Publishing
+
+Timestamp: `2026-07-07T02:25:49Z`
+
+Status: `passed`
+
+Gate name:
+
+- Publish detector-emitted signals from Python workers to the durable signal topic.
+
+Criteria:
+
+- Add a worker signal publisher boundary for `signal.v1` events.
+- Add a Redpanda-backed signal publisher for `signalops.<environment>.signal.v1`.
+- Map detector `EmittedSignal` output into the existing signal event contract
+  with source lineage, timestamps, detector metadata, evidence, and correlation.
+- Add a deterministic signal-emitting reference detector for validation.
+- Route signal-topic publish failures through retry handling before source
+  offset commit.
+- Add unit tests for signal mapping, publishing, retry routing, and no-commit
+  behavior when retry publication fails.
+- Validate the live path against Redpanda with a gateway-ingested raw event.
+
+Evidence:
+
+- `python/signalops_workers/worker.py`
+- `python/signalops_workers/broker.py`
+- `python/signalops_workers/config.py`
+- `python/signalops_workers/__main__.py`
+- `python/signalops_workers/detectors.py`
+- `python/signalops_plugins/detectors/noop.py`
+- `python/tests/test_worker.py`
+- `python/tests/test_detectors.py`
+- `python/tests/plugins/test_noop_detector.py`
+- `docs/python_worker.md`
+- `docs/Syncratic_SignalOps_Processing_Specification.md`
+- `compose.yaml`
+
+Verification performed:
+
+- `docker compose config --quiet`
+- `make docker-test-python`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose build raw-worker`
+- `docker compose stop raw-worker`
+- `curl -sS -X POST http://127.0.0.1:18000/v1/events/raw ... g014-live-event ...`
+- `docker compose run --rm -e SIGNALOPS_WORKER_DETECTOR_ID=signalops.static_test -e SIGNALOPS_WORKER_MAX_MESSAGES=1 raw-worker`
+- `docker compose exec redpanda rpk topic consume signalops.local.signal.v1 -o start -n 1`
+- `docker compose up -d raw-worker`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+- `curl -sS http://127.0.0.1:18000/readyz`
+
+Live verification result:
+
+- Gateway accepted `g014-live-event` to `signalops.local.raw.v1`, partition `0`,
+  offset `3`.
+- The finite static detector worker logged `detector evaluated raw event` and
+  `processed raw event`.
+- `signalops.local.signal.v1` contained signal key `signalops.static_test.low`
+  with detector ID `signalops.static_test`, event ID `g014-live-event`, source
+  topic `signalops.local.raw.v1`, source partition `0`, source offset `3`,
+  correlation ID `g014-correlation-live`, and trace ID `g014-trace-live`.
+- The default no-op worker was restarted successfully. The raw-worker consumer
+  group returned to stable state with one member and total lag `0`.
+
+Issues found and resolved:
+
+- Signal publish failures are retryable infrastructure failures. The worker now
+  wraps signal publisher exceptions in `RetryableWorkerError`, preserving retry
+  routing and offset safety.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add retry replay tooling with retry attempt limits.
+- Add schema validation for emitted Python signal events before publication.
+- Add a domain-specific market-data detector pack.
+

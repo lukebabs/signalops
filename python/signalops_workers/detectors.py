@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from signalops_plugins.detectors.base import DetectorPlugin, RuntimeContext
-from signalops_plugins.detectors.noop import NoopDetector
+from signalops_plugins.detectors.noop import NoopDetector, StaticSignalDetector
 
 
 class UnknownDetectorError(ValueError):
@@ -10,10 +10,15 @@ class UnknownDetectorError(ValueError):
 
 def load_detector(detector_id: str, *, environment: str, worker_id: str) -> DetectorPlugin:
     detector_id = detector_id.strip() or "signalops.noop"
-    if detector_id != "signalops.noop":
+    detectors = {
+        "signalops.noop": NoopDetector,
+        "signalops.static_test": StaticSignalDetector,
+    }
+    detector_type = detectors.get(detector_id)
+    if detector_type is None:
         raise UnknownDetectorError(f"unknown detector: {detector_id}")
 
-    detector = NoopDetector()
+    detector = detector_type()
     detector.initialize(
         config={},
         model_registry=None,

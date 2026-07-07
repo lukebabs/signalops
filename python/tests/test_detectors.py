@@ -9,6 +9,13 @@ class DetectorLoaderTests(unittest.TestCase):
 
         self.assertEqual(detector.detector_id, "signalops.noop")
 
+    def test_loads_static_signal_detector(self) -> None:
+        detector = load_detector(
+            "signalops.static_test", environment="local", worker_id="worker-1"
+        )
+
+        self.assertEqual(detector.detector_id, "signalops.static_test")
+
     def test_rejects_unknown_detector(self) -> None:
         with self.assertRaises(UnknownDetectorError):
             load_detector("missing.detector", environment="local", worker_id="worker-1")

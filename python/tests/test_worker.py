@@ -1,11 +1,19 @@
 import unittest
 
-from signalops_plugins.detectors.base import DetectionResult, Explanation, FeatureContext
+from datetime import datetime, timezone
+
+from signalops_plugins.detectors.base import (
+    DetectionResult,
+    EmittedSignal,
+    Explanation,
+    FeatureContext,
+)
 from signalops_workers.worker import (
     BrokerMessage,
     InvalidRawEventError,
     RawEventHandler,
     RetryableWorkerError,
+    build_signal_event,
     run_worker,
 )
 
@@ -38,6 +46,21 @@ class FakeFailurePublisher:
         if self.err is not None:
             raise self.err
         self.published.append((message, error))
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class FakeSignalPublisher:
+    def __init__(self, err: Exception | None = None) -> None:
+        self.err = err
+        self.published: list[tuple[dict[str, object], BrokerMessage]] = []
+        self.closed = False
+
+    def publish(self, signal_event, source_message: BrokerMessage) -> None:
+        if self.err is not None:
+            raise self.err
+        self.published.append((dict(signal_event), source_message))
 
     def close(self) -> None:
         self.closed = True
@@ -76,12 +99,165 @@ class FakeDetector:
         return None
 
 
+class SignalDetector(FakeDetector):
+    detector_id = "fake.signal"
+    detector_version = "1.0.0"
+    model_version = "model-1"
+
+    def detect(self, normalized_events, feature_context: FeatureContext) -> DetectionResult:
+        self.detected_events.append(normalized_events)
+        return DetectionResult(
+            detector_id=self.detector_id,
+            detector_version=self.detector_version,
+            matched=True,
+            score=0.82,
+            reason="test signal",
+        )
+
+    def emit_signal(
+        self, detection_result: DetectionResult, explanation: Explanation
+    ) -> EmittedSignal | None:
+        return EmittedSignal(
+            signal_id="sig-1",
+            signal_type="test_signal",
+            confidence=detection_result.score,
+            severity="medium",
+            payload={
+                "supporting_metrics": {"score": detection_result.score},
+                "entities": [{"type": "ticker", "id": "SPY"}],
+            },
+        )
+
+
 class RetryableDetector(FakeDetector):
     def detect(self, normalized_events, feature_context: FeatureContext) -> DetectionResult:
         raise RetryableWorkerError("detector dependency unavailable")
 
 
+def raw_signal_message() -> BrokerMessage:
+    return BrokerMessage(
+        topic="signalops.local.raw.v1",
+        partition=0,
+        offset=1,
+        key="idem-signal",
+        value=(
+            b'{"tenant_id":"tenant-1","source_id":"source-1",'
+            b'"source_domain":"market_data","source_adapter":"market_data.massive",'
+            b'"ingestion_mode":"scheduled_pull","dataset":"daily_options",'
+            b'"event_id":"evt-signal","observation_time":"2026-07-07T00:00:00Z",'
+            b'"effective_time":"2026-07-07T00:00:00Z",'
+            b'"processing_time":"2026-07-07T00:01:00Z",'
+            b'"correlation_id":"corr-signal","idempotency_key":"idem-signal"}'
+        ),
+        headers={"correlation_id": "corr-signal"},
+    )
+
+
 class WorkerTests(unittest.TestCase):
+
+    def test_build_signal_event_maps_detector_output_to_contract(self) -> None:
+        processed = RawEventHandler().handle(raw_signal_message())
+        detector = SignalDetector()
+        detection = detector.detect([processed.payload], FeatureContext())
+        explanation = detector.explain(detection)
+        signal = detector.emit_signal(detection, explanation)
+        assert signal is not None
+
+        event = build_signal_event(
+            processed,
+            detector,
+            signal,
+            explanation,
+            now=datetime(2026, 7, 7, 2, 0, 0, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(event["signal_id"], "sig-1")
+        self.assertEqual(event["tenant_id"], "tenant-1")
+        self.assertEqual(event["source_domain"], "market_data")
+        self.assertEqual(event["event_ids"], ["evt-signal"])
+        self.assertEqual(event["detector_id"], "fake.signal")
+        self.assertEqual(event["model_version"], "model-1")
+        self.assertEqual(event["timestamp"], "2026-07-07T02:00:00Z")
+        self.assertEqual(event["confidence"], 0.82)
+        self.assertEqual(event["severity"], "medium")
+        self.assertEqual(event["correlation_id"], "corr-signal")
+
+    def test_run_worker_publishes_emitted_signals(self) -> None:
+        message = raw_signal_message()
+        consumer = FakeConsumer([message])
+        retry = FakeFailurePublisher()
+        dlq = FakeFailurePublisher()
+        signals = FakeSignalPublisher()
+
+        count = run_worker(
+            consumer,
+            RawEventHandler(),
+            poll_timeout_seconds=0.01,
+            max_messages=1,
+            retry_publisher=retry,
+            dead_letter_publisher=dlq,
+            signal_publisher=signals,
+            detector=SignalDetector(),
+        )
+
+        self.assertEqual(count, 1)
+        self.assertEqual(consumer.committed, [message])
+        self.assertEqual(retry.published, [])
+        self.assertEqual(dlq.published, [])
+        self.assertEqual(len(signals.published), 1)
+        self.assertEqual(signals.published[0][0]["signal_id"], "sig-1")
+        self.assertTrue(signals.closed)
+
+    def test_run_worker_routes_signal_publish_failures_to_retry(self) -> None:
+        message = raw_signal_message()
+        consumer = FakeConsumer([message])
+        retry = FakeFailurePublisher()
+        dlq = FakeFailurePublisher()
+        signals = FakeSignalPublisher(err=RuntimeError("signal topic unavailable"))
+
+        with self.assertLogs("signalops_workers.worker", level="WARNING"):
+            count = run_worker(
+                consumer,
+                RawEventHandler(),
+                poll_timeout_seconds=0.01,
+                max_messages=1,
+                retry_publisher=retry,
+                dead_letter_publisher=dlq,
+                signal_publisher=signals,
+                detector=SignalDetector(),
+            )
+
+        self.assertEqual(count, 1)
+        self.assertEqual(consumer.committed, [message])
+        self.assertEqual(len(retry.published), 1)
+        self.assertIsInstance(retry.published[0][1], RetryableWorkerError)
+        self.assertEqual(dlq.published, [])
+        self.assertEqual(signals.published, [])
+
+    def test_run_worker_does_not_commit_when_signal_retry_publish_fails(self) -> None:
+        message = raw_signal_message()
+        consumer = FakeConsumer([message])
+        retry = FakeFailurePublisher(err=RuntimeError("retry unavailable"))
+        dlq = FakeFailurePublisher()
+        signals = FakeSignalPublisher(err=RuntimeError("signal topic unavailable"))
+
+        with self.assertRaises(RuntimeError):
+            run_worker(
+                consumer,
+                RawEventHandler(),
+                poll_timeout_seconds=0.01,
+                max_messages=1,
+                retry_publisher=retry,
+                dead_letter_publisher=dlq,
+                signal_publisher=signals,
+                detector=SignalDetector(),
+            )
+
+        self.assertEqual(consumer.committed, [])
+        self.assertEqual(dlq.published, [])
+        self.assertEqual(signals.published, [])
+        self.assertTrue(signals.closed)
+
     def test_handler_parses_raw_event(self) -> None:
         message = BrokerMessage(
             topic="signalops.local.raw.v1",

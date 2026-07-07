@@ -178,7 +178,10 @@ Every detector implements:
 
 The initial SDK contract is implemented in
 `python/signalops_plugins/detectors/base.py`. The reference `signalops.noop`
-detector exercises lifecycle wiring and emits no signals.
+detector exercises lifecycle wiring and emits no signals. The
+`signalops.static_test` detector emits a deterministic low-severity validation
+signal so the worker can prove `signal.v1` result mapping and durable
+signal-topic publishing before real algorithm packs are added.
 
 Plugin requirements:
 
