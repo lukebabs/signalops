@@ -1304,3 +1304,63 @@ Follow-up items:
 - Perform a small Massive dry-run using the local `.env` key and one or two seed tickers.
 - If provider response compatibility is confirmed, run publish mode for a constrained broker-backed smoke test.
 - Add scheduler/orchestrator integration once the one-shot puller is proven.
+
+
+## Gate G021: Massive Live Dry-Run And Publish Smoke Test
+
+Timestamp: `2026-07-07T04:49:43Z`
+
+Status: `passed`
+
+Gate name:
+
+- Validate the Massive scheduled puller against the live provider API and the local Redpanda raw topic.
+
+Criteria:
+
+- Use the ignored local `.env` key without logging or committing secret values.
+- Run a constrained equity dry-run against the provider.
+- Run a constrained option-contract dry-run against the provider.
+- Run a constrained publish smoke test into `signalops.local.raw.v1`.
+- Confirm the Python raw worker consumes the published event.
+- Confirm the running stack remains healthy and raw-worker lag returns to `0`.
+
+Evidence:
+
+- `cmd/massive-puller/main.go`
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `internal/adapters/marketdata/massive/client.go`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Verification performed:
+
+- `docker compose --profile massive-pull run --rm massive-puller --max-companies 1 --datasets equity --dry-run=true --continue-on-error=true`
+- `docker compose --profile massive-pull run --rm massive-puller --max-companies 1 --datasets options --options-limit 5 --dry-run=true --continue-on-error=true`
+- `docker compose --profile massive-pull run --rm massive-puller --max-companies 1 --datasets equity --dry-run=false --continue-on-error=false`
+- `docker compose ps`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+- `docker compose logs --tail=80 raw-worker`
+
+Live verification result:
+
+- Equity dry-run report: 1 company, 1 event built, 0 events published, 0 failures.
+- Option-contract dry-run report: 1 company, 5 events built, 0 events published, 0 failures.
+- Equity publish report: 1 company, 1 event built, 1 event published, 0 failures.
+- Raw worker logged detector evaluation and successful raw-event processing for the published event.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+- Running stack remained healthy.
+
+Issues found and resolved:
+
+- None. Live response compatibility was confirmed for the constrained equity EOD and option-contract listing paths.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Expand validation to a small multi-ticker dry-run.
+- Add scheduler/orchestrator integration for repeatable Massive pull execution.
+- Add production-oriented controls for rate limits, retry/backoff, and provider usage accounting before broad universe runs.

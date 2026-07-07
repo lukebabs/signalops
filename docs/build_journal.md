@@ -1093,3 +1093,44 @@ Issue found and resolved:
 Next step:
 
 - Run a controlled Massive dry-run against the local `.env` key for one or two tickers, review provider response compatibility, then switch to publish mode for a small broker-backed smoke test.
+
+
+## 2026-07-07T04:49:43Z
+
+Summary:
+
+- Ran the first controlled Massive provider-backed validation using the local ignored `.env` key.
+- Validated one-ticker equity dry-run: built 1 canonical raw event, published 0, failures 0.
+- Validated one-ticker options dry-run with option limit 5: built 5 canonical raw events, published 0, failures 0.
+- Ran one-ticker equity publish smoke test: built 1 event and published 1 raw event to `signalops.local.raw.v1`.
+- Confirmed the Python raw worker consumed and processed the published event.
+- Confirmed the raw-worker consumer group remained stable with total lag `0`.
+
+Files changed:
+
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- G020 added the executable puller, but it intentionally avoided live provider calls. The next risk was provider response compatibility and the end-to-end scheduled pull publish path.
+- The validation used dry-run mode before publish mode to prove external fetch/build behavior without immediately producing broker messages.
+- The publish smoke test was limited to one equity event to verify broker delivery and worker consumption with minimal blast radius.
+
+Verification performed:
+
+- `docker compose --profile massive-pull run --rm massive-puller --max-companies 1 --datasets equity --dry-run=true --continue-on-error=true`
+- `docker compose --profile massive-pull run --rm massive-puller --max-companies 1 --datasets options --options-limit 5 --dry-run=true --continue-on-error=true`
+- `docker compose --profile massive-pull run --rm massive-puller --max-companies 1 --datasets equity --dry-run=false --continue-on-error=false`
+- `docker compose ps`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+- `docker compose logs --tail=80 raw-worker`
+
+Issue found and resolved:
+
+- No implementation issues were found. The Massive client parsed the live equity and option-contract responses used in this constrained validation.
+- Secret handling remained clean: `.env` stayed ignored and no API key values were logged or committed.
+
+Next step:
+
+- Expand provider-backed validation to a small multi-ticker dry-run and then add scheduler/orchestrator integration for repeatable execution.
