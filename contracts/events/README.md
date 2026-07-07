@@ -11,6 +11,7 @@ Initial events:
 - `EventArtifact`
 - `GraphMutationProposal`
 - `InsightCandidate`
+- `RetryEvent`
 - `DLQEvent`
 
 Versioned schemas:
@@ -19,6 +20,7 @@ Versioned schemas:
 - `raw_signal_event.v1.schema.json`
 - `normalized_signal_event.v1.schema.json`
 - `signal.v1.schema.json`
+- `retry_event.v1.schema.json`
 - `dlq_event.v1.schema.json`
 
 The v1 schemas establish the shared boundary between the Go core platform and
@@ -29,3 +31,6 @@ multi-domain signal processing.
 `DLQEvent` captures failed durable processing attempts with source topic,
 partition, offset, headers, and base64-encoded original payload so failures can
 be audited and replayed without losing the original broker value.
+
+`RetryEvent` captures retryable durable processing failures with retry attempt,
+source topic, partition, offset, headers, and base64-encoded original payload.

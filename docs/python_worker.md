@@ -33,21 +33,23 @@ The worker:
 - parses the broker value as a JSON object;
 - resolves `event_id`, `idempotency_key`, and `correlation_id`;
 - logs processed valid raw events;
-- publishes invalid raw events and processing failures to the configured DLQ
-  topic;
-- commits source offsets only after the event is processed or the DLQ publish is
-  acknowledged;
+- publishes retryable processing failures to the configured retry topic;
+- publishes invalid raw events and non-retryable processing failures to the
+  configured DLQ topic;
+- commits source offsets only after the event is processed, the retry publish is
+  acknowledged, or the DLQ publish is acknowledged;
 - manually commits explicit topic/partition offsets after each handled message.
 
-Detector execution, retry topics, and result emission are not implemented
-yet. DLQ publishing is implemented for invalid raw events and processing
-failures.
+Detector execution and result emission are not implemented yet. Retry and
+DLQ publishing are implemented for worker failure routing.
 
 ## Configuration
 
 - `SIGNALOPS_BROKER_BROKERS`: broker bootstrap servers.
 - `SIGNALOPS_ENV`: environment segment used in default topic naming.
 - `SIGNALOPS_WORKER_INPUT_TOPIC`: topic override.
+- `SIGNALOPS_WORKER_RETRY_TOPIC`: retry topic for retryable processing failures.
+  The default is `signalops.<environment>.retry.algorithm.v1`.
 - `SIGNALOPS_WORKER_DLQ_TOPIC`: DLQ topic for invalid raw events and processing failures.
   The default is `signalops.<environment>.dlq.algorithm.v1`.
 - `SIGNALOPS_WORKER_GROUP_ID`: consumer group ID.
@@ -91,3 +93,10 @@ DLQ records use `contracts/events/dlq_event.v1.schema.json`. The payload keeps
 the source topic, partition, offset, key, headers, and base64-encoded source
 value. The worker commits the source offset only after the DLQ publish is
 acknowledged.
+
+## Retry Contract
+
+Retry records use `contracts/events/retry_event.v1.schema.json`. The payload
+keeps the retry attempt, source topic, partition, offset, key, headers, and
+base64-encoded source value. The worker commits the source offset only after
+the retry publish is acknowledged.

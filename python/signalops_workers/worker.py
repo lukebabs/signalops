@@ -17,6 +17,10 @@ class InvalidRawEventError(WorkerError):
     """Raised when a consumed raw event is not a JSON object."""
 
 
+class RetryableWorkerError(WorkerError):
+    """Raised when processing should be retried through the durable retry topic."""
+
+
 @dataclass(frozen=True)
 class BrokerMessage:
     topic: str
@@ -46,7 +50,7 @@ class RawEventConsumer(Protocol):
         ...
 
 
-class DeadLetterPublisher(Protocol):
+class FailurePublisher(Protocol):
     def publish(self, message: BrokerMessage, error: Exception) -> None:
         ...
 
@@ -91,7 +95,8 @@ def run_worker(
     *,
     poll_timeout_seconds: float,
     max_messages: int = 0,
-    dead_letter_publisher: DeadLetterPublisher | None = None,
+    retry_publisher: FailurePublisher | None = None,
+    dead_letter_publisher: FailurePublisher | None = None,
 ) -> int:
     processed_count = 0
     try:
@@ -102,6 +107,20 @@ def run_worker(
 
             try:
                 processed = handler.handle(message)
+            except RetryableWorkerError as exc:
+                if retry_publisher is None:
+                    raise
+                retry_publisher.publish(message, exc)
+                logger.warning(
+                    "sent raw event to retry",
+                    extra={
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                        "topic": message.topic,
+                        "partition": message.partition,
+                        "offset": message.offset,
+                    },
+                )
             except Exception as exc:
                 if dead_letter_publisher is None:
                     raise
@@ -132,6 +151,8 @@ def run_worker(
             processed_count += 1
     finally:
         consumer.close()
+        if retry_publisher is not None:
+            retry_publisher.close()
         if dead_letter_publisher is not None:
             dead_letter_publisher.close()
 

@@ -4,6 +4,7 @@ from signalops_workers.worker import (
     BrokerMessage,
     InvalidRawEventError,
     RawEventHandler,
+    RetryableWorkerError,
     run_worker,
 )
 
@@ -26,7 +27,7 @@ class FakeConsumer:
         self.closed = True
 
 
-class FakeDeadLetterPublisher:
+class FakeFailurePublisher:
     def __init__(self, err: Exception | None = None) -> None:
         self.err = err
         self.published: list[tuple[BrokerMessage, Exception]] = []
@@ -39,6 +40,11 @@ class FakeDeadLetterPublisher:
 
     def close(self) -> None:
         self.closed = True
+
+
+class RetryableHandler:
+    def handle(self, message: BrokerMessage):
+        raise RetryableWorkerError("transient dependency unavailable")
 
 
 class WorkerTests(unittest.TestCase):
@@ -82,20 +88,86 @@ class WorkerTests(unittest.TestCase):
             headers={},
         )
         consumer = FakeConsumer([message])
-        dlq = FakeDeadLetterPublisher()
+        dlq = FakeFailurePublisher()
+
+        retry = FakeFailurePublisher()
 
         count = run_worker(
             consumer,
             RawEventHandler(),
             poll_timeout_seconds=0.01,
             max_messages=1,
+            retry_publisher=retry,
             dead_letter_publisher=dlq,
         )
 
         self.assertEqual(count, 1)
         self.assertEqual(consumer.committed, [message])
+        self.assertEqual(retry.published, [])
         self.assertEqual(dlq.published, [])
         self.assertTrue(consumer.closed)
+        self.assertTrue(retry.closed)
+        self.assertTrue(dlq.closed)
+
+    def test_run_worker_publishes_retryable_messages_to_retry_topic(self) -> None:
+        message = BrokerMessage(
+            topic="signalops.local.raw.v1",
+            partition=0,
+            offset=1,
+            key="retry-1",
+            value=b'{"event_id":"evt-1"}',
+            headers={},
+        )
+        consumer = FakeConsumer([message])
+        retry = FakeFailurePublisher()
+        dlq = FakeFailurePublisher()
+
+        with self.assertLogs("signalops_workers.worker", level="WARNING"):
+            count = run_worker(
+                consumer,
+                RetryableHandler(),
+                poll_timeout_seconds=0.01,
+                max_messages=1,
+                retry_publisher=retry,
+                dead_letter_publisher=dlq,
+            )
+
+        self.assertEqual(count, 1)
+        self.assertEqual(consumer.committed, [message])
+        self.assertEqual(len(retry.published), 1)
+        self.assertIsInstance(retry.published[0][1], RetryableWorkerError)
+        self.assertEqual(dlq.published, [])
+        self.assertTrue(consumer.closed)
+        self.assertTrue(retry.closed)
+        self.assertTrue(dlq.closed)
+
+    def test_run_worker_does_not_commit_when_retry_publish_fails(self) -> None:
+        message = BrokerMessage(
+            topic="signalops.local.raw.v1",
+            partition=0,
+            offset=1,
+            key="retry-1",
+            value=b'{"event_id":"evt-1"}',
+            headers={},
+        )
+        consumer = FakeConsumer([message])
+        retry = FakeFailurePublisher(err=RuntimeError("retry unavailable"))
+        dlq = FakeFailurePublisher()
+
+        with self.assertRaises(RuntimeError):
+            run_worker(
+                consumer,
+                RetryableHandler(),
+                poll_timeout_seconds=0.01,
+                max_messages=1,
+                retry_publisher=retry,
+                dead_letter_publisher=dlq,
+            )
+
+        self.assertEqual(consumer.committed, [])
+        self.assertEqual(dlq.published, [])
+        self.assertTrue(consumer.closed)
+        self.assertTrue(retry.closed)
         self.assertTrue(dlq.closed)
 
     def test_run_worker_publishes_invalid_messages_to_dlq(self) -> None:
@@ -108,7 +180,7 @@ class WorkerTests(unittest.TestCase):
             headers={},
         )
         consumer = FakeConsumer([message])
-        dlq = FakeDeadLetterPublisher()
+        dlq = FakeFailurePublisher()
 
         with self.assertLogs("signalops_workers.worker", level="WARNING"):
             count = run_worker(
@@ -136,7 +208,7 @@ class WorkerTests(unittest.TestCase):
             headers={},
         )
         consumer = FakeConsumer([message])
-        dlq = FakeDeadLetterPublisher(err=RuntimeError("dlq unavailable"))
+        dlq = FakeFailurePublisher(err=RuntimeError("dlq unavailable"))
 
         with self.assertRaises(RuntimeError):
             run_worker(

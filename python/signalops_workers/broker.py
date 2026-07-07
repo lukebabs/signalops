@@ -95,6 +95,53 @@ class RedpandaDeadLetterPublisher:
         self._producer.flush(timeout=10)
 
 
+class RedpandaRetryPublisher:
+    def __init__(self, *, brokers: str, retry_topic: str) -> None:
+        self._topic = retry_topic
+        self._producer = Producer({"bootstrap.servers": brokers})
+
+    def publish(self, message: BrokerMessage, error: Exception) -> None:
+        payload = {
+            "schema_id": "signalops.retry.raw_event.v1",
+            "failed_at": datetime.now(timezone.utc).isoformat(),
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+            "retry_attempt": _next_retry_attempt(message.headers),
+            "source": {
+                "topic": message.topic,
+                "partition": message.partition,
+                "offset": message.offset,
+                "key": message.key,
+                "headers": dict(message.headers),
+                "value_base64": base64.b64encode(message.value).decode("ascii"),
+            },
+        }
+        headers = [
+            ("content_type", "application/json"),
+            ("signalops_retry_reason", type(error).__name__),
+            ("signalops_retry_attempt", str(payload["retry_attempt"])),
+            ("signalops_source_topic", message.topic),
+            ("signalops_source_partition", str(message.partition)),
+            ("signalops_source_offset", str(message.offset)),
+        ]
+        correlation_id = message.headers.get("correlation_id")
+        if correlation_id:
+            headers.append(("correlation_id", correlation_id))
+
+        self._producer.produce(
+            self._topic,
+            key=message.key,
+            value=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            headers=headers,
+        )
+        remaining = self._producer.flush(timeout=10)
+        if remaining:
+            raise TimeoutError("timed out publishing retry message")
+
+    def close(self) -> None:
+        self._producer.flush(timeout=10)
+
+
 def _headers_to_mapping(headers: list[tuple[str, bytes | None]] | None) -> Mapping[str, str]:
     mapped: dict[str, str] = {}
     for key, value in headers or []:
@@ -106,3 +153,13 @@ def _decode_optional(value: bytes | None) -> str:
     if value is None:
         return ""
     return value.decode("utf-8")
+
+
+def _next_retry_attempt(headers: Mapping[str, str]) -> int:
+    value = headers.get("signalops_retry_attempt", "").strip()
+    if not value:
+        return 1
+    try:
+        return int(value) + 1
+    except ValueError:
+        return 1

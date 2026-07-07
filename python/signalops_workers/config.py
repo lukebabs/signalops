@@ -15,6 +15,7 @@ class WorkerConfig:
     brokers: str
     environment: str
     input_topic: str
+    retry_topic: str
     dlq_topic: str
     group_id: str
     poll_timeout_seconds: float
@@ -28,6 +29,7 @@ def load_config() -> WorkerConfig:
         brokers=_env("SIGNALOPS_BROKER_BROKERS", DEFAULT_BROKERS),
         environment=environment,
         input_topic=_env("SIGNALOPS_WORKER_INPUT_TOPIC", raw_topic(environment)),
+        retry_topic=_env("SIGNALOPS_WORKER_RETRY_TOPIC", retry_topic(environment)),
         dlq_topic=_env("SIGNALOPS_WORKER_DLQ_TOPIC", dlq_topic(environment)),
         group_id=_env("SIGNALOPS_WORKER_GROUP_ID", DEFAULT_GROUP_ID),
         poll_timeout_seconds=_float_env(
@@ -41,6 +43,11 @@ def load_config() -> WorkerConfig:
 def raw_topic(environment: str) -> str:
     environment = environment.strip() or DEFAULT_ENVIRONMENT
     return f"signalops.{environment}.raw.v1"
+
+
+def retry_topic(environment: str) -> str:
+    environment = environment.strip() or DEFAULT_ENVIRONMENT
+    return f"signalops.{environment}.retry.algorithm.v1"
 
 
 def dlq_topic(environment: str) -> str:

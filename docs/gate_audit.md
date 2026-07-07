@@ -678,3 +678,82 @@ Follow-up items:
 - Add retry topic handling for retryable failures.
 - Add detector plugin interfaces and a no-op detector path.
 - Add replay tooling for DLQ records.
+
+
+## Gate G012: Python Worker Retry Handling
+
+Timestamp: `2026-07-07T02:01:22Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add durable retry-topic publishing for retryable Python worker failures.
+
+Criteria:
+
+- Add a retry publisher for the Python worker.
+- Add `RetryableWorkerError` routing to
+  `signalops.<environment>.retry.algorithm.v1`.
+- Preserve source topic, partition, offset, key, headers, retry attempt, and
+  original broker value in a replayable/auditable payload.
+- Commit the source offset only after processing succeeds, retry publication is
+  acknowledged, or DLQ publication is acknowledged.
+- Add retry payload schema and schema validation coverage.
+- Add unit tests for retry success and retry publish failure semantics.
+- Validate the retry publisher against live Redpanda.
+
+Evidence:
+
+- `python/signalops_workers/worker.py`
+- `python/signalops_workers/broker.py`
+- `python/signalops_workers/config.py`
+- `python/signalops_workers/__main__.py`
+- `python/tests/test_worker.py`
+- `python/tests/test_config.py`
+- `contracts/events/retry_event.v1.schema.json`
+- `contracts/events/README.md`
+- `compose.yaml`
+- `docs/python_worker.md`
+- `docs/deployment.md`
+
+Verification performed:
+
+- `docker compose config --quiet`
+- `make docker-test-python`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose build raw-worker`
+- `docker compose run --rm --entrypoint python raw-worker -c "from signalops_workers.broker import RedpandaRetryPublisher; from signalops_workers.worker import BrokerMessage, RetryableWorkerError; p=RedpandaRetryPublisher(brokers='redpanda:9092', retry_topic='signalops.local.retry.algorithm.v1'); p.publish(BrokerMessage(topic='signalops.local.raw.v1', partition=2, offset=99, key='g012-retry-live', value=b'{"event_id":"g012-retry-live"}', headers={'correlation_id':'g012-correlation-live','signalops_retry_attempt':'1'}), RetryableWorkerError('transient dependency unavailable')); p.close(); print('published retry event')"`
+- `docker compose exec redpanda rpk topic consume signalops.local.retry.algorithm.v1 -o start -n 1`
+- `docker compose up -d raw-worker`
+- `curl -sS http://127.0.0.1:18000/readyz`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Retry topic contained key `g012-retry-live` with schema ID
+  `signalops.retry.raw_event.v1`, error type `RetryableWorkerError`, error
+  message `transient dependency unavailable`, retry attempt `2`, source topic
+  `signalops.local.raw.v1`, source partition `2`, source offset `99`, source
+  correlation header `g012-correlation-live`, and base64 source payload.
+- Worker service redeployed successfully with retry topic configuration.
+- Worker consumer group `signalops.raw-worker.v1` returned to stable state with
+  one member and total lag `0` after redeploy rebalance completed.
+
+Issues found and resolved:
+
+- The worker previously routed all failures to DLQ. Retryable failures now have
+  a distinct retry topic and contract.
+- Unit tests verify that source messages are not committed when retry publishing
+  fails.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add detector plugin interfaces and a reference no-op detector.
+- Add retry replay tooling.
+- Add retry attempt limits and escalation from retry to DLQ.

@@ -588,3 +588,72 @@ Next step:
 - Add retry-topic handling for retryable processing failures.
 - Add detector plugin interfaces and a no-op detector path that can emit
   normalized success/failure outcomes.
+
+
+## 2026-07-07T02:01:22Z
+
+Summary:
+
+- Added retry-topic handling for retryable Python worker failures.
+- Added `RetryEvent` JSON Schema for durable retry payloads.
+- Updated worker routing so `RetryableWorkerError` publishes to
+  `signalops.<environment>.retry.algorithm.v1` and non-retryable failures
+  continue to DLQ.
+- Validated live Redpanda retry publishing with a synthetic retryable failure.
+
+Files changed:
+
+- `compose.yaml`
+- `contracts/events/README.md`
+- `contracts/events/retry_event.v1.schema.json`
+- `docs/python_worker.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `python/signalops_workers/__main__.py`
+- `python/signalops_workers/broker.py`
+- `python/signalops_workers/config.py`
+- `python/signalops_workers/worker.py`
+- `python/tests/test_config.py`
+- `python/tests/test_worker.py`
+
+Rationale:
+
+- G011 established DLQ handling for invalid and non-retryable failures. G012
+  separates retryable failures into the retry topic so transient dependency or
+  algorithm failures can be replayed without being treated as terminal DLQ
+  records.
+- Source offsets are committed only after retry publication is acknowledged,
+  preserving at-least-once behavior when the retry path is unavailable.
+- Retry payloads preserve source topic, partition, offset, key, headers,
+  retry attempt, and base64-encoded source value.
+
+Verification performed:
+
+- Validated compose syntax with `docker compose config --quiet`.
+- Ran Python unit tests with `make docker-test-python`; 13 tests passed.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; the
+  new `retry_event.v1.schema.json` passed.
+- Built the worker image with `docker compose build raw-worker`.
+- Published a synthetic retryable failure with `RedpandaRetryPublisher` from the
+  worker image.
+- Consumed `signalops.local.retry.algorithm.v1` and verified key, retry attempt,
+  error type, source topic, source partition, source offset, correlation header,
+  and base64 source payload.
+- Redeployed the long-running worker with `docker compose up -d raw-worker`.
+- Verified gateway readiness and `rpk group describe signalops.raw-worker.v1`
+  returned stable state with one member and total lag `0` after the old consumer
+  session timed out.
+
+Issue found and resolved:
+
+- After worker redeploy, Redpanda briefly reported `PreparingRebalance` with two
+  members because the old consumer session had not timed out. The group returned
+  to stable state with one member and zero lag after the session timeout window.
+
+Next step:
+
+- Add detector plugin interfaces and a reference no-op detector path.
+- Add retry replay tooling that consumes retry records back into worker input or
+  a bounded retry processor.
