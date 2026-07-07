@@ -444,3 +444,80 @@ Next step:
   exercises HTTP publish and consume automatically.
 - Begin G010 Python worker skeleton for consuming durable raw or normalized
   work from Redpanda.
+
+
+## 2026-07-07T00:25:36Z
+
+Summary:
+
+- Added the first runnable Python worker runtime for SignalOps.
+- Added a `raw-worker` Docker Compose service that consumes
+  `signalops.local.raw.v1` from Redpanda.
+- Added Python unit tests, worker Docker image, and worker documentation.
+- Deployed the long-running worker service locally and verified consumer group
+  stability with zero lag.
+
+Files changed:
+
+- `.dockerignore`
+- `Makefile`
+- `compose.yaml`
+- `deploy/docker/python-worker/Dockerfile`
+- `python/requirements-worker.txt`
+- `python/signalops_workers/__init__.py`
+- `python/signalops_workers/__main__.py`
+- `python/signalops_workers/broker.py`
+- `python/signalops_workers/config.py`
+- `python/signalops_workers/worker.py`
+- `python/tests/test_config.py`
+- `python/tests/test_worker.py`
+- `python/signalops_plugins/README.md`
+- `docs/docker_development.md`
+- `docs/deployment.md`
+- `docs/python_worker.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- G009 proved HTTP-to-Redpanda ingestion; G010 proves the Python side of the
+  durable boundary can consume and commit raw events without direct Go/Python
+  coupling.
+- The worker intentionally performs no detector logic yet. It provides the
+  runtime seam for later algorithm plugins while keeping the first deployment
+  auditable and low risk.
+- Invalid raw records are logged and committed in this skeleton so historical
+  poison records do not crash-loop the worker before retry/DLQ routing exists.
+
+Verification performed:
+
+- Validated compose syntax with `docker compose config --quiet`.
+- Ran Python unit tests with `make docker-test-python`; 7 tests passed.
+- Built the worker image with `docker compose build raw-worker`.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Ran one-shot worker validation with `SIGNALOPS_WORKER_MAX_MESSAGES=1`; it
+  skipped and committed a historical invalid raw record.
+- Ran another one-shot worker validation with the same explicit validation group;
+  it processed a valid raw event.
+- Started the long-running worker with `docker compose up -d raw-worker`.
+- Verified `docker compose ps` showed `signalops-raw-worker-1` running.
+- Verified `rpk group describe signalops.raw-worker.v1` showed a stable group
+  with one member and total lag `0`.
+
+Issues found and resolved:
+
+- The first one-shot worker run crashed on an older G008 broker-client test
+  record that did not contain `event_id`. The worker now logs and commits
+  invalid raw records until retry/DLQ behavior is implemented.
+- The initial Python adapter commit used a generic synchronous commit and the
+  validation group saw the same record again. The adapter now commits explicit
+  topic/partition offsets using `TopicPartition(message.offset + 1)`.
+- `.dockerignore` excluded `python`, which prevented the worker image from
+  containing source code. The Python source is now included in Docker build
+  context.
+
+Next step:
+
+- Add retry/DLQ publishing for invalid raw events and processing failures.
+- Add detector plugin contracts and a reference no-op detector worker path.

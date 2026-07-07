@@ -29,6 +29,12 @@ Validate JSON schemas:
 make docker-validate-schemas
 ```
 
+Run Python worker tests:
+
+```bash
+make docker-test-python
+```
+
 Open a Go toolchain shell:
 
 ```bash

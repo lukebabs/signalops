@@ -515,3 +515,85 @@ Follow-up items:
 - Add a broker-backed readiness check instead of only process readiness.
 - Add automated HTTP-to-Redpanda integration tests.
 - Begin Python worker skeleton for durable algorithm processing.
+
+
+## Gate G010: Python Raw Worker Skeleton
+
+Timestamp: `2026-07-07T00:25:36Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add and deploy the initial Python worker skeleton for durable raw event consumption.
+
+Criteria:
+
+- Add a runnable Python worker package separate from Go services.
+- Consume raw events from Redpanda using the durable broker boundary.
+- Parse raw event JSON and resolve event, idempotency, and correlation metadata.
+- Manually commit consumed offsets.
+- Avoid detector-specific algorithm behavior in this gate.
+- Add Docker image and Compose service for the worker.
+- Add Python unit tests and worker documentation.
+- Deploy the worker locally and verify consumer group state.
+
+Evidence:
+
+- `python/signalops_workers/config.py`
+- `python/signalops_workers/worker.py`
+- `python/signalops_workers/broker.py`
+- `python/signalops_workers/__main__.py`
+- `python/tests/test_config.py`
+- `python/tests/test_worker.py`
+- `python/requirements-worker.txt`
+- `deploy/docker/python-worker/Dockerfile`
+- `compose.yaml`
+- `Makefile`
+- `docs/python_worker.md`
+- `docs/deployment.md`
+- `docs/docker_development.md`
+
+Verification performed:
+
+- `docker compose config --quiet`
+- `make docker-test-python`
+- `docker compose build raw-worker`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose run --rm -e SIGNALOPS_WORKER_GROUP_ID=signalops.g010.validation -e SIGNALOPS_WORKER_MAX_MESSAGES=1 raw-worker`
+- `docker compose run --rm -e SIGNALOPS_WORKER_GROUP_ID=signalops.g010.validation.explicit -e SIGNALOPS_WORKER_MAX_MESSAGES=1 raw-worker`
+- `docker compose up -d raw-worker`
+- `docker compose ps`
+- `docker compose logs --tail=40 raw-worker`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- One-shot worker validation skipped and committed invalid historical raw records
+  instead of crash-looping.
+- One-shot worker validation processed a valid G009 raw event after explicit
+  offset commit handling was added.
+- Long-running `signalops-raw-worker-1` is running in Docker Compose.
+- Consumer group `signalops.raw-worker.v1` is stable with one member and total
+  lag `0` across `signalops.local.raw.v1` partitions.
+
+Issues found and resolved:
+
+- Historical G008 test records lacked `event_id`, causing the first worker run
+  to fail. The skeleton now logs and commits invalid records until DLQ routing
+  is added.
+- Generic synchronous consumer commits did not advance the validation group
+  reliably. The worker now commits explicit topic/partition offsets.
+- `.dockerignore` excluded the `python` directory. The ignore rule was removed
+  so the worker image receives source files.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add retry and DLQ publishing for invalid raw records and processing failures.
+- Add detector plugin interfaces and a reference no-op detector.
+- Add worker health/readiness signaling for orchestration.

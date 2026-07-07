@@ -41,6 +41,7 @@ make compose-down
 - `redpanda-console`: local broker UI on `http://localhost:18080`.
 - `topic-bootstrap`: one-shot topic creation job.
 - `gateway`: SignalOps gateway on `http://localhost:18000`.
+- `raw-worker`: Python worker that consumes `signalops.local.raw.v1`.
 
 ## Local Ports
 
@@ -107,3 +108,11 @@ Kafka record headers:
 
 Dockerized integration tests use host networking because the local Redpanda
 compose listener advertises `localhost:19092`.
+
+## Python Worker
+
+The initial Python worker runs from `python/signalops_workers` and consumes raw
+events from Redpanda. G010 intentionally limits worker behavior to consume,
+parse, log, and commit so detector-specific algorithm behavior remains isolated
+for later gates. See `docs/python_worker.md` for configuration and validation
+commands.

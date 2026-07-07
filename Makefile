@@ -4,7 +4,7 @@ DOCKER_WORKDIR ?= /workspace
 IMAGE ?= signalops-gateway:local
 COMPOSE ?= docker compose
 
-.PHONY: docker-test docker-test-broker-integration docker-build docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate
+.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate
 
 docker-test:
 	docker run --rm \
@@ -12,6 +12,14 @@ docker-test:
 		-w $(DOCKER_WORKDIR) \
 		$(GO_IMAGE) \
 		go test ./...
+
+docker-test-python:
+	docker run --rm \
+		-v $(CURDIR):$(DOCKER_WORKDIR) \
+		-w $(DOCKER_WORKDIR) \
+		-e PYTHONPATH=$(DOCKER_WORKDIR)/python \
+		$(PYTHON_IMAGE) \
+		python -m unittest discover -s python/tests
 
 docker-test-broker-integration:
 	docker run --rm --network host \
