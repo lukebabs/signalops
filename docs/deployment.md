@@ -176,3 +176,8 @@ The first migration creates scheduler run audit, provider usage, idempotency,
 raw event ledger, equity EOD, and option contract snapshot tables. TimescaleDB
 hypertable conversion remains future scope after the base persistence paths are
 proven.
+
+
+Scheduler persistence is enabled when `SIGNALOPS_DATABASE_URL` is set. The
+local `massive-scheduler` Compose service points at the `postgres` service and
+writes scheduler run summaries plus provider usage rows after each run.

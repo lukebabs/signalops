@@ -1407,3 +1407,67 @@ Next step:
 
 - Wire Massive scheduler runs to persist scheduler run records and provider usage rows through a concrete PostgreSQL repository.
 - After run audit writes are proven, add idempotency and raw event ledger persistence on publish.
+
+
+## 2026-07-07T20:59:45Z
+
+Summary:
+
+- Completed G027 by adding a concrete PostgreSQL repository for scheduler run audit and provider usage persistence.
+- Wired `massive-scheduler` to open the Postgres repository when `SIGNALOPS_DATABASE_URL` is configured.
+- Added config loading for `SIGNALOPS_DATABASE_URL` and local Compose scheduler wiring to depend on healthy Postgres.
+- Added pgx stdlib as the database driver dependency.
+- Persisted each scheduler loop run into `scheduler_runs` and provider usage into `provider_usage_runs` after the Massive scheduled pull completes.
+- For single-dataset runs, provider usage is recorded for that dataset. For multi-dataset runs, provider usage is recorded as an aggregate `all` row so request/retry totals remain accurate.
+- Documented scheduler persistence in deployment and Massive adapter docs.
+
+Files changed:
+
+- `go.mod`
+- `go.sum`
+- `compose.yaml`
+- `cmd/massive-scheduler/main.go`
+- `internal/config/config.go`
+- `internal/config/config_test.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `docs/deployment.md`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- Scheduler runs need durable, queryable audit history before UI/API views can expose ingestion health, budgets, failures, and provider consumption.
+- Persisting the scheduler summary first keeps storage integration narrow while proving the database path and deployment wiring.
+- The repository implements the existing storage boundary, keeping scheduler code independent of SQL details.
+
+Verification performed:
+
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Built the scheduler image with `docker compose --profile massive-schedule build massive-scheduler`; build completed successfully and Dockerfile test stage passed.
+- Ran Python unit tests with `python -m unittest discover -s python/tests`; 36 tests passed.
+- Ran schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Ran Postgres integration test `TestRepositoryAgainstPostgres`; repository upsert/usage writes passed against local Compose Postgres on port `15432`.
+- Ran Redpanda broker integration test `TestPublishConsumeCommitAgainstRedpanda`; publish/consume/commit passed against local Redpanda on port `19092`.
+- Ran a live scheduler dry-run through Compose with one company, equity dataset, one provider request, and database persistence enabled.
+- Queried Postgres for latest `scheduler_runs` and `provider_usage_runs` rows.
+- Verified raw-worker group remained stable with total lag `0`.
+
+Live verification result:
+
+- Scheduler dry-run persisted run `massive:src-massive:20260707T205903.415271355Z` with status `succeeded`, `events_built=1`, `events_published=0`, `provider_requests=1`, `provider_retries=0`, and `failures=0`.
+- Provider usage persisted for that run with provider `massive`, dataset `equity_eod_prices`, `request_count=1`, `retry_count=0`, and `event_count=1`.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+
+Issue found and resolved:
+
+- Local `gofmt` was unavailable, so formatting was run through the Go Docker image.
+- The schema validation command initially hit the sandbox loopback failure before Docker started; it was rerun with approved escalation and passed.
+- Multi-dataset provider usage initially risked misleading zero request/retry rows. The persistence logic now stores aggregate provider usage as dataset `all` when more than one dataset is selected.
+- Final Go validation caught an over-escaped quote in the Postgres array helper; the helper now uses one backslash for quotes and two for literal backslashes, with test coverage.
+
+Next step:
+
+- Add database-backed idempotency and raw event ledger persistence on publish so replay/audit state is durable beyond scheduler summaries.
+- Start exposing persisted scheduler history through an API endpoint for UI/API readiness.

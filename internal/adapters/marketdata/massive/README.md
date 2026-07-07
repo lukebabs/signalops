@@ -200,3 +200,8 @@ Scheduler controls:
 
 The scheduler uses the same dataset, rate-control, dry-run, and broker publish
 settings as `cmd/massive-puller`. Compose keeps dry-run enabled by default.
+
+
+Scheduler run persistence is enabled by `SIGNALOPS_DATABASE_URL`. When set, the
+scheduler writes each run summary to `scheduler_runs` and provider usage rows to
+`provider_usage_runs` after every pull attempt.

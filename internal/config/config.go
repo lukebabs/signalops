@@ -7,6 +7,7 @@ const (
 	defaultBrokerProvider = "redpanda"
 	defaultBrokerBrokers  = "redpanda:9092"
 	defaultEnvironment    = "local"
+	defaultDatabaseURL    = ""
 )
 
 // Config contains process-level settings for SignalOps services.
@@ -15,6 +16,7 @@ type Config struct {
 	BrokerProvider string
 	BrokerBrokers  string
 	Environment    string
+	DatabaseURL    string
 }
 
 // Load reads configuration from environment variables.
@@ -24,6 +26,7 @@ func Load() Config {
 		BrokerProvider: envOrDefault("SIGNALOPS_BROKER_PROVIDER", defaultBrokerProvider),
 		BrokerBrokers:  envOrDefault("SIGNALOPS_BROKER_BROKERS", defaultBrokerBrokers),
 		Environment:    envOrDefault("SIGNALOPS_ENV", defaultEnvironment),
+		DatabaseURL:    envOrDefault("SIGNALOPS_DATABASE_URL", defaultDatabaseURL),
 	}
 }
 

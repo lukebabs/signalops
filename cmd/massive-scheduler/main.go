@@ -16,6 +16,8 @@ import (
 	"github.com/lukebabs/signalops/internal/adapters/marketdata/massive"
 	kafkabroker "github.com/lukebabs/signalops/internal/broker/kafka"
 	"github.com/lukebabs/signalops/internal/config"
+	"github.com/lukebabs/signalops/internal/storage"
+	postgresstorage "github.com/lukebabs/signalops/internal/storage/postgres"
 )
 
 func main() {
@@ -113,6 +115,22 @@ func run(logger *slog.Logger, args []string) error {
 		}()
 	}
 
+	var runRepo storage.SchedulerRunRepository
+	var repoCloser interface{ Close() error }
+	if strings.TrimSpace(cfg.DatabaseURL) != "" {
+		repo, err := postgresstorage.Open(ctx, cfg.DatabaseURL)
+		if err != nil {
+			return err
+		}
+		runRepo = repo
+		repoCloser = repo
+		defer func() {
+			if closeErr := repoCloser.Close(); closeErr != nil {
+				logger.Error("signalops massive scheduler storage shutdown failed", "error", closeErr)
+			}
+		}()
+	}
+
 	pullCfg := massive.ScheduledPullConfig{
 		TenantID:            tenantID,
 		SourceID:            sourceID,
@@ -138,10 +156,31 @@ func run(logger *slog.Logger, args []string) error {
 		RunImmediately:     runImmediately,
 		ContinueOnRunError: continueOnRunError,
 	}, func(runCtx context.Context) (massive.ScheduledPullReport, error) {
+		startedAt := time.Now().UTC()
 		report, runErr := massive.RunScheduledPull(runCtx, pullCfg, massiveClient, brokerClient)
+		completedAt := time.Now().UTC()
 		encoded, marshalErr := json.Marshal(report)
 		if marshalErr == nil {
 			logger.Info("signalops massive scheduler run report", "report", string(encoded))
+		}
+		if runRepo != nil {
+			if persistErr := persistSchedulerRun(runCtx, runRepo, schedulerPersistInput{
+				TenantID:         tenantID,
+				SourceID:         sourceID,
+				Datasets:         selectedDatasetNames(includeEquity, includeOptions),
+				PullConfig:       pullCfg,
+				Report:           report,
+				RunErr:           runErr,
+				StartedAt:        startedAt,
+				CompletedAt:      completedAt,
+				LoopMaxRuns:      maxRuns,
+				ScheduleInterval: scheduleInterval,
+			}); persistErr != nil {
+				logger.Error("signalops massive scheduler persist failed", "error", persistErr)
+				if runErr == nil {
+					return report, persistErr
+				}
+			}
 		}
 		return report, runErr
 	})
@@ -228,4 +267,130 @@ func envDurationOrDefault(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return parsed
+}
+
+type schedulerPersistInput struct {
+	TenantID         string
+	SourceID         string
+	Datasets         []string
+	PullConfig       massive.ScheduledPullConfig
+	Report           massive.ScheduledPullReport
+	RunErr           error
+	StartedAt        time.Time
+	CompletedAt      time.Time
+	LoopMaxRuns      int
+	ScheduleInterval time.Duration
+}
+
+func persistSchedulerRun(ctx context.Context, repo storage.SchedulerRunRepository, input schedulerPersistInput) error {
+	status := storage.RunStatusSucceeded
+	errorMessage := ""
+	if input.RunErr != nil {
+		status = storage.RunStatusFailed
+		errorMessage = input.RunErr.Error()
+	}
+	configJSON, err := json.Marshal(map[string]any{
+		"dry_run":               input.PullConfig.DryRun,
+		"include_equity_eod":    input.PullConfig.IncludeEquityEOD,
+		"include_options":       input.PullConfig.IncludeOptions,
+		"options_limit":         input.PullConfig.OptionsLimit,
+		"max_provider_requests": input.PullConfig.MaxProviderRequests,
+		"max_events_built":      input.PullConfig.MaxEventsBuilt,
+		"max_events_published":  input.PullConfig.MaxEventsPublished,
+		"max_retries":           input.PullConfig.MaxRetries,
+		"request_delay":         input.PullConfig.RequestDelay.String(),
+		"retry_backoff":         input.PullConfig.RetryBackoff.String(),
+		"schedule_interval":     input.ScheduleInterval.String(),
+		"schedule_max_runs":     input.LoopMaxRuns,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal scheduler config: %w", err)
+	}
+	reportJSON, err := json.Marshal(input.Report)
+	if err != nil {
+		return fmt.Errorf("marshal scheduler report: %w", err)
+	}
+	runID := schedulerRunID(input.SourceID, input.StartedAt)
+	if err := repo.UpsertSchedulerRun(ctx, storage.SchedulerRunRecord{
+		RunID:            runID,
+		TenantID:         input.TenantID,
+		SourceID:         input.SourceID,
+		SourceAdapter:    massive.AdapterID,
+		Datasets:         input.Datasets,
+		ObservationDate:  input.Report.ObservationDate,
+		DryRun:           input.Report.DryRun,
+		Status:           status,
+		StartedAt:        input.StartedAt,
+		CompletedAt:      &input.CompletedAt,
+		EventsBuilt:      input.Report.EventsBuilt,
+		EventsPublished:  input.Report.EventsPublished,
+		ProviderRequests: input.Report.ProviderRequests,
+		ProviderRetries:  input.Report.ProviderRetries,
+		Failures:         input.Report.Failures,
+		ConfigJSON:       configJSON,
+		ReportJSON:       reportJSON,
+		ErrorMessage:     errorMessage,
+	}); err != nil {
+		return err
+	}
+	for _, dataset := range providerUsageDatasets(input.Datasets) {
+		if err := repo.InsertProviderUsage(ctx, storage.ProviderUsageRecord{
+			UsageID:      runID + ":" + dataset,
+			RunID:        runID,
+			Provider:     "massive",
+			Dataset:      dataset,
+			RequestCount: providerRequestCountForDataset(input.Report),
+			RetryCount:   providerRetryCountForDataset(input.Report),
+			EventCount:   providerEventCountForDataset(input.Report, dataset),
+			BudgetJSON:   configJSON,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func schedulerRunID(sourceID string, startedAt time.Time) string {
+	cleanSource := strings.NewReplacer(" ", "_", ":", "_", "/", "_").Replace(strings.TrimSpace(sourceID))
+	if cleanSource == "" {
+		cleanSource = "src"
+	}
+	return "massive:" + cleanSource + ":" + startedAt.UTC().Format("20060102T150405.000000000Z")
+}
+
+func selectedDatasetNames(includeEquity bool, includeOptions bool) []string {
+	datasets := []string{}
+	if includeEquity {
+		datasets = append(datasets, massive.DatasetEquityEODPrices)
+	}
+	if includeOptions {
+		datasets = append(datasets, massive.DatasetOptionsContractsDaily)
+	}
+	return datasets
+}
+
+func providerUsageDatasets(datasets []string) []string {
+	if len(datasets) > 1 {
+		return []string{"all"}
+	}
+	return datasets
+}
+
+func providerRequestCountForDataset(report massive.ScheduledPullReport) int {
+	return report.ProviderRequests
+}
+
+func providerRetryCountForDataset(report massive.ScheduledPullReport) int {
+	return report.ProviderRetries
+}
+
+func providerEventCountForDataset(report massive.ScheduledPullReport, dataset string) int {
+	if dataset != "all" {
+		return report.EventsByDataset[dataset]
+	}
+	total := 0
+	for _, count := range report.EventsByDataset {
+		total += count
+	}
+	return total
 }

@@ -1729,3 +1729,87 @@ Follow-up items:
 - Add a concrete PostgreSQL repository implementation for scheduler run audit and provider usage writes.
 - Persist Massive scheduler run summaries after each scheduled pull run.
 - Add database-backed idempotency and raw event ledger writes on publish.
+
+
+## Gate G027: Massive Scheduler Persistence
+
+Timestamp: `2026-07-07T20:59:45Z`
+
+Status: `passed`
+
+Gate name:
+
+- Persist Massive scheduler run audit and provider usage records to PostgreSQL.
+
+Criteria:
+
+- Add a concrete PostgreSQL repository for `SchedulerRunRepository`.
+- Load `SIGNALOPS_DATABASE_URL` from config.
+- Wire `massive-scheduler` to persist scheduler run summaries after each scheduled pull run when a database URL is configured.
+- Persist provider usage for Massive scheduler runs.
+- Enable local Compose scheduler persistence by depending on healthy Postgres and setting the scheduler database URL.
+- Document the new persistence behavior.
+- Validate unit, schema, image build, Postgres integration, broker integration, and live scheduler dry-run paths.
+- Confirm raw-worker lag remains `0`.
+
+Evidence:
+
+- `go.mod`
+- `go.sum`
+- `compose.yaml`
+- `cmd/massive-scheduler/main.go`
+- `internal/config/config.go`
+- `internal/config/config_test.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `docs/deployment.md`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The repository uses pgx through `database/sql` via `github.com/jackc/pgx/v5/stdlib`.
+- Scheduler run rows are upserted by deterministic run id derived from source id and run start timestamp.
+- Provider usage rows are upserted by run id and dataset key.
+- Single-dataset runs record provider usage against the dataset name.
+- Multi-dataset runs record one aggregate provider usage row with dataset `all` to preserve accurate request and retry totals.
+- Scheduler persistence is optional and activates only when `SIGNALOPS_DATABASE_URL` is non-empty.
+
+Verification performed:
+
+- `docker compose --profile massive-schedule config --quiet`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm gofmt -w cmd/massive-scheduler/main.go internal/storage/postgres/repository.go internal/storage/postgres/repository_test.go internal/config/config.go internal/config/config_test.go`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker compose --profile massive-schedule build massive-scheduler`
+- `make docker-test-python`
+- `make docker-validate-schemas`
+- `docker run --rm --network host -e SIGNALOPS_POSTGRES_INTEGRATION=1 -e SIGNALOPS_DATABASE_URL=postgres://signalops:signalops@localhost:15432/signalops?sslmode=disable -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/storage/postgres -run TestRepositoryAgainstPostgres -count=1 -v`
+- `docker compose --profile massive-schedule run --rm massive-scheduler --max-runs 1 --max-companies 1 --datasets equity --request-delay 250ms --max-retries 0 --retry-backoff 1s --max-provider-requests 1 --max-events-built 1 --dry-run=true --continue-on-error=false --continue-on-run-error=false`
+- `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT run_id,status,events_built,events_published,provider_requests,provider_retries,failures FROM scheduler_runs ORDER BY started_at DESC LIMIT 3"`
+- `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT run_id,provider,dataset,request_count,retry_count,event_count FROM provider_usage_runs ORDER BY created_at DESC LIMIT 5"`
+- `docker run --rm --network host -e SIGNALOPS_BROKER_INTEGRATION=1 -e SIGNALOPS_BROKER_BROKERS=localhost:19092 -e SIGNALOPS_ENV=local -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/broker/kafka -run TestPublishConsumeCommitAgainstRedpanda -count=1 -v`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Live scheduler dry-run persisted run `massive:src-massive:20260707T205903.415271355Z` with status `succeeded`, `events_built=1`, `events_published=0`, `provider_requests=1`, `provider_retries=0`, and `failures=0`.
+- Provider usage persisted for the same run with provider `massive`, dataset `equity_eod_prices`, `request_count=1`, `retry_count=0`, and `event_count=1`.
+- Scheduler image build completed successfully.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+
+Issues found and resolved:
+
+- Local `gofmt` was unavailable; Dockerized `gofmt` was used instead.
+- Schema validation initially hit a sandbox loopback failure; rerun with approved escalation passed.
+- Multi-dataset usage accounting was adjusted to use aggregate dataset `all` rather than writing misleading zero request/retry counts per dataset.
+- Final Go validation caught an over-escaped quote in the Postgres array helper; the helper now uses one backslash for quotes and two for literal backslashes, with test coverage.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add database-backed idempotency and raw event ledger persistence on publish.
+- Add API access to persisted scheduler run history and provider usage for UI readiness.

@@ -7,6 +7,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("SIGNALOPS_BROKER_PROVIDER", "")
 	t.Setenv("SIGNALOPS_BROKER_BROKERS", "")
 	t.Setenv("SIGNALOPS_ENV", "")
+	t.Setenv("SIGNALOPS_DATABASE_URL", "")
 
 	cfg := Load()
 
@@ -22,6 +23,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Environment != defaultEnvironment {
 		t.Fatalf("Environment = %q, want %q", cfg.Environment, defaultEnvironment)
 	}
+	if cfg.DatabaseURL != defaultDatabaseURL {
+		t.Fatalf("DatabaseURL = %q, want %q", cfg.DatabaseURL, defaultDatabaseURL)
+	}
 }
 
 func TestLoadEnvironment(t *testing.T) {
@@ -29,6 +33,7 @@ func TestLoadEnvironment(t *testing.T) {
 	t.Setenv("SIGNALOPS_BROKER_PROVIDER", "kafka")
 	t.Setenv("SIGNALOPS_BROKER_BROKERS", "localhost:19092")
 	t.Setenv("SIGNALOPS_ENV", "test")
+	t.Setenv("SIGNALOPS_DATABASE_URL", "postgres://example")
 
 	cfg := Load()
 
@@ -43,5 +48,8 @@ func TestLoadEnvironment(t *testing.T) {
 	}
 	if cfg.Environment != "test" {
 		t.Fatalf("Environment = %q", cfg.Environment)
+	}
+	if cfg.DatabaseURL != "postgres://example" {
+		t.Fatalf("DatabaseURL = %q", cfg.DatabaseURL)
 	}
 }
