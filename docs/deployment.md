@@ -88,6 +88,13 @@ Broker configuration is loaded now; concrete broker clients will be wired in a
 later gate. The shared Go broker boundary and topic constants live under
 `pkg/broker`.
 
+## Gateway API
+
+The gateway exposes raw event ingestion at `POST /v1/events/raw`. The endpoint
+publishes accepted JSON objects to `signalops.<environment>.raw.v1` and returns
+broker acknowledgement details. See `docs/api.md` for request and broker header
+mapping.
+
 ## Broker Client
 
 The concrete Kafka-compatible Go client lives under `internal/broker/kafka`.

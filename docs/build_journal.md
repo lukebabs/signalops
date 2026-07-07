@@ -387,3 +387,60 @@ Next step:
 
 - Wire the gateway ingestion path to publish accepted raw events to
   `signalops.<env>.raw.v1` through the broker client.
+
+
+## 2026-07-07T00:01:22Z
+
+Summary:
+
+- Added gateway raw event ingestion at `POST /v1/events/raw`.
+- Wired the gateway to the concrete Kafka-compatible broker client.
+- Published accepted raw events to `signalops.<environment>.raw.v1` with broker
+  acknowledgement response details.
+- Added API tests and live HTTP-to-Redpanda verification.
+- Fixed the Dockerfile to copy `go.sum` before image build tests.
+
+Files changed:
+
+- `cmd/gateway/main.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `Dockerfile`
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- G008 proved the broker client directly; G009 proves the first application path
+  from gateway HTTP ingestion into the durable Redpanda raw topic.
+- The endpoint keeps the incoming JSON object unchanged as the broker value and
+  adds SignalOps metadata in broker headers for downstream consumers.
+- The gateway now uses `pkg/broker` abstractions while the concrete Redpanda
+  client remains under `internal/broker/kafka`.
+
+Verification performed:
+
+- Formatted gateway/API code with Dockerized `gofmt`.
+- Ran Dockerized `go test ./...`; all packages passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Rebuilt and redeployed the gateway with `docker compose up -d --build gateway`.
+- Verified `GET /healthz` and `GET /readyz` on `http://127.0.0.1:18000`.
+- Posted a live raw event to `POST /v1/events/raw` and received `202 Accepted`
+  with topic `signalops.local.raw.v1`, partition `0`, and offset `1`.
+- Consumed `signalops.local.raw.v1` partition `0` offset `1` with `rpk` and
+  verified key, payload, and metadata headers.
+
+Issue found and resolved:
+
+- The Dockerfile copied `go.mod` but not `go.sum`, which failed image build
+  tests after adding franz-go. The Dockerfile now copies both files before
+  running `go test ./...` in the build stage.
+
+Next step:
+
+- Add broker-backed readiness checks and an ingestion integration test that
+  exercises HTTP publish and consume automatically.
+- Begin G010 Python worker skeleton for consuming durable raw or normalized
+  work from Redpanda.

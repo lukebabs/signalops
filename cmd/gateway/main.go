@@ -7,20 +7,36 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/lukebabs/signalops/internal/api"
+	kafkabroker "github.com/lukebabs/signalops/internal/broker/kafka"
 	"github.com/lukebabs/signalops/internal/config"
+	"github.com/lukebabs/signalops/pkg/broker"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	cfg := config.Load()
+	brokerClient, err := kafkabroker.NewClient(kafkabroker.Config{
+		Brokers:  strings.Split(cfg.BrokerBrokers, ","),
+		ClientID: "signalops-gateway",
+	})
+	if err != nil {
+		logger.Error("signalops gateway broker setup failed", "error", err)
+		os.Exit(1)
+	}
+
 	server := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewRouter(api.RouterConfig{ServiceName: "signalops-gateway"}),
+		Addr: cfg.HTTPAddr,
+		Handler: api.NewRouter(api.RouterConfig{
+			ServiceName: "signalops-gateway",
+			Publisher:   brokerClient,
+			RawTopic:    broker.TopicName(cfg.Environment, broker.RawTopic),
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -50,7 +66,10 @@ func main() {
 		logger.Error("signalops gateway shutdown failed", "error", err)
 		os.Exit(1)
 	}
+	if err := brokerClient.Close(ctx); err != nil {
+		logger.Error("signalops gateway broker shutdown failed", "error", err)
+		os.Exit(1)
+	}
 
 	logger.Info("signalops gateway stopped")
 }
-

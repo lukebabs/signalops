@@ -446,3 +446,72 @@ Follow-up items:
 - Wire gateway ingestion to publish raw events through the broker client.
 - Add application-level publish error handling and readiness checks for broker
   connectivity.
+
+
+## Gate G009: Gateway Raw Event Ingestion
+
+Timestamp: `2026-07-07T00:01:22Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add and validate gateway raw event ingestion into the durable Redpanda raw topic.
+
+Criteria:
+
+- Add `POST /v1/events/raw` to accept JSON object raw events.
+- Publish accepted events through `pkg/broker.Publisher` to
+  `signalops.<environment>.raw.v1`.
+- Preserve raw JSON bytes as the broker value.
+- Use idempotency key as the broker key.
+- Preserve or generate event and correlation identifiers.
+- Carry SignalOps ingestion metadata and correlation headers into Kafka headers.
+- Return broker acknowledgement details on success.
+- Add unit tests, API docs, and live Redpanda verification.
+
+Evidence:
+
+- `cmd/gateway/main.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `Dockerfile`
+- `docs/api.md`
+- `docs/deployment.md`
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm gofmt -w cmd/gateway/main.go internal/api/router.go internal/api/router_test.go`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose up -d --build gateway`
+- `curl -sS http://127.0.0.1:18000/healthz`
+- `curl -sS http://127.0.0.1:18000/readyz`
+- `curl -sS -X POST http://127.0.0.1:18000/v1/events/raw -H 'Content-Type: application/json' -H 'X-Correlation-ID: g009-correlation-live' -H 'X-Causation-ID: g008' -H 'X-Trace-ID: g009-trace-live' -d '{"event_id":"g009-live-event","idempotency_key":"g009-live-key","source_domain":"market_data","source_adapter":"manual-curl","payload":{"symbol":"SPY","close":501.25}}'`
+- `docker compose exec redpanda rpk topic consume signalops.local.raw.v1 -p 0 -o 1 -n 1`
+
+Live verification result:
+
+- Gateway response returned `202 Accepted` with topic `signalops.local.raw.v1`,
+  partition `0`, offset `1`, event ID `g009-live-event`, idempotency key
+  `g009-live-key`, and correlation ID `g009-correlation-live`.
+- Redpanda consume returned key `g009-live-key`, the original JSON payload, and
+  headers `signalops_ingest_route`, `signalops_ingest_format`,
+  `signalops_event_id`, `signalops_idempotency`, `content_type`,
+  `correlation_id`, `causation_id`, and `trace_id`.
+
+Issues found and resolved:
+
+- The Dockerfile copied `go.mod` but not `go.sum`, which prevented image build
+  tests from resolving franz-go dependencies. The Dockerfile now copies both
+  module files before build-stage tests.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add a broker-backed readiness check instead of only process readiness.
+- Add automated HTTP-to-Redpanda integration tests.
+- Begin Python worker skeleton for durable algorithm processing.
