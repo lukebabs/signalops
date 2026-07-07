@@ -35,6 +35,9 @@ func run(logger *slog.Logger, args []string) error {
 	requestDelay := envDurationOrDefault("SIGNALOPS_MASSIVE_REQUEST_DELAY", 250*time.Millisecond)
 	maxRetries := envIntOrDefault("SIGNALOPS_MASSIVE_MAX_RETRIES", 1)
 	retryBackoff := envDurationOrDefault("SIGNALOPS_MASSIVE_RETRY_BACKOFF", time.Second)
+	maxProviderRequests := envIntOrDefault("SIGNALOPS_MASSIVE_MAX_PROVIDER_REQUESTS", 0)
+	maxEventsBuilt := envIntOrDefault("SIGNALOPS_MASSIVE_MAX_EVENTS_BUILT", 0)
+	maxEventsPublished := envIntOrDefault("SIGNALOPS_MASSIVE_MAX_EVENTS_PUBLISHED", 0)
 	dryRun := envBoolOrDefault("SIGNALOPS_MASSIVE_DRY_RUN", true)
 	continueOnError := envBoolOrDefault("SIGNALOPS_MASSIVE_CONTINUE_ON_ERROR", true)
 	tenantID := envOrDefault("SIGNALOPS_MASSIVE_TENANT_ID", "tenant-local")
@@ -53,6 +56,9 @@ func run(logger *slog.Logger, args []string) error {
 	flags.DurationVar(&requestDelay, "request-delay", requestDelay, "delay before each provider request, such as 250ms or 1s")
 	flags.IntVar(&maxRetries, "max-retries", maxRetries, "maximum retry attempts for each provider request")
 	flags.DurationVar(&retryBackoff, "retry-backoff", retryBackoff, "base retry backoff, multiplied by retry attempt")
+	flags.IntVar(&maxProviderRequests, "max-provider-requests", maxProviderRequests, "maximum provider requests allowed per run; 0 disables the limit")
+	flags.IntVar(&maxEventsBuilt, "max-events-built", maxEventsBuilt, "maximum raw events allowed to be built per run; 0 disables the limit")
+	flags.IntVar(&maxEventsPublished, "max-events-published", maxEventsPublished, "maximum raw events allowed to be published per run; 0 disables the limit")
 	flags.BoolVar(&dryRun, "dry-run", dryRun, "build events without publishing")
 	flags.BoolVar(&continueOnError, "continue-on-error", continueOnError, "continue processing symbols after provider/build/publish failures")
 	flags.StringVar(&tenantID, "tenant-id", tenantID, "tenant id for emitted raw events")
@@ -108,19 +114,22 @@ func run(logger *slog.Logger, args []string) error {
 	}
 
 	pullCfg := massive.ScheduledPullConfig{
-		TenantID:         tenantID,
-		SourceID:         sourceID,
-		Environment:      cfg.Environment,
-		ObservationDate:  day,
-		Companies:        companies,
-		IncludeEquityEOD: includeEquity,
-		IncludeOptions:   includeOptions,
-		OptionsLimit:     optionsLimit,
-		RequestDelay:     requestDelay,
-		MaxRetries:       maxRetries,
-		RetryBackoff:     retryBackoff,
-		DryRun:           dryRun,
-		ContinueOnError:  continueOnError,
+		TenantID:            tenantID,
+		SourceID:            sourceID,
+		Environment:         cfg.Environment,
+		ObservationDate:     day,
+		Companies:           companies,
+		IncludeEquityEOD:    includeEquity,
+		IncludeOptions:      includeOptions,
+		OptionsLimit:        optionsLimit,
+		RequestDelay:        requestDelay,
+		MaxRetries:          maxRetries,
+		RetryBackoff:        retryBackoff,
+		MaxProviderRequests: maxProviderRequests,
+		MaxEventsBuilt:      maxEventsBuilt,
+		MaxEventsPublished:  maxEventsPublished,
+		DryRun:              dryRun,
+		ContinueOnError:     continueOnError,
 	}
 
 	loopReport, err := massive.RunScheduledLoop(ctx, massive.ScheduledLoopConfig{

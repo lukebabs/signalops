@@ -144,6 +144,12 @@ Runtime controls:
 - `SIGNALOPS_MASSIVE_MAX_RETRIES`: retry attempts for each provider request.
 - `SIGNALOPS_MASSIVE_RETRY_BACKOFF`: base retry backoff, multiplied by retry
   attempt.
+- `SIGNALOPS_MASSIVE_MAX_PROVIDER_REQUESTS`: hard request limit per run; `0`
+  disables the limit.
+- `SIGNALOPS_MASSIVE_MAX_EVENTS_BUILT`: hard built-event limit per run; `0`
+  disables the limit.
+- `SIGNALOPS_MASSIVE_MAX_EVENTS_PUBLISHED`: hard publish limit per run; `0`
+  disables the limit.
 - `SIGNALOPS_MASSIVE_DRY_RUN`: defaults to `true`; set to `false` to publish
   canonical raw events to `signalops.<env>.raw.v1`.
 - `SIGNALOPS_MASSIVE_CONTINUE_ON_ERROR`: continue across symbols after
@@ -156,7 +162,8 @@ mode writes JSON `RawSignalEvent` values with the idempotency key as the broker
 message key and scheduled-pull headers for downstream audit.
 
 Reports include provider request and retry counters so broad scheduled runs can
-be audited for API usage and transient provider behavior.
+be audited for API usage and transient provider behavior. Hard request, build,
+and publish budgets stop a run before crossing configured limits.
 
 
 ## Scheduled Loop

@@ -1572,3 +1572,80 @@ Follow-up items:
 - Add persistent scheduler run history and provider usage accounting once the database layer exists.
 - Add provider usage budgets and hard run limits before broad scheduled publishing across the full megacap universe.
 - Add Kubernetes CronJob or external orchestrator manifests when deployment targets are finalized.
+
+
+## Gate G025: Massive Provider Usage Budgets
+
+Timestamp: `2026-07-07T19:36:33Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add hard provider and event budgets before broad Massive scheduled runs.
+
+Criteria:
+
+- Add per-run provider request budget enforcement.
+- Add per-run built-event budget enforcement.
+- Add per-run published-event budget enforcement.
+- Expose budgets through one-shot puller and scheduler CLI flags and environment variables.
+- Keep Compose defaults disabled with `0` so existing local behavior does not change accidentally.
+- Add unit coverage for each budget type.
+- Validate a live expected-failure budget stop without publishing broker messages.
+- Validate a live positive bounded dry-run without publishing broker messages.
+- Confirm the running stack remains healthy and raw-worker lag remains `0`.
+
+Evidence:
+
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `internal/adapters/marketdata/massive/scheduled_pull_test.go`
+- `cmd/massive-puller/main.go`
+- `cmd/massive-scheduler/main.go`
+- `compose.yaml`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `SIGNALOPS_MASSIVE_MAX_PROVIDER_REQUESTS` stops a run before issuing a provider request that would cross the limit.
+- `SIGNALOPS_MASSIVE_MAX_EVENTS_BUILT` stops a run before building a raw event that would cross the limit.
+- `SIGNALOPS_MASSIVE_MAX_EVENTS_PUBLISHED` stops a run before publishing a broker message that would cross the limit.
+- A value of `0` disables each budget.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace -e PYTHONPATH=/workspace/python python:3.12-slim python -m unittest discover -s python/tests`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose --profile massive-schedule config --quiet`
+- `docker build --target massive-puller -t signalops-massive-puller:local .`
+- `docker build --target massive-scheduler -t signalops-massive-scheduler:local .`
+- `docker compose --profile massive-schedule build massive-scheduler`
+- `docker compose --profile massive-schedule run --rm massive-scheduler --help`
+- `docker compose --profile massive-schedule run --rm massive-scheduler --max-runs 1 --max-companies 2 --datasets equity --request-delay 250ms --max-retries 0 --retry-backoff 1s --max-provider-requests 1 --dry-run=true --continue-on-error=false --continue-on-run-error=false`
+- `docker compose --profile massive-schedule run --rm massive-scheduler --max-runs 1 --max-companies 2 --datasets equity --request-delay 250ms --max-retries 0 --retry-backoff 1s --max-provider-requests 2 --max-events-built 2 --dry-run=true --continue-on-error=false --continue-on-run-error=false`
+- `docker compose ps`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Expected-failure budget run stopped with `provider request budget exceeded: limit 1` after 1 provider request, 1 built event, 0 published events, and 1 recorded failure.
+- Positive bounded run completed with 2 provider requests, 2 built events, 0 published events, 0 retries, and 0 failures.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+- Running stack remained healthy.
+
+Issues found and resolved:
+
+- None. Budget enforcement passed both stop and allow-path validation.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add persistent scheduler run history and provider usage accounting once the database layer exists.
+- Add database-backed idempotency, normalized market-data storage, and replay/query support.
+- Add Kubernetes CronJob or external orchestrator manifests when deployment targets are finalized.

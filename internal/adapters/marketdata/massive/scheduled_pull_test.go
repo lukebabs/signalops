@@ -212,3 +212,76 @@ func TestRunScheduledPullStopsAfterRetryExhaustion(t *testing.T) {
 		t.Fatalf("report = %+v", report)
 	}
 }
+
+func TestRunScheduledPullStopsAtProviderRequestBudget(t *testing.T) {
+	client := fakeScheduledClient{
+		equityRecords: map[string]EquityEODPriceRecord{
+			"MSFT": {ProviderEventID: "msft-event", Symbol: "MSFT", ObservationDate: testObservationDate()},
+			"NVDA": {ProviderEventID: "nvda-event", Symbol: "NVDA", ObservationDate: testObservationDate()},
+		},
+	}
+	report, err := RunScheduledPull(context.Background(), ScheduledPullConfig{
+		TenantID:            "tenant-1",
+		SourceID:            "src-massive",
+		ObservationDate:     testObservationDate(),
+		Companies:           []MegacapCompanySeed{{Ticker: "MSFT"}, {Ticker: "NVDA"}},
+		IncludeEquityEOD:    true,
+		DryRun:              true,
+		MaxProviderRequests: 1,
+	}, client, nil)
+	if err == nil {
+		t.Fatal("expected provider request budget error")
+	}
+	if report.ProviderRequests != 1 || report.EventsBuilt != 1 || report.Failures != 1 {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestRunScheduledPullStopsAtBuiltEventBudget(t *testing.T) {
+	client := fakeScheduledClient{
+		equityRecords: map[string]EquityEODPriceRecord{
+			"MSFT": {ProviderEventID: "msft-event", Symbol: "MSFT", ObservationDate: testObservationDate()},
+			"NVDA": {ProviderEventID: "nvda-event", Symbol: "NVDA", ObservationDate: testObservationDate()},
+		},
+	}
+	report, err := RunScheduledPull(context.Background(), ScheduledPullConfig{
+		TenantID:         "tenant-1",
+		SourceID:         "src-massive",
+		ObservationDate:  testObservationDate(),
+		Companies:        []MegacapCompanySeed{{Ticker: "MSFT"}, {Ticker: "NVDA"}},
+		IncludeEquityEOD: true,
+		DryRun:           true,
+		MaxEventsBuilt:   1,
+	}, client, nil)
+	if err == nil {
+		t.Fatal("expected built event budget error")
+	}
+	if report.EventsBuilt != 1 || report.Failures != 1 {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestRunScheduledPullStopsAtPublishedEventBudget(t *testing.T) {
+	client := fakeScheduledClient{
+		equityRecords: map[string]EquityEODPriceRecord{
+			"MSFT": {ProviderEventID: "msft-event", Symbol: "MSFT", ObservationDate: testObservationDate()},
+			"NVDA": {ProviderEventID: "nvda-event", Symbol: "NVDA", ObservationDate: testObservationDate()},
+		},
+	}
+	publisher := &fakePublisher{}
+	report, err := RunScheduledPull(context.Background(), ScheduledPullConfig{
+		TenantID:           "tenant-1",
+		SourceID:           "src-massive",
+		ObservationDate:    testObservationDate(),
+		Companies:          []MegacapCompanySeed{{Ticker: "MSFT"}, {Ticker: "NVDA"}},
+		IncludeEquityEOD:   true,
+		DryRun:             false,
+		MaxEventsPublished: 1,
+	}, client, publisher)
+	if err == nil {
+		t.Fatal("expected published event budget error")
+	}
+	if report.EventsBuilt != 2 || report.EventsPublished != 1 || report.Failures != 1 || len(publisher.messages) != 1 {
+		t.Fatalf("report/messages = %+v/%d", report, len(publisher.messages))
+	}
+}

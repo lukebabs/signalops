@@ -1286,3 +1286,62 @@ Next step:
 
 - Add persistent scheduler run history/provider usage accounting once the database layer exists.
 - Add provider usage budgets before any broad scheduled publish run across the full megacap universe.
+
+
+## 2026-07-07T19:36:33Z
+
+Summary:
+
+- Added hard provider usage budgets to the Massive scheduled pull path.
+- Added per-run limits for provider requests, raw events built, and raw events published.
+- Exposed the limits through both `cmd/massive-puller` and `cmd/massive-scheduler` CLI flags and environment variables.
+- Added Compose defaults for the budget variables, disabled by default with `0` to preserve current local behavior.
+- Added unit coverage for provider request budget, built-event budget, and published-event budget enforcement.
+- Validated live scheduler budget behavior with the ignored local `.env` key: one dry-run stopped before the second provider request when capped at 1 request, and one dry-run succeeded with a 2-request/2-built-event budget.
+
+Files changed:
+
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `internal/adapters/marketdata/massive/scheduled_pull_test.go`
+- `cmd/massive-puller/main.go`
+- `cmd/massive-scheduler/main.go`
+- `compose.yaml`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- The scheduler publish path is proven, but broad scheduled publishing needs hard guardrails before expanding beyond constrained validation runs.
+- Provider request budgets protect API usage and account limits.
+- Build and publish budgets protect downstream broker and worker paths from accidental high-volume runs.
+
+Verification performed:
+
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Python unit tests with `python -m unittest discover -s python/tests`; 36 tests passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Validated Compose syntax with `docker compose --profile massive-schedule config --quiet`.
+- Built the Massive puller image with `docker build --target massive-puller -t signalops-massive-puller:local .`.
+- Built the Massive scheduler image with `docker build --target massive-scheduler -t signalops-massive-scheduler:local .`.
+- Rebuilt the Compose scheduler image with `docker compose --profile massive-schedule build massive-scheduler`.
+- Verified scheduler budget flags with `docker compose --profile massive-schedule run --rm massive-scheduler --help`.
+- Ran expected-failure budget dry-run with `docker compose --profile massive-schedule run --rm massive-scheduler --max-runs 1 --max-companies 2 --datasets equity --request-delay 250ms --max-retries 0 --retry-backoff 1s --max-provider-requests 1 --dry-run=true --continue-on-error=false --continue-on-run-error=false`.
+- Ran positive bounded dry-run with `docker compose --profile massive-schedule run --rm massive-scheduler --max-runs 1 --max-companies 2 --datasets equity --request-delay 250ms --max-retries 0 --retry-backoff 1s --max-provider-requests 2 --max-events-built 2 --dry-run=true --continue-on-error=false --continue-on-run-error=false`.
+- Verified the running stack remained healthy and `signalops.raw-worker.v1` stayed stable with one member and total lag `0`.
+
+Live verification result:
+
+- Budget stop run: 2 companies requested, 1 provider request allowed, 1 event built, 0 published, 1 failure, and error `provider request budget exceeded: limit 1` before the second provider request.
+- Positive bounded run: 2 companies, 2 provider requests, 2 events built, 0 published, 0 retries, 0 failures.
+- Running stack remained healthy and raw-worker lag stayed `0`.
+
+Issue found and resolved:
+
+- None. Budget enforcement behaved as designed.
+- Secret handling remained clean: `.env` stayed ignored and no API key values were logged or committed.
+
+Next step:
+
+- Add persistent scheduler run history/provider usage accounting once the database layer exists.
+- Start the database/storage layer planning for run audit history, idempotency persistence, normalized market data, and replay/query support.

@@ -25,24 +25,27 @@ type ScheduledPullClient interface {
 }
 
 type ScheduledPullConfig struct {
-	TenantID          string
-	SourceID          string
-	Environment       string
-	RawTopic          string
-	ObservationDate   time.Time
-	ProcessingAt      time.Time
-	Companies         []MegacapCompanySeed
-	IncludeEquityEOD  bool
-	IncludeOptions    bool
-	OptionsLimit      int
-	DryRun            bool
-	ContinueOnError   bool
-	PublishTimeout    time.Duration
-	RequestDelay      time.Duration
-	MaxRetries        int
-	RetryBackoff      time.Duration
-	CorrelationPrefix string
-	TraceID           string
+	TenantID            string
+	SourceID            string
+	Environment         string
+	RawTopic            string
+	ObservationDate     time.Time
+	ProcessingAt        time.Time
+	Companies           []MegacapCompanySeed
+	IncludeEquityEOD    bool
+	IncludeOptions      bool
+	OptionsLimit        int
+	DryRun              bool
+	ContinueOnError     bool
+	PublishTimeout      time.Duration
+	RequestDelay        time.Duration
+	MaxRetries          int
+	RetryBackoff        time.Duration
+	MaxProviderRequests int
+	MaxEventsBuilt      int
+	MaxEventsPublished  int
+	CorrelationPrefix   string
+	TraceID             string
 }
 
 type ScheduledPullReport struct {
@@ -155,10 +158,43 @@ func RunScheduledPull(ctx context.Context, cfg ScheduledPullConfig, client Sched
 	return report, nil
 }
 
+func ensureProviderRequestBudget(cfg ScheduledPullConfig, report *ScheduledPullReport) error {
+	if cfg.MaxProviderRequests <= 0 {
+		return nil
+	}
+	if report.ProviderRequests >= cfg.MaxProviderRequests {
+		return fmt.Errorf("provider request budget exceeded: limit %d", cfg.MaxProviderRequests)
+	}
+	return nil
+}
+
+func ensureBuiltEventBudget(cfg ScheduledPullConfig, report *ScheduledPullReport) error {
+	if cfg.MaxEventsBuilt <= 0 {
+		return nil
+	}
+	if report.EventsBuilt >= cfg.MaxEventsBuilt {
+		return fmt.Errorf("built event budget exceeded: limit %d", cfg.MaxEventsBuilt)
+	}
+	return nil
+}
+
+func ensurePublishedEventBudget(cfg ScheduledPullConfig, report *ScheduledPullReport) error {
+	if cfg.MaxEventsPublished <= 0 {
+		return nil
+	}
+	if report.EventsPublished >= cfg.MaxEventsPublished {
+		return fmt.Errorf("published event budget exceeded: limit %d", cfg.MaxEventsPublished)
+	}
+	return nil
+}
+
 func fetchWithRetry[T any](ctx context.Context, cfg ScheduledPullConfig, report *ScheduledPullReport, fetch func() (T, error)) (T, error) {
 	var zero T
 	attempts := cfg.MaxRetries + 1
 	for attempt := 0; attempt < attempts; attempt++ {
+		if err := ensureProviderRequestBudget(cfg, report); err != nil {
+			return zero, err
+		}
 		if err := waitForRequestSlot(ctx, cfg); err != nil {
 			return zero, err
 		}
@@ -214,10 +250,16 @@ func buildAndMaybePublish(ctx context.Context, cfg ScheduledPullConfig, publishe
 	if err != nil {
 		return err
 	}
+	if err := ensureBuiltEventBudget(cfg, report); err != nil {
+		return err
+	}
 	report.EventsBuilt++
 	report.EventsByDataset[dataset]++
 	if cfg.DryRun {
 		return nil
+	}
+	if err := ensurePublishedEventBudget(cfg, report); err != nil {
+		return err
 	}
 	value, err := json.Marshal(event)
 	if err != nil {
