@@ -1043,3 +1043,53 @@ Next step:
 - Add a scheduled pull runner that uses the megacap seed universe, Massive client, event builders, and broker publisher to emit raw events.
 - Optionally add a manual live-validation command that uses `.env` without logging the API key.
 
+
+
+## 2026-07-07T04:46:21Z
+
+Summary:
+
+- Added the Massive scheduled pull runner that combines the megacap seed universe, Massive HTTP client, event builders, and broker publisher.
+- Added dry-run support that builds canonical raw events and reports counts without broker publication.
+- Added publish mode that writes JSON `RawSignalEvent` values to `signalops.<env>.raw.v1` using idempotency keys as broker keys.
+- Added the `cmd/massive-puller` CLI with dataset, observation-date, company-limit, option-limit, dry-run, and continue-on-error controls.
+- Added Docker image target and Compose profile for running the puller without starting it by default.
+- Kept validation deterministic; no live Massive API call was made during this gate.
+
+Files changed:
+
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `internal/adapters/marketdata/massive/scheduled_pull_test.go`
+- `cmd/massive-puller/main.go`
+- `cmd/massive-puller/main_test.go`
+- `Dockerfile`
+- `compose.yaml`
+- `Makefile`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- The adapter now needs an executable scheduled ingestion boundary after the seed universe, client/parser layer, and event builders were established.
+- Dry-run is the default so the local Massive key can validate provider fetch/build behavior before publishing into Redpanda.
+- Publish mode uses the same durable broker abstraction as the gateway while preserving scheduled-pull headers for audit and downstream workers.
+
+Verification performed:
+
+- Ran targeted Go tests for `internal/adapters/marketdata/massive`; passed.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Python unit tests with `python -m unittest discover -s python/tests`; 36 tests passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Validated Compose syntax with `docker compose config --quiet` and `docker compose --profile massive-pull config --quiet`.
+- Built the new Docker image target with `docker build --target massive-puller -t signalops-massive-puller:local .`.
+- Verified the running stack remained healthy and `signalops.raw-worker.v1` stayed stable with one member and total lag `0`.
+
+Issue found and resolved:
+
+- The first CLI flag implementation used the package-level flag helpers before creating the command-specific `FlagSet`; this was corrected before full validation.
+- The Compose profile now passes the optional Massive base URL override as well as the supported API key variable names without committing secret values.
+
+Next step:
+
+- Run a controlled Massive dry-run against the local `.env` key for one or two tickers, review provider response compatibility, then switch to publish mode for a small broker-backed smoke test.

@@ -1229,3 +1229,78 @@ Follow-up items:
 - Add the scheduled pull runner and broker publisher integration.
 - Add optional manual live validation using the local Massive API key without logging secrets.
 
+
+
+## Gate G020: Massive Scheduled Pull Runner
+
+Timestamp: `2026-07-07T04:46:21Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add the executable scheduled Massive pull path for dry-run and broker publication.
+
+Criteria:
+
+- Combine the megacap seed universe, Massive client, event builders, and broker publisher behind a reusable runner.
+- Support equity EOD and option contract scheduled datasets.
+- Support dry-run mode that builds events without publishing.
+- Support publish mode that writes canonical `RawSignalEvent` JSON to the raw topic with idempotency-key broker keys.
+- Add a CLI entrypoint for scheduled execution.
+- Add Docker image and Compose profile wiring without starting the puller by default.
+- Keep tests fixture-backed and avoid live Massive API calls in automated validation.
+
+Evidence:
+
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `internal/adapters/marketdata/massive/scheduled_pull_test.go`
+- `cmd/massive-puller/main.go`
+- `cmd/massive-puller/main_test.go`
+- `Dockerfile`
+- `compose.yaml`
+- `Makefile`
+- `internal/adapters/marketdata/massive/README.md`
+
+Implementation notes:
+
+- The runner defaults to dry-run through the Compose profile.
+- Publish mode requires a broker publisher and writes to `signalops.<env>.raw.v1` unless an explicit raw topic is supplied in the runner config.
+- Broker messages use the event idempotency key as the record key and include scheduled-pull audit headers.
+- The local `.env` API key is consumed through environment variable substitution only; no secret values are committed.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/adapters/marketdata/massive`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace -e PYTHONPATH=/workspace/python python:3.12-slim python -m unittest discover -s python/tests`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose config --quiet`
+- `docker compose --profile massive-pull config --quiet`
+- `docker build --target massive-puller -t signalops-massive-puller:local .`
+- `docker compose ps`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Full Go and Python test gates passed.
+- Schema validation passed.
+- Docker Compose configuration, including the Massive puller profile, validated successfully.
+- The new Massive puller image built successfully.
+- The running Docker stack remained healthy.
+- The raw-worker consumer group remained stable with one member and total lag `0`.
+
+Issues found and resolved:
+
+- The CLI flag setup was corrected to use a command-specific `FlagSet` rather than package-level flag helpers.
+- The Compose profile was extended to expose `SIGNALOPS_MASSIVE_BASE_URL` for provider endpoint overrides.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Perform a small Massive dry-run using the local `.env` key and one or two seed tickers.
+- If provider response compatibility is confirmed, run publish mode for a constrained broker-backed smoke test.
+- Add scheduler/orchestrator integration once the one-shot puller is proven.

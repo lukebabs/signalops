@@ -4,7 +4,7 @@ DOCKER_WORKDIR ?= /workspace
 IMAGE ?= signalops-gateway:local
 COMPOSE ?= docker compose
 
-.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate
+.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-build-massive-puller docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate
 
 docker-test:
 	docker run --rm \
@@ -33,6 +33,9 @@ docker-test-broker-integration:
 
 docker-build:
 	docker build --target gateway -t $(IMAGE) .
+
+docker-build-massive-puller:
+	docker build --target massive-puller -t signalops-massive-puller:local .
 
 docker-validate-schemas:
 	docker run --rm \

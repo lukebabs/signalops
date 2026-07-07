@@ -70,6 +70,32 @@ services:
     ports:
       - "18000:8080"
 
+  massive-puller:
+    profiles: ["massive-pull"]
+    build:
+      context: .
+      target: massive-puller
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      SIGNALOPS_BROKER_PROVIDER: redpanda
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      API_KEY: ${API_KEY:-}
+      SIGNALOPS_MASSIVE_TENANT_ID: tenant-local
+      SIGNALOPS_MASSIVE_SOURCE_ID: src-massive
+      SIGNALOPS_MASSIVE_DATASETS: equity,options
+      SIGNALOPS_MASSIVE_MAX_COMPANIES: "50"
+      SIGNALOPS_MASSIVE_OPTIONS_LIMIT: "100"
+      SIGNALOPS_MASSIVE_DRY_RUN: "true"
+      SIGNALOPS_MASSIVE_CONTINUE_ON_ERROR: "true"
+
   raw-worker:
     build:
       context: .

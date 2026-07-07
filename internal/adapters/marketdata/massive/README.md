@@ -106,3 +106,46 @@ Option aggregate bars contain price/volume fields for an option ticker, but not
 the full contract metadata required by `BuildOptionContractDailyEvent`.
 Scheduled option ingestion must pair aggregate bars with the option contract
 listing record before building and publishing the canonical raw event.
+
+
+## Scheduled Pull Runner
+
+The scheduled pull runner combines the megacap seed universe, Massive HTTP
+client, event builders, and broker publisher.
+
+Go entrypoint:
+
+```text
+cmd/massive-puller
+```
+
+Docker image target:
+
+```text
+massive-puller
+```
+
+Compose profile:
+
+```text
+massive-pull
+```
+
+Runtime controls:
+
+- `SIGNALOPS_MASSIVE_OBSERVATION_DATE`: optional `YYYY-MM-DD`; defaults to the
+  previous UTC day.
+- `SIGNALOPS_MASSIVE_DATASETS`: comma-separated `equity,options` selection.
+- `SIGNALOPS_MASSIVE_MAX_COMPANIES`: maximum seed companies to process.
+- `SIGNALOPS_MASSIVE_OPTIONS_LIMIT`: option contract listing limit per
+  underlying.
+- `SIGNALOPS_MASSIVE_DRY_RUN`: defaults to `true`; set to `false` to publish
+  canonical raw events to `signalops.<env>.raw.v1`.
+- `SIGNALOPS_MASSIVE_CONTINUE_ON_ERROR`: continue across symbols after
+  provider, build, or publish failures.
+- `SIGNALOPS_MASSIVE_TENANT_ID` and `SIGNALOPS_MASSIVE_SOURCE_ID`: envelope
+  identity for emitted events.
+
+Dry-run builds events and reports counts without broker publication. Publish
+mode writes JSON `RawSignalEvent` values with the idempotency key as the broker
+message key and scheduled-pull headers for downstream audit.
