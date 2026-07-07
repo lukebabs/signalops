@@ -986,3 +986,69 @@ Follow-up items:
 - Add replay dry-run and filtering controls.
 - Add the first Massive/Polygon scheduled market-data adapter and detector pack.
 
+## Gate G016: Python Signal Schema Validation
+
+Timestamp: `2026-07-07T03:46:54Z`
+
+Status: `passed`
+
+Gate name:
+
+- Validate Python-emitted signal events against the checked-in `signal.v1` contract before publication.
+
+Criteria:
+
+- Add runtime validation for built signal events before publishing to `signalops.<environment>.signal.v1`.
+- Use checked-in JSON Schema files under `contracts/events` rather than duplicating the full signal contract in Python logic.
+- Package schema files into the Python worker image.
+- Route invalid built signal events to DLQ as non-retryable output contract failures.
+- Add tests for valid signal events, missing required fields, invalid confidence, unexpected fields, and worker DLQ routing for invalid detector output.
+- Validate the live signal path against Redpanda after schema validation is enabled.
+
+Evidence:
+
+- `python/signalops_workers/schema_validation.py`
+- `python/signalops_workers/worker.py`
+- `python/tests/test_schema_validation.py`
+- `python/tests/test_worker.py`
+- `deploy/docker/python-worker/Dockerfile`
+- `.dockerignore`
+- `docs/python_worker.md`
+- `docs/deployment.md`
+
+Verification performed:
+
+- `docker compose config --quiet`
+- `make docker-test-python`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose build raw-worker retry-replayer`
+- `docker compose up -d redpanda topic-bootstrap gateway`
+- `curl -sS -X POST http://127.0.0.1:18000/v1/events/raw ... g016-live-event ...`
+- `docker compose run --rm -e SIGNALOPS_WORKER_DETECTOR_ID=signalops.static_test -e SIGNALOPS_WORKER_MAX_MESSAGES=1 raw-worker`
+- `docker compose exec redpanda rpk topic consume signalops.local.signal.v1 -o start -n 5`
+- `docker compose up -d raw-worker redpanda-console`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+- `curl -sS http://127.0.0.1:18000/readyz`
+
+Live verification result:
+
+- Gateway accepted `g016-live-event` to `signalops.local.raw.v1`, partition `0`, offset `4`.
+- The finite static detector worker logged `detector evaluated raw event` and `processed raw event`.
+- `signalops.local.signal.v1` contained a validated G016 signal with key `signalops.static_test.low`, tenant `tenant-g016`, event ID `g016-live-event`, detector ID `signalops.static_test`, correlation ID `g016-correlation-live`, trace ID `g016-trace-live`, raw source offset `4`, and schema header `signalops.signal.v1`.
+- The default raw worker and Redpanda console were restarted. The raw-worker consumer group was stable with one member and total lag `0`.
+
+Issues found and resolved:
+
+- `.dockerignore` excluded `contracts/`, which prevented the Python worker image from copying runtime schemas. The ignore entry was removed.
+- The compose project was down when the first live validation request was attempted. Redpanda, topic bootstrap, and gateway were started and the validation was rerun successfully.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add replay dry-run and filtering controls.
+- Add the first Massive/Polygon scheduled market-data adapter and detector pack.
+

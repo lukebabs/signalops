@@ -11,6 +11,7 @@ from signalops_plugins.detectors.base import (
 from signalops_workers.worker import (
     BrokerMessage,
     InvalidRawEventError,
+    InvalidSignalEventError,
     RawEventHandler,
     RetryableWorkerError,
     build_signal_event,
@@ -129,6 +130,19 @@ class SignalDetector(FakeDetector):
         )
 
 
+class InvalidSignalDetector(SignalDetector):
+    def emit_signal(
+        self, detection_result: DetectionResult, explanation: Explanation
+    ) -> EmittedSignal | None:
+        return EmittedSignal(
+            signal_id="sig-invalid",
+            signal_type="test_signal",
+            confidence=1.5,
+            severity="medium",
+            payload={},
+        )
+
+
 class RetryableDetector(FakeDetector):
     def detect(self, normalized_events, feature_context: FeatureContext) -> DetectionResult:
         raise RetryableWorkerError("detector dependency unavailable")
@@ -207,6 +221,32 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(len(signals.published), 1)
         self.assertEqual(signals.published[0][0]["signal_id"], "sig-1")
         self.assertTrue(signals.closed)
+
+    def test_run_worker_routes_invalid_signal_events_to_dlq(self) -> None:
+        message = raw_signal_message()
+        consumer = FakeConsumer([message])
+        retry = FakeFailurePublisher()
+        dlq = FakeFailurePublisher()
+        signals = FakeSignalPublisher()
+
+        with self.assertLogs("signalops_workers.worker", level="WARNING"):
+            count = run_worker(
+                consumer,
+                RawEventHandler(),
+                poll_timeout_seconds=0.01,
+                max_messages=1,
+                retry_publisher=retry,
+                dead_letter_publisher=dlq,
+                signal_publisher=signals,
+                detector=InvalidSignalDetector(),
+            )
+
+        self.assertEqual(count, 1)
+        self.assertEqual(consumer.committed, [message])
+        self.assertEqual(retry.published, [])
+        self.assertEqual(signals.published, [])
+        self.assertEqual(len(dlq.published), 1)
+        self.assertIsInstance(dlq.published[0][1], InvalidSignalEventError)
 
     def test_run_worker_routes_signal_publish_failures_to_retry(self) -> None:
         message = raw_signal_message()

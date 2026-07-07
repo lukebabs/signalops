@@ -161,3 +161,11 @@ Emitted detector signals use `contracts/events/signal.v1.schema.json`. The
 worker enriches the detector output with source lineage, source-domain metadata,
 timestamps, detector and model versions, evidence, and correlation fields before
 publishing to the configured signal topic.
+
+## Signal Schema Validation
+
+Before publishing a detector-emitted signal, the worker validates the built
+payload against `contracts/events/signal.v1.schema.json` using the checked-in
+schema files packaged into the Python worker image. Invalid signal events are
+routed to DLQ as `InvalidSignalEventError` and are not published to the signal
+topic.

@@ -6,6 +6,7 @@ COPY python/requirements-worker.txt ./python/requirements-worker.txt
 RUN pip install --no-cache-dir -r ./python/requirements-worker.txt
 
 COPY python ./python
+COPY contracts ./contracts
 
 ENV PYTHONPATH=/app/python
 

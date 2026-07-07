@@ -862,3 +862,54 @@ Next step:
 - Add operational controls for replay windows, tenant/source filtering, and dry-run replay inspection.
 - Add the first Massive/Polygon scheduled market-data source adapter and detector pack after signal validation is in place.
 
+## 2026-07-07T03:46:54Z
+
+Summary:
+
+- Added runtime JSON Schema validation for Python-emitted `signal.v1` payloads before signal-topic publication.
+- Added a lightweight internal JSON Schema validator that resolves local `$ref` entries against `contracts/events`.
+- Packaged `contracts/` into the Python worker image and updated `.dockerignore` accordingly.
+- Added DLQ routing for invalid built signal events through `InvalidSignalEventError`.
+- Validated live static-detector signal publication after runtime schema validation.
+
+Files changed:
+
+- `.dockerignore`
+- `deploy/docker/python-worker/Dockerfile`
+- `docs/python_worker.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `python/signalops_workers/schema_validation.py`
+- `python/signalops_workers/worker.py`
+- `python/tests/test_schema_validation.py`
+- `python/tests/test_worker.py`
+
+Rationale:
+
+- Detector output must be checked before it becomes a durable signal event.
+- The validator uses the checked-in SignalOps schemas instead of duplicating the signal contract in Python code.
+- Invalid detector output is treated as a terminal plugin/output contract failure and routed to DLQ rather than being published or retried as infrastructure failure.
+
+Verification performed:
+
+- Validated compose syntax with `docker compose config --quiet`.
+- Ran Python unit tests with `make docker-test-python`; 36 tests passed.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Built worker/replayer images with `docker compose build raw-worker retry-replayer` after packaging `contracts/` into the image.
+- Brought up Redpanda, topic bootstrap, and gateway after the compose project was found down during live validation.
+- Posted `g016-live-event` through `POST /v1/events/raw`.
+- Ran a one-message worker with `SIGNALOPS_WORKER_DETECTOR_ID=signalops.static_test` and verified it processed the event.
+- Consumed `signalops.local.signal.v1` and verified the G016 signal payload contained event ID `g016-live-event`, tenant `tenant-g016`, detector ID `signalops.static_test`, correlation ID `g016-correlation-live`, and schema header `signalops.signal.v1`.
+- Restarted the default raw worker and Redpanda console and verified gateway readiness plus stable raw-worker consumer group state with one member and total lag `0`.
+
+Issue found and resolved:
+
+- The first Docker build failed because `.dockerignore` excluded `contracts/`. The ignore entry was removed so the Python worker image can include runtime schemas.
+- The compose project was down during the first live validation request. Redpanda, topic bootstrap, and gateway were started before retrying validation.
+
+Next step:
+
+- Add replay dry-run and filtering controls, or begin the first Massive/Polygon scheduled market-data adapter now that signal publication is contract-validated.
+

@@ -112,7 +112,8 @@ compose listener advertises `localhost:19092`.
 ## Python Worker
 
 The Python worker runs from `python/signalops_workers` and consumes raw events
-from Redpanda. It invokes the configured detector, publishes emitted signals to
+from Redpanda. It invokes the configured detector, validates emitted signals
+against `contracts/events/signal.v1.schema.json`, publishes valid signals to
 `signalops.local.signal.v1`, publishes retryable failures to
 `signalops.local.retry.algorithm.v1`, and publishes invalid or non-retryable
 failures to `signalops.local.dlq.algorithm.v1`. Source offsets are committed

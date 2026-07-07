@@ -12,6 +12,7 @@ from signalops_plugins.detectors.base import (
     Explanation,
     FeatureContext,
 )
+from signalops_workers.schema_validation import SchemaValidationError, validate_signal_event
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,10 @@ class InvalidRawEventError(WorkerError):
 
 class RetryableWorkerError(WorkerError):
     """Raised when processing should be retried through the durable retry topic."""
+
+
+class InvalidSignalEventError(WorkerError):
+    """Raised when detector output fails the signal event contract."""
 
 
 @dataclass(frozen=True)
@@ -173,6 +178,7 @@ def run_worker(
                                 signal,
                                 explanation,
                             )
+                            validate_built_signal_event(signal_event)
                             try:
                                 signal_publisher.publish(signal_event, message)
                             except Exception as exc:
@@ -324,6 +330,13 @@ def build_signal_event(
         ),
         "replay_job_id": _string_field(raw, "replay_job_id"),
     }
+
+
+def validate_built_signal_event(signal_event: Mapping[str, object]) -> None:
+    try:
+        validate_signal_event(signal_event)
+    except SchemaValidationError as exc:
+        raise InvalidSignalEventError(f"invalid signal event: {exc}") from exc
 
 
 def _decode_json_object(value: bytes) -> Mapping[str, object]:
