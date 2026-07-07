@@ -7,7 +7,23 @@ from dataclasses import dataclass
 DEFAULT_ENVIRONMENT = "local"
 DEFAULT_BROKERS = "redpanda:9092"
 DEFAULT_GROUP_ID = "signalops.raw-worker.v1"
+DEFAULT_RETRY_REPLAY_GROUP_ID = "signalops.retry-replayer.v1"
 DEFAULT_POLL_TIMEOUT_SECONDS = 1.0
+DEFAULT_MAX_RETRY_ATTEMPTS = 3
+
+
+@dataclass(frozen=True)
+class RetryReplayConfig:
+    brokers: str
+    environment: str
+    raw_topic: str
+    retry_topic: str
+    dlq_topic: str
+    group_id: str
+    poll_timeout_seconds: float
+    max_messages: int
+    max_retry_attempts: int
+    log_level: str
 
 
 @dataclass(frozen=True)
@@ -41,6 +57,27 @@ def load_config() -> WorkerConfig:
         max_messages=_int_env("SIGNALOPS_WORKER_MAX_MESSAGES", 0),
         detector_id=_env("SIGNALOPS_WORKER_DETECTOR_ID", "signalops.noop"),
         log_level=_env("SIGNALOPS_WORKER_LOG_LEVEL", "INFO"),
+    )
+
+
+def load_retry_replay_config() -> RetryReplayConfig:
+    environment = _env("SIGNALOPS_ENV", DEFAULT_ENVIRONMENT)
+    return RetryReplayConfig(
+        brokers=_env("SIGNALOPS_BROKER_BROKERS", DEFAULT_BROKERS),
+        environment=environment,
+        raw_topic=_env("SIGNALOPS_RETRY_REPLAY_RAW_TOPIC", raw_topic(environment)),
+        retry_topic=_env("SIGNALOPS_RETRY_REPLAY_INPUT_TOPIC", retry_topic(environment)),
+        dlq_topic=_env("SIGNALOPS_RETRY_REPLAY_DLQ_TOPIC", dlq_topic(environment)),
+        group_id=_env("SIGNALOPS_RETRY_REPLAY_GROUP_ID", DEFAULT_RETRY_REPLAY_GROUP_ID),
+        poll_timeout_seconds=_float_env(
+            "SIGNALOPS_RETRY_REPLAY_POLL_TIMEOUT_SECONDS",
+            DEFAULT_POLL_TIMEOUT_SECONDS,
+        ),
+        max_messages=_int_env("SIGNALOPS_RETRY_REPLAY_MAX_MESSAGES", 0),
+        max_retry_attempts=_int_env(
+            "SIGNALOPS_RETRY_REPLAY_MAX_ATTEMPTS", DEFAULT_MAX_RETRY_ATTEMPTS
+        ),
+        log_level=_env("SIGNALOPS_RETRY_REPLAY_LOG_LEVEL", "INFO"),
     )
 
 

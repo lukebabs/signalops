@@ -92,5 +92,29 @@ services:
       SIGNALOPS_WORKER_DETECTOR_ID: signalops.noop
       SIGNALOPS_WORKER_LOG_LEVEL: INFO
 
+
+  retry-replayer:
+    profiles: ["retry-replay"]
+    build:
+      context: .
+      dockerfile: deploy/docker/python-worker/Dockerfile
+      target: python-worker
+    entrypoint: ["python", "-m", "signalops_workers.retry_replay_main"]
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
+      SIGNALOPS_RETRY_REPLAY_RAW_TOPIC: signalops.local.raw.v1
+      SIGNALOPS_RETRY_REPLAY_INPUT_TOPIC: signalops.local.retry.algorithm.v1
+      SIGNALOPS_RETRY_REPLAY_DLQ_TOPIC: signalops.local.dlq.algorithm.v1
+      SIGNALOPS_RETRY_REPLAY_GROUP_ID: signalops.retry-replayer.v1
+      SIGNALOPS_RETRY_REPLAY_POLL_TIMEOUT_SECONDS: "1"
+      SIGNALOPS_RETRY_REPLAY_MAX_ATTEMPTS: "3"
+      SIGNALOPS_RETRY_REPLAY_LOG_LEVEL: INFO
+
 volumes:
   redpanda-data:

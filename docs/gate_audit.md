@@ -916,3 +916,73 @@ Follow-up items:
 - Add schema validation for emitted Python signal events before publication.
 - Add a domain-specific market-data detector pack.
 
+## Gate G015: Retry Replay Tooling
+
+Timestamp: `2026-07-07T02:54:42Z`
+
+Status: `passed`
+
+Gate name:
+
+- Replay retry-topic records with bounded attempts and DLQ escalation.
+
+Criteria:
+
+- Add a retry replayer that consumes retry records and reconstructs original source messages.
+- Republish retryable source messages to the configured raw topic while attempts remain.
+- Route exhausted retries to DLQ with original payload, headers, source topic, partition, and offset preserved.
+- Route malformed retry records to DLQ as retry records without committing until DLQ publication succeeds.
+- Commit retry-topic offsets only after replay or DLQ publication is acknowledged.
+- Add configuration and Docker Compose support for finite and long-running replay operation.
+- Add unit tests for replay decisions, replay publication, exhausted retries, invalid retry records, and no-commit-on-publish-failure semantics.
+- Validate replay and exhausted-DLQ behavior against live Redpanda topics.
+
+Evidence:
+
+- `python/signalops_workers/retry_replay.py`
+- `python/signalops_workers/retry_replay_main.py`
+- `python/signalops_workers/broker.py`
+- `python/signalops_workers/config.py`
+- `python/tests/test_retry_replay.py`
+- `python/tests/test_config.py`
+- `compose.yaml`
+- `docs/python_worker.md`
+- `docs/deployment.md`
+
+Verification performed:
+
+- `docker compose config --quiet`
+- `make docker-test-python`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose build raw-worker retry-replayer`
+- `docker compose exec redpanda rpk topic create signalops.local.retry.g015.replay.v1 signalops.local.retry.g015.exhausted.v1 --brokers redpanda:9092 --partitions 1 --replicas 1 --if-not-exists`
+- `docker compose run --rm --entrypoint python raw-worker -c "... published g015 retry validation records ..."`
+- `docker compose --profile retry-replay run --rm -e SIGNALOPS_RETRY_REPLAY_INPUT_TOPIC=signalops.local.retry.g015.replay.v1 -e SIGNALOPS_RETRY_REPLAY_GROUP_ID=signalops.g015.replay.validation -e SIGNALOPS_RETRY_REPLAY_MAX_MESSAGES=1 retry-replayer`
+- `docker compose --profile retry-replay run --rm -e SIGNALOPS_RETRY_REPLAY_INPUT_TOPIC=signalops.local.retry.g015.exhausted.v1 -e SIGNALOPS_RETRY_REPLAY_GROUP_ID=signalops.g015.exhausted.validation -e SIGNALOPS_RETRY_REPLAY_MAX_MESSAGES=1 retry-replayer`
+- `docker compose exec redpanda rpk topic consume signalops.local.raw.v1 -o start -n 20`
+- `docker compose exec redpanda rpk topic consume signalops.local.dlq.algorithm.v1 -o start -n 20`
+- `docker compose up -d raw-worker`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+- `curl -sS http://127.0.0.1:18000/readyz`
+
+Live verification result:
+
+- `signalops.local.raw.v1` contained replayed key `g015-replay-key` with event ID `g015-replay-live`, `signalops_retry_attempt=1`, and `signalops_replayed_from_retry=true`.
+- `signalops.local.dlq.algorithm.v1` contained key `g015-exhausted-key` with error type `RetryAttemptsExhausted`, source topic `signalops.local.raw.v1`, source offset `405`, `signalops_retry_attempt=3`, and preserved base64 source payload.
+- The default raw worker was recreated from the rebuilt image. The raw-worker consumer group returned to stable state with one member and total lag `0`.
+
+Issues found and resolved:
+
+- Worker recreation caused a temporary consumer-group rebalance. The final group state was stable with zero lag.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add schema validation for Python-emitted signal events before publication.
+- Add replay dry-run and filtering controls.
+- Add the first Massive/Polygon scheduled market-data adapter and detector pack.
+

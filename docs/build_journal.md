@@ -475,6 +475,7 @@ Files changed:
 - `docs/docker_development.md`
 - `docs/deployment.md`
 - `docs/python_worker.md`
+- `docs/deployment.md`
 - `docs/build_journal.md`
 - `docs/gate_audit.md`
 
@@ -805,4 +806,59 @@ Next step:
 - Add schema validation for emitted Python signal payloads before publication.
 - Add the first domain-specific market-data detector pack after the replay path
   is safe.
+
+## 2026-07-07T02:54:42Z
+
+Summary:
+
+- Added Python retry replay tooling for `signalops.<environment>.retry.algorithm.v1` records.
+- Added an optional `retry-replayer` Docker Compose service under the `retry-replay` profile.
+- Added replay attempt limits through `SIGNALOPS_RETRY_REPLAY_MAX_ATTEMPTS`.
+- Added exhausted retry escalation to DLQ with `RetryAttemptsExhausted`.
+- Added malformed retry-record handling that routes the retry record itself to DLQ.
+- Validated live replay and exhausted-DLQ paths against Redpanda using isolated G015 retry topics.
+
+Files changed:
+
+- `compose.yaml`
+- `docs/python_worker.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `python/signalops_workers/broker.py`
+- `python/signalops_workers/config.py`
+- `python/signalops_workers/retry_replay.py`
+- `python/signalops_workers/retry_replay_main.py`
+- `python/tests/test_config.py`
+- `python/tests/test_retry_replay.py`
+
+Rationale:
+
+- Retry records must not become a terminal holding area. The platform needs a bounded replay loop before real detector packs and external source adapters increase retry volume.
+- The replayer is a separate process so replay can be scaled, paused, or run as a finite operational task without changing the raw worker.
+- The retry replayer commits retry-topic offsets only after replay or DLQ publication is acknowledged.
+
+Verification performed:
+
+- Validated compose syntax with `docker compose config --quiet`.
+- Ran Python unit tests with `make docker-test-python`; 31 tests passed.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Built worker/replayer images with `docker compose build raw-worker retry-replayer`.
+- Created isolated validation retry topics `signalops.local.retry.g015.replay.v1` and `signalops.local.retry.g015.exhausted.v1`.
+- Published synthetic retry records for `g015-replay-live` at attempt `1` and `g015-exhausted-live` at attempt `3`.
+- Ran a finite retry replayer against the replay topic and verified `replayed retry event`.
+- Ran a finite retry replayer against the exhausted topic and verified `sent exhausted retry event to dlq`.
+- Consumed `signalops.local.raw.v1` and verified key `g015-replay-key`, event ID `g015-replay-live`, `signalops_retry_attempt=1`, and `signalops_replayed_from_retry=true`.
+- Consumed `signalops.local.dlq.algorithm.v1` and verified key `g015-exhausted-key`, error type `RetryAttemptsExhausted`, source offset `405`, `signalops_retry_attempt=3`, and original source payload preservation.
+- Recreated the default raw worker from the rebuilt image and verified gateway readiness plus stable `signalops.raw-worker.v1` group state with one member and total lag `0`.
+
+Issue found and resolved:
+
+- The raw-worker consumer group briefly entered `PreparingRebalance` after recreating the worker image. It returned to stable state with one member and zero lag after the old session expired.
+
+Next step:
+
+- Add schema validation for Python-emitted `signal.v1` payloads before publication.
+- Add operational controls for replay windows, tenant/source filtering, and dry-run replay inspection.
+- Add the first Massive/Polygon scheduled market-data source adapter and detector pack after signal validation is in place.
 

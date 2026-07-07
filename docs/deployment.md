@@ -111,10 +111,23 @@ compose listener advertises `localhost:19092`.
 
 ## Python Worker
 
-The Python worker runs from `python/signalops_workers` and consumes raw
-events from Redpanda. It publishes retryable failures to `signalops.local.retry.algorithm.v1`
-and invalid or non-retryable failures to `signalops.local.dlq.algorithm.v1`,
-then commits the source offset only after the retry or DLQ publish is
-acknowledged. Detector-specific algorithm behavior
-remains isolated for later gates. See `docs/python_worker.md` for configuration
-and validation commands.
+The Python worker runs from `python/signalops_workers` and consumes raw events
+from Redpanda. It invokes the configured detector, publishes emitted signals to
+`signalops.local.signal.v1`, publishes retryable failures to
+`signalops.local.retry.algorithm.v1`, and publishes invalid or non-retryable
+failures to `signalops.local.dlq.algorithm.v1`. Source offsets are committed
+only after successful processing, signal publication, retry publication, or DLQ
+publication is acknowledged.
+
+## Retry Replayer
+
+The retry replayer runs from `python/signalops_workers.retry_replay_main` and is
+available as the optional Compose service `retry-replayer` under the
+`retry-replay` profile. It consumes retry records, reconstructs the original
+source message, and republishes it to `signalops.local.raw.v1` while retry
+attempts remain. Exhausted retries are routed to
+`signalops.local.dlq.algorithm.v1` with the original payload and source lineage
+preserved.
+
+See `docs/python_worker.md` for worker and retry replayer configuration and
+validation commands.

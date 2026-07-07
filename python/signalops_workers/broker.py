@@ -50,6 +50,27 @@ class RedpandaRawEventConsumer:
         self._consumer.close()
 
 
+class RedpandaRawEventPublisher:
+    def __init__(self, *, brokers: str, raw_topic: str) -> None:
+        self._topic = raw_topic
+        self._producer = Producer({"bootstrap.servers": brokers})
+
+    def publish(self, message: BrokerMessage) -> None:
+        headers = [(key, value) for key, value in message.headers.items()]
+        self._producer.produce(
+            self._topic,
+            key=message.key,
+            value=message.value,
+            headers=headers,
+        )
+        remaining = self._producer.flush(timeout=10)
+        if remaining:
+            raise TimeoutError("timed out publishing raw replay message")
+
+    def close(self) -> None:
+        self._producer.flush(timeout=10)
+
+
 class RedpandaDeadLetterPublisher:
     def __init__(self, *, brokers: str, dlq_topic: str) -> None:
         self._topic = dlq_topic

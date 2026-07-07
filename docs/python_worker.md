@@ -18,11 +18,15 @@ Docker image:
 deploy/docker/python-worker/Dockerfile
 ```
 
-Compose service:
+Compose services:
 
 ```text
 raw-worker
+retry-replayer
 ```
+
+`retry-replayer` is attached to the optional `retry-replay` compose profile so
+it does not replay retry records unless explicitly started.
 
 ## Behavior
 
@@ -65,6 +69,22 @@ the retry topic before the source offset is committed.
   `signalops.noop`.
 - `SIGNALOPS_WORKER_LOG_LEVEL`: Python logging level.
 
+Retry replayer configuration:
+
+- `SIGNALOPS_RETRY_REPLAY_RAW_TOPIC`: target raw topic for replayed source
+  messages. The default is `signalops.<environment>.raw.v1`.
+- `SIGNALOPS_RETRY_REPLAY_INPUT_TOPIC`: retry topic to consume. The default is
+  `signalops.<environment>.retry.algorithm.v1`.
+- `SIGNALOPS_RETRY_REPLAY_DLQ_TOPIC`: DLQ topic for exhausted or invalid retry
+  records. The default is `signalops.<environment>.dlq.algorithm.v1`.
+- `SIGNALOPS_RETRY_REPLAY_GROUP_ID`: retry replayer consumer group ID.
+- `SIGNALOPS_RETRY_REPLAY_POLL_TIMEOUT_SECONDS`: broker poll timeout.
+- `SIGNALOPS_RETRY_REPLAY_MAX_MESSAGES`: optional finite-run count for
+  validation.
+- `SIGNALOPS_RETRY_REPLAY_MAX_ATTEMPTS`: attempt limit before routing the
+  original source record to DLQ. The default is `3`.
+- `SIGNALOPS_RETRY_REPLAY_LOG_LEVEL`: Python logging level.
+
 ## Local Validation
 
 Run unit tests:
@@ -94,6 +114,14 @@ Start the long-running worker:
 docker compose up -d raw-worker
 ```
 
+Run one retry replay validation message:
+
+```bash
+docker compose --profile retry-replay run --rm \
+  -e SIGNALOPS_RETRY_REPLAY_MAX_MESSAGES=1 \
+  retry-replayer
+```
+
 
 ## DLQ Contract
 
@@ -108,6 +136,14 @@ Retry records use `contracts/events/retry_event.v1.schema.json`. The payload
 keeps the retry attempt, source topic, partition, offset, key, headers, and
 base64-encoded source value. The worker commits the source offset only after
 the retry publish is acknowledged.
+
+The retry replayer consumes retry records, reconstructs the original source
+message, adds retry replay headers, and republishes it to the configured raw
+topic while attempts remain. When `retry_attempt` is greater than or equal to
+`SIGNALOPS_RETRY_REPLAY_MAX_ATTEMPTS`, the replayer publishes the original
+source message to DLQ with `RetryAttemptsExhausted`. Invalid retry records are
+published to DLQ as the retry record itself. The retry topic offset is committed
+only after replay or DLQ publication is acknowledged.
 
 ## Detector Plugins
 
