@@ -956,3 +956,45 @@ Next step:
 
 - Wire the Massive scheduled adapter event builder for this universe: daily option contracts and EOD prices first, still without intraday streaming.
 
+## 2026-07-07T04:12:26Z
+
+Summary:
+
+- Added the first Massive scheduled event builder for market-data records.
+- Added deterministic mapping from already-fetched daily option contract records to `RawSignalEvent`.
+- Added deterministic mapping from already-fetched equity EOD price records to `RawSignalEvent`.
+- Preserved the no-network boundary: this gate does not call Massive APIs or require credentials.
+- Added tests for envelope fields, entity hints, stable event IDs, stable idempotency keys, optional metrics, and validation errors.
+
+Files changed:
+
+- `internal/adapters/marketdata/massive/event_builder.go`
+- `internal/adapters/marketdata/massive/event_builder_test.go`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- The Massive connector needs a stable mapping contract before HTTP fetching, scheduling, persistence, or broker publication is introduced.
+- Event builders keep external provider shapes outside the rest of the platform and emit the existing raw event contract used by the gateway and workers.
+- Stable event IDs and idempotency keys are required before scheduled pulls can be replayed safely.
+
+Verification performed:
+
+- Ran targeted Go tests for `internal/adapters/marketdata/massive`; passed.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Python unit tests with `make docker-test-python`; 36 tests passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Validated Compose syntax with `docker compose config --quiet`.
+- Verified the running stack remained healthy and `signalops.raw-worker.v1` stayed stable with one member and total lag `0`.
+
+Issue found and resolved:
+
+- No code issues were found during this gate. The implementation stayed intentionally offline to avoid coupling tests to Massive API availability or credentials.
+
+Next step:
+
+- Add a Massive HTTP client abstraction and fixture-backed parser for daily option contracts and EOD price responses.
+- Then wire a scheduled pull runner that publishes built raw events to Redpanda.
+

@@ -43,3 +43,32 @@ Normalization rules:
 - Company, sector, and industry keys are lowercase snake-case strings.
 - Lines with `Sector / Industry` are split into primary sector and industry.
 - Lines with only a sector leave industry blank.
+
+
+## Scheduled Event Builder
+
+The first adapter implementation is intentionally network-free. It maps
+already-fetched Massive records into canonical `RawSignalEvent` envelopes for
+scheduled ingestion.
+
+Implemented datasets:
+
+- `options_contracts_daily`
+- `equity_eod_prices`
+
+Builder functions:
+
+- `BuildOptionContractDailyEvent(config, record)`
+- `BuildEquityEODPriceEvent(config, record)`
+
+Both builders set:
+
+- `source_domain = market_data`
+- `source_adapter = market_data.massive`
+- `ingestion_mode = scheduled_pull`
+- `schema_id = signalops.raw_signal_event.v1`
+- stable `event_id` and `idempotency_key`
+- source and entity hints for ticker/option-contract routing
+
+This layer does not call Massive APIs. The later connector layer will fetch
+provider payloads and pass normalized provider records into these builders.

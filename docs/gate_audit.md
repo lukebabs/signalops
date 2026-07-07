@@ -1109,3 +1109,59 @@ Follow-up items:
 - Build the Massive scheduled event builder for daily option contracts and EOD prices.
 - Add persistence migration once the database layer is introduced.
 
+## Gate G018: Massive Scheduled Event Builder
+
+Timestamp: `2026-07-07T04:12:26Z`
+
+Status: `passed`
+
+Gate name:
+
+- Build canonical raw events from scheduled Massive daily market-data records.
+
+Criteria:
+
+- Add a deterministic builder for daily option contract records.
+- Add a deterministic builder for equity end-of-day price records.
+- Emit `RawSignalEvent` envelopes with `source_domain=market_data`, `source_adapter=market_data.massive`, and `ingestion_mode=scheduled_pull`.
+- Include stable event IDs and idempotency keys for replay-safe scheduled pulls.
+- Include entity hints for ticker and option-contract routing.
+- Keep external network calls out of the builder layer.
+- Add tests for happy paths, stable IDs, JSON envelope fields, and required-field validation.
+
+Evidence:
+
+- `internal/adapters/marketdata/massive/event_builder.go`
+- `internal/adapters/marketdata/massive/event_builder_test.go`
+- `internal/adapters/marketdata/massive/README.md`
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/adapters/marketdata/massive`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `make docker-test-python`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose config --quiet`
+- `docker compose ps`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Targeted Massive adapter tests passed.
+- Full Go and Python test gates passed.
+- The running Docker stack remained healthy.
+- The raw-worker consumer group remained stable with one member and total lag `0`.
+
+Issues found and resolved:
+
+- None. This gate was intentionally offline and fixture-shaped; no Massive API credentials or network calls were introduced.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add a Massive HTTP client abstraction and response parser for the selected daily endpoints.
+- Add a scheduled pull runner that uses the event builders and publishes raw events to Redpanda.
+
