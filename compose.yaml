@@ -88,6 +88,7 @@ services:
       SIGNALOPS_WORKER_DLQ_TOPIC: signalops.local.dlq.algorithm.v1
       SIGNALOPS_WORKER_GROUP_ID: signalops.raw-worker.v1
       SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS: "1"
+      SIGNALOPS_WORKER_DETECTOR_ID: signalops.noop
       SIGNALOPS_WORKER_LOG_LEVEL: INFO
 
 volumes:

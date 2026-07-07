@@ -32,7 +32,8 @@ The worker:
 - decodes Kafka/Redpanda message headers into worker metadata;
 - parses the broker value as a JSON object;
 - resolves `event_id`, `idempotency_key`, and `correlation_id`;
-- logs processed valid raw events;
+- invokes the configured detector plugin for valid raw events;
+- logs processed valid raw events and no-signal detector outcomes;
 - publishes retryable processing failures to the configured retry topic;
 - publishes invalid raw events and non-retryable processing failures to the
   configured DLQ topic;
@@ -55,6 +56,8 @@ DLQ publishing are implemented for worker failure routing.
 - `SIGNALOPS_WORKER_GROUP_ID`: consumer group ID.
 - `SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS`: broker poll timeout.
 - `SIGNALOPS_WORKER_MAX_MESSAGES`: optional finite-run count for validation.
+- `SIGNALOPS_WORKER_DETECTOR_ID`: detector plugin identifier. The default is
+  `signalops.noop`.
 - `SIGNALOPS_WORKER_LOG_LEVEL`: Python logging level.
 
 ## Local Validation
@@ -100,3 +103,9 @@ Retry records use `contracts/events/retry_event.v1.schema.json`. The payload
 keeps the retry attempt, source topic, partition, offset, key, headers, and
 base64-encoded source value. The worker commits the source offset only after
 the retry publish is acknowledged.
+
+## Detector Plugins
+
+Detector contracts live under `python/signalops_plugins/detectors/base.py`.
+The default `signalops.noop` detector is deterministic, emits no signals, and
+proves the worker/plugin lifecycle before real detector logic is added.

@@ -20,6 +20,7 @@ class WorkerConfig:
     group_id: str
     poll_timeout_seconds: float
     max_messages: int
+    detector_id: str
     log_level: str
 
 
@@ -36,6 +37,7 @@ def load_config() -> WorkerConfig:
             "SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS", DEFAULT_POLL_TIMEOUT_SECONDS
         ),
         max_messages=_int_env("SIGNALOPS_WORKER_MAX_MESSAGES", 0),
+        detector_id=_env("SIGNALOPS_WORKER_DETECTOR_ID", "signalops.noop"),
         log_level=_env("SIGNALOPS_WORKER_LOG_LEVEL", "INFO"),
     )
 

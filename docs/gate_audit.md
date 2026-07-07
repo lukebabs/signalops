@@ -757,3 +757,79 @@ Follow-up items:
 - Add detector plugin interfaces and a reference no-op detector.
 - Add retry replay tooling.
 - Add retry attempt limits and escalation from retry to DLQ.
+
+
+## Gate G013: Detector Plugin Contract And Noop Detector
+
+Timestamp: `2026-07-07T02:09:51Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add Python detector plugin contracts and wire the reference no-op detector into the worker.
+
+Criteria:
+
+- Add Python detector plugin SDK contracts for initialize, detect, explain, and
+  emit-signal lifecycle methods.
+- Add a deterministic `signalops.noop` reference detector that emits no signals.
+- Add worker detector loading through environment configuration.
+- Invoke the configured detector for valid raw events.
+- Preserve retry/DLQ routing around detector failures.
+- Add tests for detector contract, detector loader, worker detector invocation,
+  and retryable detector failures.
+- Validate the live worker path against Redpanda with a fresh gateway-ingested
+  raw event.
+
+Evidence:
+
+- `python/signalops_plugins/detectors/base.py`
+- `python/signalops_plugins/detectors/noop.py`
+- `python/signalops_workers/detectors.py`
+- `python/signalops_workers/worker.py`
+- `python/signalops_workers/__main__.py`
+- `python/tests/plugins/test_noop_detector.py`
+- `python/tests/test_detectors.py`
+- `python/tests/test_worker.py`
+- `docs/python_worker.md`
+- `docs/Syncratic_SignalOps_Processing_Specification.md`
+- `compose.yaml`
+
+Verification performed:
+
+- `docker compose config --quiet`
+- `make docker-test-python`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose build raw-worker`
+- `docker compose up -d raw-worker`
+- `curl -sS -X POST http://127.0.0.1:18000/v1/events/raw -H 'Content-Type: application/json' -H 'X-Correlation-ID: g013-correlation-live' -H 'X-Trace-ID: g013-trace-live' -d '{"event_id":"g013-live-event","idempotency_key":"g013-live-key","source_domain":"market_data","source_adapter":"manual-curl","payload":{"symbol":"QQQ","close":444.12}}'`
+- `docker compose logs --tail=120 raw-worker`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Gateway accepted `g013-live-event` to `signalops.local.raw.v1`, partition `0`,
+  offset `2`.
+- Worker logs showed `detector evaluated raw event` and `processed raw event`.
+- Worker consumer group `signalops.raw-worker.v1` returned to stable state with
+  one member and total lag `0`.
+
+Issues found and resolved:
+
+- Retryable detector failures initially bypassed retry routing. Detector
+  failures are now routed through retry/DLQ publishers before source offset
+  commit.
+- Worker redeploy caused a temporary consumer-group rebalance until the old
+  session timed out; final state was stable with zero lag.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add detector signal/result publishing to `signalops.<environment>.signal.v1`.
+- Add a deterministic reference signal-emitting detector.
+- Add retry replay tooling and retry attempt limits.

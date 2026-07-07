@@ -657,3 +657,76 @@ Next step:
 - Add detector plugin interfaces and a reference no-op detector path.
 - Add retry replay tooling that consumes retry records back into worker input or
   a bounded retry processor.
+
+
+## 2026-07-07T02:09:51Z
+
+Summary:
+
+- Added Python detector plugin contracts and a reference `signalops.noop`
+  detector.
+- Added detector loading through `SIGNALOPS_WORKER_DETECTOR_ID`.
+- Integrated detector invocation into the raw worker for valid raw events.
+- Validated live worker execution of the no-op detector path with a fresh raw
+  event through the gateway.
+
+Files changed:
+
+- `compose.yaml`
+- `docs/Syncratic_SignalOps_Processing_Specification.md`
+- `docs/python_worker.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `python/signalops_plugins/README.md`
+- `python/signalops_plugins/__init__.py`
+- `python/signalops_plugins/detectors/__init__.py`
+- `python/signalops_plugins/detectors/base.py`
+- `python/signalops_plugins/detectors/noop.py`
+- `python/signalops_workers/__main__.py`
+- `python/signalops_workers/config.py`
+- `python/signalops_workers/detectors.py`
+- `python/signalops_workers/worker.py`
+- `python/tests/plugins/test_noop_detector.py`
+- `python/tests/test_detectors.py`
+- `python/tests/test_worker.py`
+
+Rationale:
+
+- The worker needs an explicit algorithm seam before real detectors are added.
+- The no-op detector proves lifecycle wiring, deterministic no-signal behavior,
+  and retry/DLQ handling around detector failures without introducing model
+  complexity.
+- Detector plugin types are isolated in `python/signalops_plugins`, while the
+  runnable worker remains in `python/signalops_workers`.
+
+Verification performed:
+
+- Validated compose syntax with `docker compose config --quiet`.
+- Ran Python unit tests with `make docker-test-python`; 16 tests passed.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all
+  schemas passed.
+- Built the worker image with `docker compose build raw-worker`.
+- Redeployed the worker with `docker compose up -d raw-worker`.
+- Posted a fresh valid raw event through `POST /v1/events/raw` with event ID
+  `g013-live-event`.
+- Verified worker logs contained `detector evaluated raw event` and
+  `processed raw event`.
+- Verified `rpk group describe signalops.raw-worker.v1` reported stable group
+  state with one member and total lag `0` after redeploy rebalance completed.
+
+Issue found and resolved:
+
+- Retryable detector failures initially escaped retry routing because detector
+  execution happened after the raw-handler `try` block. The worker now routes
+  retryable and non-retryable detector failures through the same retry/DLQ
+  publishers before committing source offsets.
+- After worker redeploy, Redpanda briefly reported `PreparingRebalance` until
+  the old consumer session timed out. The group returned to stable state with
+  one member and zero lag.
+
+Next step:
+
+- Add signal/result publishing for detectors that emit signals.
+- Add a reference detector that emits a deterministic low-severity test signal.
+- Add retry replay tooling and retry attempt limits.

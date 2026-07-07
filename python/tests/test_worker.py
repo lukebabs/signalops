@@ -1,5 +1,6 @@
 import unittest
 
+from signalops_plugins.detectors.base import DetectionResult, Explanation, FeatureContext
 from signalops_workers.worker import (
     BrokerMessage,
     InvalidRawEventError,
@@ -47,6 +48,39 @@ class RetryableHandler:
         raise RetryableWorkerError("transient dependency unavailable")
 
 
+class FakeDetector:
+    detector_id = "fake.detector"
+    detector_version = "1.0.0"
+    model_version = "none"
+
+    def __init__(self) -> None:
+        self.detected_events = []
+
+    def initialize(self, config, model_registry, runtime_context) -> None:
+        return None
+
+    def detect(self, normalized_events, feature_context: FeatureContext) -> DetectionResult:
+        self.detected_events.append(normalized_events)
+        return DetectionResult(
+            detector_id=self.detector_id,
+            detector_version=self.detector_version,
+            matched=False,
+            score=0.0,
+            reason="test detector",
+        )
+
+    def explain(self, detection_result: DetectionResult) -> Explanation:
+        return Explanation(summary=detection_result.reason)
+
+    def emit_signal(self, detection_result: DetectionResult, explanation: Explanation):
+        return None
+
+
+class RetryableDetector(FakeDetector):
+    def detect(self, normalized_events, feature_context: FeatureContext) -> DetectionResult:
+        raise RetryableWorkerError("detector dependency unavailable")
+
+
 class WorkerTests(unittest.TestCase):
     def test_handler_parses_raw_event(self) -> None:
         message = BrokerMessage(
@@ -92,6 +126,8 @@ class WorkerTests(unittest.TestCase):
 
         retry = FakeFailurePublisher()
 
+        detector = FakeDetector()
+
         count = run_worker(
             consumer,
             RawEventHandler(),
@@ -99,15 +135,47 @@ class WorkerTests(unittest.TestCase):
             max_messages=1,
             retry_publisher=retry,
             dead_letter_publisher=dlq,
+            detector=detector,
         )
 
         self.assertEqual(count, 1)
+        self.assertEqual(detector.detected_events, [[{"event_id": "evt-1"}]])
         self.assertEqual(consumer.committed, [message])
         self.assertEqual(retry.published, [])
         self.assertEqual(dlq.published, [])
         self.assertTrue(consumer.closed)
         self.assertTrue(retry.closed)
         self.assertTrue(dlq.closed)
+
+    def test_run_worker_routes_retryable_detector_failures_to_retry(self) -> None:
+        message = BrokerMessage(
+            topic="signalops.local.raw.v1",
+            partition=0,
+            offset=1,
+            key="retry-2",
+            value=b'{"event_id":"evt-2"}',
+            headers={},
+        )
+        consumer = FakeConsumer([message])
+        retry = FakeFailurePublisher()
+        dlq = FakeFailurePublisher()
+
+        with self.assertLogs("signalops_workers.worker", level="WARNING"):
+            count = run_worker(
+                consumer,
+                RawEventHandler(),
+                poll_timeout_seconds=0.01,
+                max_messages=1,
+                retry_publisher=retry,
+                dead_letter_publisher=dlq,
+                detector=RetryableDetector(),
+            )
+
+        self.assertEqual(count, 1)
+        self.assertEqual(consumer.committed, [message])
+        self.assertEqual(len(retry.published), 1)
+        self.assertIsInstance(retry.published[0][1], RetryableWorkerError)
+        self.assertEqual(dlq.published, [])
 
     def test_run_worker_publishes_retryable_messages_to_retry_topic(self) -> None:
         message = BrokerMessage(

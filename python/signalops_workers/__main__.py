@@ -8,6 +8,7 @@ from signalops_workers.broker import (
     RedpandaRetryPublisher,
 )
 from signalops_workers.config import load_config
+from signalops_workers.detectors import load_detector
 from signalops_workers.worker import RawEventHandler, run_worker
 
 
@@ -16,6 +17,12 @@ def main() -> int:
     logging.basicConfig(
         level=config.log_level,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+
+    detector = load_detector(
+        config.detector_id,
+        environment=config.environment,
+        worker_id=config.group_id,
     )
 
     consumer = RedpandaRawEventConsumer(
@@ -38,6 +45,7 @@ def main() -> int:
         max_messages=config.max_messages,
         retry_publisher=retry_publisher,
         dead_letter_publisher=dead_letter_publisher,
+        detector=detector,
     )
     logging.getLogger(__name__).info("worker stopped", extra={"processed": processed})
     return 0

@@ -5,6 +5,8 @@ import logging
 from dataclasses import dataclass
 from typing import Mapping, Protocol
 
+from signalops_plugins.detectors.base import DetectorPlugin, FeatureContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +99,7 @@ def run_worker(
     max_messages: int = 0,
     retry_publisher: FailurePublisher | None = None,
     dead_letter_publisher: FailurePublisher | None = None,
+    detector: DetectorPlugin | None = None,
 ) -> int:
     processed_count = 0
     try:
@@ -136,17 +139,62 @@ def run_worker(
                     },
                 )
             else:
-                logger.info(
-                    "processed raw event",
-                    extra={
-                        "event_id": processed.event_id,
-                        "idempotency_key": processed.idempotency_key,
-                        "correlation_id": processed.correlation_id,
-                        "topic": message.topic,
-                        "partition": message.partition,
-                        "offset": message.offset,
-                    },
-                )
+                try:
+                    signal = None
+                    if detector is not None:
+                        detection = detector.detect([processed.payload], FeatureContext())
+                        explanation = detector.explain(detection)
+                        signal = detector.emit_signal(detection, explanation)
+                        logger.info(
+                            "detector evaluated raw event",
+                            extra={
+                                "event_id": processed.event_id,
+                                "detector_id": detection.detector_id,
+                                "detector_version": detection.detector_version,
+                                "matched": detection.matched,
+                                "score": detection.score,
+                                "signal_emitted": signal is not None,
+                            },
+                        )
+                    logger.info(
+                        "processed raw event",
+                        extra={
+                            "event_id": processed.event_id,
+                            "idempotency_key": processed.idempotency_key,
+                            "correlation_id": processed.correlation_id,
+                            "topic": message.topic,
+                            "partition": message.partition,
+                            "offset": message.offset,
+                        },
+                    )
+                except RetryableWorkerError as exc:
+                    if retry_publisher is None:
+                        raise
+                    retry_publisher.publish(message, exc)
+                    logger.warning(
+                        "sent raw event to retry",
+                        extra={
+                            "error": str(exc),
+                            "error_type": type(exc).__name__,
+                            "topic": message.topic,
+                            "partition": message.partition,
+                            "offset": message.offset,
+                        },
+                    )
+                except Exception as exc:
+                    if dead_letter_publisher is None:
+                        raise
+                    dead_letter_publisher.publish(message, exc)
+                    logger.warning(
+                        "sent raw event to dlq",
+                        extra={
+                            "error": str(exc),
+                            "error_type": type(exc).__name__,
+                            "topic": message.topic,
+                            "partition": message.partition,
+                            "offset": message.offset,
+                        },
+                    )
             consumer.commit(message)
             processed_count += 1
     finally:

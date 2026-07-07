@@ -176,6 +176,10 @@ Every detector implements:
 - `explain(detection_result)`
 - `emit_signal(detection_result, explanation)`
 
+The initial SDK contract is implemented in
+`python/signalops_plugins/detectors/base.py`. The reference `signalops.noop`
+detector exercises lifecycle wiring and emits no signals.
+
 Plugin requirements:
 
 - Plugins must be selected by tenant, source, event type, and configured
