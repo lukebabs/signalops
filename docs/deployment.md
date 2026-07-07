@@ -132,3 +132,29 @@ preserved.
 
 See `docs/python_worker.md` for worker and retry replayer configuration and
 validation commands.
+
+
+## Massive Scheduled Market Data
+
+The Massive adapter has two optional Compose profiles:
+
+- `massive-pull`: one-shot puller for manual dry-run or publish validation.
+- `massive-schedule`: repeatable scheduler around the same pull runner.
+
+Both profiles default to dry-run mode. The scheduler defaults to running once at
+startup and then every `24h` until stopped. Use `SIGNALOPS_MASSIVE_SCHEDULE_MAX_RUNS`
+or the `--max-runs` flag for bounded validation runs.
+
+Example one-run scheduler dry-run:
+
+```bash
+docker compose --profile massive-schedule run --rm massive-scheduler \
+  --max-runs 1 \
+  --max-companies 1 \
+  --datasets equity \
+  --dry-run=true
+```
+
+Publishing requires `--dry-run=false` and a healthy broker/topic bootstrap path.
+Secrets are loaded from the ignored `.env` file through supported Massive API key
+environment variables.

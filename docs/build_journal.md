@@ -1184,3 +1184,58 @@ Next step:
 
 - Add scheduler/orchestrator integration for repeatable one-shot execution, keeping dry-run as the safe default.
 - After scheduler wiring, run a constrained scheduled publish validation before expanding the full megacap universe.
+
+
+## 2026-07-07T05:09:56Z
+
+Summary:
+
+- Added a reusable Massive scheduled loop for repeatable pull execution.
+- Added the `cmd/massive-scheduler` entrypoint that wraps the existing Massive pull runner.
+- Added schedule controls for interval, max runs, immediate startup execution, and continuing after run errors.
+- Added a Docker image target and Compose profile for the scheduler while preserving dry-run as the default.
+- Added scheduler loop unit tests for immediate execution, max-run exit, stop-on-error, and continue-on-error behavior.
+- Ran a bounded live scheduler validation using the ignored local `.env` key: 1 run, 1 company, equity dry-run, 1 provider request, 1 event built, 0 published, 0 failures.
+
+Files changed:
+
+- `internal/adapters/marketdata/massive/scheduled_loop.go`
+- `internal/adapters/marketdata/massive/scheduled_loop_test.go`
+- `cmd/massive-scheduler/main.go`
+- `cmd/massive-scheduler/main_test.go`
+- `Dockerfile`
+- `Makefile`
+- `compose.yaml`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/deployment.md`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- The one-shot puller proved manual ingestion, but production operation needs a repeatable scheduling surface.
+- The scheduler reuses the same runner, rate controls, dry-run behavior, and broker publish path so scheduling does not fork ingestion semantics.
+- `max-runs` gives deterministic local and CI-style validation without leaving a long-running scheduler process active.
+
+Verification performed:
+
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Python unit tests with `python -m unittest discover -s python/tests`; 36 tests passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Validated Compose syntax with `docker compose --profile massive-schedule config --quiet`.
+- Built the Massive scheduler image with `docker build --target massive-scheduler -t signalops-massive-scheduler:local .`.
+- Rebuilt the Compose scheduler service with `docker compose --profile massive-schedule build massive-scheduler`.
+- Verified scheduler CLI flags with `docker compose --profile massive-schedule run --rm massive-scheduler --help`.
+- Ran bounded live scheduler dry-run with `docker compose --profile massive-schedule run --rm massive-scheduler --max-runs 1 --max-companies 1 --datasets equity --request-delay 250ms --max-retries 1 --retry-backoff 1s --dry-run=true --continue-on-error=true --continue-on-run-error=false`.
+- Verified the running stack remained healthy and `signalops.raw-worker.v1` stayed stable with one member and total lag `0`.
+
+Issue found and resolved:
+
+- `--help` returns a nonzero status through Go's flag package after printing usage. This was expected and the output confirmed the scheduler flags were present.
+- Secret handling remained clean: `.env` stayed ignored and no API key values were logged or committed.
+
+Next step:
+
+- Run a constrained scheduled publish validation with `max-runs=1` and one equity ticker.
+- After scheduler publish validation, add persistent run history/provider usage accounting when the database layer is introduced.

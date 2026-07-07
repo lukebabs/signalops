@@ -157,3 +157,39 @@ message key and scheduled-pull headers for downstream audit.
 
 Reports include provider request and retry counters so broad scheduled runs can
 be audited for API usage and transient provider behavior.
+
+
+## Scheduled Loop
+
+The scheduler wraps the same pull runner for repeatable execution.
+
+Go entrypoint:
+
+```text
+cmd/massive-scheduler
+```
+
+Docker image target:
+
+```text
+massive-scheduler
+```
+
+Compose profile:
+
+```text
+massive-schedule
+```
+
+Scheduler controls:
+
+- `SIGNALOPS_MASSIVE_SCHEDULE_INTERVAL`: interval between runs, such as `24h`.
+- `SIGNALOPS_MASSIVE_SCHEDULE_MAX_RUNS`: maximum runs before exit; `0` means
+  run until stopped.
+- `SIGNALOPS_MASSIVE_SCHEDULE_RUN_IMMEDIATELY`: run once at startup before
+  waiting for the interval.
+- `SIGNALOPS_MASSIVE_SCHEDULE_CONTINUE_ON_ERROR`: continue scheduling after a
+  pull run returns an error.
+
+The scheduler uses the same dataset, rate-control, dry-run, and broker publish
+settings as `cmd/massive-puller`. Compose keeps dry-run enabled by default.

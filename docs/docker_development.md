@@ -46,5 +46,6 @@ make docker-shell
 - Host Go is optional.
 - Docker may need network access the first time it pulls the Go image.
 - The production gateway image is built from `Dockerfile` target `gateway`.
+- The Massive one-shot image is built from target `massive-puller`; the repeatable scheduler image is built from target `massive-scheduler`.
 - The gateway binary listens on `SIGNALOPS_HTTP_ADDR`, defaulting to `:8080`.
 

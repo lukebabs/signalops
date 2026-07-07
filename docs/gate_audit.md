@@ -1436,3 +1436,82 @@ Follow-up items:
 - Add scheduler/orchestrator integration for repeatable Massive pull execution.
 - Run a constrained scheduled publish validation before broader universe publishing.
 - Add provider usage budgeting and persistent run history once the database layer exists.
+
+
+## Gate G023: Massive Scheduler Integration
+
+Timestamp: `2026-07-07T05:09:56Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add repeatable scheduled execution for the Massive puller.
+
+Criteria:
+
+- Add a reusable scheduled loop around the existing Massive pull runner.
+- Add a scheduler CLI entrypoint with interval, max-run, immediate-run, and continue-on-run-error controls.
+- Reuse the existing Massive dataset, rate-control, dry-run, and publish configuration.
+- Add Docker image target and Compose profile for scheduler execution without starting it by default.
+- Keep dry-run enabled by default in Compose.
+- Add unit coverage for scheduler loop behavior.
+- Validate a bounded one-run live scheduler dry-run without publishing broker messages.
+- Confirm the running stack remains healthy and raw-worker lag remains `0`.
+
+Evidence:
+
+- `internal/adapters/marketdata/massive/scheduled_loop.go`
+- `internal/adapters/marketdata/massive/scheduled_loop_test.go`
+- `cmd/massive-scheduler/main.go`
+- `cmd/massive-scheduler/main_test.go`
+- `Dockerfile`
+- `Makefile`
+- `compose.yaml`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/deployment.md`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The scheduler invokes the same `RunScheduledPull` path used by the one-shot puller.
+- `SIGNALOPS_MASSIVE_SCHEDULE_INTERVAL` controls interval between runs.
+- `SIGNALOPS_MASSIVE_SCHEDULE_MAX_RUNS` bounds runs for validation; `0` means run until stopped.
+- `SIGNALOPS_MASSIVE_SCHEDULE_RUN_IMMEDIATELY` runs once at startup before waiting for the interval.
+- `SIGNALOPS_MASSIVE_SCHEDULE_CONTINUE_ON_ERROR` controls whether scheduling continues after a pull run returns an error.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace -e PYTHONPATH=/workspace/python python:3.12-slim python -m unittest discover -s python/tests`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose --profile massive-schedule config --quiet`
+- `docker build --target massive-scheduler -t signalops-massive-scheduler:local .`
+- `docker compose --profile massive-schedule build massive-scheduler`
+- `docker compose --profile massive-schedule run --rm massive-scheduler --help`
+- `docker compose --profile massive-schedule run --rm massive-scheduler --max-runs 1 --max-companies 1 --datasets equity --request-delay 250ms --max-retries 1 --retry-backoff 1s --dry-run=true --continue-on-error=true --continue-on-run-error=false`
+- `docker compose ps`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Scheduler dry-run loop report: 1 run, 1 succeeded, 0 failed.
+- Pull report: 1 company, 1 event built, 0 events published, 1 provider request, 0 provider retries, 0 failures.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+- Running stack remained healthy.
+
+Issues found and resolved:
+
+- None. Scheduler dry-run validation passed. The nonzero `--help` status is expected Go flag behavior after usage output.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Run constrained scheduled publish validation with `max-runs=1` and one equity ticker.
+- Add persistent scheduler run history and provider usage accounting once the database layer exists.
+- Add Kubernetes CronJob or external orchestrator manifests when deployment targets are finalized.

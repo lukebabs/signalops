@@ -99,6 +99,39 @@ services:
       SIGNALOPS_MASSIVE_DRY_RUN: "true"
       SIGNALOPS_MASSIVE_CONTINUE_ON_ERROR: "true"
 
+  massive-scheduler:
+    profiles: ["massive-schedule"]
+    build:
+      context: .
+      target: massive-scheduler
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      SIGNALOPS_BROKER_PROVIDER: redpanda
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      API_KEY: ${API_KEY:-}
+      SIGNALOPS_MASSIVE_TENANT_ID: tenant-local
+      SIGNALOPS_MASSIVE_SOURCE_ID: src-massive
+      SIGNALOPS_MASSIVE_DATASETS: equity,options
+      SIGNALOPS_MASSIVE_MAX_COMPANIES: "50"
+      SIGNALOPS_MASSIVE_OPTIONS_LIMIT: "100"
+      SIGNALOPS_MASSIVE_REQUEST_DELAY: "250ms"
+      SIGNALOPS_MASSIVE_MAX_RETRIES: "1"
+      SIGNALOPS_MASSIVE_RETRY_BACKOFF: "1s"
+      SIGNALOPS_MASSIVE_DRY_RUN: "true"
+      SIGNALOPS_MASSIVE_CONTINUE_ON_ERROR: "true"
+      SIGNALOPS_MASSIVE_SCHEDULE_INTERVAL: "24h"
+      SIGNALOPS_MASSIVE_SCHEDULE_MAX_RUNS: "0"
+      SIGNALOPS_MASSIVE_SCHEDULE_RUN_IMMEDIATELY: "true"
+      SIGNALOPS_MASSIVE_SCHEDULE_CONTINUE_ON_ERROR: "true"
+
   raw-worker:
     build:
       context: .
