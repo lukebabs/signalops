@@ -913,3 +913,46 @@ Next step:
 
 - Add replay dry-run and filtering controls, or begin the first Massive/Polygon scheduled market-data adapter now that signal publication is contract-validated.
 
+## 2026-07-07T04:04:03Z
+
+Summary:
+
+- Parsed the provided Massive/Polygon top 50 megacap source universe file.
+- Added a Go parser that exposes DB-ready megacap seed records from `top50megacap.txt`.
+- Generated `top50megacap.normalized.csv` with rank, ticker, company, sector, optional industry, and normalized keys.
+- Added tests covering row count, first/last records, exchange-suffix ticker normalization, and CSV generation.
+
+Files changed:
+
+- `internal/adapters/marketdata/massive/top50megacap.txt`
+- `internal/adapters/marketdata/massive/top50megacap.normalized.csv`
+- `internal/adapters/marketdata/massive/megacap_seed.go`
+- `internal/adapters/marketdata/massive/megacap_seed_test.go`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- The initial Massive market-data program needs a deterministic company universe before scheduled contract and EOD-price ingestion is wired.
+- Keeping the provided text file as source of truth plus a parser and normalized CSV gives us both auditability and DB-seed readiness.
+- Ticker, company, sector, and industry keys are normalized now to avoid ad hoc parsing when persistence is added.
+
+Verification performed:
+
+- Parsed 50 company rows from `top50megacap.txt`.
+- Verified generated CSV starts with `NVDA,NVIDIA,Technology,Semiconductors` and ends with `GEV,GE Vernova,Energy,Industrials`.
+- Ran targeted Go tests for `internal/adapters/marketdata/massive`; passed.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Python unit tests with `make docker-test-python`; 36 tests passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+
+Issue found and resolved:
+
+- The user referenced `50topmegacap.txt`, but the file present in the repository is `top50megacap.txt`. The implementation uses the actual file name.
+- Some source lines include market cap before the sector after `|`; some include only sector after the dash. The parser handles both formats.
+
+Next step:
+
+- Wire the Massive scheduled adapter event builder for this universe: daily option contracts and EOD prices first, still without intraday streaming.
+

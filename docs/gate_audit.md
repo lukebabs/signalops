@@ -1052,3 +1052,60 @@ Follow-up items:
 - Add replay dry-run and filtering controls.
 - Add the first Massive/Polygon scheduled market-data adapter and detector pack.
 
+## Gate G017: Massive Megacap Universe Seed
+
+Timestamp: `2026-07-07T04:04:03Z`
+
+Status: `passed`
+
+Gate name:
+
+- Normalize the initial top 50 megacap company universe for the Massive market-data adapter.
+
+Criteria:
+
+- Parse the provided megacap text file.
+- Extract ticker, company, and sector for every listed company.
+- Preserve optional industry when the source classification contains `Sector / Industry`.
+- Add DB-ready normalized keys for ticker, company, sector, and industry.
+- Produce a normalized seed artifact suitable for later persistence.
+- Add tests for parser count, representative rows, exchange ticker suffixes, and CSV output.
+
+Evidence:
+
+- `internal/adapters/marketdata/massive/top50megacap.txt`
+- `internal/adapters/marketdata/massive/top50megacap.normalized.csv`
+- `internal/adapters/marketdata/massive/megacap_seed.go`
+- `internal/adapters/marketdata/massive/megacap_seed_test.go`
+- `internal/adapters/marketdata/massive/README.md`
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/adapters/marketdata/massive`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `make docker-test-python`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `head -12 internal/adapters/marketdata/massive/top50megacap.normalized.csv`
+- `tail -8 internal/adapters/marketdata/massive/top50megacap.normalized.csv`
+
+Live verification result:
+
+- Parser produced 50 rows.
+- First normalized row: `NVDA`, `NVIDIA`, sector `Technology`, industry `Semiconductors`.
+- Exchange/class suffixes normalize predictably, including `BRK.B -> brk_b`, `2222.SR -> 2222_sr`, and `005930.KS -> 005930_ks`.
+- Final normalized row: `GEV`, `GE Vernova`, sector `Energy`, industry `Industrials`.
+
+Issues found and resolved:
+
+- The repository file is named `top50megacap.txt`, not `50topmegacap.txt`; implementation references the actual file.
+- Mixed classification formats are supported: `market cap | sector / industry`, `market cap | sector`, and `sector / industry`.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Build the Massive scheduled event builder for daily option contracts and EOD prices.
+- Add persistence migration once the database layer is introduced.
+

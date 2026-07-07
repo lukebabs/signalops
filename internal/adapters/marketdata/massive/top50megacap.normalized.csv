@@ -1,0 +1,51 @@
+rank,ticker,ticker_key,company,company_key,sector,sector_key,industry,industry_key
+1,NVDA,nvda,NVIDIA,nvidia,Technology,technology,Semiconductors,semiconductors
+2,AAPL,aapl,Apple,apple,Technology,technology,Hardware,hardware
+3,GOOGL,googl,Alphabet,alphabet,Technology,technology,Software,software
+4,MSFT,msft,Microsoft,microsoft,Technology,technology,Software,software
+5,AMZN,amzn,Amazon,amazon,Consumer Discretionary,consumer_discretionary,Retail,retail
+6,TSM,tsm,TSMC,tsmc,Technology,technology,Semiconductors,semiconductors
+7,SPCX,spcx,SpaceX,spacex,Aerospace & Defense,aerospace_defense,,
+8,AVGO,avgo,Broadcom,broadcom,Technology,technology,Semiconductors,semiconductors
+9,2222.SR,2222_sr,Saudi Aramco,saudi_aramco,Energy,energy,Oil & Gas,oil_gas
+10,TSLA,tsla,Tesla,tesla,Automotive,automotive,Clean Energy,clean_energy
+11,META,meta,Meta Platforms,meta_platforms,Interactive Media,interactive_media,Software,software
+12,005930.KS,005930_ks,Samsung Electronics,samsung_electronics,Technology Hardware,technology_hardware,,
+13,MU,mu,Micron Technology,micron_technology,Technology,technology,Semiconductors,semiconductors
+14,BRK.B,brk_b,Berkshire Hathaway,berkshire_hathaway,Financial Services,financial_services,,
+15,LLY,lly,Eli Lilly,eli_lilly,Healthcare,healthcare,Pharmaceuticals,pharmaceuticals
+16,000660.KS,000660_ks,SK Hynix,sk_hynix,Technology,technology,Semiconductors,semiconductors
+17,JPM,jpm,JPMorgan Chase,jpmorgan_chase,Financials,financials,Banking,banking
+18,AMD,amd,AMD,amd,Technology,technology,Semiconductors,semiconductors
+19,WMT,wmt,Walmart,walmart,Consumer Staples,consumer_staples,Retail,retail
+20,ASML,asml,ASML,asml,Semiconductor Equipment,semiconductor_equipment,,
+21,V,v,Visa,visa,Financial Services,financial_services,,
+22,JNJ,jnj,Johnson & Johnson,johnson_johnson,Healthcare,healthcare,Pharmaceuticals,pharmaceuticals
+23,INTC,intc,Intel,intel,Technology,technology,Semiconductors,semiconductors
+24,XOM,xom,Exxon Mobil,exxon_mobil,Energy,energy,Oil & Gas,oil_gas
+25,TCEHY,tcehy,Tencent,tencent,Technology,technology,Internet,internet
+26,MA,ma,Mastercard,mastercard,Financial Services,financial_services,,
+27,AMAT,amat,Applied Materials,applied_materials,Semiconductor Equipment,semiconductor_equipment,,
+28,ABBV,abbv,AbbVie,abbvie,Healthcare,healthcare,Biopharma,biopharma
+29,CSCO,csco,Cisco Systems,cisco_systems,Technology,technology,Networking,networking
+30,CAT,cat,Caterpillar,caterpillar,Industrials,industrials,Machinery,machinery
+31,LRCX,lrcx,Lam Research,lam_research,Semiconductor Equipment,semiconductor_equipment,,
+32,BAC,bac,Bank of America,bank_of_america,Financials,financials,Banking,banking
+33,COST,cost,Costco,costco,Consumer Staples,consumer_staples,Retail,retail
+34,ORCL,orcl,Oracle,oracle,Technology,technology,Software,software
+35,GE,ge,General Electric,general_electric,Industrials,industrials,Aerospace,aerospace
+36,UNH,unh,UnitedHealth Group,unitedhealth_group,Healthcare Plans,healthcare_plans,,
+37,601939.SS,601939_ss,China Construction Bank,china_construction_bank,Financials,financials,Banking,banking
+38,KO,ko,Coca-Cola,coca_cola,Consumer Staples,consumer_staples,Beverages,beverages
+39,MS,ms,Morgan Stanley,morgan_stanley,Financial Services,financial_services,,
+40,HD,hd,Home Depot,home_depot,Consumer Discretionary,consumer_discretionary,Retail,retail
+41,PG,pg,Procter & Gamble,procter_gamble,Consumer Staples,consumer_staples,,
+42,ARM,arm,Arm Holdings,arm_holdings,Technology,technology,Semiconductor IP,semiconductor_ip
+43,HSBC,hsbc,HSBC,hsbc,Financials,financials,Banking,banking
+44,CVX,cvx,Chevron,chevron,Energy,energy,,
+45,RO.SW,ro_sw,Roche,roche,Healthcare,healthcare,,
+46,NFLX,nflx,Netflix,netflix,Communication Services,communication_services,,
+47,PLTR,pltr,Palantir,palantir,Technology,technology,,
+48,MRK,mrk,Merck & Co.,merck_co,Healthcare,healthcare,,
+49,GS,gs,Goldman Sachs,goldman_sachs,Financials,financials,,
+50,GEV,gev,GE Vernova,ge_vernova,Energy,energy,Industrials,industrials
