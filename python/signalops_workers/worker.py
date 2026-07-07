@@ -46,6 +46,14 @@ class RawEventConsumer(Protocol):
         ...
 
 
+class DeadLetterPublisher(Protocol):
+    def publish(self, message: BrokerMessage, error: Exception) -> None:
+        ...
+
+    def close(self) -> None:
+        ...
+
+
 class RawEventHandler:
     def handle(self, message: BrokerMessage) -> ProcessedRawEvent:
         payload = _decode_json_object(message.value)
@@ -83,6 +91,7 @@ def run_worker(
     *,
     poll_timeout_seconds: float,
     max_messages: int = 0,
+    dead_letter_publisher: DeadLetterPublisher | None = None,
 ) -> int:
     processed_count = 0
     try:
@@ -93,11 +102,15 @@ def run_worker(
 
             try:
                 processed = handler.handle(message)
-            except WorkerError as exc:
+            except Exception as exc:
+                if dead_letter_publisher is None:
+                    raise
+                dead_letter_publisher.publish(message, exc)
                 logger.warning(
-                    "skipping invalid raw event",
+                    "sent raw event to dlq",
                     extra={
                         "error": str(exc),
+                        "error_type": type(exc).__name__,
                         "topic": message.topic,
                         "partition": message.partition,
                         "offset": message.offset,
@@ -119,6 +132,8 @@ def run_worker(
             processed_count += 1
     finally:
         consumer.close()
+        if dead_letter_publisher is not None:
+            dead_letter_publisher.close()
 
     return processed_count
 
@@ -147,4 +162,3 @@ def _first_non_empty(*values: str) -> str:
         if value:
             return value
     return ""
-

@@ -111,8 +111,9 @@ compose listener advertises `localhost:19092`.
 
 ## Python Worker
 
-The initial Python worker runs from `python/signalops_workers` and consumes raw
-events from Redpanda. G010 intentionally limits worker behavior to consume,
-parse, log, and commit so detector-specific algorithm behavior remains isolated
-for later gates. See `docs/python_worker.md` for configuration and validation
-commands.
+The Python worker runs from `python/signalops_workers` and consumes raw
+events from Redpanda. It publishes invalid raw events and processing failures
+to `signalops.local.dlq.algorithm.v1`, then commits the source offset only
+after the DLQ publish is acknowledged. Detector-specific algorithm behavior
+remains isolated for later gates. See `docs/python_worker.md` for configuration
+and validation commands.

@@ -597,3 +597,84 @@ Follow-up items:
 - Add retry and DLQ publishing for invalid raw records and processing failures.
 - Add detector plugin interfaces and a reference no-op detector.
 - Add worker health/readiness signaling for orchestration.
+
+
+## Gate G011: Python Worker DLQ Handling
+
+Timestamp: `2026-07-07T01:40:31Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add durable DLQ publishing for Python raw-worker invalid records and processing failures.
+
+Criteria:
+
+- Add a DLQ publisher for the Python worker.
+- Publish invalid raw events and processing failures to
+  `signalops.<environment>.dlq.algorithm.v1`.
+- Preserve source topic, partition, offset, key, headers, and original broker
+  value in a replayable/auditable payload.
+- Commit the source offset only after processing succeeds or DLQ publication is
+  acknowledged.
+- Add DLQ payload schema and schema validation coverage.
+- Add unit tests for DLQ success and DLQ publish failure semantics.
+- Validate the live worker against Redpanda with a deliberately invalid raw event.
+
+Evidence:
+
+- `python/signalops_workers/worker.py`
+- `python/signalops_workers/broker.py`
+- `python/signalops_workers/config.py`
+- `python/signalops_workers/__main__.py`
+- `python/tests/test_worker.py`
+- `python/tests/test_config.py`
+- `contracts/events/dlq_event.v1.schema.json`
+- `contracts/events/README.md`
+- `compose.yaml`
+- `docs/python_worker.md`
+- `docs/deployment.md`
+
+Verification performed:
+
+- `docker compose config --quiet`
+- `make docker-test-python`
+- `docker compose build raw-worker`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose up -d raw-worker`
+- `docker compose exec -T redpanda sh -lc "printf '%s\n' '{"payload":{"bad":true}}' | rpk topic produce signalops.local.raw.v1 -k g011-invalid-live -H correlation_id:g011-correlation-live --output-format 'partition=%p offset=%o\n'"`
+- `docker compose logs --tail=120 raw-worker`
+- `docker compose exec redpanda rpk topic consume signalops.local.dlq.algorithm.v1 -o start -n 1`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Invalid raw event was produced to `signalops.local.raw.v1`, partition `2`,
+  offset `1`.
+- Worker log showed `sent raw event to dlq`.
+- DLQ topic contained key `g011-invalid-live` with schema ID
+  `signalops.dlq.raw_event.v1`, error type `InvalidRawEventError`, error
+  message `raw event is missing event_id`, source topic
+  `signalops.local.raw.v1`, source partition `2`, source offset `1`, source
+  correlation header `g011-correlation-live`, and base64 source payload.
+- Worker consumer group `signalops.raw-worker.v1` returned to stable state with
+  total lag `0`.
+
+Issues found and resolved:
+
+- G010's temporary invalid-record behavior committed poison records without a
+  durable failure artifact. G011 now publishes a DLQ event before committing.
+- Unit tests now verify that the source message is not committed when DLQ
+  publishing fails.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add retry topic handling for retryable failures.
+- Add detector plugin interfaces and a no-op detector path.
+- Add replay tooling for DLQ records.

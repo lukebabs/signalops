@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from signalops_workers.broker import RedpandaRawEventConsumer
+from signalops_workers.broker import RedpandaDeadLetterPublisher, RedpandaRawEventConsumer
 from signalops_workers.config import load_config
 from signalops_workers.worker import RawEventHandler, run_worker
 
@@ -19,11 +19,16 @@ def main() -> int:
         group_id=config.group_id,
         input_topic=config.input_topic,
     )
+    dead_letter_publisher = RedpandaDeadLetterPublisher(
+        brokers=config.brokers,
+        dlq_topic=config.dlq_topic,
+    )
     processed = run_worker(
         consumer,
         RawEventHandler(),
         poll_timeout_seconds=config.poll_timeout_seconds,
         max_messages=config.max_messages,
+        dead_letter_publisher=dead_letter_publisher,
     )
     logging.getLogger(__name__).info("worker stopped", extra={"processed": processed})
     return 0
@@ -31,4 +36,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

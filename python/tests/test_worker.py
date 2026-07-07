@@ -26,6 +26,21 @@ class FakeConsumer:
         self.closed = True
 
 
+class FakeDeadLetterPublisher:
+    def __init__(self, err: Exception | None = None) -> None:
+        self.err = err
+        self.published: list[tuple[BrokerMessage, Exception]] = []
+        self.closed = False
+
+    def publish(self, message: BrokerMessage, error: Exception) -> None:
+        if self.err is not None:
+            raise self.err
+        self.published.append((message, error))
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class WorkerTests(unittest.TestCase):
     def test_handler_parses_raw_event(self) -> None:
         message = BrokerMessage(
@@ -67,19 +82,76 @@ class WorkerTests(unittest.TestCase):
             headers={},
         )
         consumer = FakeConsumer([message])
+        dlq = FakeDeadLetterPublisher()
 
         count = run_worker(
             consumer,
             RawEventHandler(),
             poll_timeout_seconds=0.01,
             max_messages=1,
+            dead_letter_publisher=dlq,
         )
 
         self.assertEqual(count, 1)
         self.assertEqual(consumer.committed, [message])
+        self.assertEqual(dlq.published, [])
         self.assertTrue(consumer.closed)
+        self.assertTrue(dlq.closed)
 
-    def test_run_worker_commits_invalid_messages(self) -> None:
+    def test_run_worker_publishes_invalid_messages_to_dlq(self) -> None:
+        message = BrokerMessage(
+            topic="signalops.local.raw.v1",
+            partition=0,
+            offset=1,
+            key="bad-1",
+            value=b'{"payload":{}}',
+            headers={},
+        )
+        consumer = FakeConsumer([message])
+        dlq = FakeDeadLetterPublisher()
+
+        with self.assertLogs("signalops_workers.worker", level="WARNING"):
+            count = run_worker(
+                consumer,
+                RawEventHandler(),
+                poll_timeout_seconds=0.01,
+                max_messages=1,
+                dead_letter_publisher=dlq,
+            )
+
+        self.assertEqual(count, 1)
+        self.assertEqual(consumer.committed, [message])
+        self.assertEqual(len(dlq.published), 1)
+        self.assertIsInstance(dlq.published[0][1], InvalidRawEventError)
+        self.assertTrue(consumer.closed)
+        self.assertTrue(dlq.closed)
+
+    def test_run_worker_does_not_commit_when_dlq_publish_fails(self) -> None:
+        message = BrokerMessage(
+            topic="signalops.local.raw.v1",
+            partition=0,
+            offset=1,
+            key="bad-1",
+            value=b'{"payload":{}}',
+            headers={},
+        )
+        consumer = FakeConsumer([message])
+        dlq = FakeDeadLetterPublisher(err=RuntimeError("dlq unavailable"))
+
+        with self.assertRaises(RuntimeError):
+            run_worker(
+                consumer,
+                RawEventHandler(),
+                poll_timeout_seconds=0.01,
+                max_messages=1,
+                dead_letter_publisher=dlq,
+            )
+
+        self.assertEqual(consumer.committed, [])
+        self.assertTrue(consumer.closed)
+        self.assertTrue(dlq.closed)
+
+    def test_run_worker_without_dlq_raises_invalid_message(self) -> None:
         message = BrokerMessage(
             topic="signalops.local.raw.v1",
             partition=0,
@@ -90,19 +162,17 @@ class WorkerTests(unittest.TestCase):
         )
         consumer = FakeConsumer([message])
 
-        with self.assertLogs("signalops_workers.worker", level="WARNING"):
-            count = run_worker(
+        with self.assertRaises(InvalidRawEventError):
+            run_worker(
                 consumer,
                 RawEventHandler(),
                 poll_timeout_seconds=0.01,
                 max_messages=1,
             )
 
-        self.assertEqual(count, 1)
-        self.assertEqual(consumer.committed, [message])
+        self.assertEqual(consumer.committed, [])
         self.assertTrue(consumer.closed)
 
 
 if __name__ == "__main__":
     unittest.main()
-

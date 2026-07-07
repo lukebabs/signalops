@@ -521,3 +521,70 @@ Next step:
 
 - Add retry/DLQ publishing for invalid raw events and processing failures.
 - Add detector plugin contracts and a reference no-op detector worker path.
+
+
+## 2026-07-07T01:40:31Z
+
+Summary:
+
+- Added DLQ publishing for Python raw-worker invalid records and processing
+  failures.
+- Added `DLQEvent` JSON Schema for durable failed-record payloads.
+- Updated the worker to commit source offsets only after processing succeeds or
+  the DLQ publish is acknowledged.
+- Validated live Redpanda DLQ behavior with an intentionally invalid raw event.
+
+Files changed:
+
+- `compose.yaml`
+- `contracts/events/README.md`
+- `contracts/events/dlq_event.v1.schema.json`
+- `docs/python_worker.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `python/signalops_workers/__main__.py`
+- `python/signalops_workers/broker.py`
+- `python/signalops_workers/config.py`
+- `python/signalops_workers/worker.py`
+- `python/tests/test_config.py`
+- `python/tests/test_worker.py`
+
+Rationale:
+
+- G010 intentionally logged and committed invalid raw records as a temporary
+  skeleton behavior. G011 replaces that with durable DLQ publication so failed
+  records remain inspectable and replayable.
+- Source offsets are committed only after DLQ acknowledgement to avoid silent
+  loss if the DLQ path is unavailable.
+- The DLQ payload preserves source topic, partition, offset, key, headers, and
+  base64-encoded source value for audit and future replay tooling.
+
+Verification performed:
+
+- Validated compose syntax with `docker compose config --quiet`.
+- Ran Python unit tests with `make docker-test-python`; 10 tests passed.
+- Built the worker image with `docker compose build raw-worker`.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; the
+  new `dlq_event.v1.schema.json` passed.
+- Redeployed the worker with `docker compose up -d raw-worker`.
+- Produced an invalid raw event directly to `signalops.local.raw.v1` with key
+  `g011-invalid-live` and correlation ID `g011-correlation-live`.
+- Verified worker logs showed `sent raw event to dlq`.
+- Consumed `signalops.local.dlq.algorithm.v1` and verified key, error type,
+  source topic, source partition, source offset, correlation header, and base64
+  source payload.
+- Verified `rpk group describe signalops.raw-worker.v1` reported stable group
+  state with total lag `0`.
+
+Issue found and resolved:
+
+- The worker needed durable failure handling beyond G010's temporary skip path.
+  It now publishes to DLQ before committing the source offset.
+
+Next step:
+
+- Add retry-topic handling for retryable processing failures.
+- Add detector plugin interfaces and a no-op detector path that can emit
+  normalized success/failure outcomes.

@@ -15,6 +15,7 @@ class WorkerConfig:
     brokers: str
     environment: str
     input_topic: str
+    dlq_topic: str
     group_id: str
     poll_timeout_seconds: float
     max_messages: int
@@ -27,6 +28,7 @@ def load_config() -> WorkerConfig:
         brokers=_env("SIGNALOPS_BROKER_BROKERS", DEFAULT_BROKERS),
         environment=environment,
         input_topic=_env("SIGNALOPS_WORKER_INPUT_TOPIC", raw_topic(environment)),
+        dlq_topic=_env("SIGNALOPS_WORKER_DLQ_TOPIC", dlq_topic(environment)),
         group_id=_env("SIGNALOPS_WORKER_GROUP_ID", DEFAULT_GROUP_ID),
         poll_timeout_seconds=_float_env(
             "SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS", DEFAULT_POLL_TIMEOUT_SECONDS
@@ -39,6 +41,11 @@ def load_config() -> WorkerConfig:
 def raw_topic(environment: str) -> str:
     environment = environment.strip() or DEFAULT_ENVIRONMENT
     return f"signalops.{environment}.raw.v1"
+
+
+def dlq_topic(environment: str) -> str:
+    environment = environment.strip() or DEFAULT_ENVIRONMENT
+    return f"signalops.{environment}.dlq.algorithm.v1"
 
 
 def _env(key: str, fallback: str) -> str:
@@ -58,4 +65,3 @@ def _float_env(key: str, fallback: float) -> float:
     if not value:
         return fallback
     return float(value)
-

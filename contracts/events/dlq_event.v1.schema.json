@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signalops.syncratic.local/contracts/events/dlq_event.v1.schema.json",
+  "title": "SignalOps DLQ Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "failed_at",
+    "error_type",
+    "error_message",
+    "source"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "signalops.dlq.raw_event.v1"
+    },
+    "failed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "error_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "error_message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "topic",
+        "partition",
+        "offset",
+        "key",
+        "headers",
+        "value_base64"
+      ],
+      "properties": {
+        "topic": {
+          "type": "string",
+          "minLength": 1
+        },
+        "partition": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "key": {
+          "type": "string"
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "value_base64": {
+          "type": "string",
+          "contentEncoding": "base64"
+        }
+      }
+    }
+  }
+}

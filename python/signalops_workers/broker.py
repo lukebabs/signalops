@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import base64
+import json
 from collections.abc import Mapping
+from datetime import datetime, timezone
 
-from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
+from confluent_kafka import Consumer, KafkaError, KafkaException, Producer, TopicPartition
 
 from signalops_workers.worker import BrokerMessage
 
@@ -47,6 +50,51 @@ class RedpandaRawEventConsumer:
         self._consumer.close()
 
 
+class RedpandaDeadLetterPublisher:
+    def __init__(self, *, brokers: str, dlq_topic: str) -> None:
+        self._topic = dlq_topic
+        self._producer = Producer({"bootstrap.servers": brokers})
+
+    def publish(self, message: BrokerMessage, error: Exception) -> None:
+        payload = {
+            "schema_id": "signalops.dlq.raw_event.v1",
+            "failed_at": datetime.now(timezone.utc).isoformat(),
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+            "source": {
+                "topic": message.topic,
+                "partition": message.partition,
+                "offset": message.offset,
+                "key": message.key,
+                "headers": dict(message.headers),
+                "value_base64": base64.b64encode(message.value).decode("ascii"),
+            },
+        }
+        headers = [
+            ("content_type", "application/json"),
+            ("signalops_dlq_reason", type(error).__name__),
+            ("signalops_source_topic", message.topic),
+            ("signalops_source_partition", str(message.partition)),
+            ("signalops_source_offset", str(message.offset)),
+        ]
+        correlation_id = message.headers.get("correlation_id")
+        if correlation_id:
+            headers.append(("correlation_id", correlation_id))
+
+        self._producer.produce(
+            self._topic,
+            key=message.key,
+            value=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            headers=headers,
+        )
+        remaining = self._producer.flush(timeout=10)
+        if remaining:
+            raise TimeoutError("timed out publishing DLQ message")
+
+    def close(self) -> None:
+        self._producer.flush(timeout=10)
+
+
 def _headers_to_mapping(headers: list[tuple[str, bytes | None]] | None) -> Mapping[str, str]:
     mapped: dict[str, str] = {}
     for key, value in headers or []:
@@ -58,4 +106,3 @@ def _decode_optional(value: bytes | None) -> str:
     if value is None:
         return ""
     return value.decode("utf-8")
-
