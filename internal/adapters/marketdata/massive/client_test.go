@@ -1,0 +1,188 @@
+package massive
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestLoadClientConfigFromEnvUsesFallbacks(t *testing.T) {
+	t.Setenv("SIGNALOPS_MASSIVE_API_KEY", "")
+	t.Setenv("MASSIVE_API_KEY", "")
+	t.Setenv("API_KEY", "local-key")
+	t.Setenv("SIGNALOPS_MASSIVE_BASE_URL", "https://example.test")
+
+	cfg := LoadClientConfigFromEnv()
+
+	if cfg.APIKey != "local-key" {
+		t.Fatalf("api key fallback not loaded")
+	}
+	if cfg.BaseURL != "https://example.test" {
+		t.Fatalf("base url = %q", cfg.BaseURL)
+	}
+}
+
+func TestNewClientRequiresAPIKey(t *testing.T) {
+	_, err := NewClient(ClientConfig{BaseURL: "https://example.test"})
+	if err == nil {
+		t.Fatal("expected missing api key error")
+	}
+}
+
+func TestClientListOptionContracts(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v3/reference/options/contracts" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		assertQuery(t, r.URL.Query(), "underlying_ticker", "SPY")
+		assertQuery(t, r.URL.Query(), "as_of", "2026-07-06")
+		assertQuery(t, r.URL.Query(), "limit", "10")
+		assertQuery(t, r.URL.Query(), "apiKey", "test-key")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"results":[{
+				"id":"contract-1",
+				"ticker":"O:SPY260116C00600000",
+				"underlying_ticker":"SPY",
+				"contract_type":"call",
+				"expiration_date":"2026-01-16",
+				"strike_price":600
+			}]
+		}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(ClientConfig{BaseURL: server.URL, APIKey: "test-key", HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+
+	records, err := client.ListOptionContracts(context.Background(), "spy", time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC), 10)
+	if err != nil {
+		t.Fatalf("list option contracts: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("record count = %d", len(records))
+	}
+	record := records[0]
+	if record.ProviderContractID != "contract-1" || record.OptionTicker != "O:SPY260116C00600000" {
+		t.Fatalf("record = %+v", record)
+	}
+	if record.UnderlyingSymbol != "SPY" || record.ContractType != "call" || record.StrikePrice != 600 {
+		t.Fatalf("record = %+v", record)
+	}
+	if record.ObservationDate.Format("2006-01-02") != "2026-07-06" {
+		t.Fatalf("observation date = %s", record.ObservationDate)
+	}
+}
+
+func TestClientGetEquityDailyBar(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/aggs/ticker/QQQ/range/1/day/2026-07-06/2026-07-06" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		assertQuery(t, r.URL.Query(), "apiKey", "test-key")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"ticker":"QQQ",
+			"results":[{"o":500.25,"h":505.00,"l":499.50,"c":501.75,"v":980000,"vw":502.10,"t":1783296000000}]
+		}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(ClientConfig{BaseURL: server.URL, APIKey: "test-key", HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+
+	record, err := client.GetEquityDailyBar(context.Background(), "qqq", time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("get equity daily bar: %v", err)
+	}
+	if record.Symbol != "QQQ" {
+		t.Fatalf("symbol = %q", record.Symbol)
+	}
+	if record.Close == nil || *record.Close != 501.75 {
+		t.Fatalf("close = %v", record.Close)
+	}
+	if record.Volume == nil || *record.Volume != 980000 {
+		t.Fatalf("volume = %v", record.Volume)
+	}
+}
+
+func TestClientErrorsDoNotLeakAPIKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "bad key secret-key", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(ClientConfig{BaseURL: server.URL, APIKey: "secret-key", HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+
+	_, err = client.GetEquityDailyBar(context.Background(), "SPY", time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if strings.Contains(err.Error(), "secret-key") {
+		t.Fatalf("error leaked api key: %v", err)
+	}
+}
+
+func TestDefaultBaseURLIsParseable(t *testing.T) {
+	if _, err := url.Parse(DefaultBaseURL); err != nil {
+		t.Fatalf("default base url parse: %v", err)
+	}
+}
+
+func TestLoadClientConfigPrefersSpecificEnv(t *testing.T) {
+	clearAPIEnv(t)
+	t.Setenv("API_KEY", "generic-key")
+	t.Setenv("MASSIVE_API_KEY", "massive-key")
+	t.Setenv("SIGNALOPS_MASSIVE_API_KEY", "specific-key")
+
+	cfg := LoadClientConfigFromEnv()
+	if cfg.APIKey != "specific-key" {
+		t.Fatalf("api key = %q", cfg.APIKey)
+	}
+}
+
+func clearAPIEnv(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{"SIGNALOPS_MASSIVE_API_KEY", "MASSIVE_API_KEY", "API_KEY"} {
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatalf("unset %s: %v", key, err)
+		}
+	}
+}
+
+func assertQuery(t *testing.T, values url.Values, key string, want string) {
+	t.Helper()
+	if got := values.Get(key); got != want {
+		t.Fatalf("query %s = %q, want %q", key, got, want)
+	}
+}
+
+func TestAggregateResponseBuildsOptionRecord(t *testing.T) {
+	var response aggregateBarsResponse
+	if err := json.Unmarshal([]byte(`{"results":[{"o":1.1,"h":2.2,"l":1.0,"c":1.8,"v":100,"vw":1.7,"t":1783296000000}]}`), &response); err != nil {
+		t.Fatalf("decode aggregate response: %v", err)
+	}
+	records := response.optionRecords("O:SPY260116C00600000", "SPY", time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC))
+	if len(records) != 1 {
+		t.Fatalf("record count = %d", len(records))
+	}
+	if records[0].OptionTicker != "O:SPY260116C00600000" || records[0].UnderlyingSymbol != "SPY" {
+		t.Fatalf("record = %+v", records[0])
+	}
+	if records[0].Close == nil || *records[0].Close != 1.8 {
+		t.Fatalf("close = %v", records[0].Close)
+	}
+}

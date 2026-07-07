@@ -1165,3 +1165,67 @@ Follow-up items:
 - Add a Massive HTTP client abstraction and response parser for the selected daily endpoints.
 - Add a scheduled pull runner that uses the event builders and publishes raw events to Redpanda.
 
+## Gate G019: Massive HTTP Client And Response Parsers
+
+Timestamp: `2026-07-07T04:24:55Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add fixture-backed Massive HTTP client and parsers for scheduled daily market-data ingestion.
+
+Criteria:
+
+- Add client configuration for Massive base URL and API key.
+- Support local `.env` fallback without committing or logging secrets.
+- Add request methods for option contract listings, equity daily bars, and option daily bars.
+- Parse provider responses into the internal record types consumed by the G018 event builders.
+- Document the option aggregate-bar enrichment boundary before event building.
+- Keep tests offline and fixture-backed.
+- Ensure errors do not leak API key values.
+
+Evidence:
+
+- `internal/adapters/marketdata/massive/client.go`
+- `internal/adapters/marketdata/massive/responses.go`
+- `internal/adapters/marketdata/massive/client_test.go`
+- `internal/adapters/marketdata/massive/README.md`
+
+Implementation notes:
+
+- Option aggregate bars provide price/volume observations only; scheduled option ingestion must enrich them with option contract listing metadata before calling `BuildOptionContractDailyEvent`.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/adapters/marketdata/massive`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `make docker-test-python`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose config --quiet`
+- `docker compose ps`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Fixture-backed client tests passed for option contract listings and equity daily bars.
+- API-key precedence tests passed without exposing the key value.
+- Error handling test confirmed client errors do not include the API key.
+- Full Go and Python test gates passed.
+- The running Docker stack remained healthy.
+- The raw-worker consumer group remained stable with one member and total lag `0`.
+
+Issues found and resolved:
+
+- The local `.env` uses `API_KEY`; client config supports it as a fallback while documenting more explicit Massive-specific variable names.
+- A test syntax typo was found by the targeted Go test and fixed before final validation.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add the scheduled pull runner and broker publisher integration.
+- Add optional manual live validation using the local Massive API key without logging secrets.
+

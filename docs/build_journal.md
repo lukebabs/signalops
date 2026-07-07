@@ -998,3 +998,48 @@ Next step:
 - Add a Massive HTTP client abstraction and fixture-backed parser for daily option contracts and EOD price responses.
 - Then wire a scheduled pull runner that publishes built raw events to Redpanda.
 
+## 2026-07-07T04:24:55Z
+
+Summary:
+
+- Added a Massive HTTP client abstraction for selected scheduled market-data endpoints.
+- Added fixture-backed response parsers for option contract listings and daily aggregate bars.
+- Added environment-based client configuration with API key precedence: `SIGNALOPS_MASSIVE_API_KEY`, `MASSIVE_API_KEY`, then local `API_KEY` fallback.
+- Added tests that verify request paths, query parameters, response parsing, env precedence, required key validation, and no API-key leakage in errors.
+- Documented that option aggregate bars must be paired with contract listing metadata before canonical option events are built.
+- Kept all tests offline using `httptest`; no live Massive API call is required for validation.
+
+Files changed:
+
+- `internal/adapters/marketdata/massive/client.go`
+- `internal/adapters/marketdata/massive/responses.go`
+- `internal/adapters/marketdata/massive/client_test.go`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- The scheduled pull runner needs a tested client/parser layer before it can fetch provider data and publish raw events.
+- API-key handling must be explicit and safe before any live validation is attempted.
+- Tests remain fixture-backed so CI and local gates are deterministic and do not depend on provider availability or account limits.
+
+Verification performed:
+
+- Ran targeted Go tests for `internal/adapters/marketdata/massive`; passed.
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Python unit tests with `make docker-test-python`; 36 tests passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Validated Compose syntax with `docker compose config --quiet`.
+- Verified the running stack remained healthy and `signalops.raw-worker.v1` stayed stable with one member and total lag `0`.
+
+Issue found and resolved:
+
+- The local `.env` currently uses a generic `API_KEY` name. The client supports that as a fallback while preferring `SIGNALOPS_MASSIVE_API_KEY` and `MASSIVE_API_KEY` for clearer production configuration.
+- A test syntax typo was caught by the first targeted Go test run and corrected before the full gate.
+
+Next step:
+
+- Add a scheduled pull runner that uses the megacap seed universe, Massive client, event builders, and broker publisher to emit raw events.
+- Optionally add a manual live-validation command that uses `.env` without logging the API key.
+
