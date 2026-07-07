@@ -139,6 +139,11 @@ Runtime controls:
 - `SIGNALOPS_MASSIVE_MAX_COMPANIES`: maximum seed companies to process.
 - `SIGNALOPS_MASSIVE_OPTIONS_LIMIT`: option contract listing limit per
   underlying.
+- `SIGNALOPS_MASSIVE_REQUEST_DELAY`: delay before each provider request, such
+  as `250ms` or `1s`.
+- `SIGNALOPS_MASSIVE_MAX_RETRIES`: retry attempts for each provider request.
+- `SIGNALOPS_MASSIVE_RETRY_BACKOFF`: base retry backoff, multiplied by retry
+  attempt.
 - `SIGNALOPS_MASSIVE_DRY_RUN`: defaults to `true`; set to `false` to publish
   canonical raw events to `signalops.<env>.raw.v1`.
 - `SIGNALOPS_MASSIVE_CONTINUE_ON_ERROR`: continue across symbols after
@@ -149,3 +154,6 @@ Runtime controls:
 Dry-run builds events and reports counts without broker publication. Publish
 mode writes JSON `RawSignalEvent` values with the idempotency key as the broker
 message key and scheduled-pull headers for downstream audit.
+
+Reports include provider request and retry counters so broad scheduled runs can
+be audited for API usage and transient provider behavior.

@@ -39,3 +39,10 @@ func TestParseObservationDate(t *testing.T) {
 		t.Fatalf("day = %s", day)
 	}
 }
+
+func TestEnvDurationOrDefault(t *testing.T) {
+	t.Setenv("SIGNALOPS_TEST_DURATION", "250ms")
+	if got := envDurationOrDefault("SIGNALOPS_TEST_DURATION", time.Second); got != 250*time.Millisecond {
+		t.Fatalf("duration = %s", got)
+	}
+}

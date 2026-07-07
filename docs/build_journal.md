@@ -1134,3 +1134,53 @@ Issue found and resolved:
 Next step:
 
 - Expand provider-backed validation to a small multi-ticker dry-run and then add scheduler/orchestrator integration for repeatable execution.
+
+
+## 2026-07-07T05:00:57Z
+
+Summary:
+
+- Added provider request pacing and retry/backoff controls to the Massive scheduled pull runner.
+- Added usage counters to scheduled pull reports: provider requests and provider retries.
+- Exposed request delay, max retries, and retry backoff through the `cmd/massive-puller` CLI and Compose profile.
+- Added unit coverage for transient provider failure retry and retry exhaustion behavior.
+- Ran a controlled multi-ticker live dry-run using the ignored local `.env` key: 3 companies, equity plus options, option limit 2, request delay 250ms, max retries 1.
+- Live dry-run built 9 events, published 0, made 6 provider requests, retried 0, and failed 0.
+
+Files changed:
+
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `internal/adapters/marketdata/massive/scheduled_pull_test.go`
+- `cmd/massive-puller/main.go`
+- `cmd/massive-puller/main_test.go`
+- `compose.yaml`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- The one-ticker live smoke test proved provider compatibility and broker delivery, but broad runs need explicit provider usage controls before expanding the universe.
+- Pacing and retry/backoff are needed for respectful API usage and transient provider reliability.
+- Report counters make each run auditable for provider request volume and retry behavior.
+
+Verification performed:
+
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Python unit tests with `python -m unittest discover -s python/tests`; 36 tests passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Validated Compose syntax with `docker compose --profile massive-pull config --quiet`.
+- Built the Massive puller image with `docker build --target massive-puller -t signalops-massive-puller:local .`.
+- Rebuilt the Compose service image with `docker compose --profile massive-pull build massive-puller`.
+- Ran live multi-ticker dry-run with `docker compose --profile massive-pull run --rm massive-puller --max-companies 3 --datasets equity,options --options-limit 2 --request-delay 250ms --max-retries 1 --retry-backoff 1s --dry-run=true --continue-on-error=true`.
+- Verified the running stack remained healthy and `signalops.raw-worker.v1` stayed stable with one member and total lag `0`.
+
+Issue found and resolved:
+
+- The first live dry-run attempt used an older Compose-built puller image and failed because the new flags were not present. Rebuilding the Compose service image resolved the deployment artifact mismatch.
+- Secret handling remained clean: `.env` stayed ignored and no API key values were logged or committed.
+
+Next step:
+
+- Add scheduler/orchestrator integration for repeatable one-shot execution, keeping dry-run as the safe default.
+- After scheduler wiring, run a constrained scheduled publish validation before expanding the full megacap universe.

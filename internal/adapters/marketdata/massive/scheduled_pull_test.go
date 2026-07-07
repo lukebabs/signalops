@@ -153,3 +153,62 @@ func TestRunScheduledPullContinueOnError(t *testing.T) {
 func testObservationDate() time.Time {
 	return time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)
 }
+
+type flakyEquityClient struct {
+	failuresRemaining int
+	requests          int
+}
+
+func (f *flakyEquityClient) GetEquityDailyBar(_ context.Context, symbol string, date time.Time) (EquityEODPriceRecord, error) {
+	f.requests++
+	if f.failuresRemaining > 0 {
+		f.failuresRemaining--
+		return EquityEODPriceRecord{}, errors.New("temporary provider failure")
+	}
+	return EquityEODPriceRecord{ProviderEventID: symbol + "-event", Symbol: symbol, ObservationDate: date}, nil
+}
+
+func (f *flakyEquityClient) ListOptionContracts(context.Context, string, time.Time, int) ([]OptionContractDailyRecord, error) {
+	return nil, nil
+}
+
+func TestRunScheduledPullRetriesTransientProviderFailures(t *testing.T) {
+	client := &flakyEquityClient{failuresRemaining: 1}
+	report, err := RunScheduledPull(context.Background(), ScheduledPullConfig{
+		TenantID:         "tenant-1",
+		SourceID:         "src-massive",
+		ObservationDate:  testObservationDate(),
+		Companies:        []MegacapCompanySeed{{Ticker: "MSFT"}},
+		IncludeEquityEOD: true,
+		DryRun:           true,
+		MaxRetries:       1,
+	}, client, nil)
+	if err != nil {
+		t.Fatalf("run scheduled pull: %v", err)
+	}
+	if client.requests != 2 || report.ProviderRequests != 2 || report.ProviderRetries != 1 {
+		t.Fatalf("requests/retries = client:%d report:%d/%d", client.requests, report.ProviderRequests, report.ProviderRetries)
+	}
+	if report.EventsBuilt != 1 || report.Failures != 0 {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestRunScheduledPullStopsAfterRetryExhaustion(t *testing.T) {
+	client := &flakyEquityClient{failuresRemaining: 2}
+	report, err := RunScheduledPull(context.Background(), ScheduledPullConfig{
+		TenantID:         "tenant-1",
+		SourceID:         "src-massive",
+		ObservationDate:  testObservationDate(),
+		Companies:        []MegacapCompanySeed{{Ticker: "MSFT"}},
+		IncludeEquityEOD: true,
+		DryRun:           true,
+		MaxRetries:       1,
+	}, client, nil)
+	if err == nil {
+		t.Fatal("expected retry exhaustion error")
+	}
+	if report.ProviderRequests != 2 || report.ProviderRetries != 1 || report.Failures != 1 {
+		t.Fatalf("report = %+v", report)
+	}
+}

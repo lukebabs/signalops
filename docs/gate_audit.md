@@ -1364,3 +1364,75 @@ Follow-up items:
 - Expand validation to a small multi-ticker dry-run.
 - Add scheduler/orchestrator integration for repeatable Massive pull execution.
 - Add production-oriented controls for rate limits, retry/backoff, and provider usage accounting before broad universe runs.
+
+
+## Gate G022: Massive Rate Controls And Multi-Ticker Dry-Run
+
+Timestamp: `2026-07-07T05:00:57Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add provider usage controls and validate a small multi-ticker Massive dry-run.
+
+Criteria:
+
+- Add request pacing controls for provider calls.
+- Add retry/backoff controls for transient provider failures.
+- Add report counters for provider requests and retries.
+- Expose the controls through the Massive puller CLI and Compose profile.
+- Add unit coverage for retry success and retry exhaustion.
+- Run a controlled multi-ticker live dry-run without publishing broker messages.
+- Confirm the running stack remains healthy and raw-worker lag remains `0`.
+
+Evidence:
+
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `internal/adapters/marketdata/massive/scheduled_pull_test.go`
+- `cmd/massive-puller/main.go`
+- `cmd/massive-puller/main_test.go`
+- `compose.yaml`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `SIGNALOPS_MASSIVE_REQUEST_DELAY` controls delay before each provider request.
+- `SIGNALOPS_MASSIVE_MAX_RETRIES` controls retries per provider request.
+- `SIGNALOPS_MASSIVE_RETRY_BACKOFF` controls retry backoff and is multiplied by retry attempt.
+- Report output now includes `provider_requests` and `provider_retries` for audit and usage accounting.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace -e PYTHONPATH=/workspace/python python:3.12-slim python -m unittest discover -s python/tests`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose --profile massive-pull config --quiet`
+- `docker build --target massive-puller -t signalops-massive-puller:local .`
+- `docker compose --profile massive-pull build massive-puller`
+- `docker compose --profile massive-pull run --rm massive-puller --max-companies 3 --datasets equity,options --options-limit 2 --request-delay 250ms --max-retries 1 --retry-backoff 1s --dry-run=true --continue-on-error=true`
+- `docker compose ps`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Multi-ticker dry-run report: 3 companies, 9 events built, 0 events published, 6 provider requests, 0 provider retries, 0 failures.
+- Event counts: 3 `equity_eod_prices` events and 6 `options_contracts_daily` events.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+- Running stack remained healthy.
+
+Issues found and resolved:
+
+- An older Compose-built puller image initially rejected the new pacing/retry flags. Rebuilding `massive-puller` through Compose resolved the artifact mismatch.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add scheduler/orchestrator integration for repeatable Massive pull execution.
+- Run a constrained scheduled publish validation before broader universe publishing.
+- Add provider usage budgeting and persistent run history once the database layer exists.

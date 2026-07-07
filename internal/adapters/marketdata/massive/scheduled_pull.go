@@ -38,20 +38,25 @@ type ScheduledPullConfig struct {
 	DryRun            bool
 	ContinueOnError   bool
 	PublishTimeout    time.Duration
+	RequestDelay      time.Duration
+	MaxRetries        int
+	RetryBackoff      time.Duration
 	CorrelationPrefix string
 	TraceID           string
 }
 
 type ScheduledPullReport struct {
-	ObservationDate time.Time      `json:"observation_date"`
-	DryRun          bool           `json:"dry_run"`
-	Topic           string         `json:"topic"`
-	Companies       int            `json:"companies"`
-	EventsBuilt     int            `json:"events_built"`
-	EventsPublished int            `json:"events_published"`
-	EventsByDataset map[string]int `json:"events_by_dataset"`
-	Failures        int            `json:"failures"`
-	Errors          []string       `json:"errors,omitempty"`
+	ObservationDate  time.Time      `json:"observation_date"`
+	DryRun           bool           `json:"dry_run"`
+	Topic            string         `json:"topic"`
+	Companies        int            `json:"companies"`
+	EventsBuilt      int            `json:"events_built"`
+	EventsPublished  int            `json:"events_published"`
+	EventsByDataset  map[string]int `json:"events_by_dataset"`
+	ProviderRequests int            `json:"provider_requests"`
+	ProviderRetries  int            `json:"provider_retries"`
+	Failures         int            `json:"failures"`
+	Errors           []string       `json:"errors,omitempty"`
 }
 
 func RunScheduledPull(ctx context.Context, cfg ScheduledPullConfig, client ScheduledPullClient, publisher broker.Publisher) (ScheduledPullReport, error) {
@@ -105,7 +110,9 @@ func RunScheduledPull(ctx context.Context, cfg ScheduledPullConfig, client Sched
 		}
 
 		if cfg.IncludeEquityEOD {
-			record, err := client.GetEquityDailyBar(ctx, symbol, cfg.ObservationDate)
+			record, err := fetchWithRetry(ctx, cfg, &report, func() (EquityEODPriceRecord, error) {
+				return client.GetEquityDailyBar(ctx, symbol, cfg.ObservationDate)
+			})
 			if err != nil {
 				if shouldStop := recordPullFailure(&report, cfg, fmt.Sprintf("%s equity eod: %v", symbol, err)); shouldStop {
 					return report, err
@@ -120,7 +127,9 @@ func RunScheduledPull(ctx context.Context, cfg ScheduledPullConfig, client Sched
 		}
 
 		if cfg.IncludeOptions {
-			records, err := client.ListOptionContracts(ctx, symbol, cfg.ObservationDate, cfg.OptionsLimit)
+			records, err := fetchWithRetry(ctx, cfg, &report, func() ([]OptionContractDailyRecord, error) {
+				return client.ListOptionContracts(ctx, symbol, cfg.ObservationDate, cfg.OptionsLimit)
+			})
 			if err != nil {
 				if shouldStop := recordPullFailure(&report, cfg, fmt.Sprintf("%s option contracts: %v", symbol, err)); shouldStop {
 					return report, err
@@ -144,6 +153,54 @@ func RunScheduledPull(ctx context.Context, cfg ScheduledPullConfig, client Sched
 		return report, errors.New("massive scheduled pull failed")
 	}
 	return report, nil
+}
+
+func fetchWithRetry[T any](ctx context.Context, cfg ScheduledPullConfig, report *ScheduledPullReport, fetch func() (T, error)) (T, error) {
+	var zero T
+	attempts := cfg.MaxRetries + 1
+	for attempt := 0; attempt < attempts; attempt++ {
+		if err := waitForRequestSlot(ctx, cfg); err != nil {
+			return zero, err
+		}
+		report.ProviderRequests++
+		result, err := fetch()
+		if err == nil {
+			return result, nil
+		}
+		if attempt == attempts-1 {
+			return zero, err
+		}
+		report.ProviderRetries++
+		if err := waitForRetry(ctx, cfg, attempt+1); err != nil {
+			return zero, err
+		}
+	}
+	return zero, errors.New("provider fetch retry loop exhausted")
+}
+
+func waitForRequestSlot(ctx context.Context, cfg ScheduledPullConfig) error {
+	if cfg.RequestDelay <= 0 {
+		return ctx.Err()
+	}
+	return sleepContext(ctx, cfg.RequestDelay)
+}
+
+func waitForRetry(ctx context.Context, cfg ScheduledPullConfig, attempt int) error {
+	if cfg.RetryBackoff <= 0 {
+		return ctx.Err()
+	}
+	return sleepContext(ctx, time.Duration(attempt)*cfg.RetryBackoff)
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func buildAndMaybePublish(ctx context.Context, cfg ScheduledPullConfig, publisher broker.Publisher, report *ScheduledPullReport, dataset string, build func(AdapterConfig) (contracts.RawSignalEvent, error)) error {
@@ -198,6 +255,9 @@ func normalizeScheduledPullConfig(cfg ScheduledPullConfig) ScheduledPullConfig {
 	}
 	if cfg.PublishTimeout == 0 {
 		cfg.PublishTimeout = defaultPublishTimeout
+	}
+	if cfg.MaxRetries < 0 {
+		cfg.MaxRetries = 0
 	}
 	if cfg.ProcessingAt.IsZero() {
 		cfg.ProcessingAt = time.Now().UTC()

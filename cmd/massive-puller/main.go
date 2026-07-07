@@ -32,6 +32,9 @@ func run(logger *slog.Logger, args []string) error {
 	datasets := envOrDefault("SIGNALOPS_MASSIVE_DATASETS", "equity,options")
 	maxCompanies := envIntOrDefault("SIGNALOPS_MASSIVE_MAX_COMPANIES", 50)
 	optionsLimit := envIntOrDefault("SIGNALOPS_MASSIVE_OPTIONS_LIMIT", 100)
+	requestDelay := envDurationOrDefault("SIGNALOPS_MASSIVE_REQUEST_DELAY", 0)
+	maxRetries := envIntOrDefault("SIGNALOPS_MASSIVE_MAX_RETRIES", 1)
+	retryBackoff := envDurationOrDefault("SIGNALOPS_MASSIVE_RETRY_BACKOFF", time.Second)
 	dryRun := envBoolOrDefault("SIGNALOPS_MASSIVE_DRY_RUN", true)
 	continueOnError := envBoolOrDefault("SIGNALOPS_MASSIVE_CONTINUE_ON_ERROR", false)
 	tenantID := envOrDefault("SIGNALOPS_MASSIVE_TENANT_ID", "tenant-local")
@@ -42,6 +45,9 @@ func run(logger *slog.Logger, args []string) error {
 	flags.StringVar(&datasets, "datasets", datasets, "comma-separated datasets: equity, options")
 	flags.IntVar(&maxCompanies, "max-companies", maxCompanies, "maximum megacap companies to process")
 	flags.IntVar(&optionsLimit, "options-limit", optionsLimit, "provider option contract listing limit per underlying")
+	flags.DurationVar(&requestDelay, "request-delay", requestDelay, "delay before each provider request, such as 250ms or 1s")
+	flags.IntVar(&maxRetries, "max-retries", maxRetries, "maximum retry attempts for each provider request")
+	flags.DurationVar(&retryBackoff, "retry-backoff", retryBackoff, "base retry backoff, multiplied by retry attempt")
 	flags.BoolVar(&dryRun, "dry-run", dryRun, "build events without publishing")
 	flags.BoolVar(&continueOnError, "continue-on-error", continueOnError, "continue processing symbols after provider/build/publish failures")
 	flags.StringVar(&tenantID, "tenant-id", tenantID, "tenant id for emitted raw events")
@@ -101,6 +107,9 @@ func run(logger *slog.Logger, args []string) error {
 		IncludeEquityEOD: includeEquity,
 		IncludeOptions:   includeOptions,
 		OptionsLimit:     optionsLimit,
+		RequestDelay:     requestDelay,
+		MaxRetries:       maxRetries,
+		RetryBackoff:     retryBackoff,
 		DryRun:           dryRun,
 		ContinueOnError:  continueOnError,
 	}, massiveClient, brokerClient)
@@ -171,6 +180,18 @@ func envBoolOrDefault(key string, fallback bool) bool {
 		return fallback
 	}
 	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func envDurationOrDefault(key string, fallback time.Duration) time.Duration {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(value)
 	if err != nil {
 		return fallback
 	}
