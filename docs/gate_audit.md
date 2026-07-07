@@ -1515,3 +1515,60 @@ Follow-up items:
 - Run constrained scheduled publish validation with `max-runs=1` and one equity ticker.
 - Add persistent scheduler run history and provider usage accounting once the database layer exists.
 - Add Kubernetes CronJob or external orchestrator manifests when deployment targets are finalized.
+
+
+## Gate G024: Massive Scheduled Publish Validation
+
+Timestamp: `2026-07-07T18:19:15Z`
+
+Status: `passed`
+
+Gate name:
+
+- Validate scheduled Massive publish mode through Redpanda and the raw worker.
+
+Criteria:
+
+- Use the ignored local `.env` key without logging or committing secret values.
+- Run `massive-scheduler` with `max-runs=1` and one equity ticker.
+- Enable publish mode with `dry-run=false`.
+- Confirm one canonical raw event is published to `signalops.local.raw.v1`.
+- Confirm the Python raw worker consumes and processes the scheduled-published event.
+- Confirm the running stack remains healthy and raw-worker lag returns to `0`.
+
+Evidence:
+
+- `cmd/massive-scheduler/main.go`
+- `internal/adapters/marketdata/massive/scheduled_loop.go`
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Verification performed:
+
+- `docker compose --profile massive-schedule run --rm massive-scheduler --max-runs 1 --max-companies 1 --datasets equity --request-delay 250ms --max-retries 1 --retry-backoff 1s --dry-run=false --continue-on-error=false --continue-on-run-error=false`
+- `docker compose ps`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+- `docker compose logs --tail=80 raw-worker`
+
+Live verification result:
+
+- Scheduler run report: 1 company, 1 event built, 1 event published, 1 provider request, 0 provider retries, 0 failures.
+- Scheduler loop report: 1 run, 1 succeeded, 0 failed.
+- Raw worker logged detector evaluation and successful raw-event processing for the scheduled-published event at `2026-07-07T18:19:07Z`.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+- Running stack remained healthy.
+
+Issues found and resolved:
+
+- None. The constrained scheduled publish path passed without code changes.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add persistent scheduler run history and provider usage accounting once the database layer exists.
+- Add provider usage budgets and hard run limits before broad scheduled publishing across the full megacap universe.
+- Add Kubernetes CronJob or external orchestrator manifests when deployment targets are finalized.

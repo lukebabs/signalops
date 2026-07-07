@@ -1239,3 +1239,50 @@ Next step:
 
 - Run a constrained scheduled publish validation with `max-runs=1` and one equity ticker.
 - After scheduler publish validation, add persistent run history/provider usage accounting when the database layer is introduced.
+
+
+## 2026-07-07T18:19:15Z
+
+Summary:
+
+- Ran the constrained scheduled publish validation for the Massive scheduler.
+- Used the ignored local `.env` key without logging or committing secret values.
+- Ran `massive-scheduler` with `max-runs=1`, one company, equity-only dataset, provider pacing, retry controls, and publish mode enabled.
+- Scheduler completed 1 run successfully, built 1 equity EOD raw event, and published 1 event to `signalops.local.raw.v1`.
+- Confirmed the Python raw worker consumed and processed the scheduled-published raw event.
+- Confirmed the raw-worker consumer group remained stable with total lag `0`.
+
+Files changed:
+
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- G023 validated scheduler dry-run execution. The remaining scheduler risk was broker publication through the scheduled path and downstream worker consumption.
+- The validation stayed constrained to one equity event to confirm scheduled publish behavior without broad provider/API or broker impact.
+
+Verification performed:
+
+- `docker compose --profile massive-schedule run --rm massive-scheduler --max-runs 1 --max-companies 1 --datasets equity --request-delay 250ms --max-retries 1 --retry-backoff 1s --dry-run=false --continue-on-error=false --continue-on-run-error=false`
+- `docker compose ps`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+- `docker compose logs --tail=80 raw-worker`
+
+Live verification result:
+
+- Scheduler run report: 1 company, 1 event built, 1 event published, 1 provider request, 0 provider retries, 0 failures.
+- Scheduler loop report: 1 run, 1 succeeded, 0 failed.
+- Raw worker logged detector evaluation and successful raw-event processing for the scheduled-published event.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+- Running stack remained healthy.
+
+Issue found and resolved:
+
+- None. Scheduled publish validation passed without code changes.
+- Secret handling remained clean: `.env` stayed ignored and no API key values were logged or committed.
+
+Next step:
+
+- Add persistent scheduler run history/provider usage accounting once the database layer exists.
+- Add provider usage budgets before any broad scheduled publish run across the full megacap universe.
