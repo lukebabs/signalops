@@ -1,4 +1,35 @@
 services:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: signalops
+      POSTGRES_USER: signalops
+      POSTGRES_PASSWORD: signalops
+    ports:
+      - "15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signalops -d signalops"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  postgres-migrate:
+    image: postgres:16-alpine
+    profiles: ["storage"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_MIGRATION_DIR: /workspace/migrations
+    working_dir: /workspace
+    entrypoint: ["/bin/sh", "/workspace/scripts/apply_postgres_migrations.sh"]
+    volumes:
+      - .:/workspace:ro
+
   redpanda:
     image: redpandadata/redpanda:v25.3.1
     command:
@@ -186,3 +217,4 @@ services:
 
 volumes:
   redpanda-data:
+  postgres-data:

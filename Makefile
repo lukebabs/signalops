@@ -4,7 +4,7 @@ DOCKER_WORKDIR ?= /workspace
 IMAGE ?= signalops-gateway:local
 COMPOSE ?= docker compose
 
-.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-build-massive-puller docker-build-massive-scheduler docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate
+.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-build-massive-puller docker-build-massive-scheduler docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate compose-storage-migrate
 
 docker-test:
 	docker run --rm \
@@ -69,3 +69,6 @@ compose-ps:
 
 compose-validate:
 	$(COMPOSE) config --quiet
+
+compose-storage-migrate:
+	$(COMPOSE) --profile storage run --rm postgres-migrate

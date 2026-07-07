@@ -1345,3 +1345,65 @@ Next step:
 
 - Add persistent scheduler run history/provider usage accounting once the database layer exists.
 - Start the database/storage layer planning for run audit history, idempotency persistence, normalized market data, and replay/query support.
+
+
+## 2026-07-07T20:36:30Z
+
+Summary:
+
+- Added the first PostgreSQL storage foundation for SignalOps operational metadata and audit data.
+- Added migration `000001_storage_foundation` with tables for scheduler runs, provider usage, idempotency records, raw event ledger, equity EOD prices, and option contract daily snapshots.
+- Added a repeatable migration runner script backed by `schema_migrations`.
+- Added local Compose `postgres` and `postgres-migrate` services under the `storage` profile.
+- Added initial Go storage boundary types and repository interfaces without binding domain code to a concrete database driver yet.
+- Documented local storage setup and migration usage.
+
+Files changed:
+
+- `compose.yaml`
+- `Makefile`
+- `migrations/000001_storage_foundation.up.sql`
+- `migrations/000001_storage_foundation.down.sql`
+- `scripts/apply_postgres_migrations.sh`
+- `internal/storage/storage.go`
+- `internal/storage/storage_test.go`
+- `docs/deployment.md`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- UI/API work needs durable queryable state for scheduler runs, provider usage, idempotency, and market-data snapshots.
+- PostgreSQL is the documented canonical store for operational metadata. TimescaleDB conversion remains future scope after the base persistence paths are proven.
+- The first storage boundary keeps migrations and contracts in place before wiring write paths into the Massive scheduler.
+
+Verification performed:
+
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Python unit tests with `python -m unittest discover -s python/tests`; 36 tests passed.
+- Ran Dockerized schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Validated Compose storage profile with `docker compose --profile storage config --quiet`.
+- Applied migrations with `docker compose --profile storage run --rm postgres-migrate`.
+- Verified created tables with `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"`.
+- Verified migration version with `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT version FROM schema_migrations ORDER BY version"`.
+- Re-ran migrations and confirmed `skip 000001_storage_foundation`.
+- Validated migration script syntax with `bash -n scripts/apply_postgres_migrations.sh`.
+- Validated Makefile wrappers with `make compose-storage-migrate` and `make compose-validate`.
+- Verified the running stack remained healthy and `signalops.raw-worker.v1` stayed stable with one member and total lag `0`.
+
+Live verification result:
+
+- PostgreSQL started healthy on local Compose port `15432`.
+- Migration version `000001_storage_foundation` applied successfully.
+- Tables present: `schema_migrations`, `scheduler_runs`, `provider_usage_runs`, `idempotency_records`, `raw_event_ledger`, `marketdata_equity_eod_prices`, and `marketdata_option_contracts_daily`.
+- Migration rerun skipped the already-applied version successfully.
+
+Issue found and resolved:
+
+- The first write attempt was interrupted before files were created. The migration and storage files were then written in smaller chunks and validated successfully.
+
+Next step:
+
+- Wire Massive scheduler runs to persist scheduler run records and provider usage rows through a concrete PostgreSQL repository.
+- After run audit writes are proven, add idempotency and raw event ledger persistence on publish.

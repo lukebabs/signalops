@@ -49,3 +49,10 @@ make docker-shell
 - The Massive one-shot image is built from target `massive-puller`; the repeatable scheduler image is built from target `massive-scheduler`.
 - The gateway binary listens on `SIGNALOPS_HTTP_ADDR`, defaulting to `:8080`.
 
+
+
+Run local PostgreSQL migrations:
+
+```bash
+make compose-storage-migrate
+```

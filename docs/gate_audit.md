@@ -1649,3 +1649,83 @@ Follow-up items:
 - Add persistent scheduler run history and provider usage accounting once the database layer exists.
 - Add database-backed idempotency, normalized market-data storage, and replay/query support.
 - Add Kubernetes CronJob or external orchestrator manifests when deployment targets are finalized.
+
+
+## Gate G026: PostgreSQL Storage Foundation
+
+Timestamp: `2026-07-07T20:36:30Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add the first durable storage foundation for scheduler audit, provider usage, idempotency, and market-data snapshots.
+
+Criteria:
+
+- Add local PostgreSQL to Docker Compose.
+- Add a repeatable migration runner.
+- Add a first migration for scheduler run history, provider usage, idempotency records, raw event ledger, equity EOD prices, and option contract daily snapshots.
+- Add initial Go storage boundary types and repository interfaces.
+- Document local migration usage.
+- Validate migration application and idempotent rerun.
+- Confirm the running broker/worker stack remains healthy and raw-worker lag remains `0`.
+
+Evidence:
+
+- `compose.yaml`
+- `Makefile`
+- `migrations/000001_storage_foundation.up.sql`
+- `migrations/000001_storage_foundation.down.sql`
+- `scripts/apply_postgres_migrations.sh`
+- `internal/storage/storage.go`
+- `internal/storage/storage_test.go`
+- `docs/deployment.md`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- PostgreSQL is introduced for operational metadata and audit state.
+- TimescaleDB/hypertable conversion remains future scope after base persistence is proven.
+- `schema_migrations` records applied migration versions.
+- Compose exposes PostgreSQL on host port `15432` and stores data in the `postgres-data` volume.
+- Go storage interfaces are intentionally driver-neutral in this gate.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace -e PYTHONPATH=/workspace/python python:3.12-slim python -m unittest discover -s python/tests`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
+- `docker compose --profile storage config --quiet`
+- `docker compose --profile storage run --rm postgres-migrate`
+- `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"`
+- `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT version FROM schema_migrations ORDER BY version"`
+- `docker compose --profile storage run --rm postgres-migrate`
+- `bash -n scripts/apply_postgres_migrations.sh`
+- `make compose-storage-migrate`
+- `make compose-validate`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- PostgreSQL became healthy in Compose.
+- Migration `000001_storage_foundation` applied successfully.
+- Expected tables were present in the `public` schema.
+- Migration rerun skipped the already-applied version successfully.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+
+Issues found and resolved:
+
+- The initial file write was interrupted before migration files were created; files were then written in smaller chunks and validated.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add a concrete PostgreSQL repository implementation for scheduler run audit and provider usage writes.
+- Persist Massive scheduler run summaries after each scheduled pull run.
+- Add database-backed idempotency and raw event ledger writes on publish.

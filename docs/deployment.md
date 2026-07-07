@@ -158,3 +158,21 @@ docker compose --profile massive-schedule run --rm massive-scheduler \
 Publishing requires `--dry-run=false` and a healthy broker/topic bootstrap path.
 Secrets are loaded from the ignored `.env` file through supported Massive API key
 environment variables.
+
+
+## Storage
+
+Local Compose includes PostgreSQL for operational metadata and audit storage.
+The `postgres` service exposes the database on host port `15432` and stores data
+in the `postgres-data` Docker volume.
+
+Run migrations:
+
+```bash
+make compose-storage-migrate
+```
+
+The first migration creates scheduler run audit, provider usage, idempotency,
+raw event ledger, equity EOD, and option contract snapshot tables. TimescaleDB
+hypertable conversion remains future scope after the base persistence paths are
+proven.
