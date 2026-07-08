@@ -305,7 +305,7 @@ func persistPublishedRawEvent(ctx context.Context, repo storage.PublishRepositor
 	}
 	partition := result.Partition
 	offset := result.Offset
-	if err := repo.UpsertRawEventLedger(ctx, storage.RawEventLedgerRecord{
+	ledger := storage.RawEventLedgerRecord{
 		EventID:         event.EventID,
 		TenantID:        event.TenantID,
 		SourceID:        event.SourceID,
@@ -319,8 +319,6 @@ func persistPublishedRawEvent(ctx context.Context, repo storage.PublishRepositor
 		BrokerOffset:    &offset,
 		PayloadJSON:     value,
 		EntityHintsJSON: entityHintsJSON,
-	}); err != nil {
-		return err
 	}
 	metadataJSON, err := json.Marshal(map[string]any{
 		"correlation_id": event.CorrelationID,
@@ -332,7 +330,7 @@ func persistPublishedRawEvent(ctx context.Context, repo storage.PublishRepositor
 	if err != nil {
 		return fmt.Errorf("marshal idempotency metadata: %w", err)
 	}
-	if err := repo.UpsertIdempotencyRecord(ctx, storage.IdempotencyRecord{
+	idempotency := storage.IdempotencyRecord{
 		TenantID:       event.TenantID,
 		SourceID:       event.SourceID,
 		IdempotencyKey: event.IdempotencyKey,
@@ -345,10 +343,8 @@ func persistPublishedRawEvent(ctx context.Context, repo storage.PublishRepositor
 		PayloadHash:    payloadHash(value),
 		Status:         storage.IdempotencyStatusPublished,
 		MetadataJSON:   metadataJSON,
-	}); err != nil {
-		return err
 	}
-	return nil
+	return repo.PersistPublishedRawEvent(ctx, ledger, idempotency)
 }
 
 func payloadHash(value []byte) string {

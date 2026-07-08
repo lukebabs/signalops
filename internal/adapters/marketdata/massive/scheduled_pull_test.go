@@ -68,6 +68,15 @@ func (f *fakePublishRepository) UpsertRawEventLedger(_ context.Context, record s
 	return nil
 }
 
+func (f *fakePublishRepository) PersistPublishedRawEvent(ctx context.Context, ledger storage.RawEventLedgerRecord, idempotency storage.IdempotencyRecord) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.ledger = append(f.ledger, ledger)
+	f.idempotency = append(f.idempotency, idempotency)
+	return nil
+}
+
 func TestRunScheduledPullDryRunBuildsEvents(t *testing.T) {
 	client := fakeScheduledClient{
 		equityRecords: map[string]EquityEODPriceRecord{

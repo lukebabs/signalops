@@ -2347,3 +2347,58 @@ Next step:
 
 - Browser validation of the Rules page (rendering, console errors) as a manual follow-up.
 - Future: rule execution history, expression builder, and edit/management remain out of scope pending backend support.
+
+
+## 2026-07-08T20:01:14Z
+
+Summary:
+
+- Passed G042 by persisting generic `POST /v1/events/raw` publications to `raw_event_ledger` and `idempotency_records` after broker acknowledgement.
+- Added one atomic PostgreSQL transaction for the paired audit records and adopted it in the Massive scheduled publisher.
+- Added pre-publish persistence-envelope validation and explicit post-acknowledgement persistence failure semantics.
+- Wrote the G043 frontend-agent specification for a first-class operational Dashboard.
+
+Files changed:
+
+- `cmd/gateway/main.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `internal/adapters/marketdata/massive/scheduled_pull_test.go`
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/frontend_implementation_spec.md`
+- `docs/frontend/dashboard_ui_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- Broker acknowledgement alone did not make generic gateway ingestion visible to operational queries. The gateway now returns `202` only after durable publication and atomic audit persistence.
+- The paired transaction prevents a raw-ledger row and its idempotency row from diverging during a database failure.
+- G043 can now treat accepted generic events as visible in the Dashboard event stream.
+
+Verification performed:
+
+- `make docker-test` - all Go packages passed.
+- `docker compose build gateway` - image build and embedded Go tests passed.
+- `docker compose up -d postgres redpanda gateway` - rebuilt gateway deployed.
+- Posted heterogeneous IoT-shaped event `g042-live-event` to `POST /v1/events/raw`.
+- Queried the raw-event and idempotency APIs and joined both rows directly in PostgreSQL.
+
+Live verification result:
+
+- Broker acknowledgement: topic `signalops.local.raw.v1`, partition `2`, offset `5`.
+- Raw ledger retained tenant/source/dataset identity, observation and processing times, original payload, entity hints, and broker coordinates.
+- Idempotency status was `published` with the same coordinates and hash prefix `sha256:a805706dc`.
+- PostgreSQL join returned exactly the paired G042 records.
+
+Residual semantics:
+
+- A `503 persistence_failed` means Redpanda accepted the event but PostgreSQL did not confirm the audit transaction. Retrying can produce broker duplicates; clients and consumers must reuse stable identifiers and remain idempotent.
+
+Next step:
+
+- Frontend agent implements G043 from `docs/frontend/dashboard_ui_implementation_spec.md`.

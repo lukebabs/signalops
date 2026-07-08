@@ -183,6 +183,7 @@ type CatalogRepository interface {
 type PublishRepository interface {
 	IdempotencyRepository
 	RawEventLedgerRepository
+	PersistPublishedRawEvent(ctx context.Context, ledger RawEventLedgerRecord, idempotency IdempotencyRecord) error
 }
 
 type RawEventLedgerFilter struct {

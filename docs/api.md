@@ -10,8 +10,8 @@ Accepts a JSON object and publishes it to the durable raw event topic:
 signalops.<environment>.raw.v1
 ```
 
-The endpoint returns `202 Accepted` only after the broker publish is
-acknowledged.
+The endpoint returns `202 Accepted` only after the broker publish is acknowledged and the
+published event is atomically recorded in `raw_event_ledger` and `idempotency_records`.
 
 ### Request Headers
 
@@ -27,6 +27,17 @@ If identifiers are omitted:
 - `event_id` is read from the JSON body, or generated.
 - `idempotency_key` is read from the JSON body, or falls back to `event_id`.
 - `correlation_id` is read from the JSON body, or generated.
+
+### Persistence Envelope
+
+The JSON object must contain non-empty `tenant_id`, `source_id`, `source_adapter`, and `dataset`
+fields plus an RFC3339 `observation_time`. `processing_time` is optional; the gateway acceptance
+time is used when it is absent. Optional `entity_hints`, when present, must be an array.
+
+After broker acknowledgement, the gateway stores the original JSON payload, entity hints, event
+identity, observation/processing times, and broker coordinates in `raw_event_ledger`. It stores the
+same coordinates, `published` status, SHA-256 payload hash, correlation metadata, and route metadata
+in `idempotency_records`. Both rows commit in one PostgreSQL transaction.
 
 ### Broker Mapping
 
@@ -60,8 +71,14 @@ If identifiers are omitted:
 ### Error Responses
 
 - `400 invalid_json`: request body is not a JSON object.
-- `502 publish_failed`: broker publish failed.
-- `503 broker_unavailable`: ingestion route is not wired with a publisher.
+- `400 invalid_event`: required persistence fields are absent or invalid.
+- `502 publish_failed`: broker publish failed; no persistence was attempted.
+- `503 ingest_unavailable`: publisher, topic, or persistence repository is not configured.
+- `503 persistence_failed`: broker publication succeeded, but the atomic audit transaction failed.
+
+A `persistence_failed` response is an indeterminate client outcome because the broker has already
+accepted the record. Clients must reuse the same event and idempotency identifiers when reconciling
+or retrying; broker-level duplicate delivery remains possible and consumers must remain idempotent.
 
 
 ## Dashboard Stream API

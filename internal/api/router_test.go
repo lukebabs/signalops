@@ -32,6 +32,24 @@ func (p *fakePublisher) Close(ctx context.Context) error {
 	return nil
 }
 
+type fakePublishRepository struct {
+	ledger      storage.RawEventLedgerRecord
+	idempotency storage.IdempotencyRecord
+	err         error
+}
+
+func (p *fakePublishRepository) UpsertIdempotencyRecord(context.Context, storage.IdempotencyRecord) error {
+	return nil
+}
+func (p *fakePublishRepository) UpsertRawEventLedger(context.Context, storage.RawEventLedgerRecord) error {
+	return nil
+}
+func (p *fakePublishRepository) PersistPublishedRawEvent(_ context.Context, ledger storage.RawEventLedgerRecord, idempotency storage.IdempotencyRecord) error {
+	p.ledger = ledger
+	p.idempotency = idempotency
+	return p.err
+}
+
 type fakeQueryRepository struct {
 	runs             []storage.SchedulerRunRecord
 	usage            []storage.ProviderUsageRecord
@@ -108,16 +126,24 @@ func (q *fakeQueryRepository) ListCatalogRules(context.Context, string, int) ([]
 
 func TestPostRawEventPublishesMessage(t *testing.T) {
 	publisher := &fakePublisher{}
+	repository := &fakePublishRepository{}
 	router := NewRouter(RouterConfig{
-		ServiceName: "test-gateway",
-		Publisher:   publisher,
-		RawTopic:    "signalops.test.raw.v1",
+		ServiceName:       "test-gateway",
+		Publisher:         publisher,
+		RawTopic:          "signalops.test.raw.v1",
+		PublishRepository: repository,
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/events/raw", bytes.NewBufferString(`{
 		"event_id":"evt-123",
 		"idempotency_key":"idem-123",
 		"correlation_id":"corr-payload",
+		"tenant_id":"tenant-test",
+		"source_id":"source-test",
+		"source_adapter":"manual-test",
+		"dataset":"equity-test",
+		"observation_time":"2026-07-08T06:00:00Z",
+		"entity_hints":[{"entity_type":"security","entity_id":"SPY"}],
 		"payload":{"symbol":"SPY"}
 	}`))
 	req.Header.Set("X-Correlation-ID", "corr-header")
@@ -162,12 +188,22 @@ func TestPostRawEventPublishesMessage(t *testing.T) {
 	if response["offset"].(float64) != 42 {
 		t.Fatalf("response offset = %v", response["offset"])
 	}
+	if repository.ledger.EventID != "evt-123" || repository.ledger.TenantID != "tenant-test" {
+		t.Fatalf("persisted ledger = %+v", repository.ledger)
+	}
+	if repository.idempotency.Status != storage.IdempotencyStatusPublished || repository.idempotency.Offset == nil || *repository.idempotency.Offset != 42 {
+		t.Fatalf("persisted idempotency = %+v", repository.idempotency)
+	}
+	if !strings.HasPrefix(repository.idempotency.PayloadHash, "sha256:") {
+		t.Fatalf("payload hash = %q", repository.idempotency.PayloadHash)
+	}
 }
 
 func TestPostRawEventRejectsInvalidJSON(t *testing.T) {
 	router := NewRouter(RouterConfig{
-		Publisher: &fakePublisher{},
-		RawTopic:  "signalops.test.raw.v1",
+		Publisher:         &fakePublisher{},
+		RawTopic:          "signalops.test.raw.v1",
+		PublishRepository: &fakePublishRepository{},
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/events/raw", bytes.NewBufferString(`[]`))
@@ -193,17 +229,48 @@ func TestPostRawEventRequiresPublisher(t *testing.T) {
 
 func TestPostRawEventHandlesPublishFailure(t *testing.T) {
 	router := NewRouter(RouterConfig{
-		Publisher: &fakePublisher{err: errors.New("publish failed")},
-		RawTopic:  "signalops.test.raw.v1",
+		Publisher:         &fakePublisher{err: errors.New("publish failed")},
+		RawTopic:          "signalops.test.raw.v1",
+		PublishRepository: &fakePublishRepository{},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/events/raw", bytes.NewBufferString(`{"event_id":"evt-123"}`))
+	req := httptest.NewRequest(http.MethodPost, "/v1/events/raw", bytes.NewBufferString(validRawIngestBody()))
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
+}
+
+func TestPostRawEventRejectsMissingPersistenceFieldsBeforePublish(t *testing.T) {
+	publisher := &fakePublisher{}
+	router := NewRouter(RouterConfig{Publisher: publisher, RawTopic: "signalops.test.raw.v1", PublishRepository: &fakePublishRepository{}})
+	req := httptest.NewRequest(http.MethodPost, "/v1/events/raw", bytes.NewBufferString(`{"event_id":"evt-123"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || publisher.msg.Topic != "" {
+		t.Fatalf("status = %d, published topic = %q, body = %s", rec.Code, publisher.msg.Topic, rec.Body.String())
+	}
+}
+
+func TestPostRawEventReportsPersistenceFailureAfterPublish(t *testing.T) {
+	publisher := &fakePublisher{}
+	repository := &fakePublishRepository{err: errors.New("database unavailable")}
+	router := NewRouter(RouterConfig{Publisher: publisher, RawTopic: "signalops.test.raw.v1", PublishRepository: repository})
+	req := httptest.NewRequest(http.MethodPost, "/v1/events/raw", bytes.NewBufferString(validRawIngestBody()))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable || publisher.msg.Topic == "" {
+		t.Fatalf("status = %d, published topic = %q, body = %s", rec.Code, publisher.msg.Topic, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "persistence_failed") {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func validRawIngestBody() string {
+	return `{"event_id":"evt-123","tenant_id":"tenant-test","source_id":"source-test","source_adapter":"manual-test","dataset":"equity-test","observation_time":"2026-07-08T06:00:00Z","payload":{"symbol":"SPY"}}`
 }
 
 func TestGetSchedulerRuns(t *testing.T) {

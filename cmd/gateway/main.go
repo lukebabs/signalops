@@ -40,14 +40,18 @@ func main() {
 		}
 	}
 
+	routerConfig := api.RouterConfig{
+		ServiceName: "signalops-gateway",
+		Publisher:   brokerClient,
+		RawTopic:    broker.TopicName(cfg.Environment, broker.RawTopic),
+	}
+	if queryRepo != nil {
+		routerConfig.QueryRepository = queryRepo
+		routerConfig.PublishRepository = queryRepo
+	}
 	server := &http.Server{
-		Addr: cfg.HTTPAddr,
-		Handler: api.NewRouter(api.RouterConfig{
-			ServiceName:     "signalops-gateway",
-			Publisher:       brokerClient,
-			RawTopic:        broker.TopicName(cfg.Environment, broker.RawTopic),
-			QueryRepository: queryRepo,
-		}),
+		Addr:              cfg.HTTPAddr,
+		Handler:           api.NewRouter(routerConfig),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

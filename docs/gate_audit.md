@@ -2885,3 +2885,88 @@ Follow-up items:
 
 - Browser validation (rendering, console errors) as a manual step.
 - Rule execution history, expression builder, and rule management remain out of scope pending backend support.
+
+
+## Gate G042: Generic Raw Ingest Persistence
+
+Timestamp: `2026-07-08T20:01:14Z`
+
+Status: `passed`
+
+Gate name:
+
+- Persist generic raw gateway ingestion after durable broker acknowledgement.
+
+Criteria:
+
+- Validate ledger-required event identity before publishing.
+- Publish first and retain acknowledged topic, partition, and offset.
+- Atomically persist raw ledger and idempotency records.
+- Preserve heterogeneous payloads and entity hints without domain-specific mapping.
+- Expose explicit broker and post-acknowledgement persistence failures.
+- Pass unit, Docker build, deployment, API, and direct database validation.
+
+Evidence:
+
+- `internal/api/router.go`
+- `internal/storage/postgres/repository.go`
+- `internal/api/router_test.go`
+- `docs/api.md`
+- `docs/build_journal.md`
+
+Verification performed:
+
+- `make docker-test`
+- `docker compose build gateway`
+- `docker compose up -d postgres redpanda gateway`
+- Live `POST /v1/events/raw` for `g042-live-event`
+- Live `GET /v1/raw-events/g042-live-event`
+- Live idempotency lookup for `g042-live-key`
+- Direct PostgreSQL join of `raw_event_ledger` and `idempotency_records`
+
+Live verification result:
+
+- All Go packages passed.
+- Gateway image and deployment passed.
+- Event was acknowledged and persisted at topic `signalops.local.raw.v1`, partition `2`, offset `5`.
+- Both records shared the identity and coordinates; idempotency status was `published`.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Broker/database atomicity remains an indeterminate edge when publication succeeds and persistence fails; stable idempotency identifiers and idempotent consumers remain mandatory.
+
+
+## Gate G043: Frontend First-Class Dashboard
+
+Timestamp: `2026-07-08T20:01:14Z`
+
+Status: `ready for implementation`
+
+Gate name:
+
+- Promote `/` into a first-class operational Dashboard.
+
+Criteria:
+
+- Compose current health, runs, raw events, provider usage, sources, pipelines, and rules.
+- Preserve independent widget loading/error/empty states.
+- Use one Dashboard SSE subscription to invalidate relevant REST query state.
+- Keep unsupported alerts, timeline, correlation, insights, and knowledge capabilities out of the UI until backend contracts exist.
+- Validate tests, build, audit, Compose, live proxy data, desktop/mobile rendering, and browser console.
+
+Evidence:
+
+- `docs/frontend/dashboard_ui_implementation_spec.md`
+
+Implementation notes:
+
+- G043 is a frontend-agent handoff and is not yet passed.
+- The specification reuses the existing React, TanStack Query, SSE, route, and component architecture.
+
+Actor:
+
+- Codex

@@ -605,7 +605,7 @@ The frontend implementation is complete when:
 - The gateway now exposes `GET /v1/streams/dashboard` as an SSE endpoint for dashboard updates. REST query endpoints remain the snapshot/detail fallback; WebSockets remain future scope for bidirectional controls.
 - There are no topology, DAG, or signal-flow endpoints. Do not build graph/workflow visualization (e.g. React Flow) yet.
 - Query endpoints return discrete records (runs, raw events, usage rows), not time-bucketed series. Do not assume time-series aggregation is available from the backend yet.
-- Generic `POST /v1/events/raw` publish persistence is not yet implemented; the UI should not assume all gateway-ingested raw events exist in `raw_event_ledger`.
+- Generic `POST /v1/events/raw` now persists acknowledged events in `raw_event_ledger` and `idempotency_records`; the UI may treat a `202 Accepted` response as query-visible audit state.
 - Authentication/authorization is not implemented yet. Do not add a fake login flow.
 - Normalized market-data persistence and signal query APIs are future scope.
 

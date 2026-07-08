@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -35,10 +36,11 @@ var supportedDashboardStreamChannels = map[string]struct{}{
 
 // RouterConfig contains process-local API wiring options.
 type RouterConfig struct {
-	ServiceName     string
-	Publisher       broker.Publisher
-	RawTopic        string
-	QueryRepository storage.QueryRepository
+	ServiceName       string
+	Publisher         broker.Publisher
+	RawTopic          string
+	QueryRepository   storage.QueryRepository
+	PublishRepository storage.PublishRepository
 }
 
 // NewRouter creates the HTTP routes owned by the SignalOps gateway.
@@ -220,8 +222,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/events/raw", func(w http.ResponseWriter, r *http.Request) {
-		if cfg.Publisher == nil || rawTopic == "" {
-			writeError(w, http.StatusServiceUnavailable, "broker_unavailable", "raw event ingestion is not configured")
+		if cfg.Publisher == nil || rawTopic == "" || cfg.PublishRepository == nil {
+			writeError(w, http.StatusServiceUnavailable, "ingest_unavailable", "raw event ingestion is not fully configured")
 			return
 		}
 
@@ -236,11 +238,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		correlationID := firstNonEmpty(headerValue(r, "X-Correlation-ID"), jsonStringField(fields, "correlation_id"), newID("corr"))
 		causationID := firstNonEmpty(headerValue(r, "X-Causation-ID"), jsonStringField(fields, "causation_id"))
 		traceID := firstNonEmpty(headerValue(r, "X-Trace-ID"), jsonStringField(fields, "trace_id"))
+		acceptedAt := time.Now().UTC()
+		ingest, err := rawIngestPersistenceFields(fields, acceptedAt)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_event", err.Error())
+			return
+		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), defaultPublishTimeout)
-		defer cancel()
-
-		result, err := cfg.Publisher.Publish(ctx, broker.Message{
+		publishCtx, cancel := context.WithTimeout(r.Context(), defaultPublishTimeout)
+		result, err := cfg.Publisher.Publish(publishCtx, broker.Message{
 			Topic:         rawTopic,
 			Key:           idempotencyKey,
 			Value:         payload,
@@ -248,10 +254,23 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			CorrelationID: correlationID,
 			CausationID:   causationID,
 			TraceID:       traceID,
-			PublishedAt:   time.Now().UTC(),
+			PublishedAt:   acceptedAt,
 		})
+		cancel()
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "publish_failed", "failed to publish raw event")
+			return
+		}
+		ledger, idempotency, err := publishedRawEventRecords(payload, ingest, eventID, idempotencyKey, correlationID, causationID, traceID, result, acceptedAt)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "persistence_mapping_failed", "failed to map published raw event")
+			return
+		}
+		persistCtx, persistCancel := context.WithTimeout(r.Context(), defaultPublishTimeout)
+		err = cfg.PublishRepository.PersistPublishedRawEvent(persistCtx, ledger, idempotency)
+		persistCancel()
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "persistence_failed", "raw event was published but its audit state could not be persisted")
 			return
 		}
 
@@ -267,6 +286,93 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	return mux
+}
+
+type rawIngestFields struct {
+	TenantID        string
+	SourceID        string
+	SourceAdapter   string
+	Dataset         string
+	ObservationTime time.Time
+	ProcessingTime  time.Time
+	EntityHintsJSON []byte
+}
+
+func rawIngestPersistenceFields(fields map[string]json.RawMessage, acceptedAt time.Time) (rawIngestFields, error) {
+	result := rawIngestFields{
+		TenantID:        jsonStringField(fields, "tenant_id"),
+		SourceID:        jsonStringField(fields, "source_id"),
+		SourceAdapter:   jsonStringField(fields, "source_adapter"),
+		Dataset:         jsonStringField(fields, "dataset"),
+		ProcessingTime:  acceptedAt,
+		EntityHintsJSON: []byte("[]"),
+	}
+	for name, value := range map[string]string{"tenant_id": result.TenantID, "source_id": result.SourceID, "source_adapter": result.SourceAdapter, "dataset": result.Dataset} {
+		if value == "" {
+			return rawIngestFields{}, fmt.Errorf("%s is required", name)
+		}
+	}
+	observationTime, err := parseEventTime(fields, "observation_time")
+	if err != nil {
+		return rawIngestFields{}, err
+	}
+	result.ObservationTime = observationTime
+	if jsonStringField(fields, "processing_time") != "" {
+		result.ProcessingTime, err = parseEventTime(fields, "processing_time")
+		if err != nil {
+			return rawIngestFields{}, err
+		}
+	}
+	if raw, ok := fields["entity_hints"]; ok {
+		var hints []json.RawMessage
+		if err := json.Unmarshal(raw, &hints); err != nil {
+			return rawIngestFields{}, errors.New("entity_hints must be an array")
+		}
+		result.EntityHintsJSON = append([]byte(nil), raw...)
+	}
+	return result, nil
+}
+
+func parseEventTime(fields map[string]json.RawMessage, name string) (time.Time, error) {
+	value := jsonStringField(fields, name)
+	if value == "" {
+		return time.Time{}, fmt.Errorf("%s is required", name)
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%s must be an RFC3339 timestamp", name)
+	}
+	return parsed.UTC(), nil
+}
+
+func publishedRawEventRecords(payload []byte, ingest rawIngestFields, eventID, idempotencyKey, correlationID, causationID, traceID string, result broker.PublishResult, publishedAt time.Time) (storage.RawEventLedgerRecord, storage.IdempotencyRecord, error) {
+	partition, offset := result.Partition, result.Offset
+	metadata, err := json.Marshal(map[string]any{
+		"correlation_id": correlationID,
+		"causation_id":   causationID,
+		"trace_id":       traceID,
+		"route":          "/v1/events/raw",
+		"published_at":   publishedAt.Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return storage.RawEventLedgerRecord{}, storage.IdempotencyRecord{}, err
+	}
+	hash := sha256.Sum256(payload)
+	ledger := storage.RawEventLedgerRecord{
+		EventID: eventID, TenantID: ingest.TenantID, SourceID: ingest.SourceID,
+		SourceAdapter: ingest.SourceAdapter, Dataset: ingest.Dataset, IdempotencyKey: idempotencyKey,
+		ObservationTime: ingest.ObservationTime, ProcessingTime: ingest.ProcessingTime,
+		BrokerTopic: result.Topic, BrokerPartition: &partition, BrokerOffset: &offset,
+		PayloadJSON: payload, EntityHintsJSON: ingest.EntityHintsJSON,
+	}
+	idempotency := storage.IdempotencyRecord{
+		TenantID: ingest.TenantID, SourceID: ingest.SourceID, IdempotencyKey: idempotencyKey,
+		EventID: eventID, SourceAdapter: ingest.SourceAdapter, Dataset: ingest.Dataset,
+		Topic: result.Topic, Partition: &partition, Offset: &offset,
+		PayloadHash: "sha256:" + hex.EncodeToString(hash[:]), Status: storage.IdempotencyStatusPublished,
+		MetadataJSON: metadata,
+	}
+	return ledger, idempotency, nil
 }
 
 type streamChannelSet map[string]bool

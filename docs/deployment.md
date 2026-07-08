@@ -108,9 +108,10 @@ curl -N --max-time 3 'http://localhost:15173/v1/streams/dashboard?channels=healt
 ## Gateway API
 
 The gateway exposes raw event ingestion at `POST /v1/events/raw`. The endpoint
-publishes accepted JSON objects to `signalops.<environment>.raw.v1` and returns
-broker acknowledgement details. See `docs/api.md` for request and broker header
-mapping.
+publishes accepted JSON objects to `signalops.<environment>.raw.v1`, atomically persists the
+acknowledged broker coordinates to the raw ledger and idempotency store, and then returns
+acceptance details. The route requires both broker and PostgreSQL connectivity. See `docs/api.md`
+for the required persistence envelope, request mapping, and failure semantics.
 
 ## Broker Client
 

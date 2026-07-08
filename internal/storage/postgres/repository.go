@@ -144,7 +144,15 @@ func (r *Repository) UpsertIdempotencyRecord(ctx context.Context, record storage
 	if err := validateIdempotencyRecord(record); err != nil {
 		return err
 	}
-	_, err := r.db.ExecContext(ctx, `
+	return upsertIdempotencyRecord(ctx, r.db, record)
+}
+
+type statementExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func upsertIdempotencyRecord(ctx context.Context, executor statementExecutor, record storage.IdempotencyRecord) error {
+	_, err := executor.ExecContext(ctx, `
 INSERT INTO idempotency_records (
   tenant_id, source_id, idempotency_key, event_id, source_adapter, dataset,
   topic, partition, offset_value, payload_hash, status, metadata, last_seen_at
@@ -186,7 +194,11 @@ func (r *Repository) UpsertRawEventLedger(ctx context.Context, record storage.Ra
 	if err := validateRawEventLedger(record); err != nil {
 		return err
 	}
-	_, err := r.db.ExecContext(ctx, `
+	return upsertRawEventLedger(ctx, r.db, record)
+}
+
+func upsertRawEventLedger(ctx context.Context, executor statementExecutor, record storage.RawEventLedgerRecord) error {
+	_, err := executor.ExecContext(ctx, `
 INSERT INTO raw_event_ledger (
   event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key,
   observation_time, processing_time, broker_topic, broker_partition, broker_offset,
@@ -225,6 +237,32 @@ ON CONFLICT (event_id) DO UPDATE SET
 	)
 	if err != nil {
 		return fmt.Errorf("upsert raw event ledger: %w", err)
+	}
+	return nil
+}
+
+// PersistPublishedRawEvent atomically records the raw ledger and idempotency
+// state after the broker has acknowledged publication.
+func (r *Repository) PersistPublishedRawEvent(ctx context.Context, ledger storage.RawEventLedgerRecord, idempotency storage.IdempotencyRecord) error {
+	if err := validateRawEventLedger(ledger); err != nil {
+		return err
+	}
+	if err := validateIdempotencyRecord(idempotency); err != nil {
+		return err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin published raw event transaction: %w", err)
+	}
+	defer tx.Rollback()
+	if err := upsertRawEventLedger(ctx, tx, ledger); err != nil {
+		return err
+	}
+	if err := upsertIdempotencyRecord(ctx, tx, idempotency); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit published raw event transaction: %w", err)
 	}
 	return nil
 }
