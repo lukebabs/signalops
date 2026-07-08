@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
+import { DashboardStreamBridge } from './components/DashboardStreamBridge';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -11,6 +12,7 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <DashboardStreamBridge />
       <RouterProvider router={router} />
     </QueryClientProvider>
   );

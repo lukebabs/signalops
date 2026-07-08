@@ -63,6 +63,75 @@ If identifiers are omitted:
 - `502 publish_failed`: broker publish failed.
 - `503 broker_unavailable`: ingestion route is not wired with a publisher.
 
+
+## Dashboard Stream API
+
+`GET /v1/streams/dashboard?channels=health,runs,raw_events,provider_usage,heartbeat`
+
+Streams browser-facing dashboard updates using Server-Sent Events (SSE). This
+endpoint is a gateway bridge over the existing query repository; browsers MUST
+NOT connect directly to Redpanda.
+
+### Response Headers
+
+```http
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+```
+
+### Channels
+
+The `channels` query parameter is optional. When omitted, all supported channels
+are enabled. Values are comma-separated.
+
+Supported channel names:
+
+- `health`
+- `runs` or `scheduler_run`
+- `raw_events` or `raw_event`
+- `provider_usage`
+- `heartbeat`
+
+Unknown channels return `400 invalid_channel` as JSON before the stream starts.
+
+### Event Frames
+
+Each SSE message uses this shape:
+
+```text
+event: <event_type>
+id: <stable_id_when_available>
+data: <json_object>
+```
+
+Current event types:
+
+- `heartbeat`: emitted when the stream opens and periodically while connected.
+- `health`: gateway health payload with service name and UTC timestamp.
+- `scheduler_run`: one scheduler run DTO, with `id` set to `run_id`.
+- `raw_event`: one raw event ledger DTO, with `id` set to `event_id`.
+- `provider_usage`: one provider usage DTO, with `id` set to `usage_id`.
+- `error`: stream-level error payload such as `storage_unavailable` or
+  `query_failed`.
+
+Example:
+
+```text
+event: raw_event
+id: evt_5d5a94a0e8ea5d149ec19947
+data: {"event_id":"evt_5d5a94a0e8ea5d149ec19947","tenant_id":"tenant-local"}
+```
+
+### Limitations
+
+- The initial implementation polls the query repository inside the gateway and
+  deduplicates rows per connection by stable id.
+- `Last-Event-ID` replay is not implemented yet.
+- The stream does not expose broker partitions directly beyond the persisted
+  raw-event/provider DTO fields.
+- REST query endpoints remain the snapshot/detail fallback for the frontend.
+
 ## Operational Query API
 
 These endpoints require gateway storage wiring through `SIGNALOPS_DATABASE_URL`.

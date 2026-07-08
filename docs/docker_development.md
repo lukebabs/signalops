@@ -71,3 +71,15 @@ npm run dev      # http://localhost:5173/
 The Vite dev server proxies `/healthz`, `/readyz`, and `/v1` to the gateway on
 `http://localhost:18000`, so no CORS configuration is required. See
 `web/README.md` and `docs/frontend_implementation_spec.md` for details.
+
+Build and run the production-style web container through Compose:
+
+```bash
+docker compose build web
+docker compose up -d web
+```
+
+The Compose web service listens on `http://localhost:15173/` and uses nginx to
+serve the built frontend and proxy `/healthz`, `/readyz`, and `/v1` to the
+`gateway` service. This keeps browser requests same-origin, including the SSE
+stream at `/v1/streams/dashboard`.

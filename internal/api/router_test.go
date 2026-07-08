@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,15 +33,19 @@ func (p *fakePublisher) Close(ctx context.Context) error {
 }
 
 type fakeQueryRepository struct {
-	runs       []storage.SchedulerRunRecord
-	usage      []storage.ProviderUsageRecord
-	rawEvents  []storage.RawEventLedgerRecord
-	idem       storage.IdempotencyRecord
-	notFound   bool
-	lastFilter storage.RawEventLedgerFilter
+	runs             []storage.SchedulerRunRecord
+	usage            []storage.ProviderUsageRecord
+	rawEvents        []storage.RawEventLedgerRecord
+	idem             storage.IdempotencyRecord
+	notFound         bool
+	lastFilter       storage.RawEventLedgerFilter
+	schedulerQueries int
+	rawEventQueries  int
+	usageQueries     int
 }
 
 func (q *fakeQueryRepository) ListSchedulerRuns(context.Context, int) ([]storage.SchedulerRunRecord, error) {
+	q.schedulerQueries++
 	return q.runs, nil
 }
 
@@ -57,10 +62,12 @@ func (q *fakeQueryRepository) GetSchedulerRun(_ context.Context, runID string) (
 }
 
 func (q *fakeQueryRepository) ListProviderUsage(context.Context, string, int) ([]storage.ProviderUsageRecord, error) {
+	q.usageQueries++
 	return q.usage, nil
 }
 
 func (q *fakeQueryRepository) ListRawEventLedger(_ context.Context, filter storage.RawEventLedgerFilter) ([]storage.RawEventLedgerRecord, error) {
+	q.rawEventQueries++
 	q.lastFilter = filter
 	return q.rawEvents, nil
 }
@@ -267,6 +274,110 @@ func TestQueryRoutesRequireRepository(t *testing.T) {
 	}
 }
 
+func TestWriteSSEFormatsEvent(t *testing.T) {
+	var buf bytes.Buffer
+	err := writeSSE(&buf, sseEvent{
+		Event: "raw_event",
+		ID:    "event-1",
+		Data:  map[string]string{"event_id": "event-1"},
+	})
+	if err != nil {
+		t.Fatalf("writeSSE error = %v", err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "event: raw_event\n") || !strings.Contains(got, "id: event-1\n") || !strings.Contains(got, `data: {"event_id":"event-1"}`) || !strings.HasSuffix(got, "\n\n") {
+		t.Fatalf("SSE frame = %q", got)
+	}
+}
+
+func TestDashboardStreamRejectsUnknownChannel(t *testing.T) {
+	router := NewRouter(RouterConfig{QueryRepository: &fakeQueryRepository{}})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/streams/dashboard?channels=bogus", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "invalid_channel") {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestEmitDashboardSnapshotFiltersChannelsAndDeduplicates(t *testing.T) {
+	repo := &fakeQueryRepository{
+		runs:      []storage.SchedulerRunRecord{validSchedulerRunRecord()},
+		rawEvents: []storage.RawEventLedgerRecord{validRawEventLedgerRecord()},
+		usage:     []storage.ProviderUsageRecord{validProviderUsageRecord()},
+	}
+	seen := map[string]struct{}{}
+	var events []sseEvent
+	emit := func(event sseEvent) bool {
+		events = append(events, event)
+		return true
+	}
+
+	channels := streamChannelSet{"scheduler_run": true, "raw_event": true}
+	if !emitDashboardSnapshot(context.Background(), repo, "test-gateway", channels, seen, emit) {
+		t.Fatal("first snapshot failed")
+	}
+	if !emitDashboardSnapshot(context.Background(), repo, "test-gateway", channels, seen, emit) {
+		t.Fatal("second snapshot failed")
+	}
+
+	if repo.schedulerQueries != 2 || repo.rawEventQueries != 2 || repo.usageQueries != 0 {
+		t.Fatalf("query counts scheduler=%d raw=%d usage=%d", repo.schedulerQueries, repo.rawEventQueries, repo.usageQueries)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events = %+v", events)
+	}
+	if events[0].Event != "scheduler_run" || events[0].ID != "run-1" {
+		t.Fatalf("event[0] = %+v", events[0])
+	}
+	if events[1].Event != "raw_event" || events[1].ID != "event-1" {
+		t.Fatalf("event[1] = %+v", events[1])
+	}
+}
+
+func TestDashboardStreamNoRepositoryEmitsSSEError(t *testing.T) {
+	router := NewRouter(RouterConfig{ServiceName: "test-gateway"})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/v1/streams/dashboard?channels=health", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		router.ServeHTTP(rec, req)
+		close(done)
+	}()
+
+	deadline := time.After(500 * time.Millisecond)
+	for {
+		if strings.Contains(rec.Body.String(), "storage_unavailable") {
+			cancel()
+			<-done
+			break
+		}
+		select {
+		case <-deadline:
+			cancel()
+			<-done
+			t.Fatalf("stream body = %q", rec.Body.String())
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Type"); got != "text/event-stream" {
+		t.Fatalf("content type = %q", got)
+	}
+}
+
 func validSchedulerRunRecord() storage.SchedulerRunRecord {
 	completed := time.Date(2026, 7, 8, 0, 1, 0, 0, time.UTC)
 	return storage.SchedulerRunRecord{
@@ -308,5 +419,19 @@ func validRawEventLedgerRecord() storage.RawEventLedgerRecord {
 		PayloadJSON:     []byte(`{"event_id":"event-1"}`),
 		EntityHintsJSON: []byte(`[]`),
 		CreatedAt:       time.Date(2026, 7, 8, 0, 0, 1, 0, time.UTC),
+	}
+}
+
+func validProviderUsageRecord() storage.ProviderUsageRecord {
+	return storage.ProviderUsageRecord{
+		UsageID:      "usage-1",
+		RunID:        "run-1",
+		Provider:     "massive",
+		Dataset:      "equity_eod_prices",
+		RequestCount: 1,
+		RetryCount:   0,
+		EventCount:   1,
+		BudgetJSON:   []byte(`{}`),
+		CreatedAt:    time.Date(2026, 7, 8, 0, 0, 2, 0, time.UTC),
 	}
 }

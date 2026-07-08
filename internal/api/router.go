@@ -20,7 +20,18 @@ import (
 const (
 	defaultMaxRawEventBytes = 1 << 20
 	defaultPublishTimeout   = 5 * time.Second
+	defaultStreamInterval   = 5 * time.Second
 )
+
+var supportedDashboardStreamChannels = map[string]struct{}{
+	"health":         {},
+	"scheduler_run":  {},
+	"runs":           {},
+	"raw_event":      {},
+	"raw_events":     {},
+	"provider_usage": {},
+	"heartbeat":      {},
+}
 
 // RouterConfig contains process-local API wiring options.
 type RouterConfig struct {
@@ -145,6 +156,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"idempotency": idempotencyResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/streams/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		channels, err := dashboardStreamChannels(r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_channel", err.Error())
+			return
+		}
+		streamDashboard(w, r, serviceName, cfg.QueryRepository, channels, defaultStreamInterval)
+	})
+
 	mux.HandleFunc("POST /v1/events/raw", func(w http.ResponseWriter, r *http.Request) {
 		if cfg.Publisher == nil || rawTopic == "" {
 			writeError(w, http.StatusServiceUnavailable, "broker_unavailable", "raw event ingestion is not configured")
@@ -193,6 +213,214 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	return mux
+}
+
+type streamChannelSet map[string]bool
+
+type sseEvent struct {
+	Event string
+	ID    string
+	Data  any
+}
+
+func dashboardStreamChannels(r *http.Request) (streamChannelSet, error) {
+	value := strings.TrimSpace(r.URL.Query().Get("channels"))
+	if value == "" {
+		return streamChannelSet{
+			"health":         true,
+			"scheduler_run":  true,
+			"raw_event":      true,
+			"provider_usage": true,
+			"heartbeat":      true,
+		}, nil
+	}
+
+	channels := streamChannelSet{}
+	for _, part := range strings.Split(value, ",") {
+		channel := strings.TrimSpace(part)
+		if channel == "" {
+			continue
+		}
+		if _, ok := supportedDashboardStreamChannels[channel]; !ok {
+			return nil, fmt.Errorf("unsupported stream channel %q", channel)
+		}
+		switch channel {
+		case "runs":
+			channel = "scheduler_run"
+		case "raw_events":
+			channel = "raw_event"
+		}
+		channels[channel] = true
+	}
+	if len(channels) == 0 {
+		return nil, errors.New("at least one stream channel is required")
+	}
+	return channels, nil
+}
+
+func streamDashboard(w http.ResponseWriter, r *http.Request, serviceName string, repo storage.QueryRepository, channels streamChannelSet, interval time.Duration) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming_unsupported", "response streaming is not supported")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	seen := map[string]struct{}{}
+	emit := func(event sseEvent) bool {
+		if err := writeSSE(w, event); err != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	if !emit(sseEvent{Event: "heartbeat", Data: heartbeatPayload(serviceName)}) {
+		return
+	}
+
+	if repo == nil {
+		if channels["health"] {
+			if !emit(sseEvent{Event: "error", Data: map[string]string{
+				"error":   "storage_unavailable",
+				"message": "query storage is not configured",
+			}}) {
+				return
+			}
+		}
+		streamHeartbeatsUntilCanceled(r, serviceName, interval, emit)
+		return
+	}
+
+	if !emitDashboardSnapshot(r.Context(), repo, serviceName, channels, seen, emit) {
+		return
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			if channels["heartbeat"] && !emit(sseEvent{Event: "heartbeat", Data: heartbeatPayload(serviceName)}) {
+				return
+			}
+			if !emitDashboardSnapshot(r.Context(), repo, serviceName, channels, seen, emit) {
+				return
+			}
+		}
+	}
+}
+
+func emitDashboardSnapshot(ctx context.Context, repo storage.QueryRepository, serviceName string, channels streamChannelSet, seen map[string]struct{}, emit func(sseEvent) bool) bool {
+	if channels["health"] {
+		if !emit(sseEvent{Event: "health", Data: map[string]string{
+			"status":  "ok",
+			"service": serviceName,
+			"time":    time.Now().UTC().Format(time.RFC3339),
+		}}) {
+			return false
+		}
+	}
+	if channels["scheduler_run"] {
+		runs, err := repo.ListSchedulerRuns(ctx, 50)
+		if err != nil {
+			return emit(sseEvent{Event: "error", Data: map[string]string{"error": "query_failed", "message": "failed to list scheduler runs"}})
+		}
+		for _, run := range runs {
+			key := "scheduler_run:" + run.RunID
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			if !emit(sseEvent{Event: "scheduler_run", ID: run.RunID, Data: schedulerRunResponse(run)}) {
+				return false
+			}
+		}
+	}
+	if channels["raw_event"] {
+		records, err := repo.ListRawEventLedger(ctx, storage.RawEventLedgerFilter{Limit: 50})
+		if err != nil {
+			return emit(sseEvent{Event: "error", Data: map[string]string{"error": "query_failed", "message": "failed to list raw events"}})
+		}
+		for _, record := range records {
+			key := "raw_event:" + record.EventID
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			if !emit(sseEvent{Event: "raw_event", ID: record.EventID, Data: rawEventResponse(record)}) {
+				return false
+			}
+		}
+	}
+	if channels["provider_usage"] {
+		records, err := repo.ListProviderUsage(ctx, "", 50)
+		if err != nil {
+			return emit(sseEvent{Event: "error", Data: map[string]string{"error": "query_failed", "message": "failed to list provider usage"}})
+		}
+		for _, record := range records {
+			key := "provider_usage:" + record.UsageID
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			if !emit(sseEvent{Event: "provider_usage", ID: record.UsageID, Data: providerUsageResponses([]storage.ProviderUsageRecord{record})[0]}) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func heartbeatPayload(serviceName string) map[string]string {
+	return map[string]string{
+		"status":  "alive",
+		"service": serviceName,
+		"time":    time.Now().UTC().Format(time.RFC3339),
+	}
+}
+
+func streamHeartbeatsUntilCanceled(r *http.Request, serviceName string, interval time.Duration, emit func(sseEvent) bool) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			if !emit(sseEvent{Event: "heartbeat", Data: heartbeatPayload(serviceName)}) {
+				return
+			}
+		}
+	}
+}
+
+func writeSSE(w io.Writer, event sseEvent) error {
+	if event.Event != "" {
+		if _, err := fmt.Fprintf(w, "event: %s\n", event.Event); err != nil {
+			return err
+		}
+	}
+	if event.ID != "" {
+		if _, err := fmt.Fprintf(w, "id: %s\n", event.ID); err != nil {
+			return err
+		}
+	}
+	data, err := json.Marshal(event.Data)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+		return err
+	}
+	return nil
 }
 
 type schedulerRunDTO struct {

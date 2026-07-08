@@ -42,10 +42,12 @@ make compose-down
 - `topic-bootstrap`: one-shot topic creation job.
 - `gateway`: SignalOps gateway on `http://localhost:18000`.
 - `raw-worker`: Python worker that consumes `signalops.local.raw.v1`.
+- `web`: production-style nginx container for the SignalOps operational UI on `http://localhost:15173`.
 
 ## Local Ports
 
 - Gateway: `18000` host port mapped to container port `8080`
+- Web UI: `15173` host port mapped to container port `8080`
 - Redpanda Kafka external listener: `19092`
 - Redpanda Schema Registry: `18081`
 - Redpanda HTTP Proxy: `18082`
@@ -88,6 +90,20 @@ Runtime config currently reads:
 Broker configuration is loaded now; concrete broker clients will be wired in a
 later gate. The shared Go broker boundary and topic constants live under
 `pkg/broker`.
+
+## Web UI
+
+The Compose `web` service builds the Vite frontend under `web/` and serves the
+static assets with nginx. The same nginx container proxies `/healthz`, `/readyz`,
+and `/v1` to the internal `gateway:8080` service, so browser calls remain
+same-origin and the dashboard SSE stream works without gateway CORS headers.
+
+```bash
+docker compose build web
+docker compose up -d web
+curl -fsS http://localhost:15173/healthz
+curl -N --max-time 3 'http://localhost:15173/v1/streams/dashboard?channels=health,heartbeat'
+```
 
 ## Gateway API
 

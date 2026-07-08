@@ -32,7 +32,7 @@ export function isApiError(e: unknown): e is ApiError {
 // Set an absolute URL only when the gateway emits CORS headers.
 const BASE_URL = (import.meta.env.VITE_SIGNALOPS_API_BASE_URL ?? '').replace(/\/+$/, '');
 
-function buildUrl(path: string, params?: Record<string, string | number | undefined>): string {
+export function buildUrl(path: string, params?: Record<string, string | number | undefined>): string {
   const base = BASE_URL || window.location.origin;
   const url = new URL(path, base);
   if (params) {

@@ -14,6 +14,9 @@ export function SystemRoute() {
   const readyz = useReadyz();
   const probe = useRuns(1); // storage availability probe: 200 = available, 503 = unavailable
   const lastRefresh = useUi((s) => s.lastRefresh);
+  const lastStreamEventAt = useUi((s) => s.lastStreamEventAt);
+  const streamConnected = useUi((s) => s.streamConnected);
+  const streamError = useUi((s) => s.streamError);
   const setLastRefresh = useUi((s) => s.setLastRefresh);
 
   const storageAvailable = probe.isSuccess;
@@ -58,6 +61,12 @@ export function SystemRoute() {
         />
         <MetricTile label="API Base URL" value={<code className="text-sm">{BASE_URL}</code>} />
         <MetricTile label="Last Refresh" value={formatUtc(lastRefresh ?? undefined)} />
+        <MetricTile
+          label="Dashboard Stream"
+          value={streamConnected ? 'connected' : streamError ? 'reconnecting' : 'checking'}
+          hint={streamError ?? undefined}
+        />
+        <MetricTile label="Last Stream Event" value={formatUtc(lastStreamEventAt ?? undefined)} />
       </div>
     </div>
   );

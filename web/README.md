@@ -55,6 +55,26 @@ npm run preview   # serve the production build
 
 See `.env.example`.
 
+## Docker / Compose
+
+Build and run the production-style container from the subsystem root:
+
+```bash
+docker compose build web
+docker compose up -d web
+```
+
+The container serves the app on `http://localhost:15173/`. nginx proxies
+`/healthz`, `/readyz`, and `/v1` to the Compose `gateway` service, so REST and
+SSE calls remain same-origin in the browser.
+
+## Streaming
+
+The app opens a browser `EventSource` subscription to
+`/v1/streams/dashboard` through the same Vite proxy used for REST calls. Stream
+events currently refresh the existing TanStack Query caches for health, runs, raw
+events, and provider usage; REST remains the snapshot/detail fallback.
+
 ## Views
 
 - **Runs** — recent scheduler runs (AG Grid), detail panel with provider usage,

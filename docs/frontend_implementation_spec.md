@@ -602,7 +602,7 @@ The frontend implementation is complete when:
 
 - Query pagination is currently limit-based only. Do not invent cursor parameters in the frontend yet.
 - Current query endpoints are read-only.
-- The gateway is REST-only: there are no SSE or WebSocket streaming endpoints. Do not build streaming infrastructure in the frontend yet; use TanStack Query polling/refetch for "live-ish" data.
+- The gateway now exposes `GET /v1/streams/dashboard` as an SSE endpoint for dashboard updates. REST query endpoints remain the snapshot/detail fallback; WebSockets remain future scope for bidirectional controls.
 - There are no topology, DAG, or signal-flow endpoints. Do not build graph/workflow visualization (e.g. React Flow) yet.
 - Query endpoints return discrete records (runs, raw events, usage rows), not time-bucketed series. Do not assume time-series aggregation is available from the backend yet.
 - Generic `POST /v1/events/raw` publish persistence is not yet implemented; the UI should not assume all gateway-ingested raw events exist in `raw_event_ledger`.
@@ -615,7 +615,7 @@ The following are intentionally **not** part of the first UI gate because the ba
 yet support them. Design the stack so they can be added later without rework:
 
 - **React Flow** (workflow / graph visualization) — pending backend topology / DAG endpoints.
-- **SSE + selective WebSocket** (streaming) — pending gateway streaming endpoints.
+- **Frontend SSE adoption** — wire dashboard widgets to `GET /v1/streams/dashboard` through the frontend subscription bridge while keeping REST fallback. WebSockets remain pending bidirectional operator-control needs.
 - **Client-side time-series evaluation** — ECharts renders series but does not compute them.
   If real client-side evaluation (resampling, rolling windows, indicators) is needed over
   large series, reach for Arquero (Arrow DataFrame, MIT) or DuckDB-WASM, or push aggregation

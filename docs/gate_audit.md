@@ -2058,3 +2058,369 @@ Follow-up items:
 - Add a `web` Compose service and frontend Dockerfile when Compose integration is required.
 - Defer React Flow, SSE/WebSocket streaming, and client-side time-series evaluation to later gates pending backend endpoints.
 - Add Vitest unit tests for `api/client` and formatting helpers when test coverage is prioritized.
+
+
+## Gate G030: Operational Dashboard UI Foundation Browser Validation Follow-up
+
+Timestamp: `2026-07-08T03:15:30Z`
+
+Status: `passed`
+
+Gate name:
+
+- Close manual browser validation follow-up for the G030 dashboard UI.
+
+Criteria:
+
+- Confirm the browser app opens and functions after the frontend-agent's build and proxy validation.
+
+Evidence:
+
+- User confirmed: "Broswer works".
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- No frontend code changes were required for this follow-up.
+- The confirmation closes the manual validation item left in the G030 follow-up list.
+
+Verification performed:
+
+- Operator/browser validation was performed outside this agent's tool session and reported as working.
+
+Live verification result:
+
+- Browser UI accepted as working for G030 closeout.
+
+Actor:
+
+- User validation recorded by Codex
+
+Follow-up items:
+
+- Keep frontend adoption of streaming for a later UI gate after G031 exposes the backend SSE contract.
+
+
+## Gate G031: Backend-to-Frontend Stream Subscription Foundation
+
+Timestamp: `2026-07-08T03:15:30Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add a gateway SSE subscription endpoint for browser-facing dashboard updates.
+
+Criteria:
+
+- Add `GET /v1/streams/dashboard`.
+- Support channel filtering for health, scheduler runs, raw events, provider usage, and heartbeat events.
+- Emit SSE frames with `event`, optional stable `id`, and JSON `data`.
+- Keep Redpanda internal; the browser stream is gateway-owned.
+- Deduplicate scheduler run, raw event, and provider usage rows per connection.
+- Document the stream endpoint in `docs/api.md`.
+- Validate focused API tests, full Go tests, gateway build, and live `curl -N` streaming.
+
+Evidence:
+
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+
+Implementation notes:
+
+- The initial stream uses timed repository polling inside the gateway.
+- Omitted `channels` enables all supported channels.
+- Unknown channels return `400 invalid_channel` before the stream starts.
+- Storage-unavailable state is emitted as an SSE `error` event after the stream opens so clients can keep a live connection and receive heartbeats.
+- `Last-Event-ID` replay remains future scope.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm gofmt -w internal/api/router.go internal/api/router_test.go`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/api -count=1 -v`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker compose config --quiet`
+- `docker compose build gateway`
+- `docker compose up -d gateway`
+- `curl -fsS http://localhost:18000/healthz`
+- `curl -fsS 'http://localhost:18000/v1/scheduler/runs?limit=1'`
+- `curl -N --max-time 3 'http://localhost:18000/v1/streams/dashboard?channels=health,runs,raw_events,provider_usage'`
+- `curl -s -w '[HTTP %{http_code}]' 'http://localhost:18000/v1/streams/dashboard?channels=bogus'`
+- `curl -N --max-time 6 'http://localhost:18000/v1/streams/dashboard?channels=heartbeat'`
+
+Live verification result:
+
+- Gateway health returned `ok`.
+- Existing scheduler REST query remained operational.
+- Dashboard stream emitted `heartbeat`, `health`, `scheduler_run`, `raw_event`, and `provider_usage` events.
+- Stable SSE ids were present for scheduler runs, raw events, and provider usage rows.
+- Invalid channel requests returned `400 invalid_channel`.
+- Heartbeat-only stream emitted the opening heartbeat and a periodic heartbeat after the stream interval.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Plan frontend SSE adoption as a later UI gate.
+- Add `Last-Event-ID` replay only after concrete resume semantics are defined.
+
+
+## Gate G032: Frontend Dashboard Stream Adoption
+
+Timestamp: `2026-07-08T03:46:26Z`
+
+Status: `passed`
+
+Gate name:
+
+- Adopt the G031 dashboard SSE stream in the frontend through a browser subscription bridge.
+
+Criteria:
+
+- Add a frontend `EventSource` client for `GET /v1/streams/dashboard`.
+- Subscribe once at the app shell level and close the subscription on unmount.
+- Refresh existing TanStack Query caches for health, scheduler runs, raw events, and provider usage when stream events arrive.
+- Surface stream connection state in the existing UI without replacing REST fallback behavior.
+- Keep the Vite proxy path working for SSE.
+- Update frontend docs/specs to reflect that SSE now exists.
+
+Evidence:
+
+- `docs/frontend_implementation_spec.md`
+- `web/README.md`
+- `web/src/App.tsx`
+- `web/src/api/client.ts`
+- `web/src/api/stream.ts`
+- `web/src/components/DashboardStreamBridge.tsx`
+- `web/src/components/HealthIndicator.tsx`
+- `web/src/routes/SystemRoute.tsx`
+- `web/src/store/ui.ts`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `buildUrl` is exported from `api/client.ts` so REST and SSE use the same base/proxy behavior.
+- `DashboardStreamBridge` owns the app-level `EventSource` subscription.
+- Stream events invalidate existing query caches instead of introducing a second state source for operational tables.
+- Health and System UI now show stream connection state and last stream event time.
+
+Verification performed:
+
+- `cd web && npm run build`
+- `ss -ltnp | rg ':5173|:18000'`
+- `curl -fsS http://localhost:5173/healthz`
+- `curl -N --max-time 3 'http://localhost:5173/v1/streams/dashboard?channels=health,runs,raw_events,provider_usage'`
+- `curl -s -w '[HTTP %{http_code}]' 'http://localhost:5173/v1/streams/dashboard?channels=bogus'`
+
+Live verification result:
+
+- Vite dev proxy forwarded `/healthz` and `/v1/streams/dashboard` to the gateway.
+- Dashboard SSE frames arrived through the frontend dev server proxy.
+- Invalid channel requests returned `400 invalid_channel` through the frontend dev server proxy.
+- Frontend production build passed with TypeScript type checking.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add Vitest coverage for stream event parsing and query invalidation.
+- Consider direct stream-derived widget state after cache-invalidation adoption has been observed in the browser.
+
+
+## Gate G033: Compose Web UI Integration
+
+Timestamp: `2026-07-08T03:57:04Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add Docker/Compose runtime integration for the SignalOps operational web UI.
+
+Criteria:
+
+- Add a production-style web image for the Vite frontend.
+- Serve the built frontend from a container on a stable local port.
+- Proxy `/healthz`, `/readyz`, and `/v1` from the web container to the gateway service.
+- Preserve SSE behavior through the proxy.
+- Document the Compose web workflow.
+- Validate Compose config, image build, service startup, static app serving, REST proxy, and SSE proxy.
+
+Evidence:
+
+- `compose.yaml`
+- `docs/deployment.md`
+- `docs/docker_development.md`
+- `web/Dockerfile`
+- `web/README.md`
+- `web/deploy/nginx.conf`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `web/Dockerfile` uses `node:22-bookworm-slim` for `npm ci` and `npm run build`, then copies `dist/` into `nginx:1.27-alpine`.
+- nginx listens on container port `8080` and serves the SPA with `try_files ... /index.html`.
+- nginx proxies `/healthz`, `/readyz`, and `/v1/` to `http://gateway:8080`.
+- `/v1/` proxying disables buffering and extends read/send timeouts to support SSE.
+- Compose maps host port `15173` to web container port `8080`.
+
+Verification performed:
+
+- `docker compose config --quiet`
+- `docker compose build web`
+- `docker compose up -d web`
+- `curl -fsS http://localhost:15173/ | head -20`
+- `curl -fsS http://localhost:15173/healthz`
+- `curl -fsS 'http://localhost:15173/v1/scheduler/runs?limit=1'`
+- `curl -N --max-time 3 'http://localhost:15173/v1/streams/dashboard?channels=health,heartbeat'`
+- `docker compose ps web`
+
+Live verification result:
+
+- Built HTML shell was served from `http://localhost:15173/`.
+- Gateway health and scheduler query worked through the web container proxy.
+- SSE stream emitted `heartbeat` and `health` frames through the web container proxy.
+- `signalops-web-1` is running and exposes `0.0.0.0:15173->8080/tcp`.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Assess npm audit findings in a dedicated frontend dependency hardening gate.
+- Add frontend stream/component tests.
+
+
+## Gate G034: Frontend Stream Test and Dependency Hardening
+
+Timestamp: `2026-07-08T04:12:01Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add focused frontend test coverage for stream behavior and remediate safe dependency audit findings.
+
+Criteria:
+
+- Add Vitest coverage for dashboard stream parsing and subscription behavior.
+- Add Vitest coverage for formatting helpers used across operational tables/details.
+- Preserve frontend production build.
+- Remediate non-major npm audit findings when safe.
+- Record any remaining dependency findings that require larger compatibility work.
+- Validate the Compose web image still builds.
+
+Evidence:
+
+- `web/src/api/stream.ts`
+- `web/src/api/stream.test.ts`
+- `web/src/lib/format.test.ts`
+- `web/package.json`
+- `web/package-lock.json`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `parseDashboardStreamData` and `toDashboardStreamEvent` expose deterministic stream parsing behavior for unit tests.
+- `stream.test.ts` uses a local fake `EventSource`; it does not require browser automation.
+- PostCSS was updated to `8.5.16` through npm.
+- ECharts remains on the existing major version because the audit fix requires a semver-major upgrade to `6.1.0`.
+
+Verification performed:
+
+- `cd web && npm test`
+- `cd web && npm run build`
+- `cd web && npm audit --json`
+- `docker compose build web`
+
+Live verification result:
+
+- Vitest passed: 2 files, 6 tests.
+- Frontend production build passed.
+- Compose web image build passed.
+- npm audit now reports only one moderate finding: ECharts XSS advisory fixed by semver-major `echarts@6.1.0`.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Plan an ECharts 6 compatibility gate or charting dependency replacement.
+- Add component-level frontend tests for stream-driven query invalidation when test infrastructure is expanded.
+
+
+## Gate G035: ECharts Security Upgrade Compatibility
+
+Timestamp: `2026-07-08T04:25:24Z`
+
+Status: `passed`
+
+Gate name:
+
+- Upgrade ECharts to the audited fixed major version and validate frontend compatibility.
+
+Criteria:
+
+- Confirm `echarts-for-react` supports ECharts 6.
+- Upgrade `echarts` to `6.1.0`.
+- Preserve frontend unit tests and production build.
+- Confirm npm audit reports zero vulnerabilities.
+- Validate the Compose web image and running web service after the upgrade.
+
+Evidence:
+
+- `web/package.json`
+- `web/package-lock.json`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `echarts-for-react` peer dependencies include `echarts` `^6.0.0`, so no adapter package change was required.
+- The current Runs chart uses a simple ECharts option object through `echarts-for-react`; no code changes were needed for ECharts 6.1.0.
+
+Verification performed:
+
+- `npm view echarts version peerDependencies --json`
+- `npm view echarts-for-react version peerDependencies --json`
+- `cd web && npm install echarts@6.1.0`
+- `cd web && npm test`
+- `cd web && npm run build`
+- `cd web && npm audit --json`
+- `docker compose build web`
+- `docker compose up -d web`
+- `curl -fsS http://localhost:15173/ | head -20`
+- `curl -fsS 'http://localhost:15173/v1/scheduler/runs?limit=1'`
+- `curl -N --max-time 3 'http://localhost:15173/v1/streams/dashboard?channels=health,heartbeat'`
+- `docker compose ps web`
+
+Live verification result:
+
+- npm audit reported zero vulnerabilities.
+- Vitest passed: 2 files, 6 tests.
+- Frontend production build passed.
+- Compose web image build passed with `npm ci` reporting zero vulnerabilities.
+- Web container served the rebuilt app shell on `http://localhost:15173/`.
+- Scheduler REST and dashboard SSE proxy paths remained operational through the web container.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add browser-level chart rendering validation when frontend browser automation is added.
+- Resume backend platform capability work now that frontend dependency audit is clean.

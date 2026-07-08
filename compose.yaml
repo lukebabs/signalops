@@ -104,6 +104,16 @@ services:
     ports:
       - "18000:8080"
 
+  web:
+    build:
+      context: ./web
+      target: web
+    depends_on:
+      gateway:
+        condition: service_started
+    ports:
+      - "15173:8080"
+
   massive-puller:
     profiles: ["massive-pull"]
     build:
