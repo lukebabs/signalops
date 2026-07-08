@@ -10,3 +10,18 @@ func TestRunStatusConstants(t *testing.T) {
 		}
 	}
 }
+
+func TestIdempotencyStatusConstants(t *testing.T) {
+	statuses := []string{
+		IdempotencyStatusAccepted,
+		IdempotencyStatusPublished,
+		IdempotencyStatusProcessed,
+		IdempotencyStatusFailed,
+		IdempotencyStatusDuplicate,
+	}
+	for _, status := range statuses {
+		if status == "" {
+			t.Fatal("empty idempotency status")
+		}
+	}
+}

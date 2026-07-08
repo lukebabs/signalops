@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lukebabs/signalops/internal/storage"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
 
@@ -45,6 +46,28 @@ func (f *fakePublisher) Publish(_ context.Context, msg broker.Message) (broker.P
 
 func (f *fakePublisher) Close(context.Context) error { return nil }
 
+type fakePublishRepository struct {
+	idempotency []storage.IdempotencyRecord
+	ledger      []storage.RawEventLedgerRecord
+	err         error
+}
+
+func (f *fakePublishRepository) UpsertIdempotencyRecord(_ context.Context, record storage.IdempotencyRecord) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.idempotency = append(f.idempotency, record)
+	return nil
+}
+
+func (f *fakePublishRepository) UpsertRawEventLedger(_ context.Context, record storage.RawEventLedgerRecord) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.ledger = append(f.ledger, record)
+	return nil
+}
+
 func TestRunScheduledPullDryRunBuildsEvents(t *testing.T) {
 	client := fakeScheduledClient{
 		equityRecords: map[string]EquityEODPriceRecord{
@@ -76,6 +99,81 @@ func TestRunScheduledPullDryRunBuildsEvents(t *testing.T) {
 	}
 	if len(publisher.messages) != 0 {
 		t.Fatalf("dry run published %d messages", len(publisher.messages))
+	}
+}
+
+func TestRunScheduledPullPersistsPublishedRawEvents(t *testing.T) {
+	client := fakeScheduledClient{
+		equityRecords: map[string]EquityEODPriceRecord{
+			"NVDA": {ProviderEventID: "nvda-2026-07-06", Symbol: "NVDA", ObservationDate: testObservationDate()},
+		},
+	}
+	publisher := &fakePublisher{}
+	repo := &fakePublishRepository{}
+
+	report, err := RunScheduledPull(context.Background(), ScheduledPullConfig{
+		TenantID:          "tenant-1",
+		SourceID:          "src-massive",
+		Environment:       "test",
+		ObservationDate:   testObservationDate(),
+		Companies:         []MegacapCompanySeed{{Ticker: "NVDA"}},
+		IncludeEquityEOD:  true,
+		DryRun:            false,
+		PublishRepository: repo,
+	}, client, publisher)
+	if err != nil {
+		t.Fatalf("run scheduled pull: %v", err)
+	}
+	if report.EventsPublished != 1 || len(repo.ledger) != 1 || len(repo.idempotency) != 1 {
+		t.Fatalf("report/ledger/idempotency = %+v/%d/%d", report, len(repo.ledger), len(repo.idempotency))
+	}
+	ledger := repo.ledger[0]
+	if ledger.EventID == "" || ledger.Dataset != DatasetEquityEODPrices || ledger.BrokerTopic != "signalops.test.raw.v1" {
+		t.Fatalf("ledger = %+v", ledger)
+	}
+	if ledger.BrokerPartition == nil || *ledger.BrokerPartition != 1 || ledger.BrokerOffset == nil || *ledger.BrokerOffset != 0 {
+		t.Fatalf("ledger broker ack = %+v/%+v", ledger.BrokerPartition, ledger.BrokerOffset)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(ledger.PayloadJSON, &decoded); err != nil {
+		t.Fatalf("ledger payload json: %v", err)
+	}
+	if decoded["event_id"] != ledger.EventID {
+		t.Fatalf("decoded event id = %v, ledger event id = %s", decoded["event_id"], ledger.EventID)
+	}
+	idem := repo.idempotency[0]
+	if idem.EventID != ledger.EventID || idem.IdempotencyKey != ledger.IdempotencyKey {
+		t.Fatalf("idempotency = %+v ledger = %+v", idem, ledger)
+	}
+	if idem.Status != storage.IdempotencyStatusPublished || idem.PayloadHash == "" {
+		t.Fatalf("idempotency status/hash = %s/%s", idem.Status, idem.PayloadHash)
+	}
+}
+
+func TestRunScheduledPullCountsPublishedEventWhenPersistenceFails(t *testing.T) {
+	client := fakeScheduledClient{
+		equityRecords: map[string]EquityEODPriceRecord{
+			"NVDA": {ProviderEventID: "nvda-2026-07-06", Symbol: "NVDA", ObservationDate: testObservationDate()},
+		},
+	}
+	publisher := &fakePublisher{}
+	repo := &fakePublishRepository{err: errors.New("storage unavailable")}
+
+	report, err := RunScheduledPull(context.Background(), ScheduledPullConfig{
+		TenantID:          "tenant-1",
+		SourceID:          "src-massive",
+		Environment:       "test",
+		ObservationDate:   testObservationDate(),
+		Companies:         []MegacapCompanySeed{{Ticker: "NVDA"}},
+		IncludeEquityEOD:  true,
+		DryRun:            false,
+		PublishRepository: repo,
+	}, client, publisher)
+	if err == nil {
+		t.Fatal("expected persistence error")
+	}
+	if report.EventsPublished != 1 || report.Failures != 1 || len(publisher.messages) != 1 {
+		t.Fatalf("report/messages = %+v/%d", report, len(publisher.messages))
 	}
 }
 

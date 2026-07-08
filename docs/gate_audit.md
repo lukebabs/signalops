@@ -1813,3 +1813,89 @@ Follow-up items:
 
 - Add database-backed idempotency and raw event ledger persistence on publish.
 - Add API access to persisted scheduler run history and provider usage for UI readiness.
+
+
+## Gate G028: Publish Idempotency And Raw Ledger Persistence
+
+Timestamp: `2026-07-08T00:18:45Z`
+
+Status: `passed`
+
+Gate name:
+
+- Persist broker-acknowledged Massive raw events to PostgreSQL idempotency and raw event ledger tables.
+
+Criteria:
+
+- Extend the storage boundary for raw event ledger persistence.
+- Implement Postgres upserts for `idempotency_records` and `raw_event_ledger`.
+- Wire Massive scheduled pull publish path to persist after successful broker acknowledgement.
+- Record topic, partition, offset, payload JSON, entity hints, timing, route metadata, and payload hash.
+- Keep dry-runs free of raw ledger/idempotency writes.
+- Wire both `massive-puller` and `massive-scheduler` to use publish persistence when `SIGNALOPS_DATABASE_URL` is configured.
+- Validate unit, schema, image build, Postgres integration, broker integration, and live publish paths.
+- Confirm raw-worker lag remains `0`.
+
+Evidence:
+
+- `cmd/massive-puller/main.go`
+- `cmd/massive-scheduler/main.go`
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `internal/adapters/marketdata/massive/scheduled_pull_test.go`
+- `internal/storage/storage.go`
+- `internal/storage/storage_test.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `docs/deployment.md`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- Persistence occurs only after the broker returns a successful publish result.
+- `raw_event_ledger.payload` stores the same JSON bytes published to the raw topic.
+- `raw_event_ledger.entity_hints` stores the event entity hints separately for query support.
+- `idempotency_records.payload_hash` uses `sha256:<hex>` over the published JSON bytes.
+- If broker publish succeeds but database persistence fails, the report still counts the event as published and returns the persistence error to the caller.
+- The current repository performs raw ledger and idempotency upserts separately; transaction grouping remains future scope if stricter atomicity is required.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm gofmt -w internal/storage/storage.go internal/storage/storage_test.go internal/storage/postgres/repository.go internal/storage/postgres/repository_test.go internal/adapters/marketdata/massive/scheduled_pull.go internal/adapters/marketdata/massive/scheduled_pull_test.go cmd/massive-puller/main.go cmd/massive-scheduler/main.go`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm --network host -e SIGNALOPS_POSTGRES_INTEGRATION=1 -e SIGNALOPS_DATABASE_URL=postgres://signalops:signalops@localhost:15432/signalops?sslmode=disable -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/storage/postgres -run TestRepositoryAgainstPostgres -count=1 -v`
+- `docker compose --profile massive-schedule config --quiet`
+- `docker compose --profile massive-schedule build massive-scheduler`
+- `make docker-test-python`
+- `make docker-validate-schemas`
+- `docker compose --profile massive-schedule run --rm massive-scheduler --max-runs 1 --max-companies 1 --datasets equity --request-delay 250ms --max-retries 0 --retry-backoff 1s --max-provider-requests 1 --max-events-built 1 --max-events-published 1 --dry-run=false --continue-on-error=false --continue-on-run-error=false`
+- `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT run_id,status,dry_run,events_built,events_published,provider_requests,failures FROM scheduler_runs ORDER BY started_at DESC LIMIT 3"`
+- `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT event_id,dataset,broker_topic,broker_partition,broker_offset FROM raw_event_ledger ORDER BY created_at DESC LIMIT 5"`
+- `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT event_id,status,topic,partition,offset_value,left(payload_hash,16) FROM idempotency_records ORDER BY last_seen_at DESC LIMIT 5"`
+- `docker run --rm --network host -e SIGNALOPS_BROKER_INTEGRATION=1 -e SIGNALOPS_BROKER_BROKERS=localhost:19092 -e SIGNALOPS_ENV=local -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/broker/kafka -run TestPublishConsumeCommitAgainstRedpanda -count=1 -v`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Live scheduler publish persisted run `massive:src-massive:20260708T001716.692425267Z` with status `succeeded`, `dry_run=false`, `events_built=1`, `events_published=1`, `provider_requests=1`, and `failures=0`.
+- Raw ledger row persisted event `evt_5d5a94a0e8ea5d149ec19947`, dataset `equity_eod_prices`, topic `signalops.local.raw.v1`, partition `2`, offset `3`.
+- Idempotency row persisted event `evt_5d5a94a0e8ea5d149ec19947`, status `published`, topic `signalops.local.raw.v1`, partition `2`, offset `3`, hash prefix `sha256:22d0af9ad`.
+- Scheduler image build completed successfully.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+
+Issues found and resolved:
+
+- The previous turn was interrupted after only the storage boundary changed; continuation began by verifying the partial working tree.
+- `internal/storage/storage_test.go` was restored after an accidental duplicate-production-content edit.
+- Publish count semantics were corrected so broker-acknowledged events are counted before optional database persistence, with a regression test.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add API endpoints over scheduler runs, provider usage, raw event ledger, and idempotency records.
+- Add UI/UX views once the query APIs expose durable state.
+- Evaluate transactional grouping of raw ledger and idempotency writes if future adapter requirements demand atomic persistence.

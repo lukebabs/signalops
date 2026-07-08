@@ -2,12 +2,15 @@ package massive
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/lukebabs/signalops/internal/storage"
 	"github.com/lukebabs/signalops/pkg/broker"
 	"github.com/lukebabs/signalops/pkg/contracts"
 )
@@ -46,6 +49,7 @@ type ScheduledPullConfig struct {
 	MaxEventsPublished  int
 	CorrelationPrefix   string
 	TraceID             string
+	PublishRepository   storage.PublishRepository
 }
 
 type ScheduledPullReport struct {
@@ -271,7 +275,8 @@ func buildAndMaybePublish(ctx context.Context, cfg ScheduledPullConfig, publishe
 		publishCtx, cancel = context.WithTimeout(ctx, cfg.PublishTimeout)
 	}
 	defer cancel()
-	_, err = publisher.Publish(publishCtx, broker.Message{
+	publishedAt := time.Now().UTC()
+	result, err := publisher.Publish(publishCtx, broker.Message{
 		Topic:         cfg.RawTopic,
 		Key:           event.IdempotencyKey,
 		Value:         value,
@@ -279,13 +284,76 @@ func buildAndMaybePublish(ctx context.Context, cfg ScheduledPullConfig, publishe
 		CorrelationID: event.CorrelationID,
 		CausationID:   event.CausationID,
 		TraceID:       event.TraceID,
-		PublishedAt:   time.Now().UTC(),
+		PublishedAt:   publishedAt,
 	})
 	if err != nil {
 		return fmt.Errorf("publish raw event: %w", err)
 	}
 	report.EventsPublished++
+	if cfg.PublishRepository != nil {
+		if err := persistPublishedRawEvent(ctx, cfg.PublishRepository, event, value, result, publishedAt); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func persistPublishedRawEvent(ctx context.Context, repo storage.PublishRepository, event contracts.RawSignalEvent, value []byte, result broker.PublishResult, publishedAt time.Time) error {
+	entityHintsJSON, err := json.Marshal(event.EntityHints)
+	if err != nil {
+		return fmt.Errorf("marshal raw event entity hints: %w", err)
+	}
+	partition := result.Partition
+	offset := result.Offset
+	if err := repo.UpsertRawEventLedger(ctx, storage.RawEventLedgerRecord{
+		EventID:         event.EventID,
+		TenantID:        event.TenantID,
+		SourceID:        event.SourceID,
+		SourceAdapter:   event.SourceAdapter,
+		Dataset:         event.Dataset,
+		IdempotencyKey:  event.IdempotencyKey,
+		ObservationTime: event.ObservationAt,
+		ProcessingTime:  event.ProcessingAt,
+		BrokerTopic:     result.Topic,
+		BrokerPartition: &partition,
+		BrokerOffset:    &offset,
+		PayloadJSON:     value,
+		EntityHintsJSON: entityHintsJSON,
+	}); err != nil {
+		return err
+	}
+	metadataJSON, err := json.Marshal(map[string]any{
+		"correlation_id": event.CorrelationID,
+		"causation_id":   event.CausationID,
+		"trace_id":       event.TraceID,
+		"route":          ScheduledPullRoute,
+		"published_at":   publishedAt.UTC().Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal idempotency metadata: %w", err)
+	}
+	if err := repo.UpsertIdempotencyRecord(ctx, storage.IdempotencyRecord{
+		TenantID:       event.TenantID,
+		SourceID:       event.SourceID,
+		IdempotencyKey: event.IdempotencyKey,
+		EventID:        event.EventID,
+		SourceAdapter:  event.SourceAdapter,
+		Dataset:        event.Dataset,
+		Topic:          result.Topic,
+		Partition:      &partition,
+		Offset:         &offset,
+		PayloadHash:    payloadHash(value),
+		Status:         storage.IdempotencyStatusPublished,
+		MetadataJSON:   metadataJSON,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func payloadHash(value []byte) string {
+	sum := sha256.Sum256(value)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func normalizeScheduledPullConfig(cfg ScheduledPullConfig) ScheduledPullConfig {

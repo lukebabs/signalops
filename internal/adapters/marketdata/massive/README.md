@@ -205,3 +205,8 @@ settings as `cmd/massive-puller`. Compose keeps dry-run enabled by default.
 Scheduler run persistence is enabled by `SIGNALOPS_DATABASE_URL`. When set, the
 scheduler writes each run summary to `scheduler_runs` and provider usage rows to
 `provider_usage_runs` after every pull attempt.
+
+When publish mode is enabled and `SIGNALOPS_DATABASE_URL` is configured, the
+adapter persists each broker-acknowledged raw event to `raw_event_ledger` and
+upserts the corresponding `idempotency_records` row. The stored payload hash is
+computed from the exact JSON bytes published to the raw topic.

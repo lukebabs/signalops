@@ -139,6 +139,95 @@ ON CONFLICT (usage_id) DO UPDATE SET
 	return nil
 }
 
+func (r *Repository) UpsertIdempotencyRecord(ctx context.Context, record storage.IdempotencyRecord) error {
+	if err := validateIdempotencyRecord(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO idempotency_records (
+  tenant_id, source_id, idempotency_key, event_id, source_adapter, dataset,
+  topic, partition, offset_value, payload_hash, status, metadata, last_seen_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6,
+  $7, $8, $9, $10, $11, $12, now()
+)
+ON CONFLICT (tenant_id, source_id, idempotency_key) DO UPDATE SET
+  event_id = EXCLUDED.event_id,
+  source_adapter = EXCLUDED.source_adapter,
+  dataset = EXCLUDED.dataset,
+  topic = EXCLUDED.topic,
+  partition = EXCLUDED.partition,
+  offset_value = EXCLUDED.offset_value,
+  payload_hash = EXCLUDED.payload_hash,
+  status = EXCLUDED.status,
+  metadata = EXCLUDED.metadata,
+  last_seen_at = now()`,
+		record.TenantID,
+		record.SourceID,
+		record.IdempotencyKey,
+		record.EventID,
+		record.SourceAdapter,
+		record.Dataset,
+		nullString(record.Topic),
+		record.Partition,
+		record.Offset,
+		nullString(record.PayloadHash),
+		record.Status,
+		jsonOrEmpty(record.MetadataJSON),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert idempotency record: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) UpsertRawEventLedger(ctx context.Context, record storage.RawEventLedgerRecord) error {
+	if err := validateRawEventLedger(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO raw_event_ledger (
+  event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key,
+  observation_time, processing_time, broker_topic, broker_partition, broker_offset,
+  payload, entity_hints
+) VALUES (
+  $1, $2, $3, $4, $5, $6,
+  $7, $8, $9, $10, $11,
+  $12, $13
+)
+ON CONFLICT (event_id) DO UPDATE SET
+  tenant_id = EXCLUDED.tenant_id,
+  source_id = EXCLUDED.source_id,
+  source_adapter = EXCLUDED.source_adapter,
+  dataset = EXCLUDED.dataset,
+  idempotency_key = EXCLUDED.idempotency_key,
+  observation_time = EXCLUDED.observation_time,
+  processing_time = EXCLUDED.processing_time,
+  broker_topic = EXCLUDED.broker_topic,
+  broker_partition = EXCLUDED.broker_partition,
+  broker_offset = EXCLUDED.broker_offset,
+  payload = EXCLUDED.payload,
+  entity_hints = EXCLUDED.entity_hints`,
+		record.EventID,
+		record.TenantID,
+		record.SourceID,
+		record.SourceAdapter,
+		record.Dataset,
+		record.IdempotencyKey,
+		record.ObservationTime,
+		record.ProcessingTime,
+		nullString(record.BrokerTopic),
+		record.BrokerPartition,
+		record.BrokerOffset,
+		jsonOrEmpty(record.PayloadJSON),
+		jsonArrayOrEmpty(record.EntityHintsJSON),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert raw event ledger: %w", err)
+	}
+	return nil
+}
+
 func validateSchedulerRun(record storage.SchedulerRunRecord) error {
 	if strings.TrimSpace(record.RunID) == "" {
 		return errors.New("scheduler run id is required")
@@ -180,9 +269,72 @@ func validateProviderUsage(record storage.ProviderUsageRecord) error {
 	return nil
 }
 
+func validateIdempotencyRecord(record storage.IdempotencyRecord) error {
+	if strings.TrimSpace(record.TenantID) == "" {
+		return errors.New("idempotency tenant id is required")
+	}
+	if strings.TrimSpace(record.SourceID) == "" {
+		return errors.New("idempotency source id is required")
+	}
+	if strings.TrimSpace(record.IdempotencyKey) == "" {
+		return errors.New("idempotency key is required")
+	}
+	if strings.TrimSpace(record.EventID) == "" {
+		return errors.New("idempotency event id is required")
+	}
+	if strings.TrimSpace(record.SourceAdapter) == "" {
+		return errors.New("idempotency source adapter is required")
+	}
+	if strings.TrimSpace(record.Dataset) == "" {
+		return errors.New("idempotency dataset is required")
+	}
+	if strings.TrimSpace(record.Status) == "" {
+		return errors.New("idempotency status is required")
+	}
+	return nil
+}
+
+func validateRawEventLedger(record storage.RawEventLedgerRecord) error {
+	if strings.TrimSpace(record.EventID) == "" {
+		return errors.New("raw event ledger event id is required")
+	}
+	if strings.TrimSpace(record.TenantID) == "" {
+		return errors.New("raw event ledger tenant id is required")
+	}
+	if strings.TrimSpace(record.SourceID) == "" {
+		return errors.New("raw event ledger source id is required")
+	}
+	if strings.TrimSpace(record.SourceAdapter) == "" {
+		return errors.New("raw event ledger source adapter is required")
+	}
+	if strings.TrimSpace(record.Dataset) == "" {
+		return errors.New("raw event ledger dataset is required")
+	}
+	if strings.TrimSpace(record.IdempotencyKey) == "" {
+		return errors.New("raw event ledger idempotency key is required")
+	}
+	if record.ObservationTime.IsZero() {
+		return errors.New("raw event ledger observation time is required")
+	}
+	if record.ProcessingTime.IsZero() {
+		return errors.New("raw event ledger processing time is required")
+	}
+	if len(record.PayloadJSON) == 0 {
+		return errors.New("raw event ledger payload json is required")
+	}
+	return nil
+}
+
 func jsonOrEmpty(value []byte) []byte {
 	if len(value) == 0 {
 		return []byte(`{}`)
+	}
+	return value
+}
+
+func jsonArrayOrEmpty(value []byte) []byte {
+	if len(value) == 0 {
+		return []byte(`[]`)
 	}
 	return value
 }

@@ -16,6 +16,8 @@ import (
 	"github.com/lukebabs/signalops/internal/adapters/marketdata/massive"
 	kafkabroker "github.com/lukebabs/signalops/internal/broker/kafka"
 	"github.com/lukebabs/signalops/internal/config"
+	"github.com/lukebabs/signalops/internal/storage"
+	postgresstorage "github.com/lukebabs/signalops/internal/storage/postgres"
 )
 
 func main() {
@@ -86,6 +88,22 @@ func run(logger *slog.Logger, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	var publishRepo storage.PublishRepository
+	var repoCloser interface{ Close() error }
+	if strings.TrimSpace(cfg.DatabaseURL) != "" {
+		repo, err := postgresstorage.Open(ctx, cfg.DatabaseURL)
+		if err != nil {
+			return err
+		}
+		publishRepo = repo
+		repoCloser = repo
+		defer func() {
+			if closeErr := repoCloser.Close(); closeErr != nil {
+				logger.Error("signalops massive puller storage shutdown failed", "error", closeErr)
+			}
+		}()
+	}
+
 	var brokerClient *kafkabroker.Client
 	if !dryRun {
 		brokerClient, err = kafkabroker.NewClient(kafkabroker.Config{
@@ -121,6 +139,7 @@ func run(logger *slog.Logger, args []string) error {
 		MaxEventsPublished:  maxEventsPublished,
 		DryRun:              dryRun,
 		ContinueOnError:     continueOnError,
+		PublishRepository:   publishRepo,
 	}, massiveClient, brokerClient)
 
 	encoded, marshalErr := json.Marshal(report)

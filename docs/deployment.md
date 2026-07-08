@@ -181,3 +181,9 @@ proven.
 Scheduler persistence is enabled when `SIGNALOPS_DATABASE_URL` is set. The
 local `massive-scheduler` Compose service points at the `postgres` service and
 writes scheduler run summaries plus provider usage rows after each run.
+
+Publish-side persistence is also enabled by `SIGNALOPS_DATABASE_URL`. When the
+Massive puller or scheduler publishes raw events, successful broker acknowledgements
+are written to `raw_event_ledger` and `idempotency_records` with topic, partition,
+offset, payload hash, and event metadata. Dry-runs do not write raw event ledger
+or idempotency rows because no broker publication occurs.

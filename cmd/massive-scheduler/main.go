@@ -116,6 +116,7 @@ func run(logger *slog.Logger, args []string) error {
 	}
 
 	var runRepo storage.SchedulerRunRepository
+	var publishRepo storage.PublishRepository
 	var repoCloser interface{ Close() error }
 	if strings.TrimSpace(cfg.DatabaseURL) != "" {
 		repo, err := postgresstorage.Open(ctx, cfg.DatabaseURL)
@@ -123,6 +124,7 @@ func run(logger *slog.Logger, args []string) error {
 			return err
 		}
 		runRepo = repo
+		publishRepo = repo
 		repoCloser = repo
 		defer func() {
 			if closeErr := repoCloser.Close(); closeErr != nil {
@@ -148,6 +150,7 @@ func run(logger *slog.Logger, args []string) error {
 		MaxEventsPublished:  maxEventsPublished,
 		DryRun:              dryRun,
 		ContinueOnError:     continueOnError,
+		PublishRepository:   publishRepo,
 	}
 
 	loopReport, err := massive.RunScheduledLoop(ctx, massive.ScheduledLoopConfig{

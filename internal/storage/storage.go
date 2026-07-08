@@ -12,6 +12,14 @@ const (
 	RunStatusCanceled  = "canceled"
 )
 
+const (
+	IdempotencyStatusAccepted  = "accepted"
+	IdempotencyStatusPublished = "published"
+	IdempotencyStatusProcessed = "processed"
+	IdempotencyStatusFailed    = "failed"
+	IdempotencyStatusDuplicate = "duplicate"
+)
+
 type SchedulerRunRecord struct {
 	RunID            string
 	TenantID         string
@@ -59,6 +67,22 @@ type IdempotencyRecord struct {
 	MetadataJSON   []byte
 }
 
+type RawEventLedgerRecord struct {
+	EventID         string
+	TenantID        string
+	SourceID        string
+	SourceAdapter   string
+	Dataset         string
+	IdempotencyKey  string
+	ObservationTime time.Time
+	ProcessingTime  time.Time
+	BrokerTopic     string
+	BrokerPartition *int32
+	BrokerOffset    *int64
+	PayloadJSON     []byte
+	EntityHintsJSON []byte
+}
+
 type SchedulerRunRepository interface {
 	UpsertSchedulerRun(ctx context.Context, record SchedulerRunRecord) error
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
@@ -66,4 +90,13 @@ type SchedulerRunRepository interface {
 
 type IdempotencyRepository interface {
 	UpsertIdempotencyRecord(ctx context.Context, record IdempotencyRecord) error
+}
+
+type RawEventLedgerRepository interface {
+	UpsertRawEventLedger(ctx context.Context, record RawEventLedgerRecord) error
+}
+
+type PublishRepository interface {
+	IdempotencyRepository
+	RawEventLedgerRepository
 }

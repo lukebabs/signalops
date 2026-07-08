@@ -38,6 +38,28 @@ func TestValidateProviderUsage(t *testing.T) {
 	}
 }
 
+func TestValidateIdempotencyRecord(t *testing.T) {
+	record := validIdempotencyRecord()
+	if err := validateIdempotencyRecord(record); err != nil {
+		t.Fatalf("validate idempotency: %v", err)
+	}
+	record.IdempotencyKey = ""
+	if err := validateIdempotencyRecord(record); err == nil {
+		t.Fatal("expected idempotency key validation error")
+	}
+}
+
+func TestValidateRawEventLedger(t *testing.T) {
+	record := validRawEventLedgerRecord()
+	if err := validateRawEventLedger(record); err != nil {
+		t.Fatalf("validate raw event ledger: %v", err)
+	}
+	record.PayloadJSON = nil
+	if err := validateRawEventLedger(record); err == nil {
+		t.Fatal("expected payload validation error")
+	}
+}
+
 func TestStringArrayValue(t *testing.T) {
 	value, err := stringArray([]string{"equity_eod_prices", "options_contracts_daily"}).Value()
 	if err != nil {
@@ -92,6 +114,18 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	if err := repo.InsertProviderUsage(ctx, usage); err != nil {
 		t.Fatalf("insert usage: %v", err)
 	}
+	ledger := validRawEventLedgerRecord()
+	ledger.EventID = "test-g028-event"
+	ledger.IdempotencyKey = "test-g028-idem"
+	if err := repo.UpsertRawEventLedger(ctx, ledger); err != nil {
+		t.Fatalf("upsert raw event ledger: %v", err)
+	}
+	idem := validIdempotencyRecord()
+	idem.EventID = ledger.EventID
+	idem.IdempotencyKey = ledger.IdempotencyKey
+	if err := repo.UpsertIdempotencyRecord(ctx, idem); err != nil {
+		t.Fatalf("upsert idempotency: %v", err)
+	}
 
 	var status string
 	var built int
@@ -100,6 +134,22 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	}
 	if status != storage.RunStatusSucceeded || built != 3 {
 		t.Fatalf("status/built = %s/%d", status, built)
+	}
+	var idemStatus string
+	var topic string
+	if err := repo.db.QueryRowContext(ctx, "SELECT status, topic FROM idempotency_records WHERE tenant_id = $1 AND source_id = $2 AND idempotency_key = $3", idem.TenantID, idem.SourceID, idem.IdempotencyKey).Scan(&idemStatus, &topic); err != nil {
+		t.Fatalf("query idempotency record: %v", err)
+	}
+	if idemStatus != storage.IdempotencyStatusPublished || topic != "signalops.test.raw.v1" {
+		t.Fatalf("idempotency status/topic = %s/%s", idemStatus, topic)
+	}
+	var ledgerDataset string
+	var ledgerOffset int64
+	if err := repo.db.QueryRowContext(ctx, "SELECT dataset, broker_offset FROM raw_event_ledger WHERE event_id = $1", ledger.EventID).Scan(&ledgerDataset, &ledgerOffset); err != nil {
+		t.Fatalf("query raw event ledger: %v", err)
+	}
+	if ledgerDataset != "equity_eod_prices" || ledgerOffset != 42 {
+		t.Fatalf("ledger dataset/offset = %s/%d", ledgerDataset, ledgerOffset)
 	}
 }
 
@@ -131,5 +181,44 @@ func validProviderUsageRecord() storage.ProviderUsageRecord {
 		RetryCount:   0,
 		EventCount:   1,
 		BudgetJSON:   []byte(`{"max_provider_requests":2}`),
+	}
+}
+
+func validIdempotencyRecord() storage.IdempotencyRecord {
+	partition := int32(2)
+	offset := int64(42)
+	return storage.IdempotencyRecord{
+		TenantID:       "tenant-1",
+		SourceID:       "src-massive",
+		IdempotencyKey: "idem-1",
+		EventID:        "event-1",
+		SourceAdapter:  "market_data.massive",
+		Dataset:        "equity_eod_prices",
+		Topic:          "signalops.test.raw.v1",
+		Partition:      &partition,
+		Offset:         &offset,
+		PayloadHash:    "sha256:abc123",
+		Status:         storage.IdempotencyStatusPublished,
+		MetadataJSON:   []byte(`{"route":"massive_scheduled_pull"}`),
+	}
+}
+
+func validRawEventLedgerRecord() storage.RawEventLedgerRecord {
+	partition := int32(2)
+	offset := int64(42)
+	return storage.RawEventLedgerRecord{
+		EventID:         "event-1",
+		TenantID:        "tenant-1",
+		SourceID:        "src-massive",
+		SourceAdapter:   "market_data.massive",
+		Dataset:         "equity_eod_prices",
+		IdempotencyKey:  "idem-1",
+		ObservationTime: time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC),
+		ProcessingTime:  time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC),
+		BrokerTopic:     "signalops.test.raw.v1",
+		BrokerPartition: &partition,
+		BrokerOffset:    &offset,
+		PayloadJSON:     []byte(`{"event_id":"event-1"}`),
+		EntityHintsJSON: []byte(`[]`),
 	}
 }

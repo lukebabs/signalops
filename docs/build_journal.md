@@ -1471,3 +1471,68 @@ Next step:
 
 - Add database-backed idempotency and raw event ledger persistence on publish so replay/audit state is durable beyond scheduler summaries.
 - Start exposing persisted scheduler history through an API endpoint for UI/API readiness.
+
+
+## 2026-07-08T00:18:45Z
+
+Summary:
+
+- Completed G028 by adding database-backed idempotency and raw event ledger persistence for Massive raw-event publications.
+- Extended the storage boundary with raw event ledger and publish repository interfaces.
+- Implemented Postgres upserts for `idempotency_records` and `raw_event_ledger` in the existing repository.
+- Wired `massive-puller` and `massive-scheduler` to pass the Postgres repository into the Massive scheduled pull path when `SIGNALOPS_DATABASE_URL` is configured.
+- Persisted raw event ledger rows only after broker publish acknowledgement, including topic, partition, offset, payload JSON, entity hints, and event timing.
+- Persisted idempotency rows with status `published`, broker acknowledgement details, route metadata, and a SHA-256 hash of the exact published JSON payload.
+- Preserved dry-run behavior: no raw ledger or idempotency writes happen when no broker publish occurs.
+
+Files changed:
+
+- `cmd/massive-puller/main.go`
+- `cmd/massive-scheduler/main.go`
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `internal/adapters/marketdata/massive/scheduled_pull_test.go`
+- `internal/storage/storage.go`
+- `internal/storage/storage_test.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `docs/deployment.md`
+- `internal/adapters/marketdata/massive/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- Scheduler summaries prove that a run happened, but replay, audit, and idempotency require durable per-event state after publication.
+- The raw event ledger becomes the queryable source for what was actually emitted to Kafka.
+- Idempotency rows provide stable deduplication/audit state keyed by tenant, source, and idempotency key.
+
+Verification performed:
+
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Postgres integration test `TestRepositoryAgainstPostgres`; scheduler, provider usage, raw ledger, and idempotency writes passed against local Compose Postgres on port `15432`.
+- Validated Compose scheduler profile with `docker compose --profile massive-schedule config --quiet`.
+- Built the scheduler image with `docker compose --profile massive-schedule build massive-scheduler`; build completed successfully and Dockerfile test stage passed.
+- Ran Python unit tests with `python -m unittest discover -s python/tests`; 36 tests passed.
+- Ran schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Ran a bounded live Massive scheduler publish through Compose with one company, equity dataset, one provider request, one built event, one published event, and database persistence enabled.
+- Queried Postgres for latest `scheduler_runs`, `raw_event_ledger`, and `idempotency_records` rows.
+- Ran Redpanda broker integration test `TestPublishConsumeCommitAgainstRedpanda`; publish/consume/commit passed against local Redpanda on port `19092`.
+- Verified raw-worker group remained stable with total lag `0`.
+
+Live verification result:
+
+- Scheduler publish run `massive:src-massive:20260708T001716.692425267Z` persisted with status `succeeded`, `dry_run=false`, `events_built=1`, `events_published=1`, `provider_requests=1`, and `failures=0`.
+- Raw event ledger persisted event `evt_5d5a94a0e8ea5d149ec19947` for dataset `equity_eod_prices` on topic `signalops.local.raw.v1`, partition `2`, offset `3`.
+- Idempotency record persisted the same event with status `published`, topic `signalops.local.raw.v1`, partition `2`, offset `3`, and SHA-256 payload hash prefix `sha256:22d0af9ad`.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+
+Issue found and resolved:
+
+- The interrupted turn left only the storage boundary partially edited; the continuation verified the partial state before adding repository and adapter wiring.
+- An earlier scoped edit accidentally duplicated production declarations into `internal/storage/storage_test.go`; it was restored to focused constant tests and validated.
+- Publish count semantics were corrected so a broker-acknowledged event remains counted as published even if subsequent database persistence fails; a regression test now covers this case.
+
+Next step:
+
+- Add API endpoints for scheduler run history, provider usage, raw event ledger lookup, and idempotency lookup so UI/UX work has durable query surfaces.
+- Consider transaction grouping for raw ledger plus idempotency writes if future adapters require stricter all-or-nothing persistence semantics.
