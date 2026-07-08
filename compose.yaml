@@ -93,11 +93,14 @@ services:
         condition: service_healthy
       topic-bootstrap:
         condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
     environment:
       SIGNALOPS_HTTP_ADDR: ":8080"
       SIGNALOPS_BROKER_PROVIDER: redpanda
       SIGNALOPS_BROKER_BROKERS: redpanda:9092
       SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
     ports:
       - "18000:8080"
 

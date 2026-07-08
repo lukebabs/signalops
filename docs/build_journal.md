@@ -1536,3 +1536,72 @@ Next step:
 
 - Add API endpoints for scheduler run history, provider usage, raw event ledger lookup, and idempotency lookup so UI/UX work has durable query surfaces.
 - Consider transaction grouping for raw ledger plus idempotency writes if future adapters require stricter all-or-nothing persistence semantics.
+
+
+## 2026-07-08T00:28:57Z
+
+Summary:
+
+- Completed G029 by adding storage-backed operational query APIs to the gateway.
+- Added a read-side storage interface for scheduler runs, provider usage, raw event ledger, and idempotency lookup.
+- Implemented Postgres query methods with bounded limits, optional filters, JSONB passthrough, and `storage.ErrNotFound` mapping.
+- Added gateway routes for scheduler run history/detail, provider usage, raw event list/detail, and idempotency lookup.
+- Wired the gateway to open the Postgres repository when `SIGNALOPS_DATABASE_URL` is configured.
+- Updated local Compose so the gateway depends on healthy Postgres and receives the database URL.
+- Documented the operational query API surface in `docs/api.md`.
+
+Files changed:
+
+- `cmd/gateway/main.go`
+- `compose.yaml`
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+
+Rationale:
+
+- UI/UX work needs stable query surfaces before building screens.
+- The persisted G027/G028 data now has HTTP access without coupling the UI directly to Postgres.
+- Returning raw JSON payload/config/report fields as JSON preserves the data shape needed for inspection and debugging.
+
+Verification performed:
+
+- Ran Dockerized Go tests with `go test ./...`; all packages passed.
+- Ran Postgres integration test `TestRepositoryAgainstPostgres`; write and read/query methods passed against local Compose Postgres on port `15432`.
+- Validated Compose configuration with `docker compose config --quiet`.
+- Built the gateway image with `docker compose build gateway`; build completed successfully and Dockerfile test stage passed.
+- Restarted the gateway with `docker compose up -d gateway`.
+- Queried live `GET /healthz` through `localhost:18000`.
+- Queried live `GET /v1/scheduler/runs?limit=2` and received persisted scheduler runs.
+- Queried live `GET /v1/raw-events?limit=2` and received persisted raw event ledger rows.
+- Queried live `GET /v1/raw-events/evt_5d5a94a0e8ea5d149ec19947` and received the raw event payload and broker acknowledgement details.
+- Queried live `GET /v1/provider-usage?run_id=massive:src-massive:20260708T001716.692425267Z&limit=5` and received the matching provider usage row.
+- Queried live `GET /v1/idempotency?tenant_id=tenant-local&source_id=src-massive&idempotency_key=idem_5d5a94a0e8ea5d149ec19947` and received the published idempotency record.
+- Ran Python unit tests with `python -m unittest discover -s python/tests`; 36 tests passed.
+- Ran schema validation with `scripts/validate_json_schemas.py`; all schemas passed.
+- Ran Redpanda broker integration test `TestPublishConsumeCommitAgainstRedpanda`; publish/consume/commit passed against local Redpanda on port `19092`.
+- Verified raw-worker group remained stable with total lag `0`.
+
+Live verification result:
+
+- Gateway health returned status `ok` for service `signalops-gateway`.
+- Scheduler API returned run `massive:src-massive:20260708T001716.692425267Z` with `dry_run=false`, `events_built=1`, and `events_published=1`.
+- Raw event API returned event `evt_5d5a94a0e8ea5d149ec19947` with topic `signalops.local.raw.v1`, partition `2`, offset `3`, and JSON payload content.
+- Provider usage API returned usage id `massive:src-massive:20260708T001716.692425267Z:equity_eod_prices` with one request and one event.
+- Idempotency API returned key `idem_5d5a94a0e8ea5d149ec19947` with status `published` and full SHA-256 payload hash.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+
+Issue found and resolved:
+
+- The gateway initially attempted to open Postgres even when the database URL was empty; this was tightened so storage wiring is strictly optional.
+- The first idempotency live check used the wrong key and correctly returned `404`; the check was rerun with the idempotency key returned by the raw event API and passed.
+
+Next step:
+
+- Start UI/UX work against these read endpoints, beginning with an operational dashboard for scheduler runs, provider usage, raw event inspection, and idempotency lookup.
+- Add pagination cursors after the initial dashboard shape is proven; current endpoints use bounded `limit` queries.

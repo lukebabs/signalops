@@ -62,3 +62,51 @@ If identifiers are omitted:
 - `400 invalid_json`: request body is not a JSON object.
 - `502 publish_failed`: broker publish failed.
 - `503 broker_unavailable`: ingestion route is not wired with a publisher.
+
+## Operational Query API
+
+These endpoints require gateway storage wiring through `SIGNALOPS_DATABASE_URL`.
+When storage is not configured they return `503 storage_unavailable`.
+
+### Scheduler Runs
+
+`GET /v1/scheduler/runs?limit=50`
+
+Returns recent scheduler run audit rows ordered by `started_at DESC`.
+
+`GET /v1/scheduler/runs/{run_id}`
+
+Returns one scheduler run, including datasets, counters, config JSON, report JSON,
+status, timestamps, and optional error message.
+
+### Provider Usage
+
+`GET /v1/provider-usage?run_id={run_id}&limit=50`
+
+Returns provider usage rows. `run_id` is optional; when omitted, recent provider
+usage across runs is returned.
+
+### Raw Event Ledger
+
+`GET /v1/raw-events?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&limit=50`
+
+Returns recent raw event ledger rows. Filters are optional and can be combined.
+Each row includes broker acknowledgement details, event timing, payload JSON, and
+entity hints.
+
+`GET /v1/raw-events/{event_id}`
+
+Returns one raw event ledger row by event id.
+
+### Idempotency Lookup
+
+`GET /v1/idempotency?tenant_id={tenant_id}&source_id={source_id}&idempotency_key={key}`
+
+Returns one idempotency record. All three query parameters are required.
+
+### Query Errors
+
+- `400 missing_query`: required idempotency lookup parameters are missing.
+- `404 *_not_found`: requested run, raw event, or idempotency record was not found.
+- `500 query_failed`: storage query failed.
+- `503 storage_unavailable`: gateway was not configured with query storage.

@@ -2,8 +2,11 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+var ErrNotFound = errors.New("storage record not found")
 
 const (
 	RunStatusStarted   = "started"
@@ -39,6 +42,8 @@ type SchedulerRunRecord struct {
 	ConfigJSON       []byte
 	ReportJSON       []byte
 	ErrorMessage     string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type ProviderUsageRecord struct {
@@ -50,6 +55,7 @@ type ProviderUsageRecord struct {
 	RetryCount   int
 	EventCount   int
 	BudgetJSON   []byte
+	CreatedAt    time.Time
 }
 
 type IdempotencyRecord struct {
@@ -65,6 +71,8 @@ type IdempotencyRecord struct {
 	PayloadHash    string
 	Status         string
 	MetadataJSON   []byte
+	FirstSeenAt    time.Time
+	LastSeenAt     time.Time
 }
 
 type RawEventLedgerRecord struct {
@@ -81,6 +89,7 @@ type RawEventLedgerRecord struct {
 	BrokerOffset    *int64
 	PayloadJSON     []byte
 	EntityHintsJSON []byte
+	CreatedAt       time.Time
 }
 
 type SchedulerRunRepository interface {
@@ -99,4 +108,20 @@ type RawEventLedgerRepository interface {
 type PublishRepository interface {
 	IdempotencyRepository
 	RawEventLedgerRepository
+}
+
+type RawEventLedgerFilter struct {
+	TenantID string
+	SourceID string
+	Dataset  string
+	Limit    int
+}
+
+type QueryRepository interface {
+	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
+	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
+	ListProviderUsage(ctx context.Context, runID string, limit int) ([]ProviderUsageRecord, error)
+	ListRawEventLedger(ctx context.Context, filter RawEventLedgerFilter) ([]RawEventLedgerRecord, error)
+	GetRawEventLedger(ctx context.Context, eventID string) (RawEventLedgerRecord, error)
+	GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (IdempotencyRecord, error)
 }

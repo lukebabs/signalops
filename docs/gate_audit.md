@@ -1899,3 +1899,92 @@ Follow-up items:
 - Add API endpoints over scheduler runs, provider usage, raw event ledger, and idempotency records.
 - Add UI/UX views once the query APIs expose durable state.
 - Evaluate transactional grouping of raw ledger and idempotency writes if future adapter requirements demand atomic persistence.
+
+
+## Gate G029: Operational Query API
+
+Timestamp: `2026-07-08T00:28:57Z`
+
+Status: `passed`
+
+Gate name:
+
+- Expose persisted scheduler, provider usage, raw event ledger, and idempotency state through gateway query endpoints.
+
+Criteria:
+
+- Add read-side storage contracts for operational query data.
+- Implement Postgres query methods for scheduler runs, provider usage, raw event ledger, and idempotency records.
+- Add gateway routes for list/detail query surfaces.
+- Return JSONB payload/config/report fields as JSON, not base64-encoded bytes.
+- Wire local gateway to Postgres through `SIGNALOPS_DATABASE_URL` in Compose.
+- Document query endpoints in `docs/api.md`.
+- Validate unit, integration, image build, live gateway endpoint, schema, Python, broker, and worker-lag checks.
+
+Evidence:
+
+- `cmd/gateway/main.go`
+- `compose.yaml`
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+
+Implementation notes:
+
+- `GET /v1/scheduler/runs` lists recent scheduler runs.
+- `GET /v1/scheduler/runs/{run_id}` returns one scheduler run.
+- `GET /v1/provider-usage` lists provider usage rows, optionally filtered by `run_id`.
+- `GET /v1/raw-events` lists raw event ledger rows, optionally filtered by `tenant_id`, `source_id`, and `dataset`.
+- `GET /v1/raw-events/{event_id}` returns one raw event ledger row.
+- `GET /v1/idempotency` requires `tenant_id`, `source_id`, and `idempotency_key` and returns one idempotency record.
+- Query limits default to `50` and are capped at `200`.
+- Gateway query storage is optional; query routes return `503 storage_unavailable` when no repository is configured.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm gofmt -w cmd/gateway/main.go internal/api/router.go internal/api/router_test.go internal/storage/storage.go internal/storage/postgres/repository.go internal/storage/postgres/repository_test.go`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker run --rm --network host -e SIGNALOPS_POSTGRES_INTEGRATION=1 -e SIGNALOPS_DATABASE_URL=postgres://signalops:signalops@localhost:15432/signalops?sslmode=disable -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/storage/postgres -run TestRepositoryAgainstPostgres -count=1 -v`
+- `docker compose config --quiet`
+- `docker compose build gateway`
+- `docker compose up -d gateway`
+- `curl -fsS http://localhost:18000/healthz`
+- `curl -fsS 'http://localhost:18000/v1/scheduler/runs?limit=2'`
+- `curl -fsS 'http://localhost:18000/v1/raw-events?limit=2'`
+- `curl -fsS 'http://localhost:18000/v1/raw-events/evt_5d5a94a0e8ea5d149ec19947'`
+- `curl -fsS 'http://localhost:18000/v1/provider-usage?run_id=massive:src-massive:20260708T001716.692425267Z&limit=5'`
+- `curl -fsS 'http://localhost:18000/v1/idempotency?tenant_id=tenant-local&source_id=src-massive&idempotency_key=idem_5d5a94a0e8ea5d149ec19947'`
+- `make docker-test-python`
+- `make docker-validate-schemas`
+- `docker run --rm --network host -e SIGNALOPS_BROKER_INTEGRATION=1 -e SIGNALOPS_BROKER_BROKERS=localhost:19092 -e SIGNALOPS_ENV=local -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/broker/kafka -run TestPublishConsumeCommitAgainstRedpanda -count=1 -v`
+- `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
+
+Live verification result:
+
+- Gateway health returned `ok`.
+- Scheduler runs endpoint returned persisted run `massive:src-massive:20260708T001716.692425267Z`.
+- Raw events endpoint returned persisted event `evt_5d5a94a0e8ea5d149ec19947` with broker topic `signalops.local.raw.v1`, partition `2`, and offset `3`.
+- Raw event detail endpoint returned the same event with JSON payload and entity hints.
+- Provider usage endpoint returned `massive:src-massive:20260708T001716.692425267Z:equity_eod_prices`.
+- Idempotency endpoint returned `idem_5d5a94a0e8ea5d149ec19947` with status `published`.
+- Scheduler image build was not part of this gate; gateway image build completed successfully.
+- Redpanda raw-worker group remained `Stable` with one member and total lag `0`.
+
+Issues found and resolved:
+
+- Gateway storage open was tightened to only run when `SIGNALOPS_DATABASE_URL` is non-empty.
+- A live idempotency check with an incorrect key produced the expected `404`; the correct key from the raw event row was then verified successfully.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Begin UI/UX dashboard implementation against the G029 query endpoints.
+- Add cursor or time-window pagination after initial UI usage patterns are clear.

@@ -14,6 +14,7 @@ import (
 	"github.com/lukebabs/signalops/internal/api"
 	kafkabroker "github.com/lukebabs/signalops/internal/broker/kafka"
 	"github.com/lukebabs/signalops/internal/config"
+	postgresstorage "github.com/lukebabs/signalops/internal/storage/postgres"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
 
@@ -30,12 +31,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	var queryRepo *postgresstorage.Repository
+	if strings.TrimSpace(cfg.DatabaseURL) != "" {
+		queryRepo, err = postgresstorage.Open(context.Background(), cfg.DatabaseURL)
+		if err != nil {
+			logger.Error("signalops gateway storage setup failed", "error", err)
+			os.Exit(1)
+		}
+	}
+
 	server := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: api.NewRouter(api.RouterConfig{
-			ServiceName: "signalops-gateway",
-			Publisher:   brokerClient,
-			RawTopic:    broker.TopicName(cfg.Environment, broker.RawTopic),
+			ServiceName:     "signalops-gateway",
+			Publisher:       brokerClient,
+			RawTopic:        broker.TopicName(cfg.Environment, broker.RawTopic),
+			QueryRepository: queryRepo,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -59,16 +70,22 @@ func main() {
 		logger.Info("signalops gateway stopping", "signal", sig.String())
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("signalops gateway shutdown failed", "error", err)
 		os.Exit(1)
 	}
-	if err := brokerClient.Close(ctx); err != nil {
+	if err := brokerClient.Close(shutdownCtx); err != nil {
 		logger.Error("signalops gateway broker shutdown failed", "error", err)
 		os.Exit(1)
+	}
+	if queryRepo != nil {
+		if err := queryRepo.Close(); err != nil {
+			logger.Error("signalops gateway storage shutdown failed", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	logger.Info("signalops gateway stopped")

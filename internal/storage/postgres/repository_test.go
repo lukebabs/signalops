@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -150,6 +151,51 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	}
 	if ledgerDataset != "equity_eod_prices" || ledgerOffset != 42 {
 		t.Fatalf("ledger dataset/offset = %s/%d", ledgerDataset, ledgerOffset)
+	}
+	runs, err := repo.ListSchedulerRuns(ctx, 5)
+	if err != nil {
+		t.Fatalf("list scheduler runs: %v", err)
+	}
+	if len(runs) == 0 {
+		t.Fatal("expected scheduler runs")
+	}
+	gotRun, err := repo.GetSchedulerRun(ctx, run.RunID)
+	if err != nil {
+		t.Fatalf("get scheduler run: %v", err)
+	}
+	if gotRun.RunID != run.RunID || len(gotRun.Datasets) != 1 || gotRun.Datasets[0] != "equity_eod_prices" {
+		t.Fatalf("got scheduler run = %+v", gotRun)
+	}
+	usageRows, err := repo.ListProviderUsage(ctx, run.RunID, 5)
+	if err != nil {
+		t.Fatalf("list provider usage: %v", err)
+	}
+	if len(usageRows) == 0 || usageRows[0].RunID != run.RunID {
+		t.Fatalf("provider usage rows = %+v", usageRows)
+	}
+	ledgerRows, err := repo.ListRawEventLedger(ctx, storage.RawEventLedgerFilter{TenantID: ledger.TenantID, SourceID: ledger.SourceID, Dataset: ledger.Dataset, Limit: 5})
+	if err != nil {
+		t.Fatalf("list raw event ledger: %v", err)
+	}
+	if len(ledgerRows) == 0 {
+		t.Fatal("expected raw event ledger rows")
+	}
+	gotLedger, err := repo.GetRawEventLedger(ctx, ledger.EventID)
+	if err != nil {
+		t.Fatalf("get raw event ledger: %v", err)
+	}
+	if gotLedger.EventID != ledger.EventID || gotLedger.BrokerOffset == nil || *gotLedger.BrokerOffset != 42 {
+		t.Fatalf("got raw event ledger = %+v", gotLedger)
+	}
+	gotID, err := repo.GetIdempotencyRecord(ctx, idem.TenantID, idem.SourceID, idem.IdempotencyKey)
+	if err != nil {
+		t.Fatalf("get idempotency record: %v", err)
+	}
+	if gotID.EventID != ledger.EventID || gotID.Status != storage.IdempotencyStatusPublished {
+		t.Fatalf("got idempotency = %+v", gotID)
+	}
+	if _, err := repo.GetSchedulerRun(ctx, "missing-g029-run"); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("missing scheduler run error = %v", err)
 	}
 }
 
