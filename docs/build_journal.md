@@ -2638,3 +2638,56 @@ Next step:
 
 - Browser/Playwright validation (rendering, console errors, 375px layout) as a manual follow-up.
 - Alert/insight lifecycle and correlation remain out of scope pending backend contracts.
+
+## 2026-07-08T22:33:32Z
+
+Summary:
+
+- Closed the G046 browser-validation gap after the frontend layout fix for wrapping navigation.
+- Validated the deployed web container on `:15173`, the normalized-events and signals proxy APIs, and the Playwright screenshot artifacts from the frontend validation run.
+
+Files changed:
+
+- `web/src/components/DashboardShell.tsx`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Verification performed:
+
+- `cd web && npm test` - 2 files, 6 tests passed.
+- `cd web && npm run build` - TypeScript and Vite production build passed.
+- `cd web && npm audit --json` - 0 vulnerabilities.
+- `docker compose build web` - image build passed.
+- `docker compose up -d web` - web container remained Up on `:15173`.
+- `curl -fsS http://localhost:15173/` - served the SPA shell.
+- `curl -fsS http://localhost:15173/normalized-events` - served the SPA shell for the route.
+- `curl -fsS http://localhost:15173/signals` - served the SPA shell for the route.
+- `curl -fsS 'http://localhost:15173/v1/normalized-events?tenant_id=tenant-local&limit=3'` - returned live normalized events through the nginx proxy.
+- `curl -fsS 'http://localhost:15173/v1/signals?tenant_id=tenant-local&limit=3'` - returned live signals through the nginx proxy.
+- Reviewed `/tmp/g046-validate/shots/summary.json` from the Playwright Docker run.
+- Confirmed screenshot artifacts exist for desktop and 375px mobile views.
+- `git diff --check` - passed.
+
+Live verification result:
+
+- Playwright summary reported no browser console warnings/errors and no page errors.
+- Playwright observed exactly one dashboard SSE request: `/v1/streams/dashboard?channels=health%2Cruns%2Craw_events%2Cprovider_usage%2Cheartbeat`.
+- SPA navigation reached `/normalized-events`, `/signals`, `/runs`, and `/raw-events`.
+- Mobile horizontal overflow was `0px` for Dashboard, Signals, and Normalized Events at 375px width.
+- Screenshot artifacts were generated:
+  - `/tmp/g046-validate/shots/dashboard-desktop.png`
+  - `/tmp/g046-validate/shots/dashboard-mobile.png`
+  - `/tmp/g046-validate/shots/normalized-desktop.png`
+  - `/tmp/g046-validate/shots/normalized-mobile.png`
+  - `/tmp/g046-validate/shots/signals-desktop.png`
+  - `/tmp/g046-validate/shots/signals-mobile.png`
+  - `/tmp/g046-validate/shots/runs-desktop.png`
+  - `/tmp/g046-validate/shots/raw-events-desktop.png`
+
+Validation note:
+
+- The Playwright run generated valid PNG artifacts and machine-checked console, navigation, SSE count, and mobile overflow (all green). The desktop and mobile artifacts were also visually inspected via image analysis: the desktop Dashboard renders the full metrics strip and populated widget bands; the dedicated `/signals` page renders the Signals/Detectors/High-Critical/Avg-Confidence metrics and the full signals table (Signal/Detector/Model/Source-Dataset/Severity/Confidence/Events); and the 375px mobile view shows the navigation wrapping to multiple rows and metric tiles stacking with no overflow. No G046 validation gap remains.
+
+Next step:
+
+- Proceed backend-first with alert/insight lifecycle persistence derived from durable signals.

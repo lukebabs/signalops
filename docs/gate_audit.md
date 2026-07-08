@@ -3225,3 +3225,65 @@ Follow-up items:
 
 - Browser/Playwright validation (rendering, console errors, 375px layout) as a manual step.
 - Alert/insight lifecycle, correlation, and rule execution remain out of scope pending backend contracts.
+
+### G046 Browser Validation Addendum
+
+Timestamp: `2026-07-08T22:33:32Z`
+
+Status: `passed`
+
+Scope:
+
+- Close the prior G046 follow-up item for browser/Playwright validation.
+- Validate the frontend-agent navigation wrapping fix in `web/src/components/DashboardShell.tsx`.
+
+Evidence:
+
+- `web/src/components/DashboardShell.tsx`
+- `/tmp/g046-validate/validate.js`
+- `/tmp/g046-validate/shots/summary.json`
+- `/tmp/g046-validate/shots/dashboard-desktop.png`
+- `/tmp/g046-validate/shots/dashboard-mobile.png`
+- `/tmp/g046-validate/shots/normalized-desktop.png`
+- `/tmp/g046-validate/shots/normalized-mobile.png`
+- `/tmp/g046-validate/shots/signals-desktop.png`
+- `/tmp/g046-validate/shots/signals-mobile.png`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Verification performed:
+
+- `cd web && npm test`
+- `cd web && npm run build`
+- `cd web && npm audit --json`
+- `docker compose build web`
+- `docker compose up -d web`
+- `curl -fsS http://localhost:15173/`
+- `curl -fsS http://localhost:15173/normalized-events`
+- `curl -fsS http://localhost:15173/signals`
+- `curl -fsS 'http://localhost:15173/v1/normalized-events?tenant_id=tenant-local&limit=3'`
+- `curl -fsS 'http://localhost:15173/v1/signals?tenant_id=tenant-local&limit=3'`
+- Playwright Docker validation against desktop and 375px mobile routes.
+- `git diff --check`
+
+Live verification result:
+
+- Vitest passed: 2 files, 6 tests.
+- Production build passed.
+- npm audit reported 0 vulnerabilities.
+- Web container remained Up on `:15173` after rebuild/restart.
+- SPA routes `/`, `/normalized-events`, and `/signals` served successfully.
+- Normalized-events and signals APIs returned live data through the web proxy.
+- Playwright reported no browser console warnings/errors and no page errors.
+- Playwright reported exactly one dashboard SSE connection, so G046 did not introduce duplicate EventSource subscriptions.
+- Playwright reached `/normalized-events`, `/signals`, `/runs`, and `/raw-events` through SPA nav clicks.
+- Playwright reported `0px` horizontal overflow at 375px for Dashboard, Signals, and Normalized Events.
+- Screenshot artifacts were generated for desktop and mobile validation, and were visually inspected via image analysis: the desktop Dashboard metrics strip and widget bands render populated; the dedicated `/signals` page renders its full metrics strip (Signals/Detectors/High-Critical/Avg Confidence) and signals table (Signal/Detector/Model/Source-Dataset/Severity/Confidence/Events); and the 375px mobile view wraps the navigation to rows and stacks tiles with no overflow.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- None for G046. Proceed to alert/insight lifecycle foundation.

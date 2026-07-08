@@ -4,7 +4,7 @@ import { Activity, ListTree, Database, KeyRound, Gauge, DatabaseZap, Workflow, S
 import { HealthIndicator } from './HealthIndicator';
 
 const navItem =
-  'inline-flex items-center gap-1 border-b-2 border-transparent px-3 py-2 text-sm text-gray-600 hover:bg-gray-50';
+  'inline-flex items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-gray-600 hover:bg-gray-50';
 const navItemActive = 'text-brand-700 border-brand-500';
 
 export function DashboardShell() {
@@ -17,7 +17,7 @@ export function DashboardShell() {
         </div>
         <HealthIndicator />
       </header>
-      <nav className="flex gap-1 border-b border-gray-200 bg-white px-2">
+      <nav className="flex flex-wrap gap-1 border-b border-gray-200 bg-white px-2">
         <Link to="/" className={navItem} activeProps={{ className: navItemActive }}>
           <LayoutDashboard size={14} /> Dashboard
         </Link>
