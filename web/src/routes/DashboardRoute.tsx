@@ -10,6 +10,8 @@ import {
   useCatalogSources,
   useCatalogPipelines,
   useCatalogRules,
+  useNormalizedEvents,
+  useSignals,
 } from '../api/queries';
 import { useUi } from '../store/ui';
 import { MetricTile } from '../components/MetricTile';
@@ -20,7 +22,7 @@ import type { ProviderUsage } from '../types';
 
 const TENANT_ID = 'tenant-local';
 
-type RouteLink = '/runs' | '/raw-events' | '/sources' | '/pipelines' | '/rules' | '/system';
+type RouteLink = '/runs' | '/raw-events' | '/normalized-events' | '/signals' | '/sources' | '/pipelines' | '/rules' | '/system';
 
 function Panel({ title, linkTo, children }: { title: string; linkTo?: RouteLink; children: ReactNode }) {
   return (
@@ -68,6 +70,8 @@ export function DashboardRoute() {
   const sources = useCatalogSources(TENANT_ID, 50);
   const pipelines = useCatalogPipelines(TENANT_ID, 50);
   const rules = useCatalogRules(TENANT_ID, 50);
+  const normalizedEvents = useNormalizedEvents({ tenant_id: TENANT_ID, limit: 50 });
+  const signals = useSignals({ tenant_id: TENANT_ID, limit: 50 });
 
   const lastRefresh = useUi((s) => s.lastRefresh);
   const setLastRefresh = useUi((s) => s.setLastRefresh);
@@ -86,6 +90,8 @@ export function DashboardRoute() {
   const activeSources = sourcesData.filter((s) => s.status === 'active').length;
   const activePipelines = pipelinesData.filter((p) => p.status === 'active').length;
   const activeRules = rulesData.filter((r) => r.status === 'active').length;
+  const normalizedCount = normalizedEvents.data?.normalized_events.length ?? 0;
+  const signalsData = signals.data?.signals ?? [];
 
   const streamState = streamError ? 'reconnecting' : streamConnected ? 'connected' : 'connecting';
 
@@ -98,6 +104,8 @@ export function DashboardRoute() {
     sources.refetch();
     pipelines.refetch();
     rules.refetch();
+    normalizedEvents.refetch();
+    signals.refetch();
     setLastRefresh(new Date().toISOString());
   }
 
@@ -122,7 +130,7 @@ export function DashboardRoute() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-9">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-11">
         <MetricTile label="Gateway" value={healthz.data?.status ?? (healthz.isError ? 'unreachable' : '…')} />
         <MetricTile label="Readiness" value={readyz.data?.status ?? (readyz.isError ? 'unreachable' : '…')} />
         <MetricTile label="Recent Runs" value={runsData.length} />
@@ -132,6 +140,8 @@ export function DashboardRoute() {
         <MetricTile label="Active Sources" value={activeSources} />
         <MetricTile label="Active Pipelines" value={activePipelines} />
         <MetricTile label="Active Rules" value={activeRules} />
+        <MetricTile label="Normalized" value={normalizedCount} />
+        <MetricTile label="Signals" value={signalsData.length} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -323,6 +333,41 @@ export function DashboardRoute() {
           </div>
         ) : (
           <EmptyState message="No recent raw events." />
+        )}
+      </Panel>
+
+      <Panel title="Recent Signals" linkTo="/signals">
+        {signals.isLoading ? (
+          <LoadingState />
+        ) : signals.isError ? (
+          <ErrorState error={signals.error} />
+        ) : signalsData.length ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs">
+              <thead className="text-left text-gray-500">
+                <tr>
+                  <th className="p-1">Signal</th>
+                  <th className="p-1">Detector</th>
+                  <th className="p-1">Severity</th>
+                  <th className="p-1">Confidence</th>
+                  <th className="p-1">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {signalsData.slice(0, 5).map((s) => (
+                  <tr key={s.signal_id}>
+                    <td className="p-1 font-mono">{s.signal_id}</td>
+                    <td className="p-1 font-mono">{s.detector_id}</td>
+                    <td className="p-1">{s.severity}</td>
+                    <td className="p-1">{s.confidence.toFixed(2)}</td>
+                    <td className="p-1 text-gray-600">{formatUtc(s.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState message="No recent signals." />
         )}
       </Panel>
     </div>

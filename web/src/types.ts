@@ -179,3 +179,89 @@ export interface CatalogRule {
 export interface CatalogRulesResponse {
   rules: CatalogRule[];
 }
+
+export interface NormalizedEventFilter {
+  tenant_id?: string;
+  source_id?: string;
+  dataset?: string;
+  limit?: number;
+}
+
+export interface NormalizedEvent {
+  event_id: string;
+  tenant_id: string;
+  source_id: string;
+  source_adapter: string;
+  dataset: string;
+  schema_id: string;
+  schema_version: string;
+  observation_time: string;
+  processing_time: string;
+  confidence: number;
+  entities: unknown;
+  evidence: unknown;
+  metadata: unknown;
+  event: unknown;
+  raw_topic: string;
+  raw_partition: number;
+  raw_offset: number;
+  normalized_topic: string;
+  normalized_partition: number;
+  normalized_offset: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NormalizedEventsResponse {
+  normalized_events: NormalizedEvent[];
+}
+
+export interface NormalizedEventResponse {
+  normalized_event: NormalizedEvent;
+}
+
+export interface SignalFilter {
+  tenant_id?: string;
+  source_id?: string;
+  dataset?: string;
+  detector_id?: string;
+  severity?: string;
+  limit?: number;
+}
+
+export interface SignalRecord {
+  signal_id: string;
+  tenant_id: string;
+  source_id: string;
+  source_adapter: string;
+  dataset: string;
+  detector_id: string;
+  detector_version: string;
+  model_version: string;
+  signal_type: string;
+  severity: string;
+  confidence: number;
+  event_ids: string[];
+  window_start: string;
+  window_end: string;
+  entities: unknown;
+  supporting_metrics: unknown;
+  graph_targets: unknown;
+  semantic_evidence: unknown;
+  evidence: unknown;
+  recommendation: unknown;
+  event: unknown;
+  broker_topic: string;
+  broker_partition: number;
+  broker_offset: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SignalsResponse {
+  signals: SignalRecord[];
+}
+
+export interface SignalResponse {
+  signal: SignalRecord;
+}

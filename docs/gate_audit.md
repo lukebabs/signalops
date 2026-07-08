@@ -3156,3 +3156,72 @@ Follow-up items:
 
 - Add Signals UI and Dashboard integration.
 - Add alert and insight lifecycle persistence derived from durable signals.
+
+
+## Gate G046: Frontend Normalized Events and Signals UI
+
+Timestamp: `2026-07-08T22:13:05Z`
+
+Status: `passed`
+
+Gate name:
+
+- Expose the G044 normalized-event and G045 signal ledgers in the web frontend.
+
+Criteria:
+
+- Add Normalized Events (`/normalized-events`) and Signals (`/signals`) read-only pages.
+- Use real G044/G045 REST APIs with typed client methods and TanStack Query hooks.
+- Support truthful loading, error, empty, list, selection, and detail states.
+- Add Dashboard summaries without fabricating alerts or insights.
+- Validate tests, build, audit, Compose, and live proxy data.
+
+Evidence:
+
+- `web/src/routes/NormalizedEventsRoute.tsx`
+- `web/src/routes/SignalsRoute.tsx`
+- `web/src/routes/DashboardRoute.tsx`
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/router.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `docs/frontend/normalized_signals_ui_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- Corrected the spec's contract before implementing: `schema_name`→`schema_id`, `metrics`→`supporting_metrics`, `signal_*`→`broker_*`, removed `model_id`, required broker coords + `window_*`, removed the fabricated `400 invalid_limit`.
+- Both pages use plain HTML tables + detail panels with `JsonViewer`; severity renders as a local badge; signal `event_ids` link to plain `/normalized-events`.
+- Dashboard gained Normalized + Signals metric tiles and a Recent Signals widget; the global `DashboardStreamBridge` remains the single SSE subscription.
+
+Verification performed:
+
+- `cd web && npm test`
+- `cd web && npm run build`
+- `cd web && npm audit --json`
+- `curl 'http://localhost:18000/v1/normalized-events?tenant_id=tenant-local&limit=3'`
+- `curl 'http://localhost:18000/v1/signals?tenant_id=tenant-local&limit=3'`
+- `docker compose build web`
+- `docker compose up -d web`
+- `curl -fsS http://localhost:15173/`
+- `curl 'http://localhost:15173/v1/normalized-events?tenant_id=tenant-local&limit=3'`
+- `curl 'http://localhost:15173/v1/signals?tenant_id=tenant-local&limit=3'`
+
+Live verification result:
+
+- Vitest passed: 2 files, 6 tests.
+- Frontend production build passed; both new routes lazy-loaded.
+- Web image rebuilt; container Up on `:15173`; `/` serves the SPA shell.
+- Normalized-events API returned `g044-live-event` with `schema_id`; signals API returned `signalops.static_test.low` with `model_version` (no `model_id`) — confirming the corrected field names.
+- npm audit reported zero vulnerabilities.
+
+Actor:
+
+- Claude Code
+
+Follow-up items:
+
+- Browser/Playwright validation (rendering, console errors, 375px layout) as a manual step.
+- Alert/insight lifecycle, correlation, and rule execution remain out of scope pending backend contracts.

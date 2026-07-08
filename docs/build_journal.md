@@ -2582,3 +2582,59 @@ Live verification result:
 Next step:
 
 - Add a frontend Signals explorer and Dashboard signal metrics, or proceed backend-first with durable alert/insight lifecycle storage.
+
+
+## 2026-07-08T22:13:05Z
+
+Summary:
+
+- Implemented G046 by adding read-only Normalized Events (`/normalized-events`) and Signals (`/signals`) pages backed by the G044/G045 APIs, plus Dashboard integration.
+- Corrected the G046 spec's backend contract before implementing: `schema_name`→`schema_id`, `metrics`→`supporting_metrics`, `signal_topic/partition/offset`→`broker_topic/partition/offset`, removed the non-existent `model_id` (only `model_version`), made broker coords + `window_*` required (no `omitempty`/`NOT NULL`), removed the fabricated `400 invalid_limit` (limit is clamped), and fixed the example envelopes.
+- Added corrected types, `listNormalizedEvents`/`getNormalizedEvent`/`listSignals`/`getSignal` client methods, and `useNormalizedEvents`/`useNormalizedEvent`/`useSignals`/`useSignal` hooks.
+- Added `NormalizedEventsRoute` and `SignalsRoute` (plain tables + metrics + detail panels with `JsonViewer`, local selection state, loading/error/empty states, severity badge); signal `event_ids` link to plain `/normalized-events`.
+- Wired `/normalized-events` + `/signals` routes and nav items (`FileCheck2`, `Radar`); added Normalized + Signals metric tiles and a compact Recent Signals widget to the Dashboard (no second EventSource — the global `DashboardStreamBridge` remains the single subscription).
+
+Files changed:
+
+- `docs/frontend/normalized_signals_ui_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/router.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `web/src/routes/NormalizedEventsRoute.tsx`
+- `web/src/routes/SignalsRoute.tsx`
+- `web/src/routes/DashboardRoute.tsx`
+
+Rationale:
+
+- The spec's prescribed TypeScript interfaces did not match the G044/G045 DTOs; implementing against them would have produced blank columns and detail panels, so the contract was corrected first.
+- The pages reuse the existing `RawEventsRoute`/catalog conventions (plain tables, shared components, TanStack Query hooks) — no new libraries or mock data.
+
+Verification performed:
+
+- `cd web && npm test` — 2 files, 6 tests passed.
+- `cd web && npm run build` — `tsc && vite build` succeeded; `NormalizedEventsRoute` and `SignalsRoute` are lazy chunks.
+- `cd web && npm audit` — 0 vulnerabilities.
+- `curl 'http://localhost:18000/v1/normalized-events?tenant_id=tenant-local&limit=3'` — returned normalized event `g044-live-event` with `schema_id` (not `schema_name`), `idempotency_key`, and raw/normalized broker coords.
+- `curl 'http://localhost:18000/v1/signals?tenant_id=tenant-local&limit=3'` — returned signal `signalops.static_test.low` with `model_version` (no `model_id`).
+- `docker compose build web` + `docker compose up -d web` — container Up on `:15173`.
+- `curl -fsS http://localhost:15173/` — served the SPA shell.
+- `curl 'http://localhost:15173/v1/normalized-events?…'` and `…/v1/signals?…` — returned live data through the nginx proxy.
+
+Live verification result:
+
+- Build, tests, and audit pass; the pages add no new dependencies.
+- Live responses confirm the corrected field names (`schema_id`, `model_version`, no `model_id`) and the extra DTO fields documented in the spec.
+- Compose web serves `/`, `/normalized-events`, and `/signals` data through the proxy.
+
+Issue found and resolved:
+
+- The G046 spec documented a non-existent `400 invalid_limit` and wrong field names (`schema_name`, `metrics`, `signal_topic`, `model_id`); verified against `router.go` DTOs + migrations, corrected the spec, and implemented against the real contract.
+
+Next step:
+
+- Browser/Playwright validation (rendering, console errors, 375px layout) as a manual follow-up.
+- Alert/insight lifecycle and correlation remain out of scope pending backend contracts.

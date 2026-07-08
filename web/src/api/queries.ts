@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from './client';
-import type { RawEventFilter } from '../types';
+import type { RawEventFilter, NormalizedEventFilter, SignalFilter } from '../types';
 
 export const queryKeys = {
   healthz: ['healthz'] as const,
@@ -16,6 +16,10 @@ export const queryKeys = {
   catalogSources: (tenantId: string, limit: number) => ['catalog-sources', tenantId, limit] as const,
   catalogPipelines: (tenantId: string, limit: number) => ['catalog-pipelines', tenantId, limit] as const,
   catalogRules: (tenantId: string, limit: number) => ['catalog-rules', tenantId, limit] as const,
+  normalizedEvents: (filter: NormalizedEventFilter) => ['normalized-events', filter] as const,
+  normalizedEvent: (eventId: string) => ['normalized-event', eventId] as const,
+  signals: (filter: SignalFilter) => ['signals', filter] as const,
+  signal: (signalId: string) => ['signal', signalId] as const,
 };
 
 export function useHealthz() {
@@ -103,5 +107,35 @@ export function useCatalogRules(tenantId = 'tenant-local', limit = 50) {
   return useQuery({
     queryKey: queryKeys.catalogRules(tenantId, limit),
     queryFn: () => api.listCatalogRules(tenantId, limit),
+  });
+}
+
+export function useNormalizedEvents(filter: NormalizedEventFilter) {
+  return useQuery({
+    queryKey: queryKeys.normalizedEvents(filter),
+    queryFn: () => api.listNormalizedEvents(filter),
+  });
+}
+
+export function useNormalizedEvent(eventId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.normalizedEvent(eventId ?? ''),
+    queryFn: () => api.getNormalizedEvent(eventId!),
+    enabled: !!eventId,
+  });
+}
+
+export function useSignals(filter: SignalFilter) {
+  return useQuery({
+    queryKey: queryKeys.signals(filter),
+    queryFn: () => api.listSignals(filter),
+  });
+}
+
+export function useSignal(signalId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.signal(signalId ?? ''),
+    queryFn: () => api.getSignal(signalId!),
+    enabled: !!signalId,
   });
 }

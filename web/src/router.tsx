@@ -28,6 +28,12 @@ const PipelinesRoute = lazy(() =>
 const RulesRoute = lazy(() =>
   import('./routes/RulesRoute').then((m) => ({ default: m.RulesRoute })),
 );
+const NormalizedEventsRoute = lazy(() =>
+  import('./routes/NormalizedEventsRoute').then((m) => ({ default: m.NormalizedEventsRoute })),
+);
+const SignalsRoute = lazy(() =>
+  import('./routes/SignalsRoute').then((m) => ({ default: m.SignalsRoute })),
+);
 
 const rootRoute = createRootRoute({ component: DashboardShell });
 
@@ -79,14 +85,28 @@ const rulesRoute = createRoute({
   component: RulesRoute,
 });
 
+const normalizedEventsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/normalized-events',
+  component: NormalizedEventsRoute,
+});
+
+const signalsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/signals',
+  component: SignalsRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   runsRoute,
   rawEventsRoute,
+  normalizedEventsRoute,
   idempotencyRoute,
   sourcesRoute,
   pipelinesRoute,
   rulesRoute,
+  signalsRoute,
   systemRoute,
 ]);
 

@@ -9,7 +9,13 @@ import type {
   CatalogSourcesResponse,
   CatalogPipelinesResponse,
   CatalogRulesResponse,
+  NormalizedEventsResponse,
+  NormalizedEventResponse,
+  SignalsResponse,
+  SignalResponse,
   RawEventFilter,
+  NormalizedEventFilter,
+  SignalFilter,
 } from '../types';
 
 // Typed API error. Maps gateway error bodies {"error":<code>,"message":<text>}
@@ -100,4 +106,24 @@ export const api = {
     get<CatalogPipelinesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/pipelines`, { limit }),
   listCatalogRules: (tenantId = 'tenant-local', limit = 50) =>
     get<CatalogRulesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/rules`, { limit }),
+  listNormalizedEvents: (filter: NormalizedEventFilter = {}) =>
+    get<NormalizedEventsResponse>('/v1/normalized-events', {
+      tenant_id: filter.tenant_id,
+      source_id: filter.source_id,
+      dataset: filter.dataset,
+      limit: filter.limit ?? 50,
+    }),
+  getNormalizedEvent: (eventId: string) =>
+    get<NormalizedEventResponse>(`/v1/normalized-events/${encodeURIComponent(eventId)}`),
+  listSignals: (filter: SignalFilter = {}) =>
+    get<SignalsResponse>('/v1/signals', {
+      tenant_id: filter.tenant_id,
+      source_id: filter.source_id,
+      dataset: filter.dataset,
+      detector_id: filter.detector_id,
+      severity: filter.severity,
+      limit: filter.limit ?? 50,
+    }),
+  getSignal: (signalId: string) =>
+    get<SignalResponse>(`/v1/signals/${encodeURIComponent(signalId)}`),
 };
