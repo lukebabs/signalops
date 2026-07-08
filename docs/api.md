@@ -132,6 +132,45 @@ data: {"event_id":"evt_5d5a94a0e8ea5d149ec19947","tenant_id":"tenant-local"}
   raw-event/provider DTO fields.
 - REST query endpoints remain the snapshot/detail fallback for the frontend.
 
+## Stream Catalog API
+
+These endpoints expose tenant-scoped catalog metadata for registered SignalOps
+sources. They require gateway storage wiring through `SIGNALOPS_DATABASE_URL`;
+when storage is not configured they return `503 storage_unavailable`.
+
+### Sources
+
+`GET /v1/tenants/{tenant_id}/catalog/sources?limit=50`
+
+Returns registered source adapters for a tenant ordered by `source_id`. The first
+local catalog migration seeds `tenant-local/src-massive` for the Massive market
+data adapter.
+
+Response shape:
+
+```json
+{
+  "sources": [
+    {
+      "tenant_id": "tenant-local",
+      "source_id": "src-massive",
+      "source_domain": "market_data",
+      "source_adapter": "market_data.massive",
+      "display_name": "Massive Market Data",
+      "description": "Scheduled Massive market-data source for equity EOD prices and daily option contracts.",
+      "status": "active",
+      "ingestion_modes": ["scheduled_pull"],
+      "datasets": ["equity_eod_prices", "option_contracts_daily"],
+      "metadata": {"provider":"massive","formerly":"polygon.io","streaming":false},
+      "created_at": "2026-07-08T00:00:00Z",
+      "updated_at": "2026-07-08T00:00:00Z"
+    }
+  ]
+}
+```
+
+Current status values: `active`, `inactive`, `deprecated`.
+
 ## Operational Query API
 
 These endpoints require gateway storage wiring through `SIGNALOPS_DATABASE_URL`.

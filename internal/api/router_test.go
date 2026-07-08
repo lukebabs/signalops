@@ -37,6 +37,7 @@ type fakeQueryRepository struct {
 	usage            []storage.ProviderUsageRecord
 	rawEvents        []storage.RawEventLedgerRecord
 	idem             storage.IdempotencyRecord
+	sources          []storage.CatalogSourceRecord
 	notFound         bool
 	lastFilter       storage.RawEventLedgerFilter
 	schedulerQueries int
@@ -89,6 +90,10 @@ func (q *fakeQueryRepository) GetIdempotencyRecord(context.Context, string, stri
 		return storage.IdempotencyRecord{}, storage.ErrNotFound
 	}
 	return q.idem, nil
+}
+
+func (q *fakeQueryRepository) ListCatalogSources(context.Context, string, int) ([]storage.CatalogSourceRecord, error) {
+	return q.sources, nil
 }
 
 func TestPostRawEventPublishesMessage(t *testing.T) {
@@ -250,6 +255,29 @@ func TestGetRawEventsUsesFilters(t *testing.T) {
 	}
 }
 
+func TestGetCatalogSources(t *testing.T) {
+	repo := &fakeQueryRepository{sources: []storage.CatalogSourceRecord{validCatalogSourceRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/catalog/sources", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if len(response["sources"]) != 1 || response["sources"][0]["source_id"] != "src-massive" {
+		t.Fatalf("response = %+v", response)
+	}
+	if response["sources"][0]["source_domain"] != "market_data" {
+		t.Fatalf("source domain = %+v", response["sources"][0])
+	}
+}
+
 func TestGetIdempotencyRequiresQueryParams(t *testing.T) {
 	router := NewRouter(RouterConfig{QueryRepository: &fakeQueryRepository{}})
 
@@ -375,6 +403,23 @@ func TestDashboardStreamNoRepositoryEmitsSSEError(t *testing.T) {
 	}
 	if got := rec.Header().Get("Content-Type"); got != "text/event-stream" {
 		t.Fatalf("content type = %q", got)
+	}
+}
+
+func validCatalogSourceRecord() storage.CatalogSourceRecord {
+	return storage.CatalogSourceRecord{
+		TenantID:       "tenant-1",
+		SourceID:       "src-massive",
+		SourceDomain:   "market_data",
+		SourceAdapter:  "market_data.massive",
+		DisplayName:    "Massive Market Data",
+		Description:    "Scheduled Massive market-data source.",
+		Status:         storage.CatalogSourceStatusActive,
+		IngestionModes: []string{"scheduled_pull"},
+		Datasets:       []string{"equity_eod_prices", "option_contracts_daily"},
+		MetadataJSON:   []byte(`{"provider":"massive"}`),
+		CreatedAt:      time.Date(2026, 7, 8, 0, 0, 3, 0, time.UTC),
+		UpdatedAt:      time.Date(2026, 7, 8, 0, 0, 4, 0, time.UTC),
 	}
 }
 

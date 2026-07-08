@@ -156,6 +156,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"idempotency": idempotencyResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/catalog/sources", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+			return
+		}
+		sources, err := repo.ListCatalogSources(r.Context(), tenantID, queryLimit(r, 50))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list catalog sources")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"sources": catalogSourceResponses(sources)})
+	})
+
 	mux.HandleFunc("GET /v1/streams/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		channels, err := dashboardStreamChannels(r)
 		if err != nil {
@@ -475,6 +493,21 @@ type rawEventDTO struct {
 	CreatedAt       time.Time       `json:"created_at"`
 }
 
+type catalogSourceDTO struct {
+	TenantID       string          `json:"tenant_id"`
+	SourceID       string          `json:"source_id"`
+	SourceDomain   string          `json:"source_domain"`
+	SourceAdapter  string          `json:"source_adapter"`
+	DisplayName    string          `json:"display_name"`
+	Description    string          `json:"description"`
+	Status         string          `json:"status"`
+	IngestionModes []string        `json:"ingestion_modes"`
+	Datasets       []string        `json:"datasets"`
+	Metadata       json.RawMessage `json:"metadata"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
 type idempotencyDTO struct {
 	TenantID       string          `json:"tenant_id"`
 	SourceID       string          `json:"source_id"`
@@ -568,6 +601,27 @@ func rawEventResponse(record storage.RawEventLedgerRecord) rawEventDTO {
 		EntityHints:     jsonRawOrEmptyArray(record.EntityHintsJSON),
 		CreatedAt:       record.CreatedAt,
 	}
+}
+
+func catalogSourceResponses(records []storage.CatalogSourceRecord) []catalogSourceDTO {
+	items := make([]catalogSourceDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, catalogSourceDTO{
+			TenantID:       record.TenantID,
+			SourceID:       record.SourceID,
+			SourceDomain:   record.SourceDomain,
+			SourceAdapter:  record.SourceAdapter,
+			DisplayName:    record.DisplayName,
+			Description:    record.Description,
+			Status:         record.Status,
+			IngestionModes: record.IngestionModes,
+			Datasets:       record.Datasets,
+			Metadata:       jsonRawOrEmptyObject(record.MetadataJSON),
+			CreatedAt:      record.CreatedAt,
+			UpdatedAt:      record.UpdatedAt,
+		})
+	}
+	return items
 }
 
 func idempotencyResponse(record storage.IdempotencyRecord) idempotencyDTO {

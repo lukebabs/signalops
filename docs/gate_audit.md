@@ -2424,3 +2424,77 @@ Follow-up items:
 
 - Add browser-level chart rendering validation when frontend browser automation is added.
 - Resume backend platform capability work now that frontend dependency audit is clean.
+
+
+## Gate G036: Source Catalog Foundation
+
+Timestamp: `2026-07-08T04:54:17Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add the first tenant-scoped Stream Catalog source registry and query API.
+
+Criteria:
+
+- Add a durable source catalog table and migration.
+- Seed the local Massive market-data source.
+- Add storage records and repository methods for catalog sources.
+- Add a tenant-scoped gateway API for listing catalog sources.
+- Document the API and deployment behavior.
+- Validate unit, integration, migration, image build, live gateway, and web-proxy checks.
+
+Evidence:
+
+- `migrations/000002_catalog_sources.up.sql`
+- `migrations/000002_catalog_sources.down.sql`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `catalog_sources` is keyed by `(tenant_id, source_id)`.
+- Source records include domain, adapter, display name, description, status, ingestion modes, datasets, metadata, and timestamps.
+- Initial status values are `active`, `inactive`, and `deprecated`.
+- Migration `000002_catalog_sources` seeds `tenant-local/src-massive` as an active `market_data.massive` scheduled-pull source.
+- `GET /v1/tenants/{tenant_id}/catalog/sources?limit=50` returns `{"sources":[...]}`.
+- The endpoint is read-only; source registration APIs remain future scope.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm gofmt -w internal/storage/storage.go internal/storage/postgres/repository.go internal/storage/postgres/repository_test.go internal/api/router.go internal/api/router_test.go`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/api ./internal/storage ./internal/storage/postgres -count=1`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
+- `docker compose config --quiet`
+- `make compose-storage-migrate`
+- `docker compose build gateway`
+- `docker compose up -d gateway`
+- `docker run --rm --network host -e SIGNALOPS_POSTGRES_INTEGRATION=1 -e SIGNALOPS_DATABASE_URL=postgres://signalops:signalops@localhost:15432/signalops?sslmode=disable -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/storage/postgres -run TestRepositoryAgainstPostgres -count=1 -v`
+- `curl -fsS 'http://localhost:18000/v1/tenants/tenant-local/catalog/sources?limit=10'`
+- `curl -fsS 'http://localhost:15173/v1/tenants/tenant-local/catalog/sources?limit=10'`
+- `curl -fsS http://localhost:18000/healthz`
+- `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT tenant_id,source_id,source_adapter,status,array_to_string(datasets, ',') FROM catalog_sources ORDER BY source_id"`
+
+Live verification result:
+
+- Gateway returned the seeded `tenant-local/src-massive` catalog source.
+- Web proxy returned the same catalog response.
+- Gateway health remained `ok` after restart.
+- Postgres catalog query showed `tenant-local/src-massive` and the integration-test `tenant-1/src-massive` rows.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add frontend Sources page wired to the catalog source API.
+- Add catalog tables/APIs for pipelines and rules.

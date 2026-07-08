@@ -1971,3 +1971,63 @@ Next step:
 
 - Add browser-level visual validation for the Runs chart if Playwright or another browser automation tool is introduced.
 - Continue backend platform work toward catalog/source registry APIs or pagination, since frontend dependency audit is now clean.
+
+
+## 2026-07-08T04:54:17Z
+
+Summary:
+
+- Completed G036 by adding the first durable Stream Catalog source registry foundation.
+- Added `catalog_sources` migration with a seeded local Massive source for `tenant-local/src-massive`.
+- Added storage contracts and Postgres repository methods for source catalog upsert/list behavior.
+- Added gateway API `GET /v1/tenants/{tenant_id}/catalog/sources`.
+- Documented the Stream Catalog source endpoint and local deployment behavior.
+
+Files changed:
+
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/deployment.md`
+- `docs/gate_audit.md`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `migrations/000002_catalog_sources.up.sql`
+- `migrations/000002_catalog_sources.down.sql`
+
+Rationale:
+
+- The UI architecture includes Sources, Pipelines, and Rules; Sources need the first durable catalog boundary before those pages can become real.
+- A tenant-scoped source catalog gives operators an explicit registry of adapters, domains, ingestion modes, datasets, and status instead of inferring sources only from scheduler/raw-event rows.
+- Seeding the Massive source keeps the current local market-data use case visible immediately after migration.
+
+Verification performed:
+
+- Ran Dockerized formatting with `gofmt` over storage and API files.
+- Ran focused Dockerized Go tests for `./internal/api`, `./internal/storage`, and `./internal/storage/postgres`; all passed.
+- Ran Dockerized full Go tests with `go test ./...`; all packages passed.
+- Ran `docker compose config --quiet`; Compose config passed.
+- Ran `make compose-storage-migrate`; migration `000002_catalog_sources` applied and seeded the Massive source.
+- Ran `docker compose build gateway`; gateway image build passed and Dockerfile test stage passed.
+- Ran `docker compose up -d gateway`; gateway restarted successfully.
+- Ran Postgres integration test `TestRepositoryAgainstPostgres`; source catalog upsert/list checks passed.
+- Queried live `GET /v1/tenants/tenant-local/catalog/sources?limit=10` through `localhost:18000`.
+- Queried the same endpoint through the web proxy at `localhost:15173`.
+- Queried Postgres `catalog_sources` rows directly.
+
+Live verification result:
+
+- Gateway catalog API returned `tenant-local/src-massive` with source domain `market_data`, adapter `market_data.massive`, status `active`, ingestion mode `scheduled_pull`, and datasets `equity_eod_prices` plus `option_contracts_daily`.
+- Web container proxy forwarded the catalog API correctly.
+- Postgres contained the seeded `tenant-local/src-massive` row and the integration-test `tenant-1/src-massive` row.
+
+Issue found and resolved:
+
+- No implementation issues were encountered. The integration test intentionally upserts a separate `tenant-1/src-massive` row, so local Postgres now has both the seeded local source and test tenant source.
+
+Next step:
+
+- Add frontend Sources page consumption of `/v1/tenants/{tenant_id}/catalog/sources`.
+- Extend the catalog foundation to pipelines and rules after source visibility lands in the UI.

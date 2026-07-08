@@ -176,6 +176,19 @@ Secrets are loaded from the ignored `.env` file through supported Massive API ke
 environment variables.
 
 
+## Stream Catalog
+
+Local storage migration `000002_catalog_sources` creates the first source catalog
+table and seeds the local Massive source as `tenant-local/src-massive`. The
+gateway exposes this through:
+
+```bash
+curl -fsS 'http://localhost:18000/v1/tenants/tenant-local/catalog/sources?limit=10'
+```
+
+The catalog is intentionally read-only at this stage. Source registration and
+management APIs remain future scope.
+
 ## Storage
 
 Local Compose includes PostgreSQL for operational metadata and audit storage.

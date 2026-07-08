@@ -23,6 +23,12 @@ const (
 	IdempotencyStatusDuplicate = "duplicate"
 )
 
+const (
+	CatalogSourceStatusActive     = "active"
+	CatalogSourceStatusInactive   = "inactive"
+	CatalogSourceStatusDeprecated = "deprecated"
+)
+
 type SchedulerRunRecord struct {
 	RunID            string
 	TenantID         string
@@ -92,6 +98,21 @@ type RawEventLedgerRecord struct {
 	CreatedAt       time.Time
 }
 
+type CatalogSourceRecord struct {
+	TenantID       string
+	SourceID       string
+	SourceDomain   string
+	SourceAdapter  string
+	DisplayName    string
+	Description    string
+	Status         string
+	IngestionModes []string
+	Datasets       []string
+	MetadataJSON   []byte
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type SchedulerRunRepository interface {
 	UpsertSchedulerRun(ctx context.Context, record SchedulerRunRecord) error
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
@@ -103,6 +124,10 @@ type IdempotencyRepository interface {
 
 type RawEventLedgerRepository interface {
 	UpsertRawEventLedger(ctx context.Context, record RawEventLedgerRecord) error
+}
+
+type CatalogRepository interface {
+	UpsertCatalogSource(ctx context.Context, record CatalogSourceRecord) error
 }
 
 type PublishRepository interface {
@@ -124,4 +149,5 @@ type QueryRepository interface {
 	ListRawEventLedger(ctx context.Context, filter RawEventLedgerFilter) ([]RawEventLedgerRecord, error)
 	GetRawEventLedger(ctx context.Context, eventID string) (RawEventLedgerRecord, error)
 	GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (IdempotencyRecord, error)
+	ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]CatalogSourceRecord, error)
 }

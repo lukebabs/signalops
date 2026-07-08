@@ -61,6 +61,17 @@ func TestValidateRawEventLedger(t *testing.T) {
 	}
 }
 
+func TestValidateCatalogSource(t *testing.T) {
+	record := validCatalogSourceRecord()
+	if err := validateCatalogSource(record); err != nil {
+		t.Fatalf("validate catalog source: %v", err)
+	}
+	record.SourceID = ""
+	if err := validateCatalogSource(record); err == nil {
+		t.Fatal("expected source id validation error")
+	}
+}
+
 func TestStringArrayValue(t *testing.T) {
 	value, err := stringArray([]string{"equity_eod_prices", "options_contracts_daily"}).Value()
 	if err != nil {
@@ -126,6 +137,11 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	idem.IdempotencyKey = ledger.IdempotencyKey
 	if err := repo.UpsertIdempotencyRecord(ctx, idem); err != nil {
 		t.Fatalf("upsert idempotency: %v", err)
+	}
+	source := validCatalogSourceRecord()
+	source.TenantID = run.TenantID
+	if err := repo.UpsertCatalogSource(ctx, source); err != nil {
+		t.Fatalf("upsert catalog source: %v", err)
 	}
 
 	var status string
@@ -194,8 +210,30 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	if gotID.EventID != ledger.EventID || gotID.Status != storage.IdempotencyStatusPublished {
 		t.Fatalf("got idempotency = %+v", gotID)
 	}
+	sources, err := repo.ListCatalogSources(ctx, source.TenantID, 5)
+	if err != nil {
+		t.Fatalf("list catalog sources: %v", err)
+	}
+	if len(sources) == 0 || sources[0].SourceID != source.SourceID || len(sources[0].Datasets) != 2 {
+		t.Fatalf("catalog sources = %+v", sources)
+	}
 	if _, err := repo.GetSchedulerRun(ctx, "missing-g029-run"); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("missing scheduler run error = %v", err)
+	}
+}
+
+func validCatalogSourceRecord() storage.CatalogSourceRecord {
+	return storage.CatalogSourceRecord{
+		TenantID:       "tenant-1",
+		SourceID:       "src-massive",
+		SourceDomain:   "market_data",
+		SourceAdapter:  "market_data.massive",
+		DisplayName:    "Massive Market Data",
+		Description:    "Scheduled Massive market-data source.",
+		Status:         storage.CatalogSourceStatusActive,
+		IngestionModes: []string{"scheduled_pull"},
+		Datasets:       []string{"equity_eod_prices", "option_contracts_daily"},
+		MetadataJSON:   []byte(`{"provider":"massive"}`),
 	}
 }
 

@@ -229,6 +229,45 @@ ON CONFLICT (event_id) DO UPDATE SET
 	return nil
 }
 
+func (r *Repository) UpsertCatalogSource(ctx context.Context, record storage.CatalogSourceRecord) error {
+	if err := validateCatalogSource(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO catalog_sources (
+  tenant_id, source_id, source_domain, source_adapter, display_name, description,
+  status, ingestion_modes, datasets, metadata, updated_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6,
+  $7, $8, $9, $10, now()
+)
+ON CONFLICT (tenant_id, source_id) DO UPDATE SET
+  source_domain = EXCLUDED.source_domain,
+  source_adapter = EXCLUDED.source_adapter,
+  display_name = EXCLUDED.display_name,
+  description = EXCLUDED.description,
+  status = EXCLUDED.status,
+  ingestion_modes = EXCLUDED.ingestion_modes,
+  datasets = EXCLUDED.datasets,
+  metadata = EXCLUDED.metadata,
+  updated_at = now()`,
+		record.TenantID,
+		record.SourceID,
+		record.SourceDomain,
+		record.SourceAdapter,
+		record.DisplayName,
+		record.Description,
+		record.Status,
+		pqArray(record.IngestionModes),
+		pqArray(record.Datasets),
+		jsonOrEmpty(record.MetadataJSON),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert catalog source: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) ListSchedulerRuns(ctx context.Context, limit int) ([]storage.SchedulerRunRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT run_id, tenant_id, source_id, source_adapter, COALESCE(array_to_json(datasets), '[]'::json)::text,
@@ -360,11 +399,43 @@ WHERE tenant_id = $1 AND source_id = $2 AND idempotency_key = $3`, strings.TrimS
 	return record, nil
 }
 
+func (r *Repository) ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]storage.CatalogSourceRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT tenant_id, source_id, source_domain, source_adapter, display_name, description, status,
+  COALESCE(array_to_json(ingestion_modes), '[]'::json)::text,
+  COALESCE(array_to_json(datasets), '[]'::json)::text,
+  metadata, created_at, updated_at
+FROM catalog_sources
+WHERE tenant_id = $1
+ORDER BY source_id ASC
+LIMIT $2`, strings.TrimSpace(tenantID), clampLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list catalog sources: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.CatalogSourceRecord{}
+	for rows.Next() {
+		record, err := scanCatalogSource(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list catalog sources rows: %w", err)
+	}
+	return records, nil
+}
+
 type schedulerScanner interface {
 	Scan(dest ...any) error
 }
 
 type rawLedgerScanner interface {
+	Scan(dest ...any) error
+}
+
+type catalogSourceScanner interface {
 	Scan(dest ...any) error
 }
 
@@ -436,6 +507,35 @@ func scanRawEventLedger(scanner rawLedgerScanner) (storage.RawEventLedgerRecord,
 	}
 	if offset.Valid {
 		record.BrokerOffset = &offset.Int64
+	}
+	return record, nil
+}
+
+func scanCatalogSource(scanner catalogSourceScanner) (storage.CatalogSourceRecord, error) {
+	var record storage.CatalogSourceRecord
+	var ingestionModesJSON string
+	var datasetsJSON string
+	if err := scanner.Scan(
+		&record.TenantID,
+		&record.SourceID,
+		&record.SourceDomain,
+		&record.SourceAdapter,
+		&record.DisplayName,
+		&record.Description,
+		&record.Status,
+		&ingestionModesJSON,
+		&datasetsJSON,
+		&record.MetadataJSON,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return storage.CatalogSourceRecord{}, mapScanError("scan catalog source", err)
+	}
+	if err := json.Unmarshal([]byte(ingestionModesJSON), &record.IngestionModes); err != nil {
+		return storage.CatalogSourceRecord{}, fmt.Errorf("scan catalog source ingestion modes: %w", err)
+	}
+	if err := json.Unmarshal([]byte(datasetsJSON), &record.Datasets); err != nil {
+		return storage.CatalogSourceRecord{}, fmt.Errorf("scan catalog source datasets: %w", err)
 	}
 	return record, nil
 }
@@ -550,6 +650,28 @@ func validateRawEventLedger(record storage.RawEventLedgerRecord) error {
 	}
 	if len(record.PayloadJSON) == 0 {
 		return errors.New("raw event ledger payload json is required")
+	}
+	return nil
+}
+
+func validateCatalogSource(record storage.CatalogSourceRecord) error {
+	if strings.TrimSpace(record.TenantID) == "" {
+		return errors.New("catalog source tenant id is required")
+	}
+	if strings.TrimSpace(record.SourceID) == "" {
+		return errors.New("catalog source id is required")
+	}
+	if strings.TrimSpace(record.SourceDomain) == "" {
+		return errors.New("catalog source domain is required")
+	}
+	if strings.TrimSpace(record.SourceAdapter) == "" {
+		return errors.New("catalog source adapter is required")
+	}
+	if strings.TrimSpace(record.DisplayName) == "" {
+		return errors.New("catalog source display name is required")
+	}
+	if strings.TrimSpace(record.Status) == "" {
+		return errors.New("catalog source status is required")
 	}
 	return nil
 }
