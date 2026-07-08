@@ -2402,3 +2402,58 @@ Residual semantics:
 Next step:
 
 - Frontend agent implements G043 from `docs/frontend/dashboard_ui_implementation_spec.md`.
+
+
+## 2026-07-08T20:53:18Z
+
+Summary:
+
+- Implemented G043 by promoting `/` into a first-class operational Dashboard that composes the existing health, runs, raw events, provider usage, sources, pipelines, and rules data.
+- Added `web/src/routes/DashboardRoute.tsx` composing existing TanStack Query hooks (health/readiness, 10 runs, 10 raw events, the three catalogs) plus a new `useRecentProviderUsage(50)` hook for unfiltered provider usage.
+- The Dashboard consumes the already-global SSE subscription (`DashboardStreamBridge` in `App.tsx`) for cache invalidation and reads stream connection/freshness state from `useUi` — it does not mount a second EventSource.
+- Swapped the index route `/` from `RunsRoute` to `DashboardRoute` (`/runs` unchanged); prepended a Dashboard nav item (`LayoutDashboard`).
+- Layout: page header (UTC updated time, stream state, refresh), metrics strip, Processing Health + Catalog Inventory band, Recent Runs + Provider Usage band, and a full-width Recent Event Stream. Per-widget loading/error/empty states; event rows link to plain `/raw-events`.
+- Tightened `docs/frontend/dashboard_ui_implementation_spec.md`: pointed §3 at the existing global `DashboardStreamBridge` (reuse, do not duplicate), corrected the channel-vs-event-name wording, and stated the provider-usage hook fix and the plain `/raw-events` link.
+
+Files changed:
+
+- `docs/frontend/dashboard_ui_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `web/src/api/queries.ts`
+- `web/src/router.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `web/src/routes/DashboardRoute.tsx`
+
+Rationale:
+
+- The Dashboard is a composition surface over existing endpoints and the existing SSE bridge — no new state library, chart library, component framework, or mock data.
+- Reusing the global `DashboardStreamBridge` avoids a second EventSource and keeps one subscription cleaned up in `App.tsx`.
+
+Verification performed:
+
+- `cd web && npm test` — 2 files, 6 tests passed.
+- `cd web && npm run build` — `tsc && vite build` succeeded; `DashboardRoute` is a lazy chunk.
+- `cd web && npm audit` — 0 vulnerabilities.
+- `docker compose build web` — web image rebuilt with the new route.
+- `docker compose up -d web` — container Up on `:15173`.
+- `curl -fsS http://localhost:15173/` — served the SPA shell (Dashboard at `/`).
+- `curl -fsS http://localhost:15173/healthz` — gateway healthy.
+- `curl -fsS 'http://localhost:15173/v1/provider-usage?limit=5'` — unfiltered provider usage returned rows.
+- `curl -sN --max-time 2 'http://localhost:15173/v1/streams/dashboard?channels=health,heartbeat'` — emitted `event: heartbeat` and `event: health` through the nginx proxy.
+- `docker compose ps web` — container Up, `15173->8080`.
+
+Live verification result:
+
+- Build, tests, and audit pass; the page adds no new dependencies.
+- `/` serves the Dashboard; all seven data areas are wired to live endpoints through the proxy.
+- Unfiltered provider usage and the SSE `health`/`heartbeat` events flow correctly, matching the global bridge's invalidation map.
+
+Issue found and resolved:
+
+- None. The provider-usage hook (`useProviderUsage`) was gated on `run_id`; added `useRecentProviderUsage` (always enabled, reuses the `['provider-usage']` key prefix so the bridge invalidates it). The SSE subscription was already global in `App.tsx`, so no second subscription was needed.
+
+Next step:
+
+- Browser/Playwright validation (rendering, console errors, 375px layout) as a manual follow-up — documented as a residual gap per the spec.
+- Future: alerts, timeline/correlation, insights, and rule execution remain out of scope pending backend contracts.

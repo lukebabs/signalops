@@ -2970,3 +2970,69 @@ Implementation notes:
 Actor:
 
 - Codex
+
+
+## Gate G043 (Implementation): Frontend First-Class Dashboard
+
+Timestamp: `2026-07-08T20:53:18Z`
+
+Status: `passed`
+
+Gate name:
+
+- Promote `/` into a first-class operational Dashboard composing current backend data areas.
+
+Criteria:
+
+- Compose health, runs, raw events, provider usage, sources, pipelines, and rules.
+- Preserve independent widget loading/error/empty states.
+- Use the existing Dashboard SSE subscription to invalidate relevant REST query state (no second EventSource).
+- Keep unsupported alerts, timeline, correlation, insights, and knowledge capabilities out of the UI.
+- Validate tests, build, audit, Compose, and live proxy data.
+
+Evidence:
+
+- `web/src/routes/DashboardRoute.tsx`
+- `web/src/api/queries.ts`
+- `web/src/router.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `docs/frontend/dashboard_ui_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `/` renders `DashboardRoute`; `/runs` remains `RunsRoute`; a Dashboard nav item (`LayoutDashboard`) is first.
+- The Dashboard consumes the global `DashboardStreamBridge` (mounted in `App.tsx`) for cache invalidation and reads `streamConnected`/`lastStreamEventAt`/`streamError` from `useUi` — no second subscription.
+- Added `useRecentProviderUsage` for unfiltered provider usage (the existing `useProviderUsage` is `run_id`-gated).
+- Layout: metrics strip, Processing Health, Catalog Inventory, Recent Runs, Provider Usage, and a full-width Recent Event Stream; per-widget failure isolation; event rows link to plain `/raw-events`.
+
+Verification performed:
+
+- `cd web && npm test`
+- `cd web && npm run build`
+- `cd web && npm audit --json`
+- `docker compose build web`
+- `docker compose up -d web`
+- `curl -fsS http://localhost:15173/`
+- `curl -fsS http://localhost:15173/healthz`
+- `curl -fsS 'http://localhost:15173/v1/provider-usage?limit=5'`
+- `curl -sN --max-time 2 'http://localhost:15173/v1/streams/dashboard?channels=health,heartbeat'`
+- `docker compose ps web`
+
+Live verification result:
+
+- Vitest passed: 2 files, 6 tests.
+- Frontend production build passed; `DashboardRoute` lazy-loaded.
+- Web image rebuilt; container Up on `:15173`; `/` serves the SPA shell.
+- Unfiltered provider usage and SSE `health`/`heartbeat` events returned through the web proxy.
+- npm audit reported zero vulnerabilities.
+
+Actor:
+
+- Claude Code
+
+Follow-up items:
+
+- Browser/Playwright validation (rendering, console errors, 375px layout) as a manual step.
+- Alerts, timeline/correlation, insights, and rule execution remain out of scope pending backend contracts.

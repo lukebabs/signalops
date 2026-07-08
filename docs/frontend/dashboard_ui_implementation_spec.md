@@ -63,8 +63,10 @@ Create `web/src/routes/DashboardRoute.tsx` and lazy-load it from the router.
 
 ### 2. Data Ownership
 
-The Dashboard route composes existing query hooks. Add only the smallest hook/client changes needed
-for provider usage without a run filter.
+The Dashboard route composes existing query hooks. The only hook change needed is an unfiltered
+provider-usage hook: `useProviderUsage` is gated on a `run_id`, so add an always-enabled variant
+(e.g. `useRecentProviderUsage(limit)`) that calls the existing `listProviderUsage(undefined, limit)`
+client method — the client already supports omitting `run_id`.
 
 - Fetch health and readiness independently.
 - Fetch 10 recent runs and 10 recent raw events.
@@ -76,18 +78,15 @@ for provider usage without a run filter.
 
 ### 3. Stream Integration
 
-Use the existing SSE client to refresh affected TanStack Query keys:
+The SSE subscription is already mounted globally in `web/src/App.tsx` via `web/src/components/DashboardStreamBridge.tsx`, which calls the existing `subscribeDashboardStream` SSE client and applies exactly this invalidation map:
 
-- `health` invalidates health/readiness.
-- `scheduler_run` or `runs` invalidates runs.
-- `raw_event` or `raw_events` invalidates raw events.
-- `provider_usage` invalidates provider usage.
-- `heartbeat` updates only stream freshness/connection state.
+- `health` writes the health snapshot into the `/healthz` query cache (readiness is refetched by its own poll).
+- `scheduler_run` invalidates the runs queries.
+- `raw_event` invalidates the raw-events queries.
+- `provider_usage` invalidates the provider-usage queries.
+- `heartbeat` only updates stream freshness/connection state in the UI store.
 
-Create one Dashboard-level subscription and close it on unmount. REST remains the initial snapshot and
-reconnection fallback. Do not open one EventSource per widget, connect directly to Redpanda, or add
-WebSockets. Do not claim replay/resume support because the SSE endpoint has no `Last-Event-ID` resume
-contract yet.
+The Dashboard consumes the resulting query cache and the stream-connection state from `useUi` (`streamConnected`, `lastStreamEventAt`, `streamError`) — do **not** mount a second `DashboardStreamBridge` or open another EventSource. (The `channels` request param accepts aliases like `runs`/`raw_events`, but the backend emits the canonical event names `scheduler_run`/`raw_event`; the existing client binds the canonical names.) REST remains the initial snapshot and reconnection fallback. Do not connect directly to Redpanda, add WebSockets, or claim replay/resume support — the SSE endpoint has no `Last-Event-ID` resume contract.
 
 ### 4. Layout
 
@@ -139,9 +138,8 @@ plain table or restrained bars using existing CSS; do not introduce a chart depe
 **Recent Event Stream**
 
 Show at most eight newest raw ledger records with observation time, source adapter, dataset, event ID,
-and broker partition/offset. Rows link to `/raw-events?event_id=<encoded event id>` only if the current
-Raw Events route already supports that query contract; otherwise link to `/raw-events` without
-inventing deep-link behavior.
+and broker partition/offset. The current `RawEventsRoute` selects events via UI state, not a URL query
+param, so link to `/raw-events` (plain) — do not invent a `?event_id=` deep-link contract here.
 
 ### 6. States And Accessibility
 

@@ -46,6 +46,15 @@ export function useProviderUsage(runId: string | null, limit = 50) {
   });
 }
 
+// Unfiltered recent provider usage for the Dashboard (no run_id gating).
+// Reuses the same query key prefix so DashboardStreamBridge invalidations refresh it.
+export function useRecentProviderUsage(limit = 50) {
+  return useQuery({
+    queryKey: queryKeys.providerUsage(undefined, limit),
+    queryFn: () => api.listProviderUsage(undefined, limit),
+  });
+}
+
 export function useRawEvents(filter: RawEventFilter) {
   return useQuery({
     queryKey: queryKeys.rawEvents(filter),

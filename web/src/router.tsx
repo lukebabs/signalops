@@ -4,6 +4,9 @@ import { DashboardShell } from './components/DashboardShell';
 
 // Route-level code splitting: AG Grid / ECharts only load when the Runs or
 // Raw Events views are visited.
+const DashboardRoute = lazy(() =>
+  import('./routes/DashboardRoute').then((m) => ({ default: m.DashboardRoute })),
+);
 const RunsRoute = lazy(() =>
   import('./routes/RunsRoute').then((m) => ({ default: m.RunsRoute })),
 );
@@ -31,7 +34,7 @@ const rootRoute = createRootRoute({ component: DashboardShell });
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: RunsRoute,
+  component: DashboardRoute,
 });
 
 const runsRoute = createRoute({
