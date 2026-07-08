@@ -105,6 +105,13 @@ func (q *fakeQueryRepository) GetRawEventLedger(_ context.Context, eventID strin
 	return storage.RawEventLedgerRecord{}, storage.ErrNotFound
 }
 
+func (q *fakeQueryRepository) ListNormalizedEventLedger(context.Context, storage.RawEventLedgerFilter) ([]storage.NormalizedEventLedgerRecord, error) {
+	return nil, nil
+}
+func (q *fakeQueryRepository) GetNormalizedEventLedger(context.Context, string) (storage.NormalizedEventLedgerRecord, error) {
+	return storage.NormalizedEventLedgerRecord{}, storage.ErrNotFound
+}
+
 func (q *fakeQueryRepository) GetIdempotencyRecord(context.Context, string, string, string) (storage.IdempotencyRecord, error) {
 	if q.notFound {
 		return storage.IdempotencyRecord{}, storage.ErrNotFound

@@ -138,6 +138,35 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"raw_event": rawEventResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/normalized-events", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListNormalizedEventLedger(r.Context(), storage.RawEventLedgerFilter{
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Limit: queryLimit(r, 50),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list normalized events")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"normalized_events": normalizedEventResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/normalized-events/{event_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetNormalizedEventLedger(r.Context(), r.PathValue("event_id"))
+		if err != nil {
+			writeQueryError(w, err, "normalized_event_not_found", "normalized event not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"normalized_event": normalizedEventResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/idempotency", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -635,6 +664,33 @@ type rawEventDTO struct {
 	CreatedAt       time.Time       `json:"created_at"`
 }
 
+type normalizedEventDTO struct {
+	EventID             string          `json:"event_id"`
+	TenantID            string          `json:"tenant_id"`
+	SourceID            string          `json:"source_id"`
+	SourceAdapter       string          `json:"source_adapter"`
+	Dataset             string          `json:"dataset"`
+	IdempotencyKey      string          `json:"idempotency_key"`
+	SchemaID            string          `json:"schema_id"`
+	SchemaVersion       string          `json:"schema_version"`
+	ObservationTime     time.Time       `json:"observation_time"`
+	ProcessingTime      time.Time       `json:"processing_time"`
+	Confidence          float64         `json:"confidence"`
+	RawTopic            string          `json:"raw_topic"`
+	RawPartition        int32           `json:"raw_partition"`
+	RawOffset           int64           `json:"raw_offset"`
+	NormalizedTopic     string          `json:"normalized_topic"`
+	NormalizedPartition int32           `json:"normalized_partition"`
+	NormalizedOffset    int64           `json:"normalized_offset"`
+	NormalizedPayload   json.RawMessage `json:"normalized_payload"`
+	Entities            json.RawMessage `json:"entities"`
+	Evidence            json.RawMessage `json:"evidence"`
+	Metadata            json.RawMessage `json:"metadata"`
+	Event               json.RawMessage `json:"event"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+}
+
 type catalogSourceDTO struct {
 	TenantID       string          `json:"tenant_id"`
 	SourceID       string          `json:"source_id"`
@@ -779,6 +835,26 @@ func rawEventResponse(record storage.RawEventLedgerRecord) rawEventDTO {
 		EntityHints:     jsonRawOrEmptyArray(record.EntityHintsJSON),
 		CreatedAt:       record.CreatedAt,
 	}
+}
+
+func normalizedEventResponses(records []storage.NormalizedEventLedgerRecord) []normalizedEventDTO {
+	items := make([]normalizedEventDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, normalizedEventResponse(record))
+	}
+	return items
+}
+
+func normalizedEventResponse(record storage.NormalizedEventLedgerRecord) normalizedEventDTO {
+	return normalizedEventDTO{EventID: record.EventID, TenantID: record.TenantID, SourceID: record.SourceID,
+		SourceAdapter: record.SourceAdapter, Dataset: record.Dataset, IdempotencyKey: record.IdempotencyKey,
+		SchemaID: record.SchemaID, SchemaVersion: record.SchemaVersion, ObservationTime: record.ObservationTime,
+		ProcessingTime: record.ProcessingTime, Confidence: record.Confidence, RawTopic: record.RawTopic,
+		RawPartition: record.RawPartition, RawOffset: record.RawOffset, NormalizedTopic: record.NormalizedTopic,
+		NormalizedPartition: record.NormalizedPartition, NormalizedOffset: record.NormalizedOffset,
+		NormalizedPayload: jsonRawOrEmptyObject(record.NormalizedPayload), Entities: jsonRawOrEmptyArray(record.EntitiesJSON),
+		Evidence: jsonRawOrEmptyArray(record.EvidenceJSON), Metadata: jsonRawOrEmptyObject(record.MetadataJSON),
+		Event: jsonRawOrEmptyObject(record.EventJSON), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
 }
 
 func catalogSourceResponses(records []storage.CatalogSourceRecord) []catalogSourceDTO {

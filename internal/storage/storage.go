@@ -110,6 +110,33 @@ type RawEventLedgerRecord struct {
 	CreatedAt       time.Time
 }
 
+type NormalizedEventLedgerRecord struct {
+	EventID             string
+	TenantID            string
+	SourceID            string
+	SourceAdapter       string
+	Dataset             string
+	IdempotencyKey      string
+	SchemaID            string
+	SchemaVersion       string
+	ObservationTime     time.Time
+	ProcessingTime      time.Time
+	Confidence          float64
+	RawTopic            string
+	RawPartition        int32
+	RawOffset           int64
+	NormalizedTopic     string
+	NormalizedPartition int32
+	NormalizedOffset    int64
+	NormalizedPayload   []byte
+	EntitiesJSON        []byte
+	EvidenceJSON        []byte
+	MetadataJSON        []byte
+	EventJSON           []byte
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
 type CatalogSourceRecord struct {
 	TenantID       string
 	SourceID       string
@@ -174,6 +201,10 @@ type RawEventLedgerRepository interface {
 	UpsertRawEventLedger(ctx context.Context, record RawEventLedgerRecord) error
 }
 
+type NormalizedEventLedgerRepository interface {
+	UpsertNormalizedEventLedger(ctx context.Context, record NormalizedEventLedgerRecord) error
+}
+
 type CatalogRepository interface {
 	UpsertCatalogSource(ctx context.Context, record CatalogSourceRecord) error
 	UpsertCatalogPipeline(ctx context.Context, record CatalogPipelineRecord) error
@@ -199,6 +230,8 @@ type QueryRepository interface {
 	ListProviderUsage(ctx context.Context, runID string, limit int) ([]ProviderUsageRecord, error)
 	ListRawEventLedger(ctx context.Context, filter RawEventLedgerFilter) ([]RawEventLedgerRecord, error)
 	GetRawEventLedger(ctx context.Context, eventID string) (RawEventLedgerRecord, error)
+	ListNormalizedEventLedger(ctx context.Context, filter RawEventLedgerFilter) ([]NormalizedEventLedgerRecord, error)
+	GetNormalizedEventLedger(ctx context.Context, eventID string) (NormalizedEventLedgerRecord, error)
 	GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (IdempotencyRecord, error)
 	ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]CatalogSourceRecord, error)
 	ListCatalogPipelines(ctx context.Context, tenantID string, limit int) ([]CatalogPipelineRecord, error)

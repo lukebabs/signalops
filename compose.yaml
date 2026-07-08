@@ -198,11 +198,11 @@ services:
     environment:
       SIGNALOPS_BROKER_BROKERS: redpanda:9092
       SIGNALOPS_ENV: local
-      SIGNALOPS_WORKER_INPUT_TOPIC: signalops.local.raw.v1
+      SIGNALOPS_WORKER_INPUT_TOPIC: signalops.local.normalized.v1
       SIGNALOPS_WORKER_RETRY_TOPIC: signalops.local.retry.algorithm.v1
       SIGNALOPS_WORKER_DLQ_TOPIC: signalops.local.dlq.algorithm.v1
       SIGNALOPS_WORKER_SIGNAL_TOPIC: signalops.local.signal.v1
-      SIGNALOPS_WORKER_GROUP_ID: signalops.raw-worker.v1
+      SIGNALOPS_WORKER_GROUP_ID: signalops.normalized-worker.v1
       SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS: "1"
       SIGNALOPS_WORKER_DETECTOR_ID: signalops.noop
       SIGNALOPS_WORKER_LOG_LEVEL: INFO
@@ -230,6 +230,23 @@ services:
       SIGNALOPS_RETRY_REPLAY_POLL_TIMEOUT_SECONDS: "1"
       SIGNALOPS_RETRY_REPLAY_MAX_ATTEMPTS: "3"
       SIGNALOPS_RETRY_REPLAY_LOG_LEVEL: INFO
+
+  normalizer:
+    build:
+      context: .
+      target: normalizer
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+
 
 volumes:
   redpanda-data:

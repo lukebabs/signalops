@@ -3036,3 +3036,64 @@ Follow-up items:
 
 - Browser/Playwright validation (rendering, console errors, 375px layout) as a manual step.
 - Alerts, timeline/correlation, insights, and rule execution remain out of scope pending backend contracts.
+
+
+## Gate G044: Durable Normalized Event Pipeline
+
+Timestamp: `2026-07-08T21:18:15Z`
+
+Status: `passed`
+
+Gate name:
+
+- Persist normalized events between raw ingestion and Python algorithm processing.
+
+Criteria:
+
+- Consume raw events through a standalone Go infrastructure service.
+- Produce the checked-in `NormalizedSignalEvent` v1 shape without domain-specific coupling.
+- Publish to the durable normalized topic before committing the raw offset.
+- Persist canonical normalized state and raw-to-normalized broker lineage before committing.
+- Route invalid source contracts to DLQ and retry infrastructure failures without committing.
+- Move Python algorithm consumption to the normalized topic.
+- Expose normalized-event list and detail APIs.
+- Pass Go/Python tests, migration, Compose build/deployment, API, database, and consumer-group validation.
+
+Evidence:
+
+- `cmd/normalizer/main.go`
+- `internal/normalization/processor.go`
+- `internal/normalization/processor_test.go`
+- `migrations/000005_normalized_events.up.sql`
+- `internal/storage/postgres/repository.go`
+- `internal/api/router.go`
+- `compose.yaml`
+- `docs/build_journal.md`
+
+Verification performed:
+
+- `make docker-test`
+- `make docker-test-python`
+- `docker compose config --quiet`
+- `docker compose --profile storage run --rm postgres-migrate`
+- `docker compose build gateway normalizer raw-worker`
+- `docker compose up -d gateway normalizer raw-worker`
+- Live gateway POST, normalized detail API query, direct PostgreSQL query, service logs, and Redpanda group descriptions.
+
+Live verification result:
+
+- `g044-live-event` traversed raw partition/offset `2/6` to normalized partition/offset `2/2`.
+- The normalized ledger retained canonical payload, entity, evidence, metadata, complete event, and both broker positions.
+- Normalizer and Python normalized-worker groups were Stable with total lag `0`.
+- Python worker logged detector evaluation and processing of the live normalized event.
+- The persisted event passed `normalized_signal_event.v1.schema.json` runtime validation.
+- A rebuilt normalizer remained Up after restart; its group returned to Stable with one member and lag `0` after typed franz-go partition-reset recovery was added.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Persist Python-emitted signals through a Go signal consumer before adding signal/insight UI.
+- Add explicit replay observability for raw-to-normalized duplicate publication after a persistence failure.

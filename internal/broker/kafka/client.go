@@ -144,6 +144,11 @@ func (c *Consumer) Consume(ctx context.Context) (broker.ConsumedMessage, error) 
 
 		fetches := c.client.PollFetches(ctx)
 		if err := fetches.Err(); err != nil {
+			// The reset is already applied; continue polling from the broker-selected recovery offset.
+			var dataLoss *kgo.ErrDataLoss
+			if errors.As(err, &dataLoss) {
+				continue
+			}
 			return broker.ConsumedMessage{}, fmt.Errorf("poll kafka fetches: %w", err)
 		}
 

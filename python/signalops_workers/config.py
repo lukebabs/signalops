@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 DEFAULT_ENVIRONMENT = "local"
 DEFAULT_BROKERS = "redpanda:9092"
-DEFAULT_GROUP_ID = "signalops.raw-worker.v1"
+DEFAULT_GROUP_ID = "signalops.normalized-worker.v1"
 DEFAULT_RETRY_REPLAY_GROUP_ID = "signalops.retry-replayer.v1"
 DEFAULT_POLL_TIMEOUT_SECONDS = 1.0
 DEFAULT_MAX_RETRY_ATTEMPTS = 3
@@ -46,7 +46,7 @@ def load_config() -> WorkerConfig:
     return WorkerConfig(
         brokers=_env("SIGNALOPS_BROKER_BROKERS", DEFAULT_BROKERS),
         environment=environment,
-        input_topic=_env("SIGNALOPS_WORKER_INPUT_TOPIC", raw_topic(environment)),
+        input_topic=_env("SIGNALOPS_WORKER_INPUT_TOPIC", normalized_topic(environment)),
         retry_topic=_env("SIGNALOPS_WORKER_RETRY_TOPIC", retry_topic(environment)),
         dlq_topic=_env("SIGNALOPS_WORKER_DLQ_TOPIC", dlq_topic(environment)),
         signal_topic=_env("SIGNALOPS_WORKER_SIGNAL_TOPIC", signal_topic(environment)),
@@ -79,6 +79,11 @@ def load_retry_replay_config() -> RetryReplayConfig:
         ),
         log_level=_env("SIGNALOPS_RETRY_REPLAY_LOG_LEVEL", "INFO"),
     )
+
+
+def normalized_topic(environment: str) -> str:
+    environment = environment.strip() or DEFAULT_ENVIRONMENT
+    return f"signalops.{environment}.normalized.v1"
 
 
 def raw_topic(environment: str) -> str:

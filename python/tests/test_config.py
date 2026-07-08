@@ -6,6 +6,7 @@ from signalops_workers.config import (
     dlq_topic,
     load_config,
     load_retry_replay_config,
+    normalized_topic,
     raw_topic,
     retry_topic,
     signal_topic,
@@ -15,6 +16,9 @@ from signalops_workers.config import (
 class ConfigTests(unittest.TestCase):
     def test_raw_topic_defaults_environment(self) -> None:
         self.assertEqual(raw_topic(""), "signalops.local.raw.v1")
+
+    def test_normalized_topic_defaults_environment(self) -> None:
+        self.assertEqual(normalized_topic(""), "signalops.local.normalized.v1")
 
     def test_retry_topic_defaults_environment(self) -> None:
         self.assertEqual(retry_topic(""), "signalops.local.retry.algorithm.v1")
@@ -31,10 +35,10 @@ class ConfigTests(unittest.TestCase):
 
         self.assertEqual(config.brokers, "redpanda:9092")
         self.assertEqual(config.environment, "local")
-        self.assertEqual(config.input_topic, "signalops.local.raw.v1")
+        self.assertEqual(config.input_topic, "signalops.local.normalized.v1")
         self.assertEqual(config.retry_topic, "signalops.local.retry.algorithm.v1")
         self.assertEqual(config.dlq_topic, "signalops.local.dlq.algorithm.v1")
-        self.assertEqual(config.group_id, "signalops.raw-worker.v1")
+        self.assertEqual(config.group_id, "signalops.normalized-worker.v1")
         self.assertEqual(config.max_messages, 0)
 
     def test_load_config_overrides(self) -> None:

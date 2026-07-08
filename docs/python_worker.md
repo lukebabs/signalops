@@ -32,15 +32,15 @@ it does not replay retry records unless explicitly started.
 
 The worker:
 
-- consumes `signalops.<environment>.raw.v1`;
+- consumes `signalops.<environment>.normalized.v1`;
 - decodes Kafka/Redpanda message headers into worker metadata;
 - parses the broker value as a JSON object;
 - resolves `event_id`, `idempotency_key`, and `correlation_id`;
-- invokes the configured detector plugin for valid raw events;
-- logs processed valid raw events and detector outcomes;
+- invokes the configured detector plugin for valid normalized events;
+- logs processed valid normalized events and detector outcomes;
 - publishes emitted detector signals to `signalops.<environment>.signal.v1`;
 - publishes retryable processing failures to the configured retry topic;
-- publishes invalid raw events and non-retryable processing failures to the
+- publishes invalid normalized events and non-retryable processing failures to the
   configured DLQ topic;
 - commits source offsets only after the event is processed, signal publish is
   acknowledged when a detector emits a signal, the retry publish is acknowledged,
@@ -58,7 +58,7 @@ the retry topic before the source offset is committed.
 - `SIGNALOPS_WORKER_INPUT_TOPIC`: topic override.
 - `SIGNALOPS_WORKER_RETRY_TOPIC`: retry topic for retryable processing failures.
   The default is `signalops.<environment>.retry.algorithm.v1`.
-- `SIGNALOPS_WORKER_DLQ_TOPIC`: DLQ topic for invalid raw events and processing failures.
+- `SIGNALOPS_WORKER_DLQ_TOPIC`: DLQ topic for invalid normalized events and processing failures.
   The default is `signalops.<environment>.dlq.algorithm.v1`.
 - `SIGNALOPS_WORKER_SIGNAL_TOPIC`: signal output topic for detector-emitted
   results. The default is `signalops.<environment>.signal.v1`.

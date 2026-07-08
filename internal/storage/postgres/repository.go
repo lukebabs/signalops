@@ -267,6 +267,37 @@ func (r *Repository) PersistPublishedRawEvent(ctx context.Context, ledger storag
 	return nil
 }
 
+func (r *Repository) UpsertNormalizedEventLedger(ctx context.Context, record storage.NormalizedEventLedgerRecord) error {
+	if err := validateNormalizedEventLedger(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO normalized_event_ledger (
+ event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, schema_id, schema_version,
+ observation_time, processing_time, confidence, raw_topic, raw_partition, raw_offset,
+ normalized_topic, normalized_partition, normalized_offset, normalized_payload, entities, evidence, metadata, event
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+ON CONFLICT (event_id) DO UPDATE SET
+ tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_adapter=EXCLUDED.source_adapter,
+ dataset=EXCLUDED.dataset, idempotency_key=EXCLUDED.idempotency_key, schema_id=EXCLUDED.schema_id,
+ schema_version=EXCLUDED.schema_version, observation_time=EXCLUDED.observation_time,
+ processing_time=EXCLUDED.processing_time, confidence=EXCLUDED.confidence, raw_topic=EXCLUDED.raw_topic,
+ raw_partition=EXCLUDED.raw_partition, raw_offset=EXCLUDED.raw_offset, normalized_topic=EXCLUDED.normalized_topic,
+ normalized_partition=EXCLUDED.normalized_partition, normalized_offset=EXCLUDED.normalized_offset,
+ normalized_payload=EXCLUDED.normalized_payload, entities=EXCLUDED.entities, evidence=EXCLUDED.evidence,
+ metadata=EXCLUDED.metadata, event=EXCLUDED.event, updated_at=now()`,
+		record.EventID, record.TenantID, record.SourceID, record.SourceAdapter, record.Dataset,
+		record.IdempotencyKey, record.SchemaID, record.SchemaVersion, record.ObservationTime,
+		record.ProcessingTime, record.Confidence, record.RawTopic, record.RawPartition, record.RawOffset,
+		record.NormalizedTopic, record.NormalizedPartition, record.NormalizedOffset,
+		jsonOrEmpty(record.NormalizedPayload), jsonArrayOrEmpty(record.EntitiesJSON),
+		jsonArrayOrEmpty(record.EvidenceJSON), jsonOrEmpty(record.MetadataJSON), jsonOrEmpty(record.EventJSON))
+	if err != nil {
+		return fmt.Errorf("upsert normalized event ledger: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) UpsertCatalogSource(ctx context.Context, record storage.CatalogSourceRecord) error {
 	if err := validateCatalogSource(record); err != nil {
 		return err
@@ -502,6 +533,36 @@ WHERE event_id = $1`, strings.TrimSpace(eventID))
 	return record, nil
 }
 
+func (r *Repository) ListNormalizedEventLedger(ctx context.Context, filter storage.RawEventLedgerFilter) ([]storage.NormalizedEventLedgerRecord, error) {
+	rows, err := r.db.QueryContext(ctx, normalizedEventSelect+`
+WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
+ORDER BY created_at DESC LIMIT $4`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID), strings.TrimSpace(filter.Dataset), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list normalized event ledger: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.NormalizedEventLedgerRecord{}
+	for rows.Next() {
+		record, err := scanNormalizedEventLedger(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list normalized event ledger rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetNormalizedEventLedger(ctx context.Context, eventID string) (storage.NormalizedEventLedgerRecord, error) {
+	record, err := scanNormalizedEventLedger(r.db.QueryRowContext(ctx, normalizedEventSelect+` WHERE event_id = $1`, strings.TrimSpace(eventID)))
+	if err != nil {
+		return storage.NormalizedEventLedgerRecord{}, err
+	}
+	return record, nil
+}
+
 func (r *Repository) GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (storage.IdempotencyRecord, error) {
 	row := r.db.QueryRowContext(ctx, `
 SELECT tenant_id, source_id, idempotency_key, event_id, source_adapter, dataset, topic, partition,
@@ -625,6 +686,27 @@ type rawLedgerScanner interface {
 
 type catalogSourceScanner interface {
 	Scan(dest ...any) error
+}
+
+const normalizedEventSelect = `
+SELECT event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, schema_id, schema_version,
+ observation_time, processing_time, confidence, raw_topic, raw_partition, raw_offset,
+ normalized_topic, normalized_partition, normalized_offset, normalized_payload, entities, evidence, metadata, event,
+ created_at, updated_at FROM normalized_event_ledger`
+
+type normalizedLedgerScanner interface{ Scan(dest ...any) error }
+
+func scanNormalizedEventLedger(scanner normalizedLedgerScanner) (storage.NormalizedEventLedgerRecord, error) {
+	var record storage.NormalizedEventLedgerRecord
+	if err := scanner.Scan(&record.EventID, &record.TenantID, &record.SourceID, &record.SourceAdapter,
+		&record.Dataset, &record.IdempotencyKey, &record.SchemaID, &record.SchemaVersion,
+		&record.ObservationTime, &record.ProcessingTime, &record.Confidence, &record.RawTopic,
+		&record.RawPartition, &record.RawOffset, &record.NormalizedTopic, &record.NormalizedPartition,
+		&record.NormalizedOffset, &record.NormalizedPayload, &record.EntitiesJSON, &record.EvidenceJSON,
+		&record.MetadataJSON, &record.EventJSON, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		return storage.NormalizedEventLedgerRecord{}, mapScanError("scan normalized event ledger", err)
+	}
+	return record, nil
 }
 
 type catalogPipelineScanner interface {
@@ -922,6 +1004,32 @@ func validateRawEventLedger(record storage.RawEventLedgerRecord) error {
 	}
 	if len(record.PayloadJSON) == 0 {
 		return errors.New("raw event ledger payload json is required")
+	}
+	return nil
+}
+
+func validateNormalizedEventLedger(record storage.NormalizedEventLedgerRecord) error {
+	for name, value := range map[string]string{
+		"event id": record.EventID, "tenant id": record.TenantID, "source id": record.SourceID,
+		"source adapter": record.SourceAdapter, "dataset": record.Dataset, "idempotency key": record.IdempotencyKey,
+		"schema id": record.SchemaID, "schema version": record.SchemaVersion,
+		"raw topic": record.RawTopic, "normalized topic": record.NormalizedTopic,
+	} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("normalized event ledger %s is required", name)
+		}
+	}
+	if record.ObservationTime.IsZero() {
+		return errors.New("normalized event ledger observation time is required")
+	}
+	if record.ProcessingTime.IsZero() {
+		return errors.New("normalized event ledger processing time is required")
+	}
+	if record.Confidence < 0 || record.Confidence > 1 {
+		return errors.New("normalized event ledger confidence must be between 0 and 1")
+	}
+	if len(record.NormalizedPayload) == 0 || len(record.EventJSON) == 0 {
+		return errors.New("normalized event ledger payload and event json are required")
 	}
 	return nil
 }

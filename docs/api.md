@@ -81,6 +81,25 @@ accepted the record. Clients must reuse the same event and idempotency identifie
 or retrying; broker-level duplicate delivery remains possible and consumers must remain idempotent.
 
 
+## Normalized Event Ledger
+
+`GET /v1/normalized-events?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&limit=50`
+
+Lists normalized events persisted by the Go normalizer. Filters are optional and pagination is
+currently limit-only.
+
+`GET /v1/normalized-events/{event_id}`
+
+Returns one normalized event or `404 normalized_event_not_found`. Responses include the canonical
+normalized payload, entities, evidence, metadata, complete normalized contract event, and lineage
+coordinates for both `raw.v1` and `normalized.v1`.
+
+The normalizer commits a raw source offset only after the normalized broker publish is acknowledged
+and `normalized_event_ledger` persistence succeeds. Invalid source contracts are published to the
+algorithm DLQ with original payload and source coordinates before their source offset is committed.
+Infrastructure failures leave the source offset uncommitted for retry.
+
+
 ## Dashboard Stream API
 
 `GET /v1/streams/dashboard?channels=health,runs,raw_events,provider_usage,heartbeat`

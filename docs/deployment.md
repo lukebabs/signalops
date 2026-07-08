@@ -41,7 +41,8 @@ make compose-down
 - `redpanda-console`: local broker UI on `http://localhost:18080`.
 - `topic-bootstrap`: one-shot topic creation job.
 - `gateway`: SignalOps gateway on `http://localhost:18000`.
-- `raw-worker`: Python worker that consumes `signalops.local.raw.v1`.
+- `normalizer`: Go worker that consumes `signalops.local.raw.v1`, publishes `signalops.local.normalized.v1`, and persists normalized lineage.
+- `raw-worker`: Python algorithm worker that consumes `signalops.local.normalized.v1`.
 - `web`: production-style nginx container for the SignalOps operational UI on `http://localhost:15173`.
 
 ## Local Ports
@@ -128,8 +129,9 @@ compose listener advertises `localhost:19092`.
 
 ## Python Worker
 
-The Python worker runs from `python/signalops_workers` and consumes raw events
-from Redpanda. It invokes the configured detector, validates emitted signals
+The Go normalizer consumes raw events, publishes and persists the canonical normalized contract,
+and commits raw offsets only after both durable steps. The Python worker runs from
+`python/signalops_workers` and consumes normalized events from Redpanda. It invokes the configured detector, validates emitted signals
 against `contracts/events/signal.v1.schema.json`, publishes valid signals to
 `signalops.local.signal.v1`, publishes retryable failures to
 `signalops.local.retry.algorithm.v1`, and publishes invalid or non-retryable

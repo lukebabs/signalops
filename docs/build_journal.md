@@ -2457,3 +2457,67 @@ Next step:
 
 - Browser/Playwright validation (rendering, console errors, 375px layout) as a manual follow-up — documented as a residual gap per the spec.
 - Future: alerts, timeline/correlation, insights, and rule execution remain out of scope pending backend contracts.
+
+
+## 2026-07-08T21:18:15Z
+
+Summary:
+
+- Passed G044 by adding a standalone Go normalization service between durable raw ingestion and Python algorithm execution.
+- Added migration `000005_normalized_events` and `normalized_event_ledger` with canonical payload, entities, evidence, metadata, complete event JSON, and raw-to-normalized broker lineage.
+- Added normalized-event list/detail APIs and moved the Compose Python worker to `signalops.local.normalized.v1` under consumer group `signalops.normalized-worker.v1`.
+- Added invalid-contract DLQ handling; infrastructure failures retain uncommitted source offsets for retry.
+
+Files changed:
+
+- `cmd/normalizer/main.go`
+- `internal/normalization/processor.go`
+- `internal/normalization/processor_test.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `migrations/000005_normalized_events.up.sql`
+- `migrations/000005_normalized_events.down.sql`
+- `Dockerfile`
+- `compose.yaml`
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/python_worker.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Runtime contract:
+
+- Go normalizer consumes `signalops.<env>.raw.v1`.
+- Identity normalization preserves heterogeneous payloads as `normalized_payload`, converts entity hints to canonical entity references, attaches raw evidence and lineage, and publishes `signalops.<env>.normalized.v1`.
+- PostgreSQL persistence completes before the source offset is committed.
+- Python algorithms now consume normalized events rather than raw provider envelopes.
+
+Verification performed:
+
+- `make docker-test` - all Go packages passed.
+- `make docker-test-python` - 37 Python tests passed.
+- `docker compose config --quiet` - passed.
+- Applied migration `000005_normalized_events` through the migration container.
+- Built and deployed `gateway`, `normalizer`, and `raw-worker` with Compose.
+- Posted heterogeneous IoT event `g044-live-event` through the gateway.
+- Queried `/v1/normalized-events/g044-live-event`, PostgreSQL, and both consumer groups.
+
+Live verification result:
+
+- Raw acknowledgement: `signalops.local.raw.v1`, partition `2`, offset `6`.
+- Normalized publication: `signalops.local.normalized.v1`, partition `2`, offset `2`.
+- Persisted schema was `signalops.normalized_signal_event.v1`, confidence `1`, with canonical sensor entity, raw evidence, and the original heterogeneous measurements.
+- Normalizer group `signalops.normalizer.v1` was Stable with lag `0`.
+- Python group `signalops.normalized-worker.v1` was Stable with lag `0` and processed the live normalized event.
+- Historical malformed raw test records were routed to the normalization DLQ instead of blocking partitions.
+- The persisted live normalized event passed runtime validation against `normalized_signal_event.v1.schema.json`.
+
+Issue found and resolved:
+
+- The first normalizer restart exited when franz-go reported `ErrDataLoss` after a partition recovery reset. The broker consumer now recognizes that typed recovery notification and continues polling from the broker-selected offset. Rebuild/restart validation showed the container remained Up and `signalops.normalizer.v1` returned to Stable with one member and lag `0`.
+
+Next step:
+
+- Add durable Signal persistence and a read API for Python-emitted `signal.v1` events.
