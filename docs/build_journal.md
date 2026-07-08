@@ -2031,3 +2031,59 @@ Next step:
 
 - Add frontend Sources page consumption of `/v1/tenants/{tenant_id}/catalog/sources`.
 - Extend the catalog foundation to pipelines and rules after source visibility lands in the UI.
+
+
+## 2026-07-08T05:07:40Z
+
+Summary:
+
+- Completed G037 by adding a frontend Sources page wired to the G036 catalog source API.
+- Added catalog source TypeScript types, API client method, and TanStack Query hook.
+- Added `/sources` route and top navigation entry.
+- Rendered tenant-local source catalog metrics, source table, status badges, and metadata JSON.
+- Rebuilt and restarted the Compose web container with the new route.
+
+Files changed:
+
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/components/DashboardShell.tsx`
+- `web/src/components/StatusBadge.tsx`
+- `web/src/router.tsx`
+- `web/src/routes/SourcesRoute.tsx`
+- `web/src/types.ts`
+
+Rationale:
+
+- G036 created the backend source catalog; exposing it in the UI makes the Sources subsystem boundary visible to operators.
+- The initial UI uses `tenant-local` until tenant selection and auth exist.
+- The page remains read-only and avoids fake pipeline/rule records.
+
+Verification performed:
+
+- Ran `npm test`; 2 files and 6 tests passed.
+- Ran `npm run build`; TypeScript and Vite production build passed.
+- Queried the catalog API through the web proxy at `http://localhost:15173/v1/tenants/tenant-local/catalog/sources?limit=10`.
+- Ran `docker compose build web`; image build passed.
+- Ran `docker compose up -d web`; web service restarted successfully.
+- Queried `http://localhost:15173/sources` and received the built SPA shell.
+- Queried the catalog API again through the rebuilt web container proxy.
+- Ran `docker compose ps web`; service was running on host port `15173`.
+- Ran `npm audit --json`; zero vulnerabilities reported.
+
+Live verification result:
+
+- `/sources` is routable through the production-style web container.
+- Catalog API returned the seeded `tenant-local/src-massive` row through the web proxy.
+- Frontend audit remains clean.
+- Compose web image builds and runs with the new Sources route.
+
+Issue found and resolved:
+
+- No implementation issues were encountered.
+
+Next step:
+
+- Add catalog APIs/pages for pipelines and rules, or add tenant/source selection once auth and tenant context are introduced.

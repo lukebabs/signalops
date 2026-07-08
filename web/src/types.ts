@@ -109,3 +109,24 @@ export interface IdempotencyRecord {
 export interface IdempotencyResponse {
   idempotency: IdempotencyRecord;
 }
+
+export type CatalogSourceStatus = 'active' | 'inactive' | 'deprecated';
+
+export interface CatalogSource {
+  tenant_id: string;
+  source_id: string;
+  source_domain: string;
+  source_adapter: string;
+  display_name: string;
+  description: string;
+  status: string;
+  ingestion_modes: string[];
+  datasets: string[];
+  metadata: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CatalogSourcesResponse {
+  sources: CatalogSource[];
+}

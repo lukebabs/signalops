@@ -6,6 +6,7 @@ import type {
   RawEventsResponse,
   RawEventResponse,
   IdempotencyResponse,
+  CatalogSourcesResponse,
   RawEventFilter,
 } from '../types';
 
@@ -91,4 +92,6 @@ export const api = {
       source_id: sourceId,
       idempotency_key: idempotencyKey,
     }),
+  listCatalogSources: (tenantId = 'tenant-local', limit = 50) =>
+    get<CatalogSourcesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/sources`, { limit }),
 };

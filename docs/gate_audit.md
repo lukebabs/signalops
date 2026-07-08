@@ -2498,3 +2498,70 @@ Follow-up items:
 
 - Add frontend Sources page wired to the catalog source API.
 - Add catalog tables/APIs for pipelines and rules.
+
+
+## Gate G037: Frontend Sources Catalog Page
+
+Timestamp: `2026-07-08T05:07:40Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add the first frontend Sources page backed by the source catalog API.
+
+Criteria:
+
+- Add TypeScript contracts for catalog sources.
+- Add API client and TanStack Query hook for `GET /v1/tenants/{tenant_id}/catalog/sources`.
+- Add `/sources` route and navigation entry.
+- Render real source catalog data without mock records.
+- Validate frontend tests, production build, web image build, running web route, catalog API proxy, and npm audit.
+
+Evidence:
+
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/router.tsx`
+- `web/src/routes/SourcesRoute.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `web/src/components/StatusBadge.tsx`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The Sources page initially uses tenant `tenant-local` because tenant selection/auth is not implemented.
+- The page displays registered source count, active source count, dataset count, source rows, and metadata JSON.
+- The page is read-only and backed only by the catalog source API.
+
+Verification performed:
+
+- `cd web && npm test`
+- `cd web && npm run build`
+- `curl -fsS 'http://localhost:15173/v1/tenants/tenant-local/catalog/sources?limit=10'`
+- `docker compose build web`
+- `docker compose up -d web`
+- `curl -fsS http://localhost:15173/sources | head -20`
+- `curl -fsS 'http://localhost:15173/v1/tenants/tenant-local/catalog/sources?limit=10'`
+- `docker compose ps web`
+- `cd web && npm audit --json`
+
+Live verification result:
+
+- Vitest passed: 2 files, 6 tests.
+- Frontend production build passed.
+- Web image build passed.
+- `/sources` served the SPA shell through the Compose web container.
+- Catalog source API returned `tenant-local/src-massive` through the web proxy.
+- npm audit reported zero vulnerabilities.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add catalog APIs/pages for pipelines and rules.
+- Add tenant selection after tenant/auth context exists.

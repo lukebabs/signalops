@@ -16,6 +16,9 @@ const IdempotencyRoute = lazy(() =>
 const SystemRoute = lazy(() =>
   import('./routes/SystemRoute').then((m) => ({ default: m.SystemRoute })),
 );
+const SourcesRoute = lazy(() =>
+  import('./routes/SourcesRoute').then((m) => ({ default: m.SourcesRoute })),
+);
 
 const rootRoute = createRootRoute({ component: DashboardShell });
 
@@ -49,11 +52,18 @@ const systemRoute = createRoute({
   component: SystemRoute,
 });
 
+const sourcesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/sources',
+  component: SourcesRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   runsRoute,
   rawEventsRoute,
   idempotencyRoute,
+  sourcesRoute,
   systemRoute,
 ]);
 

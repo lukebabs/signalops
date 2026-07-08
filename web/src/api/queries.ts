@@ -13,6 +13,7 @@ export const queryKeys = {
   rawEvent: (eventId: string) => ['raw-event', eventId] as const,
   idempotency: (tenantId: string, sourceId: string, key: string) =>
     ['idempotency', tenantId, sourceId, key] as const,
+  catalogSources: (tenantId: string, limit: number) => ['catalog-sources', tenantId, limit] as const,
 };
 
 export function useHealthz() {
@@ -70,5 +71,12 @@ export function useIdempotency(
     queryFn: () => api.getIdempotency(tenantId, sourceId, key),
     enabled: enabled && !!tenantId && !!sourceId && !!key,
     retry: false,
+  });
+}
+
+export function useCatalogSources(tenantId = 'tenant-local', limit = 50) {
+  return useQuery({
+    queryKey: queryKeys.catalogSources(tenantId, limit),
+    queryFn: () => api.listCatalogSources(tenantId, limit),
   });
 }
