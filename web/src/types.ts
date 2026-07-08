@@ -152,3 +152,30 @@ export interface CatalogPipeline {
 export interface CatalogPipelinesResponse {
   pipelines: CatalogPipeline[];
 }
+
+export type CatalogRuleStatus = 'active' | 'inactive' | 'deprecated';
+export type CatalogRuleSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
+
+export interface CatalogRule {
+  tenant_id: string;
+  rule_id: string;
+  rule_name: string;
+  description: string;
+  rule_type: string;
+  severity: string;
+  status: string;
+  version: number;
+  source_id?: string;
+  pipeline_id?: string;
+  dataset_scope: string[];
+  entity_scope: string[];
+  expression: unknown;
+  actions: string[];
+  metadata: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CatalogRulesResponse {
+  rules: CatalogRule[];
+}

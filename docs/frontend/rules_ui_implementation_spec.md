@@ -68,7 +68,9 @@ Expected response envelope:
 ```
 
 Status values: `active`, `inactive`, `deprecated`.  
-Severity values: `info`, `low`, `medium`, `high`, `critical`.
+Severity values: `info`, `low`, `medium`, `high`, `critical`. Severity has no Go enum — it is enforced only by a database `CHECK` constraint, so the TypeScript `CatalogRuleSeverity` is a frontend-only contract.
+
+An empty `tenant_id` path segment returns `400 missing_path`; the UI always sends `tenant-local`, so this is unreachable in practice.
 
 Backend references:
 
@@ -202,6 +204,8 @@ Required table columns:
 - Status
 - Updated
 
+Render the table as a plain HTML table matching Sources/Pipelines — do **not** use AG Grid for this page. Stack the Rule cell content vertically (icon, then `rule_name`, `rule_id`, description, version), mirroring the Sources/Pipelines name cells.
+
 Recommended icon: `ShieldCheck` or `ListChecks` from `lucide-react`.
 
 Use `StatusBadge` for `status`. If there is no existing severity badge component, render severity
@@ -273,6 +277,8 @@ cd web && npm audit --json
 ```
 
 Compose validation:
+
+The rules seed requires the full stack running with migration `000004` applied (`make compose-up && make compose-storage-migrate`) before the proxied API returns data.
 
 ```bash
 docker compose build web

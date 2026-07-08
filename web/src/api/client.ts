@@ -8,6 +8,7 @@ import type {
   IdempotencyResponse,
   CatalogSourcesResponse,
   CatalogPipelinesResponse,
+  CatalogRulesResponse,
   RawEventFilter,
 } from '../types';
 
@@ -97,4 +98,6 @@ export const api = {
     get<CatalogSourcesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/sources`, { limit }),
   listCatalogPipelines: (tenantId = 'tenant-local', limit = 50) =>
     get<CatalogPipelinesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/pipelines`, { limit }),
+  listCatalogRules: (tenantId = 'tenant-local', limit = 50) =>
+    get<CatalogRulesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/rules`, { limit }),
 };

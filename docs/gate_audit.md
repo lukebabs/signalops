@@ -2818,3 +2818,70 @@ Actor:
 Follow-up items:
 
 - Frontend agent implements G041 according to `docs/frontend/rules_ui_implementation_spec.md`.
+
+
+## Gate G041: Frontend Rules Catalog Page
+
+Timestamp: `2026-07-08T06:30:17Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add the first frontend Rules page backed by the rules catalog API.
+
+Criteria:
+
+- Add TypeScript contracts for catalog rules.
+- Add API client and TanStack Query hook for `GET /v1/tenants/{tenant_id}/catalog/rules`.
+- Add `/rules` route and navigation entry.
+- Render real rule catalog data without mock records.
+- Validate frontend tests, production build, web image build, running web route, catalog API proxy, and npm audit.
+
+Evidence:
+
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/router.tsx`
+- `web/src/routes/RulesRoute.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `docs/frontend/rules_ui_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The Rules page uses tenant `tenant-local` until tenant selection/auth exists.
+- The page renders registered/active rule counts, distinct rule types, critical+high count, a plain HTML table (Rule/Type/Severity/Scope/Actions/Status/Updated), and Rule Expressions + Rule Metadata JSON sections.
+- Severity renders as restrained colored text (no shared severity badge; no new color-heavy visual system); status uses the existing `StatusBadge`.
+- The page is read-only and backed only by the catalog rules API; no edit/create/delete, execution, or test-runner controls.
+
+Verification performed:
+
+- `cd web && npm test`
+- `cd web && npm run build`
+- `docker compose build web`
+- `docker compose up -d web`
+- `curl -fsS http://localhost:15173/rules`
+- `curl -fsS 'http://localhost:15173/v1/tenants/tenant-local/catalog/rules?limit=10'`
+- `docker compose ps web`
+- `cd web && npm audit --json`
+
+Live verification result:
+
+- Vitest passed: 2 files, 6 tests.
+- Frontend production build passed; `RulesRoute` lazy-loaded.
+- Web image build passed; container Up on `:15173`.
+- `/rules` served the SPA shell through the Compose web container.
+- Catalog rules API returned `tenant-local/rule-marketdata-eod-price-quality` through the web proxy.
+- npm audit reported zero vulnerabilities.
+
+Actor:
+
+- Claude Code
+
+Follow-up items:
+
+- Browser validation (rendering, console errors) as a manual step.
+- Rule execution history, expression builder, and rule management remain out of scope pending backend support.

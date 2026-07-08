@@ -2291,3 +2291,59 @@ Live verification result:
 Next step:
 
 - Hand G041 to the frontend agent for implementation of the Rules catalog page.
+
+
+## 2026-07-08T06:30:17Z
+
+Summary:
+
+- Implemented G041 by adding the read-only Rules catalog page to the `web/` frontend, backed by the G040 `GET /v1/tenants/{tenant_id}/catalog/rules` API.
+- Added `CatalogRule`/`CatalogRulesResponse` types, a `listCatalogRules` client method, and a `useCatalogRules` TanStack Query hook mirroring the Sources/Pipelines conventions.
+- Added `web/src/routes/RulesRoute.tsx` — a plain HTML table matching Sources/Pipelines (not AG Grid), with Registered/Active/Rule Types/Critical-High metrics, columns Rule/Type/Severity/Scope/Actions/Status/Updated, and Rule Expressions + Rule Metadata JSON sections.
+- Wired `/rules` into the router (lazy-loaded) and added a Rules nav item (`ShieldCheck`) to the shell.
+- Tightened `docs/frontend/rules_ui_implementation_spec.md` with minor clarifications: plain-table (not AG Grid), the `400 missing_path` path-segment error, the severity DB-`CHECK`-only contract, the compound Rule-cell layout, and the Compose validation prerequisite (full stack up + migration `000004`).
+
+Files changed:
+
+- `docs/frontend/rules_ui_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/router.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `web/src/routes/RulesRoute.tsx`
+
+Rationale:
+
+- The Rules page is the read-only catalog peer of Sources/Pipelines and reuses their exact patterns (plain table, shared components, same client/query/router/nav conventions) to avoid divergence.
+- The spec clarifications prevent an implementer from reaching for AG Grid or hitting an unseeded/migrated stack during Compose validation.
+
+Verification performed:
+
+- `cd web && npm test` — 2 files, 6 tests passed.
+- `cd web && npm run build` — `tsc && vite build` succeeded; `RulesRoute` is a lazy chunk.
+- `cd web && npm audit` — 0 vulnerabilities.
+- `curl -fsS http://localhost:18000/healthz` — gateway healthy (G040).
+- `curl 'http://localhost:18000/v1/tenants/tenant-local/catalog/rules?limit=10'` — returned seeded rule `rule-marketdata-eod-price-quality`.
+- `docker compose build web` — web image built.
+- `docker compose up -d web` — web container Up on `:15173`.
+- `curl -fsS http://localhost:15173/rules` — served the SPA shell.
+- `curl -fsS 'http://localhost:15173/v1/tenants/tenant-local/catalog/rules?limit=10'` — returned the seeded rule through the nginx `/v1/` proxy.
+- `docker compose ps web` — container Up, `15173->8080`.
+
+Live verification result:
+
+- Build, tests, and audit all pass; the page adds no new dependencies.
+- The rules API response shape matches `CatalogRule` (severity `medium`, status `active`, json_logic expression, actions, metadata).
+- Compose web serves `/rules` as the SPA shell and proxies the rules API to the gateway.
+
+Issue found and resolved:
+
+- None. The prescribed client/query/router snippets matched the post-G040 `web/` conventions verbatim.
+
+Next step:
+
+- Browser validation of the Rules page (rendering, console errors) as a manual follow-up.
+- Future: rule execution history, expression builder, and edit/management remain out of scope pending backend support.

@@ -15,6 +15,7 @@ export const queryKeys = {
     ['idempotency', tenantId, sourceId, key] as const,
   catalogSources: (tenantId: string, limit: number) => ['catalog-sources', tenantId, limit] as const,
   catalogPipelines: (tenantId: string, limit: number) => ['catalog-pipelines', tenantId, limit] as const,
+  catalogRules: (tenantId: string, limit: number) => ['catalog-rules', tenantId, limit] as const,
 };
 
 export function useHealthz() {
@@ -86,5 +87,12 @@ export function useCatalogPipelines(tenantId = 'tenant-local', limit = 50) {
   return useQuery({
     queryKey: queryKeys.catalogPipelines(tenantId, limit),
     queryFn: () => api.listCatalogPipelines(tenantId, limit),
+  });
+}
+
+export function useCatalogRules(tenantId = 'tenant-local', limit = 50) {
+  return useQuery({
+    queryKey: queryKeys.catalogRules(tenantId, limit),
+    queryFn: () => api.listCatalogRules(tenantId, limit),
   });
 }

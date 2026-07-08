@@ -22,6 +22,9 @@ const SourcesRoute = lazy(() =>
 const PipelinesRoute = lazy(() =>
   import('./routes/PipelinesRoute').then((m) => ({ default: m.PipelinesRoute })),
 );
+const RulesRoute = lazy(() =>
+  import('./routes/RulesRoute').then((m) => ({ default: m.RulesRoute })),
+);
 
 const rootRoute = createRootRoute({ component: DashboardShell });
 
@@ -67,6 +70,12 @@ const pipelinesRoute = createRoute({
   component: PipelinesRoute,
 });
 
+const rulesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/rules',
+  component: RulesRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   runsRoute,
@@ -74,6 +83,7 @@ const routeTree = rootRoute.addChildren([
   idempotencyRoute,
   sourcesRoute,
   pipelinesRoute,
+  rulesRoute,
   systemRoute,
 ]);
 
