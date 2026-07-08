@@ -2770,3 +2770,51 @@ Follow-up items:
 
 - Write the frontend-agent implementation specification for Rules UI.
 - Add rule execution persistence and signal/insight persistence in later gates.
+
+
+## Gate G041 Specification: Frontend Rules Catalog Page
+
+Timestamp: `2026-07-08T06:02:03Z`
+
+Status: `ready for implementation`
+
+Gate name:
+
+- Define the frontend-agent implementation contract for the Rules catalog page.
+
+Criteria:
+
+- Place the handoff specification under `docs/frontend/`.
+- Ground the specification in the G040 rules catalog API.
+- Reuse existing Sources/Pipelines frontend patterns rather than defining a new frontend architecture.
+- Define non-goals to prevent mock rule execution, editing, or signal/insight functionality.
+- Define validation commands and documentation requirements for the implementation gate.
+
+Evidence:
+
+- `docs/frontend/rules_ui_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The actual frontend implementation remains future work for G041.
+- The spec targets a read-only `/rules` page backed by `GET /v1/tenants/tenant-local/catalog/rules?limit=50`.
+- The spec requires the frontend agent to update journal and gate audit after implementation.
+
+Verification performed:
+
+- `head -40 docs/frontend/rules_ui_implementation_spec.md`
+- `rg -n "G041|catalog/rules|RulesRoute|Acceptance Criteria|Validation Requirements" docs/frontend/rules_ui_implementation_spec.md`
+
+Live verification result:
+
+- Not applicable; this was a documentation handoff deliverable.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Frontend agent implements G041 according to `docs/frontend/rules_ui_implementation_spec.md`.

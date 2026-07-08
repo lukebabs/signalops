@@ -2258,3 +2258,36 @@ Issue found and resolved:
 Next step:
 
 - Write the frontend-agent specification for implementing Rules UI against the new API.
+
+
+## 2026-07-08T06:02:03Z
+
+Summary:
+
+- Wrote the frontend-agent implementation specification for the Rules catalog UI.
+- Placed the specification in `docs/frontend/rules_ui_implementation_spec.md`.
+- Grounded the handoff in the G040 backend rules API and the existing Sources/Pipelines frontend patterns.
+
+Files changed:
+
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `docs/frontend/rules_ui_implementation_spec.md`
+
+Rationale:
+
+- The frontend agent now has a concrete implementation contract for G041 before making UI changes.
+- The spec explicitly limits the page to read-only catalog visibility and avoids implying rule execution or management capabilities that do not exist yet.
+
+Verification performed:
+
+- Reviewed the new specification header and backend contract section.
+- Searched for G041, rules API, and validation references in the new spec.
+
+Live verification result:
+
+- Not applicable; this was a documentation handoff deliverable.
+
+Next step:
+
+- Hand G041 to the frontend agent for implementation of the Rules catalog page.
