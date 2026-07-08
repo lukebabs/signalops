@@ -7,6 +7,7 @@ import type {
   RawEventResponse,
   IdempotencyResponse,
   CatalogSourcesResponse,
+  CatalogPipelinesResponse,
   RawEventFilter,
 } from '../types';
 
@@ -94,4 +95,6 @@ export const api = {
     }),
   listCatalogSources: (tenantId = 'tenant-local', limit = 50) =>
     get<CatalogSourcesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/sources`, { limit }),
+  listCatalogPipelines: (tenantId = 'tenant-local', limit = 50) =>
+    get<CatalogPipelinesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/pipelines`, { limit }),
 };

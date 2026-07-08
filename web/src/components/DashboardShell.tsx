@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Link, Outlet } from '@tanstack/react-router';
-import { Activity, ListTree, Database, KeyRound, Gauge, DatabaseZap } from 'lucide-react';
+import { Activity, ListTree, Database, KeyRound, Gauge, DatabaseZap, Workflow } from 'lucide-react';
 import { HealthIndicator } from './HealthIndicator';
 
 const navItem =
@@ -29,6 +29,9 @@ export function DashboardShell() {
         </Link>
         <Link to="/sources" className={navItem} activeProps={{ className: navItemActive }}>
           <DatabaseZap size={14} /> Sources
+        </Link>
+        <Link to="/pipelines" className={navItem} activeProps={{ className: navItemActive }}>
+          <Workflow size={14} /> Pipelines
         </Link>
         <Link to="/system" className={navItem} activeProps={{ className: navItemActive }}>
           <Gauge size={14} /> System

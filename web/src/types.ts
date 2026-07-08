@@ -130,3 +130,25 @@ export interface CatalogSource {
 export interface CatalogSourcesResponse {
   sources: CatalogSource[];
 }
+
+export type CatalogPipelineStatus = 'active' | 'inactive' | 'deprecated';
+
+export interface CatalogPipeline {
+  tenant_id: string;
+  pipeline_id: string;
+  source_id: string;
+  source_domain: string;
+  pipeline_name: string;
+  description: string;
+  status: string;
+  stages: string[];
+  input_datasets: string[];
+  output_topics: string[];
+  metadata: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CatalogPipelinesResponse {
+  pipelines: CatalogPipeline[];
+}

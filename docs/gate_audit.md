@@ -2635,3 +2635,68 @@ Follow-up items:
 
 - Add frontend Pipelines page wired to the catalog pipeline API.
 - Add rules catalog foundation after pipeline visibility lands.
+
+
+## Gate G039: Frontend Pipelines Catalog Page
+
+Timestamp: `2026-07-08T05:46:15Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add the first frontend Pipelines page backed by the pipeline catalog API.
+
+Criteria:
+
+- Add TypeScript contracts for catalog pipelines.
+- Add API client and TanStack Query hook for `GET /v1/tenants/{tenant_id}/catalog/pipelines`.
+- Add `/pipelines` route and navigation entry.
+- Render real pipeline catalog data without mock records.
+- Validate frontend tests, production build, web image build, running web route, catalog API proxy, and npm audit.
+
+Evidence:
+
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/router.tsx`
+- `web/src/routes/PipelinesRoute.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The Pipelines page initially uses tenant `tenant-local` because tenant selection/auth is not implemented.
+- The page displays registered pipeline count, active pipeline count, distinct stage count, output topic count, source linkage, stage flow, inputs, outputs, and metadata JSON.
+- The page is read-only and backed only by the catalog pipeline API.
+
+Verification performed:
+
+- `cd web && npm test`
+- `cd web && npm run build`
+- `docker compose build web`
+- `docker compose up -d web`
+- `curl -fsS http://localhost:15173/pipelines`
+- `curl -fsS 'http://localhost:15173/v1/tenants/tenant-local/catalog/pipelines?limit=10'`
+- `docker compose ps web`
+- `cd web && npm audit --json`
+
+Live verification result:
+
+- Vitest passed: 2 files, 6 tests.
+- Frontend production build passed.
+- Web image build passed.
+- `/pipelines` served the SPA shell through the Compose web container.
+- Catalog pipeline API returned `tenant-local/pipeline-massive-raw-ingest` through the web proxy.
+- npm audit reported zero vulnerabilities.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add catalog APIs/pages for rules.
+- Add tenant selection after tenant/auth context exists.

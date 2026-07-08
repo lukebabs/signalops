@@ -2146,3 +2146,56 @@ Issue found and resolved:
 Next step:
 
 - Add frontend Pipelines page consumption of `/v1/tenants/{tenant_id}/catalog/pipelines`.
+
+
+## 2026-07-08T05:46:15Z
+
+Summary:
+
+- Started G039 by adding a frontend Pipelines page wired to the backend pipeline catalog API.
+- Added catalog pipeline TypeScript types, API client method, and TanStack Query hook.
+- Added `/pipelines` route and top navigation entry.
+- Rendered tenant-local pipeline catalog metrics, pipeline table, stage flow, inputs, outputs, status badges, and metadata JSON.
+
+Files changed:
+
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/components/DashboardShell.tsx`
+- `web/src/router.tsx`
+- `web/src/routes/PipelinesRoute.tsx`
+- `web/src/types.ts`
+
+Rationale:
+
+- G038 created the backend pipeline catalog; exposing it in the UI makes processing topology visible to operators.
+- The initial page uses `tenant-local` until tenant selection and auth exist.
+- The page remains read-only and displays only real catalog pipeline data.
+
+Verification performed:
+
+- Ran `npm test`; 2 files and 6 tests passed.
+- Ran `npm run build`; TypeScript and Vite production build passed.
+- Ran `docker compose build web`; image build passed and production build ran inside the image.
+- Ran `docker compose up -d web`; web service restarted successfully.
+- Queried `http://localhost:15173/pipelines` and received the built SPA shell.
+- Queried `http://localhost:15173/v1/tenants/tenant-local/catalog/pipelines?limit=10` through the web proxy.
+- Ran `docker compose ps web`; service was running on host port `15173`.
+- Ran `npm audit --json`; zero vulnerabilities reported.
+
+Live verification result:
+
+- `/pipelines` is routable through the production-style web container.
+- Catalog API returned the seeded `tenant-local/pipeline-massive-raw-ingest` row through the web proxy.
+- Frontend audit remains clean.
+- Compose web image builds and runs with the new Pipelines route.
+
+Issue found and resolved:
+
+- No implementation issues were encountered.
+
+Next step:
+
+- Add rules catalog foundation, then expose Rules in the UI.
