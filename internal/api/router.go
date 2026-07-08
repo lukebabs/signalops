@@ -167,6 +167,36 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"normalized_event": normalizedEventResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/signals", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListSignalLedger(r.Context(), storage.SignalLedgerFilter{
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")),
+			Severity: strings.TrimSpace(r.URL.Query().Get("severity")), Limit: queryLimit(r, 50),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list signals")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"signals": signalResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/signals/{signal_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetSignalLedger(r.Context(), r.PathValue("signal_id"))
+		if err != nil {
+			writeQueryError(w, err, "signal_not_found", "signal not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"signal": signalResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/idempotency", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -691,6 +721,46 @@ type normalizedEventDTO struct {
 	UpdatedAt           time.Time       `json:"updated_at"`
 }
 
+type signalDTO struct {
+	SignalID          string          `json:"signal_id"`
+	TenantID          string          `json:"tenant_id"`
+	SourceID          string          `json:"source_id"`
+	SourceDomain      string          `json:"source_domain"`
+	SourceAdapter     string          `json:"source_adapter"`
+	IngestionMode     string          `json:"ingestion_mode"`
+	Dataset           string          `json:"dataset"`
+	EventIDs          []string        `json:"event_ids"`
+	ArtifactIDs       []string        `json:"artifact_ids"`
+	SignalType        string          `json:"signal_type"`
+	DetectorID        string          `json:"detector_id"`
+	DetectorVersion   string          `json:"detector_version"`
+	ModelVersion      string          `json:"model_version"`
+	SignalTime        time.Time       `json:"timestamp"`
+	ObservationTime   time.Time       `json:"observation_time"`
+	EffectiveTime     time.Time       `json:"effective_time"`
+	ProcessingTime    time.Time       `json:"processing_time"`
+	WindowStart       time.Time       `json:"window_start"`
+	WindowEnd         time.Time       `json:"window_end"`
+	Confidence        float64         `json:"confidence"`
+	Severity          string          `json:"severity"`
+	Entities          json.RawMessage `json:"entities"`
+	SupportingMetrics json.RawMessage `json:"supporting_metrics"`
+	GraphTargets      json.RawMessage `json:"graph_targets"`
+	SemanticEvidence  json.RawMessage `json:"semantic_evidence"`
+	Evidence          json.RawMessage `json:"evidence"`
+	Recommendation    json.RawMessage `json:"recommendation"`
+	CorrelationID     string          `json:"correlation_id"`
+	TraceID           string          `json:"trace_id,omitempty"`
+	CausationID       string          `json:"causation_id,omitempty"`
+	ReplayJobID       string          `json:"replay_job_id,omitempty"`
+	BrokerTopic       string          `json:"broker_topic"`
+	BrokerPartition   int32           `json:"broker_partition"`
+	BrokerOffset      int64           `json:"broker_offset"`
+	Event             json.RawMessage `json:"event"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+}
+
 type catalogSourceDTO struct {
 	TenantID       string          `json:"tenant_id"`
 	SourceID       string          `json:"source_id"`
@@ -854,6 +924,34 @@ func normalizedEventResponse(record storage.NormalizedEventLedgerRecord) normali
 		NormalizedPartition: record.NormalizedPartition, NormalizedOffset: record.NormalizedOffset,
 		NormalizedPayload: jsonRawOrEmptyObject(record.NormalizedPayload), Entities: jsonRawOrEmptyArray(record.EntitiesJSON),
 		Evidence: jsonRawOrEmptyArray(record.EvidenceJSON), Metadata: jsonRawOrEmptyObject(record.MetadataJSON),
+		Event: jsonRawOrEmptyObject(record.EventJSON), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+}
+
+func signalResponses(records []storage.SignalLedgerRecord) []signalDTO {
+	items := make([]signalDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, signalResponse(record))
+	}
+	return items
+}
+
+func signalResponse(record storage.SignalLedgerRecord) signalDTO {
+	recommendation := json.RawMessage(record.RecommendationJSON)
+	if len(recommendation) == 0 {
+		recommendation = json.RawMessage("null")
+	}
+	return signalDTO{SignalID: record.SignalID, TenantID: record.TenantID, SourceID: record.SourceID,
+		SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter, IngestionMode: record.IngestionMode,
+		Dataset: record.Dataset, EventIDs: record.EventIDs, ArtifactIDs: record.ArtifactIDs, SignalType: record.SignalType,
+		DetectorID: record.DetectorID, DetectorVersion: record.DetectorVersion, ModelVersion: record.ModelVersion,
+		SignalTime: record.SignalTime, ObservationTime: record.ObservationTime, EffectiveTime: record.EffectiveTime,
+		ProcessingTime: record.ProcessingTime, WindowStart: record.WindowStart, WindowEnd: record.WindowEnd,
+		Confidence: record.Confidence, Severity: record.Severity, Entities: jsonRawOrEmptyArray(record.EntitiesJSON),
+		SupportingMetrics: jsonRawOrEmptyObject(record.SupportingMetrics), GraphTargets: jsonRawOrEmptyArray(record.GraphTargetsJSON),
+		SemanticEvidence: jsonRawOrEmptyArray(record.SemanticEvidenceJSON), Evidence: jsonRawOrEmptyArray(record.EvidenceJSON),
+		Recommendation: recommendation, CorrelationID: record.CorrelationID, TraceID: record.TraceID,
+		CausationID: record.CausationID, ReplayJobID: record.ReplayJobID, BrokerTopic: record.BrokerTopic,
+		BrokerPartition: record.BrokerPartition, BrokerOffset: record.BrokerOffset,
 		Event: jsonRawOrEmptyObject(record.EventJSON), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
 }
 

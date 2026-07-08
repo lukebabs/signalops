@@ -195,6 +195,7 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(event["confidence"], 0.82)
         self.assertEqual(event["severity"], "medium")
         self.assertEqual(event["correlation_id"], "corr-signal")
+        self.assertEqual(event["evidence"][0]["type"], "normalized_event")
 
     def test_run_worker_publishes_emitted_signals(self) -> None:
         message = raw_signal_message()

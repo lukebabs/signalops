@@ -607,7 +607,7 @@ The frontend implementation is complete when:
 - Query endpoints return discrete records (runs, raw events, usage rows), not time-bucketed series. Do not assume time-series aggregation is available from the backend yet.
 - Generic `POST /v1/events/raw` now persists acknowledged events in `raw_event_ledger` and `idempotency_records`; the UI may treat a `202 Accepted` response as query-visible audit state.
 - Authentication/authorization is not implemented yet. Do not add a fake login flow.
-- Normalized market-data persistence and signal query APIs are future scope.
+- Normalized-event and signal query APIs are available; dedicated frontend explorer pages remain future scope.
 
 ## Future Gates (out of scope for G030)
 

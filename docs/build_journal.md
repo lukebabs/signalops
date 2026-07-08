@@ -2521,3 +2521,64 @@ Issue found and resolved:
 Next step:
 
 - Add durable Signal persistence and a read API for Python-emitted `signal.v1` events.
+
+
+## 2026-07-08T21:41:02Z
+
+Summary:
+
+- Passed G045 by adding a standalone Go signal persister for Python-emitted `signal.v1` events.
+- Added migration `000006_signal_ledger`, typed storage/query contracts, strict signal validation, signal list/detail APIs, and durable broker lineage.
+- Added invalid-signal DLQ routing and retained uncommitted offsets for infrastructure failures.
+- Corrected Python fallback evidence to identify detector inputs as `normalized_event` rather than `raw_event`.
+
+Files changed:
+
+- `cmd/signal-persister/main.go`
+- `internal/signals/processor.go`
+- `internal/signals/processor_test.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `migrations/000006_signal_ledger.up.sql`
+- `migrations/000006_signal_ledger.down.sql`
+- `python/signalops_workers/worker.py`
+- `python/tests/test_worker.py`
+- `Dockerfile`
+- `compose.yaml`
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/python_worker.md`
+- `docs/frontend_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Runtime contract:
+
+- Python algorithm workers remain the owners of detection and publish validated `signal.v1` events to Redpanda.
+- The Go signal persister independently validates the closed contract, persists canonical detector output and normalized `event_ids`, then commits the signal-topic offset.
+- Invalid events route to the algorithm DLQ; PostgreSQL failures remain retryable without offset commit.
+
+Verification performed:
+
+- `make docker-test` - all Go packages passed.
+- `make docker-test-python` - 37 Python tests passed.
+- `docker compose config --quiet` and `git diff --check` passed.
+- Applied migration `000006_signal_ledger` through the migration container.
+- Built and deployed `gateway` and `signal-persister` with Compose.
+- Ran one deterministic `signalops.static_test` Python worker invocation against the normalized topic.
+- Queried `/v1/signals/signalops.static_test.low`, PostgreSQL, and the signal-persister consumer group.
+
+Live verification result:
+
+- Python emitted `signalops.static_test.low` to `signalops.local.signal.v1`, partition `0`, offset `3`.
+- Go persisted tenant `tenant-local`, detector version `0.1.0`, model `none`, severity `low`, confidence `0.25`, and normalized event ID `evt_5d5a94a0e8ea5d149ec19947`.
+- The signal detail API returned the complete canonical event and broker coordinates.
+- Consumer group `signalops.signal-persister.v1` was Stable with one member and total lag `0`.
+- The final persisted event passed runtime `signal.v1` validation, used `normalized_event` evidence, and the filtered list API returned the expected tenant/detector/severity result.
+- Restart validation left `signal-persister` Up and its committed group Stable with lag `0`.
+
+Next step:
+
+- Add a frontend Signals explorer and Dashboard signal metrics, or proceed backend-first with durable alert/insight lifecycle storage.

@@ -43,6 +43,7 @@ make compose-down
 - `gateway`: SignalOps gateway on `http://localhost:18000`.
 - `normalizer`: Go worker that consumes `signalops.local.raw.v1`, publishes `signalops.local.normalized.v1`, and persists normalized lineage.
 - `raw-worker`: Python algorithm worker that consumes `signalops.local.normalized.v1`.
+- `signal-persister`: Go worker that validates and persists Python-emitted `signalops.local.signal.v1` events.
 - `web`: production-style nginx container for the SignalOps operational UI on `http://localhost:15173`.
 
 ## Local Ports

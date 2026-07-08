@@ -3097,3 +3097,62 @@ Follow-up items:
 
 - Persist Python-emitted signals through a Go signal consumer before adding signal/insight UI.
 - Add explicit replay observability for raw-to-normalized duplicate publication after a persistence failure.
+
+
+## Gate G045: Durable Signal Persistence
+
+Timestamp: `2026-07-08T21:41:02Z`
+
+Status: `passed`
+
+Gate name:
+
+- Persist Python-emitted signals through a Go infrastructure consumer.
+
+Criteria:
+
+- Consume the durable `signal.v1` topic independently of Python workers.
+- Validate the closed signal contract at the Go persistence boundary.
+- Persist detector/model identity, normalized event lineage, temporal windows, confidence, severity, evidence, recommendation, full event JSON, and broker coordinates.
+- Commit source offsets only after successful persistence.
+- Route invalid signals to DLQ and retry infrastructure failures without commit.
+- Expose signal list/detail APIs with operational filters.
+- Pass tests, migration, Docker deployment, live Python emission, API, database, and consumer-group validation.
+
+Evidence:
+
+- `cmd/signal-persister/main.go`
+- `internal/signals/processor.go`
+- `internal/signals/processor_test.go`
+- `migrations/000006_signal_ledger.up.sql`
+- `internal/storage/postgres/repository.go`
+- `internal/api/router.go`
+- `python/signalops_workers/worker.py`
+- `compose.yaml`
+- `docs/build_journal.md`
+
+Verification performed:
+
+- `make docker-test`
+- `make docker-test-python`
+- `docker compose --profile storage run --rm postgres-migrate`
+- `docker compose build gateway signal-persister`
+- `docker compose up -d gateway signal-persister`
+- Deterministic Python static detector run with one normalized input.
+- Live signal detail API, direct PostgreSQL query, service logs, and Redpanda group description.
+
+Live verification result:
+
+- Signal `signalops.static_test.low` persisted from broker position `0/3` with detector/model metadata and normalized-event lineage.
+- API and PostgreSQL values matched.
+- `signalops.signal-persister.v1` was Stable with one member and lag `0` after service restart.
+- Runtime `signal.v1` validation passed; evidence linked the normalized event and the filtered list API returned the expected record.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add Signals UI and Dashboard integration.
+- Add alert and insight lifecycle persistence derived from durable signals.

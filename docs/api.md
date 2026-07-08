@@ -100,6 +100,25 @@ algorithm DLQ with original payload and source coordinates before their source o
 Infrastructure failures leave the source offset uncommitted for retry.
 
 
+## Signal Ledger
+
+`GET /v1/signals?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&detector_id={detector_id}&severity={severity}&limit=50`
+
+Lists persisted Python-emitted signals. Filters are optional and pagination is currently limit-only.
+Each response includes detector/model versions, normalized source `event_ids`, confidence, severity,
+window times, evidence, recommendation, broker coordinates, and the complete validated `signal.v1`
+event.
+
+`GET /v1/signals/{signal_id}`
+
+Returns one signal or `404 signal_not_found`.
+
+The Go signal persister consumes `signalops.<environment>.signal.v1`. It validates the closed
+contract, persists the signal, and only then commits the source offset. Invalid contracts are
+published to the algorithm DLQ with the original payload and source coordinates before commit.
+Database or broker failures leave the source offset uncommitted for retry.
+
+
 ## Dashboard Stream API
 
 `GET /v1/streams/dashboard?channels=health,runs,raw_events,provider_usage,heartbeat`

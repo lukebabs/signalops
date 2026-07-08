@@ -112,6 +112,13 @@ func (q *fakeQueryRepository) GetNormalizedEventLedger(context.Context, string) 
 	return storage.NormalizedEventLedgerRecord{}, storage.ErrNotFound
 }
 
+func (q *fakeQueryRepository) ListSignalLedger(context.Context, storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
+	return nil, nil
+}
+func (q *fakeQueryRepository) GetSignalLedger(context.Context, string) (storage.SignalLedgerRecord, error) {
+	return storage.SignalLedgerRecord{}, storage.ErrNotFound
+}
+
 func (q *fakeQueryRepository) GetIdempotencyRecord(context.Context, string, string, string) (storage.IdempotencyRecord, error) {
 	if q.notFound {
 		return storage.IdempotencyRecord{}, storage.ErrNotFound

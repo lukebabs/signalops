@@ -51,6 +51,10 @@ Detector execution and signal result emission are implemented. Signal publish
 failures are treated as retryable infrastructure failures and are routed through
 the retry topic before the source offset is committed.
 
+Published signals are consumed by the Go `signal-persister`, validated again at the infrastructure
+boundary, persisted with broker coordinates and normalized-event lineage, and exposed through the
+signal query API.
+
 ## Configuration
 
 - `SIGNALOPS_BROKER_BROKERS`: broker bootstrap servers.

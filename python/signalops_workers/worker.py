@@ -284,7 +284,7 @@ def build_signal_event(
     if not evidence:
         evidence = [
             {
-                "type": "raw_event",
+                "type": "normalized_event",
                 "ref": processed.event_id,
                 "summary": explanation.summary,
             }

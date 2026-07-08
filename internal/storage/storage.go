@@ -137,6 +137,46 @@ type NormalizedEventLedgerRecord struct {
 	UpdatedAt           time.Time
 }
 
+type SignalLedgerRecord struct {
+	SignalID             string
+	TenantID             string
+	SourceID             string
+	SourceDomain         string
+	SourceAdapter        string
+	IngestionMode        string
+	Dataset              string
+	EventIDs             []string
+	ArtifactIDs          []string
+	SignalType           string
+	DetectorID           string
+	DetectorVersion      string
+	ModelVersion         string
+	SignalTime           time.Time
+	ObservationTime      time.Time
+	EffectiveTime        time.Time
+	ProcessingTime       time.Time
+	WindowStart          time.Time
+	WindowEnd            time.Time
+	Confidence           float64
+	Severity             string
+	EntitiesJSON         []byte
+	SupportingMetrics    []byte
+	GraphTargetsJSON     []byte
+	SemanticEvidenceJSON []byte
+	EvidenceJSON         []byte
+	RecommendationJSON   []byte
+	CorrelationID        string
+	TraceID              string
+	CausationID          string
+	ReplayJobID          string
+	BrokerTopic          string
+	BrokerPartition      int32
+	BrokerOffset         int64
+	EventJSON            []byte
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
 type CatalogSourceRecord struct {
 	TenantID       string
 	SourceID       string
@@ -205,6 +245,10 @@ type NormalizedEventLedgerRepository interface {
 	UpsertNormalizedEventLedger(ctx context.Context, record NormalizedEventLedgerRecord) error
 }
 
+type SignalLedgerRepository interface {
+	UpsertSignalLedger(ctx context.Context, record SignalLedgerRecord) error
+}
+
 type CatalogRepository interface {
 	UpsertCatalogSource(ctx context.Context, record CatalogSourceRecord) error
 	UpsertCatalogPipeline(ctx context.Context, record CatalogPipelineRecord) error
@@ -224,6 +268,15 @@ type RawEventLedgerFilter struct {
 	Limit    int
 }
 
+type SignalLedgerFilter struct {
+	TenantID   string
+	SourceID   string
+	Dataset    string
+	DetectorID string
+	Severity   string
+	Limit      int
+}
+
 type QueryRepository interface {
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
@@ -232,6 +285,8 @@ type QueryRepository interface {
 	GetRawEventLedger(ctx context.Context, eventID string) (RawEventLedgerRecord, error)
 	ListNormalizedEventLedger(ctx context.Context, filter RawEventLedgerFilter) ([]NormalizedEventLedgerRecord, error)
 	GetNormalizedEventLedger(ctx context.Context, eventID string) (NormalizedEventLedgerRecord, error)
+	ListSignalLedger(ctx context.Context, filter SignalLedgerFilter) ([]SignalLedgerRecord, error)
+	GetSignalLedger(ctx context.Context, signalID string) (SignalLedgerRecord, error)
 	GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (IdempotencyRecord, error)
 	ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]CatalogSourceRecord, error)
 	ListCatalogPipelines(ctx context.Context, tenantID string, limit int) ([]CatalogPipelineRecord, error)

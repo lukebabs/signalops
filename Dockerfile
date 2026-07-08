@@ -12,6 +12,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-gateway ./c
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-puller ./cmd/massive-puller
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-scheduler ./cmd/massive-scheduler
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-normalizer ./cmd/normalizer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-persister ./cmd/signal-persister
 
 FROM gcr.io/distroless/static-debian12:nonroot AS gateway
 
@@ -39,3 +40,9 @@ FROM gcr.io/distroless/static-debian12:nonroot AS normalizer
 COPY --from=build /out/signalops-normalizer /signalops-normalizer
 
 ENTRYPOINT ["/signalops-normalizer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS signal-persister
+
+COPY --from=build /out/signalops-signal-persister /signalops-signal-persister
+
+ENTRYPOINT ["/signalops-signal-persister"]

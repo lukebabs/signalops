@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/lukebabs/signalops/internal/storage"
@@ -298,6 +299,47 @@ ON CONFLICT (event_id) DO UPDATE SET
 	return nil
 }
 
+func (r *Repository) UpsertSignalLedger(ctx context.Context, record storage.SignalLedgerRecord) error {
+	if err := validateSignalLedger(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO signal_ledger (
+ signal_id, tenant_id, source_id, source_domain, source_adapter, ingestion_mode, dataset,
+ event_ids, artifact_ids, signal_type, detector_id, detector_version, model_version, signal_time,
+ observation_time, effective_time, processing_time, window_start, window_end, confidence, severity,
+ entities, supporting_metrics, graph_targets, semantic_evidence, evidence, recommendation,
+ correlation_id, trace_id, causation_id, replay_job_id, broker_topic, broker_partition, broker_offset, event
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)
+ON CONFLICT (signal_id) DO UPDATE SET
+ tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_domain=EXCLUDED.source_domain,
+ source_adapter=EXCLUDED.source_adapter, ingestion_mode=EXCLUDED.ingestion_mode, dataset=EXCLUDED.dataset,
+ event_ids=EXCLUDED.event_ids, artifact_ids=EXCLUDED.artifact_ids, signal_type=EXCLUDED.signal_type,
+ detector_id=EXCLUDED.detector_id, detector_version=EXCLUDED.detector_version, model_version=EXCLUDED.model_version,
+ signal_time=EXCLUDED.signal_time, observation_time=EXCLUDED.observation_time, effective_time=EXCLUDED.effective_time,
+ processing_time=EXCLUDED.processing_time, window_start=EXCLUDED.window_start, window_end=EXCLUDED.window_end,
+ confidence=EXCLUDED.confidence, severity=EXCLUDED.severity, entities=EXCLUDED.entities,
+ supporting_metrics=EXCLUDED.supporting_metrics, graph_targets=EXCLUDED.graph_targets,
+ semantic_evidence=EXCLUDED.semantic_evidence, evidence=EXCLUDED.evidence, recommendation=EXCLUDED.recommendation,
+ correlation_id=EXCLUDED.correlation_id, trace_id=EXCLUDED.trace_id, causation_id=EXCLUDED.causation_id,
+ replay_job_id=EXCLUDED.replay_job_id, broker_topic=EXCLUDED.broker_topic,
+ broker_partition=EXCLUDED.broker_partition, broker_offset=EXCLUDED.broker_offset,
+ event=EXCLUDED.event, updated_at=now()`,
+		record.SignalID, record.TenantID, record.SourceID, record.SourceDomain, record.SourceAdapter,
+		record.IngestionMode, record.Dataset, record.EventIDs, record.ArtifactIDs, record.SignalType,
+		record.DetectorID, record.DetectorVersion, record.ModelVersion, record.SignalTime,
+		record.ObservationTime, record.EffectiveTime, record.ProcessingTime, record.WindowStart, record.WindowEnd,
+		record.Confidence, record.Severity, jsonArrayOrEmpty(record.EntitiesJSON), jsonOrEmpty(record.SupportingMetrics),
+		jsonArrayOrEmpty(record.GraphTargetsJSON), jsonArrayOrEmpty(record.SemanticEvidenceJSON),
+		jsonArrayOrEmpty(record.EvidenceJSON), jsonOrEmpty(record.RecommendationJSON), record.CorrelationID,
+		nullString(record.TraceID), nullString(record.CausationID), nullString(record.ReplayJobID),
+		record.BrokerTopic, record.BrokerPartition, record.BrokerOffset, jsonOrEmpty(record.EventJSON))
+	if err != nil {
+		return fmt.Errorf("upsert signal ledger: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) UpsertCatalogSource(ctx context.Context, record storage.CatalogSourceRecord) error {
 	if err := validateCatalogSource(record); err != nil {
 		return err
@@ -563,6 +605,38 @@ func (r *Repository) GetNormalizedEventLedger(ctx context.Context, eventID strin
 	return record, nil
 }
 
+func (r *Repository) ListSignalLedger(ctx context.Context, filter storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
+	rows, err := r.db.QueryContext(ctx, signalSelect+`
+WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
+ AND ($4 = '' OR detector_id = $4) AND ($5 = '' OR severity = $5)
+ORDER BY signal_time DESC LIMIT $6`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID),
+		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.DetectorID), strings.TrimSpace(filter.Severity), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list signal ledger: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.SignalLedgerRecord{}
+	for rows.Next() {
+		record, err := scanSignalLedger(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list signal ledger rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetSignalLedger(ctx context.Context, signalID string) (storage.SignalLedgerRecord, error) {
+	record, err := scanSignalLedger(r.db.QueryRowContext(ctx, signalSelect+` WHERE signal_id = $1`, strings.TrimSpace(signalID)))
+	if err != nil {
+		return storage.SignalLedgerRecord{}, err
+	}
+	return record, nil
+}
+
 func (r *Repository) GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (storage.IdempotencyRecord, error) {
 	row := r.db.QueryRowContext(ctx, `
 SELECT tenant_id, source_id, idempotency_key, event_id, source_adapter, dataset, topic, partition,
@@ -686,6 +760,41 @@ type rawLedgerScanner interface {
 
 type catalogSourceScanner interface {
 	Scan(dest ...any) error
+}
+
+const signalSelect = `
+SELECT signal_id, tenant_id, source_id, source_domain, source_adapter, ingestion_mode, dataset,
+ COALESCE(array_to_json(event_ids), '[]'::json)::text, COALESCE(array_to_json(artifact_ids), '[]'::json)::text,
+ signal_type, detector_id, detector_version, model_version, signal_time, observation_time, effective_time,
+ processing_time, window_start, window_end, confidence, severity, entities, supporting_metrics, graph_targets,
+ semantic_evidence, evidence, recommendation, correlation_id, trace_id, causation_id, replay_job_id,
+ broker_topic, broker_partition, broker_offset, event, created_at, updated_at FROM signal_ledger`
+
+type signalLedgerScanner interface{ Scan(dest ...any) error }
+
+func scanSignalLedger(scanner signalLedgerScanner) (storage.SignalLedgerRecord, error) {
+	var record storage.SignalLedgerRecord
+	var eventIDsJSON, artifactIDsJSON string
+	var traceID, causationID, replayJobID sql.NullString
+	if err := scanner.Scan(&record.SignalID, &record.TenantID, &record.SourceID, &record.SourceDomain,
+		&record.SourceAdapter, &record.IngestionMode, &record.Dataset, &eventIDsJSON, &artifactIDsJSON,
+		&record.SignalType, &record.DetectorID, &record.DetectorVersion, &record.ModelVersion,
+		&record.SignalTime, &record.ObservationTime, &record.EffectiveTime, &record.ProcessingTime,
+		&record.WindowStart, &record.WindowEnd, &record.Confidence, &record.Severity, &record.EntitiesJSON,
+		&record.SupportingMetrics, &record.GraphTargetsJSON, &record.SemanticEvidenceJSON,
+		&record.EvidenceJSON, &record.RecommendationJSON, &record.CorrelationID, &traceID, &causationID,
+		&replayJobID, &record.BrokerTopic, &record.BrokerPartition, &record.BrokerOffset, &record.EventJSON,
+		&record.CreatedAt, &record.UpdatedAt); err != nil {
+		return storage.SignalLedgerRecord{}, mapScanError("scan signal ledger", err)
+	}
+	if err := json.Unmarshal([]byte(eventIDsJSON), &record.EventIDs); err != nil {
+		return storage.SignalLedgerRecord{}, fmt.Errorf("scan signal event ids: %w", err)
+	}
+	if err := json.Unmarshal([]byte(artifactIDsJSON), &record.ArtifactIDs); err != nil {
+		return storage.SignalLedgerRecord{}, fmt.Errorf("scan signal artifact ids: %w", err)
+	}
+	record.TraceID, record.CausationID, record.ReplayJobID = traceID.String, causationID.String, replayJobID.String
+	return record, nil
 }
 
 const normalizedEventSelect = `
@@ -1004,6 +1113,38 @@ func validateRawEventLedger(record storage.RawEventLedgerRecord) error {
 	}
 	if len(record.PayloadJSON) == 0 {
 		return errors.New("raw event ledger payload json is required")
+	}
+	return nil
+}
+
+func validateSignalLedger(record storage.SignalLedgerRecord) error {
+	for name, value := range map[string]string{
+		"signal id": record.SignalID, "tenant id": record.TenantID, "source id": record.SourceID,
+		"source domain": record.SourceDomain, "source adapter": record.SourceAdapter,
+		"ingestion mode": record.IngestionMode, "dataset": record.Dataset, "signal type": record.SignalType,
+		"detector id": record.DetectorID, "detector version": record.DetectorVersion,
+		"model version": record.ModelVersion, "severity": record.Severity,
+		"correlation id": record.CorrelationID, "broker topic": record.BrokerTopic,
+	} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("signal ledger %s is required", name)
+		}
+	}
+	if len(record.EventIDs) == 0 {
+		return errors.New("signal ledger event ids are required")
+	}
+	for name, value := range map[string]time.Time{"signal time": record.SignalTime, "observation time": record.ObservationTime,
+		"effective time": record.EffectiveTime, "processing time": record.ProcessingTime,
+		"window start": record.WindowStart, "window end": record.WindowEnd} {
+		if value.IsZero() {
+			return fmt.Errorf("signal ledger %s is required", name)
+		}
+	}
+	if record.Confidence < 0 || record.Confidence > 1 {
+		return errors.New("signal ledger confidence must be between 0 and 1")
+	}
+	if len(record.EventJSON) == 0 {
+		return errors.New("signal ledger event json is required")
 	}
 	return nil
 }
