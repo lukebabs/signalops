@@ -171,6 +171,40 @@ Response shape:
 
 Current status values: `active`, `inactive`, `deprecated`.
 
+### Pipelines
+
+`GET /v1/tenants/{tenant_id}/catalog/pipelines?limit=50`
+
+Returns registered processing pipelines for a tenant ordered by `pipeline_id`.
+The local pipeline catalog migration seeds `tenant-local/pipeline-massive-raw-ingest`
+for the Massive scheduled pull path.
+
+Response shape:
+
+```json
+{
+  "pipelines": [
+    {
+      "tenant_id": "tenant-local",
+      "pipeline_id": "pipeline-massive-raw-ingest",
+      "source_id": "src-massive",
+      "source_domain": "market_data",
+      "pipeline_name": "Massive Raw Ingest",
+      "description": "Scheduled Massive market-data pull through raw event publication, raw ledger persistence, and idempotency tracking.",
+      "status": "active",
+      "stages": ["scheduled_pull", "raw_event_build", "broker_publish", "raw_ledger_persist", "idempotency_persist"],
+      "input_datasets": ["equity_eod_prices", "option_contracts_daily"],
+      "output_topics": ["signalops.local.raw.v1"],
+      "metadata": {"adapter":"market_data.massive","provider":"massive","formerly":"polygon.io","streaming":false},
+      "created_at": "2026-07-08T00:00:00Z",
+      "updated_at": "2026-07-08T00:00:00Z"
+    }
+  ]
+}
+```
+
+Current status values: `active`, `inactive`, `deprecated`.
+
 ## Operational Query API
 
 These endpoints require gateway storage wiring through `SIGNALOPS_DATABASE_URL`.

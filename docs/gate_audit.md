@@ -2565,3 +2565,73 @@ Follow-up items:
 
 - Add catalog APIs/pages for pipelines and rules.
 - Add tenant selection after tenant/auth context exists.
+
+
+## Gate G038: Backend Pipeline Catalog Foundation
+
+Timestamp: `2026-07-08T05:21:42Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add the backend pipeline catalog for tenant-scoped processing topology visibility.
+
+Criteria:
+
+- Add a durable `catalog_pipelines` migration and seed the local Massive raw ingest pipeline.
+- Add storage contracts and Postgres upsert/list methods for catalog pipelines.
+- Add `GET /v1/tenants/{tenant_id}/catalog/pipelines?limit=50`.
+- Add unit/integration coverage for validation, repository round trip, and API response shape.
+- Validate formatting, Go tests, Compose config, migration, gateway rebuild/restart, and live API responses through gateway and web proxy.
+
+Evidence:
+
+- `migrations/000003_catalog_pipelines.up.sql`
+- `migrations/000003_catalog_pipelines.down.sql`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The seeded pipeline is `tenant-local/pipeline-massive-raw-ingest`.
+- The seed captures scheduled pull, raw event build, broker publish, raw ledger persistence, and idempotency persistence stages.
+- The metadata explicitly marks the provider as Massive, formerly polygon.io, and `streaming:false` for the current data scope.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm gofmt -w internal/storage/storage.go internal/storage/postgres/repository.go internal/storage/postgres/repository_test.go internal/api/router.go internal/api/router_test.go`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/api ./internal/storage ./internal/storage/postgres -count=1`
+- `docker compose config --quiet`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./... -count=1`
+- `make compose-storage-migrate`
+- `docker compose build gateway`
+- `docker compose up -d gateway`
+- `docker run --rm --network host -e SIGNALOPS_POSTGRES_INTEGRATION=1 -e SIGNALOPS_DATABASE_URL=postgres://signalops:signalops@localhost:15432/signalops?sslmode=disable -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/storage/postgres -run TestRepositoryAgainstPostgres -count=1 -v`
+- `curl -fsS http://localhost:18000/healthz`
+- `curl -fsS 'http://localhost:18000/v1/tenants/tenant-local/catalog/pipelines?limit=10'`
+- `curl -fsS 'http://localhost:15173/v1/tenants/tenant-local/catalog/pipelines?limit=10'`
+- `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT tenant_id,pipeline_id,status,array_to_string(stages, ',') FROM catalog_pipelines ORDER BY pipeline_id"`
+
+Live verification result:
+
+- Gateway health returned `ok` after restart.
+- Gateway returned the seeded `tenant-local/pipeline-massive-raw-ingest` catalog pipeline.
+- Web proxy returned the same catalog response.
+- Postgres catalog query showed `tenant-local/pipeline-massive-raw-ingest` and the integration-test `tenant-1/pipeline-massive-raw-ingest` rows.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add frontend Pipelines page wired to the catalog pipeline API.
+- Add rules catalog foundation after pipeline visibility lands.

@@ -174,6 +174,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"sources": catalogSourceResponses(sources)})
 	})
 
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/catalog/pipelines", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+			return
+		}
+		pipelines, err := repo.ListCatalogPipelines(r.Context(), tenantID, queryLimit(r, 50))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list catalog pipelines")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"pipelines": catalogPipelineResponses(pipelines)})
+	})
+
 	mux.HandleFunc("GET /v1/streams/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		channels, err := dashboardStreamChannels(r)
 		if err != nil {
@@ -508,6 +526,22 @@ type catalogSourceDTO struct {
 	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
+type catalogPipelineDTO struct {
+	TenantID      string          `json:"tenant_id"`
+	PipelineID    string          `json:"pipeline_id"`
+	SourceID      string          `json:"source_id"`
+	SourceDomain  string          `json:"source_domain"`
+	PipelineName  string          `json:"pipeline_name"`
+	Description   string          `json:"description"`
+	Status        string          `json:"status"`
+	Stages        []string        `json:"stages"`
+	InputDatasets []string        `json:"input_datasets"`
+	OutputTopics  []string        `json:"output_topics"`
+	Metadata      json.RawMessage `json:"metadata"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
 type idempotencyDTO struct {
 	TenantID       string          `json:"tenant_id"`
 	SourceID       string          `json:"source_id"`
@@ -619,6 +653,28 @@ func catalogSourceResponses(records []storage.CatalogSourceRecord) []catalogSour
 			Metadata:       jsonRawOrEmptyObject(record.MetadataJSON),
 			CreatedAt:      record.CreatedAt,
 			UpdatedAt:      record.UpdatedAt,
+		})
+	}
+	return items
+}
+
+func catalogPipelineResponses(records []storage.CatalogPipelineRecord) []catalogPipelineDTO {
+	items := make([]catalogPipelineDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, catalogPipelineDTO{
+			TenantID:      record.TenantID,
+			PipelineID:    record.PipelineID,
+			SourceID:      record.SourceID,
+			SourceDomain:  record.SourceDomain,
+			PipelineName:  record.PipelineName,
+			Description:   record.Description,
+			Status:        record.Status,
+			Stages:        record.Stages,
+			InputDatasets: record.InputDatasets,
+			OutputTopics:  record.OutputTopics,
+			Metadata:      jsonRawOrEmptyObject(record.MetadataJSON),
+			CreatedAt:     record.CreatedAt,
+			UpdatedAt:     record.UpdatedAt,
 		})
 	}
 	return items

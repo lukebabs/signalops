@@ -2087,3 +2087,62 @@ Issue found and resolved:
 Next step:
 
 - Add catalog APIs/pages for pipelines and rules, or add tenant/source selection once auth and tenant context are introduced.
+
+
+## 2026-07-08T05:21:42Z
+
+Summary:
+
+- Completed G038 by adding the backend pipeline catalog foundation.
+- Added `catalog_pipelines` migration with a seeded local Massive raw ingest pipeline for `tenant-local/pipeline-massive-raw-ingest`.
+- Added storage contracts and Postgres upsert/list support for catalog pipelines.
+- Added gateway API `GET /v1/tenants/{tenant_id}/catalog/pipelines`.
+- Updated API and deployment documentation for the new catalog endpoint.
+
+Files changed:
+
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/deployment.md`
+- `docs/gate_audit.md`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `migrations/000003_catalog_pipelines.up.sql`
+- `migrations/000003_catalog_pipelines.down.sql`
+
+Rationale:
+
+- The pipeline catalog makes processing topology visible as a durable subsystem boundary before adding the frontend Pipelines page.
+- The seed records the current Massive scheduled-pull path without implying full intraday stream ingestion.
+- The shape keeps source, pipeline, stages, datasets, output topics, and provider metadata explicit for later heterogeneous ingestion use cases.
+
+Verification performed:
+
+- Ran Dockerized `gofmt` over modified Go files.
+- Ran focused Dockerized Go tests for `./internal/api ./internal/storage ./internal/storage/postgres`; all passed.
+- Ran Dockerized full Go tests with `go test ./...`; all packages passed.
+- Ran `docker compose config --quiet`; Compose config passed.
+- Ran `make compose-storage-migrate`; migration `000003_catalog_pipelines` applied and seeded the Massive pipeline.
+- Ran `docker compose build gateway`; gateway image build passed and Dockerfile test stage passed.
+- Ran `docker compose up -d gateway`; gateway restarted successfully.
+- Ran Postgres integration test `TestRepositoryAgainstPostgres`; pipeline upsert/list checks passed.
+- Queried live `GET /v1/tenants/tenant-local/catalog/pipelines?limit=10` through `localhost:18000`.
+- Queried the same endpoint through the web proxy at `localhost:15173`.
+- Queried Postgres `catalog_pipelines` rows directly.
+
+Live verification result:
+
+- Gateway catalog API returned `tenant-local/pipeline-massive-raw-ingest` with source `src-massive`, status `active`, stages `scheduled_pull`, `raw_event_build`, `broker_publish`, `raw_ledger_persist`, and `idempotency_persist`.
+- Web container proxy forwarded the pipeline catalog API correctly.
+- Postgres contained the seeded local pipeline and the integration-test `tenant-1/pipeline-massive-raw-ingest` row.
+
+Issue found and resolved:
+
+- Host `gofmt` was unavailable, so formatting was performed through the Dockerized Go toolchain.
+
+Next step:
+
+- Add frontend Pipelines page consumption of `/v1/tenants/{tenant_id}/catalog/pipelines`.

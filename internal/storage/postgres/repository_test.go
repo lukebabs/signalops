@@ -72,6 +72,17 @@ func TestValidateCatalogSource(t *testing.T) {
 	}
 }
 
+func TestValidateCatalogPipeline(t *testing.T) {
+	record := validCatalogPipelineRecord()
+	if err := validateCatalogPipeline(record); err != nil {
+		t.Fatalf("validate catalog pipeline: %v", err)
+	}
+	record.PipelineID = ""
+	if err := validateCatalogPipeline(record); err == nil {
+		t.Fatal("expected pipeline id validation error")
+	}
+}
+
 func TestStringArrayValue(t *testing.T) {
 	value, err := stringArray([]string{"equity_eod_prices", "options_contracts_daily"}).Value()
 	if err != nil {
@@ -142,6 +153,11 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	source.TenantID = run.TenantID
 	if err := repo.UpsertCatalogSource(ctx, source); err != nil {
 		t.Fatalf("upsert catalog source: %v", err)
+	}
+	pipeline := validCatalogPipelineRecord()
+	pipeline.TenantID = run.TenantID
+	if err := repo.UpsertCatalogPipeline(ctx, pipeline); err != nil {
+		t.Fatalf("upsert catalog pipeline: %v", err)
 	}
 
 	var status string
@@ -217,6 +233,13 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	if len(sources) == 0 || sources[0].SourceID != source.SourceID || len(sources[0].Datasets) != 2 {
 		t.Fatalf("catalog sources = %+v", sources)
 	}
+	pipelines, err := repo.ListCatalogPipelines(ctx, pipeline.TenantID, 5)
+	if err != nil {
+		t.Fatalf("list catalog pipelines: %v", err)
+	}
+	if len(pipelines) == 0 || pipelines[0].PipelineID != pipeline.PipelineID || len(pipelines[0].Stages) != 3 {
+		t.Fatalf("catalog pipelines = %+v", pipelines)
+	}
 	if _, err := repo.GetSchedulerRun(ctx, "missing-g029-run"); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("missing scheduler run error = %v", err)
 	}
@@ -234,6 +257,22 @@ func validCatalogSourceRecord() storage.CatalogSourceRecord {
 		IngestionModes: []string{"scheduled_pull"},
 		Datasets:       []string{"equity_eod_prices", "option_contracts_daily"},
 		MetadataJSON:   []byte(`{"provider":"massive"}`),
+	}
+}
+
+func validCatalogPipelineRecord() storage.CatalogPipelineRecord {
+	return storage.CatalogPipelineRecord{
+		TenantID:      "tenant-1",
+		PipelineID:    "pipeline-massive-raw-ingest",
+		SourceID:      "src-massive",
+		SourceDomain:  "market_data",
+		PipelineName:  "Massive Raw Ingest",
+		Description:   "Scheduled Massive market-data raw ingest pipeline.",
+		Status:        storage.CatalogPipelineStatusActive,
+		Stages:        []string{"scheduled_pull", "raw_event_build", "broker_publish"},
+		InputDatasets: []string{"equity_eod_prices", "option_contracts_daily"},
+		OutputTopics:  []string{"signalops.local.raw.v1"},
+		MetadataJSON:  []byte(`{"provider":"massive"}`),
 	}
 }
 

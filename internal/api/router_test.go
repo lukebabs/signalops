@@ -38,6 +38,7 @@ type fakeQueryRepository struct {
 	rawEvents        []storage.RawEventLedgerRecord
 	idem             storage.IdempotencyRecord
 	sources          []storage.CatalogSourceRecord
+	pipelines        []storage.CatalogPipelineRecord
 	notFound         bool
 	lastFilter       storage.RawEventLedgerFilter
 	schedulerQueries int
@@ -94,6 +95,10 @@ func (q *fakeQueryRepository) GetIdempotencyRecord(context.Context, string, stri
 
 func (q *fakeQueryRepository) ListCatalogSources(context.Context, string, int) ([]storage.CatalogSourceRecord, error) {
 	return q.sources, nil
+}
+
+func (q *fakeQueryRepository) ListCatalogPipelines(context.Context, string, int) ([]storage.CatalogPipelineRecord, error) {
+	return q.pipelines, nil
 }
 
 func TestPostRawEventPublishesMessage(t *testing.T) {
@@ -278,6 +283,29 @@ func TestGetCatalogSources(t *testing.T) {
 	}
 }
 
+func TestGetCatalogPipelines(t *testing.T) {
+	repo := &fakeQueryRepository{pipelines: []storage.CatalogPipelineRecord{validCatalogPipelineRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/catalog/pipelines", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if len(response["pipelines"]) != 1 || response["pipelines"][0]["pipeline_id"] != "pipeline-massive-raw-ingest" {
+		t.Fatalf("response = %+v", response)
+	}
+	if response["pipelines"][0]["source_domain"] != "market_data" {
+		t.Fatalf("source domain = %+v", response["pipelines"][0])
+	}
+}
+
 func TestGetIdempotencyRequiresQueryParams(t *testing.T) {
 	router := NewRouter(RouterConfig{QueryRepository: &fakeQueryRepository{}})
 
@@ -420,6 +448,24 @@ func validCatalogSourceRecord() storage.CatalogSourceRecord {
 		MetadataJSON:   []byte(`{"provider":"massive"}`),
 		CreatedAt:      time.Date(2026, 7, 8, 0, 0, 3, 0, time.UTC),
 		UpdatedAt:      time.Date(2026, 7, 8, 0, 0, 4, 0, time.UTC),
+	}
+}
+
+func validCatalogPipelineRecord() storage.CatalogPipelineRecord {
+	return storage.CatalogPipelineRecord{
+		TenantID:      "tenant-1",
+		PipelineID:    "pipeline-massive-raw-ingest",
+		SourceID:      "src-massive",
+		SourceDomain:  "market_data",
+		PipelineName:  "Massive Raw Ingest",
+		Description:   "Scheduled Massive market-data raw ingest pipeline.",
+		Status:        storage.CatalogPipelineStatusActive,
+		Stages:        []string{"scheduled_pull", "raw_event_build", "broker_publish"},
+		InputDatasets: []string{"equity_eod_prices", "option_contracts_daily"},
+		OutputTopics:  []string{"signalops.local.raw.v1"},
+		MetadataJSON:  []byte(`{"provider":"massive"}`),
+		CreatedAt:     time.Date(2026, 7, 8, 0, 0, 5, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 7, 8, 0, 0, 6, 0, time.UTC),
 	}
 }
 

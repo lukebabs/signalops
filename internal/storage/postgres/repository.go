@@ -268,6 +268,47 @@ ON CONFLICT (tenant_id, source_id) DO UPDATE SET
 	return nil
 }
 
+func (r *Repository) UpsertCatalogPipeline(ctx context.Context, record storage.CatalogPipelineRecord) error {
+	if err := validateCatalogPipeline(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO catalog_pipelines (
+  tenant_id, pipeline_id, source_id, source_domain, pipeline_name, description,
+  status, stages, input_datasets, output_topics, metadata, updated_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6,
+  $7, $8, $9, $10, $11, now()
+)
+ON CONFLICT (tenant_id, pipeline_id) DO UPDATE SET
+  source_id = EXCLUDED.source_id,
+  source_domain = EXCLUDED.source_domain,
+  pipeline_name = EXCLUDED.pipeline_name,
+  description = EXCLUDED.description,
+  status = EXCLUDED.status,
+  stages = EXCLUDED.stages,
+  input_datasets = EXCLUDED.input_datasets,
+  output_topics = EXCLUDED.output_topics,
+  metadata = EXCLUDED.metadata,
+  updated_at = now()`,
+		record.TenantID,
+		record.PipelineID,
+		record.SourceID,
+		record.SourceDomain,
+		record.PipelineName,
+		record.Description,
+		record.Status,
+		pqArray(record.Stages),
+		pqArray(record.InputDatasets),
+		pqArray(record.OutputTopics),
+		jsonOrEmpty(record.MetadataJSON),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert catalog pipeline: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) ListSchedulerRuns(ctx context.Context, limit int) ([]storage.SchedulerRunRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT run_id, tenant_id, source_id, source_adapter, COALESCE(array_to_json(datasets), '[]'::json)::text,
@@ -427,6 +468,35 @@ LIMIT $2`, strings.TrimSpace(tenantID), clampLimit(limit))
 	return records, nil
 }
 
+func (r *Repository) ListCatalogPipelines(ctx context.Context, tenantID string, limit int) ([]storage.CatalogPipelineRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT tenant_id, pipeline_id, source_id, source_domain, pipeline_name, description, status,
+  COALESCE(array_to_json(stages), '[]'::json)::text,
+  COALESCE(array_to_json(input_datasets), '[]'::json)::text,
+  COALESCE(array_to_json(output_topics), '[]'::json)::text,
+  metadata, created_at, updated_at
+FROM catalog_pipelines
+WHERE tenant_id = $1
+ORDER BY pipeline_id ASC
+LIMIT $2`, strings.TrimSpace(tenantID), clampLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list catalog pipelines: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.CatalogPipelineRecord{}
+	for rows.Next() {
+		record, err := scanCatalogPipeline(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list catalog pipelines rows: %w", err)
+	}
+	return records, nil
+}
+
 type schedulerScanner interface {
 	Scan(dest ...any) error
 }
@@ -436,6 +506,10 @@ type rawLedgerScanner interface {
 }
 
 type catalogSourceScanner interface {
+	Scan(dest ...any) error
+}
+
+type catalogPipelineScanner interface {
 	Scan(dest ...any) error
 }
 
@@ -536,6 +610,40 @@ func scanCatalogSource(scanner catalogSourceScanner) (storage.CatalogSourceRecor
 	}
 	if err := json.Unmarshal([]byte(datasetsJSON), &record.Datasets); err != nil {
 		return storage.CatalogSourceRecord{}, fmt.Errorf("scan catalog source datasets: %w", err)
+	}
+	return record, nil
+}
+
+func scanCatalogPipeline(scanner catalogPipelineScanner) (storage.CatalogPipelineRecord, error) {
+	var record storage.CatalogPipelineRecord
+	var stagesJSON string
+	var inputDatasetsJSON string
+	var outputTopicsJSON string
+	if err := scanner.Scan(
+		&record.TenantID,
+		&record.PipelineID,
+		&record.SourceID,
+		&record.SourceDomain,
+		&record.PipelineName,
+		&record.Description,
+		&record.Status,
+		&stagesJSON,
+		&inputDatasetsJSON,
+		&outputTopicsJSON,
+		&record.MetadataJSON,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return storage.CatalogPipelineRecord{}, mapScanError("scan catalog pipeline", err)
+	}
+	if err := json.Unmarshal([]byte(stagesJSON), &record.Stages); err != nil {
+		return storage.CatalogPipelineRecord{}, fmt.Errorf("scan catalog pipeline stages: %w", err)
+	}
+	if err := json.Unmarshal([]byte(inputDatasetsJSON), &record.InputDatasets); err != nil {
+		return storage.CatalogPipelineRecord{}, fmt.Errorf("scan catalog pipeline input datasets: %w", err)
+	}
+	if err := json.Unmarshal([]byte(outputTopicsJSON), &record.OutputTopics); err != nil {
+		return storage.CatalogPipelineRecord{}, fmt.Errorf("scan catalog pipeline output topics: %w", err)
 	}
 	return record, nil
 }
@@ -672,6 +780,28 @@ func validateCatalogSource(record storage.CatalogSourceRecord) error {
 	}
 	if strings.TrimSpace(record.Status) == "" {
 		return errors.New("catalog source status is required")
+	}
+	return nil
+}
+
+func validateCatalogPipeline(record storage.CatalogPipelineRecord) error {
+	if strings.TrimSpace(record.TenantID) == "" {
+		return errors.New("catalog pipeline tenant id is required")
+	}
+	if strings.TrimSpace(record.PipelineID) == "" {
+		return errors.New("catalog pipeline id is required")
+	}
+	if strings.TrimSpace(record.SourceID) == "" {
+		return errors.New("catalog pipeline source id is required")
+	}
+	if strings.TrimSpace(record.SourceDomain) == "" {
+		return errors.New("catalog pipeline source domain is required")
+	}
+	if strings.TrimSpace(record.PipelineName) == "" {
+		return errors.New("catalog pipeline name is required")
+	}
+	if strings.TrimSpace(record.Status) == "" {
+		return errors.New("catalog pipeline status is required")
 	}
 	return nil
 }

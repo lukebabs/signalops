@@ -179,15 +179,18 @@ environment variables.
 ## Stream Catalog
 
 Local storage migration `000002_catalog_sources` creates the first source catalog
-table and seeds the local Massive source as `tenant-local/src-massive`. The
-gateway exposes this through:
+table and seeds the local Massive source as `tenant-local/src-massive`. Migration
+`000003_catalog_pipelines` creates the first pipeline catalog table and seeds
+`tenant-local/pipeline-massive-raw-ingest` for the scheduled Massive raw ingest
+path. The gateway exposes these through:
 
 ```bash
 curl -fsS 'http://localhost:18000/v1/tenants/tenant-local/catalog/sources?limit=10'
+curl -fsS 'http://localhost:18000/v1/tenants/tenant-local/catalog/pipelines?limit=10'
 ```
 
-The catalog is intentionally read-only at this stage. Source registration and
-management APIs remain future scope.
+The catalog is intentionally read-only at this stage. Source and pipeline
+registration and management APIs remain future scope.
 
 ## Storage
 
