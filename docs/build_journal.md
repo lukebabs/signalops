@@ -2199,3 +2199,62 @@ Issue found and resolved:
 Next step:
 
 - Add rules catalog foundation, then expose Rules in the UI.
+
+
+## 2026-07-08T05:54:23Z
+
+Summary:
+
+- Started G040 by adding the backend rules catalog foundation.
+- Added `catalog_rules` migration with a seeded local Massive EOD price quality rule for `tenant-local/rule-marketdata-eod-price-quality`.
+- Added storage contracts and Postgres upsert/list support for catalog rules.
+- Added gateway API `GET /v1/tenants/{tenant_id}/catalog/rules`.
+- Updated API and deployment documentation for the new rules catalog endpoint.
+
+Files changed:
+
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/deployment.md`
+- `docs/gate_audit.md`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `migrations/000004_catalog_rules.up.sql`
+- `migrations/000004_catalog_rules.down.sql`
+
+Rationale:
+
+- The rules catalog makes decision logic discoverable as a durable subsystem boundary before the signal engine executes rules.
+- The seeded rule is catalog-only and scoped to Massive EOD equity data quality, matching the current non-intraday ingestion scope.
+- The shape keeps rule type, severity, version, source/pipeline linkage, dataset/entity scope, expression JSON, actions, and metadata explicit for later heterogeneous stream use cases.
+
+Verification performed:
+
+- Ran Dockerized `gofmt` over modified Go files.
+- Ran `docker compose config --quiet`; Compose config passed.
+- Ran focused Dockerized Go tests for `./internal/api ./internal/storage ./internal/storage/postgres`; all passed.
+- Ran Dockerized full Go tests with `go test ./...`; all packages passed.
+- Ran `make compose-storage-migrate`; migration `000004_catalog_rules` applied and seeded the Massive EOD price quality rule.
+- Ran `docker compose build gateway`; gateway image build passed and Dockerfile test stage passed.
+- Ran `docker compose up -d gateway`; gateway restarted successfully.
+- Ran Postgres integration test `TestRepositoryAgainstPostgres`; rule upsert/list checks passed.
+- Queried live `GET /v1/tenants/tenant-local/catalog/rules?limit=10` through `localhost:18000`.
+- Queried the same endpoint through the web proxy at `localhost:15173`.
+- Queried Postgres `catalog_rules` rows directly.
+
+Live verification result:
+
+- Gateway catalog API returned `tenant-local/rule-marketdata-eod-price-quality` with type `quality_check`, severity `medium`, status `active`, source `src-massive`, pipeline `pipeline-massive-raw-ingest`, dataset scope `equity_eod_prices`, and actions `emit_alert` plus `mark_event_quality_failed`.
+- Web container proxy forwarded the rules catalog API correctly.
+- Postgres contained the seeded local rule.
+
+Issue found and resolved:
+
+- No implementation issues were encountered.
+
+Next step:
+
+- Write the frontend-agent specification for implementing Rules UI against the new API.

@@ -83,6 +83,17 @@ func TestValidateCatalogPipeline(t *testing.T) {
 	}
 }
 
+func TestValidateCatalogRule(t *testing.T) {
+	record := validCatalogRuleRecord()
+	if err := validateCatalogRule(record); err != nil {
+		t.Fatalf("validate catalog rule: %v", err)
+	}
+	record.RuleID = ""
+	if err := validateCatalogRule(record); err == nil {
+		t.Fatal("expected rule id validation error")
+	}
+}
+
 func TestStringArrayValue(t *testing.T) {
 	value, err := stringArray([]string{"equity_eod_prices", "options_contracts_daily"}).Value()
 	if err != nil {
@@ -158,6 +169,11 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	pipeline.TenantID = run.TenantID
 	if err := repo.UpsertCatalogPipeline(ctx, pipeline); err != nil {
 		t.Fatalf("upsert catalog pipeline: %v", err)
+	}
+	rule := validCatalogRuleRecord()
+	rule.TenantID = run.TenantID
+	if err := repo.UpsertCatalogRule(ctx, rule); err != nil {
+		t.Fatalf("upsert catalog rule: %v", err)
 	}
 
 	var status string
@@ -240,6 +256,13 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	if len(pipelines) == 0 || pipelines[0].PipelineID != pipeline.PipelineID || len(pipelines[0].Stages) != 3 {
 		t.Fatalf("catalog pipelines = %+v", pipelines)
 	}
+	rules, err := repo.ListCatalogRules(ctx, rule.TenantID, 5)
+	if err != nil {
+		t.Fatalf("list catalog rules: %v", err)
+	}
+	if len(rules) == 0 || rules[0].RuleID != rule.RuleID || len(rules[0].DatasetScope) != 1 {
+		t.Fatalf("catalog rules = %+v", rules)
+	}
 	if _, err := repo.GetSchedulerRun(ctx, "missing-g029-run"); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("missing scheduler run error = %v", err)
 	}
@@ -273,6 +296,26 @@ func validCatalogPipelineRecord() storage.CatalogPipelineRecord {
 		InputDatasets: []string{"equity_eod_prices", "option_contracts_daily"},
 		OutputTopics:  []string{"signalops.local.raw.v1"},
 		MetadataJSON:  []byte(`{"provider":"massive"}`),
+	}
+}
+
+func validCatalogRuleRecord() storage.CatalogRuleRecord {
+	return storage.CatalogRuleRecord{
+		TenantID:       "tenant-1",
+		RuleID:         "rule-marketdata-eod-price-quality",
+		RuleName:       "Market Data EOD Price Quality",
+		Description:    "Flags records with missing or non-positive close prices.",
+		RuleType:       "quality_check",
+		Severity:       "medium",
+		Status:         storage.CatalogRuleStatusActive,
+		Version:        1,
+		SourceID:       "src-massive",
+		PipelineID:     "pipeline-massive-raw-ingest",
+		DatasetScope:   []string{"equity_eod_prices"},
+		EntityScope:    []string{"ticker"},
+		ExpressionJSON: []byte(`{"language":"json_logic"}`),
+		Actions:        []string{"emit_alert"},
+		MetadataJSON:   []byte(`{"execution":"catalog_only"}`),
 	}
 }
 

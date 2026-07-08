@@ -192,6 +192,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"pipelines": catalogPipelineResponses(pipelines)})
 	})
 
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/catalog/rules", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+			return
+		}
+		rules, err := repo.ListCatalogRules(r.Context(), tenantID, queryLimit(r, 50))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list catalog rules")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"rules": catalogRuleResponses(rules)})
+	})
+
 	mux.HandleFunc("GET /v1/streams/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		channels, err := dashboardStreamChannels(r)
 		if err != nil {
@@ -542,6 +560,26 @@ type catalogPipelineDTO struct {
 	UpdatedAt     time.Time       `json:"updated_at"`
 }
 
+type catalogRuleDTO struct {
+	TenantID     string          `json:"tenant_id"`
+	RuleID       string          `json:"rule_id"`
+	RuleName     string          `json:"rule_name"`
+	Description  string          `json:"description"`
+	RuleType     string          `json:"rule_type"`
+	Severity     string          `json:"severity"`
+	Status       string          `json:"status"`
+	Version      int             `json:"version"`
+	SourceID     string          `json:"source_id,omitempty"`
+	PipelineID   string          `json:"pipeline_id,omitempty"`
+	DatasetScope []string        `json:"dataset_scope"`
+	EntityScope  []string        `json:"entity_scope"`
+	Expression   json.RawMessage `json:"expression"`
+	Actions      []string        `json:"actions"`
+	Metadata     json.RawMessage `json:"metadata"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+}
+
 type idempotencyDTO struct {
 	TenantID       string          `json:"tenant_id"`
 	SourceID       string          `json:"source_id"`
@@ -675,6 +713,32 @@ func catalogPipelineResponses(records []storage.CatalogPipelineRecord) []catalog
 			Metadata:      jsonRawOrEmptyObject(record.MetadataJSON),
 			CreatedAt:     record.CreatedAt,
 			UpdatedAt:     record.UpdatedAt,
+		})
+	}
+	return items
+}
+
+func catalogRuleResponses(records []storage.CatalogRuleRecord) []catalogRuleDTO {
+	items := make([]catalogRuleDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, catalogRuleDTO{
+			TenantID:     record.TenantID,
+			RuleID:       record.RuleID,
+			RuleName:     record.RuleName,
+			Description:  record.Description,
+			RuleType:     record.RuleType,
+			Severity:     record.Severity,
+			Status:       record.Status,
+			Version:      record.Version,
+			SourceID:     record.SourceID,
+			PipelineID:   record.PipelineID,
+			DatasetScope: record.DatasetScope,
+			EntityScope:  record.EntityScope,
+			Expression:   jsonRawOrEmptyObject(record.ExpressionJSON),
+			Actions:      record.Actions,
+			Metadata:     jsonRawOrEmptyObject(record.MetadataJSON),
+			CreatedAt:    record.CreatedAt,
+			UpdatedAt:    record.UpdatedAt,
 		})
 	}
 	return items

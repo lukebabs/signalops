@@ -2700,3 +2700,73 @@ Follow-up items:
 
 - Add catalog APIs/pages for rules.
 - Add tenant selection after tenant/auth context exists.
+
+
+## Gate G040: Backend Rules Catalog Foundation
+
+Timestamp: `2026-07-08T05:54:23Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add the backend rules catalog for tenant-scoped rule-definition visibility.
+
+Criteria:
+
+- Add a durable `catalog_rules` migration and seed the local Massive EOD price quality rule.
+- Add storage contracts and Postgres upsert/list methods for catalog rules.
+- Add `GET /v1/tenants/{tenant_id}/catalog/rules?limit=50`.
+- Add unit/integration coverage for validation, repository round trip, and API response shape.
+- Validate formatting, Go tests, Compose config, migration, gateway rebuild/restart, and live API responses through gateway and web proxy.
+
+Evidence:
+
+- `migrations/000004_catalog_rules.up.sql`
+- `migrations/000004_catalog_rules.down.sql`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The seeded rule is `tenant-local/rule-marketdata-eod-price-quality`.
+- The seed captures a catalog-only quality check for missing or non-positive Massive EOD close prices.
+- The rule is linked to `src-massive` and `pipeline-massive-raw-ingest` and explicitly marks `streaming:false` in metadata.
+
+Verification performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm gofmt -w internal/storage/storage.go internal/storage/postgres/repository.go internal/storage/postgres/repository_test.go internal/api/router.go internal/api/router_test.go`
+- `docker compose config --quiet`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/api ./internal/storage ./internal/storage/postgres -count=1`
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./... -count=1`
+- `make compose-storage-migrate`
+- `docker compose build gateway`
+- `docker compose up -d gateway`
+- `docker run --rm --network host -e SIGNALOPS_POSTGRES_INTEGRATION=1 -e SIGNALOPS_DATABASE_URL=postgres://signalops:signalops@localhost:15432/signalops?sslmode=disable -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/storage/postgres -run TestRepositoryAgainstPostgres -count=1 -v`
+- `curl -fsS http://localhost:18000/healthz`
+- `curl -fsS 'http://localhost:18000/v1/tenants/tenant-local/catalog/rules?limit=10'`
+- `curl -fsS 'http://localhost:15173/v1/tenants/tenant-local/catalog/rules?limit=10'`
+- `docker compose exec postgres psql -U signalops -d signalops -Atc "SELECT tenant_id,rule_id,rule_type,severity,status,array_to_string(dataset_scope, ',') FROM catalog_rules ORDER BY rule_id"`
+
+Live verification result:
+
+- Gateway health returned `ok` after restart.
+- Gateway returned the seeded `tenant-local/rule-marketdata-eod-price-quality` catalog rule.
+- Web proxy returned the same catalog response.
+- Postgres catalog query showed `tenant-local/rule-marketdata-eod-price-quality` with type `quality_check`, severity `medium`, status `active`, and dataset scope `equity_eod_prices`.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Write the frontend-agent implementation specification for Rules UI.
+- Add rule execution persistence and signal/insight persistence in later gates.

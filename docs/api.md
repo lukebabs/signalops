@@ -205,6 +205,45 @@ Response shape:
 
 Current status values: `active`, `inactive`, `deprecated`.
 
+### Rules
+
+`GET /v1/tenants/{tenant_id}/catalog/rules?limit=50`
+
+Returns registered rule definitions for a tenant ordered by `rule_id`. The local
+rules catalog migration seeds `tenant-local/rule-marketdata-eod-price-quality`
+for Massive EOD equity price quality checks.
+
+Response shape:
+
+```json
+{
+  "rules": [
+    {
+      "tenant_id": "tenant-local",
+      "rule_id": "rule-marketdata-eod-price-quality",
+      "rule_name": "Market Data EOD Price Quality",
+      "description": "Flags Massive EOD equity records with missing or non-positive close prices before downstream signal evaluation.",
+      "rule_type": "quality_check",
+      "severity": "medium",
+      "status": "active",
+      "version": 1,
+      "source_id": "src-massive",
+      "pipeline_id": "pipeline-massive-raw-ingest",
+      "dataset_scope": ["equity_eod_prices"],
+      "entity_scope": ["ticker"],
+      "expression": {"language":"json_logic","conditions":[{"field":"close","operator":"exists"},{"field":"close","operator":">","value":0}],"mode":"all"},
+      "actions": ["emit_alert", "mark_event_quality_failed"],
+      "metadata": {"provider":"massive","formerly":"polygon.io","execution":"catalog_only","streaming":false},
+      "created_at": "2026-07-08T00:00:00Z",
+      "updated_at": "2026-07-08T00:00:00Z"
+    }
+  ]
+}
+```
+
+Current status values: `active`, `inactive`, `deprecated`. Current severity
+values: `info`, `low`, `medium`, `high`, `critical`.
+
 ## Operational Query API
 
 These endpoints require gateway storage wiring through `SIGNALOPS_DATABASE_URL`.

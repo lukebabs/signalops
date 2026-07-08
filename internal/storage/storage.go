@@ -35,6 +35,12 @@ const (
 	CatalogPipelineStatusDeprecated = "deprecated"
 )
 
+const (
+	CatalogRuleStatusActive     = "active"
+	CatalogRuleStatusInactive   = "inactive"
+	CatalogRuleStatusDeprecated = "deprecated"
+)
+
 type SchedulerRunRecord struct {
 	RunID            string
 	TenantID         string
@@ -135,6 +141,26 @@ type CatalogPipelineRecord struct {
 	UpdatedAt     time.Time
 }
 
+type CatalogRuleRecord struct {
+	TenantID       string
+	RuleID         string
+	RuleName       string
+	Description    string
+	RuleType       string
+	Severity       string
+	Status         string
+	Version        int
+	SourceID       string
+	PipelineID     string
+	DatasetScope   []string
+	EntityScope    []string
+	ExpressionJSON []byte
+	Actions        []string
+	MetadataJSON   []byte
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type SchedulerRunRepository interface {
 	UpsertSchedulerRun(ctx context.Context, record SchedulerRunRecord) error
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
@@ -151,6 +177,7 @@ type RawEventLedgerRepository interface {
 type CatalogRepository interface {
 	UpsertCatalogSource(ctx context.Context, record CatalogSourceRecord) error
 	UpsertCatalogPipeline(ctx context.Context, record CatalogPipelineRecord) error
+	UpsertCatalogRule(ctx context.Context, record CatalogRuleRecord) error
 }
 
 type PublishRepository interface {
@@ -174,4 +201,5 @@ type QueryRepository interface {
 	GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (IdempotencyRecord, error)
 	ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]CatalogSourceRecord, error)
 	ListCatalogPipelines(ctx context.Context, tenantID string, limit int) ([]CatalogPipelineRecord, error)
+	ListCatalogRules(ctx context.Context, tenantID string, limit int) ([]CatalogRuleRecord, error)
 }

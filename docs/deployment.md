@@ -182,14 +182,17 @@ Local storage migration `000002_catalog_sources` creates the first source catalo
 table and seeds the local Massive source as `tenant-local/src-massive`. Migration
 `000003_catalog_pipelines` creates the first pipeline catalog table and seeds
 `tenant-local/pipeline-massive-raw-ingest` for the scheduled Massive raw ingest
-path. The gateway exposes these through:
+path. Migration `000004_catalog_rules` creates the first rules catalog table and
+seeds `tenant-local/rule-marketdata-eod-price-quality` for Massive EOD equity
+price quality checks. The gateway exposes these through:
 
 ```bash
 curl -fsS 'http://localhost:18000/v1/tenants/tenant-local/catalog/sources?limit=10'
 curl -fsS 'http://localhost:18000/v1/tenants/tenant-local/catalog/pipelines?limit=10'
+curl -fsS 'http://localhost:18000/v1/tenants/tenant-local/catalog/rules?limit=10'
 ```
 
-The catalog is intentionally read-only at this stage. Source and pipeline
+The catalog is intentionally read-only at this stage. Source, pipeline, and rule
 registration and management APIs remain future scope.
 
 ## Storage

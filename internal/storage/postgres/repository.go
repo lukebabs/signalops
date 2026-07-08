@@ -309,6 +309,55 @@ ON CONFLICT (tenant_id, pipeline_id) DO UPDATE SET
 	return nil
 }
 
+func (r *Repository) UpsertCatalogRule(ctx context.Context, record storage.CatalogRuleRecord) error {
+	if err := validateCatalogRule(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO catalog_rules (
+  tenant_id, rule_id, rule_name, description, rule_type, severity, status, version,
+  source_id, pipeline_id, dataset_scope, entity_scope, expression, actions, metadata, updated_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8,
+  $9, $10, $11, $12, $13, $14, $15, now()
+)
+ON CONFLICT (tenant_id, rule_id) DO UPDATE SET
+  rule_name = EXCLUDED.rule_name,
+  description = EXCLUDED.description,
+  rule_type = EXCLUDED.rule_type,
+  severity = EXCLUDED.severity,
+  status = EXCLUDED.status,
+  version = EXCLUDED.version,
+  source_id = EXCLUDED.source_id,
+  pipeline_id = EXCLUDED.pipeline_id,
+  dataset_scope = EXCLUDED.dataset_scope,
+  entity_scope = EXCLUDED.entity_scope,
+  expression = EXCLUDED.expression,
+  actions = EXCLUDED.actions,
+  metadata = EXCLUDED.metadata,
+  updated_at = now()`,
+		record.TenantID,
+		record.RuleID,
+		record.RuleName,
+		record.Description,
+		record.RuleType,
+		record.Severity,
+		record.Status,
+		record.Version,
+		nullString(record.SourceID),
+		nullString(record.PipelineID),
+		pqArray(record.DatasetScope),
+		pqArray(record.EntityScope),
+		jsonOrEmpty(record.ExpressionJSON),
+		pqArray(record.Actions),
+		jsonOrEmpty(record.MetadataJSON),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert catalog rule: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) ListSchedulerRuns(ctx context.Context, limit int) ([]storage.SchedulerRunRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT run_id, tenant_id, source_id, source_adapter, COALESCE(array_to_json(datasets), '[]'::json)::text,
@@ -497,6 +546,37 @@ LIMIT $2`, strings.TrimSpace(tenantID), clampLimit(limit))
 	return records, nil
 }
 
+func (r *Repository) ListCatalogRules(ctx context.Context, tenantID string, limit int) ([]storage.CatalogRuleRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT tenant_id, rule_id, rule_name, description, rule_type, severity, status, version,
+  source_id, pipeline_id,
+  COALESCE(array_to_json(dataset_scope), '[]'::json)::text,
+  COALESCE(array_to_json(entity_scope), '[]'::json)::text,
+  expression,
+  COALESCE(array_to_json(actions), '[]'::json)::text,
+  metadata, created_at, updated_at
+FROM catalog_rules
+WHERE tenant_id = $1
+ORDER BY rule_id ASC
+LIMIT $2`, strings.TrimSpace(tenantID), clampLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list catalog rules: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.CatalogRuleRecord{}
+	for rows.Next() {
+		record, err := scanCatalogRule(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list catalog rules rows: %w", err)
+	}
+	return records, nil
+}
+
 type schedulerScanner interface {
 	Scan(dest ...any) error
 }
@@ -510,6 +590,10 @@ type catalogSourceScanner interface {
 }
 
 type catalogPipelineScanner interface {
+	Scan(dest ...any) error
+}
+
+type catalogRuleScanner interface {
 	Scan(dest ...any) error
 }
 
@@ -644,6 +728,48 @@ func scanCatalogPipeline(scanner catalogPipelineScanner) (storage.CatalogPipelin
 	}
 	if err := json.Unmarshal([]byte(outputTopicsJSON), &record.OutputTopics); err != nil {
 		return storage.CatalogPipelineRecord{}, fmt.Errorf("scan catalog pipeline output topics: %w", err)
+	}
+	return record, nil
+}
+
+func scanCatalogRule(scanner catalogRuleScanner) (storage.CatalogRuleRecord, error) {
+	var record storage.CatalogRuleRecord
+	var sourceID sql.NullString
+	var pipelineID sql.NullString
+	var datasetScopeJSON string
+	var entityScopeJSON string
+	var actionsJSON string
+	if err := scanner.Scan(
+		&record.TenantID,
+		&record.RuleID,
+		&record.RuleName,
+		&record.Description,
+		&record.RuleType,
+		&record.Severity,
+		&record.Status,
+		&record.Version,
+		&sourceID,
+		&pipelineID,
+		&datasetScopeJSON,
+		&entityScopeJSON,
+		&record.ExpressionJSON,
+		&actionsJSON,
+		&record.MetadataJSON,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return storage.CatalogRuleRecord{}, mapScanError("scan catalog rule", err)
+	}
+	record.SourceID = sourceID.String
+	record.PipelineID = pipelineID.String
+	if err := json.Unmarshal([]byte(datasetScopeJSON), &record.DatasetScope); err != nil {
+		return storage.CatalogRuleRecord{}, fmt.Errorf("scan catalog rule dataset scope: %w", err)
+	}
+	if err := json.Unmarshal([]byte(entityScopeJSON), &record.EntityScope); err != nil {
+		return storage.CatalogRuleRecord{}, fmt.Errorf("scan catalog rule entity scope: %w", err)
+	}
+	if err := json.Unmarshal([]byte(actionsJSON), &record.Actions); err != nil {
+		return storage.CatalogRuleRecord{}, fmt.Errorf("scan catalog rule actions: %w", err)
 	}
 	return record, nil
 }
@@ -802,6 +928,34 @@ func validateCatalogPipeline(record storage.CatalogPipelineRecord) error {
 	}
 	if strings.TrimSpace(record.Status) == "" {
 		return errors.New("catalog pipeline status is required")
+	}
+	return nil
+}
+
+func validateCatalogRule(record storage.CatalogRuleRecord) error {
+	if strings.TrimSpace(record.TenantID) == "" {
+		return errors.New("catalog rule tenant id is required")
+	}
+	if strings.TrimSpace(record.RuleID) == "" {
+		return errors.New("catalog rule id is required")
+	}
+	if strings.TrimSpace(record.RuleName) == "" {
+		return errors.New("catalog rule name is required")
+	}
+	if strings.TrimSpace(record.RuleType) == "" {
+		return errors.New("catalog rule type is required")
+	}
+	if strings.TrimSpace(record.Severity) == "" {
+		return errors.New("catalog rule severity is required")
+	}
+	if strings.TrimSpace(record.Status) == "" {
+		return errors.New("catalog rule status is required")
+	}
+	if record.Version <= 0 {
+		return errors.New("catalog rule version must be positive")
+	}
+	if len(record.ExpressionJSON) == 0 {
+		return errors.New("catalog rule expression json is required")
 	}
 	return nil
 }

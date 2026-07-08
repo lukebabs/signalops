@@ -39,6 +39,7 @@ type fakeQueryRepository struct {
 	idem             storage.IdempotencyRecord
 	sources          []storage.CatalogSourceRecord
 	pipelines        []storage.CatalogPipelineRecord
+	rules            []storage.CatalogRuleRecord
 	notFound         bool
 	lastFilter       storage.RawEventLedgerFilter
 	schedulerQueries int
@@ -99,6 +100,10 @@ func (q *fakeQueryRepository) ListCatalogSources(context.Context, string, int) (
 
 func (q *fakeQueryRepository) ListCatalogPipelines(context.Context, string, int) ([]storage.CatalogPipelineRecord, error) {
 	return q.pipelines, nil
+}
+
+func (q *fakeQueryRepository) ListCatalogRules(context.Context, string, int) ([]storage.CatalogRuleRecord, error) {
+	return q.rules, nil
 }
 
 func TestPostRawEventPublishesMessage(t *testing.T) {
@@ -306,6 +311,29 @@ func TestGetCatalogPipelines(t *testing.T) {
 	}
 }
 
+func TestGetCatalogRules(t *testing.T) {
+	repo := &fakeQueryRepository{rules: []storage.CatalogRuleRecord{validCatalogRuleRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/catalog/rules", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if len(response["rules"]) != 1 || response["rules"][0]["rule_id"] != "rule-marketdata-eod-price-quality" {
+		t.Fatalf("response = %+v", response)
+	}
+	if response["rules"][0]["rule_type"] != "quality_check" {
+		t.Fatalf("rule type = %+v", response["rules"][0])
+	}
+}
+
 func TestGetIdempotencyRequiresQueryParams(t *testing.T) {
 	router := NewRouter(RouterConfig{QueryRepository: &fakeQueryRepository{}})
 
@@ -466,6 +494,28 @@ func validCatalogPipelineRecord() storage.CatalogPipelineRecord {
 		MetadataJSON:  []byte(`{"provider":"massive"}`),
 		CreatedAt:     time.Date(2026, 7, 8, 0, 0, 5, 0, time.UTC),
 		UpdatedAt:     time.Date(2026, 7, 8, 0, 0, 6, 0, time.UTC),
+	}
+}
+
+func validCatalogRuleRecord() storage.CatalogRuleRecord {
+	return storage.CatalogRuleRecord{
+		TenantID:       "tenant-1",
+		RuleID:         "rule-marketdata-eod-price-quality",
+		RuleName:       "Market Data EOD Price Quality",
+		Description:    "Flags records with missing or non-positive close prices.",
+		RuleType:       "quality_check",
+		Severity:       "medium",
+		Status:         storage.CatalogRuleStatusActive,
+		Version:        1,
+		SourceID:       "src-massive",
+		PipelineID:     "pipeline-massive-raw-ingest",
+		DatasetScope:   []string{"equity_eod_prices"},
+		EntityScope:    []string{"ticker"},
+		ExpressionJSON: []byte(`{"language":"json_logic"}`),
+		Actions:        []string{"emit_alert"},
+		MetadataJSON:   []byte(`{"execution":"catalog_only"}`),
+		CreatedAt:      time.Date(2026, 7, 8, 0, 0, 7, 0, time.UTC),
+		UpdatedAt:      time.Date(2026, 7, 8, 0, 0, 8, 0, time.UTC),
 	}
 }
 
