@@ -226,3 +226,14 @@ Massive puller or scheduler publishes raw events, successful broker acknowledgem
 are written to `raw_event_ledger` and `idempotency_records` with topic, partition,
 offset, payload hash, and event metadata. Dry-runs do not write raw event ledger
 or idempotency rows because no broker publication occurs.
+
+
+## G047 alert and insight lifecycle
+
+The existing `signal-persister` service now persists derived alert and insight lifecycle rows in the
+same database transaction as each validated `signal.v1` record. No additional worker is required for
+G047. The service commits the `signalops.<environment>.signal.v1` source offset only after signal,
+alert, and insight persistence succeeds.
+
+Current derivation creates one active insight for every valid signal and one open alert for
+`medium`, `high`, or `critical` signals. Low/info signals remain insights only.

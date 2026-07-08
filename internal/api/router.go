@@ -197,6 +197,66 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"signal": signalResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/alerts", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListAlertLedger(r.Context(), storage.AlertLedgerFilter{
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")),
+			Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list alerts")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"alerts": alertResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/alerts/{alert_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetAlertLedger(r.Context(), r.PathValue("alert_id"))
+		if err != nil {
+			writeQueryError(w, err, "alert_not_found", "alert not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"alert": alertResponse(record)})
+	})
+
+	mux.HandleFunc("GET /v1/insights", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListInsightLedger(r.Context(), storage.InsightLedgerFilter{
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), InsightType: strings.TrimSpace(r.URL.Query().Get("insight_type")),
+			Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list insights")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"insights": insightResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/insights/{insight_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetInsightLedger(r.Context(), r.PathValue("insight_id"))
+		if err != nil {
+			writeQueryError(w, err, "insight_not_found", "insight not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"insight": insightResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/idempotency", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -761,6 +821,66 @@ type signalDTO struct {
 	UpdatedAt         time.Time       `json:"updated_at"`
 }
 
+type alertDTO struct {
+	AlertID         string          `json:"alert_id"`
+	TenantID        string          `json:"tenant_id"`
+	SourceID        string          `json:"source_id"`
+	SourceDomain    string          `json:"source_domain"`
+	SourceAdapter   string          `json:"source_adapter"`
+	Dataset         string          `json:"dataset"`
+	SignalID        string          `json:"signal_id"`
+	DetectorID      string          `json:"detector_id"`
+	AlertType       string          `json:"alert_type"`
+	Severity        string          `json:"severity"`
+	Status          string          `json:"status"`
+	Title           string          `json:"title"`
+	Summary         string          `json:"summary"`
+	Confidence      float64         `json:"confidence"`
+	EventIDs        []string        `json:"event_ids"`
+	Entities        json.RawMessage `json:"entities"`
+	Evidence        json.RawMessage `json:"evidence"`
+	Recommendation  json.RawMessage `json:"recommendation"`
+	CorrelationID   string          `json:"correlation_id"`
+	FirstObservedAt time.Time       `json:"first_observed_at"`
+	LastObservedAt  time.Time       `json:"last_observed_at"`
+	AcknowledgedAt  *time.Time      `json:"acknowledged_at,omitempty"`
+	AcknowledgedBy  string          `json:"acknowledged_by,omitempty"`
+	ResolvedAt      *time.Time      `json:"resolved_at,omitempty"`
+	ResolvedBy      string          `json:"resolved_by,omitempty"`
+	Metadata        json.RawMessage `json:"metadata"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+}
+
+type insightDTO struct {
+	InsightID         string          `json:"insight_id"`
+	TenantID          string          `json:"tenant_id"`
+	SourceID          string          `json:"source_id"`
+	SourceDomain      string          `json:"source_domain"`
+	SourceAdapter     string          `json:"source_adapter"`
+	Dataset           string          `json:"dataset"`
+	SignalID          string          `json:"signal_id"`
+	DetectorID        string          `json:"detector_id"`
+	InsightType       string          `json:"insight_type"`
+	Status            string          `json:"status"`
+	Title             string          `json:"title"`
+	Summary           string          `json:"summary"`
+	Confidence        float64         `json:"confidence"`
+	Severity          string          `json:"severity"`
+	EventIDs          []string        `json:"event_ids"`
+	Entities          json.RawMessage `json:"entities"`
+	SupportingMetrics json.RawMessage `json:"supporting_metrics"`
+	SemanticEvidence  json.RawMessage `json:"semantic_evidence"`
+	Recommendation    json.RawMessage `json:"recommendation"`
+	CorrelationID     string          `json:"correlation_id"`
+	ObservedAt        time.Time       `json:"observed_at"`
+	ReviewedAt        *time.Time      `json:"reviewed_at,omitempty"`
+	ReviewedBy        string          `json:"reviewed_by,omitempty"`
+	Metadata          json.RawMessage `json:"metadata"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+}
+
 type catalogSourceDTO struct {
 	TenantID       string          `json:"tenant_id"`
 	SourceID       string          `json:"source_id"`
@@ -953,6 +1073,55 @@ func signalResponse(record storage.SignalLedgerRecord) signalDTO {
 		CausationID: record.CausationID, ReplayJobID: record.ReplayJobID, BrokerTopic: record.BrokerTopic,
 		BrokerPartition: record.BrokerPartition, BrokerOffset: record.BrokerOffset,
 		Event: jsonRawOrEmptyObject(record.EventJSON), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+}
+
+func alertResponses(records []storage.AlertLedgerRecord) []alertDTO {
+	items := make([]alertDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, alertResponse(record))
+	}
+	return items
+}
+
+func alertResponse(record storage.AlertLedgerRecord) alertDTO {
+	recommendation := json.RawMessage(record.RecommendationJSON)
+	if len(recommendation) == 0 {
+		recommendation = json.RawMessage("null")
+	}
+	return alertDTO{AlertID: record.AlertID, TenantID: record.TenantID, SourceID: record.SourceID,
+		SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter, Dataset: record.Dataset,
+		SignalID: record.SignalID, DetectorID: record.DetectorID, AlertType: record.AlertType,
+		Severity: record.Severity, Status: record.Status, Title: record.Title, Summary: record.Summary,
+		Confidence: record.Confidence, EventIDs: record.EventIDs, Entities: jsonRawOrEmptyArray(record.EntitiesJSON),
+		Evidence: jsonRawOrEmptyArray(record.EvidenceJSON), Recommendation: recommendation,
+		CorrelationID: record.CorrelationID, FirstObservedAt: record.FirstObservedAt, LastObservedAt: record.LastObservedAt,
+		AcknowledgedAt: record.AcknowledgedAt, AcknowledgedBy: record.AcknowledgedBy, ResolvedAt: record.ResolvedAt,
+		ResolvedBy: record.ResolvedBy, Metadata: jsonRawOrEmptyObject(record.MetadataJSON), CreatedAt: record.CreatedAt,
+		UpdatedAt: record.UpdatedAt}
+}
+
+func insightResponses(records []storage.InsightLedgerRecord) []insightDTO {
+	items := make([]insightDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, insightResponse(record))
+	}
+	return items
+}
+
+func insightResponse(record storage.InsightLedgerRecord) insightDTO {
+	recommendation := json.RawMessage(record.RecommendationJSON)
+	if len(recommendation) == 0 {
+		recommendation = json.RawMessage("null")
+	}
+	return insightDTO{InsightID: record.InsightID, TenantID: record.TenantID, SourceID: record.SourceID,
+		SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter, Dataset: record.Dataset,
+		SignalID: record.SignalID, DetectorID: record.DetectorID, InsightType: record.InsightType,
+		Status: record.Status, Title: record.Title, Summary: record.Summary, Confidence: record.Confidence,
+		Severity: record.Severity, EventIDs: record.EventIDs, Entities: jsonRawOrEmptyArray(record.EntitiesJSON),
+		SupportingMetrics: jsonRawOrEmptyObject(record.SupportingMetrics), SemanticEvidence: jsonRawOrEmptyArray(record.SemanticEvidenceJSON),
+		Recommendation: recommendation, CorrelationID: record.CorrelationID, ObservedAt: record.ObservedAt,
+		ReviewedAt: record.ReviewedAt, ReviewedBy: record.ReviewedBy, Metadata: jsonRawOrEmptyObject(record.MetadataJSON),
+		CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
 }
 
 func catalogSourceResponses(records []storage.CatalogSourceRecord) []catalogSourceDTO {

@@ -173,3 +173,11 @@ payload against `contracts/events/signal.v1.schema.json` using the checked-in
 schema files packaged into the Python worker image. Invalid signal events are
 routed to DLQ as `InvalidSignalEventError` and are not published to the signal
 topic.
+
+
+## G047 lifecycle persistence
+
+After a Python detector signal is published, the Go `signal-persister` validates and persists the
+signal, then derives durable lifecycle records: one active insight for every signal and one open alert
+for `medium`, `high`, or `critical` severities. This keeps Python responsible for algorithms while Go
+owns infrastructure durability, idempotent persistence, and operator-facing lifecycle APIs.

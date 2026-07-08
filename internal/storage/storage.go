@@ -41,6 +41,20 @@ const (
 	CatalogRuleStatusDeprecated = "deprecated"
 )
 
+const (
+	AlertStatusOpen         = "open"
+	AlertStatusAcknowledged = "acknowledged"
+	AlertStatusResolved     = "resolved"
+	AlertStatusSuppressed   = "suppressed"
+)
+
+const (
+	InsightStatusActive    = "active"
+	InsightStatusReviewed  = "reviewed"
+	InsightStatusDismissed = "dismissed"
+	InsightStatusArchived  = "archived"
+)
+
 type SchedulerRunRecord struct {
 	RunID            string
 	TenantID         string
@@ -177,6 +191,66 @@ type SignalLedgerRecord struct {
 	UpdatedAt            time.Time
 }
 
+type AlertLedgerRecord struct {
+	AlertID            string
+	TenantID           string
+	SourceID           string
+	SourceDomain       string
+	SourceAdapter      string
+	Dataset            string
+	SignalID           string
+	DetectorID         string
+	AlertType          string
+	Severity           string
+	Status             string
+	Title              string
+	Summary            string
+	Confidence         float64
+	EventIDs           []string
+	EntitiesJSON       []byte
+	EvidenceJSON       []byte
+	RecommendationJSON []byte
+	CorrelationID      string
+	FirstObservedAt    time.Time
+	LastObservedAt     time.Time
+	AcknowledgedAt     *time.Time
+	AcknowledgedBy     string
+	ResolvedAt         *time.Time
+	ResolvedBy         string
+	MetadataJSON       []byte
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type InsightLedgerRecord struct {
+	InsightID            string
+	TenantID             string
+	SourceID             string
+	SourceDomain         string
+	SourceAdapter        string
+	Dataset              string
+	SignalID             string
+	DetectorID           string
+	InsightType          string
+	Status               string
+	Title                string
+	Summary              string
+	Confidence           float64
+	Severity             string
+	EventIDs             []string
+	EntitiesJSON         []byte
+	SupportingMetrics    []byte
+	SemanticEvidenceJSON []byte
+	RecommendationJSON   []byte
+	CorrelationID        string
+	ObservedAt           time.Time
+	ReviewedAt           *time.Time
+	ReviewedBy           string
+	MetadataJSON         []byte
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
 type CatalogSourceRecord struct {
 	TenantID       string
 	SourceID       string
@@ -249,6 +323,21 @@ type SignalLedgerRepository interface {
 	UpsertSignalLedger(ctx context.Context, record SignalLedgerRecord) error
 }
 
+type AlertLedgerRepository interface {
+	UpsertAlertLedger(ctx context.Context, record AlertLedgerRecord) error
+}
+
+type InsightLedgerRepository interface {
+	UpsertInsightLedger(ctx context.Context, record InsightLedgerRecord) error
+}
+
+type SignalLifecycleRepository interface {
+	SignalLedgerRepository
+	AlertLedgerRepository
+	InsightLedgerRepository
+	PersistSignalLifecycle(ctx context.Context, signal SignalLedgerRecord, alerts []AlertLedgerRecord, insights []InsightLedgerRecord) error
+}
+
 type CatalogRepository interface {
 	UpsertCatalogSource(ctx context.Context, record CatalogSourceRecord) error
 	UpsertCatalogPipeline(ctx context.Context, record CatalogPipelineRecord) error
@@ -277,6 +366,24 @@ type SignalLedgerFilter struct {
 	Limit      int
 }
 
+type AlertLedgerFilter struct {
+	TenantID string
+	SourceID string
+	Dataset  string
+	Severity string
+	Status   string
+	Limit    int
+}
+
+type InsightLedgerFilter struct {
+	TenantID    string
+	SourceID    string
+	Dataset     string
+	InsightType string
+	Status      string
+	Limit       int
+}
+
 type QueryRepository interface {
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
@@ -287,6 +394,10 @@ type QueryRepository interface {
 	GetNormalizedEventLedger(ctx context.Context, eventID string) (NormalizedEventLedgerRecord, error)
 	ListSignalLedger(ctx context.Context, filter SignalLedgerFilter) ([]SignalLedgerRecord, error)
 	GetSignalLedger(ctx context.Context, signalID string) (SignalLedgerRecord, error)
+	ListAlertLedger(ctx context.Context, filter AlertLedgerFilter) ([]AlertLedgerRecord, error)
+	GetAlertLedger(ctx context.Context, alertID string) (AlertLedgerRecord, error)
+	ListInsightLedger(ctx context.Context, filter InsightLedgerFilter) ([]InsightLedgerRecord, error)
+	GetInsightLedger(ctx context.Context, insightID string) (InsightLedgerRecord, error)
 	GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (IdempotencyRecord, error)
 	ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]CatalogSourceRecord, error)
 	ListCatalogPipelines(ctx context.Context, tenantID string, limit int) ([]CatalogPipelineRecord, error)

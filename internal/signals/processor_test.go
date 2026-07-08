@@ -10,12 +10,31 @@ import (
 )
 
 type fakeRepository struct {
-	record storage.SignalLedgerRecord
-	err    error
+	record   storage.SignalLedgerRecord
+	alerts   []storage.AlertLedgerRecord
+	insights []storage.InsightLedgerRecord
+	err      error
 }
 
 func (r *fakeRepository) UpsertSignalLedger(_ context.Context, record storage.SignalLedgerRecord) error {
 	r.record = record
+	return r.err
+}
+
+func (r *fakeRepository) UpsertAlertLedger(_ context.Context, record storage.AlertLedgerRecord) error {
+	r.alerts = append(r.alerts, record)
+	return r.err
+}
+
+func (r *fakeRepository) UpsertInsightLedger(_ context.Context, record storage.InsightLedgerRecord) error {
+	r.insights = append(r.insights, record)
+	return r.err
+}
+
+func (r *fakeRepository) PersistSignalLifecycle(_ context.Context, record storage.SignalLedgerRecord, alerts []storage.AlertLedgerRecord, insights []storage.InsightLedgerRecord) error {
+	r.record = record
+	r.alerts = append([]storage.AlertLedgerRecord(nil), alerts...)
+	r.insights = append([]storage.InsightLedgerRecord(nil), insights...)
 	return r.err
 }
 
@@ -52,6 +71,29 @@ func TestProcessorPersistsSignalBrokerLineage(t *testing.T) {
 	}
 	if repository.record.SignalID != "signal-g045" || repository.record.EventIDs[0] != "event-g045" {
 		t.Fatalf("persisted record = %+v", repository.record)
+	}
+	if len(repository.alerts) != 1 || repository.alerts[0].AlertID != "alert:signal-g045" || repository.alerts[0].Status != storage.AlertStatusOpen {
+		t.Fatalf("alerts = %+v", repository.alerts)
+	}
+	if len(repository.insights) != 1 || repository.insights[0].InsightID != "insight:signal-g045" || repository.insights[0].Status != storage.InsightStatusActive {
+		t.Fatalf("insights = %+v", repository.insights)
+	}
+}
+
+func TestProcessorDoesNotCreateAlertForLowSeverity(t *testing.T) {
+	repository := &fakeRepository{}
+	value := strings.Replace(string(validSignalJSON()), `"severity":"high"`, `"severity":"low"`, 1)
+	message := broker.ConsumedMessage{
+		Message: broker.Message{Topic: "signalops.test.signal.v1", Key: "signal-g045", Value: []byte(value)},
+	}
+	if _, err := (Processor{Repository: repository}).Process(context.Background(), message); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.alerts) != 0 {
+		t.Fatalf("alerts = %+v", repository.alerts)
+	}
+	if len(repository.insights) != 1 {
+		t.Fatalf("insights = %+v", repository.insights)
 	}
 }
 

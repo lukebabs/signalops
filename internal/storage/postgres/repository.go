@@ -303,7 +303,11 @@ func (r *Repository) UpsertSignalLedger(ctx context.Context, record storage.Sign
 	if err := validateSignalLedger(record); err != nil {
 		return err
 	}
-	_, err := r.db.ExecContext(ctx, `
+	return upsertSignalLedger(ctx, r.db, record)
+}
+
+func upsertSignalLedger(ctx context.Context, executor statementExecutor, record storage.SignalLedgerRecord) error {
+	_, err := executor.ExecContext(ctx, `
 INSERT INTO signal_ledger (
  signal_id, tenant_id, source_id, source_domain, source_adapter, ingestion_mode, dataset,
  event_ids, artifact_ids, signal_type, detector_id, detector_version, model_version, signal_time,
@@ -336,6 +340,112 @@ ON CONFLICT (signal_id) DO UPDATE SET
 		record.BrokerTopic, record.BrokerPartition, record.BrokerOffset, jsonOrEmpty(record.EventJSON))
 	if err != nil {
 		return fmt.Errorf("upsert signal ledger: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) UpsertAlertLedger(ctx context.Context, record storage.AlertLedgerRecord) error {
+	if err := validateAlertLedger(record); err != nil {
+		return err
+	}
+	return upsertAlertLedger(ctx, r.db, record)
+}
+
+func upsertAlertLedger(ctx context.Context, executor statementExecutor, record storage.AlertLedgerRecord) error {
+	_, err := executor.ExecContext(ctx, `
+INSERT INTO alert_ledger (
+ alert_id, tenant_id, source_id, source_domain, source_adapter, dataset, signal_id, detector_id,
+ alert_type, severity, status, title, summary, confidence, event_ids, entities, evidence, recommendation,
+ correlation_id, first_observed_at, last_observed_at, acknowledged_at, acknowledged_by, resolved_at, resolved_by, metadata
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+ON CONFLICT (alert_id) DO UPDATE SET
+ tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_domain=EXCLUDED.source_domain,
+ source_adapter=EXCLUDED.source_adapter, dataset=EXCLUDED.dataset, signal_id=EXCLUDED.signal_id,
+ detector_id=EXCLUDED.detector_id, alert_type=EXCLUDED.alert_type, severity=EXCLUDED.severity,
+ title=EXCLUDED.title, summary=EXCLUDED.summary, confidence=EXCLUDED.confidence, event_ids=EXCLUDED.event_ids,
+ entities=EXCLUDED.entities, evidence=EXCLUDED.evidence, recommendation=EXCLUDED.recommendation,
+ correlation_id=EXCLUDED.correlation_id, first_observed_at=LEAST(alert_ledger.first_observed_at, EXCLUDED.first_observed_at),
+ last_observed_at=GREATEST(alert_ledger.last_observed_at, EXCLUDED.last_observed_at), metadata=EXCLUDED.metadata,
+ updated_at=now()`, record.AlertID, record.TenantID, record.SourceID, record.SourceDomain, record.SourceAdapter,
+		record.Dataset, record.SignalID, record.DetectorID, record.AlertType, record.Severity, record.Status,
+		record.Title, record.Summary, record.Confidence, record.EventIDs, jsonArrayOrEmpty(record.EntitiesJSON),
+		jsonArrayOrEmpty(record.EvidenceJSON), nullableJSON(record.RecommendationJSON), record.CorrelationID,
+		record.FirstObservedAt, record.LastObservedAt, record.AcknowledgedAt, nullString(record.AcknowledgedBy),
+		record.ResolvedAt, nullString(record.ResolvedBy), jsonOrEmpty(record.MetadataJSON))
+	if err != nil {
+		return fmt.Errorf("upsert alert ledger: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) UpsertInsightLedger(ctx context.Context, record storage.InsightLedgerRecord) error {
+	if err := validateInsightLedger(record); err != nil {
+		return err
+	}
+	return upsertInsightLedger(ctx, r.db, record)
+}
+
+func upsertInsightLedger(ctx context.Context, executor statementExecutor, record storage.InsightLedgerRecord) error {
+	_, err := executor.ExecContext(ctx, `
+INSERT INTO insight_ledger (
+ insight_id, tenant_id, source_id, source_domain, source_adapter, dataset, signal_id, detector_id,
+ insight_type, status, title, summary, confidence, severity, event_ids, entities, supporting_metrics,
+ semantic_evidence, recommendation, correlation_id, observed_at, reviewed_at, reviewed_by, metadata
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+ON CONFLICT (insight_id) DO UPDATE SET
+ tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_domain=EXCLUDED.source_domain,
+ source_adapter=EXCLUDED.source_adapter, dataset=EXCLUDED.dataset, signal_id=EXCLUDED.signal_id,
+ detector_id=EXCLUDED.detector_id, insight_type=EXCLUDED.insight_type, title=EXCLUDED.title,
+ summary=EXCLUDED.summary, confidence=EXCLUDED.confidence, severity=EXCLUDED.severity,
+ event_ids=EXCLUDED.event_ids, entities=EXCLUDED.entities, supporting_metrics=EXCLUDED.supporting_metrics,
+ semantic_evidence=EXCLUDED.semantic_evidence, recommendation=EXCLUDED.recommendation,
+ correlation_id=EXCLUDED.correlation_id, observed_at=GREATEST(insight_ledger.observed_at, EXCLUDED.observed_at),
+ metadata=EXCLUDED.metadata, updated_at=now()`, record.InsightID, record.TenantID, record.SourceID,
+		record.SourceDomain, record.SourceAdapter, record.Dataset, record.SignalID, record.DetectorID,
+		record.InsightType, record.Status, record.Title, record.Summary, record.Confidence, record.Severity,
+		record.EventIDs, jsonArrayOrEmpty(record.EntitiesJSON), jsonOrEmpty(record.SupportingMetrics),
+		jsonArrayOrEmpty(record.SemanticEvidenceJSON), nullableJSON(record.RecommendationJSON), record.CorrelationID,
+		record.ObservedAt, record.ReviewedAt, nullString(record.ReviewedBy), jsonOrEmpty(record.MetadataJSON))
+	if err != nil {
+		return fmt.Errorf("upsert insight ledger: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) PersistSignalLifecycle(ctx context.Context, signal storage.SignalLedgerRecord, alerts []storage.AlertLedgerRecord, insights []storage.InsightLedgerRecord) error {
+	if err := validateSignalLedger(signal); err != nil {
+		return err
+	}
+	for _, alert := range alerts {
+		if err := validateAlertLedger(alert); err != nil {
+			return err
+		}
+	}
+	for _, insight := range insights {
+		if err := validateInsightLedger(insight); err != nil {
+			return err
+		}
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin signal lifecycle transaction: %w", err)
+	}
+	defer tx.Rollback()
+	if err := upsertSignalLedger(ctx, tx, signal); err != nil {
+		return err
+	}
+	for _, alert := range alerts {
+		if err := upsertAlertLedger(ctx, tx, alert); err != nil {
+			return err
+		}
+	}
+	for _, insight := range insights {
+		if err := upsertInsightLedger(ctx, tx, insight); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit signal lifecycle transaction: %w", err)
 	}
 	return nil
 }
@@ -637,6 +747,70 @@ func (r *Repository) GetSignalLedger(ctx context.Context, signalID string) (stor
 	return record, nil
 }
 
+func (r *Repository) ListAlertLedger(ctx context.Context, filter storage.AlertLedgerFilter) ([]storage.AlertLedgerRecord, error) {
+	rows, err := r.db.QueryContext(ctx, alertSelect+`
+WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
+ AND ($4 = '' OR severity = $4) AND ($5 = '' OR status = $5)
+ORDER BY last_observed_at DESC LIMIT $6`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID),
+		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.Severity), strings.TrimSpace(filter.Status), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list alert ledger: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.AlertLedgerRecord{}
+	for rows.Next() {
+		record, err := scanAlertLedger(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list alert ledger rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetAlertLedger(ctx context.Context, alertID string) (storage.AlertLedgerRecord, error) {
+	record, err := scanAlertLedger(r.db.QueryRowContext(ctx, alertSelect+` WHERE alert_id = $1`, strings.TrimSpace(alertID)))
+	if err != nil {
+		return storage.AlertLedgerRecord{}, err
+	}
+	return record, nil
+}
+
+func (r *Repository) ListInsightLedger(ctx context.Context, filter storage.InsightLedgerFilter) ([]storage.InsightLedgerRecord, error) {
+	rows, err := r.db.QueryContext(ctx, insightSelect+`
+WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
+ AND ($4 = '' OR insight_type = $4) AND ($5 = '' OR status = $5)
+ORDER BY observed_at DESC LIMIT $6`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID),
+		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.InsightType), strings.TrimSpace(filter.Status), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list insight ledger: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.InsightLedgerRecord{}
+	for rows.Next() {
+		record, err := scanInsightLedger(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list insight ledger rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetInsightLedger(ctx context.Context, insightID string) (storage.InsightLedgerRecord, error) {
+	record, err := scanInsightLedger(r.db.QueryRowContext(ctx, insightSelect+` WHERE insight_id = $1`, strings.TrimSpace(insightID)))
+	if err != nil {
+		return storage.InsightLedgerRecord{}, err
+	}
+	return record, nil
+}
+
 func (r *Repository) GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (storage.IdempotencyRecord, error) {
 	row := r.db.QueryRowContext(ctx, `
 SELECT tenant_id, source_id, idempotency_key, event_id, source_adapter, dataset, topic, partition,
@@ -794,6 +968,71 @@ func scanSignalLedger(scanner signalLedgerScanner) (storage.SignalLedgerRecord, 
 		return storage.SignalLedgerRecord{}, fmt.Errorf("scan signal artifact ids: %w", err)
 	}
 	record.TraceID, record.CausationID, record.ReplayJobID = traceID.String, causationID.String, replayJobID.String
+	return record, nil
+}
+
+const alertSelect = `
+SELECT alert_id, tenant_id, source_id, source_domain, source_adapter, dataset, signal_id, detector_id,
+ alert_type, severity, status, title, summary, confidence, COALESCE(array_to_json(event_ids), '[]'::json)::text,
+ entities, evidence, recommendation, correlation_id, first_observed_at, last_observed_at,
+ acknowledged_at, acknowledged_by, resolved_at, resolved_by, metadata, created_at, updated_at FROM alert_ledger`
+
+type alertLedgerScanner interface{ Scan(dest ...any) error }
+
+func scanAlertLedger(scanner alertLedgerScanner) (storage.AlertLedgerRecord, error) {
+	var record storage.AlertLedgerRecord
+	var eventIDsJSON string
+	var acknowledgedAt, resolvedAt sql.NullTime
+	var acknowledgedBy, resolvedBy sql.NullString
+	if err := scanner.Scan(&record.AlertID, &record.TenantID, &record.SourceID, &record.SourceDomain,
+		&record.SourceAdapter, &record.Dataset, &record.SignalID, &record.DetectorID, &record.AlertType,
+		&record.Severity, &record.Status, &record.Title, &record.Summary, &record.Confidence, &eventIDsJSON,
+		&record.EntitiesJSON, &record.EvidenceJSON, &record.RecommendationJSON, &record.CorrelationID,
+		&record.FirstObservedAt, &record.LastObservedAt, &acknowledgedAt, &acknowledgedBy, &resolvedAt,
+		&resolvedBy, &record.MetadataJSON, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		return storage.AlertLedgerRecord{}, mapScanError("scan alert ledger", err)
+	}
+	if err := json.Unmarshal([]byte(eventIDsJSON), &record.EventIDs); err != nil {
+		return storage.AlertLedgerRecord{}, fmt.Errorf("scan alert event ids: %w", err)
+	}
+	if acknowledgedAt.Valid {
+		record.AcknowledgedAt = &acknowledgedAt.Time
+	}
+	if resolvedAt.Valid {
+		record.ResolvedAt = &resolvedAt.Time
+	}
+	record.AcknowledgedBy, record.ResolvedBy = acknowledgedBy.String, resolvedBy.String
+	return record, nil
+}
+
+const insightSelect = `
+SELECT insight_id, tenant_id, source_id, source_domain, source_adapter, dataset, signal_id, detector_id,
+ insight_type, status, title, summary, confidence, severity, COALESCE(array_to_json(event_ids), '[]'::json)::text,
+ entities, supporting_metrics, semantic_evidence, recommendation, correlation_id, observed_at,
+ reviewed_at, reviewed_by, metadata, created_at, updated_at FROM insight_ledger`
+
+type insightLedgerScanner interface{ Scan(dest ...any) error }
+
+func scanInsightLedger(scanner insightLedgerScanner) (storage.InsightLedgerRecord, error) {
+	var record storage.InsightLedgerRecord
+	var eventIDsJSON string
+	var reviewedAt sql.NullTime
+	var reviewedBy sql.NullString
+	if err := scanner.Scan(&record.InsightID, &record.TenantID, &record.SourceID, &record.SourceDomain,
+		&record.SourceAdapter, &record.Dataset, &record.SignalID, &record.DetectorID, &record.InsightType,
+		&record.Status, &record.Title, &record.Summary, &record.Confidence, &record.Severity, &eventIDsJSON,
+		&record.EntitiesJSON, &record.SupportingMetrics, &record.SemanticEvidenceJSON, &record.RecommendationJSON,
+		&record.CorrelationID, &record.ObservedAt, &reviewedAt, &reviewedBy, &record.MetadataJSON,
+		&record.CreatedAt, &record.UpdatedAt); err != nil {
+		return storage.InsightLedgerRecord{}, mapScanError("scan insight ledger", err)
+	}
+	if err := json.Unmarshal([]byte(eventIDsJSON), &record.EventIDs); err != nil {
+		return storage.InsightLedgerRecord{}, fmt.Errorf("scan insight event ids: %w", err)
+	}
+	if reviewedAt.Valid {
+		record.ReviewedAt = &reviewedAt.Time
+	}
+	record.ReviewedBy = reviewedBy.String
 	return record, nil
 }
 
@@ -1149,6 +1388,54 @@ func validateSignalLedger(record storage.SignalLedgerRecord) error {
 	return nil
 }
 
+func validateAlertLedger(record storage.AlertLedgerRecord) error {
+	for name, value := range map[string]string{
+		"alert id": record.AlertID, "tenant id": record.TenantID, "source id": record.SourceID,
+		"source domain": record.SourceDomain, "source adapter": record.SourceAdapter, "dataset": record.Dataset,
+		"signal id": record.SignalID, "detector id": record.DetectorID, "alert type": record.AlertType,
+		"severity": record.Severity, "status": record.Status, "title": record.Title, "summary": record.Summary,
+		"correlation id": record.CorrelationID,
+	} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("alert ledger %s is required", name)
+		}
+	}
+	if len(record.EventIDs) == 0 {
+		return errors.New("alert ledger event ids are required")
+	}
+	if record.Confidence < 0 || record.Confidence > 1 {
+		return errors.New("alert ledger confidence must be between 0 and 1")
+	}
+	if record.FirstObservedAt.IsZero() || record.LastObservedAt.IsZero() {
+		return errors.New("alert ledger observed times are required")
+	}
+	return nil
+}
+
+func validateInsightLedger(record storage.InsightLedgerRecord) error {
+	for name, value := range map[string]string{
+		"insight id": record.InsightID, "tenant id": record.TenantID, "source id": record.SourceID,
+		"source domain": record.SourceDomain, "source adapter": record.SourceAdapter, "dataset": record.Dataset,
+		"signal id": record.SignalID, "detector id": record.DetectorID, "insight type": record.InsightType,
+		"status": record.Status, "title": record.Title, "summary": record.Summary, "severity": record.Severity,
+		"correlation id": record.CorrelationID,
+	} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("insight ledger %s is required", name)
+		}
+	}
+	if len(record.EventIDs) == 0 {
+		return errors.New("insight ledger event ids are required")
+	}
+	if record.Confidence < 0 || record.Confidence > 1 {
+		return errors.New("insight ledger confidence must be between 0 and 1")
+	}
+	if record.ObservedAt.IsZero() {
+		return errors.New("insight ledger observed at is required")
+	}
+	return nil
+}
+
 func validateNormalizedEventLedger(record storage.NormalizedEventLedgerRecord) error {
 	for name, value := range map[string]string{
 		"event id": record.EventID, "tenant id": record.TenantID, "source id": record.SourceID,
@@ -1257,6 +1544,14 @@ func jsonOrEmpty(value []byte) []byte {
 func jsonArrayOrEmpty(value []byte) []byte {
 	if len(value) == 0 {
 		return []byte(`[]`)
+	}
+	return value
+}
+
+func nullableJSON(value []byte) any {
+	trimmed := strings.TrimSpace(string(value))
+	if trimmed == "" || trimmed == "null" {
+		return nil
 	}
 	return value
 }

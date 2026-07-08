@@ -119,6 +119,53 @@ published to the algorithm DLQ with the original payload and source coordinates 
 Database or broker failures leave the source offset uncommitted for retry.
 
 
+
+## Alert and Insight Lifecycle
+
+Signals persisted by the Go signal persister now derive first-class alert and insight ledger rows in
+the same database transaction as the signal. The signal topic offset is committed only after signal,
+alert, and insight persistence succeeds.
+
+Current derivation rules:
+
+- Every valid signal creates or updates one active insight with id `insight:{signal_id}`.
+- `medium`, `high`, and `critical` signals create or update one open alert with id `alert:{signal_id}`.
+- `info` and `low` signals do not create alerts.
+- Reprocessing the same signal is idempotent and does not reset existing alert/insight lifecycle
+  status fields.
+- Mutation endpoints for acknowledgement, resolution, review, dismissal, or suppression are deferred
+  until operator identity/authentication exists.
+
+### Alerts
+
+`GET /v1/alerts?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&severity={severity}&status={status}&limit=50`
+
+Lists alert ledger rows. Filters are optional and pagination is currently limit-only. Alerts include
+source identity, linked `signal_id`, detector identity, severity, lifecycle status, title, summary,
+confidence, event lineage, entities, evidence, recommendation, correlation id, observed times,
+optional acknowledgement/resolution fields, metadata, and audit timestamps.
+
+`GET /v1/alerts/{alert_id}`
+
+Returns one alert or `404 alert_not_found`.
+
+Current alert statuses: `open`, `acknowledged`, `resolved`, `suppressed`.
+
+### Insights
+
+`GET /v1/insights?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&insight_type={insight_type}&status={status}&limit=50`
+
+Lists insight ledger rows. Filters are optional and pagination is currently limit-only. Insights include
+source identity, linked `signal_id`, detector identity, insight type, lifecycle status, title, summary,
+confidence, severity, event lineage, entities, supporting metrics, semantic evidence, recommendation,
+correlation id, observed/review fields, metadata, and audit timestamps.
+
+`GET /v1/insights/{insight_id}`
+
+Returns one insight or `404 insight_not_found`.
+
+Current insight statuses: `active`, `reviewed`, `dismissed`, `archived`.
+
 ## Dashboard Stream API
 
 `GET /v1/streams/dashboard?channels=health,runs,raw_events,provider_usage,heartbeat`

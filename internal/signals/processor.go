@@ -21,7 +21,7 @@ func (e InvalidEventError) Error() string { return e.Err.Error() }
 func (e InvalidEventError) Unwrap() error { return e.Err }
 
 type Processor struct {
-	Repository storage.SignalLedgerRepository
+	Repository storage.SignalLifecycleRepository
 }
 
 func (p Processor) Process(ctx context.Context, message broker.ConsumedMessage) (storage.SignalLedgerRecord, error) {
@@ -36,7 +36,11 @@ func (p Processor) Process(ctx context.Context, message broker.ConsumedMessage) 
 	if err != nil {
 		return storage.SignalLedgerRecord{}, InvalidEventError{Err: err}
 	}
-	if err := p.Repository.UpsertSignalLedger(ctx, record); err != nil {
+	alerts, insights, err := lifecycleRecords(record)
+	if err != nil {
+		return storage.SignalLedgerRecord{}, InvalidEventError{Err: err}
+	}
+	if err := p.Repository.PersistSignalLifecycle(ctx, record, alerts, insights); err != nil {
 		return storage.SignalLedgerRecord{}, err
 	}
 	return record, nil
@@ -176,6 +180,54 @@ func ledgerRecord(event Event, message broker.ConsumedMessage) (storage.SignalLe
 		BrokerTopic: message.Topic, BrokerPartition: message.Partition, BrokerOffset: message.Offset,
 		EventJSON: append([]byte(nil), message.Value...),
 	}, nil
+}
+
+func lifecycleRecords(record storage.SignalLedgerRecord) ([]storage.AlertLedgerRecord, []storage.InsightLedgerRecord, error) {
+	metadata, err := json.Marshal(map[string]any{
+		"derived_from": "signal_ledger",
+		"signal_type":  record.SignalType,
+		"detector_id":  record.DetectorID,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	insight := storage.InsightLedgerRecord{
+		InsightID: fmt.Sprintf("insight:%s", record.SignalID), TenantID: record.TenantID,
+		SourceID: record.SourceID, SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter,
+		Dataset: record.Dataset, SignalID: record.SignalID, DetectorID: record.DetectorID,
+		InsightType: record.SignalType, Status: storage.InsightStatusActive,
+		Title:      fmt.Sprintf("%s signal from %s", record.Severity, record.DetectorID),
+		Summary:    fmt.Sprintf("Detector %s emitted a %s %s signal for %s.", record.DetectorID, record.Severity, record.SignalType, record.Dataset),
+		Confidence: record.Confidence, Severity: record.Severity, EventIDs: append([]string(nil), record.EventIDs...),
+		EntitiesJSON: append([]byte(nil), record.EntitiesJSON...), SupportingMetrics: append([]byte(nil), record.SupportingMetrics...),
+		SemanticEvidenceJSON: append([]byte(nil), record.SemanticEvidenceJSON...), RecommendationJSON: append([]byte(nil), record.RecommendationJSON...),
+		CorrelationID: record.CorrelationID, ObservedAt: record.SignalTime, MetadataJSON: metadata,
+	}
+	alerts := []storage.AlertLedgerRecord{}
+	if alertSeverity(record.Severity) {
+		alerts = append(alerts, storage.AlertLedgerRecord{
+			AlertID: fmt.Sprintf("alert:%s", record.SignalID), TenantID: record.TenantID,
+			SourceID: record.SourceID, SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter,
+			Dataset: record.Dataset, SignalID: record.SignalID, DetectorID: record.DetectorID,
+			AlertType: record.SignalType, Severity: record.Severity, Status: storage.AlertStatusOpen,
+			Title:      fmt.Sprintf("%s %s alert", strings.Title(record.Severity), record.SignalType),
+			Summary:    fmt.Sprintf("Detector %s emitted a %s signal for %s.", record.DetectorID, record.Severity, record.Dataset),
+			Confidence: record.Confidence, EventIDs: append([]string(nil), record.EventIDs...),
+			EntitiesJSON: append([]byte(nil), record.EntitiesJSON...), EvidenceJSON: append([]byte(nil), record.EvidenceJSON...),
+			RecommendationJSON: append([]byte(nil), record.RecommendationJSON...), CorrelationID: record.CorrelationID,
+			FirstObservedAt: record.SignalTime, LastObservedAt: record.SignalTime, MetadataJSON: metadata,
+		})
+	}
+	return alerts, []storage.InsightLedgerRecord{insight}, nil
+}
+
+func alertSeverity(severity string) bool {
+	switch severity {
+	case "medium", "high", "critical":
+		return true
+	default:
+		return false
+	}
 }
 
 func PublishInvalidEvent(ctx context.Context, publisher broker.Publisher, topic string, message broker.ConsumedMessage, cause error) error {

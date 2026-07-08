@@ -58,6 +58,8 @@ type fakeQueryRepository struct {
 	sources          []storage.CatalogSourceRecord
 	pipelines        []storage.CatalogPipelineRecord
 	rules            []storage.CatalogRuleRecord
+	alerts           []storage.AlertLedgerRecord
+	insights         []storage.InsightLedgerRecord
 	notFound         bool
 	lastFilter       storage.RawEventLedgerFilter
 	schedulerQueries int
@@ -117,6 +119,38 @@ func (q *fakeQueryRepository) ListSignalLedger(context.Context, storage.SignalLe
 }
 func (q *fakeQueryRepository) GetSignalLedger(context.Context, string) (storage.SignalLedgerRecord, error) {
 	return storage.SignalLedgerRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListAlertLedger(context.Context, storage.AlertLedgerFilter) ([]storage.AlertLedgerRecord, error) {
+	return q.alerts, nil
+}
+
+func (q *fakeQueryRepository) GetAlertLedger(_ context.Context, alertID string) (storage.AlertLedgerRecord, error) {
+	if q.notFound {
+		return storage.AlertLedgerRecord{}, storage.ErrNotFound
+	}
+	for _, alert := range q.alerts {
+		if alert.AlertID == alertID {
+			return alert, nil
+		}
+	}
+	return storage.AlertLedgerRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListInsightLedger(context.Context, storage.InsightLedgerFilter) ([]storage.InsightLedgerRecord, error) {
+	return q.insights, nil
+}
+
+func (q *fakeQueryRepository) GetInsightLedger(_ context.Context, insightID string) (storage.InsightLedgerRecord, error) {
+	if q.notFound {
+		return storage.InsightLedgerRecord{}, storage.ErrNotFound
+	}
+	for _, insight := range q.insights {
+		if insight.InsightID == insightID {
+			return insight, nil
+		}
+	}
+	return storage.InsightLedgerRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) GetIdempotencyRecord(context.Context, string, string, string) (storage.IdempotencyRecord, error) {
@@ -543,6 +577,44 @@ func TestDashboardStreamNoRepositoryEmitsSSEError(t *testing.T) {
 	}
 }
 
+func TestListAlertsReturnsLifecycleEnvelope(t *testing.T) {
+	repo := &fakeQueryRepository{alerts: []storage.AlertLedgerRecord{validAlertRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/alerts?tenant_id=tenant-1&status=open", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Alerts []alertDTO `json:"alerts"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Alerts) != 1 || body.Alerts[0].AlertID != "alert-1" || body.Alerts[0].Status != storage.AlertStatusOpen {
+		t.Fatalf("body = %+v", body)
+	}
+}
+
+func TestListInsightsReturnsLifecycleEnvelope(t *testing.T) {
+	repo := &fakeQueryRepository{insights: []storage.InsightLedgerRecord{validInsightRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/insights?tenant_id=tenant-1&status=active", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Insights []insightDTO `json:"insights"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Insights) != 1 || body.Insights[0].InsightID != "insight-1" || body.Insights[0].Status != storage.InsightStatusActive {
+		t.Fatalf("body = %+v", body)
+	}
+}
+
 func validCatalogSourceRecord() storage.CatalogSourceRecord {
 	return storage.CatalogSourceRecord{
 		TenantID:       "tenant-1",
@@ -597,6 +669,64 @@ func validCatalogRuleRecord() storage.CatalogRuleRecord {
 		MetadataJSON:   []byte(`{"execution":"catalog_only"}`),
 		CreatedAt:      time.Date(2026, 7, 8, 0, 0, 7, 0, time.UTC),
 		UpdatedAt:      time.Date(2026, 7, 8, 0, 0, 8, 0, time.UTC),
+	}
+}
+
+func validAlertRecord() storage.AlertLedgerRecord {
+	return storage.AlertLedgerRecord{
+		AlertID:            "alert-1",
+		TenantID:           "tenant-1",
+		SourceID:           "src-1",
+		SourceDomain:       "market_data",
+		SourceAdapter:      "market_data.massive",
+		Dataset:            "equity_eod_prices",
+		SignalID:           "signal-1",
+		DetectorID:         "detector-1",
+		AlertType:          "price.quality",
+		Severity:           "high",
+		Status:             storage.AlertStatusOpen,
+		Title:              "High price quality alert",
+		Summary:            "Detector emitted a high signal.",
+		Confidence:         0.9,
+		EventIDs:           []string{"event-1"},
+		EntitiesJSON:       []byte(`[]`),
+		EvidenceJSON:       []byte(`[]`),
+		RecommendationJSON: []byte(`{"action":"inspect"}`),
+		CorrelationID:      "corr-1",
+		FirstObservedAt:    time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC),
+		LastObservedAt:     time.Date(2026, 7, 8, 0, 1, 0, 0, time.UTC),
+		MetadataJSON:       []byte(`{"derived_from":"signal_ledger"}`),
+		CreatedAt:          time.Date(2026, 7, 8, 0, 2, 0, 0, time.UTC),
+		UpdatedAt:          time.Date(2026, 7, 8, 0, 3, 0, 0, time.UTC),
+	}
+}
+
+func validInsightRecord() storage.InsightLedgerRecord {
+	return storage.InsightLedgerRecord{
+		InsightID:            "insight-1",
+		TenantID:             "tenant-1",
+		SourceID:             "src-1",
+		SourceDomain:         "market_data",
+		SourceAdapter:        "market_data.massive",
+		Dataset:              "equity_eod_prices",
+		SignalID:             "signal-1",
+		DetectorID:           "detector-1",
+		InsightType:          "price.quality",
+		Status:               storage.InsightStatusActive,
+		Title:                "High signal from detector-1",
+		Summary:              "Detector emitted a high signal.",
+		Confidence:           0.9,
+		Severity:             "high",
+		EventIDs:             []string{"event-1"},
+		EntitiesJSON:         []byte(`[]`),
+		SupportingMetrics:    []byte(`{}`),
+		SemanticEvidenceJSON: []byte(`[]`),
+		RecommendationJSON:   []byte(`null`),
+		CorrelationID:        "corr-1",
+		ObservedAt:           time.Date(2026, 7, 8, 0, 1, 0, 0, time.UTC),
+		MetadataJSON:         []byte(`{"derived_from":"signal_ledger"}`),
+		CreatedAt:            time.Date(2026, 7, 8, 0, 2, 0, 0, time.UTC),
+		UpdatedAt:            time.Date(2026, 7, 8, 0, 3, 0, 0, time.UTC),
 	}
 }
 
