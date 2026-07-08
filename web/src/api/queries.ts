@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from './client';
-import type { RawEventFilter, NormalizedEventFilter, SignalFilter } from '../types';
+import type { RawEventFilter, NormalizedEventFilter, SignalFilter, AlertFilter, InsightFilter } from '../types';
 
 export const queryKeys = {
   healthz: ['healthz'] as const,
@@ -20,6 +20,10 @@ export const queryKeys = {
   normalizedEvent: (eventId: string) => ['normalized-event', eventId] as const,
   signals: (filter: SignalFilter) => ['signals', filter] as const,
   signal: (signalId: string) => ['signal', signalId] as const,
+  alerts: (filter: AlertFilter) => ['alerts', filter] as const,
+  alert: (alertId: string) => ['alert', alertId] as const,
+  insights: (filter: InsightFilter) => ['insights', filter] as const,
+  insight: (insightId: string) => ['insight', insightId] as const,
 };
 
 export function useHealthz() {
@@ -137,5 +141,35 @@ export function useSignal(signalId: string | null) {
     queryKey: queryKeys.signal(signalId ?? ''),
     queryFn: () => api.getSignal(signalId!),
     enabled: !!signalId,
+  });
+}
+
+export function useAlerts(filter: AlertFilter) {
+  return useQuery({
+    queryKey: queryKeys.alerts(filter),
+    queryFn: () => api.listAlerts(filter),
+  });
+}
+
+export function useAlert(alertId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.alert(alertId ?? ''),
+    queryFn: () => api.getAlert(alertId!),
+    enabled: !!alertId,
+  });
+}
+
+export function useInsights(filter: InsightFilter) {
+  return useQuery({
+    queryKey: queryKeys.insights(filter),
+    queryFn: () => api.listInsights(filter),
+  });
+}
+
+export function useInsight(insightId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.insight(insightId ?? ''),
+    queryFn: () => api.getInsight(insightId!),
+    enabled: !!insightId,
   });
 }

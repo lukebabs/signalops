@@ -3287,3 +3287,135 @@ Actor:
 Follow-up items:
 
 - None for G046. Proceed to alert/insight lifecycle foundation.
+
+## Gate G047: Alert and Insight Lifecycle Foundation
+
+Timestamp: `2026-07-08T22:55:26Z`
+
+Status: `passed`
+
+Gate name:
+
+- Derive durable alert and insight lifecycle rows from persisted signals.
+
+Criteria:
+
+- Add alert and insight storage with lifecycle status fields and audit timestamps.
+- Persist signal, derived alerts, and derived insights transactionally before committing signal-topic offsets.
+- Preserve lifecycle status on idempotent signal reprocessing.
+- Expose alert and insight list/detail APIs with tenant/source/dataset/status filters.
+- Validate unit tests, migrations, Docker deployment, live signal ingestion, API, database, and consumer-group state.
+
+Evidence:
+
+- `migrations/000007_alert_insight_lifecycle.up.sql`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/signals/processor.go`
+- `internal/api/router.go`
+- `docs/api.md`
+- `docs/build_journal.md`
+
+Verification performed:
+
+- `make docker-test`
+- `make docker-test-python`
+- `docker compose config --quiet`
+- `docker compose --profile storage run --rm postgres-migrate`
+- `docker compose build gateway signal-persister`
+- `docker compose up -d gateway signal-persister`
+- Published validation signal `signal-g047-high` to Redpanda.
+- Queried `/v1/signals/signal-g047-high`.
+- Queried `/v1/alerts/alert:signal-g047-high` and filtered alert list API.
+- Queried `/v1/insights/insight:signal-g047-high` and filtered insight list API.
+- Direct PostgreSQL alert/insight join.
+- Redpanda `signalops.signal-persister.v1` group description.
+- `git diff --check`.
+
+Live verification result:
+
+- Signal `signal-g047-high` persisted from broker position `1/0`.
+- Alert `alert:signal-g047-high` persisted with status `open`, severity `high`, confidence `0.91`, event id `g044-live-event`, entities, evidence, recommendation, and correlation id `corr-g047`.
+- Insight `insight:signal-g047-high` persisted with status `active`, severity `high`, confidence `0.91`, supporting metrics, semantic evidence, recommendation, and the same lineage.
+- Low-severity historical `signalops.static_test.low` derived an active insight and no alert, matching the severity rule.
+- Signal-persister group was Stable with one member and total lag `0`.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Provide frontend-agent G048 spec for Alerts and Active Insights UI.
+- Add authenticated lifecycle mutation APIs for acknowledgement, resolution, review, dismissal, and suppression when auth/operator identity is in place.
+
+
+## Gate G048: Frontend Alerts and Active Insights UI
+
+Timestamp: `2026-07-08T23:32:09Z`
+
+Status: `passed`
+
+Gate name:
+
+- Expose the G047 alert and insight ledgers in the web frontend as read-only Alerts and Active Insights pages with Dashboard summaries.
+
+Criteria:
+
+- Add Alerts (`/alerts`) and Active Insights (`/insights`) read-only pages.
+- Use real G047 REST APIs with typed client methods and TanStack Query hooks.
+- Support truthful loading, error, empty, list, selection, and detail states.
+- Add Dashboard Open Alerts and Active Insights summaries without fabricating mutation or streaming capability.
+- Validate tests, build, audit, Compose, and live proxy data.
+
+Evidence:
+
+- `web/src/routes/AlertsRoute.tsx`
+- `web/src/routes/InsightsRoute.tsx`
+- `web/src/routes/DashboardRoute.tsx`
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/api/alerts_insights.test.ts`
+- `web/src/router.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The spec contract was verified accurate against `internal/api/router.go` (alert/insight routes + DTOs), migration `000007`, and live data before coding, so no spec edits were required.
+- Both pages use plain HTML tables + detail panels with `JsonViewer`; severity and status render as local text badges (not color-only); `signal_id` links to `/signals`, `event_ids` link to `/normalized-events`; no enabled lifecycle action controls (mutation deferred in G047).
+- Dashboard gained Open Alerts + Active Insights metric tiles (strip widened to a 13-column arbitrary grid) and compact Open Alerts + Active Insights widgets, plus a caption distinguishing signals/alerts/insights; the global `DashboardStreamBridge` remains the single SSE subscription (REST is the source of truth).
+
+Verification performed:
+
+- `cd web && npm test`
+- `cd web && npm run build`
+- `cd web && npm audit --json`
+- `curl -fsS http://localhost:15173/`
+- `curl -fsS http://localhost:15173/alerts`
+- `curl -fsS http://localhost:15173/insights`
+- `curl 'http://localhost:15173/v1/alerts?tenant_id=tenant-local&status=open&limit=10'`
+- `curl 'http://localhost:15173/v1/insights?tenant_id=tenant-local&status=active&limit=10'`
+- `curl 'http://localhost:15173/v1/alerts/alert:signal-g047-high'`
+- `curl 'http://localhost:15173/v1/insights/insight:signal-g047-high'`
+- Playwright (Docker) desktop + 375px mobile browser validation.
+
+Live verification result:
+
+- Vitest passed: 3 files, 11 tests (5 new alert/insight client tests).
+- Production build passed; both new routes lazy-loaded.
+- Web container Up on `:15173`; `/`, `/alerts`, `/insights` serve the SPA shell.
+- Alerts API returned `alert:signal-g047-high` (high/open); insights API returned `insight:signal-g047-high` and `insight:signalops.static_test.low`; detail envelopes returned for both.
+- npm audit reported zero vulnerabilities.
+- Playwright: no console/page errors; exactly one dashboard SSE connection across SPA nav; nav has 12 items without overlap; `/alerts` showed 1 open alert and selection loaded its detail panel; `/insights` showed 2 active insights and selection loaded its detail panel; Dashboard showed Open Alerts + Active Insights tiles/widgets (confirmed via DOM `innerText` and a uniquely-named screenshot after a stale-cache false negative); mobile overflow `0px` on Dashboard, Alerts, Insights.
+
+Actor:
+
+- Claude Code
+
+Follow-up items:
+
+- Add authenticated lifecycle mutation APIs (acknowledge/resolve/review/dismiss/suppress) and wire the corresponding UI controls when operator identity/authentication is in place.
+- Consider modest polling or SSE channel additions for alerts/insights only when the backend stream supports them; for now REST refetch is the source of truth.

@@ -265,3 +265,100 @@ export interface SignalsResponse {
 export interface SignalResponse {
   signal: SignalRecord;
 }
+
+export type AlertStatus = 'open' | 'acknowledged' | 'resolved' | 'suppressed';
+export type InsightStatus = 'active' | 'reviewed' | 'dismissed' | 'archived';
+
+export interface AlertFilter {
+  tenant_id?: string;
+  source_id?: string;
+  dataset?: string;
+  severity?: string;
+  status?: string;
+  limit?: number;
+}
+
+export interface AlertRecord {
+  alert_id: string;
+  tenant_id: string;
+  source_id: string;
+  source_domain: string;
+  source_adapter: string;
+  dataset: string;
+  signal_id: string;
+  detector_id: string;
+  alert_type: string;
+  severity: string;
+  status: string;
+  title: string;
+  summary: string;
+  confidence: number;
+  event_ids: string[];
+  entities: unknown;
+  evidence: unknown;
+  recommendation: unknown;
+  correlation_id: string;
+  first_observed_at: string;
+  last_observed_at: string;
+  acknowledged_at?: string;
+  acknowledged_by?: string;
+  resolved_at?: string;
+  resolved_by?: string;
+  metadata: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertsResponse {
+  alerts: AlertRecord[];
+}
+
+export interface AlertResponse {
+  alert: AlertRecord;
+}
+
+export interface InsightFilter {
+  tenant_id?: string;
+  source_id?: string;
+  dataset?: string;
+  insight_type?: string;
+  status?: string;
+  limit?: number;
+}
+
+export interface InsightRecord {
+  insight_id: string;
+  tenant_id: string;
+  source_id: string;
+  source_domain: string;
+  source_adapter: string;
+  dataset: string;
+  signal_id: string;
+  detector_id: string;
+  insight_type: string;
+  status: string;
+  title: string;
+  summary: string;
+  confidence: number;
+  severity: string;
+  event_ids: string[];
+  entities: unknown;
+  supporting_metrics: unknown;
+  semantic_evidence: unknown;
+  recommendation: unknown;
+  correlation_id: string;
+  observed_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  metadata: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InsightsResponse {
+  insights: InsightRecord[];
+}
+
+export interface InsightResponse {
+  insight: InsightRecord;
+}

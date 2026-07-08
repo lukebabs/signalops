@@ -12,6 +12,8 @@ import {
   useCatalogRules,
   useNormalizedEvents,
   useSignals,
+  useAlerts,
+  useInsights,
 } from '../api/queries';
 import { useUi } from '../store/ui';
 import { MetricTile } from '../components/MetricTile';
@@ -22,7 +24,7 @@ import type { ProviderUsage } from '../types';
 
 const TENANT_ID = 'tenant-local';
 
-type RouteLink = '/runs' | '/raw-events' | '/normalized-events' | '/signals' | '/sources' | '/pipelines' | '/rules' | '/system';
+type RouteLink = '/runs' | '/raw-events' | '/normalized-events' | '/signals' | '/alerts' | '/insights' | '/sources' | '/pipelines' | '/rules' | '/system';
 
 function Panel({ title, linkTo, children }: { title: string; linkTo?: RouteLink; children: ReactNode }) {
   return (
@@ -72,6 +74,8 @@ export function DashboardRoute() {
   const rules = useCatalogRules(TENANT_ID, 50);
   const normalizedEvents = useNormalizedEvents({ tenant_id: TENANT_ID, limit: 50 });
   const signals = useSignals({ tenant_id: TENANT_ID, limit: 50 });
+  const alerts = useAlerts({ tenant_id: TENANT_ID, status: 'open', limit: 50 });
+  const insights = useInsights({ tenant_id: TENANT_ID, status: 'active', limit: 50 });
 
   const lastRefresh = useUi((s) => s.lastRefresh);
   const setLastRefresh = useUi((s) => s.setLastRefresh);
@@ -92,6 +96,8 @@ export function DashboardRoute() {
   const activeRules = rulesData.filter((r) => r.status === 'active').length;
   const normalizedCount = normalizedEvents.data?.normalized_events.length ?? 0;
   const signalsData = signals.data?.signals ?? [];
+  const alertsData = alerts.data?.alerts ?? [];
+  const insightsData = insights.data?.insights ?? [];
 
   const streamState = streamError ? 'reconnecting' : streamConnected ? 'connected' : 'connecting';
 
@@ -106,6 +112,8 @@ export function DashboardRoute() {
     rules.refetch();
     normalizedEvents.refetch();
     signals.refetch();
+    alerts.refetch();
+    insights.refetch();
     setLastRefresh(new Date().toISOString());
   }
 
@@ -130,7 +138,7 @@ export function DashboardRoute() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-11">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-[repeat(13,minmax(0,1fr))]">
         <MetricTile label="Gateway" value={healthz.data?.status ?? (healthz.isError ? 'unreachable' : '…')} />
         <MetricTile label="Readiness" value={readyz.data?.status ?? (readyz.isError ? 'unreachable' : '…')} />
         <MetricTile label="Recent Runs" value={runsData.length} />
@@ -142,6 +150,8 @@ export function DashboardRoute() {
         <MetricTile label="Active Rules" value={activeRules} />
         <MetricTile label="Normalized" value={normalizedCount} />
         <MetricTile label="Signals" value={signalsData.length} />
+        <MetricTile label="Open Alerts" value={alertsData.length} hint={alerts.isError ? 'unreachable' : undefined} />
+        <MetricTile label="Active Insights" value={insightsData.length} hint={insights.isError ? 'unreachable' : undefined} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -370,6 +380,80 @@ export function DashboardRoute() {
           <EmptyState message="No recent signals." />
         )}
       </Panel>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Panel title="Open Alerts" linkTo="/alerts">
+          {alerts.isLoading ? (
+            <LoadingState />
+          ) : alerts.isError ? (
+            <ErrorState error={alerts.error} />
+          ) : alertsData.length ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead className="text-left text-gray-500">
+                  <tr>
+                    <th className="p-1">Alert</th>
+                    <th className="p-1">Severity</th>
+                    <th className="p-1">Status</th>
+                    <th className="p-1">Source/Dataset</th>
+                    <th className="p-1">Last Observed</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {alertsData.slice(0, 5).map((a) => (
+                    <tr key={a.alert_id}>
+                      <td className="p-1 font-mono">{a.alert_id}</td>
+                      <td className="p-1">{a.severity}</td>
+                      <td className="p-1">{a.status}</td>
+                      <td className="p-1"><span className="font-mono">{a.source_id}</span> / {a.dataset}</td>
+                      <td className="p-1 text-gray-600">{formatUtc(a.last_observed_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState message="No open alerts." />
+          )}
+        </Panel>
+        <Panel title="Active Insights" linkTo="/insights">
+          {insights.isLoading ? (
+            <LoadingState />
+          ) : insights.isError ? (
+            <ErrorState error={insights.error} />
+          ) : insightsData.length ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead className="text-left text-gray-500">
+                  <tr>
+                    <th className="p-1">Insight</th>
+                    <th className="p-1">Severity</th>
+                    <th className="p-1">Status</th>
+                    <th className="p-1">Source/Dataset</th>
+                    <th className="p-1">Observed</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {insightsData.slice(0, 5).map((i) => (
+                    <tr key={i.insight_id}>
+                      <td className="p-1 font-mono">{i.insight_id}</td>
+                      <td className="p-1">{i.severity}</td>
+                      <td className="p-1">{i.status}</td>
+                      <td className="p-1"><span className="font-mono">{i.source_id}</span> / {i.dataset}</td>
+                      <td className="p-1 text-gray-600">{formatUtc(i.observed_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState message="No active insights." />
+          )}
+        </Panel>
+      </div>
+      <p className="text-xs text-gray-500">
+        Signals = detector output · Alerts = medium/high/critical lifecycle · Insights = every signal.
+      </p>
     </div>
   );
 }

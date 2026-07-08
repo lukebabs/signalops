@@ -2691,3 +2691,116 @@ Validation note:
 Next step:
 
 - Proceed backend-first with alert/insight lifecycle persistence derived from durable signals.
+
+## 2026-07-08T22:55:26Z
+
+Summary:
+
+- Passed G047 backend foundation by deriving durable alert and insight lifecycle records from validated `signal.v1` events.
+- Added alert/insight migrations, storage contracts, transactional Postgres persistence, gateway list/detail APIs, unit tests, and runtime documentation.
+- Extended the existing `signal-persister` service; no new worker is required. Signal source offsets remain uncommitted until signal, alert, and insight persistence succeeds.
+
+Files changed:
+
+- `migrations/000007_alert_insight_lifecycle.up.sql`
+- `migrations/000007_alert_insight_lifecycle.down.sql`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/signals/processor.go`
+- `internal/signals/processor_test.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/python_worker.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Runtime contract:
+
+- Every persisted signal derives one active insight with id `insight:{signal_id}`.
+- `medium`, `high`, and `critical` signals derive one open alert with id `alert:{signal_id}`.
+- `info` and `low` signals remain insight-only.
+- Reprocessing the same signal is idempotent and does not reset existing alert/insight lifecycle status fields.
+- Operator mutation endpoints for acknowledgement, resolution, review, dismissal, and suppression remain deferred until auth/operator identity exists.
+
+Verification performed:
+
+- `make docker-test` - all Go packages passed.
+- `make docker-test-python` - 37 Python tests passed.
+- `docker compose config --quiet` - passed.
+- `git diff --check` - passed.
+- `docker compose --profile storage run --rm postgres-migrate` - applied `000007_alert_insight_lifecycle`.
+- `docker compose build gateway signal-persister` - passed; build stage also ran `go test ./...`.
+- `docker compose up -d gateway signal-persister` - both services restarted successfully.
+- Published high-severity validation signal `signal-g047-high` to `signalops.local.signal.v1`.
+- Queried signal, alert, insight list/detail APIs, direct PostgreSQL rows, service logs, and the signal-persister consumer group.
+
+Live verification result:
+
+- Redpanda accepted `signal-g047-high` at `signalops.local.signal.v1` partition `1`, offset `0`.
+- `signal-persister` persisted `signal-g047-high` and derived `alert:signal-g047-high` plus `insight:signal-g047-high`.
+- `GET /v1/alerts/alert:signal-g047-high` returned status `open`, severity `high`, recommendation, entities, evidence, and normalized event lineage.
+- `GET /v1/insights/insight:signal-g047-high` returned status `active`, severity `high`, supporting metrics, semantic evidence, recommendation, and lineage.
+- `GET /v1/alerts?tenant_id=tenant-local&status=open&limit=5` and `GET /v1/insights?tenant_id=tenant-local&status=active&limit=5` returned the expected rows.
+- Direct PostgreSQL join confirmed `alert:signal-g047-high` status `open` and `insight:signal-g047-high` status `active`.
+- Consumer group `signalops.signal-persister.v1` was Stable with total lag `0`.
+
+Next step:
+
+- Write the frontend-agent G048 specification for Alerts and Active Insights UI backed by the new G047 APIs.
+
+## 2026-07-08T23:32:09Z
+
+Summary:
+
+- Implemented G048 by adding read-only Alerts (`/alerts`) and Active Insights (`/insights`) pages backed by the G047 alert/insight APIs, plus Dashboard integration.
+- Evaluated the G048 spec's backend contract against the real G047 implementation before coding; it was accurate (routes, DTO field names, `omitempty`/`NOT NULL` optionality, response envelopes, `queryLimit` default 50/cap 200, error codes, and signal→alert/insight derivation all matched `internal/api/router.go`, migration `000007`, and live data), so the spec was implemented as-is with no contract edits.
+- Added typed `AlertRecord`/`InsightRecord` (+filters/responses), `listAlerts`/`getAlert`/`listInsights`/`getInsight` client methods, and `useAlerts`/`useAlert`/`useInsights`/`useInsight` hooks.
+- Added `AlertsRoute` and `InsightsRoute` (filters, metrics, plain tables, detail panels with `JsonViewer`, local selection, loading/error/empty states, severity + status text badges); alert/insight `signal_id` links to `/signals` and `event_ids` link to `/normalized-events`. No enabled lifecycle action controls (mutation APIs are deferred per G047).
+- Wired `/alerts` + `/insights` routes and nav items (`TriangleAlert`, `Lightbulb`); added Open Alerts + Active Insights metric tiles and compact Open Alerts + Active Insights widgets to the Dashboard (metrics strip widened to a 13-column arbitrary grid; added a caption distinguishing signals vs alerts vs insights). REST is the source of truth — no second EventSource.
+
+Files changed:
+
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/router.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `web/src/routes/AlertsRoute.tsx`
+- `web/src/routes/InsightsRoute.tsx`
+- `web/src/routes/DashboardRoute.tsx`
+- `web/src/api/alerts_insights.test.ts`
+
+Rationale:
+
+- The spec author had already verified the G047 DTOs, so unlike G046 there were no field-name or optionality defects to correct; the gate proceeded straight to implementation.
+- The pages reuse existing `RawEventsRoute`/`SignalsRoute` conventions (plain tables, shared components, TanStack Query hooks) — no new libraries or mock data.
+
+Verification performed:
+
+- `cd web && npm test` — 3 files, 11 tests passed (incl. 5 new alert/insight client tests asserting filter→URL mapping, default `limit=50`, and path-id encoding).
+- `cd web && npm run build` — `tsc && vite build` succeeded; `AlertsRoute` and `InsightsRoute` are lazy chunks.
+- `cd web && npm audit` — 0 vulnerabilities.
+- `curl -fsS http://localhost:15173/`, `/alerts`, `/insights` — served the SPA shell.
+- `curl 'http://localhost:15173/v1/alerts?tenant_id=tenant-local&status=open&limit=10'` — returned `alert:signal-g047-high` (high/open) through the proxy.
+- `curl 'http://localhost:15173/v1/insights?tenant_id=tenant-local&status=active&limit=10'` — returned `insight:signal-g047-high` and `insight:signalops.static_test.low`.
+- `curl 'http://localhost:15173/v1/alerts/alert:signal-g047-high'` — returned the `{alert}` detail envelope.
+- `curl 'http://localhost:15173/v1/insights/insight:signal-g047-high'` — returned the `{insight}` detail envelope.
+- Playwright (Docker) browser validation across desktop + 375px mobile.
+
+Live verification result:
+
+- Build, tests, and audit pass; the pages add no new dependencies.
+- Proxy serves `/`, `/alerts`, `/insights`; list and detail APIs return live G047 rows.
+- Playwright: no browser console/page errors; exactly one dashboard SSE connection held across SPA navigation; nav has 12 items (Alerts, Insights added) without overlap; `/alerts` rendered 1 open alert and selecting it loaded the detail panel; `/insights` rendered 2 active insights and selecting one loaded its detail panel; the Dashboard rendered Open Alerts + Active Insights tiles and widgets; mobile horizontal overflow was `0px` for Dashboard, Alerts, and Insights.
+
+Issue found and resolved:
+
+- The Playwright run surfaced a stale `dashboard-desktop.png` (filename collision with the G046 run's CDN upload), which an image read mis-attributed to the G048 dashboard. Resolved by confirming the live DOM via `body.innerText` (`Open Alerts`, `Active Insights`, and the signals/alerts/insights caption all present) and re-capturing under a unique filename, which visually confirmed the G048 dashboard tiles, widgets, and caption.
+
+Next step:
+
+- Add authenticated lifecycle mutation APIs (acknowledge/resolve/review/dismiss/suppress) and wire the corresponding UI controls when operator identity is in place.

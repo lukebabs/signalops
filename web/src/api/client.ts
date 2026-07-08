@@ -13,9 +13,15 @@ import type {
   NormalizedEventResponse,
   SignalsResponse,
   SignalResponse,
+  AlertsResponse,
+  AlertResponse,
+  InsightsResponse,
+  InsightResponse,
   RawEventFilter,
   NormalizedEventFilter,
   SignalFilter,
+  AlertFilter,
+  InsightFilter,
 } from '../types';
 
 // Typed API error. Maps gateway error bodies {"error":<code>,"message":<text>}
@@ -126,4 +132,26 @@ export const api = {
     }),
   getSignal: (signalId: string) =>
     get<SignalResponse>(`/v1/signals/${encodeURIComponent(signalId)}`),
+  listAlerts: (filter: AlertFilter = {}) =>
+    get<AlertsResponse>('/v1/alerts', {
+      tenant_id: filter.tenant_id,
+      source_id: filter.source_id,
+      dataset: filter.dataset,
+      severity: filter.severity,
+      status: filter.status,
+      limit: filter.limit ?? 50,
+    }),
+  getAlert: (alertId: string) =>
+    get<AlertResponse>(`/v1/alerts/${encodeURIComponent(alertId)}`),
+  listInsights: (filter: InsightFilter = {}) =>
+    get<InsightsResponse>('/v1/insights', {
+      tenant_id: filter.tenant_id,
+      source_id: filter.source_id,
+      dataset: filter.dataset,
+      insight_type: filter.insight_type,
+      status: filter.status,
+      limit: filter.limit ?? 50,
+    }),
+  getInsight: (insightId: string) =>
+    get<InsightResponse>(`/v1/insights/${encodeURIComponent(insightId)}`),
 };

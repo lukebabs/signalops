@@ -34,6 +34,12 @@ const NormalizedEventsRoute = lazy(() =>
 const SignalsRoute = lazy(() =>
   import('./routes/SignalsRoute').then((m) => ({ default: m.SignalsRoute })),
 );
+const AlertsRoute = lazy(() =>
+  import('./routes/AlertsRoute').then((m) => ({ default: m.AlertsRoute })),
+);
+const InsightsRoute = lazy(() =>
+  import('./routes/InsightsRoute').then((m) => ({ default: m.InsightsRoute })),
+);
 
 const rootRoute = createRootRoute({ component: DashboardShell });
 
@@ -97,6 +103,18 @@ const signalsRoute = createRoute({
   component: SignalsRoute,
 });
 
+const alertsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/alerts',
+  component: AlertsRoute,
+});
+
+const insightsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/insights',
+  component: InsightsRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   runsRoute,
@@ -107,6 +125,8 @@ const routeTree = rootRoute.addChildren([
   pipelinesRoute,
   rulesRoute,
   signalsRoute,
+  alertsRoute,
+  insightsRoute,
   systemRoute,
 ]);
 
