@@ -1988,3 +1988,73 @@ Follow-up items:
 
 - Begin UI/UX dashboard implementation against the G029 query endpoints.
 - Add cursor or time-window pagination after initial UI usage patterns are clear.
+
+
+## Gate G030: Operational Dashboard UI Foundation
+
+Timestamp: `2026-07-08T02:34:21Z`
+
+Status: `passed`
+
+Gate name:
+
+- Scaffold the first SignalOps operational dashboard UI against the G029 query APIs.
+
+Criteria:
+
+- Scaffold `web/` with Vite + React + TypeScript using the adopted stack (TanStack Router/Query, Zustand, ECharts, AG Grid Community, Tailwind, `lucide-react`).
+- Implement dashboard shell, health status, Runs, Raw Events, Idempotency, and System views.
+- Use the live gateway API by default.
+- Resolve browser-to-gateway CORS via a Vite dev proxy.
+- Add frontend run instructions to docs.
+- Validate with `npm run build` and live API checks through the proxy.
+
+Evidence:
+
+- `web/` (package.json, vite.config.ts, tsconfig.json, tailwind.config.js, postcss.config.js, index.html, src/**)
+- `web/README.md`
+- `docs/frontend/frontend_evaluation.md`
+- `docs/frontend_implementation_spec.md`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- Dashboard shell renders the `SignalOps` app bar, a gateway health indicator (polls `/healthz` and `/readyz`), and navigation to Runs, Raw Events, Idempotency, and System.
+- Runs view: AG Grid table (status, started, source, datasets, dry-run, built, published, provider requests, failures, duration, run id) with a detail panel that fetches provider usage and renders config/report JSON; an ECharts bar chart shows provider requests across recent runs.
+- Raw Events view: AG Grid table with optional tenant/source/dataset filters and a detail panel rendering payload and entity-hints JSON with copy controls.
+- Idempotency view: form gated until all three fields are present; renders the record on success, shows `No idempotency record found` on 404, and links to the matching raw event.
+- System view: `/healthz` and `/readyz` status, API base URL, last refresh, and a storage-availability probe via `/v1/scheduler/runs?limit=1` (200 = available, 503 = unavailable).
+- `VITE_SIGNALOPS_API_BASE_URL` defaults to same-origin in dev; the Vite proxy forwards `/healthz`, `/readyz`, `/v1` to `SIGNALOPS_GATEWAY_URL` (default `http://localhost:18000`).
+- Route-level `React.lazy` code-splits AG Grid and ECharts; `manualChunks` splits `router`, `echarts`, and `aggrid` vendor chunks.
+
+Verification performed:
+
+- `cd web && npm install`
+- `cd web && npm run build`
+- `curl -fsS http://localhost:5173/healthz`
+- `curl -fsS http://localhost:5173/readyz`
+- `curl -fsS 'http://localhost:5173/v1/scheduler/runs?limit=2'`
+- `curl -fsS 'http://localhost:5173/v1/raw-events?limit=2'`
+- `curl -fsS 'http://localhost:5173/v1/idempotency?tenant_id=tenant-local&source_id=src-massive&idempotency_key=idem_5d5a94a0e8ea5d149ec19947'`
+- `curl -s -w '[HTTP %{http_code}]' 'http://localhost:5173/v1/idempotency?tenant_id=tenant-local&source_id=src-massive&idempotency_key=bogus_key_xyz'`
+- `curl -s -w '[HTTP %{http_code}]' 'http://localhost:5173/v1/idempotency'`
+
+Live verification result:
+
+- `npm run build` passed (`tsc && vite build`); production build emitted route and vendor chunks.
+- Dev server reachable at `http://localhost:5173/`.
+- Proxy forwarded all query endpoints to the gateway and returned live persisted data.
+- Idempotency 404 and missing-query 400 returned the documented error bodies.
+
+Actor:
+
+- Claude Code
+
+Follow-up items:
+
+- Perform browser validation (console errors, interactions, copy buttons, empty states) as a manual step.
+- Add a `web` Compose service and frontend Dockerfile when Compose integration is required.
+- Defer React Flow, SSE/WebSocket streaming, and client-side time-series evaluation to later gates pending backend endpoints.
+- Add Vitest unit tests for `api/client` and formatting helpers when test coverage is prioritized.

@@ -56,3 +56,18 @@ Run local PostgreSQL migrations:
 ```bash
 make compose-storage-migrate
 ```
+
+## Frontend (Operational Dashboard)
+
+The operational UI lives under `web/` (Vite + React + TypeScript). Run it
+against the local gateway:
+
+```bash
+cd web
+npm install
+npm run dev      # http://localhost:5173/
+```
+
+The Vite dev server proxies `/healthz`, `/readyz`, and `/v1` to the gateway on
+`http://localhost:18000`, so no CORS configuration is required. See
+`web/README.md` and `docs/frontend_implementation_spec.md` for details.

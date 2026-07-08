@@ -1605,3 +1605,100 @@ Next step:
 
 - Start UI/UX work against these read endpoints, beginning with an operational dashboard for scheduler runs, provider usage, raw event inspection, and idempotency lookup.
 - Add pagination cursors after the initial dashboard shape is proven; current endpoints use bounded `limit` queries.
+
+
+## 2026-07-08T02:34:21Z
+
+Summary:
+
+- Completed G030 by scaffolding the SignalOps operational dashboard frontend under `web/`.
+- Adopted the data-centric stack committed in the revised spec: Vite + React + TypeScript, TanStack Router, TanStack Query, Zustand, Apache ECharts, AG Grid Community, Tailwind CSS, and `lucide-react`.
+- Implemented the dashboard shell (app bar + health indicator + navigation) and four operational views: Runs (AG Grid table + detail panel with provider usage + ECharts bar chart), Raw Events (AG Grid table + detail panel with payload/entity JSON), Idempotency (form lookup with 404 handling and raw-event cross-link), and System (health, readiness, storage-availability probe, API base URL, last refresh).
+- Added a Vite dev proxy for `/healthz`, `/readyz`, and `/v1` to the gateway, resolving the CORS gap documented in the evaluation (the gateway has no CORS middleware).
+- Route-level code splitting lazy-loads AG Grid and ECharts only for the Runs and Raw Events views; vendor chunks are split via `manualChunks`.
+- Loading, error, and empty states are implemented for every view; copy-to-clipboard controls cover run/event ids, idempotency key, and payload hash; timestamps render as UTC.
+- Preceded implementation by revising `docs/frontend_implementation_spec.md` (stack adoption, CORS/proxy guidance, `raw_events` list envelope, `/readyz` shape, `omitempty` handling, `/frontend` rationale, Future Gates) and adding `docs/frontend/frontend_evaluation.md`.
+
+Files changed:
+
+- `docs/frontend/frontend_evaluation.md`
+- `docs/frontend_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `docs/docker_development.md`
+- `web/.env.example`
+- `web/.gitignore`
+- `web/index.html`
+- `web/package.json`
+- `web/postcss.config.js`
+- `web/README.md`
+- `web/tailwind.config.js`
+- `web/tsconfig.json`
+- `web/vite.config.ts`
+- `web/src/App.tsx`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/components/CopyButton.tsx`
+- `web/src/components/DashboardShell.tsx`
+- `web/src/components/HealthIndicator.tsx`
+- `web/src/components/IdempotencyLookup.tsx`
+- `web/src/components/JsonViewer.tsx`
+- `web/src/components/MetricTile.tsx`
+- `web/src/components/RawEventDetail.tsx`
+- `web/src/components/RawEventTable.tsx`
+- `web/src/components/RefreshButton.tsx`
+- `web/src/components/RunDetail.tsx`
+- `web/src/components/RunTable.tsx`
+- `web/src/components/RunsBarChart.tsx`
+- `web/src/components/States.tsx`
+- `web/src/components/StatusBadge.tsx`
+- `web/src/lib/format.ts`
+- `web/src/main.tsx`
+- `web/src/router.tsx`
+- `web/src/routes/IdempotencyRoute.tsx`
+- `web/src/routes/RawEventsRoute.tsx`
+- `web/src/routes/RunsRoute.tsx`
+- `web/src/routes/SystemRoute.tsx`
+- `web/src/store/ui.ts`
+- `web/src/styles/index.css`
+- `web/src/types.ts`
+- `web/src/vite-env.d.ts`
+
+Rationale:
+
+- The operational UI is the first consumer of the G029 query APIs; a client-side SPA is sufficient for an internal, authenticated dashboard (no SSR needed).
+- TanStack Query owns server state and directly satisfies the loading/error/empty and refresh requirements and the `400`/`404`/`500`/`503` error mapping.
+- The Vite proxy is the supported dev path because the gateway emits no CORS headers.
+- AG Grid Community and Apache ECharts are deferred-loaded per route to keep the initial shell light.
+
+Verification performed:
+
+- `cd web && npm install` (201 packages, no errors).
+- `cd web && npm run build` (`tsc && vite build`); type-check passed and production build succeeded with route-level and vendor code splitting.
+- Started the Vite dev server on `http://localhost:5173/`.
+- Validated the dev proxy forwards same-origin requests to the gateway on `:18000`:
+  - `curl -fsS http://localhost:5173/healthz` returned `{"service":"signalops-gateway","status":"ok",...}`.
+  - `curl -fsS http://localhost:5173/readyz` returned `status:"ready"`.
+  - `curl -fsS 'http://localhost:5173/v1/scheduler/runs?limit=2'` returned persisted scheduler runs with config, counters, and timestamps.
+  - `curl -fsS 'http://localhost:5173/v1/raw-events?limit=2'` returned the `raw_events` (plural) list envelope with broker topic/partition/offset.
+  - `curl -fsS 'http://localhost:5173/v1/idempotency?tenant_id=tenant-local&source_id=src-massive&idempotency_key=idem_5d5a94a0e8ea5d149ec19947'` returned the published idempotency record with payload hash.
+  - `curl -s -w '[HTTP %{http_code}]' '...&idempotency_key=bogus_key_xyz'` returned HTTP 404 `idempotency_not_found`.
+  - `curl -s -w '[HTTP %{http_code}]' '.../v1/idempotency'` (no params) returned HTTP 400 `missing_query`.
+
+Live verification result:
+
+- Build passes (`tsc && vite build`).
+- All five required views are implemented against the live gateway API through the proxy.
+- Response shapes match the TypeScript types in `web/src/types.ts` (including the `raw_events` plural list envelope, `/readyz` `status:"ready"`, and `omitempty` broker/idempotency fields).
+- Error mapping confirmed: 404 `idempotency_not_found` and 400 `missing_query` return the documented `{"error","message"}` body.
+
+Issue found and resolved:
+
+- The initial two-tsconfig project-reference setup failed `tsc` with TS6306/TS6310 because the referenced `tsconfig.node.json` could not be `composite` with `noEmit`. Resolved by making `tsconfig.json` self-contained (including `vite.config.ts` directly with `node` + `vite/client` types) and removing `tsconfig.node.json`.
+
+Next step:
+
+- Perform browser validation (console errors, row selection, detail panels, copy buttons, idempotency empty state) as a manual follow-up.
+- Add a `web` Compose service and frontend Dockerfile when the gate requires Compose integration; the dev server is sufficient for this gate.
+- Defer React Flow, SSE/WebSocket streaming, and client-side time-series evaluation to later gates pending backend topology and streaming endpoints.
+- Add Vitest unit tests for `api/client` and formatting helpers when test coverage is prioritized.
