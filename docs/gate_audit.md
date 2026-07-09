@@ -4064,3 +4064,39 @@ Follow-up items:
 - Complete real-browser login/logout validation with `lukeb` at `https://signalops.syncratic.io`.
 - Decide and implement the authenticated SSE transport path or explicitly disable SSE with REST fallback while auth is enabled.
 - Then enable backend auth and validate live `401`, `403`, viewer read, operator/admin lifecycle mutation, and tenant mismatch behavior with real IdP tokens.
+
+## Gate G054: Authenticated Streaming and Browser Validation Specification
+
+Timestamp: `2026-07-09T13:24:00Z`
+
+Status: `handoff ready`
+
+Gate name:
+
+- Specify frontend handling for authenticated dashboard streaming and real-browser auth validation.
+
+Criteria:
+
+- Address the G053 follow-up that native `EventSource` cannot send `Authorization` headers while G052 protects `/v1/streams/dashboard` under backend auth.
+- Keep auth-disabled streaming behavior intact.
+- Require a safe auth-enabled fallback that does not put tokens in URLs.
+- Require tests for stream mode behavior and fallback refresh.
+- Require a real-browser Syncratic IdP validation checklist.
+- Keep backend auth enablement out of scope until frontend/browser validation is complete.
+
+Evidence:
+
+- `docs/frontend/authenticated_streaming_and_browser_validation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- Recommended direction is REST fallback under auth instead of query-string tokens, cookie/session edge auth, or a custom fetch-stream parser in this gate.
+- The frontend should not permanently enable backend `SIGNALOPS_AUTH_ENABLED=true`; that remains a coordinated post-G054 validation step.
+- Browser validation may require a real operator session because Imperva/Incapsula can block headless IdP probing.
+
+Follow-up items:
+
+- Frontend-agent implements G054.
+- Codex validates G054 and then coordinates interactive browser login plus backend auth enablement.

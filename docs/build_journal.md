@@ -3284,3 +3284,30 @@ Follow-up:
 - Complete interactive browser validation with user `lukeb` through `https://signalops.syncratic.io`.
 - Decide how authenticated dashboard SSE should work: backend-supported token query parameter, cookie/session edge pattern, fetch-based stream polyfill with Authorization header, or disabled stream with REST fallback while auth is enabled.
 - After the browser/SSE decision passes, set `SIGNALOPS_AUTH_ENABLED=true`, redeploy gateway, and validate live protected API behavior with a real IdP token.
+
+## 2026-07-09T13:24:00Z
+
+Summary:
+
+- Wrote the G054 frontend-agent specification for closing frontend-owned auth enablement gaps after G053.
+- The spec addresses authenticated dashboard streaming behavior and repeatable real-browser Syncratic IdP validation.
+
+Files changed:
+
+- `docs/frontend/authenticated_streaming_and_browser_validation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Specification coverage:
+
+- Preserve native `EventSource` dashboard streaming when frontend auth is disabled.
+- Disable native `EventSource` when frontend auth is enabled because it cannot send Bearer headers to protected `/v1/streams/dashboard`.
+- Do not put access tokens in stream URLs.
+- Use REST polling/query invalidation fallback for dashboard freshness under auth.
+- Avoid surfacing intentional auth fallback as a broken stream error.
+- Add tests for auth-disabled streaming and auth-enabled fallback behavior.
+- Add a real-browser auth validation checklist for Syncratic IdP login/logout, callback, identity display, tenant/role resolution, Bearer attachment, and logout cache clearing.
+
+Next step:
+
+- Frontend-agent implements G054 using `docs/frontend/authenticated_streaming_and_browser_validation_spec.md`.
