@@ -133,8 +133,9 @@ Current derivation rules:
 - `info` and `low` signals do not create alerts.
 - Reprocessing the same signal is idempotent and does not reset existing alert/insight lifecycle
   status fields.
-- Mutation endpoints for acknowledgement, resolution, review, dismissal, or suppression are deferred
-  until operator identity/authentication exists.
+- Lifecycle mutation endpoints are available with an explicit operator placeholder. The gateway reads
+  `X-SignalOps-Actor`, then request body `actor`, and finally defaults to `operator-local` until formal
+  authentication is wired.
 
 ### Alerts
 
@@ -148,6 +149,16 @@ optional acknowledgement/resolution fields, metadata, and audit timestamps.
 `GET /v1/alerts/{alert_id}`
 
 Returns one alert or `404 alert_not_found`.
+
+`POST /v1/alerts/{alert_id}/acknowledge`
+`POST /v1/alerts/{alert_id}/resolve`
+`POST /v1/alerts/{alert_id}/suppress`
+
+Mutates an existing alert lifecycle row and returns `{ "alert": ... }` with the updated envelope.
+Request body is optional and may include `actor`, `note`, and `reason`. The `X-SignalOps-Actor`
+header takes precedence over body `actor`; if neither is supplied, the gateway records
+`operator-local`. Mutation metadata is merged into the existing alert `metadata.lifecycle` object.
+Missing alerts return `404 alert_not_found`; malformed request bodies return `400 invalid_json`.
 
 Current alert statuses: `open`, `acknowledged`, `resolved`, `suppressed`.
 
@@ -163,6 +174,16 @@ correlation id, observed/review fields, metadata, and audit timestamps.
 `GET /v1/insights/{insight_id}`
 
 Returns one insight or `404 insight_not_found`.
+
+`POST /v1/insights/{insight_id}/review`
+`POST /v1/insights/{insight_id}/dismiss`
+`POST /v1/insights/{insight_id}/archive`
+
+Mutates an existing insight lifecycle row and returns `{ "insight": ... }` with the updated envelope.
+Request body is optional and may include `actor`, `note`, and `reason`. The `X-SignalOps-Actor`
+header takes precedence over body `actor`; if neither is supplied, the gateway records
+`operator-local`. Mutation metadata is merged into the existing insight `metadata.lifecycle` object.
+Missing insights return `404 insight_not_found`; malformed request bodies return `400 invalid_json`.
 
 Current insight statuses: `active`, `reviewed`, `dismissed`, `archived`.
 

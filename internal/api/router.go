@@ -227,6 +227,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"alert": alertResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/alerts/{alert_id}/acknowledge", alertLifecycleHandler(cfg, storage.AlertStatusAcknowledged, "acknowledge"))
+	mux.HandleFunc("POST /v1/alerts/{alert_id}/resolve", alertLifecycleHandler(cfg, storage.AlertStatusResolved, "resolve"))
+	mux.HandleFunc("POST /v1/alerts/{alert_id}/suppress", alertLifecycleHandler(cfg, storage.AlertStatusSuppressed, "suppress"))
+
 	mux.HandleFunc("GET /v1/insights", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -256,6 +260,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"insight": insightResponse(record)})
 	})
+
+	mux.HandleFunc("POST /v1/insights/{insight_id}/review", insightLifecycleHandler(cfg, storage.InsightStatusReviewed, "review"))
+	mux.HandleFunc("POST /v1/insights/{insight_id}/dismiss", insightLifecycleHandler(cfg, storage.InsightStatusDismissed, "dismiss"))
+	mux.HandleFunc("POST /v1/insights/{insight_id}/archive", insightLifecycleHandler(cfg, storage.InsightStatusArchived, "archive"))
 
 	mux.HandleFunc("GET /v1/idempotency", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
@@ -949,6 +957,68 @@ type idempotencyDTO struct {
 	LastSeenAt     time.Time       `json:"last_seen_at"`
 }
 
+type lifecycleMutationRequest struct {
+	Actor  string `json:"actor"`
+	Note   string `json:"note"`
+	Reason string `json:"reason"`
+}
+
+func alertLifecycleHandler(cfg RouterConfig, status string, action string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		req, err := readLifecycleMutationRequest(w, r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		actor := lifecycleActor(r, req.Actor)
+		metadata, err := lifecycleMetadata(action, actor, req)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "metadata_failed", "failed to encode lifecycle metadata")
+			return
+		}
+		record, err := repo.MutateAlertLifecycle(r.Context(), storage.AlertLifecycleMutation{
+			AlertID: r.PathValue("alert_id"), Status: status, Actor: actor, MutatedAt: time.Now().UTC(), MetadataJSON: metadata,
+		})
+		if err != nil {
+			writeQueryError(w, err, "alert_not_found", "alert not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"alert": alertResponse(record)})
+	}
+}
+
+func insightLifecycleHandler(cfg RouterConfig, status string, action string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		req, err := readLifecycleMutationRequest(w, r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		actor := lifecycleActor(r, req.Actor)
+		metadata, err := lifecycleMetadata(action, actor, req)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "metadata_failed", "failed to encode lifecycle metadata")
+			return
+		}
+		record, err := repo.MutateInsightLifecycle(r.Context(), storage.InsightLifecycleMutation{
+			InsightID: r.PathValue("insight_id"), Status: status, Actor: actor, MutatedAt: time.Now().UTC(), MetadataJSON: metadata,
+		})
+		if err != nil {
+			writeQueryError(w, err, "insight_not_found", "insight not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"insight": insightResponse(record)})
+	}
+}
+
 func schedulerRunResponses(records []storage.SchedulerRunRecord) []schedulerRunDTO {
 	items := make([]schedulerRunDTO, 0, len(records))
 	for _, record := range records {
@@ -1268,6 +1338,54 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 		"error":   code,
 		"message": message,
 	})
+}
+
+func readLifecycleMutationRequest(w http.ResponseWriter, r *http.Request) (lifecycleMutationRequest, error) {
+	if r.Body == nil || r.ContentLength == 0 {
+		return lifecycleMutationRequest{}, nil
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
+	if err != nil {
+		return lifecycleMutationRequest{}, errors.New("request body exceeds 65536 bytes or cannot be read")
+	}
+	defer r.Body.Close()
+	if len(strings.TrimSpace(string(body))) == 0 {
+		return lifecycleMutationRequest{}, nil
+	}
+	var req lifecycleMutationRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		return lifecycleMutationRequest{}, errors.New("request body must be a valid JSON object")
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &fields); err != nil || fields == nil {
+		return lifecycleMutationRequest{}, errors.New("request body must be a JSON object")
+	}
+	return req, nil
+}
+
+func lifecycleActor(r *http.Request, bodyActor string) string {
+	if actor := strings.TrimSpace(r.Header.Get("X-SignalOps-Actor")); actor != "" {
+		return actor
+	}
+	if actor := strings.TrimSpace(bodyActor); actor != "" {
+		return actor
+	}
+	return "operator-local"
+}
+
+func lifecycleMetadata(action string, actor string, req lifecycleMutationRequest) ([]byte, error) {
+	entry := map[string]any{
+		"action":     action,
+		"actor":      actor,
+		"mutated_at": time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	if note := strings.TrimSpace(req.Note); note != "" {
+		entry["note"] = note
+	}
+	if reason := strings.TrimSpace(req.Reason); reason != "" {
+		entry["reason"] = reason
+	}
+	return json.Marshal(map[string]any{"lifecycle": entry})
 }
 
 func readJSONObject(w http.ResponseWriter, r *http.Request, maxBytes int64) ([]byte, map[string]json.RawMessage, error) {

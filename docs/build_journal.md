@@ -2804,3 +2804,58 @@ Issue found and resolved:
 Next step:
 
 - Add authenticated lifecycle mutation APIs (acknowledge/resolve/review/dismiss/suppress) and wire the corresponding UI controls when operator identity is in place.
+
+## 2026-07-09T00:13:36Z
+
+Summary:
+
+- Implemented G049 backend lifecycle mutation APIs for alert acknowledgement/resolution/suppression and insight review/dismiss/archive.
+- Added storage mutation contracts and Postgres update methods that preserve existing rows, set lifecycle audit columns, merge `metadata.lifecycle`, and return the updated alert or insight envelope.
+- Added gateway POST routes using explicit action endpoints. Operator identity is read from `X-SignalOps-Actor`, then body `actor`, then `operator-local` until auth is introduced.
+- Added router unit tests for alert acknowledgement and insight archive transitions.
+
+Files changed:
+
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- G047 already created the required lifecycle columns, so G049 intentionally avoids a new migration or worker.
+- Fixed action endpoints keep lifecycle state changes explicit for future UI controls and eventual auth/audit enforcement.
+
+Verification performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres ./cmd/gateway` - passed.
+- `make docker-test` - all Go packages passed.
+- `make docker-test-python` - 37 Python tests passed.
+- `docker compose config --quiet` - passed.
+- `docker compose build gateway` - passed; build stage also ran `go test ./...`.
+- `docker compose up -d gateway` - restarted the gateway with the G049 image.
+- `git diff --check` - passed.
+- Published validation signal `signal-g049-high` to `signalops.local.signal.v1` partition `2`, offset `0`.
+- Queried `GET /v1/signals/signal-g049-high`, `GET /v1/alerts/alert:signal-g049-high`, and `GET /v1/insights/insight:signal-g049-high`.
+- Exercised all six lifecycle mutation endpoints against the G049 rows.
+- Queried direct PostgreSQL rows and the `signalops.signal-persister.v1` consumer group.
+
+Live verification result:
+
+- `signal-persister` persisted `signal-g049-high` and derived `alert:signal-g049-high` plus `insight:signal-g049-high`.
+- `POST /v1/alerts/alert:signal-g049-high/acknowledge` returned status `acknowledged`, `acknowledged_by=operator-g049`, and lifecycle metadata action `acknowledge`.
+- `POST /v1/alerts/alert:signal-g049-high/resolve` returned status `resolved`, `resolved_by=operator-g049`, and lifecycle metadata action `resolve`.
+- `POST /v1/alerts/alert:signal-g049-high/suppress` returned status `suppressed` and lifecycle metadata action `suppress`.
+- `POST /v1/insights/insight:signal-g049-high/review` returned status `reviewed`, `reviewed_by=operator-g049`, and lifecycle metadata action `review`.
+- `POST /v1/insights/insight:signal-g049-high/archive` returned status `archived` and lifecycle metadata action `archive`.
+- `POST /v1/insights/insight:signal-g049-high/dismiss` returned status `dismissed` and lifecycle metadata action `dismiss`.
+- Direct PostgreSQL confirmed final alert status `suppressed` with acknowledged/resolved actors preserved, and final insight status `dismissed` with reviewed actor preserved.
+- Consumer group `signalops.signal-persister.v1` was Stable with total lag `0`.
+
+Next step:
+
+- Write the frontend-agent G050 specification for lifecycle action controls on Alerts and Active Insights, using these backend-ready endpoints.

@@ -237,3 +237,14 @@ alert, and insight persistence succeeds.
 
 Current derivation creates one active insight for every valid signal and one open alert for
 `medium`, `high`, or `critical` signals. Low/info signals remain insights only.
+
+## G049 alert and insight lifecycle mutations
+
+The gateway exposes lifecycle mutation endpoints for existing alert and insight ledger rows. No new
+migration, worker, topic, or Compose service is required for G049; the endpoints update the columns
+created in `000007_alert_insight_lifecycle` and merge a compact `metadata.lifecycle` audit object.
+
+Supported alert actions are `acknowledge`, `resolve`, and `suppress`. Supported insight actions are
+`review`, `dismiss`, and `archive`. Operator identity is currently an explicit placeholder supplied by
+`X-SignalOps-Actor` or body `actor`, defaulting to `operator-local` until formal authentication is
+introduced.

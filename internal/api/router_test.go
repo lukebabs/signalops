@@ -137,6 +137,30 @@ func (q *fakeQueryRepository) GetAlertLedger(_ context.Context, alertID string) 
 	return storage.AlertLedgerRecord{}, storage.ErrNotFound
 }
 
+func (q *fakeQueryRepository) MutateAlertLifecycle(_ context.Context, mutation storage.AlertLifecycleMutation) (storage.AlertLedgerRecord, error) {
+	if q.notFound {
+		return storage.AlertLedgerRecord{}, storage.ErrNotFound
+	}
+	for i, alert := range q.alerts {
+		if alert.AlertID == mutation.AlertID {
+			alert.Status = mutation.Status
+			alert.UpdatedAt = mutation.MutatedAt
+			alert.MetadataJSON = mutation.MetadataJSON
+			if mutation.Status == storage.AlertStatusAcknowledged {
+				alert.AcknowledgedAt = &mutation.MutatedAt
+				alert.AcknowledgedBy = mutation.Actor
+			}
+			if mutation.Status == storage.AlertStatusResolved {
+				alert.ResolvedAt = &mutation.MutatedAt
+				alert.ResolvedBy = mutation.Actor
+			}
+			q.alerts[i] = alert
+			return alert, nil
+		}
+	}
+	return storage.AlertLedgerRecord{}, storage.ErrNotFound
+}
+
 func (q *fakeQueryRepository) ListInsightLedger(context.Context, storage.InsightLedgerFilter) ([]storage.InsightLedgerRecord, error) {
 	return q.insights, nil
 }
@@ -147,6 +171,24 @@ func (q *fakeQueryRepository) GetInsightLedger(_ context.Context, insightID stri
 	}
 	for _, insight := range q.insights {
 		if insight.InsightID == insightID {
+			return insight, nil
+		}
+	}
+	return storage.InsightLedgerRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) MutateInsightLifecycle(_ context.Context, mutation storage.InsightLifecycleMutation) (storage.InsightLedgerRecord, error) {
+	if q.notFound {
+		return storage.InsightLedgerRecord{}, storage.ErrNotFound
+	}
+	for i, insight := range q.insights {
+		if insight.InsightID == mutation.InsightID {
+			insight.Status = mutation.Status
+			insight.UpdatedAt = mutation.MutatedAt
+			insight.ReviewedAt = &mutation.MutatedAt
+			insight.ReviewedBy = mutation.Actor
+			insight.MetadataJSON = mutation.MetadataJSON
+			q.insights[i] = insight
 			return insight, nil
 		}
 	}
@@ -612,6 +654,53 @@ func TestListInsightsReturnsLifecycleEnvelope(t *testing.T) {
 	}
 	if len(body.Insights) != 1 || body.Insights[0].InsightID != "insight-1" || body.Insights[0].Status != storage.InsightStatusActive {
 		t.Fatalf("body = %+v", body)
+	}
+}
+
+func TestAcknowledgeAlertMutatesLifecycle(t *testing.T) {
+	repo := &fakeQueryRepository{alerts: []storage.AlertLedgerRecord{validAlertRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/alerts/alert-1/acknowledge", bytes.NewBufferString(`{"note":"triaged"}`))
+	req.Header.Set("X-SignalOps-Actor", "operator-test")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Alert alertDTO `json:"alert"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Alert.Status != storage.AlertStatusAcknowledged || body.Alert.AcknowledgedBy != "operator-test" || body.Alert.AcknowledgedAt == nil {
+		t.Fatalf("alert = %+v", body.Alert)
+	}
+	if !bytes.Contains(body.Alert.Metadata, []byte(`"action":"acknowledge"`)) {
+		t.Fatalf("metadata = %s", string(body.Alert.Metadata))
+	}
+}
+
+func TestArchiveInsightMutatesLifecycle(t *testing.T) {
+	repo := &fakeQueryRepository{insights: []storage.InsightLedgerRecord{validInsightRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/insights/insight-1/archive", bytes.NewBufferString(`{"actor":"operator-body","reason":"closed"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Insight insightDTO `json:"insight"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Insight.Status != storage.InsightStatusArchived || body.Insight.ReviewedBy != "operator-body" || body.Insight.ReviewedAt == nil {
+		t.Fatalf("insight = %+v", body.Insight)
+	}
+	if !bytes.Contains(body.Insight.Metadata, []byte(`"action":"archive"`)) {
+		t.Fatalf("metadata = %s", string(body.Insight.Metadata))
 	}
 }
 

@@ -3419,3 +3419,81 @@ Follow-up items:
 
 - Add authenticated lifecycle mutation APIs (acknowledge/resolve/review/dismiss/suppress) and wire the corresponding UI controls when operator identity/authentication is in place.
 - Consider modest polling or SSE channel additions for alerts/insights only when the backend stream supports them; for now REST refetch is the source of truth.
+
+## Gate G049: Backend Alert and Insight Lifecycle Mutations
+
+Timestamp: `2026-07-09T00:13:36Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add backend lifecycle mutation APIs for durable alert and insight rows.
+
+Criteria:
+
+- Add alert acknowledgement, resolution, and suppression endpoints.
+- Add insight review, dismissal, and archive endpoints.
+- Persist lifecycle status changes and audit actor/timestamp fields in Postgres.
+- Preserve the G047 derivation model and avoid resetting lifecycle state during signal reprocessing.
+- Document the API, deployment impact, and verification evidence with timestamped audit entries.
+
+Evidence:
+
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `docs/api.md`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- No migration is required; G049 uses the lifecycle columns added by `000007_alert_insight_lifecycle`.
+- Alert actions: `POST /v1/alerts/{alert_id}/acknowledge`, `/resolve`, `/suppress`.
+- Insight actions: `POST /v1/insights/{insight_id}/review`, `/dismiss`, `/archive`.
+- Actor placeholder order: `X-SignalOps-Actor`, request body `actor`, default `operator-local`.
+- Mutation metadata is merged into `metadata.lifecycle` for the row and the updated envelope is returned.
+
+Verification performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres ./cmd/gateway`
+- `make docker-test`
+- `make docker-test-python`
+- `docker compose config --quiet`
+- `docker compose build gateway`
+- `docker compose up -d gateway`
+- `git diff --check`
+- `docker exec -i signalops-redpanda-1 rpk topic produce signalops.local.signal.v1 -k signal-g049-high -f '%v'`
+- `curl -fsS http://localhost:18000/v1/signals/signal-g049-high`
+- `curl -fsS http://localhost:18000/v1/alerts/alert:signal-g049-high`
+- `curl -fsS http://localhost:18000/v1/insights/insight:signal-g049-high`
+- `curl -fsS -X POST ... /v1/alerts/alert:signal-g049-high/acknowledge`
+- `curl -fsS -X POST ... /v1/alerts/alert:signal-g049-high/resolve`
+- `curl -fsS -X POST ... /v1/alerts/alert:signal-g049-high/suppress`
+- `curl -fsS -X POST ... /v1/insights/insight:signal-g049-high/review`
+- `curl -fsS -X POST ... /v1/insights/insight:signal-g049-high/archive`
+- `curl -fsS -X POST ... /v1/insights/insight:signal-g049-high/dismiss`
+- Direct PostgreSQL lifecycle row queries.
+- `docker exec signalops-redpanda-1 rpk group describe signalops.signal-persister.v1`
+
+Live verification result:
+
+- Redpanda accepted `signal-g049-high` at `signalops.local.signal.v1` partition `2`, offset `0`.
+- `signal-persister` persisted `signal-g049-high` and derived `alert:signal-g049-high` plus `insight:signal-g049-high`.
+- Alert acknowledge, resolve, and suppress endpoints returned updated `{alert}` envelopes with expected status, actor fields, and `metadata.lifecycle.action` values.
+- Insight review, archive, and dismiss endpoints returned updated `{insight}` envelopes with expected status, actor fields, and `metadata.lifecycle.action` values.
+- Direct PostgreSQL confirmed final alert status `suppressed`, `acknowledged_by=operator-g049`, `resolved_by=operator-g049`, and lifecycle action `suppress`.
+- Direct PostgreSQL confirmed final insight status `dismissed`, `reviewed_by=operator-g049`, and lifecycle action `dismiss`.
+- Consumer group `signalops.signal-persister.v1` was Stable with total lag `0`.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Write the frontend-agent spec for lifecycle action controls on Alerts and Active Insights.
+- Replace placeholder actor handling with authenticated operator identity when the auth boundary lands.

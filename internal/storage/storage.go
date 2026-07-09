@@ -251,6 +251,22 @@ type InsightLedgerRecord struct {
 	UpdatedAt            time.Time
 }
 
+type AlertLifecycleMutation struct {
+	AlertID      string
+	Status       string
+	Actor        string
+	MutatedAt    time.Time
+	MetadataJSON []byte
+}
+
+type InsightLifecycleMutation struct {
+	InsightID    string
+	Status       string
+	Actor        string
+	MutatedAt    time.Time
+	MetadataJSON []byte
+}
+
 type CatalogSourceRecord struct {
 	TenantID       string
 	SourceID       string
@@ -396,8 +412,10 @@ type QueryRepository interface {
 	GetSignalLedger(ctx context.Context, signalID string) (SignalLedgerRecord, error)
 	ListAlertLedger(ctx context.Context, filter AlertLedgerFilter) ([]AlertLedgerRecord, error)
 	GetAlertLedger(ctx context.Context, alertID string) (AlertLedgerRecord, error)
+	MutateAlertLifecycle(ctx context.Context, mutation AlertLifecycleMutation) (AlertLedgerRecord, error)
 	ListInsightLedger(ctx context.Context, filter InsightLedgerFilter) ([]InsightLedgerRecord, error)
 	GetInsightLedger(ctx context.Context, insightID string) (InsightLedgerRecord, error)
+	MutateInsightLifecycle(ctx context.Context, mutation InsightLifecycleMutation) (InsightLedgerRecord, error)
 	GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (IdempotencyRecord, error)
 	ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]CatalogSourceRecord, error)
 	ListCatalogPipelines(ctx context.Context, tenantID string, limit int) ([]CatalogPipelineRecord, error)

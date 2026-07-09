@@ -779,6 +779,33 @@ func (r *Repository) GetAlertLedger(ctx context.Context, alertID string) (storag
 	return record, nil
 }
 
+func (r *Repository) MutateAlertLifecycle(ctx context.Context, mutation storage.AlertLifecycleMutation) (storage.AlertLedgerRecord, error) {
+	if err := validateAlertLifecycleMutation(mutation); err != nil {
+		return storage.AlertLedgerRecord{}, err
+	}
+	result, err := r.db.ExecContext(ctx, `
+UPDATE alert_ledger
+SET status = $2,
+    acknowledged_at = CASE WHEN $2 = 'acknowledged' THEN $4 ELSE acknowledged_at END,
+    acknowledged_by = CASE WHEN $2 = 'acknowledged' THEN $3 ELSE acknowledged_by END,
+    resolved_at = CASE WHEN $2 = 'resolved' THEN $4 ELSE resolved_at END,
+    resolved_by = CASE WHEN $2 = 'resolved' THEN $3 ELSE resolved_by END,
+    metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb,
+    updated_at = now()
+WHERE alert_id = $1`, strings.TrimSpace(mutation.AlertID), strings.TrimSpace(mutation.Status), strings.TrimSpace(mutation.Actor), mutation.MutatedAt.UTC(), jsonOrEmpty(mutation.MetadataJSON))
+	if err != nil {
+		return storage.AlertLedgerRecord{}, fmt.Errorf("mutate alert lifecycle: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return storage.AlertLedgerRecord{}, fmt.Errorf("mutate alert lifecycle rows affected: %w", err)
+	}
+	if changed == 0 {
+		return storage.AlertLedgerRecord{}, storage.ErrNotFound
+	}
+	return r.GetAlertLedger(ctx, mutation.AlertID)
+}
+
 func (r *Repository) ListInsightLedger(ctx context.Context, filter storage.InsightLedgerFilter) ([]storage.InsightLedgerRecord, error) {
 	rows, err := r.db.QueryContext(ctx, insightSelect+`
 WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
@@ -809,6 +836,31 @@ func (r *Repository) GetInsightLedger(ctx context.Context, insightID string) (st
 		return storage.InsightLedgerRecord{}, err
 	}
 	return record, nil
+}
+
+func (r *Repository) MutateInsightLifecycle(ctx context.Context, mutation storage.InsightLifecycleMutation) (storage.InsightLedgerRecord, error) {
+	if err := validateInsightLifecycleMutation(mutation); err != nil {
+		return storage.InsightLedgerRecord{}, err
+	}
+	result, err := r.db.ExecContext(ctx, `
+UPDATE insight_ledger
+SET status = $2,
+    reviewed_at = CASE WHEN $2 IN ('reviewed', 'dismissed', 'archived') THEN $4 ELSE reviewed_at END,
+    reviewed_by = CASE WHEN $2 IN ('reviewed', 'dismissed', 'archived') THEN $3 ELSE reviewed_by END,
+    metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb,
+    updated_at = now()
+WHERE insight_id = $1`, strings.TrimSpace(mutation.InsightID), strings.TrimSpace(mutation.Status), strings.TrimSpace(mutation.Actor), mutation.MutatedAt.UTC(), jsonOrEmpty(mutation.MetadataJSON))
+	if err != nil {
+		return storage.InsightLedgerRecord{}, fmt.Errorf("mutate insight lifecycle: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return storage.InsightLedgerRecord{}, fmt.Errorf("mutate insight lifecycle rows affected: %w", err)
+	}
+	if changed == 0 {
+		return storage.InsightLedgerRecord{}, storage.ErrNotFound
+	}
+	return r.GetInsightLedger(ctx, mutation.InsightID)
 }
 
 func (r *Repository) GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (storage.IdempotencyRecord, error) {
@@ -1388,6 +1440,42 @@ func validateSignalLedger(record storage.SignalLedgerRecord) error {
 	return nil
 }
 
+func validateAlertLifecycleMutation(mutation storage.AlertLifecycleMutation) error {
+	if strings.TrimSpace(mutation.AlertID) == "" {
+		return errors.New("alert id is required")
+	}
+	switch strings.TrimSpace(mutation.Status) {
+	case storage.AlertStatusAcknowledged, storage.AlertStatusResolved, storage.AlertStatusSuppressed:
+	default:
+		return errors.New("unsupported alert lifecycle status")
+	}
+	if strings.TrimSpace(mutation.Actor) == "" {
+		return errors.New("actor is required")
+	}
+	if mutation.MutatedAt.IsZero() {
+		return errors.New("mutated at is required")
+	}
+	return validateJSONObject("alert lifecycle metadata", jsonOrEmpty(mutation.MetadataJSON))
+}
+
+func validateInsightLifecycleMutation(mutation storage.InsightLifecycleMutation) error {
+	if strings.TrimSpace(mutation.InsightID) == "" {
+		return errors.New("insight id is required")
+	}
+	switch strings.TrimSpace(mutation.Status) {
+	case storage.InsightStatusReviewed, storage.InsightStatusDismissed, storage.InsightStatusArchived:
+	default:
+		return errors.New("unsupported insight lifecycle status")
+	}
+	if strings.TrimSpace(mutation.Actor) == "" {
+		return errors.New("actor is required")
+	}
+	if mutation.MutatedAt.IsZero() {
+		return errors.New("mutated at is required")
+	}
+	return validateJSONObject("insight lifecycle metadata", jsonOrEmpty(mutation.MetadataJSON))
+}
+
 func validateAlertLedger(record storage.AlertLedgerRecord) error {
 	for name, value := range map[string]string{
 		"alert id": record.AlertID, "tenant id": record.TenantID, "source id": record.SourceID,
@@ -1530,6 +1618,17 @@ func validateCatalogRule(record storage.CatalogRuleRecord) error {
 	}
 	if len(record.ExpressionJSON) == 0 {
 		return errors.New("catalog rule expression json is required")
+	}
+	return nil
+}
+
+func validateJSONObject(name string, value []byte) error {
+	var decoded map[string]any
+	if err := json.Unmarshal(value, &decoded); err != nil {
+		return fmt.Errorf("%s must be a JSON object: %w", name, err)
+	}
+	if decoded == nil {
+		return fmt.Errorf("%s must be a JSON object", name)
 	}
 	return nil
 }
