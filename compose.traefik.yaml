@@ -1,0 +1,17 @@
+services:
+  web:
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-syncratic-core_syncratic_net}
+      traefik.http.routers.signalops.rule: Host(`${SIGNALOPS_PUBLIC_HOST:?set SIGNALOPS_PUBLIC_HOST}`)
+      traefik.http.routers.signalops.entrypoints: websecure
+      traefik.http.routers.signalops.tls.certresolver: letsencrypt
+      traefik.http.services.signalops.loadbalancer.server.port: "8080"
+    networks:
+      - default
+      - syncratic_net
+
+networks:
+  syncratic_net:
+    external: true
+    name: ${TRAEFIK_NETWORK:-syncratic-core_syncratic_net}

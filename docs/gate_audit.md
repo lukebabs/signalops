@@ -3693,3 +3693,72 @@ Follow-up items:
 
 - Add authenticated operator identity and durable lifecycle audit history beyond the latest `metadata.lifecycle` object.
 - Plan the TimescaleDB storage maturity gate before sustained high-volume temporal ingestion.
+
+## Gate G051: SignalOps Public TLS via Syncratic Traefik
+
+Timestamp: `2026-07-09T02:43:48Z`
+
+Status: `partially passed - public HTTPS edge pending`
+
+Gate name:
+
+- Expose SignalOps through the parent Syncratic core Traefik edge with Let's Encrypt TLS.
+
+Criteria:
+
+- Provide a SignalOps Compose overlay that attaches `web` to the Syncratic Traefik network.
+- Use the parent Traefik `websecure` entrypoint and `letsencrypt` certificate resolver.
+- Keep the gateway internal and expose browser/API traffic through the existing web nginx proxy.
+- Document required SignalOps and parent Traefik environment values.
+- Validate merged Compose configuration, deployed labels, network attachment, local proxy health, and Traefik SNI routing.
+- Record public DNS/certificate status.
+
+Evidence:
+
+- `compose.traefik.yaml`
+- `.env.example`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `compose.traefik.yaml` adds Traefik labels to `web` only.
+- Router rule: `Host("signalops.syncratic.io")`.
+- Entrypoint: `websecure`.
+- Cert resolver: `letsencrypt`.
+- Load balancer target port: `8080` inside the web container.
+- External Docker network: `syncratic-core_syncratic_net`.
+- Required parent Traefik ACME values remain managed in Syncratic core: `LETSENCRYPT_EMAIL`, `GODADDY_API_KEY`, and `GODADDY_API_SECRET`.
+
+Verification performed:
+
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`
+- Docker network presence check for `signalops_default` and `syncratic-core_syncratic_net`.
+- Rendered Compose inspection for Traefik labels and `web` network attachment.
+- `SIGNALOPS_PUBLIC_HOST=signalops.syncratic.io TRAEFIK_NETWORK=syncratic-core_syncratic_net docker compose -f compose.yaml -f compose.traefik.yaml up -d web`
+- `docker inspect signalops-web-1` for labels and networks.
+- `curl -fsS http://localhost:15173/healthz`
+- `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/healthz`
+- `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/`
+- Traefik log review for `signalops@docker` routing.
+- Public validation: `curl -fsS http://signalops.syncratic.io/healthz` passed; `curl -fsS https://signalops.syncratic.io/healthz` returned upstream `503`.
+
+Live verification result:
+
+- Compose overlay rendered successfully.
+- `signalops-web-1` is attached to both the SignalOps default network and `syncratic-core_syncratic_net`.
+- Traefik labels are present on the web container.
+- Local health via `localhost:15173` passed.
+- Local Traefik SNI override passed for `/healthz` and `/`.
+- Public DNS resolves and HTTP reaches SignalOps. Public HTTPS returns an upstream Imperva/Incapsula `503`, while local Traefik SNI HTTPS succeeds.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Reconcile the upstream HTTPS edge for `signalops.syncratic.io` so it forwards to the Syncratic Traefik route.
+- Re-run public HTTPS validation without `--resolve` after DNS propagates.
+- Confirm Traefik ACME storage has issued the certificate for `signalops.syncratic.io`.

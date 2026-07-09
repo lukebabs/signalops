@@ -107,6 +107,46 @@ curl -fsS http://localhost:15173/healthz
 curl -N --max-time 3 'http://localhost:15173/v1/streams/dashboard?channels=health,heartbeat'
 ```
 
+## Public TLS through Syncratic Traefik
+
+SignalOps can be exposed through the parent Syncratic core Traefik edge without
+running a second reverse proxy. The SignalOps overlay `compose.traefik.yaml`
+attaches the `web` service to the external Traefik network and adds Docker labels
+for the existing `websecure` entrypoint and `letsencrypt` certificate resolver.
+
+Required SignalOps env values:
+
+```bash
+SIGNALOPS_PUBLIC_HOST=signalops.syncratic.io
+TRAEFIK_NETWORK=syncratic-core_syncratic_net
+```
+
+The parent Syncratic core Traefik service must already be running and configured
+with its Let's Encrypt resolver credentials, including `LETSENCRYPT_EMAIL`,
+`GODADDY_API_KEY`, and `GODADDY_API_SECRET` in the parent stack. DNS for
+`SIGNALOPS_PUBLIC_HOST` must point at the same public edge used by Syncratic core.
+
+Start SignalOps with the edge overlay:
+
+```bash
+docker compose -f compose.yaml -f compose.traefik.yaml up -d web
+```
+
+Only the `web` service is exposed publicly. The web nginx container proxies API
+and SSE paths to the internal gateway, preserving same-origin browser behavior:
+
+- `/healthz`
+- `/readyz`
+- `/v1/*`
+
+Validate after DNS and certificate issuance:
+
+```bash
+curl -fsS https://signalops.syncratic.io/
+curl -fsS https://signalops.syncratic.io/healthz
+curl -fsS 'https://signalops.syncratic.io/v1/alerts?tenant_id=tenant-local&limit=1'
+```
+
 ## Gateway API
 
 The gateway exposes raw event ingestion at `POST /v1/events/raw`. The endpoint

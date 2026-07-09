@@ -2990,3 +2990,49 @@ Issue found and noted:
 Next step:
 
 - Decide whether the next backend gate should add authenticated operator identity/audit-history rows, or start the TimescaleDB storage maturity planning gate.
+
+## 2026-07-09T02:43:48Z
+
+Summary:
+
+- Added a SignalOps Traefik overlay for public TLS through the parent Syncratic core edge.
+- Updated the environment example and deployment documentation for the public SignalOps host.
+- Deployed the web service with the overlay so Traefik can route to the existing nginx frontend/API proxy.
+
+Files changed:
+
+- `compose.traefik.yaml`
+- `.env.example`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The overlay attaches only `web` to the external `syncratic-core_syncratic_net` network.
+- Traefik labels use the existing `websecure` entrypoint and `letsencrypt` resolver from Syncratic core.
+- The public router host is `signalops.syncratic.io`.
+- Gateway remains internal; nginx in `web` continues to proxy `/healthz`, `/readyz`, and `/v1/*` to `gateway:8080`.
+
+Validation performed:
+
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`
+- Verified Docker networks include `signalops_default` and `syncratic-core_syncratic_net`.
+- Rendered merged Compose config and confirmed Traefik labels and dual-network attachment.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d web`
+- Inspected `signalops-web-1` labels and network attachments.
+- `curl -fsS http://localhost:15173/healthz`
+- `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/healthz`
+- `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/`
+- Checked Traefik access logs for `signalops@docker` routing to the web container.
+- Public validation: `curl -fsS http://signalops.syncratic.io/healthz` passed; `curl -fsS https://signalops.syncratic.io/healthz` returned upstream `503`.
+
+Live verification result:
+
+- Local web health endpoint returned gateway health JSON.
+- Local Traefik SNI override served `/healthz` and `/` through the `signalops@docker` route.
+- Public DNS resolves and HTTP reaches SignalOps. Public HTTPS is still blocked by the upstream edge with `503`, while local Traefik SNI HTTPS succeeds.
+
+Next step:
+
+- Reconcile the upstream HTTPS edge for `signalops.syncratic.io`, then re-run HTTPS validation without `--resolve` and confirm Let's Encrypt issuance.
