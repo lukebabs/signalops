@@ -4256,6 +4256,9 @@ Verification performed:
 - TimescaleDB container started successfully.
 - `make compose-temporal-migrate`: applied temporal foundation migration successfully.
 - Timescale hypertable query returned `marketdata_equity_eod_prices`, `marketdata_option_contracts_daily`, `normalized_event_ledger`, `raw_event_ledger`, and `signal_ledger`.
+- `2026-07-09T21:06:45Z` bounded live Massive publish test: `dry_run=false`, `companies=1`, `events_built=1`, `events_published=1`, `provider_requests=1`, `failures=0`.
+- TimescaleDB `raw_event_ledger` count increased from `0` to `1`; latest row is tenant `tenant-local`, source `src-massive`, dataset `equity_eod_prices`, topic `signalops.local.raw.v1`, with broker partition/offset present.
+- PostgreSQL scheduler run and idempotency records confirmed the relational side remained healthy.
 
 Follow-up items:
 

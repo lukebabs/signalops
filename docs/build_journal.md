@@ -3501,3 +3501,33 @@ Deployment boundary:
 Next step:
 
 - Build the temporal backfill/replay gate, then cut the live gateway/normalizer/signal-persister over to TimescaleDB-backed temporal storage.
+
+
+## 2026-07-09T21:06:45Z
+
+Summary:
+
+- Ran a bounded live Massive.com publish test to validate the G056 TimescaleDB temporal write path.
+- Published one equity EOD raw event through the Massive scheduler with hard caps: one company, one provider request, one event built, one event published.
+- Confirmed the raw event landed in TimescaleDB while relational run/idempotency state remained in PostgreSQL.
+
+Validation performed:
+
+- Built the updated `massive-scheduler` image; Docker build ran `go test ./...` successfully.
+- Baseline TimescaleDB `raw_event_ledger` count was `0` before the corrected publish test.
+- Corrected publish run reported: `dry_run=false`, `companies=1`, `events_built=1`, `events_published=1`, `provider_requests=1`, `failures=0`.
+- TimescaleDB `raw_event_ledger` count became `1`.
+- Latest TimescaleDB raw event: tenant `tenant-local`, source `src-massive`, dataset `equity_eod_prices`, topic `signalops.local.raw.v1`, broker partition/offset present.
+- PostgreSQL scheduler run for `src-massive` reported `succeeded`, `events_built=1`, `events_published=1`, `provider_requests=1`, `failures=0`.
+- PostgreSQL idempotency ledger contains published `src-massive` rows.
+- `docker compose ps` showed TimescaleDB healthy and existing core services still running.
+
+Operational notes:
+
+- The first attempted run failed before provider access because the preferred Massive API key environment variable resolved empty inside the container.
+- A second attempted run used Compose defaults and performed a full dry-run only; it was stopped and did not write to TimescaleDB.
+- The corrected run passed explicit Compose environment overrides and did not print the API key.
+
+Next step:
+
+- Proceed with the temporal backfill/replay gate before live service cutover to `SIGNALOPS_TEMPORAL_DATABASE_URL`.
