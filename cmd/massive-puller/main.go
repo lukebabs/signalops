@@ -91,7 +91,7 @@ func run(logger *slog.Logger, args []string) error {
 	var publishRepo storage.PublishRepository
 	var repoCloser interface{ Close() error }
 	if strings.TrimSpace(cfg.DatabaseURL) != "" {
-		repo, err := postgresstorage.Open(ctx, cfg.DatabaseURL)
+		repo, err := postgresstorage.OpenWithTemporal(ctx, cfg.DatabaseURL, cfg.TemporalDatabaseURL)
 		if err != nil {
 			return err
 		}

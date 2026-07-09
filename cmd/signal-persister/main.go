@@ -49,7 +49,7 @@ func run(logger *slog.Logger) error {
 	}
 	defer closeConsumer(logger, consumer)
 
-	repository, err := postgresstorage.Open(ctx, cfg.DatabaseURL)
+	repository, err := postgresstorage.OpenWithTemporal(ctx, cfg.DatabaseURL, cfg.TemporalDatabaseURL)
 	if err != nil {
 		return err
 	}

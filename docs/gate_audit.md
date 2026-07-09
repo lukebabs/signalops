@@ -4208,3 +4208,56 @@ Verification performed:
 Follow-up items:
 
 - None for G055. Continue with the next backend/frontend capability gate.
+
+
+## Gate G056: TimescaleDB Temporal Storage Foundation
+
+Timestamp: `2026-07-09T20:58:33Z`
+
+Status: `passed — local TimescaleDB foundation and hypertables validated; live temporal cutover pending backfill/replay`
+
+Gate name:
+
+- Add TimescaleDB as the temporal/event-plane store without eliminating PostgreSQL's relational system-of-record role.
+
+Criteria:
+
+- PostgreSQL remains configured for relational control-plane data.
+- TimescaleDB is added as a separate Compose service with its own volume and migration runner.
+- Temporal migrations create replayable hypertables for raw events, normalized events, signals, and initial market-data history.
+- Runtime config supports an optional `SIGNALOPS_TEMPORAL_DATABASE_URL`.
+- Repository code falls back to PostgreSQL when no temporal DSN is configured.
+- Services that read/write temporal ledgers can use the separate temporal DSN when configured.
+- Documentation clearly states storage roles and migration commands.
+
+Evidence:
+
+- `compose.yaml`
+- `.env.example`
+- `Makefile`
+- `temporal_migrations/000001_timescale_temporal_foundation.up.sql`
+- `internal/config/config.go`
+- `internal/storage/postgres/repository.go`
+- `cmd/gateway/main.go`
+- `cmd/normalizer/main.go`
+- `cmd/signal-persister/main.go`
+- `cmd/massive-puller/main.go`
+- `cmd/massive-scheduler/main.go`
+- `docs/deployment.md`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+
+Verification performed:
+
+- Go tests: passed via Docker `go test ./...`.
+- Python worker tests: 37 passed.
+- JSON schema validation: passed.
+- Compose + Traefik overlay config validation: passed.
+- TimescaleDB container started successfully.
+- `make compose-temporal-migrate`: applied temporal foundation migration successfully.
+- Timescale hypertable query returned `marketdata_equity_eod_prices`, `marketdata_option_contracts_daily`, `normalized_event_ledger`, `raw_event_ledger`, and `signal_ledger`.
+
+Follow-up items:
+
+- Add a temporal backfill/replay gate for existing relational raw/normalized/signal rows before live cutover.
+- After backfill/replay, redeploy live gateway, normalizer, signal persister, and Massive scheduler with `SIGNALOPS_TEMPORAL_DATABASE_URL` enabled.

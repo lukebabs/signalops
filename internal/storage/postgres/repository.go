@@ -17,37 +17,74 @@ import (
 const DriverName = "pgx"
 
 type Repository struct {
-	db *sql.DB
+	db          *sql.DB
+	temporalDB  *sql.DB
+	useTemporal bool
 }
 
 func Open(ctx context.Context, databaseURL string) (*Repository, error) {
+	return OpenWithTemporal(ctx, databaseURL, "")
+}
+
+func OpenWithTemporal(ctx context.Context, databaseURL string, temporalDatabaseURL string) (*Repository, error) {
 	databaseURL = strings.TrimSpace(databaseURL)
 	if databaseURL == "" {
 		return nil, errors.New("database url is required")
 	}
+	db, err := openDB(ctx, databaseURL, "postgres")
+	if err != nil {
+		return nil, err
+	}
+	repo := &Repository{db: db, temporalDB: db}
+	temporalDatabaseURL = strings.TrimSpace(temporalDatabaseURL)
+	if temporalDatabaseURL != "" && temporalDatabaseURL != databaseURL {
+		temporalDB, err := openDB(ctx, temporalDatabaseURL, "temporal postgres")
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+		repo.temporalDB = temporalDB
+		repo.useTemporal = true
+	}
+	return repo, nil
+}
+
+func openDB(ctx context.Context, databaseURL string, label string) (*sql.DB, error) {
 	db, err := sql.Open(DriverName, databaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("open postgres database: %w", err)
+		return nil, fmt.Errorf("open %s database: %w", label, err)
 	}
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("ping postgres database: %w", err)
+		return nil, fmt.Errorf("ping %s database: %w", label, err)
 	}
-	return &Repository{db: db}, nil
+	return db, nil
 }
 
 func New(db *sql.DB) (*Repository, error) {
 	if db == nil {
 		return nil, errors.New("postgres db is required")
 	}
-	return &Repository{db: db}, nil
+	return &Repository{db: db, temporalDB: db}, nil
 }
 
 func (r *Repository) Close() error {
 	if r == nil || r.db == nil {
 		return nil
 	}
+	if r.temporalDB != nil && r.temporalDB != r.db {
+		if err := r.temporalDB.Close(); err != nil {
+			return err
+		}
+	}
 	return r.db.Close()
+}
+
+func (r *Repository) temporal() *sql.DB {
+	if r != nil && r.temporalDB != nil {
+		return r.temporalDB
+	}
+	return r.db
 }
 
 func (r *Repository) UpsertSchedulerRun(ctx context.Context, record storage.SchedulerRunRecord) error {
@@ -195,6 +232,9 @@ func (r *Repository) UpsertRawEventLedger(ctx context.Context, record storage.Ra
 	if err := validateRawEventLedger(record); err != nil {
 		return err
 	}
+	if r.useTemporal {
+		return upsertRawEventLedgerTemporal(ctx, r.temporal(), record)
+	}
 	return upsertRawEventLedger(ctx, r.db, record)
 }
 
@@ -242,6 +282,49 @@ ON CONFLICT (event_id) DO UPDATE SET
 	return nil
 }
 
+func upsertRawEventLedgerTemporal(ctx context.Context, executor statementExecutor, record storage.RawEventLedgerRecord) error {
+	_, err := executor.ExecContext(ctx, `
+INSERT INTO raw_event_ledger (
+  event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key,
+  observation_time, processing_time, broker_topic, broker_partition, broker_offset,
+  payload, entity_hints
+) VALUES (
+  $1, $2, $3, $4, $5, $6,
+  $7, $8, $9, $10, $11,
+  $12, $13
+)
+ON CONFLICT (event_id, observation_time) DO UPDATE SET
+  tenant_id = EXCLUDED.tenant_id,
+  source_id = EXCLUDED.source_id,
+  source_adapter = EXCLUDED.source_adapter,
+  dataset = EXCLUDED.dataset,
+  idempotency_key = EXCLUDED.idempotency_key,
+  processing_time = EXCLUDED.processing_time,
+  broker_topic = EXCLUDED.broker_topic,
+  broker_partition = EXCLUDED.broker_partition,
+  broker_offset = EXCLUDED.broker_offset,
+  payload = EXCLUDED.payload,
+  entity_hints = EXCLUDED.entity_hints`,
+		record.EventID,
+		record.TenantID,
+		record.SourceID,
+		record.SourceAdapter,
+		record.Dataset,
+		record.IdempotencyKey,
+		record.ObservationTime,
+		record.ProcessingTime,
+		nullString(record.BrokerTopic),
+		record.BrokerPartition,
+		record.BrokerOffset,
+		jsonOrEmpty(record.PayloadJSON),
+		jsonArrayOrEmpty(record.EntityHintsJSON),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert temporal raw event ledger: %w", err)
+	}
+	return nil
+}
+
 // PersistPublishedRawEvent atomically records the raw ledger and idempotency
 // state after the broker has acknowledged publication.
 func (r *Repository) PersistPublishedRawEvent(ctx context.Context, ledger storage.RawEventLedgerRecord, idempotency storage.IdempotencyRecord) error {
@@ -250,6 +333,12 @@ func (r *Repository) PersistPublishedRawEvent(ctx context.Context, ledger storag
 	}
 	if err := validateIdempotencyRecord(idempotency); err != nil {
 		return err
+	}
+	if r.useTemporal {
+		if err := upsertRawEventLedgerTemporal(ctx, r.temporal(), ledger); err != nil {
+			return err
+		}
+		return r.UpsertIdempotencyRecord(ctx, idempotency)
 	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -272,21 +361,27 @@ func (r *Repository) UpsertNormalizedEventLedger(ctx context.Context, record sto
 	if err := validateNormalizedEventLedger(record); err != nil {
 		return err
 	}
-	_, err := r.db.ExecContext(ctx, `
+	conflict := "event_id"
+	target := r.db
+	if r.useTemporal {
+		conflict = "event_id, observation_time"
+		target = r.temporal()
+	}
+	_, err := target.ExecContext(ctx, fmt.Sprintf(`
 INSERT INTO normalized_event_ledger (
  event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, schema_id, schema_version,
  observation_time, processing_time, confidence, raw_topic, raw_partition, raw_offset,
  normalized_topic, normalized_partition, normalized_offset, normalized_payload, entities, evidence, metadata, event
 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-ON CONFLICT (event_id) DO UPDATE SET
+ON CONFLICT (%s) DO UPDATE SET
  tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_adapter=EXCLUDED.source_adapter,
  dataset=EXCLUDED.dataset, idempotency_key=EXCLUDED.idempotency_key, schema_id=EXCLUDED.schema_id,
- schema_version=EXCLUDED.schema_version, observation_time=EXCLUDED.observation_time,
- processing_time=EXCLUDED.processing_time, confidence=EXCLUDED.confidence, raw_topic=EXCLUDED.raw_topic,
+ schema_version=EXCLUDED.schema_version, processing_time=EXCLUDED.processing_time,
+ confidence=EXCLUDED.confidence, raw_topic=EXCLUDED.raw_topic,
  raw_partition=EXCLUDED.raw_partition, raw_offset=EXCLUDED.raw_offset, normalized_topic=EXCLUDED.normalized_topic,
  normalized_partition=EXCLUDED.normalized_partition, normalized_offset=EXCLUDED.normalized_offset,
  normalized_payload=EXCLUDED.normalized_payload, entities=EXCLUDED.entities, evidence=EXCLUDED.evidence,
- metadata=EXCLUDED.metadata, event=EXCLUDED.event, updated_at=now()`,
+ metadata=EXCLUDED.metadata, event=EXCLUDED.event, updated_at=now()`, conflict),
 		record.EventID, record.TenantID, record.SourceID, record.SourceAdapter, record.Dataset,
 		record.IdempotencyKey, record.SchemaID, record.SchemaVersion, record.ObservationTime,
 		record.ProcessingTime, record.Confidence, record.RawTopic, record.RawPartition, record.RawOffset,
@@ -302,6 +397,9 @@ ON CONFLICT (event_id) DO UPDATE SET
 func (r *Repository) UpsertSignalLedger(ctx context.Context, record storage.SignalLedgerRecord) error {
 	if err := validateSignalLedger(record); err != nil {
 		return err
+	}
+	if r.useTemporal {
+		return upsertSignalLedgerTemporal(ctx, r.temporal(), record)
 	}
 	return upsertSignalLedger(ctx, r.db, record)
 }
@@ -340,6 +438,44 @@ ON CONFLICT (signal_id) DO UPDATE SET
 		record.BrokerTopic, record.BrokerPartition, record.BrokerOffset, jsonOrEmpty(record.EventJSON))
 	if err != nil {
 		return fmt.Errorf("upsert signal ledger: %w", err)
+	}
+	return nil
+}
+
+func upsertSignalLedgerTemporal(ctx context.Context, executor statementExecutor, record storage.SignalLedgerRecord) error {
+	_, err := executor.ExecContext(ctx, `
+INSERT INTO signal_ledger (
+ signal_id, tenant_id, source_id, source_domain, source_adapter, ingestion_mode, dataset,
+ event_ids, artifact_ids, signal_type, detector_id, detector_version, model_version, signal_time,
+ observation_time, effective_time, processing_time, window_start, window_end, confidence, severity,
+ entities, supporting_metrics, graph_targets, semantic_evidence, evidence, recommendation,
+ correlation_id, trace_id, causation_id, replay_job_id, broker_topic, broker_partition, broker_offset, event
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)
+ON CONFLICT (signal_id, signal_time) DO UPDATE SET
+ tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_domain=EXCLUDED.source_domain,
+ source_adapter=EXCLUDED.source_adapter, ingestion_mode=EXCLUDED.ingestion_mode, dataset=EXCLUDED.dataset,
+ event_ids=EXCLUDED.event_ids, artifact_ids=EXCLUDED.artifact_ids, signal_type=EXCLUDED.signal_type,
+ detector_id=EXCLUDED.detector_id, detector_version=EXCLUDED.detector_version, model_version=EXCLUDED.model_version,
+ observation_time=EXCLUDED.observation_time, effective_time=EXCLUDED.effective_time,
+ processing_time=EXCLUDED.processing_time, window_start=EXCLUDED.window_start, window_end=EXCLUDED.window_end,
+ confidence=EXCLUDED.confidence, severity=EXCLUDED.severity, entities=EXCLUDED.entities,
+ supporting_metrics=EXCLUDED.supporting_metrics, graph_targets=EXCLUDED.graph_targets,
+ semantic_evidence=EXCLUDED.semantic_evidence, evidence=EXCLUDED.evidence, recommendation=EXCLUDED.recommendation,
+ correlation_id=EXCLUDED.correlation_id, trace_id=EXCLUDED.trace_id, causation_id=EXCLUDED.causation_id,
+ replay_job_id=EXCLUDED.replay_job_id, broker_topic=EXCLUDED.broker_topic,
+ broker_partition=EXCLUDED.broker_partition, broker_offset=EXCLUDED.broker_offset,
+ event=EXCLUDED.event, updated_at=now()`,
+		record.SignalID, record.TenantID, record.SourceID, record.SourceDomain, record.SourceAdapter,
+		record.IngestionMode, record.Dataset, record.EventIDs, record.ArtifactIDs, record.SignalType,
+		record.DetectorID, record.DetectorVersion, record.ModelVersion, record.SignalTime,
+		record.ObservationTime, record.EffectiveTime, record.ProcessingTime, record.WindowStart, record.WindowEnd,
+		record.Confidence, record.Severity, jsonArrayOrEmpty(record.EntitiesJSON), jsonOrEmpty(record.SupportingMetrics),
+		jsonArrayOrEmpty(record.GraphTargetsJSON), jsonArrayOrEmpty(record.SemanticEvidenceJSON),
+		jsonArrayOrEmpty(record.EvidenceJSON), jsonOrEmpty(record.RecommendationJSON), record.CorrelationID,
+		nullString(record.TraceID), nullString(record.CausationID), nullString(record.ReplayJobID),
+		record.BrokerTopic, record.BrokerPartition, record.BrokerOffset, jsonOrEmpty(record.EventJSON))
+	if err != nil {
+		return fmt.Errorf("upsert temporal signal ledger: %w", err)
 	}
 	return nil
 }
@@ -423,6 +559,11 @@ func (r *Repository) PersistSignalLifecycle(ctx context.Context, signal storage.
 	}
 	for _, insight := range insights {
 		if err := validateInsightLedger(insight); err != nil {
+			return err
+		}
+	}
+	if r.useTemporal {
+		if err := upsertSignalLedgerTemporal(ctx, r.temporal(), signal); err != nil {
 			return err
 		}
 	}
@@ -645,7 +786,7 @@ LIMIT $2`, strings.TrimSpace(runID), clampLimit(limit))
 }
 
 func (r *Repository) ListRawEventLedger(ctx context.Context, filter storage.RawEventLedgerFilter) ([]storage.RawEventLedgerRecord, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.temporal().QueryContext(ctx, `
 SELECT event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, observation_time,
   processing_time, broker_topic, broker_partition, broker_offset, payload, entity_hints, created_at
 FROM raw_event_ledger
@@ -673,11 +814,15 @@ LIMIT $4`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID
 }
 
 func (r *Repository) GetRawEventLedger(ctx context.Context, eventID string) (storage.RawEventLedgerRecord, error) {
-	row := r.db.QueryRowContext(ctx, `
+	query := `
 SELECT event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, observation_time,
   processing_time, broker_topic, broker_partition, broker_offset, payload, entity_hints, created_at
 FROM raw_event_ledger
-WHERE event_id = $1`, strings.TrimSpace(eventID))
+WHERE event_id = $1`
+	if r.useTemporal {
+		query += ` ORDER BY observation_time DESC LIMIT 1`
+	}
+	row := r.temporal().QueryRowContext(ctx, query, strings.TrimSpace(eventID))
 	record, err := scanRawEventLedger(row)
 	if err != nil {
 		return storage.RawEventLedgerRecord{}, err
@@ -686,7 +831,7 @@ WHERE event_id = $1`, strings.TrimSpace(eventID))
 }
 
 func (r *Repository) ListNormalizedEventLedger(ctx context.Context, filter storage.RawEventLedgerFilter) ([]storage.NormalizedEventLedgerRecord, error) {
-	rows, err := r.db.QueryContext(ctx, normalizedEventSelect+`
+	rows, err := r.temporal().QueryContext(ctx, normalizedEventSelect+`
 WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
 ORDER BY created_at DESC LIMIT $4`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID), strings.TrimSpace(filter.Dataset), clampLimit(filter.Limit))
 	if err != nil {
@@ -708,7 +853,7 @@ ORDER BY created_at DESC LIMIT $4`, strings.TrimSpace(filter.TenantID), strings.
 }
 
 func (r *Repository) GetNormalizedEventLedger(ctx context.Context, eventID string) (storage.NormalizedEventLedgerRecord, error) {
-	record, err := scanNormalizedEventLedger(r.db.QueryRowContext(ctx, normalizedEventSelect+` WHERE event_id = $1`, strings.TrimSpace(eventID)))
+	record, err := scanNormalizedEventLedger(r.temporal().QueryRowContext(ctx, normalizedEventSelect+normalizedEventByIDWhere(r.useTemporal), strings.TrimSpace(eventID)))
 	if err != nil {
 		return storage.NormalizedEventLedgerRecord{}, err
 	}
@@ -716,7 +861,7 @@ func (r *Repository) GetNormalizedEventLedger(ctx context.Context, eventID strin
 }
 
 func (r *Repository) ListSignalLedger(ctx context.Context, filter storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
-	rows, err := r.db.QueryContext(ctx, signalSelect+`
+	rows, err := r.temporal().QueryContext(ctx, signalSelect+`
 WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
  AND ($4 = '' OR detector_id = $4) AND ($5 = '' OR severity = $5)
 ORDER BY signal_time DESC LIMIT $6`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID),
@@ -740,7 +885,7 @@ ORDER BY signal_time DESC LIMIT $6`, strings.TrimSpace(filter.TenantID), strings
 }
 
 func (r *Repository) GetSignalLedger(ctx context.Context, signalID string) (storage.SignalLedgerRecord, error) {
-	record, err := scanSignalLedger(r.db.QueryRowContext(ctx, signalSelect+` WHERE signal_id = $1`, strings.TrimSpace(signalID)))
+	record, err := scanSignalLedger(r.temporal().QueryRowContext(ctx, signalSelect+signalByIDWhere(r.useTemporal), strings.TrimSpace(signalID)))
 	if err != nil {
 		return storage.SignalLedgerRecord{}, err
 	}
@@ -996,6 +1141,13 @@ SELECT signal_id, tenant_id, source_id, source_domain, source_adapter, ingestion
  semantic_evidence, evidence, recommendation, correlation_id, trace_id, causation_id, replay_job_id,
  broker_topic, broker_partition, broker_offset, event, created_at, updated_at FROM signal_ledger`
 
+func signalByIDWhere(useTemporal bool) string {
+	if useTemporal {
+		return ` WHERE signal_id = $1 ORDER BY signal_time DESC LIMIT 1`
+	}
+	return ` WHERE signal_id = $1`
+}
+
 type signalLedgerScanner interface{ Scan(dest ...any) error }
 
 func scanSignalLedger(scanner signalLedgerScanner) (storage.SignalLedgerRecord, error) {
@@ -1093,6 +1245,13 @@ SELECT event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key,
  observation_time, processing_time, confidence, raw_topic, raw_partition, raw_offset,
  normalized_topic, normalized_partition, normalized_offset, normalized_payload, entities, evidence, metadata, event,
  created_at, updated_at FROM normalized_event_ledger`
+
+func normalizedEventByIDWhere(useTemporal bool) string {
+	if useTemporal {
+		return ` WHERE event_id = $1 ORDER BY observation_time DESC LIMIT 1`
+	}
+	return ` WHERE event_id = $1`
+}
 
 type normalizedLedgerScanner interface{ Scan(dest ...any) error }
 

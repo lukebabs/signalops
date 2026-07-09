@@ -8,6 +8,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("SIGNALOPS_BROKER_BROKERS", "")
 	t.Setenv("SIGNALOPS_ENV", "")
 	t.Setenv("SIGNALOPS_DATABASE_URL", "")
+	t.Setenv("SIGNALOPS_TEMPORAL_DATABASE_URL", "")
 	t.Setenv("SIGNALOPS_AUTH_ENABLED", "")
 	t.Setenv("SIGNALOPS_AUTH_ISSUER", "")
 	t.Setenv("SIGNALOPS_AUTH_REALM", "")
@@ -32,6 +33,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.DatabaseURL != defaultDatabaseURL {
 		t.Fatalf("DatabaseURL = %q, want %q", cfg.DatabaseURL, defaultDatabaseURL)
 	}
+	if cfg.TemporalDatabaseURL != defaultTemporalDatabaseURL {
+		t.Fatalf("TemporalDatabaseURL = %q, want %q", cfg.TemporalDatabaseURL, defaultTemporalDatabaseURL)
+	}
 	if cfg.AuthEnabled {
 		t.Fatal("AuthEnabled = true, want false")
 	}
@@ -46,6 +50,7 @@ func TestLoadEnvironment(t *testing.T) {
 	t.Setenv("SIGNALOPS_BROKER_BROKERS", "localhost:19092")
 	t.Setenv("SIGNALOPS_ENV", "test")
 	t.Setenv("SIGNALOPS_DATABASE_URL", "postgres://example")
+	t.Setenv("SIGNALOPS_TEMPORAL_DATABASE_URL", "postgres://temporal")
 	t.Setenv("SIGNALOPS_AUTH_ENABLED", "true")
 	t.Setenv("SIGNALOPS_AUTH_ISSUER", "https://auth.syncratic.co/realms/syncratic")
 	t.Setenv("SIGNALOPS_AUTH_REALM", "syncratic")
@@ -69,6 +74,9 @@ func TestLoadEnvironment(t *testing.T) {
 	}
 	if cfg.DatabaseURL != "postgres://example" {
 		t.Fatalf("DatabaseURL = %q", cfg.DatabaseURL)
+	}
+	if cfg.TemporalDatabaseURL != "postgres://temporal" {
+		t.Fatalf("TemporalDatabaseURL = %q", cfg.TemporalDatabaseURL)
 	}
 	if !cfg.AuthEnabled {
 		t.Fatal("AuthEnabled = false, want true")

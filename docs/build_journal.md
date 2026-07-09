@@ -3448,3 +3448,56 @@ Audit notes:
 Next step:
 
 - Move to the next capability gate after auth hardening: review remaining roadmap items and select the next backend/frontend deliverable.
+
+
+## 2026-07-09T20:58:33Z
+
+Summary:
+
+- Implemented G056 TimescaleDB temporal storage foundation while preserving PostgreSQL as the relational system-of-record store.
+- Added a separate TimescaleDB Compose service, temporal migration runner, and optional `SIGNALOPS_TEMPORAL_DATABASE_URL` runtime configuration.
+- Routed raw event, normalized event, and signal ledger reads/writes to TimescaleDB when a separate temporal DSN is configured; single-Postgres deployments remain compatible when the temporal DSN is empty.
+
+Files changed:
+
+- `compose.yaml`
+- `.env.example`
+- `Makefile`
+- `temporal_migrations/000001_timescale_temporal_foundation.up.sql`
+- `temporal_migrations/000001_timescale_temporal_foundation.down.sql`
+- `internal/config/config.go`
+- `internal/config/config_test.go`
+- `internal/storage/postgres/repository.go`
+- `cmd/gateway/main.go`
+- `cmd/normalizer/main.go`
+- `cmd/signal-persister/main.go`
+- `cmd/massive-puller/main.go`
+- `cmd/massive-scheduler/main.go`
+- `docs/deployment.md`
+- `docs/docker_development.md`
+
+Implementation notes:
+
+- PostgreSQL keeps scheduler runs, provider usage, idempotency, catalogs, alert/insight lifecycle state, and operational metadata.
+- TimescaleDB owns replayable temporal/event-plane hypertables: `raw_event_ledger`, `normalized_event_ledger`, `signal_ledger`, `marketdata_equity_eod_prices`, and `marketdata_option_contracts_daily`.
+- Timescale hypertables use composite time-aware keys because Timescale unique constraints must include the partitioning time column.
+- Signal lifecycle persistence keeps a relational `signal_ledger` anchor for existing alert/insight foreign keys while also writing the temporal signal row when TimescaleDB is enabled.
+
+Validation performed:
+
+- `docker run ... go test ./...` - passed.
+- `make docker-test-python` - 37 tests passed.
+- `make docker-validate-schemas` - all event schemas passed.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` - passed.
+- `docker compose up -d timescaledb` - TimescaleDB container started and became healthy.
+- `make compose-temporal-migrate` - applied `000001_timescale_temporal_foundation` successfully.
+- Timescale metadata query confirmed hypertables: `raw_event_ledger`, `normalized_event_ledger`, `signal_ledger`, `marketdata_equity_eod_prices`, `marketdata_option_contracts_daily`.
+
+Deployment boundary:
+
+- The live public gateway was not redeployed against the new temporal DSN in this gate.
+- Existing temporal rows in relational PostgreSQL are not automatically copied to TimescaleDB. Before enabling `SIGNALOPS_TEMPORAL_DATABASE_URL` on an existing live deployment, perform a backfill or replay so historical raw/normalized/signal data remains visible through temporal-backed query endpoints.
+
+Next step:
+
+- Build the temporal backfill/replay gate, then cut the live gateway/normalizer/signal-persister over to TimescaleDB-backed temporal storage.

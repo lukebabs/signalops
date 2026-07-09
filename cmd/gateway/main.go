@@ -33,7 +33,7 @@ func main() {
 
 	var queryRepo *postgresstorage.Repository
 	if strings.TrimSpace(cfg.DatabaseURL) != "" {
-		queryRepo, err = postgresstorage.Open(context.Background(), cfg.DatabaseURL)
+		queryRepo, err = postgresstorage.OpenWithTemporal(context.Background(), cfg.DatabaseURL, cfg.TemporalDatabaseURL)
 		if err != nil {
 			logger.Error("signalops gateway storage setup failed", "error", err)
 			os.Exit(1)

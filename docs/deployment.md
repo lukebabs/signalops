@@ -40,6 +40,8 @@ make compose-down
 - `redpanda`: default Kafka-compatible broker.
 - `redpanda-console`: local broker UI on `http://localhost:18080`.
 - `topic-bootstrap`: one-shot topic creation job.
+- `postgres`: relational system-of-record store on `localhost:15432` for scheduler runs, provider usage, idempotency, catalogs, lifecycle state, and operational metadata.
+- `timescaledb`: temporal/replay store on `localhost:15433` for raw events, normalized events, signal observations, feature/window data, and market-data history.
 - `gateway`: SignalOps gateway on `http://localhost:18000`.
 - `normalizer`: Go worker that consumes `signalops.local.raw.v1`, publishes `signalops.local.normalized.v1`, and persists normalized lineage.
 - `raw-worker`: Python algorithm worker that consumes `signalops.local.normalized.v1`.
@@ -48,6 +50,8 @@ make compose-down
 
 ## Local Ports
 
+- PostgreSQL: `15432` host port mapped to container port `5432`
+- TimescaleDB: `15433` host port mapped to container port `5432`
 - Gateway: `18000` host port mapped to container port `8080`
 - Web UI: `15173` host port mapped to container port `8080`
 - Redpanda Kafka external listener: `19092`
@@ -88,10 +92,32 @@ Runtime config currently reads:
 - `SIGNALOPS_BROKER_PROVIDER`
 - `SIGNALOPS_BROKER_BROKERS`
 - `SIGNALOPS_ENV`
+- `SIGNALOPS_DATABASE_URL` for relational PostgreSQL
+- `SIGNALOPS_TEMPORAL_DATABASE_URL` for optional separate TimescaleDB temporal storage
 
 Broker configuration is loaded now; concrete broker clients will be wired in a
 later gate. The shared Go broker boundary and topic constants live under
 `pkg/broker`.
+
+## Storage Roles
+
+SignalOps keeps PostgreSQL and TimescaleDB as separate logical roles. PostgreSQL remains the relational control-plane/system-of-record store. TimescaleDB is PostgreSQL plus the Timescale extension and is used for replayable temporal/event-plane data.
+
+In local Compose these roles run as two services:
+
+- `postgres` / `SIGNALOPS_DATABASE_URL`: scheduler runs, provider usage, idempotency, catalogs, alert/insight lifecycle state, and operational metadata.
+- `timescaledb` / `SIGNALOPS_TEMPORAL_DATABASE_URL`: `raw_event_ledger`, `normalized_event_ledger`, `signal_ledger`, and market-data temporal history hypertables.
+
+Apply migrations separately:
+
+```bash
+make compose-storage-migrate
+make compose-temporal-migrate
+```
+
+If `SIGNALOPS_TEMPORAL_DATABASE_URL` is empty, services fall back to the relational DSN for compatibility with single-Postgres deployments and existing tests.
+
+For an existing deployment, apply temporal migrations and backfill or replay existing raw/normalized/signal rows before redeploying services with `SIGNALOPS_TEMPORAL_DATABASE_URL` enabled. Without that step, new temporal writes go to TimescaleDB but historical rows that only exist in relational PostgreSQL will not appear in temporal-backed query endpoints.
 
 ## Web UI
 

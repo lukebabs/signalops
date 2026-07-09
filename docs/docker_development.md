@@ -51,10 +51,16 @@ make docker-shell
 
 
 
-Run local PostgreSQL migrations:
+Run local relational PostgreSQL migrations:
 
 ```bash
 make compose-storage-migrate
+```
+
+Run local TimescaleDB temporal migrations:
+
+```bash
+make compose-temporal-migrate
 ```
 
 ## Frontend (Operational Dashboard)
