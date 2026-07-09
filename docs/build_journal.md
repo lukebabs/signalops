@@ -3077,3 +3077,25 @@ Live verification result:
 Next step:
 
 - Proceed to G052 authentication/IdP enforcement before expanding public-facing operator capabilities.
+
+## 2026-07-09T03:32:00Z
+
+Summary:
+
+- Recorded IdP readiness for G052 authentication and operator identity enforcement.
+- The Syncratic realm now has SignalOps clients, roles, groups, role mappings, audience mapping, and tenant claim configuration needed for backend JWT validation.
+
+IdP configuration confirmed by operator:
+
+- Realm: `syncratic` on `https://auth.syncratic.co`.
+- `signalops-web`: public OIDC client, Authorization Code Flow enabled, PKCE S256 required, direct grants disabled, implicit flow disabled, service accounts disabled, redirect/web/logout origins configured for `signalops.syncratic.io`, `localhost:5173`, and `localhost:15173`.
+- `signalops-api`: bearer-only OIDC resource/API client, public client disabled, standard flow disabled, implicit flow disabled, direct grants disabled, service accounts disabled.
+- `signalops-web` audience mapper includes `aud: signalops-api` in access tokens.
+- Realm roles exist: `signalops:viewer`, `signalops:operator`, `signalops:admin`.
+- Groups and mappings exist: `/signalops/viewers -> signalops:viewer`, `/signalops/operators -> signalops:operator`, `/signalops/admins -> signalops:admin`.
+- Initial user `lukeb` / `luke@strategiclabs.io` is assigned to `/signalops/admins`.
+- Token claims: `tenant_id: tenant-local` via hardcoded mapper; `preferred_username` and `email` via default `profile`/`email` scopes; roles via default `roles` scope under `realm_access.roles`.
+
+Next step:
+
+- Implement G052 backend OIDC/JWT enforcement against the confirmed IdP contract, then hand frontend login/token behavior to the frontend agent.

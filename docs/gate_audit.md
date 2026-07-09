@@ -3801,3 +3801,50 @@ Outcome:
 Next gate:
 
 - G052 should enforce authentication and operator identity before further public-facing capability expansion.
+
+## Gate G052: Authentication and Operator Identity Readiness
+
+Timestamp: `2026-07-09T03:32:00Z`
+
+Status: `ready for backend implementation`
+
+Gate name:
+
+- Prepare SignalOps for backend OIDC/JWT enforcement using Syncratic IdP.
+
+Criteria satisfied before implementation:
+
+- IdP clients exist for browser login and API resource validation.
+- Access tokens include `aud: signalops-api`.
+- SignalOps roles and groups exist.
+- Initial admin/operator user exists.
+- Tenant claim is available for `tenant-local`.
+- Backend env contract already documents issuer, JWKS, audience, client id, realm, and auth enablement variables.
+
+Confirmed IdP configuration:
+
+- Realm: `syncratic`.
+- Issuer: `https://auth.syncratic.co/realms/syncratic`.
+- JWKS: `https://auth.syncratic.co/realms/syncratic/protocol/openid-connect/certs`.
+- Browser client: `signalops-web` public OIDC client with Authorization Code + PKCE S256.
+- API resource: `signalops-api` bearer-only resource client.
+- Roles: `signalops:viewer`, `signalops:operator`, `signalops:admin`.
+- Groups: `/signalops/viewers`, `/signalops/operators`, `/signalops/admins`.
+- User: `lukeb` / `luke@strategiclabs.io` assigned to `/signalops/admins`.
+- Claims: `aud: signalops-api`, `tenant_id: tenant-local`, `preferred_username`, `email`, and roles under `realm_access.roles`.
+
+Backend implementation expectations:
+
+- Keep `/healthz` and `/readyz` unauthenticated.
+- When `SIGNALOPS_AUTH_ENABLED=true`, require Bearer JWT for protected `/v1/*` APIs.
+- Validate issuer, expiry, signature via JWKS, and audience `signalops-api`.
+- Extract tenant from `tenant_id` and reject protected requests without a tenant claim.
+- Extract actor from `preferred_username`, then `email`, then `sub`.
+- Require `signalops:viewer` for read APIs.
+- Require `signalops:operator` or `signalops:admin` for alert/insight lifecycle mutation APIs.
+- Preserve disabled-auth local development behavior while preventing `operator-local` fallback when auth is enabled.
+
+Follow-up items:
+
+- Implement and validate G052 backend auth middleware and role checks.
+- After backend G052 passes, write the frontend-agent specification for login/logout, token attachment, route guards, and unauthorized states.
