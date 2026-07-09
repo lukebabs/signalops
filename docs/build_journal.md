@@ -3036,3 +3036,23 @@ Live verification result:
 Next step:
 
 - Continue with the next deployment/auth gate now that public HTTPS health is live.
+
+## 2026-07-09T03:12:00Z
+
+Summary:
+
+- Re-validated G051 after firewall forwarding was configured from public HTTP/HTTPS to Traefik on `192.168.2.5:80` and `192.168.2.5:443`.
+- Confirmed direct LAN access to Traefik with the SignalOps Host/SNI routes correctly.
+- Noted that same-host public-domain curls can still time out when traversing the public WAN address, which is consistent with NAT hairpin/reflection behavior and should be validated from an off-network client.
+
+Validation performed:
+
+- `getent hosts signalops.syncratic.io` resolved to `108.72.192.62`.
+- `curl --max-time 8 -H 'Host: signalops.syncratic.io' http://192.168.2.5/healthz` returned `301 https://signalops.syncratic.io/healthz`.
+- `curl --max-time 8 -k --resolve signalops.syncratic.io:443:192.168.2.5 https://signalops.syncratic.io/healthz` returned `200` with SignalOps gateway health.
+- Same-host public-domain curls to `http://signalops.syncratic.io/healthz` and `https://signalops.syncratic.io/healthz` timed out after 12 seconds before this LAN validation.
+
+Live verification result:
+
+- SignalOps web remains correctly attached to Traefik and serves through Traefik on the LAN edge IP.
+- Public DNS points at the expected WAN IP, but off-network validation is the authoritative public reachability check because this host may not be able to hairpin through the firewall/NAT path.

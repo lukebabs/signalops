@@ -3762,3 +3762,22 @@ Follow-up items:
 - Keep `SIGNALOPS_PUBLIC_HOST` and `TRAEFIK_NETWORK` defined in deployment `.env` for overlay renders.
 - Re-run public HTTPS validation after any DNS, WAF, or Traefik label changes.
 - Confirm Traefik ACME storage has issued the certificate for `signalops.syncratic.io`.
+
+### G051 Firewall Forwarding Follow-Up
+
+Timestamp: `2026-07-09T03:12:00Z`
+
+Status: `LAN edge passed - off-network public validation recommended`
+
+Evidence:
+
+- Firewall forwarding target stated as `192.168.2.5` on ports `80` and `443`.
+- `signalops.syncratic.io` resolves to `108.72.192.62`.
+- Direct LAN HTTP request to `192.168.2.5` with Host `signalops.syncratic.io` returned `301` to HTTPS.
+- Direct LAN HTTPS request to `192.168.2.5` with SNI `signalops.syncratic.io` returned `200` and SignalOps gateway health.
+- Same-host public-domain curls timed out, consistent with NAT hairpin/reflection limitations.
+
+Follow-up:
+
+- Validate `https://signalops.syncratic.io/healthz` from an off-network client or external monitor.
+- If off-network validation fails, inspect firewall port-forward logs, WAN ACLs, and Traefik access logs for inbound attempts.
