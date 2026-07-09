@@ -1,13 +1,28 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Lightbulb } from 'lucide-react';
-import { useInsights, useInsight } from '../api/queries';
+import { Lightbulb, Eye, XCircle, Archive } from 'lucide-react';
+import { useInsights, useInsight, useMutateInsightLifecycle } from '../api/queries';
+import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
 import { CopyButton } from '../components/CopyButton';
 import { JsonViewer } from '../components/JsonViewer';
 import { formatUtc } from '../lib/format';
-import type { InsightRecord } from '../types';
+import type { InsightRecord, InsightLifecycleAction } from '../types';
+
+type LifecycleMeta = {
+  action?: string;
+  actor?: string;
+  note?: string;
+  reason?: string;
+  mutated_at?: string;
+};
+
+function lifecycleOf(metadata: unknown): LifecycleMeta | undefined {
+  return metadata && typeof metadata === 'object' && 'lifecycle' in metadata
+    ? (metadata as { lifecycle?: LifecycleMeta }).lifecycle
+    : undefined;
+}
 
 const TENANT_ID = 'tenant-local';
 
@@ -183,7 +198,7 @@ export function InsightsRoute() {
           ) : detail.isError ? (
             <ErrorState error={detail.error} />
           ) : detail.data ? (
-            <InsightDetailBody insight={detail.data.insight} />
+            <InsightDetailBody key={detail.data.insight.insight_id} insight={detail.data.insight} />
           ) : null}
         </div>
       </div>
@@ -192,6 +207,15 @@ export function InsightsRoute() {
 }
 
 function InsightDetailBody({ insight }: { insight: InsightRecord }) {
+  const mutation = useMutateInsightLifecycle();
+  const lifecycle = lifecycleOf(insight.metadata);
+  const status = insight.status;
+  const canReview = !['reviewed', 'dismissed', 'archived'].includes(status);
+  const canDismiss = !['dismissed', 'archived'].includes(status);
+  const canArchive = status !== 'archived';
+  const pending = mutation.isPending;
+  const run = (action: InsightLifecycleAction) => mutation.mutate({ insightId: insight.insight_id, action });
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -201,6 +225,51 @@ function InsightDetailBody({ insight }: { insight: InsightRecord }) {
         <CopyButton value={insight.insight_id} />
       </div>
       <div className="text-sm text-gray-700">{insight.summary}</div>
+
+      <div className="space-y-1">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={pending || !canReview}
+            onClick={() => run('review')}
+            className="inline-flex items-center gap-1 rounded bg-brand-500 px-2 py-1 text-xs text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Eye size={14} /> Review
+          </button>
+          <button
+            type="button"
+            disabled={pending || !canDismiss}
+            onClick={() => run('dismiss')}
+            className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <XCircle size={14} /> Dismiss
+          </button>
+          <button
+            type="button"
+            disabled={pending || !canArchive}
+            onClick={() => run('archive')}
+            className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Archive size={14} /> Archive
+          </button>
+        </div>
+        {mutation.isError && (
+          <p className="text-xs text-red-700" role="alert">
+            Action failed: {isApiError(mutation.error) ? mutation.error.message : 'unknown error'}. Selection preserved.
+          </p>
+        )}
+        {pending && <p className="text-xs text-gray-500">Applying lifecycle action…</p>}
+      </div>
+
+      {lifecycle && (
+        <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs">
+          <div><span className="text-gray-500">Last action:</span> {lifecycle.action ?? '—'} by {lifecycle.actor ?? '—'} at {formatUtc(lifecycle.mutated_at)}</div>
+          {(lifecycle.note || lifecycle.reason) && (
+            <div><span className="text-gray-500">Note:</span> {lifecycle.note ?? lifecycle.reason}</div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2 text-sm">
         <div><div className="text-xs text-gray-500">Type</div><div className="text-xs font-mono">{insight.insight_type}</div></div>
         <div><div className="text-xs text-gray-500">Confidence</div><div>{insight.confidence.toFixed(2)}</div></div>

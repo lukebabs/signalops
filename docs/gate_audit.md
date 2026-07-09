@@ -3546,3 +3546,67 @@ Follow-up items:
 
 - Frontend-agent implements G050 and records implementation evidence.
 - After frontend implementation, validate browser action controls and decide whether the next backend gate should add authenticated operator identity or audit-history rows.
+
+
+## Gate G050: Frontend Alert and Insight Lifecycle Controls
+
+Timestamp: `2026-07-09T01:41:23Z`
+
+Status: `passed`
+
+Gate name:
+
+- Add operator lifecycle controls (acknowledge/resolve/suppress alerts; review/dismiss/archive insights) to the G048 frontend, backed by the committed G049 mutation APIs.
+
+Criteria:
+
+- Acknowledge/Resolve/Suppress on `/alerts` and Review/Dismiss/Archive on `/insights`, backed by real G049 APIs.
+- Truthful loading/disabled/success/error states; no fabricated lifecycle state.
+- Query caches refresh list/detail/dashboard data after mutations.
+- Placeholder operator identity used consistently (no auth claims).
+- Tests, build, audit, compose config, live proxy mutation, and browser validation.
+
+Evidence:
+
+- `web/src/routes/AlertsRoute.tsx`
+- `web/src/routes/InsightsRoute.tsx`
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/api/alerts_insights.test.ts`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- Spec contract verified accurate against committed G049 (`router.go` mutation routes/handlers, `lifecycleActor` header→body→default precedence, `lifecycleMetadata` jsonb merge, error codes); implemented as-is.
+- Added a shared `post<T>` helper + `mutateAlertLifecycle`/`mutateInsightLifecycle` (action in path, `X-SignalOps-Actor: operator-local` header) and `useMutate*` hooks (`setQueryData` detail + invalidate `['alerts']`/`['insights']` list prefix).
+- Detail-panel controls with spec disabled logic, inline error, and lifecycle summary; detail body keyed by id so mutation state resets on selection change. No auth/SSE/audit/bulk/modals (Out of Scope).
+
+Verification performed:
+
+- `cd web && npm test`
+- `cd web && npm run build`
+- `cd web && npm audit --json`
+- `docker compose config --quiet`
+- `docker compose build web` / `up -d web`
+- `POST /v1/alerts/alert:signal-g049-high/acknowledge` (header actor)
+- `POST /v1/insights/insight:signal-g049-high/review` (body actor)
+- `POST /v1/alerts/alert:does-not-exist/acknowledge` (404)
+- Playwright (Docker) desktop + 375px mobile
+
+Live verification result:
+
+- Vitest: 3 files, 18 tests (7 new lifecycle mutation tests).
+- Production build passed; npm audit 0 vulnerabilities; `compose config` OK; web Up on `:15173`.
+- Acknowledge (header actor) and Review (body actor) both updated status/timestamps and wrote `metadata.lifecycle`; `404 alert_not_found` confirmed.
+- Playwright: no console/page errors; one SSE connection; nav 12 items; controls render on `/alerts` + `/insights`; Acknowledge + Review updated backend state (buttons correctly disabled afterward, lifecycle summary rendered); Dashboard Open Alerts `2→1` and Active Insights `3→2` after mutations (summaries refreshed); `0px` mobile overflow. Screenshot confirms acknowledged status + disabled Acknowledge + lifecycle summary + `acknowledged_at`/`acknowledged_by`.
+
+Actor:
+
+- Claude Code
+
+Follow-up items:
+
+- Add real operator authentication/identity (replace placeholder `operator-local`) and full lifecycle audit history when auth lands.
+- Consider modest alert/insight SSE/polling only when the backend stream supports it.

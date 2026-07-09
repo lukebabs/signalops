@@ -362,3 +362,22 @@ export interface InsightsResponse {
 export interface InsightResponse {
   insight: InsightRecord;
 }
+
+export type AlertLifecycleAction = 'acknowledge' | 'resolve' | 'suppress';
+export type InsightLifecycleAction = 'review' | 'dismiss' | 'archive';
+
+export interface LifecycleMutationRequest {
+  actor?: string;
+  note?: string;
+  reason?: string;
+}
+
+export interface AlertLifecycleMutationOptions extends LifecycleMutationRequest {
+  alertId: string;
+  action: AlertLifecycleAction;
+}
+
+export interface InsightLifecycleMutationOptions extends LifecycleMutationRequest {
+  insightId: string;
+  action: InsightLifecycleAction;
+}

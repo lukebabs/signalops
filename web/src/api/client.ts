@@ -22,6 +22,8 @@ import type {
   SignalFilter,
   AlertFilter,
   InsightFilter,
+  AlertLifecycleMutationOptions,
+  InsightLifecycleMutationOptions,
 } from '../types';
 
 // Typed API error. Maps gateway error bodies {"error":<code>,"message":<text>}
@@ -75,6 +77,37 @@ async function get<T>(path: string, params?: Record<string, string | number | un
       const body = await res.json();
       if (body && typeof body.error === 'string') code = body.error;
       if (body && typeof body.message === 'string') message = body.message;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, code, message, endpoint);
+  }
+  return (await res.json()) as T;
+}
+
+async function post<T>(
+  path: string,
+  body?: unknown,
+  headers?: Record<string, string>,
+): Promise<T> {
+  const endpoint = buildUrl(path);
+  let res: Response;
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...headers },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, 'network_error', 'Gateway unreachable', endpoint);
+  }
+  if (!res.ok) {
+    let code = 'http_error';
+    let message = res.statusText || `HTTP ${res.status}`;
+    try {
+      const errBody = await res.json();
+      if (errBody && typeof errBody.error === 'string') code = errBody.error;
+      if (errBody && typeof errBody.message === 'string') message = errBody.message;
     } catch {
       /* non-JSON error body */
     }
@@ -154,4 +187,16 @@ export const api = {
     }),
   getInsight: (insightId: string) =>
     get<InsightResponse>(`/v1/insights/${encodeURIComponent(insightId)}`),
+  mutateAlertLifecycle: ({ alertId, action, note, reason }: AlertLifecycleMutationOptions) =>
+    post<AlertResponse>(
+      `/v1/alerts/${encodeURIComponent(alertId)}/${action}`,
+      { note, reason },
+      { 'X-SignalOps-Actor': 'operator-local' },
+    ),
+  mutateInsightLifecycle: ({ insightId, action, note, reason }: InsightLifecycleMutationOptions) =>
+    post<InsightResponse>(
+      `/v1/insights/${encodeURIComponent(insightId)}/${action}`,
+      { note, reason },
+      { 'X-SignalOps-Actor': 'operator-local' },
+    ),
 };

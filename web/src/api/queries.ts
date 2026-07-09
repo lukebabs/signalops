@@ -1,6 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { RawEventFilter, NormalizedEventFilter, SignalFilter, AlertFilter, InsightFilter } from '../types';
+import type {
+  RawEventFilter,
+  NormalizedEventFilter,
+  SignalFilter,
+  AlertFilter,
+  InsightFilter,
+  AlertLifecycleMutationOptions,
+  InsightLifecycleMutationOptions,
+} from '../types';
 
 export const queryKeys = {
   healthz: ['healthz'] as const,
@@ -171,5 +179,31 @@ export function useInsight(insightId: string | null) {
     queryKey: queryKeys.insight(insightId ?? ''),
     queryFn: () => api.getInsight(insightId!),
     enabled: !!insightId,
+  });
+}
+
+// Lifecycle mutations: on success, write the returned record into the detail cache
+// (instant update) and invalidate the list prefix so filtered tables + Dashboard
+// summaries (which sit under ['alerts']/['insights']) refetch. Actor is the
+// placeholder operator-local until real auth lands.
+export function useMutateAlertLifecycle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (options: AlertLifecycleMutationOptions) => api.mutateAlertLifecycle(options),
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(queryKeys.alert(variables.alertId), data);
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+    },
+  });
+}
+
+export function useMutateInsightLifecycle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (options: InsightLifecycleMutationOptions) => api.mutateInsightLifecycle(options),
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(queryKeys.insight(variables.insightId), data);
+      queryClient.invalidateQueries({ queryKey: ['insights'] });
+    },
   });
 }

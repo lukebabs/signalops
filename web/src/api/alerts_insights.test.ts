@@ -91,3 +91,57 @@ describe('alert/insight API client (G048)', () => {
     expect(url).toContain('/v1/insights/insight%3Asignal-1');
   });
 });
+
+describe('alert/insight lifecycle mutation client (G050)', () => {
+  it.each(['acknowledge', 'resolve', 'suppress'] as const)(
+    'mutateAlertLifecycle POSTs to /v1/alerts/{id}/%s with placeholder actor header',
+    async (action) => {
+      vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ alert: { alert_id: 'alert:signal-1', status: action } }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await api.mutateAlertLifecycle({ alertId: 'alert:signal-1', action, reason: 'frontend G050' });
+
+      const [url, options] = fetchMock.mock.calls[0];
+      expect(String(url)).toContain(`/v1/alerts/alert%3Asignal-1/${action}`);
+      expect(options.method).toBe('POST');
+      expect(options.headers['Content-Type']).toBe('application/json');
+      expect(options.headers['X-SignalOps-Actor']).toBe('operator-local');
+      const body = JSON.parse(options.body);
+      expect(body.reason).toBe('frontend G050');
+    },
+  );
+
+  it.each(['review', 'dismiss', 'archive'] as const)(
+    'mutateInsightLifecycle POSTs to /v1/insights/{id}/%s with placeholder actor header',
+    async (action) => {
+      vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ insight: { insight_id: 'insight:signal-1', status: action } }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await api.mutateInsightLifecycle({ insightId: 'insight:signal-1', action });
+
+      const [url, options] = fetchMock.mock.calls[0];
+      expect(String(url)).toContain(`/v1/insights/insight%3Asignal-1/${action}`);
+      expect(options.method).toBe('POST');
+      expect(options.headers['Content-Type']).toBe('application/json');
+      expect(options.headers['X-SignalOps-Actor']).toBe('operator-local');
+    },
+  );
+
+  it('parses mutation error envelopes into ApiError', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ error: 'alert_not_found', message: 'alert not found' }, 404));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      api.mutateAlertLifecycle({ alertId: 'alert:missing', action: 'acknowledge' }),
+    ).rejects.toMatchObject({ status: 404, code: 'alert_not_found', message: 'alert not found' });
+  });
+});

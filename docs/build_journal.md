@@ -2884,3 +2884,57 @@ Verification performed:
 Next step:
 
 - Frontend-agent implements G050 using `docs/frontend/alerts_insights_lifecycle_controls_spec.md`.
+
+## 2026-07-09T01:41:23Z
+
+Summary:
+
+- Implemented G050 by adding operator lifecycle controls to the existing G048 Alerts and Insights pages, backed by the committed G049 mutation APIs.
+- Evaluated the G050 spec against the committed G049 backend (`router.go` mutation routes/handlers, `lifecycleActor` precedence, `lifecycleMetadata` jsonb merge, error codes) before coding; the contract was accurate, so the spec was implemented as-is with no edits.
+- Added a shared `post<T>` helper (Content-Type JSON, same `ApiError` parsing) and `mutateAlertLifecycle`/`mutateInsightLifecycle` (action in path, `encodeURIComponent`'d id, placeholder `X-SignalOps-Actor: operator-local` header); `useMutateAlertLifecycle`/`useMutateInsightLifecycle` write the returned record into the detail cache and invalidate the `['alerts']`/`['insights']` list prefix (covers detail, tables, and Dashboard summaries).
+- Added Acknowledge/Resolve/Suppress (`AlertsRoute`) and Review/Dismiss/Archive (`InsightsRoute`) controls to the detail panels with spec-compliant disabled logic (e.g., Acknowledge disabled once acknowledged/resolved/suppressed; all disabled while in-flight), an inline error line, a compact lifecycle summary (action/actor/note|reason/mutated_at), and the existing `acknowledged_*`/`resolved_*`/`reviewed_*` field display. No enabled auth, no SSE/audit/bulk, no modals (per Out of Scope).
+- The detail body is keyed by record id so in-flight/error state resets cleanly on selection change; after a mutation the record stays selected and renders backend-returned state (even if it leaves the active status filter).
+
+Files changed:
+
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/routes/AlertsRoute.tsx`
+- `web/src/routes/InsightsRoute.tsx`
+- `web/src/api/alerts_insights.test.ts`
+
+Rationale:
+
+- The spec author had already verified the G049 DTOs/routes, so (as with G048) there were no contract defects to correct.
+- Controls reuse existing inline button styling and TanStack Query conventions — no new libraries or components.
+
+Verification performed:
+
+- `cd web && npm test` — 3 files, 18 tests passed (incl. 7 new lifecycle mutation tests: action→path mapping for all six actions, POST + Content-Type + `X-SignalOps-Actor` header, error-envelope parsing).
+- `cd web && npm run build` — `tsc && vite build` succeeded.
+- `cd web && npm audit` — 0 vulnerabilities.
+- `docker compose config --quiet` — OK.
+- `docker compose build web` + `up -d web` — container Up on `:15173`.
+- Live mutation curls through the proxy:
+  - `POST /v1/alerts/alert:signal-g049-high/acknowledge` (`X-SignalOps-Actor` header) → status `acknowledged`, `acknowledged_at`/`acknowledged_by` set, `metadata.lifecycle` written.
+  - `POST /v1/insights/insight:signal-g049-high/review` (body actor) → status `reviewed`, `reviewed_at`/`reviewed_by` set, `metadata.lifecycle` written.
+  - `POST /v1/alerts/alert:does-not-exist/acknowledge` → `404 alert_not_found`.
+- Playwright (Docker) desktop + 375px mobile browser validation.
+- Validation data prep: the G049 demo rows were left in terminal states by the evaluation live-checks, so they were reset to `open`/`active` via `UPDATE ... metadata - 'lifecycle'` before live/browser validation.
+
+Live verification result:
+
+- Build, tests, audit, and compose config pass; the controls add no new dependencies.
+- Both actor paths (`X-SignalOps-Actor` header and body `actor`) resolve to `operator-local` as specified.
+- Playwright: no console/page errors; exactly one dashboard SSE connection across SPA nav; nav has 12 items; `/alerts` and `/insights` render the controls; clicking Acknowledge and Review updated state from the backend (Acknowledge/Review buttons correctly disabled afterward, lifecycle summary rendered); Dashboard Open Alerts dropped `2→1` and Active Insights dropped `3→2` after the mutations (cache invalidation refreshed summaries); `0px` mobile overflow on `/alerts` and `/insights`. A screenshot of the acknowledged alert detail confirms status `acknowledged`, the disabled Acknowledge button, the lifecycle summary, and the Acknowledged timestamp/by fields.
+
+Issue found and resolved:
+
+- An initial browser assertion used `getByText('acknowledged',{exact:true})`, which returned false despite the transition succeeding; the screenshot confirmed the status did update. Replaced the redundant text assertion with a behavioral one (the Acknowledge/Review button becomes disabled after the action), which directly verifies the spec's disabled-state logic and passes.
+
+Next step:
+
+- Add real operator authentication/identity (replacing the placeholder `operator-local` actor) and full lifecycle audit history when auth lands.
