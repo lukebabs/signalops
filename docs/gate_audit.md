@@ -4100,3 +4100,56 @@ Follow-up items:
 
 - Frontend-agent implements G054.
 - Codex validates G054 and then coordinates interactive browser login plus backend auth enablement.
+
+## Gate G054: Authenticated Streaming and Browser Validation
+
+Timestamp: `2026-07-09T13:35:30Z`
+
+Status: `implemented — interactive browser login pending`
+
+Gate name:
+
+- Implement auth-aware dashboard streaming with a safe REST fallback and add a real-browser Syncratic IdP validation checklist.
+
+Criteria:
+
+- Auth-disabled native `EventSource` streaming remains intact.
+- Auth-enabled frontend no longer attempts native `EventSource` to protected `/v1/streams/dashboard`.
+- No access token is placed in any stream URL.
+- Dashboard uses REST fallback refresh when auth is enabled.
+- Stream UI state does not present the intentional fallback as a broken/reconnecting stream.
+- Tests cover auth-disabled streaming and auth-enabled fallback behavior; G053 API auth tests still pass.
+- `npm test`, `npm run build`, and `npm audit --json` pass.
+- Auth-enabled image build path passes.
+- Real-browser validation checklist exists.
+- Backend auth remains disabled.
+
+Evidence:
+
+- `web/src/api/stream.ts` (`streamMode`, auth-aware `subscribeDashboardStream`, REST fallback primitives).
+- `web/src/components/DashboardStreamBridge.tsx` (mode branch + 15s REST invalidation).
+- `web/src/store/ui.ts` (`streamMode` state).
+- `web/src/components/HealthIndicator.tsx`, `web/src/routes/DashboardRoute.tsx`, `web/src/routes/SystemRoute.tsx` (neutral `REST refresh` wording).
+- `web/src/api/stream.test.ts`.
+- `docs/frontend/auth_browser_validation_checklist.md`.
+- `docs/build_journal.md`.
+
+Implementation notes:
+
+- No new runtime dependencies; no backend changes.
+- `subscribeDashboardStream` returns an inert no-op under auth (no `EventSource`, no token in URL, no error callback); freshness via a 15s `refreshDashboardViaRest` invalidation of dashboard prefixes (`healthz`/`readyz` excluded since they already poll).
+- Added UI `streamMode` so `HealthIndicator`/`Dashboard`/`System` show neutral `REST refresh` wording and the health dot no longer penalizes for the intentionally-off stream.
+
+Verification performed:
+
+- `npm test`: 34/34 pass (3 new G054 stream tests; G053 Bearer/actor/401 tests still pass).
+- `npm run build` (`tsc` + `vite build`): succeeded.
+- `npm audit --json`: 0 vulnerabilities, exit 0.
+- Auth-disabled `web` rebuild + redeploy via Traefik overlay: `https://signalops.syncratic.io/` `/healthz` `/readyz` `/v1/alerts` 200; `/auth/callback` SPA fallback 200; Traefik router label present.
+- Auth-enabled image build-only via compose args + Traefik overlay: succeeded; not redeployed.
+- Default image tag restored to auth-disabled (running container remains auth-disabled).
+
+Follow-up items:
+
+- Execute the real-browser auth validation checklist against `lukeb` (Imperva blocks headless probing).
+- After browser validation, coordinate setting `SIGNALOPS_AUTH_ENABLED=true` for live backend enforcement.

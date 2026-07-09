@@ -82,6 +82,7 @@ export function DashboardRoute() {
   const streamConnected = useUi((s) => s.streamConnected);
   const lastStreamEventAt = useUi((s) => s.lastStreamEventAt);
   const streamError = useUi((s) => s.streamError);
+  const restFallback = useUi((s) => s.streamMode) === 'rest_fallback';
 
   const runsData = runs.data?.runs ?? [];
   const failedRuns = runsData.filter((r) => r.status === 'failed').length;
@@ -99,7 +100,16 @@ export function DashboardRoute() {
   const alertsData = alerts.data?.alerts ?? [];
   const insightsData = insights.data?.insights ?? [];
 
-  const streamState = streamError ? 'reconnecting' : streamConnected ? 'connected' : 'connecting';
+  // Under auth, SSE is intentionally off (native EventSource cannot carry a Bearer token);
+  // a REST polling interval keeps the dashboard fresh. Show that distinctly rather than as a
+  // reconnecting/connecting stream.
+  const streamState = restFallback
+    ? 'REST refresh'
+    : streamError
+      ? 'reconnecting'
+      : streamConnected
+        ? 'connected'
+        : 'connecting';
 
   function refreshAll() {
     healthz.refetch();

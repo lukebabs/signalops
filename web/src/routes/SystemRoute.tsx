@@ -17,6 +17,7 @@ export function SystemRoute() {
   const lastStreamEventAt = useUi((s) => s.lastStreamEventAt);
   const streamConnected = useUi((s) => s.streamConnected);
   const streamError = useUi((s) => s.streamError);
+  const restFallback = useUi((s) => s.streamMode) === 'rest_fallback';
   const setLastRefresh = useUi((s) => s.setLastRefresh);
 
   const storageAvailable = probe.isSuccess;
@@ -63,8 +64,16 @@ export function SystemRoute() {
         <MetricTile label="Last Refresh" value={formatUtc(lastRefresh ?? undefined)} />
         <MetricTile
           label="Dashboard Stream"
-          value={streamConnected ? 'connected' : streamError ? 'reconnecting' : 'checking'}
-          hint={streamError ?? undefined}
+          value={
+            restFallback
+              ? 'REST refresh'
+              : streamConnected
+                ? 'connected'
+                : streamError
+                  ? 'reconnecting'
+                  : 'checking'
+          }
+          hint={restFallback ? 'SSE disabled under auth; REST polling active' : (streamError ?? undefined)}
         />
         <MetricTile label="Last Stream Event" value={formatUtc(lastStreamEventAt ?? undefined)} />
       </div>

@@ -3311,3 +3311,45 @@ Specification coverage:
 Next step:
 
 - Frontend-agent implements G054 using `docs/frontend/authenticated_streaming_and_browser_validation_spec.md`.
+
+## 2026-07-09T13:35:30Z
+
+Summary:
+
+- Implemented G054: auth-aware dashboard streaming with a safe REST fallback, so the frontend is correct once backend auth is later enabled.
+- Native `EventSource` cannot carry a `Bearer` token and putting a token in the stream URL is unacceptable, so under frontend auth the dashboard no longer opens SSE to the protected `/v1/streams/dashboard`; instead a modest REST polling interval keeps summaries fresh. Auth-disabled behavior is unchanged.
+- Added a real-browser validation checklist for the IdP login/logout flow that remains the deferred step (Imperva WAF blocks headless automation).
+
+Files changed:
+
+- `web/src/api/stream.ts`: `streamMode()` helper (`eventsource` when auth disabled, `rest_fallback` when enabled); `subscribeDashboardStream` returns an inert no-op under auth (no `EventSource`, no token in any URL, no error callback); exported `REST_FALLBACK_PREFIXES`, `REST_FALLBACK_INTERVAL_MS` (15s), and a unit-testable `refreshDashboardViaRest` helper.
+- `web/src/components/DashboardStreamBridge.tsx`: branches on `streamMode`; in fallback it invalidates dashboard query prefixes on a 15s interval and sets the UI `streamMode` (no stream error); auth-disabled path keeps native SSE.
+- `web/src/store/ui.ts`: added `streamMode` + `setStreamMode` so the UI can distinguish intentional fallback from a connecting/reconnecting stream.
+- `web/src/components/HealthIndicator.tsx`, `web/src/routes/DashboardRoute.tsx`, `web/src/routes/SystemRoute.tsx`: neutral `REST refresh` wording under fallback; health indicator no longer penalizes for the intentionally-off stream.
+- `web/src/api/stream.test.ts`: auth-disabled coverage preserved (EventSource + URL has no credential); added auth-enabled coverage (no `EventSource` constructed, no error, no-op closeable) and `refreshDashboardViaRest` invalidates the dashboard prefixes but not `healthz`/`readyz`.
+- `docs/frontend/auth_browser_validation_checklist.md`: new real-browser checklist (build/redeploy via Traefik overlay, login/logout steps, restore auth-disabled), noting Imperva blocks headless automation.
+- `docs/build_journal.md`, `docs/gate_audit.md`.
+
+Design notes:
+
+- No new runtime dependencies; no backend changes; backend `SIGNALOPS_AUTH_ENABLED` stays `false`.
+- The REST fallback mirrors the existing SSE-driven invalidation pattern (same query prefixes) and is scoped to the always-mounted dashboard stream bridge.
+- `healthz`/`readyz` already poll on their own `refetchInterval`, so the fallback excludes them.
+
+Verification performed:
+
+- `npm test`: 6 files, 34 tests, all pass (3 new G054 stream tests; G053 Bearer/actor/401 tests still pass).
+- `npm run build` (`tsc` + `vite build`): succeeded.
+- `npm audit --json`: 0 vulnerabilities, exit 0.
+- Auth-disabled `web` rebuild + redeploy via `docker compose -f compose.yaml -f compose.traefik.yaml up -d web`: `https://signalops.syncratic.io/` `/healthz` `/readyz` `/v1/alerts` all 200; `/auth/callback` SPA fallback 200; Traefik router label `Host(`signalops.syncratic.io`)` present.
+- Auth-enabled image build-only (`VITE_SIGNALOPS_AUTH_ENABLED=true ... docker compose -f compose.yaml -f compose.traefik.yaml build web`): succeeded — production enablement path verified; not redeployed.
+- Default image tag restored to auth-disabled after the build-only check (running container remains auth-disabled, matching the committed default).
+
+Validation boundary / follow-up:
+
+- The interactive IdP Authorization Code + PKCE login in a real browser is still pending: the Keycloak auth endpoint is Imperva/Incapsula-guarded and blocks headless probing, and the flow needs operator credentials. The new checklist captures the exact steps.
+- Codex/operator follow-up: execute the browser checklist against `lukeb`, then coordinate setting `SIGNALOPS_AUTH_ENABLED=true` for live backend enforcement.
+
+Next step:
+
+- Execute the real-browser auth validation checklist; do not enable backend auth permanently until it passes.
