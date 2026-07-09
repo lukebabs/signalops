@@ -3991,3 +3991,76 @@ Follow-up items:
 
 - Complete the interactive auth-enabled browser login (Imperva WAF blocks headless probing; requires a real browser session with operator credentials) and confirm Bearer attachment, tenant/role resolution, and logout cache clear.
 - After browser validation, coordinate setting `SIGNALOPS_AUTH_ENABLED=true` for live backend enforcement.
+
+## Gate G053: Frontend Auth Integration Validation
+
+Timestamp: `2026-07-09T13:14:00Z`
+
+Status: `validated - interactive auth enablement pending`
+
+Gate name:
+
+- Validate the frontend-agent G053 implementation for Syncratic IdP login/logout and token integration.
+
+Criteria validated:
+
+- `oidc-client-ts` is present and configured for Authorization Code + PKCE against `signalops-web`.
+- App-level auth gate prevents protected route mounting before authentication when auth is enabled.
+- `/auth/callback` route/fallback is present and served by nginx SPA fallback.
+- API client centrally attaches Bearer tokens when auth is enabled and token exists.
+- Health/readiness remain usable without a token.
+- Tenant hook derives `tenant_id` from token claims when auth is enabled and keeps `tenant-local` fallback when auth is disabled.
+- Role helpers support `realm_access.roles` and `resource_access.signalops-api.roles`.
+- Alert/insight lifecycle controls are role-gated and stop sending `X-SignalOps-Actor: operator-local` when auth is enabled.
+- Auth-disabled deployment behavior is preserved.
+
+Evidence:
+
+- `web/src/auth/config.ts`
+- `web/src/auth/oidc.ts`
+- `web/src/auth/session.tsx`
+- `web/src/auth/claims.ts`
+- `web/src/auth/LoginScreen.tsx`
+- `web/src/App.tsx`
+- `web/src/router.tsx`
+- `web/src/api/client.ts`
+- `web/src/api/stream.ts`
+- `web/src/components/DashboardShell.tsx`
+- `web/src/routes/AlertsRoute.tsx`
+- `web/src/routes/InsightsRoute.tsx`
+- `web/Dockerfile`
+- `compose.yaml`
+- `web/package.json`
+- `web/package-lock.json`
+
+Verification performed:
+
+- `cd web && npm test` - 6 files, 31 tests passed.
+- `cd web && npm run build` - passed.
+- `cd web && npm audit --json` - 0 vulnerabilities.
+- `docker compose -f compose.yaml -f compose.traefik.yaml build web` - passed.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d web` - passed.
+- `curl -fsS http://localhost:15173/healthz` - passed.
+- `curl -fsS http://localhost:15173/readyz` - passed.
+- `curl -fsS 'http://localhost:15173/v1/alerts?tenant_id=tenant-local&limit=1'` - passed with backend auth disabled.
+- `curl -fsS -o /tmp/g053-auth-callback.html -w '%{http_code} %{content_type}\n' http://localhost:15173/auth/callback` - returned `200 text/html`.
+- Build-only auth-enabled image path passed; default auth-disabled image was rebuilt and redeployed afterward.
+
+Issue noted:
+
+- Authenticated SSE is not closed yet. The current dashboard stream uses native `EventSource`, which cannot send an `Authorization` header to `/v1/streams/dashboard`; G052 protects `/v1/*` when backend auth is enabled. A transport decision is required before permanently enabling backend auth with dashboard streaming.
+
+Outcome:
+
+- G053 frontend implementation is validated for code, tests, build, and auth-disabled deployment compatibility.
+- Interactive browser login through Syncratic IdP and the SSE auth transport decision remain pending before `SIGNALOPS_AUTH_ENABLED=true` is made permanent.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Complete real-browser login/logout validation with `lukeb` at `https://signalops.syncratic.io`.
+- Decide and implement the authenticated SSE transport path or explicitly disable SSE with REST fallback while auth is enabled.
+- Then enable backend auth and validate live `401`, `403`, viewer read, operator/admin lifecycle mutation, and tenant mismatch behavior with real IdP tokens.

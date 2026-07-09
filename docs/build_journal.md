@@ -3231,3 +3231,56 @@ Validation boundary / follow-up:
 Next step:
 
 - Coordinate the interactive auth-enabled browser validation; do not enable backend auth permanently until that completes.
+
+## 2026-07-09T13:14:00Z
+
+Summary:
+
+- Validated the frontend-agent G053 implementation against `docs/frontend/auth_integration_spec.md` and the G052 backend auth contract.
+- Confirmed the auth-disabled deployed path remains healthy while frontend auth support is present in code.
+- Identified one coordinated follow-up before permanently enabling backend auth: native browser `EventSource` cannot send `Authorization` headers to `/v1/streams/dashboard`, so SSE auth transport must be decided or the stream must remain disabled/fallback-only under auth.
+
+Files reviewed/validated:
+
+- `web/src/auth/config.ts`
+- `web/src/auth/oidc.ts`
+- `web/src/auth/session.tsx`
+- `web/src/auth/claims.ts`
+- `web/src/auth/LoginScreen.tsx`
+- `web/src/App.tsx`
+- `web/src/router.tsx`
+- `web/src/api/client.ts`
+- `web/src/api/stream.ts`
+- `web/src/components/DashboardShell.tsx`
+- `web/src/routes/AlertsRoute.tsx`
+- `web/src/routes/InsightsRoute.tsx`
+- `web/Dockerfile`
+- `compose.yaml`
+- `web/package.json`
+- `web/package-lock.json`
+
+Validation performed:
+
+- `cd web && npm test` - passed: 6 files, 31 tests.
+- `cd web && npm run build` - passed.
+- `cd web && npm audit --json` - 0 vulnerabilities.
+- Reviewed frontend auth implementation for OIDC client setup, app-level route gate, callback processor, token holder, Bearer attachment, tenant hook, role helpers, lifecycle role gating, and auth-disabled fallback behavior.
+- `docker compose -f compose.yaml -f compose.traefik.yaml build web` - passed for auth-disabled/default image.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d web` - web redeployed with auth-disabled/default image.
+- `curl -fsS http://localhost:15173/healthz` - passed.
+- `curl -fsS http://localhost:15173/readyz` - passed.
+- `curl -fsS 'http://localhost:15173/v1/alerts?tenant_id=tenant-local&limit=1'` - passed with auth disabled.
+- `curl -fsS -o /tmp/g053-auth-callback.html -w '%{http_code} %{content_type}\n' http://localhost:15173/auth/callback` - returned `200 text/html`.
+- Build-only auth-enabled path: `VITE_SIGNALOPS_AUTH_ENABLED=true ... docker compose -f compose.yaml -f compose.traefik.yaml build web` - passed; default auth-disabled image was rebuilt and redeployed afterward.
+
+Live verification result:
+
+- G053 implementation satisfies the core frontend integration contract for login plumbing, token attachment, tenant/role helpers, callback route, lifecycle actor behavior, and auth-disabled compatibility.
+- The public/deployed app remains auth-disabled and usable while frontend login is awaiting interactive IdP browser validation.
+- Backend auth should not be permanently enabled until an interactive browser login validates the real Keycloak/Imperva flow and the SSE auth transport decision is made.
+
+Follow-up:
+
+- Complete interactive browser validation with user `lukeb` through `https://signalops.syncratic.io`.
+- Decide how authenticated dashboard SSE should work: backend-supported token query parameter, cookie/session edge pattern, fetch-based stream polyfill with Authorization header, or disabled stream with REST fallback while auth is enabled.
+- After the browser/SSE decision passes, set `SIGNALOPS_AUTH_ENABLED=true`, redeploy gateway, and validate live protected API behavior with a real IdP token.
