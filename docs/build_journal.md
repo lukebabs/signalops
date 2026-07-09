@@ -3056,3 +3056,24 @@ Live verification result:
 
 - SignalOps web remains correctly attached to Traefik and serves through Traefik on the LAN edge IP.
 - Public DNS points at the expected WAN IP, but off-network validation is the authoritative public reachability check because this host may not be able to hairpin through the firewall/NAT path.
+
+## 2026-07-09T03:20:00Z
+
+Summary:
+
+- Closed G051 after operator-confirmed public application access through `https://signalops.syncratic.io`.
+- The earlier same-host public-domain timeout is now treated as a local NAT hairpin/reflection artifact, not a blocker for the public route.
+
+Validation performed:
+
+- Operator confirmed browser access to the SignalOps application works from the public domain after firewall forwarding to Traefik was configured.
+- Prior LAN edge validation already confirmed `signalops.syncratic.io` routes through Traefik to SignalOps `web` and gateway health.
+
+Live verification result:
+
+- G051 is fully validated and closed.
+- Public app access is available through Syncratic Traefik with Let's Encrypt TLS.
+
+Next step:
+
+- Proceed to G052 authentication/IdP enforcement before expanding public-facing operator capabilities.

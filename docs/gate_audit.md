@@ -3767,7 +3767,7 @@ Follow-up items:
 
 Timestamp: `2026-07-09T03:12:00Z`
 
-Status: `LAN edge passed - off-network public validation recommended`
+Status: `passed - public access validated`
 
 Evidence:
 
@@ -3779,5 +3779,25 @@ Evidence:
 
 Follow-up:
 
-- Validate `https://signalops.syncratic.io/healthz` from an off-network client or external monitor.
-- If off-network validation fails, inspect firewall port-forward logs, WAN ACLs, and Traefik access logs for inbound attempts.
+- Public application access was confirmed by the operator after firewall forwarding was updated.
+- Re-run public HTTPS validation after any DNS, WAF, firewall, or Traefik label changes.
+
+### G051 Closure
+
+Timestamp: `2026-07-09T03:20:00Z`
+
+Status: `closed`
+
+Evidence:
+
+- Operator confirmed public access to the SignalOps application works through `https://signalops.syncratic.io`.
+- Prior Compose, Traefik label, LAN edge, local SNI, and public HTTPS validation evidence remains recorded above.
+
+Outcome:
+
+- G051 is fully validated and closed.
+- Public app access is available through the Syncratic Traefik edge with Let's Encrypt TLS.
+
+Next gate:
+
+- G052 should enforce authentication and operator identity before further public-facing capability expansion.
