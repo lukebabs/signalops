@@ -3389,3 +3389,39 @@ Audit notes:
 Next step:
 
 - Proceed to the backend auth-enforcement gate: enable backend auth in the deployment, validate protected `/v1/*` behavior with a real IdP token, and confirm unauthenticated API requests are rejected while health/readiness remain public.
+
+
+## 2026-07-09T17:24:00Z
+
+Summary:
+
+- Enabled backend auth enforcement in the running SignalOps deployment after G054 browser auth validation.
+- Updated the local deployment environment so `SIGNALOPS_AUTH_ENABLED=true` and `VITE_SIGNALOPS_AUTH_ENABLED=true` resolve through compose.
+- Recreated the gateway and redeployed the public web service through the Traefik overlay.
+
+Deployment actions:
+
+- Set local `.env` auth flags to `SIGNALOPS_AUTH_ENABLED=true` and `VITE_SIGNALOPS_AUTH_ENABLED=true`.
+- Ran `docker compose -f compose.yaml -f compose.traefik.yaml up -d --force-recreate gateway`.
+- Ran `make deploy-web` to rebuild/redeploy the public web service with frontend auth enabled and Traefik labels preserved.
+
+Validation performed:
+
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` - passed.
+- Compose config now resolves gateway `SIGNALOPS_AUTH_ENABLED: "true"` and web build arg `VITE_SIGNALOPS_AUTH_ENABLED: "true"`.
+- Public `GET https://signalops.syncratic.io/healthz` - 200.
+- Public `GET https://signalops.syncratic.io/readyz` - 200.
+- Public `GET https://signalops.syncratic.io/` - 200 text/html.
+- Public unauthenticated `GET /v1/alerts?tenant_id=tenant-local&limit=1` - 401 application/json.
+- Public unauthenticated `GET /v1/raw-events?tenant_id=tenant-local&limit=1` - 401 application/json.
+- Direct gateway unauthenticated `GET http://localhost:18000/v1/alerts?tenant_id=tenant-local&limit=1` - 401 application/json.
+- Gateway logs show restart at `2026-07-09T17:23:05Z` with no startup error.
+
+Validation boundary:
+
+- Positive authenticated `/v1/*` validation with a real IdP bearer token still requires an operator browser session; do not treat the gate as fully closed until the browser confirms data loads after backend auth enforcement.
+- Raw HAR captures remain untracked diagnostic artifacts and should not be committed unless explicitly sanitized.
+
+Next step:
+
+- Operator/browser check: reload `https://signalops.syncratic.io`, sign in through `auth.syncratic.co`, confirm dashboard data loads with `Authorization: Bearer ...` on `/v1/*`, and verify lifecycle actions still succeed for the admin user.

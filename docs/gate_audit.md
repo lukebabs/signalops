@@ -4162,3 +4162,46 @@ Verification performed:
 Follow-up items:
 
 - Coordinate the next backend gate for `SIGNALOPS_AUTH_ENABLED=true` live enforcement using the validated frontend auth path.
+
+
+## Gate G055: Backend Auth Enforcement Enablement
+
+Timestamp: `2026-07-09T17:24:00Z`
+
+Status: `deployed — unauthenticated rejection validated; authenticated browser API validation pending`
+
+Gate name:
+
+- Enable backend `SIGNALOPS_AUTH_ENABLED=true` in the live deployment and validate protected API boundaries.
+
+Criteria:
+
+- Gateway runs with backend auth enabled.
+- Frontend remains auth-enabled and publicly routed through Traefik.
+- `/healthz` and `/readyz` remain public.
+- Unauthenticated `/v1/*` requests are rejected with `401`.
+- Direct gateway access also rejects unauthenticated protected API calls.
+- Authenticated browser session can load dashboard data with bearer-token API requests.
+
+Evidence:
+
+- Local `.env` deployment flags set to `SIGNALOPS_AUTH_ENABLED=true` and `VITE_SIGNALOPS_AUTH_ENABLED=true`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config` resolves gateway auth and web auth build args to `true`.
+- Gateway recreated via `docker compose -f compose.yaml -f compose.traefik.yaml up -d --force-recreate gateway`.
+- Web redeployed via `make deploy-web`.
+- `docs/build_journal.md`.
+
+Verification performed:
+
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`: succeeded.
+- Public `GET /healthz`: 200.
+- Public `GET /readyz`: 200.
+- Public `GET /`: 200 text/html.
+- Public unauthenticated `GET /v1/alerts?tenant_id=tenant-local&limit=1`: 401 application/json.
+- Public unauthenticated `GET /v1/raw-events?tenant_id=tenant-local&limit=1`: 401 application/json.
+- Direct gateway unauthenticated `GET http://localhost:18000/v1/alerts?tenant_id=tenant-local&limit=1`: 401 application/json.
+- Gateway restart log observed at `2026-07-09T17:23:05Z` with no startup error.
+
+Follow-up items:
+
+- Complete real-browser positive API validation with user `lukeb`: dashboard loads, `/v1/*` requests include `Authorization: Bearer ...`, tenant resolves to `tenant-local`, admin lifecycle actions still succeed, and logout clears protected data.
