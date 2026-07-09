@@ -129,8 +129,18 @@ with its Let's Encrypt resolver credentials, including `LETSENCRYPT_EMAIL`,
 Start SignalOps with the edge overlay:
 
 ```bash
-docker compose -f compose.yaml -f compose.traefik.yaml up -d web
+make deploy-web
+# equivalent to:
+# VITE_SIGNALOPS_AUTH_ENABLED=true docker compose -f compose.yaml -f compose.traefik.yaml up -d --build web
 ```
+
+`make deploy-web` rebuilds the `web` image **with frontend auth enabled** and
+**with the Traefik overlay applied** in one step. A bare
+`docker compose up -d --build web` (or `make compose-up`) omits both: it bakes
+`VITE_SIGNALOPS_AUTH_ENABLED=false` (the `.env` default, so the login page never
+shows) and recreates `web` without `traefik.*` labels, which **404s the public
+host**. Always use `make deploy-web` for public deploys; reserve the bare
+`docker compose up -d web` (see *Web UI* above) for local-only runs.
 
 Only the `web` service is exposed publicly. The web nginx container proxies API
 and SSE paths to the internal gateway, preserving same-origin browser behavior:

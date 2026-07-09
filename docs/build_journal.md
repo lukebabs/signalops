@@ -3353,3 +3353,39 @@ Validation boundary / follow-up:
 Next step:
 
 - Execute the real-browser auth validation checklist; do not enable backend auth permanently until it passes.
+
+
+## 2026-07-09T17:18:52Z
+
+Summary:
+
+- Closed G054 after frontend-agent browser validation of the Syncratic IdP login path.
+- Added a stable auth callback implementation so the PKCE redirect callback is consumed once instead of re-running after session state updates.
+- Added a `make deploy-web` path that rebuilds the public web image with frontend auth enabled and keeps the Traefik overlay attached.
+
+Files changed/validated:
+
+- `web/src/auth/session.tsx`
+- `web/src/auth/LoginScreen.tsx`
+- `Makefile`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- Frontend-agent reported G054 implemented and validated in a real browser.
+- `cd web && npm test` - passed: 6 files, 34 tests.
+- `cd web && npm run build` - passed.
+- `cd web && npm audit --json` - 0 vulnerabilities.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` - passed.
+- Public HTTPS checks: `https://signalops.syncratic.io/healthz` 200, `/readyz` 200, `/` 200, `/auth/callback` 200.
+
+Audit notes:
+
+- Raw HAR captures from browser validation are present locally and intentionally left untracked because they are large diagnostic artifacts and may contain browser/session metadata.
+- Backend `SIGNALOPS_AUTH_ENABLED=true` live enforcement is not part of G054; it should be handled as the next coordinated backend gate now that the frontend auth path is validated.
+
+Next step:
+
+- Proceed to the backend auth-enforcement gate: enable backend auth in the deployment, validate protected `/v1/*` behavior with a real IdP token, and confirm unauthenticated API requests are rejected while health/readiness remain public.

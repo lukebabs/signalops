@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useCallback,
   useMemo,
   useState,
   type ReactNode,
@@ -86,6 +87,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // These handlers use only stable references (the UserManager singleton,
+  // stable setState, and module functions), so they're memoized with empty
+  // deps. A stable finishCallback identity matters: AuthCallbackProcessor's
+  // effect depends on it, and if it changed when setUser() runs mid-callback
+  // the effect would re-run and call signinRedirectCallback() a second time —
+  // the PKCE state is already consumed on the first call, producing
+  // "No matching state found in storage" and bouncing the user to login.
+  const signIn = useCallback(async () => {
+    try {
+      rememberRedirectPath(window.location.pathname + window.location.search);
+      await getUserManager().signinRedirect();
+    } catch (e) {
+      setError(errMsg(e));
+    }
+  }, []);
+
+  // On success returns the path to restore; on failure it throws so the caller
+  // (AuthCallbackProcessor) can surface the IdP/PKCE error.
+  const finishCallback = useCallback(async () => {
+    const u = await getUserManager().signinRedirectCallback();
+    setUser(u);
+    currentAccessToken = u?.access_token ?? null;
+    return consumeRedirectPath();
+  }, []);
+
+  const signOut = useCallback(async () => {
+    try {
+      currentAccessToken = null;
+      await getUserManager().signoutRedirect();
+    } catch (e) {
+      setError(errMsg(e));
+    }
+  }, []);
+
   const value = useMemo<SessionState>(
     () => ({
       authEnabled: authConfig.authEnabled,
@@ -94,35 +129,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       claims: (user?.profile as AuthClaims | undefined) ?? null,
       error,
-      async signIn() {
-        try {
-          rememberRedirectPath(window.location.pathname + window.location.search);
-          await getUserManager().signinRedirect();
-        } catch (e) {
-          setError(errMsg(e));
-        }
-      },
-      async finishCallback() {
-        try {
-          const u = await getUserManager().signinRedirectCallback();
-          setUser(u);
-          currentAccessToken = u?.access_token ?? null;
-          return consumeRedirectPath();
-        } catch (e) {
-          setError(errMsg(e));
-          return '/';
-        }
-      },
-      async signOut() {
-        try {
-          currentAccessToken = null;
-          await getUserManager().signoutRedirect();
-        } catch (e) {
-          setError(errMsg(e));
-        }
-      },
+      signIn,
+      finishCallback,
+      signOut,
     }),
-    [user, loading, error],
+    [user, loading, error, signIn, finishCallback, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

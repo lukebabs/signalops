@@ -43,6 +43,8 @@ export function LoginScreen({
 }
 
 // Processes the IdP redirect at /auth/callback, then navigates to the restored path.
+// On failure the underlying oidc-client-ts error is logged and shown on screen so a
+// PKCE/state problem is diagnosable instead of silently bouncing to the login screen.
 export function AuthCallbackProcessor() {
   const { finishCallback } = useAuth();
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +57,8 @@ export function AuthCallbackProcessor() {
         if (cancelled) return;
         window.location.replace(path || '/');
       } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[signalops] signinRedirectCallback failed:', e);
         if (!cancelled) setError(String((e as Error)?.message ?? e));
       }
     })();
@@ -63,5 +67,11 @@ export function AuthCallbackProcessor() {
     };
   }, [finishCallback]);
 
-  return <LoginScreen loading={error === null} error={error} />;
+  return (
+    <LoginScreen
+      loading={error === null}
+      error={error}
+      onSignIn={error ? () => window.location.assign('/') : undefined}
+    />
+  );
 }

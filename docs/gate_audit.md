@@ -4105,7 +4105,7 @@ Follow-up items:
 
 Timestamp: `2026-07-09T13:35:30Z`
 
-Status: `implemented — interactive browser login pending`
+Status: `closed — browser auth validation passed; backend auth enablement remains a separate gate`
 
 Gate name:
 
@@ -4132,6 +4132,10 @@ Evidence:
 - `web/src/components/HealthIndicator.tsx`, `web/src/routes/DashboardRoute.tsx`, `web/src/routes/SystemRoute.tsx` (neutral `REST refresh` wording).
 - `web/src/api/stream.test.ts`.
 - `docs/frontend/auth_browser_validation_checklist.md`.
+- `Makefile` (`deploy-web` auth-enabled public deploy target with Traefik overlay).
+- `docs/deployment.md` (public deploy guidance for auth-enabled frontend).
+- `web/src/auth/session.tsx` (stable callback/sign-in/sign-out handlers to avoid duplicate PKCE callback processing).
+- `web/src/auth/LoginScreen.tsx` (callback failure diagnostics for browser validation).
 - `docs/build_journal.md`.
 
 Implementation notes:
@@ -4148,8 +4152,13 @@ Verification performed:
 - Auth-disabled `web` rebuild + redeploy via Traefik overlay: `https://signalops.syncratic.io/` `/healthz` `/readyz` `/v1/alerts` 200; `/auth/callback` SPA fallback 200; Traefik router label present.
 - Auth-enabled image build-only via compose args + Traefik overlay: succeeded; not redeployed.
 - Default image tag restored to auth-disabled (running container remains auth-disabled).
+- `2026-07-09T17:18:52Z` validation update: frontend-agent completed the real-browser auth checklist; public `https://signalops.syncratic.io/` login path works.
+- `npm test`: 34/34 pass after browser-validation fixes.
+- `npm run build`: succeeded after browser-validation fixes.
+- `npm audit --json`: 0 vulnerabilities after browser-validation fixes.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`: succeeded.
+- Live HTTPS checks after validation: `/healthz` 200, `/readyz` 200, `/` 200, `/auth/callback` 200.
 
 Follow-up items:
 
-- Execute the real-browser auth validation checklist against `lukeb` (Imperva blocks headless probing).
-- After browser validation, coordinate setting `SIGNALOPS_AUTH_ENABLED=true` for live backend enforcement.
+- Coordinate the next backend gate for `SIGNALOPS_AUTH_ENABLED=true` live enforcement using the validated frontend auth path.
