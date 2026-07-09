@@ -3908,3 +3908,39 @@ Follow-up items:
 
 - Write the frontend-agent G053 specification for OIDC login/logout, token attachment, route guarding, unauthorized states, and role-aware UI behavior.
 - After the frontend auth gate passes, set `SIGNALOPS_AUTH_ENABLED=true` and validate live protected API behavior with a real Syncratic IdP token.
+
+## Gate G053: Frontend Auth Integration Specification
+
+Timestamp: `2026-07-09T04:22:00Z`
+
+Status: `handoff ready`
+
+Gate name:
+
+- Specify frontend Syncratic IdP login/logout and token integration for SignalOps.
+
+Criteria:
+
+- The spec must align with G052 backend JWT enforcement.
+- The spec must preserve auth-disabled development behavior until backend auth is enabled permanently.
+- The spec must require Authorization Code + PKCE for `signalops-web` without client secrets.
+- The spec must cover token attachment, route guarding, tenant claim use, role helpers, lifecycle control gating, callback/logout handling, query cache behavior, tests, browser validation, and journal/audit updates.
+
+Evidence:
+
+- `docs/frontend/auth_integration_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- Recommended `oidc-client-ts` rather than hand-rolled OAuth/PKCE.
+- Required tenant source is token `tenant_id` when auth is enabled.
+- Required role sources are `realm_access.roles` and future-compatible `resource_access.signalops-api.roles`.
+- Auth-enabled lifecycle mutations must rely on backend token-derived actor and stop sending `X-SignalOps-Actor: operator-local`.
+- The frontend should not permanently enable backend auth; live backend auth enablement remains a coordinated validation step after frontend implementation.
+
+Follow-up items:
+
+- Frontend-agent implements G053.
+- Codex validates G053 implementation and then coordinates setting `SIGNALOPS_AUTH_ENABLED=true` for live backend enforcement.

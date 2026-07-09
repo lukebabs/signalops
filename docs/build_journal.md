@@ -3157,3 +3157,31 @@ Live verification result:
 Next step:
 
 - Write the frontend-agent specification for login/logout, token attachment, route guards, unauthorized states, and enabling `SIGNALOPS_AUTH_ENABLED=true` after frontend support lands.
+
+## 2026-07-09T04:22:00Z
+
+Summary:
+
+- Wrote the G053 frontend-agent specification for Syncratic IdP login/logout and frontend token integration.
+- The spec is grounded in the implemented G052 backend auth contract and current SignalOps web app structure.
+
+Files changed:
+
+- `docs/frontend/auth_integration_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Specification coverage:
+
+- Authorization Code + PKCE through `signalops-web`.
+- Central Bearer token attachment for protected `/v1/*` API calls.
+- Auth-disabled compatibility mode for current local/public UI behavior.
+- Tenant derivation from token `tenant_id` with `tenant-local` fallback only when auth is disabled.
+- Role parsing from `realm_access.roles` and `resource_access.signalops-api.roles`.
+- Role-aware lifecycle controls for viewer/operator/admin.
+- Removal of `operator-local` lifecycle actor headers when auth is enabled.
+- Callback route, login/logout UX, query-cache handling, unauthorized/forbidden states, tests, browser validation, and acceptance criteria.
+
+Next step:
+
+- Frontend-agent implements G053 using `docs/frontend/auth_integration_spec.md`.
