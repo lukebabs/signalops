@@ -114,6 +114,12 @@ services:
     build:
       context: ./web
       target: web
+      args:
+        VITE_SIGNALOPS_AUTH_ENABLED: ${VITE_SIGNALOPS_AUTH_ENABLED:-false}
+        VITE_SIGNALOPS_AUTH_ISSUER: ${VITE_SIGNALOPS_AUTH_ISSUER:-https://auth.syncratic.co/realms/syncratic}
+        VITE_SIGNALOPS_AUTH_REALM: ${VITE_SIGNALOPS_AUTH_REALM:-syncratic}
+        VITE_SIGNALOPS_AUTH_CLIENT_ID: ${VITE_SIGNALOPS_AUTH_CLIENT_ID:-signalops-web}
+        VITE_SIGNALOPS_AUTH_AUDIENCE: ${VITE_SIGNALOPS_AUTH_AUDIENCE:-signalops-api}
     depends_on:
       gateway:
         condition: service_started

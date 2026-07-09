@@ -3185,3 +3185,49 @@ Specification coverage:
 Next step:
 
 - Frontend-agent implements G053 using `docs/frontend/auth_integration_spec.md`.
+
+## 2026-07-09T12:45:11Z
+
+Summary:
+
+- Implemented G053 frontend Syncratic IdP integration for the SignalOps web app against the G052 backend contract.
+- Added an `oidc-client-ts` Authorization Code + PKCE auth module, app-level route guard, callback handling, central Bearer-token attachment, token-derived tenant, and role-gated lifecycle controls.
+- Auth remains OFF by default; the deployed default and the running stack stay auth-disabled until the interactive IdP login is validated in a browser.
+
+Files changed:
+
+- `web/src/auth/config.ts`, `web/src/auth/oidc.ts`, `web/src/auth/session.tsx`, `web/src/auth/claims.ts`, `web/src/auth/LoginScreen.tsx` (new auth module).
+- `web/src/auth/config.test.ts`, `web/src/auth/claims.test.ts`, `web/src/auth/auth_client.test.ts` (new tests).
+- `web/src/App.tsx` (AuthProvider wrap + RootGate; query-cache clear on logout/expiry).
+- `web/src/router.tsx` (`/auth/callback` fallback route).
+- `web/src/api/client.ts` (central `authHeaders()` token attachment; drop `X-SignalOps-Actor` when auth enabled).
+- `web/src/api/queries.ts` (corrected lifecycle actor comment).
+- `web/src/components/DashboardShell.tsx` (operator identity + sign out), `web/src/components/IdempotencyLookup.tsx` (session tenant).
+- `web/src/routes/{DashboardRoute,SourcesRoute,PipelinesRoute,RulesRoute,NormalizedEventsRoute,SignalsRoute,AlertsRoute,InsightsRoute}.tsx` (session tenant via `useTenant`; lifecycle gating via `useCanMutateLifecycle`).
+- `web/package.json`, `web/package-lock.json` (`oidc-client-ts`).
+- `web/.env.example`, `web/Dockerfile`, `compose.yaml` (Vite auth env wired as compose build args, auth-disabled defaults).
+
+Design notes:
+
+- Auth gate lives at the app shell (`RootGate`): when auth is enabled, no protected route — and therefore no protected `/v1/*` query — mounts before an access token exists.
+- The `/auth/callback` IdP redirect is processed in the gate before the router mounts; the router's `/auth/callback` route is a fallback only.
+- Token is held in a module-level holder updated by the provider so the non-React `api/client.ts` can attach it centrally without prop-drilling.
+- Tenant derives from the token `tenant_id` claim when auth is on, falling back to `tenant-local` only when auth is disabled.
+- Lifecycle action buttons disable with a tooltip for viewers (no `signalops:operator`/`signalops:admin`); the `operator-local` actor header is sent only in auth-disabled (local dev) mode.
+
+Verification performed:
+
+- `npm test`: 6 files, 31 tests, all pass — covers config parsing (auth off by default; enabled only for literal `true`), claims (tenant, display-identity precedence, roles from both `realm_access` and `resource_access.signalops-api`, read/mutate role checks), and api client (Bearer attached to `/v1/*` when enabled+token, omitted for `/healthz` and when disabled, `X-SignalOps-Actor` dropped when enabled, 401 envelope mapped to `ApiError`).
+- `npm run build` (`tsc` + `vite build`): succeeded.
+- Rebuilt and redeployed the `web` container with the new code (auth-disabled default): `GET /healthz` 200, `GET /readyz` 200, `GET /v1/alerts` 200, SPA index served (`<title>SignalOps</title>`), and `/auth/callback` SPA fallback 200 — auth-disabled behavior preserved and the G053 callback route served by nginx fallback.
+- IdP discovery `https://auth.syncratic.co/realms/syncratic/.well-known/openid-configuration` matches the contract: issuer `https://auth.syncratic.co/realms/syncratic`, JWKS `.../protocol/openid-connect/certs`, `S256` code challenge method supported, `authorization_code` grant supported, `code` response type supported, end-session endpoint present.
+- Build-only check of the production auth-enablement path: `VITE_SIGNALOPS_AUTH_ENABLED=true ... docker compose build web` succeeded (compose build-arg → Dockerfile ARG → Vite env plumbing verified). Not redeployed.
+
+Validation boundary / follow-up:
+
+- The interactive IdP Authorization Code + PKCE login (redirect → Keycloak sign-in → callback → identity displayed; logout clearing session/cache) was not completed here: the Keycloak auth endpoint is fronted by an Imperva/Incapsula WAF that blocks headless probing (403 with an Incapsula incident ID), and the flow requires a real browser session with operator credentials. This is the browser step the spec defers; backend `SIGNALOPS_AUTH_ENABLED` remains `false`.
+- Codex/coordinated follow-up: complete the auth-enabled browser login against `lukeb`, confirm Bearer headers attach and tenant/roles resolve, then coordinate flipping `SIGNALOPS_AUTH_ENABLED=true` for live backend enforcement.
+
+Next step:
+
+- Coordinate the interactive auth-enabled browser validation; do not enable backend auth permanently until that completes.

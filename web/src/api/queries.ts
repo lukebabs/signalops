@@ -184,8 +184,9 @@ export function useInsight(insightId: string | null) {
 
 // Lifecycle mutations: on success, write the returned record into the detail cache
 // (instant update) and invalidate the list prefix so filtered tables + Dashboard
-// summaries (which sit under ['alerts']/['insights']) refetch. Actor is the
-// placeholder operator-local until real auth lands.
+// summaries (which sit under ['alerts']/['insights']) refetch. When auth is enabled
+// the gateway derives the actor from the token; the operator-local placeholder is
+// only sent in auth-disabled (local dev) mode — see api/client.ts.
 export function useMutateAlertLifecycle() {
   const queryClient = useQueryClient();
   return useMutation({

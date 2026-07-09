@@ -9,6 +9,7 @@ import { CopyButton } from '../components/CopyButton';
 import { JsonViewer } from '../components/JsonViewer';
 import { formatUtc } from '../lib/format';
 import type { AlertRecord, AlertLifecycleAction } from '../types';
+import { useTenant, useCanMutateLifecycle } from '../auth/session';
 
 type LifecycleMeta = {
   action?: string;
@@ -23,8 +24,6 @@ function lifecycleOf(metadata: unknown): LifecycleMeta | undefined {
     ? (metadata as { lifecycle?: LifecycleMeta }).lifecycle
     : undefined;
 }
-
-const TENANT_ID = 'tenant-local';
 
 const SEVERITY_STYLES: Record<string, string> = {
   critical: 'text-red-700',
@@ -52,6 +51,7 @@ function StatusLabel({ status }: { status: string }) {
 }
 
 export function AlertsRoute() {
+  const TENANT_ID = useTenant();
   const [sourceId, setSourceId] = useState('');
   const [dataset, setDataset] = useState('');
   const [severity, setSeverity] = useState('');
@@ -220,6 +220,7 @@ function AlertDetailBody({ alert }: { alert: AlertRecord }) {
   const canResolve = !['resolved', 'suppressed'].includes(status);
   const canSuppress = status !== 'suppressed';
   const pending = mutation.isPending;
+  const canMutate = useCanMutateLifecycle();
   const run = (action: AlertLifecycleAction) => mutation.mutate({ alertId: alert.alert_id, action });
 
   return (
@@ -236,7 +237,8 @@ function AlertDetailBody({ alert }: { alert: AlertRecord }) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={pending || !canAcknowledge}
+            disabled={pending || !canAcknowledge || !canMutate}
+            title={!canMutate ? 'Requires operator or admin role' : undefined}
             onClick={() => run('acknowledge')}
             className="inline-flex items-center gap-1 rounded bg-brand-500 px-2 py-1 text-xs text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -244,7 +246,8 @@ function AlertDetailBody({ alert }: { alert: AlertRecord }) {
           </button>
           <button
             type="button"
-            disabled={pending || !canResolve}
+            disabled={pending || !canResolve || !canMutate}
+            title={!canMutate ? 'Requires operator or admin role' : undefined}
             onClick={() => run('resolve')}
             className="inline-flex items-center gap-1 rounded bg-brand-500 px-2 py-1 text-xs text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -252,13 +255,15 @@ function AlertDetailBody({ alert }: { alert: AlertRecord }) {
           </button>
           <button
             type="button"
-            disabled={pending || !canSuppress}
+            disabled={pending || !canSuppress || !canMutate}
+            title={!canMutate ? 'Requires operator or admin role' : undefined}
             onClick={() => run('suppress')}
             className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <BellOff size={14} /> Suppress
           </button>
         </div>
+        {!canMutate && <p className="text-xs text-gray-500">Lifecycle actions require operator or admin role.</p>}
         {mutation.isError && (
           <p className="text-xs text-red-700" role="alert">
             Action failed: {isApiError(mutation.error) ? mutation.error.message : 'unknown error'}. Selection preserved.

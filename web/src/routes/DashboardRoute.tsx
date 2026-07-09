@@ -21,8 +21,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { formatUtc, orDash } from '../lib/format';
 import type { ProviderUsage } from '../types';
-
-const TENANT_ID = 'tenant-local';
+import { useTenant } from '../auth/session';
 
 type RouteLink = '/runs' | '/raw-events' | '/normalized-events' | '/signals' | '/alerts' | '/insights' | '/sources' | '/pipelines' | '/rules' | '/system';
 
@@ -64,6 +63,7 @@ function aggregateProviderUsage(rows: ProviderUsage[]) {
 }
 
 export function DashboardRoute() {
+  const TENANT_ID = useTenant();
   const healthz = useHealthz();
   const readyz = useReadyz();
   const runs = useRuns(10);

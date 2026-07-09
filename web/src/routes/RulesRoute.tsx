@@ -5,8 +5,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
 import { formatUtc, orDash } from '../lib/format';
-
-const TENANT_ID = 'tenant-local';
+import { useTenant } from '../auth/session';
 
 // Severity has no shared badge component; render as restrained colored text
 // (no new color-heavy visual system), consistent with Sources/Pipelines.
@@ -27,6 +26,7 @@ function SeverityLabel({ severity }: { severity: string }) {
 }
 
 export function RulesRoute() {
+  const TENANT_ID = useTenant();
   const rules = useCatalogRules(TENANT_ID, 50);
   const data = rules.data?.rules ?? [];
   const active = data.filter((rule) => rule.status === 'active').length;

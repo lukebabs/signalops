@@ -8,11 +8,13 @@ import { JsonViewer } from './JsonViewer';
 import { CopyButton } from './CopyButton';
 import { LoadingState, ErrorState } from './States';
 import { formatUtc, orDash } from '../lib/format';
+import { useTenant } from '../auth/session';
 
 export function IdempotencyLookup() {
   const navigate = useNavigate();
   const setSelectedEventId = useUi((s) => s.setSelectedEventId);
-  const [tenantId, setTenantId] = useState('tenant-local');
+  const tenant = useTenant();
+  const [tenantId, setTenantId] = useState(tenant);
   const [sourceId, setSourceId] = useState('src-massive');
   const [key, setKey] = useState('');
   const [submitted, setSubmitted] = useState(false);

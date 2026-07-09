@@ -5,10 +5,10 @@ import { StatusBadge } from '../components/StatusBadge';
 import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
 import { formatUtc } from '../lib/format';
-
-const TENANT_ID = 'tenant-local';
+import { useTenant } from '../auth/session';
 
 export function PipelinesRoute() {
+  const TENANT_ID = useTenant();
   const pipelines = useCatalogPipelines(TENANT_ID, 50);
   const data = pipelines.data?.pipelines ?? [];
   const active = data.filter((pipeline) => pipeline.status === 'active').length;

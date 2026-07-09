@@ -1,13 +1,17 @@
 import { Suspense } from 'react';
 import { Link, Outlet } from '@tanstack/react-router';
-import { Activity, ListTree, Database, KeyRound, Gauge, DatabaseZap, Workflow, ShieldCheck, LayoutDashboard, FileCheck2, Radar, TriangleAlert, Lightbulb } from 'lucide-react';
+import { Activity, ListTree, Database, KeyRound, Gauge, DatabaseZap, Workflow, ShieldCheck, LayoutDashboard, FileCheck2, Radar, TriangleAlert, Lightbulb, LogOut } from 'lucide-react';
 import { HealthIndicator } from './HealthIndicator';
+import { useAuth } from '../auth/session';
+import { displayIdentity } from '../auth/claims';
 
 const navItem =
   'inline-flex items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-gray-600 hover:bg-gray-50';
 const navItemActive = 'text-brand-700 border-brand-500';
 
 export function DashboardShell() {
+  const { authEnabled, claims, signOut } = useAuth();
+  const identity = authEnabled ? displayIdentity(claims) : undefined;
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-2">
@@ -15,7 +19,23 @@ export function DashboardShell() {
           <Activity size={18} className="text-brand-700" />
           <span className="text-sm font-semibold">SignalOps</span>
         </div>
-        <HealthIndicator />
+        <div className="flex items-center gap-3">
+          <HealthIndicator />
+          {identity && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600">{identity}</span>
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                aria-label="Sign out"
+                title="Sign out"
+                className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                <LogOut size={14} /> Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </header>
       <nav className="flex flex-wrap gap-1 border-b border-gray-200 bg-white px-2">
         <Link to="/" className={navItem} activeProps={{ className: navItemActive }}>

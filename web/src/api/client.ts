@@ -25,6 +25,8 @@ import type {
   AlertLifecycleMutationOptions,
   InsightLifecycleMutationOptions,
 } from '../types';
+import { authConfig } from '../auth/config';
+import { getAccessToken } from '../auth/session';
 
 // Typed API error. Maps gateway error bodies {"error":<code>,"message":<text>}
 // plus network failures, so the UI can render endpoint + message.
@@ -62,11 +64,18 @@ export function buildUrl(path: string, params?: Record<string, string | number |
   return url.toString();
 }
 
+// Bearer token attached to every request when auth is enabled and a token is held.
+// /healthz and /readyz stay usable unauthenticated because the token is absent until login.
+function authHeaders(): Record<string, string> {
+  const token = authConfig.authEnabled ? getAccessToken() : null;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function get<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
   const endpoint = buildUrl(path, params);
   let res: Response;
   try {
-    res = await fetch(endpoint, { headers: { Accept: 'application/json' } });
+    res = await fetch(endpoint, { headers: { Accept: 'application/json', ...authHeaders() } });
   } catch {
     throw new ApiError(0, 'network_error', 'Gateway unreachable', endpoint);
   }
@@ -95,7 +104,7 @@ async function post<T>(
   try {
     res = await fetch(endpoint, {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...headers },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...authHeaders(), ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
@@ -191,12 +200,14 @@ export const api = {
     post<AlertResponse>(
       `/v1/alerts/${encodeURIComponent(alertId)}/${action}`,
       { note, reason },
-      { 'X-SignalOps-Actor': 'operator-local' },
+      // When auth is enabled the backend derives the actor from the token; only send the
+      // local-development placeholder header when auth is disabled.
+      authConfig.authEnabled ? undefined : { 'X-SignalOps-Actor': 'operator-local' },
     ),
   mutateInsightLifecycle: ({ insightId, action, note, reason }: InsightLifecycleMutationOptions) =>
     post<InsightResponse>(
       `/v1/insights/${encodeURIComponent(insightId)}/${action}`,
       { note, reason },
-      { 'X-SignalOps-Actor': 'operator-local' },
+      authConfig.authEnabled ? undefined : { 'X-SignalOps-Actor': 'operator-local' },
     ),
 };

@@ -8,8 +8,7 @@ import { CopyButton } from '../components/CopyButton';
 import { JsonViewer } from '../components/JsonViewer';
 import { formatUtc } from '../lib/format';
 import type { SignalRecord } from '../types';
-
-const TENANT_ID = 'tenant-local';
+import { useTenant } from '../auth/session';
 
 const SEVERITY_STYLES: Record<string, string> = {
   critical: 'text-red-700',
@@ -26,6 +25,7 @@ function SeverityLabel({ severity }: { severity: string }) {
 }
 
 export function SignalsRoute() {
+  const TENANT_ID = useTenant();
   const [sourceId, setSourceId] = useState('');
   const [dataset, setDataset] = useState('');
   const [detectorId, setDetectorId] = useState('');

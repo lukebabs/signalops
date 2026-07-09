@@ -5,10 +5,10 @@ import { StatusBadge } from '../components/StatusBadge';
 import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
 import { formatUtc } from '../lib/format';
-
-const TENANT_ID = 'tenant-local';
+import { useTenant } from '../auth/session';
 
 export function SourcesRoute() {
+  const TENANT_ID = useTenant();
   const sources = useCatalogSources(TENANT_ID, 50);
   const data = sources.data?.sources ?? [];
   const active = data.filter((source) => source.status === 'active').length;

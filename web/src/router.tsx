@@ -1,6 +1,7 @@
-import { lazy } from 'react';
-import { createRouter, createRoute, createRootRoute } from '@tanstack/react-router';
+import { lazy, useEffect } from 'react';
+import { createRouter, createRoute, createRootRoute, useNavigate } from '@tanstack/react-router';
 import { DashboardShell } from './components/DashboardShell';
+import { LoadingState } from './components/States';
 
 // Route-level code splitting: AG Grid / ECharts only load when the Runs or
 // Raw Events views are visited.
@@ -115,6 +116,22 @@ const insightsRoute = createRoute({
   component: InsightsRoute,
 });
 
+// /auth/callback is primarily handled by the auth gate in App.tsx (the router must not mount
+// before authentication); this route is a fallback that returns the user to the dashboard.
+function AuthCallbackRouteComponent() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate({ to: '/', replace: true });
+  }, [navigate]);
+  return <LoadingState label="Redirecting…" />;
+}
+
+const authCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/auth/callback',
+  component: AuthCallbackRouteComponent,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   runsRoute,
@@ -127,6 +144,7 @@ const routeTree = rootRoute.addChildren([
   signalsRoute,
   alertsRoute,
   insightsRoute,
+  authCallbackRoute,
   systemRoute,
 ]);
 

@@ -7,10 +7,10 @@ import { CopyButton } from '../components/CopyButton';
 import { JsonViewer } from '../components/JsonViewer';
 import { formatUtc } from '../lib/format';
 import type { NormalizedEvent } from '../types';
-
-const TENANT_ID = 'tenant-local';
+import { useTenant } from '../auth/session';
 
 export function NormalizedEventsRoute() {
+  const TENANT_ID = useTenant();
   const [sourceId, setSourceId] = useState('');
   const [dataset, setDataset] = useState('');
   const [limit, setLimit] = useState(50);

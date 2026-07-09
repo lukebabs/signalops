@@ -3944,3 +3944,50 @@ Follow-up items:
 
 - Frontend-agent implements G053.
 - Codex validates G053 implementation and then coordinates setting `SIGNALOPS_AUTH_ENABLED=true` for live backend enforcement.
+
+## Gate G053: Frontend Auth Integration
+
+Timestamp: `2026-07-09T12:45:11Z`
+
+Status: `implemented — interactive IdP browser login pending`
+
+Gate name:
+
+- Implement browser Syncratic IdP login/logout and Bearer-token API integration for the SignalOps web app.
+
+Criteria:
+
+- Support Authorization Code + PKCE login/logout through the `signalops-web` public client (no client secret).
+- Attach `Authorization: Bearer <token>` centrally to protected `/v1/*` calls when auth is enabled; keep `/healthz`/`/readyz` usable unauthenticated.
+- Derive tenant for route queries from the token `tenant_id` claim when auth is enabled; preserve `tenant-local` when disabled.
+- Gate alert/insight lifecycle controls by role (operator/admin) and stop sending `X-SignalOps-Actor: operator-local` when auth is enabled.
+- Preserve auth-disabled development behavior; tests and production build pass; browser validation recorded.
+- Keep backend auth disabled until frontend behavior is verified.
+
+Evidence:
+
+- `web/src/auth/{config,oidc,session,claims,LoginScreen}.tsx` and `web/src/auth/{config,claims,auth_client}.test.ts`.
+- `web/src/App.tsx`, `web/src/router.tsx`, `web/src/api/client.ts`, `web/src/api/queries.ts`, `web/src/components/{DashboardShell,IdempotencyLookup}.tsx`.
+- `web/src/routes/{DashboardRoute,SourcesRoute,PipelinesRoute,RulesRoute,NormalizedEventsRoute,SignalsRoute,AlertsRoute,InsightsRoute}.tsx`.
+- `web/.env.example`, `web/Dockerfile`, `compose.yaml`.
+- `docs/build_journal.md`.
+
+Implementation notes:
+
+- `oidc-client-ts` `UserManager` configured with `response_type: 'code'`, `S256` PKCE (implicit), `scope: openid profile email`, `extraQueryParams.resource = signalops-api` for the Keycloak audience, `automaticSilentRenew`, and origin-based redirect/post-logout URIs.
+- App-level `RootGate` blocks all protected routes (and thus all `/v1/*` queries) until a non-expired token exists; the `/auth/callback` redirect is processed in the gate before the router mounts.
+- Module-level token holder updated by the provider lets the non-React API client attach the Bearer token centrally.
+- `useTenant()` returns the token `tenant_id` when auth is on (else `tenant-local`); `useCanMutateLifecycle()` returns operator/admin when on (else true for dev).
+
+Verification performed:
+
+- `npm test`: 31/31 pass (config, claims, api-client token/actor/401 behavior).
+- `npm run build` (`tsc` + `vite build`): succeeded.
+- Auth-disabled `web` rebuild + redeploy: `/healthz` 200, `/readyz` 200, `/v1/alerts` 200, SPA index served, `/auth/callback` SPA fallback 200.
+- IdP discovery doc matches the contract (issuer, JWKS URI, `S256`, `authorization_code`, `code`, end-session endpoint).
+- Build-only auth-enabled image build via compose args succeeded (production enablement path verified); not redeployed.
+
+Follow-up items:
+
+- Complete the interactive auth-enabled browser login (Imperva WAF blocks headless probing; requires a real browser session with operator credentials) and confirm Bearer attachment, tenant/role resolution, and logout cache clear.
+- After browser validation, coordinate setting `SIGNALOPS_AUTH_ENABLED=true` for live backend enforcement.
