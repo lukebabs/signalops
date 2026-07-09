@@ -2859,3 +2859,28 @@ Live verification result:
 Next step:
 
 - Write the frontend-agent G050 specification for lifecycle action controls on Alerts and Active Insights, using these backend-ready endpoints.
+
+## 2026-07-09T01:00:56Z
+
+Summary:
+
+- Wrote the G050 frontend-agent implementation specification for Alert and Active Insight lifecycle controls backed by the G049 mutation APIs.
+- The spec covers alert acknowledge/resolve/suppress and insight review/dismiss/archive controls, placeholder operator identity, typed client mutations, TanStack Query invalidation, dashboard cache impact, tests, live proxy checks, browser validation, and journal/audit requirements.
+
+Files changed:
+
+- `docs/frontend/alerts_insights_lifecycle_controls_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- G049 made lifecycle mutation APIs backend-ready. G050 should be a frontend-only gate that extends the existing G048 pages without adding unsupported auth, streaming, bulk action, or backend behavior.
+
+Verification performed:
+
+- Specification reviewed against `docs/api.md` and the passed G049 gate evidence in `docs/gate_audit.md`.
+
+Next step:
+
+- Frontend-agent implements G050 using `docs/frontend/alerts_insights_lifecycle_controls_spec.md`.

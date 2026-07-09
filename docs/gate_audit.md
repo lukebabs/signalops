@@ -3497,3 +3497,52 @@ Follow-up items:
 
 - Write the frontend-agent spec for lifecycle action controls on Alerts and Active Insights.
 - Replace placeholder actor handling with authenticated operator identity when the auth boundary lands.
+
+## Gate G050: Frontend Alert and Insight Lifecycle Controls Specification
+
+Timestamp: `2026-07-09T01:00:56Z`
+
+Status: `handoff ready`
+
+Gate name:
+
+- Define the frontend-agent implementation contract for alert and insight lifecycle controls backed by G049 APIs.
+
+Criteria:
+
+- Specify alert Acknowledge, Resolve, and Suppress controls.
+- Specify insight Review, Dismiss, and Archive controls.
+- Define client mutation methods, query invalidation, placeholder actor handling, UI states, and validation requirements.
+- Keep unsupported auth, streaming, bulk action, and backend changes out of scope.
+- Record the handoff in timestamped documentation.
+
+Evidence:
+
+- `docs/frontend/alerts_insights_lifecycle_controls_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The spec extends the existing G048 `/alerts` and `/insights` pages.
+- Backend baseline is G049: `POST /v1/alerts/{alert_id}/acknowledge|resolve|suppress` and `POST /v1/insights/{insight_id}/review|dismiss|archive`.
+- Operator identity remains a placeholder: `X-SignalOps-Actor`, body `actor`, then `operator-local`; frontend should use `operator-local` until auth lands.
+- Query invalidation must refresh list, detail, and Dashboard summary data after successful mutations.
+
+Verification performed:
+
+- Reviewed against `docs/api.md` G049 endpoint contract.
+- Reviewed against the passed G049 gate evidence in this audit log.
+
+Live verification result:
+
+- Not applicable; this is a frontend-agent specification handoff, not the implementation gate.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Frontend-agent implements G050 and records implementation evidence.
+- After frontend implementation, validate browser action controls and decide whether the next backend gate should add authenticated operator identity or audit-history rows.
