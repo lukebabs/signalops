@@ -4168,7 +4168,7 @@ Follow-up items:
 
 Timestamp: `2026-07-09T17:24:00Z`
 
-Status: `deployed — unauthenticated rejection validated; authenticated browser API validation pending`
+Status: `closed — backend auth enforcement and authenticated browser validation passed`
 
 Gate name:
 
@@ -4182,6 +4182,7 @@ Criteria:
 - Unauthenticated `/v1/*` requests are rejected with `401`.
 - Direct gateway access also rejects unauthenticated protected API calls.
 - Authenticated browser session can load dashboard data with bearer-token API requests.
+- Operator confirms the authenticated dashboard path works as expected after backend auth enforcement.
 
 Evidence:
 
@@ -4190,6 +4191,7 @@ Evidence:
 - Gateway recreated via `docker compose -f compose.yaml -f compose.traefik.yaml up -d --force-recreate gateway`.
 - Web redeployed via `make deploy-web`.
 - `docs/build_journal.md`.
+- Operator browser validation report at `2026-07-09T17:27:31Z`.
 
 Verification performed:
 
@@ -4201,7 +4203,8 @@ Verification performed:
 - Public unauthenticated `GET /v1/raw-events?tenant_id=tenant-local&limit=1`: 401 application/json.
 - Direct gateway unauthenticated `GET http://localhost:18000/v1/alerts?tenant_id=tenant-local&limit=1`: 401 application/json.
 - Gateway restart log observed at `2026-07-09T17:23:05Z` with no startup error.
+- `2026-07-09T17:27:31Z` operator browser validation: dashboard data loads and system works as expected after authentication.
 
 Follow-up items:
 
-- Complete real-browser positive API validation with user `lukeb`: dashboard loads, `/v1/*` requests include `Authorization: Bearer ...`, tenant resolves to `tenant-local`, admin lifecycle actions still succeed, and logout clears protected data.
+- None for G055. Continue with the next backend/frontend capability gate.
