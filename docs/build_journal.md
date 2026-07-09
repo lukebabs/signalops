@@ -3025,14 +3025,14 @@ Validation performed:
 - `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/healthz`
 - `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/`
 - Checked Traefik access logs for `signalops@docker` routing to the web container.
-- Public validation: `curl -fsS http://signalops.syncratic.io/healthz` passed; `curl -fsS https://signalops.syncratic.io/healthz` returned upstream `503`.
+- Public validation: `curl -sS -o /tmp/signalops-http-final.txt -w "%{http_code} %{redirect_url}\n" http://signalops.syncratic.io/healthz` returned `301 https://signalops.syncratic.io/healthz`; `curl -sS -o /tmp/signalops-https-final.txt -w "%{http_code} %{remote_ip} %{ssl_verify_result}\n" https://signalops.syncratic.io/healthz` returned `200 45.60.31.46 0`.
 
 Live verification result:
 
 - Local web health endpoint returned gateway health JSON.
 - Local Traefik SNI override served `/healthz` and `/` through the `signalops@docker` route.
-- Public DNS resolves and HTTP reaches SignalOps. Public HTTPS is still blocked by the upstream edge with `503`, while local Traefik SNI HTTPS succeeds.
+- Public DNS resolves, HTTP redirects to HTTPS, public HTTPS reaches SignalOps gateway health, and local Traefik SNI HTTPS succeeds.
 
 Next step:
 
-- Reconcile the upstream HTTPS edge for `signalops.syncratic.io`, then re-run HTTPS validation without `--resolve` and confirm Let's Encrypt issuance.
+- Continue with the next deployment/auth gate now that public HTTPS health is live.

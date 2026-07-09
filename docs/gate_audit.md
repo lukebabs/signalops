@@ -3698,7 +3698,7 @@ Follow-up items:
 
 Timestamp: `2026-07-09T02:43:48Z`
 
-Status: `partially passed - public HTTPS edge pending`
+Status: `passed`
 
 Gate name:
 
@@ -3742,7 +3742,7 @@ Verification performed:
 - `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/healthz`
 - `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/`
 - Traefik log review for `signalops@docker` routing.
-- Public validation: `curl -fsS http://signalops.syncratic.io/healthz` passed; `curl -fsS https://signalops.syncratic.io/healthz` returned upstream `503`.
+- Public validation: `curl -sS -o /tmp/signalops-http-final.txt -w "%{http_code} %{redirect_url}\n" http://signalops.syncratic.io/healthz` returned `301 https://signalops.syncratic.io/healthz`; `curl -sS -o /tmp/signalops-https-final.txt -w "%{http_code} %{remote_ip} %{ssl_verify_result}\n" https://signalops.syncratic.io/healthz` returned `200 45.60.31.46 0`.
 
 Live verification result:
 
@@ -3751,7 +3751,7 @@ Live verification result:
 - Traefik labels are present on the web container.
 - Local health via `localhost:15173` passed.
 - Local Traefik SNI override passed for `/healthz` and `/`.
-- Public DNS resolves and HTTP reaches SignalOps. Public HTTPS returns an upstream Imperva/Incapsula `503`, while local Traefik SNI HTTPS succeeds.
+- Public DNS resolves, HTTP redirects to HTTPS, public HTTPS reaches SignalOps gateway health, and local Traefik SNI HTTPS succeeds.
 
 Actor:
 
@@ -3759,6 +3759,6 @@ Actor:
 
 Follow-up items:
 
-- Reconcile the upstream HTTPS edge for `signalops.syncratic.io` so it forwards to the Syncratic Traefik route.
-- Re-run public HTTPS validation without `--resolve` after DNS propagates.
+- Keep `SIGNALOPS_PUBLIC_HOST` and `TRAEFIK_NETWORK` defined in deployment `.env` for overlay renders.
+- Re-run public HTTPS validation after any DNS, WAF, or Traefik label changes.
 - Confirm Traefik ACME storage has issued the certificate for `signalops.syncratic.io`.
