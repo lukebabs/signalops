@@ -294,6 +294,31 @@ migration, worker, topic, or Compose service is required for G049; the endpoints
 created in `000007_alert_insight_lifecycle` and merge a compact `metadata.lifecycle` audit object.
 
 Supported alert actions are `acknowledge`, `resolve`, and `suppress`. Supported insight actions are
-`review`, `dismiss`, and `archive`. Operator identity is currently an explicit placeholder supplied by
-`X-SignalOps-Actor` or body `actor`, defaulting to `operator-local` until formal authentication is
-introduced.
+`review`, `dismiss`, and `archive`. When `SIGNALOPS_AUTH_ENABLED=true`, the gateway validates the
+Bearer JWT and derives operator identity from `preferred_username`, then `email`, then `sub`; token
+identity overrides `X-SignalOps-Actor` and body `actor`. When auth is disabled for local/frontend
+transition work, the legacy placeholder order remains `X-SignalOps-Actor`, body `actor`, then
+`operator-local`.
+
+## G052 gateway authentication
+
+Gateway authentication is controlled by `SIGNALOPS_AUTH_ENABLED`. Health endpoints remain public:
+
+- `GET /healthz`
+- `GET /readyz`
+
+When enabled, protected `/v1/*` routes require `Authorization: Bearer <jwt>` and validate:
+
+- issuer: `SIGNALOPS_AUTH_ISSUER`
+- signature: `SIGNALOPS_AUTH_JWKS_URL`
+- audience: `SIGNALOPS_AUTH_AUDIENCE` (`signalops-api`)
+- expiry and not-before timestamps
+- tenant claim: `tenant_id`
+
+Role enforcement:
+
+- read/protected `/v1/*` routes require one of `signalops:viewer`, `signalops:operator`, or `signalops:admin`.
+- alert and insight lifecycle POST routes require `signalops:operator` or `signalops:admin`.
+- explicit `tenant_id` query values or `/v1/tenants/{tenant_id}/...` paths must match the token `tenant_id` claim.
+
+Keep `SIGNALOPS_AUTH_ENABLED=false` until the frontend login/token attachment gate is deployed, otherwise the current browser UI will receive `401` responses for protected `/v1/*` calls.

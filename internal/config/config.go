@@ -1,6 +1,9 @@
 package config
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 const (
 	defaultHTTPAddr       = ":8080"
@@ -8,6 +11,12 @@ const (
 	defaultBrokerBrokers  = "redpanda:9092"
 	defaultEnvironment    = "local"
 	defaultDatabaseURL    = ""
+	defaultAuthEnabled    = "false"
+	defaultAuthIssuer     = ""
+	defaultAuthRealm      = ""
+	defaultAuthJWKSURL    = ""
+	defaultAuthAudience   = ""
+	defaultAuthClientID   = ""
 )
 
 // Config contains process-level settings for SignalOps services.
@@ -17,6 +26,12 @@ type Config struct {
 	BrokerBrokers  string
 	Environment    string
 	DatabaseURL    string
+	AuthEnabled    bool
+	AuthIssuer     string
+	AuthRealm      string
+	AuthJWKSURL    string
+	AuthAudience   string
+	AuthClientID   string
 }
 
 // Load reads configuration from environment variables.
@@ -27,6 +42,12 @@ func Load() Config {
 		BrokerBrokers:  envOrDefault("SIGNALOPS_BROKER_BROKERS", defaultBrokerBrokers),
 		Environment:    envOrDefault("SIGNALOPS_ENV", defaultEnvironment),
 		DatabaseURL:    envOrDefault("SIGNALOPS_DATABASE_URL", defaultDatabaseURL),
+		AuthEnabled:    envBool("SIGNALOPS_AUTH_ENABLED", defaultAuthEnabled),
+		AuthIssuer:     envOrDefault("SIGNALOPS_AUTH_ISSUER", defaultAuthIssuer),
+		AuthRealm:      envOrDefault("SIGNALOPS_AUTH_REALM", defaultAuthRealm),
+		AuthJWKSURL:    envOrDefault("SIGNALOPS_AUTH_JWKS_URL", defaultAuthJWKSURL),
+		AuthAudience:   envOrDefault("SIGNALOPS_AUTH_AUDIENCE", defaultAuthAudience),
+		AuthClientID:   envOrDefault("SIGNALOPS_AUTH_CLIENT_ID", defaultAuthClientID),
 	}
 }
 
@@ -36,4 +57,9 @@ func envOrDefault(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func envBool(key, fallback string) bool {
+	value := strings.ToLower(strings.TrimSpace(envOrDefault(key, fallback)))
+	return value == "1" || value == "true" || value == "yes" || value == "on"
 }

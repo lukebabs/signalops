@@ -37,6 +37,7 @@ var supportedDashboardStreamChannels = map[string]struct{}{
 // RouterConfig contains process-local API wiring options.
 type RouterConfig struct {
 	ServiceName       string
+	Auth              AuthConfig
 	Publisher         broker.Publisher
 	RawTopic          string
 	QueryRepository   storage.QueryRepository
@@ -412,7 +413,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		})
 	})
 
-	return mux
+	return authMiddleware(mux, cfg.Auth)
 }
 
 type rawIngestFields struct {
@@ -1364,6 +1365,9 @@ func readLifecycleMutationRequest(w http.ResponseWriter, r *http.Request) (lifec
 }
 
 func lifecycleActor(r *http.Request, bodyActor string) string {
+	if principal, ok := principalFromContext(r.Context()); ok {
+		return principal.Actor
+	}
 	if actor := strings.TrimSpace(r.Header.Get("X-SignalOps-Actor")); actor != "" {
 		return actor
 	}

@@ -3848,3 +3848,63 @@ Follow-up items:
 
 - Implement and validate G052 backend auth middleware and role checks.
 - After backend G052 passes, write the frontend-agent specification for login/logout, token attachment, route guards, and unauthorized states.
+
+## Gate G052: Backend OIDC/JWT Enforcement
+
+Timestamp: `2026-07-09T04:12:00Z`
+
+Status: `passed - deployed with auth disabled pending frontend login gate`
+
+Gate name:
+
+- Enforce Syncratic IdP JWTs and operator identity in the SignalOps gateway.
+
+Criteria:
+
+- Keep `/healthz` and `/readyz` unauthenticated.
+- Gate protected `/v1/*` APIs behind Bearer JWT validation when `SIGNALOPS_AUTH_ENABLED=true`.
+- Validate issuer, JWKS signature, expiry/not-before, and audience `signalops-api`.
+- Require `tenant_id` claim and reject tenant query/path mismatches.
+- Extract actor from `preferred_username`, then `email`, then `sub`.
+- Require viewer/operator/admin role for read/protected `/v1/*` routes.
+- Require operator/admin role for alert and insight lifecycle mutation routes.
+- Preserve auth-disabled local/frontend-transition behavior.
+
+Evidence:
+
+- `internal/api/auth.go`
+- `internal/api/auth_test.go`
+- `internal/api/router.go`
+- `internal/config/config.go`
+- `internal/config/config_test.go`
+- `cmd/gateway/main.go`
+- `compose.yaml`
+- `.env.example`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Verification performed:
+
+- Unit tests generate RS256 JWTs against a local JWKS server and validate public health, missing Bearer rejection, viewer read access, tenant mismatch rejection, viewer lifecycle denial, admin lifecycle allowance, and token-derived actor precedence.
+- `go test ./internal/api ./internal/config ./cmd/gateway` passed in Docker.
+- `go test ./...` passed in Docker.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` passed.
+- `docker compose -f compose.yaml -f compose.traefik.yaml build gateway` passed, including Dockerfile `go test ./...`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d gateway web` redeployed the gateway.
+- Live local proxy checks passed for `/healthz`, `/readyz`, and `/v1/alerts?tenant_id=tenant-local&limit=1` with auth disabled.
+
+Live verification result:
+
+- Backend G052 enforcement is implemented and validated by tests.
+- Running deployment remains `SIGNALOPS_AUTH_ENABLED=false` so the public app stays usable until frontend login/token attachment is implemented.
+- Gateway container has Syncratic IdP issuer, JWKS URL, audience, realm, and client id env values ready for enablement.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Write the frontend-agent G053 specification for OIDC login/logout, token attachment, route guarding, unauthorized states, and role-aware UI behavior.
+- After the frontend auth gate passes, set `SIGNALOPS_AUTH_ENABLED=true` and validate live protected API behavior with a real Syncratic IdP token.

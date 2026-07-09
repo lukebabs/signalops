@@ -101,6 +101,12 @@ services:
       SIGNALOPS_BROKER_BROKERS: redpanda:9092
       SIGNALOPS_ENV: local
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_AUTH_ENABLED: ${SIGNALOPS_AUTH_ENABLED:-false}
+      SIGNALOPS_AUTH_ISSUER: ${SIGNALOPS_AUTH_ISSUER:-https://auth.syncratic.co/realms/syncratic}
+      SIGNALOPS_AUTH_REALM: ${SIGNALOPS_AUTH_REALM:-syncratic}
+      SIGNALOPS_AUTH_JWKS_URL: ${SIGNALOPS_AUTH_JWKS_URL:-https://auth.syncratic.co/realms/syncratic/protocol/openid-connect/certs}
+      SIGNALOPS_AUTH_AUDIENCE: ${SIGNALOPS_AUTH_AUDIENCE:-signalops-api}
+      SIGNALOPS_AUTH_CLIENT_ID: ${SIGNALOPS_AUTH_CLIENT_ID:-signalops-web}
     ports:
       - "18000:8080"
 

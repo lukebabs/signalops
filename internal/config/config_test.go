@@ -8,6 +8,12 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("SIGNALOPS_BROKER_BROKERS", "")
 	t.Setenv("SIGNALOPS_ENV", "")
 	t.Setenv("SIGNALOPS_DATABASE_URL", "")
+	t.Setenv("SIGNALOPS_AUTH_ENABLED", "")
+	t.Setenv("SIGNALOPS_AUTH_ISSUER", "")
+	t.Setenv("SIGNALOPS_AUTH_REALM", "")
+	t.Setenv("SIGNALOPS_AUTH_JWKS_URL", "")
+	t.Setenv("SIGNALOPS_AUTH_AUDIENCE", "")
+	t.Setenv("SIGNALOPS_AUTH_CLIENT_ID", "")
 
 	cfg := Load()
 
@@ -26,6 +32,12 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.DatabaseURL != defaultDatabaseURL {
 		t.Fatalf("DatabaseURL = %q, want %q", cfg.DatabaseURL, defaultDatabaseURL)
 	}
+	if cfg.AuthEnabled {
+		t.Fatal("AuthEnabled = true, want false")
+	}
+	if cfg.AuthIssuer != defaultAuthIssuer || cfg.AuthRealm != defaultAuthRealm || cfg.AuthJWKSURL != defaultAuthJWKSURL || cfg.AuthAudience != defaultAuthAudience || cfg.AuthClientID != defaultAuthClientID {
+		t.Fatalf("auth defaults = %+v", cfg)
+	}
 }
 
 func TestLoadEnvironment(t *testing.T) {
@@ -34,6 +46,12 @@ func TestLoadEnvironment(t *testing.T) {
 	t.Setenv("SIGNALOPS_BROKER_BROKERS", "localhost:19092")
 	t.Setenv("SIGNALOPS_ENV", "test")
 	t.Setenv("SIGNALOPS_DATABASE_URL", "postgres://example")
+	t.Setenv("SIGNALOPS_AUTH_ENABLED", "true")
+	t.Setenv("SIGNALOPS_AUTH_ISSUER", "https://auth.syncratic.co/realms/syncratic")
+	t.Setenv("SIGNALOPS_AUTH_REALM", "syncratic")
+	t.Setenv("SIGNALOPS_AUTH_JWKS_URL", "https://auth.syncratic.co/realms/syncratic/protocol/openid-connect/certs")
+	t.Setenv("SIGNALOPS_AUTH_AUDIENCE", "signalops-api")
+	t.Setenv("SIGNALOPS_AUTH_CLIENT_ID", "signalops-web")
 
 	cfg := Load()
 
@@ -51,5 +69,11 @@ func TestLoadEnvironment(t *testing.T) {
 	}
 	if cfg.DatabaseURL != "postgres://example" {
 		t.Fatalf("DatabaseURL = %q", cfg.DatabaseURL)
+	}
+	if !cfg.AuthEnabled {
+		t.Fatal("AuthEnabled = false, want true")
+	}
+	if cfg.AuthIssuer != "https://auth.syncratic.co/realms/syncratic" || cfg.AuthRealm != "syncratic" || cfg.AuthJWKSURL != "https://auth.syncratic.co/realms/syncratic/protocol/openid-connect/certs" || cfg.AuthAudience != "signalops-api" || cfg.AuthClientID != "signalops-web" {
+		t.Fatalf("auth env = %+v", cfg)
 	}
 }

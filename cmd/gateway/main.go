@@ -44,6 +44,12 @@ func main() {
 		ServiceName: "signalops-gateway",
 		Publisher:   brokerClient,
 		RawTopic:    broker.TopicName(cfg.Environment, broker.RawTopic),
+		Auth: api.AuthConfig{
+			Enabled:  cfg.AuthEnabled,
+			Issuer:   cfg.AuthIssuer,
+			JWKSURL:  cfg.AuthJWKSURL,
+			Audience: cfg.AuthAudience,
+		},
 	}
 	if queryRepo != nil {
 		routerConfig.QueryRepository = queryRepo

@@ -3099,3 +3099,61 @@ IdP configuration confirmed by operator:
 Next step:
 
 - Implement G052 backend OIDC/JWT enforcement against the confirmed IdP contract, then hand frontend login/token behavior to the frontend agent.
+
+## 2026-07-09T04:12:00Z
+
+Summary:
+
+- Implemented G052 backend OIDC/JWT enforcement in the SignalOps gateway.
+- Added optional auth middleware controlled by `SIGNALOPS_AUTH_ENABLED` and wired Syncratic IdP env values into gateway config and Compose.
+- Deployed the updated gateway with auth disabled so the public app remains usable until the frontend login/token gate is implemented.
+
+Files changed:
+
+- `internal/api/auth.go`
+- `internal/api/auth_test.go`
+- `internal/api/router.go`
+- `internal/config/config.go`
+- `internal/config/config_test.go`
+- `cmd/gateway/main.go`
+- `compose.yaml`
+- `.env.example`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `/healthz` and `/readyz` remain unauthenticated.
+- When auth is enabled, `/v1/*` requires a Bearer JWT signed by the configured JWKS, with valid issuer, audience, expiry, and `tenant_id` claim.
+- Roles are read from `realm_access.roles` and `resource_access.<audience>.roles`.
+- Read/protected `/v1/*` routes require `signalops:viewer`, `signalops:operator`, or `signalops:admin`.
+- Alert and insight lifecycle mutation routes require `signalops:operator` or `signalops:admin`.
+- Token actor precedence is `preferred_username`, then `email`, then `sub`; this overrides `X-SignalOps-Actor` and body `actor` when auth is enabled.
+- Explicit request tenant values in `tenant_id` query params or `/v1/tenants/{tenant_id}/...` paths must match the token `tenant_id`.
+
+Validation performed:
+
+- `docker run --rm ... golang:1.22-bookworm gofmt -w ...`
+- `docker run --rm ... golang:1.22-bookworm go test ./internal/api ./internal/config ./cmd/gateway`
+- `docker run --rm ... golang:1.22-bookworm go test ./...`
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`
+- `docker compose -f compose.yaml -f compose.traefik.yaml build gateway`
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d gateway web`
+- `curl -fsS http://localhost:15173/healthz`
+- `curl -fsS http://localhost:15173/readyz`
+- `curl -fsS 'http://localhost:15173/v1/alerts?tenant_id=tenant-local&limit=1'`
+- `docker inspect signalops-gateway-1` for auth env values.
+
+Live verification result:
+
+- Full Go test suite passed.
+- Gateway image build passed and the Dockerfile build stage also ran `go test ./...` successfully.
+- Compose config rendered successfully.
+- Gateway and web redeployed successfully.
+- Running gateway has `SIGNALOPS_AUTH_ENABLED=false` plus the Syncratic issuer/JWKS/audience/client env values.
+- Local web proxy health, readiness, and a protected `/v1/alerts` read continue to work with auth disabled.
+
+Next step:
+
+- Write the frontend-agent specification for login/logout, token attachment, route guards, unauthorized states, and enabling `SIGNALOPS_AUTH_ENABLED=true` after frontend support lands.
