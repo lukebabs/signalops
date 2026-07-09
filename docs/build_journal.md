@@ -2938,3 +2938,55 @@ Issue found and resolved:
 Next step:
 
 - Add real operator authentication/identity (replacing the placeholder `operator-local` actor) and full lifecycle audit history when auth lands.
+
+## 2026-07-09T01:52:52Z
+
+Summary:
+
+- Validated the frontend-agent G050 implementation for alert and insight lifecycle controls.
+- Confirmed TimescaleDB remains undeployed in the current Compose architecture and documented it as an essential future storage maturity gate.
+
+Files reviewed/validated:
+
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/routes/AlertsRoute.tsx`
+- `web/src/routes/InsightsRoute.tsx`
+- `web/src/api/alerts_insights.test.ts`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- Reviewed implementation diff against `docs/frontend/alerts_insights_lifecycle_controls_spec.md`.
+- `cd web && npm test` - passed: 3 files, 18 tests.
+- `cd web && npm run build` - passed.
+- `cd web && npm audit --json` - 0 vulnerabilities.
+- `docker compose config --quiet` - passed.
+- `docker compose build web` - passed.
+- `docker compose up -d web` - web service running.
+- Published fresh validation signal `signal-g050-high` to `signalops.local.signal.v1` partition `0`, offset `4`.
+- Verified `signal-persister` persisted `signal-g050-high` and derived `alert:signal-g050-high` plus `insight:signal-g050-high`.
+- Verified browser-facing proxy served `/alerts` and `/insights` SPA routes.
+- Verified `GET /v1/alerts/alert:signal-g050-high` and `GET /v1/insights/insight:signal-g050-high` through `localhost:15173` before mutation.
+- Exercised `POST /v1/alerts/alert:signal-g050-high/suppress` and `POST /v1/insights/insight:signal-g050-high/archive` through `localhost:15173`.
+- Queried direct PostgreSQL lifecycle rows and the `signalops.signal-persister.v1` consumer group.
+- Reviewed frontend-agent browser validation summary at `/tmp/g050-validate/shots/summary.json`.
+
+Live verification result:
+
+- Alert lifecycle POST through the web proxy returned status `suppressed`, actor `operator-local`, and `metadata.lifecycle.action=suppress`.
+- Insight lifecycle POST through the web proxy returned status `archived`, `reviewed_by=operator-local`, and `metadata.lifecycle.action=archive`.
+- Direct PostgreSQL confirmed final alert status `suppressed` and final insight status `archived`.
+- Consumer group `signalops.signal-persister.v1` was Stable with total lag `0`.
+- Frontend-agent Playwright summary reported no console/page errors, one dashboard SSE connection, visible alert/insight action controls, disabled post-action controls, lifecycle summaries shown, Open Alerts/Active Insights counts dropped after mutation, 12 nav items, and `0px` mobile horizontal overflow for Alerts and Insights.
+
+Issue found and noted:
+
+- A local independent Playwright rerun could not be completed with the available `mcr.microsoft.com/playwright:v1.61.1-jammy` image because the image did not include the Node `playwright` module. The frontend-agent's Playwright summary and screenshots were present under `/tmp/g050-validate/shots`, and independent validation covered tests, build, proxy mutations, database state, and consumer lag.
+
+Next step:
+
+- Decide whether the next backend gate should add authenticated operator identity/audit-history rows, or start the TimescaleDB storage maturity planning gate.

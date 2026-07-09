@@ -3610,3 +3610,86 @@ Follow-up items:
 
 - Add real operator authentication/identity (replace placeholder `operator-local`) and full lifecycle audit history when auth lands.
 - Consider modest alert/insight SSE/polling only when the backend stream supports it.
+
+## Gate G050: Frontend Alert and Insight Lifecycle Controls Validation
+
+Timestamp: `2026-07-09T01:52:52Z`
+
+Status: `passed`
+
+Gate name:
+
+- Validate the frontend implementation of G050 lifecycle controls for Alerts and Active Insights.
+
+Criteria:
+
+- Alert controls for Acknowledge, Resolve, and Suppress are implemented against G049 APIs.
+- Insight controls for Review, Dismiss, and Archive are implemented against G049 APIs.
+- Placeholder operator identity is sent as `operator-local`.
+- Query invalidation refreshes list/detail/dashboard data after mutations.
+- Tests, build, audit, Compose validation, deployment, proxy API checks, database checks, and browser evidence are recorded.
+- TimescaleDB future requirement is documented as an essential maturity item while confirming it is not currently deployed.
+
+Evidence:
+
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/routes/AlertsRoute.tsx`
+- `web/src/routes/InsightsRoute.tsx`
+- `web/src/api/alerts_insights.test.ts`
+- `docs/deployment.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+- `/tmp/g050-validate/shots/summary.json`
+
+Implementation notes:
+
+- The client adds `mutateAlertLifecycle` and `mutateInsightLifecycle` POST methods with `X-SignalOps-Actor: operator-local` and encoded lifecycle IDs.
+- TanStack Query mutation hooks update detail cache and invalidate the `alerts`/`insights` query prefixes.
+- Alerts detail panel exposes Acknowledge, Resolve, and Suppress controls with disabled states based on lifecycle status.
+- Insights detail panel exposes Review, Dismiss, and Archive controls with disabled states based on lifecycle status.
+- Lifecycle metadata summaries render from `metadata.lifecycle` while preserving the full JSON metadata viewer.
+- Current storage remains plain PostgreSQL; TimescaleDB is now explicitly documented as an essential future maturity gate for high-volume temporal ledgers.
+
+Verification performed:
+
+- `cd web && npm test`
+- `cd web && npm run build`
+- `cd web && npm audit --json`
+- `docker compose config --quiet`
+- `docker compose build web`
+- `docker compose up -d web`
+- `docker exec -i signalops-redpanda-1 rpk topic produce signalops.local.signal.v1 -k signal-g050-high -f '%v'`
+- `curl -fsS http://localhost:15173/v1/alerts/alert:signal-g050-high`
+- `curl -fsS http://localhost:15173/v1/insights/insight:signal-g050-high`
+- `curl -fsS -X POST ... http://localhost:15173/v1/alerts/alert:signal-g050-high/suppress`
+- `curl -fsS -X POST ... http://localhost:15173/v1/insights/insight:signal-g050-high/archive`
+- Direct PostgreSQL lifecycle row queries.
+- `docker exec signalops-redpanda-1 rpk group describe signalops.signal-persister.v1`
+- Reviewed `/tmp/g050-validate/shots/summary.json` from frontend-agent browser validation.
+
+Live verification result:
+
+- Vitest passed: 3 files, 18 tests.
+- Production frontend build passed; npm audit reported zero vulnerabilities.
+- Compose config and web image build passed; web service restarted successfully.
+- Redpanda accepted `signal-g050-high` at partition `0`, offset `4`; `signal-persister` persisted it with total lag `0`.
+- Web proxy returned the fresh `open` alert and `active` insight before lifecycle mutation.
+- Web proxy mutation changed `alert:signal-g050-high` to `suppressed` with lifecycle action `suppress` and actor `operator-local`.
+- Web proxy mutation changed `insight:signal-g050-high` to `archived` with lifecycle action `archive` and actor `operator-local`.
+- PostgreSQL confirmed the final lifecycle states and metadata.
+- Frontend-agent browser validation summary reported no console/page errors, one dashboard SSE connection, visible controls, disabled post-action controls, lifecycle summaries, Dashboard count drops, 12 nav items, and `0px` mobile overflow for Alerts and Insights.
+
+Issue found and noted:
+
+- Independent local Playwright rerun was blocked by the available Playwright image lacking the Node `playwright` module. Existing frontend-agent Playwright artifacts were used for browser evidence; independent validation covered tests, build, deployed proxy mutations, database state, and consumer lag.
+
+Actor:
+
+- Codex
+
+Follow-up items:
+
+- Add authenticated operator identity and durable lifecycle audit history beyond the latest `metadata.lifecycle` object.
+- Plan the TimescaleDB storage maturity gate before sustained high-volume temporal ingestion.

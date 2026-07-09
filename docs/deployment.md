@@ -216,6 +216,15 @@ raw event ledger, equity EOD, and option contract snapshot tables. TimescaleDB
 hypertable conversion remains future scope after the base persistence paths are
 proven.
 
+Maturity note: TimescaleDB is expected to become essential as SignalOps moves from
+small operational validation into sustained time-series and stream workloads. The
+current Compose deployment intentionally uses plain `postgres:16-alpine`; a later
+storage gate should replace it with a TimescaleDB PostgreSQL-compatible image,
+add `CREATE EXTENSION timescaledb`, and promote high-volume temporal ledgers such
+as raw events, normalized events, signals, provider usage, and operational metrics
+to hypertables. Catalog, rules, sources, pipelines, and idempotency records should
+remain ordinary relational tables unless measured workload requires otherwise.
+
 
 Scheduler persistence is enabled when `SIGNALOPS_DATABASE_URL` is set. The
 local `massive-scheduler` Compose service points at the `postgres` service and
