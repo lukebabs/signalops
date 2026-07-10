@@ -4577,3 +4577,41 @@ Follow-up items:
 
 - Perform authenticated live cancellation validation when an operator token is available.
 - Optionally give frontend-agent a spec to expose replay job cancel controls and display per-record replay result samples.
+
+
+## Gate G062: Frontend Replay Cancellation and Result Display Specification
+
+Timestamp: `2026-07-10T04:20:03Z`
+
+Status: `closed — specification written and ready for frontend-agent`
+
+Gate name:
+
+- Define the frontend implementation contract for replay job cancellation controls and G061 replay result accounting display.
+
+Criteria:
+
+- Specification is placed under `docs/frontend/`.
+- Specification documents the G061 backend cancel endpoint and result JSON shape.
+- Specification defines required frontend types, API client method, mutation hook, optimistic/refetch behavior, disabled states, and rollback expectations.
+- Specification scopes UI changes to the existing `/replay` route and Dashboard replay summary without broad redesign.
+- Specification requires rendering replay result counters and sampled per-record outcomes while tolerating older G059 result objects.
+- Specification includes validation and acceptance criteria for frontend-agent.
+
+Evidence:
+
+- `docs/frontend/replay_jobs_cancel_and_results_spec.md`
+- `docs/api.md`, Replay Jobs section
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- Checked against G061 backend implementation: `POST /v1/replay/jobs/{replay_job_id}/cancel`, cancellation metadata, and replay worker result fields.
+- Checked against G060 frontend replay UI specification and current route expectations.
+- Corrected the result examples to avoid invalid duplicate JSON keys by separating non-canceled and canceled result shapes.
+
+Follow-up items:
+
+- Frontend-agent should implement G062 from `docs/frontend/replay_jobs_cancel_and_results_spec.md`.
+- Backend/authenticated live cancellation validation can be performed once a browser-authenticated operator session is available.

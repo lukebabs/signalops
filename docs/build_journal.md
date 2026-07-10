@@ -3840,3 +3840,27 @@ Audit notes:
 Next step:
 
 - Frontend can add cancel controls for replay jobs if desired, now that the backend endpoint is deployed. Otherwise the next backend gate should move toward replay observability/operations polish or authenticated live replay cancellation validation.
+
+
+## 2026-07-10T04:20:03Z
+
+Summary:
+
+- Wrote the G062 frontend-agent implementation specification for replay cancellation controls and G061 replay result accounting display.
+- The spec supersedes the G060 replay UI non-goal for cancellation now that G061 deployed `POST /v1/replay/jobs/{replay_job_id}/cancel`.
+- The spec keeps the work scoped to the existing `/replay` route, authenticated API client, TanStack Query patterns, and current operational UI style.
+
+Files changed:
+
+- `docs/frontend/replay_jobs_cancel_and_results_spec.md` — frontend-agent handoff for cancel mutation, optimistic/refetch behavior, cancelable-status UI, replay result summaries, per-record result samples, validation, and acceptance criteria.
+- `docs/build_journal.md`, `docs/gate_audit.md` — G062 specification audit entries.
+
+Validation performed:
+
+- Reviewed against `docs/api.md` replay job contract after G061.
+- Reviewed against `docs/frontend/replay_jobs_ui_implementation_spec.md` to preserve the existing G060 route shape and explicitly supersede only the cancellation non-goal.
+- Confirmed the spec tolerates both G059 historical result objects and G061 structured result objects.
+
+Next step:
+
+- Hand `docs/frontend/replay_jobs_cancel_and_results_spec.md` to frontend-agent for implementation and browser validation.
