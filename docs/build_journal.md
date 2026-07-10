@@ -4358,3 +4358,29 @@ Validation performed:
 Outstanding validation:
 
 - Authenticated browser validation remains operator-driven: app selector display, switching from SignalOps Console to MarketOps, supported data-route requests carrying `app_id=marketops` and `domain=market_data`, console parity, mobile/nav overflow check, and unauthenticated redirect behavior.
+
+## 2026-07-10T16:04:00Z
+
+Summary:
+
+- Committed and pushed the G068 frontend app-profile/MarketOps implementation.
+- Commit `bdcf9a8` (`Implement G068 frontend app profiles and MarketOps shell`)
+  was pushed to `origin/main`.
+
+Details:
+
+- `git commit` created `bdcf9a8` (21 files: frontend implementation, tests, the
+  G067 spec, and journals).
+- `git push origin main` updated `main` from `21a941b` to `bdcf9a8` at
+  `git@github.com:lukebabs/signalops.git`.
+- Because the G068 deployment-validation and G069 Traefik-guard journal entries
+  had already been written into the working tree, this commit also captured
+  them.
+- The G069 Traefik-overlay guard config files (`.env.example`, `Makefile`,
+  `docs/deployment.md`) were deliberately left out of this commit (authored in
+  parallel; pending their own commit) so the frontend gate stays one concern.
+
+Next step:
+
+- Commit the G069 Traefik guard config files separately.
+- Complete authenticated browser validation to fully close G068.

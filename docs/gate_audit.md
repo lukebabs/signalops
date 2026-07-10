@@ -5111,3 +5111,21 @@ Outstanding items:
 
 - Complete authenticated browser validation from `docs/frontend/app_profiles_marketops_shell_spec.md`.
 - Commit and push the frontend implementation, Traefik guard, and journal updates after browser validation or operator approval.
+
+## Gate G068: Commit and Push Audit
+
+Timestamp: `2026-07-10T16:04:00Z`
+
+Status: `pushed`
+
+Evidence:
+
+- Commit: `bdcf9a8 Implement G068 frontend app profiles and MarketOps shell`.
+- Remote: `origin git@github.com:lukebabs/signalops.git`.
+- Push result: `main` updated from `21a941b` to `bdcf9a8`.
+- The commit contains the frontend implementation, tests, the G067 spec, and journals; the working-tree G068 deployment-validation and G069 Traefik-guard journal entries were also captured.
+
+Follow-up items:
+
+- Commit the G069 Traefik-overlay guard config files (`.env.example`, `Makefile`, `docs/deployment.md`), which remain uncommitted in the working tree.
+- Complete authenticated browser validation to fully close G068.
