@@ -5194,3 +5194,35 @@ Validation performed:
 Follow-up items:
 
 - Continue G071+ with first-class MarketOps asset universe storage/API and broader replay fixtures.
+
+## Gate G071: MarketOps Asset Universe Storage/API
+
+Timestamp: `2026-07-10T17:16:56Z`
+
+Status: `implemented — storage migration, backend tests, gateway build, and live DB seed validation passed; authenticated API smoke pending operator token`
+
+Gate name:
+
+- Promote the MarketOps Top 50 mega-cap seed into first-class storage and a read API.
+
+Implementation:
+
+- Added `marketops_asset_universe` with tenant, app/domain/use-case metadata, source identity, universe group, rank, ticker/company keys, asset type, exchange, sector, industry, active flag, and metadata.
+- Seeded 50 `tenant-local` assets for `top50_megacap` from `internal/adapters/marketdata/massive/top50megacap.normalized.csv`.
+- Added repository query support and `GET /v1/tenants/{tenant_id}/marketops/assets`.
+- Added route test coverage for MarketOps metadata and `active_only` filter propagation.
+- Updated `docs/api.md` with the new endpoint.
+
+Validation performed:
+
+- `go test ./internal/api ./internal/storage/postgres`: passed in the Go Docker image.
+- `go test ./...`: passed in the Go Docker image.
+- `make compose-storage-migrate`: applied migration `000011_marketops_asset_universe`, created indexes, and inserted 50 seed rows.
+- `docker compose up -d --no-deps --build gateway`: rebuilt/restarted the gateway and passed build-time `go test ./...`.
+- Postgres query verified 50 rows for `tenant-local/top50_megacap`, with ranks 1 through 50.
+- Unauthenticated curl returned `401 missing bearer token`, which is expected because the running gateway has `SIGNALOPS_AUTH_ENABLED=true`.
+
+Follow-up items:
+
+- Use an authenticated operator/browser session to smoke `GET /v1/tenants/tenant-local/marketops/assets`.
+- G072 should add Massive options contract daily normalization.

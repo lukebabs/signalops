@@ -367,6 +367,57 @@ Response shape:
 Current status values: `active`, `inactive`, `deprecated`. Current severity
 values: `info`, `low`, `medium`, `high`, `critical`.
 
+## MarketOps Asset Universe API
+
+This endpoint exposes the first first-class MarketOps asset universe from the
+checked-in Top 50 mega-cap seed. It requires gateway storage wiring through
+`SIGNALOPS_DATABASE_URL`; when storage is not configured it returns
+`503 storage_unavailable`.
+
+`GET /v1/tenants/{tenant_id}/marketops/assets?universe_group=top50_megacap&active_only=true&limit=50`
+
+Query parameters:
+
+- `universe_group`: optional universe group. Defaults to `top50_megacap`.
+- `active_only`: optional boolean. Defaults to `true`; set `false` to include inactive rows.
+- `limit`: optional limit. Defaults to `50` and is clamped by the gateway.
+
+The local migration seeds 50 `tenant-local` MarketOps assets with
+`app_id=marketops`, `domain=market_data`, `use_case=daily_market_surveillance`,
+`source_id=src-massive`, and `universe_group=top50_megacap`.
+
+Response shape:
+
+```json
+{
+  "assets": [
+    {
+      "tenant_id": "tenant-local",
+      "app_id": "marketops",
+      "domain": "market_data",
+      "use_case": "daily_market_surveillance",
+      "source_id": "src-massive",
+      "universe_group": "top50_megacap",
+      "rank": 1,
+      "ticker": "NVDA",
+      "ticker_key": "nvda",
+      "company": "NVIDIA",
+      "company_key": "nvidia",
+      "asset_type": "equity",
+      "exchange": "",
+      "sector": "Technology",
+      "sector_key": "technology",
+      "industry": "Semiconductors",
+      "industry_key": "semiconductors",
+      "is_active": true,
+      "metadata": {"seed":"top50megacap.normalized.csv","provider":"massive"},
+      "created_at": "2026-07-10T00:00:00Z",
+      "updated_at": "2026-07-10T00:00:00Z"
+    }
+  ]
+}
+```
+
 ## Operational Query API
 
 These endpoints require gateway storage wiring through `SIGNALOPS_DATABASE_URL`.

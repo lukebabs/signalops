@@ -398,6 +398,30 @@ type CatalogRuleRecord struct {
 	UpdatedAt      time.Time
 }
 
+type MarketOpsAssetRecord struct {
+	TenantID      string
+	AppID         string
+	Domain        string
+	UseCase       string
+	SourceID      string
+	UniverseGroup string
+	Rank          int
+	Ticker        string
+	TickerKey     string
+	Company       string
+	CompanyKey    string
+	AssetType     string
+	Exchange      string
+	Sector        string
+	SectorKey     string
+	Industry      string
+	IndustryKey   string
+	IsActive      bool
+	MetadataJSON  []byte
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type SchedulerRunRepository interface {
 	UpsertSchedulerRun(ctx context.Context, record SchedulerRunRecord) error
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
@@ -542,4 +566,5 @@ type QueryRepository interface {
 	ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]CatalogSourceRecord, error)
 	ListCatalogPipelines(ctx context.Context, tenantID string, limit int) ([]CatalogPipelineRecord, error)
 	ListCatalogRules(ctx context.Context, tenantID string, limit int) ([]CatalogRuleRecord, error)
+	ListMarketOpsAssets(ctx context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]MarketOpsAssetRecord, error)
 }

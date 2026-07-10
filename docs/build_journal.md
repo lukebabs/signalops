@@ -4436,3 +4436,26 @@ Validation performed:
 Outstanding validation:
 
 - None for G070 local/deployment smoke validation. Broader replay coverage should move into G071+ gates.
+
+## 2026-07-10T17:16:56Z
+
+Summary:
+
+- Implemented G071 as the first-class MarketOps asset universe storage/API gate.
+- Added migration `000011_marketops_asset_universe` with `marketops_asset_universe` and a seed of 50 `tenant-local` Top 50 mega-cap assets from `top50megacap.normalized.csv`.
+- Added storage record/query support and gateway endpoint `GET /v1/tenants/{tenant_id}/marketops/assets`.
+- The endpoint preserves MarketOps metadata (`app_id=marketops`, `domain=market_data`, `use_case=daily_market_surveillance`), source identity (`src-massive`), ordered universe membership, sector/industry keys, active status, and seed metadata.
+- Added API documentation and route coverage for the new read-only endpoint.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
+- `make compose-storage-migrate`: applied `000011_marketops_asset_universe` and inserted 50 rows.
+- `docker compose up -d --no-deps --build gateway`: rebuilt and restarted the gateway; build ran `go test ./...` successfully.
+- Postgres verification returned 50 `tenant-local/top50_megacap` rows with rank range 1..50.
+- Unauthenticated local curl to `/v1/tenants/tenant-local/marketops/assets?limit=3` returned `401 missing bearer token`, matching the running auth-enabled gateway configuration.
+
+Outstanding validation:
+
+- Authenticated browser/API validation can verify the protected endpoint through the deployed MarketOps shell once an operator token is available.

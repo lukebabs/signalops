@@ -51,24 +51,27 @@ func (p *fakePublishRepository) PersistPublishedRawEvent(_ context.Context, ledg
 }
 
 type fakeQueryRepository struct {
-	runs             []storage.SchedulerRunRecord
-	replayJobs       []storage.ReplayJobRecord
-	replayCounts     []storage.ReplayJobStatusCount
-	replayWorkers    []storage.ReplayWorkerHeartbeatRecord
-	lastReplayFilter storage.ReplayJobFilter
-	usage            []storage.ProviderUsageRecord
-	rawEvents        []storage.RawEventLedgerRecord
-	idem             storage.IdempotencyRecord
-	sources          []storage.CatalogSourceRecord
-	pipelines        []storage.CatalogPipelineRecord
-	rules            []storage.CatalogRuleRecord
-	alerts           []storage.AlertLedgerRecord
-	insights         []storage.InsightLedgerRecord
-	notFound         bool
-	lastFilter       storage.RawEventLedgerFilter
-	schedulerQueries int
-	rawEventQueries  int
-	usageQueries     int
+	runs              []storage.SchedulerRunRecord
+	replayJobs        []storage.ReplayJobRecord
+	replayCounts      []storage.ReplayJobStatusCount
+	replayWorkers     []storage.ReplayWorkerHeartbeatRecord
+	lastReplayFilter  storage.ReplayJobFilter
+	usage             []storage.ProviderUsageRecord
+	rawEvents         []storage.RawEventLedgerRecord
+	idem              storage.IdempotencyRecord
+	sources           []storage.CatalogSourceRecord
+	pipelines         []storage.CatalogPipelineRecord
+	rules             []storage.CatalogRuleRecord
+	marketOpsAssets   []storage.MarketOpsAssetRecord
+	lastUniverseGroup string
+	lastActiveOnly    bool
+	alerts            []storage.AlertLedgerRecord
+	insights          []storage.InsightLedgerRecord
+	notFound          bool
+	lastFilter        storage.RawEventLedgerFilter
+	schedulerQueries  int
+	rawEventQueries   int
+	usageQueries      int
 }
 
 func (q *fakeQueryRepository) ListSchedulerRuns(context.Context, int) ([]storage.SchedulerRunRecord, error) {
@@ -304,6 +307,14 @@ func (q *fakeQueryRepository) ListCatalogPipelines(context.Context, string, int)
 
 func (q *fakeQueryRepository) ListCatalogRules(context.Context, string, int) ([]storage.CatalogRuleRecord, error) {
 	return q.rules, nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsAssets(_ context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]storage.MarketOpsAssetRecord, error) {
+	q.lastUniverseGroup = universeGroup
+	q.lastActiveOnly = activeOnly
+	_ = tenantID
+	_ = limit
+	return q.marketOpsAssets, nil
 }
 
 func TestPostRawEventPublishesMessage(t *testing.T) {
@@ -652,6 +663,32 @@ func TestGetRawEventsUsesFilters(t *testing.T) {
 	}
 }
 
+func TestGetMarketOpsAssets(t *testing.T) {
+	repo := &fakeQueryRepository{marketOpsAssets: []storage.MarketOpsAssetRecord{validMarketOpsAssetRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/marketops/assets?universe_group=top50_megacap&active_only=false&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastUniverseGroup != "top50_megacap" || repo.lastActiveOnly {
+		t.Fatalf("universe/active filter = %q/%t", repo.lastUniverseGroup, repo.lastActiveOnly)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if len(response["assets"]) != 1 || response["assets"][0]["ticker"] != "NVDA" {
+		t.Fatalf("response = %+v", response)
+	}
+	if response["assets"][0]["app_id"] != "marketops" || response["assets"][0]["use_case"] != "daily_market_surveillance" {
+		t.Fatalf("asset metadata = %+v", response["assets"][0])
+	}
+}
+
 func TestGetCatalogSources(t *testing.T) {
 	repo := &fakeQueryRepository{sources: []storage.CatalogSourceRecord{validCatalogSourceRecord()}}
 	router := NewRouter(RouterConfig{QueryRepository: repo})
@@ -931,6 +968,31 @@ func TestArchiveInsightMutatesLifecycle(t *testing.T) {
 	}
 	if !bytes.Contains(body.Insight.Metadata, []byte(`"action":"archive"`)) {
 		t.Fatalf("metadata = %s", string(body.Insight.Metadata))
+	}
+}
+
+func validMarketOpsAssetRecord() storage.MarketOpsAssetRecord {
+	return storage.MarketOpsAssetRecord{
+		TenantID:      "tenant-1",
+		AppID:         "marketops",
+		Domain:        "market_data",
+		UseCase:       "daily_market_surveillance",
+		SourceID:      "src-massive",
+		UniverseGroup: "top50_megacap",
+		Rank:          1,
+		Ticker:        "NVDA",
+		TickerKey:     "nvda",
+		Company:       "NVIDIA",
+		CompanyKey:    "nvidia",
+		AssetType:     "equity",
+		Sector:        "Technology",
+		SectorKey:     "technology",
+		Industry:      "Semiconductors",
+		IndustryKey:   "semiconductors",
+		IsActive:      true,
+		MetadataJSON:  []byte(`{"seed":"top50megacap.normalized.csv"}`),
+		CreatedAt:     time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 7, 10, 0, 0, 1, 0, time.UTC),
 	}
 }
 

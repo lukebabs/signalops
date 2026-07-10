@@ -1462,6 +1462,39 @@ LIMIT $2`, strings.TrimSpace(tenantID), clampLimit(limit))
 	return records, nil
 }
 
+func (r *Repository) ListMarketOpsAssets(ctx context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]storage.MarketOpsAssetRecord, error) {
+	universeGroup = strings.TrimSpace(universeGroup)
+	if universeGroup == "" {
+		universeGroup = "top50_megacap"
+	}
+	rows, err := r.db.QueryContext(ctx, `
+SELECT tenant_id, app_id, domain, use_case, source_id, universe_group, rank, ticker, ticker_key,
+  company, company_key, asset_type, exchange, sector, sector_key, industry, industry_key,
+  is_active, metadata, created_at, updated_at
+FROM marketops_asset_universe
+WHERE tenant_id = $1
+  AND universe_group = $2
+  AND ($3 = false OR is_active = true)
+ORDER BY rank ASC
+LIMIT $4`, strings.TrimSpace(tenantID), universeGroup, activeOnly, clampLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list marketops assets: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.MarketOpsAssetRecord{}
+	for rows.Next() {
+		record, err := scanMarketOpsAsset(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list marketops assets rows: %w", err)
+	}
+	return records, nil
+}
+
 func (r *Repository) ListCatalogRules(ctx context.Context, tenantID string, limit int) ([]storage.CatalogRuleRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT tenant_id, rule_id, rule_name, description, rule_type, severity, status, version,
@@ -1708,6 +1741,10 @@ type catalogRuleScanner interface {
 	Scan(dest ...any) error
 }
 
+type marketOpsAssetScanner interface {
+	Scan(dest ...any) error
+}
+
 func scanSchedulerRun(scanner schedulerScanner) (storage.SchedulerRunRecord, error) {
 	var record storage.SchedulerRunRecord
 	var datasetsJSON string
@@ -1842,6 +1879,36 @@ func scanCatalogPipeline(scanner catalogPipelineScanner) (storage.CatalogPipelin
 	}
 	if err := json.Unmarshal([]byte(outputTopicsJSON), &record.OutputTopics); err != nil {
 		return storage.CatalogPipelineRecord{}, fmt.Errorf("scan catalog pipeline output topics: %w", err)
+	}
+	return record, nil
+}
+
+func scanMarketOpsAsset(scanner marketOpsAssetScanner) (storage.MarketOpsAssetRecord, error) {
+	var record storage.MarketOpsAssetRecord
+	if err := scanner.Scan(
+		&record.TenantID,
+		&record.AppID,
+		&record.Domain,
+		&record.UseCase,
+		&record.SourceID,
+		&record.UniverseGroup,
+		&record.Rank,
+		&record.Ticker,
+		&record.TickerKey,
+		&record.Company,
+		&record.CompanyKey,
+		&record.AssetType,
+		&record.Exchange,
+		&record.Sector,
+		&record.SectorKey,
+		&record.Industry,
+		&record.IndustryKey,
+		&record.IsActive,
+		&record.MetadataJSON,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return storage.MarketOpsAssetRecord{}, mapScanError("scan marketops asset", err)
 	}
 	return record, nil
 }

@@ -443,6 +443,26 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"rules": catalogRuleResponses(rules)})
 	})
 
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+			return
+		}
+		universeGroup := strings.TrimSpace(r.URL.Query().Get("universe_group"))
+		activeOnly := !strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("active_only")), "false")
+		assets, err := repo.ListMarketOpsAssets(r.Context(), tenantID, universeGroup, activeOnly, queryLimit(r, 50))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps assets")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"assets": marketOpsAssetResponses(assets)})
+	})
+
 	mux.HandleFunc("GET /v1/streams/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		channels, err := dashboardStreamChannels(r)
 		if err != nil {
@@ -1091,6 +1111,30 @@ type insightDTO struct {
 	UpdatedAt         time.Time       `json:"updated_at"`
 }
 
+type marketOpsAssetDTO struct {
+	TenantID      string          `json:"tenant_id"`
+	AppID         string          `json:"app_id"`
+	Domain        string          `json:"domain"`
+	UseCase       string          `json:"use_case"`
+	SourceID      string          `json:"source_id"`
+	UniverseGroup string          `json:"universe_group"`
+	Rank          int             `json:"rank"`
+	Ticker        string          `json:"ticker"`
+	TickerKey     string          `json:"ticker_key"`
+	Company       string          `json:"company"`
+	CompanyKey    string          `json:"company_key"`
+	AssetType     string          `json:"asset_type"`
+	Exchange      string          `json:"exchange"`
+	Sector        string          `json:"sector"`
+	SectorKey     string          `json:"sector_key"`
+	Industry      string          `json:"industry"`
+	IndustryKey   string          `json:"industry_key"`
+	IsActive      bool            `json:"is_active"`
+	Metadata      json.RawMessage `json:"metadata"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
 type catalogSourceDTO struct {
 	TenantID       string          `json:"tenant_id"`
 	SourceID       string          `json:"source_id"`
@@ -1517,6 +1561,36 @@ func insightResponse(record storage.InsightLedgerRecord) insightDTO {
 		Recommendation: recommendation, CorrelationID: record.CorrelationID, ObservedAt: record.ObservedAt,
 		ReviewedAt: record.ReviewedAt, ReviewedBy: record.ReviewedBy, Metadata: jsonRawOrEmptyObject(record.MetadataJSON),
 		CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+}
+
+func marketOpsAssetResponses(records []storage.MarketOpsAssetRecord) []marketOpsAssetDTO {
+	items := make([]marketOpsAssetDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, marketOpsAssetDTO{
+			TenantID:      record.TenantID,
+			AppID:         record.AppID,
+			Domain:        record.Domain,
+			UseCase:       record.UseCase,
+			SourceID:      record.SourceID,
+			UniverseGroup: record.UniverseGroup,
+			Rank:          record.Rank,
+			Ticker:        record.Ticker,
+			TickerKey:     record.TickerKey,
+			Company:       record.Company,
+			CompanyKey:    record.CompanyKey,
+			AssetType:     record.AssetType,
+			Exchange:      record.Exchange,
+			Sector:        record.Sector,
+			SectorKey:     record.SectorKey,
+			Industry:      record.Industry,
+			IndustryKey:   record.IndustryKey,
+			IsActive:      record.IsActive,
+			Metadata:      jsonRawOrEmptyObject(record.MetadataJSON),
+			CreatedAt:     record.CreatedAt,
+			UpdatedAt:     record.UpdatedAt,
+		})
+	}
+	return items
 }
 
 func catalogSourceResponses(records []storage.CatalogSourceRecord) []catalogSourceDTO {
