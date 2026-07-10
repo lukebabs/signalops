@@ -335,7 +335,6 @@ services:
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
 
   replay-worker:
-    profiles: ["replay"]
     build:
       context: .
       target: replay-worker

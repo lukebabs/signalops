@@ -553,7 +553,7 @@ Authenticated browser validation:
 Optional backend validation command for a queued job:
 
 ```bash
-docker compose --profile replay run --rm   -e SIGNALOPS_REPLAY_ONESHOT=true   -e SIGNALOPS_REPLAY_MAX_RECORDS=1   replay-worker
+docker compose -f compose.yaml -f compose.traefik.yaml run --rm   -e SIGNALOPS_REPLAY_ONESHOT=true   -e SIGNALOPS_REPLAY_MAX_RECORDS=1   replay-worker
 ```
 
 ### 14. Acceptance Criteria

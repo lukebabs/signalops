@@ -3905,3 +3905,32 @@ Next step:
 
 - Deploy via `make deploy-web` (auth flag + Traefik overlay) — outward-facing, not auto-run.
 - Authenticated browser validation: sign in, `/replay`, select a queued/running job, confirm cancel appears only then, trigger cancel, confirm `canceled` + metadata + counters, confirm `result.records` renders without overflow, confirm terminal jobs show no cancel control.
+
+
+## 2026-07-10T05:16:47Z
+
+Summary:
+
+- Promoted `replay-worker` from an optional Compose profile to an always-on default service so queued replay jobs are claimed without manual `--profile replay` activation.
+- Updated replay worker documentation to use normal `docker compose -f compose.yaml -f compose.traefik.yaml up -d replay-worker` operation and reserved one-shot mode for validation.
+- Updated the older frontend replay UI spec validation command to remove `--profile replay`.
+
+Files changed:
+
+- `compose.yaml` — removed `profiles: ["replay"]` from `replay-worker`.
+- `docs/docker_development.md` — documented always-on replay-worker posture and non-profile one-shot validation command.
+- `docs/frontend/replay_jobs_ui_implementation_spec.md` — updated optional backend validation command.
+- `docs/build_journal.md`, `docs/gate_audit.md` — G063 audit entries.
+
+Validation performed:
+
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` — passed.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --services` — confirmed `replay-worker` is in the default service graph.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d replay-worker` — replay worker runs without `--profile replay`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml ps replay-worker` — `signalops-replay-worker-1` is `Up`.
+- Replay job status check: `succeeded=2`, no queued jobs.
+- `git diff --check` — clean.
+
+Next step:
+
+- Continue with replay operations observability: surface replay-worker health/last-claim/last-error status through backend or dashboard if operators need more visibility than container health/logs.

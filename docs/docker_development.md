@@ -100,16 +100,21 @@ stream at `/v1/streams/dashboard`.
 
 ## Replay Worker
 
-Build the replay worker image:
+Build and run the replay worker as part of the normal local stack:
 
 ```bash
 docker compose -f compose.yaml -f compose.traefik.yaml build replay-worker
+docker compose -f compose.yaml -f compose.traefik.yaml up -d replay-worker
 ```
+
+`replay-worker` is an always-on service, not an optional Compose profile. It polls
+queued replay jobs and advances them from `queued` to `running` and then to a
+terminal status.
 
 Run one queued replay job and exit, capped to one record for validation:
 
 ```bash
-docker compose --profile replay run --rm \
+docker compose -f compose.yaml -f compose.traefik.yaml run --rm \
   -e SIGNALOPS_REPLAY_ONESHOT=true \
   -e SIGNALOPS_REPLAY_MAX_RECORDS=1 \
   -e SIGNALOPS_REPLAY_BATCH_SIZE=1 \

@@ -4666,3 +4666,42 @@ Follow-up items:
 
 - Deploy via `make deploy-web` and run the authenticated browser validation checklist (cancel a queued/running job, confirm canceled metadata + counters + records, terminal jobs show no cancel control, no mobile overflow).
 - Backend may add retry-failed / bulk cancellation as later gates; the UI intentionally omits those controls.
+
+
+## Gate G063: Replay Worker Always-On Deployment Posture
+
+Timestamp: `2026-07-10T05:16:47Z`
+
+Status: `closed — implemented, deployed, and validated`
+
+Gate name:
+
+- Promote `replay-worker` from manual/profile-only execution to an always-on Compose service.
+
+Criteria:
+
+- `replay-worker` is included in the default Compose service graph.
+- Normal deployment can start `replay-worker` without `--profile replay`.
+- Existing one-shot validation remains available through environment overrides.
+- Documentation no longer instructs operators to use `--profile replay` for normal replay execution.
+- Running replay-worker can claim queued jobs and no replay jobs remain stuck in `queued` after validation.
+
+Evidence:
+
+- `compose.yaml` — `replay-worker` no longer has `profiles: ["replay"]`.
+- `docs/docker_development.md` — always-on operation documented.
+- `docs/frontend/replay_jobs_ui_implementation_spec.md` — validation command updated.
+- `docs/build_journal.md` — implementation and validation record.
+
+Verification performed:
+
+- Compose config validation passed.
+- Compose services list includes `replay-worker` in the default graph.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d replay-worker` started the service without profile activation.
+- `signalops-replay-worker-1` is running.
+- Replay jobs table shows only terminal `succeeded` jobs and no queued jobs.
+- `git diff --check` is clean.
+
+Follow-up items:
+
+- Add replay-worker operational health/last activity visibility if container-level status and logs are not enough for operators.
