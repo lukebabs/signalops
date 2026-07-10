@@ -3717,3 +3717,82 @@ Validation performed:
 Next step:
 
 - Hand `docs/frontend/replay_jobs_ui_implementation_spec.md` to frontend-agent for G060 implementation.
+
+## 2026-07-10T03:34:00Z
+
+Summary:
+
+- Implemented G060 Replay Jobs UI from `docs/frontend/replay_jobs_ui_implementation_spec.md`: `/replay` route with metrics strip, filters, validated create form, selectable table, detail panel, and Dashboard summary integration.
+- Reconciled the spec against the live G058/G059 backend contract in `internal/api/router.go` and `internal/storage/storage.go` before coding.
+
+Files changed:
+
+- `web/src/types.ts` — `ReplaySourceKind`, `ReplayMode`, `ReplayJobStatus`, `ReplayJob`, `ReplayJobsResponse`, `ReplayJobResponse`, `ReplayJobCreateRequest`, `ReplayJobFilter`.
+- `web/src/api/client.ts` — `listReplayJobs`, `getReplayJob`, `createReplayJob` (reuse `get`/`post`; auth headers preserved).
+- `web/src/api/queries.ts` — `replayJobs`/`replayJob` keys, `useReplayJobs` (5s poll), `useReplayJob` (3s poll while queued/running), `useCreateReplayJob` (seed detail cache + invalidate list).
+- `web/src/routes/ReplayJobsRoute.tsx` — new route (metrics, filters, create form, table, detail with JsonViewer, loading/error/empty states).
+- `web/src/router.tsx` — lazy `ReplayJobsRoute` + `/replay` route in the tree.
+- `web/src/components/DashboardShell.tsx` — `Replay` nav link (History icon) between Rules and Signals.
+- `web/src/routes/DashboardRoute.tsx` — replay summary metric tile linked to `/replay`; strip grid 13→14 columns; replay refetch in `refreshAll`.
+- `web/src/components/StatusBadge.tsx` — `running` (blue, in-progress) and `queued` (amber, pending) styles reusing the existing palette.
+- `web/src/components/MetricTile.tsx` — `h-full` so a link-wrapped tile fills its grid cell.
+- `web/src/auth/session.tsx` — `useActor()` (token identity → `operator-local`) for `requested_by`.
+- `web/src/lib/format.ts` — `toRfc3339Utc` / `toDatetimeLocal` (datetime-local ↔ RFC3339 UTC).
+- `web/src/lib/format.test.ts` — tests for the datetime helpers.
+- `docs/build_journal.md`, `docs/gate_audit.md` — G060 implementation entries.
+
+Implementation notes (spec reconciliation):
+
+- Spec said send `tenant-local`; the app already has `useTenant()` (token tenant, falls back to `tenant-local` in dev) used by every other route. Replay uses `useTenant()` to match and stay tenant-scoped under auth.
+- Spec said `requested_by` = `operator-local` unless a username is available. The replay backend `replayActor` does NOT derive the actor from the JWT (unlike lifecycle mutations), so the identity is sent in the body via a new `useActor()` helper (`preferred_username → email → sub → operator-local`).
+- The create endpoint decodes the body with `DisallowUnknownFields()`, so the form sends exactly the backend's fields (no extras); `source_id`/`dataset` are omitted when empty via `undefined`.
+- The backend parses `window_start`/`window_end` as RFC3339, but the form uses `datetime-local` (naive wall-clock). Added `toRfc3339Utc` to normalize to `…:ssZ` (UTC, consistent with the UTC-everywhere system); window inputs are labeled UTC and default to the last 24h.
+- POST returns `202 Accepted`; the existing `post` helper treats 2xx as success, so no change was needed. The success banner says `Queued` (not `Started replay`) unless the returned status is `running`.
+- Backend `queryLimit` caps at 200, matching the form's limit options (25/50/100/200).
+- Detail polling reuses the list/detail TanStack Query pattern; no second SSE stream is opened (REST polling only).
+- No cancel/retry/worker controls (backend not implemented); non-goals respected.
+
+Validation performed:
+
+- `cd web && npm test`: 36/36 pass (6 files; 2 new datetime-helper tests).
+- `cd web && npm run build` (`tsc` + `vite build`): succeeded; `ReplayJobsRoute` chunk emitted.
+- `cd web && npm audit --json`: 0 vulnerabilities, exit 0.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`: succeeded.
+- `git diff --check`: clean (no whitespace errors).
+
+Next step:
+
+- Deploy via `make deploy-web` (auth flag + Traefik overlay) — outward-facing, not auto-run; a bare `docker compose up -d --build web` would 404 the site and disable auth.
+- Authenticated browser validation: sign in, open `/replay`, confirm the list loads and `replay-g059-raw` appears, create a `max_records=1` job, confirm it queues and (if the worker runs) advances to `succeeded` with counters, and confirm the Dashboard tile links to `/replay`.
+
+
+## 2026-07-10T03:58:46Z
+
+Summary:
+
+- Validated and closed G060 Replay Jobs UI after frontend-agent implementation.
+- Deployed the web frontend with the auth-enabled Traefik overlay and force-recreated the web container so the running nginx image serves the current bundle.
+- Operator indicated G060 is cleared; validation confirmed automated checks, deployed route serving, public health, protected replay API boundary, and existing replay job data.
+
+Validation performed:
+
+- `cd web && npm test` - passed: 6 files, 36 tests.
+- `cd web && npm run build` - passed; `ReplayJobsRoute` chunk emitted.
+- `cd web && npm audit --json` - 0 vulnerabilities.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` - passed.
+- `make deploy-web` - rebuilt/deployed the auth-enabled web image through the Traefik overlay.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d --force-recreate web` - refreshed the running web container on the current image.
+- Local `GET http://localhost:15173/replay` - `200 text/html`.
+- Public `GET https://signalops.syncratic.io/replay` - `200 text/html`.
+- Public `GET https://signalops.syncratic.io/healthz` - `200 application/json`.
+- Public unauthenticated `GET https://signalops.syncratic.io/v1/replay/jobs?tenant_id=tenant-local` - `401 application/json`, expected after backend auth enforcement.
+- PostgreSQL replay job check confirmed `replay-g059-raw` remains `succeeded` with `published=1`, giving the UI a live replay job to render after authentication.
+
+Audit notes:
+
+- Authenticated browser validation is accepted from the operator's G060 cleared report. Local/public unauthenticated checks still confirm route serving and API protection.
+- No backend replay worker changes were made in this gate.
+
+Next step:
+
+- Proceed to backend replay hardening: batching/pagination, cancellation, retry semantics, and per-record failure accounting.

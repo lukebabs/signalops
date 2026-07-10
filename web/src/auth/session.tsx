@@ -11,6 +11,7 @@ import type { User } from 'oidc-client-ts';
 import { authConfig } from './config';
 import { consumeRedirectPath, getUserManager, rememberRedirectPath } from './oidc';
 import type { AuthClaims } from './claims';
+import { displayIdentity } from './claims';
 
 export interface SessionState {
   authEnabled: boolean;
@@ -150,6 +151,16 @@ export function useTenant(): string {
   const { authEnabled, claims } = useAuth();
   if (!authEnabled) return 'tenant-local';
   return claims?.tenant_id ?? 'tenant-local';
+}
+
+// Actor name for replay job `requested_by`: token identity (preferred_username
+// -> email -> sub) when auth is on, else operator-local. Unlike lifecycle
+// mutations, the replay backend does not derive the actor from the token, so
+// the identity is sent in the request body and falls back to operator-local.
+export function useActor(): string {
+  const { authEnabled, claims } = useAuth();
+  if (!authEnabled) return 'operator-local';
+  return displayIdentity(claims) ?? 'operator-local';
 }
 
 // Lifecycle mutation permission: operator/admin when auth is on; allowed when auth is off (dev).

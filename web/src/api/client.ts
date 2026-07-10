@@ -24,6 +24,10 @@ import type {
   InsightFilter,
   AlertLifecycleMutationOptions,
   InsightLifecycleMutationOptions,
+  ReplayJobFilter,
+  ReplayJobsResponse,
+  ReplayJobResponse,
+  ReplayJobCreateRequest,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -196,6 +200,22 @@ export const api = {
     }),
   getInsight: (insightId: string) =>
     get<InsightResponse>(`/v1/insights/${encodeURIComponent(insightId)}`),
+  // Replay job control plane (G058/G059). Creating a job only queues it; the
+  // replay-worker runs separately, so the UI must read status/result from
+  // subsequent GETs. tenant_id defaults to tenant-local (dev) when unset.
+  listReplayJobs: (filter: ReplayJobFilter = {}) =>
+    get<ReplayJobsResponse>('/v1/replay/jobs', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      source_id: filter.source_id || undefined,
+      dataset: filter.dataset || undefined,
+      source_kind: filter.source_kind || undefined,
+      status: filter.status || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getReplayJob: (replayJobId: string) =>
+    get<ReplayJobResponse>(`/v1/replay/jobs/${encodeURIComponent(replayJobId)}`),
+  createReplayJob: (body: ReplayJobCreateRequest) =>
+    post<ReplayJobResponse>('/v1/replay/jobs', body),
   mutateAlertLifecycle: ({ alertId, action, note, reason }: AlertLifecycleMutationOptions) =>
     post<AlertResponse>(
       `/v1/alerts/${encodeURIComponent(alertId)}/${action}`,

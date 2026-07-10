@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { duration, formatUtc, orDash, truncate } from './format';
+import { duration, formatUtc, orDash, truncate, toRfc3339Utc, toDatetimeLocal } from './format';
 
 describe('format helpers', () => {
   it('formats UTC timestamps and preserves invalid values', () => {
@@ -20,5 +20,20 @@ describe('format helpers', () => {
     expect(orDash(42)).toBe('42');
     expect(truncate('abcdefghijklmnopqrstuvwxyz', 8)).toBe('abcdefg…');
     expect(truncate('abc', 8)).toBe('abc');
+  });
+
+  it('converts datetime-local values to RFC3339 UTC for the replay backend', () => {
+    // datetime-local yields a naive wall-clock; treat it as UTC.
+    expect(toRfc3339Utc('2026-07-09T00:00')).toBe('2026-07-09T00:00:00Z');
+    expect(toRfc3339Utc('2026-07-09T00:00:30')).toBe('2026-07-09T00:00:30Z');
+    expect(toRfc3339Utc('')).toBe('');
+    // Already timezone-qualified values pass through unchanged.
+    expect(toRfc3339Utc('2026-07-09T00:00:00Z')).toBe('2026-07-09T00:00:00Z');
+    expect(toRfc3339Utc('2026-07-09T00:00:00+02:00')).toBe('2026-07-09T00:00:00+02:00');
+  });
+
+  it('pre-fills datetime-local inputs from UTC ISO strings', () => {
+    expect(toDatetimeLocal('2026-07-09T00:00:00Z')).toBe('2026-07-09T00:00');
+    expect(toDatetimeLocal('')).toBe('');
   });
 });

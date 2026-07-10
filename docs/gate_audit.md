@@ -4463,3 +4463,66 @@ Follow-up items:
 
 - Frontend-agent should implement G060 from `docs/frontend/replay_jobs_ui_implementation_spec.md`.
 - Backend can subsequently add replay cancellation, batching, and per-record failure accounting after the first UI is in place.
+
+
+## Gate G060: Frontend Replay Jobs UI Implementation
+
+Timestamp: `2026-07-10T03:34:00Z`
+
+Status: `closed — implemented, deployed, and validated`
+
+Gate name:
+
+- Implement the `/replay` list/detail/create UI backed by the G058/G059 replay control plane, per `docs/frontend/replay_jobs_ui_implementation_spec.md`.
+
+Criteria:
+
+- `/replay` route exists and is reachable from shell navigation.
+- Replay jobs list reads live backend data via the authenticated API client.
+- Filters refetch live backend data via the query key.
+- Create form sends valid `POST /v1/replay/jobs` requests and handles success/error states without claiming execution.
+- Selected job detail displays lifecycle timestamps, filters, options, result, and errors.
+- Queued/running detail polling works without opening a new SSE connection.
+- Dashboard includes a compact replay summary/link.
+- No unsupported cancel/retry/batch controls are present.
+- `npm test`, `npm run build`, and `npm audit --json` pass.
+
+Evidence:
+
+- `web/src/types.ts` (replay types), `web/src/api/client.ts` (`listReplayJobs`/`getReplayJob`/`createReplayJob`).
+- `web/src/api/queries.ts` (`useReplayJobs`/`useReplayJob`/`useCreateReplayJob`).
+- `web/src/routes/ReplayJobsRoute.tsx` (route: metrics, filters, create form, table, detail panel).
+- `web/src/router.tsx` (`/replay` route), `web/src/components/DashboardShell.tsx` (Replay nav link).
+- `web/src/routes/DashboardRoute.tsx` (replay summary tile + link), `web/src/components/StatusBadge.tsx` (queued/running styles), `web/src/components/MetricTile.tsx` (`h-full`).
+- `web/src/auth/session.tsx` (`useActor`), `web/src/lib/format.ts` + `format.test.ts` (`toRfc3339Utc`/`toDatetimeLocal`).
+- `docs/build_journal.md`.
+
+Implementation notes:
+
+- Reconciled spec assumptions against the backend: `DisallowUnknownFields()` on the create body (send exactly the backend fields), RFC3339 window parsing (datetime-local → `…:ssZ`), `202 Accepted` on create, `queryLimit` cap of 200, and `replayActor` not deriving the actor from the JWT (identity sent as `requested_by` via `useActor`).
+- Tenant comes from `useTenant()` (token tenant → `tenant-local` fallback) to stay tenant-scoped under auth, matching the rest of the app.
+- Success state says `Queued` (not `Started replay`) unless the backend returns `running`; the worker runs separately and status/result come from refetches.
+- REST/TanStack Query polling only; no second SSE stream. No cancel/retry/worker controls.
+
+Verification performed:
+
+- `npm test`: 36/36 pass (6 files; 2 new datetime-helper tests).
+- `npm run build` (`tsc` + `vite build`): succeeded; `ReplayJobsRoute` chunk emitted.
+- `npm audit --json`: 0 vulnerabilities, exit 0.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`: succeeded.
+- `git diff --check`: clean.
+
+Additional validation performed:
+
+- `make deploy-web` rebuilt/deployed the auth-enabled web image through the Traefik overlay.
+- Forced web container recreation to ensure nginx serves the current image.
+- Local `/replay` route returned `200 text/html`.
+- Public `/replay` route returned `200 text/html`.
+- Public `/healthz` returned `200 application/json`.
+- Public unauthenticated `/v1/replay/jobs?tenant_id=tenant-local` returned `401 application/json`, confirming protected API behavior.
+- PostgreSQL confirmed live replay job `replay-g059-raw` is `succeeded` with `published=1`.
+- Operator reported G060 cleared after frontend implementation.
+
+Follow-up items:
+
+- Backend may add replay cancellation, retry, batching, and per-record failure accounting as later gates; the UI intentionally omits those controls.

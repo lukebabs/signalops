@@ -14,6 +14,7 @@ import {
   useSignals,
   useAlerts,
   useInsights,
+  useReplayJobs,
 } from '../api/queries';
 import { useUi } from '../store/ui';
 import { MetricTile } from '../components/MetricTile';
@@ -23,7 +24,7 @@ import { formatUtc, orDash } from '../lib/format';
 import type { ProviderUsage } from '../types';
 import { useTenant } from '../auth/session';
 
-type RouteLink = '/runs' | '/raw-events' | '/normalized-events' | '/signals' | '/alerts' | '/insights' | '/sources' | '/pipelines' | '/rules' | '/system';
+type RouteLink = '/runs' | '/raw-events' | '/normalized-events' | '/signals' | '/alerts' | '/insights' | '/sources' | '/pipelines' | '/rules' | '/system' | '/replay';
 
 function Panel({ title, linkTo, children }: { title: string; linkTo?: RouteLink; children: ReactNode }) {
   return (
@@ -76,6 +77,7 @@ export function DashboardRoute() {
   const signals = useSignals({ tenant_id: TENANT_ID, limit: 50 });
   const alerts = useAlerts({ tenant_id: TENANT_ID, status: 'open', limit: 50 });
   const insights = useInsights({ tenant_id: TENANT_ID, status: 'active', limit: 50 });
+  const replay = useReplayJobs({ tenant_id: TENANT_ID, limit: 50 });
 
   const lastRefresh = useUi((s) => s.lastRefresh);
   const setLastRefresh = useUi((s) => s.setLastRefresh);
@@ -99,6 +101,10 @@ export function DashboardRoute() {
   const signalsData = signals.data?.signals ?? [];
   const alertsData = alerts.data?.alerts ?? [];
   const insightsData = insights.data?.insights ?? [];
+  const replayData = replay.data?.replay_jobs ?? [];
+  const replayQueued = replayData.filter((j) => j.status === 'queued').length;
+  const replayRunning = replayData.filter((j) => j.status === 'running').length;
+  const replayFailed = replayData.filter((j) => j.status === 'failed').length;
 
   // Under auth, SSE is intentionally off (native EventSource cannot carry a Bearer token);
   // a REST polling interval keeps the dashboard fresh. Show that distinctly rather than as a
@@ -124,6 +130,7 @@ export function DashboardRoute() {
     signals.refetch();
     alerts.refetch();
     insights.refetch();
+    replay.refetch();
     setLastRefresh(new Date().toISOString());
   }
 
@@ -148,7 +155,7 @@ export function DashboardRoute() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-[repeat(13,minmax(0,1fr))]">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-[repeat(14,minmax(0,1fr))]">
         <MetricTile label="Gateway" value={healthz.data?.status ?? (healthz.isError ? 'unreachable' : '…')} />
         <MetricTile label="Readiness" value={readyz.data?.status ?? (readyz.isError ? 'unreachable' : '…')} />
         <MetricTile label="Recent Runs" value={runsData.length} />
@@ -162,6 +169,13 @@ export function DashboardRoute() {
         <MetricTile label="Signals" value={signalsData.length} />
         <MetricTile label="Open Alerts" value={alertsData.length} hint={alerts.isError ? 'unreachable' : undefined} />
         <MetricTile label="Active Insights" value={insightsData.length} hint={insights.isError ? 'unreachable' : undefined} />
+        <Link to="/replay" className="block" title="Open Replay Jobs">
+          <MetricTile
+            label="Replay Jobs"
+            value={replayData.length}
+            hint={replay.isError ? 'unreachable' : `${replayQueued} queued · ${replayRunning} running · ${replayFailed} failed`}
+          />
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">

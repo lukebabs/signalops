@@ -30,3 +30,23 @@ export function orDash(value: string | number | null | undefined): string {
 export function truncate(value: string, n = 24): string {
   return value.length > n ? `${value.slice(0, n - 1)}…` : value;
 }
+
+// datetime-local inputs yield a naive "YYYY-MM-DDTHH:mm[:ss]" string with no
+// timezone. The replay backend parses window_start/window_end as RFC3339, and
+// every SignalOps timestamp is UTC, so the entered wall-clock is treated as UTC.
+export function toRfc3339Utc(local: string): string {
+  const v = local.trim();
+  if (!v) return '';
+  // Already timezone-qualified (Z or offset) — pass through.
+  if (/[zZ]$|[+-]\d\d:?\d\d$/.test(v)) return v;
+  // Ensure a seconds component before appending the UTC designator.
+  const withSeconds = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(v) ? v : `${v}:00`;
+  return `${withSeconds}Z`;
+}
+
+// Pre-fill a datetime-local input from a UTC ISO string (UTC wall-clock).
+export function toDatetimeLocal(iso: string): string {
+  const v = iso.trim();
+  if (!v) return '';
+  return v.slice(0, 16);
+}

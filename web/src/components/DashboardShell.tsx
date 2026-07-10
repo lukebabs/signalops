@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { Link, Outlet } from '@tanstack/react-router';
-import { Activity, ListTree, Database, KeyRound, Gauge, DatabaseZap, Workflow, ShieldCheck, LayoutDashboard, FileCheck2, Radar, TriangleAlert, Lightbulb, LogOut } from 'lucide-react';
+import { Activity, ListTree, Database, KeyRound, Gauge, DatabaseZap, Workflow, ShieldCheck, LayoutDashboard, FileCheck2, Radar, TriangleAlert, Lightbulb, LogOut, History } from 'lucide-react';
 import { HealthIndicator } from './HealthIndicator';
 import { useAuth } from '../auth/session';
 import { displayIdentity } from '../auth/claims';
@@ -61,6 +61,9 @@ export function DashboardShell() {
         </Link>
         <Link to="/rules" className={navItem} activeProps={{ className: navItemActive }}>
           <ShieldCheck size={14} /> Rules
+        </Link>
+        <Link to="/replay" className={navItem} activeProps={{ className: navItemActive }}>
+          <History size={14} /> Replay
         </Link>
         <Link to="/signals" className={navItem} activeProps={{ className: navItemActive }}>
           <Radar size={14} /> Signals

@@ -41,6 +41,9 @@ const AlertsRoute = lazy(() =>
 const InsightsRoute = lazy(() =>
   import('./routes/InsightsRoute').then((m) => ({ default: m.InsightsRoute })),
 );
+const ReplayJobsRoute = lazy(() =>
+  import('./routes/ReplayJobsRoute').then((m) => ({ default: m.ReplayJobsRoute })),
+);
 
 const rootRoute = createRootRoute({ component: DashboardShell });
 
@@ -116,6 +119,12 @@ const insightsRoute = createRoute({
   component: InsightsRoute,
 });
 
+const replayJobsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/replay',
+  component: ReplayJobsRoute,
+});
+
 // /auth/callback is primarily handled by the auth gate in App.tsx (the router must not mount
 // before authentication); this route is a fallback that returns the user to the dashboard.
 function AuthCallbackRouteComponent() {
@@ -144,6 +153,7 @@ const routeTree = rootRoute.addChildren([
   signalsRoute,
   alertsRoute,
   insightsRoute,
+  replayJobsRoute,
   authCallbackRoute,
   systemRoute,
 ]);

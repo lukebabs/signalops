@@ -381,3 +381,63 @@ export interface InsightLifecycleMutationOptions extends LifecycleMutationReques
   insightId: string;
   action: InsightLifecycleAction;
 }
+
+// Replay jobs mirror the gateway DTOs in internal/api/router.go (replayJobDTO /
+// replayJobCreateRequest). The backend persists filters/options/result as raw
+// JSON (always present, never omitted), so they are typed `unknown` and rendered
+// via JsonViewer. Status/source_kind/replay_mode unions are narrowed for the
+// current controls but accept `| string` for forward compatibility.
+export type ReplaySourceKind = 'raw_events' | 'normalized_events' | 'signals';
+export type ReplayMode = 'original' | 'latest_compatible' | 'explicit';
+export type ReplayJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
+
+export interface ReplayJob {
+  replay_job_id: string;
+  tenant_id: string;
+  source_id?: string;
+  dataset?: string;
+  source_kind: ReplaySourceKind | string;
+  replay_mode: ReplayMode | string;
+  status: ReplayJobStatus | string;
+  requested_by: string;
+  window_start: string;
+  window_end: string;
+  started_at?: string;
+  completed_at?: string;
+  filters: unknown;
+  options: unknown;
+  result: unknown;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReplayJobsResponse {
+  replay_jobs: ReplayJob[];
+}
+
+export interface ReplayJobResponse {
+  replay_job: ReplayJob;
+}
+
+export interface ReplayJobCreateRequest {
+  tenant_id: string;
+  source_id?: string;
+  dataset?: string;
+  source_kind?: ReplaySourceKind;
+  replay_mode?: ReplayMode;
+  requested_by?: string;
+  window_start: string;
+  window_end: string;
+  filters?: Record<string, unknown>;
+  options?: Record<string, unknown>;
+}
+
+export interface ReplayJobFilter {
+  tenant_id?: string;
+  source_id?: string;
+  dataset?: string;
+  source_kind?: ReplaySourceKind | '';
+  status?: ReplayJobStatus | '';
+  limit?: number;
+}

@@ -8,6 +8,8 @@ import type {
   InsightFilter,
   AlertLifecycleMutationOptions,
   InsightLifecycleMutationOptions,
+  ReplayJobFilter,
+  ReplayJobCreateRequest,
 } from '../types';
 
 export const queryKeys = {
@@ -32,6 +34,8 @@ export const queryKeys = {
   alert: (alertId: string) => ['alert', alertId] as const,
   insights: (filter: InsightFilter) => ['insights', filter] as const,
   insight: (insightId: string) => ['insight', insightId] as const,
+  replayJobs: (filter: ReplayJobFilter) => ['replay-jobs', filter] as const,
+  replayJob: (replayJobId: string) => ['replay-job', replayJobId] as const,
 };
 
 export function useHealthz() {
@@ -179,6 +183,42 @@ export function useInsight(insightId: string | null) {
     queryKey: queryKeys.insight(insightId ?? ''),
     queryFn: () => api.getInsight(insightId!),
     enabled: !!insightId,
+  });
+}
+
+// Replay execution is asynchronous: creating a job only queues it. The list
+// polls so newly queued/running jobs refresh without a second SSE stream.
+export function useReplayJobs(filter: ReplayJobFilter = { tenant_id: 'tenant-local', limit: 50 }) {
+  return useQuery({
+    queryKey: queryKeys.replayJobs(filter),
+    queryFn: () => api.listReplayJobs(filter),
+    refetchInterval: 5000,
+  });
+}
+
+// Detail polls only while a job is still in flight; once terminal it stops.
+export function useReplayJob(replayJobId?: string) {
+  return useQuery({
+    queryKey: queryKeys.replayJob(replayJobId ?? ''),
+    queryFn: () => api.getReplayJob(replayJobId!),
+    enabled: Boolean(replayJobId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.replay_job.status;
+      return status === 'queued' || status === 'running' ? 3000 : false;
+    },
+  });
+}
+
+// On create, seed the detail cache with the returned (queued) job and
+// invalidate the list prefix so filtered tables + Dashboard summary refetch.
+export function useCreateReplayJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ReplayJobCreateRequest) => api.createReplayJob(body),
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.replayJob(data.replay_job.replay_job_id), data);
+      queryClient.invalidateQueries({ queryKey: ['replay-jobs'] });
+    },
   });
 }
 

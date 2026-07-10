@@ -2,6 +2,8 @@ const STATUS_STYLES: Record<string, string> = {
   succeeded: 'bg-green-100 text-green-800 border-green-300',
   failed: 'bg-red-100 text-red-800 border-red-300',
   started: 'bg-blue-100 text-blue-800 border-blue-300',
+  running: 'bg-blue-100 text-blue-800 border-blue-300',
+  queued: 'bg-amber-100 text-amber-800 border-amber-300',
   canceled: 'bg-gray-200 text-gray-700 border-gray-300',
   active: 'bg-green-100 text-green-800 border-green-300',
   inactive: 'bg-gray-100 text-gray-700 border-gray-300',
