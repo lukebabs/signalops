@@ -5655,3 +5655,28 @@ Additional validation performed:
 Validation pending:
 
 - Authenticated browser validation of artifact API calls and rendered ledger panel remains operator-token dependent.
+
+
+## Gate G078 Closeout Note: Outstanding Operator Validation
+
+Timestamp: `2026-07-10T21:02:00Z`
+
+Status: `documentation-only — code committed and pushed; authenticated browser validation remains operator-token dependent`
+
+Current state:
+
+- G078 implementation is committed, pushed, and deployed locally via `make deploy-web`.
+- Automated validation passed: `npm test`, `npm run build`, `npm audit --audit-level=low`, and `git diff --check`.
+- Deployed route smoke passed: `/marketops/dsm` returned HTTP `200`.
+- Unauthenticated artifact API probe returned expected `401 unauthorized`.
+
+Outstanding:
+
+- Authenticated browser validation with a real operator token:
+  - `/marketops/dsm` loads after sign-in.
+  - `/v1/marketops/dsm/artifacts` succeeds with bearer auth.
+  - DSM Artifacts tile, persisted/signal-only table state, and first-class artifact ledger panel render live data.
+
+Recommended next gate:
+
+- G079: graph proposal acceptance/storage.

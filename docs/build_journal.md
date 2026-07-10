@@ -4891,3 +4891,23 @@ Additional validation:
 Remaining validation:
 
 - Authenticated browser validation remains operator-token dependent: verify `/marketops/dsm` network requests include the artifact API, the DSM Artifacts tile renders, persisted-vs-signal-only table status renders, and the first-class artifact ledger panel appears for a persisted artifact.
+
+
+## 2026-07-10T21:02:00Z
+
+Summary:
+
+- Recorded the post-G078 outstanding state after the DSM artifact frontend integration was committed and deployed.
+- G078 code and deploy smoke remain complete; the only G078 closeout item is authenticated operator/browser validation with a real bearer token.
+
+Outstanding validation:
+
+- Sign in through the web UI and open `/marketops/dsm`.
+- Verify the page calls `/v1/marketops/dsm/artifacts` with `Authorization: Bearer ...`.
+- Verify the DSM Artifacts tile renders live counts.
+- Verify the table shows `persisted` versus `signal-only` ledger status.
+- Select a persisted DSM signal and verify the first-class artifact ledger panel renders the materialized artifact.
+
+Recommended next gate:
+
+- G079: graph proposal acceptance/storage, building on G077 persisted artifacts and G078 frontend artifact visibility.
