@@ -4804,3 +4804,52 @@ Validation NOT yet performed:
 Next step:
 
 - Operator deploys via `make deploy-web` and completes browser validation.
+
+
+## 2026-07-10T20:24:00Z
+
+Summary:
+
+- Implemented G077 backend support for first-class persisted MarketOps DSM artifact proposals.
+- Added migration `000012_marketops_dsm_artifacts` with an idempotent artifact ledger derived from `signal.v1` semantic evidence.
+- Extended `PersistSignalLifecycle` so MarketOps DSM artifacts are materialized in the same Postgres transaction as signal, alert, and insight rows.
+- Added read APIs `GET /v1/marketops/dsm/artifacts` and `GET /v1/marketops/dsm/artifacts/{artifact_id}`.
+- Kept frontend-agent G076 work untouched; this is backend/API-only and does not alter `web/` or `docs/frontend/*`.
+
+Files changed:
+
+- `migrations/000012_marketops_dsm_artifacts.up.sql`
+- `migrations/000012_marketops_dsm_artifacts.down.sql`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/marketops_dsm_artifacts.go`
+- `internal/storage/postgres/repository_test.go`
+- `internal/api/router.go`
+- `internal/api/marketops_dsm_artifacts.go`
+- `internal/api/router_test.go`
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- Dockerized `gofmt` on touched Go files: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/storage/postgres ./internal/api`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `git diff --check`: passed.
+- `docker compose build --no-cache gateway signal-persister`: passed; image build ran `go test ./...`.
+- `make compose-storage-migrate`: applied `000012_marketops_dsm_artifacts`.
+- `docker compose up -d --no-deps --build gateway signal-persister`: recreated both affected services.
+
+Live smoke validation:
+
+- Published bounded signal `sig_marketops_dsm_taxonomy_v1_g077_artifact_live` to `signalops.local.signal.v1`; Redpanda accepted partition `1`, offset `4`.
+- `signal-persister` consumed partition `1` through offset `5`; partition `1` lag was `0` after the smoke. Historical lag remains on older partitions.
+- Postgres verified the signal ledger row, materialized artifact `artifact_marketops_dsm_v1_g077_live`, open alert, and active insight.
+- Artifact row verified `subject_symbol=AAPL`, `artifact_type=marketops.dsm.signal_artifact.v1`, `signal_type=marketops.dsm.pinning_risk`, severity `high`, confidence `0.84`, one source event, and five graph targets.
+- Unauthenticated gateway request to `/v1/marketops/dsm/artifacts?...` returned `401 unauthorized`, confirming auth enforcement on the new route; authenticated browser/API smoke remains operator-token dependent.
+
+Next step:
+
+- G078 can add frontend consumption of the first-class artifact API or graph proposal acceptance/storage.

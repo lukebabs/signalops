@@ -301,6 +301,35 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"signal": signalResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/marketops/dsm/artifacts", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsDSMArtifacts(r.Context(), storage.MarketOpsDSMArtifactFilter{
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), Limit: queryLimit(r, 50),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps DSM artifacts")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"artifacts": marketOpsDSMArtifactResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/dsm/artifacts/{artifact_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetMarketOpsDSMArtifact(r.Context(), r.PathValue("artifact_id"))
+		if err != nil {
+			writeQueryError(w, err, "artifact_not_found", "MarketOps DSM artifact not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"artifact": marketOpsDSMArtifactResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/alerts", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

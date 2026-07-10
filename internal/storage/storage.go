@@ -422,6 +422,32 @@ type MarketOpsAssetRecord struct {
 	UpdatedAt     time.Time
 }
 
+type MarketOpsDSMArtifactRecord struct {
+	ArtifactID           string
+	TenantID             string
+	AppID                string
+	Domain               string
+	UseCase              string
+	SourceID             string
+	SourceAdapter        string
+	Dataset              string
+	SignalID             string
+	SignalType           string
+	DetectorID           string
+	Severity             string
+	Confidence           float64
+	EventIDs             []string
+	SubjectSymbol        string
+	ArtifactType         string
+	ArtifactJSON         []byte
+	SemanticEvidenceJSON []byte
+	GraphTargetsJSON     []byte
+	SupportingMetrics    []byte
+	QualityIssues        []string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
 type SchedulerRunRepository interface {
 	UpsertSchedulerRun(ctx context.Context, record SchedulerRunRecord) error
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
@@ -468,6 +494,11 @@ type SignalLifecycleRepository interface {
 	AlertLedgerRepository
 	InsightLedgerRepository
 	PersistSignalLifecycle(ctx context.Context, signal SignalLedgerRecord, alerts []AlertLedgerRecord, insights []InsightLedgerRecord) error
+}
+
+type MarketOpsDSMArtifactRepository interface {
+	ListMarketOpsDSMArtifacts(ctx context.Context, filter MarketOpsDSMArtifactFilter) ([]MarketOpsDSMArtifactRecord, error)
+	GetMarketOpsDSMArtifact(ctx context.Context, artifactID string) (MarketOpsDSMArtifactRecord, error)
 }
 
 type CatalogRepository interface {
@@ -528,6 +559,17 @@ type InsightLedgerFilter struct {
 	Limit       int
 }
 
+type MarketOpsDSMArtifactFilter struct {
+	TenantID      string
+	AppID         string
+	Domain        string
+	UseCase       string
+	SignalType    string
+	Severity      string
+	SubjectSymbol string
+	Limit         int
+}
+
 type ReplayJobFilter struct {
 	TenantID   string
 	SourceID   string
@@ -561,6 +603,8 @@ type QueryRepository interface {
 	MutateAlertLifecycle(ctx context.Context, mutation AlertLifecycleMutation) (AlertLedgerRecord, error)
 	ListInsightLedger(ctx context.Context, filter InsightLedgerFilter) ([]InsightLedgerRecord, error)
 	GetInsightLedger(ctx context.Context, insightID string) (InsightLedgerRecord, error)
+	ListMarketOpsDSMArtifacts(ctx context.Context, filter MarketOpsDSMArtifactFilter) ([]MarketOpsDSMArtifactRecord, error)
+	GetMarketOpsDSMArtifact(ctx context.Context, artifactID string) (MarketOpsDSMArtifactRecord, error)
 	MutateInsightLifecycle(ctx context.Context, mutation InsightLifecycleMutation) (InsightLedgerRecord, error)
 	GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (IdempotencyRecord, error)
 	ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]CatalogSourceRecord, error)

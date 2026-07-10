@@ -623,6 +623,15 @@ func (r *Repository) PersistSignalLifecycle(ctx context.Context, signal storage.
 			return err
 		}
 	}
+	artifacts, err := extractMarketOpsDSMArtifacts(signal)
+	if err != nil {
+		return err
+	}
+	for _, artifact := range artifacts {
+		if err := validateMarketOpsDSMArtifact(artifact); err != nil {
+			return err
+		}
+	}
 	if r.useTemporal {
 		if err := upsertSignalLedgerTemporal(ctx, r.temporal(), signal); err != nil {
 			return err
@@ -643,6 +652,11 @@ func (r *Repository) PersistSignalLifecycle(ctx context.Context, signal storage.
 	}
 	for _, insight := range insights {
 		if err := upsertInsightLedger(ctx, tx, insight); err != nil {
+			return err
+		}
+	}
+	for _, artifact := range artifacts {
+		if err := upsertMarketOpsDSMArtifact(ctx, tx, artifact); err != nil {
 			return err
 		}
 	}

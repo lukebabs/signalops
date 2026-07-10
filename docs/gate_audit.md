@@ -5560,3 +5560,52 @@ Follow-up items:
 
 - Operator deploys via `make deploy-web` and completes authenticated browser validation.
 - Separate in-tree backend artifacts work (`internal/storage/...`, `migrations/000012_*`) is unrelated to this frontend gate and was excluded from this commit.
+
+
+## Gate G077: MarketOps DSM Artifact Ledger Backend
+
+Timestamp: `2026-07-10T20:24:00Z`
+
+Status: `closed — tests, no-cache Docker build, migration, and live artifact materialization smoke passed`
+
+Gate name:
+
+- Materialize MarketOps DSM artifact proposals as first-class backend ledger records.
+
+Scope:
+
+- Persist deterministic DSM artifact proposals emitted by G074/G075 into `marketops_dsm_artifacts` without changing the signal contract or frontend-agent G076 UI work.
+
+Implementation:
+
+- Added migration `000012_marketops_dsm_artifacts` for a first-class artifact ledger keyed by stable `artifact_marketops_dsm_v1_*` IDs.
+- Extracts `semantic_evidence` entries with `type=dsm_artifact_proposal` and embedded `marketops.dsm.signal_artifact.v1` artifacts from MarketOps signal records.
+- Materializes artifacts inside `PersistSignalLifecycle` after the signal row is upserted and before transaction commit, preserving retry/idempotency behavior.
+- Added repository list/detail methods and gateway endpoints:
+  - `GET /v1/marketops/dsm/artifacts`
+  - `GET /v1/marketops/dsm/artifacts/{artifact_id}`
+- Added API DTOs for artifact payload, semantic evidence, graph targets, supporting metrics, quality issues, and linked signal metadata.
+
+Validation performed:
+
+- Repository unit tests cover artifact extraction, validation, and non-MarketOps ignore behavior.
+- Router unit tests cover list/detail responses and query filter propagation.
+- Dockerized `gofmt`: passed.
+- `go test ./internal/storage/postgres ./internal/api`: passed in Docker.
+- `go test ./...`: passed in Docker.
+
+Additional validation performed:
+
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `git diff --check`: passed.
+- `docker compose build --no-cache gateway signal-persister`: passed and ran `go test ./...` inside the image build.
+- `make compose-storage-migrate`: applied `000012_marketops_dsm_artifacts` to live Postgres.
+- Recreated `gateway` and `signal-persister` with the new images.
+- Published bounded signal `sig_marketops_dsm_taxonomy_v1_g077_artifact_live` to `signalops.local.signal.v1`, partition `1`, offset `4`.
+- Postgres verified signal row, materialized artifact `artifact_marketops_dsm_v1_g077_live`, open alert, and active insight.
+- Verified artifact metadata: `subject_symbol=AAPL`, artifact type `marketops.dsm.signal_artifact.v1`, signal type `marketops.dsm.pinning_risk`, severity `high`, confidence `0.84`, one event id, and five graph targets.
+- Unauthenticated gateway request to `/v1/marketops/dsm/artifacts` returned `401 unauthorized`; authenticated route smoke remains operator-token dependent, while router unit tests cover the handler contract.
+
+Follow-up items:
+
+- G078 can expose first-class artifacts in the frontend DSM workbench or add graph proposal acceptance/storage.

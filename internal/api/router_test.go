@@ -63,6 +63,8 @@ type fakeQueryRepository struct {
 	pipelines         []storage.CatalogPipelineRecord
 	rules             []storage.CatalogRuleRecord
 	marketOpsAssets   []storage.MarketOpsAssetRecord
+	dsmArtifacts      []storage.MarketOpsDSMArtifactRecord
+	lastDSMFilter     storage.MarketOpsDSMArtifactFilter
 	lastUniverseGroup string
 	lastActiveOnly    bool
 	alerts            []storage.AlertLedgerRecord
@@ -214,6 +216,23 @@ func (q *fakeQueryRepository) ListSignalLedger(context.Context, storage.SignalLe
 }
 func (q *fakeQueryRepository) GetSignalLedger(context.Context, string) (storage.SignalLedgerRecord, error) {
 	return storage.SignalLedgerRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListMarketOpsDSMArtifacts(_ context.Context, filter storage.MarketOpsDSMArtifactFilter) ([]storage.MarketOpsDSMArtifactRecord, error) {
+	q.lastDSMFilter = filter
+	return q.dsmArtifacts, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsDSMArtifact(_ context.Context, artifactID string) (storage.MarketOpsDSMArtifactRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsDSMArtifactRecord{}, storage.ErrNotFound
+	}
+	for _, artifact := range q.dsmArtifacts {
+		if artifact.ArtifactID == artifactID {
+			return artifact, nil
+		}
+	}
+	return storage.MarketOpsDSMArtifactRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListAlertLedger(context.Context, storage.AlertLedgerFilter) ([]storage.AlertLedgerRecord, error) {
@@ -689,6 +708,53 @@ func TestGetMarketOpsAssets(t *testing.T) {
 	}
 }
 
+func TestGetMarketOpsDSMArtifacts(t *testing.T) {
+	repo := &fakeQueryRepository{dsmArtifacts: []storage.MarketOpsDSMArtifactRecord{validMarketOpsDSMArtifactRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/dsm/artifacts?tenant_id=tenant-1&app_id=marketops&domain=market_data&use_case=daily_market_surveillance&signal_type=marketops.dsm.pinning_risk&severity=high&subject_symbol=AAPL&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastDSMFilter.TenantID != "tenant-1" || repo.lastDSMFilter.SignalType != "marketops.dsm.pinning_risk" || repo.lastDSMFilter.SubjectSymbol != "AAPL" || repo.lastDSMFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastDSMFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	artifact := response["artifacts"][0]
+	if artifact["artifact_id"] != "artifact_marketops_dsm_v1_test" || artifact["subject_symbol"] != "AAPL" {
+		t.Fatalf("artifact = %+v", artifact)
+	}
+	if artifact["artifact"].(map[string]any)["artifact_type"] != "marketops.dsm.signal_artifact.v1" {
+		t.Fatalf("artifact payload = %+v", artifact["artifact"])
+	}
+}
+
+func TestGetMarketOpsDSMArtifact(t *testing.T) {
+	repo := &fakeQueryRepository{dsmArtifacts: []storage.MarketOpsDSMArtifactRecord{validMarketOpsDSMArtifactRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/dsm/artifacts/artifact_marketops_dsm_v1_test", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if response["artifact"]["signal_id"] != "signal-1" {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
 func TestGetCatalogSources(t *testing.T) {
 	repo := &fakeQueryRepository{sources: []storage.CatalogSourceRecord{validCatalogSourceRecord()}}
 	router := NewRouter(RouterConfig{QueryRepository: repo})
@@ -1050,6 +1116,34 @@ func validCatalogRuleRecord() storage.CatalogRuleRecord {
 		MetadataJSON:   []byte(`{"execution":"catalog_only"}`),
 		CreatedAt:      time.Date(2026, 7, 8, 0, 0, 7, 0, time.UTC),
 		UpdatedAt:      time.Date(2026, 7, 8, 0, 0, 8, 0, time.UTC),
+	}
+}
+
+func validMarketOpsDSMArtifactRecord() storage.MarketOpsDSMArtifactRecord {
+	return storage.MarketOpsDSMArtifactRecord{
+		ArtifactID:           "artifact_marketops_dsm_v1_test",
+		TenantID:             "tenant-1",
+		AppID:                "marketops",
+		Domain:               "market_data",
+		UseCase:              "daily_market_surveillance",
+		SourceID:             "src-massive",
+		SourceAdapter:        "market_data.massive",
+		Dataset:              "options_contracts_daily",
+		SignalID:             "signal-1",
+		SignalType:           "marketops.dsm.pinning_risk",
+		DetectorID:           "marketops.dsm.taxonomy_v1",
+		Severity:             "high",
+		Confidence:           0.84,
+		EventIDs:             []string{"event-1"},
+		SubjectSymbol:        "AAPL",
+		ArtifactType:         "marketops.dsm.signal_artifact.v1",
+		ArtifactJSON:         []byte(`{"artifact_id":"artifact_marketops_dsm_v1_test","artifact_type":"marketops.dsm.signal_artifact.v1","subject":{"symbol":"AAPL"}}`),
+		SemanticEvidenceJSON: []byte(`{"type":"dsm_artifact_proposal","artifact_id":"artifact_marketops_dsm_v1_test"}`),
+		GraphTargetsJSON:     []byte(`[{"type":"node_candidate"}]`),
+		SupportingMetrics:    []byte(`{"open_interest":2000}`),
+		QualityIssues:        []string{},
+		CreatedAt:            time.Date(2026, 7, 8, 0, 2, 0, 0, time.UTC),
+		UpdatedAt:            time.Date(2026, 7, 8, 0, 3, 0, 0, time.UTC),
 	}
 }
 

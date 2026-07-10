@@ -127,6 +127,24 @@ event.
 
 Returns one signal or `404 signal_not_found`.
 
+## MarketOps DSM Artifacts
+
+`GET /v1/marketops/dsm/artifacts?tenant_id={tenant_id}&app_id={app_id}&domain={domain}&use_case={use_case}&signal_type={signal_type}&severity={severity}&subject_symbol={subject_symbol}&limit=50`
+
+Lists first-class MarketOps DSM artifact proposals materialized from persisted signal semantic
+evidence. Filters are optional and pagination is currently limit-only. G077 materializes artifacts
+idempotently from `semantic_evidence` entries with `type=dsm_artifact_proposal` and embedded
+`marketops.dsm.signal_artifact.v1` payloads while preserving the original signal ledger as the
+source of truth.
+
+`GET /v1/marketops/dsm/artifacts/{artifact_id}`
+
+Returns one DSM artifact proposal or `404 artifact_not_found`.
+
+Each artifact response includes source/app metadata, linked `signal_id`, `signal_type`, detector,
+severity/confidence, `event_ids`, `subject_symbol`, `artifact_type`, the artifact JSON, semantic
+evidence JSON, graph target proposals, supporting metrics, and quality issues.
+
 The Go signal persister consumes `signalops.<environment>.signal.v1`. It validates the closed
 contract, persists the signal, and only then commits the source offset. Invalid contracts are
 published to the algorithm DLQ with the original payload and source coordinates before commit.

@@ -72,6 +72,55 @@ func TestValidateRawEventLedger(t *testing.T) {
 	}
 }
 
+func TestExtractMarketOpsDSMArtifacts(t *testing.T) {
+	signal := validSignalLedgerRecord()
+	signal.AppID = "marketops"
+	signal.Domain = "market_data"
+	signal.UseCase = "daily_market_surveillance"
+	signal.SourceID = "src-massive"
+	signal.SourceAdapter = "market_data.massive"
+	signal.Dataset = "options_contracts_daily"
+	signal.SignalType = "marketops.dsm.pinning_risk"
+	signal.DetectorID = "marketops.dsm.taxonomy_v1"
+	signal.ArtifactIDs = []string{"artifact_marketops_dsm_v1_test"}
+	signal.SemanticEvidenceJSON = []byte(`[{"type":"dsm_artifact_proposal","artifact_id":"artifact_marketops_dsm_v1_test","artifact":{"artifact_id":"artifact_marketops_dsm_v1_test","artifact_type":"marketops.dsm.signal_artifact.v1","subject":{"symbol":"AAPL"},"quality_issues":["stale_open_interest"]}}]`)
+	signal.GraphTargetsJSON = []byte(`[{"type":"node_candidate"}]`)
+	signal.SupportingMetrics = []byte(`{"open_interest":2000}`)
+
+	artifacts, err := extractMarketOpsDSMArtifacts(signal)
+	if err != nil {
+		t.Fatalf("extract artifacts: %v", err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("artifact count = %d", len(artifacts))
+	}
+	artifact := artifacts[0]
+	if artifact.ArtifactID != "artifact_marketops_dsm_v1_test" || artifact.SubjectSymbol != "AAPL" {
+		t.Fatalf("artifact = %+v", artifact)
+	}
+	if len(artifact.QualityIssues) != 1 || artifact.QualityIssues[0] != "stale_open_interest" {
+		t.Fatalf("quality issues = %+v", artifact.QualityIssues)
+	}
+	if err := validateMarketOpsDSMArtifact(artifact); err != nil {
+		t.Fatalf("validate artifact: %v", err)
+	}
+}
+
+func TestExtractMarketOpsDSMArtifactsIgnoresNonMarketOps(t *testing.T) {
+	signal := validSignalLedgerRecord()
+	signal.AppID = "console"
+	signal.Domain = "custom"
+	signal.SemanticEvidenceJSON = []byte(`[{"type":"dsm_artifact_proposal","artifact":{"artifact_id":"artifact-1","artifact_type":"marketops.dsm.signal_artifact.v1"}}]`)
+
+	artifacts, err := extractMarketOpsDSMArtifacts(signal)
+	if err != nil {
+		t.Fatalf("extract artifacts: %v", err)
+	}
+	if len(artifacts) != 0 {
+		t.Fatalf("artifact count = %d", len(artifacts))
+	}
+}
+
 func TestValidateCatalogSource(t *testing.T) {
 	record := validCatalogSourceRecord()
 	if err := validateCatalogSource(record); err != nil {
@@ -412,5 +461,45 @@ func validRawEventLedgerRecord() storage.RawEventLedgerRecord {
 		BrokerOffset:    &offset,
 		PayloadJSON:     []byte(`{"event_id":"event-1"}`),
 		EntityHintsJSON: []byte(`[]`),
+	}
+}
+
+func validSignalLedgerRecord() storage.SignalLedgerRecord {
+	return storage.SignalLedgerRecord{
+		SignalID:             "signal-1",
+		TenantID:             "tenant-1",
+		SourceID:             "src-massive",
+		AppID:                "marketops",
+		Domain:               "market_data",
+		UseCase:              "daily_market_surveillance",
+		SourceDomain:         "market_data",
+		SourceAdapter:        "market_data.massive",
+		IngestionMode:        "scheduled_pull",
+		Dataset:              "equity_eod_prices",
+		EventIDs:             []string{"event-1"},
+		ArtifactIDs:          []string{},
+		SignalType:           "marketops.dsm.volatility_expansion",
+		DetectorID:           "marketops.dsm.taxonomy_v1",
+		DetectorVersion:      "0.1.0",
+		ModelVersion:         "deterministic-v0",
+		SignalTime:           time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC),
+		ObservationTime:      time.Date(2026, 7, 7, 0, 0, 0, 0, time.UTC),
+		EffectiveTime:        time.Date(2026, 7, 7, 0, 0, 0, 0, time.UTC),
+		ProcessingTime:       time.Date(2026, 7, 8, 0, 0, 1, 0, time.UTC),
+		WindowStart:          time.Date(2026, 7, 7, 0, 0, 0, 0, time.UTC),
+		WindowEnd:            time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC),
+		Confidence:           0.84,
+		Severity:             "high",
+		EntitiesJSON:         []byte(`[]`),
+		SupportingMetrics:    []byte(`{}`),
+		GraphTargetsJSON:     []byte(`[]`),
+		SemanticEvidenceJSON: []byte(`[]`),
+		EvidenceJSON:         []byte(`[]`),
+		RecommendationJSON:   []byte(`{"action":"review_marketops_signal"}`),
+		CorrelationID:        "corr-1",
+		BrokerTopic:          "signalops.local.signal.v1",
+		BrokerPartition:      1,
+		BrokerOffset:         2,
+		EventJSON:            []byte(`{"signal_id":"signal-1"}`),
 	}
 }
