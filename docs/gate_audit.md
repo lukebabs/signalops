@@ -5484,3 +5484,34 @@ Validation performed:
 Follow-up items:
 
 - None for G075 option taxonomy live coverage.
+
+
+## Gate G076: MarketOps DSM Workbench UI Specification
+
+Timestamp: `2026-07-10T20:05:00Z`
+
+Status: `specified — ready for frontend-agent implementation`
+
+Scope:
+
+- Specify a MarketOps-only DSM workbench at `/marketops/dsm` for inspecting G075 `marketops.dsm.taxonomy_v1` signal output.
+
+Specification:
+
+- Added `docs/frontend/marketops_dsm_workbench_ui_spec.md`.
+- Uses existing authenticated APIs: `/v1/signals`, `/v1/signals/{signal_id}`, `/v1/alerts`, and `/v1/insights`.
+- Requires MarketOps daily surveillance filters: `app_id=marketops`, `domain=market_data`, `use_case=daily_market_surveillance`, and `detector_id=marketops.dsm.taxonomy_v1`.
+- Requires DSM-specific parsing of ticker entities, supporting metrics, artifact proposals, graph candidates, and linked lifecycle records while preserving raw JSON inspection.
+- Requires MarketOps nav entry `DSM` at `/marketops/dsm`; Console nav remains unchanged.
+
+Validation requested from frontend-agent:
+
+- `npm test`
+- `npm run build`
+- `npm audit --audit-level=low`
+- `git diff --check`
+- Authenticated browser validation of route, query filters, taxonomy filtering, artifact/graph detail rendering, lifecycle links, and mobile/desktop layout.
+
+Follow-up items:
+
+- Frontend-agent implements the spec and records implementation evidence.

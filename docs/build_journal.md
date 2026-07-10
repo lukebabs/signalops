@@ -4724,3 +4724,27 @@ Validation performed:
 Remaining manual item:
 
 - Independent mobile-overflow/browser capture was not machine-checked because `web/` does not include Playwright tooling; this remains an operator visual check.
+
+
+## 2026-07-10T20:05:00Z
+
+Summary:
+
+- Wrote the G076 frontend-agent specification for a MarketOps DSM Workbench UI.
+- The spec uses existing `/v1/signals`, `/v1/alerts`, `/v1/insights`, and `/v1/signals/{signal_id}` APIs; no backend API changes are required.
+- The required route is `/marketops/dsm`, scoped to `app_id=marketops`, `domain=market_data`, `use_case=daily_market_surveillance`, and `detector_id=marketops.dsm.taxonomy_v1`.
+
+Files changed:
+
+- `docs/frontend/marketops_dsm_workbench_ui_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- Documentation/spec review against current frontend route, nav, API client, query hook, and signal record structure.
+- `git diff --check`: passed.
+
+Next step:
+
+- Frontend-agent should implement G076 from `docs/frontend/marketops_dsm_workbench_ui_spec.md`.
