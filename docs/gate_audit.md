@@ -4429,3 +4429,37 @@ Follow-up items:
 
 - Write the frontend-agent specification for replay job list/detail/create controls.
 - Add worker batching, cancellation, and richer per-record failure accounting before high-volume replay.
+
+
+## Gate G060: Frontend Replay Jobs UI Specification
+
+Timestamp: `2026-07-10T03:12:00Z`
+
+Status: `ready for frontend-agent implementation`
+
+Gate name:
+
+- Define the frontend implementation contract for replay job list/detail/create controls backed by G058/G059.
+
+Criteria:
+
+- Specification is placed under `docs/frontend/`.
+- Specification documents backend replay APIs, request/response types, status/source/mode values, and execution semantics.
+- Specification defines required TypeScript types, API client methods, query/mutation hooks, route, navigation, Dashboard integration, validation, and acceptance criteria.
+- Specification explicitly prevents unsupported UI behavior such as cancel/retry/worker control and fake replay progress.
+
+Evidence:
+
+- `docs/frontend/replay_jobs_ui_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- Checked against `docs/api.md` replay job contract.
+- Checked against existing frontend implementation spec format and current UI architecture expectations.
+
+Follow-up items:
+
+- Frontend-agent should implement G060 from `docs/frontend/replay_jobs_ui_implementation_spec.md`.
+- Backend can subsequently add replay cancellation, batching, and per-record failure accounting after the first UI is in place.

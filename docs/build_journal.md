@@ -3686,3 +3686,34 @@ Validation performed:
 Next step:
 
 - Add frontend replay job views and controls, then consider worker hardening: job cancellation, pagination/batching beyond one capped query, and per-source result detail.
+
+
+## 2026-07-10T03:12:00Z
+
+Summary:
+
+- Wrote the G060 frontend-agent implementation specification for Replay Jobs UI.
+- The spec maps the G058/G059 backend surface into `/replay` list/detail/create controls, Dashboard summary integration, query polling, validation steps, and explicit non-goals.
+
+Files changed:
+
+- `docs/frontend/replay_jobs_ui_implementation_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The frontend spec keeps replay execution asynchronous: creating a job queues it; status/result must come from backend refetches.
+- The spec requires REST/TanStack Query polling only and explicitly avoids adding a second SSE stream.
+- The create form is intentionally bounded with `max_records` validation and no browser worker start/stop controls.
+- Backend cancellation, retry, batching, and per-record failure accounting remain backend follow-up work, not frontend assumptions.
+
+Validation performed:
+
+- Reviewed the spec against `docs/api.md` replay job contract and the existing frontend spec style.
+- `bash -n` is not applicable to markdown-only changes.
+- `git diff --check` will be run before commit.
+
+Next step:
+
+- Hand `docs/frontend/replay_jobs_ui_implementation_spec.md` to frontend-agent for G060 implementation.
