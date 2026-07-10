@@ -1,25 +1,88 @@
 import { Suspense } from 'react';
-import { Link, Outlet } from '@tanstack/react-router';
-import { Activity, ListTree, Database, KeyRound, Gauge, DatabaseZap, Workflow, ShieldCheck, LayoutDashboard, FileCheck2, Radar, TriangleAlert, Lightbulb, LogOut, History } from 'lucide-react';
+import { Link, Outlet, useNavigate } from '@tanstack/react-router';
+import {
+  Activity,
+  ListTree,
+  Database,
+  KeyRound,
+  Gauge,
+  DatabaseZap,
+  Workflow,
+  ShieldCheck,
+  LayoutDashboard,
+  FileCheck2,
+  Radar,
+  TriangleAlert,
+  Lightbulb,
+  LogOut,
+  History,
+  type LucideIcon,
+} from 'lucide-react';
 import { HealthIndicator } from './HealthIndicator';
 import { useAuth } from '../auth/session';
 import { displayIdentity } from '../auth/claims';
+import { useAppProfile } from '../apps/AppProfileContext';
+import { defaultRouteForApp } from '../apps/appRouting';
+import type { AppProfile } from '../types';
 
 const navItem =
   'inline-flex items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-gray-600 hover:bg-gray-50';
 const navItemActive = 'text-brand-700 border-brand-500';
 
+// One icon per nav module. Keys are the `module` strings used by appRouting's
+// navForApp maps (console + marketops), so both apps resolve an icon.
+const MODULE_ICONS: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  runs: ListTree,
+  raw_events: Database,
+  normalized: FileCheck2,
+  idempotency: KeyRound,
+  sources: DatabaseZap,
+  providers: DatabaseZap,
+  pipelines: Workflow,
+  rules: ShieldCheck,
+  replay: History,
+  signals: Radar,
+  alerts: TriangleAlert,
+  insights: Lightbulb,
+  health: Gauge,
+};
+
 export function DashboardShell() {
   const { authEnabled, claims, signOut } = useAuth();
   const identity = authEnabled ? displayIdentity(claims) : undefined;
+  const { profiles, currentApp, currentAppId, nav } = useAppProfile();
+  const navigate = useNavigate();
+
+  function selectApp(appId: string) {
+    const profile = profiles.find((p: AppProfile) => p.app_id === appId);
+    if (!profile || profile.app_id === currentAppId) return;
+    void navigate({ to: defaultRouteForApp(profile) });
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
-      <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-2">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-2">
         <div className="flex items-center gap-2">
           <Activity size={18} className="text-brand-700" />
           <span className="text-sm font-semibold">SignalOps</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Active app label + selector. The select both displays the active app
+              label and switches apps by navigating to the profile default route. */}
+          <select
+            value={currentAppId}
+            onChange={(e) => selectApp(e.target.value)}
+            aria-label="Active app"
+            title="Switch app"
+            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+          >
+            {profiles.map((p) => (
+              <option key={p.app_id} value={p.app_id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
           <HealthIndicator />
           {identity && (
             <div className="flex items-center gap-2">
@@ -38,45 +101,14 @@ export function DashboardShell() {
         </div>
       </header>
       <nav className="flex flex-wrap gap-1 border-b border-gray-200 bg-white px-2">
-        <Link to="/" className={navItem} activeProps={{ className: navItemActive }}>
-          <LayoutDashboard size={14} /> Dashboard
-        </Link>
-        <Link to="/runs" className={navItem} activeProps={{ className: navItemActive }}>
-          <ListTree size={14} /> Runs
-        </Link>
-        <Link to="/raw-events" className={navItem} activeProps={{ className: navItemActive }}>
-          <Database size={14} /> Raw Events
-        </Link>
-        <Link to="/normalized-events" className={navItem} activeProps={{ className: navItemActive }}>
-          <FileCheck2 size={14} /> Normalized
-        </Link>
-        <Link to="/idempotency" className={navItem} activeProps={{ className: navItemActive }}>
-          <KeyRound size={14} /> Idempotency
-        </Link>
-        <Link to="/sources" className={navItem} activeProps={{ className: navItemActive }}>
-          <DatabaseZap size={14} /> Sources
-        </Link>
-        <Link to="/pipelines" className={navItem} activeProps={{ className: navItemActive }}>
-          <Workflow size={14} /> Pipelines
-        </Link>
-        <Link to="/rules" className={navItem} activeProps={{ className: navItemActive }}>
-          <ShieldCheck size={14} /> Rules
-        </Link>
-        <Link to="/replay" className={navItem} activeProps={{ className: navItemActive }}>
-          <History size={14} /> Replay
-        </Link>
-        <Link to="/signals" className={navItem} activeProps={{ className: navItemActive }}>
-          <Radar size={14} /> Signals
-        </Link>
-        <Link to="/alerts" className={navItem} activeProps={{ className: navItemActive }}>
-          <TriangleAlert size={14} /> Alerts
-        </Link>
-        <Link to="/insights" className={navItem} activeProps={{ className: navItemActive }}>
-          <Lightbulb size={14} /> Insights
-        </Link>
-        <Link to="/system" className={navItem} activeProps={{ className: navItemActive }}>
-          <Gauge size={14} /> System
-        </Link>
+        {nav.map((item) => {
+          const Icon = MODULE_ICONS[item.module] ?? Activity;
+          return (
+            <Link key={item.to} to={item.to} className={navItem} activeProps={{ className: navItemActive }}>
+              <Icon size={14} /> {item.label}
+            </Link>
+          );
+        })}
       </nav>
       <main className="p-4">
         <Suspense

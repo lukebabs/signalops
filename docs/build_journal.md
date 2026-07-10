@@ -4206,3 +4206,155 @@ Evidence:
 Next step:
 
 - Write the frontend-agent specification for app profile consumption, multi-app shell routing, and the first MarketOps profile.
+
+## 2026-07-10T07:08:00Z
+
+Summary:
+
+- Wrote the frontend-agent specification for the G066 frontend follow-up gate.
+- The spec directs frontend-agent to consume `GET /v1/app-profiles`, keep the
+  current SignalOps Console intact, and add the first MarketOps app profile
+  under `/marketops/*` using app-aware route aliases and metadata filters.
+
+Files changed:
+
+- `docs/frontend/app_profiles_marketops_shell_spec.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Scope:
+
+- Add frontend types, API client method, query hook, app profile context, app
+  selector, MarketOps route aliases, metadata filter propagation, tests, and
+  browser validation requirements.
+- Preserve existing console routes and avoid backend changes.
+
+Next step:
+
+- Hand `docs/frontend/app_profiles_marketops_shell_spec.md` to frontend-agent
+  for implementation and authenticated browser validation.
+
+## 2026-07-10T15:32:00Z
+
+Summary:
+
+- Implemented the G067 frontend gate: app-profile consumption, an app-aware
+  shell with an app selector, MarketOps route aliases under `/marketops/*`, and
+  G066 metadata-filter propagation into the supported list queries.
+- The SignalOps Console remains the default app; MarketOps is an additional
+  profile over the same backend, not a replacement.
+
+Files changed:
+
+- `web/src/apps/appProfiles.ts`, `web/src/apps/AppProfileContext.tsx`,
+  `web/src/apps/appRouting.ts`: app-profile context + pure route helpers.
+- `web/src/components/DashboardShell.tsx`: app label + selector, nav driven by
+  the active app profile instead of hardcoded links.
+- `web/src/router.tsx`: MarketOps aliases declared and now registered in the
+  route tree (they were previously declared but unregistered and would 404).
+- `web/src/routes/{Dashboard,RawEvents,NormalizedEvents,Signals,Alerts,
+  Insights}Route.tsx`: merge `metadataFilter` into raw/normalized/signals/
+  alerts/insights queries.
+- `web/src/routes/{Sources,System}Route.tsx`: app-aware headings (`Providers`,
+  `Health`) under MarketOps.
+- `web/src/api/client.ts`, `web/src/api/queries.ts`, `web/src/types.ts`:
+  `getAppProfiles` + `useAppProfiles` + `AppProfile` types + `app_id`/`domain`/
+  `use_case` filter fields (already staged from the spec pass).
+- `web/src/apps/appRouting.test.ts`, `web/src/api/appProfiles.test.ts`: new tests.
+
+Scope:
+
+- Console fallback (and a MarketOps fallback so `/marketops/*` scopes correctly
+  before the profiles request resolves) keeps the UI usable if
+  `GET /v1/app-profiles` fails.
+- Metadata filters are applied only to the G066-aware endpoints
+  (raw/normalized/signals/alerts/insights); sources, pipelines, replay, and
+  provider usage are intentionally not faked-isolated.
+- `use_case` is not forced globally for MarketOps.
+
+Validation performed (local, automated):
+
+- `cd web && npm test`: 70 tests passed (12 files), including 11 new
+  `appRouting` helper tests and 9 new `appProfiles` API tests.
+- `cd web && npm run build`: `tsc` + `vite build` succeeded (TanStack Router
+  typed `navigate`/`Link` against the registered MarketOps aliases).
+- `cd web && npm audit --json`: 0 vulnerabilities.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`: OK.
+- `git diff --check`: clean.
+
+Validation NOT yet performed:
+
+- Authenticated browser validation from `docs/frontend/
+  app_profiles_marketops_shell_spec.md` (app selector, `/marketops/*` routing,
+  `app_id=marketops`/`domain=market_data` in network requests, console parity,
+  auth redirect). This requires a browser-driven IdP login (the IdP endpoint
+  403s curl behind Imperva) and a `make deploy-web` deploy with the Traefik
+  overlay, so it remains pending operator action.
+
+Next step:
+
+- Operator deploys via `make deploy-web` (auth flag + Traefik overlay) and
+  completes authenticated browser validation; then close out G068.
+
+## 2026-07-10T15:45:00Z
+
+Summary:
+
+- Fixed the recurring public 404 root cause after web rebuilds.
+- Root cause: `signalops-web-1` had been recreated from `compose.yaml` only;
+  Docker inspect showed no `traefik.*` labels, no Traefik network attachment,
+  and `com.docker.compose.project.config_files` listed only `compose.yaml`.
+  Traefik returned 404 because no router existed for `signalops.syncratic.io`.
+- Added `COMPOSE_FILE=compose.yaml:compose.traefik.yaml` to deployment env
+  example and the live `.env` so plain `docker compose` commands include the
+  Traefik overlay by default.
+- Recreated `web` with plain `docker compose up -d --force-recreate web` to
+  prove the guard works without explicitly passing `-f compose.traefik.yaml`.
+
+Files changed:
+
+- `.env.example`
+- `docs/deployment.md`
+- `Makefile`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `docker compose config --quiet` passed with only the default command.
+- `docker compose config` showed `traefik.enable=true`, the `Host(`signalops.syncratic.io`)` router rule, `websecure`, `letsencrypt`, and the external `syncratic-core_syncratic_net` network.
+- Recreated `web` with plain `docker compose up -d --force-recreate web`.
+- Docker inspect confirmed `signalops-web-1` now has Traefik labels, lists both `compose.yaml` and `compose.traefik.yaml` in `com.docker.compose.project.config_files`, and is attached to `syncratic-core_syncratic_net`.
+- Public `https://signalops.syncratic.io/` returned `200`.
+- Public unauthenticated `https://signalops.syncratic.io/v1/app-profiles` returned `401`, confirming route plus auth protection.
+- Local `http://localhost:15173/` returned `200`.
+
+Next step:
+
+- Keep `COMPOSE_FILE=compose.yaml:compose.traefik.yaml` in the deployment `.env`.
+- Prefer `make deploy-web` for public web rebuilds because it also forces the frontend auth build arg.
+
+## 2026-07-10T15:50:00Z
+
+Summary:
+
+- Validated and deployed the G067/G068 frontend app-profile implementation after the Traefik root-cause fix.
+- Confirmed the deployed web image contains the MarketOps app-profile code and registered `/marketops/*` route aliases.
+- Confirmed the public 404 issue does not recur after `make deploy-web`; the running web container retains Traefik labels and the external Traefik network attachment.
+
+Validation performed:
+
+- `cd web && npm test`: 70 passed across 12 files.
+- `cd web && npm run build`: TypeScript and Vite production build succeeded.
+- `cd web && npm audit --json`: 0 vulnerabilities.
+- `docker compose config --quiet`: passed with the default `COMPOSE_FILE=compose.yaml:compose.traefik.yaml` render.
+- `make deploy-web`: completed successfully with auth-enabled frontend build args and Traefik overlay.
+- Deployed bundle check: `signalops-web-1` assets contain `MarketOps`, `/marketops/dashboard`, and `app-profiles` code.
+- Public route smoke checks returned `200` for `/marketops/dashboard`, `/marketops/providers`, `/marketops/raw-events`, `/marketops/normalized`, `/marketops/signals`, `/marketops/alerts`, `/marketops/insights`, `/marketops/replay`, `/marketops/pipelines`, and `/marketops/health`.
+- Public unauthenticated `GET /v1/app-profiles` returned `401`, confirming endpoint remains protected.
+- Docker inspect confirmed `signalops-web-1` has Traefik labels and was rendered from both `compose.yaml` and `compose.traefik.yaml`.
+- `git diff --check`: clean.
+
+Outstanding validation:
+
+- Authenticated browser validation remains operator-driven: app selector display, switching from SignalOps Console to MarketOps, supported data-route requests carrying `app_id=marketops` and `domain=market_data`, console parity, mobile/nav overflow check, and unauthenticated redirect behavior.

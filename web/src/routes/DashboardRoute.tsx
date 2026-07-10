@@ -25,6 +25,7 @@ import { formatUtc, orDash } from '../lib/format';
 import { replayJobCount, worstReplayWorkerHealth, latestReplayWorkerSeenAt } from '../lib/replayStatus';
 import type { ProviderUsage } from '../types';
 import { useTenant } from '../auth/session';
+import { useAppProfile } from '../apps/AppProfileContext';
 
 type RouteLink = '/runs' | '/raw-events' | '/normalized-events' | '/signals' | '/alerts' | '/insights' | '/sources' | '/pipelines' | '/rules' | '/system' | '/replay';
 
@@ -67,18 +68,19 @@ function aggregateProviderUsage(rows: ProviderUsage[]) {
 
 export function DashboardRoute() {
   const TENANT_ID = useTenant();
+  const { metadataFilter } = useAppProfile();
   const healthz = useHealthz();
   const readyz = useReadyz();
   const runs = useRuns(10);
-  const rawEvents = useRawEvents({ tenant_id: TENANT_ID, limit: 10 });
+  const rawEvents = useRawEvents({ tenant_id: TENANT_ID, limit: 10, ...metadataFilter });
   const providerUsage = useRecentProviderUsage(50);
   const sources = useCatalogSources(TENANT_ID, 50);
   const pipelines = useCatalogPipelines(TENANT_ID, 50);
   const rules = useCatalogRules(TENANT_ID, 50);
-  const normalizedEvents = useNormalizedEvents({ tenant_id: TENANT_ID, limit: 50 });
-  const signals = useSignals({ tenant_id: TENANT_ID, limit: 50 });
-  const alerts = useAlerts({ tenant_id: TENANT_ID, status: 'open', limit: 50 });
-  const insights = useInsights({ tenant_id: TENANT_ID, status: 'active', limit: 50 });
+  const normalizedEvents = useNormalizedEvents({ tenant_id: TENANT_ID, limit: 50, ...metadataFilter });
+  const signals = useSignals({ tenant_id: TENANT_ID, limit: 50, ...metadataFilter });
+  const alerts = useAlerts({ tenant_id: TENANT_ID, status: 'open', limit: 50, ...metadataFilter });
+  const insights = useInsights({ tenant_id: TENANT_ID, status: 'active', limit: 50, ...metadataFilter });
   const replay = useReplayJobs({ tenant_id: TENANT_ID, limit: 50 });
   const replayStatus = useReplayStatus({ tenant_id: TENANT_ID, limit: 5 });
 

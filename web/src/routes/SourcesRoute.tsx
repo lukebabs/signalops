@@ -6,9 +6,11 @@ import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
 import { formatUtc } from '../lib/format';
 import { useTenant } from '../auth/session';
+import { useAppProfile } from '../apps/AppProfileContext';
 
 export function SourcesRoute() {
   const TENANT_ID = useTenant();
+  const isMarketops = useAppProfile().currentAppId === 'marketops';
   const sources = useCatalogSources(TENANT_ID, 50);
   const data = sources.data?.sources ?? [];
   const active = data.filter((source) => source.status === 'active').length;
@@ -18,7 +20,7 @@ export function SourcesRoute() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold">Sources</h1>
+          <h1 className="text-lg font-semibold">{isMarketops ? 'Providers' : 'Sources'}</h1>
           <p className="text-xs text-gray-500">Tenant {TENANT_ID}</p>
         </div>
       </div>
@@ -72,7 +74,7 @@ export function SourcesRoute() {
           </table>
         </div>
       ) : (
-        <EmptyState message="No catalog sources registered for this tenant." />
+        <EmptyState message={isMarketops ? 'No providers registered for this tenant.' : 'No catalog sources registered for this tenant.'} />
       )}
 
       {data.length > 0 && (

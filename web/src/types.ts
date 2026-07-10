@@ -62,6 +62,9 @@ export interface ProviderUsageResponse {
 
 export interface RawEventFilter {
   tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
   source_id?: string;
   dataset?: string;
   limit?: number;
@@ -182,6 +185,9 @@ export interface CatalogRulesResponse {
 
 export interface NormalizedEventFilter {
   tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
   source_id?: string;
   dataset?: string;
   limit?: number;
@@ -222,6 +228,9 @@ export interface NormalizedEventResponse {
 
 export interface SignalFilter {
   tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
   source_id?: string;
   dataset?: string;
   detector_id?: string;
@@ -271,6 +280,9 @@ export type InsightStatus = 'active' | 'reviewed' | 'dismissed' | 'archived';
 
 export interface AlertFilter {
   tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
   source_id?: string;
   dataset?: string;
   severity?: string;
@@ -319,6 +331,9 @@ export interface AlertResponse {
 
 export interface InsightFilter {
   tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
   source_id?: string;
   dataset?: string;
   insight_type?: string;
@@ -522,4 +537,18 @@ export interface ReplayOperationsStatus {
 
 export interface ReplayOperationsStatusResponse {
   replay_status: ReplayOperationsStatus;
+}
+
+// G066 app profiles. The backend serves a static list at GET /v1/app-profiles.
+export interface AppProfile {
+  app_id: string;
+  label: string;
+  default_route: string;
+  domains: string[];
+  enabled_modules: string[];
+  dashboard_profile: string;
+}
+
+export interface AppProfilesResponse {
+  app_profiles: AppProfile[];
 }

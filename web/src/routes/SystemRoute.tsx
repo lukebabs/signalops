@@ -8,12 +8,14 @@ import { isApiError } from '../api/client';
 import { formatUtc } from '../lib/format';
 import { replayJobCount, worstReplayWorkerHealth, latestReplayWorkerSeenAt } from '../lib/replayStatus';
 import { useTenant } from '../auth/session';
+import { useAppProfile } from '../apps/AppProfileContext';
 
 const BASE_URL =
   (import.meta.env.VITE_SIGNALOPS_API_BASE_URL ?? '').replace(/\/+$/, '') ||
   '(same-origin via dev proxy)';
 
 export function SystemRoute() {
+  const isMarketops = useAppProfile().currentAppId === 'marketops';
   const healthz = useHealthz();
   const readyz = useReadyz();
   const probe = useRuns(1); // storage availability probe: 200 = available, 503 = unavailable
@@ -47,7 +49,7 @@ export function SystemRoute() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">System</h1>
+        <h1 className="text-lg font-semibold">{isMarketops ? 'Health' : 'System'}</h1>
         <RefreshButton
           onClick={refreshAll}
           loading={healthz.isFetching || readyz.isFetching || probe.isFetching || replayStatus.isFetching}

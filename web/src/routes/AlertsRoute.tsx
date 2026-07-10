@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { TriangleAlert, CheckCircle2, CircleCheck, BellOff } from 'lucide-react';
 import { useAlerts, useAlert, useMutateAlertLifecycle } from '../api/queries';
+import { useAppProfile } from '../apps/AppProfileContext';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
@@ -52,6 +53,7 @@ function StatusLabel({ status }: { status: string }) {
 
 export function AlertsRoute() {
   const TENANT_ID = useTenant();
+  const { metadataFilter } = useAppProfile();
   const [sourceId, setSourceId] = useState('');
   const [dataset, setDataset] = useState('');
   const [severity, setSeverity] = useState('');
@@ -66,6 +68,7 @@ export function AlertsRoute() {
     severity: severity || undefined,
     status: status || undefined,
     limit,
+    ...metadataFilter,
   });
   const detail = useAlert(selectedId);
   const data = list.data?.alerts ?? [];

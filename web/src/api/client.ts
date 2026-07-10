@@ -30,6 +30,7 @@ import type {
   ReplayJobCreateRequest,
   ReplayJobCancelRequest,
   ReplayOperationsStatusResponse,
+  AppProfilesResponse,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -142,6 +143,9 @@ export const api = {
   listRawEvents: (filter: RawEventFilter = {}) =>
     get<RawEventsResponse>('/v1/raw-events', {
       tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      domain: filter.domain,
+      use_case: filter.use_case,
       source_id: filter.source_id,
       dataset: filter.dataset,
       limit: filter.limit ?? 50,
@@ -163,6 +167,9 @@ export const api = {
   listNormalizedEvents: (filter: NormalizedEventFilter = {}) =>
     get<NormalizedEventsResponse>('/v1/normalized-events', {
       tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      domain: filter.domain,
+      use_case: filter.use_case,
       source_id: filter.source_id,
       dataset: filter.dataset,
       limit: filter.limit ?? 50,
@@ -172,6 +179,9 @@ export const api = {
   listSignals: (filter: SignalFilter = {}) =>
     get<SignalsResponse>('/v1/signals', {
       tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      domain: filter.domain,
+      use_case: filter.use_case,
       source_id: filter.source_id,
       dataset: filter.dataset,
       detector_id: filter.detector_id,
@@ -183,6 +193,9 @@ export const api = {
   listAlerts: (filter: AlertFilter = {}) =>
     get<AlertsResponse>('/v1/alerts', {
       tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      domain: filter.domain,
+      use_case: filter.use_case,
       source_id: filter.source_id,
       dataset: filter.dataset,
       severity: filter.severity,
@@ -194,6 +207,9 @@ export const api = {
   listInsights: (filter: InsightFilter = {}) =>
     get<InsightsResponse>('/v1/insights', {
       tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      domain: filter.domain,
+      use_case: filter.use_case,
       source_id: filter.source_id,
       dataset: filter.dataset,
       insight_type: filter.insight_type,
@@ -235,6 +251,8 @@ export const api = {
       tenant_id: filter.tenant_id,
       limit: filter.limit,
     }),
+  // G066 static app profiles (console + marketops). Same authenticated path.
+  getAppProfiles: () => get<AppProfilesResponse>('/v1/app-profiles'),
   mutateAlertLifecycle: ({ alertId, action, note, reason }: AlertLifecycleMutationOptions) =>
     post<AlertResponse>(
       `/v1/alerts/${encodeURIComponent(alertId)}/${action}`,

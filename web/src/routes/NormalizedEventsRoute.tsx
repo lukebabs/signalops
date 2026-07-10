@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FileCheck2 } from 'lucide-react';
 import { useNormalizedEvents, useNormalizedEvent } from '../api/queries';
+import { useAppProfile } from '../apps/AppProfileContext';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
 import { CopyButton } from '../components/CopyButton';
@@ -11,6 +12,7 @@ import { useTenant } from '../auth/session';
 
 export function NormalizedEventsRoute() {
   const TENANT_ID = useTenant();
+  const { metadataFilter } = useAppProfile();
   const [sourceId, setSourceId] = useState('');
   const [dataset, setDataset] = useState('');
   const [limit, setLimit] = useState(50);
@@ -21,6 +23,7 @@ export function NormalizedEventsRoute() {
     source_id: sourceId || undefined,
     dataset: dataset || undefined,
     limit,
+    ...metadataFilter,
   });
   const detail = useNormalizedEvent(selectedId);
   const data = list.data?.normalized_events ?? [];

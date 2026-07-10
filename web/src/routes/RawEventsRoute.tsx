@@ -1,4 +1,5 @@
 import { useRawEvents } from '../api/queries';
+import { useAppProfile } from '../apps/AppProfileContext';
 import { useUi } from '../store/ui';
 import { RawEventTable } from '../components/RawEventTable';
 import { RawEventDetail } from '../components/RawEventDetail';
@@ -11,7 +12,8 @@ export function RawEventsRoute() {
   const selectedEventId = useUi((s) => s.selectedEventId);
   const setSelectedEventId = useUi((s) => s.setSelectedEventId);
   const setLastRefresh = useUi((s) => s.setLastRefresh);
-  const events = useRawEvents(rawFilter);
+  const { metadataFilter } = useAppProfile();
+  const events = useRawEvents({ ...rawFilter, ...metadataFilter });
   const data = events.data?.raw_events ?? [];
 
   return (

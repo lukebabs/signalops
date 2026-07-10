@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Lightbulb, Eye, XCircle, Archive } from 'lucide-react';
 import { useInsights, useInsight, useMutateInsightLifecycle } from '../api/queries';
+import { useAppProfile } from '../apps/AppProfileContext';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
@@ -52,6 +53,7 @@ function StatusLabel({ status }: { status: string }) {
 
 export function InsightsRoute() {
   const TENANT_ID = useTenant();
+  const { metadataFilter } = useAppProfile();
   const [sourceId, setSourceId] = useState('');
   const [dataset, setDataset] = useState('');
   const [insightType, setInsightType] = useState('');
@@ -66,6 +68,7 @@ export function InsightsRoute() {
     insight_type: insightType || undefined,
     status: status || undefined,
     limit,
+    ...metadataFilter,
   });
   const detail = useInsight(selectedId);
   const data = list.data?.insights ?? [];

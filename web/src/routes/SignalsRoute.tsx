@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Radar } from 'lucide-react';
 import { useSignals, useSignal } from '../api/queries';
+import { useAppProfile } from '../apps/AppProfileContext';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
 import { CopyButton } from '../components/CopyButton';
@@ -26,6 +27,7 @@ function SeverityLabel({ severity }: { severity: string }) {
 
 export function SignalsRoute() {
   const TENANT_ID = useTenant();
+  const { metadataFilter } = useAppProfile();
   const [sourceId, setSourceId] = useState('');
   const [dataset, setDataset] = useState('');
   const [detectorId, setDetectorId] = useState('');
@@ -40,6 +42,7 @@ export function SignalsRoute() {
     detector_id: detectorId || undefined,
     severity: severity || undefined,
     limit,
+    ...metadataFilter,
   });
   const detail = useSignal(selectedId);
   const data = list.data?.signals ?? [];

@@ -38,6 +38,7 @@ export const queryKeys = {
   replayJobs: (filter: ReplayJobFilter) => ['replay-jobs', filter] as const,
   replayJob: (replayJobId: string) => ['replay-job', replayJobId] as const,
   replayStatus: (tenantId: string, limit?: number) => ['replay-status', tenantId, limit] as const,
+  appProfiles: ['app-profiles'] as const,
 };
 
 export function useHealthz() {
@@ -231,6 +232,15 @@ export function useReplayStatus({ tenant_id, limit }: { tenant_id: string; limit
     queryKey: queryKeys.replayStatus(tenant_id, limit),
     queryFn: () => api.getReplayStatus({ tenant_id, limit }),
     refetchInterval: 5000,
+  });
+}
+
+// G066 app profiles (console + marketops). Static backend data; cache 5 min.
+export function useAppProfiles() {
+  return useQuery({
+    queryKey: queryKeys.appProfiles,
+    queryFn: api.getAppProfiles,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -1,6 +1,7 @@
 import { lazy, useEffect } from 'react';
 import { createRouter, createRoute, createRootRoute, useNavigate } from '@tanstack/react-router';
 import { DashboardShell } from './components/DashboardShell';
+import { AppProfileProvider } from './apps/AppProfileContext';
 import { LoadingState } from './components/States';
 
 // Route-level code splitting: AG Grid / ECharts only load when the Runs or
@@ -45,7 +46,18 @@ const ReplayJobsRoute = lazy(() =>
   import('./routes/ReplayJobsRoute').then((m) => ({ default: m.ReplayJobsRoute })),
 );
 
-const rootRoute = createRootRoute({ component: DashboardShell });
+// The root route hosts the app-profile provider so every route can read the
+// active app (currentApp/metadataFilter/nav). The provider uses useLocation,
+// so it must render inside <RouterProvider> (i.e. as the root route component).
+function AppRoot() {
+  return (
+    <AppProfileProvider>
+      <DashboardShell />
+    </AppProfileProvider>
+  );
+}
+
+const rootRoute = createRootRoute({ component: AppRoot });
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -125,6 +137,20 @@ const replayJobsRoute = createRoute({
   component: ReplayJobsRoute,
 });
 
+// G067 MarketOps aliases: reuse existing route components under /marketops/*.
+// App context (AppProfileProvider) scopes their data via metadataFilter; no
+// business logic is duplicated.
+const marketopsDashboardRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/dashboard', component: DashboardRoute });
+const marketopsProvidersRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/providers', component: SourcesRoute });
+const marketopsRawEventsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/raw-events', component: RawEventsRoute });
+const marketopsNormalizedRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/normalized', component: NormalizedEventsRoute });
+const marketopsSignalsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/signals', component: SignalsRoute });
+const marketopsAlertsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/alerts', component: AlertsRoute });
+const marketopsInsightsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/insights', component: InsightsRoute });
+const marketopsReplayRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/replay', component: ReplayJobsRoute });
+const marketopsPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/pipelines', component: PipelinesRoute });
+const marketopsHealthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/health', component: SystemRoute });
+
 // /auth/callback is primarily handled by the auth gate in App.tsx (the router must not mount
 // before authentication); this route is a fallback that returns the user to the dashboard.
 function AuthCallbackRouteComponent() {
@@ -156,6 +182,17 @@ const routeTree = rootRoute.addChildren([
   replayJobsRoute,
   authCallbackRoute,
   systemRoute,
+  // G067 MarketOps aliases (declared above) must be registered here or they 404.
+  marketopsDashboardRoute,
+  marketopsProvidersRoute,
+  marketopsRawEventsRoute,
+  marketopsNormalizedRoute,
+  marketopsSignalsRoute,
+  marketopsAlertsRoute,
+  marketopsInsightsRoute,
+  marketopsReplayRoute,
+  marketopsPipelinesRoute,
+  marketopsHealthRoute,
 ]);
 
 export const router = createRouter({ routeTree });
