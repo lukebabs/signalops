@@ -66,6 +66,67 @@ func TestBuildEventPreservesAlreadyNormalizedReplay(t *testing.T) {
 	}
 }
 
+func TestBuildEventNormalizesMassiveOptionContractDaily(t *testing.T) {
+	message := massiveOptionMessage()
+	event, err := BuildEvent(message, time.Date(2026, 7, 10, 18, 30, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload := event.NormalizedPayload
+	if payload["provider"] != "massive" || payload["dataset"] != "options_contracts_daily" {
+		t.Fatalf("provider/dataset = %v/%v", payload["provider"], payload["dataset"])
+	}
+	if payload["option_ticker"] != "O:SPY260116C00600000" || payload["underlying_symbol"] != "SPY" {
+		t.Fatalf("option refs = %v/%v", payload["option_ticker"], payload["underlying_symbol"])
+	}
+	if payload["contract_type"] != "call" || payload["asset_type"] != "option_contract" {
+		t.Fatalf("contract fields = %v/%v", payload["contract_type"], payload["asset_type"])
+	}
+	if payload["strike_price"] != 600.0 || payload["volume"] != int64(1200) || payload["open_interest"] != int64(4000) {
+		t.Fatalf("market fields = %+v", payload)
+	}
+	if len(event.Entities) != 2 || event.Entities[0]["id"] != "option_contract:O:SPY260116C00600000" || event.Entities[1]["id"] != "ticker:SPY" {
+		t.Fatalf("entities = %+v", event.Entities)
+	}
+	if event.AppID != "marketops" || event.Domain != "market_data" || event.UseCase != "daily_market_surveillance" {
+		t.Fatalf("app metadata = %q/%q/%q", event.AppID, event.Domain, event.UseCase)
+	}
+	normalization, _ := event.Metadata["normalization"].(map[string]any)
+	if normalization["strategy"] != "marketops_massive_option_contract_daily_v1" {
+		t.Fatalf("normalization metadata = %+v", normalization)
+	}
+}
+
+func TestBuildEventRejectsInvalidMassiveOptionContractDaily(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{name: "missing option ticker", mutate: func(payload map[string]any) { delete(payload, "option_ticker") }},
+		{name: "bad contract type", mutate: func(payload map[string]any) { payload["contract_type"] = "straddle" }},
+		{name: "bad expiration date", mutate: func(payload map[string]any) { payload["expiration_date"] = "2026/01/16" }},
+		{name: "zero strike", mutate: func(payload map[string]any) { payload["strike_price"] = 0.0 }},
+		{name: "negative close", mutate: func(payload map[string]any) { payload["close"] = -1.0 }},
+		{name: "fractional volume", mutate: func(payload map[string]any) { payload["volume"] = 12.5 }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			message := massiveOptionMessage()
+			var raw map[string]any
+			if err := json.Unmarshal(message.Value, &raw); err != nil {
+				t.Fatal(err)
+			}
+			payload := raw["payload"].(map[string]any)
+			tc.mutate(payload)
+			message.Value, _ = json.Marshal(raw)
+			if _, err := BuildEvent(message, time.Now().UTC()); err == nil {
+				t.Fatal("expected invalid option normalization error")
+			}
+		})
+	}
+}
+
 func TestProcessorPublishesAndPersistsBrokerLineage(t *testing.T) {
 	publisher := &fakePublisher{}
 	repository := &fakeRepository{}
@@ -104,5 +165,31 @@ func validMessage() broker.ConsumedMessage {
 			}`),
 		},
 		Partition: 2, Offset: 7,
+	}
+}
+
+func massiveOptionMessage() broker.ConsumedMessage {
+	return broker.ConsumedMessage{
+		Message: broker.Message{
+			Topic: "signalops.test.raw.v1", Key: "idem-option-1",
+			CorrelationID: "corr-option-1", TraceID: "trace-option-1",
+			Value: []byte(`{
+				"tenant_id":"tenant-local","source_id":"src-massive","app_id":"marketops","domain":"market_data",
+				"use_case":"daily_market_surveillance","source_domain":"market_data","source_adapter":"market_data.massive",
+				"ingestion_mode":"scheduled_pull","dataset":"options_contracts_daily",
+				"event_id":"evt-option-1","event_type":"market_data.massive.options_contract_daily","idempotency_key":"idem-option-1",
+				"observation_time":"2026-07-08T00:00:00Z","processing_time":"2026-07-08T20:00:01Z",
+				"payload":{
+					"provider":"massive","dataset":"options_contracts_daily","provider_contract_id":"contract-123",
+					"option_ticker":"O:SPY260116C00600000","underlying_symbol":"spy","contract_type":"CALL",
+					"expiration_date":"2026-01-16","strike_price":600,"observation_date":"2026-07-08",
+					"open":11.2,"high":12.8,"low":10.9,"close":12.34,"volume":1200,"open_interest":4000,"vwap":12.01,
+					"raw":{"source_field":"value"}
+				},
+				"entity_hints":[{"type":"option_contract","external_id":"O:SPY260116C00600000"},{"type":"ticker","external_id":"SPY"}],
+				"metadata":{},"correlation_id":"corr-option-1"
+			}`),
+		},
+		Partition: 2, Offset: 9,
 	}
 }

@@ -5294,3 +5294,38 @@ Follow-up items:
 
 - Operator deploys via `make deploy-web` and completes authenticated browser validation.
 - Optional: MarketOps dashboard widget (spec §7), deferred to avoid layout churn.
+
+## Gate G072: Massive Options Contract Daily Normalization
+
+Timestamp: `2026-07-10T18:26:53Z`
+
+Status: `implemented — full Go tests, schema validation, and normalizer Docker build passed`
+
+Gate name:
+
+- Normalize Massive option contract daily records into a canonical MarketOps option payload.
+
+Implementation:
+
+- Added a MarketOps/Massive normalization strategy for raw events with `app_id=marketops`, `source_adapter=market_data.massive`, and `dataset=options_contracts_daily`.
+- Canonicalized option ticker, underlying ticker, call/put contract type, expiration date, strike, observation date, optional non-negative OHLC/VWAP, non-negative integer volume/open interest, provider contract ID, asset type, and raw provider metadata.
+- Required option ticker, underlying ticker, call/put contract type, YYYY-MM-DD expiration/observation dates, and positive strike price.
+- Preserved existing identity normalization for other raw events and existing invalid-event DLQ behavior for malformed option payloads.
+
+Evidence:
+
+- `internal/normalization/processor.go`: normalizer strategy hook plus `marketops_massive_option_contract_daily_v1`.
+- `internal/normalization/processor_test.go`: canonical payload, entity/app metadata, and invalid payload tests.
+- `docs/api.md`: normalized ledger contract note for Massive options records.
+
+Validation performed:
+
+- Dockerized `gofmt` on the touched Go files.
+- `go test ./internal/normalization`: passed in the Go Docker image.
+- `go test ./...`: passed in the Go Docker image.
+- `docker compose build normalizer`: passed; build step also ran `go test ./...`.
+- `python3 scripts/validate_json_schemas.py`: passed.
+
+Follow-up items:
+
+- Optional live smoke: replay/publish one Massive option raw event and verify the persisted normalized payload strategy and option/ticker entities.

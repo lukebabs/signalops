@@ -4526,3 +4526,32 @@ Validation NOT yet performed:
 Next step:
 
 - Operator deploys via `make deploy-web` and completes browser validation.
+
+## 2026-07-10T18:26:53Z
+
+Summary:
+
+- Started G072 by adding canonical MarketOps normalization for Massive `options_contracts_daily` raw events inside the existing Go normalizer.
+- The normalizer now recognizes `app_id=marketops`, `source_adapter=market_data.massive`, and `dataset=options_contracts_daily`, then emits a validated option-contract daily `normalized_payload` instead of identity-copying provider shape.
+- Canonical fields include provider, dataset, provider contract ID, option ticker, underlying symbol, contract type, expiration date, strike price, observation date, asset type, optional non-negative OHLC/VWAP, non-negative integer volume/open interest, and raw provider metadata.
+- Invalid option contract payloads stay on the existing normalizer invalid-event path so retry/DLQ semantics remain unchanged.
+
+Files changed:
+
+- `internal/normalization/processor.go`
+- `internal/normalization/processor_test.go`
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm gofmt -w internal/normalization/processor.go internal/normalization/processor_test.go`
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/normalization`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
+- `docker compose build normalizer`: passed; build step also ran `go test ./...`.
+- `python3 scripts/validate_json_schemas.py`: passed.
+
+Next step:
+
+- Optional live smoke: publish or replay one Massive option raw event and verify the persisted normalized payload strategy and option/ticker entities.

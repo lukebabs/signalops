@@ -167,6 +167,10 @@ func BuildEvent(message broker.ConsumedMessage, now time.Time) (Event, error) {
 	if payload == nil {
 		return Event{}, errors.New("raw event payload is required")
 	}
+	normalizedPayload, normalizationStrategy, err := normalizePayload(raw, payload)
+	if err != nil {
+		return Event{}, err
+	}
 	entities := entityRefs(raw)
 	evidence := objectArrayField(raw, "evidence")
 	if evidence == nil {
@@ -178,7 +182,7 @@ func BuildEvent(message broker.ConsumedMessage, now time.Time) (Event, error) {
 	if metadata == nil {
 		metadata = map[string]any{}
 	}
-	metadata["normalization"] = map[string]any{"strategy": "identity_v1", "normalized_at": now.Format(time.RFC3339Nano)}
+	metadata["normalization"] = map[string]any{"strategy": normalizationStrategy, "normalized_at": now.Format(time.RFC3339Nano)}
 	confidence := 1.0
 	if value, ok := raw["confidence"].(float64); ok {
 		confidence = value
@@ -197,7 +201,7 @@ func BuildEvent(message broker.ConsumedMessage, now time.Time) (Event, error) {
 		EventID: eventID, EventType: firstString(raw, "event_type", dataset+".normalized"),
 		SchemaID: SchemaID, SchemaVersion: SchemaVersion, ObservationTime: observation,
 		EffectiveTime: effective, ProcessingTime: processing, OccurredAt: occurred, ObservedAt: observed,
-		NormalizedPayload: payload, Entities: entities, Confidence: confidence, Metadata: metadata,
+		NormalizedPayload: normalizedPayload, Entities: entities, Confidence: confidence, Metadata: metadata,
 		Evidence: evidence, CorrelationID: correlationID, IdempotencyKey: idempotencyKey,
 		TraceID:     firstString(raw, "trace_id", message.TraceID),
 		CausationID: firstString(raw, "causation_id", message.CausationID, eventID),
@@ -250,6 +254,169 @@ func PublishInvalidEvent(ctx context.Context, publisher broker.Publisher, topic 
 		return fmt.Errorf("publish normalization DLQ event: %w", err)
 	}
 	return nil
+}
+
+func normalizePayload(raw map[string]any, payload map[string]any) (map[string]any, string, error) {
+	if firstString(raw, "app_id") == "marketops" && firstString(raw, "source_adapter") == "market_data.massive" && firstString(raw, "dataset") == "options_contracts_daily" {
+		normalized, err := normalizeMassiveOptionContractDaily(payload)
+		if err != nil {
+			return nil, "", err
+		}
+		return normalized, "marketops_massive_option_contract_daily_v1", nil
+	}
+	return payload, "identity_v1", nil
+}
+
+func normalizeMassiveOptionContractDaily(payload map[string]any) (map[string]any, error) {
+	optionTicker := requiredPayloadString(payload, "option_ticker")
+	underlying := strings.ToUpper(requiredPayloadString(payload, "underlying_symbol"))
+	contractType := strings.ToLower(requiredPayloadString(payload, "contract_type"))
+	expirationDate := requiredPayloadString(payload, "expiration_date")
+	observationDate := requiredPayloadString(payload, "observation_date")
+	strikePrice, strikeOK := positivePayloadFloat(payload, "strike_price")
+
+	if optionTicker == "" {
+		return nil, errors.New("Massive option contract daily payload option_ticker is required")
+	}
+	if underlying == "" {
+		return nil, errors.New("Massive option contract daily payload underlying_symbol is required")
+	}
+	if !allowedValue(contractType, "call", "put") {
+		return nil, fmt.Errorf("Massive option contract daily payload contract_type %q is unsupported", contractType)
+	}
+	if _, err := parsePayloadDate(expirationDate, "expiration_date"); err != nil {
+		return nil, err
+	}
+	if _, err := parsePayloadDate(observationDate, "observation_date"); err != nil {
+		return nil, err
+	}
+	if !strikeOK {
+		return nil, errors.New("Massive option contract daily payload strike_price must be greater than zero")
+	}
+
+	normalized := map[string]any{
+		"provider":             payloadString(payload, "provider", "massive"),
+		"dataset":              "options_contracts_daily",
+		"provider_contract_id": payloadString(payload, "provider_contract_id"),
+		"option_ticker":        optionTicker,
+		"underlying_symbol":    underlying,
+		"contract_type":        contractType,
+		"expiration_date":      expirationDate,
+		"strike_price":         strikePrice,
+		"observation_date":     observationDate,
+		"asset_type":           "option_contract",
+	}
+	for _, field := range []string{"open", "high", "low", "close", "vwap"} {
+		value, present, err := optionalNonNegativePayloadFloat(payload, field)
+		if err != nil {
+			return nil, err
+		}
+		if present {
+			normalized[field] = value
+		}
+	}
+	for _, field := range []string{"volume", "open_interest"} {
+		value, present, err := optionalNonNegativePayloadInt(payload, field)
+		if err != nil {
+			return nil, err
+		}
+		if present {
+			normalized[field] = value
+		}
+	}
+	if raw, ok := payload["raw"].(map[string]any); ok {
+		normalized["raw"] = raw
+	}
+	return normalized, nil
+}
+
+func requiredPayloadString(payload map[string]any, name string) string {
+	return strings.TrimSpace(payloadString(payload, name))
+}
+
+func payloadString(payload map[string]any, name string, fallbacks ...string) string {
+	if value, ok := payload[name].(string); ok && strings.TrimSpace(value) != "" {
+		return strings.TrimSpace(value)
+	}
+	for _, fallback := range fallbacks {
+		if strings.TrimSpace(fallback) != "" {
+			return strings.TrimSpace(fallback)
+		}
+	}
+	return ""
+}
+
+func parsePayloadDate(value string, name string) (time.Time, error) {
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("Massive option contract daily payload %s must be YYYY-MM-DD: %w", name, err)
+	}
+	return parsed, nil
+}
+
+func positivePayloadFloat(payload map[string]any, name string) (float64, bool) {
+	value, ok := payloadFloat(payload, name)
+	return value, ok && value > 0
+}
+
+func optionalNonNegativePayloadFloat(payload map[string]any, name string) (float64, bool, error) {
+	if _, present := payload[name]; !present {
+		return 0, false, nil
+	}
+	value, ok := payloadFloat(payload, name)
+	if !ok || value < 0 {
+		return 0, false, fmt.Errorf("Massive option contract daily payload %s must be a non-negative number", name)
+	}
+	return value, true, nil
+}
+
+func payloadFloat(payload map[string]any, name string) (float64, bool) {
+	switch value := payload[name].(type) {
+	case float64:
+		return value, true
+	case float32:
+		return float64(value), true
+	case int:
+		return float64(value), true
+	case int64:
+		return float64(value), true
+	case json.Number:
+		parsed, err := value.Float64()
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func optionalNonNegativePayloadInt(payload map[string]any, name string) (int64, bool, error) {
+	if _, present := payload[name]; !present {
+		return 0, false, nil
+	}
+	switch value := payload[name].(type) {
+	case float64:
+		if value < 0 || value != float64(int64(value)) {
+			return 0, false, fmt.Errorf("Massive option contract daily payload %s must be a non-negative integer", name)
+		}
+		return int64(value), true, nil
+	case int:
+		if value < 0 {
+			return 0, false, fmt.Errorf("Massive option contract daily payload %s must be a non-negative integer", name)
+		}
+		return int64(value), true, nil
+	case int64:
+		if value < 0 {
+			return 0, false, fmt.Errorf("Massive option contract daily payload %s must be a non-negative integer", name)
+		}
+		return value, true, nil
+	case json.Number:
+		parsed, err := value.Int64()
+		if err != nil || parsed < 0 {
+			return 0, false, fmt.Errorf("Massive option contract daily payload %s must be a non-negative integer", name)
+		}
+		return parsed, true, nil
+	default:
+		return 0, false, fmt.Errorf("Massive option contract daily payload %s must be a non-negative integer", name)
+	}
 }
 
 func normalizeIngestionMode(value string) string {
