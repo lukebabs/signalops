@@ -5226,3 +5226,24 @@ Follow-up items:
 
 - Use an authenticated operator/browser session to smoke `GET /v1/tenants/tenant-local/marketops/assets`.
 - G072 should add Massive options contract daily normalization.
+
+## Gate G071 Frontend Follow-Up: MarketOps Asset Universe UI Spec
+
+Timestamp: `2026-07-10T17:28:00Z`
+
+Status: `specified — ready for frontend-agent implementation`
+
+Scope:
+
+- Specify a read-only MarketOps asset universe page against the G071 backend endpoint.
+
+Evidence:
+
+- Added `docs/frontend/marketops_asset_universe_ui_spec.md`.
+- Spec references backend commit `0d651bf`, endpoint `GET /v1/tenants/{tenant_id}/marketops/assets`, and the existing app-profile shell patterns.
+- Spec includes implementation steps, required UI behavior, tests, validation commands, and browser validation checklist.
+
+Follow-up items:
+
+- Implement the spec in `web/`.
+- Validate with `npm test`, `npm run build`, `npm audit --json`, and authenticated browser checks.

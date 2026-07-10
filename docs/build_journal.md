@@ -4459,3 +4459,19 @@ Validation performed:
 Outstanding validation:
 
 - Authenticated browser/API validation can verify the protected endpoint through the deployed MarketOps shell once an operator token is available.
+
+## 2026-07-10T17:28:00Z
+
+Summary:
+
+- Wrote the frontend-agent implementation specification for the G071 MarketOps asset universe UI.
+- The spec defines a read-only `/marketops/assets` route backed by `GET /v1/tenants/{tenant_id}/marketops/assets`.
+- It covers TypeScript types, API client method, TanStack Query hook, MarketOps nav/router changes, page metrics/table/metadata UI, tests, validation commands, and authenticated browser validation.
+
+Files:
+
+- `docs/frontend/marketops_asset_universe_ui_spec.md`
+
+Next step:
+
+- Hand the spec to the frontend-agent for implementation, then run frontend tests/build/audit and deploy via `make deploy-web` if the implementation is accepted.
