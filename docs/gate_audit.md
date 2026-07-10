@@ -5414,3 +5414,43 @@ Validation performed:
 Follow-up items:
 
 - G075 should add the broader DSM taxonomy pack including accumulation, hedging pressure, speculative call/put pressure, pinning risk, and divergence.
+
+## Gate G075: MarketOps DSM Taxonomy Pack
+
+Timestamp: `2026-07-10T19:06:55Z`
+
+Status: `closed — Python tests, schema validation, compose validation, raw-worker Docker build, and live taxonomy smoke passed`
+
+Gate name:
+
+- Broaden the DSM taxonomy pack with accumulation, hedging pressure, speculative call/put pressure, pinning risk, and divergence.
+
+Implementation:
+
+- Added detector `marketops.dsm.taxonomy_v1` and registered it in the Python worker loader.
+- Changed worker defaults in config, Compose, and `.env.example` to `marketops.dsm.taxonomy_v1`; the legacy `marketops.dsm.eod_price_v1` remains explicitly loadable.
+- Added deterministic equity taxonomy rules for accumulation and divergence while preserving volatility expansion and price-quality exception behavior.
+- Added deterministic option taxonomy rules for hedging pressure, speculative call pressure, speculative put pressure, and pinning risk using G073 option-interest features.
+- Reused the G074 artifact proposal and graph target payload path for all emitted taxonomy signals.
+
+Evidence:
+
+- `python/signalops_plugins/detectors/marketops.py`: taxonomy detector implementation.
+- `python/signalops_workers/detectors.py` and `python/signalops_workers/config.py`: detector registration/default.
+- `python/tests/plugins/test_marketops_detector.py`: taxonomy coverage for all new signal types.
+- `python/tests/test_detectors.py` and `python/tests/test_config.py`: loader/default coverage.
+
+Validation performed:
+
+- `env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=python pytest python/tests`: 56 passed.
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `docker compose config --quiet`: passed.
+- `docker compose build raw-worker`: passed.
+- Recreated live `raw-worker` with explicit `SIGNALOPS_WORKER_DETECTOR_ID=marketops.dsm.taxonomy_v1` because the local untracked `.env` still overrides the Compose fallback.
+- Published normalized events `evt-g075-taxonomy-accumulation-live` and `evt-g075-taxonomy-pinning-live`; `signalops.normalized-worker.v1` returned to Stable with lag `0`.
+- Postgres verified persisted `marketops.dsm.accumulation` and `marketops.dsm.pinning_risk` signals with detector `marketops.dsm.taxonomy_v1`, taxonomy signal IDs, artifact IDs, and lifecycle alert/insight rows.
+- Rebuilt/recreated after adding option-interest supporting metrics and published `evt-g075-taxonomy-metrics-live`; Postgres verified `open_interest`, `volume_open_interest_ratio`, `days_to_expiration`, `moneyness_pct`, and `contract_type` in supporting metrics.
+
+Follow-up items:
+
+- Clear or update the local untracked `.env` override during deployment so Compose uses `marketops.dsm.taxonomy_v1` without an explicit shell override.

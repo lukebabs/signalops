@@ -4637,3 +4637,47 @@ Live smoke validation:
 Next step:
 
 - G075: broader DSM taxonomy pack including accumulation, hedging pressure, speculative call/put pressure, pinning risk, and divergence.
+
+## 2026-07-10T19:06:55Z
+
+Summary:
+
+- Implemented G075 as a broader deterministic MarketOps DSM taxonomy detector pack.
+- Added detector `marketops.dsm.taxonomy_v1` and made it the default worker detector while retaining `marketops.dsm.eod_price_v1` as an override.
+- The taxonomy pack preserves volatility expansion and price quality signals, and adds accumulation, divergence, hedging pressure, speculative call pressure, speculative put pressure, and pinning risk classifications.
+- Option taxonomy uses G073 feature fields such as open interest, volume/open-interest ratio, days to expiration, and optional moneyness percent; equity taxonomy uses price-derived features and volume.
+- All G074 artifact IDs, artifact proposals, graph targets, and lifecycle behavior remain on emitted taxonomy signals.
+
+Files changed:
+
+- `python/signalops_plugins/detectors/marketops.py`
+- `python/signalops_workers/detectors.py`
+- `python/signalops_workers/config.py`
+- `python/tests/plugins/test_marketops_detector.py`
+- `python/tests/test_detectors.py`
+- `python/tests/test_config.py`
+- `compose.yaml`
+- `.env.example`
+- `docs/python_worker.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=python pytest python/tests`: 56 passed.
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `docker compose config --quiet`: passed.
+- `docker compose build raw-worker`: passed.
+
+Live smoke validation:
+
+- Recreated `raw-worker` with `SIGNALOPS_WORKER_DETECTOR_ID=marketops.dsm.taxonomy_v1` because the local untracked `.env` still overrides the default to the legacy detector.
+- Published bounded normalized events `evt-g075-taxonomy-accumulation-live` and `evt-g075-taxonomy-pinning-live`; Redpanda accepted partition/offset `1/7` and `2/9`.
+- `signalops.normalized-worker.v1` returned to Stable with total lag `0`.
+- Postgres `signal_ledger` verified `marketops.dsm.taxonomy_v1` emitted `marketops.dsm.accumulation` and `marketops.dsm.pinning_risk` signals with stable `sig_marketops_dsm_taxonomy_v1_*` IDs and artifact IDs.
+- Alert/insight lifecycle rows were derived for both taxonomy signals.
+- After adding option-interest fields to top-level `supporting_metrics`, rebuilt/recreated the worker and published `evt-g075-taxonomy-metrics-live`; Postgres verified `open_interest=2000`, `volume_open_interest_ratio=0.4`, `days_to_expiration=4`, `moneyness_pct=0.5`, and `contract_type=call`; worker lag was `0`.
+
+Next step:
+
+- G076 should either remove/update the local untracked `.env` override during deployment or add an operator-facing note so Compose runs pick up `marketops.dsm.taxonomy_v1` by default.

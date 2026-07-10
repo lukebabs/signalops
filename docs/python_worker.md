@@ -70,7 +70,7 @@ signal query API.
 - `SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS`: broker poll timeout.
 - `SIGNALOPS_WORKER_MAX_MESSAGES`: optional finite-run count for validation.
 - `SIGNALOPS_WORKER_DETECTOR_ID`: detector plugin identifier. The default is
-  `marketops.dsm.eod_price_v1`. Set this to `signalops.noop` or
+  `marketops.dsm.taxonomy_v1`. Set this to `signalops.noop` or
   `signalops.static_test` for lifecycle-only validation runs.
 - `SIGNALOPS_WORKER_LOG_LEVEL`: Python logging level.
 
@@ -155,15 +155,16 @@ only after replay or DLQ publication is acknowledged.
 
 Detector contracts live under `python/signalops_plugins/detectors/base.py`.
 
-`marketops.dsm.eod_price_v1` is the default detector. It evaluates normalized
-Massive equity EOD events scoped to `app_id=marketops`, `domain=market_data`,
-`source_adapter=market_data.massive`, `dataset=equity_eod_prices`, and
-`use_case=daily_market_surveillance`. It computes open/close move percent,
-intraday range percent, VWAP distance percent when `vwap` is available, daily
-return percent when `previous_close` is available, and deterministic price-field
-quality checks. Volatility expansion thresholds are 3.0% absolute open/close
-move, 5.0% intraday range, or 4.0% absolute daily return. Price-quality
-exceptions take precedence over volatility signals for a single event.
+`marketops.dsm.taxonomy_v1` is the default detector. It evaluates normalized
+Massive equity EOD and option contract daily events scoped to `app_id=marketops`,
+`domain=market_data`, `source_adapter=market_data.massive`, and
+`use_case=daily_market_surveillance`. Equity records produce price-derived DSM
+features and quality checks; option records use option-interest features such as
+open interest, volume/open-interest ratio, days to expiration, and optional
+moneyness percent. Volatility expansion thresholds remain 3.0% absolute
+open/close move, 5.0% intraday range, or 4.0% absolute daily return.
+Price-quality exceptions take precedence over equity price signals for a single
+event.
 
 `signalops.noop` is deterministic, emits no signals, and remains available for
 lifecycle-only validation runs.
@@ -197,7 +198,7 @@ owns infrastructure durability, idempotent persistence, and operator-facing life
 
 ### MarketOps DSM Artifacts And Graph Proposals
 
-`marketops.dsm.eod_price_v1` emits deterministic DSM artifact proposal metadata inside the existing
+`marketops.dsm.taxonomy_v1` emits deterministic DSM artifact proposal metadata inside the existing
 `signal.v1` payload. The worker persists these through the existing signal ledger fields; no
 standalone artifact or graph service is required for G074.
 
@@ -207,3 +208,17 @@ standalone artifact or graph service is required for G074.
 - `graph_targets`: node candidates for ticker, DSM signal type, artifact, plus relationship
   candidates `EXHIBITS_SIGNAL` and `SUPPORTED_BY_ARTIFACT`.
 - `recommendation`: includes the artifact IDs and graph target count for operator review.
+
+### MarketOps DSM Taxonomy Detector
+
+`marketops.dsm.taxonomy_v1` is the default always-on detector pack. It preserves the prior EOD
+price signals and adds deterministic DSM taxonomy signals for normalized Massive market data:
+
+- Equity EOD: `marketops.dsm.accumulation`, `marketops.dsm.divergence`,
+  `marketops.dsm.volatility_expansion`, and `marketops.dsm.price_quality_exception`.
+- Option contract daily: `marketops.dsm.hedging_pressure`,
+  `marketops.dsm.speculative_call_pressure`, `marketops.dsm.speculative_put_pressure`, and
+  `marketops.dsm.pinning_risk`.
+
+The legacy `marketops.dsm.eod_price_v1` detector remains loadable through
+`SIGNALOPS_WORKER_DETECTOR_ID` for targeted validation or rollback.

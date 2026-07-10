@@ -1,7 +1,7 @@
 import unittest
 
 from signalops_plugins.detectors.base import FeatureContext, RuntimeContext
-from signalops_plugins.detectors.marketops import MarketOpsEODPriceDetector
+from signalops_plugins.detectors.marketops import MarketOpsDSMTaxonomyDetector, MarketOpsEODPriceDetector
 
 
 def marketops_event(**payload_overrides):
@@ -30,6 +30,49 @@ def marketops_event(**payload_overrides):
         "event_id": "evt-aapl-20260709",
         "normalized_payload": payload,
         "entities": [{"type": "ticker", "id": "ticker:AAPL", "external_id": "AAPL"}],
+    }
+
+
+def marketops_option_event(**payload_overrides):
+    payload = {
+        "option_ticker": "O:AAPL270116C00200000",
+        "underlying_symbol": "AAPL",
+        "contract_type": "call",
+        "strike_price": 200.0,
+        "expiration_date": "2027-01-16",
+        "observation_date": "2026-12-20",
+        "open": 5.0,
+        "high": 6.0,
+        "low": 4.5,
+        "close": 5.5,
+        "volume": 1500,
+        "open_interest": 2000,
+        "vwap": 5.25,
+        "features": {
+            "volume": 1500,
+            "open_interest": 2000,
+            "volume_open_interest_ratio": 0.75,
+            "days_to_expiration": 27,
+            "moneyness_pct": 5.0,
+        },
+    }
+    payload.update(payload_overrides)
+    return {
+        "tenant_id": "tenant-local",
+        "source_id": "src-massive",
+        "app_id": "marketops",
+        "domain": "market_data",
+        "use_case": "daily_market_surveillance",
+        "source_domain": "market_data",
+        "source_adapter": "market_data.massive",
+        "ingestion_mode": "scheduled_pull",
+        "dataset": "options_contracts_daily",
+        "event_id": "evt-aapl-option-20261220",
+        "normalized_payload": payload,
+        "entities": [
+            {"type": "option_contract", "id": "option_contract:O:AAPL270116C00200000", "external_id": "O:AAPL270116C00200000"},
+            {"type": "ticker", "id": "ticker:AAPL", "external_id": "AAPL"},
+        ],
     }
 
 
@@ -139,6 +182,85 @@ class MarketOpsEODPriceDetectorTests(unittest.TestCase):
         assert second is not None
         self.assertEqual(first.signal_id, second.signal_id)
         self.assertEqual(first.payload["artifact_ids"], second.payload["artifact_ids"])
+
+
+class MarketOpsDSMTaxonomyDetectorTests(unittest.TestCase):
+    def detector(self) -> MarketOpsDSMTaxonomyDetector:
+        detector = MarketOpsDSMTaxonomyDetector()
+        detector.initialize({}, None, RuntimeContext(environment="local", worker_id="test"))
+        return detector
+
+    def signal_for(self, event):
+        detector = self.detector()
+        result = detector.detect([event], FeatureContext())
+        signal = detector.emit_signal(result, detector.explain(result))
+        self.assertTrue(result.matched)
+        self.assertIsNotNone(signal)
+        assert signal is not None
+        return signal
+
+    def test_emits_accumulation(self) -> None:
+        signal = self.signal_for(
+            marketops_event(open=100.0, high=104.0, low=99.0, close=103.1, previous_close=100.0, vwap=101.0, volume=2500000)
+        )
+
+        self.assertEqual(signal.signal_type, "marketops.dsm.accumulation")
+        self.assertEqual(signal.severity, "medium")
+        self.assertTrue(signal.signal_id.startswith("sig_marketops_dsm_taxonomy_v1_"))
+
+    def test_emits_divergence(self) -> None:
+        signal = self.signal_for(
+            marketops_event(open=106.0, high=107.0, low=95.0, close=102.0, previous_close=98.0, vwap=104.0, volume=1500000)
+        )
+
+        self.assertEqual(signal.signal_type, "marketops.dsm.divergence")
+
+    def test_emits_hedging_pressure(self) -> None:
+        signal = self.signal_for(
+            marketops_option_event(features={"volume": 1200, "open_interest": 4000, "volume_open_interest_ratio": 0.3, "days_to_expiration": 60, "moneyness_pct": 4.0})
+        )
+
+        self.assertEqual(signal.signal_type, "marketops.dsm.hedging_pressure")
+        self.assertEqual(signal.severity, "high")
+
+    def test_emits_speculative_call_pressure(self) -> None:
+        signal = self.signal_for(marketops_option_event())
+
+        self.assertEqual(signal.signal_type, "marketops.dsm.speculative_call_pressure")
+        self.assertEqual(signal.severity, "medium")
+
+    def test_emits_speculative_put_pressure(self) -> None:
+        signal = self.signal_for(
+            marketops_option_event(
+                option_ticker="O:AAPL270116P00180000",
+                contract_type="put",
+                features={"volume": 1800, "open_interest": 3000, "volume_open_interest_ratio": 0.6, "days_to_expiration": 27, "moneyness_pct": 5.0},
+            )
+        )
+
+        self.assertEqual(signal.signal_type, "marketops.dsm.speculative_put_pressure")
+
+    def test_emits_pinning_risk(self) -> None:
+        signal = self.signal_for(
+            marketops_option_event(
+                expiration_date="2026-12-24",
+                features={"volume": 800, "open_interest": 2000, "volume_open_interest_ratio": 0.4, "days_to_expiration": 4, "moneyness_pct": 0.5},
+            )
+        )
+
+        self.assertEqual(signal.signal_type, "marketops.dsm.pinning_risk")
+        self.assertEqual(signal.severity, "high")
+        self.assertEqual(signal.payload["supporting_metrics"]["open_interest"], 2000)
+        self.assertEqual(signal.payload["supporting_metrics"]["volume_open_interest_ratio"], 0.4)
+        self.assertEqual(signal.payload["supporting_metrics"]["days_to_expiration"], 4)
+
+    def test_no_match_for_low_intensity_option(self) -> None:
+        detector = self.detector()
+        event = marketops_option_event(features={"volume": 100, "open_interest": 500, "volume_open_interest_ratio": 0.05, "days_to_expiration": 90, "moneyness_pct": 8.0})
+
+        result = detector.detect([event], FeatureContext())
+
+        self.assertFalse(result.matched)
 
 
 if __name__ == "__main__":

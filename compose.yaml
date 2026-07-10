@@ -268,7 +268,7 @@ services:
       SIGNALOPS_WORKER_SIGNAL_TOPIC: signalops.local.signal.v1
       SIGNALOPS_WORKER_GROUP_ID: signalops.normalized-worker.v1
       SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS: "1"
-      SIGNALOPS_WORKER_DETECTOR_ID: ${SIGNALOPS_WORKER_DETECTOR_ID:-marketops.dsm.eod_price_v1}
+      SIGNALOPS_WORKER_DETECTOR_ID: ${SIGNALOPS_WORKER_DETECTOR_ID:-marketops.dsm.taxonomy_v1}
       SIGNALOPS_WORKER_LOG_LEVEL: INFO
 
 

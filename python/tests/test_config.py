@@ -40,7 +40,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.dlq_topic, "signalops.local.dlq.algorithm.v1")
         self.assertEqual(config.group_id, "signalops.normalized-worker.v1")
         self.assertEqual(config.max_messages, 0)
-        self.assertEqual(config.detector_id, "marketops.dsm.eod_price_v1")
+        self.assertEqual(config.detector_id, "marketops.dsm.taxonomy_v1")
 
     def test_load_config_overrides(self) -> None:
         with mock.patch.dict(
