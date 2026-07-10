@@ -37,6 +37,7 @@ export const queryKeys = {
   insight: (insightId: string) => ['insight', insightId] as const,
   replayJobs: (filter: ReplayJobFilter) => ['replay-jobs', filter] as const,
   replayJob: (replayJobId: string) => ['replay-job', replayJobId] as const,
+  replayStatus: (tenantId: string, limit?: number) => ['replay-status', tenantId, limit] as const,
 };
 
 export function useHealthz() {
@@ -220,6 +221,16 @@ export function useCreateReplayJob() {
       queryClient.setQueryData(queryKeys.replayJob(data.replay_job.replay_job_id), data);
       queryClient.invalidateQueries({ queryKey: ['replay-jobs'] });
     },
+  });
+}
+
+// Replay operations observability (G064): worker health + job counts. REST
+// polling at the replay list cadence (5s); participates in manual refresh.
+export function useReplayStatus({ tenant_id, limit }: { tenant_id: string; limit?: number }) {
+  return useQuery({
+    queryKey: queryKeys.replayStatus(tenant_id, limit),
+    queryFn: () => api.getReplayStatus({ tenant_id, limit }),
+    refetchInterval: 5000,
   });
 }
 

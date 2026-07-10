@@ -15,12 +15,14 @@ import {
   useAlerts,
   useInsights,
   useReplayJobs,
+  useReplayStatus,
 } from '../api/queries';
 import { useUi } from '../store/ui';
 import { MetricTile } from '../components/MetricTile';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { formatUtc, orDash } from '../lib/format';
+import { replayJobCount, worstReplayWorkerHealth, latestReplayWorkerSeenAt } from '../lib/replayStatus';
 import type { ProviderUsage } from '../types';
 import { useTenant } from '../auth/session';
 
@@ -78,6 +80,7 @@ export function DashboardRoute() {
   const alerts = useAlerts({ tenant_id: TENANT_ID, status: 'open', limit: 50 });
   const insights = useInsights({ tenant_id: TENANT_ID, status: 'active', limit: 50 });
   const replay = useReplayJobs({ tenant_id: TENANT_ID, limit: 50 });
+  const replayStatus = useReplayStatus({ tenant_id: TENANT_ID, limit: 5 });
 
   const lastRefresh = useUi((s) => s.lastRefresh);
   const setLastRefresh = useUi((s) => s.setLastRefresh);
@@ -107,6 +110,25 @@ export function DashboardRoute() {
   const replayFailed = replayData.filter((j) => j.status === 'failed').length;
   const replayCanceled = replayData.filter((j) => j.status === 'canceled').length;
 
+  // Replay operations status (G064): prefer authoritative job_counts + worker
+  // health over the capped list response. Fall back to list behavior on error.
+  const replayStatusOk = replayStatus.data?.replay_status;
+  const replayWorkers = replayStatusOk?.workers ?? [];
+  const replayWorstHealth = worstReplayWorkerHealth(replayWorkers);
+  const replayLastSeen = latestReplayWorkerSeenAt(replayWorkers);
+  const replayLastCompleted = replayWorkers[0]?.last_completed_replay_job_id;
+  const replayStatusTotal = replayStatusOk
+    ? Object.values(replayStatusOk.job_counts).reduce((n, c) => n + c, 0)
+    : undefined;
+  const replayValue = replayStatusOk ? (replayStatusTotal ?? 0) : replayData.length;
+  const replayHint = replayStatus.isError
+    ? 'status unavailable'
+    : replayStatusOk
+      ? `worker ${replayWorstHealth} · ${replayJobCount(replayStatusOk, 'queued')} queued · ${replayJobCount(replayStatusOk, 'running')} running · ${replayJobCount(replayStatusOk, 'failed')} failed`
+      : replay.isError
+        ? 'unreachable'
+        : `${replayQueued} queued · ${replayRunning} running · ${replayFailed} failed · ${replayCanceled} canceled`;
+
   // Under auth, SSE is intentionally off (native EventSource cannot carry a Bearer token);
   // a REST polling interval keeps the dashboard fresh. Show that distinctly rather than as a
   // reconnecting/connecting stream.
@@ -132,6 +154,7 @@ export function DashboardRoute() {
     alerts.refetch();
     insights.refetch();
     replay.refetch();
+    replayStatus.refetch();
     setLastRefresh(new Date().toISOString());
   }
 
@@ -171,11 +194,7 @@ export function DashboardRoute() {
         <MetricTile label="Open Alerts" value={alertsData.length} hint={alerts.isError ? 'unreachable' : undefined} />
         <MetricTile label="Active Insights" value={insightsData.length} hint={insights.isError ? 'unreachable' : undefined} />
         <Link to="/replay" className="block" title="Open Replay Jobs">
-          <MetricTile
-            label="Replay Jobs"
-            value={replayData.length}
-            hint={replay.isError ? 'unreachable' : `${replayQueued} queued · ${replayRunning} running · ${replayFailed} failed · ${replayCanceled} canceled`}
-          />
+          <MetricTile label="Replay Jobs" value={replayValue} hint={replayHint} />
         </Link>
       </div>
 
@@ -218,6 +237,14 @@ export function DashboardRoute() {
                 <div>
                   <div className="text-xs text-gray-500">Failed runs (sample)</div>
                   <div>{failedRuns}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Replay worker</div>
+                  <div>{replayStatus.isError ? 'unreachable' : replayWorstHealth}</div>
+                  <div className="text-xs text-gray-500">
+                    {replayLastSeen ? `seen ${formatUtc(replayLastSeen)}` : 'no heartbeat'}
+                    {replayLastCompleted ? ` · ${replayLastCompleted}` : ''}
+                  </div>
                 </div>
               </div>
             )}

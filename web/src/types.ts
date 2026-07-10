@@ -488,3 +488,38 @@ export interface ReplayJobCancelRequest {
   reason?: string;
   note?: string;
 }
+
+// G064 replay operations observability. `health` (online/stale/error) is
+// backend-derived from heartbeat recency and worker status; `unknown` is a
+// frontend-only fallback when no heartbeats exist. `job_counts` is always a
+// full map of the five replay statuses (0-filled by the backend).
+export type ReplayWorkerHealth = 'online' | 'stale' | 'error' | string;
+export type ReplayWorkerStatus = 'idle' | 'running' | 'error' | 'stopping' | string;
+
+export interface ReplayWorkerStatusRecord {
+  worker_id: string;
+  status: ReplayWorkerStatus;
+  health: ReplayWorkerHealth;
+  process_started_at: string;
+  last_seen_at: string;
+  last_claimed_at?: string;
+  last_claimed_replay_job_id?: string;
+  last_completed_at?: string;
+  last_completed_replay_job_id?: string;
+  last_error_at?: string;
+  last_error_message?: string;
+  metadata: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReplayOperationsStatus {
+  generated_at: string;
+  job_counts: Record<string, number>;
+  workers: ReplayWorkerStatusRecord[];
+  latest_jobs: ReplayJob[];
+}
+
+export interface ReplayOperationsStatusResponse {
+  replay_status: ReplayOperationsStatus;
+}

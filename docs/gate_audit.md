@@ -4797,3 +4797,52 @@ Validation performed:
 Follow-up items:
 
 - Frontend-agent should implement G065 from `docs/frontend/replay_operations_status_ui_spec.md`.
+
+
+## Gate G065: Frontend Replay Operations Status UI Implementation
+
+Timestamp: `2026-07-10T06:27:00Z`
+
+Status: `implemented — automated validations pass; authenticated browser validation pending deploy`
+
+Gate name:
+
+- Surface G064 replay-worker health and operations activity on Dashboard and System, per `docs/frontend/replay_operations_status_ui_spec.md`.
+
+Criteria:
+
+- `getReplayStatus` exposed via the authenticated API client.
+- Query hook polls `GET /v1/replay/status` and participates in manual refresh.
+- Dashboard surfaces replay worker health concisely (tile hint + Processing Health field).
+- System route shows worker health, queue/running/failed counts, last seen, and worker activity.
+- UI tolerates no heartbeats, stale/error workers, and missing job-count keys.
+- Existing Dashboard, Replay Jobs, and System behavior continues to work.
+- Tests/build/audit pass and are recorded.
+
+Evidence:
+
+- `web/src/types.ts` (replay operations status types), `web/src/api/client.ts` (`getReplayStatus`), `web/src/api/queries.ts` (`useReplayStatus`).
+- `web/src/lib/replayStatus.ts` (`replayJobCount`/`worstReplayWorkerHealth`/`latestReplayWorkerSeenAt`).
+- `web/src/routes/DashboardRoute.tsx` (tile hint from `job_counts`, Processing Health replay field), `web/src/routes/SystemRoute.tsx` (Replay Operations metrics + worker table).
+- `web/src/components/StatusBadge.tsx` (online/stale/error), `web/src/api/replayStatus.test.ts`, `web/src/lib/replayStatus.test.ts`.
+- `docs/build_journal.md`.
+
+Implementation notes:
+
+- Reconciled against G064: `limit` bounds workers only (latest_jobs hardcoded to 5); workers are not tenant-scoped; `job_counts` is always a full 0-filled map; `health` is backend-derived (online/stale/error) with `unknown` as a frontend fallback.
+- Dashboard prefers authoritative `job_counts` totals over the capped list; falls back to list behavior on query error.
+- REST polling (5s) only; no SSE. No worker start/stop, retry, bulk-cancel, or new route.
+
+Verification performed:
+
+- `npm test`: 50/50 pass (5 new — 2 status client, 3 helpers).
+- `npm run build` (`tsc` + `vite build`): succeeded.
+- `npm audit --json`: 0 vulnerabilities, exit 0.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`: succeeded.
+- `git diff --check`: clean.
+- Unauthenticated `GET /v1/replay/status` → `401` (auth enforced).
+
+Follow-up items:
+
+- Deploy via `make deploy-web` and run the authenticated browser validation checklist (Dashboard replay context, System Replay Operations block, manual refresh, no mobile overflow).
+- Backend may add worker restart/retry controls as later gates; the UI intentionally omits them.

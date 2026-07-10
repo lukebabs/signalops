@@ -29,6 +29,7 @@ import type {
   ReplayJobResponse,
   ReplayJobCreateRequest,
   ReplayJobCancelRequest,
+  ReplayOperationsStatusResponse,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -226,6 +227,14 @@ export const api = {
       { reason: body.reason, note: body.note },
       authConfig.authEnabled ? undefined : { 'X-SignalOps-Actor': 'operator-local' },
     ),
+  // G064 replay operations observability: worker health, job counts, latest jobs.
+  // workers are not tenant-scoped, but job_counts/latest_jobs are; tenant_id is
+  // still sent per the backend contract. limit bounds the workers list.
+  getReplayStatus: (filter: { tenant_id?: string; limit?: number } = {}) =>
+    get<ReplayOperationsStatusResponse>('/v1/replay/status', {
+      tenant_id: filter.tenant_id,
+      limit: filter.limit,
+    }),
   mutateAlertLifecycle: ({ alertId, action, note, reason }: AlertLifecycleMutationOptions) =>
     post<AlertResponse>(
       `/v1/alerts/${encodeURIComponent(alertId)}/${action}`,

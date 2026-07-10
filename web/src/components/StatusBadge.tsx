@@ -8,6 +8,9 @@ const STATUS_STYLES: Record<string, string> = {
   active: 'bg-green-100 text-green-800 border-green-300',
   inactive: 'bg-gray-100 text-gray-700 border-gray-300',
   deprecated: 'bg-amber-100 text-amber-800 border-amber-300',
+  online: 'bg-green-100 text-green-800 border-green-300',
+  stale: 'bg-amber-100 text-amber-800 border-amber-300',
+  error: 'bg-red-100 text-red-800 border-red-300',
 };
 
 export function StatusBadge({ status }: { status: string }) {

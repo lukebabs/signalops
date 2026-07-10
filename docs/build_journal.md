@@ -4022,3 +4022,46 @@ Validation performed:
 Next step:
 
 - Hand `docs/frontend/replay_operations_status_ui_spec.md` to frontend-agent for implementation and browser validation.
+
+## 2026-07-10T06:27:00Z
+
+Summary:
+
+- Implemented G065 Replay Operations Status UI from `docs/frontend/replay_operations_status_ui_spec.md`: surfaces G064 `GET /v1/replay/status` (worker health, job counts, latest jobs) on the Dashboard and System routes.
+- Reconciled the spec against the live G064 backend (`internal/api/router.go` `GET /v1/replay/status`, `replayStatusDTO`/`replayWorkerStatusDTO`, `internal/storage/storage.go` `ReplayWorkerHeartbeatRecord`/`ReplayJobStatusCount`, `migrations/000009`) before coding.
+
+Files changed:
+
+- `web/src/types.ts` — `ReplayWorkerHealth`, `ReplayWorkerStatus`, `ReplayWorkerStatusRecord`, `ReplayOperationsStatus`, `ReplayOperationsStatusResponse` (additive).
+- `web/src/api/client.ts` — `getReplayStatus` (reuse `get` helper; auth/error behavior preserved).
+- `web/src/api/queries.ts` — `replayStatus` key + `useReplayStatus` (5s REST poll).
+- `web/src/lib/replayStatus.ts` — pure helpers `replayJobCount`/`worstReplayWorkerHealth`/`latestReplayWorkerSeenAt`.
+- `web/src/routes/DashboardRoute.tsx` — `useReplayStatus`; Replay Jobs tile value/hint derived from `job_counts` + worker health (list fallback on error); Processing Health "Replay worker" field; `refreshAll` refetch.
+- `web/src/routes/SystemRoute.tsx` — `useReplayStatus`; Replay Operations block (5 metric tiles + worker table / empty / error); `refreshAll` refetch + loading state.
+- `web/src/components/StatusBadge.tsx` — `online`/`stale`/`error` styles (palette-consistent) for worker health/status.
+- `web/src/api/replayStatus.test.ts`, `web/src/lib/replayStatus.test.ts` — client + helper tests.
+- `docs/build_journal.md`, `docs/gate_audit.md` — G065 implementation entries.
+
+Implementation notes (spec reconciliation):
+
+- `limit` bounds the workers list only (`queryLimit` cap 200, default 20); `latest_jobs` is hardcoded to 5 server-side — the UI sends modest limits (Dashboard 5, System 10) which the endpoint applies to workers.
+- Workers are not tenant-scoped (`ListReplayWorkerHeartbeats` ignores `tenant_id`); only `job_counts` and `latest_jobs` are tenant-filtered. `tenant_id` is still sent per the backend contract.
+- `job_counts` is always a full 5-key map (0-filled); `replayJobCount` returns 0 for missing keys.
+- `health` is backend-derived (`online`/`stale`/`error`); `unknown` is a frontend-only fallback for no heartbeats, used by `worstReplayWorkerHealth`.
+- Dashboard tile prefers authoritative `job_counts` totals over the capped list response; falls back to list counts and `status unavailable` on query error.
+- REST polling only (5s); no SSE. `useReplayStatus` participates in both routes' manual refresh.
+- No worker start/stop, retry, bulk-cancel, or new route; non-goals respected.
+
+Validation performed:
+
+- `cd web && npm test`: 50/50 pass (10 files; 5 new — 2 status client, 3 helpers).
+- `cd web && npm run build` (`tsc` + `vite build`): succeeded.
+- `cd web && npm audit --json`: 0 vulnerabilities, exit 0.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`: succeeded.
+- `git diff --check`: clean.
+- Unauthenticated `GET /v1/replay/status?tenant_id=tenant-local` on localhost:15173 → `401` (auth enforced, matching the spec's public sanity check).
+
+Next step:
+
+- Deploy via `make deploy-web` (auth flag + Traefik overlay; rebuilds `web` and `gateway` from current source so the G064 endpoint is live) — outward-facing, not auto-run.
+- Authenticated browser validation: Dashboard replay tile + Processing Health replay worker field; System Replay Operations metrics + worker table; manual refresh refetches; no mobile overflow.
