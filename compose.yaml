@@ -60,6 +60,22 @@ services:
     volumes:
       - .:/workspace:ro
 
+  temporal-backfill:
+    image: postgres:16-alpine
+    profiles: ["storage"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+    working_dir: /workspace
+    entrypoint: ["/bin/sh", "/workspace/scripts/backfill_temporal_ledgers.sh"]
+    volumes:
+      - .:/workspace:ro
+
   redpanda:
     image: redpandadata/redpanda:v25.3.1
     command:

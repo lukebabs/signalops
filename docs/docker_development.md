@@ -63,6 +63,14 @@ Run local TimescaleDB temporal migrations:
 make compose-temporal-migrate
 ```
 
+Backfill relational raw, normalized, and signal ledgers into TimescaleDB:
+
+```bash
+make compose-temporal-backfill
+```
+
+The backfill is idempotent. It uses conflict-aware upserts, so it can be rerun after partial failures or after live services have started writing new temporal rows.
+
 ## Frontend (Operational Dashboard)
 
 The operational UI lives under `web/` (Vite + React + TypeScript). Run it

@@ -4264,3 +4264,62 @@ Follow-up items:
 
 - Add a temporal backfill/replay gate for existing relational raw/normalized/signal rows before live cutover.
 - After backfill/replay, redeploy live gateway, normalizer, signal persister, and Massive scheduler with `SIGNALOPS_TEMPORAL_DATABASE_URL` enabled.
+
+
+## Gate G057: Temporal Backfill and Live Cutover
+
+Timestamp: `2026-07-10T02:31:00Z`
+
+Status: `passed — temporal backfill, live cutover, and Timescale write paths validated`
+
+Gate name:
+
+- Backfill existing relational temporal ledgers into TimescaleDB and cut live services over to the separate temporal DSN.
+
+Criteria:
+
+- Existing relational `raw_event_ledger`, `normalized_event_ledger`, and `signal_ledger` rows are copied into TimescaleDB.
+- Backfill is idempotent and safe to rerun.
+- Live gateway, normalizer, and signal-persister use `SIGNALOPS_TEMPORAL_DATABASE_URL`.
+- Public HTTPS health is restored after cutover.
+- A post-cutover Massive publish writes raw and normalized temporal rows to TimescaleDB.
+- A post-cutover signal-topic publish writes a signal temporal row to TimescaleDB with broker lineage.
+- Documentation captures the backfill command, cutover notes, and current PostgreSQL/Timescale storage roles.
+
+Evidence:
+
+- `scripts/backfill_temporal_ledgers.sh`
+- `compose.yaml`
+- `Makefile`
+- `docs/deployment.md`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+
+Verification performed:
+
+- Pre-backfill relational counts: `raw=4`, `normalized=8`, `signal=4`.
+- Pre-backfill Timescale counts after G056 Massive validation: `raw=1`, `normalized=0`, `signal=0`.
+- First successful backfill inserted/upserted relational `raw=4`, `normalized=8`, and `signal=4` into TimescaleDB.
+- Backfill rerun completed without duplicate growth.
+- Live services rebuilt/recreated: `gateway`, `normalizer`, and `signal-persister`.
+- Existing web container initially returned `502` because nginx retained the pre-recreate gateway IP; force-recreating `web` restored proxying.
+- `GET http://localhost:18000/healthz`: `200 application/json`.
+- `GET http://localhost:15173/healthz`: `200 application/json`.
+- `GET https://signalops.syncratic.io/healthz`: `200 application/json`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`: passed.
+- `make compose-temporal-backfill`: passed after cutover and left Timescale counts stable at `raw=6`, `normalized=9`, `signal=5`.
+- Post-cutover Massive bounded publish reported `dry_run=false`, `companies=1`, `events_built=1`, `events_published=1`, `provider_requests=1`, `failures=0`.
+- Timescale counts after Massive publish: `raw=6`, `normalized=9`, `signal=4`; raw and normalized increments validated the Massive-to-normalizer temporal path.
+- Published `signal-g057-high` to `signalops.local.signal.v1`; Redpanda accepted partition `2`, offset `1`.
+- Timescale `signal_ledger` row for `signal-g057-high`: tenant `tenant-local`, detector `signalops.static_test`, severity `high`, broker topic `signalops.local.signal.v1`, partition `2`, offset `1`.
+- `signal-persister` log confirmed `signal persisted` for `signal-g057-high`.
+
+Validation boundary:
+
+- Protected `/v1/*` browser-facing reads correctly require bearer authentication after G055. Unauthenticated direct validation of signal and alert detail endpoints returned `401`; backend persistence was validated through Timescale rows and service logs.
+
+Follow-up items:
+
+- Add a first-class replay job model so temporal replay can be requested, audited, and exposed to operators.
+- Consider changing nginx upstream resolution to runtime DNS resolution or always forcing a `web` recreate during gateway cutovers.
+- Define production Massive ingestion cadence, quota safeguards, and failure alerting now that TimescaleDB is active for temporal ledgers.

@@ -9,7 +9,7 @@ COMPOSE ?= docker compose
 # `make deploy-web VITE_SIGNALOPS_AUTH_ENABLED=false` for an auth-disabled build.
 VITE_SIGNALOPS_AUTH_ENABLED ?= true
 
-.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-build-massive-puller docker-build-massive-scheduler docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate compose-storage-migrate compose-temporal-migrate deploy-web
+.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-build-massive-puller docker-build-massive-scheduler docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate compose-storage-migrate compose-temporal-migrate compose-temporal-backfill deploy-web
 
 docker-test:
 	docker run --rm \
@@ -80,6 +80,9 @@ compose-storage-migrate:
 
 compose-temporal-migrate:
 	$(COMPOSE) --profile storage run --rm timescaledb-migrate
+
+compose-temporal-backfill:
+	$(COMPOSE) --profile storage run --rm temporal-backfill
 
 # Public deploy of the web service: rebuild WITH frontend auth AND the Traefik
 # routing overlay. A bare `docker compose up -d --build web` (or `make compose-up`)

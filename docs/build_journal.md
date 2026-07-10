@@ -3531,3 +3531,57 @@ Operational notes:
 Next step:
 
 - Proceed with the temporal backfill/replay gate before live service cutover to `SIGNALOPS_TEMPORAL_DATABASE_URL`.
+
+
+## 2026-07-10T02:31:00Z
+
+Summary:
+
+- Implemented G057 temporal backfill and live temporal cutover for the existing deployment.
+- Added an idempotent relational PostgreSQL to TimescaleDB backfill path for raw, normalized, and signal temporal ledgers.
+- Redeployed the live gateway, normalizer, and signal-persister with `SIGNALOPS_TEMPORAL_DATABASE_URL` enabled, then refreshed the web proxy after gateway recreation.
+
+Files changed:
+
+- `scripts/backfill_temporal_ledgers.sh`
+- `compose.yaml`
+- `Makefile`
+- `docs/deployment.md`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- The `temporal-backfill` Compose service uses the `postgres:16-alpine` client image and waits for both `postgres` and `timescaledb` health checks.
+- `make compose-temporal-backfill` copies `raw_event_ledger`, `normalized_event_ledger`, and `signal_ledger` from relational PostgreSQL into TimescaleDB using `psql \copy`, temp staging tables, and `ON CONFLICT ... DO UPDATE` upserts.
+- Raw and normalized conflicts are keyed by `(event_id, observation_time)`; signals are keyed by `(signal_id, signal_time)` to match the Timescale time-aware uniqueness requirements.
+- The backfill is safe to rerun after partial failure or after live cutover; it updates matching rows and preserves independently written live Timescale rows.
+- During cutover, the gateway remained healthy directly on `localhost:18000`, but the existing nginx web container returned `502` because it retained a stale resolved gateway container IP. Force-recreating `web` refreshed upstream resolution and restored public HTTPS health.
+
+Validation performed:
+
+- Pre-backfill relational counts: `raw=4`, `normalized=8`, `signal=4`.
+- Pre-backfill Timescale counts after the prior G056 Massive test: `raw=1`, `normalized=0`, `signal=0`.
+- Initial backfill copied `raw=4`, `normalized=8`, and `signal=4` into TimescaleDB.
+- Idempotency rerun completed successfully with conflict-aware upserts and stable counts.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` - passed.
+- `make compose-temporal-backfill` - passed after live cutover; copied relational `raw=4`, `normalized=8`, and `signal=5` and left Timescale stable at `raw=6`, `normalized=9`, `signal=5`.
+- Direct gateway health: `GET http://localhost:18000/healthz` returned `200 application/json`.
+- Local web proxy health after forced recreation: `GET http://localhost:15173/healthz` returned `200 application/json`.
+- Public Traefik route health after forced web recreation: `GET https://signalops.syncratic.io/healthz` returned `200 application/json`.
+- Bounded Massive publish after cutover reported `dry_run=false`, `companies=1`, `events_built=1`, `events_published=1`, `provider_requests=1`, `failures=0`.
+- Timescale counts after Massive publish increased to `raw=6`, `normalized=9`, `signal=4`; the Massive event validates raw and normalized temporal writes.
+- Published validation signal `signal-g057-high` to `signalops.local.signal.v1`; Redpanda accepted it at partition `2`, offset `1`.
+- `signal-persister` persisted `signal-g057-high` and Timescale `signal_ledger` increased to `5` with broker topic `signalops.local.signal.v1`, partition `2`, offset `1`.
+- Browser-facing unauthenticated reads for protected `/v1/signals/...` and `/v1/alerts/...` returned `401`, which is expected after G055 backend auth enforcement.
+
+Operational notes:
+
+- PostgreSQL remains the relational system-of-record for scheduler runs, provider usage, idempotency, catalogs, source/pipeline/rule metadata, and alert/insight lifecycle state.
+- TimescaleDB is now active for replayable temporal/event-plane ledgers: raw events, normalized events, signal observations, and market-data history.
+- Any future gateway recreation should be paired with a web container recreate/restart, or nginx should be changed to runtime DNS resolution to avoid stale upstream IPs.
+
+Next step:
+
+- Move from storage cutover into replay/operations maturity: add an explicit replay job model and operator-visible temporal replay controls, or harden source/provider production operations for Massive ingestion cadence and quotas.

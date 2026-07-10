@@ -119,6 +119,16 @@ If `SIGNALOPS_TEMPORAL_DATABASE_URL` is empty, services fall back to the relatio
 
 For an existing deployment, apply temporal migrations and backfill or replay existing raw/normalized/signal rows before redeploying services with `SIGNALOPS_TEMPORAL_DATABASE_URL` enabled. Without that step, new temporal writes go to TimescaleDB but historical rows that only exist in relational PostgreSQL will not appear in temporal-backed query endpoints.
 
+Run the idempotent relational-to-Timescale backfill:
+
+```bash
+make compose-temporal-backfill
+```
+
+The backfill copies `raw_event_ledger`, `normalized_event_ledger`, and `signal_ledger` from relational PostgreSQL into TimescaleDB with conflict-aware upserts. It is safe to rerun after a partial attempt or after live cutover; rows already present in TimescaleDB are updated in place.
+
+After a gateway container is recreated, also recreate or restart the `web` container before validating the public route. The production nginx container resolves `gateway` at startup, so a stale upstream IP can produce `502` even when the gateway is healthy on `localhost:18000`.
+
 ## Web UI
 
 The Compose `web` service builds the Vite frontend under `web/` and serves the
@@ -279,27 +289,23 @@ registration and management APIs remain future scope.
 
 Local Compose includes PostgreSQL for operational metadata and audit storage.
 The `postgres` service exposes the database on host port `15432` and stores data
-in the `postgres-data` Docker volume.
+in the `postgres-data` Docker volume. Local Compose also includes TimescaleDB for
+replayable temporal/event-plane storage on host port `15433`, backed by the
+`timescaledb-data` Docker volume.
 
-Run migrations:
+Run relational and temporal migrations:
 
 ```bash
 make compose-storage-migrate
+make compose-temporal-migrate
 ```
 
-The first migration creates scheduler run audit, provider usage, idempotency,
-raw event ledger, equity EOD, and option contract snapshot tables. TimescaleDB
-hypertable conversion remains future scope after the base persistence paths are
-proven.
-
-Maturity note: TimescaleDB is expected to become essential as SignalOps moves from
-small operational validation into sustained time-series and stream workloads. The
-current Compose deployment intentionally uses plain `postgres:16-alpine`; a later
-storage gate should replace it with a TimescaleDB PostgreSQL-compatible image,
-add `CREATE EXTENSION timescaledb`, and promote high-volume temporal ledgers such
-as raw events, normalized events, signals, provider usage, and operational metrics
-to hypertables. Catalog, rules, sources, pipelines, and idempotency records should
-remain ordinary relational tables unless measured workload requires otherwise.
+The relational migrations create scheduler run audit, provider usage,
+idempotency, catalogs, alert/insight lifecycle state, and other control-plane
+tables. Temporal migrations create Timescale hypertables for raw events,
+normalized events, signal observations, and market-data history. Catalog, rules,
+sources, pipelines, lifecycle state, and idempotency records remain ordinary
+relational tables unless measured workload requires a different shape.
 
 
 Scheduler persistence is enabled when `SIGNALOPS_DATABASE_URL` is set. The
