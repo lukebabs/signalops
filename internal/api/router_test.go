@@ -53,6 +53,8 @@ func (p *fakePublishRepository) PersistPublishedRawEvent(_ context.Context, ledg
 type fakeQueryRepository struct {
 	runs             []storage.SchedulerRunRecord
 	replayJobs       []storage.ReplayJobRecord
+	replayCounts     []storage.ReplayJobStatusCount
+	replayWorkers    []storage.ReplayWorkerHeartbeatRecord
 	lastReplayFilter storage.ReplayJobFilter
 	usage            []storage.ProviderUsageRecord
 	rawEvents        []storage.RawEventLedgerRecord
@@ -106,6 +108,29 @@ func (q *fakeQueryRepository) GetReplayJob(_ context.Context, replayJobID string
 		}
 	}
 	return storage.ReplayJobRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) CountReplayJobsByStatus(context.Context, string) ([]storage.ReplayJobStatusCount, error) {
+	if q.replayCounts != nil {
+		return q.replayCounts, nil
+	}
+	counts := map[string]int{}
+	for _, job := range q.replayJobs {
+		counts[job.Status]++
+	}
+	items := make([]storage.ReplayJobStatusCount, 0, len(counts))
+	for status, count := range counts {
+		items = append(items, storage.ReplayJobStatusCount{Status: status, Count: count})
+	}
+	return items, nil
+}
+
+func (q *fakeQueryRepository) UpsertReplayWorkerHeartbeat(context.Context, storage.ReplayWorkerHeartbeatRecord) error {
+	return nil
+}
+
+func (q *fakeQueryRepository) ListReplayWorkerHeartbeats(context.Context, int) ([]storage.ReplayWorkerHeartbeatRecord, error) {
+	return q.replayWorkers, nil
 }
 
 func (q *fakeQueryRepository) ClaimNextReplayJob(context.Context, string, time.Time) (storage.ReplayJobRecord, error) {
@@ -541,6 +566,55 @@ func TestCancelReplayJob(t *testing.T) {
 	}
 	if response["replay_job"]["status"] != storage.ReplayJobStatusCanceled {
 		t.Fatalf("cancel response = %+v", response)
+	}
+}
+
+func TestReplayStatus(t *testing.T) {
+	now := time.Now().UTC()
+	job := storage.ReplayJobRecord{
+		ReplayJobID: "replay-1",
+		TenantID:    "tenant-local",
+		SourceKind:  storage.ReplaySourceRaw,
+		ReplayMode:  storage.ReplayModeOriginal,
+		Status:      storage.ReplayJobStatusRunning,
+		WindowStart: now.Add(-time.Hour),
+		WindowEnd:   now,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	repo := &fakeQueryRepository{
+		replayJobs:   []storage.ReplayJobRecord{job},
+		replayCounts: []storage.ReplayJobStatusCount{{Status: storage.ReplayJobStatusRunning, Count: 1}},
+		replayWorkers: []storage.ReplayWorkerHeartbeatRecord{{
+			WorkerID: "worker-1", Status: "idle", ProcessStartedAt: now.Add(-time.Minute), LastSeenAt: now,
+			LastCompletedReplayJobID: "replay-0", MetadataJSON: []byte(`{"poll_interval":"5s"}`), CreatedAt: now.Add(-time.Minute), UpdatedAt: now,
+		}},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/replay/status?tenant_id=tenant-local", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("status JSON error = %v", err)
+	}
+	statusPayload := response["replay_status"].(map[string]any)
+	counts := statusPayload["job_counts"].(map[string]any)
+	if counts[storage.ReplayJobStatusRunning].(float64) != 1 || counts[storage.ReplayJobStatusQueued].(float64) != 0 {
+		t.Fatalf("counts = %+v", counts)
+	}
+	workers := statusPayload["workers"].([]any)
+	if len(workers) != 1 || workers[0].(map[string]any)["health"] != "online" {
+		t.Fatalf("workers = %+v", workers)
+	}
+	latest := statusPayload["latest_jobs"].([]any)
+	if len(latest) != 1 || latest[0].(map[string]any)["replay_job_id"] != "replay-1" {
+		t.Fatalf("latest jobs = %+v", latest)
 	}
 }
 

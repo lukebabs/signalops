@@ -24,6 +24,7 @@ const defaultPollInterval = 5 * time.Second
 
 type replayRepository interface {
 	storage.ReplayJobRepository
+	storage.ReplayWorkerHeartbeatRepository
 	replaySourceRepository
 }
 
@@ -83,6 +84,7 @@ func run(logger *slog.Logger) error {
 		return errors.New("SIGNALOPS_DATABASE_URL and SIGNALOPS_TEMPORAL_DATABASE_URL are required")
 	}
 	workerCfg := loadWorkerConfig()
+	processStartedAt := time.Now().UTC()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	repository, err := postgresstorage.OpenWithTemporal(ctx, cfg.DatabaseURL, cfg.TemporalDatabaseURL)
@@ -101,10 +103,13 @@ func run(logger *slog.Logger) error {
 		storage.ReplaySourceSignals:    broker.TopicName(cfg.Environment, broker.SignalTopic),
 	}
 	logger.Info("signalops replay worker started", "worker_id", workerCfg.WorkerID, "one_shot", workerCfg.OneShot, "max_records", workerCfg.MaxRecords, "batch_size", workerCfg.BatchSize, "publish_max_attempts", workerCfg.PublishMaxAttempts)
+	reportHeartbeat(ctx, logger, repository, heartbeatRecord(workerCfg, processStartedAt, "idle"))
+	defer reportHeartbeat(context.Background(), logger, repository, heartbeatRecord(workerCfg, processStartedAt, "stopping"))
 	for {
 		job, err := repository.ClaimNextReplayJob(ctx, workerCfg.WorkerID, time.Now().UTC())
 		if err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
+				reportHeartbeat(ctx, logger, repository, heartbeatRecord(workerCfg, processStartedAt, "idle"))
 				if workerCfg.OneShot {
 					logger.Info("no queued replay job found")
 					return nil
@@ -116,8 +121,12 @@ func run(logger *slog.Logger) error {
 					continue
 				}
 			}
+			errAt := time.Now().UTC()
+			reportHeartbeat(ctx, logger, repository, heartbeatRecord(workerCfg, processStartedAt, "error", heartbeatError(errAt, err)))
 			return err
 		}
+		claimedAt := time.Now().UTC()
+		reportHeartbeat(ctx, logger, repository, heartbeatRecord(workerCfg, processStartedAt, "running", heartbeatClaim(claimedAt, job.ReplayJobID)))
 		logger.Info("claimed replay job", "replay_job_id", job.ReplayJobID, "source_kind", job.SourceKind, "window_start", job.WindowStart, "window_end", job.WindowEnd)
 		result, runErr := executeReplayJob(ctx, repository, client, topics, job, workerCfg)
 		resultJSON, marshalErr := json.Marshal(result)
@@ -126,27 +135,39 @@ func run(logger *slog.Logger) error {
 		}
 		if runErr != nil {
 			if result.Canceled {
-				if _, err := repository.CancelReplayJob(ctx, job.ReplayJobID, workerCfg.WorkerID, time.Now().UTC(), "canceled during replay", resultJSON); err != nil {
+				completedAt := time.Now().UTC()
+				if _, err := repository.CancelReplayJob(ctx, job.ReplayJobID, workerCfg.WorkerID, completedAt, "canceled during replay", resultJSON); err != nil {
+					errAt := time.Now().UTC()
+					reportHeartbeat(ctx, logger, repository, heartbeatRecord(workerCfg, processStartedAt, "error", heartbeatError(errAt, err)))
 					return err
 				}
+				reportHeartbeat(ctx, logger, repository, heartbeatRecord(workerCfg, processStartedAt, "idle", heartbeatCompleted(completedAt, job.ReplayJobID)))
 				logger.Info("replay job canceled", "replay_job_id", job.ReplayJobID, "scanned", result.Scanned, "published", result.Published)
 				if workerCfg.OneShot {
 					return nil
 				}
 				continue
 			}
-			if _, err := repository.FailReplayJob(ctx, job.ReplayJobID, time.Now().UTC(), runErr.Error(), resultJSON); err != nil {
+			failedAt := time.Now().UTC()
+			if _, err := repository.FailReplayJob(ctx, job.ReplayJobID, failedAt, runErr.Error(), resultJSON); err != nil {
+				errAt := time.Now().UTC()
+				reportHeartbeat(ctx, logger, repository, heartbeatRecord(workerCfg, processStartedAt, "error", heartbeatError(errAt, err)))
 				return err
 			}
+			reportHeartbeat(ctx, logger, repository, heartbeatRecord(workerCfg, processStartedAt, "error", heartbeatError(failedAt, runErr), heartbeatCompleted(failedAt, job.ReplayJobID)))
 			logger.Error("replay job failed", "replay_job_id", job.ReplayJobID, "error", runErr)
 			if workerCfg.OneShot {
 				return runErr
 			}
 			continue
 		}
-		if _, err := repository.CompleteReplayJob(ctx, job.ReplayJobID, time.Now().UTC(), resultJSON); err != nil {
+		completedAt := time.Now().UTC()
+		if _, err := repository.CompleteReplayJob(ctx, job.ReplayJobID, completedAt, resultJSON); err != nil {
+			errAt := time.Now().UTC()
+			reportHeartbeat(ctx, logger, repository, heartbeatRecord(workerCfg, processStartedAt, "error", heartbeatError(errAt, err)))
 			return err
 		}
+		reportHeartbeat(ctx, logger, repository, heartbeatRecord(workerCfg, processStartedAt, "idle", heartbeatCompleted(completedAt, job.ReplayJobID)))
 		logger.Info("replay job completed", "replay_job_id", job.ReplayJobID, "published", result.Published, "scanned", result.Scanned, "failed", result.Failed, "batches", result.Batches)
 		if workerCfg.OneShot {
 			return nil
@@ -367,6 +388,58 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return parsed
+}
+
+type heartbeatOption func(*storage.ReplayWorkerHeartbeatRecord)
+
+func heartbeatClaim(claimedAt time.Time, replayJobID string) heartbeatOption {
+	return func(record *storage.ReplayWorkerHeartbeatRecord) {
+		record.LastClaimedAt = &claimedAt
+		record.LastClaimedReplayJobID = replayJobID
+	}
+}
+
+func heartbeatCompleted(completedAt time.Time, replayJobID string) heartbeatOption {
+	return func(record *storage.ReplayWorkerHeartbeatRecord) {
+		record.LastCompletedAt = &completedAt
+		record.LastCompletedReplayJobID = replayJobID
+	}
+}
+
+func heartbeatError(errorAt time.Time, err error) heartbeatOption {
+	return func(record *storage.ReplayWorkerHeartbeatRecord) {
+		record.LastErrorAt = &errorAt
+		if err != nil {
+			record.LastErrorMessage = err.Error()
+		}
+	}
+}
+
+func heartbeatRecord(cfg workerConfig, processStartedAt time.Time, status string, options ...heartbeatOption) storage.ReplayWorkerHeartbeatRecord {
+	metadata, _ := json.Marshal(map[string]any{
+		"one_shot":             cfg.OneShot,
+		"max_records":          cfg.MaxRecords,
+		"batch_size":           cfg.BatchSize,
+		"publish_max_attempts": cfg.PublishMaxAttempts,
+		"poll_interval":        cfg.PollInterval.String(),
+	})
+	record := storage.ReplayWorkerHeartbeatRecord{
+		WorkerID:         cfg.WorkerID,
+		Status:           status,
+		ProcessStartedAt: processStartedAt,
+		LastSeenAt:       time.Now().UTC(),
+		MetadataJSON:     metadata,
+	}
+	for _, option := range options {
+		option(&record)
+	}
+	return record
+}
+
+func reportHeartbeat(ctx context.Context, logger *slog.Logger, repo storage.ReplayWorkerHeartbeatRepository, record storage.ReplayWorkerHeartbeatRecord) {
+	if err := repo.UpsertReplayWorkerHeartbeat(ctx, record); err != nil {
+		logger.Error("upsert replay worker heartbeat", "error", err, "worker_id", record.WorkerID, "status", record.Status)
+	}
 }
 
 func closePublisher(logger *slog.Logger, publisher broker.Publisher) {

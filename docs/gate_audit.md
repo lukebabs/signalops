@@ -4712,3 +4712,53 @@ Verification performed:
 Follow-up items:
 
 - Add replay-worker operational health/last activity visibility if container-level status and logs are not enough for operators.
+
+
+## Gate G064: Replay Operations Observability Backend
+
+Timestamp: `2026-07-10T06:03:00Z`
+
+Status: `closed — implemented, deployed, and validated`
+
+Gate name:
+
+- Add durable replay-worker heartbeat observability and a backend replay operations status endpoint.
+
+Criteria:
+
+- Replay worker writes durable heartbeat/activity state to PostgreSQL.
+- Backend can report replay job counts by status.
+- Backend can report replay-worker heartbeat status, health, last seen, last claimed job, last completed job, and last error metadata.
+- Backend can return latest replay jobs alongside worker status for operational context.
+- New API is protected by existing auth enforcement.
+- Migration, tests, build, deployment, and live checks pass.
+
+Evidence:
+
+- `migrations/000009_replay_worker_heartbeats.up.sql`, `.down.sql`.
+- `internal/storage/storage.go` — heartbeat/status-count types and contracts.
+- `internal/storage/postgres/repository.go` — heartbeat and count implementations.
+- `cmd/replay-worker/main.go` — heartbeat writes.
+- `internal/api/router.go` — `GET /v1/replay/status`.
+- `internal/api/router_test.go` — replay status test.
+- `docs/api.md` — endpoint documentation.
+- `docs/build_journal.md` — implementation and validation record.
+
+Verification performed:
+
+- Focused and full Go test suites passed.
+- Compose config validation passed.
+- Migration `000009_replay_worker_heartbeats` applied successfully to Postgres.
+- Gateway and replay-worker images built successfully; Docker build ran full Go tests.
+- Gateway and replay-worker were recreated; web was force-recreated afterward to refresh nginx upstream resolution.
+- Local gateway health returned `200 OK`.
+- Local unauthenticated replay status returned `401 Unauthorized`.
+- Public `/replay` returned `200 OK`.
+- Public unauthenticated replay status returned `401 Unauthorized`.
+- Postgres heartbeat table shows a fresh `signalops-replay-worker` heartbeat with `idle` status.
+- Replay jobs table shows no queued jobs.
+
+Follow-up items:
+
+- Frontend can consume `GET /v1/replay/status` in Dashboard/Health UI.
+- Consider fixing nginx upstream resolution so web does not need forced recreation after gateway container replacement.

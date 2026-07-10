@@ -122,6 +122,27 @@ type ReplayJobRecord struct {
 	UpdatedAt    time.Time
 }
 
+type ReplayWorkerHeartbeatRecord struct {
+	WorkerID                 string
+	Status                   string
+	ProcessStartedAt         time.Time
+	LastSeenAt               time.Time
+	LastClaimedAt            *time.Time
+	LastClaimedReplayJobID   string
+	LastCompletedAt          *time.Time
+	LastCompletedReplayJobID string
+	LastErrorAt              *time.Time
+	LastErrorMessage         string
+	MetadataJSON             []byte
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+}
+
+type ReplayJobStatusCount struct {
+	Status string
+	Count  int
+}
+
 type ProviderUsageRecord struct {
 	UsageID      string
 	RunID        string
@@ -375,6 +396,10 @@ type ReplayJobRepository interface {
 	CancelReplayJob(ctx context.Context, replayJobID string, actor string, canceledAt time.Time, reason string, resultJSON []byte) (ReplayJobRecord, error)
 }
 
+type ReplayWorkerHeartbeatRepository interface {
+	UpsertReplayWorkerHeartbeat(ctx context.Context, record ReplayWorkerHeartbeatRecord) error
+}
+
 type IdempotencyRepository interface {
 	UpsertIdempotencyRecord(ctx context.Context, record IdempotencyRecord) error
 }
@@ -463,10 +488,13 @@ type ReplayJobFilter struct {
 
 type QueryRepository interface {
 	ReplayJobRepository
+	ReplayWorkerHeartbeatRepository
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
 	ListReplayJobs(ctx context.Context, filter ReplayJobFilter) ([]ReplayJobRecord, error)
 	GetReplayJob(ctx context.Context, replayJobID string) (ReplayJobRecord, error)
+	CountReplayJobsByStatus(ctx context.Context, tenantID string) ([]ReplayJobStatusCount, error)
+	ListReplayWorkerHeartbeats(ctx context.Context, limit int) ([]ReplayWorkerHeartbeatRecord, error)
 	ListReplayRawEvents(ctx context.Context, job ReplayJobRecord, limit int, offset int) ([]RawEventLedgerRecord, error)
 	ListReplayNormalizedEvents(ctx context.Context, job ReplayJobRecord, limit int, offset int) ([]NormalizedEventLedgerRecord, error)
 	ListReplaySignals(ctx context.Context, job ReplayJobRecord, limit int, offset int) ([]SignalLedgerRecord, error)

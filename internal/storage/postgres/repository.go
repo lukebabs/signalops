@@ -836,6 +836,102 @@ func (r *Repository) GetReplayJob(ctx context.Context, replayJobID string) (stor
 	return record, nil
 }
 
+func (r *Repository) CountReplayJobsByStatus(ctx context.Context, tenantID string) ([]storage.ReplayJobStatusCount, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT status, count(*)
+FROM replay_jobs
+WHERE ($1 = '' OR tenant_id = $1)
+GROUP BY status
+ORDER BY status ASC`, strings.TrimSpace(tenantID))
+	if err != nil {
+		return nil, fmt.Errorf("count replay jobs by status: %w", err)
+	}
+	defer rows.Close()
+	counts := []storage.ReplayJobStatusCount{}
+	for rows.Next() {
+		var record storage.ReplayJobStatusCount
+		if err := rows.Scan(&record.Status, &record.Count); err != nil {
+			return nil, fmt.Errorf("scan replay job status count: %w", err)
+		}
+		counts = append(counts, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("count replay jobs by status rows: %w", err)
+	}
+	return counts, nil
+}
+
+func (r *Repository) UpsertReplayWorkerHeartbeat(ctx context.Context, record storage.ReplayWorkerHeartbeatRecord) error {
+	workerID := strings.TrimSpace(record.WorkerID)
+	if workerID == "" {
+		return errors.New("replay worker id is required")
+	}
+	status := strings.TrimSpace(record.Status)
+	if status == "" {
+		status = "idle"
+	}
+	processStartedAt := record.ProcessStartedAt.UTC()
+	if processStartedAt.IsZero() {
+		processStartedAt = time.Now().UTC()
+	}
+	lastSeenAt := record.LastSeenAt.UTC()
+	if lastSeenAt.IsZero() {
+		lastSeenAt = time.Now().UTC()
+	}
+	metadata := record.MetadataJSON
+	if len(metadata) == 0 {
+		metadata = []byte(`{}`)
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO replay_worker_heartbeats (
+  worker_id, status, process_started_at, last_seen_at, last_claimed_at, last_claimed_replay_job_id,
+  last_completed_at, last_completed_replay_job_id, last_error_at, last_error_message, metadata
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+ON CONFLICT (worker_id) DO UPDATE SET
+  status = EXCLUDED.status,
+  process_started_at = EXCLUDED.process_started_at,
+  last_seen_at = EXCLUDED.last_seen_at,
+  last_claimed_at = COALESCE(EXCLUDED.last_claimed_at, replay_worker_heartbeats.last_claimed_at),
+  last_claimed_replay_job_id = COALESCE(NULLIF(EXCLUDED.last_claimed_replay_job_id, ''), replay_worker_heartbeats.last_claimed_replay_job_id),
+  last_completed_at = COALESCE(EXCLUDED.last_completed_at, replay_worker_heartbeats.last_completed_at),
+  last_completed_replay_job_id = COALESCE(NULLIF(EXCLUDED.last_completed_replay_job_id, ''), replay_worker_heartbeats.last_completed_replay_job_id),
+  last_error_at = COALESCE(EXCLUDED.last_error_at, replay_worker_heartbeats.last_error_at),
+  last_error_message = COALESCE(NULLIF(EXCLUDED.last_error_message, ''), replay_worker_heartbeats.last_error_message),
+  metadata = EXCLUDED.metadata,
+  updated_at = now()`,
+		workerID, status, processStartedAt, lastSeenAt, record.LastClaimedAt, strings.TrimSpace(record.LastClaimedReplayJobID),
+		record.LastCompletedAt, strings.TrimSpace(record.LastCompletedReplayJobID), record.LastErrorAt, nullString(record.LastErrorMessage), jsonOrEmpty(metadata))
+	if err != nil {
+		return fmt.Errorf("upsert replay worker heartbeat: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ListReplayWorkerHeartbeats(ctx context.Context, limit int) ([]storage.ReplayWorkerHeartbeatRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT worker_id, status, process_started_at, last_seen_at, last_claimed_at, last_claimed_replay_job_id,
+  last_completed_at, last_completed_replay_job_id, last_error_at, last_error_message, metadata, created_at, updated_at
+FROM replay_worker_heartbeats
+ORDER BY last_seen_at DESC
+LIMIT $1`, clampLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list replay worker heartbeats: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.ReplayWorkerHeartbeatRecord{}
+	for rows.Next() {
+		record, err := scanReplayWorkerHeartbeat(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list replay worker heartbeats rows: %w", err)
+	}
+	return records, nil
+}
+
 func (r *Repository) ClaimNextReplayJob(ctx context.Context, workerID string, claimedAt time.Time) (storage.ReplayJobRecord, error) {
 	workerID = strings.TrimSpace(workerID)
 	if workerID == "" {
@@ -1395,6 +1491,37 @@ func scanReplayJob(scanner replayJobScanner) (storage.ReplayJobRecord, error) {
 	if completedAt.Valid {
 		record.CompletedAt = &completedAt.Time
 	}
+	return record, nil
+}
+
+type replayWorkerHeartbeatScanner interface{ Scan(dest ...any) error }
+
+func scanReplayWorkerHeartbeat(scanner replayWorkerHeartbeatScanner) (storage.ReplayWorkerHeartbeatRecord, error) {
+	var record storage.ReplayWorkerHeartbeatRecord
+	var lastClaimedAt sql.NullTime
+	var lastClaimedReplayJobID sql.NullString
+	var lastCompletedAt sql.NullTime
+	var lastCompletedReplayJobID sql.NullString
+	var lastErrorAt sql.NullTime
+	var lastErrorMessage sql.NullString
+	if err := scanner.Scan(
+		&record.WorkerID, &record.Status, &record.ProcessStartedAt, &record.LastSeenAt, &lastClaimedAt, &lastClaimedReplayJobID,
+		&lastCompletedAt, &lastCompletedReplayJobID, &lastErrorAt, &lastErrorMessage, &record.MetadataJSON, &record.CreatedAt, &record.UpdatedAt,
+	); err != nil {
+		return storage.ReplayWorkerHeartbeatRecord{}, mapScanError("scan replay worker heartbeat", err)
+	}
+	if lastClaimedAt.Valid {
+		record.LastClaimedAt = &lastClaimedAt.Time
+	}
+	record.LastClaimedReplayJobID = lastClaimedReplayJobID.String
+	if lastCompletedAt.Valid {
+		record.LastCompletedAt = &lastCompletedAt.Time
+	}
+	record.LastCompletedReplayJobID = lastCompletedReplayJobID.String
+	if lastErrorAt.Valid {
+		record.LastErrorAt = &lastErrorAt.Time
+	}
+	record.LastErrorMessage = lastErrorMessage.String
 	return record, nil
 }
 

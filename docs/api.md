@@ -435,6 +435,34 @@ Cancels a queued or running replay job. The endpoint accepts an optional lifecyc
 
 Response status: `200 OK` with `{ "replay_job": ... }`. The worker detects cancellation between replay batches, stops publishing new records, and merges partial counters into the replay job `result` JSON.
 
+`GET /v1/replay/status?tenant_id={tenant_id}&limit=20`
+
+Returns replay operations status for dashboards and health views:
+
+```json
+{
+  "replay_status": {
+    "generated_at": "2026-07-10T05:21:33Z",
+    "job_counts": {"queued": 0, "running": 0, "succeeded": 2, "failed": 0, "canceled": 0},
+    "workers": [
+      {
+        "worker_id": "signalops-replay-worker",
+        "status": "idle",
+        "health": "online",
+        "process_started_at": "2026-07-10T05:13:35Z",
+        "last_seen_at": "2026-07-10T05:21:30Z",
+        "last_claimed_replay_job_id": "replay-123",
+        "last_completed_replay_job_id": "replay-123",
+        "metadata": {"poll_interval": "5s"}
+      }
+    ],
+    "latest_jobs": []
+  }
+}
+```
+
+Worker `health` is derived by the gateway from heartbeat freshness: `online`, `stale`, or `error`.
+
 Execution notes:
 
 - `raw_events` replay publishes stored raw payloads to `signalops.<env>.raw.v1`; the normalizer then reprocesses them.

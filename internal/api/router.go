@@ -165,6 +165,31 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"replay_job": replayJobResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/replay/status", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		now := time.Now().UTC()
+		counts, err := repo.CountReplayJobsByStatus(r.Context(), tenantID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to count replay jobs")
+			return
+		}
+		workers, err := repo.ListReplayWorkerHeartbeats(r.Context(), queryLimit(r, 20))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list replay worker heartbeats")
+			return
+		}
+		latestJobs, err := repo.ListReplayJobs(r.Context(), storage.ReplayJobFilter{TenantID: tenantID, Limit: 5})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list replay jobs")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"replay_status": replayStatusResponse(now, counts, workers, latestJobs)})
+	})
+
 	mux.HandleFunc("GET /v1/provider-usage", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -838,6 +863,30 @@ type replayJobCreateRequest struct {
 	Options     json.RawMessage `json:"options"`
 }
 
+type replayStatusDTO struct {
+	GeneratedAt time.Time               `json:"generated_at"`
+	JobCounts   map[string]int          `json:"job_counts"`
+	Workers     []replayWorkerStatusDTO `json:"workers"`
+	LatestJobs  []replayJobDTO          `json:"latest_jobs"`
+}
+
+type replayWorkerStatusDTO struct {
+	WorkerID                 string          `json:"worker_id"`
+	Status                   string          `json:"status"`
+	Health                   string          `json:"health"`
+	ProcessStartedAt         time.Time       `json:"process_started_at"`
+	LastSeenAt               time.Time       `json:"last_seen_at"`
+	LastClaimedAt            *time.Time      `json:"last_claimed_at,omitempty"`
+	LastClaimedReplayJobID   string          `json:"last_claimed_replay_job_id,omitempty"`
+	LastCompletedAt          *time.Time      `json:"last_completed_at,omitempty"`
+	LastCompletedReplayJobID string          `json:"last_completed_replay_job_id,omitempty"`
+	LastErrorAt              *time.Time      `json:"last_error_at,omitempty"`
+	LastErrorMessage         string          `json:"last_error_message,omitempty"`
+	Metadata                 json.RawMessage `json:"metadata"`
+	CreatedAt                time.Time       `json:"created_at"`
+	UpdatedAt                time.Time       `json:"updated_at"`
+}
+
 type providerUsageDTO struct {
 	UsageID      string          `json:"usage_id"`
 	RunID        string          `json:"run_id"`
@@ -1237,6 +1286,43 @@ func replayJobResponse(record storage.ReplayJobRecord) replayJobDTO {
 		WindowStart: record.WindowStart, WindowEnd: record.WindowEnd, StartedAt: record.StartedAt, CompletedAt: record.CompletedAt,
 		Filters: jsonRawOrEmptyObject(record.FiltersJSON), Options: jsonRawOrEmptyObject(record.OptionsJSON), Result: jsonRawOrEmptyObject(record.ResultJSON),
 		ErrorMessage: record.ErrorMessage, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
+	}
+}
+
+func replayStatusResponse(now time.Time, counts []storage.ReplayJobStatusCount, workers []storage.ReplayWorkerHeartbeatRecord, latestJobs []storage.ReplayJobRecord) replayStatusDTO {
+	jobCounts := map[string]int{
+		storage.ReplayJobStatusQueued:    0,
+		storage.ReplayJobStatusRunning:   0,
+		storage.ReplayJobStatusSucceeded: 0,
+		storage.ReplayJobStatusFailed:    0,
+		storage.ReplayJobStatusCanceled:  0,
+	}
+	for _, count := range counts {
+		jobCounts[count.Status] = count.Count
+	}
+	return replayStatusDTO{GeneratedAt: now, JobCounts: jobCounts, Workers: replayWorkerStatusResponses(now, workers), LatestJobs: replayJobResponses(latestJobs)}
+}
+
+func replayWorkerStatusResponses(now time.Time, records []storage.ReplayWorkerHeartbeatRecord) []replayWorkerStatusDTO {
+	items := make([]replayWorkerStatusDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, replayWorkerStatusResponse(now, record))
+	}
+	return items
+}
+
+func replayWorkerStatusResponse(now time.Time, record storage.ReplayWorkerHeartbeatRecord) replayWorkerStatusDTO {
+	health := "online"
+	if now.Sub(record.LastSeenAt) > 30*time.Second || record.Status == "stopping" {
+		health = "stale"
+	}
+	if record.Status == "error" {
+		health = "error"
+	}
+	return replayWorkerStatusDTO{
+		WorkerID: record.WorkerID, Status: record.Status, Health: health, ProcessStartedAt: record.ProcessStartedAt, LastSeenAt: record.LastSeenAt,
+		LastClaimedAt: record.LastClaimedAt, LastClaimedReplayJobID: record.LastClaimedReplayJobID, LastCompletedAt: record.LastCompletedAt, LastCompletedReplayJobID: record.LastCompletedReplayJobID,
+		LastErrorAt: record.LastErrorAt, LastErrorMessage: record.LastErrorMessage, Metadata: jsonRawOrEmptyObject(record.MetadataJSON), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
 	}
 }
 

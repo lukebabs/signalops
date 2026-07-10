@@ -3953,3 +3953,49 @@ Validation performed:
 Next step:
 
 - Proceed to replay operations observability if additional worker status visibility is needed.
+
+
+## 2026-07-10T06:03:00Z
+
+Summary:
+
+- Implemented G064 replay operations observability: durable replay-worker heartbeat storage, worker heartbeat upserts, and a protected `GET /v1/replay/status` API for job counts, worker health, and latest replay jobs.
+- Applied relational migration `000009_replay_worker_heartbeats` to the running Postgres database.
+- Rebuilt and redeployed `gateway` and `replay-worker`; force-recreated `web` afterward so nginx re-resolved the recreated gateway container.
+
+Files changed:
+
+- `migrations/000009_replay_worker_heartbeats.up.sql`, `.down.sql` — durable replay worker heartbeat table and indexes.
+- `internal/storage/storage.go` — heartbeat record/status count types and repository contracts.
+- `internal/storage/postgres/repository.go` — heartbeat upsert/list and replay status count queries.
+- `cmd/replay-worker/main.go` — heartbeat updates for startup, idle polling, claims, completions, cancellations, errors, and shutdown.
+- `internal/api/router.go` — `GET /v1/replay/status` endpoint and DTOs.
+- `internal/api/router_test.go` — replay status regression test.
+- `docs/api.md` — replay status endpoint documentation.
+- `docs/build_journal.md`, `docs/gate_audit.md` — G064 audit entries.
+
+Validation performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/src -w /src golang:1.22-bookworm gofmt -w ...` — formatted touched Go files.
+- Focused Go tests passed: `go test ./internal/storage ./internal/storage/postgres ./internal/api ./cmd/replay-worker ./cmd/gateway`.
+- Full Go suite passed: `go test ./...`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` — passed.
+- `docker compose -f compose.yaml -f compose.traefik.yaml --profile storage run --rm postgres-migrate` — applied `000009_replay_worker_heartbeats`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml build gateway replay-worker` — passed; Docker build ran full `go test ./...`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d gateway replay-worker` — recreated both services.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d --force-recreate web` — refreshed nginx upstream resolution after gateway recreation.
+- Local `GET http://localhost:18000/healthz` — `200 OK`.
+- Local unauthenticated `GET http://localhost:18000/v1/replay/status?tenant_id=tenant-local` — `401 Unauthorized`, expected after auth enforcement.
+- Public `GET https://signalops.syncratic.io/replay` — `200 OK`.
+- Public unauthenticated `GET https://signalops.syncratic.io/v1/replay/status?tenant_id=tenant-local` — `401 Unauthorized`, confirming endpoint is deployed and protected.
+- Postgres heartbeat check confirmed `signalops-replay-worker` status `idle`, fresh `last_seen_at`, and metadata `{"one_shot":false,"batch_size":50,"max_records":50,"poll_interval":"5s","publish_max_attempts":3}`.
+- Replay job count check showed only terminal `succeeded` jobs and no queued jobs.
+
+Audit notes:
+
+- Authenticated response payload was covered by unit tests; live shell validation confirms deployment and auth boundary but not bearer-token payload rendering.
+- Recreating `gateway` can leave the current nginx web container pointing at the old gateway IP; force-recreate `web` after gateway replacement until nginx dynamic DNS is improved.
+
+Next step:
+
+- Provide a frontend-agent spec to surface `GET /v1/replay/status` in the Dashboard/Health UI, or implement a small backend health summary if UI work should wait.
