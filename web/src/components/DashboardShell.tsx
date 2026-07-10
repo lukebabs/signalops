@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { Link, Outlet, useNavigate } from '@tanstack/react-router';
 import {
   Activity,
+  CircleDollarSign,
   ListTree,
   Database,
   KeyRound,
@@ -39,6 +40,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   idempotency: KeyRound,
   sources: DatabaseZap,
   providers: DatabaseZap,
+  symbols: CircleDollarSign,
   pipelines: Workflow,
   rules: ShieldCheck,
   replay: History,

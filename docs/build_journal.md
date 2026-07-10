@@ -4475,3 +4475,54 @@ Files:
 Next step:
 
 - Hand the spec to the frontend-agent for implementation, then run frontend tests/build/audit and deploy via `make deploy-web` if the implementation is accepted.
+
+## 2026-07-10T18:19:00Z
+
+Summary:
+
+- Implemented the G071 frontend follow-up: a read-only MarketOps Asset Universe
+  page at `/marketops/assets`, backed by the G071 backend
+  `GET /v1/tenants/{tenant_id}/marketops/assets`.
+- Evaluated the spec against the verified backend (route, query params, the
+  string-parsed `active_only`, and all 21 `marketOpsAssetDTO` fields) — matched
+  exactly. Fixed two spec gaps during implementation: the `symbols` nav module
+  needed an entry in `DashboardShell`'s `MODULE_ICONS` map, and the route-render
+  test is deferred to browser validation (vitest runs in Node with no jsdom/RTL).
+
+Files changed:
+
+- `web/src/types.ts`: `MarketOpsAsset`, `MarketOpsAssetsResponse`, `MarketOpsAssetFilter`.
+- `web/src/api/client.ts`: `listMarketOpsAssets` (encoded tenant path; `active_only`
+  serialized as the string the backend parses).
+- `web/src/api/queries.ts`: `queryKeys.marketOpsAssets` + `useMarketOpsAssets` (5-min cache).
+- `web/src/routes/MarketOpsAssetsRoute.tsx`: dense read-only table mirroring
+  SourcesRoute — Rank/Asset/Sector/Industry/Source/Status/Updated, metric tiles,
+  loading/error/empty, Asset Metadata JSON.
+- `web/src/router.tsx`: lazy-load + register `/marketops/assets`.
+- `web/src/apps/appRouting.ts`: `'/marketops/assets'` in `AppRoutePath` + Assets nav item.
+- `web/src/components/DashboardShell.tsx`: `symbols: CircleDollarSign` in `MODULE_ICONS`.
+- `web/src/api/marketopsAssets.test.ts` (new) + `web/src/apps/appRouting.test.ts`: tests.
+- `docs/frontend/marketops_asset_universe_ui_spec.md`: annotated the two gaps.
+
+Scope decisions:
+
+- Console nav/routes untouched; Assets is MarketOps-only.
+- Dashboard integration (spec §7) skipped to avoid layout churn (spec's allowed fallback).
+
+Validation performed (local, automated):
+
+- `cd web && npm test`: 78 passed (13 files), incl. 7 new `marketopsAssets` and 1 new
+  `appRouting` test.
+- `cd web && npm run build`: `tsc` + `vite build` succeeded (TanStack typed the new route).
+- `cd web && npm audit --json`: 0 vulnerabilities.
+- `git diff --check`: clean.
+
+Validation NOT yet performed:
+
+- Authenticated browser validation (`/marketops/assets` renders 50 seeded assets in
+  rank order, metric counts, network params, mobile overflow). Requires browser-driven
+  IdP login + `make deploy-web`; remains operator-pending.
+
+Next step:
+
+- Operator deploys via `make deploy-web` and completes browser validation.

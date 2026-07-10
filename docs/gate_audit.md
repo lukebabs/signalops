@@ -5247,3 +5247,50 @@ Follow-up items:
 
 - Implement the spec in `web/`.
 - Validate with `npm test`, `npm run build`, `npm audit --json`, and authenticated browser checks.
+
+## Gate G071 Frontend Follow-Up: MarketOps Asset Universe UI Implementation
+
+Timestamp: `2026-07-10T18:19:00Z`
+
+Status: `implemented — local automated validation passed; authenticated browser validation pending operator`
+
+Gate name:
+
+- Implement the read-only MarketOps Asset Universe UI at `/marketops/assets` against the G071 backend.
+
+Evaluation:
+
+- Verified the G071 backend (`0d651bf`) contract matches the spec: route `GET /v1/tenants/{tenant_id}/marketops/assets`, string-parsed `active_only`, `{"assets":[...]}` envelope, and all 21 `marketOpsAssetDTO` JSON fields.
+
+Criteria:
+
+- `/marketops/assets` registered and reachable; MarketOps-only; Console nav unchanged.
+- Authenticated API client fetches real assets; read-only, no mock fallback.
+- Page renders metrics, dense table, loading/error/empty states, and metadata JSON.
+- Unit tests cover API path/query construction and app-routing changes.
+
+Evidence:
+
+- `web/src/types.ts`, `web/src/api/client.ts` (`listMarketOpsAssets`), `web/src/api/queries.ts` (`useMarketOpsAssets`).
+- `web/src/routes/MarketOpsAssetsRoute.tsx` (mirrors SourcesRoute).
+- `web/src/router.tsx` (route + registration), `web/src/apps/appRouting.ts` (AppRoutePath + Assets nav), `web/src/components/DashboardShell.tsx` (`symbols` icon).
+- Tests: `web/src/api/marketopsAssets.test.ts` (7), `web/src/apps/appRouting.test.ts` (+1).
+- Spec annotated for two gaps: `MODULE_ICONS` `symbols` entry and deferred route-render test.
+
+Spec fixes applied during implementation:
+
+- Added `symbols: CircleDollarSign` to `DashboardShell` `MODULE_ICONS` (spec omitted it).
+- Deferred the route-render test to browser validation (node-only vitest); covered via API/routing/query-key unit tests (G068 precedent).
+
+Validation performed:
+
+- `npm test`: 78 passed. `npm run build`: succeeded. `npm audit --json`: 0 vulnerabilities. `git diff --check`: clean.
+
+Validation NOT yet performed (blocks final close):
+
+- Authenticated browser validation from the spec checklist. Requires browser IdP login + `make deploy-web`.
+
+Follow-up items:
+
+- Operator deploys via `make deploy-web` and completes authenticated browser validation.
+- Optional: MarketOps dashboard widget (spec §7), deferred to avoid layout churn.

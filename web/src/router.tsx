@@ -45,6 +45,9 @@ const InsightsRoute = lazy(() =>
 const ReplayJobsRoute = lazy(() =>
   import('./routes/ReplayJobsRoute').then((m) => ({ default: m.ReplayJobsRoute })),
 );
+const MarketOpsAssetsRoute = lazy(() =>
+  import('./routes/MarketOpsAssetsRoute').then((m) => ({ default: m.MarketOpsAssetsRoute })),
+);
 
 // The root route hosts the app-profile provider so every route can read the
 // active app (currentApp/metadataFilter/nav). The provider uses useLocation,
@@ -150,6 +153,7 @@ const marketopsInsightsRoute = createRoute({ getParentRoute: () => rootRoute, pa
 const marketopsReplayRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/replay', component: ReplayJobsRoute });
 const marketopsPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/pipelines', component: PipelinesRoute });
 const marketopsHealthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/health', component: SystemRoute });
+const marketopsAssetsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assets', component: MarketOpsAssetsRoute });
 
 // /auth/callback is primarily handled by the auth gate in App.tsx (the router must not mount
 // before authentication); this route is a fallback that returns the user to the dashboard.
@@ -193,6 +197,7 @@ const routeTree = rootRoute.addChildren([
   marketopsReplayRoute,
   marketopsPipelinesRoute,
   marketopsHealthRoute,
+  marketopsAssetsRoute,
 ]);
 
 export const router = createRouter({ routeTree });

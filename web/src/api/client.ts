@@ -31,6 +31,8 @@ import type {
   ReplayJobCancelRequest,
   ReplayOperationsStatusResponse,
   AppProfilesResponse,
+  MarketOpsAssetsResponse,
+  MarketOpsAssetFilter,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -253,6 +255,17 @@ export const api = {
     }),
   // G066 static app profiles (console + marketops). Same authenticated path.
   getAppProfiles: () => get<AppProfilesResponse>('/v1/app-profiles'),
+  // G071 MarketOps asset universe (read-only). tenant_id is a path segment;
+  // active_only is serialized as the string the backend parses ("false" disables it).
+  listMarketOpsAssets: (filter: MarketOpsAssetFilter = {}) =>
+    get<MarketOpsAssetsResponse>(
+      `/v1/tenants/${encodeURIComponent(filter.tenant_id ?? 'tenant-local')}/marketops/assets`,
+      {
+        universe_group: filter.universe_group || 'top50_megacap',
+        active_only: filter.active_only === false ? 'false' : 'true',
+        limit: filter.limit ?? 50,
+      },
+    ),
   mutateAlertLifecycle: ({ alertId, action, note, reason }: AlertLifecycleMutationOptions) =>
     post<AlertResponse>(
       `/v1/alerts/${encodeURIComponent(alertId)}/${action}`,

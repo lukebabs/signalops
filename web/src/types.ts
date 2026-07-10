@@ -552,3 +552,41 @@ export interface AppProfile {
 export interface AppProfilesResponse {
   app_profiles: AppProfile[];
 }
+
+// G071 MarketOps asset universe (read-only). Served by
+// GET /v1/tenants/{tenant_id}/marketops/assets. Strings stay permissive — the
+// universe is backend-owned and must not be encoded as a TS union.
+export interface MarketOpsAsset {
+  tenant_id: string;
+  app_id: string;
+  domain: string;
+  use_case: string;
+  source_id: string;
+  universe_group: string;
+  rank: number;
+  ticker: string;
+  ticker_key: string;
+  company: string;
+  company_key: string;
+  asset_type: string;
+  exchange: string;
+  sector: string;
+  sector_key: string;
+  industry: string;
+  industry_key: string;
+  is_active: boolean;
+  metadata: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsAssetsResponse {
+  assets: MarketOpsAsset[];
+}
+
+export interface MarketOpsAssetFilter {
+  tenant_id?: string;
+  universe_group?: string;
+  active_only?: boolean;
+  limit?: number;
+}

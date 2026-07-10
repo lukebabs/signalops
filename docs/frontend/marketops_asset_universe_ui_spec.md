@@ -229,6 +229,7 @@ Update `web/src/apps/appRouting.ts`:
 - Add `'/marketops/assets'` to `AppRoutePath`.
 - Add `{ module: 'symbols', to: '/marketops/assets', label: 'Assets' }` to `MARKETOPS_NAV`.
 - Keep existing MarketOps routes intact.
+- Add a `symbols` entry to the `MODULE_ICONS` map in `web/src/components/DashboardShell.tsx` (e.g. `CircleDollarSign`) so the Assets nav item resolves a market icon rather than the generic fallback.
 
 Do not remove `/marketops/providers`; providers and assets are separate concepts.
 
@@ -321,7 +322,7 @@ Minimum expected coverage:
 - API client sends `active_only=false` when explicitly requested.
 - Query key/hook wiring is stable, if query hooks are tested in the current style.
 - App routing includes `/marketops/assets` in MarketOps nav and keeps Console nav unchanged.
-- Route renders returned assets, metrics, and empty state.
+- Route renders returned assets, metrics, and empty state. (In-gate this is covered by API-client + app-routing + query-key unit tests; a route-render test is deferred to browser validation because `npm test` runs vitest in Node with no jsdom/RTL.)
 
 Use existing test patterns from:
 

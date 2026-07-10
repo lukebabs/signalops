@@ -82,4 +82,13 @@ describe('navForApp (G067)', () => {
     expect(labels).not.toContain('Runs');
     expect(labels).not.toContain('Rules');
   });
+
+  it('exposes the MarketOps asset universe route only under marketops (G071)', () => {
+    const assets = navForApp('marketops').find((n) => n.module === 'symbols');
+    expect(assets).toBeDefined();
+    expect(assets?.to).toBe('/marketops/assets');
+    expect(assets?.label).toBe('Assets');
+    // Console parity: no asset/symbol nav leaks into the console.
+    expect(navForApp('console').some((n) => n.to === '/marketops/assets')).toBe(false);
+  });
 });

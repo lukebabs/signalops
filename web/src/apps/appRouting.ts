@@ -27,7 +27,8 @@ export type AppRoutePath =
   | '/marketops/insights'
   | '/marketops/replay'
   | '/marketops/pipelines'
-  | '/marketops/health';
+  | '/marketops/health'
+  | '/marketops/assets';
 
 export type MetadataFilter = { app_id?: string; domain?: string; use_case?: string };
 
@@ -79,6 +80,7 @@ const CONSOLE_NAV: NavItem[] = [
 const MARKETOPS_NAV: NavItem[] = [
   { module: 'dashboard', to: '/marketops/dashboard', label: 'Dashboard' },
   { module: 'providers', to: '/marketops/providers', label: 'Providers' },
+  { module: 'symbols', to: '/marketops/assets', label: 'Assets' },
   { module: 'raw_events', to: '/marketops/raw-events', label: 'Raw Events' },
   { module: 'normalized', to: '/marketops/normalized', label: 'Normalized' },
   { module: 'signals', to: '/marketops/signals', label: 'Signals' },

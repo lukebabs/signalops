@@ -11,6 +11,7 @@ import type {
   ReplayJobFilter,
   ReplayJobCreateRequest,
   ReplayJob,
+  MarketOpsAssetFilter,
 } from '../types';
 
 export const queryKeys = {
@@ -39,6 +40,7 @@ export const queryKeys = {
   replayJob: (replayJobId: string) => ['replay-job', replayJobId] as const,
   replayStatus: (tenantId: string, limit?: number) => ['replay-status', tenantId, limit] as const,
   appProfiles: ['app-profiles'] as const,
+  marketOpsAssets: (filter: MarketOpsAssetFilter) => ['marketops-assets', filter] as const,
 };
 
 export function useHealthz() {
@@ -240,6 +242,17 @@ export function useAppProfiles() {
   return useQuery({
     queryKey: queryKeys.appProfiles,
     queryFn: api.getAppProfiles,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// G071 MarketOps asset universe (read-only). The seed changes slowly; cache 5 min.
+export function useMarketOpsAssets(
+  filter: MarketOpsAssetFilter = { tenant_id: 'tenant-local', universe_group: 'top50_megacap', active_only: true, limit: 50 },
+) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsAssets(filter),
+    queryFn: () => api.listMarketOpsAssets(filter),
     staleTime: 5 * 60 * 1000,
   });
 }
