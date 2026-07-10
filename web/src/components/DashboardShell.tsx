@@ -17,6 +17,7 @@ import {
   Lightbulb,
   LogOut,
   History,
+  Network,
   type LucideIcon,
 } from 'lucide-react';
 import { HealthIndicator } from './HealthIndicator';
@@ -48,6 +49,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   alerts: TriangleAlert,
   insights: Lightbulb,
   health: Gauge,
+  dsm: Network,
 };
 
 export function DashboardShell() {

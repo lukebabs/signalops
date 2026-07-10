@@ -21,6 +21,7 @@ describe('appIdFromPathname (G067)', () => {
     expect(appIdFromPathname('/marketops/')).toBe('marketops');
     expect(appIdFromPathname('/marketops/dashboard')).toBe('marketops');
     expect(appIdFromPathname('/marketops/signals')).toBe('marketops');
+    expect(appIdFromPathname('/marketops/dsm')).toBe('marketops');
   });
 
   it('defaults an empty path to console', () => {
@@ -90,5 +91,18 @@ describe('navForApp (G067)', () => {
     expect(assets?.label).toBe('Assets');
     // Console parity: no asset/symbol nav leaks into the console.
     expect(navForApp('console').some((n) => n.to === '/marketops/assets')).toBe(false);
+  });
+
+  it('exposes the MarketOps DSM workbench route only under marketops (G076)', () => {
+    const dsm = navForApp('marketops').find((n) => n.module === 'dsm');
+    expect(dsm).toBeDefined();
+    expect(dsm?.to).toBe('/marketops/dsm');
+    expect(dsm?.label).toBe('DSM');
+    // Generic MarketOps routes are still present alongside the new DSM entry.
+    const labels = navForApp('marketops').map((n) => n.label);
+    expect(labels).toContain('Signals');
+    expect(labels).toContain('Assets');
+    // Console parity: DSM does not leak into console nav.
+    expect(navForApp('console').some((n) => n.to === '/marketops/dsm')).toBe(false);
   });
 });

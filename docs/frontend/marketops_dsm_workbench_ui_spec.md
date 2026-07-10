@@ -165,7 +165,7 @@ export function countGraphTargets(signal: SignalRecord): number;
 export function hasLifecycleMatch(signal: SignalRecord, ids: Set<string>): boolean;
 ```
 
-Use type guards over `unknown`; avoid unsafe casts that can throw at runtime. Keep formatting functions deterministic and unit-testable.
+Use type guards over `unknown`; avoid unsafe casts that can throw at runtime. Keep formatting functions deterministic and unit-testable. Note: the gateway deserializes the whole response, so `entities` / `supporting_metrics` / `semantic_evidence` / `graph_targets` / `recommendation` arrive as already-parsed JS values (objects/arrays), not strings — narrow with type guards; do NOT `JSON.parse` them. Implement `graphTargetCounts(signal): { nodes, relationships }` (counting `type === 'node_candidate'` / `'relationship_candidate'`) alongside `countGraphTargets` (total), since the detail panel needs node and relationship counts separately.
 
 Suggested family mapping:
 

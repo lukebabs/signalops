@@ -4748,3 +4748,59 @@ Validation performed:
 Next step:
 
 - Frontend-agent should implement G076 from `docs/frontend/marketops_dsm_workbench_ui_spec.md`.
+
+## 2026-07-10T20:08:00Z
+
+Summary:
+
+- Implemented the G076 frontend follow-up: a MarketOps-only DSM Workbench at
+  `/marketops/dsm` that surfaces `marketops.dsm.taxonomy_v1` signal output —
+  taxonomy, ticker, equity/option/quality metrics, artifact proposal, graph
+  candidates, and linked alert/insight lifecycle — without raw-JSON-first digging.
+- No backend changes; reuses existing `/v1/signals`, `/v1/signals/{id}`,
+  `/v1/alerts`, `/v1/insights` with MarketOps daily-surveillance filters.
+- Evaluated the spec against the verified G075 detector payload (Python detector
+  + Go signalDTO): `entities[0].external_id`, nested `semantic_evidence[0].artifact`
+  (`subject.symbol`, `artifact_type=marketops.dsm.signal_artifact.v1`),
+  `graph_targets` typed `node_candidate`/`relationship_candidate`, all 12 metric
+  keys, all 8 signal types. All CONFIRMED.
+
+Files changed:
+
+- `web/src/lib/marketopsDsm.ts` (new): defensive parsing helpers — type-guard
+  narrowing only, NO `JSON.parse` (the gateway already deserializes the response).
+- `web/src/routes/MarketOpsDsmRoute.tsx` (new): filters, 5 metric tiles, dense
+  signals table, detail panel (identity, lifecycle links, artifact proposal,
+  price/option/quality metric sections, graph summary, evidence links, JSON views).
+- `web/src/router.tsx`: lazy-load + register `/marketops/dsm`.
+- `web/src/apps/appRouting.ts`: `/marketops/dsm` in `AppRoutePath` + DSM nav item.
+- `web/src/components/DashboardShell.tsx`: `dsm: Network` icon.
+- `web/src/lib/marketopsDsm.test.ts` (new) + `web/src/apps/appRouting.test.ts`: tests.
+- `docs/frontend/marketops_dsm_workbench_ui_spec.md`: annotated the helper section
+  (no `JSON.parse`; `graphTargetCounts` returns node/relationship counts).
+
+Scope decisions:
+
+- Taxonomy type filtered client-side (backend has no `signal_type` filter);
+  severity/dataset/detector/app/domain/use_case/limit go to the backend.
+- No polling; manual refresh button only. Console nav untouched.
+- Excluded unrelated in-tree backend artifacts work (`internal/storage/...`,
+  `migrations/000012_*`) from this frontend commit.
+
+Validation performed (local, automated):
+
+- `cd web && npm test`: 95 passed (14 files), incl. 16 new `marketopsDsm` helper
+  tests and 1 new `appRouting` test.
+- `cd web && npm run build`: `tsc` + `vite build` succeeded.
+- `cd web && npm audit --audit-level=low --json`: 0 vulnerabilities.
+- `git diff --check`: clean.
+
+Validation NOT yet performed:
+
+- Authenticated browser validation (DSM nav, `/marketops/dsm` route, network filter
+  params, taxonomy filter, artifact/graph detail, lifecycle links, mobile overflow).
+  Requires browser-driven IdP login + `make deploy-web`; operator-pending.
+
+Next step:
+
+- Operator deploys via `make deploy-web` and completes browser validation.

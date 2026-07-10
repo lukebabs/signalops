@@ -5515,3 +5515,48 @@ Validation requested from frontend-agent:
 Follow-up items:
 
 - Frontend-agent implements the spec and records implementation evidence.
+
+## Gate G076: MarketOps DSM Workbench UI Implementation
+
+Timestamp: `2026-07-10T20:08:00Z`
+
+Status: `implemented — local automated validation passed; authenticated browser validation pending operator`
+
+Gate name:
+
+- Implement the MarketOps DSM Workbench UI at `/marketops/dsm` against existing G075 DSM signal output.
+
+Evaluation:
+
+- Verified the G075 `marketops.dsm.taxonomy_v1` payload shape (Python detector + Go signalDTO) matches the spec: `entities[0].external_id`, nested `semantic_evidence[0].artifact` (`subject.symbol`, `artifact_type`), `graph_targets` typed `node_candidate`/`relationship_candidate`, 12 metric keys, 8 signal types. All CONFIRMED; Go persists the fields faithfully as `json.RawMessage`.
+
+Criteria:
+
+- `/marketops/dsm` registered and reachable; MarketOps-only; Console nav unchanged.
+- Reuses existing authenticated `/v1/signals`, `/v1/signals/{id}`, `/v1/alerts`, `/v1/insights` with MarketOps daily-surveillance filters.
+- Parses DSM nested data defensively (no throws on malformed/missing); taxonomy type filtered client-side.
+- Renders metrics, dense table, detail panel (artifact/graph/lifecycle/metrics), and raw JSON sections.
+
+Evidence:
+
+- `web/src/lib/marketopsDsm.ts` + `web/src/lib/marketopsDsm.test.ts`: type-guard helpers (no `JSON.parse`) + 16 unit tests.
+- `web/src/routes/MarketOpsDsmRoute.tsx`: filters, metrics, table, detail panel.
+- `web/src/router.tsx`, `web/src/apps/appRouting.ts`, `web/src/components/DashboardShell.tsx`: route + DSM nav + `Network` icon.
+- `web/src/apps/appRouting.test.ts`: DSM nav + `/marketops/dsm` path detection.
+
+Spec fix applied during implementation:
+
+- Helpers narrow already-deserialized `unknown` values with type guards (never `JSON.parse`, which would throw on parsed arrays); added `graphTargetCounts(signal): { nodes, relationships }` for the detail panel alongside `countGraphTargets` (total).
+
+Validation performed:
+
+- `npm test`: 95 passed. `npm run build`: succeeded. `npm audit --audit-level=low`: 0 vulnerabilities. `git diff --check`: clean.
+
+Validation NOT yet performed (blocks final close):
+
+- Authenticated browser validation from the spec checklist. Requires browser IdP login + `make deploy-web`.
+
+Follow-up items:
+
+- Operator deploys via `make deploy-web` and completes authenticated browser validation.
+- Separate in-tree backend artifacts work (`internal/storage/...`, `migrations/000012_*`) is unrelated to this frontend gate and was excluded from this commit.
