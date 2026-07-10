@@ -4621,7 +4621,7 @@ Follow-up items:
 
 Timestamp: `2026-07-10T04:42:00Z`
 
-Status: `implemented — automated validations pass; authenticated browser validation pending deploy`
+Status: `closed — implemented, deployed, and operator-validated`
 
 Gate name:
 
@@ -4664,8 +4664,15 @@ Verification performed:
 
 Follow-up items:
 
-- Deploy via `make deploy-web` and run the authenticated browser validation checklist (cancel a queued/running job, confirm canceled metadata + counters + records, terminal jobs show no cancel control, no mobile overflow).
 - Backend may add retry-failed / bulk cancellation as later gates; the UI intentionally omits those controls.
+
+Closure validation:
+
+- Timestamp: `2026-07-10T05:21:33Z`.
+- Operator reported G062 browser/deploy validation is good.
+- Public `/replay` returned `200 OK`.
+- Public `/healthz` returned `200 OK`.
+- Public unauthenticated `/v1/replay/jobs?tenant_id=tenant-local` returned `401 Unauthorized`, confirming API protection remains active.
 
 
 ## Gate G063: Replay Worker Always-On Deployment Posture

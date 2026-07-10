@@ -3934,3 +3934,22 @@ Validation performed:
 Next step:
 
 - Continue with replay operations observability: surface replay-worker health/last-claim/last-error status through backend or dashboard if operators need more visibility than container health/logs.
+
+
+## 2026-07-10T05:21:33Z
+
+Summary:
+
+- Closed G062 Replay Cancellation and Result Display after operator validation of the deployed browser flow.
+- Confirmed public route serving and API protection after deployment.
+
+Validation performed:
+
+- Operator reported G062 is good from the browser/deploy perspective.
+- Public `GET https://signalops.syncratic.io/replay` — `200 OK`.
+- Public `GET https://signalops.syncratic.io/healthz` — `200 OK`.
+- Public unauthenticated `GET https://signalops.syncratic.io/v1/replay/jobs?tenant_id=tenant-local` — `401 Unauthorized`, expected after backend auth enforcement.
+
+Next step:
+
+- Proceed to replay operations observability if additional worker status visibility is needed.
