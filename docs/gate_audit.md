@@ -4948,3 +4948,19 @@ Deployment validation:
 - Local and public unauthenticated `GET /v1/app-profiles` returned `401`, confirming the new endpoint is deployed behind auth.
 - Public `https://signalops.syncratic.io/` returned `200`.
 - Gateway, normalizer, and signal-persister startup logs showed clean service starts.
+
+## Gate G066: Commit and Push Audit
+
+Timestamp: `2026-07-10T07:03:01Z`
+
+Status: `pushed`
+
+Evidence:
+
+- Commit: `82f390c Implement G066 app use-case metadata`.
+- Remote: `origin git@github.com:lukebabs/signalops.git`.
+- Push result: `main` updated from `c424961` to `82f390c`.
+
+Follow-up items:
+
+- Frontend-agent specification for the multi-app shell and MarketOps profile remains the next gate.
