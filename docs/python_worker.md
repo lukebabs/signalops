@@ -194,3 +194,16 @@ After a Python detector signal is published, the Go `signal-persister` validates
 signal, then derives durable lifecycle records: one active insight for every signal and one open alert
 for `medium`, `high`, or `critical` severities. This keeps Python responsible for algorithms while Go
 owns infrastructure durability, idempotent persistence, and operator-facing lifecycle APIs.
+
+### MarketOps DSM Artifacts And Graph Proposals
+
+`marketops.dsm.eod_price_v1` emits deterministic DSM artifact proposal metadata inside the existing
+`signal.v1` payload. The worker persists these through the existing signal ledger fields; no
+standalone artifact or graph service is required for G074.
+
+- `artifact_ids`: one stable `artifact_marketops_dsm_v1_*` ID per emitted signal.
+- `semantic_evidence[0].artifact`: a `marketops.dsm.signal_artifact.v1` proposal with source event,
+  ticker subject, severity, confidence, computed feature summary, and quality issues.
+- `graph_targets`: node candidates for ticker, DSM signal type, artifact, plus relationship
+  candidates `EXHIBITS_SIGNAL` and `SUPPORTED_BY_ARTIFACT`.
+- `recommendation`: includes the artifact IDs and graph target count for operator review.

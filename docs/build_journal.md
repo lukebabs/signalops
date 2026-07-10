@@ -4601,3 +4601,39 @@ Live smoke validation:
 Next step:
 
 - G074: DSM artifact generation and graph proposal payloads.
+
+## 2026-07-10T18:51:48Z
+
+Summary:
+
+- Implemented G074 as DSM artifact and graph proposal payload generation inside the existing MarketOps detector/`signal.v1` path.
+- `marketops.dsm.eod_price_v1` now emits stable `artifact_marketops_dsm_v1_*` IDs, a `marketops.dsm.signal_artifact.v1` proposal in `semantic_evidence`, and richer graph node/relationship candidates in `graph_targets`.
+- The signal payload now carries ticker, signal-type, and artifact node candidates plus `EXHIBITS_SIGNAL` and `SUPPORTED_BY_ARTIFACT` relationship candidates.
+- Kept dedicated artifact storage and graph acceptance deferred; G074 creates deterministic proposal payloads that are persisted in the signal ledger.
+
+Files changed:
+
+- `python/signalops_plugins/detectors/marketops.py`
+- `python/tests/plugins/test_marketops_detector.py`
+- `docs/python_worker.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=python pytest python/tests`: 48 passed.
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `docker compose build raw-worker`: passed.
+
+Live smoke validation:
+
+- Recreated `raw-worker` with the G074 image using `docker compose up -d --no-deps --build raw-worker`.
+- Published bounded normalized event `evt-g074-marketops-live` to `signalops.local.normalized.v1`; Redpanda accepted partition `1`, offset `5`.
+- `signalops.normalized-worker.v1` returned to Stable with total lag `0`.
+- Signal persister stored `sig_marketops_dsm_eod_price_v1_fc849d452e685952d763` from signal partition `0`, offset `5`.
+- Postgres `signal_ledger` verified artifact ID `artifact_marketops_dsm_v1_dcaff3d9bec0fcd0063e`, `marketops.dsm.signal_artifact.v1` semantic artifact proposal, graph node candidates, `EXHIBITS_SIGNAL`, and `SUPPORTED_BY_ARTIFACT` relationship candidates.
+- Alert/insight lifecycle derivation succeeded for the critical signal.
+
+Next step:
+
+- G075: broader DSM taxonomy pack including accumulation, hedging pressure, speculative call/put pressure, pinning risk, and divergence.

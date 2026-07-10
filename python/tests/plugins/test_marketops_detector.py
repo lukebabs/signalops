@@ -76,7 +76,24 @@ class MarketOpsEODPriceDetectorTests(unittest.TestCase):
         self.assertEqual(metrics["vwap_distance_pct"], 2.9126)
         self.assertEqual(metrics["daily_return_pct"], 4.9505)
         self.assertEqual(signal.payload["evidence"][0]["type"], "normalized_event")
-        self.assertEqual(signal.payload["graph_targets"][0]["to"], signal.signal_type)
+        artifact_ids = signal.payload["artifact_ids"]
+        self.assertEqual(len(artifact_ids), 1)
+        self.assertTrue(artifact_ids[0].startswith("artifact_marketops_dsm_v1_"))
+        graph_targets = signal.payload["graph_targets"]
+        self.assertEqual(graph_targets[0]["type"], "node_candidate")
+        self.assertTrue(
+            any(
+                target.get("type") == "relationship_candidate"
+                and target.get("relationship") == "EXHIBITS_SIGNAL"
+                and target.get("to") == f"signal_type:{signal.signal_type}"
+                for target in graph_targets
+            )
+        )
+        artifact = signal.payload["semantic_evidence"][0]["artifact"]
+        self.assertEqual(artifact["artifact_id"], artifact_ids[0])
+        self.assertEqual(artifact["artifact_type"], "marketops.dsm.signal_artifact.v1")
+        self.assertEqual(artifact["subject"]["symbol"], "AAPL")
+        self.assertEqual(signal.payload["recommendation"]["artifact_ids"], artifact_ids)
 
     def test_emits_price_quality_exception(self) -> None:
         detector = self.detector()
@@ -89,7 +106,10 @@ class MarketOpsEODPriceDetectorTests(unittest.TestCase):
         assert signal is not None
         self.assertEqual(signal.signal_type, "marketops.dsm.price_quality_exception")
         self.assertEqual(signal.severity, "medium")
-        self.assertIn("non_positive_close", signal.payload["semantic_evidence"][0]["quality_issues"])
+        semantic = signal.payload["semantic_evidence"][0]
+        self.assertIn("non_positive_close", semantic["quality_issues"])
+        self.assertIn("non_positive_close", semantic["artifact"]["quality_issues"])
+        self.assertEqual(signal.payload["artifact_ids"][0], semantic["artifact_id"])
 
     def test_previous_close_is_optional(self) -> None:
         detector = self.detector()
@@ -118,6 +138,7 @@ class MarketOpsEODPriceDetectorTests(unittest.TestCase):
         assert first is not None
         assert second is not None
         self.assertEqual(first.signal_id, second.signal_id)
+        self.assertEqual(first.payload["artifact_ids"], second.payload["artifact_ids"])
 
 
 if __name__ == "__main__":

@@ -129,6 +129,25 @@ class MarketOpsEODPriceDetector(DetectorPlugin):
         features = _object(metadata.get("features"))
         quality_issues = _string_list(metadata.get("quality_issues"))
         severity = _severity(signal_type, features, quality_issues)
+        artifact_id = _stable_artifact_id(signal_type, event_id, symbol)
+        artifact = _dsm_artifact(
+            artifact_id=artifact_id,
+            signal_type=signal_type,
+            event_id=event_id,
+            symbol=symbol,
+            features=features,
+            quality_issues=quality_issues,
+            confidence=detection_result.score,
+            severity=severity,
+            summary=explanation.summary,
+        )
+        graph_targets = _graph_proposals(
+            artifact_id=artifact_id,
+            signal_type=signal_type,
+            symbol=symbol,
+            confidence=detection_result.score,
+            severity=severity,
+        )
 
         return EmittedSignal(
             signal_id=_stable_signal_id(
@@ -143,6 +162,7 @@ class MarketOpsEODPriceDetector(DetectorPlugin):
             severity=severity,
             payload={
                 "event_ids": [event_id] if event_id else [],
+                "artifact_ids": [artifact_id],
                 "entities": [
                     {
                         "type": "ticker",
@@ -159,17 +179,11 @@ class MarketOpsEODPriceDetector(DetectorPlugin):
                     "quality_issue_count": len(quality_issues),
                     "detector_score": detection_result.score,
                 },
-                "graph_targets": [
-                    {
-                        "type": "candidate_relationship",
-                        "from": f"ticker:{symbol}",
-                        "relationship": "exhibits_signal",
-                        "to": signal_type,
-                        "confidence": detection_result.score,
-                    }
-                ],
+                "graph_targets": graph_targets,
                 "semantic_evidence": [
                     {
+                        "type": "dsm_artifact_proposal",
+                        "artifact_id": artifact_id,
                         "summary": explanation.summary,
                         "quality_issues": quality_issues,
                         "computed_features": {
@@ -178,6 +192,7 @@ class MarketOpsEODPriceDetector(DetectorPlugin):
                             "vwap_distance_pct": features.get("vwap_distance_pct"),
                             "daily_return_pct": features.get("daily_return_pct"),
                         },
+                        "artifact": artifact,
                     }
                 ],
                 "evidence": [
@@ -189,7 +204,9 @@ class MarketOpsEODPriceDetector(DetectorPlugin):
                 ],
                 "recommendation": {
                     "action": "review_marketops_signal",
-                    "summary": "Review the normalized Massive EOD record and derived DSM metrics.",
+                    "summary": "Review the normalized Massive EOD record, DSM artifact proposal, and graph target candidates.",
+                    "artifact_ids": [artifact_id],
+                    "graph_target_count": len(graph_targets),
                 },
             },
         )
@@ -273,6 +290,99 @@ class MarketOpsEODPriceDetector(DetectorPlugin):
             metadata=metadata,
         )
 
+
+
+def _stable_artifact_id(signal_type: str, event_id: str, symbol: str) -> str:
+    key = "|".join(
+        part.strip()
+        for part in ("marketops.dsm.artifact_v1", signal_type, event_id, symbol)
+        if part.strip()
+    )
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:20]
+    return f"artifact_marketops_dsm_v1_{digest}"
+
+
+def _dsm_artifact(
+    *,
+    artifact_id: str,
+    signal_type: str,
+    event_id: str,
+    symbol: str,
+    features: Mapping[str, object],
+    quality_issues: Sequence[str],
+    confidence: float,
+    severity: str,
+    summary: str,
+) -> Mapping[str, object]:
+    return {
+        "artifact_id": artifact_id,
+        "artifact_type": "marketops.dsm.signal_artifact.v1",
+        "signal_type": signal_type,
+        "source_event_id": event_id,
+        "subject": {"type": "ticker", "id": f"ticker:{symbol}", "symbol": symbol},
+        "severity": severity,
+        "confidence": confidence,
+        "summary": summary,
+        "features": {
+            "open_close_move_pct": features.get("open_close_move_pct"),
+            "intraday_range_pct": features.get("intraday_range_pct"),
+            "vwap_distance_pct": features.get("vwap_distance_pct"),
+            "daily_return_pct": features.get("daily_return_pct"),
+        },
+        "quality_issues": list(quality_issues),
+    }
+
+
+def _graph_proposals(
+    *,
+    artifact_id: str,
+    signal_type: str,
+    symbol: str,
+    confidence: float,
+    severity: str,
+) -> list[Mapping[str, object]]:
+    ticker_id = f"ticker:{symbol}"
+    signal_node_id = f"signal_type:{signal_type}"
+    artifact_node_id = f"artifact:{artifact_id}"
+    return [
+        {
+            "type": "node_candidate",
+            "node_id": ticker_id,
+            "labels": ["MarketAsset", "Ticker"],
+            "properties": {"symbol": symbol, "app_id": "marketops"},
+            "confidence": 1.0,
+        },
+        {
+            "type": "node_candidate",
+            "node_id": signal_node_id,
+            "labels": ["DSMSignalType"],
+            "properties": {"signal_type": signal_type, "domain": "market_data"},
+            "confidence": 1.0,
+        },
+        {
+            "type": "node_candidate",
+            "node_id": artifact_node_id,
+            "labels": ["DSMArtifact"],
+            "properties": {"artifact_id": artifact_id, "severity": severity},
+            "confidence": confidence,
+        },
+        {
+            "type": "relationship_candidate",
+            "from": ticker_id,
+            "relationship": "EXHIBITS_SIGNAL",
+            "to": signal_node_id,
+            "properties": {"severity": severity},
+            "confidence": confidence,
+        },
+        {
+            "type": "relationship_candidate",
+            "from": signal_node_id,
+            "relationship": "SUPPORTED_BY_ARTIFACT",
+            "to": artifact_node_id,
+            "properties": {"artifact_id": artifact_id},
+            "confidence": confidence,
+        },
+    ]
 
 def _symbol(payload: Mapping[str, object], event: Mapping[str, object]) -> str:
     symbol = _string(payload.get("symbol") or payload.get("ticker"))

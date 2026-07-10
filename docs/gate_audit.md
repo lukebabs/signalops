@@ -5375,3 +5375,42 @@ Validation performed:
 Follow-up items:
 
 - G074 should add DSM artifact generation and graph proposal payloads.
+
+## Gate G074: DSM Artifact And Graph Proposal Payloads
+
+Timestamp: `2026-07-10T18:51:48Z`
+
+Status: `closed — Python tests, schema validation, raw-worker Docker build, and live signal-ledger smoke passed`
+
+Gate name:
+
+- Add DSM artifact generation and graph proposal payloads for MarketOps signals.
+
+Implementation:
+
+- Added stable DSM artifact proposal IDs to `marketops.dsm.eod_price_v1` signal emissions.
+- Added `marketops.dsm.signal_artifact.v1` proposal objects in `semantic_evidence` with source event, ticker subject, computed features, quality issues, confidence, severity, and summary.
+- Replaced the minimal graph target with graph node candidates for ticker, DSM signal type, and artifact, plus `EXHIBITS_SIGNAL` and `SUPPORTED_BY_ARTIFACT` relationship candidates.
+- Kept dedicated artifact tables/services and graph acceptance deferred; G074 persists deterministic proposals through existing `signal.v1` and signal ledger fields.
+
+Evidence:
+
+- `python/signalops_plugins/detectors/marketops.py`: artifact ID, artifact proposal, graph proposal helpers.
+- `python/tests/plugins/test_marketops_detector.py`: artifact ID stability, artifact proposal, and graph relationship tests.
+- `docs/python_worker.md`: operational description of persisted proposal payloads.
+
+Validation performed:
+
+- `env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=python pytest python/tests`: 48 passed.
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `docker compose build raw-worker`: passed.
+- `docker compose up -d --no-deps --build raw-worker`: recreated the live worker with the G074 image.
+- Published normalized event `evt-g074-marketops-live` to `signalops.local.normalized.v1`, partition `1`, offset `5`.
+- `signalops.normalized-worker.v1` was Stable with total lag `0`.
+- Signal persister stored `sig_marketops_dsm_eod_price_v1_fc849d452e685952d763` from signal partition `0`, offset `5`.
+- Postgres verified artifact ID `artifact_marketops_dsm_v1_dcaff3d9bec0fcd0063e`, embedded `marketops.dsm.signal_artifact.v1`, graph node candidates, `EXHIBITS_SIGNAL`, and `SUPPORTED_BY_ARTIFACT` relationship candidates.
+- Alert and insight lifecycle rows were derived for the critical signal.
+
+Follow-up items:
+
+- G075 should add the broader DSM taxonomy pack including accumulation, hedging pressure, speculative call/put pressure, pinning risk, and divergence.
