@@ -97,3 +97,25 @@ The Compose web service listens on `http://localhost:15173/` and uses nginx to
 serve the built frontend and proxy `/healthz`, `/readyz`, and `/v1` to the
 `gateway` service. This keeps browser requests same-origin, including the SSE
 stream at `/v1/streams/dashboard`.
+
+## Replay Worker
+
+Build the replay worker image:
+
+```bash
+docker compose -f compose.yaml -f compose.traefik.yaml build replay-worker
+```
+
+Run one queued replay job and exit, capped to one record for validation:
+
+```bash
+docker compose --profile replay run --rm \
+  -e SIGNALOPS_REPLAY_ONESHOT=true \
+  -e SIGNALOPS_REPLAY_MAX_RECORDS=1 \
+  replay-worker
+```
+
+The replay worker requires both `SIGNALOPS_DATABASE_URL` and
+`SIGNALOPS_TEMPORAL_DATABASE_URL`. It claims queued PostgreSQL replay jobs, reads
+matching Timescale rows, republishes through Redpanda, and updates the job
+status/result metadata.

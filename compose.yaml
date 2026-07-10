@@ -334,6 +334,30 @@ services:
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
 
+  replay-worker:
+    profiles: ["replay"]
+    build:
+      context: .
+      target: replay-worker
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_REPLAY_WORKER_ID: signalops-replay-worker
+      SIGNALOPS_REPLAY_ONESHOT: "false"
+      SIGNALOPS_REPLAY_MAX_RECORDS: "50"
+      SIGNALOPS_REPLAY_POLL_INTERVAL: "5s"
+
 
 volumes:
   redpanda-data:

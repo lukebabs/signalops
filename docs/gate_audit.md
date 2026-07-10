@@ -4375,3 +4375,57 @@ Follow-up items:
 
 - Build the replay worker that claims queued jobs, reads Timescale rows by source kind and window, republishes through Redpanda with replay metadata, and updates job lifecycle/result counters.
 - Add frontend replay job views and controls after the backend worker surface is defined.
+
+
+## Gate G059: Replay Worker Execution
+
+Timestamp: `2026-07-10T03:04:00Z`
+
+Status: `passed — replay worker claims queued jobs and republishes capped temporal rows`
+
+Gate name:
+
+- Execute queued replay jobs against Timescale temporal ledgers through the durable broker pipeline.
+
+Criteria:
+
+- Replay worker can claim one queued job atomically.
+- Worker supports raw, normalized, and signal replay source kinds.
+- Worker republishes replayed records to the correct Redpanda topic with replay metadata.
+- Worker updates replay job status/result counters on success or failure.
+- Compose can build and run the worker in one-shot mode for bounded validation.
+- Replay output flows through existing downstream services rather than bypassing the broker.
+
+Evidence:
+
+- `cmd/replay-worker/main.go`
+- `Dockerfile`
+- `compose.yaml`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `docs/api.md`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+
+Verification performed:
+
+- Focused Docker Go tests passed for storage, repository, API, gateway, and replay-worker packages.
+- Replay-worker Docker image built successfully; build stage ran full `go test ./...`.
+- Compose + Traefik overlay config validation passed.
+- Queued `replay-g059-raw` with `source_kind=raw_events`, `status=queued`, tenant `tenant-local`, and a window covering existing Timescale raw events.
+- Ran replay worker one-shot with `SIGNALOPS_REPLAY_MAX_RECORDS=1`.
+- Worker log showed `claimed replay job` and `replay job completed` with `published=1`.
+- PostgreSQL `replay_jobs` row showed `status=succeeded`, result `scanned=1`, `published=1`, and no error.
+- Normalizer consumed the replayed raw event and persisted a normalized event.
+- Timescale contained one normalized event with `replay_job_id=replay-g059-raw`.
+- Normalizer consumer group was Stable with total lag `0`.
+
+Validation boundary:
+
+- This gate validates capped single-query replay. Larger historical replay should add pagination/batching and cancellation before production-scale use.
+- Authenticated frontend/operator controls are not included in this backend worker gate.
+
+Follow-up items:
+
+- Write the frontend-agent specification for replay job list/detail/create controls.
+- Add worker batching, cancellation, and richer per-record failure accounting before high-volume replay.

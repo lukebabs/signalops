@@ -386,7 +386,7 @@ status, timestamps, and optional error message.
 
 ### Replay Jobs
 
-Replay jobs are PostgreSQL control-plane records that request future replay of TimescaleDB temporal ledgers. G058 persists and exposes replay requests; replay execution is owned by a later worker gate.
+Replay jobs are PostgreSQL control-plane records that request replay of TimescaleDB temporal ledgers. The replay worker claims queued jobs, republishes matching temporal records to the appropriate durable topic, and updates job result metadata.
 
 `POST /v1/replay/jobs`
 
@@ -420,6 +420,14 @@ Lists replay jobs ordered by `created_at DESC`. Filters are optional and can be 
 `GET /v1/replay/jobs/{replay_job_id}`
 
 Returns one replay job.
+
+Execution notes:
+
+- `raw_events` replay publishes stored raw payloads to `signalops.<env>.raw.v1`; the normalizer then reprocesses them.
+- `normalized_events` replay publishes stored normalized event envelopes to `signalops.<env>.normalized.v1`.
+- `signals` replay publishes stored signal envelopes to `signalops.<env>.signal.v1`.
+- Replayed payloads include `replay_job_id`, `ingestion_mode: replay`, and `metadata.replay`.
+- The worker result JSON records scanned and published counts.
 
 ### Provider Usage
 

@@ -108,6 +108,30 @@ func (q *fakeQueryRepository) GetReplayJob(_ context.Context, replayJobID string
 	return storage.ReplayJobRecord{}, storage.ErrNotFound
 }
 
+func (q *fakeQueryRepository) ClaimNextReplayJob(context.Context, string, time.Time) (storage.ReplayJobRecord, error) {
+	return storage.ReplayJobRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) CompleteReplayJob(context.Context, string, time.Time, []byte) (storage.ReplayJobRecord, error) {
+	return storage.ReplayJobRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) FailReplayJob(context.Context, string, time.Time, string, []byte) (storage.ReplayJobRecord, error) {
+	return storage.ReplayJobRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListReplayRawEvents(context.Context, storage.ReplayJobRecord, int) ([]storage.RawEventLedgerRecord, error) {
+	return nil, nil
+}
+
+func (q *fakeQueryRepository) ListReplayNormalizedEvents(context.Context, storage.ReplayJobRecord, int) ([]storage.NormalizedEventLedgerRecord, error) {
+	return nil, nil
+}
+
+func (q *fakeQueryRepository) ListReplaySignals(context.Context, storage.ReplayJobRecord, int) ([]storage.SignalLedgerRecord, error) {
+	return nil, nil
+}
+
 func (q *fakeQueryRepository) ListProviderUsage(context.Context, string, int) ([]storage.ProviderUsageRecord, error) {
 	q.usageQueries++
 	return q.usage, nil

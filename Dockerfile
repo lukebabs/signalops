@@ -13,6 +13,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-pul
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-scheduler ./cmd/massive-scheduler
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-normalizer ./cmd/normalizer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-persister ./cmd/signal-persister
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
 
 FROM gcr.io/distroless/static-debian12:nonroot AS gateway
 
@@ -46,3 +47,9 @@ FROM gcr.io/distroless/static-debian12:nonroot AS signal-persister
 COPY --from=build /out/signalops-signal-persister /signalops-signal-persister
 
 ENTRYPOINT ["/signalops-signal-persister"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS replay-worker
+
+COPY --from=build /out/signalops-replay-worker /signalops-replay-worker
+
+ENTRYPOINT ["/signalops-replay-worker"]

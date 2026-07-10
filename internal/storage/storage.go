@@ -369,6 +369,9 @@ type SchedulerRunRepository interface {
 
 type ReplayJobRepository interface {
 	UpsertReplayJob(ctx context.Context, record ReplayJobRecord) error
+	ClaimNextReplayJob(ctx context.Context, workerID string, claimedAt time.Time) (ReplayJobRecord, error)
+	CompleteReplayJob(ctx context.Context, replayJobID string, completedAt time.Time, resultJSON []byte) (ReplayJobRecord, error)
+	FailReplayJob(ctx context.Context, replayJobID string, failedAt time.Time, errorMessage string, resultJSON []byte) (ReplayJobRecord, error)
 }
 
 type IdempotencyRepository interface {
@@ -463,6 +466,9 @@ type QueryRepository interface {
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
 	ListReplayJobs(ctx context.Context, filter ReplayJobFilter) ([]ReplayJobRecord, error)
 	GetReplayJob(ctx context.Context, replayJobID string) (ReplayJobRecord, error)
+	ListReplayRawEvents(ctx context.Context, job ReplayJobRecord, limit int) ([]RawEventLedgerRecord, error)
+	ListReplayNormalizedEvents(ctx context.Context, job ReplayJobRecord, limit int) ([]NormalizedEventLedgerRecord, error)
+	ListReplaySignals(ctx context.Context, job ReplayJobRecord, limit int) ([]SignalLedgerRecord, error)
 	ListProviderUsage(ctx context.Context, runID string, limit int) ([]ProviderUsageRecord, error)
 	ListRawEventLedger(ctx context.Context, filter RawEventLedgerFilter) ([]RawEventLedgerRecord, error)
 	GetRawEventLedger(ctx context.Context, eventID string) (RawEventLedgerRecord, error)

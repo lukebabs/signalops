@@ -3637,3 +3637,52 @@ Validation boundary:
 Next step:
 
 - Implement the replay worker gate: claim queued replay jobs, stream matching Timescale rows, republish with replay metadata, update status/result counters, and expose replay job lifecycle in the frontend.
+
+
+## 2026-07-10T03:04:00Z
+
+Summary:
+
+- Implemented G059 replay worker execution for queued replay jobs.
+- Added a `replay-worker` Go command and profiled Compose service.
+- The worker claims queued jobs, reads matching Timescale temporal rows, republishes through Redpanda, and updates replay job terminal status/result metadata.
+
+Files changed:
+
+- `cmd/replay-worker/main.go`
+- `Dockerfile`
+- `compose.yaml`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/api/router_test.go`
+- `docs/api.md`
+- `docs/docker_development.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- `ClaimNextReplayJob` atomically selects one queued job with `FOR UPDATE SKIP LOCKED`, marks it `running`, stores worker claim metadata, and returns it.
+- The worker supports `raw_events`, `normalized_events`, and `signals` source kinds.
+- Raw replay publishes stored raw payloads back to the raw topic so the normalizer performs normal downstream processing.
+- Normalized and signal replay publish stored event envelopes to their respective durable topics.
+- Replayed payloads are annotated with `replay_job_id`, `ingestion_mode: replay`, and `metadata.replay`.
+- `SIGNALOPS_REPLAY_ONESHOT=true` lets validation or scheduled operations process at most one queued job and exit.
+- `SIGNALOPS_REPLAY_MAX_RECORDS` caps source rows per job; validation used `1`.
+
+Validation performed:
+
+- Docker Go focused tests passed: `go test ./internal/storage ./internal/storage/postgres ./internal/api ./cmd/replay-worker ./cmd/gateway`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml build replay-worker` passed; Docker build ran full `go test ./...`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` passed.
+- Queued validation job `replay-g059-raw` over tenant-local raw events.
+- Ran one-shot worker: `docker compose --profile replay run --rm -e SIGNALOPS_REPLAY_ONESHOT=true -e SIGNALOPS_REPLAY_MAX_RECORDS=1 replay-worker`.
+- Worker claimed `replay-g059-raw`, scanned one raw temporal row, published one replay message, and completed the job.
+- PostgreSQL replay job row ended with `status=succeeded`, result `scanned=1`, `published=1`, `max_records=1`, and no error.
+- Normalizer log confirmed the replayed raw event was consumed and persisted as a normalized event.
+- Timescale query found one normalized event carrying `replay_job_id=replay-g059-raw`.
+- `signalops.normalizer.v1` consumer group was Stable with total lag `0`.
+
+Next step:
+
+- Add frontend replay job views and controls, then consider worker hardening: job cancellation, pagination/batching beyond one capped query, and per-source result detail.

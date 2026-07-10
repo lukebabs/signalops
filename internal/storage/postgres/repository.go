@@ -836,6 +836,141 @@ func (r *Repository) GetReplayJob(ctx context.Context, replayJobID string) (stor
 	return record, nil
 }
 
+func (r *Repository) ClaimNextReplayJob(ctx context.Context, workerID string, claimedAt time.Time) (storage.ReplayJobRecord, error) {
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		workerID = "signalops-replay-worker"
+	}
+	metadata, err := json.Marshal(map[string]any{"worker_id": workerID, "claimed_at": claimedAt.UTC().Format(time.RFC3339Nano)})
+	if err != nil {
+		return storage.ReplayJobRecord{}, err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return storage.ReplayJobRecord{}, fmt.Errorf("begin claim replay job: %w", err)
+	}
+	defer tx.Rollback()
+	row := tx.QueryRowContext(ctx, `
+WITH next_job AS (
+  SELECT replay_job_id FROM replay_jobs
+  WHERE status = 'queued'
+  ORDER BY created_at ASC
+  FOR UPDATE SKIP LOCKED
+  LIMIT 1
+)
+UPDATE replay_jobs
+SET status = 'running', started_at = $1, result = COALESCE(result, '{}'::jsonb) || $2::jsonb, updated_at = now()
+WHERE replay_job_id = (SELECT replay_job_id FROM next_job)
+RETURNING replay_job_id, tenant_id, source_id, dataset, source_kind, replay_mode, status, requested_by,
+ window_start, window_end, started_at, completed_at, filters, options, result, error_message, created_at, updated_at`, claimedAt.UTC(), jsonOrEmpty(metadata))
+	record, err := scanReplayJob(row)
+	if err != nil {
+		return storage.ReplayJobRecord{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return storage.ReplayJobRecord{}, fmt.Errorf("commit claim replay job: %w", err)
+	}
+	return record, nil
+}
+
+func (r *Repository) CompleteReplayJob(ctx context.Context, replayJobID string, completedAt time.Time, resultJSON []byte) (storage.ReplayJobRecord, error) {
+	return r.updateReplayJobTerminal(ctx, replayJobID, storage.ReplayJobStatusSucceeded, completedAt, "", resultJSON)
+}
+
+func (r *Repository) FailReplayJob(ctx context.Context, replayJobID string, failedAt time.Time, errorMessage string, resultJSON []byte) (storage.ReplayJobRecord, error) {
+	return r.updateReplayJobTerminal(ctx, replayJobID, storage.ReplayJobStatusFailed, failedAt, errorMessage, resultJSON)
+}
+
+func (r *Repository) updateReplayJobTerminal(ctx context.Context, replayJobID string, status string, completedAt time.Time, errorMessage string, resultJSON []byte) (storage.ReplayJobRecord, error) {
+	result, err := r.db.ExecContext(ctx, `UPDATE replay_jobs SET status = $2, completed_at = $3, result = $4, error_message = $5, updated_at = now() WHERE replay_job_id = $1`, strings.TrimSpace(replayJobID), status, completedAt.UTC(), jsonOrEmpty(resultJSON), nullString(errorMessage))
+	if err != nil {
+		return storage.ReplayJobRecord{}, fmt.Errorf("update replay job terminal: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return storage.ReplayJobRecord{}, fmt.Errorf("update replay job rows affected: %w", err)
+	}
+	if changed == 0 {
+		return storage.ReplayJobRecord{}, storage.ErrNotFound
+	}
+	return r.GetReplayJob(ctx, replayJobID)
+}
+
+func (r *Repository) ListReplayRawEvents(ctx context.Context, job storage.ReplayJobRecord, limit int) ([]storage.RawEventLedgerRecord, error) {
+	rows, err := r.temporal().QueryContext(ctx, `
+SELECT event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, observation_time,
+  processing_time, broker_topic, broker_partition, broker_offset, payload, entity_hints, created_at
+FROM raw_event_ledger
+WHERE tenant_id = $1
+  AND ($2 = '' OR source_id = $2)
+  AND ($3 = '' OR dataset = $3)
+  AND observation_time >= $4 AND observation_time < $5
+ORDER BY observation_time ASC, event_id ASC
+LIMIT $6`, strings.TrimSpace(job.TenantID), strings.TrimSpace(job.SourceID), strings.TrimSpace(job.Dataset), job.WindowStart, job.WindowEnd, clampLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list replay raw events: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.RawEventLedgerRecord{}
+	for rows.Next() {
+		record, err := scanRawEventLedger(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list replay raw events rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) ListReplayNormalizedEvents(ctx context.Context, job storage.ReplayJobRecord, limit int) ([]storage.NormalizedEventLedgerRecord, error) {
+	rows, err := r.temporal().QueryContext(ctx, normalizedEventSelect+`
+WHERE tenant_id = $1 AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
+  AND observation_time >= $4 AND observation_time < $5
+ORDER BY observation_time ASC, event_id ASC LIMIT $6`, strings.TrimSpace(job.TenantID), strings.TrimSpace(job.SourceID), strings.TrimSpace(job.Dataset), job.WindowStart, job.WindowEnd, clampLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list replay normalized events: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.NormalizedEventLedgerRecord{}
+	for rows.Next() {
+		record, err := scanNormalizedEventLedger(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list replay normalized events rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) ListReplaySignals(ctx context.Context, job storage.ReplayJobRecord, limit int) ([]storage.SignalLedgerRecord, error) {
+	rows, err := r.temporal().QueryContext(ctx, signalSelect+`
+WHERE tenant_id = $1 AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
+  AND signal_time >= $4 AND signal_time < $5
+ORDER BY signal_time ASC, signal_id ASC LIMIT $6`, strings.TrimSpace(job.TenantID), strings.TrimSpace(job.SourceID), strings.TrimSpace(job.Dataset), job.WindowStart, job.WindowEnd, clampLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list replay signals: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.SignalLedgerRecord{}
+	for rows.Next() {
+		record, err := scanSignalLedger(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list replay signals rows: %w", err)
+	}
+	return records, nil
+}
+
 func (r *Repository) ListProviderUsage(ctx context.Context, runID string, limit int) ([]storage.ProviderUsageRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT usage_id, run_id, provider, dataset, request_count, retry_count, event_count, budget, created_at
