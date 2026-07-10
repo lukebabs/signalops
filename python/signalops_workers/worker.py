@@ -294,6 +294,11 @@ def build_signal_event(
         "signal_id": signal.signal_id,
         "tenant_id": _required_string(raw, "tenant_id"),
         "source_id": _required_string(raw, "source_id"),
+        "app_id": _first_non_empty(_string_field(raw, "app_id"), "console"),
+        "domain": _first_non_empty(
+            _string_field(raw, "domain"), _required_string(raw, "source_domain")
+        ),
+        "use_case": _first_non_empty(_string_field(raw, "use_case"), "general"),
         "source_domain": _required_string(raw, "source_domain"),
         "source_adapter": _required_string(raw, "source_adapter"),
         "ingestion_mode": _required_string(raw, "ingestion_mode"),

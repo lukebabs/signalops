@@ -188,6 +188,9 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(event["signal_id"], "sig-1")
         self.assertEqual(event["tenant_id"], "tenant-1")
         self.assertEqual(event["source_domain"], "market_data")
+        self.assertEqual(event["app_id"], "console")
+        self.assertEqual(event["domain"], "market_data")
+        self.assertEqual(event["use_case"], "general")
         self.assertEqual(event["event_ids"], ["evt-signal"])
         self.assertEqual(event["detector_id"], "fake.signal")
         self.assertEqual(event["model_version"], "model-1")
@@ -196,6 +199,46 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(event["severity"], "medium")
         self.assertEqual(event["correlation_id"], "corr-signal")
         self.assertEqual(event["evidence"][0]["type"], "normalized_event")
+
+
+    def test_build_signal_event_propagates_app_metadata(self) -> None:
+        processed = RawEventHandler().handle(
+            BrokerMessage(
+                topic="signalops.local.normalized.v1",
+                partition=0,
+                offset=1,
+                key="idem-marketops",
+                value=(
+                    b'{"tenant_id":"tenant-1","source_id":"source-1",'
+                    b'"app_id":"marketops","domain":"market_data",'
+                    b'"use_case":"daily_market_surveillance",'
+                    b'"source_domain":"market_data","source_adapter":"market_data.massive",'
+                    b'"ingestion_mode":"scheduled_pull","dataset":"equity_eod_prices",'
+                    b'"event_id":"evt-marketops","observation_time":"2026-07-07T00:00:00Z",'
+                    b'"effective_time":"2026-07-07T00:00:00Z",'
+                    b'"processing_time":"2026-07-07T00:01:00Z",'
+                    b'"correlation_id":"corr-marketops","idempotency_key":"idem-marketops"}'
+                ),
+                headers={"correlation_id": "corr-marketops"},
+            )
+        )
+        detector = SignalDetector()
+        detection = detector.detect([processed.payload], FeatureContext())
+        explanation = detector.explain(detection)
+        signal = detector.emit_signal(detection, explanation)
+        assert signal is not None
+
+        event = build_signal_event(
+            processed,
+            detector,
+            signal,
+            explanation,
+            now=datetime(2026, 7, 7, 2, 0, 0, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(event["app_id"], "marketops")
+        self.assertEqual(event["domain"], "market_data")
+        self.assertEqual(event["use_case"], "daily_market_surveillance")
 
     def test_run_worker_publishes_emitted_signals(self) -> None:
         message = raw_signal_message()

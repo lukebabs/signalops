@@ -40,6 +40,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.dlq_topic, "signalops.local.dlq.algorithm.v1")
         self.assertEqual(config.group_id, "signalops.normalized-worker.v1")
         self.assertEqual(config.max_messages, 0)
+        self.assertEqual(config.detector_id, "marketops.dsm.eod_price_v1")
 
     def test_load_config_overrides(self) -> None:
         with mock.patch.dict(
@@ -53,6 +54,7 @@ class ConfigTests(unittest.TestCase):
                 "SIGNALOPS_WORKER_GROUP_ID": "custom-group",
                 "SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS": "2.5",
                 "SIGNALOPS_WORKER_MAX_MESSAGES": "3",
+                "SIGNALOPS_WORKER_DETECTOR_ID": "signalops.static_test",
                 "SIGNALOPS_WORKER_LOG_LEVEL": "DEBUG",
             },
             clear=True,
@@ -67,6 +69,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.group_id, "custom-group")
         self.assertEqual(config.poll_timeout_seconds, 2.5)
         self.assertEqual(config.max_messages, 3)
+        self.assertEqual(config.detector_id, "signalops.static_test")
         self.assertEqual(config.log_level, "DEBUG")
 
 

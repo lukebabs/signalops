@@ -4408,3 +4408,31 @@ Validation confirmed by operator:
 Next step:
 
 - Commit and push the G069 Traefik guard config/docs plus this closure audit.
+
+## 2026-07-10T16:48:03Z
+
+Summary:
+
+- Implemented G070 as the first deterministic MarketOps DSM detector pack on the existing SignalOps Python worker path.
+- Added `marketops.dsm.eod_price_v1` for normalized Massive equity EOD events scoped by `app_id=marketops`, `domain=market_data`, `source_adapter=market_data.massive`, `dataset=equity_eod_prices`, and `use_case=daily_market_surveillance`.
+- The detector computes open/close move percent, intraday range percent, optional VWAP distance percent, optional daily return percent, and price-field quality exceptions.
+- The detector emits DSM-style `signal.v1` records for `marketops.dsm.volatility_expansion` and `marketops.dsm.price_quality_exception`, with stable signal IDs, ticker entities, supporting metrics, semantic evidence, graph-target candidates, recommendations, and normalized-event evidence.
+- Updated the Python worker default detector to `marketops.dsm.eod_price_v1` while preserving `SIGNALOPS_WORKER_DETECTOR_ID` overrides for `signalops.noop` and `signalops.static_test`.
+- Updated the worker signal builder to propagate `app_id`, `domain`, and `use_case` into emitted `signal.v1` payloads, with backward-compatible defaults for older normalized events.
+- Added a MarketOps reconciliation note clarifying that the checked-in MarketOps specs are target architecture and G070 is the first algorithm gate.
+
+Validation performed:
+
+- `env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=python pytest python/tests`: 48 passed, 1 existing pytest config warning.
+- `python3 scripts/validate_json_schemas.py`: all event schemas passed.
+- `docker compose config --quiet`: passed after the raw-worker detector default change.
+- `docker compose build raw-worker`: completed successfully and built `signalops-raw-worker`.
+- `docker compose up -d --no-deps --build raw-worker`: recreated the always-on worker with `marketops.dsm.eod_price_v1`.
+- Published normalized event `evt-g070-marketops-live` to `signalops.local.normalized.v1`; Redpanda accepted partition `2`, offset `6`.
+- `signal-persister` persisted signal `sig_marketops_dsm_eod_price_v1_b85d8522f80cb07abc3f` from `signalops.local.signal.v1` partition `2`, offset `2`.
+- Postgres `signal_ledger` contains the persisted signal with `app_id=marketops`, `domain=market_data`, `use_case=daily_market_surveillance`, detector `marketops.dsm.eod_price_v1`, type `marketops.dsm.volatility_expansion`, severity `high`, confidence `0.81`, and event ID `evt-g070-marketops-live`.
+- Alert/insight lifecycle derivation succeeded: `alert:sig_marketops_dsm_eod_price_v1_b85d8522f80cb07abc3f` is `open` and `insight:sig_marketops_dsm_eod_price_v1_b85d8522f80cb07abc3f` is `active`.
+
+Outstanding validation:
+
+- None for G070 local/deployment smoke validation. Broader replay coverage should move into G071+ gates.

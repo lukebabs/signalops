@@ -70,7 +70,8 @@ signal query API.
 - `SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS`: broker poll timeout.
 - `SIGNALOPS_WORKER_MAX_MESSAGES`: optional finite-run count for validation.
 - `SIGNALOPS_WORKER_DETECTOR_ID`: detector plugin identifier. The default is
-  `signalops.noop`.
+  `marketops.dsm.eod_price_v1`. Set this to `signalops.noop` or
+  `signalops.static_test` for lifecycle-only validation runs.
 - `SIGNALOPS_WORKER_LOG_LEVEL`: Python logging level.
 
 Retry replayer configuration:
@@ -94,6 +95,7 @@ Retry replayer configuration:
 Run unit tests:
 
 ```bash
+env PYTHONPATH=python pytest python/tests
 make docker-test-python
 ```
 
@@ -152,8 +154,19 @@ only after replay or DLQ publication is acknowledged.
 ## Detector Plugins
 
 Detector contracts live under `python/signalops_plugins/detectors/base.py`.
-The default `signalops.noop` detector is deterministic, emits no signals, and
-proves the worker/plugin lifecycle before real detector logic is added.
+
+`marketops.dsm.eod_price_v1` is the default detector. It evaluates normalized
+Massive equity EOD events scoped to `app_id=marketops`, `domain=market_data`,
+`source_adapter=market_data.massive`, `dataset=equity_eod_prices`, and
+`use_case=daily_market_surveillance`. It computes open/close move percent,
+intraday range percent, VWAP distance percent when `vwap` is available, daily
+return percent when `previous_close` is available, and deterministic price-field
+quality checks. Volatility expansion thresholds are 3.0% absolute open/close
+move, 5.0% intraday range, or 4.0% absolute daily return. Price-quality
+exceptions take precedence over volatility signals for a single event.
+
+`signalops.noop` is deterministic, emits no signals, and remains available for
+lifecycle-only validation runs.
 
 `signalops.static_test` is a deterministic reference detector that emits a low
 severity test signal. It is intended for contract and deployment validation, not

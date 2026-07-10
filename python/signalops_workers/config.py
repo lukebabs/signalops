@@ -55,7 +55,7 @@ def load_config() -> WorkerConfig:
             "SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS", DEFAULT_POLL_TIMEOUT_SECONDS
         ),
         max_messages=_int_env("SIGNALOPS_WORKER_MAX_MESSAGES", 0),
-        detector_id=_env("SIGNALOPS_WORKER_DETECTOR_ID", "signalops.noop"),
+        detector_id=_env("SIGNALOPS_WORKER_DETECTOR_ID", "marketops.dsm.eod_price_v1"),
         log_level=_env("SIGNALOPS_WORKER_LOG_LEVEL", "INFO"),
     )
 

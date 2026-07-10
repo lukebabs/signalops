@@ -16,6 +16,18 @@ class DetectorLoaderTests(unittest.TestCase):
 
         self.assertEqual(detector.detector_id, "signalops.static_test")
 
+    def test_loads_marketops_detector(self) -> None:
+        detector = load_detector(
+            "marketops.dsm.eod_price_v1", environment="local", worker_id="worker-1"
+        )
+
+        self.assertEqual(detector.detector_id, "marketops.dsm.eod_price_v1")
+
+    def test_empty_detector_id_defaults_to_marketops_detector(self) -> None:
+        detector = load_detector("", environment="local", worker_id="worker-1")
+
+        self.assertEqual(detector.detector_id, "marketops.dsm.eod_price_v1")
+
     def test_rejects_unknown_detector(self) -> None:
         with self.assertRaises(UnknownDetectorError):
             load_detector("missing.detector", environment="local", worker_id="worker-1")

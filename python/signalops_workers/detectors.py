@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from signalops_plugins.detectors.base import DetectorPlugin, RuntimeContext
+from signalops_plugins.detectors.marketops import MarketOpsEODPriceDetector
 from signalops_plugins.detectors.noop import NoopDetector, StaticSignalDetector
 
 
@@ -9,8 +10,9 @@ class UnknownDetectorError(ValueError):
 
 
 def load_detector(detector_id: str, *, environment: str, worker_id: str) -> DetectorPlugin:
-    detector_id = detector_id.strip() or "signalops.noop"
+    detector_id = detector_id.strip() or "marketops.dsm.eod_price_v1"
     detectors = {
+        "marketops.dsm.eod_price_v1": MarketOpsEODPriceDetector,
         "signalops.noop": NoopDetector,
         "signalops.static_test": StaticSignalDetector,
     }
