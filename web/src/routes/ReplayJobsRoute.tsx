@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { History, Plus } from 'lucide-react';
-import { useReplayJobs, useReplayJob, useCreateReplayJob } from '../api/queries';
+import { History, Plus, Ban } from 'lucide-react';
+import { useReplayJobs, useReplayJob, useCreateReplayJob, useCancelReplayJob } from '../api/queries';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
@@ -9,6 +9,7 @@ import { CopyButton } from '../components/CopyButton';
 import { JsonViewer } from '../components/JsonViewer';
 import { RefreshButton } from '../components/RefreshButton';
 import { formatUtc, duration, orDash, toRfc3339Utc, toDatetimeLocal } from '../lib/format';
+import { isCancelableStatus, cancellationOf, replayRecords } from '../lib/replay';
 import type { ReplayJob, ReplaySourceKind, ReplayMode, ReplayJobStatus } from '../types';
 import { useTenant, useActor } from '../auth/session';
 
@@ -61,6 +62,7 @@ export function ReplayJobsRoute() {
   const queued = data.filter((j) => j.status === 'queued').length;
   const running = data.filter((j) => j.status === 'running').length;
   const failed = data.filter((j) => j.status === 'failed').length;
+  const canceled = data.filter((j) => j.status === 'canceled').length;
   const published = data.reduce((n, j) => n + (numField(j.result, 'published') ?? 0), 0);
 
   // Create-form state. Windows default to the last 24h (UTC wall-clock).
@@ -132,11 +134,12 @@ export function ReplayJobsRoute() {
         <h1 className="text-lg font-semibold">Replay Jobs</h1>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
         <MetricTile label="Replay Jobs" value={data.length} />
         <MetricTile label="Queued" value={queued} />
         <MetricTile label="Running" value={running} />
         <MetricTile label="Failed" value={failed} />
+        <MetricTile label="Canceled" value={canceled} />
         <MetricTile label="Published" value={published} hint={list.isError ? 'unreachable' : undefined} />
       </div>
 
@@ -397,9 +400,20 @@ export function ReplayJobsRoute() {
 
 function ReplayJobDetail({ job }: { job: ReplayJob }) {
   const inFlight = job.status === 'queued' || job.status === 'running';
+  const cancelable = isCancelableStatus(job.status);
+  const cancel = useCancelReplayJob();
+  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState('operator canceled from Replay UI');
+  const cancelInFlight = cancel.isPending && cancel.variables?.replayJobId === job.replay_job_id;
+
   const scanned = numField(job.result, 'scanned');
   const published = numField(job.result, 'published');
+  const failed = numField(job.result, 'failed');
+  const batches = numField(job.result, 'batches');
+  const batchSize = numField(job.result, 'batch_size');
   const maxRecords = numField(job.options, 'max_records');
+  const cancelMeta = cancellationOf(job.result);
+  const records = replayRecords(job.result);
 
   return (
     <div className="space-y-3">
@@ -409,6 +423,54 @@ function ReplayJobDetail({ job }: { job: ReplayJob }) {
         <code className="break-all text-xs text-gray-700">{job.replay_job_id}</code>
         <CopyButton value={job.replay_job_id} />
       </div>
+
+      {cancelable && (
+        <div className="rounded border border-gray-200 bg-gray-50 p-2">
+          {!confirming ? (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className="inline-flex items-center gap-1 rounded border border-red-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+            >
+              <Ban size={14} /> Cancel
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <div className="text-xs text-gray-700">Cancel replay job?</div>
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="reason"
+                className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={cancelInFlight}
+                  onClick={() =>
+                    cancel.mutate({ replayJobId: job.replay_job_id, reason: reason.trim() || undefined })
+                  }
+                  className="inline-flex items-center gap-1 rounded border border-red-300 bg-red-100 px-2 py-1 text-xs text-red-800 hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Ban size={14} /> {cancelInFlight ? 'Canceling…' : 'Confirm cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setConfirming(false); cancel.reset(); }}
+                  className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                >
+                  Dismiss
+                </button>
+              </div>
+              {cancel.isError && (
+                <p className="text-xs text-red-700" role="alert">
+                  Cancel failed: {isApiError(cancel.error) ? cancel.error.message : 'unknown error'}. Status preserved.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {inFlight && (
         <p className="text-xs text-gray-500">Replay in progress — detail refreshes every few seconds.</p>
@@ -441,8 +503,58 @@ function ReplayJobDetail({ job }: { job: ReplayJob }) {
       <div className="grid grid-cols-3 gap-2 text-sm">
         <div><div className="text-xs text-gray-500">Scanned</div><div>{orDash(scanned)}</div></div>
         <div><div className="text-xs text-gray-500">Published</div><div>{orDash(published)}</div></div>
+        <div><div className="text-xs text-gray-500">Failed</div><div>{orDash(failed)}</div></div>
+        <div><div className="text-xs text-gray-500">Batches</div><div>{orDash(batches)}</div></div>
+        <div><div className="text-xs text-gray-500">Batch size</div><div>{orDash(batchSize)}</div></div>
         <div><div className="text-xs text-gray-500">Max records</div><div>{orDash(maxRecords)}</div></div>
       </div>
+
+      {(job.status === 'canceled' || cancelMeta) && (
+        <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs">
+          <div className="mb-1 text-gray-600">Cancellation</div>
+          <div className="grid grid-cols-3 gap-2">
+            <div><div className="text-gray-400">Actor</div><div className="break-words">{cancelMeta?.actor || '—'}</div></div>
+            <div><div className="text-gray-400">Reason</div><div className="break-words">{cancelMeta?.reason || '—'}</div></div>
+            <div><div className="text-gray-400">Canceled at</div><div>{formatUtc(cancelMeta?.canceled_at)}</div></div>
+          </div>
+        </div>
+      )}
+
+      {records.length > 0 && (
+        <div>
+          <div className="mb-1 text-xs font-medium text-gray-600">Records ({records.length})</div>
+          <div className="max-h-64 overflow-auto rounded border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200 text-xs">
+              <thead className="sticky top-0 bg-gray-50 text-left text-gray-500">
+                <tr>
+                  <th className="px-2 py-1">Status</th>
+                  <th className="px-2 py-1">Source ID</th>
+                  <th className="px-2 py-1">Key</th>
+                  <th className="px-2 py-1">Attempts</th>
+                  <th className="px-2 py-1">Topic</th>
+                  <th className="px-2 py-1">Partition</th>
+                  <th className="px-2 py-1">Offset</th>
+                  <th className="px-2 py-1">Error</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {records.map((rec, i) => (
+                  <tr key={rec.key || rec.source_id || i}>
+                    <td className="px-2 py-1"><StatusBadge status={rec.status} /></td>
+                    <td className="break-all px-2 py-1 font-mono">{rec.source_id || '—'}</td>
+                    <td className="max-w-[10rem] break-all px-2 py-1 font-mono">{rec.key || '—'}</td>
+                    <td className="px-2 py-1">{orDash(rec.attempts)}</td>
+                    <td className="break-all px-2 py-1 font-mono">{rec.topic || '—'}</td>
+                    <td className="px-2 py-1">{orDash(rec.partition)}</td>
+                    <td className="px-2 py-1">{orDash(rec.offset)}</td>
+                    <td className="break-all px-2 py-1 text-red-700">{rec.error || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <JsonViewer label="Filters" value={job.filters} />
       <JsonViewer label="Options" value={job.options} />

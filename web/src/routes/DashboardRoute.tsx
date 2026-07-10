@@ -105,6 +105,7 @@ export function DashboardRoute() {
   const replayQueued = replayData.filter((j) => j.status === 'queued').length;
   const replayRunning = replayData.filter((j) => j.status === 'running').length;
   const replayFailed = replayData.filter((j) => j.status === 'failed').length;
+  const replayCanceled = replayData.filter((j) => j.status === 'canceled').length;
 
   // Under auth, SSE is intentionally off (native EventSource cannot carry a Bearer token);
   // a REST polling interval keeps the dashboard fresh. Show that distinctly rather than as a
@@ -173,7 +174,7 @@ export function DashboardRoute() {
           <MetricTile
             label="Replay Jobs"
             value={replayData.length}
-            hint={replay.isError ? 'unreachable' : `${replayQueued} queued · ${replayRunning} running · ${replayFailed} failed`}
+            hint={replay.isError ? 'unreachable' : `${replayQueued} queued · ${replayRunning} running · ${replayFailed} failed · ${replayCanceled} canceled`}
           />
         </Link>
       </div>

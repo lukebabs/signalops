@@ -10,6 +10,7 @@ import type {
   InsightLifecycleMutationOptions,
   ReplayJobFilter,
   ReplayJobCreateRequest,
+  ReplayJob,
 } from '../types';
 
 export const queryKeys = {
@@ -218,6 +219,48 @@ export function useCreateReplayJob() {
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.replayJob(data.replay_job.replay_job_id), data);
       queryClient.invalidateQueries({ queryKey: ['replay-jobs'] });
+    },
+  });
+}
+
+// Cancel with an optimistic update: mark the matching queued/running job as
+// `canceled` in every list cache immediately, roll back on error, then write
+// the authoritative returned job into the detail cache and refetch.
+type ReplayJobsCache = { replay_jobs: ReplayJob[] };
+
+export function useCancelReplayJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { replayJobId: string; reason?: string; note?: string }) =>
+      api.cancelReplayJob(vars.replayJobId, { reason: vars.reason, note: vars.note }),
+    onMutate: async ({ replayJobId }) => {
+      // Stop in-flight list refetches from clobbering the optimistic update.
+      await queryClient.cancelQueries({ queryKey: ['replay-jobs'] });
+      const previous = queryClient.getQueriesData<ReplayJobsCache>({ queryKey: ['replay-jobs'] });
+      queryClient.setQueriesData<ReplayJobsCache>({ queryKey: ['replay-jobs'] }, (old) => {
+        if (!old) return old;
+        return {
+          replay_jobs: old.replay_jobs.map((j) =>
+            j.replay_job_id === replayJobId && (j.status === 'queued' || j.status === 'running')
+              ? { ...j, status: 'canceled' }
+              : j,
+          ),
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      // Restore the pre-mutation list caches.
+      context?.previous?.forEach(([key, data]) => {
+        if (data !== undefined) queryClient.setQueryData(key, data);
+      });
+    },
+    onSuccess: (data, { replayJobId }) => {
+      queryClient.setQueryData(queryKeys.replayJob(replayJobId), data);
+    },
+    onSettled: async (_data, _err, { replayJobId }) => {
+      await queryClient.invalidateQueries({ queryKey: ['replay-jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['replay-job', replayJobId] });
     },
   });
 }

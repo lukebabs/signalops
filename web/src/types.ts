@@ -441,3 +441,50 @@ export interface ReplayJobFilter {
   status?: ReplayJobStatus | '';
   limit?: number;
 }
+
+// G061 replay result accounting. The worker writes `canceled: false` (bool) on
+// normal completion via CompleteReplayJob, while CancelReplayJob merges an
+// object into `result.canceled` ({actor, reason, canceled_at}); the union
+// tolerates both. Historical G059 results carry only a subset of these fields,
+// so every field is optional. `[key: string]: unknown` keeps the shape permissive
+// for forward-compatible backend fields without rewrites.
+export type ReplayRecordStatus = 'published' | 'failed' | string;
+
+export interface ReplayRecordResult {
+  source_id: string;
+  key: string;
+  status: ReplayRecordStatus;
+  topic?: string;
+  partition?: number;
+  offset?: number;
+  attempts?: number;
+  error?: string;
+}
+
+export interface ReplayCancellationResult {
+  actor?: string;
+  reason?: string;
+  canceled_at?: string;
+}
+
+export interface ReplayResult {
+  replay_job_id?: string;
+  source_kind?: ReplaySourceKind | string;
+  scanned?: number;
+  published?: number;
+  failed?: number;
+  batches?: number;
+  max_records?: number;
+  batch_size?: number;
+  canceled?: boolean | ReplayCancellationResult;
+  started_at?: string;
+  completed_at?: string;
+  records?: ReplayRecordResult[];
+  [key: string]: unknown;
+}
+
+export interface ReplayJobCancelRequest {
+  actor?: string;
+  reason?: string;
+  note?: string;
+}

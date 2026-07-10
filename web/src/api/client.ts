@@ -28,6 +28,7 @@ import type {
   ReplayJobsResponse,
   ReplayJobResponse,
   ReplayJobCreateRequest,
+  ReplayJobCancelRequest,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -216,6 +217,15 @@ export const api = {
     get<ReplayJobResponse>(`/v1/replay/jobs/${encodeURIComponent(replayJobId)}`),
   createReplayJob: (body: ReplayJobCreateRequest) =>
     post<ReplayJobResponse>('/v1/replay/jobs', body),
+  // Cancel mirrors the alert/insight lifecycle mutations: under auth the gateway
+  // derives the actor from the token (lifecycleActor reads the principal first),
+  // so the operator-local placeholder header is only sent in auth-disabled dev.
+  cancelReplayJob: (replayJobId: string, body: ReplayJobCancelRequest = {}) =>
+    post<ReplayJobResponse>(
+      `/v1/replay/jobs/${encodeURIComponent(replayJobId)}/cancel`,
+      { reason: body.reason, note: body.note },
+      authConfig.authEnabled ? undefined : { 'X-SignalOps-Actor': 'operator-local' },
+    ),
   mutateAlertLifecycle: ({ alertId, action, note, reason }: AlertLifecycleMutationOptions) =>
     post<AlertResponse>(
       `/v1/alerts/${encodeURIComponent(alertId)}/${action}`,

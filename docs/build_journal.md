@@ -3864,3 +3864,44 @@ Validation performed:
 Next step:
 
 - Hand `docs/frontend/replay_jobs_cancel_and_results_spec.md` to frontend-agent for implementation and browser validation.
+
+## 2026-07-10T04:42:00Z
+
+Summary:
+
+- Implemented G062 Replay Cancellation and Result Accounting from `docs/frontend/replay_jobs_cancel_and_results_spec.md`: cancel action on the `/replay` detail panel, optimistic cancel with rollback, G061 result summary, per-record result table, and canceled status across metrics/filters/polling/Dashboard.
+- Reconciled the spec against the live G061 backend (`internal/api/router.go` cancel route, `internal/storage/postgres/repository.go` `CancelReplayJob`, `cmd/replay-worker/main.go` `replayResult`/`replayRecordResult`) before coding.
+
+Files changed:
+
+- `web/src/types.ts` — `ReplayRecordStatus`, `ReplayRecordResult`, `ReplayCancellationResult`, `ReplayResult`, `ReplayJobCancelRequest` (kept `ReplayJob.result: unknown` to avoid churn).
+- `web/src/api/client.ts` — `cancelReplayJob` (mirrors `mutateAlertLifecycle`: conditional `X-SignalOps-Actor` header in dev).
+- `web/src/api/queries.ts` — `useCancelReplayJob` (optimistic cancel + snapshot rollback + invalidate list/detail; seeds detail cache on success).
+- `web/src/lib/replay.ts` — pure helpers `parseReplayResult`/`cancellationOf`/`isCancelableStatus`/`replayRecords`.
+- `web/src/routes/ReplayJobsRoute.tsx` — Canceled metric; detail cancel control (queued/running only, inline confirm + reason); result summary (failed/batches/batch_size + cancellation metadata); per-record table.
+- `web/src/routes/DashboardRoute.tsx` — canceled count in the replay summary hint (no layout change).
+- `web/src/api/replay.test.ts`, `web/src/lib/replay.test.ts` — client + helper tests.
+- `docs/build_journal.md`, `docs/gate_audit.md` — G062 implementation entries.
+
+Implementation notes (spec reconciliation):
+
+- Cancel mirrors the alert/insight lifecycle mutations, not replay create: `lifecycleActor` reads the JWT principal first, so under auth the actor is token-derived and the `X-SignalOps-Actor: operator-local` header is only sent in auth-disabled dev.
+- `CancelReplayJob` returns 200 with the existing (unchanged) record for already-terminal jobs and 404 only when the job is absent; the UI renders the returned job as authoritative.
+- `result.canceled` is a `bool` (`false`) on normal completion (via `CompleteReplayJob`) and an `object` `{actor, reason, canceled_at}` on cancel (merged by `CancelReplayJob`). The `ReplayResult.canceled` union (`boolean | ReplayCancellationResult`) models both; `cancellationOf` returns metadata only when it is an object.
+- The cancel body is optional and the decoder is lenient (no `DisallowUnknownFields`); the client sends `{reason, note}`.
+- Optimistic update marks the matching queued/running job `canceled` in every `['replay-jobs']` cache, rolls back on error, then invalidates list + detail; duplicate in-flight cancels for the selected job are disabled via `mutation.variables`.
+- `canceled` is terminal: detail polling already stops (`useReplayJob` refetchInterval only fires for queued/running). No new SSE stream.
+- No retry/bulk/worker controls; non-goals respected.
+
+Validation performed:
+
+- `cd web && npm test`: 45/45 pass (8 files; 9 new — 4 cancel client, 5 result helpers).
+- `cd web && npm run build` (`tsc` + `vite build`): succeeded; `ReplayJobsRoute` chunk 14→19 kB.
+- `cd web && npm audit --json`: 0 vulnerabilities, exit 0.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet`: succeeded.
+- `git diff --check`: clean.
+
+Next step:
+
+- Deploy via `make deploy-web` (auth flag + Traefik overlay) — outward-facing, not auto-run.
+- Authenticated browser validation: sign in, `/replay`, select a queued/running job, confirm cancel appears only then, trigger cancel, confirm `canceled` + metadata + counters, confirm `result.records` renders without overflow, confirm terminal jobs show no cancel control.
