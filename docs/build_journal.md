@@ -4853,3 +4853,41 @@ Live smoke validation:
 Next step:
 
 - G078 can add frontend consumption of the first-class artifact API or graph proposal acceptance/storage.
+
+
+## 2026-07-10T20:48:00Z
+
+Summary:
+
+- Implemented G078 as frontend consumption of the first-class MarketOps DSM artifact API added in G077.
+- Added typed API client/query support for `GET /v1/marketops/dsm/artifacts` and `GET /v1/marketops/dsm/artifacts/{artifact_id}`.
+- Updated `/marketops/dsm` to query the artifact ledger, show persisted-vs-signal-only artifact coverage in the table, add a DSM Artifacts metric tile, and render a first-class artifact ledger panel in signal detail.
+- Kept existing signal-derived artifact proposal rendering as fallback when a ledger record is unavailable.
+
+Files changed:
+
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/api/marketopsAssets.test.ts`
+- `web/src/routes/MarketOpsDsmRoute.tsx`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `cd web && npm test`: 100 passed.
+- `cd web && npm run build`: succeeded; `MarketOpsDsmRoute` built.
+- `cd web && npm audit --audit-level=low`: found 0 vulnerabilities.
+- `git diff --check`: passed.
+
+Additional validation:
+
+- `make deploy-web`: rebuilt and recreated `signalops-web-1` with the G078 bundle.
+- Deployed route smoke: `GET http://localhost:15173/marketops/dsm` returned HTTP `200`.
+- `signalops-web-1` and `signalops-gateway-1` were running after deploy.
+- Unauthenticated artifact API probe returned expected `401 unauthorized` for `/v1/marketops/dsm/artifacts`, confirming the protected boundary remains intact.
+
+Remaining validation:
+
+- Authenticated browser validation remains operator-token dependent: verify `/marketops/dsm` network requests include the artifact API, the DSM Artifacts tile renders, persisted-vs-signal-only table status renders, and the first-class artifact ledger panel appears for a persisted artifact.

@@ -12,6 +12,7 @@ import type {
   ReplayJobCreateRequest,
   ReplayJob,
   MarketOpsAssetFilter,
+  MarketOpsDSMArtifactFilter,
 } from '../types';
 
 export const queryKeys = {
@@ -41,6 +42,8 @@ export const queryKeys = {
   replayStatus: (tenantId: string, limit?: number) => ['replay-status', tenantId, limit] as const,
   appProfiles: ['app-profiles'] as const,
   marketOpsAssets: (filter: MarketOpsAssetFilter) => ['marketops-assets', filter] as const,
+  marketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter) => ['marketops-dsm-artifacts', filter] as const,
+  marketOpsDSMArtifact: (artifactId: string) => ['marketops-dsm-artifact', artifactId] as const,
 };
 
 export function useHealthz() {
@@ -254,6 +257,26 @@ export function useMarketOpsAssets(
     queryKey: queryKeys.marketOpsAssets(filter),
     queryFn: () => api.listMarketOpsAssets(filter),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+// G078 first-class MarketOps DSM artifact ledger. Artifacts are materialized
+// from signal semantic evidence by the backend, so a short stale time keeps the
+// workbench responsive while avoiding unnecessary refetch churn.
+export function useMarketOpsDSMArtifacts(filter: MarketOpsDSMArtifactFilter = { tenant_id: 'tenant-local', limit: 50 }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsDSMArtifacts(filter),
+    queryFn: () => api.listMarketOpsDSMArtifacts(filter),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsDSMArtifact(artifactId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsDSMArtifact(artifactId ?? ''),
+    queryFn: () => api.getMarketOpsDSMArtifact(artifactId!),
+    enabled: !!artifactId,
+    staleTime: 60 * 1000,
   });
 }
 

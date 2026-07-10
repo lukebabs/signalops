@@ -33,6 +33,9 @@ import type {
   AppProfilesResponse,
   MarketOpsAssetsResponse,
   MarketOpsAssetFilter,
+  MarketOpsDSMArtifactsResponse,
+  MarketOpsDSMArtifactResponse,
+  MarketOpsDSMArtifactFilter,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -266,6 +269,19 @@ export const api = {
         limit: filter.limit ?? 50,
       },
     ),
+  listMarketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter = {}) =>
+    get<MarketOpsDSMArtifactsResponse>('/v1/marketops/dsm/artifacts', {
+      tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      domain: filter.domain,
+      use_case: filter.use_case,
+      signal_type: filter.signal_type,
+      severity: filter.severity,
+      subject_symbol: filter.subject_symbol,
+      limit: filter.limit ?? 50,
+    }),
+  getMarketOpsDSMArtifact: (artifactId: string) =>
+    get<MarketOpsDSMArtifactResponse>(`/v1/marketops/dsm/artifacts/${encodeURIComponent(artifactId)}`),
   mutateAlertLifecycle: ({ alertId, action, note, reason }: AlertLifecycleMutationOptions) =>
     post<AlertResponse>(
       `/v1/alerts/${encodeURIComponent(alertId)}/${action}`,

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Network } from 'lucide-react';
-import { useSignals, useAlerts, useInsights, useSignal } from '../api/queries';
+import { useSignals, useAlerts, useInsights, useSignal, useMarketOpsDSMArtifacts, useMarketOpsDSMArtifact } from '../api/queries';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
 import { CopyButton } from '../components/CopyButton';
@@ -23,7 +23,7 @@ import {
   hasLifecycleMatch,
   type DsmFamily,
 } from '../lib/marketopsDsm';
-import type { SignalRecord, AlertRecord, InsightRecord } from '../types';
+import type { SignalRecord, AlertRecord, InsightRecord, MarketOpsDSMArtifact } from '../types';
 
 const SEVERITIES = ['info', 'low', 'medium', 'high', 'critical'] as const;
 const DATASETS = ['equity_eod_prices', 'options_contracts_daily'] as const;
@@ -145,9 +145,19 @@ export function MarketOpsDsmRoute() {
     status: 'active',
     limit: 100,
   });
+  const artifactsQ = useMarketOpsDSMArtifacts({
+    tenant_id: TENANT_ID,
+    app_id: 'marketops',
+    domain: 'market_data',
+    use_case: MARKETOPS_DSM_USE_CASE,
+    signal_type: taxonomy || undefined,
+    severity: severity || undefined,
+    limit: 100,
+  });
   const detailQ = useSignal(selectedId);
 
-  // Taxonomy type is not a backend filter; apply it client-side.
+  // Taxonomy type is not a signal backend filter; apply it client-side for
+  // signals. Artifact ledger filtering can use signal_type server-side.
   const raw = signalsQ.data?.signals ?? [];
   const signals = taxonomy ? raw.filter((s) => s.signal_type === taxonomy) : raw;
 
@@ -163,16 +173,27 @@ export function MarketOpsDsmRoute() {
   const withInsight = signals.filter((s) => hasLifecycleMatch(s, insightSignalIds)).length;
   const taxonomyTypes = new Set(signals.map((s) => s.signal_type)).size;
 
+  const artifacts = artifactsQ.data?.artifacts ?? [];
+  const artifactsBySignal = new Map(artifacts.map((a) => [a.signal_id, a]));
+  const artifactsById = new Map(artifacts.map((a) => [a.artifact_id, a]));
   const matchedAlert = (alertsQ.data?.alerts ?? []).find((a) => a.signal_id === selectedId) ?? null;
   const matchedInsight = (insightsQ.data?.insights ?? []).find((i) => i.signal_id === selectedId) ?? null;
   const selected: SignalRecord | null =
     detailQ.data?.signal ?? signals.find((s) => s.signal_id === selectedId) ?? null;
+  const selectedArtifactId = selected ? getArtifactId(selected) : null;
+  const artifactDetailQ = useMarketOpsDSMArtifact(selectedArtifactId);
+  const selectedArtifact =
+    artifactDetailQ.data?.artifact ??
+    (selectedArtifactId ? artifactsById.get(selectedArtifactId) ?? null : null) ??
+    (selectedId ? artifactsBySignal.get(selectedId) ?? null : null);
 
   function refresh() {
     signalsQ.refetch();
     alertsQ.refetch();
     insightsQ.refetch();
+    artifactsQ.refetch();
     if (selectedId) detailQ.refetch();
+    if (selectedArtifactId) artifactDetailQ.refetch();
   }
 
   const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
@@ -214,11 +235,12 @@ export function MarketOpsDsmRoute() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
         <MetricTile label="DSM Signals" value={signals.length} />
         <MetricTile label="High/Critical" value={highCritical} />
         <MetricTile label="Open Alerts" value={withAlert} hint={alertsQ.isError ? 'unreachable' : undefined} />
         <MetricTile label="Active Insights" value={withInsight} hint={insightsQ.isError ? 'unreachable' : undefined} />
+        <MetricTile label="DSM Artifacts" value={artifacts.length} hint={artifactsQ.isError ? 'unreachable' : undefined} />
         <MetricTile label="Taxonomy Types" value={taxonomyTypes} />
       </div>
 
@@ -241,6 +263,7 @@ export function MarketOpsDsmRoute() {
                     <th className="px-3 py-2">Dataset</th>
                     <th className="px-3 py-2">Key Metrics</th>
                     <th className="px-3 py-2">Artifact</th>
+                    <th className="px-3 py-2">Ledger</th>
                     <th className="px-3 py-2">Graph</th>
                     <th className="px-3 py-2">A/I</th>
                     <th className="px-3 py-2">Created</th>
@@ -250,6 +273,7 @@ export function MarketOpsDsmRoute() {
                   {signals.map((s) => {
                     const fam = dsmFamily(s.signal_type);
                     const artifact = getArtifactId(s);
+                    const ledgerArtifact = artifact ? artifactsById.get(artifact) : artifactsBySignal.get(s.signal_id);
                     const counts = graphTargetCounts(s);
                     return (
                       <tr
@@ -277,6 +301,9 @@ export function MarketOpsDsmRoute() {
                             <span className="text-xs text-gray-400">—</span>
                           )}
                         </td>
+                        <td className="px-3 py-2 text-xs">
+                          {ledgerArtifact ? <span className="text-emerald-700">persisted</span> : <span className="text-gray-400">signal-only</span>}
+                        </td>
                         <td className="px-3 py-2 text-xs">{counts.nodes + counts.relationships}</td>
                         <td className="px-3 py-2 text-xs">
                           <span className="text-orange-700">{hasLifecycleMatch(s, alertSignalIds) ? 'A' : ''}</span>
@@ -303,7 +330,14 @@ export function MarketOpsDsmRoute() {
           ) : detailQ.isLoading && selectedId ? (
             <LoadingState />
           ) : (
-            <DsmDetailBody signal={selected} alert={matchedAlert} insight={matchedInsight} />
+            <DsmDetailBody
+              signal={selected}
+              alert={matchedAlert}
+              insight={matchedInsight}
+              artifact={selectedArtifact}
+              artifactLoading={artifactDetailQ.isLoading && !!selectedArtifactId}
+              artifactError={artifactDetailQ.isError}
+            />
           )}
         </div>
       </div>
@@ -315,10 +349,16 @@ function DsmDetailBody({
   signal,
   alert,
   insight,
+  artifact,
+  artifactLoading,
+  artifactError,
 }: {
   signal: SignalRecord;
   alert: AlertRecord | null;
   insight: InsightRecord | null;
+  artifact: MarketOpsDSMArtifact | null;
+  artifactLoading: boolean;
+  artifactError: boolean;
 }) {
   const fam = dsmFamily(signal.signal_type);
   const proposal = getArtifactProposal(signal);
@@ -379,6 +419,26 @@ function DsmDetailBody({
         )}
       </div>
 
+      <div className="rounded border border-emerald-200 bg-emerald-50 p-2">
+        <div className="mb-1 text-xs font-medium text-emerald-800">First-Class Artifact Ledger</div>
+        {artifactLoading ? (
+          <p className="text-xs text-emerald-700">Loading artifact ledger record...</p>
+        ) : artifact ? (
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="col-span-2"><div className="text-emerald-700">Artifact ID</div><div className="break-all font-mono">{artifact.artifact_id}</div></div>
+            <div><div className="text-emerald-700">Subject</div><div className="font-mono">{artifact.subject_symbol || '—'}</div></div>
+            <div><div className="text-emerald-700">Artifact Type</div><div className="font-mono">{artifact.artifact_type}</div></div>
+            <div><div className="text-emerald-700">Updated</div><div>{formatUtc(artifact.updated_at)}</div></div>
+            <div><div className="text-emerald-700">Events</div><div>{artifact.event_ids.length}</div></div>
+            <div className="col-span-2"><div className="text-emerald-700">Quality Issues</div><div>{artifact.quality_issues.length ? artifact.quality_issues.join(', ') : 'none'}</div></div>
+          </div>
+        ) : artifactError ? (
+          <p className="text-xs text-amber-700">Artifact ledger record is unavailable.</p>
+        ) : (
+          <p className="text-xs text-emerald-700">No first-class artifact ledger record matched this signal yet.</p>
+        )}
+      </div>
+
       <div className="space-y-2">
         <div>
           <div className="mb-1 text-xs font-medium text-gray-600">Price Metrics</div>
@@ -422,7 +482,8 @@ function DsmDetailBody({
 
       <JsonViewer label="Supporting Metrics" value={signal.supporting_metrics} />
       <JsonViewer label="DSM Artifact Proposal" value={proposal ?? signal.semantic_evidence} />
-      <JsonViewer label="Graph Targets" value={signal.graph_targets} />
+      <JsonViewer label="First-Class Artifact Ledger" value={artifact ?? {}} />
+      <JsonViewer label="Graph Targets" value={artifact?.graph_targets ?? signal.graph_targets} />
       <JsonViewer label="Semantic Evidence" value={signal.semantic_evidence} />
       <JsonViewer label="Evidence" value={signal.evidence} />
       <JsonViewer label="Recommendation" value={signal.recommendation} />

@@ -590,3 +590,51 @@ export interface MarketOpsAssetFilter {
   active_only?: boolean;
   limit?: number;
 }
+
+
+// G078 MarketOps DSM artifacts. Served by
+// GET /v1/marketops/dsm/artifacts and /v1/marketops/dsm/artifacts/{artifact_id}.
+export interface MarketOpsDSMArtifact {
+  artifact_id: string;
+  tenant_id: string;
+  app_id: string;
+  domain: string;
+  use_case: string;
+  source_id: string;
+  source_adapter: string;
+  dataset: string;
+  signal_id: string;
+  signal_type: string;
+  detector_id: string;
+  severity: string;
+  confidence: number;
+  event_ids: string[];
+  subject_symbol: string;
+  artifact_type: string;
+  artifact: unknown;
+  semantic_evidence: unknown;
+  graph_targets: unknown;
+  supporting_metrics: unknown;
+  quality_issues: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsDSMArtifactsResponse {
+  artifacts: MarketOpsDSMArtifact[];
+}
+
+export interface MarketOpsDSMArtifactResponse {
+  artifact: MarketOpsDSMArtifact;
+}
+
+export interface MarketOpsDSMArtifactFilter {
+  tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
+  signal_type?: string;
+  severity?: string;
+  subject_symbol?: string;
+  limit?: number;
+}

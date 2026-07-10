@@ -5609,3 +5609,49 @@ Additional validation performed:
 Follow-up items:
 
 - G078 can expose first-class artifacts in the frontend DSM workbench or add graph proposal acceptance/storage.
+
+
+## Gate G078: MarketOps DSM Artifact API Frontend Integration
+
+Timestamp: `2026-07-10T20:48:00Z`
+
+Status: `implemented — frontend tests/build/audit and deployed route smoke passed; authenticated browser validation pending operator`
+
+Gate name:
+
+- Surface first-class MarketOps DSM artifact ledger records in the DSM Workbench.
+
+Scope:
+
+- Wire the G077 artifact API into the existing `/marketops/dsm` workbench without changing backend contracts.
+
+Implementation:
+
+- Added frontend types for `MarketOpsDSMArtifact`, list/detail envelopes, and artifact filters.
+- Added API client methods:
+  - `listMarketOpsDSMArtifacts`
+  - `getMarketOpsDSMArtifact`
+- Added React Query keys/hooks for artifact list and detail records.
+- Updated `/marketops/dsm` to query artifact ledger records with MarketOps daily-surveillance filters.
+- Added `DSM Artifacts` metric tile and table ledger status (`persisted` vs `signal-only`).
+- Added a first-class artifact ledger detail panel with artifact id, subject symbol, artifact type, timestamps, event count, and quality issues.
+- Preserved signal-derived artifact proposal rendering as fallback when the ledger record is missing or unavailable.
+
+Validation performed:
+
+- API client tests cover artifact list path/query construction, default limit, bearer attachment, artifact-id encoding, envelope parsing, and query keys.
+- `npm test`: 100 passed.
+- `npm run build`: succeeded.
+- `npm audit --audit-level=low`: found 0 vulnerabilities.
+- `git diff --check`: passed.
+
+Additional validation performed:
+
+- `make deploy-web`: rebuilt and recreated `signalops-web-1` with the G078 bundle.
+- `GET http://localhost:15173/marketops/dsm`: returned HTTP `200`.
+- Verified `signalops-web-1` and `signalops-gateway-1` were running after deploy.
+- Unauthenticated `/v1/marketops/dsm/artifacts` probe returned expected `401 unauthorized`, preserving auth enforcement.
+
+Validation pending:
+
+- Authenticated browser validation of artifact API calls and rendered ledger panel remains operator-token dependent.
