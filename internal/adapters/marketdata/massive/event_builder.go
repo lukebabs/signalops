@@ -121,6 +121,9 @@ func BuildOptionContractDailyEvent(cfg AdapterConfig, record OptionContractDaily
 		EventEnvelope: contracts.EventEnvelope{
 			TenantID:       strings.TrimSpace(cfg.TenantID),
 			SourceID:       strings.TrimSpace(cfg.SourceID),
+			AppID:          "marketops",
+			Domain:         contracts.SourceDomainMarketData,
+			UseCase:        "daily_market_surveillance",
 			SourceDomain:   contracts.SourceDomainMarketData,
 			SourceAdapter:  AdapterID,
 			IngestionMode:  contracts.IngestionModeScheduledPull,
@@ -185,6 +188,9 @@ func BuildEquityEODPriceEvent(cfg AdapterConfig, record EquityEODPriceRecord) (c
 		EventEnvelope: contracts.EventEnvelope{
 			TenantID:       strings.TrimSpace(cfg.TenantID),
 			SourceID:       strings.TrimSpace(cfg.SourceID),
+			AppID:          "marketops",
+			Domain:         contracts.SourceDomainMarketData,
+			UseCase:        "daily_market_surveillance",
 			SourceDomain:   contracts.SourceDomainMarketData,
 			SourceAdapter:  AdapterID,
 			IngestionMode:  contracts.IngestionModeScheduledPull,

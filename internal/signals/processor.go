@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lukebabs/signalops/internal/appmeta"
 	"github.com/lukebabs/signalops/internal/storage"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
@@ -50,6 +51,9 @@ type Event struct {
 	SignalID          string           `json:"signal_id"`
 	TenantID          string           `json:"tenant_id"`
 	SourceID          string           `json:"source_id"`
+	AppID             string           `json:"app_id,omitempty"`
+	Domain            string           `json:"domain,omitempty"`
+	UseCase           string           `json:"use_case,omitempty"`
 	SourceDomain      string           `json:"source_domain"`
 	SourceAdapter     string           `json:"source_adapter"`
 	IngestionMode     string           `json:"ingestion_mode"`
@@ -166,7 +170,7 @@ func ledgerRecord(event Event, message broker.ConsumedMessage) (storage.SignalLe
 	}
 	return storage.SignalLedgerRecord{
 		SignalID: event.SignalID, TenantID: event.TenantID, SourceID: event.SourceID,
-		SourceDomain: event.SourceDomain, SourceAdapter: event.SourceAdapter,
+		AppID: appmeta.Normalize(event.AppID, event.Domain, event.UseCase, event.SourceDomain).AppID, Domain: appmeta.Normalize(event.AppID, event.Domain, event.UseCase, event.SourceDomain).Domain, UseCase: appmeta.Normalize(event.AppID, event.Domain, event.UseCase, event.SourceDomain).UseCase, SourceDomain: event.SourceDomain, SourceAdapter: event.SourceAdapter,
 		IngestionMode: event.IngestionMode, Dataset: event.Dataset, EventIDs: event.EventIDs,
 		ArtifactIDs: event.ArtifactIDs, SignalType: event.SignalType, DetectorID: event.DetectorID,
 		DetectorVersion: event.DetectorVersion, ModelVersion: event.ModelVersion,
@@ -193,7 +197,7 @@ func lifecycleRecords(record storage.SignalLedgerRecord) ([]storage.AlertLedgerR
 	}
 	insight := storage.InsightLedgerRecord{
 		InsightID: fmt.Sprintf("insight:%s", record.SignalID), TenantID: record.TenantID,
-		SourceID: record.SourceID, SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter,
+		SourceID: record.SourceID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter,
 		Dataset: record.Dataset, SignalID: record.SignalID, DetectorID: record.DetectorID,
 		InsightType: record.SignalType, Status: storage.InsightStatusActive,
 		Title:      fmt.Sprintf("%s signal from %s", record.Severity, record.DetectorID),
@@ -207,7 +211,7 @@ func lifecycleRecords(record storage.SignalLedgerRecord) ([]storage.AlertLedgerR
 	if alertSeverity(record.Severity) {
 		alerts = append(alerts, storage.AlertLedgerRecord{
 			AlertID: fmt.Sprintf("alert:%s", record.SignalID), TenantID: record.TenantID,
-			SourceID: record.SourceID, SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter,
+			SourceID: record.SourceID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter,
 			Dataset: record.Dataset, SignalID: record.SignalID, DetectorID: record.DetectorID,
 			AlertType: record.SignalType, Severity: record.Severity, Status: storage.AlertStatusOpen,
 			Title:      fmt.Sprintf("%s %s alert", strings.Title(record.Severity), record.SignalType),

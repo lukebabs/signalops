@@ -57,6 +57,9 @@ type EvidenceRef struct {
 type EventEnvelope struct {
 	TenantID       string         `json:"tenant_id"`
 	SourceID       string         `json:"source_id"`
+	AppID          string         `json:"app_id,omitempty"`
+	Domain         SourceDomain   `json:"domain,omitempty"`
+	UseCase        string         `json:"use_case,omitempty"`
 	SourceDomain   SourceDomain   `json:"source_domain"`
 	SourceAdapter  string         `json:"source_adapter"`
 	IngestionMode  IngestionMode  `json:"ingestion_mode"`
@@ -96,6 +99,9 @@ type Signal struct {
 	SignalID          string           `json:"signal_id"`
 	TenantID          string           `json:"tenant_id"`
 	SourceID          string           `json:"source_id"`
+	AppID             string           `json:"app_id,omitempty"`
+	Domain            SourceDomain     `json:"domain,omitempty"`
+	UseCase           string           `json:"use_case,omitempty"`
 	SourceDomain      SourceDomain     `json:"source_domain"`
 	SourceAdapter     string           `json:"source_adapter"`
 	IngestionMode     IngestionMode    `json:"ingestion_mode"`

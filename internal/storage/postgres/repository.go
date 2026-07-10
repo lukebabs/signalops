@@ -11,6 +11,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/lukebabs/signalops/internal/appmeta"
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
@@ -240,6 +241,9 @@ INSERT INTO idempotency_records (
 )
 ON CONFLICT (tenant_id, source_id, idempotency_key) DO UPDATE SET
   event_id = EXCLUDED.event_id,
+  app_id = EXCLUDED.app_id,
+  domain = EXCLUDED.domain,
+  use_case = EXCLUDED.use_case,
   source_adapter = EXCLUDED.source_adapter,
   dataset = EXCLUDED.dataset,
   topic = EXCLUDED.topic,
@@ -281,17 +285,20 @@ func (r *Repository) UpsertRawEventLedger(ctx context.Context, record storage.Ra
 func upsertRawEventLedger(ctx context.Context, executor statementExecutor, record storage.RawEventLedgerRecord) error {
 	_, err := executor.ExecContext(ctx, `
 INSERT INTO raw_event_ledger (
-  event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key,
+  event_id, tenant_id, source_id, app_id, domain, use_case, source_adapter, dataset, idempotency_key,
   observation_time, processing_time, broker_topic, broker_partition, broker_offset,
   payload, entity_hints
 ) VALUES (
-  $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11,
-  $12, $13
+  $1, $2, $3, $4, $5, $6, $7, $8, $9,
+  $10, $11, $12, $13, $14,
+  $15, $16
 )
 ON CONFLICT (event_id) DO UPDATE SET
   tenant_id = EXCLUDED.tenant_id,
   source_id = EXCLUDED.source_id,
+  app_id = EXCLUDED.app_id,
+  domain = EXCLUDED.domain,
+  use_case = EXCLUDED.use_case,
   source_adapter = EXCLUDED.source_adapter,
   dataset = EXCLUDED.dataset,
   idempotency_key = EXCLUDED.idempotency_key,
@@ -305,6 +312,9 @@ ON CONFLICT (event_id) DO UPDATE SET
 		record.EventID,
 		record.TenantID,
 		record.SourceID,
+		recordAppID(record.AppID),
+		recordDomain(record.Domain),
+		recordUseCase(record.UseCase),
 		record.SourceAdapter,
 		record.Dataset,
 		record.IdempotencyKey,
@@ -325,17 +335,20 @@ ON CONFLICT (event_id) DO UPDATE SET
 func upsertRawEventLedgerTemporal(ctx context.Context, executor statementExecutor, record storage.RawEventLedgerRecord) error {
 	_, err := executor.ExecContext(ctx, `
 INSERT INTO raw_event_ledger (
-  event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key,
+  event_id, tenant_id, source_id, app_id, domain, use_case, source_adapter, dataset, idempotency_key,
   observation_time, processing_time, broker_topic, broker_partition, broker_offset,
   payload, entity_hints
 ) VALUES (
-  $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11,
-  $12, $13
+  $1, $2, $3, $4, $5, $6, $7, $8, $9,
+  $10, $11, $12, $13, $14,
+  $15, $16
 )
 ON CONFLICT (event_id, observation_time) DO UPDATE SET
   tenant_id = EXCLUDED.tenant_id,
   source_id = EXCLUDED.source_id,
+  app_id = EXCLUDED.app_id,
+  domain = EXCLUDED.domain,
+  use_case = EXCLUDED.use_case,
   source_adapter = EXCLUDED.source_adapter,
   dataset = EXCLUDED.dataset,
   idempotency_key = EXCLUDED.idempotency_key,
@@ -348,6 +361,9 @@ ON CONFLICT (event_id, observation_time) DO UPDATE SET
 		record.EventID,
 		record.TenantID,
 		record.SourceID,
+		recordAppID(record.AppID),
+		recordDomain(record.Domain),
+		recordUseCase(record.UseCase),
 		record.SourceAdapter,
 		record.Dataset,
 		record.IdempotencyKey,
@@ -409,12 +425,13 @@ func (r *Repository) UpsertNormalizedEventLedger(ctx context.Context, record sto
 	}
 	_, err := target.ExecContext(ctx, fmt.Sprintf(`
 INSERT INTO normalized_event_ledger (
- event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, schema_id, schema_version,
+ event_id, tenant_id, source_id, app_id, domain, use_case, source_adapter, dataset, idempotency_key, schema_id, schema_version,
  observation_time, processing_time, confidence, raw_topic, raw_partition, raw_offset,
  normalized_topic, normalized_partition, normalized_offset, normalized_payload, entities, evidence, metadata, event
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
 ON CONFLICT (%s) DO UPDATE SET
- tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_adapter=EXCLUDED.source_adapter,
+ tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, app_id=EXCLUDED.app_id,
+ domain=EXCLUDED.domain, use_case=EXCLUDED.use_case, source_adapter=EXCLUDED.source_adapter,
  dataset=EXCLUDED.dataset, idempotency_key=EXCLUDED.idempotency_key, schema_id=EXCLUDED.schema_id,
  schema_version=EXCLUDED.schema_version, processing_time=EXCLUDED.processing_time,
  confidence=EXCLUDED.confidence, raw_topic=EXCLUDED.raw_topic,
@@ -422,7 +439,7 @@ ON CONFLICT (%s) DO UPDATE SET
  normalized_partition=EXCLUDED.normalized_partition, normalized_offset=EXCLUDED.normalized_offset,
  normalized_payload=EXCLUDED.normalized_payload, entities=EXCLUDED.entities, evidence=EXCLUDED.evidence,
  metadata=EXCLUDED.metadata, event=EXCLUDED.event, updated_at=now()`, conflict),
-		record.EventID, record.TenantID, record.SourceID, record.SourceAdapter, record.Dataset,
+		record.EventID, record.TenantID, record.SourceID, recordAppID(record.AppID), recordDomain(record.Domain), recordUseCase(record.UseCase), record.SourceAdapter, record.Dataset,
 		record.IdempotencyKey, record.SchemaID, record.SchemaVersion, record.ObservationTime,
 		record.ProcessingTime, record.Confidence, record.RawTopic, record.RawPartition, record.RawOffset,
 		record.NormalizedTopic, record.NormalizedPartition, record.NormalizedOffset,
@@ -447,14 +464,15 @@ func (r *Repository) UpsertSignalLedger(ctx context.Context, record storage.Sign
 func upsertSignalLedger(ctx context.Context, executor statementExecutor, record storage.SignalLedgerRecord) error {
 	_, err := executor.ExecContext(ctx, `
 INSERT INTO signal_ledger (
- signal_id, tenant_id, source_id, source_domain, source_adapter, ingestion_mode, dataset,
+ signal_id, tenant_id, source_id, app_id, domain, use_case, source_domain, source_adapter, ingestion_mode, dataset,
  event_ids, artifact_ids, signal_type, detector_id, detector_version, model_version, signal_time,
  observation_time, effective_time, processing_time, window_start, window_end, confidence, severity,
  entities, supporting_metrics, graph_targets, semantic_evidence, evidence, recommendation,
  correlation_id, trace_id, causation_id, replay_job_id, broker_topic, broker_partition, broker_offset, event
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38)
 ON CONFLICT (signal_id) DO UPDATE SET
- tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_domain=EXCLUDED.source_domain,
+ tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, app_id=EXCLUDED.app_id,
+ domain=EXCLUDED.domain, use_case=EXCLUDED.use_case, source_domain=EXCLUDED.source_domain,
  source_adapter=EXCLUDED.source_adapter, ingestion_mode=EXCLUDED.ingestion_mode, dataset=EXCLUDED.dataset,
  event_ids=EXCLUDED.event_ids, artifact_ids=EXCLUDED.artifact_ids, signal_type=EXCLUDED.signal_type,
  detector_id=EXCLUDED.detector_id, detector_version=EXCLUDED.detector_version, model_version=EXCLUDED.model_version,
@@ -467,7 +485,7 @@ ON CONFLICT (signal_id) DO UPDATE SET
  replay_job_id=EXCLUDED.replay_job_id, broker_topic=EXCLUDED.broker_topic,
  broker_partition=EXCLUDED.broker_partition, broker_offset=EXCLUDED.broker_offset,
  event=EXCLUDED.event, updated_at=now()`,
-		record.SignalID, record.TenantID, record.SourceID, record.SourceDomain, record.SourceAdapter,
+		record.SignalID, record.TenantID, record.SourceID, recordAppID(record.AppID), recordDomain(record.Domain), recordUseCase(record.UseCase), record.SourceDomain, record.SourceAdapter,
 		record.IngestionMode, record.Dataset, record.EventIDs, record.ArtifactIDs, record.SignalType,
 		record.DetectorID, record.DetectorVersion, record.ModelVersion, record.SignalTime,
 		record.ObservationTime, record.EffectiveTime, record.ProcessingTime, record.WindowStart, record.WindowEnd,
@@ -485,14 +503,15 @@ ON CONFLICT (signal_id) DO UPDATE SET
 func upsertSignalLedgerTemporal(ctx context.Context, executor statementExecutor, record storage.SignalLedgerRecord) error {
 	_, err := executor.ExecContext(ctx, `
 INSERT INTO signal_ledger (
- signal_id, tenant_id, source_id, source_domain, source_adapter, ingestion_mode, dataset,
+ signal_id, tenant_id, source_id, app_id, domain, use_case, source_domain, source_adapter, ingestion_mode, dataset,
  event_ids, artifact_ids, signal_type, detector_id, detector_version, model_version, signal_time,
  observation_time, effective_time, processing_time, window_start, window_end, confidence, severity,
  entities, supporting_metrics, graph_targets, semantic_evidence, evidence, recommendation,
  correlation_id, trace_id, causation_id, replay_job_id, broker_topic, broker_partition, broker_offset, event
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38)
 ON CONFLICT (signal_id, signal_time) DO UPDATE SET
- tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_domain=EXCLUDED.source_domain,
+ tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, app_id=EXCLUDED.app_id,
+ domain=EXCLUDED.domain, use_case=EXCLUDED.use_case, source_domain=EXCLUDED.source_domain,
  source_adapter=EXCLUDED.source_adapter, ingestion_mode=EXCLUDED.ingestion_mode, dataset=EXCLUDED.dataset,
  event_ids=EXCLUDED.event_ids, artifact_ids=EXCLUDED.artifact_ids, signal_type=EXCLUDED.signal_type,
  detector_id=EXCLUDED.detector_id, detector_version=EXCLUDED.detector_version, model_version=EXCLUDED.model_version,
@@ -505,7 +524,7 @@ ON CONFLICT (signal_id, signal_time) DO UPDATE SET
  replay_job_id=EXCLUDED.replay_job_id, broker_topic=EXCLUDED.broker_topic,
  broker_partition=EXCLUDED.broker_partition, broker_offset=EXCLUDED.broker_offset,
  event=EXCLUDED.event, updated_at=now()`,
-		record.SignalID, record.TenantID, record.SourceID, record.SourceDomain, record.SourceAdapter,
+		record.SignalID, record.TenantID, record.SourceID, recordAppID(record.AppID), recordDomain(record.Domain), recordUseCase(record.UseCase), record.SourceDomain, record.SourceAdapter,
 		record.IngestionMode, record.Dataset, record.EventIDs, record.ArtifactIDs, record.SignalType,
 		record.DetectorID, record.DetectorVersion, record.ModelVersion, record.SignalTime,
 		record.ObservationTime, record.EffectiveTime, record.ProcessingTime, record.WindowStart, record.WindowEnd,
@@ -530,19 +549,20 @@ func (r *Repository) UpsertAlertLedger(ctx context.Context, record storage.Alert
 func upsertAlertLedger(ctx context.Context, executor statementExecutor, record storage.AlertLedgerRecord) error {
 	_, err := executor.ExecContext(ctx, `
 INSERT INTO alert_ledger (
- alert_id, tenant_id, source_id, source_domain, source_adapter, dataset, signal_id, detector_id,
+ alert_id, tenant_id, source_id, app_id, domain, use_case, source_domain, source_adapter, dataset, signal_id, detector_id,
  alert_type, severity, status, title, summary, confidence, event_ids, entities, evidence, recommendation,
  correlation_id, first_observed_at, last_observed_at, acknowledged_at, acknowledged_by, resolved_at, resolved_by, metadata
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
 ON CONFLICT (alert_id) DO UPDATE SET
- tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_domain=EXCLUDED.source_domain,
+ tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, app_id=EXCLUDED.app_id,
+ domain=EXCLUDED.domain, use_case=EXCLUDED.use_case, source_domain=EXCLUDED.source_domain,
  source_adapter=EXCLUDED.source_adapter, dataset=EXCLUDED.dataset, signal_id=EXCLUDED.signal_id,
  detector_id=EXCLUDED.detector_id, alert_type=EXCLUDED.alert_type, severity=EXCLUDED.severity,
  title=EXCLUDED.title, summary=EXCLUDED.summary, confidence=EXCLUDED.confidence, event_ids=EXCLUDED.event_ids,
  entities=EXCLUDED.entities, evidence=EXCLUDED.evidence, recommendation=EXCLUDED.recommendation,
  correlation_id=EXCLUDED.correlation_id, first_observed_at=LEAST(alert_ledger.first_observed_at, EXCLUDED.first_observed_at),
  last_observed_at=GREATEST(alert_ledger.last_observed_at, EXCLUDED.last_observed_at), metadata=EXCLUDED.metadata,
- updated_at=now()`, record.AlertID, record.TenantID, record.SourceID, record.SourceDomain, record.SourceAdapter,
+ updated_at=now()`, record.AlertID, record.TenantID, record.SourceID, recordAppID(record.AppID), recordDomain(record.Domain), recordUseCase(record.UseCase), record.SourceDomain, record.SourceAdapter,
 		record.Dataset, record.SignalID, record.DetectorID, record.AlertType, record.Severity, record.Status,
 		record.Title, record.Summary, record.Confidence, record.EventIDs, jsonArrayOrEmpty(record.EntitiesJSON),
 		jsonArrayOrEmpty(record.EvidenceJSON), nullableJSON(record.RecommendationJSON), record.CorrelationID,
@@ -564,19 +584,20 @@ func (r *Repository) UpsertInsightLedger(ctx context.Context, record storage.Ins
 func upsertInsightLedger(ctx context.Context, executor statementExecutor, record storage.InsightLedgerRecord) error {
 	_, err := executor.ExecContext(ctx, `
 INSERT INTO insight_ledger (
- insight_id, tenant_id, source_id, source_domain, source_adapter, dataset, signal_id, detector_id,
+ insight_id, tenant_id, source_id, app_id, domain, use_case, source_domain, source_adapter, dataset, signal_id, detector_id,
  insight_type, status, title, summary, confidence, severity, event_ids, entities, supporting_metrics,
  semantic_evidence, recommendation, correlation_id, observed_at, reviewed_at, reviewed_by, metadata
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
 ON CONFLICT (insight_id) DO UPDATE SET
- tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, source_domain=EXCLUDED.source_domain,
+ tenant_id=EXCLUDED.tenant_id, source_id=EXCLUDED.source_id, app_id=EXCLUDED.app_id,
+ domain=EXCLUDED.domain, use_case=EXCLUDED.use_case, source_domain=EXCLUDED.source_domain,
  source_adapter=EXCLUDED.source_adapter, dataset=EXCLUDED.dataset, signal_id=EXCLUDED.signal_id,
  detector_id=EXCLUDED.detector_id, insight_type=EXCLUDED.insight_type, title=EXCLUDED.title,
  summary=EXCLUDED.summary, confidence=EXCLUDED.confidence, severity=EXCLUDED.severity,
  event_ids=EXCLUDED.event_ids, entities=EXCLUDED.entities, supporting_metrics=EXCLUDED.supporting_metrics,
  semantic_evidence=EXCLUDED.semantic_evidence, recommendation=EXCLUDED.recommendation,
  correlation_id=EXCLUDED.correlation_id, observed_at=GREATEST(insight_ledger.observed_at, EXCLUDED.observed_at),
- metadata=EXCLUDED.metadata, updated_at=now()`, record.InsightID, record.TenantID, record.SourceID,
+ metadata=EXCLUDED.metadata, updated_at=now()`, record.InsightID, record.TenantID, record.SourceID, recordAppID(record.AppID), recordDomain(record.Domain), recordUseCase(record.UseCase),
 		record.SourceDomain, record.SourceAdapter, record.Dataset, record.SignalID, record.DetectorID,
 		record.InsightType, record.Status, record.Title, record.Summary, record.Confidence, record.Severity,
 		record.EventIDs, jsonArrayOrEmpty(record.EntitiesJSON), jsonOrEmpty(record.SupportingMetrics),
@@ -1031,7 +1052,7 @@ func (r *Repository) updateReplayJobTerminal(ctx context.Context, replayJobID st
 
 func (r *Repository) ListReplayRawEvents(ctx context.Context, job storage.ReplayJobRecord, limit int, offset int) ([]storage.RawEventLedgerRecord, error) {
 	rows, err := r.temporal().QueryContext(ctx, `
-SELECT event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, observation_time,
+SELECT event_id, tenant_id, source_id, app_id, domain, use_case, source_adapter, dataset, idempotency_key, observation_time,
   processing_time, broker_topic, broker_partition, broker_offset, payload, entity_hints, created_at
 FROM raw_event_ledger
 WHERE tenant_id = $1
@@ -1131,14 +1152,17 @@ LIMIT $2`, strings.TrimSpace(runID), clampLimit(limit))
 
 func (r *Repository) ListRawEventLedger(ctx context.Context, filter storage.RawEventLedgerFilter) ([]storage.RawEventLedgerRecord, error) {
 	rows, err := r.temporal().QueryContext(ctx, `
-SELECT event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, observation_time,
+SELECT event_id, tenant_id, source_id, app_id, domain, use_case, source_adapter, dataset, idempotency_key, observation_time,
   processing_time, broker_topic, broker_partition, broker_offset, payload, entity_hints, created_at
 FROM raw_event_ledger
 WHERE ($1 = '' OR tenant_id = $1)
-  AND ($2 = '' OR source_id = $2)
-  AND ($3 = '' OR dataset = $3)
+  AND ($2 = '' OR app_id = $2)
+  AND ($3 = '' OR domain = $3)
+  AND ($4 = '' OR use_case = $4)
+  AND ($5 = '' OR source_id = $5)
+  AND ($6 = '' OR dataset = $6)
 ORDER BY created_at DESC
-LIMIT $4`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID), strings.TrimSpace(filter.Dataset), clampLimit(filter.Limit))
+LIMIT $7`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID), strings.TrimSpace(filter.Dataset), clampLimit(filter.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list raw event ledger: %w", err)
 	}
@@ -1159,7 +1183,7 @@ LIMIT $4`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID
 
 func (r *Repository) GetRawEventLedger(ctx context.Context, eventID string) (storage.RawEventLedgerRecord, error) {
 	query := `
-SELECT event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, observation_time,
+SELECT event_id, tenant_id, source_id, app_id, domain, use_case, source_adapter, dataset, idempotency_key, observation_time,
   processing_time, broker_topic, broker_partition, broker_offset, payload, entity_hints, created_at
 FROM raw_event_ledger
 WHERE event_id = $1`
@@ -1176,8 +1200,9 @@ WHERE event_id = $1`
 
 func (r *Repository) ListNormalizedEventLedger(ctx context.Context, filter storage.RawEventLedgerFilter) ([]storage.NormalizedEventLedgerRecord, error) {
 	rows, err := r.temporal().QueryContext(ctx, normalizedEventSelect+`
-WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
-ORDER BY created_at DESC LIMIT $4`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID), strings.TrimSpace(filter.Dataset), clampLimit(filter.Limit))
+WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR app_id = $2) AND ($3 = '' OR domain = $3) AND ($4 = '' OR use_case = $4)
+AND ($5 = '' OR source_id = $5) AND ($6 = '' OR dataset = $6)
+ORDER BY created_at DESC LIMIT $7`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID), strings.TrimSpace(filter.Dataset), clampLimit(filter.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list normalized event ledger: %w", err)
 	}
@@ -1206,9 +1231,10 @@ func (r *Repository) GetNormalizedEventLedger(ctx context.Context, eventID strin
 
 func (r *Repository) ListSignalLedger(ctx context.Context, filter storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
 	rows, err := r.temporal().QueryContext(ctx, signalSelect+`
-WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
- AND ($4 = '' OR detector_id = $4) AND ($5 = '' OR severity = $5)
-ORDER BY signal_time DESC LIMIT $6`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID),
+WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR app_id = $2) AND ($3 = '' OR domain = $3) AND ($4 = '' OR use_case = $4)
+ AND ($5 = '' OR source_id = $5) AND ($6 = '' OR dataset = $6)
+ AND ($7 = '' OR detector_id = $7) AND ($8 = '' OR severity = $8)
+ORDER BY signal_time DESC LIMIT $9`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID),
 		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.DetectorID), strings.TrimSpace(filter.Severity), clampLimit(filter.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list signal ledger: %w", err)
@@ -1238,9 +1264,10 @@ func (r *Repository) GetSignalLedger(ctx context.Context, signalID string) (stor
 
 func (r *Repository) ListAlertLedger(ctx context.Context, filter storage.AlertLedgerFilter) ([]storage.AlertLedgerRecord, error) {
 	rows, err := r.db.QueryContext(ctx, alertSelect+`
-WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
- AND ($4 = '' OR severity = $4) AND ($5 = '' OR status = $5)
-ORDER BY last_observed_at DESC LIMIT $6`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID),
+WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR app_id = $2) AND ($3 = '' OR domain = $3) AND ($4 = '' OR use_case = $4)
+ AND ($5 = '' OR source_id = $5) AND ($6 = '' OR dataset = $6)
+ AND ($7 = '' OR severity = $7) AND ($8 = '' OR status = $8)
+ORDER BY last_observed_at DESC LIMIT $9`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID),
 		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.Severity), strings.TrimSpace(filter.Status), clampLimit(filter.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list alert ledger: %w", err)
@@ -1297,9 +1324,10 @@ WHERE alert_id = $1`, strings.TrimSpace(mutation.AlertID), strings.TrimSpace(mut
 
 func (r *Repository) ListInsightLedger(ctx context.Context, filter storage.InsightLedgerFilter) ([]storage.InsightLedgerRecord, error) {
 	rows, err := r.db.QueryContext(ctx, insightSelect+`
-WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
- AND ($4 = '' OR insight_type = $4) AND ($5 = '' OR status = $5)
-ORDER BY observed_at DESC LIMIT $6`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID),
+WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR app_id = $2) AND ($3 = '' OR domain = $3) AND ($4 = '' OR use_case = $4)
+ AND ($5 = '' OR source_id = $5) AND ($6 = '' OR dataset = $6)
+ AND ($7 = '' OR insight_type = $7) AND ($8 = '' OR status = $8)
+ORDER BY observed_at DESC LIMIT $9`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID),
 		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.InsightType), strings.TrimSpace(filter.Status), clampLimit(filter.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list insight ledger: %w", err)
@@ -1538,7 +1566,7 @@ type catalogSourceScanner interface {
 }
 
 const signalSelect = `
-SELECT signal_id, tenant_id, source_id, source_domain, source_adapter, ingestion_mode, dataset,
+SELECT signal_id, tenant_id, source_id, app_id, domain, use_case, source_domain, source_adapter, ingestion_mode, dataset,
  COALESCE(array_to_json(event_ids), '[]'::json)::text, COALESCE(array_to_json(artifact_ids), '[]'::json)::text,
  signal_type, detector_id, detector_version, model_version, signal_time, observation_time, effective_time,
  processing_time, window_start, window_end, confidence, severity, entities, supporting_metrics, graph_targets,
@@ -1558,7 +1586,7 @@ func scanSignalLedger(scanner signalLedgerScanner) (storage.SignalLedgerRecord, 
 	var record storage.SignalLedgerRecord
 	var eventIDsJSON, artifactIDsJSON string
 	var traceID, causationID, replayJobID sql.NullString
-	if err := scanner.Scan(&record.SignalID, &record.TenantID, &record.SourceID, &record.SourceDomain,
+	if err := scanner.Scan(&record.SignalID, &record.TenantID, &record.SourceID, &record.AppID, &record.Domain, &record.UseCase, &record.SourceDomain,
 		&record.SourceAdapter, &record.IngestionMode, &record.Dataset, &eventIDsJSON, &artifactIDsJSON,
 		&record.SignalType, &record.DetectorID, &record.DetectorVersion, &record.ModelVersion,
 		&record.SignalTime, &record.ObservationTime, &record.EffectiveTime, &record.ProcessingTime,
@@ -1580,7 +1608,7 @@ func scanSignalLedger(scanner signalLedgerScanner) (storage.SignalLedgerRecord, 
 }
 
 const alertSelect = `
-SELECT alert_id, tenant_id, source_id, source_domain, source_adapter, dataset, signal_id, detector_id,
+SELECT alert_id, tenant_id, source_id, app_id, domain, use_case, source_domain, source_adapter, dataset, signal_id, detector_id,
  alert_type, severity, status, title, summary, confidence, COALESCE(array_to_json(event_ids), '[]'::json)::text,
  entities, evidence, recommendation, correlation_id, first_observed_at, last_observed_at,
  acknowledged_at, acknowledged_by, resolved_at, resolved_by, metadata, created_at, updated_at FROM alert_ledger`
@@ -1592,7 +1620,7 @@ func scanAlertLedger(scanner alertLedgerScanner) (storage.AlertLedgerRecord, err
 	var eventIDsJSON string
 	var acknowledgedAt, resolvedAt sql.NullTime
 	var acknowledgedBy, resolvedBy sql.NullString
-	if err := scanner.Scan(&record.AlertID, &record.TenantID, &record.SourceID, &record.SourceDomain,
+	if err := scanner.Scan(&record.AlertID, &record.TenantID, &record.SourceID, &record.AppID, &record.Domain, &record.UseCase, &record.SourceDomain,
 		&record.SourceAdapter, &record.Dataset, &record.SignalID, &record.DetectorID, &record.AlertType,
 		&record.Severity, &record.Status, &record.Title, &record.Summary, &record.Confidence, &eventIDsJSON,
 		&record.EntitiesJSON, &record.EvidenceJSON, &record.RecommendationJSON, &record.CorrelationID,
@@ -1614,7 +1642,7 @@ func scanAlertLedger(scanner alertLedgerScanner) (storage.AlertLedgerRecord, err
 }
 
 const insightSelect = `
-SELECT insight_id, tenant_id, source_id, source_domain, source_adapter, dataset, signal_id, detector_id,
+SELECT insight_id, tenant_id, source_id, app_id, domain, use_case, source_domain, source_adapter, dataset, signal_id, detector_id,
  insight_type, status, title, summary, confidence, severity, COALESCE(array_to_json(event_ids), '[]'::json)::text,
  entities, supporting_metrics, semantic_evidence, recommendation, correlation_id, observed_at,
  reviewed_at, reviewed_by, metadata, created_at, updated_at FROM insight_ledger`
@@ -1626,7 +1654,7 @@ func scanInsightLedger(scanner insightLedgerScanner) (storage.InsightLedgerRecor
 	var eventIDsJSON string
 	var reviewedAt sql.NullTime
 	var reviewedBy sql.NullString
-	if err := scanner.Scan(&record.InsightID, &record.TenantID, &record.SourceID, &record.SourceDomain,
+	if err := scanner.Scan(&record.InsightID, &record.TenantID, &record.SourceID, &record.AppID, &record.Domain, &record.UseCase, &record.SourceDomain,
 		&record.SourceAdapter, &record.Dataset, &record.SignalID, &record.DetectorID, &record.InsightType,
 		&record.Status, &record.Title, &record.Summary, &record.Confidence, &record.Severity, &eventIDsJSON,
 		&record.EntitiesJSON, &record.SupportingMetrics, &record.SemanticEvidenceJSON, &record.RecommendationJSON,
@@ -1645,7 +1673,7 @@ func scanInsightLedger(scanner insightLedgerScanner) (storage.InsightLedgerRecor
 }
 
 const normalizedEventSelect = `
-SELECT event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, schema_id, schema_version,
+SELECT event_id, tenant_id, source_id, app_id, domain, use_case, source_adapter, dataset, idempotency_key, schema_id, schema_version,
  observation_time, processing_time, confidence, raw_topic, raw_partition, raw_offset,
  normalized_topic, normalized_partition, normalized_offset, normalized_payload, entities, evidence, metadata, event,
  created_at, updated_at FROM normalized_event_ledger`
@@ -1661,7 +1689,7 @@ type normalizedLedgerScanner interface{ Scan(dest ...any) error }
 
 func scanNormalizedEventLedger(scanner normalizedLedgerScanner) (storage.NormalizedEventLedgerRecord, error) {
 	var record storage.NormalizedEventLedgerRecord
-	if err := scanner.Scan(&record.EventID, &record.TenantID, &record.SourceID, &record.SourceAdapter,
+	if err := scanner.Scan(&record.EventID, &record.TenantID, &record.SourceID, &record.AppID, &record.Domain, &record.UseCase, &record.SourceAdapter,
 		&record.Dataset, &record.IdempotencyKey, &record.SchemaID, &record.SchemaVersion,
 		&record.ObservationTime, &record.ProcessingTime, &record.Confidence, &record.RawTopic,
 		&record.RawPartition, &record.RawOffset, &record.NormalizedTopic, &record.NormalizedPartition,
@@ -1728,6 +1756,9 @@ func scanRawEventLedger(scanner rawLedgerScanner) (storage.RawEventLedgerRecord,
 		&record.EventID,
 		&record.TenantID,
 		&record.SourceID,
+		&record.AppID,
+		&record.Domain,
+		&record.UseCase,
 		&record.SourceAdapter,
 		&record.Dataset,
 		&record.IdempotencyKey,
@@ -1872,6 +1903,30 @@ func clampLimit(limit int) int {
 		return 200
 	}
 	return limit
+}
+
+func recordAppID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return appmeta.DefaultAppID
+	}
+	return value
+}
+
+func recordDomain(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "custom"
+	}
+	return value
+}
+
+func recordUseCase(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return appmeta.DefaultUseCase
+	}
+	return value
 }
 
 func nonNegativeOffset(offset int) int {

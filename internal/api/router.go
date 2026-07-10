@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lukebabs/signalops/internal/appmeta"
 	"github.com/lukebabs/signalops/internal/storage"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
@@ -190,6 +191,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"replay_status": replayStatusResponse(now, counts, workers, latestJobs)})
 	})
 
+	mux.HandleFunc("GET /v1/app-profiles", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"app_profiles": appmeta.Profiles})
+	})
+
 	mux.HandleFunc("GET /v1/provider-usage", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -210,6 +215,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		}
 		records, err := repo.ListRawEventLedger(r.Context(), storage.RawEventLedgerFilter{
 			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")),
+			AppID:    strings.TrimSpace(r.URL.Query().Get("app_id")),
+			Domain:   strings.TrimSpace(r.URL.Query().Get("domain")),
+			UseCase:  strings.TrimSpace(r.URL.Query().Get("use_case")),
 			SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset:  strings.TrimSpace(r.URL.Query().Get("dataset")),
 			Limit:    queryLimit(r, 50),
@@ -240,7 +248,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			return
 		}
 		records, err := repo.ListNormalizedEventLedger(r.Context(), storage.RawEventLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -269,7 +277,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			return
 		}
 		records, err := repo.ListSignalLedger(r.Context(), storage.SignalLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")),
 			Severity: strings.TrimSpace(r.URL.Query().Get("severity")), Limit: queryLimit(r, 50),
 		})
@@ -299,7 +307,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			return
 		}
 		records, err := repo.ListAlertLedger(r.Context(), storage.AlertLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")),
 			Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
@@ -333,7 +341,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			return
 		}
 		records, err := repo.ListInsightLedger(r.Context(), storage.InsightLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), InsightType: strings.TrimSpace(r.URL.Query().Get("insight_type")),
 			Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
@@ -583,6 +591,7 @@ func publishedRawEventRecords(payload []byte, ingest rawIngestFields, eventID, i
 	hash := sha256.Sum256(payload)
 	ledger := storage.RawEventLedgerRecord{
 		EventID: eventID, TenantID: ingest.TenantID, SourceID: ingest.SourceID,
+		AppID: recordAppIDFromPayload(payload), Domain: recordDomainFromPayload(payload, rawPayloadString(payload, "source_domain")), UseCase: recordUseCaseFromPayload(payload),
 		SourceAdapter: ingest.SourceAdapter, Dataset: ingest.Dataset, IdempotencyKey: idempotencyKey,
 		ObservationTime: ingest.ObservationTime, ProcessingTime: ingest.ProcessingTime,
 		BrokerTopic: result.Topic, BrokerPartition: &partition, BrokerOffset: &offset,
@@ -596,6 +605,30 @@ func publishedRawEventRecords(payload []byte, ingest rawIngestFields, eventID, i
 		MetadataJSON: metadata,
 	}
 	return ledger, idempotency, nil
+}
+
+func rawPayloadString(payload []byte, name string) string {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		return ""
+	}
+	return jsonStringField(fields, name)
+}
+
+func recordAppIDFromPayload(payload []byte) string {
+	return appMetadataFromPayload(payload, "").AppID
+}
+
+func recordDomainFromPayload(payload []byte, fallbackDomain string) string {
+	return appMetadataFromPayload(payload, fallbackDomain).Domain
+}
+
+func recordUseCaseFromPayload(payload []byte) string {
+	return appMetadataFromPayload(payload, "").UseCase
+}
+
+func appMetadataFromPayload(payload []byte, fallbackDomain string) appmeta.Metadata {
+	return appmeta.Normalize(rawPayloadString(payload, "app_id"), rawPayloadString(payload, "domain"), rawPayloadString(payload, "use_case"), fallbackDomain)
 }
 
 type streamChannelSet map[string]bool
@@ -902,6 +935,9 @@ type providerUsageDTO struct {
 type rawEventDTO struct {
 	EventID         string          `json:"event_id"`
 	TenantID        string          `json:"tenant_id"`
+	AppID           string          `json:"app_id"`
+	Domain          string          `json:"domain"`
+	UseCase         string          `json:"use_case"`
 	SourceID        string          `json:"source_id"`
 	SourceAdapter   string          `json:"source_adapter"`
 	Dataset         string          `json:"dataset"`
@@ -919,6 +955,9 @@ type rawEventDTO struct {
 type normalizedEventDTO struct {
 	EventID             string          `json:"event_id"`
 	TenantID            string          `json:"tenant_id"`
+	AppID               string          `json:"app_id"`
+	Domain              string          `json:"domain"`
+	UseCase             string          `json:"use_case"`
 	SourceID            string          `json:"source_id"`
 	SourceAdapter       string          `json:"source_adapter"`
 	Dataset             string          `json:"dataset"`
@@ -946,6 +985,9 @@ type normalizedEventDTO struct {
 type signalDTO struct {
 	SignalID          string          `json:"signal_id"`
 	TenantID          string          `json:"tenant_id"`
+	AppID             string          `json:"app_id"`
+	Domain            string          `json:"domain"`
+	UseCase           string          `json:"use_case"`
 	SourceID          string          `json:"source_id"`
 	SourceDomain      string          `json:"source_domain"`
 	SourceAdapter     string          `json:"source_adapter"`
@@ -986,6 +1028,9 @@ type signalDTO struct {
 type alertDTO struct {
 	AlertID         string          `json:"alert_id"`
 	TenantID        string          `json:"tenant_id"`
+	AppID           string          `json:"app_id"`
+	Domain          string          `json:"domain"`
+	UseCase         string          `json:"use_case"`
 	SourceID        string          `json:"source_id"`
 	SourceDomain    string          `json:"source_domain"`
 	SourceAdapter   string          `json:"source_adapter"`
@@ -1017,6 +1062,9 @@ type alertDTO struct {
 type insightDTO struct {
 	InsightID         string          `json:"insight_id"`
 	TenantID          string          `json:"tenant_id"`
+	AppID             string          `json:"app_id"`
+	Domain            string          `json:"domain"`
+	UseCase           string          `json:"use_case"`
 	SourceID          string          `json:"source_id"`
 	SourceDomain      string          `json:"source_domain"`
 	SourceAdapter     string          `json:"source_adapter"`
@@ -1355,6 +1403,9 @@ func rawEventResponses(records []storage.RawEventLedgerRecord) []rawEventDTO {
 func rawEventResponse(record storage.RawEventLedgerRecord) rawEventDTO {
 	return rawEventDTO{
 		EventID:         record.EventID,
+		AppID:           record.AppID,
+		Domain:          record.Domain,
+		UseCase:         record.UseCase,
 		TenantID:        record.TenantID,
 		SourceID:        record.SourceID,
 		SourceAdapter:   record.SourceAdapter,
@@ -1380,7 +1431,7 @@ func normalizedEventResponses(records []storage.NormalizedEventLedgerRecord) []n
 }
 
 func normalizedEventResponse(record storage.NormalizedEventLedgerRecord) normalizedEventDTO {
-	return normalizedEventDTO{EventID: record.EventID, TenantID: record.TenantID, SourceID: record.SourceID,
+	return normalizedEventDTO{EventID: record.EventID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SourceID: record.SourceID,
 		SourceAdapter: record.SourceAdapter, Dataset: record.Dataset, IdempotencyKey: record.IdempotencyKey,
 		SchemaID: record.SchemaID, SchemaVersion: record.SchemaVersion, ObservationTime: record.ObservationTime,
 		ProcessingTime: record.ProcessingTime, Confidence: record.Confidence, RawTopic: record.RawTopic,
@@ -1404,7 +1455,7 @@ func signalResponse(record storage.SignalLedgerRecord) signalDTO {
 	if len(recommendation) == 0 {
 		recommendation = json.RawMessage("null")
 	}
-	return signalDTO{SignalID: record.SignalID, TenantID: record.TenantID, SourceID: record.SourceID,
+	return signalDTO{SignalID: record.SignalID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SourceID: record.SourceID,
 		SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter, IngestionMode: record.IngestionMode,
 		Dataset: record.Dataset, EventIDs: record.EventIDs, ArtifactIDs: record.ArtifactIDs, SignalType: record.SignalType,
 		DetectorID: record.DetectorID, DetectorVersion: record.DetectorVersion, ModelVersion: record.ModelVersion,
@@ -1432,7 +1483,7 @@ func alertResponse(record storage.AlertLedgerRecord) alertDTO {
 	if len(recommendation) == 0 {
 		recommendation = json.RawMessage("null")
 	}
-	return alertDTO{AlertID: record.AlertID, TenantID: record.TenantID, SourceID: record.SourceID,
+	return alertDTO{AlertID: record.AlertID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SourceID: record.SourceID,
 		SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter, Dataset: record.Dataset,
 		SignalID: record.SignalID, DetectorID: record.DetectorID, AlertType: record.AlertType,
 		Severity: record.Severity, Status: record.Status, Title: record.Title, Summary: record.Summary,
@@ -1457,7 +1508,7 @@ func insightResponse(record storage.InsightLedgerRecord) insightDTO {
 	if len(recommendation) == 0 {
 		recommendation = json.RawMessage("null")
 	}
-	return insightDTO{InsightID: record.InsightID, TenantID: record.TenantID, SourceID: record.SourceID,
+	return insightDTO{InsightID: record.InsightID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SourceID: record.SourceID,
 		SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter, Dataset: record.Dataset,
 		SignalID: record.SignalID, DetectorID: record.DetectorID, InsightType: record.InsightType,
 		Status: record.Status, Title: record.Title, Summary: record.Summary, Confidence: record.Confidence,

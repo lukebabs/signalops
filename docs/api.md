@@ -83,7 +83,7 @@ or retrying; broker-level duplicate delivery remains possible and consumers must
 
 ## Normalized Event Ledger
 
-`GET /v1/normalized-events?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&limit=50`
+`GET /v1/normalized-events?tenant_id={tenant_id}&app_id={app_id}&domain={domain}&use_case={use_case}&source_id={source_id}&dataset={dataset}&limit=50`
 
 Lists normalized events persisted by the Go normalizer. Filters are optional and pagination is
 currently limit-only.
@@ -102,7 +102,7 @@ Infrastructure failures leave the source offset uncommitted for retry.
 
 ## Signal Ledger
 
-`GET /v1/signals?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&detector_id={detector_id}&severity={severity}&limit=50`
+`GET /v1/signals?tenant_id={tenant_id}&app_id={app_id}&domain={domain}&use_case={use_case}&source_id={source_id}&dataset={dataset}&detector_id={detector_id}&severity={severity}&limit=50`
 
 Lists persisted Python-emitted signals. Filters are optional and pagination is currently limit-only.
 Each response includes detector/model versions, normalized source `event_ids`, confidence, severity,
@@ -139,7 +139,7 @@ Current derivation rules:
 
 ### Alerts
 
-`GET /v1/alerts?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&severity={severity}&status={status}&limit=50`
+`GET /v1/alerts?tenant_id={tenant_id}&app_id={app_id}&domain={domain}&use_case={use_case}&source_id={source_id}&dataset={dataset}&severity={severity}&status={status}&limit=50`
 
 Lists alert ledger rows. Filters are optional and pagination is currently limit-only. Alerts include
 source identity, linked `signal_id`, detector identity, severity, lifecycle status, title, summary,
@@ -164,7 +164,7 @@ Current alert statuses: `open`, `acknowledged`, `resolved`, `suppressed`.
 
 ### Insights
 
-`GET /v1/insights?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&insight_type={insight_type}&status={status}&limit=50`
+`GET /v1/insights?tenant_id={tenant_id}&app_id={app_id}&domain={domain}&use_case={use_case}&source_id={source_id}&dataset={dataset}&insight_type={insight_type}&status={status}&limit=50`
 
 Lists insight ledger rows. Filters are optional and pagination is currently limit-only. Insights include
 source identity, linked `signal_id`, detector identity, insight type, lifecycle status, title, summary,
@@ -482,7 +482,7 @@ usage across runs is returned.
 
 ### Raw Event Ledger
 
-`GET /v1/raw-events?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&limit=50`
+`GET /v1/raw-events?tenant_id={tenant_id}&app_id={app_id}&domain={domain}&use_case={use_case}&source_id={source_id}&dataset={dataset}&limit=50`
 
 Returns recent raw event ledger rows. Filters are optional and can be combined.
 Each row includes broker acknowledgement details, event timing, payload JSON, and

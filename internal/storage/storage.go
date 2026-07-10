@@ -176,6 +176,9 @@ type RawEventLedgerRecord struct {
 	EventID         string
 	TenantID        string
 	SourceID        string
+	AppID           string
+	Domain          string
+	UseCase         string
 	SourceAdapter   string
 	Dataset         string
 	IdempotencyKey  string
@@ -193,6 +196,9 @@ type NormalizedEventLedgerRecord struct {
 	EventID             string
 	TenantID            string
 	SourceID            string
+	AppID               string
+	Domain              string
+	UseCase             string
 	SourceAdapter       string
 	Dataset             string
 	IdempotencyKey      string
@@ -220,6 +226,9 @@ type SignalLedgerRecord struct {
 	SignalID             string
 	TenantID             string
 	SourceID             string
+	AppID                string
+	Domain               string
+	UseCase              string
 	SourceDomain         string
 	SourceAdapter        string
 	IngestionMode        string
@@ -260,6 +269,9 @@ type AlertLedgerRecord struct {
 	AlertID            string
 	TenantID           string
 	SourceID           string
+	AppID              string
+	Domain             string
+	UseCase            string
 	SourceDomain       string
 	SourceAdapter      string
 	Dataset            string
@@ -291,6 +303,9 @@ type InsightLedgerRecord struct {
 	InsightID            string
 	TenantID             string
 	SourceID             string
+	AppID                string
+	Domain               string
+	UseCase              string
 	SourceDomain         string
 	SourceAdapter        string
 	Dataset              string
@@ -445,6 +460,9 @@ type PublishRepository interface {
 
 type RawEventLedgerFilter struct {
 	TenantID string
+	AppID    string
+	Domain   string
+	UseCase  string
 	SourceID string
 	Dataset  string
 	Limit    int
@@ -452,6 +470,9 @@ type RawEventLedgerFilter struct {
 
 type SignalLedgerFilter struct {
 	TenantID   string
+	AppID      string
+	Domain     string
+	UseCase    string
 	SourceID   string
 	Dataset    string
 	DetectorID string
@@ -461,6 +482,9 @@ type SignalLedgerFilter struct {
 
 type AlertLedgerFilter struct {
 	TenantID string
+	AppID    string
+	Domain   string
+	UseCase  string
 	SourceID string
 	Dataset  string
 	Severity string
@@ -470,6 +494,9 @@ type AlertLedgerFilter struct {
 
 type InsightLedgerFilter struct {
 	TenantID    string
+	AppID       string
+	Domain      string
+	UseCase     string
 	SourceID    string
 	Dataset     string
 	InsightType string

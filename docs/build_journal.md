@@ -4065,3 +4065,127 @@ Next step:
 
 - Deploy via `make deploy-web` (auth flag + Traefik overlay; rebuilds `web` and `gateway` from current source so the G064 endpoint is live) — outward-facing, not auto-run.
 - Authenticated browser validation: Dashboard replay tile + Processing Health replay worker field; System Replay Operations metrics + worker table; manual refresh refetches; no mobile overflow.
+
+## 2026-07-10T06:45:00Z
+
+Summary:
+
+- Documented the multi-app use-case segmentation model under `docs/design`.
+- Established the platform direction: one unified SignalOps core engine,
+  reusable domain packs, and independent app profiles for user-facing
+  workstreams.
+- Defined `marketops` as the first specialized app profile while preserving the
+  current SignalOps UI as the domain-neutral platform console.
+- Identified the next architecture gate as introducing `app_id`, `domain`, and
+  `use_case` as first-class routing and presentation metadata.
+
+Files changed:
+
+- `docs/design/multi_app_use_case_segmentation.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Design decision:
+
+- SignalOps should not fork the backend per use case.
+- The core platform continues to own ingestion, broker contracts,
+  normalization, detector boundaries, replay, persistence, lifecycle state,
+  auth, and observability.
+- Use-case workstreams should be represented by additive metadata, domain
+  packs, app profiles, route/navigation configuration, dashboard composition,
+  and terminology.
+
+Next step:
+
+- G066: introduce `app_id`, `domain`, and `use_case` across relevant backend
+  contracts and define initial `console` and `marketops` app profiles without
+  breaking existing ingestion, replay, detection, or UI behavior.
+
+## 2026-07-10T07:28:00Z
+
+Summary:
+
+- Implemented G066 app/use-case metadata propagation across backend contracts,
+  persistence, queries, and Python signal emission.
+- Added first-class optional `app_id`, `domain`, and `use_case` fields to raw,
+  normalized, and signal event schemas and typed Go contracts.
+- Added additive migration `000010_app_use_case_metadata` for raw, normalized,
+  signal, alert, and insight ledgers, including query indexes and historical
+  domain backfill from existing JSON/source-domain data.
+- Added static app profiles for `console` and `marketops` through
+  `internal/appmeta` and `GET /v1/app-profiles`.
+- Set Massive scheduled market-data events to `app_id=marketops`,
+  `domain=market_data`, and `use_case=daily_market_surveillance`.
+- Extended raw event, normalized event, signal, alert, and insight list/detail
+  DTOs and filters with app/use-case metadata while preserving defaults for
+  older records and payloads.
+
+Files changed:
+
+- `contracts/events/raw_signal_event.v1.schema.json`
+- `contracts/events/normalized_signal_event.v1.schema.json`
+- `contracts/events/signal.v1.schema.json`
+- `internal/appmeta/appmeta.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/api/router.go`
+- `internal/normalization/processor.go`
+- `internal/signals/processor.go`
+- `internal/adapters/marketdata/massive/event_builder.go`
+- `internal/adapters/marketdata/massive/scheduled_pull.go`
+- `pkg/contracts/events.go`
+- `migrations/000010_app_use_case_metadata.up.sql`
+- `migrations/000010_app_use_case_metadata.down.sql`
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `docker run --rm -v "$PWD":/workspace -w /workspace golang:1.24 gofmt -w ...` — passed.
+- `docker run --rm -v "$PWD":/workspace -w /workspace golang:1.24 go test ./...` — passed.
+- `env PYTHONPATH=python pytest python/tests` — 39 passed, 1 existing pytest config warning.
+- `python3 scripts/validate_json_schemas.py` — passed for all event schemas.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` — passed.
+- `git diff --check` — passed.
+
+Notes:
+
+- G066 does not introduce a database-backed app registry. App profiles are static
+  for this gate.
+- Existing ingestion remains backward compatible. Missing `app_id` defaults to
+  `console`, missing `use_case` defaults to `general`, and missing `domain`
+  defaults from `source_domain` where available.
+- Frontend still needs a later specification/gate to consume `GET /v1/app-profiles`
+  and introduce a multi-app shell/MarketOps route composition.
+
+
+## 2026-07-10T07:00:00Z
+
+Summary:
+
+- Deployed and smoke-validated G066.
+- Applied app/use-case metadata migrations to both Postgres and TimescaleDB.
+- Rebuilt and recreated the affected long-running services.
+- Confirmed public routing still works after gateway/web recreation.
+
+Deployment performed:
+
+- `make compose-storage-migrate` applied `000010_app_use_case_metadata`.
+- `make compose-temporal-migrate` applied `000002_app_use_case_metadata`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml build gateway normalizer signal-persister raw-worker massive-scheduler massive-puller` passed; Docker build ran full Go tests.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d gateway normalizer signal-persister raw-worker massive-scheduler` recreated affected services.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d --force-recreate web` refreshed nginx upstream resolution after gateway recreation.
+
+Smoke validation:
+
+- Local gateway health returned `200`.
+- Local unauthenticated `GET /v1/app-profiles` returned `401`, expected with auth enabled.
+- Public `https://signalops.syncratic.io/` returned `200`.
+- Public unauthenticated `GET /v1/app-profiles` returned `401`, confirming endpoint deployment and auth protection.
+- Postgres and TimescaleDB both report the new metadata migration versions in `schema_migrations` and the new `signal_ledger` columns.
+- Gateway, normalizer, and signal-persister logs showed clean startup messages.
+
+Next step:
+
+- Write a frontend-agent specification for the multi-app shell and MarketOps profile consumption using `GET /v1/app-profiles`.

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lukebabs/signalops/internal/appmeta"
 	"github.com/lukebabs/signalops/internal/storage"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
@@ -69,6 +70,9 @@ func (p Processor) Process(ctx context.Context, message broker.ConsumedMessage) 
 type Event struct {
 	TenantID          string           `json:"tenant_id"`
 	SourceID          string           `json:"source_id"`
+	AppID             string           `json:"app_id,omitempty"`
+	Domain            string           `json:"domain,omitempty"`
+	UseCase           string           `json:"use_case,omitempty"`
 	SourceDomain      string           `json:"source_domain"`
 	SourceAdapter     string           `json:"source_adapter"`
 	IngestionMode     string           `json:"ingestion_mode"`
@@ -182,12 +186,13 @@ func BuildEvent(message broker.ConsumedMessage, now time.Time) (Event, error) {
 	if confidence < 0 || confidence > 1 {
 		return Event{}, errors.New("confidence must be between 0 and 1")
 	}
+	meta := appmeta.Normalize(firstString(raw, "app_id"), firstString(raw, "domain"), firstString(raw, "use_case"), sourceDomain)
 	ingestionMode := normalizeIngestionMode(firstString(raw, "ingestion_mode", "push_event"))
 	if !allowedValue(ingestionMode, "push_event", "scheduled_pull", "bulk_file", "replay", "websocket_stream_future") {
 		return Event{}, fmt.Errorf("raw event ingestion_mode %q is unsupported", ingestionMode)
 	}
 	return Event{
-		TenantID: tenantID, SourceID: sourceID, SourceDomain: sourceDomain, SourceAdapter: sourceAdapter,
+		TenantID: tenantID, SourceID: sourceID, AppID: meta.AppID, Domain: meta.Domain, UseCase: meta.UseCase, SourceDomain: sourceDomain, SourceAdapter: sourceAdapter,
 		IngestionMode: ingestionMode, Dataset: dataset,
 		EventID: eventID, EventType: firstString(raw, "event_type", dataset+".normalized"),
 		SchemaID: SchemaID, SchemaVersion: SchemaVersion, ObservationTime: observation,
@@ -219,7 +224,7 @@ func ledgerRecord(event Event, value []byte, source broker.ConsumedMessage, resu
 	}
 	return storage.NormalizedEventLedgerRecord{
 		EventID: event.EventID, TenantID: event.TenantID, SourceID: event.SourceID,
-		SourceAdapter: event.SourceAdapter, Dataset: event.Dataset, IdempotencyKey: event.IdempotencyKey,
+		AppID: event.AppID, Domain: event.Domain, UseCase: event.UseCase, SourceAdapter: event.SourceAdapter, Dataset: event.Dataset, IdempotencyKey: event.IdempotencyKey,
 		SchemaID: event.SchemaID, SchemaVersion: event.SchemaVersion, ObservationTime: event.ObservationTime,
 		ProcessingTime: event.ProcessingTime, Confidence: event.Confidence, RawTopic: source.Topic,
 		RawPartition: source.Partition, RawOffset: source.Offset, NormalizedTopic: result.Topic,

@@ -4846,3 +4846,105 @@ Follow-up items:
 
 - Deploy via `make deploy-web` and run the authenticated browser validation checklist (Dashboard replay context, System Replay Operations block, manual refresh, no mobile overflow).
 - Backend may add worker restart/retry controls as later gates; the UI intentionally omits them.
+
+## Gate G066: Multi-App Use Case Segmentation Metadata
+
+Timestamp: `2026-07-10T06:45:00Z`
+
+Status: `planned — architecture gate documented`
+
+Gate name:
+
+- Introduce app/domain/use-case metadata and define the first specialized app profile.
+
+Criteria:
+
+- `app_id`, `domain`, and `use_case` are treated as first-class routing,
+  filtering, authorization, and presentation metadata.
+- Existing ingestion, normalization, detection, persistence, replay, and UI
+  paths continue to work when the metadata is omitted.
+- Metadata can flow from raw ingestion through normalized events, signals,
+  alerts, insights, and API filters where relevant.
+- Initial app profiles include the existing SignalOps Console and the first
+  specialized `marketops` profile.
+- The backend remains unified; no separate backend, broker, or database is
+  created per app profile in this gate.
+- Documentation defines metadata defaults, semantics, and non-goals.
+
+Evidence:
+
+- `docs/design/multi_app_use_case_segmentation.md`.
+- `docs/build_journal.md`.
+- `docs/gate_audit.md`.
+
+Validation performed:
+
+- Documented the proposed segmentation model and accepted next gate.
+- Confirmed the design preserves the current unified engine and current
+  SignalOps UI as the platform console.
+- Confirmed `marketops` is represented as an app profile over the shared core,
+  not as a forked backend.
+
+Follow-up items:
+
+- Implement G066 backend metadata support across relevant contracts, storage
+  records, API filters, and broker payload propagation.
+- Define static initial app profiles for `console` and `marketops`.
+- After backend metadata lands, provide frontend-agent a specification for a
+  multi-app shell and MarketOps profile composition.
+
+## Gate G066: Multi-App Use Case Segmentation Metadata Implementation
+
+Timestamp: `2026-07-10T07:28:00Z`
+
+Status: `closed — implemented, deployed, and smoke validated`
+
+Gate name:
+
+- Make `app_id`, `domain`, and `use_case` first-class additive metadata and define initial app profiles.
+
+Criteria:
+
+- Raw, normalized, and signal event contracts accept optional `app_id`, `domain`, and `use_case`.
+- Raw, normalized, signal, alert, and insight ledgers persist the metadata.
+- List/detail APIs expose the metadata and list APIs accept optional filters.
+- Missing metadata remains backward compatible through defaults.
+- Static app profiles define `console` and `marketops` without a separate backend.
+- Massive scheduled market-data ingestion identifies the first specialized app profile as `marketops`.
+- Python signal emission and Go signal persistence tolerate and propagate the metadata.
+
+Evidence:
+
+- `internal/appmeta/appmeta.go` defines defaults and static profiles.
+- `migrations/000010_app_use_case_metadata.up.sql` adds ledger columns and indexes.
+- `contracts/events/*.schema.json` and `pkg/contracts/events.go` include optional metadata fields.
+- `internal/api/router.go` exposes `GET /v1/app-profiles` and metadata filters/DTO fields.
+- `internal/normalization/processor.go`, `python/signalops_workers/worker.py`, and `internal/signals/processor.go` propagate metadata across normalized events, signals, alerts, and insights.
+- `internal/adapters/marketdata/massive/event_builder.go` sets Massive market-data events to `marketops`.
+- `docs/api.md`, `docs/build_journal.md`, and `docs/gate_audit.md` document the gate.
+
+Validation performed:
+
+- Go formatting via Docker `gofmt` succeeded.
+- Go test suite via Docker `go test ./...` passed.
+- Python worker tests passed: 39 tests, 1 existing pytest config warning.
+- JSON schema validation passed for all event schemas.
+- Compose plus Traefik config validation passed.
+- `git diff --check` passed.
+
+Follow-up items:
+
+- Write a frontend-agent specification for `GET /v1/app-profiles`, multi-app shell routing, and the first MarketOps profile.
+- Add authenticated browser/API validation for app profile rendering once frontend consumption exists.
+
+
+Deployment validation:
+
+- Applied Postgres migration `000010_app_use_case_metadata`; `schema_migrations` contains the version and `signal_ledger` has `app_id`, `domain`, and `use_case` columns.
+- Applied Timescale migration `000002_app_use_case_metadata`; `schema_migrations` contains the version and temporal `signal_ledger` has `app_id`, `domain`, and `use_case` columns.
+- Rebuilt `gateway`, `normalizer`, `signal-persister`, `raw-worker`, `massive-scheduler`, and `massive-puller` images.
+- Recreated `gateway`, `normalizer`, `signal-persister`, `raw-worker`, and `massive-scheduler`; force-recreated `web` after gateway recreation.
+- Local `GET /healthz` returned `200`.
+- Local and public unauthenticated `GET /v1/app-profiles` returned `401`, confirming the new endpoint is deployed behind auth.
+- Public `https://signalops.syncratic.io/` returned `200`.
+- Gateway, normalizer, and signal-persister startup logs showed clean service starts.
