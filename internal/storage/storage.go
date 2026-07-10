@@ -16,6 +16,26 @@ const (
 )
 
 const (
+	ReplayJobStatusQueued    = "queued"
+	ReplayJobStatusRunning   = "running"
+	ReplayJobStatusSucceeded = "succeeded"
+	ReplayJobStatusFailed    = "failed"
+	ReplayJobStatusCanceled  = "canceled"
+)
+
+const (
+	ReplaySourceRaw        = "raw_events"
+	ReplaySourceNormalized = "normalized_events"
+	ReplaySourceSignals    = "signals"
+)
+
+const (
+	ReplayModeOriginal         = "original"
+	ReplayModeLatestCompatible = "latest_compatible"
+	ReplayModeExplicit         = "explicit"
+)
+
+const (
 	IdempotencyStatusAccepted  = "accepted"
 	IdempotencyStatusPublished = "published"
 	IdempotencyStatusProcessed = "processed"
@@ -76,6 +96,30 @@ type SchedulerRunRecord struct {
 	ErrorMessage     string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+}
+
+// ReplayJobRecord is control-plane state for replaying temporal ledgers.
+// Execution is owned by a later worker gate; this record captures the request,
+// filters, lifecycle status, and eventual result metadata.
+type ReplayJobRecord struct {
+	ReplayJobID  string
+	TenantID     string
+	SourceID     string
+	Dataset      string
+	SourceKind   string
+	ReplayMode   string
+	Status       string
+	RequestedBy  string
+	WindowStart  time.Time
+	WindowEnd    time.Time
+	StartedAt    *time.Time
+	CompletedAt  *time.Time
+	FiltersJSON  []byte
+	OptionsJSON  []byte
+	ResultJSON   []byte
+	ErrorMessage string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type ProviderUsageRecord struct {
@@ -323,6 +367,10 @@ type SchedulerRunRepository interface {
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
 }
 
+type ReplayJobRepository interface {
+	UpsertReplayJob(ctx context.Context, record ReplayJobRecord) error
+}
+
 type IdempotencyRepository interface {
 	UpsertIdempotencyRecord(ctx context.Context, record IdempotencyRecord) error
 }
@@ -400,9 +448,21 @@ type InsightLedgerFilter struct {
 	Limit       int
 }
 
+type ReplayJobFilter struct {
+	TenantID   string
+	SourceID   string
+	Dataset    string
+	SourceKind string
+	Status     string
+	Limit      int
+}
+
 type QueryRepository interface {
+	ReplayJobRepository
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
+	ListReplayJobs(ctx context.Context, filter ReplayJobFilter) ([]ReplayJobRecord, error)
+	GetReplayJob(ctx context.Context, replayJobID string) (ReplayJobRecord, error)
 	ListProviderUsage(ctx context.Context, runID string, limit int) ([]ProviderUsageRecord, error)
 	ListRawEventLedger(ctx context.Context, filter RawEventLedgerFilter) ([]RawEventLedgerRecord, error)
 	GetRawEventLedger(ctx context.Context, eventID string) (RawEventLedgerRecord, error)

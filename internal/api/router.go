@@ -95,6 +95,58 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"run": schedulerRunResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/replay/jobs", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListReplayJobs(r.Context(), storage.ReplayJobFilter{
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), SourceKind: strings.TrimSpace(r.URL.Query().Get("source_kind")),
+			Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list replay jobs")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"replay_jobs": replayJobResponses(records)})
+	})
+
+	mux.HandleFunc("POST /v1/replay/jobs", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		req, err := readReplayJobRequest(w, r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		record, err := replayJobRecordFromRequest(req, replayActor(r, req.RequestedBy), time.Now().UTC())
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_replay_job", err.Error())
+			return
+		}
+		if err := repo.UpsertReplayJob(r.Context(), record); err != nil {
+			writeError(w, http.StatusServiceUnavailable, "persistence_failed", "failed to persist replay job")
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"replay_job": replayJobResponse(record)})
+	})
+
+	mux.HandleFunc("GET /v1/replay/jobs/{replay_job_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetReplayJob(r.Context(), r.PathValue("replay_job_id"))
+		if err != nil {
+			writeQueryError(w, err, "replay_job_not_found", "replay job not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"replay_job": replayJobResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/provider-usage", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -734,6 +786,40 @@ type schedulerRunDTO struct {
 	UpdatedAt        time.Time       `json:"updated_at"`
 }
 
+type replayJobDTO struct {
+	ReplayJobID  string          `json:"replay_job_id"`
+	TenantID     string          `json:"tenant_id"`
+	SourceID     string          `json:"source_id,omitempty"`
+	Dataset      string          `json:"dataset,omitempty"`
+	SourceKind   string          `json:"source_kind"`
+	ReplayMode   string          `json:"replay_mode"`
+	Status       string          `json:"status"`
+	RequestedBy  string          `json:"requested_by"`
+	WindowStart  time.Time       `json:"window_start"`
+	WindowEnd    time.Time       `json:"window_end"`
+	StartedAt    *time.Time      `json:"started_at,omitempty"`
+	CompletedAt  *time.Time      `json:"completed_at,omitempty"`
+	Filters      json.RawMessage `json:"filters"`
+	Options      json.RawMessage `json:"options"`
+	Result       json.RawMessage `json:"result"`
+	ErrorMessage string          `json:"error_message,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+}
+
+type replayJobCreateRequest struct {
+	TenantID    string          `json:"tenant_id"`
+	SourceID    string          `json:"source_id"`
+	Dataset     string          `json:"dataset"`
+	SourceKind  string          `json:"source_kind"`
+	ReplayMode  string          `json:"replay_mode"`
+	RequestedBy string          `json:"requested_by"`
+	WindowStart string          `json:"window_start"`
+	WindowEnd   string          `json:"window_end"`
+	Filters     json.RawMessage `json:"filters"`
+	Options     json.RawMessage `json:"options"`
+}
+
 type providerUsageDTO struct {
 	UsageID      string          `json:"usage_id"`
 	RunID        string          `json:"run_id"`
@@ -1020,6 +1106,71 @@ func insightLifecycleHandler(cfg RouterConfig, status string, action string) htt
 	}
 }
 
+func readReplayJobRequest(w http.ResponseWriter, r *http.Request) (replayJobCreateRequest, error) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, defaultMaxRawEventBytes))
+	decoder.DisallowUnknownFields()
+	var req replayJobCreateRequest
+	if err := decoder.Decode(&req); err != nil {
+		return replayJobCreateRequest{}, err
+	}
+	return req, nil
+}
+
+func replayJobRecordFromRequest(req replayJobCreateRequest, actor string, now time.Time) (storage.ReplayJobRecord, error) {
+	windowStart, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(req.WindowStart))
+	if err != nil {
+		return storage.ReplayJobRecord{}, errors.New("window_start must be an RFC3339 timestamp")
+	}
+	windowEnd, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(req.WindowEnd))
+	if err != nil {
+		return storage.ReplayJobRecord{}, errors.New("window_end must be an RFC3339 timestamp")
+	}
+	sourceKind := firstNonEmpty(strings.TrimSpace(req.SourceKind), storage.ReplaySourceRaw)
+	replayMode := firstNonEmpty(strings.TrimSpace(req.ReplayMode), storage.ReplayModeOriginal)
+	filters := jsonOrDefaultObject(req.Filters)
+	options := jsonOrDefaultObject(req.Options)
+	record := storage.ReplayJobRecord{
+		ReplayJobID: newID("replay"), TenantID: strings.TrimSpace(req.TenantID), SourceID: strings.TrimSpace(req.SourceID),
+		Dataset: strings.TrimSpace(req.Dataset), SourceKind: sourceKind, ReplayMode: replayMode, Status: storage.ReplayJobStatusQueued,
+		RequestedBy: actor, WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), FiltersJSON: filters, OptionsJSON: options,
+		ResultJSON: []byte("{}"), CreatedAt: now, UpdatedAt: now,
+	}
+	if strings.TrimSpace(record.TenantID) == "" {
+		return storage.ReplayJobRecord{}, errors.New("tenant_id is required")
+	}
+	if !record.WindowEnd.After(record.WindowStart) {
+		return storage.ReplayJobRecord{}, errors.New("window_end must be after window_start")
+	}
+	if !oneOf(sourceKind, storage.ReplaySourceRaw, storage.ReplaySourceNormalized, storage.ReplaySourceSignals) {
+		return storage.ReplayJobRecord{}, errors.New("source_kind must be raw_events, normalized_events, or signals")
+	}
+	if !oneOf(replayMode, storage.ReplayModeOriginal, storage.ReplayModeLatestCompatible, storage.ReplayModeExplicit) {
+		return storage.ReplayJobRecord{}, errors.New("replay_mode must be original, latest_compatible, or explicit")
+	}
+	return record, nil
+}
+
+func replayActor(r *http.Request, requestedBy string) string {
+	return firstNonEmpty(strings.TrimSpace(r.Header.Get("X-SignalOps-Actor")), strings.TrimSpace(requestedBy), "operator-local")
+}
+
+func jsonOrDefaultObject(raw json.RawMessage) []byte {
+	if len(raw) == 0 {
+		return []byte("{}")
+	}
+	return append([]byte(nil), raw...)
+}
+
+func oneOf(value string, allowed ...string) bool {
+	for _, item := range allowed {
+		if value == item {
+			return true
+		}
+	}
+	return false
+}
+
 func schedulerRunResponses(records []storage.SchedulerRunRecord) []schedulerRunDTO {
 	items := make([]schedulerRunDTO, 0, len(records))
 	for _, record := range records {
@@ -1050,6 +1201,24 @@ func schedulerRunResponse(record storage.SchedulerRunRecord) schedulerRunDTO {
 		ErrorMessage:     record.ErrorMessage,
 		CreatedAt:        record.CreatedAt,
 		UpdatedAt:        record.UpdatedAt,
+	}
+}
+
+func replayJobResponses(records []storage.ReplayJobRecord) []replayJobDTO {
+	items := make([]replayJobDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, replayJobResponse(record))
+	}
+	return items
+}
+
+func replayJobResponse(record storage.ReplayJobRecord) replayJobDTO {
+	return replayJobDTO{
+		ReplayJobID: record.ReplayJobID, TenantID: record.TenantID, SourceID: record.SourceID, Dataset: record.Dataset,
+		SourceKind: record.SourceKind, ReplayMode: record.ReplayMode, Status: record.Status, RequestedBy: record.RequestedBy,
+		WindowStart: record.WindowStart, WindowEnd: record.WindowEnd, StartedAt: record.StartedAt, CompletedAt: record.CompletedAt,
+		Filters: jsonRawOrEmptyObject(record.FiltersJSON), Options: jsonRawOrEmptyObject(record.OptionsJSON), Result: jsonRawOrEmptyObject(record.ResultJSON),
+		ErrorMessage: record.ErrorMessage, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
 	}
 }
 

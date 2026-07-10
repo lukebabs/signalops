@@ -4323,3 +4323,55 @@ Follow-up items:
 - Add a first-class replay job model so temporal replay can be requested, audited, and exposed to operators.
 - Consider changing nginx upstream resolution to runtime DNS resolution or always forcing a `web` recreate during gateway cutovers.
 - Define production Massive ingestion cadence, quota safeguards, and failure alerting now that TimescaleDB is active for temporal ledgers.
+
+
+## Gate G058: Replay Job Control Plane
+
+Timestamp: `2026-07-10T02:49:00Z`
+
+Status: `passed — replay job persistence and API surface implemented; execution worker pending`
+
+Gate name:
+
+- Add first-class replay job records so temporal replay can be requested, filtered, audited, and later executed by a worker.
+
+Criteria:
+
+- PostgreSQL has a `replay_jobs` table for replay control-plane state.
+- Storage contracts and repository code can upsert, list, and get replay jobs.
+- Gateway exposes create/list/detail replay job endpoints.
+- Replay jobs include tenant, optional source/dataset filters, source kind, replay mode, status, requester, replay window, JSON filters/options/result, timestamps, and error message.
+- API and audit docs define the execution boundary.
+- Existing auth behavior protects the new `/v1/replay/jobs` routes.
+
+Evidence:
+
+- `migrations/000008_replay_jobs.up.sql`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/api/router.go`
+- `docs/api.md`
+- `docs/build_journal.md`
+
+Verification performed:
+
+- `docker run --rm -v "$PWD":/src -w /src golang:1.22-bookworm gofmt -w ...` completed.
+- `docker run --rm -v "$PWD":/src -w /src golang:1.22-bookworm go test ./internal/storage ./internal/storage/postgres ./internal/api ./cmd/gateway` passed.
+- Gateway Docker build ran `go test ./...` and passed.
+- `git diff --check` passed.
+- `make compose-storage-migrate` applied `000008_replay_jobs`.
+- Direct PostgreSQL check confirmed `public.replay_jobs` exists.
+- Gateway was rebuilt/redeployed.
+- Web was force-recreated after gateway deployment to avoid stale nginx upstream resolution.
+- Public health check returned `200 application/json`.
+- Public and local unauthenticated `GET /v1/replay/jobs?tenant_id=tenant-local` returned `401 application/json`.
+
+Validation boundary:
+
+- G058 creates the replay job control plane only. It does not claim queued jobs or republish temporal records.
+- Positive live API create/list/detail validation through the public route requires an authenticated bearer token; unit tests cover the no-auth handler behavior.
+
+Follow-up items:
+
+- Build the replay worker that claims queued jobs, reads Timescale rows by source kind and window, republishes through Redpanda with replay metadata, and updates job lifecycle/result counters.
+- Add frontend replay job views and controls after the backend worker surface is defined.

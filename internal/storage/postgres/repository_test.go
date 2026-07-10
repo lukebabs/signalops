@@ -39,6 +39,17 @@ func TestValidateProviderUsage(t *testing.T) {
 	}
 }
 
+func TestValidateReplayJob(t *testing.T) {
+	record := validReplayJobRecord()
+	if err := validateReplayJob(record); err != nil {
+		t.Fatalf("validate replay job: %v", err)
+	}
+	record.WindowEnd = record.WindowStart
+	if err := validateReplayJob(record); err == nil {
+		t.Fatal("expected replay window validation error")
+	}
+}
+
 func TestValidateIdempotencyRecord(t *testing.T) {
 	record := validIdempotencyRecord()
 	if err := validateIdempotencyRecord(record); err != nil {
@@ -147,6 +158,11 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	usage.UsageID = "test-g027-usage"
 	if err := repo.InsertProviderUsage(ctx, usage); err != nil {
 		t.Fatalf("insert usage: %v", err)
+	}
+	replayJob := validReplayJobRecord()
+	replayJob.ReplayJobID = "test-g058-replay"
+	if err := repo.UpsertReplayJob(ctx, replayJob); err != nil {
+		t.Fatalf("upsert replay job: %v", err)
 	}
 	ledger := validRawEventLedgerRecord()
 	ledger.EventID = "test-g028-event"
@@ -334,6 +350,16 @@ func validSchedulerRunRecord() storage.SchedulerRunRecord {
 		ReportJSON:       []byte(`{}`),
 		EventsBuilt:      1,
 		ProviderRequests: 1,
+	}
+}
+
+func validReplayJobRecord() storage.ReplayJobRecord {
+	start := time.Date(2026, 7, 9, 0, 0, 0, 0, time.UTC)
+	return storage.ReplayJobRecord{
+		ReplayJobID: "replay-1", TenantID: "tenant-local", SourceID: "src-massive", Dataset: "equity_eod_prices",
+		SourceKind: storage.ReplaySourceRaw, ReplayMode: storage.ReplayModeOriginal, Status: storage.ReplayJobStatusQueued,
+		RequestedBy: "operator-test", WindowStart: start, WindowEnd: start.Add(24 * time.Hour),
+		FiltersJSON: []byte(`{"symbol":"AAPL"}`), OptionsJSON: []byte(`{"publish":false}`), ResultJSON: []byte(`{}`),
 	}
 }
 

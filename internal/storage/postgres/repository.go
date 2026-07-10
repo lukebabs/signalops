@@ -178,6 +178,46 @@ ON CONFLICT (usage_id) DO UPDATE SET
 	return nil
 }
 
+func (r *Repository) UpsertReplayJob(ctx context.Context, record storage.ReplayJobRecord) error {
+	if err := validateReplayJob(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO replay_jobs (
+  replay_job_id, tenant_id, source_id, dataset, source_kind, replay_mode, status, requested_by,
+  window_start, window_end, started_at, completed_at, filters, options, result, error_message, updated_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8,
+  $9, $10, $11, $12, $13, $14, $15, $16, now()
+)
+ON CONFLICT (replay_job_id) DO UPDATE SET
+  tenant_id = EXCLUDED.tenant_id,
+  source_id = EXCLUDED.source_id,
+  dataset = EXCLUDED.dataset,
+  source_kind = EXCLUDED.source_kind,
+  replay_mode = EXCLUDED.replay_mode,
+  status = EXCLUDED.status,
+  requested_by = EXCLUDED.requested_by,
+  window_start = EXCLUDED.window_start,
+  window_end = EXCLUDED.window_end,
+  started_at = EXCLUDED.started_at,
+  completed_at = EXCLUDED.completed_at,
+  filters = EXCLUDED.filters,
+  options = EXCLUDED.options,
+  result = EXCLUDED.result,
+  error_message = EXCLUDED.error_message,
+  updated_at = now()`,
+		record.ReplayJobID, record.TenantID, nullString(record.SourceID), nullString(record.Dataset),
+		record.SourceKind, record.ReplayMode, record.Status, record.RequestedBy, record.WindowStart,
+		record.WindowEnd, record.StartedAt, record.CompletedAt, jsonOrEmpty(record.FiltersJSON),
+		jsonOrEmpty(record.OptionsJSON), jsonOrEmpty(record.ResultJSON), nullString(record.ErrorMessage),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert replay job: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) UpsertIdempotencyRecord(ctx context.Context, record storage.IdempotencyRecord) error {
 	if err := validateIdempotencyRecord(record); err != nil {
 		return err
@@ -760,6 +800,42 @@ WHERE run_id = $1`, strings.TrimSpace(runID))
 	return record, nil
 }
 
+func (r *Repository) ListReplayJobs(ctx context.Context, filter storage.ReplayJobFilter) ([]storage.ReplayJobRecord, error) {
+	rows, err := r.db.QueryContext(ctx, replayJobSelect+`
+WHERE ($1 = '' OR tenant_id = $1)
+  AND ($2 = '' OR source_id = $2)
+  AND ($3 = '' OR dataset = $3)
+  AND ($4 = '' OR source_kind = $4)
+  AND ($5 = '' OR status = $5)
+ORDER BY created_at DESC
+LIMIT $6`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.SourceID),
+		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.SourceKind), strings.TrimSpace(filter.Status), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list replay jobs: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.ReplayJobRecord{}
+	for rows.Next() {
+		record, err := scanReplayJob(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list replay jobs rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetReplayJob(ctx context.Context, replayJobID string) (storage.ReplayJobRecord, error) {
+	record, err := scanReplayJob(r.db.QueryRowContext(ctx, replayJobSelect+` WHERE replay_job_id = $1`, strings.TrimSpace(replayJobID)))
+	if err != nil {
+		return storage.ReplayJobRecord{}, err
+	}
+	return record, nil
+}
+
 func (r *Repository) ListProviderUsage(ctx context.Context, runID string, limit int) ([]storage.ProviderUsageRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT usage_id, run_id, provider, dataset, request_count, retry_count, event_count, budget, created_at
@@ -1119,6 +1195,35 @@ LIMIT $2`, strings.TrimSpace(tenantID), clampLimit(limit))
 		return nil, fmt.Errorf("list catalog rules rows: %w", err)
 	}
 	return records, nil
+}
+
+const replayJobSelect = `
+SELECT replay_job_id, tenant_id, source_id, dataset, source_kind, replay_mode, status, requested_by,
+ window_start, window_end, started_at, completed_at, filters, options, result, error_message, created_at, updated_at
+FROM replay_jobs`
+
+type replayJobScanner interface{ Scan(dest ...any) error }
+
+func scanReplayJob(scanner replayJobScanner) (storage.ReplayJobRecord, error) {
+	var record storage.ReplayJobRecord
+	var sourceID, dataset, errorMessage sql.NullString
+	var startedAt, completedAt sql.NullTime
+	if err := scanner.Scan(&record.ReplayJobID, &record.TenantID, &sourceID, &dataset, &record.SourceKind,
+		&record.ReplayMode, &record.Status, &record.RequestedBy, &record.WindowStart, &record.WindowEnd,
+		&startedAt, &completedAt, &record.FiltersJSON, &record.OptionsJSON, &record.ResultJSON,
+		&errorMessage, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		return storage.ReplayJobRecord{}, mapScanError("scan replay job", err)
+	}
+	record.SourceID = sourceID.String
+	record.Dataset = dataset.String
+	record.ErrorMessage = errorMessage.String
+	if startedAt.Valid {
+		record.StartedAt = &startedAt.Time
+	}
+	if completedAt.Valid {
+		record.CompletedAt = &completedAt.Time
+	}
+	return record, nil
 }
 
 type schedulerScanner interface {
@@ -1493,6 +1598,44 @@ func validateSchedulerRun(record storage.SchedulerRunRecord) error {
 		return errors.New("scheduler observation date is required")
 	}
 	return nil
+}
+
+func validateReplayJob(record storage.ReplayJobRecord) error {
+	if strings.TrimSpace(record.ReplayJobID) == "" {
+		return errors.New("replay job id is required")
+	}
+	if strings.TrimSpace(record.TenantID) == "" {
+		return errors.New("replay tenant id is required")
+	}
+	if !allowedString(record.SourceKind, storage.ReplaySourceRaw, storage.ReplaySourceNormalized, storage.ReplaySourceSignals) {
+		return errors.New("replay source kind is invalid")
+	}
+	if !allowedString(record.ReplayMode, storage.ReplayModeOriginal, storage.ReplayModeLatestCompatible, storage.ReplayModeExplicit) {
+		return errors.New("replay mode is invalid")
+	}
+	if !allowedString(record.Status, storage.ReplayJobStatusQueued, storage.ReplayJobStatusRunning, storage.ReplayJobStatusSucceeded, storage.ReplayJobStatusFailed, storage.ReplayJobStatusCanceled) {
+		return errors.New("replay status is invalid")
+	}
+	if strings.TrimSpace(record.RequestedBy) == "" {
+		return errors.New("replay requested by is required")
+	}
+	if record.WindowStart.IsZero() || record.WindowEnd.IsZero() {
+		return errors.New("replay window is required")
+	}
+	if !record.WindowEnd.After(record.WindowStart) {
+		return errors.New("replay window end must be after start")
+	}
+	return nil
+}
+
+func allowedString(value string, allowed ...string) bool {
+	value = strings.TrimSpace(value)
+	for _, item := range allowed {
+		if value == item {
+			return true
+		}
+	}
+	return false
 }
 
 func validateProviderUsage(record storage.ProviderUsageRecord) error {

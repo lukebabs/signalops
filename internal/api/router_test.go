@@ -52,6 +52,8 @@ func (p *fakePublishRepository) PersistPublishedRawEvent(_ context.Context, ledg
 
 type fakeQueryRepository struct {
 	runs             []storage.SchedulerRunRecord
+	replayJobs       []storage.ReplayJobRecord
+	lastReplayFilter storage.ReplayJobFilter
 	usage            []storage.ProviderUsageRecord
 	rawEvents        []storage.RawEventLedgerRecord
 	idem             storage.IdempotencyRecord
@@ -82,6 +84,28 @@ func (q *fakeQueryRepository) GetSchedulerRun(_ context.Context, runID string) (
 		}
 	}
 	return storage.SchedulerRunRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertReplayJob(_ context.Context, record storage.ReplayJobRecord) error {
+	q.replayJobs = append(q.replayJobs, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListReplayJobs(_ context.Context, filter storage.ReplayJobFilter) ([]storage.ReplayJobRecord, error) {
+	q.lastReplayFilter = filter
+	return q.replayJobs, nil
+}
+
+func (q *fakeQueryRepository) GetReplayJob(_ context.Context, replayJobID string) (storage.ReplayJobRecord, error) {
+	if q.notFound {
+		return storage.ReplayJobRecord{}, storage.ErrNotFound
+	}
+	for _, job := range q.replayJobs {
+		if job.ReplayJobID == replayJobID {
+			return job, nil
+		}
+	}
+	return storage.ReplayJobRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListProviderUsage(context.Context, string, int) ([]storage.ProviderUsageRecord, error) {
@@ -395,6 +419,61 @@ func TestGetSchedulerRunNotFound(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestReplayJobCreateListAndDetail(t *testing.T) {
+	repo := &fakeQueryRepository{}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"tenant_id":"tenant-local","source_id":"src-massive","dataset":"equity_eod_prices","source_kind":"raw_events","replay_mode":"original","window_start":"2026-07-09T00:00:00Z","window_end":"2026-07-10T00:00:00Z","filters":{"symbol":"AAPL"},"options":{"publish":false}}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/replay/jobs", bytes.NewBufferString(body))
+	req.Header.Set("X-SignalOps-Actor", "operator-g058")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if len(repo.replayJobs) != 1 {
+		t.Fatalf("replay jobs = %+v", repo.replayJobs)
+	}
+	created := repo.replayJobs[0]
+	if created.Status != storage.ReplayJobStatusQueued || created.RequestedBy != "operator-g058" || created.SourceKind != storage.ReplaySourceRaw {
+		t.Fatalf("created replay job = %+v", created)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/replay/jobs?tenant_id=tenant-local&status=queued&source_kind=raw_events&limit=3", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastReplayFilter.TenantID != "tenant-local" || repo.lastReplayFilter.Status != "queued" || repo.lastReplayFilter.SourceKind != "raw_events" || repo.lastReplayFilter.Limit != 3 {
+		t.Fatalf("filter = %+v", repo.lastReplayFilter)
+	}
+	var listResponse map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &listResponse); err != nil {
+		t.Fatalf("list JSON error = %v", err)
+	}
+	if len(listResponse["replay_jobs"]) != 1 || listResponse["replay_jobs"][0]["replay_job_id"] != created.ReplayJobID {
+		t.Fatalf("list response = %+v", listResponse)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/replay/jobs/"+created.ReplayJobID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("detail status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPostReplayJobRejectsInvalidWindow(t *testing.T) {
+	router := NewRouter(RouterConfig{QueryRepository: &fakeQueryRepository{}})
+	body := `{"tenant_id":"tenant-local","source_kind":"raw_events","window_start":"2026-07-10T00:00:00Z","window_end":"2026-07-09T00:00:00Z"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/replay/jobs", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }

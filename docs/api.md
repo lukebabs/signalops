@@ -383,6 +383,44 @@ Returns recent scheduler run audit rows ordered by `started_at DESC`.
 Returns one scheduler run, including datasets, counters, config JSON, report JSON,
 status, timestamps, and optional error message.
 
+
+### Replay Jobs
+
+Replay jobs are PostgreSQL control-plane records that request future replay of TimescaleDB temporal ledgers. G058 persists and exposes replay requests; replay execution is owned by a later worker gate.
+
+`POST /v1/replay/jobs`
+
+Creates a queued replay job. The endpoint accepts JSON:
+
+```json
+{
+  "tenant_id": "tenant-local",
+  "source_id": "src-massive",
+  "dataset": "equity_eod_prices",
+  "source_kind": "raw_events",
+  "replay_mode": "original",
+  "requested_by": "operator-local",
+  "window_start": "2026-07-09T00:00:00Z",
+  "window_end": "2026-07-10T00:00:00Z",
+  "filters": {"symbol": "AAPL"},
+  "options": {"publish": false}
+}
+```
+
+Required fields: `tenant_id`, `window_start`, and `window_end`. `source_kind` defaults to `raw_events`; `replay_mode` defaults to `original`; `requested_by` defaults from `X-SignalOps-Actor` or `operator-local`.
+
+Supported `source_kind` values: `raw_events`, `normalized_events`, `signals`. Supported `replay_mode` values: `original`, `latest_compatible`, `explicit`. New jobs start with status `queued`.
+
+Response status: `202 Accepted` with `{ "replay_job": ... }`.
+
+`GET /v1/replay/jobs?tenant_id={tenant_id}&source_id={source_id}&dataset={dataset}&source_kind={source_kind}&status={status}&limit=50`
+
+Lists replay jobs ordered by `created_at DESC`. Filters are optional and can be combined.
+
+`GET /v1/replay/jobs/{replay_job_id}`
+
+Returns one replay job.
+
 ### Provider Usage
 
 `GET /v1/provider-usage?run_id={run_id}&limit=50`

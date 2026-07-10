@@ -3585,3 +3585,55 @@ Operational notes:
 Next step:
 
 - Move from storage cutover into replay/operations maturity: add an explicit replay job model and operator-visible temporal replay controls, or harden source/provider production operations for Massive ingestion cadence and quotas.
+
+
+## 2026-07-10T02:49:00Z
+
+Summary:
+
+- Implemented G058 replay job control-plane persistence and API surface.
+- Added PostgreSQL `replay_jobs` storage for replay requests that target TimescaleDB temporal ledgers.
+- Added create/list/detail gateway routes so operators and the future replay worker can request and inspect replay work.
+
+Files changed:
+
+- `migrations/000008_replay_jobs.up.sql`
+- `migrations/000008_replay_jobs.down.sql`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/repository_test.go`
+- `internal/api/router.go`
+- `internal/api/router_test.go`
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Implementation notes:
+
+- Replay jobs are ordinary PostgreSQL control-plane records, not Timescale hypertables. The job describes what temporal data to replay; the temporal source rows remain in TimescaleDB.
+- Supported replay sources are `raw_events`, `normalized_events`, and `signals`.
+- Supported replay modes are `original`, `latest_compatible`, and `explicit`.
+- New jobs start as `queued` and capture tenant, optional source/dataset filters, window boundaries, requester, filters JSON, options JSON, result JSON, and lifecycle timestamps.
+- The gateway now exposes `POST /v1/replay/jobs`, `GET /v1/replay/jobs`, and `GET /v1/replay/jobs/{replay_job_id}`.
+- G058 intentionally does not execute replay. A subsequent worker gate should claim queued jobs, read from Timescale, republish through durable topics, and update job status/result metadata.
+
+Validation performed:
+
+- Docker Go focused tests: `go test ./internal/storage ./internal/storage/postgres ./internal/api ./cmd/gateway` passed.
+- Docker gateway build ran full `go test ./...` during image build and passed.
+- `git diff --check` passed.
+- `make compose-storage-migrate` applied `000008_replay_jobs` successfully.
+- PostgreSQL `to_regclass('public.replay_jobs') IS NOT NULL` returned `true`.
+- Rebuilt/redeployed `gateway` with the new routes.
+- Force-recreated `web` after gateway recreation to refresh nginx upstream resolution.
+- Public `GET https://signalops.syncratic.io/healthz` returned `200 application/json`.
+- Public unauthenticated `GET /v1/replay/jobs?tenant_id=tenant-local` returned `401 application/json`, confirming the new route is protected by backend auth.
+- Local web unauthenticated `GET /v1/replay/jobs?tenant_id=tenant-local` returned `401 application/json`.
+
+Validation boundary:
+
+- Because backend auth is enabled, positive browser-facing replay job creation/list/detail validation requires an authenticated operator token. The no-auth route behavior is covered by unit tests; the live deployment validated health, migration state, and protected-route auth boundary.
+
+Next step:
+
+- Implement the replay worker gate: claim queued replay jobs, stream matching Timescale rows, republish with replay metadata, update status/result counters, and expose replay job lifecycle in the frontend.
