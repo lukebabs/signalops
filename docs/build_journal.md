@@ -3999,3 +3999,26 @@ Audit notes:
 Next step:
 
 - Provide a frontend-agent spec to surface `GET /v1/replay/status` in the Dashboard/Health UI, or implement a small backend health summary if UI work should wait.
+
+
+## 2026-07-10T06:13:33Z
+
+Summary:
+
+- Wrote the G065 frontend-agent implementation specification for replay operations status visibility using the G064 `GET /v1/replay/status` backend endpoint.
+- Scoped the UI work to the existing Dashboard and System/Health routes, with no worker control actions and no broad redesign.
+
+Files changed:
+
+- `docs/frontend/replay_operations_status_ui_spec.md` — frontend-agent handoff for replay status types, API client method, query hook, Dashboard tile/Processing Health integration, System route worker activity table, tests, validation, and acceptance criteria.
+- `docs/build_journal.md`, `docs/gate_audit.md` — G065 specification audit entries.
+
+Validation performed:
+
+- Reviewed against G064 backend contract in `docs/api.md` and `internal/api/router.go`.
+- Reviewed against current frontend Dashboard and System route conventions.
+- Confirmed the spec preserves existing auth/session and REST polling patterns.
+
+Next step:
+
+- Hand `docs/frontend/replay_operations_status_ui_spec.md` to frontend-agent for implementation and browser validation.

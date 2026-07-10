@@ -4762,3 +4762,38 @@ Follow-up items:
 
 - Frontend can consume `GET /v1/replay/status` in Dashboard/Health UI.
 - Consider fixing nginx upstream resolution so web does not need forced recreation after gateway container replacement.
+
+
+## Gate G065: Frontend Replay Operations Status UI Specification
+
+Timestamp: `2026-07-10T06:13:33Z`
+
+Status: `closed — specification written and ready for frontend-agent`
+
+Gate name:
+
+- Define the frontend implementation contract for replay-worker health/activity visibility on Dashboard and System/Health.
+
+Criteria:
+
+- Specification is placed under `docs/frontend/`.
+- Specification documents G064 `GET /v1/replay/status` request/response behavior.
+- Specification defines required frontend types, API client method, query hook, polling behavior, Dashboard integration, System route integration, helpers, tests, validation, and acceptance criteria.
+- Specification explicitly excludes worker start/stop/restart controls, retry controls, bulk cancellation, replay SSE, and broad Dashboard redesign.
+
+Evidence:
+
+- `docs/frontend/replay_operations_status_ui_spec.md`.
+- `docs/api.md`, Replay Jobs section.
+- `docs/build_journal.md`.
+- `docs/gate_audit.md`.
+
+Validation performed:
+
+- Checked against G064 backend implementation and documented response shape.
+- Checked against current `web/src/routes/DashboardRoute.tsx` and `web/src/routes/SystemRoute.tsx` layout conventions.
+- Confirmed validation requires authenticated browser checks and public unauthenticated `401` sanity check.
+
+Follow-up items:
+
+- Frontend-agent should implement G065 from `docs/frontend/replay_operations_status_ui_spec.md`.
