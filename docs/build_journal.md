@@ -4552,6 +4552,14 @@ Validation performed:
 - `docker compose build normalizer`: passed; build step also ran `go test ./...`.
 - `python3 scripts/validate_json_schemas.py`: passed.
 
+Live smoke validation:
+
+- Recreated the `normalizer` service with the G072 image using `docker compose up -d --no-deps --build normalizer`.
+- Produced bounded raw event `evt-g072-option-live` to `signalops.local.raw.v1`; Redpanda accepted partition `2`, offset `10`.
+- Normalizer logs showed `normalized event persisted` with normalized partition `2`, offset `7`.
+- `signalops.normalizer.v1` was Stable with total lag `0`.
+- TimescaleDB `normalized_event_ledger` verified `app_id=marketops`, `domain=market_data`, `use_case=daily_market_surveillance`, `dataset=options_contracts_daily`, strategy `marketops_massive_option_contract_daily_v1`, option ticker `O:SPY260116C00600000`, underlying `SPY`, contract type `call`, asset type `option_contract`, volume `1200`, and option/ticker entities.
+
 Next step:
 
-- Optional live smoke: publish or replay one Massive option raw event and verify the persisted normalized payload strategy and option/ticker entities.
+- G073: MarketOps feature-builder layer for option-interest and price-derived features.

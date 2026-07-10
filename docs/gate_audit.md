@@ -5299,7 +5299,7 @@ Follow-up items:
 
 Timestamp: `2026-07-10T18:26:53Z`
 
-Status: `implemented — full Go tests, schema validation, and normalizer Docker build passed`
+Status: `closed — full Go tests, schema validation, normalizer Docker build, and live normalized-ledger smoke passed`
 
 Gate name:
 
@@ -5325,7 +5325,12 @@ Validation performed:
 - `go test ./...`: passed in the Go Docker image.
 - `docker compose build normalizer`: passed; build step also ran `go test ./...`.
 - `python3 scripts/validate_json_schemas.py`: passed.
+- `docker compose up -d --no-deps --build normalizer`: recreated the live normalizer with the G072 image.
+- Published raw event `evt-g072-option-live` to `signalops.local.raw.v1`, partition `2`, offset `10`.
+- Normalizer persisted normalized event `evt-g072-option-live` to normalized partition `2`, offset `7`.
+- `signalops.normalizer.v1` was Stable with total lag `0`.
+- TimescaleDB verified canonical normalized payload fields and strategy `marketops_massive_option_contract_daily_v1`, plus option-contract and ticker entities.
 
 Follow-up items:
 
-- Optional live smoke: replay/publish one Massive option raw event and verify the persisted normalized payload strategy and option/ticker entities.
+- G073 should add the MarketOps feature-builder layer for option-interest and price-derived features.
