@@ -155,7 +155,12 @@ Required SignalOps env values:
 ```bash
 SIGNALOPS_PUBLIC_HOST=signalops.syncratic.io
 TRAEFIK_NETWORK=syncratic-core_syncratic_net
+COMPOSE_FILE=compose.yaml:compose.traefik.yaml
 ```
+
+`COMPOSE_FILE` is intentional for the public deployment. It makes a plain
+`docker compose up -d web` render the Traefik overlay by default, so rebuilds do
+not silently recreate `web` without router labels and produce a public 404.
 
 The parent Syncratic core Traefik service must already be running and configured
 with its Let's Encrypt resolver credentials, including `LETSENCRYPT_EMAIL`,
@@ -171,12 +176,12 @@ make deploy-web
 ```
 
 `make deploy-web` rebuilds the `web` image **with frontend auth enabled** and
-**with the Traefik overlay applied** in one step. A bare
-`docker compose up -d --build web` (or `make compose-up`) omits both: it bakes
-`VITE_SIGNALOPS_AUTH_ENABLED=false` (the `.env` default, so the login page never
-shows) and recreates `web` without `traefik.*` labels, which **404s the public
-host**. Always use `make deploy-web` for public deploys; reserve the bare
-`docker compose up -d web` (see *Web UI* above) for local-only runs.
+**with the Traefik overlay applied** in one step. The deployment `.env` also sets
+`COMPOSE_FILE=compose.yaml:compose.traefik.yaml` so plain Compose operations keep
+Traefik labels attached. If `COMPOSE_FILE` is absent, a bare
+`docker compose up -d --build web` can recreate `web` without `traefik.*` labels,
+which **404s the public host**. Always keep `COMPOSE_FILE` set for this public
+deployment and prefer `make deploy-web` when rebuilding the public web image.
 
 Only the `web` service is exposed publicly. The web nginx container proxies API
 and SSE paths to the internal gateway, preserving same-origin browser behavior:

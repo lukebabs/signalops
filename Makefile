@@ -85,9 +85,9 @@ compose-temporal-backfill:
 	$(COMPOSE) --profile storage run --rm temporal-backfill
 
 # Public deploy of the web service: rebuild WITH frontend auth AND the Traefik
-# routing overlay. A bare `docker compose up -d --build web` (or `make compose-up`)
-# omits BOTH — it bakes auth off (the .env default) and recreates `web` without
-# traefik labels, which 404s signalops.syncratic.io. Always use this for public deploys.
+# routing overlay. The deployment .env also sets COMPOSE_FILE so plain Compose
+# commands keep Traefik labels attached; this target remains the preferred public
+# web rebuild path because it forces the auth-enabled frontend build arg.
 deploy-web:
 	VITE_SIGNALOPS_AUTH_ENABLED=$(VITE_SIGNALOPS_AUTH_ENABLED) \
 		$(COMPOSE) -f compose.yaml -f compose.traefik.yaml up -d --build web

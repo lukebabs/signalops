@@ -5129,3 +5129,31 @@ Follow-up items:
 
 - Commit the G069 Traefik-overlay guard config files (`.env.example`, `Makefile`, `docs/deployment.md`), which remain uncommitted in the working tree.
 - Complete authenticated browser validation to fully close G068.
+
+## Gate G068: Final Browser Validation Closeout
+
+Timestamp: `2026-07-10T16:12:00Z`
+
+Status: `closed — authenticated browser validation passed`
+
+Gate name:
+
+- Close frontend app profiles and MarketOps shell implementation after operator browser validation.
+
+Operator validation confirmed:
+
+- App selector displays SignalOps Console and MarketOps.
+- Switching to MarketOps works.
+- `/marketops/*` routes render successfully without observed layout overflow.
+- Supported data routes include `app_id=marketops` and `domain=market_data`.
+- Existing SignalOps Console routes remain functional.
+- Unauthenticated/auth redirect behavior remains intact.
+
+Evidence:
+
+- Prior automated validation: 70 frontend tests passed, production build passed, audit returned 0 vulnerabilities, public MarketOps route smoke checks returned `200` for all ten aliases.
+- Implementation commit: `bdcf9a8 Implement G068 frontend app profiles and MarketOps shell` pushed to `origin/main`.
+
+Follow-up items:
+
+- None for G068. The next frontend work should build on the app-profile shell rather than reopening this gate.

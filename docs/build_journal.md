@@ -4384,3 +4384,27 @@ Next step:
 
 - Commit the G069 Traefik guard config files separately.
 - Complete authenticated browser validation to fully close G068.
+
+## 2026-07-10T16:12:00Z
+
+Summary:
+
+- Closed G068 after operator-authenticated browser validation passed.
+- Operator confirmed the app selector, MarketOps switching, route rendering,
+  metadata-filter behavior, console parity, and auth behavior are working.
+- G068 implementation and journals were already pushed in commit `bdcf9a8`.
+- Prepared the remaining G069 Traefik-overlay guard config/docs for separate
+  commit and push.
+
+Validation confirmed by operator:
+
+- App selector shows SignalOps Console and MarketOps.
+- Switching from Console to MarketOps works.
+- `/marketops/*` renders without observed layout overflow.
+- Supported data route requests carry `app_id=marketops` and `domain=market_data`.
+- Console routes continue to behave normally.
+- Auth redirect behavior remains intact.
+
+Next step:
+
+- Commit and push the G069 Traefik guard config/docs plus this closure audit.
