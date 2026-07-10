@@ -4703,3 +4703,24 @@ Live validation:
 Outstanding:
 
 - No G075 option taxonomy signal types remain unvalidated live.
+
+
+## 2026-07-10T19:48:00Z
+
+Summary:
+
+- Closed the remaining G071 MarketOps Asset Universe UI validation items that can be verified without a browser automation dependency.
+
+Validation performed:
+
+- Deployed web route `http://localhost:15173/marketops/assets` returned HTTP `200`.
+- Operator confirmed the page renders the 50 seeded assets.
+- Postgres verified `tenant-local` / `top50_megacap` has 50 assets, 50 active assets, rank range `1..50`, 15 sector keys, 16 industry keys, and one source.
+- Rank-order spot check verified the first five assets are `NVDA`, `AAPL`, `GOOGL`, `MSFT`, `AMZN`; the final five by descending rank are `GEV`, `GS`, `MRK`, `PLTR`, `NFLX`.
+- `npm test`: 78 passed.
+- `npm run build`: succeeded.
+- `npm audit --audit-level=low`: found 0 vulnerabilities.
+
+Remaining manual item:
+
+- Independent mobile-overflow/browser capture was not machine-checked because `web/` does not include Playwright tooling; this remains an operator visual check.

@@ -5252,7 +5252,7 @@ Follow-up items:
 
 Timestamp: `2026-07-10T18:19:00Z`
 
-Status: `implemented — local automated validation passed; authenticated browser validation pending operator`
+Status: `closed — local automated validation, deployed route check, seeded data verification, and operator render check passed`
 
 Gate name:
 
@@ -5286,10 +5286,14 @@ Validation performed:
 
 - `npm test`: 78 passed. `npm run build`: succeeded. `npm audit --json`: 0 vulnerabilities. `git diff --check`: clean.
 - Operator confirmed `/marketops/assets` renders the 50 seeded assets.
+- Deployed web route `GET http://localhost:15173/marketops/assets` returned HTTP `200`.
+- Postgres verified `tenant-local` / `top50_megacap` contains 50 assets, 50 active assets, ranks `1..50`, 15 sector keys, 16 industry keys, and one source.
+- Rank-order sample verified first ranks `NVDA`, `AAPL`, `GOOGL`, `MSFT`, `AMZN`; final ranks include `NFLX`, `PLTR`, `MRK`, `GS`, `GEV`.
+- API path/query construction for `universe_group=top50_megacap`, `active_only=true`, and `limit=50` is covered by `web/src/api/marketopsAssets.test.ts`; route code uses the same query parameters.
 
 Validation NOT yet performed:
 
-- Full authenticated browser checklist remains partially manual: metric counts, rank order, network params, and mobile overflow.
+- Independent machine browser/mobile-overflow check; no local Playwright dependency is present in `web/`, so this remains a manual/operator visual check.
 
 Follow-up items:
 
