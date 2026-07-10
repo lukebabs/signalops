@@ -5285,14 +5285,14 @@ Spec fixes applied during implementation:
 Validation performed:
 
 - `npm test`: 78 passed. `npm run build`: succeeded. `npm audit --json`: 0 vulnerabilities. `git diff --check`: clean.
+- Operator confirmed `/marketops/assets` renders the 50 seeded assets.
 
-Validation NOT yet performed (blocks final close):
+Validation NOT yet performed:
 
-- Authenticated browser validation from the spec checklist. Requires browser IdP login + `make deploy-web`.
+- Full authenticated browser checklist remains partially manual: metric counts, rank order, network params, and mobile overflow.
 
 Follow-up items:
 
-- Operator deploys via `make deploy-web` and completes authenticated browser validation.
 - Optional: MarketOps dashboard widget (spec §7), deferred to avoid layout churn.
 
 ## Gate G072: Massive Options Contract Daily Normalization
@@ -5454,3 +5454,29 @@ Validation performed:
 Follow-up items:
 
 - Clear or update the local untracked `.env` override during deployment so Compose uses `marketops.dsm.taxonomy_v1` without an explicit shell override.
+
+## Gate G075 Option Taxonomy Live Coverage Addendum
+
+Timestamp: `2026-07-10T19:32:05Z`
+
+Status: `closed — remaining option taxonomy signals live-validated`
+
+Scope:
+
+- Complete live pipeline coverage for the G075 option taxonomy signals not exercised in the initial G075 smoke.
+
+Validation performed:
+
+- Verified live `raw-worker` uses `SIGNALOPS_WORKER_DETECTOR_ID=marketops.dsm.taxonomy_v1`.
+- Published bounded daily option contract normalized events `evt-g075-hedging-live`, `evt-g075-spec-call-live`, and `evt-g075-spec-put-live` to `signalops.local.normalized.v1`.
+- `signalops.normalized-worker.v1` returned to Stable with total lag `0`.
+- Postgres `signal_ledger` verified:
+  - `marketops.dsm.hedging_pressure` with severity `high`.
+  - `marketops.dsm.speculative_call_pressure` with severity `medium`.
+  - `marketops.dsm.speculative_put_pressure` with severity `medium`.
+- Verified option-interest supporting metrics persisted for all three signals.
+- Verified each signal includes an artifact ID, five graph targets, embedded `marketops.dsm.signal_artifact.v1`, open alert, and active insight.
+
+Follow-up items:
+
+- None for G075 option taxonomy live coverage.

@@ -4681,3 +4681,25 @@ Live smoke validation:
 Next step:
 
 - G076 should either remove/update the local untracked `.env` override during deployment or add an operator-facing note so Compose runs pick up `marketops.dsm.taxonomy_v1` by default.
+
+## 2026-07-10T19:32:05Z
+
+Summary:
+
+- Completed additional live option taxonomy coverage for G075 using bounded daily option contract normalized events.
+- Operator confirmed the G071 MarketOps Asset Universe UI renders the 50 seeded assets.
+
+Live validation:
+
+- Worker environment verified `SIGNALOPS_WORKER_DETECTOR_ID=marketops.dsm.taxonomy_v1`; `signalops.normalized-worker.v1` started Stable with total lag `0`.
+- Published `evt-g075-hedging-live`, `evt-g075-spec-call-live`, and `evt-g075-spec-put-live` to `signalops.local.normalized.v1`; Redpanda accepted offsets `0/3`, `0/4`, and `1/9`.
+- `signalops.normalized-worker.v1` returned to Stable with total lag `0`.
+- Postgres `signal_ledger` verified persisted detector `marketops.dsm.taxonomy_v1` signals:
+  - `marketops.dsm.hedging_pressure`, severity `high`, open interest `4000`, volume/open-interest ratio `0.3`, DTE `90`, contract type `call`.
+  - `marketops.dsm.speculative_call_pressure`, severity `medium`, open interest `2200`, volume/open-interest ratio `0.72`, DTE `27`, contract type `call`.
+  - `marketops.dsm.speculative_put_pressure`, severity `medium`, open interest `3000`, volume/open-interest ratio `0.6`, DTE `27`, contract type `put`.
+- Verified each option signal persisted one `artifact_marketops_dsm_v1_*` ID, five graph targets, embedded artifact type `marketops.dsm.signal_artifact.v1`, open alert, and active insight.
+
+Outstanding:
+
+- No G075 option taxonomy signal types remain unvalidated live.
