@@ -147,6 +147,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"replay_job": replayJobResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/replay/jobs/{replay_job_id}/cancel", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		req, err := readLifecycleMutationRequest(w, r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		record, err := repo.CancelReplayJob(r.Context(), r.PathValue("replay_job_id"), lifecycleActor(r, req.Actor), time.Now().UTC(), firstNonEmpty(req.Reason, req.Note), nil)
+		if err != nil {
+			writeQueryError(w, err, "replay_job_not_found", "replay job not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"replay_job": replayJobResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/provider-usage", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

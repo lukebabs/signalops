@@ -3796,3 +3796,47 @@ Audit notes:
 Next step:
 
 - Proceed to backend replay hardening: batching/pagination, cancellation, retry semantics, and per-record failure accounting.
+
+
+## 2026-07-10T04:14:46Z
+
+Summary:
+
+- Implemented G061 backend replay hardening for batching/pagination, cancellation semantics, publish retry behavior, and per-record replay accounting.
+- Added `POST /v1/replay/jobs/{replay_job_id}/cancel` using the existing lifecycle request body shape (`actor`, `reason`, `note`) and protected by the existing API auth boundary.
+- Updated replay worker execution to read temporal ledgers in bounded batches, check job cancellation between batches, retry broker publishes per record, and persist structured result JSON with scanned/published/failed/batches/canceled fields plus sampled record outcomes.
+- Extended replay source reads with `LIMIT/OFFSET` across raw, normalized, and signal ledgers.
+- Added replay worker environment controls to Compose and `.env.example`.
+
+Files changed:
+
+- `cmd/replay-worker/main.go` — batch execution loop, cancellation checks, publish retries, structured result envelope, narrower testable source repository interface, new env controls.
+- `cmd/replay-worker/main_test.go` — unit coverage for paged batches, publish retry accounting, and cancellation between batches.
+- `internal/storage/storage.go` — replay cancellation contract and replay source pagination signatures.
+- `internal/storage/postgres/repository.go` — `CancelReplayJob`, result merge, paged replay ledger queries, non-negative offset guard.
+- `internal/api/router.go` — `POST /v1/replay/jobs/{replay_job_id}/cancel`.
+- `internal/api/router_test.go` — cancel route regression test and updated fake repository contract.
+- `compose.yaml`, `.env.example` — replay batch/retry worker configuration.
+- `docs/api.md`, `docs/docker_development.md` — replay cancellation, batching, retry, and result accounting docs.
+- `docs/build_journal.md`, `docs/gate_audit.md` — G061 audit entries.
+
+Validation performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/src -w /src golang:1.22-bookworm gofmt -w ...` — formatted touched Go files.
+- Focused Go tests passed: `go test ./internal/storage ./internal/storage/postgres ./internal/api ./cmd/replay-worker ./cmd/gateway`.
+- Full Go suite passed: `go test ./...`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml config --quiet` — passed.
+- `docker compose -f compose.yaml -f compose.traefik.yaml build replay-worker` — passed; build ran `go test ./...` and produced `signalops-replay-worker`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml build gateway` — passed; produced updated `signalops-gateway`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d gateway` — recreated the gateway service.
+- Local `GET http://localhost:18000/healthz` — `200 OK`.
+- Local unauthenticated `POST http://localhost:18000/v1/replay/jobs/replay-g061-missing/cancel` — `401 Unauthorized`, expected after auth enforcement.
+
+Audit notes:
+
+- Authenticated live cancellation against a real replay job was not executed because no bearer token was available in this shell context. The API route is covered by unit tests and the live unauthenticated probe confirms the deployed route remains behind auth.
+- Replay-worker service is profile-gated and not continuously running by default; the replay-worker image was built and validated for the next operator-triggered replay run.
+
+Next step:
+
+- Frontend can add cancel controls for replay jobs if desired, now that the backend endpoint is deployed. Otherwise the next backend gate should move toward replay observability/operations polish or authenticated live replay cancellation validation.

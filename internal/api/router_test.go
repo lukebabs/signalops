@@ -120,15 +120,34 @@ func (q *fakeQueryRepository) FailReplayJob(context.Context, string, time.Time, 
 	return storage.ReplayJobRecord{}, storage.ErrNotFound
 }
 
-func (q *fakeQueryRepository) ListReplayRawEvents(context.Context, storage.ReplayJobRecord, int) ([]storage.RawEventLedgerRecord, error) {
+func (q *fakeQueryRepository) CancelReplayJob(_ context.Context, replayJobID string, actor string, canceledAt time.Time, reason string, resultJSON []byte) (storage.ReplayJobRecord, error) {
+	for index, job := range q.replayJobs {
+		if job.ReplayJobID == replayJobID {
+			job.Status = storage.ReplayJobStatusCanceled
+			completedAt := canceledAt.UTC()
+			job.CompletedAt = &completedAt
+			job.ErrorMessage = "canceled by " + actor
+			job.ResultJSON = []byte(`{"canceled":true}`)
+			if len(resultJSON) > 0 {
+				job.ResultJSON = resultJSON
+			}
+			_ = reason
+			q.replayJobs[index] = job
+			return job, nil
+		}
+	}
+	return storage.ReplayJobRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListReplayRawEvents(context.Context, storage.ReplayJobRecord, int, int) ([]storage.RawEventLedgerRecord, error) {
 	return nil, nil
 }
 
-func (q *fakeQueryRepository) ListReplayNormalizedEvents(context.Context, storage.ReplayJobRecord, int) ([]storage.NormalizedEventLedgerRecord, error) {
+func (q *fakeQueryRepository) ListReplayNormalizedEvents(context.Context, storage.ReplayJobRecord, int, int) ([]storage.NormalizedEventLedgerRecord, error) {
 	return nil, nil
 }
 
-func (q *fakeQueryRepository) ListReplaySignals(context.Context, storage.ReplayJobRecord, int) ([]storage.SignalLedgerRecord, error) {
+func (q *fakeQueryRepository) ListReplaySignals(context.Context, storage.ReplayJobRecord, int, int) ([]storage.SignalLedgerRecord, error) {
 	return nil, nil
 }
 
@@ -488,6 +507,40 @@ func TestReplayJobCreateListAndDetail(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("detail status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCancelReplayJob(t *testing.T) {
+	job := storage.ReplayJobRecord{
+		ReplayJobID: "replay-1",
+		TenantID:    "tenant-local",
+		SourceKind:  storage.ReplaySourceRaw,
+		ReplayMode:  storage.ReplayModeOriginal,
+		Status:      storage.ReplayJobStatusQueued,
+		WindowStart: time.Date(2026, 7, 9, 0, 0, 0, 0, time.UTC),
+		WindowEnd:   time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC),
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+	repo := &fakeQueryRepository{replayJobs: []storage.ReplayJobRecord{job}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/replay/jobs/replay-1/cancel", bytes.NewBufferString(`{"actor":"operator-g061","reason":"validation"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.replayJobs[0].Status != storage.ReplayJobStatusCanceled || repo.replayJobs[0].CompletedAt == nil {
+		t.Fatalf("canceled replay job = %+v", repo.replayJobs[0])
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("cancel JSON error = %v", err)
+	}
+	if response["replay_job"]["status"] != storage.ReplayJobStatusCanceled {
+		t.Fatalf("cancel response = %+v", response)
 	}
 }
 

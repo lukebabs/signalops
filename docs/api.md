@@ -421,13 +421,29 @@ Lists replay jobs ordered by `created_at DESC`. Filters are optional and can be 
 
 Returns one replay job.
 
+`POST /v1/replay/jobs/{replay_job_id}/cancel`
+
+Cancels a queued or running replay job. The endpoint accepts an optional lifecycle body:
+
+```json
+{
+  "actor": "operator-local",
+  "reason": "validation window changed",
+  "note": "optional operator note"
+}
+```
+
+Response status: `200 OK` with `{ "replay_job": ... }`. The worker detects cancellation between replay batches, stops publishing new records, and merges partial counters into the replay job `result` JSON.
+
 Execution notes:
 
 - `raw_events` replay publishes stored raw payloads to `signalops.<env>.raw.v1`; the normalizer then reprocesses them.
 - `normalized_events` replay publishes stored normalized event envelopes to `signalops.<env>.normalized.v1`.
 - `signals` replay publishes stored signal envelopes to `signalops.<env>.signal.v1`.
 - Replayed payloads include `replay_job_id`, `ingestion_mode: replay`, and `metadata.replay`.
-- The worker result JSON records scanned and published counts.
+- The worker reads temporal rows in batches using `SIGNALOPS_REPLAY_BATCH_SIZE` and caps each job at `SIGNALOPS_REPLAY_MAX_RECORDS`.
+- Broker publishes are retried up to `SIGNALOPS_REPLAY_PUBLISH_MAX_ATTEMPTS` before the job fails.
+- The worker result JSON records scanned, published, failed, batch, cancellation, and sampled per-record publish status fields.
 
 ### Provider Usage
 

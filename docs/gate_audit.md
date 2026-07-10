@@ -4526,3 +4526,54 @@ Additional validation performed:
 Follow-up items:
 
 - Backend may add replay cancellation, retry, batching, and per-record failure accounting as later gates; the UI intentionally omits those controls.
+
+
+## Gate G061: Backend Replay Hardening
+
+Timestamp: `2026-07-10T04:14:46Z`
+
+Status: `closed — implemented, deployed, and validated`
+
+Gate name:
+
+- Harden replay execution with batching/pagination, cancellation semantics, publish retry behavior, and per-record failure/accounting metadata.
+
+Criteria:
+
+- Replay worker reads temporal ledger rows in bounded batches rather than one capped query.
+- Raw, normalized, and signal replay source queries support deterministic `LIMIT/OFFSET` pagination.
+- Replay job cancellation can be requested through a backend API endpoint.
+- Running replay workers detect cancellation between batches and stop publishing additional records.
+- Replay worker retries broker publishes per record with a bounded attempt count.
+- Replay job result JSON records scanned, published, failed, batches, cancellation state, and sampled per-record status.
+- Replay worker env knobs are documented and included in Compose/example env.
+- Backend tests and container build validation pass.
+
+Evidence:
+
+- `cmd/replay-worker/main.go` — batch loop, cancellation checks, retry publishing, structured result JSON.
+- `cmd/replay-worker/main_test.go` — tests for paged batches, retries, and cancellation.
+- `internal/storage/storage.go` — replay cancellation and paginated replay source contracts.
+- `internal/storage/postgres/repository.go` — `CancelReplayJob` and paginated temporal ledger queries.
+- `internal/api/router.go` — `POST /v1/replay/jobs/{replay_job_id}/cancel`.
+- `internal/api/router_test.go` — replay cancel endpoint regression coverage.
+- `compose.yaml`, `.env.example` — replay batch/retry env controls.
+- `docs/api.md`, `docs/docker_development.md` — operator/API documentation.
+- `docs/build_journal.md` — implementation and validation record.
+
+Verification performed:
+
+- Go formatting through `golang:1.22-bookworm` container succeeded.
+- Focused Go tests passed: `go test ./internal/storage ./internal/storage/postgres ./internal/api ./cmd/replay-worker ./cmd/gateway`.
+- Full Go suite passed: `go test ./...`.
+- Compose config validation passed.
+- Replay-worker image build passed and ran `go test ./...` during Docker build.
+- Gateway image build passed.
+- Gateway service was recreated from the updated image.
+- Local gateway health returned `200 OK`.
+- Local unauthenticated replay cancel request returned `401 Unauthorized`, confirming the deployed endpoint remains protected by auth.
+
+Follow-up items:
+
+- Perform authenticated live cancellation validation when an operator token is available.
+- Optionally give frontend-agent a spec to expose replay job cancel controls and display per-record replay result samples.

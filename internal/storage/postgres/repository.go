@@ -881,6 +881,43 @@ func (r *Repository) FailReplayJob(ctx context.Context, replayJobID string, fail
 	return r.updateReplayJobTerminal(ctx, replayJobID, storage.ReplayJobStatusFailed, failedAt, errorMessage, resultJSON)
 }
 
+func (r *Repository) CancelReplayJob(ctx context.Context, replayJobID string, actor string, canceledAt time.Time, reason string, resultJSON []byte) (storage.ReplayJobRecord, error) {
+	actor = strings.TrimSpace(actor)
+	if actor == "" {
+		actor = "operator-local"
+	}
+	resultEnvelope := map[string]any{}
+	if len(resultJSON) > 0 {
+		if err := json.Unmarshal(resultJSON, &resultEnvelope); err != nil {
+			return storage.ReplayJobRecord{}, fmt.Errorf("decode cancel replay result: %w", err)
+		}
+	}
+	resultEnvelope["canceled"] = map[string]any{
+		"actor":       actor,
+		"reason":      strings.TrimSpace(reason),
+		"canceled_at": canceledAt.UTC().Format(time.RFC3339Nano),
+	}
+	metadata, err := json.Marshal(resultEnvelope)
+	if err != nil {
+		return storage.ReplayJobRecord{}, err
+	}
+	execResult, err := r.db.ExecContext(ctx, `
+UPDATE replay_jobs
+SET status = 'canceled', completed_at = $2, result = COALESCE(result, '{}'::jsonb) || $3::jsonb, error_message = $4, updated_at = now()
+WHERE replay_job_id = $1 AND status IN ('queued', 'running', 'canceled')`, strings.TrimSpace(replayJobID), canceledAt.UTC(), jsonOrEmpty(metadata), nullString("canceled by "+actor))
+	if err != nil {
+		return storage.ReplayJobRecord{}, fmt.Errorf("cancel replay job: %w", err)
+	}
+	changed, err := execResult.RowsAffected()
+	if err != nil {
+		return storage.ReplayJobRecord{}, fmt.Errorf("cancel replay job rows affected: %w", err)
+	}
+	if changed == 0 {
+		return r.GetReplayJob(ctx, replayJobID)
+	}
+	return r.GetReplayJob(ctx, replayJobID)
+}
+
 func (r *Repository) updateReplayJobTerminal(ctx context.Context, replayJobID string, status string, completedAt time.Time, errorMessage string, resultJSON []byte) (storage.ReplayJobRecord, error) {
 	result, err := r.db.ExecContext(ctx, `UPDATE replay_jobs SET status = $2, completed_at = $3, result = $4, error_message = $5, updated_at = now() WHERE replay_job_id = $1`, strings.TrimSpace(replayJobID), status, completedAt.UTC(), jsonOrEmpty(resultJSON), nullString(errorMessage))
 	if err != nil {
@@ -896,7 +933,7 @@ func (r *Repository) updateReplayJobTerminal(ctx context.Context, replayJobID st
 	return r.GetReplayJob(ctx, replayJobID)
 }
 
-func (r *Repository) ListReplayRawEvents(ctx context.Context, job storage.ReplayJobRecord, limit int) ([]storage.RawEventLedgerRecord, error) {
+func (r *Repository) ListReplayRawEvents(ctx context.Context, job storage.ReplayJobRecord, limit int, offset int) ([]storage.RawEventLedgerRecord, error) {
 	rows, err := r.temporal().QueryContext(ctx, `
 SELECT event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, observation_time,
   processing_time, broker_topic, broker_partition, broker_offset, payload, entity_hints, created_at
@@ -906,7 +943,7 @@ WHERE tenant_id = $1
   AND ($3 = '' OR dataset = $3)
   AND observation_time >= $4 AND observation_time < $5
 ORDER BY observation_time ASC, event_id ASC
-LIMIT $6`, strings.TrimSpace(job.TenantID), strings.TrimSpace(job.SourceID), strings.TrimSpace(job.Dataset), job.WindowStart, job.WindowEnd, clampLimit(limit))
+LIMIT $6 OFFSET $7`, strings.TrimSpace(job.TenantID), strings.TrimSpace(job.SourceID), strings.TrimSpace(job.Dataset), job.WindowStart, job.WindowEnd, clampLimit(limit), nonNegativeOffset(offset))
 	if err != nil {
 		return nil, fmt.Errorf("list replay raw events: %w", err)
 	}
@@ -925,11 +962,11 @@ LIMIT $6`, strings.TrimSpace(job.TenantID), strings.TrimSpace(job.SourceID), str
 	return records, nil
 }
 
-func (r *Repository) ListReplayNormalizedEvents(ctx context.Context, job storage.ReplayJobRecord, limit int) ([]storage.NormalizedEventLedgerRecord, error) {
+func (r *Repository) ListReplayNormalizedEvents(ctx context.Context, job storage.ReplayJobRecord, limit int, offset int) ([]storage.NormalizedEventLedgerRecord, error) {
 	rows, err := r.temporal().QueryContext(ctx, normalizedEventSelect+`
 WHERE tenant_id = $1 AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
   AND observation_time >= $4 AND observation_time < $5
-ORDER BY observation_time ASC, event_id ASC LIMIT $6`, strings.TrimSpace(job.TenantID), strings.TrimSpace(job.SourceID), strings.TrimSpace(job.Dataset), job.WindowStart, job.WindowEnd, clampLimit(limit))
+ORDER BY observation_time ASC, event_id ASC LIMIT $6 OFFSET $7`, strings.TrimSpace(job.TenantID), strings.TrimSpace(job.SourceID), strings.TrimSpace(job.Dataset), job.WindowStart, job.WindowEnd, clampLimit(limit), nonNegativeOffset(offset))
 	if err != nil {
 		return nil, fmt.Errorf("list replay normalized events: %w", err)
 	}
@@ -948,11 +985,11 @@ ORDER BY observation_time ASC, event_id ASC LIMIT $6`, strings.TrimSpace(job.Ten
 	return records, nil
 }
 
-func (r *Repository) ListReplaySignals(ctx context.Context, job storage.ReplayJobRecord, limit int) ([]storage.SignalLedgerRecord, error) {
+func (r *Repository) ListReplaySignals(ctx context.Context, job storage.ReplayJobRecord, limit int, offset int) ([]storage.SignalLedgerRecord, error) {
 	rows, err := r.temporal().QueryContext(ctx, signalSelect+`
 WHERE tenant_id = $1 AND ($2 = '' OR source_id = $2) AND ($3 = '' OR dataset = $3)
   AND signal_time >= $4 AND signal_time < $5
-ORDER BY signal_time ASC, signal_id ASC LIMIT $6`, strings.TrimSpace(job.TenantID), strings.TrimSpace(job.SourceID), strings.TrimSpace(job.Dataset), job.WindowStart, job.WindowEnd, clampLimit(limit))
+ORDER BY signal_time ASC, signal_id ASC LIMIT $6 OFFSET $7`, strings.TrimSpace(job.TenantID), strings.TrimSpace(job.SourceID), strings.TrimSpace(job.Dataset), job.WindowStart, job.WindowEnd, clampLimit(limit), nonNegativeOffset(offset))
 	if err != nil {
 		return nil, fmt.Errorf("list replay signals: %w", err)
 	}
@@ -1708,6 +1745,13 @@ func clampLimit(limit int) int {
 		return 200
 	}
 	return limit
+}
+
+func nonNegativeOffset(offset int) int {
+	if offset < 0 {
+		return 0
+	}
+	return offset
 }
 
 func validateSchedulerRun(record storage.SchedulerRunRecord) error {

@@ -112,10 +112,21 @@ Run one queued replay job and exit, capped to one record for validation:
 docker compose --profile replay run --rm \
   -e SIGNALOPS_REPLAY_ONESHOT=true \
   -e SIGNALOPS_REPLAY_MAX_RECORDS=1 \
+  -e SIGNALOPS_REPLAY_BATCH_SIZE=1 \
   replay-worker
 ```
 
 The replay worker requires both `SIGNALOPS_DATABASE_URL` and
 `SIGNALOPS_TEMPORAL_DATABASE_URL`. It claims queued PostgreSQL replay jobs, reads
-matching Timescale rows, republishes through Redpanda, and updates the job
-status/result metadata.
+matching Timescale rows in bounded batches, republishes through Redpanda with
+configurable publish retries, detects cancellation between batches, and updates
+the job status/result metadata.
+
+Replay worker controls:
+
+- `SIGNALOPS_REPLAY_WORKER_ID`: worker identifier written into claim metadata.
+- `SIGNALOPS_REPLAY_ONESHOT`: when true, process at most one queued job and exit.
+- `SIGNALOPS_REPLAY_MAX_RECORDS`: maximum source records to replay for a job.
+- `SIGNALOPS_REPLAY_BATCH_SIZE`: temporal rows read per batch, capped at 200.
+- `SIGNALOPS_REPLAY_PUBLISH_MAX_ATTEMPTS`: broker publish attempts per record.
+- `SIGNALOPS_REPLAY_POLL_INTERVAL`: wait duration between empty queue polls.
