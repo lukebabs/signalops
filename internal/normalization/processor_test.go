@@ -86,6 +86,13 @@ func TestBuildEventNormalizesMassiveOptionContractDaily(t *testing.T) {
 	if payload["strike_price"] != 600.0 || payload["volume"] != int64(1200) || payload["open_interest"] != int64(4000) {
 		t.Fatalf("market fields = %+v", payload)
 	}
+	features, _ := payload["features"].(map[string]any)
+	if features["open_close_move_pct"] != 10.1786 || features["intraday_range_pct"] != 16.9643 || features["vwap_distance_pct"] != 2.7477 {
+		t.Fatalf("price features = %+v", features)
+	}
+	if features["volume_open_interest_ratio"] != 0.3 || features["days_to_expiration"] != 192 {
+		t.Fatalf("option-interest features = %+v", features)
+	}
 	if len(event.Entities) != 2 || event.Entities[0]["id"] != "option_contract:O:SPY260116C00600000" || event.Entities[1]["id"] != "ticker:SPY" {
 		t.Fatalf("entities = %+v", event.Entities)
 	}
@@ -94,6 +101,33 @@ func TestBuildEventNormalizesMassiveOptionContractDaily(t *testing.T) {
 	}
 	normalization, _ := event.Metadata["normalization"].(map[string]any)
 	if normalization["strategy"] != "marketops_massive_option_contract_daily_v1" {
+		t.Fatalf("normalization metadata = %+v", normalization)
+	}
+}
+
+func TestBuildEventAddsMassiveEquityEODFeatures(t *testing.T) {
+	message := massiveEquityMessage()
+	event, err := BuildEvent(message, time.Date(2026, 7, 10, 18, 30, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload := event.NormalizedPayload
+	if payload["symbol"] != "SPY" || payload["close"] != 105.0 {
+		t.Fatalf("payload = %+v", payload)
+	}
+	features, _ := payload["features"].(map[string]any)
+	if features["open_close_move_pct"] != 5.0 || features["intraday_range_pct"] != 10.0 {
+		t.Fatalf("range features = %+v", features)
+	}
+	if features["vwap_distance_pct"] != 1.9417 || features["daily_return_pct"] != 7.1429 {
+		t.Fatalf("return features = %+v", features)
+	}
+	if features["volume"] != int64(2500000) {
+		t.Fatalf("volume feature = %+v", features)
+	}
+	normalization, _ := event.Metadata["normalization"].(map[string]any)
+	if normalization["strategy"] != "marketops_massive_equity_eod_features_v1" {
 		t.Fatalf("normalization metadata = %+v", normalization)
 	}
 }
@@ -182,7 +216,7 @@ func massiveOptionMessage() broker.ConsumedMessage {
 				"payload":{
 					"provider":"massive","dataset":"options_contracts_daily","provider_contract_id":"contract-123",
 					"option_ticker":"O:SPY260116C00600000","underlying_symbol":"spy","contract_type":"CALL",
-					"expiration_date":"2026-01-16","strike_price":600,"observation_date":"2026-07-08",
+					"expiration_date":"2027-01-16","strike_price":600,"observation_date":"2026-07-08",
 					"open":11.2,"high":12.8,"low":10.9,"close":12.34,"volume":1200,"open_interest":4000,"vwap":12.01,
 					"raw":{"source_field":"value"}
 				},
@@ -191,5 +225,29 @@ func massiveOptionMessage() broker.ConsumedMessage {
 			}`),
 		},
 		Partition: 2, Offset: 9,
+	}
+}
+
+func massiveEquityMessage() broker.ConsumedMessage {
+	return broker.ConsumedMessage{
+		Message: broker.Message{
+			Topic: "signalops.test.raw.v1", Key: "idem-equity-1",
+			CorrelationID: "corr-equity-1", TraceID: "trace-equity-1",
+			Value: []byte(`{
+				"tenant_id":"tenant-local","source_id":"src-massive","app_id":"marketops","domain":"market_data",
+				"use_case":"daily_market_surveillance","source_domain":"market_data","source_adapter":"market_data.massive",
+				"ingestion_mode":"scheduled_pull","dataset":"equity_eod_prices",
+				"event_id":"evt-equity-1","event_type":"market_data.massive.equity_eod_price","idempotency_key":"idem-equity-1",
+				"observation_time":"2026-07-08T00:00:00Z","processing_time":"2026-07-08T20:00:01Z",
+				"payload":{
+					"provider":"massive","dataset":"equity_eod_prices","provider_event_id":"agg-123",
+					"symbol":"SPY","observation_date":"2026-07-08","open":100,"high":108,"low":98,
+					"close":105,"previous_close":98,"volume":2500000,"vwap":103
+				},
+				"entity_hints":[{"type":"ticker","external_id":"SPY"}],
+				"metadata":{},"correlation_id":"corr-equity-1"
+			}`),
+		},
+		Partition: 2, Offset: 8,
 	}
 }

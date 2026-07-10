@@ -5334,3 +5334,44 @@ Validation performed:
 Follow-up items:
 
 - G073 should add the MarketOps feature-builder layer for option-interest and price-derived features.
+
+## Gate G073: MarketOps Feature Builder Layer
+
+Timestamp: `2026-07-10T18:37:43Z`
+
+Status: `closed — full Go tests, schema validation, normalizer Docker build, and live feature-map smoke passed`
+
+Gate name:
+
+- Add the first deterministic MarketOps feature-builder layer for option-interest and price-derived features.
+
+Implementation:
+
+- Added deterministic `normalized_payload.features` enrichment for MarketOps Massive `equity_eod_prices` and `options_contracts_daily` records in the existing Go normalizer.
+- Equity EOD feature enrichment preserves the source payload and adds price-derived metrics when inputs exist: `open_close_move_pct`, `intraday_range_pct`, `vwap_distance_pct`, `daily_return_pct`, and `volume`.
+- Option contract daily enrichment adds price-derived metrics plus option-interest metrics: `open_interest`, `volume`, `volume_open_interest_ratio`, and `days_to_expiration`.
+- Preserved G072 option contract validation/canonicalization and the existing normalization DLQ path for invalid option payloads.
+- Kept dedicated feature/artifact services deferred; G073 uses the normalized event boundary as the first deterministic feature-builder layer.
+
+Evidence:
+
+- `internal/normalization/processor.go`: MarketOps Massive feature enrichment helpers and strategies.
+- `internal/normalization/processor_test.go`: equity feature tests plus option price/interest feature tests.
+- `docs/api.md`: normalized ledger feature-map contract note.
+
+Validation performed:
+
+- Dockerized `gofmt` on the touched Go files.
+- `go test ./internal/normalization`: passed in the Go Docker image.
+- `go test ./...`: passed in the Go Docker image.
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `docker compose build normalizer`: passed; build step also ran `go test ./...`.
+- `docker compose up -d --no-deps --build normalizer`: recreated the live normalizer with the G073 image.
+- Published raw events `evt-g073-equity-live` and `evt-g073-option-live` to `signalops.local.raw.v1`; Redpanda accepted equity partition `2` offset `11` and option partition `1` offset `5`.
+- Normalizer persisted equity normalized partition `2` offset `8` and option normalized partition `1` offset `4`.
+- `signalops.normalizer.v1` was Stable with total lag `0`.
+- TimescaleDB verified persisted equity feature map with price-derived metrics and option feature map with price-derived plus option-interest metrics.
+
+Follow-up items:
+
+- G074 should add DSM artifact generation and graph proposal payloads.

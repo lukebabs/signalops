@@ -4563,3 +4563,41 @@ Live smoke validation:
 Next step:
 
 - G073: MarketOps feature-builder layer for option-interest and price-derived features.
+
+## 2026-07-10T18:37:43Z
+
+Summary:
+
+- Implemented G073 as the first MarketOps feature-builder slice at the existing normalized input boundary.
+- Massive `equity_eod_prices` normalized payloads now preserve all source fields and add `features` with deterministic price-derived metrics when inputs are present: open/close move percent, intraday range percent, VWAP distance percent, daily return percent, and volume.
+- Massive `options_contracts_daily` normalized payloads now add the same price-derived feature family plus option-interest features: open interest, volume, volume/open-interest ratio, and days to expiration.
+- Kept standalone feature/artifact services deferred; the current feature layer is deterministic normalized payload enrichment for downstream detectors/replay.
+
+Files changed:
+
+- `internal/normalization/processor.go`
+- `internal/normalization/processor_test.go`
+- `docs/api.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm gofmt -w internal/normalization/processor.go internal/normalization/processor_test.go`
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/normalization`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `docker compose build normalizer`: passed; build step also ran `go test ./...`.
+
+Live smoke validation:
+
+- Recreated the `normalizer` service with the G073 image using `docker compose up -d --no-deps --build normalizer`.
+- Published bounded raw events `evt-g073-equity-live` and `evt-g073-option-live` to `signalops.local.raw.v1`; Redpanda accepted equity partition `2` offset `11` and option partition `1` offset `5`.
+- Normalizer logs showed both normalized events persisted: equity normalized partition `2` offset `8`, option normalized partition `1` offset `4`.
+- `signalops.normalizer.v1` was Stable with total lag `0`.
+- TimescaleDB `normalized_event_ledger` verified equity strategy `marketops_massive_equity_eod_features_v1` with features `open_close_move_pct=5`, `intraday_range_pct=10`, `vwap_distance_pct=1.9417`, `daily_return_pct=7.1429`, and `volume=2500000`.
+- TimescaleDB verified option strategy `marketops_massive_option_contract_daily_v1` with features `open_close_move_pct=10.1786`, `intraday_range_pct=16.9643`, `vwap_distance_pct=2.7477`, `open_interest=4000`, `volume_open_interest_ratio=0.3`, and `days_to_expiration=191`.
+
+Next step:
+
+- G074: DSM artifact generation and graph proposal payloads.

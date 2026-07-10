@@ -99,13 +99,19 @@ and `normalized_event_ledger` persistence succeeds. Invalid source contracts are
 algorithm DLQ with original payload and source coordinates before their source offset is committed.
 Infrastructure failures leave the source offset uncommitted for retry.
 
-The Go normalizer now applies a MarketOps-specific canonicalization strategy for Massive
+The Go normalizer applies MarketOps feature enrichment for Massive `equity_eod_prices` and
 `options_contracts_daily` records (`app_id=marketops`, `source_adapter=market_data.massive`).
-The canonical `normalized_payload` requires `option_ticker`, `underlying_symbol`, `contract_type`
-(`call` or `put`), `expiration_date`, `observation_date`, and positive `strike_price`; it validates
-optional OHLC/VWAP as non-negative numbers and volume/open interest as non-negative integers while
-preserving provider contract ID and raw provider metadata when present. Invalid option contracts
-follow the existing normalization DLQ path.
+Both datasets can carry a deterministic `normalized_payload.features` map with price-derived
+features: `open_close_move_pct`, `intraday_range_pct`, `vwap_distance_pct`, and
+`daily_return_pct` when the required source fields are present. Option records also carry
+option-interest features: `open_interest`, `volume`, `volume_open_interest_ratio`, and
+`days_to_expiration`.
+
+The options canonicalization strategy requires `option_ticker`, `underlying_symbol`,
+`contract_type` (`call` or `put`), `expiration_date`, `observation_date`, and positive
+`strike_price`; it validates optional OHLC/VWAP as non-negative numbers and volume/open interest
+as non-negative integers while preserving provider contract ID and raw provider metadata when
+present. Invalid option contracts follow the existing normalization DLQ path.
 
 
 ## Signal Ledger

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -257,14 +258,21 @@ func PublishInvalidEvent(ctx context.Context, publisher broker.Publisher, topic 
 }
 
 func normalizePayload(raw map[string]any, payload map[string]any) (map[string]any, string, error) {
-	if firstString(raw, "app_id") == "marketops" && firstString(raw, "source_adapter") == "market_data.massive" && firstString(raw, "dataset") == "options_contracts_daily" {
+	if firstString(raw, "app_id") != "marketops" || firstString(raw, "source_adapter") != "market_data.massive" {
+		return payload, "identity_v1", nil
+	}
+	switch firstString(raw, "dataset") {
+	case "options_contracts_daily":
 		normalized, err := normalizeMassiveOptionContractDaily(payload)
 		if err != nil {
 			return nil, "", err
 		}
 		return normalized, "marketops_massive_option_contract_daily_v1", nil
+	case "equity_eod_prices":
+		return normalizeMassiveEquityEODFeatures(payload), "marketops_massive_equity_eod_features_v1", nil
+	default:
+		return payload, "identity_v1", nil
 	}
-	return payload, "identity_v1", nil
 }
 
 func normalizeMassiveOptionContractDaily(payload map[string]any) (map[string]any, error) {
@@ -327,7 +335,119 @@ func normalizeMassiveOptionContractDaily(payload map[string]any) (map[string]any
 	if raw, ok := payload["raw"].(map[string]any); ok {
 		normalized["raw"] = raw
 	}
+	if features := marketOpsDailyFeatures(normalized); len(features) > 0 {
+		normalized["features"] = features
+	}
 	return normalized, nil
+}
+
+func normalizeMassiveEquityEODFeatures(payload map[string]any) map[string]any {
+	normalized := copyPayload(payload)
+	if features := marketOpsDailyFeatures(normalized); len(features) > 0 {
+		normalized["features"] = features
+	}
+	return normalized
+}
+
+func copyPayload(payload map[string]any) map[string]any {
+	copied := make(map[string]any, len(payload))
+	for key, value := range payload {
+		copied[key] = value
+	}
+	return copied
+}
+
+func marketOpsDailyFeatures(payload map[string]any) map[string]any {
+	features := map[string]any{}
+	openPrice, hasOpen := positiveFeatureFloat(payload, "open")
+	high, hasHigh := featureFloat(payload, "high")
+	low, hasLow := featureFloat(payload, "low")
+	closePrice, hasClose := featureFloat(payload, "close")
+	vwap, hasVWAP := positiveFeatureFloat(payload, "vwap")
+	previousClose, hasPreviousClose := positiveFeatureFloat(payload, "previous_close")
+	volume, hasVolume := featureInt(payload, "volume")
+	openInterest, hasOpenInterest := featureInt(payload, "open_interest")
+
+	if hasOpen && hasClose {
+		features["open_close_move_pct"] = roundFeaturePct((closePrice - openPrice) / openPrice)
+	}
+	if hasOpen && hasHigh && hasLow {
+		features["intraday_range_pct"] = roundFeaturePct((high - low) / openPrice)
+	}
+	if hasVWAP && hasClose {
+		features["vwap_distance_pct"] = roundFeaturePct((closePrice - vwap) / vwap)
+	}
+	if hasPreviousClose && hasClose {
+		features["daily_return_pct"] = roundFeaturePct((closePrice - previousClose) / previousClose)
+	}
+	if hasVolume {
+		features["volume"] = volume
+	}
+	if hasOpenInterest {
+		features["open_interest"] = openInterest
+	}
+	if hasVolume && openInterest > 0 {
+		features["volume_open_interest_ratio"] = roundFeatureFloat(float64(volume)/float64(openInterest), 6)
+	}
+	if days, ok := daysToExpiration(payload); ok {
+		features["days_to_expiration"] = days
+	}
+	return features
+}
+
+func daysToExpiration(payload map[string]any) (int, bool) {
+	expirationDate := payloadString(payload, "expiration_date")
+	observationDate := payloadString(payload, "observation_date")
+	if expirationDate == "" || observationDate == "" {
+		return 0, false
+	}
+	expiration, err := parsePayloadDate(expirationDate, "expiration_date")
+	if err != nil {
+		return 0, false
+	}
+	observation, err := parsePayloadDate(observationDate, "observation_date")
+	if err != nil {
+		return 0, false
+	}
+	return int(expiration.Sub(observation).Hours() / 24), true
+}
+
+func positiveFeatureFloat(payload map[string]any, name string) (float64, bool) {
+	value, ok := featureFloat(payload, name)
+	return value, ok && value > 0
+}
+
+func featureFloat(payload map[string]any, name string) (float64, bool) {
+	value, ok := payloadFloat(payload, name)
+	return value, ok
+}
+
+func featureInt(payload map[string]any, name string) (int64, bool) {
+	switch value := payload[name].(type) {
+	case float64:
+		if value != float64(int64(value)) {
+			return 0, false
+		}
+		return int64(value), true
+	case int:
+		return int64(value), true
+	case int64:
+		return value, true
+	case json.Number:
+		parsed, err := value.Int64()
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func roundFeaturePct(value float64) float64 {
+	return roundFeatureFloat(value*100, 4)
+}
+
+func roundFeatureFloat(value float64, places int) float64 {
+	factor := math.Pow10(places)
+	return math.Round(value*factor) / factor
 }
 
 func requiredPayloadString(payload map[string]any, name string) string {
