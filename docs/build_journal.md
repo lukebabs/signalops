@@ -4949,3 +4949,35 @@ Verification performed:
 Next step:
 
 - Move or summarize older MarketOps-specific material into the new use-case folders as future gates need it, while preserving historical source documents in place.
+
+
+## 2026-07-11T00:08:00Z
+
+Summary:
+
+- Continued the use-case documentation process by adding substantive MarketOps Daily Market Surveillance notes under the new folder structure.
+- Added an architecture note explaining signal persistence, artifact persistence, lifecycle derivation, and DSM Workbench Ledger semantics.
+- Added a frontend operator validation checklist for selecting a `persisted` DSM row and confirming the first-class artifact ledger panel.
+
+Files changed:
+
+- `docs/use_cases/marketops/daily_market_surveillance/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/architecture/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/architecture/signal_artifact_persistence.md`
+- `docs/use_cases/marketops/daily_market_surveillance/frontend/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/frontend/dsm_workbench_operator_validation.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- The DSM Workbench `persisted` label needed precise documentation so operators and future agents do not confuse artifact-ledger materialization with signal persistence.
+
+Verification performed:
+
+- Read back the new use-case README files and confirmed cross-links point to the new notes.
+- `git diff --check`: passed.
+
+Next step:
+
+- Continue moving or summarizing MarketOps-specific implementation knowledge into the relevant use-case subfolders as new gates require it.

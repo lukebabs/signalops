@@ -34,3 +34,5 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - Python worker/detector behavior: `docs/python_worker.md`
 - Original MarketOps target specs: `docs/marketops/`
 - Frontend DSM workbench implementation spec: `docs/frontend/marketops_dsm_workbench_ui_spec.md`
+- Signal/artifact persistence note: `architecture/signal_artifact_persistence.md`
+- DSM Workbench operator validation: `frontend/dsm_workbench_operator_validation.md`

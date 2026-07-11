@@ -13,3 +13,7 @@ DSM Workbench Ledger column semantics:
 - `signal-only`: the signal may still include artifact proposal data in semantic evidence, but no first-class artifact ledger row was found by the frontend query.
 
 Operator validation for G078 requires signing in, opening `/marketops/dsm`, selecting a row with `persisted`, and confirming the `First-Class Artifact Ledger` panel renders live artifact data.
+
+Current notes:
+
+- `dsm_workbench_operator_validation.md`: authenticated operator checklist and failure triage.

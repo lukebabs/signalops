@@ -5714,3 +5714,32 @@ Follow-up items:
 
 - Future gates should add use-case-specific docs under `docs/use_cases/{app_id}/{use_case}/` instead of adding loose files at the docs root.
 - Existing historical MarketOps specs can remain in `docs/marketops/`; summarize or cross-link into the use-case tree as needed.
+
+
+## Documentation Organization: MarketOps DSM Persistence Notes
+
+Timestamp: `2026-07-11T00:08:00Z`
+
+Status: `documentation-only — use-case notes added`
+
+Scope:
+
+- Add concrete MarketOps Daily Market Surveillance documentation under the new use-case folder structure.
+
+Implementation:
+
+- Added `architecture/signal_artifact_persistence.md` to explain the relationship between `signal_ledger`, `marketops_dsm_artifacts`, `alert_ledger`, and `insight_ledger`.
+- Added `frontend/dsm_workbench_operator_validation.md` to document authenticated DSM Workbench validation and the meaning of `persisted` versus `signal-only`.
+- Updated the MarketOps daily-surveillance README and category READMEs to link to the new notes.
+
+Key clarification:
+
+- `persisted` in the DSM Workbench Ledger column means an artifact ledger record exists in `marketops_dsm_artifacts`; the signal itself is already persisted separately in `signal_ledger`.
+
+Verification performed:
+
+- Documentation readback and cross-link review.
+
+Follow-up items:
+
+- Add G079 graph proposal documentation under `architecture/` and `api/` when that gate starts.

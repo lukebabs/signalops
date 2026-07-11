@@ -12,3 +12,7 @@ Belongs here:
 Current key rule:
 
 - A persisted DSM artifact is a first-class record in `marketops_dsm_artifacts` derived from a persisted signal. It is linked by `artifact_id` and `signal_id`; it does not replace the canonical `signal_ledger` record.
+
+Current notes:
+
+- `signal_artifact_persistence.md`: canonical signal/artifact/lifecycle relationship and DSM Workbench Ledger semantics.
