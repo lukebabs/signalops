@@ -17,3 +17,4 @@ Operator validation for G078 requires signing in, opening `/marketops/dsm`, sele
 Current notes:
 
 - `dsm_workbench_operator_validation.md`: authenticated operator checklist and failure triage.
+- `../../../../frontend/marketops_graph_proposals_readonly_spec.md`: frontend-agent handoff for G079 read-only graph proposal visibility.

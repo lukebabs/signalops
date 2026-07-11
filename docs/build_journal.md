@@ -5099,3 +5099,23 @@ Residual state:
 
 - Authenticated graph-proposal API list/detail/decision smoke remains operator-token dependent. Unit tests cover the route contracts.
 - The signal-persister group remained Stable, but historical lag remains on older partitions from previously queued messages. The G079 smoke partition advanced to lag `0`.
+
+
+## 2026-07-11T18:02:00Z
+
+Summary:
+
+- Added a frontend-agent handoff specification for G079 read-only graph proposal visibility.
+- Scoped the frontend work to the existing `/marketops/dsm` DSM Workbench and explicitly excluded graph editing, graph canvas work, decision mutations, and graph database writes.
+
+Files changed:
+
+- `docs/frontend/marketops_graph_proposals_readonly_spec.md`
+- `docs/use_cases/marketops/daily_market_surveillance/frontend/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.

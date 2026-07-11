@@ -5854,3 +5854,32 @@ Follow-up items:
 
 - Run authenticated graph proposal API list/detail/decision smoke with an operator token.
 - Decide whether to drain or separately audit the historical signal-persister lag on partitions `0` and `1`.
+
+
+## Frontend-Agent Spec: G079 Graph Proposal Visibility
+
+Timestamp: `2026-07-11T18:02:00Z`
+
+Status: `documentation-only — frontend handoff ready`
+
+Scope:
+
+- Define a no-scope-creep frontend-agent task for read-only graph proposal visibility in the existing MarketOps DSM Workbench.
+
+Implementation:
+
+- Added `docs/frontend/marketops_graph_proposals_readonly_spec.md`.
+- Cross-linked the spec from the MarketOps Daily Market Surveillance frontend use-case README.
+
+Key guardrails:
+
+- No graph editing.
+- No graph canvas or visualization.
+- No decision mutation UI.
+- No graph database writes.
+- Preserve existing `persisted` versus `signal-only` artifact semantics.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.
