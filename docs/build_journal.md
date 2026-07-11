@@ -5057,3 +5057,45 @@ Notes:
 
 - Host `go` and `gofmt` binaries were unavailable, so validation used the existing local `golang:1.24` Docker image.
 - G079 does not mutate a production graph database and does not add frontend graph editing.
+
+
+## 2026-07-11T17:50:00Z
+
+Summary:
+
+- Performed G079 live closeout validation against the local Compose stack.
+- Applied migration `000013_marketops_dsm_graph_proposals`.
+- Rebuilt and recreated `gateway` and `signal-persister`; force-recreated `web` after gateway replacement to refresh nginx upstream resolution.
+- Found and fixed a live nil-labels bug where relationship graph candidates without `labels` produced a null array value for the non-null `marketops_dsm_graph_proposals.labels` column.
+- Published bounded G079 smoke signal `sig_marketops_dsm_taxonomy_v1_g079_graph_live` to `signalops.local.signal.v1`.
+
+Files changed:
+
+- `internal/storage/postgres/marketops_dsm_graph_proposals.go`
+- `internal/storage/postgres/repository_test.go`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `make compose-storage-migrate`: applied `000013_marketops_dsm_graph_proposals`.
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.24 gofmt -w internal/storage/postgres/marketops_dsm_graph_proposals.go internal/storage/postgres/repository_test.go`: passed.
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.24 go test ./internal/storage/postgres ./internal/api`: passed.
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.24 go test ./...`: passed.
+- `docker compose build gateway signal-persister`: passed and ran Dockerfile `go test ./...`.
+- `docker compose up -d gateway signal-persister`: recreated both services.
+- `docker compose up -d --force-recreate web`: refreshed nginx after gateway recreation.
+- Direct gateway health `GET http://localhost:18000/healthz`: returned `200`.
+- Web-proxied health `GET http://localhost:15173/healthz`: returned `200`.
+- Published smoke signal to Redpanda partition `2`, offset `4`.
+- `signal-persister` logged persistence for `sig_marketops_dsm_taxonomy_v1_g079_graph_live`.
+- Postgres verified the signal row with `app_id=marketops`, `domain=market_data`, `use_case=daily_market_surveillance`, detector `marketops.dsm.taxonomy_v1`, and severity `high`.
+- Postgres verified artifact `artifact_marketops_dsm_v1_g079_graph_live` with artifact type `marketops.dsm.signal_artifact.v1`, subject `AAPL`, and five graph targets.
+- Postgres verified five `marketops_dsm_graph_proposals` rows: three node candidates and two relationship candidates, all status `proposed`.
+- Postgres verified derived alert `open` and insight `active`.
+- Unauthenticated `GET /v1/marketops/dsm/graph-proposals?...` returned expected `401 missing bearer token`.
+
+Residual state:
+
+- Authenticated graph-proposal API list/detail/decision smoke remains operator-token dependent. Unit tests cover the route contracts.
+- The signal-persister group remained Stable, but historical lag remains on older partitions from previously queued messages. The G079 smoke partition advanced to lag `0`.

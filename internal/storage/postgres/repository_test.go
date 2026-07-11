@@ -145,6 +145,9 @@ func TestExtractMarketOpsDSMGraphProposals(t *testing.T) {
 	if proposals[1].CandidateType != "relationship_candidate" || proposals[1].FromNode != "ticker:AAPL" || proposals[1].Relationship != "EXHIBITS_SIGNAL" || proposals[1].ToNode == "" {
 		t.Fatalf("relationship proposal = %+v", proposals[1])
 	}
+	if proposals[1].Labels == nil {
+		t.Fatalf("relationship proposal labels should be an empty slice, not nil")
+	}
 	if err := validateMarketOpsDSMGraphProposal(proposals[0]); err != nil {
 		t.Fatalf("validate node proposal: %v", err)
 	}

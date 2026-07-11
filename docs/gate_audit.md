@@ -5813,3 +5813,44 @@ Follow-up items:
 
 - Apply migration and run live persistence validation against the G077 smoke artifact path.
 - Hand frontend-agent a read-only graph proposal visibility spec only after the backend endpoint shape is accepted.
+
+
+## Gate G079 Live Closeout: Graph Proposal Persistence
+
+Timestamp: `2026-07-11T17:50:00Z`
+
+Status: `live validation passed with authenticated API smoke pending operator token`
+
+Scope:
+
+- Apply and validate the G079 graph proposal backend in the running local stack.
+
+Implementation follow-up:
+
+- Fixed live nil-label handling for graph proposal candidates. Relationship candidates often omit `labels`; extraction now normalizes missing labels to an empty slice so Postgres receives an empty array instead of null.
+- Added a regression assertion that relationship graph proposals without labels do not produce nil labels.
+
+Validation performed:
+
+- Applied migration `000013_marketops_dsm_graph_proposals`.
+- Rebuilt/recreated `gateway` and `signal-persister`; force-recreated `web` after gateway replacement.
+- Containerized `gofmt`: passed.
+- Containerized targeted Go tests for `./internal/storage/postgres ./internal/api`: passed.
+- Containerized full Go test suite `go test ./...`: passed.
+- Compose image build for `gateway signal-persister`: passed and ran Dockerfile `go test ./...`.
+- Direct and web-proxied gateway health returned `200`.
+- Published bounded smoke signal `sig_marketops_dsm_taxonomy_v1_g079_graph_live` to `signalops.local.signal.v1`, partition `2`, offset `4`.
+- `signal-persister` persisted the smoke signal.
+- Postgres verified the signal, artifact, alert, insight, and five graph proposal rows.
+- Graph proposals materialized as three node candidates and two relationship candidates, all status `proposed`.
+- Unauthenticated graph proposal API probe returned expected `401 unauthorized`.
+
+Residual risk:
+
+- Positive authenticated API route validation requires a real operator bearer token.
+- Historical signal-persister lag remains on older partitions, but the G079 smoke partition committed through the published offset with lag `0`.
+
+Follow-up items:
+
+- Run authenticated graph proposal API list/detail/decision smoke with an operator token.
+- Decide whether to drain or separately audit the historical signal-persister lag on partitions `0` and `1`.

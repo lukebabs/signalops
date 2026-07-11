@@ -43,7 +43,7 @@ func extractMarketOpsDSMGraphProposals(artifact storage.MarketOpsDSMArtifactReco
 			EventIDs:      append([]string(nil), artifact.EventIDs...),
 			SubjectSymbol: artifact.SubjectSymbol,
 			CandidateType: candidateType,
-			Labels:        stringSlice(candidate["labels"]),
+			Labels:        stringSliceOrEmpty(candidate["labels"]),
 			Status:        storage.MarketOpsDSMGraphProposalStatusProposed,
 		}
 		switch candidateType {
@@ -249,6 +249,14 @@ func validateMarketOpsDSMGraphProposal(record storage.MarketOpsDSMGraphProposalR
 		return err
 	}
 	return validateJSONObject("marketops dsm graph proposal candidate", jsonOrEmpty(record.RawCandidate))
+}
+
+func stringSliceOrEmpty(value any) []string {
+	items := stringSlice(value)
+	if items == nil {
+		return []string{}
+	}
+	return items
 }
 
 func graphProposalStatusOrDefault(status string) string {
