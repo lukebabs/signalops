@@ -5743,3 +5743,34 @@ Verification performed:
 Follow-up items:
 
 - Add G079 graph proposal documentation under `architecture/` and `api/` when that gate starts.
+
+
+## Gate G079 Planning: Graph Proposal Acceptance
+
+Timestamp: `2026-07-11T00:22:00Z`
+
+Status: `documentation-only — proposed gate contract added`
+
+Scope:
+
+- Define the next MarketOps Daily Market Surveillance backend boundary after first-class DSM artifact persistence and frontend artifact visibility.
+
+Implementation:
+
+- Added `architecture/graph_proposal_acceptance.md` to describe the proposed graph proposal ledger, status lifecycle, identity rules, extraction rules, non-goals, and validation expectations.
+- Added `api/graph_proposal_api.md` to document proposed graph proposal list/detail/decision endpoints under existing `/v1/*` gateway conventions.
+- Added `gates/G079_graph_proposal_acceptance.md` to capture gate goal, inputs, deliverables, acceptance criteria, and deferred work.
+- Updated use-case README files to cross-link the new G079 notes.
+
+Key clarification:
+
+- G079 should store reviewable graph proposals derived from persisted DSM artifacts. It should not mutate an external graph database.
+
+Verification performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.
+
+Follow-up items:
+
+- Implement the G079 migration, storage extraction/upsert, APIs, and tests.

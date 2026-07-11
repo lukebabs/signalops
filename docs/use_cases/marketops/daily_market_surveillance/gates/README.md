@@ -16,4 +16,4 @@ Current gate sequence:
 
 Recommended next gate:
 
-- G079: graph proposal acceptance/storage.
+- G079: graph proposal acceptance/storage. See `G079_graph_proposal_acceptance.md`.

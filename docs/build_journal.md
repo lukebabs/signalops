@@ -4981,3 +4981,37 @@ Verification performed:
 Next step:
 
 - Continue moving or summarizing MarketOps-specific implementation knowledge into the relevant use-case subfolders as new gates require it.
+
+
+## 2026-07-11T00:22:00Z
+
+Summary:
+
+- Continued MarketOps use-case documentation by seeding G079 graph proposal acceptance/storage notes.
+- Added an architecture note describing the proposed graph proposal ledger boundary and status model.
+- Added an API note for proposed graph proposal list/detail/decision endpoints.
+- Added a gate brief with inputs, deliverables, acceptance criteria, and deferred work.
+
+Files changed:
+
+- `docs/use_cases/marketops/daily_market_surveillance/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/architecture/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/architecture/graph_proposal_acceptance.md`
+- `docs/use_cases/marketops/daily_market_surveillance/api/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/api/graph_proposal_api.md`
+- `docs/use_cases/marketops/daily_market_surveillance/gates/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/gates/G079_graph_proposal_acceptance.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- G077 made artifacts first-class and G078 made them visible. The next backend boundary should make graph target candidates first-class review records without mutating a production graph.
+
+Verification performed:
+
+- `git diff --check`: passed.
+
+Next step:
+
+- Implement G079 backend storage/API when ready, using these docs as the scoped gate contract.

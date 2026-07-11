@@ -15,3 +15,7 @@ MarketOps signal, alert, insight, raw-event, and normalized-event views use the 
 - `use_case=daily_market_surveillance`
 
 Authentication is enforced by the gateway when enabled. Positive live API validation requires a real bearer token; unauthenticated probes should return `401 unauthorized`.
+
+Proposed notes:
+
+- `graph_proposal_api.md`: proposed G079 graph proposal list/detail/decision API boundary.

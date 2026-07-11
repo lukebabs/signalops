@@ -36,3 +36,4 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - Frontend DSM workbench implementation spec: `docs/frontend/marketops_dsm_workbench_ui_spec.md`
 - Signal/artifact persistence note: `architecture/signal_artifact_persistence.md`
 - DSM Workbench operator validation: `frontend/dsm_workbench_operator_validation.md`
+- G079 graph proposal acceptance gate brief: `gates/G079_graph_proposal_acceptance.md`
