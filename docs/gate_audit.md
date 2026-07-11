@@ -5925,3 +5925,30 @@ Follow-up items:
 
 - Run the authenticated graph-proposal API/UI smoke with an operator token via browser login.
 - Re-enable gateway auth on the local stack to reproduce the `401` unauthenticated probe documented in the backend closeout.
+
+
+## Gate G079 Authenticated API Smoke
+
+Timestamp: `2026-07-11T23:29:00Z`
+
+Status: `closed — authenticated graph proposal API validation passed`
+
+Scope:
+
+- Validate the G079 graph proposal API with a real operator bearer token.
+
+Validation performed:
+
+- Authenticated graph proposal list returned all five proposals for `sig_marketops_dsm_taxonomy_v1_g079_graph_live`.
+- Authenticated graph proposal detail returned relationship proposal `graphprop_marketops_dsm_v1_ebb85656b5b3c82105eb8fe8`.
+- Authenticated decision mutation to `accepted` succeeded and derived actor `lukeb` from the token.
+- Authenticated restore mutation to `proposed` succeeded and derived actor `lukeb` from the token.
+- Postgres confirmed all five smoke proposals are currently status `proposed`.
+
+Result:
+
+- G079 backend, live persistence, and authenticated API validation are complete.
+
+Residual state:
+
+- Historical signal-persister lag on older partitions remains a separate operational cleanup/audit item.

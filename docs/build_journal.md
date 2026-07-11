@@ -5152,3 +5152,30 @@ Validation performed:
 Residual state:
 
 - Authenticated API/UI smoke remains operator-token dependent; local gateway currently has auth disabled.
+
+
+## 2026-07-11T23:29:00Z
+
+Summary:
+
+- Completed authenticated G079 graph proposal API smoke using an operator bearer token.
+- Verified list, detail, and decision endpoints against the G079 smoke signal.
+- Restored the tested smoke proposal back to `proposed` after the decision mutation check.
+
+Validation performed:
+
+- Authenticated `GET /v1/marketops/dsm/graph-proposals?tenant_id=tenant-local&signal_id=sig_marketops_dsm_taxonomy_v1_g079_graph_live&limit=5`: returned five graph proposals.
+- Authenticated `GET /v1/marketops/dsm/graph-proposals/graphprop_marketops_dsm_v1_ebb85656b5b3c82105eb8fe8`: returned the relationship proposal detail.
+- Authenticated `POST /v1/marketops/dsm/graph-proposals/graphprop_marketops_dsm_v1_ebb85656b5b3c82105eb8fe8/decision` with `status=accepted`: returned `accepted` and token-derived actor `lukeb`.
+- Authenticated restore `POST .../decision` with `status=proposed`: returned `proposed` and token-derived actor `lukeb`.
+- Postgres verified all five G079 smoke graph proposals are currently `proposed`.
+- Postgres verified the tested proposal retained decision metadata with `reviewed_by=lukeb`.
+
+Files changed:
+
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Notes:
+
+- The bearer token was used only in-memory for live validation and was not written to repository files.
