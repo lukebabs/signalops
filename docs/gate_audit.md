@@ -5680,3 +5680,37 @@ Outstanding:
 Recommended next gate:
 
 - G079: graph proposal acceptance/storage.
+
+
+## Documentation Organization: Use-Case Folder Structure
+
+Timestamp: `2026-07-11T00:00:00Z`
+
+Status: `documentation-only — structure added`
+
+Scope:
+
+- Add a canonical folder pattern for use-case-specific documentation.
+
+Implementation:
+
+- Added `docs/use_cases/` as the root for documentation scoped by `app_id`, `domain`, and `use_case` metadata.
+- Added `docs/use_cases/console/general/` for the default Console use case.
+- Added `docs/use_cases/marketops/daily_market_surveillance/` with category folders:
+  - `architecture/`
+  - `api/`
+  - `frontend/`
+  - `operations/`
+  - `gates/`
+- Updated documentation standards to make this layout canonical for future use-case docs.
+- Documented the DSM Workbench Ledger semantics: `persisted` means a first-class artifact ledger record exists; signal persistence remains in `signal_ledger`.
+
+Verification performed:
+
+- Reviewed existing metadata/profile references for active use cases.
+- Added README files for each new folder so the structure is tracked and discoverable.
+
+Follow-up items:
+
+- Future gates should add use-case-specific docs under `docs/use_cases/{app_id}/{use_case}/` instead of adding loose files at the docs root.
+- Existing historical MarketOps specs can remain in `docs/marketops/`; summarize or cross-link into the use-case tree as needed.

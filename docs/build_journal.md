@@ -4911,3 +4911,41 @@ Outstanding validation:
 Recommended next gate:
 
 - G079: graph proposal acceptance/storage, building on G077 persisted artifacts and G078 frontend artifact visibility.
+
+
+## 2026-07-11T00:00:00Z
+
+Summary:
+
+- Started the use-case documentation organization process by adding a canonical `docs/use_cases/` tree.
+- Added active use-case folders for Console `general` and MarketOps `daily_market_surveillance`.
+- Added MarketOps daily-surveillance category folders for architecture, API, frontend, operations, and gate notes.
+- Documented the important DSM semantic distinction: `persisted` in the DSM Workbench Ledger column means a first-class artifact record exists in `marketops_dsm_artifacts`; the signal itself remains separately persisted in `signal_ledger`.
+
+Files changed:
+
+- `docs/documentation_standards.md`
+- `docs/use_cases/README.md`
+- `docs/use_cases/console/general/README.md`
+- `docs/use_cases/marketops/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/architecture/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/api/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/frontend/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/operations/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/gates/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Rationale:
+
+- Use-case-specific documentation was starting to accumulate across top-level docs, frontend specs, and MarketOps target specs. The new folder pattern gives future documentation a stable home by app and use-case metadata.
+
+Verification performed:
+
+- Reviewed existing `app_id` and `use_case` metadata references.
+- Added README/index files so each documentation folder is tracked and self-describing.
+
+Next step:
+
+- Move or summarize older MarketOps-specific material into the new use-case folders as future gates need it, while preserving historical source documents in place.

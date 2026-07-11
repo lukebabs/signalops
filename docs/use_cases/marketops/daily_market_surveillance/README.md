@@ -1,0 +1,36 @@
+# MarketOps Daily Market Surveillance
+
+Canonical metadata:
+
+- `app_id=marketops`
+- `domain=market_data`
+- `use_case=daily_market_surveillance`
+- primary source adapter: `market_data.massive`
+- current detector: `marketops.dsm.taxonomy_v1`
+
+This use case covers daily surveillance over Massive normalized equity EOD and option contract daily data, deterministic DSM taxonomy signals, derived alert/insight lifecycle records, first-class DSM artifact materialization, and the MarketOps DSM Workbench.
+
+## Current Folder Layout
+
+- `architecture/`: DSM model, signal/artifact persistence semantics, graph proposal direction.
+- `api/`: MarketOps-specific endpoints and request scopes.
+- `frontend/`: DSM Workbench and MarketOps UI operator semantics.
+- `operations/`: smoke tests, replay/publish checks, auth-dependent validation notes.
+- `gates/`: concise gate summaries and cross-links for G070 onward.
+
+## Important Semantics
+
+A DSM table row marked `persisted` in the frontend Ledger column means the signal has a first-class artifact record in `marketops_dsm_artifacts`.
+
+It does not mean the signal itself only just became persistent. Signals are persisted separately in `signal_ledger`. The current persistence relationship is:
+
+- `signal_ledger`: canonical durable signal record.
+- `marketops_dsm_artifacts`: materialized DSM artifact proposal derived from the signal semantic evidence.
+- `alert_ledger` and `insight_ledger`: lifecycle records derived from persisted signals.
+
+## Cross-References
+
+- Global API contract: `docs/api.md`
+- Python worker/detector behavior: `docs/python_worker.md`
+- Original MarketOps target specs: `docs/marketops/`
+- Frontend DSM workbench implementation spec: `docs/frontend/marketops_dsm_workbench_ui_spec.md`

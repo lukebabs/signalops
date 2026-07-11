@@ -17,6 +17,35 @@ Required records:
 - Relevant architecture or implementation specs when behavior, contracts, or
   scope changes.
 
+
+
+## Use-Case Documentation Layout
+
+Use-case-specific documentation belongs under `docs/use_cases/`.
+
+Folder pattern:
+
+```text
+docs/use_cases/{app_id}/{use_case}/
+  README.md
+  architecture/
+  api/
+  frontend/
+  operations/
+  gates/
+```
+
+Use this structure when behavior is scoped by `app_id`, `domain`, or `use_case` metadata. Examples include MarketOps daily surveillance behavior, DSM taxonomy semantics, use-case-specific APIs, operator UI labels, and live validation runbooks.
+
+Top-level docs remain canonical for cross-use-case contracts:
+
+- `docs/api.md` for shared API contracts.
+- `docs/deployment.md` for shared deployment behavior.
+- `docs/python_worker.md` for worker behavior that is not only one use case.
+- `docs/build_journal.md` and `docs/gate_audit.md` for chronological implementation and audit records.
+
+When a new specialized use case is introduced, create its folder and `README.md` in the same change set as the first meaningful documentation for that use case.
+
 ## Timestamp Standard
 
 All audit timestamps must use UTC ISO 8601 format:
