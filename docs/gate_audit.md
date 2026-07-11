@@ -5883,3 +5883,45 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+
+## Gate G079 Frontend Live Validation: Graph Proposal Read-Only UI
+
+Timestamp: `2026-07-11T23:14:00Z`
+
+Status: `live validation passed — read-only UI verified against persisted G079 proposals`
+
+Scope:
+
+- Implement and validate the G079 read-only graph proposal ledger in the existing MarketOps DSM Workbench per `docs/frontend/marketops_graph_proposals_readonly_spec.md`.
+
+Implementation:
+
+- Added `MarketOpsDSMGraphProposal` types, API client methods, React Query hooks, defensive summary helpers, and a read-only Graph Proposal Ledger section in `MarketOpsDsmRoute.tsx`.
+- Relabeled the raw signal `graph_targets` box as "Graph Targets (raw evidence)" and preserved it as source evidence alongside the persisted ledger.
+- Documented the component-test de-scope in the spec (project ships no render harness; testable concerns covered by API-client tests + pure helper unit tests).
+
+Key guardrails preserved:
+
+- No decision/mutation UI. No graph canvas/editing. No graph database writes.
+- No new top-level route. Existing `persisted` versus `signal-only` artifact semantics unchanged.
+
+Validation performed:
+
+- `cd web && npm test`: 118 passed (6 new graph-proposal API client tests + extended `marketopsDsm` helper tests).
+- `cd web && npm run build`: TypeScript + Vite production build passed.
+- `cd web && npm audit --audit-level=low`: 0 vulnerabilities.
+- Static no-mutation check: `grep` of `web/src` confirms zero references to the decision endpoint; the client issues list + detail `GET`s only.
+- Live UI: selecting `sig_marketops_dsm_taxonomy_v1_g079_graph_live` renders `Graph Proposal Ledger — Total 5 · Nodes 3 · Relationships 2 · Status: proposed 5`.
+- Live UI: expanding node candidate `graphprop_marketops_dsm_v1_ba33f478a58719c78203d6e0` (`ticker:AAPL`, conf `0.84`) shows the read-only detail block with proposal/artifact/signal ids; no accept/reject controls present.
+- Confirmed G078 `persisted`/`signal-only` ledger labels and the raw graph-targets evidence view remain intact.
+
+Residual risk:
+
+- Positive authenticated API/UI validation still requires an operator bearer token; the running local gateway currently has auth disabled (curl returns `200`, not the backend closeout's `401`), so the auth-enabled path remains operator-token dependent.
+- IdP token endpoint is Imperva-gated for non-browser clients, so browser login is required for the authenticated smoke.
+
+Follow-up items:
+
+- Run the authenticated graph-proposal API/UI smoke with an operator token via browser login.
+- Re-enable gateway auth on the local stack to reproduce the `401` unauthenticated probe documented in the backend closeout.

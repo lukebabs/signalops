@@ -5119,3 +5119,36 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+
+## 2026-07-11T23:14:00Z
+
+Summary:
+
+- Implemented and live-validated the G079 read-only graph proposal ledger in the MarketOps DSM Workbench.
+- Added frontend types, API client methods, React Query hooks, defensive summary helpers, and a read-only ledger section; preserved the raw graph-targets evidence view.
+
+Files changed:
+
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/lib/marketopsDsm.ts`
+- `web/src/lib/marketopsDsm.test.ts`
+- `web/src/routes/MarketOpsDsmRoute.tsx`
+- `web/src/api/marketopsGraphProposals.test.ts`
+- `docs/frontend/marketops_graph_proposals_readonly_spec.md`
+- `docs/gate_audit.md`
+- `docs/build_journal.md`
+
+Validation performed:
+
+- `cd web && npm test`: 118 passed.
+- `cd web && npm run build`: passed.
+- `cd web && npm audit --audit-level=low`: 0 vulnerabilities.
+- Static no-mutation check: no decision/mutation calls in `web/src`.
+- Live UI: G079 smoke signal renders 5 proposals (3 node, 2 relationship, all `proposed`); node candidate expand shows read-only detail with correct artifact/signal ids.
+
+Residual state:
+
+- Authenticated API/UI smoke remains operator-token dependent; local gateway currently has auth disabled.
