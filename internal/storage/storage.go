@@ -75,6 +75,13 @@ const (
 	InsightStatusArchived  = "archived"
 )
 
+const (
+	MarketOpsDSMGraphProposalStatusProposed   = "proposed"
+	MarketOpsDSMGraphProposalStatusAccepted   = "accepted"
+	MarketOpsDSMGraphProposalStatusRejected   = "rejected"
+	MarketOpsDSMGraphProposalStatusSuperseded = "superseded"
+)
+
 type SchedulerRunRecord struct {
 	RunID            string
 	TenantID         string
@@ -448,6 +455,39 @@ type MarketOpsDSMArtifactRecord struct {
 	UpdatedAt            time.Time
 }
 
+type MarketOpsDSMGraphProposalRecord struct {
+	ProposalID     string
+	TenantID       string
+	AppID          string
+	Domain         string
+	UseCase        string
+	SourceID       string
+	SourceAdapter  string
+	Dataset        string
+	ArtifactID     string
+	SignalID       string
+	SignalType     string
+	DetectorID     string
+	Severity       string
+	Confidence     float64
+	EventIDs       []string
+	SubjectSymbol  string
+	CandidateType  string
+	NodeID         string
+	FromNode       string
+	Relationship   string
+	ToNode         string
+	Labels         []string
+	PropertiesJSON []byte
+	RawCandidate   []byte
+	Status         string
+	ReviewedBy     string
+	DecisionNote   string
+	DecidedAt      *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type SchedulerRunRepository interface {
 	UpsertSchedulerRun(ctx context.Context, record SchedulerRunRecord) error
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
@@ -499,6 +539,12 @@ type SignalLifecycleRepository interface {
 type MarketOpsDSMArtifactRepository interface {
 	ListMarketOpsDSMArtifacts(ctx context.Context, filter MarketOpsDSMArtifactFilter) ([]MarketOpsDSMArtifactRecord, error)
 	GetMarketOpsDSMArtifact(ctx context.Context, artifactID string) (MarketOpsDSMArtifactRecord, error)
+}
+
+type MarketOpsDSMGraphProposalRepository interface {
+	ListMarketOpsDSMGraphProposals(ctx context.Context, filter MarketOpsDSMGraphProposalFilter) ([]MarketOpsDSMGraphProposalRecord, error)
+	GetMarketOpsDSMGraphProposal(ctx context.Context, proposalID string) (MarketOpsDSMGraphProposalRecord, error)
+	MutateMarketOpsDSMGraphProposal(ctx context.Context, mutation MarketOpsDSMGraphProposalMutation) (MarketOpsDSMGraphProposalRecord, error)
 }
 
 type CatalogRepository interface {
@@ -570,6 +616,28 @@ type MarketOpsDSMArtifactFilter struct {
 	Limit         int
 }
 
+type MarketOpsDSMGraphProposalFilter struct {
+	TenantID      string
+	AppID         string
+	Domain        string
+	UseCase       string
+	ArtifactID    string
+	SignalID      string
+	SignalType    string
+	SubjectSymbol string
+	CandidateType string
+	Status        string
+	Limit         int
+}
+
+type MarketOpsDSMGraphProposalMutation struct {
+	ProposalID   string
+	Status       string
+	ReviewedBy   string
+	DecisionNote string
+	DecidedAt    time.Time
+}
+
 type ReplayJobFilter struct {
 	TenantID   string
 	SourceID   string
@@ -605,6 +673,9 @@ type QueryRepository interface {
 	GetInsightLedger(ctx context.Context, insightID string) (InsightLedgerRecord, error)
 	ListMarketOpsDSMArtifacts(ctx context.Context, filter MarketOpsDSMArtifactFilter) ([]MarketOpsDSMArtifactRecord, error)
 	GetMarketOpsDSMArtifact(ctx context.Context, artifactID string) (MarketOpsDSMArtifactRecord, error)
+	ListMarketOpsDSMGraphProposals(ctx context.Context, filter MarketOpsDSMGraphProposalFilter) ([]MarketOpsDSMGraphProposalRecord, error)
+	GetMarketOpsDSMGraphProposal(ctx context.Context, proposalID string) (MarketOpsDSMGraphProposalRecord, error)
+	MutateMarketOpsDSMGraphProposal(ctx context.Context, mutation MarketOpsDSMGraphProposalMutation) (MarketOpsDSMGraphProposalRecord, error)
 	MutateInsightLifecycle(ctx context.Context, mutation InsightLifecycleMutation) (InsightLedgerRecord, error)
 	GetIdempotencyRecord(ctx context.Context, tenantID string, sourceID string, idempotencyKey string) (IdempotencyRecord, error)
 	ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]CatalogSourceRecord, error)

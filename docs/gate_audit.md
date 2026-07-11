@@ -5774,3 +5774,42 @@ Verification performed:
 Follow-up items:
 
 - Implement the G079 migration, storage extraction/upsert, APIs, and tests.
+
+
+## Gate G079: Graph Proposal Acceptance Backend
+
+Timestamp: `2026-07-11T00:46:00Z`
+
+Status: `implemented — backend storage/API complete`
+
+Scope:
+
+- Materialize MarketOps DSM graph target candidates as first-class reviewable proposal records derived from persisted DSM artifacts.
+
+Implementation:
+
+- Added migration `000013_marketops_dsm_graph_proposals` with proposal identity, candidate identity fields, JSON properties/raw candidate payloads, review status, reviewer metadata, and indexes for tenant/time, artifact, signal, status, and symbol lookups.
+- Added deterministic proposal id generation from artifact id, signal id, candidate type, and node/relationship identity.
+- Added graph proposal extraction from `marketops_dsm_artifacts.graph_targets`, ignoring malformed candidates without failing signal persistence.
+- Wired graph proposal upserts into `PersistSignalLifecycle` after DSM artifact upserts, preserving existing proposal review status on replay.
+- Added list/detail/decision storage APIs and gateway routes under `/v1/marketops/dsm/graph-proposals`.
+- Added tests for extraction, stable ids, malformed candidates, route filters, detail responses, and decision status validation.
+
+Validation performed:
+
+- Containerized `gofmt` with `golang:1.24`: passed.
+- Containerized targeted Go tests for `./internal/storage/postgres ./internal/api`: passed.
+- Containerized full Go test suite `go test ./...`: passed.
+- `git diff --check`: passed.
+- Docker build validation for `signal-persister`: passed.
+
+Non-goals preserved:
+
+- No production graph database mutation.
+- No frontend graph editing or graph visualization.
+- No replacement of `signal_ledger` or `marketops_dsm_artifacts`.
+
+Follow-up items:
+
+- Apply migration and run live persistence validation against the G077 smoke artifact path.
+- Hand frontend-agent a read-only graph proposal visibility spec only after the backend endpoint shape is accepted.

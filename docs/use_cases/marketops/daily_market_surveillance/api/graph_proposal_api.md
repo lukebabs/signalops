@@ -1,19 +1,19 @@
 # Graph Proposal API
 
-Status: proposed for G079  
+Status: implemented in G079
 Use case: MarketOps Daily Market Surveillance
 
 ## Purpose
 
-This note sketches the G079 API boundary for reviewing graph target candidates that are currently embedded in persisted DSM artifacts.
+This note documents the G079 API boundary for reviewing graph target candidates that are embedded in persisted DSM artifacts.
 
 The API should expose graph proposals as first-class review records. It should not mutate an external graph database.
 
-## Proposed Endpoints
+## Endpoints
 
 Use existing `/v1/*` gateway conventions and authentication.
 
-Recommended endpoints:
+Implemented endpoints:
 
 - `GET /v1/marketops/dsm/graph-proposals`
 - `GET /v1/marketops/dsm/graph-proposals/{proposal_id}`
@@ -21,9 +21,9 @@ Recommended endpoints:
 
 ## List Filters
 
-The list endpoint should support bounded, index-friendly filters:
+The list endpoint supports bounded, index-friendly filters:
 
-- `tenant_id` from auth context or existing tenant handling
+- `tenant_id` from the current request pattern
 - `app_id`, default `marketops`
 - `domain`, default `market_data`
 - `use_case`, default `daily_market_surveillance`

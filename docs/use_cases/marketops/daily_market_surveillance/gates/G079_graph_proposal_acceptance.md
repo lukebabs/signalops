@@ -1,13 +1,13 @@
 # G079 Graph Proposal Acceptance
 
-Status: proposed next gate  
+Status: implemented backend boundary
 Use case: MarketOps Daily Market Surveillance
 
 ## Goal
 
 Create the first durable review boundary for MarketOps DSM graph target candidates.
 
-G079 should extract graph target candidates from persisted `marketops_dsm_artifacts`, store them as first-class graph proposal records, expose read APIs, and support explicit operator or rule decisions such as accepted/rejected.
+G079 extracts graph target candidates from persisted `marketops_dsm_artifacts`, stores them as first-class graph proposal records, exposes read APIs, and supports explicit operator or rule decisions such as accepted/rejected.
 
 ## Inputs
 
@@ -19,12 +19,12 @@ G079 should extract graph target candidates from persisted `marketops_dsm_artifa
 
 ## Deliverables
 
-- Migration for a `marketops_dsm_graph_proposals` ledger or equivalent name.
+- Migration `000013_marketops_dsm_graph_proposals` for the first-class proposal ledger.
 - Storage extraction/upsert logic from persisted DSM artifacts.
 - Stable deterministic `proposal_id` generation.
 - List/detail graph proposal APIs under `/v1/marketops/dsm/graph-proposals`.
-- Decision endpoint or storage method for `proposed`, `accepted`, `rejected`, and `superseded` statuses.
-- Unit tests for extraction, idempotency, malformed candidates, API auth path construction, and status validation.
+- Decision endpoint and storage mutation for `proposed`, `accepted`, `rejected`, and `superseded` statuses.
+- Unit tests for extraction, idempotent identity, malformed candidates, API filters, detail retrieval, and status validation.
 - Build journal and gate audit updates.
 
 ## Acceptance Criteria

@@ -1,11 +1,11 @@
 # Graph Proposal Acceptance
 
-Status: proposed for G079  
+Status: implemented backend boundary in G079
 Use case: MarketOps Daily Market Surveillance
 
 ## Purpose
 
-MarketOps DSM signals currently carry graph target candidates as evidence. G079 should introduce the first backend boundary that turns those candidates into reviewable, durable graph proposals.
+MarketOps DSM signals carry graph target candidates as evidence. G079 introduces the first backend boundary that turns those candidates into reviewable, durable graph proposals.
 
 This is not graph mutation. It is an acceptance/storage layer for graph proposal records derived from persisted DSM artifacts and signal graph targets.
 
@@ -19,15 +19,15 @@ The detector emits `graph_targets` on `signal.v1` payloads. The current MarketOp
 - `relationship_candidate` from ticker to signal type
 - `relationship_candidate` from signal type to artifact
 
-G077 persists those candidates as JSON inside `marketops_dsm_artifacts.graph_targets`. G078 displays them through DSM Workbench artifact context. There is no first-class proposal status, reviewer state, deduplication ledger, or accepted/rejected history yet.
+G077 persists those candidates as JSON inside `marketops_dsm_artifacts.graph_targets`. G078 displays them through DSM Workbench artifact context. G079 adds first-class proposal status, reviewer state, deduplication by deterministic proposal id, and accepted/rejected decision history.
 
-## Proposed G079 Boundary
+## G079 Boundary
 
-Add a first-class graph proposal ledger that stores one row per proposed node or relationship candidate.
+The `marketops_dsm_graph_proposals` ledger stores one row per proposed node or relationship candidate.
 
-The ledger should be derived from persisted MarketOps DSM artifacts, not directly from raw normalized events. `marketops_dsm_artifacts` remains the source artifact record, while the new graph proposal ledger becomes the operator/review boundary for graph candidates.
+The ledger is derived from persisted MarketOps DSM artifacts, not directly from raw normalized events. `marketops_dsm_artifacts` remains the source artifact record, while the new graph proposal ledger becomes the operator/review boundary for graph candidates.
 
-A proposal row should preserve:
+A proposal row preserves:
 
 - stable proposal id
 - tenant/app/domain/use-case metadata
@@ -47,11 +47,11 @@ Use a small explicit lifecycle:
 - `rejected`: rejected by an operator or rule
 - `superseded`: replaced by a newer deterministic proposal
 
-G079 should not write to a graph database. An `accepted` proposal means the proposal is approved for a later graph materialization gate.
+G079 does not write to a graph database. An `accepted` proposal means the proposal is approved for a later graph materialization gate.
 
 ## Stable Identity
 
-Proposal ids should be deterministic so replaying the same signal/artifact is idempotent.
+Proposal ids are deterministic so replaying the same signal/artifact is idempotent.
 
 Recommended identity inputs:
 
@@ -61,11 +61,11 @@ Recommended identity inputs:
 - node id for node candidates
 - from, relationship, and to for relationship candidates
 
-The storage layer should upsert on proposal id. Replays can refresh evidence and timestamps without creating duplicates.
+The storage layer upserts on proposal id. Replays can refresh evidence and timestamps without creating duplicates.
 
 ## Extraction Rules
 
-Only extract proposals from MarketOps Daily Market Surveillance artifacts:
+Proposals are extracted only from MarketOps Daily Market Surveillance artifacts:
 
 - `app_id=marketops`
 - `domain=market_data`
@@ -85,7 +85,7 @@ G079 should not:
 
 ## Validation Expectations
 
-A complete G079 backend should prove:
+The G079 backend validation proves:
 
 - migrations create and rollback the graph proposal ledger
 - persisted artifacts with five current detector graph targets produce five proposal rows

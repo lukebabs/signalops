@@ -5015,3 +5015,45 @@ Verification performed:
 Next step:
 
 - Implement G079 backend storage/API when ready, using these docs as the scoped gate contract.
+
+
+## 2026-07-11T00:46:00Z
+
+Summary:
+
+- Implemented G079 backend graph proposal acceptance/storage for MarketOps DSM.
+- Added `marketops_dsm_graph_proposals` migration with deterministic proposal rows derived from persisted DSM artifact graph targets.
+- Added storage extraction/upsert, list/detail query methods, and decision mutation for `proposed`, `accepted`, `rejected`, and `superseded` statuses.
+- Added gateway endpoints under `/v1/marketops/dsm/graph-proposals`.
+- Updated MarketOps use-case docs from proposed G079 notes to implemented backend boundary docs.
+
+Files changed:
+
+- `migrations/000013_marketops_dsm_graph_proposals.up.sql`
+- `migrations/000013_marketops_dsm_graph_proposals.down.sql`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/storage/postgres/marketops_dsm_graph_proposals.go`
+- `internal/storage/postgres/repository_test.go`
+- `internal/api/router.go`
+- `internal/api/marketops_dsm_graph_proposals.go`
+- `internal/api/router_test.go`
+- `docs/use_cases/marketops/daily_market_surveillance/architecture/graph_proposal_acceptance.md`
+- `docs/use_cases/marketops/daily_market_surveillance/api/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/api/graph_proposal_api.md`
+- `docs/use_cases/marketops/daily_market_surveillance/gates/G079_graph_proposal_acceptance.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.24 gofmt -w ...`: passed.
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.24 go test ./internal/storage/postgres ./internal/api`: passed.
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.24 go test ./...`: passed.
+- `git diff --check`: passed.
+- `docker build --target signal-persister -t signalops-signal-persister:g079 .`: passed.
+
+Notes:
+
+- Host `go` and `gofmt` binaries were unavailable, so validation used the existing local `golang:1.24` Docker image.
+- G079 does not mutate a production graph database and does not add frontend graph editing.

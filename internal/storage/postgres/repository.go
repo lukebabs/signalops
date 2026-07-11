@@ -627,8 +627,19 @@ func (r *Repository) PersistSignalLifecycle(ctx context.Context, signal storage.
 	if err != nil {
 		return err
 	}
+	graphProposals := []storage.MarketOpsDSMGraphProposalRecord{}
 	for _, artifact := range artifacts {
 		if err := validateMarketOpsDSMArtifact(artifact); err != nil {
+			return err
+		}
+		proposals, err := extractMarketOpsDSMGraphProposals(artifact)
+		if err != nil {
+			return err
+		}
+		graphProposals = append(graphProposals, proposals...)
+	}
+	for _, proposal := range graphProposals {
+		if err := validateMarketOpsDSMGraphProposal(proposal); err != nil {
 			return err
 		}
 	}
@@ -657,6 +668,11 @@ func (r *Repository) PersistSignalLifecycle(ctx context.Context, signal storage.
 	}
 	for _, artifact := range artifacts {
 		if err := upsertMarketOpsDSMArtifact(ctx, tx, artifact); err != nil {
+			return err
+		}
+	}
+	for _, proposal := range graphProposals {
+		if err := upsertMarketOpsDSMGraphProposal(ctx, tx, proposal); err != nil {
 			return err
 		}
 	}

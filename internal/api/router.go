@@ -330,6 +330,67 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"artifact": marketOpsDSMArtifactResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/marketops/dsm/graph-proposals", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsDSMGraphProposals(r.Context(), storage.MarketOpsDSMGraphProposalFilter{
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			ArtifactID: strings.TrimSpace(r.URL.Query().Get("artifact_id")), SignalID: strings.TrimSpace(r.URL.Query().Get("signal_id")), SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")),
+			CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps DSM graph proposals")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"graph_proposals": marketOpsDSMGraphProposalResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/dsm/graph-proposals/{proposal_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetMarketOpsDSMGraphProposal(r.Context(), r.PathValue("proposal_id"))
+		if err != nil {
+			writeQueryError(w, err, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"graph_proposal": marketOpsDSMGraphProposalResponse(record)})
+	})
+
+	mux.HandleFunc("POST /v1/marketops/dsm/graph-proposals/{proposal_id}/decision", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req graphProposalDecisionRequest
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, defaultMaxRawEventBytes))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		status := strings.TrimSpace(req.Status)
+		if status == "" {
+			writeError(w, http.StatusBadRequest, "invalid_status", "status is required")
+			return
+		}
+		record, err := repo.MutateMarketOpsDSMGraphProposal(r.Context(), storage.MarketOpsDSMGraphProposalMutation{
+			ProposalID: r.PathValue("proposal_id"), Status: status, ReviewedBy: lifecycleActor(r, req.Actor), DecisionNote: strings.TrimSpace(req.Note), DecidedAt: time.Now().UTC(),
+		})
+		if err != nil {
+			if strings.Contains(err.Error(), "status") {
+				writeError(w, http.StatusBadRequest, "invalid_status", "graph proposal status is invalid")
+				return
+			}
+			writeQueryError(w, err, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"graph_proposal": marketOpsDSMGraphProposalResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/alerts", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

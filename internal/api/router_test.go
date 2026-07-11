@@ -51,29 +51,32 @@ func (p *fakePublishRepository) PersistPublishedRawEvent(_ context.Context, ledg
 }
 
 type fakeQueryRepository struct {
-	runs              []storage.SchedulerRunRecord
-	replayJobs        []storage.ReplayJobRecord
-	replayCounts      []storage.ReplayJobStatusCount
-	replayWorkers     []storage.ReplayWorkerHeartbeatRecord
-	lastReplayFilter  storage.ReplayJobFilter
-	usage             []storage.ProviderUsageRecord
-	rawEvents         []storage.RawEventLedgerRecord
-	idem              storage.IdempotencyRecord
-	sources           []storage.CatalogSourceRecord
-	pipelines         []storage.CatalogPipelineRecord
-	rules             []storage.CatalogRuleRecord
-	marketOpsAssets   []storage.MarketOpsAssetRecord
-	dsmArtifacts      []storage.MarketOpsDSMArtifactRecord
-	lastDSMFilter     storage.MarketOpsDSMArtifactFilter
-	lastUniverseGroup string
-	lastActiveOnly    bool
-	alerts            []storage.AlertLedgerRecord
-	insights          []storage.InsightLedgerRecord
-	notFound          bool
-	lastFilter        storage.RawEventLedgerFilter
-	schedulerQueries  int
-	rawEventQueries   int
-	usageQueries      int
+	runs                      []storage.SchedulerRunRecord
+	replayJobs                []storage.ReplayJobRecord
+	replayCounts              []storage.ReplayJobStatusCount
+	replayWorkers             []storage.ReplayWorkerHeartbeatRecord
+	lastReplayFilter          storage.ReplayJobFilter
+	usage                     []storage.ProviderUsageRecord
+	rawEvents                 []storage.RawEventLedgerRecord
+	idem                      storage.IdempotencyRecord
+	sources                   []storage.CatalogSourceRecord
+	pipelines                 []storage.CatalogPipelineRecord
+	rules                     []storage.CatalogRuleRecord
+	marketOpsAssets           []storage.MarketOpsAssetRecord
+	dsmArtifacts              []storage.MarketOpsDSMArtifactRecord
+	dsmGraphProposals         []storage.MarketOpsDSMGraphProposalRecord
+	lastDSMFilter             storage.MarketOpsDSMArtifactFilter
+	lastGraphProposalFilter   storage.MarketOpsDSMGraphProposalFilter
+	lastGraphProposalMutation storage.MarketOpsDSMGraphProposalMutation
+	lastUniverseGroup         string
+	lastActiveOnly            bool
+	alerts                    []storage.AlertLedgerRecord
+	insights                  []storage.InsightLedgerRecord
+	notFound                  bool
+	lastFilter                storage.RawEventLedgerFilter
+	schedulerQueries          int
+	rawEventQueries           int
+	usageQueries              int
 }
 
 func (q *fakeQueryRepository) ListSchedulerRuns(context.Context, int) ([]storage.SchedulerRunRecord, error) {
@@ -233,6 +236,42 @@ func (q *fakeQueryRepository) GetMarketOpsDSMArtifact(_ context.Context, artifac
 		}
 	}
 	return storage.MarketOpsDSMArtifactRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListMarketOpsDSMGraphProposals(_ context.Context, filter storage.MarketOpsDSMGraphProposalFilter) ([]storage.MarketOpsDSMGraphProposalRecord, error) {
+	q.lastGraphProposalFilter = filter
+	return q.dsmGraphProposals, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsDSMGraphProposal(_ context.Context, proposalID string) (storage.MarketOpsDSMGraphProposalRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsDSMGraphProposalRecord{}, storage.ErrNotFound
+	}
+	for _, proposal := range q.dsmGraphProposals {
+		if proposal.ProposalID == proposalID {
+			return proposal, nil
+		}
+	}
+	return storage.MarketOpsDSMGraphProposalRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) MutateMarketOpsDSMGraphProposal(_ context.Context, mutation storage.MarketOpsDSMGraphProposalMutation) (storage.MarketOpsDSMGraphProposalRecord, error) {
+	q.lastGraphProposalMutation = mutation
+	if mutation.Status != storage.MarketOpsDSMGraphProposalStatusProposed && mutation.Status != storage.MarketOpsDSMGraphProposalStatusAccepted && mutation.Status != storage.MarketOpsDSMGraphProposalStatusRejected && mutation.Status != storage.MarketOpsDSMGraphProposalStatusSuperseded {
+		return storage.MarketOpsDSMGraphProposalRecord{}, errors.New("marketops dsm graph proposal status is invalid")
+	}
+	for index, proposal := range q.dsmGraphProposals {
+		if proposal.ProposalID == mutation.ProposalID {
+			proposal.Status = mutation.Status
+			proposal.ReviewedBy = mutation.ReviewedBy
+			proposal.DecisionNote = mutation.DecisionNote
+			decidedAt := mutation.DecidedAt.UTC()
+			proposal.DecidedAt = &decidedAt
+			q.dsmGraphProposals[index] = proposal
+			return proposal, nil
+		}
+	}
+	return storage.MarketOpsDSMGraphProposalRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListAlertLedger(context.Context, storage.AlertLedgerFilter) ([]storage.AlertLedgerRecord, error) {
@@ -755,6 +794,88 @@ func TestGetMarketOpsDSMArtifact(t *testing.T) {
 	}
 }
 
+func TestGetMarketOpsDSMGraphProposals(t *testing.T) {
+	repo := &fakeQueryRepository{dsmGraphProposals: []storage.MarketOpsDSMGraphProposalRecord{validMarketOpsDSMGraphProposalRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/dsm/graph-proposals?tenant_id=tenant-1&app_id=marketops&domain=market_data&use_case=daily_market_surveillance&artifact_id=artifact_marketops_dsm_v1_test&signal_id=signal-1&signal_type=marketops.dsm.pinning_risk&subject_symbol=AAPL&candidate_type=node_candidate&status=proposed&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	filter := repo.lastGraphProposalFilter
+	if filter.TenantID != "tenant-1" || filter.ArtifactID != "artifact_marketops_dsm_v1_test" || filter.SignalID != "signal-1" || filter.CandidateType != "node_candidate" || filter.Status != "proposed" || filter.Limit != 10 {
+		t.Fatalf("filter = %+v", filter)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	proposal := response["graph_proposals"][0]
+	if proposal["proposal_id"] != "graphprop_marketops_dsm_v1_test" || proposal["node_id"] != "ticker:AAPL" || proposal["status"] != "proposed" {
+		t.Fatalf("proposal = %+v", proposal)
+	}
+}
+
+func TestGetMarketOpsDSMGraphProposal(t *testing.T) {
+	repo := &fakeQueryRepository{dsmGraphProposals: []storage.MarketOpsDSMGraphProposalRecord{validMarketOpsDSMGraphProposalRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/dsm/graph-proposals/graphprop_marketops_dsm_v1_test", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if response["graph_proposal"]["artifact_id"] != "artifact_marketops_dsm_v1_test" {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestPostMarketOpsDSMGraphProposalDecision(t *testing.T) {
+	repo := &fakeQueryRepository{dsmGraphProposals: []storage.MarketOpsDSMGraphProposalRecord{validMarketOpsDSMGraphProposalRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/dsm/graph-proposals/graphprop_marketops_dsm_v1_test/decision", strings.NewReader(`{"status":"accepted","note":"Approved for materialization."}`))
+	req.Header.Set("X-SignalOps-Actor", "operator-g079")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastGraphProposalMutation.Status != storage.MarketOpsDSMGraphProposalStatusAccepted || repo.lastGraphProposalMutation.ReviewedBy != "operator-g079" || repo.lastGraphProposalMutation.DecisionNote == "" {
+		t.Fatalf("mutation = %+v", repo.lastGraphProposalMutation)
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if response["graph_proposal"]["status"] != "accepted" || response["graph_proposal"]["reviewed_by"] != "operator-g079" {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestPostMarketOpsDSMGraphProposalDecisionRejectsInvalidStatus(t *testing.T) {
+	repo := &fakeQueryRepository{dsmGraphProposals: []storage.MarketOpsDSMGraphProposalRecord{validMarketOpsDSMGraphProposalRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/dsm/graph-proposals/graphprop_marketops_dsm_v1_test/decision", strings.NewReader(`{"status":"invalid"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestGetCatalogSources(t *testing.T) {
 	repo := &fakeQueryRepository{sources: []storage.CatalogSourceRecord{validCatalogSourceRecord()}}
 	router := NewRouter(RouterConfig{QueryRepository: repo})
@@ -1144,6 +1265,35 @@ func validMarketOpsDSMArtifactRecord() storage.MarketOpsDSMArtifactRecord {
 		QualityIssues:        []string{},
 		CreatedAt:            time.Date(2026, 7, 8, 0, 2, 0, 0, time.UTC),
 		UpdatedAt:            time.Date(2026, 7, 8, 0, 3, 0, 0, time.UTC),
+	}
+}
+
+func validMarketOpsDSMGraphProposalRecord() storage.MarketOpsDSMGraphProposalRecord {
+	return storage.MarketOpsDSMGraphProposalRecord{
+		ProposalID:     "graphprop_marketops_dsm_v1_test",
+		TenantID:       "tenant-1",
+		AppID:          "marketops",
+		Domain:         "market_data",
+		UseCase:        "daily_market_surveillance",
+		SourceID:       "src-massive",
+		SourceAdapter:  "market_data.massive",
+		Dataset:        "options_contracts_daily",
+		ArtifactID:     "artifact_marketops_dsm_v1_test",
+		SignalID:       "signal-1",
+		SignalType:     "marketops.dsm.pinning_risk",
+		DetectorID:     "marketops.dsm.taxonomy_v1",
+		Severity:       "high",
+		Confidence:     0.84,
+		EventIDs:       []string{"event-1"},
+		SubjectSymbol:  "AAPL",
+		CandidateType:  "node_candidate",
+		NodeID:         "ticker:AAPL",
+		Labels:         []string{"MarketAsset", "Ticker"},
+		PropertiesJSON: []byte(`{"symbol":"AAPL"}`),
+		RawCandidate:   []byte(`{"type":"node_candidate","node_id":"ticker:AAPL"}`),
+		Status:         storage.MarketOpsDSMGraphProposalStatusProposed,
+		CreatedAt:      time.Date(2026, 7, 8, 0, 4, 0, 0, time.UTC),
+		UpdatedAt:      time.Date(2026, 7, 8, 0, 5, 0, 0, time.UTC),
 	}
 }
 

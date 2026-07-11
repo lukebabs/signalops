@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,6 +119,93 @@ func TestExtractMarketOpsDSMArtifactsIgnoresNonMarketOps(t *testing.T) {
 	}
 	if len(artifacts) != 0 {
 		t.Fatalf("artifact count = %d", len(artifacts))
+	}
+}
+
+func TestExtractMarketOpsDSMGraphProposals(t *testing.T) {
+	artifact := validMarketOpsDSMArtifactRecord()
+	artifact.GraphTargetsJSON = []byte(`[
+		{"type":"node_candidate","node_id":"ticker:AAPL","labels":["MarketAsset","Ticker"],"properties":{"symbol":"AAPL"},"confidence":1.0},
+		{"type":"relationship_candidate","from":"ticker:AAPL","relationship":"EXHIBITS_SIGNAL","to":"signal_type:marketops.dsm.pinning_risk","properties":{"severity":"high"},"confidence":0.84}
+	]`)
+
+	proposals, err := extractMarketOpsDSMGraphProposals(artifact)
+	if err != nil {
+		t.Fatalf("extract graph proposals: %v", err)
+	}
+	if len(proposals) != 2 {
+		t.Fatalf("proposal count = %d", len(proposals))
+	}
+	if proposals[0].ProposalID == "" || proposals[0].Status != storage.MarketOpsDSMGraphProposalStatusProposed {
+		t.Fatalf("proposal = %+v", proposals[0])
+	}
+	if proposals[0].CandidateType != "node_candidate" || proposals[0].NodeID != "ticker:AAPL" || len(proposals[0].Labels) != 2 {
+		t.Fatalf("node proposal = %+v", proposals[0])
+	}
+	if proposals[1].CandidateType != "relationship_candidate" || proposals[1].FromNode != "ticker:AAPL" || proposals[1].Relationship != "EXHIBITS_SIGNAL" || proposals[1].ToNode == "" {
+		t.Fatalf("relationship proposal = %+v", proposals[1])
+	}
+	if err := validateMarketOpsDSMGraphProposal(proposals[0]); err != nil {
+		t.Fatalf("validate node proposal: %v", err)
+	}
+	if err := validateMarketOpsDSMGraphProposal(proposals[1]); err != nil {
+		t.Fatalf("validate relationship proposal: %v", err)
+	}
+}
+
+func TestExtractMarketOpsDSMGraphProposalsIgnoresMalformedCandidates(t *testing.T) {
+	artifact := validMarketOpsDSMArtifactRecord()
+	artifact.GraphTargetsJSON = []byte(`[
+		{"type":"node_candidate"},
+		{"type":"relationship_candidate","from":"ticker:AAPL","relationship":"EXHIBITS_SIGNAL"},
+		{"type":"unknown_candidate","node_id":"x"},
+		{"type":"node_candidate","node_id":"artifact:artifact_marketops_dsm_v1_test"}
+	]`)
+
+	proposals, err := extractMarketOpsDSMGraphProposals(artifact)
+	if err != nil {
+		t.Fatalf("extract graph proposals: %v", err)
+	}
+	if len(proposals) != 1 || proposals[0].NodeID != "artifact:artifact_marketops_dsm_v1_test" {
+		t.Fatalf("proposals = %+v", proposals)
+	}
+}
+
+func TestStableMarketOpsDSMGraphProposalID(t *testing.T) {
+	first := stableMarketOpsDSMGraphProposalID("artifact-1", "signal-1", "node_candidate", "ticker:AAPL")
+	second := stableMarketOpsDSMGraphProposalID("artifact-1", "signal-1", "node_candidate", "ticker:AAPL")
+	third := stableMarketOpsDSMGraphProposalID("artifact-1", "signal-1", "node_candidate", "ticker:MSFT")
+	if first != second {
+		t.Fatalf("stable ids differ: %s != %s", first, second)
+	}
+	if first == third || !strings.HasPrefix(first, "graphprop_marketops_dsm_v1_") {
+		t.Fatalf("unexpected ids: first=%s third=%s", first, third)
+	}
+}
+
+func validMarketOpsDSMArtifactRecord() storage.MarketOpsDSMArtifactRecord {
+	return storage.MarketOpsDSMArtifactRecord{
+		ArtifactID:           "artifact_marketops_dsm_v1_test",
+		TenantID:             "tenant-1",
+		AppID:                "marketops",
+		Domain:               "market_data",
+		UseCase:              "daily_market_surveillance",
+		SourceID:             "src-massive",
+		SourceAdapter:        "market_data.massive",
+		Dataset:              "options_contracts_daily",
+		SignalID:             "signal-1",
+		SignalType:           "marketops.dsm.pinning_risk",
+		DetectorID:           "marketops.dsm.taxonomy_v1",
+		Severity:             "high",
+		Confidence:           0.84,
+		EventIDs:             []string{"event-1"},
+		SubjectSymbol:        "AAPL",
+		ArtifactType:         "marketops.dsm.signal_artifact.v1",
+		ArtifactJSON:         []byte(`{"artifact_id":"artifact_marketops_dsm_v1_test","artifact_type":"marketops.dsm.signal_artifact.v1","subject":{"symbol":"AAPL"}}`),
+		SemanticEvidenceJSON: []byte(`{"type":"dsm_artifact_proposal","artifact_id":"artifact_marketops_dsm_v1_test"}`),
+		GraphTargetsJSON:     []byte(`[]`),
+		SupportingMetrics:    []byte(`{"open_interest":2000}`),
+		QualityIssues:        []string{},
 	}
 }
 

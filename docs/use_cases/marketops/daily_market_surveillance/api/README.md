@@ -7,6 +7,9 @@ Current MarketOps-specific endpoints:
 - `GET /v1/tenants/{tenant_id}/marketops/assets`
 - `GET /v1/marketops/dsm/artifacts`
 - `GET /v1/marketops/dsm/artifacts/{artifact_id}`
+- `GET /v1/marketops/dsm/graph-proposals`
+- `GET /v1/marketops/dsm/graph-proposals/{proposal_id}`
+- `POST /v1/marketops/dsm/graph-proposals/{proposal_id}/decision`
 
 MarketOps signal, alert, insight, raw-event, and normalized-event views use the shared `/v1/*` APIs with metadata filters:
 
@@ -16,6 +19,6 @@ MarketOps signal, alert, insight, raw-event, and normalized-event views use the 
 
 Authentication is enforced by the gateway when enabled. Positive live API validation requires a real bearer token; unauthenticated probes should return `401 unauthorized`.
 
-Proposed notes:
+Current notes:
 
-- `graph_proposal_api.md`: proposed G079 graph proposal list/detail/decision API boundary.
+- `graph_proposal_api.md`: G079 graph proposal list/detail/decision API boundary.
