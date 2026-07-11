@@ -36,6 +36,9 @@ import type {
   MarketOpsDSMArtifactsResponse,
   MarketOpsDSMArtifactResponse,
   MarketOpsDSMArtifactFilter,
+  MarketOpsDSMGraphProposalsResponse,
+  MarketOpsDSMGraphProposalResponse,
+  MarketOpsDSMGraphProposalFilter,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -282,6 +285,28 @@ export const api = {
     }),
   getMarketOpsDSMArtifact: (artifactId: string) =>
     get<MarketOpsDSMArtifactResponse>(`/v1/marketops/dsm/artifacts/${encodeURIComponent(artifactId)}`),
+  // G079 first-class MarketOps DSM graph proposals (read-only). The ledger
+  // mirrors the artifact API: server-side filtering by signal/artifact context,
+  // default limit 50, and only defined filter values are serialized. The UI
+  // never calls the decision endpoint — that remains backend/operator-only.
+  listMarketOpsDSMGraphProposals: (filter: MarketOpsDSMGraphProposalFilter = {}) =>
+    get<MarketOpsDSMGraphProposalsResponse>('/v1/marketops/dsm/graph-proposals', {
+      tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      domain: filter.domain,
+      use_case: filter.use_case,
+      artifact_id: filter.artifact_id,
+      signal_id: filter.signal_id,
+      signal_type: filter.signal_type,
+      subject_symbol: filter.subject_symbol,
+      candidate_type: filter.candidate_type,
+      status: filter.status,
+      limit: filter.limit ?? 50,
+    }),
+  getMarketOpsDSMGraphProposal: (proposalId: string) =>
+    get<MarketOpsDSMGraphProposalResponse>(
+      `/v1/marketops/dsm/graph-proposals/${encodeURIComponent(proposalId)}`,
+    ),
   mutateAlertLifecycle: ({ alertId, action, note, reason }: AlertLifecycleMutationOptions) =>
     post<AlertResponse>(
       `/v1/alerts/${encodeURIComponent(alertId)}/${action}`,

@@ -13,6 +13,7 @@ import type {
   ReplayJob,
   MarketOpsAssetFilter,
   MarketOpsDSMArtifactFilter,
+  MarketOpsDSMGraphProposalFilter,
 } from '../types';
 
 export const queryKeys = {
@@ -44,6 +45,9 @@ export const queryKeys = {
   marketOpsAssets: (filter: MarketOpsAssetFilter) => ['marketops-assets', filter] as const,
   marketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter) => ['marketops-dsm-artifacts', filter] as const,
   marketOpsDSMArtifact: (artifactId: string) => ['marketops-dsm-artifact', artifactId] as const,
+  marketOpsDSMGraphProposals: (filter: MarketOpsDSMGraphProposalFilter) =>
+    ['marketops-dsm-graph-proposals', filter] as const,
+  marketOpsDSMGraphProposal: (proposalId: string) => ['marketops-dsm-graph-proposal', proposalId] as const,
 };
 
 export function useHealthz() {
@@ -276,6 +280,29 @@ export function useMarketOpsDSMArtifact(artifactId: string | null) {
     queryKey: queryKeys.marketOpsDSMArtifact(artifactId ?? ''),
     queryFn: () => api.getMarketOpsDSMArtifact(artifactId!),
     enabled: !!artifactId,
+    staleTime: 60 * 1000,
+  });
+}
+
+// G079 MarketOps DSM graph proposal ledger (read-only). Like artifacts, the
+// ledger is materialized by the backend; a short stale time keeps the workbench
+// responsive without refetch churn. The list is signal-scoped and only runs
+// while a signal is selected. Detail is fetched on demand when a proposal row
+// is expanded (guarded by a truthy proposal id).
+export function useMarketOpsDSMGraphProposals(filter: MarketOpsDSMGraphProposalFilter = { tenant_id: 'tenant-local', limit: 50 }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsDSMGraphProposals(filter),
+    queryFn: () => api.listMarketOpsDSMGraphProposals(filter),
+    enabled: !!filter.signal_id || !!filter.artifact_id,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsDSMGraphProposal(proposalId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsDSMGraphProposal(proposalId ?? ''),
+    queryFn: () => api.getMarketOpsDSMGraphProposal(proposalId!),
+    enabled: !!proposalId,
     staleTime: 60 * 1000,
   });
 }

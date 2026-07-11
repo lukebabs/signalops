@@ -638,3 +638,69 @@ export interface MarketOpsDSMArtifactFilter {
   subject_symbol?: string;
   limit?: number;
 }
+
+// G079 MarketOps DSM graph proposals (read-only). Served by
+// GET /v1/marketops/dsm/graph-proposals and /v1/marketops/dsm/graph-proposals/{proposal_id}.
+// The backend persists graph target candidates emitted by the detector so
+// operators can review what the graph layer would materialize, without the UI
+// ever issuing graph writes. `properties` and `raw_candidate` arrive as
+// already-parsed JSON from the gateway (typed `unknown`); never JSON.parse them.
+// Status/candidate_type are narrowed unions for current rendering but accept
+// `| string` for forward compatibility with future backend values.
+export type MarketOpsDSMGraphProposalStatus = 'proposed' | 'accepted' | 'rejected' | 'superseded';
+export type MarketOpsDSMGraphProposalCandidateType = 'node_candidate' | 'relationship_candidate';
+
+export interface MarketOpsDSMGraphProposal {
+  proposal_id: string;
+  tenant_id: string;
+  app_id: string;
+  domain: string;
+  use_case: string;
+  source_id: string;
+  source_adapter: string;
+  dataset: string;
+  artifact_id: string;
+  signal_id: string;
+  signal_type: string;
+  detector_id: string;
+  severity: string;
+  confidence: number;
+  event_ids: string[];
+  subject_symbol: string;
+  candidate_type: MarketOpsDSMGraphProposalCandidateType | string;
+  node_id: string;
+  from_node: string;
+  relationship: string;
+  to_node: string;
+  labels: string[];
+  properties: unknown;
+  raw_candidate: unknown;
+  status: MarketOpsDSMGraphProposalStatus | string;
+  reviewed_by: string;
+  decision_note: string;
+  decided_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsDSMGraphProposalsResponse {
+  graph_proposals: MarketOpsDSMGraphProposal[];
+}
+
+export interface MarketOpsDSMGraphProposalResponse {
+  graph_proposal: MarketOpsDSMGraphProposal;
+}
+
+export interface MarketOpsDSMGraphProposalFilter {
+  tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
+  artifact_id?: string;
+  signal_id?: string;
+  signal_type?: string;
+  subject_symbol?: string;
+  candidate_type?: MarketOpsDSMGraphProposalCandidateType | string;
+  status?: MarketOpsDSMGraphProposalStatus | string;
+  limit?: number;
+}

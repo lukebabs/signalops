@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Network } from 'lucide-react';
-import { useSignals, useAlerts, useInsights, useSignal, useMarketOpsDSMArtifacts, useMarketOpsDSMArtifact } from '../api/queries';
+import { useSignals, useAlerts, useInsights, useSignal, useMarketOpsDSMArtifacts, useMarketOpsDSMArtifact, useMarketOpsDSMGraphProposals } from '../api/queries';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
 import { CopyButton } from '../components/CopyButton';
@@ -21,9 +21,20 @@ import {
   getArtifactId,
   graphTargetCounts,
   hasLifecycleMatch,
+  summarizeGraphProposals,
+  formatGraphProposalLabels,
+  graphProposalSubjectLine,
+  graphProposalHasDecision,
   type DsmFamily,
 } from '../lib/marketopsDsm';
-import type { SignalRecord, AlertRecord, InsightRecord, MarketOpsDSMArtifact } from '../types';
+import type {
+  SignalRecord,
+  AlertRecord,
+  InsightRecord,
+  MarketOpsDSMArtifact,
+  MarketOpsDSMGraphProposal,
+  MarketOpsDSMGraphProposalStatus,
+} from '../types';
 
 const SEVERITIES = ['info', 'low', 'medium', 'high', 'critical'] as const;
 const DATASETS = ['equity_eod_prices', 'options_contracts_daily'] as const;
@@ -186,6 +197,18 @@ export function MarketOpsDsmRoute() {
     artifactDetailQ.data?.artifact ??
     (selectedArtifactId ? artifactsById.get(selectedArtifactId) ?? null : null) ??
     (selectedId ? artifactsBySignal.get(selectedId) ?? null : null);
+  // G079 persisted graph proposal ledger for the selected signal. The hook is
+  // disabled unless a signal is selected, so no empty-selection request fires.
+  // Filtering by signal_id keeps the ledger single-source (the same signal can
+  // also be reached via artifact_id, but that would duplicate the query).
+  const graphProposalsQ = useMarketOpsDSMGraphProposals({
+    tenant_id: TENANT_ID,
+    app_id: 'marketops',
+    domain: 'market_data',
+    use_case: MARKETOPS_DSM_USE_CASE,
+    signal_id: selectedId ?? undefined,
+    limit: 50,
+  });
 
   function refresh() {
     signalsQ.refetch();
@@ -194,6 +217,7 @@ export function MarketOpsDsmRoute() {
     artifactsQ.refetch();
     if (selectedId) detailQ.refetch();
     if (selectedArtifactId) artifactDetailQ.refetch();
+    if (selectedId) graphProposalsQ.refetch();
   }
 
   const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
@@ -337,6 +361,9 @@ export function MarketOpsDsmRoute() {
               artifact={selectedArtifact}
               artifactLoading={artifactDetailQ.isLoading && !!selectedArtifactId}
               artifactError={artifactDetailQ.isError}
+              graphProposals={graphProposalsQ.data?.graph_proposals ?? []}
+              graphProposalsLoading={graphProposalsQ.isLoading && !!selectedId}
+              graphProposalsError={graphProposalsQ.isError}
             />
           )}
         </div>
@@ -352,6 +379,9 @@ function DsmDetailBody({
   artifact,
   artifactLoading,
   artifactError,
+  graphProposals,
+  graphProposalsLoading,
+  graphProposalsError,
 }: {
   signal: SignalRecord;
   alert: AlertRecord | null;
@@ -359,6 +389,9 @@ function DsmDetailBody({
   artifact: MarketOpsDSMArtifact | null;
   artifactLoading: boolean;
   artifactError: boolean;
+  graphProposals: MarketOpsDSMGraphProposal[];
+  graphProposalsLoading: boolean;
+  graphProposalsError: boolean;
 }) {
   const fam = dsmFamily(signal.signal_type);
   const proposal = getArtifactProposal(signal);
@@ -455,12 +488,18 @@ function DsmDetailBody({
       </div>
 
       <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs">
-        <div className="mb-1 text-gray-600">Graph Proposal</div>
+        <div className="mb-1 text-gray-600">Graph Targets (raw evidence)</div>
         <div className="flex gap-4">
           <div><span className="text-gray-500">Nodes: </span>{counts.nodes}</div>
           <div><span className="text-gray-500">Relationships: </span>{counts.relationships}</div>
         </div>
       </div>
+
+      <GraphProposalLedger
+        proposals={graphProposals}
+        loading={graphProposalsLoading}
+        error={graphProposalsError}
+      />
 
       <div>
         <div className="mb-1 text-xs font-medium text-gray-600">Evidence</div>
@@ -488,6 +527,139 @@ function DsmDetailBody({
       <JsonViewer label="Evidence" value={signal.evidence} />
       <JsonViewer label="Recommendation" value={signal.recommendation} />
       <JsonViewer label="Full Signal Event" value={signal.event} />
+    </div>
+  );
+}
+
+const GRAPH_PROPOSAL_STATUSES: MarketOpsDSMGraphProposalStatus[] = ['proposed', 'accepted', 'rejected', 'superseded'];
+
+const GRAPH_PROPOSAL_STATUS_STYLES: Record<string, string> = {
+  proposed: 'text-gray-700',
+  accepted: 'text-emerald-700',
+  rejected: 'text-red-700',
+  superseded: 'text-amber-700',
+};
+
+function GraphProposalStatus({ status }: { status: string }) {
+  return (
+    <span className={`font-medium ${GRAPH_PROPOSAL_STATUS_STYLES[status] ?? 'text-gray-600'}`}>{status}</span>
+  );
+}
+
+// Read-only ledger of persisted MarketOps DSM graph proposals (G079). Renders a
+// count + status summary and a compact table; selecting a row expands an inline
+// detail block (no modal — the route has no modal pattern). It never emits a
+// decision/mutation request. Empty state is explicit and never implies the
+// signal itself is invalid.
+function GraphProposalLedger({
+  proposals,
+  loading,
+  error,
+}: {
+  proposals: MarketOpsDSMGraphProposal[];
+  loading: boolean;
+  error: boolean;
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const summary = summarizeGraphProposals(proposals);
+
+  return (
+    <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs">
+      <div className="mb-1 text-xs font-medium text-gray-600">Graph Proposal Ledger</div>
+      {loading ? (
+        <p className="text-gray-500">Loading graph proposals...</p>
+      ) : error ? (
+        <p className="text-amber-700">Graph proposals unavailable.</p>
+      ) : proposals.length === 0 ? (
+        <p className="text-gray-400">No graph proposals persisted for this signal.</p>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-gray-600">
+            <span><span className="text-gray-500">Total: </span>{summary.total}</span>
+            <span><span className="text-gray-500">Nodes: </span>{summary.node}</span>
+            <span><span className="text-gray-500">Relationships: </span>{summary.relationship}</span>
+            <span className="text-gray-500">Status:</span>
+            {GRAPH_PROPOSAL_STATUSES.map((st) =>
+              summary.byStatus[st] ? (
+                <span key={st}>{st} {summary.byStatus[st]}</span>
+              ) : null,
+            )}
+          </div>
+
+          <div className="overflow-x-auto rounded border border-gray-200 bg-white">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50 text-left text-gray-500">
+                <tr>
+                  <th className="px-2 py-1">Status</th>
+                  <th className="px-2 py-1">Type</th>
+                  <th className="px-2 py-1">Subject</th>
+                  <th className="px-2 py-1">Conf.</th>
+                  <th className="px-2 py-1">Updated</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {proposals.map((p) => {
+                  const expanded = expandedId === p.proposal_id;
+                  const subject = graphProposalSubjectLine(p);
+                  return (
+                    <Fragment key={p.proposal_id}>
+                      <tr
+                        onClick={() => setExpandedId(expanded ? null : p.proposal_id)}
+                        className={`cursor-pointer hover:bg-gray-50 ${expanded ? 'bg-brand-50' : ''}`}
+                      >
+                        <td className="px-2 py-1"><GraphProposalStatus status={p.status} /></td>
+                        <td className="px-2 py-1">
+                          {p.candidate_type === 'node_candidate'
+                            ? 'node'
+                            : p.candidate_type === 'relationship_candidate'
+                              ? 'rel'
+                              : p.candidate_type}
+                        </td>
+                        <td className="max-w-[16rem] px-2 py-1">
+                          <span className="block truncate font-mono text-gray-600" title={subject}>{subject}</span>
+                        </td>
+                        <td className="px-2 py-1">{p.confidence.toFixed(2)}</td>
+                        <td className="px-2 py-1 text-gray-600">{formatUtc(p.updated_at)}</td>
+                      </tr>
+                      {expanded ? (
+                        <tr>
+                          <td colSpan={5} className="bg-gray-50 px-3 py-2 align-top">
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                              <code className="break-all text-xs text-gray-700">{p.proposal_id}</code>
+                              <CopyButton value={p.proposal_id} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div><div className="text-gray-500">Artifact ID</div><div className="break-all font-mono">{p.artifact_id || '—'}</div></div>
+                              <div><div className="text-gray-500">Signal ID</div><div className="break-all font-mono">{p.signal_id || '—'}</div></div>
+                              <div><div className="text-gray-500">Subject Symbol</div><div className="font-mono">{p.subject_symbol || '—'}</div></div>
+                              <div><div className="text-gray-500">Labels</div><div>{formatGraphProposalLabels(p.labels)}</div></div>
+                              {graphProposalHasDecision(p) ? (
+                                <>
+                                  <div><div className="text-gray-500">Reviewed By</div><div className="font-mono">{p.reviewed_by || '—'}</div></div>
+                                  <div><div className="text-gray-500">Decided At</div><div>{p.decided_at ? formatUtc(p.decided_at) : '—'}</div></div>
+                                  <div className="col-span-2"><div className="text-gray-500">Decision Note</div><div className="break-all">{p.decision_note || '—'}</div></div>
+                                </>
+                              ) : null}
+                              <div className="col-span-2">
+                                <JsonViewer label="Properties" value={p.properties} />
+                              </div>
+                              <div className="col-span-2">
+                                <JsonViewer label="Raw Candidate" value={p.raw_candidate} />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-gray-400">Read-only ledger — decisions are operator/backend only.</p>
+        </div>
+      )}
     </div>
   );
 }

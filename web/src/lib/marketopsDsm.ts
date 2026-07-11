@@ -7,7 +7,7 @@
 // Therefore: narrow with type guards only; never JSON.parse them (that would
 // throw on an already-parsed array). Missing/malformed values render as `-` /
 // empty and must never throw.
-import type { SignalRecord } from '../types';
+import type { SignalRecord, MarketOpsDSMGraphProposal } from '../types';
 
 export const MARKETOPS_DSM_DETECTOR_ID = 'marketops.dsm.taxonomy_v1';
 export const MARKETOPS_DSM_USE_CASE = 'daily_market_surveillance';
@@ -163,4 +163,64 @@ export function countGraphTargets(signal: SignalRecord): number {
 // True when this signal's id is in the set of ids with alert/insight coverage.
 export function hasLifecycleMatch(signal: SignalRecord, signalIds: Set<string>): boolean {
   return signalIds.has(signal.signal_id);
+}
+
+// G079 graph proposal ledger summaries (read-only). The persisted proposal
+// records come straight from the gateway typed as MarketOpsDSMGraphProposal,
+// but every value is still narrowed defensively so a malformed/forward-shaped
+// payload renders blanks instead of throwing. Backend nil slices (e.g. labels)
+// can arrive as JSON `null`, so never assume array-ness without a guard.
+
+export interface GraphProposalSummary {
+  total: number;
+  node: number;
+  relationship: number;
+  byStatus: Record<string, number>;
+}
+
+// Tally persisted proposals into total / node / relationship counts plus a
+// per-status histogram. `byStatus` only carries statuses that actually occur.
+export function summarizeGraphProposals(proposals: unknown): GraphProposalSummary {
+  const summary: GraphProposalSummary = { total: 0, node: 0, relationship: 0, byStatus: {} };
+  if (!Array.isArray(proposals)) return summary;
+  for (const p of proposals) {
+    if (!isRecord(p)) continue;
+    summary.total++;
+    if (p.candidate_type === 'node_candidate') summary.node++;
+    else if (p.candidate_type === 'relationship_candidate') summary.relationship++;
+    const status = typeof p.status === 'string' && p.status ? p.status : 'unknown';
+    summary.byStatus[status] = (summary.byStatus[status] ?? 0) + 1;
+  }
+  return summary;
+}
+
+// Render a proposal's labels as a comma-separated string, tolerating null/nil
+// slices and non-array shapes. Returns 'none' for the empty case so the ledger
+// shows an explicit absence rather than a blank cell.
+export function formatGraphProposalLabels(labels: unknown): string {
+  if (!Array.isArray(labels) || labels.length === 0) return 'none';
+  return labels.filter((l): l is string => typeof l === 'string' && l.length > 0).join(', ') || 'none';
+}
+
+// Compact one-line subject for a ledger row: node candidates show their node id;
+// relationship candidates show `from —relationship→ to`. Falls back to '—' when
+// the relevant fields are missing.
+export function graphProposalSubjectLine(p: MarketOpsDSMGraphProposal): string {
+  if (!isRecord(p)) return '—';
+  if (p.candidate_type === 'relationship_candidate') {
+    const from = typeof p.from_node === 'string' ? p.from_node : '';
+    const rel = typeof p.relationship === 'string' ? p.relationship : '';
+    const to = typeof p.to_node === 'string' ? p.to_node : '';
+    if (!from && !rel && !to) return '—';
+    return `${from} —${rel}→ ${to}`.trim();
+  }
+  const node = typeof p.node_id === 'string' ? p.node_id : '';
+  return node || '—';
+}
+
+// True when the proposal has any decision metadata worth showing in the detail
+// block (only present after an operator decision on the backend side).
+export function graphProposalHasDecision(p: MarketOpsDSMGraphProposal): boolean {
+  if (!isRecord(p)) return false;
+  return !!(p.reviewed_by || p.decision_note || p.decided_at);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SignalRecord } from '../types';
+import type { SignalRecord, MarketOpsDSMGraphProposal } from '../types';
 import {
   MARKETOPS_DSM_DETECTOR_ID,
   MARKETOPS_DSM_USE_CASE,
@@ -13,6 +13,10 @@ import {
   graphTargetCounts,
   countGraphTargets,
   hasLifecycleMatch,
+  summarizeGraphProposals,
+  formatGraphProposalLabels,
+  graphProposalSubjectLine,
+  graphProposalHasDecision,
 } from './marketopsDsm';
 
 // Fixture mirrors the verified marketops.dsm.taxonomy_v1 payload shape.
@@ -207,5 +211,149 @@ describe('hasLifecycleMatch (G076)', () => {
     const s = baseSignal();
     expect(hasLifecycleMatch(s, new Set(['sig-dsm-1']))).toBe(true);
     expect(hasLifecycleMatch(s, new Set(['sig-other']))).toBe(false);
+  });
+});
+
+// G079 persisted graph proposal ledger fixtures. `labels` can arrive as a Go
+// nil slice (JSON null), so the helpers must tolerate null/empty/non-arrays.
+function nodeProposal(over: Partial<MarketOpsDSMGraphProposal> = {}): MarketOpsDSMGraphProposal {
+  return {
+    proposal_id: 'graphprop_node_1',
+    tenant_id: 'tenant-local',
+    app_id: 'marketops',
+    domain: 'market_data',
+    use_case: MARKETOPS_DSM_USE_CASE,
+    source_id: 'src-massive',
+    source_adapter: 'market_data.massive',
+    dataset: 'equity_eod_prices',
+    artifact_id: 'artifact_marketops_dsm_v1_g079',
+    signal_id: 'sig_marketops_dsm_taxonomy_v1_g079',
+    signal_type: 'marketops.dsm.pinning_risk',
+    detector_id: MARKETOPS_DSM_DETECTOR_ID,
+    severity: 'high',
+    confidence: 0.84,
+    event_ids: ['normalized_marketops_g079_graph_live'],
+    subject_symbol: 'AAPL',
+    candidate_type: 'node_candidate',
+    node_id: 'ticker:AAPL',
+    from_node: '',
+    relationship: '',
+    to_node: '',
+    labels: ['MarketAsset'],
+    properties: { severity: 'high' },
+    raw_candidate: { type: 'node_candidate' },
+    status: 'proposed',
+    reviewed_by: '',
+    decision_note: '',
+    created_at: '2026-07-11T17:49:00Z',
+    updated_at: '2026-07-11T17:49:00Z',
+    ...over,
+  };
+}
+
+function relationshipProposal(over: Partial<MarketOpsDSMGraphProposal> = {}): MarketOpsDSMGraphProposal {
+  return nodeProposal({
+    proposal_id: 'graphprop_rel_1',
+    candidate_type: 'relationship_candidate',
+    node_id: '',
+    from_node: 'ticker:AAPL',
+    relationship: 'EXHIBITS_SIGNAL',
+    to_node: 'signal_type:marketops.dsm.pinning_risk',
+    labels: [],
+    raw_candidate: { type: 'relationship_candidate' },
+    ...over,
+  });
+}
+
+describe('graph proposal summary (G079)', () => {
+  it('counts total, node, and relationship candidates and builds a status histogram', () => {
+    // Mirrors the G079 smoke expectation: 3 node + 2 relationship = 5, all proposed.
+    const proposals = [
+      nodeProposal(),
+      nodeProposal({ proposal_id: 'graphprop_node_2' }),
+      nodeProposal({ proposal_id: 'graphprop_node_3' }),
+      relationshipProposal(),
+      relationshipProposal({ proposal_id: 'graphprop_rel_2' }),
+    ];
+    const summary = summarizeGraphProposals(proposals);
+    expect(summary.total).toBe(5);
+    expect(summary.node).toBe(3);
+    expect(summary.relationship).toBe(2);
+    expect(summary.byStatus).toEqual({ proposed: 5 });
+  });
+
+  it('returns a zeroed summary for the empty state', () => {
+    const summary = summarizeGraphProposals([]);
+    expect(summary.total).toBe(0);
+    expect(summary.node).toBe(0);
+    expect(summary.relationship).toBe(0);
+    expect(summary.byStatus).toEqual({});
+  });
+
+  it('accumulates mixed statuses and bucketizes unknown ones', () => {
+    const summary = summarizeGraphProposals([
+      nodeProposal({ status: 'accepted' }),
+      relationshipProposal({ status: 'rejected' }),
+      relationshipProposal({ status: 'superseded' }),
+      nodeProposal({ proposal_id: 'x', status: '' }),
+    ]);
+    expect(summary.byStatus).toEqual({ accepted: 1, rejected: 1, superseded: 1, unknown: 1 });
+  });
+
+  it('never throws on malformed input', () => {
+    expect(() => summarizeGraphProposals(null)).not.toThrow();
+    expect(() => summarizeGraphProposals([null, 5, 'no', { candidate_type: 'node_candidate' }])).not.toThrow();
+    expect(summarizeGraphProposals(null).total).toBe(0);
+  });
+});
+
+describe('graph proposal labels (G079)', () => {
+  it('joins present labels', () => {
+    expect(formatGraphProposalLabels(['MarketAsset', 'Equity'])).toBe('MarketAsset, Equity');
+  });
+
+  it('reports none for empty, null, or nil-slice shapes', () => {
+    expect(formatGraphProposalLabels([])).toBe('none');
+    expect(formatGraphProposalLabels(null)).toBe('none');
+    expect(formatGraphProposalLabels(undefined)).toBe('none');
+    expect(formatGraphProposalLabels('nope')).toBe('none');
+  });
+
+  it('relationship candidates without labels render without crashing', () => {
+    // Backend nil slice serializes to JSON null; the ledger must not throw.
+    const p = relationshipProposal({ labels: null as unknown as string[] });
+    expect(() => formatGraphProposalLabels(p.labels)).not.toThrow();
+    expect(formatGraphProposalLabels(p.labels)).toBe('none');
+  });
+});
+
+describe('graph proposal subject line (G079)', () => {
+  it('shows node id for node candidates', () => {
+    expect(graphProposalSubjectLine(nodeProposal())).toBe('ticker:AAPL');
+  });
+
+  it('renders from —relationship→ to for relationship candidates', () => {
+    expect(graphProposalSubjectLine(relationshipProposal())).toBe(
+      'ticker:AAPL —EXHIBITS_SIGNAL→ signal_type:marketops.dsm.pinning_risk',
+    );
+  });
+
+  it('falls back to — for missing fields', () => {
+    expect(graphProposalSubjectLine(nodeProposal({ node_id: '' }))).toBe('—');
+    expect(
+      graphProposalSubjectLine(relationshipProposal({ from_node: '', relationship: '', to_node: '' })),
+    ).toBe('—');
+  });
+});
+
+describe('graph proposal decision detection (G079)', () => {
+  it('is false for untouched proposals', () => {
+    expect(graphProposalHasDecision(nodeProposal())).toBe(false);
+  });
+
+  it('is true once reviewed_by / decision_note / decided_at is present', () => {
+    expect(graphProposalHasDecision(nodeProposal({ reviewed_by: 'operator-g079' }))).toBe(true);
+    expect(graphProposalHasDecision(nodeProposal({ decision_note: 'approved' }))).toBe(true);
+    expect(graphProposalHasDecision(nodeProposal({ decided_at: '2026-07-11T18:00:00Z' }))).toBe(true);
   });
 });

@@ -259,6 +259,26 @@ cd web && npm run build
 cd web && npm audit --audit-level=low
 ```
 
+### 7.1 Test Coverage Note (applied during implementation)
+
+The first three items above (API client path/filters/bearer auth, proposal id
+encoding, stable query keys) are covered in
+`web/src/api/marketopsGraphProposals.test.ts`, matching the established G078
+artifact test pattern (`marketopsAssets.test.ts`).
+
+The remaining three items ("displays counts", "renders empty state",
+"relationship candidates without labels render without crashing") are verified
+as **pure functions** in `web/src/lib/marketopsDsm.test.ts`
+(`summarizeGraphProposals`, `formatGraphProposalLabels`,
+`graphProposalSubjectLine`) rather than as React component renders. This project
+ships no component test harness — `vitest` only, with no `jsdom` /
+`@testing-library/react` dependency and no `test` block in `vite.config.ts` —
+and the cited G078 pattern likewise has no component render tests. Adding a
+render harness would expand scope beyond a read-only follow-up and risk the
+`npm audit --audit-level=low` gate. The ledger UI itself is covered by
+`tsc` + `vite build` (type-check + compile), and its display logic is fully
+exercised through the unit-tested helpers it calls.
+
 ## Acceptance Criteria
 
 - `/marketops/dsm` still renders existing signal/artifact workflows.
