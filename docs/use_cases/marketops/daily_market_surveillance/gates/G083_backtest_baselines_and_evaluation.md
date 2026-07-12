@@ -1,6 +1,6 @@
 # G083 Back-Test Baselines And Evaluation
 
-Status: specification proposed
+Status: backend implemented and authenticated smoke validated
 Use case: MarketOps Daily Market Surveillance
 
 ## Goal
@@ -227,7 +227,7 @@ Potential endpoints:
 - `POST /v1/marketops/backtest-evaluation-labels/sync`
 - `GET /v1/marketops/backtest-evaluation-labels`
 
-MVP implementation can defer label sync if baseline comparison over summaries is implemented first.
+Implemented MVP defers label sync; G083 now compares immutable persisted summaries through named baselines and stored comparison records.
 
 ## Frontend Boundary
 

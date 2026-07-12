@@ -476,3 +476,135 @@ func scanMarketOpsBacktestCalibrationSummary(scanner marketOpsBacktestCalibratio
 	}
 	return record, nil
 }
+
+func (r *Repository) UpsertMarketOpsBacktestCalibrationBaseline(ctx context.Context, record storage.MarketOpsBacktestCalibrationBaselineRecord) error {
+	if strings.TrimSpace(record.BaselineID) == "" || strings.TrimSpace(record.TenantID) == "" || strings.TrimSpace(record.Name) == "" || strings.TrimSpace(record.SummaryID) == "" {
+		return fmt.Errorf("marketops backtest calibration baseline_id, tenant_id, name, and summary_id are required")
+	}
+	status := strings.TrimSpace(record.Status)
+	if status == "" {
+		status = storage.MarketOpsBacktestCalibrationBaselineStatusActive
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO marketops_backtest_calibration_baselines (
+ baseline_id, tenant_id, app_id, domain, use_case, name, description, summary_id, detector_id, dataset, scope, status, created_by
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+ON CONFLICT (baseline_id) DO UPDATE SET
+ tenant_id=EXCLUDED.tenant_id, app_id=EXCLUDED.app_id, domain=EXCLUDED.domain, use_case=EXCLUDED.use_case,
+ name=EXCLUDED.name, description=EXCLUDED.description, summary_id=EXCLUDED.summary_id, detector_id=EXCLUDED.detector_id,
+ dataset=EXCLUDED.dataset, scope=EXCLUDED.scope, status=EXCLUDED.status, created_by=EXCLUDED.created_by, updated_at=now()`,
+		record.BaselineID, strings.TrimSpace(record.TenantID), recordAppID(record.AppID), recordDomain(record.Domain), recordUseCase(record.UseCase),
+		strings.TrimSpace(record.Name), strings.TrimSpace(record.Description), strings.TrimSpace(record.SummaryID), strings.TrimSpace(record.DetectorID), strings.TrimSpace(record.Dataset),
+		jsonOrEmpty(record.ScopeJSON), status, firstNonEmptyString(record.CreatedBy, "operator-local"))
+	if err != nil {
+		return fmt.Errorf("upsert marketops backtest calibration baseline: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ListMarketOpsBacktestCalibrationBaselines(ctx context.Context, filter storage.MarketOpsBacktestCalibrationBaselineFilter) ([]storage.MarketOpsBacktestCalibrationBaselineRecord, error) {
+	rows, err := r.db.QueryContext(ctx, marketOpsBacktestCalibrationBaselineSelect+`
+WHERE ($1='' OR tenant_id=$1) AND ($2='' OR app_id=$2) AND ($3='' OR domain=$3) AND ($4='' OR use_case=$4)
+ AND ($5='' OR detector_id=$5) AND ($6='' OR dataset=$6) AND ($7='' OR status=$7)
+ORDER BY created_at DESC LIMIT $8`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.DetectorID), strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.Status), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list marketops backtest calibration baselines: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.MarketOpsBacktestCalibrationBaselineRecord{}
+	for rows.Next() {
+		rec, err := scanMarketOpsBacktestCalibrationBaseline(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list marketops backtest calibration baselines rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetMarketOpsBacktestCalibrationBaseline(ctx context.Context, baselineID string) (storage.MarketOpsBacktestCalibrationBaselineRecord, error) {
+	record, err := scanMarketOpsBacktestCalibrationBaseline(r.db.QueryRowContext(ctx, marketOpsBacktestCalibrationBaselineSelect+` WHERE baseline_id=$1`, strings.TrimSpace(baselineID)))
+	if err != nil {
+		return storage.MarketOpsBacktestCalibrationBaselineRecord{}, err
+	}
+	return record, nil
+}
+
+const marketOpsBacktestCalibrationBaselineSelect = `SELECT baseline_id, tenant_id, app_id, domain, use_case, name, description, summary_id, detector_id, dataset, scope, status, created_by, created_at, updated_at FROM marketops_backtest_calibration_baselines`
+
+type marketOpsBacktestCalibrationBaselineScanner interface{ Scan(dest ...any) error }
+
+func scanMarketOpsBacktestCalibrationBaseline(scanner marketOpsBacktestCalibrationBaselineScanner) (storage.MarketOpsBacktestCalibrationBaselineRecord, error) {
+	var record storage.MarketOpsBacktestCalibrationBaselineRecord
+	if err := scanner.Scan(&record.BaselineID, &record.TenantID, &record.AppID, &record.Domain, &record.UseCase, &record.Name, &record.Description, &record.SummaryID, &record.DetectorID, &record.Dataset, &record.ScopeJSON, &record.Status, &record.CreatedBy, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		return storage.MarketOpsBacktestCalibrationBaselineRecord{}, mapScanError("scan marketops backtest calibration baseline", err)
+	}
+	return record, nil
+}
+
+func (r *Repository) UpsertMarketOpsBacktestCalibrationComparison(ctx context.Context, record storage.MarketOpsBacktestCalibrationComparisonRecord) error {
+	if strings.TrimSpace(record.ComparisonID) == "" || strings.TrimSpace(record.TenantID) == "" || strings.TrimSpace(record.BaselineID) == "" || strings.TrimSpace(record.BaselineSummaryID) == "" || strings.TrimSpace(record.CandidateSummaryID) == "" || strings.TrimSpace(record.Recommendation) == "" {
+		return fmt.Errorf("marketops backtest calibration comparison_id, tenant_id, baseline_id, summary ids, and recommendation are required")
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO marketops_backtest_calibration_comparisons (
+ comparison_id, tenant_id, baseline_id, baseline_summary_id, candidate_summary_id, detector_id, dataset,
+ comparison_metrics, recommendation, recommendation_reason, created_by
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+ON CONFLICT (comparison_id) DO UPDATE SET
+ tenant_id=EXCLUDED.tenant_id, baseline_id=EXCLUDED.baseline_id, baseline_summary_id=EXCLUDED.baseline_summary_id,
+ candidate_summary_id=EXCLUDED.candidate_summary_id, detector_id=EXCLUDED.detector_id, dataset=EXCLUDED.dataset,
+ comparison_metrics=EXCLUDED.comparison_metrics, recommendation=EXCLUDED.recommendation,
+ recommendation_reason=EXCLUDED.recommendation_reason, created_by=EXCLUDED.created_by`,
+		record.ComparisonID, strings.TrimSpace(record.TenantID), strings.TrimSpace(record.BaselineID), strings.TrimSpace(record.BaselineSummaryID), strings.TrimSpace(record.CandidateSummaryID),
+		strings.TrimSpace(record.DetectorID), strings.TrimSpace(record.Dataset), jsonOrEmpty(record.ComparisonMetricsJSON), strings.TrimSpace(record.Recommendation), strings.TrimSpace(record.RecommendationReason), firstNonEmptyString(record.CreatedBy, "operator-local"))
+	if err != nil {
+		return fmt.Errorf("upsert marketops backtest calibration comparison: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ListMarketOpsBacktestCalibrationComparisons(ctx context.Context, filter storage.MarketOpsBacktestCalibrationComparisonFilter) ([]storage.MarketOpsBacktestCalibrationComparisonRecord, error) {
+	rows, err := r.db.QueryContext(ctx, marketOpsBacktestCalibrationComparisonSelect+`
+WHERE ($1='' OR tenant_id=$1) AND ($2='' OR baseline_id=$2) AND ($3='' OR detector_id=$3) AND ($4='' OR dataset=$4) AND ($5='' OR recommendation=$5)
+ORDER BY created_at DESC LIMIT $6`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.BaselineID), strings.TrimSpace(filter.DetectorID), strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.Recommendation), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list marketops backtest calibration comparisons: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.MarketOpsBacktestCalibrationComparisonRecord{}
+	for rows.Next() {
+		rec, err := scanMarketOpsBacktestCalibrationComparison(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list marketops backtest calibration comparisons rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetMarketOpsBacktestCalibrationComparison(ctx context.Context, comparisonID string) (storage.MarketOpsBacktestCalibrationComparisonRecord, error) {
+	record, err := scanMarketOpsBacktestCalibrationComparison(r.db.QueryRowContext(ctx, marketOpsBacktestCalibrationComparisonSelect+` WHERE comparison_id=$1`, strings.TrimSpace(comparisonID)))
+	if err != nil {
+		return storage.MarketOpsBacktestCalibrationComparisonRecord{}, err
+	}
+	return record, nil
+}
+
+const marketOpsBacktestCalibrationComparisonSelect = `SELECT comparison_id, tenant_id, baseline_id, baseline_summary_id, candidate_summary_id, detector_id, dataset, comparison_metrics, recommendation, recommendation_reason, created_by, created_at FROM marketops_backtest_calibration_comparisons`
+
+type marketOpsBacktestCalibrationComparisonScanner interface{ Scan(dest ...any) error }
+
+func scanMarketOpsBacktestCalibrationComparison(scanner marketOpsBacktestCalibrationComparisonScanner) (storage.MarketOpsBacktestCalibrationComparisonRecord, error) {
+	var record storage.MarketOpsBacktestCalibrationComparisonRecord
+	if err := scanner.Scan(&record.ComparisonID, &record.TenantID, &record.BaselineID, &record.BaselineSummaryID, &record.CandidateSummaryID, &record.DetectorID, &record.Dataset, &record.ComparisonMetricsJSON, &record.Recommendation, &record.RecommendationReason, &record.CreatedBy, &record.CreatedAt); err != nil {
+		return storage.MarketOpsBacktestCalibrationComparisonRecord{}, mapScanError("scan marketops backtest calibration comparison", err)
+	}
+	return record, nil
+}

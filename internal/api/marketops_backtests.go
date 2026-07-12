@@ -291,3 +291,179 @@ func firstNonEmptyBacktestValue(values ...string) string {
 	}
 	return ""
 }
+
+type marketOpsBacktestCalibrationBaselineCreateRequest struct {
+	BaselineID  string          `json:"baseline_id"`
+	TenantID    string          `json:"tenant_id"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	SummaryID   string          `json:"summary_id"`
+	Scope       json.RawMessage `json:"scope"`
+	Status      string          `json:"status"`
+	CreatedBy   string          `json:"created_by"`
+}
+
+type marketOpsBacktestCalibrationBaselineDTO struct {
+	BaselineID  string          `json:"baseline_id"`
+	TenantID    string          `json:"tenant_id"`
+	AppID       string          `json:"app_id"`
+	Domain      string          `json:"domain"`
+	UseCase     string          `json:"use_case"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	SummaryID   string          `json:"summary_id"`
+	DetectorID  string          `json:"detector_id"`
+	Dataset     string          `json:"dataset"`
+	Scope       json.RawMessage `json:"scope"`
+	Status      string          `json:"status"`
+	CreatedBy   string          `json:"created_by"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
+type marketOpsBacktestCalibrationComparisonCreateRequest struct {
+	ComparisonID       string `json:"comparison_id"`
+	TenantID           string `json:"tenant_id"`
+	BaselineID         string `json:"baseline_id"`
+	CandidateSummaryID string `json:"candidate_summary_id"`
+	CreatedBy          string `json:"created_by"`
+}
+
+type marketOpsBacktestCalibrationComparisonDTO struct {
+	ComparisonID         string          `json:"comparison_id"`
+	TenantID             string          `json:"tenant_id"`
+	BaselineID           string          `json:"baseline_id"`
+	BaselineSummaryID    string          `json:"baseline_summary_id"`
+	CandidateSummaryID   string          `json:"candidate_summary_id"`
+	DetectorID           string          `json:"detector_id"`
+	Dataset              string          `json:"dataset"`
+	ComparisonMetrics    json.RawMessage `json:"comparison_metrics"`
+	Recommendation       string          `json:"recommendation"`
+	RecommendationReason string          `json:"recommendation_reason"`
+	CreatedBy            string          `json:"created_by"`
+	CreatedAt            time.Time       `json:"created_at"`
+}
+
+func marketOpsBacktestCalibrationBaselineResponse(record storage.MarketOpsBacktestCalibrationBaselineRecord) marketOpsBacktestCalibrationBaselineDTO {
+	return marketOpsBacktestCalibrationBaselineDTO{BaselineID: record.BaselineID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, Name: record.Name, Description: record.Description, SummaryID: record.SummaryID, DetectorID: record.DetectorID, Dataset: record.Dataset, Scope: json.RawMessage(jsonOrDefault(record.ScopeJSON, `{}`)), Status: record.Status, CreatedBy: record.CreatedBy, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+}
+
+func marketOpsBacktestCalibrationBaselineResponses(records []storage.MarketOpsBacktestCalibrationBaselineRecord) []marketOpsBacktestCalibrationBaselineDTO {
+	responses := make([]marketOpsBacktestCalibrationBaselineDTO, 0, len(records))
+	for _, record := range records {
+		responses = append(responses, marketOpsBacktestCalibrationBaselineResponse(record))
+	}
+	return responses
+}
+
+func marketOpsBacktestCalibrationComparisonResponse(record storage.MarketOpsBacktestCalibrationComparisonRecord) marketOpsBacktestCalibrationComparisonDTO {
+	return marketOpsBacktestCalibrationComparisonDTO{ComparisonID: record.ComparisonID, TenantID: record.TenantID, BaselineID: record.BaselineID, BaselineSummaryID: record.BaselineSummaryID, CandidateSummaryID: record.CandidateSummaryID, DetectorID: record.DetectorID, Dataset: record.Dataset, ComparisonMetrics: json.RawMessage(jsonOrDefault(record.ComparisonMetricsJSON, `{}`)), Recommendation: record.Recommendation, RecommendationReason: record.RecommendationReason, CreatedBy: record.CreatedBy, CreatedAt: record.CreatedAt}
+}
+
+func marketOpsBacktestCalibrationComparisonResponses(records []storage.MarketOpsBacktestCalibrationComparisonRecord) []marketOpsBacktestCalibrationComparisonDTO {
+	responses := make([]marketOpsBacktestCalibrationComparisonDTO, 0, len(records))
+	for _, record := range records {
+		responses = append(responses, marketOpsBacktestCalibrationComparisonResponse(record))
+	}
+	return responses
+}
+
+func marketOpsBacktestCalibrationBaselineFromRequest(req marketOpsBacktestCalibrationBaselineCreateRequest, actor string, summary storage.MarketOpsBacktestCalibrationSummaryRecord) storage.MarketOpsBacktestCalibrationBaselineRecord {
+	status := strings.TrimSpace(req.Status)
+	if status == "" {
+		status = storage.MarketOpsBacktestCalibrationBaselineStatusActive
+	}
+	return storage.MarketOpsBacktestCalibrationBaselineRecord{BaselineID: strings.TrimSpace(req.BaselineID), TenantID: strings.TrimSpace(req.TenantID), AppID: summary.AppID, Domain: summary.Domain, UseCase: summary.UseCase, Name: strings.TrimSpace(req.Name), Description: strings.TrimSpace(req.Description), SummaryID: summary.SummaryID, DetectorID: summary.DetectorID, Dataset: summary.Dataset, ScopeJSON: []byte(jsonOrDefault(req.Scope, `{}`)), Status: status, CreatedBy: firstNonEmptyBacktestValue(actor, "operator-local")}
+}
+
+type marketOpsBacktestCalibrationComparisonSnapshot struct {
+	SummaryID              string             `json:"summary_id"`
+	RunCount               int                `json:"run_count"`
+	ZeroInputCount         int                `json:"zero_input_count"`
+	ZeroInputRate          float64            `json:"zero_input_rate"`
+	Scanned                int                `json:"scanned"`
+	Signals                int                `json:"signals"`
+	PolicyResults          int                `json:"policy_results"`
+	SignalYield            float64            `json:"signal_yield"`
+	PolicyResultsPerSignal float64            `json:"policy_results_per_signal"`
+	RecommendationShares   map[string]float64 `json:"recommendation_shares"`
+	DominantRecommendation string             `json:"dominant_recommendation"`
+}
+
+type marketOpsBacktestCalibrationComparisonMetrics struct {
+	Baseline  marketOpsBacktestCalibrationComparisonSnapshot `json:"baseline"`
+	Candidate marketOpsBacktestCalibrationComparisonSnapshot `json:"candidate"`
+	Deltas    map[string]any                                 `json:"deltas"`
+}
+
+func buildMarketOpsBacktestCalibrationComparison(comparisonID string, actor string, baseline storage.MarketOpsBacktestCalibrationBaselineRecord, baselineSummary storage.MarketOpsBacktestCalibrationSummaryRecord, candidate storage.MarketOpsBacktestCalibrationSummaryRecord) (storage.MarketOpsBacktestCalibrationComparisonRecord, error) {
+	base := marketOpsBacktestCalibrationComparisonSnapshotFromSummary(baselineSummary)
+	cand := marketOpsBacktestCalibrationComparisonSnapshotFromSummary(candidate)
+	deltas := map[string]any{
+		"run_count_delta":                          cand.RunCount - base.RunCount,
+		"zero_input_rate_delta":                    cand.ZeroInputRate - base.ZeroInputRate,
+		"scanned_delta":                            cand.Scanned - base.Scanned,
+		"signal_yield_delta":                       cand.SignalYield - base.SignalYield,
+		"policy_results_per_signal_delta":          cand.PolicyResultsPerSignal - base.PolicyResultsPerSignal,
+		"auto_accept_candidate_share_delta":        recommendationShare(cand, "auto_accept_candidate") - recommendationShare(base, "auto_accept_candidate"),
+		"auto_reject_candidate_share_delta":        recommendationShare(cand, "auto_reject_candidate") - recommendationShare(base, "auto_reject_candidate"),
+		"manual_review_required_share_delta":       recommendationShare(cand, "manual_review_required") - recommendationShare(base, "manual_review_required"),
+		"supersede_existing_candidate_share_delta": recommendationShare(cand, "supersede_existing_candidate") - recommendationShare(base, "supersede_existing_candidate"),
+		"dominant_recommendation_changed":          cand.DominantRecommendation != base.DominantRecommendation,
+	}
+	metrics, err := json.Marshal(marketOpsBacktestCalibrationComparisonMetrics{Baseline: base, Candidate: cand, Deltas: deltas})
+	if err != nil {
+		return storage.MarketOpsBacktestCalibrationComparisonRecord{}, err
+	}
+	recommendation, reason := marketOpsBacktestCalibrationComparisonRecommendation(base, cand)
+	return storage.MarketOpsBacktestCalibrationComparisonRecord{ComparisonID: strings.TrimSpace(comparisonID), TenantID: baseline.TenantID, BaselineID: baseline.BaselineID, BaselineSummaryID: baselineSummary.SummaryID, CandidateSummaryID: candidate.SummaryID, DetectorID: firstNonEmptyBacktestValue(candidate.DetectorID, baseline.DetectorID), Dataset: firstNonEmptyBacktestValue(candidate.Dataset, baseline.Dataset), ComparisonMetricsJSON: metrics, Recommendation: recommendation, RecommendationReason: reason, CreatedBy: firstNonEmptyBacktestValue(actor, "operator-local")}, nil
+}
+
+func marketOpsBacktestCalibrationComparisonSnapshotFromSummary(summary storage.MarketOpsBacktestCalibrationSummaryRecord) marketOpsBacktestCalibrationComparisonSnapshot {
+	shares := map[string]float64{}
+	_ = json.Unmarshal(summary.RecommendationShares, &shares)
+	dominant := struct {
+		Key string `json:"key"`
+	}{}
+	_ = json.Unmarshal(summary.DominantRecommendation, &dominant)
+	zeroInputRate := 0.0
+	if summary.RunCount > 0 {
+		zeroInputRate = float64(summary.ZeroInputCount) / float64(summary.RunCount)
+	}
+	return marketOpsBacktestCalibrationComparisonSnapshot{SummaryID: summary.SummaryID, RunCount: summary.RunCount, ZeroInputCount: summary.ZeroInputCount, ZeroInputRate: zeroInputRate, Scanned: summary.Scanned, Signals: summary.Signals, PolicyResults: summary.PolicyResults, SignalYield: summary.SignalYield, PolicyResultsPerSignal: summary.PolicyResultsPerSignal, RecommendationShares: shares, DominantRecommendation: dominant.Key}
+}
+
+func marketOpsBacktestCalibrationComparisonRecommendation(base marketOpsBacktestCalibrationComparisonSnapshot, cand marketOpsBacktestCalibrationComparisonSnapshot) (string, string) {
+	manualReviewDelta := recommendationShare(cand, "manual_review_required") - recommendationShare(base, "manual_review_required")
+	autoAcceptDelta := recommendationShare(cand, "auto_accept_candidate") - recommendationShare(base, "auto_accept_candidate")
+	if cand.RunCount < 1 || cand.Scanned == 0 {
+		return storage.MarketOpsBacktestCalibrationRecommendationNeedsMoreData, "candidate summary has no usable input coverage"
+	}
+	if cand.ZeroInputRate > base.ZeroInputRate+0.2 {
+		return storage.MarketOpsBacktestCalibrationRecommendationRegression, "candidate zero-input rate increased materially"
+	}
+	if cand.SignalYield < base.SignalYield*0.8 || manualReviewDelta > 0.1 || autoAcceptDelta > 0.1 {
+		return storage.MarketOpsBacktestCalibrationRecommendationManualReview, "candidate drift requires operator review before promotion"
+	}
+	if manualReviewDelta < -0.05 && cand.SignalYield >= base.SignalYield {
+		return storage.MarketOpsBacktestCalibrationRecommendationImprovement, "candidate reduces manual review share without lowering signal yield"
+	}
+	if absFloat(cand.SignalYield-base.SignalYield) < 0.02 && absFloat(manualReviewDelta) < 0.05 && absFloat(autoAcceptDelta) < 0.05 {
+		return storage.MarketOpsBacktestCalibrationRecommendationNeutral, "candidate is within baseline tolerance bands"
+	}
+	return storage.MarketOpsBacktestCalibrationRecommendationNeutral, "candidate deltas do not cross promotion or regression thresholds"
+}
+
+func recommendationShare(snapshot marketOpsBacktestCalibrationComparisonSnapshot, key string) float64 {
+	if snapshot.RecommendationShares == nil {
+		return 0
+	}
+	return snapshot.RecommendationShares[key]
+}
+
+func absFloat(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}

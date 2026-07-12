@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS marketops_backtest_calibration_comparisons;
+DROP TABLE IF EXISTS marketops_backtest_calibration_baselines;

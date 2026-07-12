@@ -52,41 +52,45 @@ func (p *fakePublishRepository) PersistPublishedRawEvent(_ context.Context, ledg
 }
 
 type fakeQueryRepository struct {
-	runs                          []storage.SchedulerRunRecord
-	replayJobs                    []storage.ReplayJobRecord
-	replayCounts                  []storage.ReplayJobStatusCount
-	replayWorkers                 []storage.ReplayWorkerHeartbeatRecord
-	lastReplayFilter              storage.ReplayJobFilter
-	usage                         []storage.ProviderUsageRecord
-	rawEvents                     []storage.RawEventLedgerRecord
-	idem                          storage.IdempotencyRecord
-	sources                       []storage.CatalogSourceRecord
-	pipelines                     []storage.CatalogPipelineRecord
-	rules                         []storage.CatalogRuleRecord
-	marketOpsAssets               []storage.MarketOpsAssetRecord
-	dsmArtifacts                  []storage.MarketOpsDSMArtifactRecord
-	dsmGraphProposals             []storage.MarketOpsDSMGraphProposalRecord
-	backtestRuns                  []storage.MarketOpsBacktestRunRecord
-	backtestSignals               []storage.MarketOpsBacktestSignalRecord
-	backtestGraphProposals        []storage.MarketOpsBacktestGraphProposalRecord
-	backtestPolicyResults         []storage.MarketOpsBacktestPolicyResultRecord
-	backtestCalibrationSummaries  []storage.MarketOpsBacktestCalibrationSummaryRecord
-	lastBacktestRunFilter         storage.MarketOpsBacktestRunFilter
-	lastBacktestSignalFilter      storage.MarketOpsBacktestSignalFilter
-	lastBacktestGraphFilter       storage.MarketOpsBacktestGraphProposalFilter
-	lastBacktestCalibrationFilter storage.MarketOpsBacktestCalibrationSummaryFilter
-	lastDSMFilter                 storage.MarketOpsDSMArtifactFilter
-	lastGraphProposalFilter       storage.MarketOpsDSMGraphProposalFilter
-	lastGraphProposalMutation     storage.MarketOpsDSMGraphProposalMutation
-	lastUniverseGroup             string
-	lastActiveOnly                bool
-	alerts                        []storage.AlertLedgerRecord
-	insights                      []storage.InsightLedgerRecord
-	notFound                      bool
-	lastFilter                    storage.RawEventLedgerFilter
-	schedulerQueries              int
-	rawEventQueries               int
-	usageQueries                  int
+	runs                           []storage.SchedulerRunRecord
+	replayJobs                     []storage.ReplayJobRecord
+	replayCounts                   []storage.ReplayJobStatusCount
+	replayWorkers                  []storage.ReplayWorkerHeartbeatRecord
+	lastReplayFilter               storage.ReplayJobFilter
+	usage                          []storage.ProviderUsageRecord
+	rawEvents                      []storage.RawEventLedgerRecord
+	idem                           storage.IdempotencyRecord
+	sources                        []storage.CatalogSourceRecord
+	pipelines                      []storage.CatalogPipelineRecord
+	rules                          []storage.CatalogRuleRecord
+	marketOpsAssets                []storage.MarketOpsAssetRecord
+	dsmArtifacts                   []storage.MarketOpsDSMArtifactRecord
+	dsmGraphProposals              []storage.MarketOpsDSMGraphProposalRecord
+	backtestRuns                   []storage.MarketOpsBacktestRunRecord
+	backtestSignals                []storage.MarketOpsBacktestSignalRecord
+	backtestGraphProposals         []storage.MarketOpsBacktestGraphProposalRecord
+	backtestPolicyResults          []storage.MarketOpsBacktestPolicyResultRecord
+	backtestCalibrationSummaries   []storage.MarketOpsBacktestCalibrationSummaryRecord
+	backtestCalibrationBaselines   []storage.MarketOpsBacktestCalibrationBaselineRecord
+	backtestCalibrationComparisons []storage.MarketOpsBacktestCalibrationComparisonRecord
+	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
+	lastBacktestSignalFilter       storage.MarketOpsBacktestSignalFilter
+	lastBacktestGraphFilter        storage.MarketOpsBacktestGraphProposalFilter
+	lastBacktestCalibrationFilter  storage.MarketOpsBacktestCalibrationSummaryFilter
+	lastBacktestBaselineFilter     storage.MarketOpsBacktestCalibrationBaselineFilter
+	lastBacktestComparisonFilter   storage.MarketOpsBacktestCalibrationComparisonFilter
+	lastDSMFilter                  storage.MarketOpsDSMArtifactFilter
+	lastGraphProposalFilter        storage.MarketOpsDSMGraphProposalFilter
+	lastGraphProposalMutation      storage.MarketOpsDSMGraphProposalMutation
+	lastUniverseGroup              string
+	lastActiveOnly                 bool
+	alerts                         []storage.AlertLedgerRecord
+	insights                       []storage.InsightLedgerRecord
+	notFound                       bool
+	lastFilter                     storage.RawEventLedgerFilter
+	schedulerQueries               int
+	rawEventQueries                int
+	usageQueries                   int
 }
 
 func (q *fakeQueryRepository) ListSchedulerRuns(context.Context, int) ([]storage.SchedulerRunRecord, error) {
@@ -337,6 +341,76 @@ func (q *fakeQueryRepository) GetMarketOpsBacktestCalibrationSummary(_ context.C
 		}
 	}
 	return storage.MarketOpsBacktestCalibrationSummaryRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertMarketOpsBacktestCalibrationBaseline(_ context.Context, record storage.MarketOpsBacktestCalibrationBaselineRecord) error {
+	for i, existing := range q.backtestCalibrationBaselines {
+		if existing.BaselineID == record.BaselineID {
+			record.CreatedAt = existing.CreatedAt
+			if record.UpdatedAt.IsZero() {
+				record.UpdatedAt = time.Now().UTC()
+			}
+			q.backtestCalibrationBaselines[i] = record
+			return nil
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	if record.UpdatedAt.IsZero() {
+		record.UpdatedAt = record.CreatedAt
+	}
+	q.backtestCalibrationBaselines = append(q.backtestCalibrationBaselines, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestCalibrationBaselines(_ context.Context, filter storage.MarketOpsBacktestCalibrationBaselineFilter) ([]storage.MarketOpsBacktestCalibrationBaselineRecord, error) {
+	q.lastBacktestBaselineFilter = filter
+	return q.backtestCalibrationBaselines, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsBacktestCalibrationBaseline(_ context.Context, baselineID string) (storage.MarketOpsBacktestCalibrationBaselineRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsBacktestCalibrationBaselineRecord{}, storage.ErrNotFound
+	}
+	for _, baseline := range q.backtestCalibrationBaselines {
+		if baseline.BaselineID == baselineID {
+			return baseline, nil
+		}
+	}
+	return storage.MarketOpsBacktestCalibrationBaselineRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertMarketOpsBacktestCalibrationComparison(_ context.Context, record storage.MarketOpsBacktestCalibrationComparisonRecord) error {
+	for i, existing := range q.backtestCalibrationComparisons {
+		if existing.ComparisonID == record.ComparisonID {
+			record.CreatedAt = existing.CreatedAt
+			q.backtestCalibrationComparisons[i] = record
+			return nil
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	q.backtestCalibrationComparisons = append(q.backtestCalibrationComparisons, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestCalibrationComparisons(_ context.Context, filter storage.MarketOpsBacktestCalibrationComparisonFilter) ([]storage.MarketOpsBacktestCalibrationComparisonRecord, error) {
+	q.lastBacktestComparisonFilter = filter
+	return q.backtestCalibrationComparisons, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsBacktestCalibrationComparison(_ context.Context, comparisonID string) (storage.MarketOpsBacktestCalibrationComparisonRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsBacktestCalibrationComparisonRecord{}, storage.ErrNotFound
+	}
+	for _, comparison := range q.backtestCalibrationComparisons {
+		if comparison.ComparisonID == comparisonID {
+			return comparison, nil
+		}
+	}
+	return storage.MarketOpsBacktestCalibrationComparisonRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListMarketOpsDSMArtifacts(_ context.Context, filter storage.MarketOpsDSMArtifactFilter) ([]storage.MarketOpsDSMArtifactRecord, error) {
@@ -1747,6 +1821,142 @@ func TestGetMarketOpsBacktestCalibrationSummary(t *testing.T) {
 	if response["calibration_summary"]["summary_id"] != "btcal-1" {
 		t.Fatalf("response = %#v", response)
 	}
+}
+
+func TestPostMarketOpsBacktestCalibrationBaselineCreatesStoredBaseline(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationSummaries: []storage.MarketOpsBacktestCalibrationSummaryRecord{validMarketOpsBacktestCalibrationSummaryRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"baseline_id":"btbase-1","tenant_id":"tenant-1","name":"Taxonomy baseline","summary_id":"btcal-1","scope":{"symbols":["AAPL"]}}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-calibration-baselines", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	baseline := response["calibration_baseline"]
+	if baseline["baseline_id"] != "btbase-1" || baseline["summary_id"] != "btcal-1" || baseline["status"] != storage.MarketOpsBacktestCalibrationBaselineStatusActive {
+		t.Fatalf("baseline = %#v", baseline)
+	}
+	if baseline["detector_id"] != "marketops.dsm.taxonomy_v1" || baseline["dataset"] != "equity_eod_prices" {
+		t.Fatalf("baseline summary linkage = %#v", baseline)
+	}
+}
+
+func TestGetMarketOpsBacktestCalibrationBaselines(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationBaselines: []storage.MarketOpsBacktestCalibrationBaselineRecord{validMarketOpsBacktestCalibrationBaselineRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-calibration-baselines?tenant_id=tenant-1&dataset=equity_eod_prices&detector_id=marketops.dsm.taxonomy_v1&status=active&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestBaselineFilter.TenantID != "tenant-1" || repo.lastBacktestBaselineFilter.Status != "active" || repo.lastBacktestBaselineFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastBacktestBaselineFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response["calibration_baselines"]) != 1 || response["calibration_baselines"][0]["baseline_id"] != "btbase-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestGetMarketOpsBacktestCalibrationBaseline(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationBaselines: []storage.MarketOpsBacktestCalibrationBaselineRecord{validMarketOpsBacktestCalibrationBaselineRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-calibration-baselines/btbase-1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response["calibration_baseline"]["baseline_id"] != "btbase-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestPostMarketOpsBacktestCalibrationComparisonCreatesStoredComparison(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationSummaries: []storage.MarketOpsBacktestCalibrationSummaryRecord{validMarketOpsBacktestCalibrationSummaryRecord()}, backtestCalibrationBaselines: []storage.MarketOpsBacktestCalibrationBaselineRecord{validMarketOpsBacktestCalibrationBaselineRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"comparison_id":"btcmp-1","tenant_id":"tenant-1","baseline_id":"btbase-1","candidate_summary_id":"btcal-1"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-calibration-comparisons", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	comparison := response["calibration_comparison"]
+	if comparison["comparison_id"] != "btcmp-1" || comparison["recommendation"] != storage.MarketOpsBacktestCalibrationRecommendationNeutral {
+		t.Fatalf("comparison = %#v", comparison)
+	}
+	metrics := comparison["comparison_metrics"].(map[string]any)
+	deltas := metrics["deltas"].(map[string]any)
+	if deltas["dominant_recommendation_changed"] != false {
+		t.Fatalf("metrics = %#v", metrics)
+	}
+}
+
+func TestGetMarketOpsBacktestCalibrationComparisons(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationComparisons: []storage.MarketOpsBacktestCalibrationComparisonRecord{validMarketOpsBacktestCalibrationComparisonRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-calibration-comparisons?tenant_id=tenant-1&baseline_id=btbase-1&recommendation=neutral_candidate&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestComparisonFilter.TenantID != "tenant-1" || repo.lastBacktestComparisonFilter.BaselineID != "btbase-1" || repo.lastBacktestComparisonFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastBacktestComparisonFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response["calibration_comparisons"]) != 1 || response["calibration_comparisons"][0]["comparison_id"] != "btcmp-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestGetMarketOpsBacktestCalibrationComparison(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationComparisons: []storage.MarketOpsBacktestCalibrationComparisonRecord{validMarketOpsBacktestCalibrationComparisonRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-calibration-comparisons/btcmp-1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response["calibration_comparison"]["comparison_id"] != "btcmp-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func validMarketOpsBacktestCalibrationBaselineRecord() storage.MarketOpsBacktestCalibrationBaselineRecord {
+	now := time.Date(2026, 7, 12, 6, 30, 0, 0, time.UTC)
+	return storage.MarketOpsBacktestCalibrationBaselineRecord{BaselineID: "btbase-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Name: "Taxonomy baseline", SummaryID: "btcal-1", DetectorID: "marketops.dsm.taxonomy_v1", Dataset: "equity_eod_prices", ScopeJSON: []byte(`{"symbols":["AAPL"]}`), Status: storage.MarketOpsBacktestCalibrationBaselineStatusActive, CreatedBy: "operator-test", CreatedAt: now, UpdatedAt: now}
+}
+
+func validMarketOpsBacktestCalibrationComparisonRecord() storage.MarketOpsBacktestCalibrationComparisonRecord {
+	now := time.Date(2026, 7, 12, 6, 35, 0, 0, time.UTC)
+	return storage.MarketOpsBacktestCalibrationComparisonRecord{ComparisonID: "btcmp-1", TenantID: "tenant-1", BaselineID: "btbase-1", BaselineSummaryID: "btcal-1", CandidateSummaryID: "btcal-1", DetectorID: "marketops.dsm.taxonomy_v1", Dataset: "equity_eod_prices", ComparisonMetricsJSON: []byte(`{"deltas":{"dominant_recommendation_changed":false}}`), Recommendation: storage.MarketOpsBacktestCalibrationRecommendationNeutral, RecommendationReason: "candidate is within baseline tolerance bands", CreatedBy: "operator-test", CreatedAt: now}
 }
 
 func validMarketOpsBacktestCalibrationSummaryRecord() storage.MarketOpsBacktestCalibrationSummaryRecord {

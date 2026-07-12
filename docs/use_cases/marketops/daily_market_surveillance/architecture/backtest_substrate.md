@@ -151,9 +151,9 @@ This is intentionally separate from detector execution and production ledgers:
 
 ## G083 Baselines And Evaluation Direction
 
-G083 should add named calibration baselines and stored comparison records over the G082 persisted summary snapshots.
+G083 adds named calibration baselines and stored comparison records over the G082 persisted summary snapshots.
 
-The baseline layer should treat calibration summaries as immutable evidence. A baseline points to a selected summary; a comparison captures deltas between a candidate summary and the baseline summary.
+The baseline layer treats calibration summaries as immutable evidence. A baseline points to a selected summary; a comparison captures deterministic deltas between a candidate summary and the baseline summary.
 
 G080 operator graph-proposal decisions can become evaluation labels only after they are normalized into a separate label substrate with a stable graph fact key. Accepted, rejected, superseded, proposed, and restored states should not be collapsed into binary truth without documented rules.
 

@@ -633,6 +633,30 @@ Returns persisted calibration summary snapshots. Filters are optional.
 
 Returns one persisted calibration summary snapshot.
 
+`POST /v1/marketops/backtest-calibration-baselines`
+
+Creates or updates a named calibration baseline that points at an immutable persisted calibration summary. Required fields are `tenant_id`, `name`, and `summary_id`; `baseline_id`, `description`, `scope`, `status`, and `created_by` are optional. Status values are `active` and `archived`.
+
+`GET /v1/marketops/backtest-calibration-baselines?tenant_id={tenant_id}&dataset={dataset}&detector_id={detector_id}&status=active&limit=50`
+
+Returns persisted calibration baselines. Filters are optional.
+
+`GET /v1/marketops/backtest-calibration-baselines/{baseline_id}`
+
+Returns one persisted calibration baseline.
+
+`POST /v1/marketops/backtest-calibration-comparisons`
+
+Creates or updates a stored comparison between a baseline summary and a candidate calibration summary. Required fields are `tenant_id`, `baseline_id`, and `candidate_summary_id`; `comparison_id` and `created_by` are optional. The response includes deterministic aggregate deltas and an advisory recommendation.
+
+`GET /v1/marketops/backtest-calibration-comparisons?tenant_id={tenant_id}&baseline_id={baseline_id}&recommendation={recommendation}&limit=50`
+
+Returns stored baseline comparisons. Recommendation filters use `needs_more_data`, `regression_candidate`, `improvement_candidate`, `neutral_candidate`, or `manual_review_required`.
+
+`GET /v1/marketops/backtest-calibration-comparisons/{comparison_id}`
+
+Returns one stored baseline comparison.
+
 ### Query Errors
 
 - `400 missing_query`: required idempotency lookup parameters are missing.

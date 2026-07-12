@@ -583,6 +583,50 @@ type MarketOpsBacktestCalibrationSummaryRecord struct {
 	CreatedAt              time.Time
 }
 
+const (
+	MarketOpsBacktestCalibrationBaselineStatusActive   = "active"
+	MarketOpsBacktestCalibrationBaselineStatusArchived = "archived"
+
+	MarketOpsBacktestCalibrationRecommendationNeedsMoreData = "needs_more_data"
+	MarketOpsBacktestCalibrationRecommendationRegression    = "regression_candidate"
+	MarketOpsBacktestCalibrationRecommendationImprovement   = "improvement_candidate"
+	MarketOpsBacktestCalibrationRecommendationNeutral       = "neutral_candidate"
+	MarketOpsBacktestCalibrationRecommendationManualReview  = "manual_review_required"
+)
+
+type MarketOpsBacktestCalibrationBaselineRecord struct {
+	BaselineID  string
+	TenantID    string
+	AppID       string
+	Domain      string
+	UseCase     string
+	Name        string
+	Description string
+	SummaryID   string
+	DetectorID  string
+	Dataset     string
+	ScopeJSON   []byte
+	Status      string
+	CreatedBy   string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type MarketOpsBacktestCalibrationComparisonRecord struct {
+	ComparisonID          string
+	TenantID              string
+	BaselineID            string
+	BaselineSummaryID     string
+	CandidateSummaryID    string
+	DetectorID            string
+	Dataset               string
+	ComparisonMetricsJSON []byte
+	Recommendation        string
+	RecommendationReason  string
+	CreatedBy             string
+	CreatedAt             time.Time
+}
+
 type SchedulerRunRepository interface {
 	UpsertSchedulerRun(ctx context.Context, record SchedulerRunRecord) error
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
@@ -656,6 +700,12 @@ type MarketOpsBacktestRepository interface {
 	UpsertMarketOpsBacktestCalibrationSummary(ctx context.Context, record MarketOpsBacktestCalibrationSummaryRecord) error
 	ListMarketOpsBacktestCalibrationSummaries(ctx context.Context, filter MarketOpsBacktestCalibrationSummaryFilter) ([]MarketOpsBacktestCalibrationSummaryRecord, error)
 	GetMarketOpsBacktestCalibrationSummary(ctx context.Context, summaryID string) (MarketOpsBacktestCalibrationSummaryRecord, error)
+	UpsertMarketOpsBacktestCalibrationBaseline(ctx context.Context, record MarketOpsBacktestCalibrationBaselineRecord) error
+	ListMarketOpsBacktestCalibrationBaselines(ctx context.Context, filter MarketOpsBacktestCalibrationBaselineFilter) ([]MarketOpsBacktestCalibrationBaselineRecord, error)
+	GetMarketOpsBacktestCalibrationBaseline(ctx context.Context, baselineID string) (MarketOpsBacktestCalibrationBaselineRecord, error)
+	UpsertMarketOpsBacktestCalibrationComparison(ctx context.Context, record MarketOpsBacktestCalibrationComparisonRecord) error
+	ListMarketOpsBacktestCalibrationComparisons(ctx context.Context, filter MarketOpsBacktestCalibrationComparisonFilter) ([]MarketOpsBacktestCalibrationComparisonRecord, error)
+	GetMarketOpsBacktestCalibrationComparison(ctx context.Context, comparisonID string) (MarketOpsBacktestCalibrationComparisonRecord, error)
 }
 
 type CatalogRepository interface {
@@ -770,6 +820,26 @@ type MarketOpsBacktestCalibrationSummaryFilter struct {
 	Dataset    string
 	DetectorID string
 	Limit      int
+}
+
+type MarketOpsBacktestCalibrationBaselineFilter struct {
+	TenantID   string
+	AppID      string
+	Domain     string
+	UseCase    string
+	DetectorID string
+	Dataset    string
+	Status     string
+	Limit      int
+}
+
+type MarketOpsBacktestCalibrationComparisonFilter struct {
+	TenantID       string
+	BaselineID     string
+	DetectorID     string
+	Dataset        string
+	Recommendation string
+	Limit          int
 }
 
 type MarketOpsBacktestSignalFilter struct {

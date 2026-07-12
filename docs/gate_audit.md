@@ -6398,3 +6398,32 @@ Result:
 - Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G083_backtest_baselines_and_evaluation.md`.
 - Gate index and back-test architecture docs now reference the G083 direction.
 - Implementation remains pending operator review/approval.
+
+
+## Gate G083: Back-Test Baselines And Stored Comparisons
+
+Timestamp: `2026-07-12T07:05:00Z`
+
+Status: `validated — backend/API baseline comparison substrate implemented`
+
+Scope:
+
+- Add durable MarketOps back-test calibration baselines over immutable G082 calibration summaries.
+- Add stored baseline-to-candidate comparison records with deterministic aggregate deltas and conservative advisory recommendations.
+- Expose create/list/detail APIs for baselines and comparisons without mutating production ledgers or deploying policies.
+
+Validation performed:
+
+- Added migration `000016_marketops_backtest_calibration_baselines`.
+- Added storage records, repository methods, API DTOs, comparison logic, and router tests.
+- Targeted API/Postgres tests and full Go tests passed.
+- JSON schema validation and `git diff --check` passed.
+- Applied migration `000016_marketops_backtest_calibration_baselines`.
+- Rebuilt the gateway container; Docker build ran `go test ./...`.
+- Authenticated smoke generated a bearer in-memory and validated baseline create/list/detail as HTTP `201/200/200`.
+- Authenticated smoke validated comparison create/list/detail as HTTP `201/200/200`; same-summary comparison returned `neutral_candidate`.
+- Token material was not printed or committed; temporary auth/API response files were removed.
+
+Result:
+
+- G083 now has a validated backend baseline/comparison substrate ready for frontend-agent wiring and later label-aware scoring.
