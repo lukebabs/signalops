@@ -164,3 +164,7 @@ Policy promotion remains deferred. Baseline comparisons can emit recommendations
 G086 should introduce an auditable review layer above G083 baseline comparisons and G085 label-aware evaluations.
 
 A promotion candidate should reference immutable comparison and evaluation evidence, compute conservative readiness status, and capture an operator decision. Approval in this layer is permission to plan a later deployment gate; it is not a runtime policy change, detector threshold edit, graph writeback, or model release.
+
+## G087 Deployment Planning Direction
+
+G087 should add deployment plan records above approved G086 promotion candidates. A deployment plan describes target type, environment, rollout strategy, preflight checks, rollback plan, and evidence. It should not execute a deployment or mutate runtime detector, policy, graph, signal, alert, or insight state.

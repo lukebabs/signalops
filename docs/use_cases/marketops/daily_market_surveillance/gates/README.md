@@ -46,3 +46,8 @@ Recommended next gate:
 
 - G086: operator-reviewed calibration promotion candidates over G083/G085 evidence, without runtime deployment.
 - Specification: `G086_calibration_promotion_review.md`.
+
+## G087 Proposed
+
+- G087: deployment planning records for approved G086 promotion candidates, without runtime execution.
+- Specification: `G087_deployment_planning.md`.

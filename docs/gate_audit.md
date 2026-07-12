@@ -6689,3 +6689,21 @@ Validation performed:
 Result:
 
 - G086 backend plus frontend promotion review is validated locally. Remaining work is a future deployment-planning gate, not G086 closure.
+
+
+## Gate G087: Deployment Planning Specification
+
+Timestamp: `2026-07-12T23:12:00Z`
+
+Status: `specification proposed`
+
+Scope:
+
+- Define the next gate after G086 promotion review.
+- Specify deployment plan records that reference approved promotion candidates.
+- Define target type, target environment, rollout strategy, preflight checks, rollback plan, evidence, and review decisions without runtime side effects.
+
+Result:
+
+- Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G087_deployment_planning.md`.
+- Gate README and back-test architecture docs now reference the G087 direction.

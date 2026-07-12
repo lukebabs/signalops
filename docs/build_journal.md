@@ -5798,3 +5798,18 @@ Validation performed:
 - `curl http://localhost:15173/marketops/backtests`: HTTP `200`.
 - Rebuilt web bundle contains `Promotion Review`, `Create promotion candidate`, and `Approve for promotion planning` UI text.
 - `docker compose ps web gateway`: both services running.
+
+
+## 2026-07-12T23:12:00Z
+
+Summary:
+
+- Added the G087 specification for MarketOps deployment planning.
+- Scoped G087 to deployment plan records created from approved G086 promotion candidates.
+- Defined target types, environments, rollout strategy metadata, preflight checks, rollback plan metadata, review states, suggested APIs, acceptance criteria, and validation plan.
+- Explicitly kept runtime policy execution, detector threshold edits, feature flag mutation, graph writeback, model training, and automatic rollback out of scope.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.
