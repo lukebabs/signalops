@@ -105,4 +105,20 @@ describe('navForApp (G067)', () => {
     // Console parity: DSM does not leak into console nav.
     expect(navForApp('console').some((n) => n.to === '/marketops/dsm')).toBe(false);
   });
+
+  it('exposes the MarketOps back-tests route only under marketops (G081)', () => {
+    const backtests = navForApp('marketops').find((n) => n.module === 'backtests');
+    expect(backtests).toBeDefined();
+    expect(backtests?.to).toBe('/marketops/backtests');
+    expect(backtests?.label).toBe('Back-Tests');
+    // It sits near DSM (the spec allows near DSM or Replay).
+    const marketopsNav = navForApp('marketops');
+    const dsmIndex = marketopsNav.findIndex((n) => n.module === 'dsm');
+    const backtestsIndex = marketopsNav.findIndex((n) => n.module === 'backtests');
+    expect(dsmIndex).toBeGreaterThanOrEqual(0);
+    expect(backtestsIndex).toBeGreaterThan(dsmIndex);
+    // Console parity: back-tests never appear in console nav.
+    expect(navForApp('console').some((n) => n.to === '/marketops/backtests')).toBe(false);
+    expect(navForApp('console').map((n) => n.label)).not.toContain('Back-Tests');
+  });
 });

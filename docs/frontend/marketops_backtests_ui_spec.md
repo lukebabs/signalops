@@ -82,6 +82,8 @@ Request body:
 }
 ```
 
+`run_id` is optional from the client: when omitted, the gateway generates one via `newID("bt_marketops")` (`internal/api/router.go`). `source_adapter` and `requested_by` are also accepted by the gateway but need not be sent — the backend defaults `source_adapter` and derives `requested_by` from the bearer token when auth is enabled. `window_start`/`window_end` must be RFC3339 (e.g. `...Z`); `window_end` must be after `window_start`; `max_records` must be 1–1000.
+
 Response status: `201 Created` with:
 
 ```json
@@ -90,6 +92,15 @@ Response status: `201 Created` with:
   "metrics": {}
 }
 ```
+
+Response envelopes (verified against `a601e05`):
+
+- create / detail: `{ "backtest_run": <run>, "metrics"?: <metrics> }` (create returns both keys; detail returns `backtest_run` only)
+- list: `{ "backtest_runs": [<run>, ...] }`
+- signals: `{ "backtest_signals": [{ "run_id": "...", "signal": <SignalRecord> }, ...] }`
+- graph-proposals: `{ "backtest_graph_proposals": [{ "run_id": "...", "graph_proposal": <MarketOpsDSMGraphProposal> }, ...], "policy_results": [<policy_result>, ...] }`
+
+Each back-test signal wraps a production-shaped `SignalRecord` under `signal`; each back-test graph proposal wraps a `MarketOpsDSMGraphProposal` under `graph_proposal`. Recommendation and reason are NOT fields on the graph proposal — they live on the paired `policy_results` entry (joined by `proposal_id`). See §5.
 
 List runs:
 
@@ -103,6 +114,8 @@ Run detail:
 GET /v1/marketops/backtests/{run_id}?tenant_id=tenant-local
 ```
 
+Note: `tenant_id` on the detail path is accepted by the gateway but currently ignored (lookup is by `run_id` only). Send it anyway for contract consistency.
+
 Generated back-test signals:
 
 ```http
@@ -114,6 +127,12 @@ Generated back-test graph proposals and policy results:
 ```http
 GET /v1/marketops/backtests/{run_id}/graph-proposals?tenant_id=tenant-local&recommendation=manual_review_required&limit=50
 ```
+
+Filter semantics on the graph-proposals endpoint (verified against `internal/storage/postgres/marketops_backtests.go`):
+
+- `tenant_id`, `signal_type`, `subject_symbol`, `candidate_type`, `limit` narrow the `backtest_graph_proposals` list.
+- `tenant_id`, `subject_symbol`, `candidate_type`, `recommendation`, `limit` narrow the `policy_results` list.
+- `recommendation` does **not** narrow `backtest_graph_proposals` — only `policy_results`. To keep the displayed proposal table consistent when a recommendation filter is active, the UI joins `policy_results` → `graph_proposal` by `proposal_id` and hides proposals whose joined recommendation does not match the filter (client-side).
 
 Recommendation values:
 
@@ -184,6 +203,7 @@ Selecting a run should open a detail panel in the same route.
 
 Provide a compact form for bounded synchronous execution:
 
+- run id: optional text; when blank the backend generates one (`bt_marketops…`). Exposing it lets an operator reproduce a named run such as `bt-g081-auth-api-smoke-20260712`.
 - source id: default `src-massive`
 - dataset: default `equity_eod_prices`; allow `options_contracts_daily` only if the UI already has a safe option source context, otherwise keep it visible but disabled with a short label
 - symbols: comma-separated input converted to uppercase array
@@ -193,7 +213,7 @@ Provide a compact form for bounded synchronous execution:
 - batch size: numeric input, default equal to max records or `50`, max `1000`
 - detector id: default `marketops.dsm.taxonomy_v1`
 - detector version: optional text, default `v1`
-- auto accept confidence: numeric input, default `0.75`, min `0`, max `1`
+- auto accept confidence: numeric input, default `0.75`, min `0`, max `1` (a value of `0` is normalized to `0.75` by the backend)
 
 Behavior:
 
@@ -232,24 +252,26 @@ This section must be labeled `Back-Test Signals` or equivalent. Do not link thes
 
 ### 5. Generated Graph Proposals Section
 
-For the selected run, fetch graph proposals and policy results and show:
+For the selected run, fetch graph proposals and policy results (single endpoint returns both arrays) and join `policy_results` → `graph_proposal` by `proposal_id`. For each proposal show:
 
 - proposal id
-- recommendation
-- status if present
+- recommendation (from the joined policy result; `—` when no policy result matched)
+- status if present (always `proposed` for back-test rows — there is no back-test decision endpoint)
 - candidate type
 - subject symbol
 - node id for node candidates
 - from / relationship / to for relationship candidates
 - confidence
-- policy reason or note if present
+- policy reason or note if present (from the joined policy result)
 
-Filters:
+Filters (sent to the backend on the graph-proposals endpoint):
 
 - recommendation
 - candidate type
 - subject symbol
 - limit
+
+Because `recommendation` only narrows `policy_results` server-side (not `graph_proposals`), the UI must additionally hide proposals whose joined recommendation does not match the selected `recommendation` filter, so the table stays consistent. `candidate_type` and `subject_symbol` narrow both lists server-side and need no client-side filtering.
 
 Use recommendation colors consistently but keep the UI restrained:
 
@@ -269,11 +291,13 @@ Add or extend types in `web/src/types.ts`:
 - `MarketOpsBacktestRunResponse`
 - `MarketOpsBacktestCreateRequest`
 - `MarketOpsBacktestCreateResponse`
-- `MarketOpsBacktestSignal`
+- `MarketOpsBacktestSignal` (wraps a production-shaped `SignalRecord` under `signal`)
 - `MarketOpsBacktestSignalsResponse`
-- `MarketOpsBacktestGraphProposal`
-- `MarketOpsBacktestGraphProposalsResponse`
-- filter types for list/detail queries
+- `MarketOpsBacktestGraphProposal` (wraps a `MarketOpsDSMGraphProposal` under `graph_proposal`)
+- `MarketOpsBacktestGraphProposalsResponse` (carries both `backtest_graph_proposals` and `policy_results`)
+- `MarketOpsBacktestPolicyResult` (carries `recommendation`, `reason`, `proposal_id` for the §5 join)
+- `MarketOpsBacktestMetrics` (permissive; `[key: string]: unknown` for forward compatibility)
+- filter types for list/signals/graph-proposals queries
 
 Add client methods in `web/src/api/client.ts`:
 

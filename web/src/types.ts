@@ -714,3 +714,158 @@ export interface MarketOpsDSMGraphProposalFilter {
   status?: MarketOpsDSMGraphProposalStatus | string;
   limit?: number;
 }
+
+// G081 MarketOps back-test workspace (isolated experimental runs). Mirrors the
+// gateway DTOs in internal/api/marketops_backtests.go. Back-test rows are
+// experiment records: signals come from marketops_backtest_signals (not the
+// production signal_ledger) and graph proposals from
+// marketops_backtest_graph_proposals (not production marketops_dsm_graph_proposals).
+// The synchronous runner always returns a terminal run, but `started` is kept in
+// the union for forward compatibility. Run status has no `canceled` state today.
+export type MarketOpsBacktestRunStatus = 'started' | 'succeeded' | 'failed' | string;
+export type MarketOpsBacktestRecommendation =
+  | 'auto_accept_candidate'
+  | 'auto_reject_candidate'
+  | 'manual_review_required'
+  | 'supersede_candidate'
+  | string;
+
+// Metrics JSON parsed by the gateway from marketops_backtest_runs.metrics.
+// Every field is optional + permissive (`[key: string]: unknown`) so a
+// forward-shaped or partial payload renders blanks instead of throwing.
+export interface MarketOpsBacktestMetrics {
+  run_id?: string;
+  scanned?: number;
+  signals?: number;
+  artifacts?: number;
+  graph_proposals?: number;
+  policy_results?: number;
+  recommendation_counts?: Record<string, number>;
+  batches?: number;
+  max_records?: number;
+  batch_size?: number;
+  started_at?: string;
+  completed_at?: string;
+  [key: string]: unknown;
+}
+
+export interface MarketOpsBacktestRun {
+  run_id: string;
+  tenant_id: string;
+  app_id: string;
+  domain: string;
+  use_case: string;
+  source_id: string;
+  source_adapter: string;
+  dataset: string;
+  detector_id: string;
+  detector_version: string;
+  status: MarketOpsBacktestRunStatus;
+  requested_by: string;
+  window_start: string;
+  window_end: string;
+  started_at: string;
+  completed_at?: string;
+  filters: unknown;
+  parameters: unknown;
+  metrics: unknown;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsBacktestRunsResponse {
+  backtest_runs: MarketOpsBacktestRun[];
+}
+export interface MarketOpsBacktestRunResponse {
+  backtest_run: MarketOpsBacktestRun;
+}
+
+export interface MarketOpsBacktestCreateRequest {
+  run_id?: string;
+  tenant_id: string;
+  source_id?: string;
+  source_adapter?: string;
+  dataset?: string;
+  detector_id?: string;
+  detector_version?: string;
+  requested_by?: string;
+  window_start: string;
+  window_end: string;
+  symbols?: string[];
+  max_records?: number;
+  batch_size?: number;
+  auto_accept_confidence?: number;
+}
+
+export interface MarketOpsBacktestCreateResponse {
+  backtest_run: MarketOpsBacktestRun;
+  metrics: unknown;
+}
+
+// Each back-test signal wraps a production-shaped SignalRecord under `signal`.
+export interface MarketOpsBacktestSignal {
+  run_id: string;
+  signal: SignalRecord;
+}
+export interface MarketOpsBacktestSignalsResponse {
+  backtest_signals: MarketOpsBacktestSignal[];
+}
+
+// Each back-test graph proposal wraps a MarketOpsDSMGraphProposal under
+// `graph_proposal`. Recommendation/reason are NOT on the proposal — they live
+// on the paired policy_results entry (joined by proposal_id in the UI).
+export interface MarketOpsBacktestGraphProposal {
+  run_id: string;
+  graph_proposal: MarketOpsDSMGraphProposal;
+}
+
+export interface MarketOpsBacktestPolicyResult {
+  run_id: string;
+  policy_result_id: string;
+  proposal_id: string;
+  artifact_id: string;
+  signal_id: string;
+  tenant_id: string;
+  subject_symbol: string;
+  candidate_type: string;
+  recommendation: MarketOpsBacktestRecommendation;
+  reason: string;
+  policy_version: string;
+  confidence: number;
+  decision_inputs: unknown;
+  created_at: string;
+}
+
+export interface MarketOpsBacktestGraphProposalsResponse {
+  backtest_graph_proposals: MarketOpsBacktestGraphProposal[];
+  policy_results: MarketOpsBacktestPolicyResult[];
+}
+
+export interface MarketOpsBacktestRunFilter {
+  tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
+  source_id?: string;
+  dataset?: string;
+  detector_id?: string;
+  status?: MarketOpsBacktestRunStatus | '';
+  limit?: number;
+}
+
+export interface MarketOpsBacktestSignalFilter {
+  tenant_id?: string;
+  signal_type?: string;
+  limit?: number;
+}
+
+export interface MarketOpsBacktestGraphProposalFilter {
+  tenant_id?: string;
+  signal_type?: string;
+  subject_symbol?: string;
+  candidate_type?: string;
+  recommendation?: MarketOpsBacktestRecommendation | '';
+  limit?: number;
+}
+

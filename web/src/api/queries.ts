@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import type {
   RawEventFilter,
@@ -15,6 +15,11 @@ import type {
   MarketOpsDSMArtifactFilter,
   MarketOpsDSMGraphProposalFilter,
   MarketOpsDSMGraphProposalDecisionOptions,
+  MarketOpsBacktestRunFilter,
+  MarketOpsBacktestSignalFilter,
+  MarketOpsBacktestGraphProposalFilter,
+  MarketOpsBacktestCreateRequest,
+  MarketOpsBacktestCreateResponse,
 } from '../types';
 
 export const queryKeys = {
@@ -49,6 +54,12 @@ export const queryKeys = {
   marketOpsDSMGraphProposals: (filter: MarketOpsDSMGraphProposalFilter) =>
     ['marketops-dsm-graph-proposals', filter] as const,
   marketOpsDSMGraphProposal: (proposalId: string) => ['marketops-dsm-graph-proposal', proposalId] as const,
+  marketOpsBacktests: (filter: MarketOpsBacktestRunFilter) => ['marketops-backtests', filter] as const,
+  marketOpsBacktest: (runId: string, tenantId: string) => ['marketops-backtest', runId, tenantId] as const,
+  marketOpsBacktestSignals: (runId: string, filter: MarketOpsBacktestSignalFilter) =>
+    ['marketops-backtest-signals', runId, filter] as const,
+  marketOpsBacktestGraphProposals: (runId: string, filter: MarketOpsBacktestGraphProposalFilter) =>
+    ['marketops-backtest-graph-proposals', runId, filter] as const,
 };
 
 export function useHealthz() {
@@ -318,6 +329,66 @@ export function useMutateMarketOpsDSMGraphProposalDecision() {
       queryClient.invalidateQueries({ queryKey: ['marketops-dsm-graph-proposals'] });
       queryClient.invalidateQueries({ queryKey: ['marketops-dsm-graph-proposal', variables.proposalId] });
     },
+  });
+}
+
+// G081 MarketOps back-test workspace (isolated experimental runs). The runner is
+// synchronous, so the list/detail do not poll — a create invalidation is enough
+// for a new run to appear without a manual reload. Detail/signals/graph-proposals
+// only run while a run is selected (guarded by a truthy run id).
+export function useMarketOpsBacktests(filter: MarketOpsBacktestRunFilter = { tenant_id: 'tenant-local', limit: 50 }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktests(filter),
+    queryFn: () => api.listMarketOpsBacktests(filter),
+  });
+}
+
+export function useMarketOpsBacktest(runId: string | null, tenantId: string = 'tenant-local') {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktest(runId ?? '', tenantId),
+    queryFn: () => api.getMarketOpsBacktest(runId!, tenantId),
+    enabled: !!runId,
+  });
+}
+
+export function useMarketOpsBacktestSignals(runId: string | null, filter: MarketOpsBacktestSignalFilter = {}) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestSignals(runId ?? '', filter),
+    queryFn: () => api.listMarketOpsBacktestSignals(runId!, filter),
+    enabled: !!runId,
+  });
+}
+
+export function useMarketOpsBacktestGraphProposals(
+  runId: string | null,
+  filter: MarketOpsBacktestGraphProposalFilter = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestGraphProposals(runId ?? '', filter),
+    queryFn: () => api.listMarketOpsBacktestGraphProposals(runId!, filter),
+    enabled: !!runId,
+  });
+}
+
+// On create, seed the detail cache with the returned (terminal) run and
+// invalidate the list + detail prefixes so filtered tables refetch. The run is
+// already terminal when the 201 returns (synchronous runner). The cache effect
+// is extracted so it can be exercised against a real QueryClient in tests
+// without rendering the hook.
+export function applyBacktestCreateResult(queryClient: QueryClient, data: MarketOpsBacktestCreateResponse) {
+  queryClient.setQueryData(
+    queryKeys.marketOpsBacktest(data.backtest_run.run_id, data.backtest_run.tenant_id),
+    { backtest_run: data.backtest_run },
+  );
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtests'] });
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtest'] });
+}
+
+export function useCreateMarketOpsBacktest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MarketOpsBacktestCreateRequest) => api.createMarketOpsBacktest(body),
+    onSuccess: (data) => applyBacktestCreateResult(queryClient, data),
   });
 }
 

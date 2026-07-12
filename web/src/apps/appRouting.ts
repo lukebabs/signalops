@@ -29,7 +29,8 @@ export type AppRoutePath =
   | '/marketops/pipelines'
   | '/marketops/health'
   | '/marketops/assets'
-  | '/marketops/dsm';
+  | '/marketops/dsm'
+  | '/marketops/backtests';
 
 export type MetadataFilter = { app_id?: string; domain?: string; use_case?: string };
 
@@ -86,6 +87,7 @@ const MARKETOPS_NAV: NavItem[] = [
   { module: 'normalized', to: '/marketops/normalized', label: 'Normalized' },
   { module: 'signals', to: '/marketops/signals', label: 'Signals' },
   { module: 'dsm', to: '/marketops/dsm', label: 'DSM' },
+  { module: 'backtests', to: '/marketops/backtests', label: 'Back-Tests' },
   { module: 'alerts', to: '/marketops/alerts', label: 'Alerts' },
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },
   { module: 'replay', to: '/marketops/replay', label: 'Replay' },

@@ -40,6 +40,15 @@ import type {
   MarketOpsDSMGraphProposalResponse,
   MarketOpsDSMGraphProposalFilter,
   MarketOpsDSMGraphProposalDecisionOptions,
+  MarketOpsBacktestRunsResponse,
+  MarketOpsBacktestRunResponse,
+  MarketOpsBacktestCreateRequest,
+  MarketOpsBacktestCreateResponse,
+  MarketOpsBacktestSignalsResponse,
+  MarketOpsBacktestGraphProposalsResponse,
+  MarketOpsBacktestRunFilter,
+  MarketOpsBacktestSignalFilter,
+  MarketOpsBacktestGraphProposalFilter,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -326,5 +335,51 @@ export const api = {
       `/v1/insights/${encodeURIComponent(insightId)}/${action}`,
       { note, reason },
       authConfig.authEnabled ? undefined : { 'X-SignalOps-Actor': 'operator-local' },
+    ),
+  // G081 MarketOps back-test workspace (isolated experimental runs). The create
+  // endpoint is synchronous: the runner completes (or fails) before 201 returns,
+  // so no job queue or polling is involved. tenant_id defaults to tenant-local
+  // and detector_id to the DSM taxonomy detector, matching the spec defaults.
+  listMarketOpsBacktests: (filter: MarketOpsBacktestRunFilter = {}) =>
+    get<MarketOpsBacktestRunsResponse>('/v1/marketops/backtests', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      app_id: filter.app_id || undefined,
+      domain: filter.domain || undefined,
+      use_case: filter.use_case || undefined,
+      source_id: filter.source_id || undefined,
+      dataset: filter.dataset || undefined,
+      detector_id: filter.detector_id ?? 'marketops.dsm.taxonomy_v1',
+      status: filter.status || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  // tenant_id is accepted by the gateway on the detail path but currently ignored
+  // (lookup is by run_id); send it anyway for contract consistency.
+  getMarketOpsBacktest: (runId: string, tenantId: string = 'tenant-local') =>
+    get<MarketOpsBacktestRunResponse>(
+      `/v1/marketops/backtests/${encodeURIComponent(runId)}`,
+      { tenant_id: tenantId },
+    ),
+  createMarketOpsBacktest: (body: MarketOpsBacktestCreateRequest) =>
+    post<MarketOpsBacktestCreateResponse>('/v1/marketops/backtests', body),
+  listMarketOpsBacktestSignals: (runId: string, filter: MarketOpsBacktestSignalFilter = {}) =>
+    get<MarketOpsBacktestSignalsResponse>(
+      `/v1/marketops/backtests/${encodeURIComponent(runId)}/signals`,
+      {
+        tenant_id: filter.tenant_id ?? 'tenant-local',
+        signal_type: filter.signal_type || undefined,
+        limit: filter.limit ?? 50,
+      },
+    ),
+  listMarketOpsBacktestGraphProposals: (runId: string, filter: MarketOpsBacktestGraphProposalFilter = {}) =>
+    get<MarketOpsBacktestGraphProposalsResponse>(
+      `/v1/marketops/backtests/${encodeURIComponent(runId)}/graph-proposals`,
+      {
+        tenant_id: filter.tenant_id ?? 'tenant-local',
+        signal_type: filter.signal_type || undefined,
+        subject_symbol: filter.subject_symbol || undefined,
+        candidate_type: filter.candidate_type || undefined,
+        recommendation: filter.recommendation || undefined,
+        limit: filter.limit ?? 50,
+      },
     ),
 };
