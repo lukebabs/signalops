@@ -5,7 +5,7 @@
 // guards only; never JSON.parse. Missing/malformed values collapse to 0 / ''
 // and must never throw. Recommendation values mirror the four backend policy
 // constants in internal/marketops/dsm/policy.go.
-import type { MarketOpsBacktestPolicyResult } from '../types';
+import type { MarketOpsBacktestPolicyResult, MarketOpsBacktestRun } from '../types';
 
 export const MARKETOPS_BACKTEST_DETECTOR_ID = 'marketops.dsm.taxonomy_v1';
 
@@ -142,6 +142,86 @@ export function parseBacktestSymbols(input: string): string[] {
     out.push(v);
   }
   return out;
+}
+
+export interface BacktestComparisonSummary {
+  runs: number;
+  succeeded: number;
+  failed: number;
+  zeroInput: number;
+  scanned: number;
+  signals: number;
+  artifacts: number;
+  graphProposals: number;
+  policyResults: number;
+  signalYieldPct: number;
+  policyResultsPerSignal: number;
+  recommendationCounts: Record<string, number>;
+  recommendationShares: Record<string, number>;
+  dominantRecommendation: { key: string; count: number; share: number } | null;
+  datasets: string[];
+  detectorIds: string[];
+}
+
+// Aggregate the current run list into a lightweight calibration/comparison
+// summary. This is intentionally run-list scoped: no new backend aggregate API
+// is required, and operators can change list filters to compare different sets.
+export function compareBacktestRuns(runs: MarketOpsBacktestRun[] | unknown): BacktestComparisonSummary {
+  const list = Array.isArray(runs) ? runs : [];
+  const recommendationCounts: Record<string, number> = {};
+  const datasets = new Set<string>();
+  const detectorIds = new Set<string>();
+  let succeeded = 0;
+  let failed = 0;
+  let zeroInput = 0;
+  let scanned = 0;
+  let signals = 0;
+  let artifacts = 0;
+  let graphProposals = 0;
+  let policyResults = 0;
+
+  for (const run of list) {
+    if (!isRecord(run)) continue;
+    const status = typeof run.status === 'string' ? run.status : '';
+    if (status === 'succeeded') succeeded++;
+    if (status === 'failed') failed++;
+    const metrics = summarizeBacktestMetrics(run.metrics);
+    if (isZeroInputBacktest(status, run.metrics)) zeroInput++;
+    scanned += metrics.scanned;
+    signals += metrics.signals;
+    artifacts += metrics.artifacts;
+    graphProposals += metrics.graphProposals;
+    policyResults += metrics.policyResults;
+    for (const [key, count] of Object.entries(metrics.recommendationCounts)) {
+      recommendationCounts[key] = (recommendationCounts[key] ?? 0) + count;
+    }
+    if (typeof run.dataset === 'string' && run.dataset) datasets.add(run.dataset);
+    if (typeof run.detector_id === 'string' && run.detector_id) detectorIds.add(run.detector_id);
+  }
+
+  const recommendationShares: Record<string, number> = {};
+  for (const [key, count] of Object.entries(recommendationCounts)) {
+    recommendationShares[key] = policyResults > 0 ? count / policyResults : 0;
+  }
+  const dominant = dominantRecommendation(recommendationCounts);
+  return {
+    runs: list.filter(isRecord).length,
+    succeeded,
+    failed,
+    zeroInput,
+    scanned,
+    signals,
+    artifacts,
+    graphProposals,
+    policyResults,
+    signalYieldPct: scanned > 0 ? (signals / scanned) * 100 : 0,
+    policyResultsPerSignal: signals > 0 ? policyResults / signals : 0,
+    recommendationCounts,
+    recommendationShares,
+    dominantRecommendation: dominant ? { ...dominant, share: policyResults > 0 ? dominant.count / policyResults : 0 } : null,
+    datasets: Array.from(datasets).sort(),
+    detectorIds: Array.from(detectorIds).sort(),
+  };
 }
 
 // Index policy results by proposal_id so the graph-proposals table can render

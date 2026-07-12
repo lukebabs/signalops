@@ -21,6 +21,7 @@ import {
   MARKETOPS_BACKTEST_RECOMMENDATIONS,
   summarizeBacktestMetrics,
   isZeroInputBacktest,
+  compareBacktestRuns,
   dominantRecommendation,
   parseBacktestSymbols,
   policyResultsByProposal,
@@ -77,6 +78,7 @@ export function MarketOpsBacktestsRoute() {
   const failed = runs.filter((r) => r.status === 'failed').length;
   const totalSignals = runs.reduce((n, r) => n + summarizeBacktestMetrics(r.metrics).signals, 0);
   const totalProposals = runs.reduce((n, r) => n + summarizeBacktestMetrics(r.metrics).graphProposals, 0);
+  const comparison = compareBacktestRuns(runs);
 
   const selected: MarketOpsBacktestRun | null = detail.data?.backtest_run ?? runs.find((r) => r.run_id === selectedId) ?? null;
 
@@ -107,6 +109,8 @@ export function MarketOpsBacktestsRoute() {
         <MetricTile label="Signals" value={totalSignals} hint={list.isError ? 'unreachable' : undefined} />
         <MetricTile label="Graph Proposals" value={totalProposals} hint={list.isError ? 'unreachable' : undefined} />
       </div>
+
+      <BacktestComparisonPanel comparison={comparison} />
 
       <div className="flex flex-wrap items-center gap-2">
         <select
@@ -483,6 +487,44 @@ function BacktestCreateForm({
         </p>
       )}
     </form>
+  );
+}
+
+
+function BacktestComparisonPanel({ comparison }: { comparison: ReturnType<typeof compareBacktestRuns> }) {
+  const recEntries = Object.entries(comparison.recommendationCounts).filter(([, count]) => count > 0);
+  const dominant = comparison.dominantRecommendation;
+  return (
+    <div className="rounded border border-gray-200 bg-white p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold text-gray-900">Calibration Summary</div>
+          <div className="text-xs text-gray-500">Compared over the currently listed back-test runs.</div>
+        </div>
+        <div className="text-xs text-gray-500">
+          {comparison.datasets.length ? comparison.datasets.join(', ') : 'all datasets'} · {comparison.detectorIds.length ? comparison.detectorIds.length : 0} detector{comparison.detectorIds.length === 1 ? '' : 's'}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+        <MetricTile label="Compared Runs" value={comparison.runs} />
+        <MetricTile label="Zero Input" value={comparison.zeroInput} hint={comparison.runs ? `${((comparison.zeroInput / comparison.runs) * 100).toFixed(0)}%` : undefined} />
+        <MetricTile label="Signal Yield" value={`${comparison.signalYieldPct.toFixed(1)}%`} hint={`${comparison.signals}/${comparison.scanned} scanned`} />
+        <MetricTile label="Policy / Signal" value={comparison.policyResultsPerSignal.toFixed(1)} hint={`${comparison.policyResults} policy results`} />
+        <MetricTile label="Dominant Rec." value={dominant ? recommendationLabel(dominant.key) : '—'} hint={dominant ? `${dominant.count} · ${(dominant.share * 100).toFixed(0)}%` : undefined} />
+      </div>
+      <div className="mt-2">
+        <div className="mb-1 text-xs font-medium text-gray-600">Recommendation Mix</div>
+        {recEntries.length ? (
+          <div className="flex flex-wrap gap-2">
+            {recEntries.map(([key, count]) => (
+              <RecommendationChip key={key} recommendation={key} count={count} />
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400">No policy recommendations in the current comparison set.</span>
+        )}
+      </div>
+    </div>
   );
 }
 

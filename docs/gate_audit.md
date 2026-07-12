@@ -6281,3 +6281,27 @@ Validation performed:
 Result:
 
 - G081 UI closeout has both zero-input and known-good non-empty run validation.
+
+
+## Gate G082: Back-Test Calibration Summary MVP
+
+Timestamp: `2026-07-12T05:50:00Z`
+
+Status: `validated — frontend run-list comparison added`
+
+Scope:
+
+- Start the next MarketOps back-test gate with an operator-facing calibration summary over the currently listed runs.
+- Keep the first slice frontend-only and filter-scoped so it does not commit to backend aggregate storage or calibration policy persistence.
+- Surface zero-input rate, signal yield, policy-results-per-signal, dominant recommendation, and recommendation mix.
+
+Validation performed:
+
+- Added tested run comparison aggregation in `web/src/lib/marketopsBacktests.ts`.
+- Rendered the `Calibration Summary` panel in `web/src/routes/MarketOpsBacktestsRoute.tsx`.
+- Targeted frontend tests, full frontend tests, production build, and `git diff --check` passed.
+- Rebuilt the local web container and verified the served bundle contains `Calibration Summary`.
+
+Result:
+
+- G082 has a first validated calibration/comparison surface for back-test runs without changing backend APIs or production ledgers.

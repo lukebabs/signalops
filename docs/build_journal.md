@@ -5461,3 +5461,24 @@ Validation result:
 - Verified generated back-test signal and graph proposal APIs through `http://localhost:15173/v1/marketops/backtests/...`.
 - Production ledger rows newest at `2026-07-12T05:06:19Z`, before this `05:34` closeout run; this validation did not mutate production signal/artifact/graph proposal ledgers.
 - Restored and verified auth-enabled gateway/web health.
+
+
+## 2026-07-12T05:50:00Z
+
+Summary:
+
+- Started G082 with a frontend-only MarketOps back-test calibration summary MVP.
+- Added a run-list scoped comparison panel to `/marketops/backtests` that aggregates the currently listed runs.
+- The panel reports compared runs, zero-input rate, signal yield, policy-results-per-signal, dominant recommendation, and recommendation mix.
+- No backend aggregate API, storage schema, production signal ledger, artifact ledger, or graph state changes were introduced.
+
+Validation performed:
+
+- `cd web && npm test -- src/lib/marketopsBacktests.test.ts`: 14 passed.
+- `cd web && npm run build`: passed.
+- `cd web && npm test`: 146 passed.
+- `git diff --check`: passed.
+- `docker compose up -d --build web`: passed.
+- `curl http://localhost:15173/marketops/backtests`: served the rebuilt SPA shell.
+- Rebuilt web bundle contains `Calibration Summary`.
+- `docker compose ps web gateway`: both services running with web exposed on `15173` and gateway on `18000`.

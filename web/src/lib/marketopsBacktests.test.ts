@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   summarizeBacktestMetrics,
   isZeroInputBacktest,
+  compareBacktestRuns,
   dominantRecommendation,
   parseBacktestSymbols,
   policyResultsByProposal,
@@ -93,6 +94,48 @@ describe('parseBacktestSymbols (G081)', () => {
     expect(parseBacktestSymbols(',,, ,')).toEqual([]);
     expect(parseBacktestSymbols('')).toEqual([]);
     expect(parseBacktestSymbols('SPY,,AAPL,')).toEqual(['SPY', 'AAPL']);
+  });
+});
+
+
+describe('compareBacktestRuns (G082)', () => {
+  it('aggregates run metrics, zero-input runs, and recommendation shares', () => {
+    const summary = compareBacktestRuns([
+      {
+        run_id: 'bt-1', tenant_id: 'tenant-local', app_id: 'marketops', domain: 'market_data', use_case: 'daily_market_surveillance',
+        source_id: 'src-massive', source_adapter: 'market_data.massive', dataset: 'equity_eod_prices', detector_id: 'marketops.dsm.taxonomy_v1', detector_version: 'v1', status: 'succeeded', requested_by: 'operator', window_start: '', window_end: '', started_at: '', filters: {}, parameters: {}, created_at: '', updated_at: '',
+        metrics: { scanned: 2, signals: 1, artifacts: 1, graph_proposals: 5, policy_results: 5, recommendation_counts: { auto_accept_candidate: 5 } },
+      },
+      {
+        run_id: 'bt-2', tenant_id: 'tenant-local', app_id: 'marketops', domain: 'market_data', use_case: 'daily_market_surveillance',
+        source_id: 'src-massive', source_adapter: 'market_data.massive', dataset: 'equity_eod_prices', detector_id: 'marketops.dsm.taxonomy_v1', detector_version: 'v1', status: 'succeeded', requested_by: 'operator', window_start: '', window_end: '', started_at: '', filters: {}, parameters: {}, created_at: '', updated_at: '',
+        metrics: { scanned: 0, signals: 0, artifacts: 0, graph_proposals: 0, policy_results: 0, recommendation_counts: {} },
+      },
+      {
+        run_id: 'bt-3', tenant_id: 'tenant-local', app_id: 'marketops', domain: 'market_data', use_case: 'daily_market_surveillance',
+        source_id: 'src-massive', source_adapter: 'market_data.massive', dataset: 'options_contracts_daily', detector_id: 'marketops.dsm.taxonomy_v1', detector_version: 'v1', status: 'failed', requested_by: 'operator', window_start: '', window_end: '', started_at: '', filters: {}, parameters: {}, created_at: '', updated_at: '',
+        metrics: { scanned: 3, signals: 2, artifacts: 2, graph_proposals: 4, policy_results: 4, recommendation_counts: { manual_review_required: 3, auto_accept_candidate: 1 } },
+      },
+    ]);
+
+    expect(summary.runs).toBe(3);
+    expect(summary.succeeded).toBe(2);
+    expect(summary.failed).toBe(1);
+    expect(summary.zeroInput).toBe(1);
+    expect(summary.scanned).toBe(5);
+    expect(summary.signals).toBe(3);
+    expect(summary.signalYieldPct).toBe(60);
+    expect(summary.policyResultsPerSignal).toBe(3);
+    expect(summary.recommendationCounts).toEqual({ auto_accept_candidate: 6, manual_review_required: 3 });
+    expect(summary.dominantRecommendation).toEqual({ key: 'auto_accept_candidate', count: 6, share: 6 / 9 });
+    expect(summary.datasets).toEqual(['equity_eod_prices', 'options_contracts_daily']);
+  });
+
+  it('returns an empty summary for non-array input', () => {
+    const summary = compareBacktestRuns(null);
+    expect(summary.runs).toBe(0);
+    expect(summary.signalYieldPct).toBe(0);
+    expect(summary.dominantRecommendation).toBeNull();
   });
 });
 
