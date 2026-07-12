@@ -5525,3 +5525,22 @@ Validation performed:
 - `curl http://localhost:15173/marketops/backtests`: served the rebuilt SPA shell.
 - Rebuilt web bundle contains `Persisted Calibration Snapshots`.
 - `docker compose ps web gateway postgres`: services running.
+
+
+## 2026-07-12T06:28:00Z
+
+Summary:
+
+- Completed the authenticated G082 persisted calibration summary smoke using the new CLI OIDC client environment variables.
+- Generated an operator bearer token in-memory through the configured `SO_TOKEN_GRANT`, `SO_CLIENT_ID`, `SO_CLIENT_SECRET`, and `SO_TOKEN_AUDIENCE` values.
+- Created persisted calibration summary `btcal-g082-auth-smoke-20260712062745` through the auth-enabled gateway.
+- The bearer token and token response were not printed or committed; temporary files were removed after validation.
+
+Validation result:
+
+- `POST /v1/marketops/backtest-calibration-summaries`: HTTP `201`.
+- `GET /v1/marketops/backtest-calibration-summaries?...`: HTTP `200`.
+- `GET /v1/marketops/backtest-calibration-summaries/btcal-g082-auth-smoke-20260712062745`: HTTP `200`.
+- Summary metrics: run count `8`, zero-input count `3`, scanned `5`, signals `5`, policy results `25`.
+- Dominant recommendation: `auto_accept_candidate`, count `25`, share `1`.
+- Detail response matched the created summary id.

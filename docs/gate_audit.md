@@ -6354,3 +6354,27 @@ Validation performed:
 Result:
 
 - G082 has end-to-end backend plus frontend access to persisted back-test calibration snapshots, still isolated from production ledgers and policy promotion flows.
+
+
+## Gate G082: Authenticated Calibration Summary Smoke
+
+Timestamp: `2026-07-12T06:28:00Z`
+
+Status: `validated — authenticated create/list/detail passed`
+
+Scope:
+
+- Close the remaining authenticated live validation item for persisted MarketOps back-test calibration summaries.
+- Use the dedicated CLI OIDC client environment variables to generate a short-lived bearer without browser interaction.
+
+Validation performed:
+
+- Generated a bearer in-memory from the configured CLI OIDC client.
+- Created `btcal-g082-auth-smoke-20260712062745` through `POST /v1/marketops/backtest-calibration-summaries` with `tenant_id=tenant-local`, detector `marketops.dsm.taxonomy_v1`, status `succeeded`, and limit `50`.
+- Listed calibration summaries and fetched the created summary by id through authenticated GET requests.
+- Result metrics: run count `8`, zero-input count `3`, scanned `5`, signals `5`, policy results `25`, dominant recommendation `auto_accept_candidate` at share `1`.
+- Token material was not printed or committed; temporary auth/API response files were removed.
+
+Result:
+
+- G082 persisted calibration summary backend and UI now have authenticated API closeout coverage.
