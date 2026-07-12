@@ -5318,3 +5318,28 @@ Validation performed:
 - `python3 scripts/validate_json_schemas.py`: passed.
 - `docker build --target marketops-backtest -t signalops-marketops-backtest:g081 .`: passed.
 - `docker build -f deploy/docker/python-worker/Dockerfile --target python-worker -t signalops-python-worker:g081 .`: passed.
+
+
+## 2026-07-12T03:45:00Z
+
+Summary:
+
+- Completed G081 live smoke validation against the running local Compose stack.
+- Applied migration `000014_marketops_backtest_substrate` to relational Postgres.
+- Fixed back-test run persistence to store an empty string instead of SQL `NULL` for the `marketops_backtest_runs.error_message` NOT NULL column.
+- Ran `bt-g081-smoke-20260712` against the real MarketOps normalized event `evt-g073-equity-live` for `SPY` on `2026-07-09`.
+
+Smoke result:
+
+- Back-test status: `succeeded`.
+- Metrics: scanned `1`, signals `1`, artifacts `1`, graph proposals `5`, policy results `5`.
+- Recommendation counts: `auto_accept_candidate=5`.
+- Isolation verified: production `signal_ledger`, `alert_ledger`, `insight_ledger`, `marketops_dsm_artifacts`, and `marketops_dsm_graph_proposals` counts remained unchanged from the pre-smoke baseline.
+- Authenticated API validation passed for list, detail, signals, and graph-proposals endpoints after rebuilding `gateway`.
+
+Validation performed:
+
+- `make compose-storage-migrate`: applied `000014_marketops_backtest_substrate`.
+- `docker run --rm ... go test ./internal/storage/postgres ./cmd/marketops-backtest`: passed.
+- `docker build --target marketops-backtest -t signalops-marketops-backtest:g081 .`: passed and executed full Go tests in the build stage.
+- `docker compose up -d --build gateway`: rebuilt/restarted the gateway.

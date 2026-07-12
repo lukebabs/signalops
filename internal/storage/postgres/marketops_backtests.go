@@ -39,7 +39,7 @@ ON CONFLICT (run_id) DO UPDATE SET
 		record.RunID, record.TenantID, recordAppID(record.AppID), recordDomain(record.Domain), recordUseCase(record.UseCase),
 		record.SourceID, record.SourceAdapter, record.Dataset, record.DetectorID, record.DetectorVersion, status,
 		firstNonEmptyString(record.RequestedBy, "operator-local"), record.WindowStart, record.WindowEnd, startedAt, record.CompletedAt,
-		jsonOrEmpty(record.FiltersJSON), jsonOrEmpty(record.ParametersJSON), jsonOrEmpty(record.MetricsJSON), nullString(record.ErrorMessage))
+		jsonOrEmpty(record.FiltersJSON), jsonOrEmpty(record.ParametersJSON), jsonOrEmpty(record.MetricsJSON), strings.TrimSpace(record.ErrorMessage))
 	if err != nil {
 		return fmt.Errorf("create marketops backtest run: %w", err)
 	}
@@ -55,7 +55,7 @@ func (r *Repository) FailMarketOpsBacktestRun(ctx context.Context, runID string,
 }
 
 func (r *Repository) updateMarketOpsBacktestRunTerminal(ctx context.Context, runID string, status string, completedAt time.Time, errorMessage string, metricsJSON []byte) (storage.MarketOpsBacktestRunRecord, error) {
-	result, err := r.db.ExecContext(ctx, `UPDATE marketops_backtest_runs SET status=$2, completed_at=$3, metrics=$4, error_message=$5, updated_at=now() WHERE run_id=$1`, strings.TrimSpace(runID), status, completedAt.UTC(), jsonOrEmpty(metricsJSON), nullString(errorMessage))
+	result, err := r.db.ExecContext(ctx, `UPDATE marketops_backtest_runs SET status=$2, completed_at=$3, metrics=$4, error_message=$5, updated_at=now() WHERE run_id=$1`, strings.TrimSpace(runID), status, completedAt.UTC(), jsonOrEmpty(metricsJSON), strings.TrimSpace(errorMessage))
 	if err != nil {
 		return storage.MarketOpsBacktestRunRecord{}, fmt.Errorf("update marketops backtest run terminal: %w", err)
 	}

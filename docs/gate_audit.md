@@ -6130,3 +6130,32 @@ Validation performed:
 Result:
 
 - G081 is implemented as a bounded MVP substrate. Operational replay and production graph materialization remain separate/deferred.
+
+
+## Gate G081: Live Smoke Validation
+
+Timestamp: `2026-07-12T03:45:00Z`
+
+Status: `validated — live smoke passed`
+
+Scope:
+
+- Apply the G081 relational migration to the running local stack.
+- Run a bounded back-test from historical normalized MarketOps data.
+- Verify isolated persistence and authenticated read APIs.
+
+Implementation follow-up:
+
+- Fixed `marketops_backtest_runs.error_message` persistence to use an empty string for non-error runs, matching the NOT NULL schema.
+
+Validation performed:
+
+- Applied migration `000014_marketops_backtest_substrate` with `make compose-storage-migrate`.
+- Ran back-test `bt-g081-smoke-20260712` over `tenant-local/src-massive`, dataset `equity_eod_prices`, symbol `SPY`, window `2026-07-09T00:00:00Z` to `2026-07-10T00:00:00Z`.
+- Persisted isolated rows: runs `1`, signals `1`, artifacts `1`, graph proposals `5`, policy results `5`.
+- Verified production ledger counts did not increase: `signal_ledger=19`, `alert_ledger=18`, `insight_ledger=19`, `marketops_dsm_artifacts=12`, `marketops_dsm_graph_proposals=60`.
+- Rebuilt `gateway` and validated authenticated `/v1/marketops/backtests` list/detail/signals/graph-proposals reads.
+
+Result:
+
+- G081 is live-smoke validated. The next gate can focus on operator ergonomics or broader calibration metrics.
