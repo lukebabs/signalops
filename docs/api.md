@@ -583,6 +583,28 @@ Returns one idempotency record. All three query parameters are required.
 
 ### MarketOps Back-Tests
 
+`POST /v1/marketops/backtests`
+
+Creates and executes a bounded MarketOps back-test run synchronously. The run reads historical normalized MarketOps rows and writes only isolated `marketops_backtest_*` records.
+
+```json
+{
+  "run_id": "bt-g081-api-smoke",
+  "tenant_id": "tenant-local",
+  "source_id": "src-massive",
+  "dataset": "equity_eod_prices",
+  "detector_id": "marketops.dsm.taxonomy_v1",
+  "symbols": ["SPY"],
+  "window_start": "2026-07-09T00:00:00Z",
+  "window_end": "2026-07-10T00:00:00Z",
+  "max_records": 5,
+  "batch_size": 5,
+  "auto_accept_confidence": 0.75
+}
+```
+
+Response status: `201 Created` with `{ "backtest_run": ..., "metrics": ... }`. The endpoint is bounded by `max_records` and rejects values above `1000`.
+
 `GET /v1/marketops/backtests?tenant_id={tenant_id}&detector_id={detector_id}&status={status}&limit=50`
 
 Returns isolated MarketOps back-test run rows. Filters are optional. Back-test runs are experiments and are separate from replay jobs.

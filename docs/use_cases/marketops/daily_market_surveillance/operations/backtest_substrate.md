@@ -119,6 +119,7 @@ The runner writes only to `marketops_backtest_*` tables. It does not publish to 
 
 ## Read APIs
 
+- `POST /v1/marketops/backtests` to create and synchronously execute a bounded run
 - `GET /v1/marketops/backtests?tenant_id=tenant-local&limit=50`
 - `GET /v1/marketops/backtests/{run_id}`
 - `GET /v1/marketops/backtests/{run_id}/signals`

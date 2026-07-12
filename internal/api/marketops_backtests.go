@@ -7,6 +7,28 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
+type marketOpsBacktestCreateRequest struct {
+	RunID                string   `json:"run_id"`
+	TenantID             string   `json:"tenant_id"`
+	SourceID             string   `json:"source_id"`
+	SourceAdapter        string   `json:"source_adapter"`
+	Dataset              string   `json:"dataset"`
+	DetectorID           string   `json:"detector_id"`
+	DetectorVersion      string   `json:"detector_version"`
+	RequestedBy          string   `json:"requested_by"`
+	WindowStart          string   `json:"window_start"`
+	WindowEnd            string   `json:"window_end"`
+	Symbols              []string `json:"symbols"`
+	MaxRecords           int      `json:"max_records"`
+	BatchSize            int      `json:"batch_size"`
+	AutoAcceptConfidence float64  `json:"auto_accept_confidence"`
+}
+
+type marketOpsBacktestCreateResponse struct {
+	BacktestRun marketOpsBacktestRunDTO `json:"backtest_run"`
+	Metrics     json.RawMessage         `json:"metrics"`
+}
+
 type marketOpsBacktestRunDTO struct {
 	RunID           string          `json:"run_id"`
 	TenantID        string          `json:"tenant_id"`

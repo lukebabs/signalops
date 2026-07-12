@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	marketopsbacktest "github.com/lukebabs/signalops/internal/marketops/backtest"
 	"github.com/lukebabs/signalops/internal/storage"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
@@ -827,6 +828,43 @@ func TestGetMarketOpsAssets(t *testing.T) {
 	}
 	if response["assets"][0]["app_id"] != "marketops" || response["assets"][0]["use_case"] != "daily_market_surveillance" {
 		t.Fatalf("asset metadata = %+v", response["assets"][0])
+	}
+}
+
+func TestPostMarketOpsBacktestCreatesRun(t *testing.T) {
+	repo := &fakeQueryRepository{}
+	runner := func(ctx context.Context, repo storage.MarketOpsBacktestRepository, cfg marketopsbacktest.Config) (marketopsbacktest.Result, error) {
+		now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+		completed := now.Add(time.Second)
+		record := storage.MarketOpsBacktestRunRecord{RunID: cfg.RunID, TenantID: cfg.TenantID, AppID: cfg.AppID, Domain: cfg.Domain, UseCase: cfg.UseCase, SourceID: cfg.SourceID, SourceAdapter: cfg.SourceAdapter, Dataset: cfg.Dataset, DetectorID: cfg.DetectorID, Status: storage.RunStatusSucceeded, RequestedBy: cfg.RequestedBy, WindowStart: cfg.WindowStart, WindowEnd: cfg.WindowEnd, StartedAt: now, CompletedAt: &completed, FiltersJSON: []byte(`{"symbols":["SPY"]}`), ParametersJSON: []byte(`{"detector_id":"marketops.dsm.taxonomy_v1"}`), MetricsJSON: []byte(`{"scanned":1}`), CreatedAt: now, UpdatedAt: completed}
+		return marketopsbacktest.Result{Run: record, Metrics: marketopsbacktest.Metrics{RunID: cfg.RunID, Scanned: 1, Signals: 1, RecommendationCounts: map[string]int{storage.MarketOpsBacktestPolicyAutoAcceptCandidate: 5}}}, nil
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo, MarketOpsBacktestRunner: runner})
+	body := `{"run_id":"bt-api-1","tenant_id":"tenant-local","source_id":"src-massive","dataset":"equity_eod_prices","symbols":["spy"],"window_start":"2026-07-09T00:00:00Z","window_end":"2026-07-10T00:00:00Z","max_records":5}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtests", strings.NewReader(body))
+	req.Header.Set("X-SignalOps-Actor", "operator-api")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var response marketOpsBacktestCreateResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if response.BacktestRun.RunID != "bt-api-1" || response.BacktestRun.RequestedBy != "operator-api" {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestPostMarketOpsBacktestRejectsInvalidWindow(t *testing.T) {
+	router := NewRouter(RouterConfig{QueryRepository: &fakeQueryRepository{}})
+	body := `{"tenant_id":"tenant-local","window_start":"2026-07-10T00:00:00Z","window_end":"2026-07-09T00:00:00Z"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtests", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }
 

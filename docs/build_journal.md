@@ -5343,3 +5343,30 @@ Validation performed:
 - `docker run --rm ... go test ./internal/storage/postgres ./cmd/marketops-backtest`: passed.
 - `docker build --target marketops-backtest -t signalops-marketops-backtest:g081 .`: passed and executed full Go tests in the build stage.
 - `docker compose up -d --build gateway`: rebuilt/restarted the gateway.
+
+
+## 2026-07-12T04:25:00Z
+
+Summary:
+
+- Added API-created MarketOps back-test runs through `POST /v1/marketops/backtests`.
+- Refactored the CLI execution path into a shared Go runner package used by both `cmd/marketops-backtest` and the gateway route.
+- Updated the gateway image to include Python detector runtime assets so API-created runs can invoke the existing detector adapter.
+- Documented the create API request/response contract in API and MarketOps back-test operations docs.
+
+Smoke result:
+
+- API smoke run: `bt-g081-api-smoke-20260712`.
+- Back-test status: `succeeded`.
+- Metrics: scanned `1`, signals `1`, artifacts `1`, graph proposals `5`, policy results `5`.
+- Recommendation counts: `auto_accept_candidate=5`.
+- Isolation verified after the API smoke: production `signal_ledger=19`, `alert_ledger=18`, `insight_ledger=19`, `marketops_dsm_artifacts=12`, and `marketops_dsm_graph_proposals=60`.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.24 go test ./internal/marketops/backtest ./cmd/marketops-backtest ./internal/api`: passed.
+- `docker run --rm -v ... golang:1.24 go test ./...`: passed.
+- `env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=python pytest python/tests`: 58 passed, 1 existing pytest config warning.
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `docker compose up -d --build gateway`: rebuilt/restarted the gateway.
+- Authenticated POST smoke could not use the supplied bearer because the gateway rejected it as expired; the endpoint smoke was run locally with auth temporarily disabled and the gateway was restored to `SIGNALOPS_AUTH_ENABLED=true` afterward.

@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/lukebabs/signalops/internal/appmeta"
+	marketopsbacktest "github.com/lukebabs/signalops/internal/marketops/backtest"
 	"github.com/lukebabs/signalops/internal/storage"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
@@ -37,12 +39,13 @@ var supportedDashboardStreamChannels = map[string]struct{}{
 
 // RouterConfig contains process-local API wiring options.
 type RouterConfig struct {
-	ServiceName       string
-	Auth              AuthConfig
-	Publisher         broker.Publisher
-	RawTopic          string
-	QueryRepository   storage.QueryRepository
-	PublishRepository storage.PublishRepository
+	ServiceName             string
+	MarketOpsBacktestRunner func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
+	Auth                    AuthConfig
+	Publisher               broker.Publisher
+	RawTopic                string
+	QueryRepository         storage.QueryRepository
+	PublishRepository       storage.PublishRepository
 }
 
 // NewRouter creates the HTTP routes owned by the SignalOps gateway.
@@ -299,6 +302,38 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"signal": signalResponse(record)})
+	})
+
+	mux.HandleFunc("POST /v1/marketops/backtests", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		req, err := readMarketOpsBacktestCreateRequest(w, r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		backtestCfg, err := marketOpsBacktestConfigFromRequest(req, replayActor(r, req.RequestedBy))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_backtest", err.Error())
+			return
+		}
+		runner := cfg.MarketOpsBacktestRunner
+		if runner == nil {
+			runner = marketopsbacktest.Run
+		}
+		result, err := runner(r.Context(), repo, backtestCfg)
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "backtest_failed", err.Error())
+			return
+		}
+		metrics, err := json.Marshal(result.Metrics)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "metrics_failed", "failed to encode backtest metrics")
+			return
+		}
+		writeJSON(w, http.StatusCreated, marketOpsBacktestCreateResponse{BacktestRun: marketOpsBacktestRunResponse(result.Run), Metrics: json.RawMessage(metrics)})
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtests", func(w http.ResponseWriter, r *http.Request) {
@@ -1414,6 +1449,72 @@ func insightLifecycleHandler(cfg RouterConfig, status string, action string) htt
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"insight": insightResponse(record)})
 	}
+}
+
+func readMarketOpsBacktestCreateRequest(w http.ResponseWriter, r *http.Request) (marketOpsBacktestCreateRequest, error) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, defaultMaxRawEventBytes))
+	decoder.DisallowUnknownFields()
+	var req marketOpsBacktestCreateRequest
+	if err := decoder.Decode(&req); err != nil {
+		return marketOpsBacktestCreateRequest{}, err
+	}
+	return req, nil
+}
+
+func marketOpsBacktestConfigFromRequest(req marketOpsBacktestCreateRequest, actor string) (marketopsbacktest.Config, error) {
+	windowStart, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(req.WindowStart))
+	if err != nil {
+		return marketopsbacktest.Config{}, errors.New("window_start must be an RFC3339 timestamp")
+	}
+	windowEnd, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(req.WindowEnd))
+	if err != nil {
+		return marketopsbacktest.Config{}, errors.New("window_end must be an RFC3339 timestamp")
+	}
+	runID := strings.TrimSpace(req.RunID)
+	if runID == "" {
+		runID = newID("bt_marketops")
+	}
+	maxRecords := req.MaxRecords
+	if maxRecords <= 0 {
+		maxRecords = 50
+	}
+	batchSize := req.BatchSize
+	if batchSize <= 0 || batchSize > maxRecords {
+		batchSize = maxRecords
+	}
+	pythonBin := strings.TrimSpace(os.Getenv("SIGNALOPS_MARKETOPS_BACKTEST_PYTHON_BIN"))
+	if pythonBin == "" {
+		pythonBin = "python3"
+	}
+	cfg := marketopsbacktest.Config{
+		RunID: runID, TenantID: strings.TrimSpace(req.TenantID), AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance",
+		SourceID: strings.TrimSpace(req.SourceID), SourceAdapter: strings.TrimSpace(req.SourceAdapter), Dataset: strings.TrimSpace(req.Dataset),
+		DetectorID: strings.TrimSpace(req.DetectorID), DetectorVersion: strings.TrimSpace(req.DetectorVersion), RequestedBy: actor,
+		WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), Symbols: cleanSymbols(req.Symbols), MaxRecords: maxRecords, BatchSize: batchSize,
+		AutoAcceptConfidence: req.AutoAcceptConfidence, PythonBin: pythonBin,
+	}
+	if strings.TrimSpace(cfg.TenantID) == "" {
+		return marketopsbacktest.Config{}, errors.New("tenant_id is required")
+	}
+	if !cfg.WindowEnd.After(cfg.WindowStart) {
+		return marketopsbacktest.Config{}, errors.New("window_end must be after window_start")
+	}
+	if maxRecords > 1000 {
+		return marketopsbacktest.Config{}, errors.New("max_records must be between 1 and 1000")
+	}
+	return cfg, nil
+}
+
+func cleanSymbols(values []string) []string {
+	out := []string{}
+	for _, value := range values {
+		value = strings.ToUpper(strings.TrimSpace(value))
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func readReplayJobRequest(w http.ResponseWriter, r *http.Request) (replayJobCreateRequest, error) {

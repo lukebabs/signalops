@@ -6159,3 +6159,37 @@ Validation performed:
 Result:
 
 - G081 is live-smoke validated. The next gate can focus on operator ergonomics or broader calibration metrics.
+
+
+## Gate G081: API-Created Back-Test Runs
+
+Timestamp: `2026-07-12T04:25:00Z`
+
+Status: `validated — API creation smoke passed`
+
+Scope:
+
+- Add an operator API for creating bounded MarketOps back-test runs without using the CLI.
+- Reuse the same isolated runner semantics as `cmd/marketops-backtest`.
+- Preserve the no-production-mutation boundary.
+
+Implementation:
+
+- Added `POST /v1/marketops/backtests` with request validation, bounded `max_records`, symbol filters, detector parameters, and `201 Created` responses containing the run row and metrics.
+- Refactored the CLI execution path into `internal/marketops/backtest` for shared gateway and CLI execution.
+- Updated the gateway image to include Python detector adapter assets required by API-created runs.
+- Added API tests for successful run creation and invalid window rejection.
+
+Validation performed:
+
+- Targeted Go tests passed for `./internal/marketops/backtest ./cmd/marketops-backtest ./internal/api`.
+- Full Go suite passed in Docker.
+- Full Python suite passed with `PYTHONPATH=python`.
+- JSON schema validation passed.
+- Local API smoke run `bt-g081-api-smoke-20260712` succeeded with scanned `1`, signals `1`, artifacts `1`, graph proposals `5`, policy results `5`, and `auto_accept_candidate=5`.
+- Production ledger counts remained unchanged after the API smoke: `signal_ledger=19`, `alert_ledger=18`, `insight_ledger=19`, `marketops_dsm_artifacts=12`, `marketops_dsm_graph_proposals=60`.
+- The supplied bearer could not validate the authenticated POST path because it was expired; endpoint execution was smoke-tested with auth temporarily disabled locally, and the gateway was restored to `SIGNALOPS_AUTH_ENABLED=true` afterward.
+
+Result:
+
+- G081 now supports both CLI-created and API-created isolated back-test runs. A fresh operator bearer is still needed for a final authenticated POST smoke in the running local stack.

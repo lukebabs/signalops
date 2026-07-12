@@ -16,13 +16,19 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-pers
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
 
-FROM gcr.io/distroless/static-debian12:nonroot AS gateway
+FROM python:3.12-slim AS gateway
 
-COPY --from=build /out/signalops-gateway /signalops-gateway
+WORKDIR /app
+
+COPY --from=build /out/signalops-gateway /usr/local/bin/signalops-gateway
+COPY python ./python
+COPY contracts ./contracts
+
+ENV PYTHONPATH=/app/python
 
 EXPOSE 8080
 
-ENTRYPOINT ["/signalops-gateway"]
+ENTRYPOINT ["signalops-gateway"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS massive-puller
 
