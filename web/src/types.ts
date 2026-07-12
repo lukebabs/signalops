@@ -869,3 +869,69 @@ export interface MarketOpsBacktestGraphProposalFilter {
   limit?: number;
 }
 
+
+// G082 persisted MarketOps back-test calibration summaries. These are stored
+// snapshots over isolated back-test runs, not production ledger rows.
+export interface MarketOpsBacktestCalibrationSummary {
+  summary_id: string;
+  tenant_id: string;
+  app_id: string;
+  domain: string;
+  use_case: string;
+  source_id: string;
+  dataset: string;
+  detector_id: string;
+  status_filter: string;
+  requested_by: string;
+  run_ids: string[];
+  run_count: number;
+  succeeded_count: number;
+  failed_count: number;
+  zero_input_count: number;
+  scanned: number;
+  signals: number;
+  artifacts: number;
+  graph_proposals: number;
+  policy_results: number;
+  signal_yield: number;
+  policy_results_per_signal: number;
+  recommendation_counts: Record<string, number>;
+  recommendation_shares: Record<string, number>;
+  dominant_recommendation: { key?: string; count?: number; share?: number } | Record<string, unknown>;
+  filters: unknown;
+  parameters: unknown;
+  created_at: string;
+}
+
+export interface MarketOpsBacktestCalibrationSummariesResponse {
+  calibration_summaries: MarketOpsBacktestCalibrationSummary[];
+}
+
+export interface MarketOpsBacktestCalibrationSummaryResponse {
+  calibration_summary: MarketOpsBacktestCalibrationSummary;
+}
+
+export interface MarketOpsBacktestCalibrationSummaryCreateRequest {
+  summary_id?: string;
+  tenant_id: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
+  source_id?: string;
+  dataset?: string;
+  detector_id?: string;
+  status?: MarketOpsBacktestRunStatus | '';
+  limit?: number;
+  requested_by?: string;
+}
+
+export interface MarketOpsBacktestCalibrationSummaryFilter {
+  tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
+  source_id?: string;
+  dataset?: string;
+  detector_id?: string;
+  limit?: number;
+}

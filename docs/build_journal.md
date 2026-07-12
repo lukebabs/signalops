@@ -5504,3 +5504,24 @@ Validation performed:
 - `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
 - Live unauthenticated probe to `GET /v1/marketops/backtest-calibration-summaries?tenant_id=tenant-local` returned `401 unauthorized`, preserving gateway auth enforcement.
 - Postgres verified table `marketops_backtest_calibration_summaries` exists.
+
+
+## 2026-07-12T06:08:00Z
+
+Summary:
+
+- Wired the G082 persisted back-test calibration summary API into the MarketOps Back-Tests UI.
+- Added frontend types, API client methods, React Query hooks, query keys, and mutation cache invalidation for `/v1/marketops/backtest-calibration-summaries`.
+- Added a `Persisted Calibration Snapshots` panel under `/marketops/backtests` that lists stored snapshots and can create a snapshot from the current run filters.
+- Kept the scope limited to stored summary review and creation; no baseline promotion, policy deployment, model training, or graph writeback controls were added.
+
+Validation performed:
+
+- `cd web && npm test -- src/api/marketopsBacktests.test.ts src/lib/marketopsBacktests.test.ts`: 27 passed.
+- `cd web && npm run build`: passed.
+- `cd web && npm test`: 148 passed.
+- `git diff --check`: passed.
+- `docker compose up -d --build web`: passed.
+- `curl http://localhost:15173/marketops/backtests`: served the rebuilt SPA shell.
+- Rebuilt web bundle contains `Persisted Calibration Snapshots`.
+- `docker compose ps web gateway postgres`: services running.

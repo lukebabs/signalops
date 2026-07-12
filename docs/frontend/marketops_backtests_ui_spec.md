@@ -366,3 +366,30 @@ Do not implement:
 - production replay controls
 
 Those require separate backend gates or explicit product decisions.
+
+## G082 Addendum: Persisted Calibration Snapshots
+
+The `/marketops/backtests` route now also consumes the persisted calibration summary API introduced after the original G081 UI spec.
+
+Additional API client methods:
+
+```ts
+listMarketOpsBacktestCalibrationSummaries(filter)
+getMarketOpsBacktestCalibrationSummary(summaryId)
+createMarketOpsBacktestCalibrationSummary(request)
+```
+
+Additional UI behavior:
+
+- Render a `Persisted Calibration Snapshots` panel under the transient `Calibration Summary` comparison panel.
+- List recent stored snapshots for the current tenant and detector filter.
+- Allow an operator to snapshot the current run filters through `POST /v1/marketops/backtest-calibration-summaries`.
+- Display stored run count, zero-input count, signal yield, policy-results-per-signal, dominant recommendation, and created time.
+
+Still out of scope:
+
+- baseline promotion
+- detector threshold editing
+- model training
+- graph writeback
+- policy deployment

@@ -49,6 +49,10 @@ import type {
   MarketOpsBacktestRunFilter,
   MarketOpsBacktestSignalFilter,
   MarketOpsBacktestGraphProposalFilter,
+  MarketOpsBacktestCalibrationSummariesResponse,
+  MarketOpsBacktestCalibrationSummaryResponse,
+  MarketOpsBacktestCalibrationSummaryCreateRequest,
+  MarketOpsBacktestCalibrationSummaryFilter,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -382,4 +386,21 @@ export const api = {
         limit: filter.limit ?? 50,
       },
     ),
+  listMarketOpsBacktestCalibrationSummaries: (filter: MarketOpsBacktestCalibrationSummaryFilter = {}) =>
+    get<MarketOpsBacktestCalibrationSummariesResponse>('/v1/marketops/backtest-calibration-summaries', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      app_id: filter.app_id || undefined,
+      domain: filter.domain || undefined,
+      use_case: filter.use_case || undefined,
+      source_id: filter.source_id || undefined,
+      dataset: filter.dataset || undefined,
+      detector_id: filter.detector_id ?? 'marketops.dsm.taxonomy_v1',
+      limit: filter.limit ?? 25,
+    }),
+  getMarketOpsBacktestCalibrationSummary: (summaryId: string) =>
+    get<MarketOpsBacktestCalibrationSummaryResponse>(
+      `/v1/marketops/backtest-calibration-summaries/${encodeURIComponent(summaryId)}`,
+    ),
+  createMarketOpsBacktestCalibrationSummary: (body: MarketOpsBacktestCalibrationSummaryCreateRequest) =>
+    post<MarketOpsBacktestCalibrationSummaryResponse>('/v1/marketops/backtest-calibration-summaries', body),
 };

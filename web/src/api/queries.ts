@@ -20,6 +20,9 @@ import type {
   MarketOpsBacktestGraphProposalFilter,
   MarketOpsBacktestCreateRequest,
   MarketOpsBacktestCreateResponse,
+  MarketOpsBacktestCalibrationSummaryFilter,
+  MarketOpsBacktestCalibrationSummaryCreateRequest,
+  MarketOpsBacktestCalibrationSummaryResponse,
 } from '../types';
 
 export const queryKeys = {
@@ -60,6 +63,10 @@ export const queryKeys = {
     ['marketops-backtest-signals', runId, filter] as const,
   marketOpsBacktestGraphProposals: (runId: string, filter: MarketOpsBacktestGraphProposalFilter) =>
     ['marketops-backtest-graph-proposals', runId, filter] as const,
+  marketOpsBacktestCalibrationSummaries: (filter: MarketOpsBacktestCalibrationSummaryFilter) =>
+    ['marketops-backtest-calibration-summaries', filter] as const,
+  marketOpsBacktestCalibrationSummary: (summaryId: string) =>
+    ['marketops-backtest-calibration-summary', summaryId] as const,
 };
 
 export function useHealthz() {
@@ -389,6 +396,37 @@ export function useCreateMarketOpsBacktest() {
   return useMutation({
     mutationFn: (body: MarketOpsBacktestCreateRequest) => api.createMarketOpsBacktest(body),
     onSuccess: (data) => applyBacktestCreateResult(queryClient, data),
+  });
+}
+
+export function useMarketOpsBacktestCalibrationSummaries(filter: MarketOpsBacktestCalibrationSummaryFilter = { tenant_id: 'tenant-local', limit: 25 }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestCalibrationSummaries(filter),
+    queryFn: () => api.listMarketOpsBacktestCalibrationSummaries(filter),
+  });
+}
+
+export function useMarketOpsBacktestCalibrationSummary(summaryId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestCalibrationSummary(summaryId ?? ''),
+    queryFn: () => api.getMarketOpsBacktestCalibrationSummary(summaryId!),
+    enabled: !!summaryId,
+  });
+}
+
+export function applyBacktestCalibrationSummaryCreateResult(queryClient: QueryClient, data: MarketOpsBacktestCalibrationSummaryResponse) {
+  queryClient.setQueryData(
+    queryKeys.marketOpsBacktestCalibrationSummary(data.calibration_summary.summary_id),
+    data,
+  );
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtest-calibration-summaries'] });
+}
+
+export function useCreateMarketOpsBacktestCalibrationSummary() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MarketOpsBacktestCalibrationSummaryCreateRequest) => api.createMarketOpsBacktestCalibrationSummary(body),
+    onSuccess: (data) => applyBacktestCalibrationSummaryCreateResult(queryClient, data),
   });
 }
 

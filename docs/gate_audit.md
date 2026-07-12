@@ -6330,3 +6330,27 @@ Validation performed:
 Result:
 
 - G082 now has a durable backend substrate for comparing/calibrating back-test run sets without mutating production ledgers.
+
+
+## Gate G082: Back-Test Calibration Summary UI Wiring
+
+Timestamp: `2026-07-12T06:08:00Z`
+
+Status: `validated — persisted summary UI wired`
+
+Scope:
+
+- Connect the MarketOps Back-Tests UI to the G082 persisted calibration summary API.
+- Let operators create a stored snapshot from the current run filters and review recent persisted snapshots.
+- Keep the route read-oriented and avoid baseline promotion, threshold editing, policy deployment, model training, or graph writeback.
+
+Validation performed:
+
+- Added frontend API types, client methods, React Query hooks, and tests for calibration summary list/detail/create behavior.
+- Rendered `Persisted Calibration Snapshots` in `/marketops/backtests`.
+- Targeted frontend tests, full frontend tests, production build, and `git diff --check` passed.
+- Rebuilt the local web container and verified the served bundle contains the new panel text.
+
+Result:
+
+- G082 has end-to-end backend plus frontend access to persisted back-test calibration snapshots, still isolated from production ledgers and policy promotion flows.

@@ -21,7 +21,7 @@ vi.mock('../auth/session', () => ({
 
 // Import the client AFTER the mocks are registered.
 const { api } = await import('./client');
-const { queryKeys, applyBacktestCreateResult } = await import('./queries');
+const { queryKeys, applyBacktestCreateResult, applyBacktestCalibrationSummaryCreateResult } = await import('./queries');
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -179,6 +179,39 @@ describe('MarketOps back-tests API client (G081)', () => {
     expect(url).toContain('limit=50');
   });
 
+  it('creates and lists persisted calibration summaries via the G082 endpoint', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ calibration_summary: { summary_id: 'btcal-1', run_count: 2 } }, 201))
+      .mockResolvedValueOnce(jsonResponse({ calibration_summaries: [{ summary_id: 'btcal-1', run_count: 2 }] }))
+      .mockResolvedValueOnce(jsonResponse({ calibration_summary: { summary_id: 'btcal-1', run_count: 2 } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const created = await api.createMarketOpsBacktestCalibrationSummary({
+      tenant_id: 'tenant-local',
+      detector_id: 'marketops.dsm.taxonomy_v1',
+      status: 'succeeded',
+      limit: 50,
+    });
+    const list = await api.listMarketOpsBacktestCalibrationSummaries({ tenant_id: 'tenant-local', detector_id: 'marketops.dsm.taxonomy_v1', limit: 10 });
+    const detail = await api.getMarketOpsBacktestCalibrationSummary('btcal-1');
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/marketops/backtest-calibration-summaries');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      tenant_id: 'tenant-local',
+      detector_id: 'marketops.dsm.taxonomy_v1',
+      status: 'succeeded',
+      limit: 50,
+    });
+    expect(String(fetchMock.mock.calls[1][0])).toContain('detector_id=marketops.dsm.taxonomy_v1');
+    expect(String(fetchMock.mock.calls[2][0])).toContain('/v1/marketops/backtest-calibration-summaries/btcal-1');
+    expect(created.calibration_summary.summary_id).toBe('btcal-1');
+    expect(list.calibration_summaries[0].run_count).toBe(2);
+    expect(detail.calibration_summary.summary_id).toBe('btcal-1');
+  });
+
   it('parses the list, detail, create, signals, and graph-proposals envelopes', async () => {
     vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
     const fetchMock = vi
@@ -225,6 +258,8 @@ describe('MarketOps back-test query keys (G081)', () => {
       'bt-1',
       gpFilter,
     ]);
+    expect(queryKeys.marketOpsBacktestCalibrationSummaries({ tenant_id: 'tenant-local', limit: 10 })[0]).toBe('marketops-backtest-calibration-summaries');
+    expect(queryKeys.marketOpsBacktestCalibrationSummary('btcal-1')).toEqual(['marketops-backtest-calibration-summary', 'btcal-1']);
   });
 
   it('list and detail keys share the prefixes the create mutation invalidates', () => {
@@ -260,5 +295,24 @@ describe('applyBacktestCreateResult (G081 mutation invalidation)', () => {
     // List + detail prefixes invalidated so the run table + detail refetch.
     expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtests'] });
     expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest'] });
+  });
+});
+
+describe('applyBacktestCalibrationSummaryCreateResult (G082 mutation invalidation)', () => {
+  it('seeds the summary detail cache and invalidates summary lists', () => {
+    const queryClient = new QueryClient();
+    const setSpy = vi.spyOn(queryClient, 'setQueryData');
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const created = {
+      calibration_summary: { summary_id: 'btcal-new', run_count: 2 },
+    } as never;
+
+    applyBacktestCalibrationSummaryCreateResult(queryClient, created);
+
+    const detailKey = queryKeys.marketOpsBacktestCalibrationSummary('btcal-new');
+    expect(setSpy).toHaveBeenCalledWith(detailKey, created);
+    expect(queryClient.getQueryData<{ calibration_summary: { summary_id: string } }>(detailKey)?.calibration_summary.summary_id).toBe('btcal-new');
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-calibration-summaries'] });
   });
 });

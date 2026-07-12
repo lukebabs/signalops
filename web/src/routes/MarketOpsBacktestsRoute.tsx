@@ -6,6 +6,8 @@ import {
   useMarketOpsBacktestSignals,
   useMarketOpsBacktestGraphProposals,
   useCreateMarketOpsBacktest,
+  useMarketOpsBacktestCalibrationSummaries,
+  useCreateMarketOpsBacktestCalibrationSummary,
 } from '../api/queries';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
@@ -35,6 +37,7 @@ import type {
   MarketOpsBacktestGraphProposal,
   MarketOpsBacktestPolicyResult,
   MarketOpsBacktestRunStatus,
+  MarketOpsBacktestCalibrationSummary,
   SignalRecord,
 } from '../types';
 
@@ -72,6 +75,12 @@ export function MarketOpsBacktestsRoute() {
   });
   const detail = useMarketOpsBacktest(selectedId, TENANT_ID);
   const create = useCreateMarketOpsBacktest();
+  const calibrationSummaries = useMarketOpsBacktestCalibrationSummaries({
+    tenant_id: TENANT_ID,
+    detector_id: detectorId || undefined,
+    limit: 10,
+  });
+  const createCalibrationSummary = useCreateMarketOpsBacktestCalibrationSummary();
 
   const runs = list.data?.backtest_runs ?? [];
   const succeeded = runs.filter((r) => r.status === 'succeeded').length;
@@ -85,6 +94,7 @@ export function MarketOpsBacktestsRoute() {
   function refresh() {
     list.refetch();
     if (selectedId) detail.refetch();
+    calibrationSummaries.refetch();
   }
 
   const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
@@ -111,6 +121,19 @@ export function MarketOpsBacktestsRoute() {
       </div>
 
       <BacktestComparisonPanel comparison={comparison} />
+
+      <PersistedCalibrationSummariesPanel
+        summaries={calibrationSummaries.data?.calibration_summaries ?? []}
+        loading={calibrationSummaries.isLoading}
+        error={calibrationSummaries.isError}
+        create={createCalibrationSummary}
+        onCreate={() => createCalibrationSummary.mutate({
+          tenant_id: TENANT_ID,
+          detector_id: detectorId || undefined,
+          status: status || undefined,
+          limit,
+        })}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <select
@@ -527,6 +550,107 @@ function BacktestComparisonPanel({ comparison }: { comparison: ReturnType<typeof
     </div>
   );
 }
+
+function PersistedCalibrationSummariesPanel({
+  summaries,
+  loading,
+  error,
+  create,
+  onCreate,
+}: {
+  summaries: MarketOpsBacktestCalibrationSummary[];
+  loading: boolean;
+  error: boolean;
+  create: ReturnType<typeof useCreateMarketOpsBacktestCalibrationSummary>;
+  onCreate: () => void;
+}) {
+  return (
+    <div className="rounded border border-gray-200 bg-white p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold text-gray-900">Persisted Calibration Snapshots</div>
+          <div className="text-xs text-gray-500">Stored summaries over filtered back-test runs.</div>
+        </div>
+        <button
+          type="button"
+          onClick={onCreate}
+          disabled={create.isPending}
+          className="inline-flex items-center gap-1 rounded bg-brand-500 px-3 py-1.5 text-sm text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus size={14} /> {create.isPending ? 'Saving...' : 'Snapshot current filters'}
+        </button>
+      </div>
+      {create.isSuccess && create.data && (
+        <div className="mb-2 rounded border border-green-200 bg-green-50 p-2 text-xs text-green-800">
+          Saved <code className="font-mono">{create.data.calibration_summary.summary_id}</code>
+        </div>
+      )}
+      {create.isError && (
+        <p className="mb-2 text-xs text-red-700" role="alert">
+          Snapshot failed: {isApiError(create.error) ? create.error.message : 'unknown error'}.
+        </p>
+      )}
+      {loading ? (
+        <p className="text-xs text-gray-500">Loading snapshots...</p>
+      ) : error ? (
+        <p className="text-xs text-amber-700">Snapshots unavailable.</p>
+      ) : summaries.length ? (
+        <div className="overflow-x-auto rounded border border-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-2 py-1">Summary</th>
+                <th className="px-2 py-1">Runs</th>
+                <th className="px-2 py-1">Yield</th>
+                <th className="px-2 py-1">Policy / Signal</th>
+                <th className="px-2 py-1">Dominant Rec.</th>
+                <th className="px-2 py-1">Created</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {summaries.map((summary) => {
+                const dominant = isRecord(summary.dominant_recommendation) ? summary.dominant_recommendation : {};
+                const dominantKey = typeof dominant.key === 'string' ? dominant.key : '';
+                const dominantCount = typeof dominant.count === 'number' ? dominant.count : undefined;
+                return (
+                  <tr key={summary.summary_id} className="align-top">
+                    <td className="px-2 py-1">
+                      <code className="break-all text-xs text-gray-700">{summary.summary_id}</code>
+                      <div className="text-xs text-gray-500">{summary.status_filter || 'any status'}</div>
+                    </td>
+                    <td className="px-2 py-1 text-xs">
+                      <div>{summary.run_count}</div>
+                      <div className="text-gray-500">zero {summary.zero_input_count}</div>
+                    </td>
+                    <td className="px-2 py-1 text-xs">
+                      <div>{(summary.signal_yield * 100).toFixed(1)}%</div>
+                      <div className="text-gray-500">{summary.signals}/{summary.scanned}</div>
+                    </td>
+                    <td className="px-2 py-1 text-xs">
+                      <div>{summary.policy_results_per_signal.toFixed(1)}</div>
+                      <div className="text-gray-500">{summary.policy_results} policies</div>
+                    </td>
+                    <td className="px-2 py-1 text-xs">
+                      {dominantKey ? (
+                        <RecommendationChip recommendation={dominantKey} count={dominantCount} />
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1 text-xs text-gray-600">{formatUtc(summary.created_at)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400">No persisted calibration snapshots for the current detector filter.</p>
+      )}
+    </div>
+  );
+}
+
 
 function RecommendationChip({ recommendation, count }: { recommendation: string; count?: number }) {
   return (
