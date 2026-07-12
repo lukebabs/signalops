@@ -6646,3 +6646,21 @@ Validation performed:
 Result:
 
 - G086 now has a validated backend promotion review substrate. Next work is frontend-agent specification and UI wiring.
+
+
+## Gate G086: Frontend-Agent Promotion Review Spec
+
+Timestamp: `2026-07-12T21:55:00Z`
+
+Status: `specification ready for frontend-agent`
+
+Scope:
+
+- Specify frontend wiring for the G086 promotion candidate APIs.
+- Define API client methods, query hooks, UI placement, required user flow, decision controls, tests, and acceptance criteria.
+- Keep the implementation limited to promotion-review visibility and audit decisions on `/marketops/backtests`.
+
+Result:
+
+- Specification saved at `docs/frontend/marketops_backtest_promotion_review_ui_spec.md`.
+- Existing MarketOps back-tests UI spec now links to the G086 addendum.

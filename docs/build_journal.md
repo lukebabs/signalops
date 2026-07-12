@@ -5764,3 +5764,17 @@ Validation performed:
 - Authenticated smoke promotion candidate create/list/detail/decision: HTTP `201/200/200/200`.
 - Smoke candidate `btpromo-g086-auth-smoke-20260712214200` returned readiness `ready_for_review`; decision changed candidate status to `deferred`.
 - Token material and temporary API response files were removed.
+
+
+## 2026-07-12T21:55:00Z
+
+Summary:
+
+- Added the frontend-agent specification for G086 MarketOps back-test promotion review UI wiring.
+- Scoped the frontend work to `/marketops/backtests` API client methods, React Query hooks, promotion review panel, evidence rendering, decision controls, and tests.
+- Explicitly kept runtime policy deployment, detector threshold editing, graph writeback, feature flag changes, automatic promotion, model training, and label sync controls out of scope.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.

@@ -405,3 +405,9 @@ The addendum is intentionally limited to wiring the new baseline/comparison APIs
 Frontend-agent implementation for G085 should follow `docs/frontend/marketops_backtest_evaluations_ui_spec.md`.
 
 The addendum is intentionally limited to rendering stored label-aware evaluation results and creating evaluations for selected back-test runs. It should not add label sync controls, graph proposal decision controls, policy promotion, detector threshold editing, graph writeback, or model training controls.
+
+## G086 Addendum: Promotion Review
+
+Frontend-agent implementation for G086 should follow `docs/frontend/marketops_backtest_promotion_review_ui_spec.md`.
+
+The addendum is intentionally limited to creating, listing, and deciding promotion-review candidate records on `/marketops/backtests`. It should not add policy deployment, detector threshold editing, graph writeback, feature flag changes, automatic promotion, model training, or label sync controls.
