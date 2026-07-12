@@ -5370,3 +5370,20 @@ Validation performed:
 - `python3 scripts/validate_json_schemas.py`: passed.
 - `docker compose up -d --build gateway`: rebuilt/restarted the gateway.
 - Authenticated POST smoke could not use the supplied bearer because the gateway rejected it as expired; the endpoint smoke was run locally with auth temporarily disabled and the gateway was restored to `SIGNALOPS_AUTH_ENABLED=true` afterward.
+
+
+## 2026-07-12T04:30:00Z
+
+Summary:
+
+- Fixed a frontend client-router 404 at the MarketOps app root.
+- Added an explicit `/marketops` route that redirects to `/marketops/dashboard`.
+- Rebuilt and restarted the web container so the running local app serves the updated bundle.
+
+Validation performed:
+
+- `cd web && npm test`: 120 passed.
+- `cd web && npm run build`: passed.
+- `docker compose up -d --build web`: passed.
+- `curl http://localhost:15173/marketops`: served the rebuilt SPA shell.
+- `curl http://localhost:15173/healthz`: passed through to gateway health.

@@ -143,9 +143,18 @@ const replayJobsRoute = createRoute({
   component: ReplayJobsRoute,
 });
 
+function MarketOpsIndexRouteComponent() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate({ to: '/marketops/dashboard', replace: true });
+  }, [navigate]);
+  return <LoadingState label="Opening MarketOps..." />;
+}
+
 // G067 MarketOps aliases: reuse existing route components under /marketops/*.
 // App context (AppProfileProvider) scopes their data via metadataFilter; no
 // business logic is duplicated.
+const marketopsIndexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops', component: MarketOpsIndexRouteComponent });
 const marketopsDashboardRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/dashboard', component: DashboardRoute });
 const marketopsProvidersRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/providers', component: SourcesRoute });
 const marketopsRawEventsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/raw-events', component: RawEventsRoute });
@@ -191,6 +200,7 @@ const routeTree = rootRoute.addChildren([
   authCallbackRoute,
   systemRoute,
   // G067 MarketOps aliases (declared above) must be registered here or they 404.
+  marketopsIndexRoute,
   marketopsDashboardRoute,
   marketopsProvidersRoute,
   marketopsRawEventsRoute,
