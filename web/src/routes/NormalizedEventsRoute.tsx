@@ -149,14 +149,14 @@ function NormalizedDetailBody({ ev }: { ev: NormalizedEvent }) {
         <CopyButton value={ev.event_id} />
       </div>
       <div className="grid grid-cols-2 gap-2 text-sm">
-        <div><div className="text-xs text-gray-500">Schema</div><div className="text-xs">{ev.schema_id} v{ev.schema_version}</div></div>
+        <div><div className="text-xs text-gray-500">Schema</div><div className="break-all text-xs">{ev.schema_id} v{ev.schema_version}</div></div>
         <div><div className="text-xs text-gray-500">Confidence</div><div>{ev.confidence.toFixed(2)}</div></div>
         <div><div className="text-xs text-gray-500">Observed</div><div className="text-xs">{formatUtc(ev.observation_time)}</div></div>
         <div><div className="text-xs text-gray-500">Processed</div><div className="text-xs">{formatUtc(ev.processing_time)}</div></div>
-        <div><div className="text-xs text-gray-500">Source</div><div className="text-xs font-mono">{ev.source_id}</div></div>
-        <div><div className="text-xs text-gray-500">Dataset</div><div className="text-xs">{ev.dataset}</div></div>
-        <div><div className="text-xs text-gray-500">Raw Broker</div><div className="text-xs font-mono">{ev.raw_partition}/{ev.raw_offset}</div></div>
-        <div><div className="text-xs text-gray-500">Normalized Broker</div><div className="text-xs font-mono">{ev.normalized_partition}/{ev.normalized_offset}</div></div>
+        <div><div className="text-xs text-gray-500">Source</div><div className="break-all text-xs font-mono">{ev.source_id}</div></div>
+        <div><div className="text-xs text-gray-500">Dataset</div><div className="break-all text-xs">{ev.dataset}</div></div>
+        <div><div className="text-xs text-gray-500">Raw Broker</div><div className="break-all text-xs font-mono">{ev.raw_partition}/{ev.raw_offset}</div></div>
+        <div><div className="text-xs text-gray-500">Normalized Broker</div><div className="break-all text-xs font-mono">{ev.normalized_partition}/{ev.normalized_offset}</div></div>
       </div>
       <JsonViewer label="Entities" value={ev.entities} />
       <JsonViewer label="Evidence" value={ev.evidence} />
