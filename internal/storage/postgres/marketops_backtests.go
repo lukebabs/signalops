@@ -394,3 +394,85 @@ func upperStrings(values []string) []string {
 	}
 	return out
 }
+
+func (r *Repository) UpsertMarketOpsBacktestCalibrationSummary(ctx context.Context, record storage.MarketOpsBacktestCalibrationSummaryRecord) error {
+	if strings.TrimSpace(record.SummaryID) == "" || strings.TrimSpace(record.TenantID) == "" {
+		return fmt.Errorf("marketops backtest calibration summary_id and tenant_id are required")
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO marketops_backtest_calibration_summaries (
+ summary_id, tenant_id, app_id, domain, use_case, source_id, dataset, detector_id, status_filter, requested_by,
+ run_ids, run_count, succeeded_count, failed_count, zero_input_count, scanned, signals, artifacts, graph_proposals,
+ policy_results, signal_yield, policy_results_per_signal, recommendation_counts, recommendation_shares,
+ dominant_recommendation, filters, parameters
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+ON CONFLICT (summary_id) DO UPDATE SET
+ tenant_id=EXCLUDED.tenant_id, app_id=EXCLUDED.app_id, domain=EXCLUDED.domain, use_case=EXCLUDED.use_case,
+ source_id=EXCLUDED.source_id, dataset=EXCLUDED.dataset, detector_id=EXCLUDED.detector_id, status_filter=EXCLUDED.status_filter,
+ requested_by=EXCLUDED.requested_by, run_ids=EXCLUDED.run_ids, run_count=EXCLUDED.run_count, succeeded_count=EXCLUDED.succeeded_count,
+ failed_count=EXCLUDED.failed_count, zero_input_count=EXCLUDED.zero_input_count, scanned=EXCLUDED.scanned, signals=EXCLUDED.signals,
+ artifacts=EXCLUDED.artifacts, graph_proposals=EXCLUDED.graph_proposals, policy_results=EXCLUDED.policy_results,
+ signal_yield=EXCLUDED.signal_yield, policy_results_per_signal=EXCLUDED.policy_results_per_signal,
+ recommendation_counts=EXCLUDED.recommendation_counts, recommendation_shares=EXCLUDED.recommendation_shares,
+ dominant_recommendation=EXCLUDED.dominant_recommendation, filters=EXCLUDED.filters, parameters=EXCLUDED.parameters`,
+		record.SummaryID, record.TenantID, recordAppID(record.AppID), recordDomain(record.Domain), recordUseCase(record.UseCase),
+		record.SourceID, record.Dataset, record.DetectorID, record.StatusFilter, firstNonEmptyString(record.RequestedBy, "operator-local"),
+		pqArray(record.RunIDs), record.RunCount, record.SucceededCount, record.FailedCount, record.ZeroInputCount, record.Scanned,
+		record.Signals, record.Artifacts, record.GraphProposals, record.PolicyResults, record.SignalYield, record.PolicyResultsPerSignal,
+		jsonOrEmpty(record.RecommendationCounts), jsonOrEmpty(record.RecommendationShares), jsonOrEmpty(record.DominantRecommendation),
+		jsonOrEmpty(record.FiltersJSON), jsonOrEmpty(record.ParametersJSON))
+	if err != nil {
+		return fmt.Errorf("upsert marketops backtest calibration summary: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ListMarketOpsBacktestCalibrationSummaries(ctx context.Context, filter storage.MarketOpsBacktestCalibrationSummaryFilter) ([]storage.MarketOpsBacktestCalibrationSummaryRecord, error) {
+	rows, err := r.db.QueryContext(ctx, marketOpsBacktestCalibrationSummarySelect+`
+WHERE ($1='' OR tenant_id=$1) AND ($2='' OR app_id=$2) AND ($3='' OR domain=$3) AND ($4='' OR use_case=$4)
+ AND ($5='' OR source_id=$5) AND ($6='' OR dataset=$6) AND ($7='' OR detector_id=$7)
+ORDER BY created_at DESC LIMIT $8`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID), strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.DetectorID), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list marketops backtest calibration summaries: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.MarketOpsBacktestCalibrationSummaryRecord{}
+	for rows.Next() {
+		rec, err := scanMarketOpsBacktestCalibrationSummary(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list marketops backtest calibration summaries rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetMarketOpsBacktestCalibrationSummary(ctx context.Context, summaryID string) (storage.MarketOpsBacktestCalibrationSummaryRecord, error) {
+	record, err := scanMarketOpsBacktestCalibrationSummary(r.db.QueryRowContext(ctx, marketOpsBacktestCalibrationSummarySelect+` WHERE summary_id=$1`, strings.TrimSpace(summaryID)))
+	if err != nil {
+		return storage.MarketOpsBacktestCalibrationSummaryRecord{}, err
+	}
+	return record, nil
+}
+
+const marketOpsBacktestCalibrationSummarySelect = `SELECT summary_id, tenant_id, app_id, domain, use_case, source_id, dataset, detector_id, status_filter, requested_by,
+ COALESCE(array_to_json(run_ids), '[]'::json)::text, run_count, succeeded_count, failed_count, zero_input_count, scanned, signals,
+ artifacts, graph_proposals, policy_results, signal_yield, policy_results_per_signal, recommendation_counts, recommendation_shares,
+ dominant_recommendation, filters, parameters, created_at FROM marketops_backtest_calibration_summaries`
+
+type marketOpsBacktestCalibrationSummaryScanner interface{ Scan(dest ...any) error }
+
+func scanMarketOpsBacktestCalibrationSummary(scanner marketOpsBacktestCalibrationSummaryScanner) (storage.MarketOpsBacktestCalibrationSummaryRecord, error) {
+	var record storage.MarketOpsBacktestCalibrationSummaryRecord
+	var runIDsJSON string
+	if err := scanner.Scan(&record.SummaryID, &record.TenantID, &record.AppID, &record.Domain, &record.UseCase, &record.SourceID, &record.Dataset, &record.DetectorID, &record.StatusFilter, &record.RequestedBy, &runIDsJSON, &record.RunCount, &record.SucceededCount, &record.FailedCount, &record.ZeroInputCount, &record.Scanned, &record.Signals, &record.Artifacts, &record.GraphProposals, &record.PolicyResults, &record.SignalYield, &record.PolicyResultsPerSignal, &record.RecommendationCounts, &record.RecommendationShares, &record.DominantRecommendation, &record.FiltersJSON, &record.ParametersJSON, &record.CreatedAt); err != nil {
+		return storage.MarketOpsBacktestCalibrationSummaryRecord{}, mapScanError("scan marketops backtest calibration summary", err)
+	}
+	if err := json.Unmarshal([]byte(runIDsJSON), &record.RunIDs); err != nil {
+		return storage.MarketOpsBacktestCalibrationSummaryRecord{}, err
+	}
+	return record, nil
+}

@@ -352,6 +352,76 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"backtest_runs": marketOpsBacktestRunResponses(records)})
 	})
 
+	mux.HandleFunc("POST /v1/marketops/backtest-calibration-summaries", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req marketOpsBacktestCalibrationSummaryCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		filter := marketOpsBacktestRunFilterFromCalibrationRequest(req)
+		if strings.TrimSpace(filter.TenantID) == "" {
+			writeError(w, http.StatusBadRequest, "invalid_calibration_summary", "tenant_id is required")
+			return
+		}
+		runs, err := repo.ListMarketOpsBacktestRuns(r.Context(), filter)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtests for calibration summary")
+			return
+		}
+		summaryID := strings.TrimSpace(req.SummaryID)
+		if summaryID == "" {
+			summaryID = newID("btcal_marketops")
+		}
+		record, err := buildMarketOpsBacktestCalibrationSummary(summaryID, replayActor(r, req.RequestedBy), filter, runs)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_calibration_summary", err.Error())
+			return
+		}
+		if err := repo.UpsertMarketOpsBacktestCalibrationSummary(r.Context(), record); err != nil {
+			writeError(w, http.StatusInternalServerError, "persist_failed", "failed to persist MarketOps backtest calibration summary")
+			return
+		}
+		stored, err := repo.GetMarketOpsBacktestCalibrationSummary(r.Context(), summaryID)
+		if err != nil {
+			writeQueryError(w, err, "calibration_summary_not_found", "MarketOps backtest calibration summary not found")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"calibration_summary": marketOpsBacktestCalibrationSummaryResponse(stored)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-calibration-summaries", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestCalibrationSummaries(r.Context(), storage.MarketOpsBacktestCalibrationSummaryFilter{
+			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Limit: queryLimit(r, 50),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest calibration summaries")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"calibration_summaries": marketOpsBacktestCalibrationSummaryResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-calibration-summaries/{summary_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetMarketOpsBacktestCalibrationSummary(r.Context(), r.PathValue("summary_id"))
+		if err != nil {
+			writeQueryError(w, err, "calibration_summary_not_found", "MarketOps backtest calibration summary not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"calibration_summary": marketOpsBacktestCalibrationSummaryResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/marketops/backtests/{run_id}", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

@@ -552,6 +552,37 @@ type MarketOpsBacktestPolicyResultRecord struct {
 	CreatedAt          time.Time
 }
 
+type MarketOpsBacktestCalibrationSummaryRecord struct {
+	SummaryID              string
+	TenantID               string
+	AppID                  string
+	Domain                 string
+	UseCase                string
+	SourceID               string
+	Dataset                string
+	DetectorID             string
+	StatusFilter           string
+	RequestedBy            string
+	RunIDs                 []string
+	RunCount               int
+	SucceededCount         int
+	FailedCount            int
+	ZeroInputCount         int
+	Scanned                int
+	Signals                int
+	Artifacts              int
+	GraphProposals         int
+	PolicyResults          int
+	SignalYield            float64
+	PolicyResultsPerSignal float64
+	RecommendationCounts   []byte
+	RecommendationShares   []byte
+	DominantRecommendation []byte
+	FiltersJSON            []byte
+	ParametersJSON         []byte
+	CreatedAt              time.Time
+}
+
 type SchedulerRunRepository interface {
 	UpsertSchedulerRun(ctx context.Context, record SchedulerRunRecord) error
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
@@ -622,6 +653,9 @@ type MarketOpsBacktestRepository interface {
 	ListMarketOpsBacktestGraphProposals(ctx context.Context, filter MarketOpsBacktestGraphProposalFilter) ([]MarketOpsBacktestGraphProposalRecord, error)
 	ListMarketOpsBacktestPolicyResults(ctx context.Context, filter MarketOpsBacktestGraphProposalFilter) ([]MarketOpsBacktestPolicyResultRecord, error)
 	ListMarketOpsBacktestNormalizedEvents(ctx context.Context, filter MarketOpsBacktestEventFilter) ([]NormalizedEventLedgerRecord, error)
+	UpsertMarketOpsBacktestCalibrationSummary(ctx context.Context, record MarketOpsBacktestCalibrationSummaryRecord) error
+	ListMarketOpsBacktestCalibrationSummaries(ctx context.Context, filter MarketOpsBacktestCalibrationSummaryFilter) ([]MarketOpsBacktestCalibrationSummaryRecord, error)
+	GetMarketOpsBacktestCalibrationSummary(ctx context.Context, summaryID string) (MarketOpsBacktestCalibrationSummaryRecord, error)
 }
 
 type CatalogRepository interface {
@@ -724,6 +758,17 @@ type MarketOpsBacktestRunFilter struct {
 	Dataset    string
 	DetectorID string
 	Status     string
+	Limit      int
+}
+
+type MarketOpsBacktestCalibrationSummaryFilter struct {
+	TenantID   string
+	AppID      string
+	Domain     string
+	UseCase    string
+	SourceID   string
+	Dataset    string
+	DetectorID string
 	Limit      int
 }
 

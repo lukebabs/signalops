@@ -621,6 +621,18 @@ Returns generated signal records scoped to the back-test run. These are not prod
 
 Returns generated graph proposal records and policy results scoped to the run. Recommendation values are `auto_accept_candidate`, `auto_reject_candidate`, `manual_review_required`, and `supersede_candidate`.
 
+`POST /v1/marketops/backtest-calibration-summaries`
+
+Creates a persisted calibration summary snapshot over a filter-defined set of existing MarketOps back-test runs. The summary stores selected run ids, run counts, zero-input count, aggregate metrics, recommendation counts/shares, and dominant recommendation. It does not mutate production ledgers.
+
+`GET /v1/marketops/backtest-calibration-summaries?tenant_id={tenant_id}&dataset={dataset}&detector_id={detector_id}&limit=50`
+
+Returns persisted calibration summary snapshots. Filters are optional.
+
+`GET /v1/marketops/backtest-calibration-summaries/{summary_id}`
+
+Returns one persisted calibration summary snapshot.
+
 ### Query Errors
 
 - `400 missing_query`: required idempotency lookup parameters are missing.

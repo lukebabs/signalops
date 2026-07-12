@@ -135,3 +135,16 @@ A thin MVP is successful when it can:
 - Detector adapter: `python/signalops_workers/backtest_detector.py`.
 - Read-only APIs: `/v1/marketops/backtests`, `/v1/marketops/backtests/{run_id}`, `/v1/marketops/backtests/{run_id}/signals`, and `/v1/marketops/backtests/{run_id}/graph-proposals`.
 - Reusable DSM helpers: `internal/marketops/dsm` for artifact extraction, graph proposal extraction, and deterministic policy classification.
+
+## G082 Calibration Summary Snapshots
+
+G082 adds `marketops_backtest_calibration_summaries` as a persisted aggregate layer over isolated back-test runs.
+
+A summary snapshot is created explicitly from a run filter and stores the selected run ids, aggregate run metrics, recommendation distribution, dominant recommendation, and the filter/parameter payload used to create the snapshot.
+
+This is intentionally separate from detector execution and production ledgers:
+
+- back-test runs still own generated experimental outputs;
+- calibration summaries aggregate completed run metrics;
+- production signal, artifact, graph proposal, alert, and insight rows are not mutated;
+- policy promotion and named baseline management remain future gate work.

@@ -6305,3 +6305,28 @@ Validation performed:
 Result:
 
 - G082 has a first validated calibration/comparison surface for back-test runs without changing backend APIs or production ledgers.
+
+
+## Gate G082: Persisted Back-Test Calibration Summaries
+
+Timestamp: `2026-07-12T06:02:00Z`
+
+Status: `validated — backend summary substrate implemented`
+
+Scope:
+
+- Add first-class persisted calibration summary snapshots over isolated MarketOps back-test runs.
+- Create summaries from existing back-test run metrics rather than production ledgers.
+- Expose create/list/detail APIs at `/v1/marketops/backtest-calibration-summaries`.
+- Avoid policy promotion, named baseline management, ML training, and frontend workflow expansion in this slice.
+
+Validation performed:
+
+- Added migration `000015_marketops_backtest_calibration_summaries` and applied it locally with `make compose-storage-migrate`.
+- Added storage records, repository methods, API DTOs, summary aggregation logic, and router tests.
+- Targeted Go tests, full Go tests, JSON schema validation, and gateway Docker build all passed.
+- Live unauthenticated probe returned `401 unauthorized`, and Postgres verified the new summary table exists.
+
+Result:
+
+- G082 now has a durable backend substrate for comparing/calibrating back-test run sets without mutating production ledgers.

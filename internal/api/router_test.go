@@ -52,39 +52,41 @@ func (p *fakePublishRepository) PersistPublishedRawEvent(_ context.Context, ledg
 }
 
 type fakeQueryRepository struct {
-	runs                      []storage.SchedulerRunRecord
-	replayJobs                []storage.ReplayJobRecord
-	replayCounts              []storage.ReplayJobStatusCount
-	replayWorkers             []storage.ReplayWorkerHeartbeatRecord
-	lastReplayFilter          storage.ReplayJobFilter
-	usage                     []storage.ProviderUsageRecord
-	rawEvents                 []storage.RawEventLedgerRecord
-	idem                      storage.IdempotencyRecord
-	sources                   []storage.CatalogSourceRecord
-	pipelines                 []storage.CatalogPipelineRecord
-	rules                     []storage.CatalogRuleRecord
-	marketOpsAssets           []storage.MarketOpsAssetRecord
-	dsmArtifacts              []storage.MarketOpsDSMArtifactRecord
-	dsmGraphProposals         []storage.MarketOpsDSMGraphProposalRecord
-	backtestRuns              []storage.MarketOpsBacktestRunRecord
-	backtestSignals           []storage.MarketOpsBacktestSignalRecord
-	backtestGraphProposals    []storage.MarketOpsBacktestGraphProposalRecord
-	backtestPolicyResults     []storage.MarketOpsBacktestPolicyResultRecord
-	lastBacktestRunFilter     storage.MarketOpsBacktestRunFilter
-	lastBacktestSignalFilter  storage.MarketOpsBacktestSignalFilter
-	lastBacktestGraphFilter   storage.MarketOpsBacktestGraphProposalFilter
-	lastDSMFilter             storage.MarketOpsDSMArtifactFilter
-	lastGraphProposalFilter   storage.MarketOpsDSMGraphProposalFilter
-	lastGraphProposalMutation storage.MarketOpsDSMGraphProposalMutation
-	lastUniverseGroup         string
-	lastActiveOnly            bool
-	alerts                    []storage.AlertLedgerRecord
-	insights                  []storage.InsightLedgerRecord
-	notFound                  bool
-	lastFilter                storage.RawEventLedgerFilter
-	schedulerQueries          int
-	rawEventQueries           int
-	usageQueries              int
+	runs                          []storage.SchedulerRunRecord
+	replayJobs                    []storage.ReplayJobRecord
+	replayCounts                  []storage.ReplayJobStatusCount
+	replayWorkers                 []storage.ReplayWorkerHeartbeatRecord
+	lastReplayFilter              storage.ReplayJobFilter
+	usage                         []storage.ProviderUsageRecord
+	rawEvents                     []storage.RawEventLedgerRecord
+	idem                          storage.IdempotencyRecord
+	sources                       []storage.CatalogSourceRecord
+	pipelines                     []storage.CatalogPipelineRecord
+	rules                         []storage.CatalogRuleRecord
+	marketOpsAssets               []storage.MarketOpsAssetRecord
+	dsmArtifacts                  []storage.MarketOpsDSMArtifactRecord
+	dsmGraphProposals             []storage.MarketOpsDSMGraphProposalRecord
+	backtestRuns                  []storage.MarketOpsBacktestRunRecord
+	backtestSignals               []storage.MarketOpsBacktestSignalRecord
+	backtestGraphProposals        []storage.MarketOpsBacktestGraphProposalRecord
+	backtestPolicyResults         []storage.MarketOpsBacktestPolicyResultRecord
+	backtestCalibrationSummaries  []storage.MarketOpsBacktestCalibrationSummaryRecord
+	lastBacktestRunFilter         storage.MarketOpsBacktestRunFilter
+	lastBacktestSignalFilter      storage.MarketOpsBacktestSignalFilter
+	lastBacktestGraphFilter       storage.MarketOpsBacktestGraphProposalFilter
+	lastBacktestCalibrationFilter storage.MarketOpsBacktestCalibrationSummaryFilter
+	lastDSMFilter                 storage.MarketOpsDSMArtifactFilter
+	lastGraphProposalFilter       storage.MarketOpsDSMGraphProposalFilter
+	lastGraphProposalMutation     storage.MarketOpsDSMGraphProposalMutation
+	lastUniverseGroup             string
+	lastActiveOnly                bool
+	alerts                        []storage.AlertLedgerRecord
+	insights                      []storage.InsightLedgerRecord
+	notFound                      bool
+	lastFilter                    storage.RawEventLedgerFilter
+	schedulerQueries              int
+	rawEventQueries               int
+	usageQueries                  int
 }
 
 func (q *fakeQueryRepository) ListSchedulerRuns(context.Context, int) ([]storage.SchedulerRunRecord, error) {
@@ -303,6 +305,38 @@ func (q *fakeQueryRepository) ListMarketOpsBacktestPolicyResults(_ context.Conte
 
 func (q *fakeQueryRepository) ListMarketOpsBacktestNormalizedEvents(context.Context, storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error) {
 	return nil, nil
+}
+
+func (q *fakeQueryRepository) UpsertMarketOpsBacktestCalibrationSummary(_ context.Context, record storage.MarketOpsBacktestCalibrationSummaryRecord) error {
+	for i, existing := range q.backtestCalibrationSummaries {
+		if existing.SummaryID == record.SummaryID {
+			record.CreatedAt = existing.CreatedAt
+			q.backtestCalibrationSummaries[i] = record
+			return nil
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	q.backtestCalibrationSummaries = append(q.backtestCalibrationSummaries, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestCalibrationSummaries(_ context.Context, filter storage.MarketOpsBacktestCalibrationSummaryFilter) ([]storage.MarketOpsBacktestCalibrationSummaryRecord, error) {
+	q.lastBacktestCalibrationFilter = filter
+	return q.backtestCalibrationSummaries, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsBacktestCalibrationSummary(_ context.Context, summaryID string) (storage.MarketOpsBacktestCalibrationSummaryRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsBacktestCalibrationSummaryRecord{}, storage.ErrNotFound
+	}
+	for _, summary := range q.backtestCalibrationSummaries {
+		if summary.SummaryID == summaryID {
+			return summary, nil
+		}
+	}
+	return storage.MarketOpsBacktestCalibrationSummaryRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListMarketOpsDSMArtifacts(_ context.Context, filter storage.MarketOpsDSMArtifactFilter) ([]storage.MarketOpsDSMArtifactRecord, error) {
@@ -1641,4 +1675,81 @@ func validMarketOpsBacktestGraphProposalRecord() storage.MarketOpsBacktestGraphP
 func validMarketOpsBacktestPolicyResultRecord() storage.MarketOpsBacktestPolicyResultRecord {
 	now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
 	return storage.MarketOpsBacktestPolicyResultRecord{RunID: "bt-marketops-1", PolicyResultID: "btpolicy-1", ProposalID: "graphprop_marketops_dsm_v1_test", ArtifactID: "artifact_marketops_dsm_v1_test", SignalID: "signal-1", TenantID: "tenant-1", SubjectSymbol: "AAPL", CandidateType: "node_candidate", Recommendation: storage.MarketOpsBacktestPolicyAutoAcceptCandidate, Reason: "candidate matches deterministic auto-accept policy", PolicyVersion: "marketops.backtest.policy_v1", Confidence: 1, DecisionInputsJSON: []byte(`{"node_id":"ticker:AAPL"}`), CreatedAt: now}
+}
+
+func TestPostMarketOpsBacktestCalibrationSummaryCreatesStoredSnapshot(t *testing.T) {
+	repo := &fakeQueryRepository{backtestRuns: []storage.MarketOpsBacktestRunRecord{
+		{RunID: "bt-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", Dataset: "equity_eod_prices", DetectorID: "marketops.dsm.taxonomy_v1", Status: storage.RunStatusSucceeded, MetricsJSON: []byte(`{"scanned":2,"signals":1,"artifacts":1,"graph_proposals":5,"policy_results":5,"recommendation_counts":{"auto_accept_candidate":5}}`)},
+		{RunID: "bt-2", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", Dataset: "equity_eod_prices", DetectorID: "marketops.dsm.taxonomy_v1", Status: storage.RunStatusSucceeded, MetricsJSON: []byte(`{"scanned":0,"signals":0,"artifacts":0,"graph_proposals":0,"policy_results":0,"recommendation_counts":{}}`)},
+	}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"summary_id":"btcal-1","tenant_id":"tenant-1","dataset":"equity_eod_prices","detector_id":"marketops.dsm.taxonomy_v1","status":"succeeded","limit":25}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-calibration-summaries", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestRunFilter.TenantID != "tenant-1" || repo.lastBacktestRunFilter.Dataset != "equity_eod_prices" || repo.lastBacktestRunFilter.Status != "succeeded" || repo.lastBacktestRunFilter.Limit != 25 {
+		t.Fatalf("filter = %+v", repo.lastBacktestRunFilter)
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	summary := response["calibration_summary"]
+	if summary["summary_id"] != "btcal-1" || summary["run_count"].(float64) != 2 || summary["zero_input_count"].(float64) != 1 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	if summary["signal_yield"].(float64) != 0.5 || summary["policy_results_per_signal"].(float64) != 5 {
+		t.Fatalf("rates = %#v", summary)
+	}
+	dominant := summary["dominant_recommendation"].(map[string]any)
+	if dominant["key"] != storage.MarketOpsBacktestPolicyAutoAcceptCandidate || dominant["count"].(float64) != 5 {
+		t.Fatalf("dominant = %#v", dominant)
+	}
+}
+
+func TestGetMarketOpsBacktestCalibrationSummaries(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationSummaries: []storage.MarketOpsBacktestCalibrationSummaryRecord{validMarketOpsBacktestCalibrationSummaryRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-calibration-summaries?tenant_id=tenant-1&dataset=equity_eod_prices&detector_id=marketops.dsm.taxonomy_v1&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestCalibrationFilter.TenantID != "tenant-1" || repo.lastBacktestCalibrationFilter.Dataset != "equity_eod_prices" || repo.lastBacktestCalibrationFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastBacktestCalibrationFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response["calibration_summaries"]) != 1 || response["calibration_summaries"][0]["summary_id"] != "btcal-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestGetMarketOpsBacktestCalibrationSummary(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationSummaries: []storage.MarketOpsBacktestCalibrationSummaryRecord{validMarketOpsBacktestCalibrationSummaryRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-calibration-summaries/btcal-1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response["calibration_summary"]["summary_id"] != "btcal-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func validMarketOpsBacktestCalibrationSummaryRecord() storage.MarketOpsBacktestCalibrationSummaryRecord {
+	now := time.Date(2026, 7, 12, 5, 55, 0, 0, time.UTC)
+	return storage.MarketOpsBacktestCalibrationSummaryRecord{SummaryID: "btcal-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", Dataset: "equity_eod_prices", DetectorID: "marketops.dsm.taxonomy_v1", StatusFilter: "succeeded", RequestedBy: "operator-test", RunIDs: []string{"bt-1"}, RunCount: 1, SucceededCount: 1, Scanned: 2, Signals: 1, Artifacts: 1, GraphProposals: 5, PolicyResults: 5, SignalYield: 0.5, PolicyResultsPerSignal: 5, RecommendationCounts: []byte(`{"auto_accept_candidate":5}`), RecommendationShares: []byte(`{"auto_accept_candidate":1}`), DominantRecommendation: []byte(`{"key":"auto_accept_candidate","count":5,"share":1}`), FiltersJSON: []byte(`{"tenant_id":"tenant-1"}`), ParametersJSON: []byte(`{"summary_version":"marketops.backtest.calibration_summary.v1"}`), CreatedAt: now}
 }

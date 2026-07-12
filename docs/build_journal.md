@@ -5482,3 +5482,25 @@ Validation performed:
 - `curl http://localhost:15173/marketops/backtests`: served the rebuilt SPA shell.
 - Rebuilt web bundle contains `Calibration Summary`.
 - `docker compose ps web gateway`: both services running with web exposed on `15173` and gateway on `18000`.
+
+
+## 2026-07-12T06:02:00Z
+
+Summary:
+
+- Added the G082 backend calibration summary substrate for MarketOps back-tests.
+- Added migration `000015_marketops_backtest_calibration_summaries` for persisted summary snapshots.
+- Added repository support and gateway APIs under `/v1/marketops/backtest-calibration-summaries`.
+- Summary creation snapshots a filter-defined run set and stores run ids, run counts, zero-input count, aggregate metrics, recommendation counts/shares, and dominant recommendation.
+- Production signal, artifact, graph proposal, alert, and insight ledgers remain untouched.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/marketops/backtest ./internal/storage/postgres`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
+- `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
+- `git diff --check`: passed.
+- `make compose-storage-migrate`: applied `000015_marketops_backtest_calibration_summaries`.
+- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
+- Live unauthenticated probe to `GET /v1/marketops/backtest-calibration-summaries?tenant_id=tenant-local` returned `401 unauthorized`, preserving gateway auth enforcement.
+- Postgres verified table `marketops_backtest_calibration_summaries` exists.
