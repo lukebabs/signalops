@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlaskConical, Plus } from 'lucide-react';
+import { FlaskConical, Plus, GitCompareArrows } from 'lucide-react';
 import {
   useMarketOpsBacktests,
   useMarketOpsBacktest,
@@ -8,6 +8,10 @@ import {
   useCreateMarketOpsBacktest,
   useMarketOpsBacktestCalibrationSummaries,
   useCreateMarketOpsBacktestCalibrationSummary,
+  useMarketOpsBacktestCalibrationBaselines,
+  useCreateMarketOpsBacktestCalibrationBaseline,
+  useMarketOpsBacktestCalibrationComparisons,
+  useCreateMarketOpsBacktestCalibrationComparison,
 } from '../api/queries';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
@@ -29,6 +33,10 @@ import {
   policyResultsByProposal,
   recommendationLabel,
   recommendationStyle,
+  comparisonRecommendationLabel,
+  comparisonRecommendationStyle,
+  summarizeComparisonDeltas,
+  comparisonMetrics,
 } from '../lib/marketopsBacktests';
 import { useTenant } from '../auth/session';
 import type {
@@ -38,6 +46,8 @@ import type {
   MarketOpsBacktestPolicyResult,
   MarketOpsBacktestRunStatus,
   MarketOpsBacktestCalibrationSummary,
+  MarketOpsBacktestCalibrationBaseline,
+  MarketOpsBacktestCalibrationComparison,
   SignalRecord,
 } from '../types';
 
@@ -81,6 +91,13 @@ export function MarketOpsBacktestsRoute() {
     limit: 10,
   });
   const createCalibrationSummary = useCreateMarketOpsBacktestCalibrationSummary();
+  const calibrationBaselines = useMarketOpsBacktestCalibrationBaselines({
+    tenant_id: TENANT_ID,
+    detector_id: detectorId || undefined,
+    status: 'active',
+    limit: 50,
+  });
+  const createCalibrationBaseline = useCreateMarketOpsBacktestCalibrationBaseline();
 
   const runs = list.data?.backtest_runs ?? [];
   const succeeded = runs.filter((r) => r.status === 'succeeded').length;
@@ -95,6 +112,7 @@ export function MarketOpsBacktestsRoute() {
     list.refetch();
     if (selectedId) detail.refetch();
     calibrationSummaries.refetch();
+    calibrationBaselines.refetch();
   }
 
   const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
@@ -133,6 +151,15 @@ export function MarketOpsBacktestsRoute() {
           status: status || undefined,
           limit,
         })}
+      />
+
+      <CalibrationBaselinesPanel
+        tenantId={TENANT_ID}
+        summaries={calibrationSummaries.data?.calibration_summaries ?? []}
+        baselines={calibrationBaselines.data?.calibration_baselines ?? []}
+        baselinesLoading={calibrationBaselines.isLoading}
+        baselinesError={calibrationBaselines.isError}
+        createBaseline={createCalibrationBaseline}
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -660,6 +687,300 @@ function RecommendationChip({ recommendation, count }: { recommendation: string;
     >
       {recommendationLabel(recommendation)}{count !== undefined ? ` ${count}` : ''}
     </span>
+  );
+}
+
+// Advisory comparison recommendation chip (G083). Distinct styling from the
+// production policy RecommendationChip because these are calibration labels,
+// never deploy/promote decisions.
+function ComparisonRecommendationChip({ recommendation }: { recommendation: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium ${comparisonRecommendationStyle(recommendation)}`}
+      title={recommendation}
+    >
+      {comparisonRecommendationLabel(recommendation)}
+    </span>
+  );
+}
+
+// G083 calibration baselines + stored comparisons panel. Operators turn a
+// persisted G082 summary into a named baseline, then compare another persisted
+// summary against it. Recommendations are advisory labels only; no graph,
+// production signal, or promotion controls live here.
+function CalibrationBaselinesPanel({
+  tenantId,
+  summaries,
+  baselines,
+  baselinesLoading,
+  baselinesError,
+  createBaseline,
+}: {
+  tenantId: string;
+  summaries: MarketOpsBacktestCalibrationSummary[];
+  baselines: MarketOpsBacktestCalibrationBaseline[];
+  baselinesLoading: boolean;
+  baselinesError: boolean;
+  createBaseline: ReturnType<typeof useCreateMarketOpsBacktestCalibrationBaseline>;
+}) {
+  const [selectedBaselineId, setSelectedBaselineId] = useState<string | null>(null);
+  const [fSummaryId, setFSummaryId] = useState('');
+  const [fName, setFName] = useState('');
+  const [fDescription, setFDescription] = useState('');
+  const [fCandidateSummaryId, setFCandidateSummaryId] = useState('');
+
+  const createComparison = useCreateMarketOpsBacktestCalibrationComparison();
+  const comparisons = useMarketOpsBacktestCalibrationComparisons({
+    tenant_id: tenantId,
+    baseline_id: selectedBaselineId ?? undefined,
+    limit: 50,
+  });
+
+  const comparisonList = comparisons.data?.calibration_comparisons ?? [];
+  const selectedBaseline = baselines.find((b) => b.baseline_id === selectedBaselineId) ?? null;
+  const hasSummaries = summaries.length > 0;
+  const canCreateBaseline = hasSummaries && fName.trim() !== '' && fSummaryId !== '' && !createBaseline.isPending;
+  const canCompare = !!selectedBaselineId && fCandidateSummaryId !== '' && !createComparison.isPending;
+
+  function resetBaselineForm(id?: string) {
+    setFName('');
+    setFDescription('');
+    setFSummaryId('');
+    if (id) setSelectedBaselineId(id);
+  }
+
+  function onCreateBaseline(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!canCreateBaseline) return;
+    createBaseline.mutate(
+      {
+        tenant_id: tenantId,
+        name: fName.trim(),
+        description: fDescription.trim() || undefined,
+        summary_id: fSummaryId,
+        status: 'active',
+      },
+      { onSuccess: (d) => resetBaselineForm(d.calibration_baseline.baseline_id) },
+    );
+  }
+
+  function onCreateComparison(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!canCompare || !selectedBaselineId) return;
+    createComparison.mutate(
+      {
+        tenant_id: tenantId,
+        baseline_id: selectedBaselineId,
+        candidate_summary_id: fCandidateSummaryId,
+      },
+      { onSuccess: () => setFCandidateSummaryId('') },
+    );
+  }
+
+  const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
+  const labelCls = 'text-xs text-gray-500';
+
+  return (
+    <div className="rounded border border-gray-200 bg-white p-3">
+      <div className="mb-2 flex items-center gap-1 text-sm font-semibold text-gray-900">
+        <GitCompareArrows size={14} /> Calibration Baselines
+        <span className="ml-1 text-xs font-normal text-gray-500">
+          Named handles over persisted summaries · stored baseline-to-candidate comparisons (advisory)
+        </span>
+      </div>
+
+      {/* Create baseline from a persisted summary. */}
+      <form onSubmit={onCreateBaseline} className="mb-3 space-y-2 rounded border border-gray-200 bg-gray-50 p-2" aria-label="Create calibration baseline">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+          <label className="block">
+            <span className={labelCls}>Persisted summary</span>
+            <select
+              value={fSummaryId}
+              onChange={(e) => { createBaseline.reset(); setFSummaryId(e.target.value); }}
+              className={`${inputCls} mt-0.5 w-full`}
+              disabled={!hasSummaries}
+              aria-label="Baseline source summary"
+            >
+              <option value="">{hasSummaries ? 'select persisted summary' : 'no persisted summaries'}</option>
+              {summaries.map((s) => (
+                <option key={s.summary_id} value={s.summary_id}>{s.summary_id}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className={labelCls}>Baseline name <span className="text-gray-400">(required)</span></span>
+            <input
+              value={fName}
+              onChange={(e) => { createBaseline.reset(); setFName(e.target.value); }}
+              placeholder="e.g. Taxonomy July baseline"
+              className={`${inputCls} mt-0.5 w-full`}
+              aria-label="Baseline name"
+            />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Description <span className="text-gray-400">(optional)</span></span>
+            <input
+              value={fDescription}
+              onChange={(e) => { createBaseline.reset(); setFDescription(e.target.value); }}
+              placeholder="operator note"
+              className={`${inputCls} mt-0.5 w-full`}
+              aria-label="Baseline description"
+            />
+          </label>
+        </div>
+        <button
+          type="submit"
+          disabled={!canCreateBaseline}
+          className="inline-flex items-center gap-1 rounded bg-brand-500 px-3 py-1.5 text-sm text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus size={14} /> {createBaseline.isPending ? 'Saving...' : 'Create baseline'}
+        </button>
+        {createBaseline.isSuccess && createBaseline.data && (
+          <div className="rounded border border-green-200 bg-green-50 p-2 text-xs text-green-800">
+            Saved baseline <code className="font-mono">{createBaseline.data.calibration_baseline.baseline_id}</code>
+          </div>
+        )}
+        {createBaseline.isError && (
+          <p className="text-xs text-red-700" role="alert">
+            Create failed: {isApiError(createBaseline.error) ? createBaseline.error.message : 'unknown error'}.
+          </p>
+        )}
+      </form>
+
+      {/* Active baseline list (selectable). */}
+      {baselinesLoading ? (
+        <p className="text-xs text-gray-500">Loading baselines...</p>
+      ) : baselinesError ? (
+        <p className="text-xs text-amber-700">Baselines unavailable.</p>
+      ) : baselines.length ? (
+        <div className="overflow-x-auto rounded border border-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-2 py-1">Name</th>
+                <th className="px-2 py-1">Status</th>
+                <th className="px-2 py-1">Summary</th>
+                <th className="px-2 py-1">Detector</th>
+                <th className="px-2 py-1">Dataset</th>
+                <th className="px-2 py-1">Created</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {baselines.map((b) => (
+                <tr
+                  key={b.baseline_id}
+                  onClick={() => setSelectedBaselineId(b.baseline_id === selectedBaselineId ? null : b.baseline_id)}
+                  className={`cursor-pointer align-top hover:bg-gray-50 ${selectedBaselineId === b.baseline_id ? 'bg-brand-50' : ''}`}
+                >
+                  <td className="px-2 py-1">
+                    <div className="text-xs font-medium text-gray-800">{b.name || '—'}</div>
+                    {b.description && <div className="text-xs text-gray-500">{b.description}</div>}
+                  </td>
+                  <td className="px-2 py-1 text-xs">{b.status || '—'}</td>
+                  <td className="px-2 py-1"><code className="break-all text-xs text-gray-700">{b.summary_id}</code></td>
+                  <td className="px-2 py-1 text-xs font-mono">{b.detector_id || '—'}</td>
+                  <td className="px-2 py-1 text-xs">{b.dataset || '—'}</td>
+                  <td className="px-2 py-1 text-xs text-gray-600">{formatUtc(b.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState message="No active calibration baselines. Create one from a persisted summary above." />
+      )}
+
+      {/* Comparisons for the selected baseline. */}
+      {selectedBaseline && (
+        <div className="mt-3 rounded border border-gray-200 bg-gray-50 p-2">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs font-semibold text-gray-700">
+              Comparisons · <span className="font-mono">{selectedBaseline.name}</span>
+            </div>
+            <div className="text-xs text-gray-500">
+              baseline summary <code className="font-mono">{selectedBaseline.summary_id}</code>
+            </div>
+          </div>
+
+          <form onSubmit={onCreateComparison} className="mb-2 flex flex-wrap items-end gap-2" aria-label="Create stored comparison">
+            <label className="block">
+              <span className={labelCls}>Candidate summary</span>
+              <select
+                value={fCandidateSummaryId}
+                onChange={(e) => { createComparison.reset(); setFCandidateSummaryId(e.target.value); }}
+                className={`${inputCls} mt-0.5 w-full`}
+                disabled={!hasSummaries}
+                aria-label="Candidate summary"
+              >
+                <option value="">{hasSummaries ? 'select candidate summary' : 'no persisted summaries'}</option>
+                {summaries.map((s) => (
+                  <option key={s.summary_id} value={s.summary_id}>{s.summary_id}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              disabled={!canCompare}
+              className="inline-flex items-center gap-1 rounded bg-brand-500 px-3 py-1.5 text-sm text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <GitCompareArrows size={14} /> {createComparison.isPending ? 'Comparing...' : 'Compare'}
+            </button>
+          </form>
+          {createComparison.isError && (
+            <p className="mb-2 text-xs text-red-700" role="alert">
+              Compare failed: {isApiError(createComparison.error) ? createComparison.error.message : 'unknown error'}.
+            </p>
+          )}
+
+          {comparisons.isLoading ? (
+            <p className="text-xs text-gray-500">Loading comparisons...</p>
+          ) : comparisons.isError ? (
+            <p className="text-xs text-amber-700">Comparisons unavailable.</p>
+          ) : comparisonList.length ? (
+            <div className="space-y-2">
+              {comparisonList.map((c) => (
+                <ComparisonRow key={c.comparison_id} comparison={c} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">No stored comparisons for this baseline yet.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ComparisonRow({ comparison }: { comparison: MarketOpsBacktestCalibrationComparison }) {
+  const deltas = summarizeComparisonDeltas(comparisonMetrics(comparison).deltas);
+  const changed = deltas.filter((d) => d.changed);
+  return (
+    <div className="rounded border border-gray-200 bg-white p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ComparisonRecommendationChip recommendation={comparison.recommendation} />
+        <code className="break-all text-xs text-gray-700">{comparison.comparison_id}</code>
+        <span className="text-xs text-gray-500">
+          candidate <code className="font-mono">{comparison.candidate_summary_id}</code>
+        </span>
+        <span className="text-xs text-gray-500">{formatUtc(comparison.created_at)}</span>
+      </div>
+      {comparison.recommendation_reason && (
+        <p className="mt-1 text-xs text-gray-600">{comparison.recommendation_reason}</p>
+      )}
+      <div className="mt-1 flex flex-wrap gap-1">
+        {(changed.length ? changed : deltas).map((d) => (
+          <span
+            key={d.key}
+            title={`${d.key} = ${JSON.stringify(d.raw)}`}
+            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] ${
+              d.changed ? 'border-gray-300 text-gray-800' : 'border-gray-200 text-gray-400'
+            }`}
+          >
+            {d.label} {d.display}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 

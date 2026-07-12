@@ -53,6 +53,14 @@ import type {
   MarketOpsBacktestCalibrationSummaryResponse,
   MarketOpsBacktestCalibrationSummaryCreateRequest,
   MarketOpsBacktestCalibrationSummaryFilter,
+  MarketOpsBacktestCalibrationBaselinesResponse,
+  MarketOpsBacktestCalibrationBaselineResponse,
+  MarketOpsBacktestCalibrationBaselineCreateRequest,
+  MarketOpsBacktestCalibrationBaselineFilter,
+  MarketOpsBacktestCalibrationComparisonsResponse,
+  MarketOpsBacktestCalibrationComparisonResponse,
+  MarketOpsBacktestCalibrationComparisonCreateRequest,
+  MarketOpsBacktestCalibrationComparisonFilter,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -403,4 +411,41 @@ export const api = {
     ),
   createMarketOpsBacktestCalibrationSummary: (body: MarketOpsBacktestCalibrationSummaryCreateRequest) =>
     post<MarketOpsBacktestCalibrationSummaryResponse>('/v1/marketops/backtest-calibration-summaries', body),
+  // G083 persisted calibration baselines + stored comparisons. Like the G082
+  // summary endpoint, these are plain same-origin POSTs; the gateway derives
+  // the actor via replayActor (header -> body -> operator-local), so no actor
+  // header is sent — matching the G082 create path. Filters mirror the backend
+  // list query params; defaults match the spec (tenant-local, taxonomy detector).
+  listMarketOpsBacktestCalibrationBaselines: (filter: MarketOpsBacktestCalibrationBaselineFilter = {}) =>
+    get<MarketOpsBacktestCalibrationBaselinesResponse>('/v1/marketops/backtest-calibration-baselines', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      app_id: filter.app_id || undefined,
+      domain: filter.domain || undefined,
+      use_case: filter.use_case || undefined,
+      detector_id: filter.detector_id ?? 'marketops.dsm.taxonomy_v1',
+      dataset: filter.dataset || undefined,
+      status: filter.status || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getMarketOpsBacktestCalibrationBaseline: (baselineId: string) =>
+    get<MarketOpsBacktestCalibrationBaselineResponse>(
+      `/v1/marketops/backtest-calibration-baselines/${encodeURIComponent(baselineId)}`,
+    ),
+  createMarketOpsBacktestCalibrationBaseline: (body: MarketOpsBacktestCalibrationBaselineCreateRequest) =>
+    post<MarketOpsBacktestCalibrationBaselineResponse>('/v1/marketops/backtest-calibration-baselines', body),
+  listMarketOpsBacktestCalibrationComparisons: (filter: MarketOpsBacktestCalibrationComparisonFilter = {}) =>
+    get<MarketOpsBacktestCalibrationComparisonsResponse>('/v1/marketops/backtest-calibration-comparisons', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      baseline_id: filter.baseline_id || undefined,
+      detector_id: filter.detector_id || undefined,
+      dataset: filter.dataset || undefined,
+      recommendation: filter.recommendation || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getMarketOpsBacktestCalibrationComparison: (comparisonId: string) =>
+    get<MarketOpsBacktestCalibrationComparisonResponse>(
+      `/v1/marketops/backtest-calibration-comparisons/${encodeURIComponent(comparisonId)}`,
+    ),
+  createMarketOpsBacktestCalibrationComparison: (body: MarketOpsBacktestCalibrationComparisonCreateRequest) =>
+    post<MarketOpsBacktestCalibrationComparisonResponse>('/v1/marketops/backtest-calibration-comparisons', body),
 };

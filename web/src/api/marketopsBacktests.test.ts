@@ -21,7 +21,13 @@ vi.mock('../auth/session', () => ({
 
 // Import the client AFTER the mocks are registered.
 const { api } = await import('./client');
-const { queryKeys, applyBacktestCreateResult, applyBacktestCalibrationSummaryCreateResult } = await import('./queries');
+const {
+  queryKeys,
+  applyBacktestCreateResult,
+  applyBacktestCalibrationSummaryCreateResult,
+  applyBacktestCalibrationBaselineCreateResult,
+  applyBacktestCalibrationComparisonCreateResult,
+} = await import('./queries');
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -243,6 +249,154 @@ describe('MarketOps back-tests API client (G081)', () => {
   });
 });
 
+describe('MarketOps back-test calibration baselines + comparisons API client (G083)', () => {
+  it('creates, lists, and fetches a baseline via the G083 endpoints with bearer + content type', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ calibration_baseline: { baseline_id: 'btbase-1', status: 'active', summary_id: 'btcal-1' } }, 201),
+      )
+      .mockResolvedValueOnce(jsonResponse({ calibration_baselines: [{ baseline_id: 'btbase-1' }] }))
+      .mockResolvedValueOnce(jsonResponse({ calibration_baseline: { baseline_id: 'btbase-1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    state.authEnabled = true;
+    state.token = 'jwt-abc';
+
+    const created = await api.createMarketOpsBacktestCalibrationBaseline({
+      tenant_id: 'tenant-local',
+      name: 'Taxonomy July baseline',
+      summary_id: 'btcal-1',
+      description: 'note',
+      status: 'active',
+    });
+    const list = await api.listMarketOpsBacktestCalibrationBaselines({
+      tenant_id: 'tenant-local',
+      detector_id: 'marketops.dsm.taxonomy_v1',
+      status: 'active',
+      limit: 50,
+    });
+    const detail = await api.getMarketOpsBacktestCalibrationBaseline('btbase-1');
+
+    // Create: POST to the baselines endpoint with bearer + JSON body.
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/marketops/backtest-calibration-baselines');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[0][1].headers['Authorization']).toBe('Bearer jwt-abc');
+    expect(fetchMock.mock.calls[0][1].headers['Content-Type']).toBe('application/json');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      tenant_id: 'tenant-local',
+      name: 'Taxonomy July baseline',
+      summary_id: 'btcal-1',
+      description: 'note',
+      status: 'active',
+    });
+    // List: GET with defaults (tenant-local, taxonomy detector, limit 50) + status filter.
+    const listUrl = String(fetchMock.mock.calls[1][0]);
+    expect(listUrl).toContain('tenant_id=tenant-local');
+    expect(listUrl).toContain('detector_id=marketops.dsm.taxonomy_v1');
+    expect(listUrl).toContain('status=active');
+    expect(listUrl).toContain('limit=50');
+    // Detail: GET with encoded baseline id.
+    expect(String(fetchMock.mock.calls[2][0])).toContain('/v1/marketops/backtest-calibration-baselines/btbase-1');
+    // Envelopes parse.
+    expect(created.calibration_baseline.baseline_id).toBe('btbase-1');
+    expect(list.calibration_baselines[0].baseline_id).toBe('btbase-1');
+    expect(detail.calibration_baseline.baseline_id).toBe('btbase-1');
+  });
+
+  it('omits unset optional baseline fields and still sends required ones', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ calibration_baseline: { baseline_id: 'btbase-2' } }, 201),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.createMarketOpsBacktestCalibrationBaseline({
+      tenant_id: 'tenant-local',
+      name: 'bare',
+      summary_id: 'btcal-1',
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.tenant_id).toBe('tenant-local');
+    expect(body.name).toBe('bare');
+    expect(body.summary_id).toBe('btcal-1');
+    expect(body.description).toBeUndefined();
+    expect(body.status).toBeUndefined();
+  });
+
+  it('creates, lists, and fetches a comparison via the G083 endpoints', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          calibration_comparison: {
+            comparison_id: 'btcmp-1',
+            baseline_id: 'btbase-1',
+            baseline_summary_id: 'btcal-base',
+            candidate_summary_id: 'btcal-cand',
+            recommendation: 'neutral_candidate',
+            recommendation_reason: 'within tolerance',
+            comparison_metrics: { baseline: {}, candidate: {}, deltas: { run_count_delta: 0 } },
+          },
+        }, 201),
+      )
+      .mockResolvedValueOnce(jsonResponse({ calibration_comparisons: [{ comparison_id: 'btcmp-1' }] }))
+      .mockResolvedValueOnce(jsonResponse({ calibration_comparison: { comparison_id: 'btcmp-1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const created = await api.createMarketOpsBacktestCalibrationComparison({
+      tenant_id: 'tenant-local',
+      baseline_id: 'btbase-1',
+      candidate_summary_id: 'btcal-cand',
+    });
+    const list = await api.listMarketOpsBacktestCalibrationComparisons({
+      tenant_id: 'tenant-local',
+      baseline_id: 'btbase-1',
+      recommendation: 'neutral_candidate',
+      limit: 50,
+    });
+    const detail = await api.getMarketOpsBacktestCalibrationComparison('btcmp-1');
+
+    // Create body carries only the comparison request fields.
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/marketops/backtest-calibration-comparisons');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      tenant_id: 'tenant-local',
+      baseline_id: 'btbase-1',
+      candidate_summary_id: 'btcal-cand',
+    });
+    // List: baseline-scoped + recommendation filter.
+    const listUrl = String(fetchMock.mock.calls[1][0]);
+    expect(listUrl).toContain('baseline_id=btbase-1');
+    expect(listUrl).toContain('recommendation=neutral_candidate');
+    expect(listUrl).toContain('limit=50');
+    // Detail: encoded comparison id.
+    expect(String(fetchMock.mock.calls[2][0])).toContain('/v1/marketops/backtest-calibration-comparisons/btcmp-1');
+    // Envelopes parse, including nested comparison_metrics.
+    expect(created.calibration_comparison.recommendation).toBe('neutral_candidate');
+    expect(created.calibration_comparison.comparison_metrics.deltas?.run_count_delta).toBe(0);
+    expect(list.calibration_comparisons[0].comparison_id).toBe('btcmp-1');
+    expect(detail.calibration_comparison.comparison_id).toBe('btcmp-1');
+  });
+
+  it('encodes special characters in baseline + comparison ids on the detail paths', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ calibration_baseline: {} }))
+      .mockResolvedValueOnce(jsonResponse({ calibration_comparison: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.getMarketOpsBacktestCalibrationBaseline('btbase/a b');
+    await api.getMarketOpsBacktestCalibrationComparison('btcmp/a b');
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/marketops/backtest-calibration-baselines/btbase%2Fa%20b');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/v1/marketops/backtest-calibration-comparisons/btcmp%2Fa%20b');
+  });
+});
+
 describe('MarketOps back-test query keys (G081)', () => {
   it('uses stable list, detail, signals, and graph-proposals keys', () => {
     const filter = { tenant_id: 'tenant-local', limit: 50 };
@@ -260,6 +414,36 @@ describe('MarketOps back-test query keys (G081)', () => {
     ]);
     expect(queryKeys.marketOpsBacktestCalibrationSummaries({ tenant_id: 'tenant-local', limit: 10 })[0]).toBe('marketops-backtest-calibration-summaries');
     expect(queryKeys.marketOpsBacktestCalibrationSummary('btcal-1')).toEqual(['marketops-backtest-calibration-summary', 'btcal-1']);
+  });
+
+  it('uses stable baseline + comparison list/detail keys (G083)', () => {
+    const baselineFilter = { tenant_id: 'tenant-local', status: 'active' as const, limit: 50 };
+    const comparisonFilter = { tenant_id: 'tenant-local', baseline_id: 'btbase-1', limit: 50 };
+
+    expect(queryKeys.marketOpsBacktestCalibrationBaselines(baselineFilter)).toEqual([
+      'marketops-backtest-calibration-baselines',
+      baselineFilter,
+    ]);
+    expect(queryKeys.marketOpsBacktestCalibrationBaselines({ ...baselineFilter })).toEqual([
+      'marketops-backtest-calibration-baselines',
+      baselineFilter,
+    ]);
+    expect(queryKeys.marketOpsBacktestCalibrationBaseline('btbase-1')).toEqual([
+      'marketops-backtest-calibration-baseline',
+      'btbase-1',
+    ]);
+    expect(queryKeys.marketOpsBacktestCalibrationComparisons(comparisonFilter)).toEqual([
+      'marketops-backtest-calibration-comparisons',
+      comparisonFilter,
+    ]);
+    expect(queryKeys.marketOpsBacktestCalibrationComparisons({ ...comparisonFilter })).toEqual([
+      'marketops-backtest-calibration-comparisons',
+      comparisonFilter,
+    ]);
+    expect(queryKeys.marketOpsBacktestCalibrationComparison('btcmp-1')).toEqual([
+      'marketops-backtest-calibration-comparison',
+      'btcmp-1',
+    ]);
   });
 
   it('list and detail keys share the prefixes the create mutation invalidates', () => {
@@ -314,5 +498,57 @@ describe('applyBacktestCalibrationSummaryCreateResult (G082 mutation invalidatio
     expect(setSpy).toHaveBeenCalledWith(detailKey, created);
     expect(queryClient.getQueryData<{ calibration_summary: { summary_id: string } }>(detailKey)?.calibration_summary.summary_id).toBe('btcal-new');
     expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-calibration-summaries'] });
+  });
+});
+
+describe('applyBacktestCalibrationBaselineCreateResult (G083 mutation invalidation)', () => {
+  it('seeds the baseline detail cache and invalidates only baseline prefixes', () => {
+    const queryClient = new QueryClient();
+    const setSpy = vi.spyOn(queryClient, 'setQueryData');
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const created = {
+      calibration_baseline: { baseline_id: 'btbase-new', tenant_id: 'tenant-local', status: 'active' },
+    } as never;
+
+    applyBacktestCalibrationBaselineCreateResult(queryClient, created);
+
+    const detailKey = queryKeys.marketOpsBacktestCalibrationBaseline('btbase-new');
+    expect(setSpy).toHaveBeenCalledWith(detailKey, created);
+    expect(queryClient.getQueryData<{ calibration_baseline: { baseline_id: string } }>(detailKey)?.calibration_baseline.baseline_id).toBe('btbase-new');
+    // List + detail prefixes invalidated so the baseline table refetches.
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-calibration-baselines'] });
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-calibration-baseline'] });
+    // Production signal / DSM / graph proposal queries are never invalidated.
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['signals'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-dsm-graph-proposals'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtest-graph-proposals'] });
+  });
+});
+
+describe('applyBacktestCalibrationComparisonCreateResult (G083 mutation invalidation)', () => {
+  it('seeds the comparison detail cache and invalidates only comparison prefixes', () => {
+    const queryClient = new QueryClient();
+    const setSpy = vi.spyOn(queryClient, 'setQueryData');
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const created = {
+      calibration_comparison: {
+        comparison_id: 'btcmp-new',
+        baseline_id: 'btbase-1',
+        recommendation: 'neutral_candidate',
+      },
+    } as never;
+
+    applyBacktestCalibrationComparisonCreateResult(queryClient, created);
+
+    const detailKey = queryKeys.marketOpsBacktestCalibrationComparison('btcmp-new');
+    expect(setSpy).toHaveBeenCalledWith(detailKey, created);
+    expect(queryClient.getQueryData<{ calibration_comparison: { comparison_id: string } }>(detailKey)?.calibration_comparison.comparison_id).toBe('btcmp-new');
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-calibration-comparisons'] });
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-calibration-comparison'] });
+    // No production or baseline-list invalidation leaks from a comparison create.
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtest-calibration-baselines'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-dsm-graph-proposals'] });
   });
 });

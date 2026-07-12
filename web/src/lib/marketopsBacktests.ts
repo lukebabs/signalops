@@ -237,3 +237,140 @@ export function policyResultsByProposal(results: MarketOpsBacktestPolicyResult[]
   }
   return map;
 }
+
+// G083 calibration comparison display helpers. These power the stored
+// baseline-to-candidate comparison panel: recommendation chips + the ordered
+// key deltas from comparison_metrics.deltas. Recommendation values are advisory
+// labels only — the UI never renders them as deploy/promote decisions.
+
+// Advisory comparison recommendation values. Mirror the backend constants in
+// internal/storage/storage.go (MarketOpsBacktestCalibrationRecommendation*).
+export const MARKETOPS_BACKTEST_COMPARISON_RECOMMENDATIONS = [
+  'needs_more_data',
+  'regression_candidate',
+  'improvement_candidate',
+  'neutral_candidate',
+  'manual_review_required',
+] as const;
+
+// Restrained token colors for comparison recommendation chips. regression -> red,
+// improvement -> green, manual_review -> amber, needs_more_data -> gray,
+// neutral -> slate. Unknown future values fall back to gray.
+export const COMPARISON_RECOMMENDATION_STYLES: Record<string, string> = {
+  regression_candidate: 'text-red-700 bg-red-50 border-red-200',
+  improvement_candidate: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  manual_review_required: 'text-amber-700 bg-amber-50 border-amber-200',
+  needs_more_data: 'text-gray-700 bg-gray-50 border-gray-200',
+  neutral_candidate: 'text-slate-700 bg-slate-50 border-slate-200',
+};
+
+export function comparisonRecommendationStyle(key: string): string {
+  return COMPARISON_RECOMMENDATION_STYLES[key] ?? 'text-gray-700 bg-gray-50 border-gray-200';
+}
+
+// Humanize a comparison recommendation key: "neutral_candidate" -> "neutral candidate".
+export function comparisonRecommendationLabel(key: string): string {
+  return typeof key === 'string' ? key.replace(/_/g, ' ') : '';
+}
+
+export type ComparisonDeltaKind = 'count' | 'pct' | 'signed' | 'flag';
+
+export interface ComparisonDeltaField {
+  key: string;
+  label: string;
+  kind: ComparisonDeltaKind;
+}
+
+// Ordered key deltas surfaced from comparison_metrics.deltas, matching the spec
+// display list. count -> signed integer; pct -> fraction rendered as signed
+// percentage points (shares / signal yield / zero-input rate are 0–1
+// fractions, like the existing calibration summary UI); signed -> plain signed
+// decimal (policy_results_per_signal is a rate, not a 0–1 fraction); flag ->
+// boolean dominant-recommendation change.
+export const COMPARISON_DELTA_FIELDS: ComparisonDeltaField[] = [
+  { key: 'run_count_delta', label: 'Run count', kind: 'count' },
+  { key: 'zero_input_rate_delta', label: 'Zero-input rate', kind: 'pct' },
+  { key: 'scanned_delta', label: 'Scanned', kind: 'count' },
+  { key: 'signal_yield_delta', label: 'Signal yield', kind: 'pct' },
+  { key: 'policy_results_per_signal_delta', label: 'Policy / signal', kind: 'signed' },
+  { key: 'auto_accept_candidate_share_delta', label: 'Auto-accept', kind: 'pct' },
+  { key: 'auto_reject_candidate_share_delta', label: 'Auto-reject', kind: 'pct' },
+  { key: 'manual_review_required_share_delta', label: 'Manual review', kind: 'pct' },
+  { key: 'supersede_existing_candidate_share_delta', label: 'Supersede', kind: 'pct' },
+  { key: 'dominant_recommendation_changed', label: 'Dominant rec. changed', kind: 'flag' },
+];
+
+export interface ComparisonDeltaEntry {
+  key: string;
+  label: string;
+  kind: ComparisonDeltaKind;
+  raw: unknown;
+  display: string;
+  // True when the delta represents a material change (non-zero / flag set).
+  changed: boolean;
+}
+
+// Strict finite-number extraction for single-value display. Unlike asNumber
+// (which coerces to 0 for aggregation), this returns undefined for anything that
+// is not a finite number or numeric string, so unparseable deltas render as '—'.
+function asFiniteNumber(v: unknown): number | undefined {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
+// Render a single delta value per its kind. Never throws: missing/malformed
+// values collapse to '—'. pct deltas multiply the 0–1 fraction by 100 and
+// render as signed percentage points with one decimal.
+function formatDeltaValue(value: unknown, kind: ComparisonDeltaKind): string {
+  if (kind === 'flag') {
+    return value === true ? 'changed' : value === false ? 'unchanged' : '—';
+  }
+  const n = asFiniteNumber(value);
+  if (n === undefined) return '—';
+  if (kind === 'count') {
+    return n > 0 ? `+${Math.round(n)}` : `${Math.round(n)}`;
+  }
+  if (kind === 'pct') {
+    const pts = n * 100;
+    return `${pts > 0 ? '+' : ''}${pts.toFixed(1)}%`;
+  }
+  // signed: plain signed decimal (rate deltas, not a 0–1 fraction).
+  return `${n > 0 ? '+' : ''}${n.toFixed(2)}`;
+}
+
+// A delta is "changed" when it is material: non-zero for numeric kinds, true for
+// the flag kind. Missing/malformed values are not changed.
+function deltaIsChanged(value: unknown, kind: ComparisonDeltaKind): boolean {
+  if (kind === 'flag') return value === true;
+  const n = asFiniteNumber(value);
+  return n !== undefined && n !== 0;
+}
+
+// Build the ordered, display-formatted delta rows for a comparison. Tolerates
+// any deltas shape (missing/non-object) and never throws.
+export function summarizeComparisonDeltas(deltas: unknown): ComparisonDeltaEntry[] {
+  const record = isRecord(deltas) ? deltas : {};
+  return COMPARISON_DELTA_FIELDS.map(({ key, label, kind }) => {
+    const raw = record[key];
+    return {
+      key,
+      label,
+      kind,
+      raw,
+      display: formatDeltaValue(raw, kind),
+      changed: deltaIsChanged(raw, kind),
+    };
+  });
+}
+
+// Extract comparison_metrics from a comparison record tolerantly. The gateway
+// emits a parsed object; never JSON.parse.
+export function comparisonMetrics(record: unknown): Record<string, unknown> {
+  if (!isRecord(record)) return {};
+  const metrics = (record as { comparison_metrics?: unknown }).comparison_metrics;
+  return isRecord(metrics) ? metrics : {};
+}

@@ -23,6 +23,12 @@ import type {
   MarketOpsBacktestCalibrationSummaryFilter,
   MarketOpsBacktestCalibrationSummaryCreateRequest,
   MarketOpsBacktestCalibrationSummaryResponse,
+  MarketOpsBacktestCalibrationBaselineFilter,
+  MarketOpsBacktestCalibrationBaselineCreateRequest,
+  MarketOpsBacktestCalibrationBaselineResponse,
+  MarketOpsBacktestCalibrationComparisonFilter,
+  MarketOpsBacktestCalibrationComparisonCreateRequest,
+  MarketOpsBacktestCalibrationComparisonResponse,
 } from '../types';
 
 export const queryKeys = {
@@ -67,6 +73,14 @@ export const queryKeys = {
     ['marketops-backtest-calibration-summaries', filter] as const,
   marketOpsBacktestCalibrationSummary: (summaryId: string) =>
     ['marketops-backtest-calibration-summary', summaryId] as const,
+  marketOpsBacktestCalibrationBaselines: (filter: MarketOpsBacktestCalibrationBaselineFilter) =>
+    ['marketops-backtest-calibration-baselines', filter] as const,
+  marketOpsBacktestCalibrationBaseline: (baselineId: string) =>
+    ['marketops-backtest-calibration-baseline', baselineId] as const,
+  marketOpsBacktestCalibrationComparisons: (filter: MarketOpsBacktestCalibrationComparisonFilter) =>
+    ['marketops-backtest-calibration-comparisons', filter] as const,
+  marketOpsBacktestCalibrationComparison: (comparisonId: string) =>
+    ['marketops-backtest-calibration-comparison', comparisonId] as const,
 };
 
 export function useHealthz() {
@@ -427,6 +441,89 @@ export function useCreateMarketOpsBacktestCalibrationSummary() {
   return useMutation({
     mutationFn: (body: MarketOpsBacktestCalibrationSummaryCreateRequest) => api.createMarketOpsBacktestCalibrationSummary(body),
     onSuccess: (data) => applyBacktestCalibrationSummaryCreateResult(queryClient, data),
+  });
+}
+
+// G083 persisted calibration baselines + stored comparisons. Like the G082
+// summary list, these are not polled; a create invalidation is enough for a new
+// baseline/comparison to appear without a manual reload. Detail only runs while
+// a baseline/comparison id is selected (guarded by a truthy id).
+export function useMarketOpsBacktestCalibrationBaselines(filter: MarketOpsBacktestCalibrationBaselineFilter = { tenant_id: 'tenant-local', limit: 50 }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestCalibrationBaselines(filter),
+    queryFn: () => api.listMarketOpsBacktestCalibrationBaselines(filter),
+  });
+}
+
+export function useMarketOpsBacktestCalibrationBaseline(baselineId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestCalibrationBaseline(baselineId ?? ''),
+    queryFn: () => api.getMarketOpsBacktestCalibrationBaseline(baselineId!),
+    enabled: !!baselineId,
+  });
+}
+
+// On create, seed the baseline detail cache and invalidate baseline list/detail
+// prefixes. Only calibration baseline queries are touched — never production
+// signal, DSM artifact, or graph proposal queries.
+export function applyBacktestCalibrationBaselineCreateResult(
+  queryClient: QueryClient,
+  data: MarketOpsBacktestCalibrationBaselineResponse,
+) {
+  queryClient.setQueryData(
+    queryKeys.marketOpsBacktestCalibrationBaseline(data.calibration_baseline.baseline_id),
+    data,
+  );
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtest-calibration-baselines'] });
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtest-calibration-baseline'] });
+}
+
+export function useCreateMarketOpsBacktestCalibrationBaseline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MarketOpsBacktestCalibrationBaselineCreateRequest) =>
+      api.createMarketOpsBacktestCalibrationBaseline(body),
+    onSuccess: (data) => applyBacktestCalibrationBaselineCreateResult(queryClient, data),
+  });
+}
+
+export function useMarketOpsBacktestCalibrationComparisons(filter: MarketOpsBacktestCalibrationComparisonFilter = { tenant_id: 'tenant-local', limit: 50 }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestCalibrationComparisons(filter),
+    queryFn: () => api.listMarketOpsBacktestCalibrationComparisons(filter),
+    // The comparisons list is baseline-scoped; only run while a baseline is selected.
+    enabled: !!filter.baseline_id,
+  });
+}
+
+export function useMarketOpsBacktestCalibrationComparison(comparisonId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestCalibrationComparison(comparisonId ?? ''),
+    queryFn: () => api.getMarketOpsBacktestCalibrationComparison(comparisonId!),
+    enabled: !!comparisonId,
+  });
+}
+
+// On create, seed the comparison detail cache and invalidate comparison
+// list/detail prefixes. Only calibration comparison queries are touched.
+export function applyBacktestCalibrationComparisonCreateResult(
+  queryClient: QueryClient,
+  data: MarketOpsBacktestCalibrationComparisonResponse,
+) {
+  queryClient.setQueryData(
+    queryKeys.marketOpsBacktestCalibrationComparison(data.calibration_comparison.comparison_id),
+    data,
+  );
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtest-calibration-comparisons'] });
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtest-calibration-comparison'] });
+}
+
+export function useCreateMarketOpsBacktestCalibrationComparison() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MarketOpsBacktestCalibrationComparisonCreateRequest) =>
+      api.createMarketOpsBacktestCalibrationComparison(body),
+    onSuccess: (data) => applyBacktestCalibrationComparisonCreateResult(queryClient, data),
   });
 }
 

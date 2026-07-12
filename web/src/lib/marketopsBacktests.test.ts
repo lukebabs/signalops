@@ -8,6 +8,11 @@ import {
   policyResultsByProposal,
   recommendationLabel,
   recommendationStyle,
+  comparisonRecommendationLabel,
+  comparisonRecommendationStyle,
+  COMPARISON_DELTA_FIELDS,
+  summarizeComparisonDeltas,
+  comparisonMetrics,
 } from './marketopsBacktests';
 
 describe('summarizeBacktestMetrics (G081)', () => {
@@ -174,5 +179,102 @@ describe('recommendation presentation (G081)', () => {
     expect(recommendationStyle('manual_review_required')).toContain('amber');
     expect(recommendationStyle('supersede_candidate')).toContain('violet');
     expect(recommendationStyle('unknown_future_value')).toContain('gray');
+  });
+});
+
+describe('comparison recommendation presentation (G083)', () => {
+  it('humanizes the advisory comparison recommendation key', () => {
+    expect(comparisonRecommendationLabel('neutral_candidate')).toBe('neutral candidate');
+    expect(comparisonRecommendationLabel('needs_more_data')).toBe('needs more data');
+    expect(comparisonRecommendationLabel('regression_candidate')).toBe('regression candidate');
+  });
+
+  it('resolves advisory styles: regression red, improvement green, manual review amber', () => {
+    expect(comparisonRecommendationStyle('regression_candidate')).toContain('red');
+    expect(comparisonRecommendationStyle('improvement_candidate')).toContain('emerald');
+    expect(comparisonRecommendationStyle('manual_review_required')).toContain('amber');
+    expect(comparisonRecommendationStyle('unknown_future_value')).toContain('gray');
+  });
+});
+
+describe('summarizeComparisonDeltas (G083)', () => {
+  it('surfaces the spec key deltas in order', () => {
+    expect(COMPARISON_DELTA_FIELDS.map((f) => f.key)).toEqual([
+      'run_count_delta',
+      'zero_input_rate_delta',
+      'scanned_delta',
+      'signal_yield_delta',
+      'policy_results_per_signal_delta',
+      'auto_accept_candidate_share_delta',
+      'auto_reject_candidate_share_delta',
+      'manual_review_required_share_delta',
+      'supersede_existing_candidate_share_delta',
+      'dominant_recommendation_changed',
+    ]);
+  });
+
+  it('formats counts, percentage-point fractions, rates, and the boolean flag', () => {
+    const entries = summarizeComparisonDeltas({
+      run_count_delta: 3,
+      zero_input_rate_delta: 0.05,
+      scanned_delta: -20,
+      signal_yield_delta: -0.125,
+      policy_results_per_signal_delta: 0.5,
+      auto_accept_candidate_share_delta: 0,
+      auto_reject_candidate_share_delta: 0.1,
+      manual_review_required_share_delta: -0.033,
+      supersede_existing_candidate_share_delta: 0,
+      dominant_recommendation_changed: true,
+    });
+
+    const byKey = Object.fromEntries(entries.map((e) => [e.key, e]));
+    expect(byKey.run_count_delta.display).toBe('+3');
+    expect(byKey.run_count_delta.changed).toBe(true);
+    expect(byKey.zero_input_rate_delta.display).toBe('+5.0%');
+    expect(byKey.scanned_delta.display).toBe('-20');
+    expect(byKey.signal_yield_delta.display).toBe('-12.5%');
+    // policy_results_per_signal is a rate, not a 0–1 fraction -> plain signed decimal.
+    expect(byKey.policy_results_per_signal_delta.display).toBe('+0.50');
+    // Zero numeric deltas are not "changed" and render as 0.
+    expect(byKey.auto_accept_candidate_share_delta.display).toBe('0.0%');
+    expect(byKey.auto_accept_candidate_share_delta.changed).toBe(false);
+    expect(byKey.auto_reject_candidate_share_delta.display).toBe('+10.0%');
+    expect(byKey.manual_review_required_share_delta.display).toBe('-3.3%');
+    expect(byKey.dominant_recommendation_changed.display).toBe('changed');
+    expect(byKey.dominant_recommendation_changed.changed).toBe(true);
+  });
+
+  it('marks missing/malformed deltas as unchanged and renders em-dash', () => {
+    const entries = summarizeComparisonDeltas({
+      run_count_delta: 'oops',
+      scanned_delta: null,
+      dominant_recommendation_changed: false,
+    });
+    const byKey = Object.fromEntries(entries.map((e) => [e.key, e]));
+    expect(byKey.run_count_delta.display).toBe('—');
+    expect(byKey.run_count_delta.changed).toBe(false);
+    expect(byKey.scanned_delta.display).toBe('—');
+    expect(byKey.scanned_delta.changed).toBe(false);
+    expect(byKey.signal_yield_delta.display).toBe('—');
+    expect(byKey.dominant_recommendation_changed.display).toBe('unchanged');
+    expect(byKey.dominant_recommendation_changed.changed).toBe(false);
+  });
+
+  it('tolerates non-object deltas without throwing', () => {
+    expect(summarizeComparisonDeltas(undefined).length).toBe(COMPARISON_DELTA_FIELDS.length);
+    expect(summarizeComparisonDeltas(null).every((e) => e.display === '—' || e.kind === 'flag')).toBe(true);
+    expect(summarizeComparisonDeltas('nope')[0].display).toBe('—');
+  });
+});
+
+describe('comparisonMetrics (G083)', () => {
+  it('extracts comparison_metrics tolerantly', () => {
+    const metrics = comparisonMetrics({
+      comparison_metrics: { baseline: { run_count: 2 }, deltas: { run_count_delta: 1 } },
+    });
+    expect(metrics.deltas).toEqual({ run_count_delta: 1 });
+    expect(comparisonMetrics({})).toEqual({});
+    expect(comparisonMetrics(null)).toEqual({});
+    expect(comparisonMetrics({ comparison_metrics: 'bad' })).toEqual({});
   });
 });

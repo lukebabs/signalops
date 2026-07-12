@@ -935,3 +935,134 @@ export interface MarketOpsBacktestCalibrationSummaryFilter {
   detector_id?: string;
   limit?: number;
 }
+
+// G083 persisted MarketOps back-test calibration baselines + stored
+// baseline-to-candidate comparisons. A baseline is a named handle over a G082
+// persisted summary; a comparison is a stored snapshot of baseline vs candidate
+// metrics. Both are advisory calibration tooling — never production graph state.
+export type MarketOpsBacktestCalibrationBaselineStatus = 'active' | 'archived' | string;
+
+export interface MarketOpsBacktestCalibrationBaseline {
+  baseline_id: string;
+  tenant_id: string;
+  app_id: string;
+  domain: string;
+  use_case: string;
+  name: string;
+  description: string;
+  summary_id: string;
+  detector_id: string;
+  dataset: string;
+  scope: unknown;
+  status: MarketOpsBacktestCalibrationBaselineStatus;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsBacktestCalibrationBaselinesResponse {
+  calibration_baselines: MarketOpsBacktestCalibrationBaseline[];
+}
+
+export interface MarketOpsBacktestCalibrationBaselineResponse {
+  calibration_baseline: MarketOpsBacktestCalibrationBaseline;
+}
+
+export interface MarketOpsBacktestCalibrationBaselineCreateRequest {
+  baseline_id?: string;
+  tenant_id: string;
+  name: string;
+  description?: string;
+  summary_id: string;
+  scope?: unknown;
+  status?: MarketOpsBacktestCalibrationBaselineStatus | '';
+  created_by?: string;
+}
+
+export interface MarketOpsBacktestCalibrationBaselineFilter {
+  tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
+  detector_id?: string;
+  dataset?: string;
+  status?: MarketOpsBacktestCalibrationBaselineStatus | '';
+  limit?: number;
+}
+
+// Advisory comparison recommendation values. The frontend renders these as
+// labels only — never as deploy/promote decisions.
+export type MarketOpsBacktestCalibrationComparisonRecommendation =
+  | 'needs_more_data'
+  | 'regression_candidate'
+  | 'improvement_candidate'
+  | 'neutral_candidate'
+  | 'manual_review_required'
+  | string;
+
+// comparison_metrics snapshot for one side of a comparison. Every field is
+// optional + permissive so a forward-shaped or partial payload renders blanks.
+export interface MarketOpsBacktestCalibrationComparisonSnapshot {
+  summary_id?: string;
+  run_count?: number;
+  zero_input_count?: number;
+  zero_input_rate?: number;
+  scanned?: number;
+  signals?: number;
+  policy_results?: number;
+  signal_yield?: number;
+  policy_results_per_signal?: number;
+  recommendation_shares?: Record<string, number>;
+  dominant_recommendation?: string;
+  [key: string]: unknown;
+}
+
+export interface MarketOpsBacktestCalibrationComparisonMetrics {
+  baseline?: MarketOpsBacktestCalibrationComparisonSnapshot;
+  candidate?: MarketOpsBacktestCalibrationComparisonSnapshot;
+  // Deltas is an open map keyed by `<metric>_delta` plus the boolean
+  // `dominant_recommendation_changed`; typed permissive so unknown future
+  // deltas render instead of throwing.
+  deltas?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface MarketOpsBacktestCalibrationComparison {
+  comparison_id: string;
+  tenant_id: string;
+  baseline_id: string;
+  baseline_summary_id: string;
+  candidate_summary_id: string;
+  detector_id: string;
+  dataset: string;
+  comparison_metrics: MarketOpsBacktestCalibrationComparisonMetrics;
+  recommendation: MarketOpsBacktestCalibrationComparisonRecommendation;
+  recommendation_reason: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface MarketOpsBacktestCalibrationComparisonsResponse {
+  calibration_comparisons: MarketOpsBacktestCalibrationComparison[];
+}
+
+export interface MarketOpsBacktestCalibrationComparisonResponse {
+  calibration_comparison: MarketOpsBacktestCalibrationComparison;
+}
+
+export interface MarketOpsBacktestCalibrationComparisonCreateRequest {
+  comparison_id?: string;
+  tenant_id: string;
+  baseline_id: string;
+  candidate_summary_id: string;
+  created_by?: string;
+}
+
+export interface MarketOpsBacktestCalibrationComparisonFilter {
+  tenant_id?: string;
+  baseline_id?: string;
+  detector_id?: string;
+  dataset?: string;
+  recommendation?: MarketOpsBacktestCalibrationComparisonRecommendation | '';
+  limit?: number;
+}
