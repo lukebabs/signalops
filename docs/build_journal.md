@@ -4453,10 +4453,6 @@ Validation performed:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
 - `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
 - `git diff --check`: passed.
-- `make compose-storage-migrate`: applied `000016_marketops_backtest_calibration_baselines`.
-- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
-- Authenticated smoke baseline create/list/detail: HTTP `201/200/200`.
-- Authenticated smoke comparison create/list/detail: HTTP `201/200/200`, recommendation `neutral_candidate`.
 - `make compose-storage-migrate`: applied `000011_marketops_asset_universe` and inserted 50 rows.
 - `docker compose up -d --no-deps --build gateway`: rebuilt and restarted the gateway; build ran `go test ./...` successfully.
 - Postgres verification returned 50 `tenant-local/top50_megacap` rows with rank range 1..50.
@@ -4557,10 +4553,6 @@ Validation performed:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
 - `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
 - `git diff --check`: passed.
-- `make compose-storage-migrate`: applied `000016_marketops_backtest_calibration_baselines`.
-- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
-- Authenticated smoke baseline create/list/detail: HTTP `201/200/200`.
-- Authenticated smoke comparison create/list/detail: HTTP `201/200/200`, recommendation `neutral_candidate`.
 - `docker compose build normalizer`: passed; build step also ran `go test ./...`.
 - `python3 scripts/validate_json_schemas.py`: passed.
 - `docker build --target marketops-backtest -t signalops-marketops-backtest:g081 .`: passed.
@@ -4602,10 +4594,6 @@ Validation performed:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
 - `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
 - `git diff --check`: passed.
-- `make compose-storage-migrate`: applied `000016_marketops_backtest_calibration_baselines`.
-- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
-- Authenticated smoke baseline create/list/detail: HTTP `201/200/200`.
-- Authenticated smoke comparison create/list/detail: HTTP `201/200/200`, recommendation `neutral_candidate`.
 - `python3 scripts/validate_json_schemas.py`: passed.
 - `docker compose build normalizer`: passed; build step also ran `go test ./...`.
 
@@ -4858,10 +4846,6 @@ Validation performed:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
 - `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
 - `git diff --check`: passed.
-- `make compose-storage-migrate`: applied `000016_marketops_backtest_calibration_baselines`.
-- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
-- Authenticated smoke baseline create/list/detail: HTTP `201/200/200`.
-- Authenticated smoke comparison create/list/detail: HTTP `201/200/200`, recommendation `neutral_candidate`.
 - `python3 scripts/validate_json_schemas.py`: passed.
 - `git diff --check`: passed.
 - `docker compose build --no-cache gateway signal-persister`: passed; image build ran `go test ./...`.
@@ -5524,14 +5508,9 @@ Validation performed:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
 - `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
 - `git diff --check`: passed.
-- `make compose-storage-migrate`: applied `000016_marketops_backtest_calibration_baselines`.
-- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
-- Authenticated smoke baseline create/list/detail: HTTP `201/200/200`.
-- Authenticated smoke comparison create/list/detail: HTTP `201/200/200`, recommendation `neutral_candidate`.
 - `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
 - `git diff --check`: passed.
 - `make compose-storage-migrate`: applied `000015_marketops_backtest_calibration_summaries`.
-- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
 - Live unauthenticated probe to `GET /v1/marketops/backtest-calibration-summaries?tenant_id=tenant-local` returned `401 unauthorized`, preserving gateway auth enforcement.
 - Postgres verified table `marketops_backtest_calibration_summaries` exists.
 
@@ -5625,3 +5604,23 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+
+## 2026-07-12T19:50:00Z
+
+Summary:
+
+- Closed the G083 frontend-agent implementation loop for MarketOps back-test calibration baselines and stored comparisons.
+- Verified commit `67ccb30 Wire G083 calibration baselines + comparisons UI` is on `main` and aligned with `origin/main`.
+- Confirmed the implementation touched MarketOps back-test API types/client/query hooks, route rendering, and tests.
+- Corrected earlier duplicated G083 backend validation bullets in older build-journal entries so only the G083 backend section carries those smoke notes.
+
+Validation performed:
+
+- `cd web && npm test -- src/api/marketopsBacktests.test.ts src/lib/marketopsBacktests.test.ts`: 41 passed.
+- `cd web && npm test`: 162 passed.
+- `cd web && npm run build`: passed.
+- `docker compose up -d --build web`: passed.
+- `curl http://localhost:15173/marketops/backtests`: HTTP `200`.
+- Rebuilt web bundle contains `Calibration Baselines` and comparison UI text.
+- `docker compose ps web gateway`: both services running.

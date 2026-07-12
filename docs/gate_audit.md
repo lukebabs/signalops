@@ -6445,3 +6445,28 @@ Result:
 
 - Specification saved at `docs/frontend/marketops_backtest_baselines_ui_spec.md`.
 - Existing MarketOps back-tests UI spec now links to the G083 addendum.
+
+
+## Gate G083: Frontend Baseline Comparison Implementation Closeout
+
+Timestamp: `2026-07-12T19:50:00Z`
+
+Status: `validated — frontend baseline/comparison UI implemented`
+
+Scope:
+
+- Close the loop on the frontend-agent implementation for G083 baseline and stored comparison APIs.
+- Validate API client/query hook tests, full frontend tests, production build, local web rebuild, and route availability.
+- Keep scope limited to baseline/comparison visibility and creation; label-aware scoring and promotion remain future gates.
+
+Validation performed:
+
+- Targeted MarketOps back-test frontend tests passed: 41 tests.
+- Full frontend suite passed: 162 tests.
+- Production web build passed.
+- Local web container rebuild passed.
+- `/marketops/backtests` served HTTP `200` and the built bundle contains the G083 baseline/comparison UI text.
+
+Result:
+
+- G083 backend plus frontend wiring is validated locally. Remaining work is follow-on gate planning for label extraction/label-aware scoring, not G083 closure.
