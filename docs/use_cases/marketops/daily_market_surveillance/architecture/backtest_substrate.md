@@ -158,3 +158,9 @@ The baseline layer treats calibration summaries as immutable evidence. A baselin
 G080 operator graph-proposal decisions can become evaluation labels only after they are normalized into a separate label substrate with a stable graph fact key. Accepted, rejected, superseded, proposed, and restored states should not be collapsed into binary truth without documented rules.
 
 Policy promotion remains deferred. Baseline comparisons can emit recommendations such as `needs_more_data`, `regression_candidate`, `improvement_candidate`, `neutral_candidate`, or `manual_review_required`, but those recommendations are advisory only.
+
+## G086 Promotion Review Direction
+
+G086 should introduce an auditable review layer above G083 baseline comparisons and G085 label-aware evaluations.
+
+A promotion candidate should reference immutable comparison and evaluation evidence, compute conservative readiness status, and capture an operator decision. Approval in this layer is permission to plan a later deployment gate; it is not a runtime policy change, detector threshold edit, graph writeback, or model release.

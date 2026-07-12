@@ -41,3 +41,8 @@ Recommended next gate:
 
 - G085: label-aware back-test evaluation scoring over G084 labels.
 - Specification: `G085_label_aware_backtest_evaluation.md`.
+
+## G086 Proposed
+
+- G086: operator-reviewed calibration promotion candidates over G083/G085 evidence, without runtime deployment.
+- Specification: `G086_calibration_promotion_review.md`.

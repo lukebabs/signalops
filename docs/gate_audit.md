@@ -6572,3 +6572,21 @@ Validation performed:
 Result:
 
 - G085 backend plus frontend visibility is validated locally. Remaining work is broader operator workflow and product decisions around promotion, not G085 closure.
+
+
+## Gate G086: Calibration Promotion Review Specification
+
+Timestamp: `2026-07-12T21:18:00Z`
+
+Status: `specification proposed`
+
+Scope:
+
+- Define the next gate after G085 label-aware evaluation.
+- Specify promotion candidates that package G083/G085 evidence into auditable operator-reviewed records.
+- Define readiness rules and decision states without runtime side effects.
+
+Result:
+
+- Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G086_calibration_promotion_review.md`.
+- Gate README and back-test architecture docs now reference the G086 direction.

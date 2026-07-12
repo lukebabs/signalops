@@ -5709,3 +5709,18 @@ Validation performed:
 - `curl http://localhost:15173/marketops/backtests`: HTTP `200`.
 - Rebuilt web bundle contains `Label-Aware Evaluations`, `Create evaluation`, and `Precision` UI text.
 - `docker compose ps web gateway`: both services running.
+
+
+## 2026-07-12T21:18:00Z
+
+Summary:
+
+- Added the G086 specification for MarketOps calibration promotion review.
+- Scoped G086 to promotion candidate records that reference G083 baseline comparisons and G085 label-aware evaluations.
+- Defined conservative readiness statuses, operator decision states, suggested APIs, acceptance criteria, and validation plan.
+- Explicitly kept detector threshold edits, runtime policy deployment, graph writeback, model training, and automatic promotion out of scope.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.
