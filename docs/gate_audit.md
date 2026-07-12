@@ -6071,3 +6071,31 @@ Validation performed:
 Result:
 
 - G081 is ready for operator/architecture review. No implementation has started.
+
+## Gate G081 Spec Refinement
+
+Timestamp: `2026-07-12T03:05:00Z`
+
+Status: `specification proposed — refinement pending review`
+
+Scope:
+
+- Improve reviewability and traceability of the G081 back-test substrate specification before G082.
+
+Implementation:
+
+- Added Documentation Links sections to the G081 gate, architecture, and operations notes so the three review documents cross-reference each other.
+- Indexed the new notes in the use-case, architecture, and operations READMEs.
+- Grounded the replay contrast with the replay API route and tables instead of an abstract subsystem reference.
+- Reframed detector id/version as a run parameter rather than a `normalized_event_ledger` input filter, and noted that symbol/universe filters resolve payload-level via `marketops_asset_universe`.
+- Canonicalized back-test policy recommendation tokens to snake_case and aligned the conceptual outputs with the isolated storage model.
+
+Validation performed:
+
+- Documentation readback completed across the seven modified files.
+- Cross-link targets verified to exist.
+- `git diff --check`: passed.
+
+Result:
+
+- G081 remains ready for operator/architecture review. No implementation has started.

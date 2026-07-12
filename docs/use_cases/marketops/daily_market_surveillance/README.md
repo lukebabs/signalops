@@ -37,3 +37,7 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - Signal/artifact persistence note: `architecture/signal_artifact_persistence.md`
 - DSM Workbench operator validation: `frontend/dsm_workbench_operator_validation.md`
 - G079 graph proposal acceptance gate brief: `gates/G079_graph_proposal_acceptance.md`
+- G080 operator graph proposal review gate brief: `gates/G080_operator_graph_proposal_review.md`
+- G081 back-test substrate gate brief: `gates/G081_backtest_substrate.md`
+- Back-test substrate architecture: `architecture/backtest_substrate.md`
+- Back-test substrate operations: `operations/backtest_substrate.md`

@@ -10,3 +10,7 @@ Current recurring validations:
 - Verify Redpanda consumer lag for the relevant consumer group.
 - Verify Postgres rows in `signal_ledger`, `marketops_dsm_artifacts`, `alert_ledger`, and `insight_ledger`.
 - For auth-enabled APIs, unauthenticated probes should return `401`; positive browser/API validation requires a bearer token.
+
+## Back-Test Operations
+
+`backtest_substrate.md` covers the proposed G081 back-test workflow, first smoke scenario, safety controls, and the go/no-go checklist for G082. Back-tests are experiments isolated from operational state: a back-test run must never write to `signal_ledger`, `alert_ledger`, `insight_ledger`, `marketops_dsm_artifacts`, `marketops_dsm_graph_proposals`, or any production graph database. Replay remains the correct tool for republishing existing ledgers through the operational pipeline.

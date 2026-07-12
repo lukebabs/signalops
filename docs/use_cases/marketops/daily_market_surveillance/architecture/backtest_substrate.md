@@ -7,7 +7,7 @@ Use case: MarketOps Daily Market Surveillance
 
 The MarketOps back-test substrate should let operators evaluate DSM detector output and graph-proposal review policy over historical data without affecting production operational records.
 
-This is separate from the existing SignalOps replay subsystem. Replay republishes historical ledger payloads through broker topics for operational recovery, compatibility checks, or pipeline validation. Back-testing should execute a bounded experiment, isolate generated outputs, and produce comparable metrics for policy calibration.
+This is separate from the existing SignalOps replay subsystem (replay API at `/v1/replay`; `replay_jobs` and `replay_worker_heartbeats` tables). Replay republishes historical ledger payloads through broker topics for operational recovery, compatibility checks, or pipeline validation. Back-testing should execute a bounded experiment, isolate generated outputs, and produce comparable metrics for policy calibration.
 
 ## Why Not Use Operational Replay Alone
 
@@ -61,6 +61,8 @@ Future implementation should add a small isolated storage boundary:
 - `marketops_backtest_graph_proposals`
 - `marketops_backtest_policy_results`
 
+Aggregate run metrics are stored on the `marketops_backtest_runs` row rather than a separate metrics table.
+
 The exact schema should be decided in G082, but the interface must preserve:
 
 - run identity
@@ -80,7 +82,7 @@ Back-tests should be reproducible for the same:
 - policy version
 - run options
 
-Generated ids should include the back-test run id or a deterministic run namespace so that repeated runs do not collide with production ids.
+Generated ids should include the back-test run id or a deterministic run namespace so that repeated runs do not collide with production ids. This follows the same deterministic-id philosophy as the G079 `proposal_id` convention, where replaying the same source data is idempotent.
 
 ## Policy Calibration
 
@@ -88,10 +90,10 @@ The first policy evaluator should be deterministic and explainable.
 
 It should classify generated graph proposals into:
 
-- auto-accept candidate
-- auto-reject candidate
-- manual review required
-- supersede candidate
+- `auto_accept_candidate`
+- `auto_reject_candidate`
+- `manual_review_required`
+- `supersede_candidate`
 
 The evaluator should emit reasons for each classification. These reasons are part of the back-test output and should be available for audit and future UI work.
 
@@ -116,3 +118,12 @@ A thin MVP is successful when it can:
 - classify proposals with a deterministic policy pack
 - persist aggregate metrics
 - prove no operational ledgers were mutated
+
+## Documentation Links
+
+- Gate note: `../gates/G081_backtest_substrate.md`
+- Operations: `../operations/backtest_substrate.md`
+- G079 graph proposal acceptance (deterministic proposal id precedent and label data source): `graph_proposal_acceptance.md`
+- G080 operator review workflow: `../gates/G080_operator_graph_proposal_review.md`
+- Current signal and artifact ledger semantics: `signal_artifact_persistence.md`
+- Replay API contract: `../../../../api.md`

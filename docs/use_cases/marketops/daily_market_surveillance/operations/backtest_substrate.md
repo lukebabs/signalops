@@ -10,10 +10,10 @@ The first back-test workflow should be explicit and bounded:
 1. Choose tenant and MarketOps use case.
 2. Choose historical observation window.
 3. Choose dataset: `equity_eod_prices` or `options_contracts_daily`.
-4. Choose symbol scope:
+4. Choose symbol scope (resolves payload-level against `normalized_event_ledger.normalized_payload`):
    - explicit symbols, or
-   - a known universe group such as `top50_megacap`.
-5. Choose detector id/version.
+   - a known universe group such as `top50_megacap` (expanded to symbols via `marketops_asset_universe`).
+5. Choose detector id/version to run (an execution parameter, not an input filter — normalized events are pre-detector).
 6. Choose policy pack id/version.
 7. Set max records.
 8. Start the back-test run.
@@ -87,3 +87,8 @@ Proceed to G082 only when:
 - storage isolation is accepted
 
 Do not proceed if the next goal changes to raw-provider replay, ML training, PnL simulation, or production graph materialization.
+
+## Documentation Links
+
+- Gate note: `../gates/G081_backtest_substrate.md`
+- Architecture: `../architecture/backtest_substrate.md`
