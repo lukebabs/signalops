@@ -108,6 +108,43 @@ describe('MarketOps DSM graph proposals API client (G079)', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/marketops/dsm/graph-proposals/graphprop%3A1');
   });
 
+
+  it('posts graph proposal decisions with status, note, bearer token, and encoded id', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ graph_proposal: { proposal_id: 'graphprop:1', status: 'accepted' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    state.authEnabled = true;
+    state.token = 'jwt-abc';
+
+    await api.mutateMarketOpsDSMGraphProposalDecision({
+      proposalId: 'graphprop:1',
+      status: 'accepted',
+      note: 'Reviewed for G080.',
+    });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/marketops/dsm/graph-proposals/graphprop%3A1/decision');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[0][1].headers['Authorization']).toBe('Bearer jwt-abc');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      status: 'accepted',
+      note: 'Reviewed for G080.',
+    });
+  });
+
+  it('uses the local actor header for graph proposal decisions when auth is disabled', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ graph_proposal: { proposal_id: 'graphprop-1', status: 'rejected' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    state.authEnabled = false;
+    state.token = null;
+
+    await api.mutateMarketOpsDSMGraphProposalDecision({ proposalId: 'graphprop-1', status: 'rejected' });
+
+    expect(fetchMock.mock.calls[0][1].headers['X-SignalOps-Actor']).toBe('operator-local');
+    expect(fetchMock.mock.calls[0][1].headers['Authorization']).toBeUndefined();
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ status: 'rejected' });
+  });
+
   it('parses the list and detail envelopes', async () => {
     vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
     const fetchMock = vi

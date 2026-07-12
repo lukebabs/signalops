@@ -6005,3 +6005,33 @@ Closeout summary:
 Result:
 
 - G079 is fully closed. The next recommended MarketOps boundary is G080: operator graph proposal review workflow, without production graph database writes.
+
+
+## Gate G080: Operator Graph Proposal Review Workflow
+
+Timestamp: `2026-07-12T01:12:00Z`
+
+Status: `implemented and locally validated`
+
+Scope:
+
+- Add bounded operator review actions for first-class MarketOps DSM graph proposals in the existing DSM Workbench.
+
+Implementation:
+
+- Added graph proposal decision request/options types.
+- Added frontend API client support for `POST /v1/marketops/dsm/graph-proposals/{proposal_id}/decision`.
+- Added a React Query mutation hook that refreshes graph proposal list/detail caches after decisions.
+- Added inline review controls for accepted, rejected, superseded, and proposed statuses with optional review notes.
+- Kept production graph writes, graph visualization, and graph editing out of scope.
+
+Validation performed:
+
+- `cd web && npm test`: 120 passed.
+- `cd web && npm test -- src/api/marketopsGraphProposals.test.ts`: 8 passed.
+- `cd web && npm run build`: passed.
+- `cd web && npm audit --audit-level=low`: 0 vulnerabilities.
+
+Result:
+
+- G080 is implemented as a review-state workflow only. Accepted proposals remain persisted review records and do not mutate a production graph database.

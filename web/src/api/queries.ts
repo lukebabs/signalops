@@ -14,6 +14,7 @@ import type {
   MarketOpsAssetFilter,
   MarketOpsDSMArtifactFilter,
   MarketOpsDSMGraphProposalFilter,
+  MarketOpsDSMGraphProposalDecisionOptions,
 } from '../types';
 
 export const queryKeys = {
@@ -304,6 +305,19 @@ export function useMarketOpsDSMGraphProposal(proposalId: string | null) {
     queryFn: () => api.getMarketOpsDSMGraphProposal(proposalId!),
     enabled: !!proposalId,
     staleTime: 60 * 1000,
+  });
+}
+
+export function useMutateMarketOpsDSMGraphProposalDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (options: MarketOpsDSMGraphProposalDecisionOptions) =>
+      api.mutateMarketOpsDSMGraphProposalDecision(options),
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData(queryKeys.marketOpsDSMGraphProposal(variables.proposalId), data);
+      queryClient.invalidateQueries({ queryKey: ['marketops-dsm-graph-proposals'] });
+      queryClient.invalidateQueries({ queryKey: ['marketops-dsm-graph-proposal', variables.proposalId] });
+    },
   });
 }
 

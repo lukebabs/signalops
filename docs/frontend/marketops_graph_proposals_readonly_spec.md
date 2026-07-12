@@ -1,6 +1,6 @@
 # MarketOps Graph Proposals Read-Only UI Specification
 
-Status: ready for frontend-agent implementation  
+Status: implemented in G079; superseded by G080 review controls
 Gate: G079 frontend follow-up  
 Author: Codex  
 Date: 2026-07-11  
@@ -299,3 +299,8 @@ Live backend smoke record from G079 closeout:
 - Expected status: all `proposed`
 
 Positive browser validation requires an operator bearer token. Unauthenticated graph-proposal API requests should return `401 unauthorized` when gateway auth is enabled.
+
+
+## G080 Note
+
+G080 intentionally supersedes the read-only UI constraint for one narrow action surface: inline proposal review decisions in the DSM Workbench. The new controls update `marketops_dsm_graph_proposals` review status and metadata only. Graph visualization, graph editing, and production graph database writes remain out of scope.

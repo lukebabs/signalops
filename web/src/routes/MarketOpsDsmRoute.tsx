@@ -1,7 +1,7 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Network } from 'lucide-react';
-import { useSignals, useAlerts, useInsights, useSignal, useMarketOpsDSMArtifacts, useMarketOpsDSMArtifact, useMarketOpsDSMGraphProposals } from '../api/queries';
+import { Archive, CheckCircle2, Network, RotateCcw, XCircle } from 'lucide-react';
+import { useSignals, useAlerts, useInsights, useSignal, useMarketOpsDSMArtifacts, useMarketOpsDSMArtifact, useMarketOpsDSMGraphProposals, useMutateMarketOpsDSMGraphProposalDecision } from '../api/queries';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
 import { CopyButton } from '../components/CopyButton';
@@ -34,6 +34,7 @@ import type {
   MarketOpsDSMArtifact,
   MarketOpsDSMGraphProposal,
   MarketOpsDSMGraphProposalStatus,
+  MarketOpsDSMGraphProposalDecisionRequest,
 } from '../types';
 
 const SEVERITIES = ['info', 'low', 'medium', 'high', 'critical'] as const;
@@ -546,11 +547,34 @@ function GraphProposalStatus({ status }: { status: string }) {
   );
 }
 
-// Read-only ledger of persisted MarketOps DSM graph proposals (G079). Renders a
-// count + status summary and a compact table; selecting a row expands an inline
-// detail block (no modal — the route has no modal pattern). It never emits a
-// decision/mutation request. Empty state is explicit and never implies the
-// signal itself is invalid.
+function GraphProposalDecisionButton({
+  label,
+  icon,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  icon: ReactNode;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+// Operator review ledger of persisted MarketOps DSM graph proposals (G080).
+// Renders a count + status summary and a compact table; selecting a row expands
+// inline detail and bounded review controls. Actions only update proposal review
+// state through the gateway decision endpoint; they do not materialize a graph.
 function GraphProposalLedger({
   proposals,
   loading,
@@ -561,7 +585,17 @@ function GraphProposalLedger({
   error: boolean;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
+  const mutation = useMutateMarketOpsDSMGraphProposalDecision();
   const summary = summarizeGraphProposals(proposals);
+
+  const submitDecision = (proposal: MarketOpsDSMGraphProposal, status: MarketOpsDSMGraphProposalDecisionRequest['status']) => {
+    mutation.mutate({
+      proposalId: proposal.proposal_id,
+      status,
+      note: decisionNotes[proposal.proposal_id]?.trim() || undefined,
+    });
+  };
 
   return (
     <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs">
@@ -640,6 +674,42 @@ function GraphProposalLedger({
                                   <div className="col-span-2"><div className="text-gray-500">Decision Note</div><div className="break-all">{p.decision_note || '—'}</div></div>
                                 </>
                               ) : null}
+                              <div className="col-span-2 rounded border border-gray-200 bg-white p-2">
+                                <div className="mb-2 text-gray-500">Review Decision</div>
+                                <textarea
+                                  value={decisionNotes[p.proposal_id] ?? ''}
+                                  onChange={(event) => setDecisionNotes((notes) => ({ ...notes, [p.proposal_id]: event.target.value }))}
+                                  placeholder="Optional review note"
+                                  className="mb-2 h-16 w-full resize-none rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                                />
+                                <div className="flex flex-wrap gap-2">
+                                  <GraphProposalDecisionButton
+                                    label="Accept"
+                                    icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                                    disabled={p.status === 'accepted' || mutation.isPending}
+                                    onClick={() => submitDecision(p, 'accepted')}
+                                  />
+                                  <GraphProposalDecisionButton
+                                    label="Reject"
+                                    icon={<XCircle className="h-3.5 w-3.5" />}
+                                    disabled={p.status === 'rejected' || mutation.isPending}
+                                    onClick={() => submitDecision(p, 'rejected')}
+                                  />
+                                  <GraphProposalDecisionButton
+                                    label="Supersede"
+                                    icon={<Archive className="h-3.5 w-3.5" />}
+                                    disabled={p.status === 'superseded' || mutation.isPending}
+                                    onClick={() => submitDecision(p, 'superseded')}
+                                  />
+                                  <GraphProposalDecisionButton
+                                    label="Restore"
+                                    icon={<RotateCcw className="h-3.5 w-3.5" />}
+                                    disabled={p.status === 'proposed' || mutation.isPending}
+                                    onClick={() => submitDecision(p, 'proposed')}
+                                  />
+                                </div>
+                                {mutation.isError ? <p className="mt-2 text-red-700">Decision update failed.</p> : null}
+                              </div>
                               <div className="col-span-2">
                                 <JsonViewer label="Properties" value={p.properties} />
                               </div>
@@ -657,7 +727,7 @@ function GraphProposalLedger({
             </table>
           </div>
 
-          <p className="text-gray-400">Read-only ledger — decisions are operator/backend only.</p>
+          <p className="text-gray-400">Review actions update proposal status only; production graph writes remain deferred.</p>
         </div>
       )}
     </div>

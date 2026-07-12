@@ -5234,3 +5234,38 @@ Validation performed:
 Recommended next gate:
 
 - G080: operator graph proposal review workflow, scoped to review actions/audit visibility for persisted proposals.
+
+
+## 2026-07-12T01:12:00Z
+
+Summary:
+
+- Implemented G080 operator graph proposal review workflow in the MarketOps DSM Workbench.
+- Added frontend decision mutation support for persisted graph proposals using the existing G079 decision endpoint.
+- Added inline accept/reject/supersede/restore controls with optional review notes in expanded graph proposal rows.
+- Preserved the no-graph-write boundary: review actions update proposal status and metadata only.
+
+Files changed:
+
+- `web/src/types.ts`
+- `web/src/api/client.ts`
+- `web/src/api/queries.ts`
+- `web/src/api/marketopsGraphProposals.test.ts`
+- `web/src/routes/MarketOpsDsmRoute.tsx`
+- `docs/frontend/marketops_graph_proposals_readonly_spec.md`
+- `docs/use_cases/marketops/daily_market_surveillance/api/graph_proposal_api.md`
+- `docs/use_cases/marketops/daily_market_surveillance/gates/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/gates/G080_operator_graph_proposal_review.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `cd web && npm test`: 120 passed.
+- `cd web && npm test -- src/api/marketopsGraphProposals.test.ts`: 8 passed.
+- `cd web && npm run build`: passed.
+- `cd web && npm audit --audit-level=low`: 0 vulnerabilities.
+
+Deferred:
+
+- Production graph database writes and graph materialization remain deferred to a later explicit gate.

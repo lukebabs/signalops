@@ -691,6 +691,16 @@ export interface MarketOpsDSMGraphProposalResponse {
   graph_proposal: MarketOpsDSMGraphProposal;
 }
 
+
+export interface MarketOpsDSMGraphProposalDecisionRequest {
+  status: MarketOpsDSMGraphProposalStatus;
+  note?: string;
+}
+
+export interface MarketOpsDSMGraphProposalDecisionOptions extends MarketOpsDSMGraphProposalDecisionRequest {
+  proposalId: string;
+}
+
 export interface MarketOpsDSMGraphProposalFilter {
   tenant_id?: string;
   app_id?: string;

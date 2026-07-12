@@ -1,13 +1,13 @@
 # Graph Proposal API
 
-Status: implemented in G079
+Status: implemented in G079; used by G080 operator review workflow
 Use case: MarketOps Daily Market Surveillance
 
 ## Purpose
 
-This note documents the G079 API boundary for reviewing graph target candidates that are embedded in persisted DSM artifacts.
+This note documents the G079 API boundary for reviewing graph target candidates that are embedded in persisted DSM artifacts. G080 uses the decision endpoint from the DSM Workbench for bounded operator review.
 
-The API should expose graph proposals as first-class review records. It should not mutate an external graph database.
+The API exposes graph proposals as first-class review records. It does not mutate an external graph database.
 
 ## Endpoints
 
@@ -111,3 +111,10 @@ The API should allow idempotent status writes. Repeating the same decision with 
 G079 should follow the same gateway authentication posture as `/v1/marketops/dsm/artifacts`.
 
 Unauthenticated requests should return `401 unauthorized` when auth is enabled. Authenticated requests must be tenant-scoped consistently with existing signal, artifact, alert, and insight APIs.
+
+
+## G080 Frontend Usage
+
+The DSM Workbench uses `POST /v1/marketops/dsm/graph-proposals/{proposal_id}/decision` to update review state only. The request body contains the target `status` and optional `note`. Auth-enabled requests derive the actor from the bearer token; auth-disabled local development requests may use the existing `X-SignalOps-Actor` fallback.
+
+The frontend must not use this endpoint to imply graph materialization. Accepted proposals remain review records until a later gate introduces explicit production graph-write semantics.
