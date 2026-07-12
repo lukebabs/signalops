@@ -5387,3 +5387,20 @@ Validation performed:
 - `docker compose up -d --build web`: passed.
 - `curl http://localhost:15173/marketops`: served the rebuilt SPA shell.
 - `curl http://localhost:15173/healthz`: passed through to gateway health.
+
+
+## 2026-07-12T04:35:00Z
+
+Summary:
+
+- Completed the authenticated G081 API-created back-test smoke that was previously blocked by an expired bearer.
+- The supplied bearer text was missing the leading JWT header character; after restoring the expected `eyJ...` prefix, the gateway accepted it.
+- Ran authenticated `POST /v1/marketops/backtests` for `bt-g081-auth-api-smoke-20260712`.
+
+Smoke result:
+
+- Back-test status: `succeeded`.
+- Metrics: scanned `1`, signals `1`, artifacts `1`, graph proposals `5`, policy results `5`.
+- Recommendation counts: `auto_accept_candidate=5`.
+- Isolated back-test totals after smoke: runs `3`, signals `3`, artifacts `3`, graph proposals `15`, policy results `15`.
+- Production ledger counts remained unchanged: `signal_ledger=19`, `alert_ledger=18`, `insight_ledger=19`, `marketops_dsm_artifacts=12`, `marketops_dsm_graph_proposals=60`.

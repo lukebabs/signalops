@@ -6193,3 +6193,27 @@ Validation performed:
 Result:
 
 - G081 now supports both CLI-created and API-created isolated back-test runs. A fresh operator bearer is still needed for a final authenticated POST smoke in the running local stack.
+
+
+## Gate G081: Authenticated API Creation Smoke
+
+Timestamp: `2026-07-12T04:35:00Z`
+
+Status: `validated — authenticated POST smoke passed`
+
+Scope:
+
+- Close the remaining authenticated validation caveat for `POST /v1/marketops/backtests`.
+- Confirm the auth-enabled gateway accepts an operator bearer and creates an isolated MarketOps back-test run.
+
+Validation performed:
+
+- Verified the pasted bearer was missing the leading JWT header character; after restoring the expected `eyJ...` prefix, authenticated reads succeeded.
+- Ran authenticated API-created back-test `bt-g081-auth-api-smoke-20260712` for `tenant-local/src-massive`, dataset `equity_eod_prices`, symbol `SPY`, window `2026-07-09T00:00:00Z` to `2026-07-10T00:00:00Z`.
+- Result: status `succeeded`, scanned `1`, signals `1`, artifacts `1`, graph proposals `5`, policy results `5`, recommendation counts `auto_accept_candidate=5`.
+- Isolated back-test totals after smoke: runs `3`, signals `3`, artifacts `3`, graph proposals `15`, policy results `15`.
+- Production ledger counts remained unchanged: `signal_ledger=19`, `alert_ledger=18`, `insight_ledger=19`, `marketops_dsm_artifacts=12`, `marketops_dsm_graph_proposals=60`.
+
+Result:
+
+- G081 API creation is validated under the normal auth-enabled gateway.
