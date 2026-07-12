@@ -1,13 +1,13 @@
 # G079 Graph Proposal Acceptance
 
-Status: implemented backend boundary
+Status: closed
 Use case: MarketOps Daily Market Surveillance
 
 ## Goal
 
 Create the first durable review boundary for MarketOps DSM graph target candidates.
 
-G079 extracts graph target candidates from persisted `marketops_dsm_artifacts`, stores them as first-class graph proposal records, exposes read APIs, and supports explicit operator or rule decisions such as accepted/rejected.
+G079 extracts graph target candidates from persisted `marketops_dsm_artifacts`, stores them as first-class graph proposal records, exposes read APIs, supports explicit operator or rule decisions such as accepted/rejected, and renders read-only proposal visibility in the DSM Workbench.
 
 ## Inputs
 
@@ -26,6 +26,9 @@ G079 extracts graph target candidates from persisted `marketops_dsm_artifacts`, 
 - Decision endpoint and storage mutation for `proposed`, `accepted`, `rejected`, and `superseded` statuses.
 - Unit tests for extraction, idempotent identity, malformed candidates, API filters, detail retrieval, and status validation.
 - Build journal and gate audit updates.
+- Read-only DSM Workbench graph proposal ledger.
+- Authenticated API list/detail/decision smoke validation.
+- Historical signal-persister lag audit/backfill closure for older partitions `0` and `1`.
 
 ## Acceptance Criteria
 
@@ -35,6 +38,18 @@ G079 extracts graph target candidates from persisted `marketops_dsm_artifacts`, 
 - Accepted/rejected decisions are durable and do not mutate immutable candidate identity fields.
 - Existing signal, alert, insight, and artifact persistence behavior remains unchanged.
 - Authenticated list/detail APIs can retrieve proposals by artifact id, signal id, symbol, candidate type, and status.
+- Authenticated decision mutation can mark a proposal accepted and restore it to proposed with token-derived actor metadata.
+- Read-only frontend renders persisted graph proposals without adding graph editing, decision mutation UI, or graph database writes.
+- Historical signal-persister lag is reconciled with no audited signal, artifact, or graph proposal data skipped.
+
+
+## Closeout Evidence
+
+- Backend graph proposal storage/API committed in G079 backend implementation.
+- Live G079 smoke signal `sig_marketops_dsm_taxonomy_v1_g079_graph_live` materialized five proposals: three node candidates and two relationship candidates.
+- Frontend DSM Workbench read-only ledger validated against the persisted smoke proposals.
+- Authenticated API smoke validated list, detail, `accepted`, and restore-to-`proposed` decision paths with operator actor `lukeb`.
+- Historical persister lag on older signal topic partitions was audited, backfilled through `cmd/signal-backfill`, and reconciled to total lag `0`.
 
 ## Deferred Work
 

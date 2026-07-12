@@ -5209,3 +5209,28 @@ Notes:
 
 - The pending records were bounded MarketOps DSM validation records, not live external-market ingestion.
 - Consumer offsets were advanced after successful backfill, so no audited signal/artifact/proposal data was skipped.
+
+
+## 2026-07-12T01:05:00Z
+
+Summary:
+
+- Closed G079 documentation after backend, frontend, authenticated API smoke, and historical signal-persister lag cleanup were all complete.
+- Updated the MarketOps gate index so G079 is no longer listed as the recommended next gate.
+- Marked the G079 gate note as closed and added closeout evidence.
+
+Files changed:
+
+- `docs/use_cases/marketops/daily_market_surveillance/gates/README.md`
+- `docs/use_cases/marketops/daily_market_surveillance/gates/G079_graph_proposal_acceptance.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.
+
+Recommended next gate:
+
+- G080: operator graph proposal review workflow, scoped to review actions/audit visibility for persisted proposals.

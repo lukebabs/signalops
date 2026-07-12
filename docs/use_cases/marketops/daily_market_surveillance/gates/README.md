@@ -13,7 +13,12 @@ Current gate sequence:
 - G076: DSM Workbench UI.
 - G077: first-class DSM artifact ledger backend.
 - G078: DSM artifact API frontend integration.
+- G079: graph proposal acceptance/storage backend, read-only frontend visibility, authenticated API smoke, and historical persister-lag cleanup.
+
+Closed gate notes:
+
+- G079: `G079_graph_proposal_acceptance.md`.
 
 Recommended next gate:
 
-- G079: graph proposal acceptance/storage. See `G079_graph_proposal_acceptance.md`.
+- G080: operator graph proposal review workflow, scoped to review actions/audit visibility for persisted proposals. Production graph database writes remain deferred.

@@ -5982,3 +5982,26 @@ Validation performed:
 Result:
 
 - The historical persister lag is closed. No audited MarketOps DSM signal, artifact, or graph proposal data was skipped.
+
+
+## Gate G079 Closeout
+
+Timestamp: `2026-07-12T01:05:00Z`
+
+Status: `closed`
+
+Scope:
+
+- Reconcile G079 after all backend, frontend, authentication, and operational cleanup work completed.
+
+Closeout summary:
+
+- Backend graph proposal acceptance/storage was implemented and validated.
+- Read-only frontend graph proposal visibility was implemented and live-validated in the DSM Workbench.
+- Authenticated graph proposal API list/detail/decision smoke passed with an operator bearer token.
+- Historical signal-persister lag on older partitions `0` and `1` was audited, backfilled, and reconciled to total lag `0`.
+- G079 documentation now reflects closed status and the gate index no longer lists G079 as the recommended next gate.
+
+Result:
+
+- G079 is fully closed. The next recommended MarketOps boundary is G080: operator graph proposal review workflow, without production graph database writes.
