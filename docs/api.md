@@ -581,6 +581,24 @@ Returns one raw event ledger row by event id.
 
 Returns one idempotency record. All three query parameters are required.
 
+### MarketOps Back-Tests
+
+`GET /v1/marketops/backtests?tenant_id={tenant_id}&detector_id={detector_id}&status={status}&limit=50`
+
+Returns isolated MarketOps back-test run rows. Filters are optional. Back-test runs are experiments and are separate from replay jobs.
+
+`GET /v1/marketops/backtests/{run_id}`
+
+Returns one back-test run with filters, parameters, aggregate metrics, and terminal error state when applicable.
+
+`GET /v1/marketops/backtests/{run_id}/signals?tenant_id={tenant_id}&signal_type={signal_type}&limit=50`
+
+Returns generated signal records scoped to the back-test run. These are not production `signal_ledger` rows.
+
+`GET /v1/marketops/backtests/{run_id}/graph-proposals?tenant_id={tenant_id}&subject_symbol={symbol}&candidate_type={candidate_type}&recommendation={recommendation}&limit=50`
+
+Returns generated graph proposal records and policy results scoped to the run. Recommendation values are `auto_accept_candidate`, `auto_reject_candidate`, `manual_review_required`, and `supersede_candidate`.
+
 ### Query Errors
 
 - `400 missing_query`: required idempotency lookup parameters are missing.

@@ -13,4 +13,4 @@ Current recurring validations:
 
 ## Back-Test Operations
 
-`backtest_substrate.md` covers the proposed G081 back-test workflow, first smoke scenario, safety controls, and the go/no-go checklist for G082. Back-tests are experiments isolated from operational state: a back-test run must never write to `signal_ledger`, `alert_ledger`, `insight_ledger`, `marketops_dsm_artifacts`, `marketops_dsm_graph_proposals`, or any production graph database. Replay remains the correct tool for republishing existing ledgers through the operational pipeline.
+`backtest_substrate.md` covers the implemented G081 back-test workflow, first smoke scenario, safety controls, CLI command, and read-only inspection APIs. Back-tests are experiments isolated from operational state: a back-test run must never write to `signal_ledger`, `alert_ledger`, `insight_ledger`, `marketops_dsm_artifacts`, `marketops_dsm_graph_proposals`, or any production graph database. Replay remains the correct tool for republishing existing ledgers through the operational pipeline.

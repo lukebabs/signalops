@@ -14,6 +14,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-sch
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-normalizer ./cmd/normalizer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-persister ./cmd/signal-persister
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
 
 FROM gcr.io/distroless/static-debian12:nonroot AS gateway
 
@@ -53,3 +54,15 @@ FROM gcr.io/distroless/static-debian12:nonroot AS replay-worker
 COPY --from=build /out/signalops-replay-worker /signalops-replay-worker
 
 ENTRYPOINT ["/signalops-replay-worker"]
+
+FROM python:3.12-slim AS marketops-backtest
+
+WORKDIR /app
+
+COPY --from=build /out/signalops-marketops-backtest /usr/local/bin/signalops-marketops-backtest
+COPY python ./python
+COPY contracts ./contracts
+
+ENV PYTHONPATH=/app/python
+
+ENTRYPOINT ["signalops-marketops-backtest"]

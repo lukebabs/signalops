@@ -1,11 +1,11 @@
 # Back-Test Substrate Operations
 
-Status: specification proposed
+Status: MVP implemented
 Use case: MarketOps Daily Market Surveillance
 
 ## Operator Workflow
 
-The first back-test workflow should be explicit and bounded:
+The first back-test workflow is explicit and bounded:
 
 1. Choose tenant and MarketOps use case.
 2. Choose historical observation window.
@@ -16,8 +16,8 @@ The first back-test workflow should be explicit and bounded:
 5. Choose detector id/version to run (an execution parameter, not an input filter — normalized events are pre-detector).
 6. Choose policy pack id/version.
 7. Set max records.
-8. Start the back-test run.
-9. Review run metrics and proposal policy recommendations.
+8. Start the back-test run with `cmd/marketops-backtest`.
+9. Review run metrics and proposal policy recommendations through `/v1/marketops/backtests`.
 10. Decide whether the policy is safe enough for a later automation gate.
 
 ## First Smoke Scenario
@@ -92,3 +92,34 @@ Do not proceed if the next goal changes to raw-provider replay, ML training, PnL
 
 - Gate note: `../gates/G081_backtest_substrate.md`
 - Architecture: `../architecture/backtest_substrate.md`
+
+
+## CLI Usage
+
+Example smoke command:
+
+```bash
+docker run --rm -v "$PWD:/work" -w /work golang:1.24 go run ./cmd/marketops-backtest \
+  --tenant-id tenant-local \
+  --source-id src-massive \
+  --dataset equity_eod_prices \
+  --symbols AAPL,SPY \
+  --window-start 2026-07-01T00:00:00Z \
+  --window-end 2026-07-12T00:00:00Z \
+  --max-records 25
+```
+
+Required environment:
+
+- `SIGNALOPS_DATABASE_URL`
+- `SIGNALOPS_TEMPORAL_DATABASE_URL`
+- Python available as `python3`, or pass `--python-bin`
+
+The runner writes only to `marketops_backtest_*` tables. It does not publish to Redpanda and does not write operational signal/artifact/proposal ledgers.
+
+## Read APIs
+
+- `GET /v1/marketops/backtests?tenant_id=tenant-local&limit=50`
+- `GET /v1/marketops/backtests/{run_id}`
+- `GET /v1/marketops/backtests/{run_id}/signals`
+- `GET /v1/marketops/backtests/{run_id}/graph-proposals?recommendation=manual_review_required`

@@ -65,6 +65,13 @@ type fakeQueryRepository struct {
 	marketOpsAssets           []storage.MarketOpsAssetRecord
 	dsmArtifacts              []storage.MarketOpsDSMArtifactRecord
 	dsmGraphProposals         []storage.MarketOpsDSMGraphProposalRecord
+	backtestRuns              []storage.MarketOpsBacktestRunRecord
+	backtestSignals           []storage.MarketOpsBacktestSignalRecord
+	backtestGraphProposals    []storage.MarketOpsBacktestGraphProposalRecord
+	backtestPolicyResults     []storage.MarketOpsBacktestPolicyResultRecord
+	lastBacktestRunFilter     storage.MarketOpsBacktestRunFilter
+	lastBacktestSignalFilter  storage.MarketOpsBacktestSignalFilter
+	lastBacktestGraphFilter   storage.MarketOpsBacktestGraphProposalFilter
 	lastDSMFilter             storage.MarketOpsDSMArtifactFilter
 	lastGraphProposalFilter   storage.MarketOpsDSMGraphProposalFilter
 	lastGraphProposalMutation storage.MarketOpsDSMGraphProposalMutation
@@ -219,6 +226,82 @@ func (q *fakeQueryRepository) ListSignalLedger(context.Context, storage.SignalLe
 }
 func (q *fakeQueryRepository) GetSignalLedger(context.Context, string) (storage.SignalLedgerRecord, error) {
 	return storage.SignalLedgerRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) CreateMarketOpsBacktestRun(_ context.Context, record storage.MarketOpsBacktestRunRecord) error {
+	q.backtestRuns = append(q.backtestRuns, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) CompleteMarketOpsBacktestRun(_ context.Context, runID string, completedAt time.Time, metricsJSON []byte) (storage.MarketOpsBacktestRunRecord, error) {
+	for i, run := range q.backtestRuns {
+		if run.RunID == runID {
+			run.Status = storage.RunStatusSucceeded
+			run.CompletedAt = &completedAt
+			run.MetricsJSON = metricsJSON
+			q.backtestRuns[i] = run
+			return run, nil
+		}
+	}
+	return storage.MarketOpsBacktestRunRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) FailMarketOpsBacktestRun(_ context.Context, runID string, failedAt time.Time, errorMessage string, metricsJSON []byte) (storage.MarketOpsBacktestRunRecord, error) {
+	for i, run := range q.backtestRuns {
+		if run.RunID == runID {
+			run.Status = storage.RunStatusFailed
+			run.CompletedAt = &failedAt
+			run.ErrorMessage = errorMessage
+			run.MetricsJSON = metricsJSON
+			q.backtestRuns[i] = run
+			return run, nil
+		}
+	}
+	return storage.MarketOpsBacktestRunRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) PersistMarketOpsBacktestBatch(_ context.Context, _ storage.MarketOpsBacktestRunRecord, signals []storage.MarketOpsBacktestSignalRecord, artifacts []storage.MarketOpsBacktestArtifactRecord, proposals []storage.MarketOpsBacktestGraphProposalRecord, policyResults []storage.MarketOpsBacktestPolicyResultRecord) error {
+	q.backtestSignals = append(q.backtestSignals, signals...)
+	_ = artifacts
+	q.backtestGraphProposals = append(q.backtestGraphProposals, proposals...)
+	q.backtestPolicyResults = append(q.backtestPolicyResults, policyResults...)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestRuns(_ context.Context, filter storage.MarketOpsBacktestRunFilter) ([]storage.MarketOpsBacktestRunRecord, error) {
+	q.lastBacktestRunFilter = filter
+	return q.backtestRuns, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsBacktestRun(_ context.Context, runID string) (storage.MarketOpsBacktestRunRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsBacktestRunRecord{}, storage.ErrNotFound
+	}
+	for _, run := range q.backtestRuns {
+		if run.RunID == runID {
+			return run, nil
+		}
+	}
+	return storage.MarketOpsBacktestRunRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestSignals(_ context.Context, filter storage.MarketOpsBacktestSignalFilter) ([]storage.MarketOpsBacktestSignalRecord, error) {
+	q.lastBacktestSignalFilter = filter
+	return q.backtestSignals, nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestGraphProposals(_ context.Context, filter storage.MarketOpsBacktestGraphProposalFilter) ([]storage.MarketOpsBacktestGraphProposalRecord, error) {
+	q.lastBacktestGraphFilter = filter
+	return q.backtestGraphProposals, nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestPolicyResults(_ context.Context, filter storage.MarketOpsBacktestGraphProposalFilter) ([]storage.MarketOpsBacktestPolicyResultRecord, error) {
+	q.lastBacktestGraphFilter = filter
+	return q.backtestPolicyResults, nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestNormalizedEvents(context.Context, storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error) {
+	return nil, nil
 }
 
 func (q *fakeQueryRepository) ListMarketOpsDSMArtifacts(_ context.Context, filter storage.MarketOpsDSMArtifactFilter) ([]storage.MarketOpsDSMArtifactRecord, error) {
@@ -744,6 +827,95 @@ func TestGetMarketOpsAssets(t *testing.T) {
 	}
 	if response["assets"][0]["app_id"] != "marketops" || response["assets"][0]["use_case"] != "daily_market_surveillance" {
 		t.Fatalf("asset metadata = %+v", response["assets"][0])
+	}
+}
+
+func TestGetMarketOpsBacktestRuns(t *testing.T) {
+	repo := &fakeQueryRepository{backtestRuns: []storage.MarketOpsBacktestRunRecord{validMarketOpsBacktestRunRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtests?tenant_id=tenant-1&detector_id=marketops.dsm.taxonomy_v1&status=succeeded&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestRunFilter.TenantID != "tenant-1" || repo.lastBacktestRunFilter.DetectorID != "marketops.dsm.taxonomy_v1" || repo.lastBacktestRunFilter.Status != "succeeded" || repo.lastBacktestRunFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastBacktestRunFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if len(response["backtest_runs"]) != 1 || response["backtest_runs"][0]["run_id"] != "bt-marketops-1" {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestGetMarketOpsBacktestRun(t *testing.T) {
+	repo := &fakeQueryRepository{backtestRuns: []storage.MarketOpsBacktestRunRecord{validMarketOpsBacktestRunRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtests/bt-marketops-1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if response["backtest_run"]["metrics"].(map[string]any)["signals"].(float64) != 1 {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestGetMarketOpsBacktestSignals(t *testing.T) {
+	repo := &fakeQueryRepository{backtestSignals: []storage.MarketOpsBacktestSignalRecord{validMarketOpsBacktestSignalRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtests/bt-marketops-1/signals?tenant_id=tenant-1&signal_type=marketops.dsm.pinning_risk&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestSignalFilter.RunID != "bt-marketops-1" || repo.lastBacktestSignalFilter.SignalType != "marketops.dsm.pinning_risk" {
+		t.Fatalf("filter = %+v", repo.lastBacktestSignalFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if response["backtest_signals"][0]["signal"].(map[string]any)["signal_id"] != "signal-1" {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestGetMarketOpsBacktestGraphProposalsIncludesPolicyResults(t *testing.T) {
+	repo := &fakeQueryRepository{backtestGraphProposals: []storage.MarketOpsBacktestGraphProposalRecord{validMarketOpsBacktestGraphProposalRecord()}, backtestPolicyResults: []storage.MarketOpsBacktestPolicyResultRecord{validMarketOpsBacktestPolicyResultRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtests/bt-marketops-1/graph-proposals?tenant_id=tenant-1&subject_symbol=AAPL&candidate_type=node_candidate&recommendation=auto_accept_candidate&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestGraphFilter.RunID != "bt-marketops-1" || repo.lastBacktestGraphFilter.Recommendation != storage.MarketOpsBacktestPolicyAutoAcceptCandidate {
+		t.Fatalf("filter = %+v", repo.lastBacktestGraphFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if response["policy_results"][0]["recommendation"] != storage.MarketOpsBacktestPolicyAutoAcceptCandidate {
+		t.Fatalf("response = %+v", response)
 	}
 }
 
@@ -1411,4 +1583,24 @@ func validProviderUsageRecord() storage.ProviderUsageRecord {
 		BudgetJSON:   []byte(`{}`),
 		CreatedAt:    time.Date(2026, 7, 8, 0, 0, 2, 0, time.UTC),
 	}
+}
+
+func validMarketOpsBacktestRunRecord() storage.MarketOpsBacktestRunRecord {
+	now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+	completed := now.Add(time.Minute)
+	return storage.MarketOpsBacktestRunRecord{RunID: "bt-marketops-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", SourceAdapter: "market_data.massive", Dataset: "equity_eod_prices", DetectorID: "marketops.dsm.taxonomy_v1", DetectorVersion: "0.1.0", Status: storage.RunStatusSucceeded, RequestedBy: "operator-test", WindowStart: now.Add(-24 * time.Hour), WindowEnd: now, StartedAt: now, CompletedAt: &completed, FiltersJSON: []byte(`{"symbols":["AAPL"]}`), ParametersJSON: []byte(`{"detector_id":"marketops.dsm.taxonomy_v1"}`), MetricsJSON: []byte(`{"signals":1}`), CreatedAt: now, UpdatedAt: completed}
+}
+
+func validMarketOpsBacktestSignalRecord() storage.MarketOpsBacktestSignalRecord {
+	now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+	return storage.MarketOpsBacktestSignalRecord{RunID: "bt-marketops-1", SignalLedgerRecord: storage.SignalLedgerRecord{SignalID: "signal-1", TenantID: "tenant-1", SourceID: "src-massive", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceDomain: "market_data", SourceAdapter: "market_data.massive", IngestionMode: "scheduled_pull", Dataset: "equity_eod_prices", EventIDs: []string{"event-1"}, ArtifactIDs: []string{"artifact_marketops_dsm_v1_test"}, SignalType: "marketops.dsm.pinning_risk", DetectorID: "marketops.dsm.taxonomy_v1", DetectorVersion: "0.1.0", ModelVersion: "deterministic-v0", SignalTime: now, ObservationTime: now, EffectiveTime: now, ProcessingTime: now, WindowStart: now, WindowEnd: now, Confidence: 0.84, Severity: "high", EntitiesJSON: []byte(`[]`), SupportingMetrics: []byte(`{}`), GraphTargetsJSON: []byte(`[]`), SemanticEvidenceJSON: []byte(`[]`), EvidenceJSON: []byte(`[]`), RecommendationJSON: []byte(`{"action":"review"}`), CorrelationID: "corr-1", EventJSON: []byte(`{"signal_id":"signal-1"}`), CreatedAt: now, UpdatedAt: now}}
+}
+
+func validMarketOpsBacktestGraphProposalRecord() storage.MarketOpsBacktestGraphProposalRecord {
+	return storage.MarketOpsBacktestGraphProposalRecord{RunID: "bt-marketops-1", MarketOpsDSMGraphProposalRecord: validMarketOpsDSMGraphProposalRecord()}
+}
+
+func validMarketOpsBacktestPolicyResultRecord() storage.MarketOpsBacktestPolicyResultRecord {
+	now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+	return storage.MarketOpsBacktestPolicyResultRecord{RunID: "bt-marketops-1", PolicyResultID: "btpolicy-1", ProposalID: "graphprop_marketops_dsm_v1_test", ArtifactID: "artifact_marketops_dsm_v1_test", SignalID: "signal-1", TenantID: "tenant-1", SubjectSymbol: "AAPL", CandidateType: "node_candidate", Recommendation: storage.MarketOpsBacktestPolicyAutoAcceptCandidate, Reason: "candidate matches deterministic auto-accept policy", PolicyVersion: "marketops.backtest.policy_v1", Confidence: 1, DecisionInputsJSON: []byte(`{"node_id":"ticker:AAPL"}`), CreatedAt: now}
 }

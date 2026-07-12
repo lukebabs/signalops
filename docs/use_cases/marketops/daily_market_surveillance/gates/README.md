@@ -15,7 +15,7 @@ Current gate sequence:
 - G078: DSM artifact API frontend integration.
 - G079: graph proposal acceptance/storage backend, read-only frontend visibility, authenticated API smoke, and historical persister-lag cleanup.
 - G080: operator graph proposal review workflow.
-- G081: back-test substrate specification and architecture.
+- G081: back-test substrate MVP implementation.
 
 Closed gate notes:
 
@@ -24,5 +24,5 @@ Closed gate notes:
 
 Recommended next gate:
 
-- G081 review: operator/architecture review of `G081_backtest_substrate.md`, `architecture/backtest_substrate.md`, and `operations/backtest_substrate.md`.
-- G082 implementation: thin MVP back-test runner and isolated storage boundary after G081 go/no-go.
+- G081 implemented: isolated back-test storage, CLI runner, deterministic policy evaluation, and read-only APIs.
+- G082 candidate: back-test operator ergonomics, run creation API, or expanded calibration metrics after smoke review.

@@ -4551,6 +4551,8 @@ Validation performed:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
 - `docker compose build normalizer`: passed; build step also ran `go test ./...`.
 - `python3 scripts/validate_json_schemas.py`: passed.
+- `docker build --target marketops-backtest -t signalops-marketops-backtest:g081 .`: passed.
+- `docker build -f deploy/docker/python-worker/Dockerfile --target python-worker -t signalops-python-worker:g081 .`: passed.
 
 Live smoke validation:
 
@@ -5298,3 +5300,21 @@ Notes:
 
 - G081 is documentation-only. Implementation is deferred until review and explicit go/no-go.
 - Recommended implementation follow-up is G082: a thin MVP back-test runner and isolated storage boundary.
+
+
+## 2026-07-12T04:20:00Z
+
+Summary:
+
+- Implemented G081 MarketOps back-test substrate MVP.
+- Added isolated `marketops_backtest_*` ledgers, read-only `/v1/marketops/backtests` APIs, a synchronous `cmd/marketops-backtest` operator runner, and a Python detector batch adapter.
+- Added reusable MarketOps DSM extraction and deterministic policy evaluation helpers.
+- Preserved the no-production-mutation boundary: generated back-test rows do not write to production signal, alert, insight, DSM artifact, graph proposal, or graph database state.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.24 go test ./...`: passed.
+- `env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=python pytest python/tests`: 58 passed, 1 existing pytest config warning.
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `docker build --target marketops-backtest -t signalops-marketops-backtest:g081 .`: passed.
+- `docker build -f deploy/docker/python-worker/Dockerfile --target python-worker -t signalops-python-worker:g081 .`: passed.

@@ -1,13 +1,13 @@
 # G081 Back-Test Substrate
 
-Status: specification proposed
+Status: MVP implemented
 Use case: MarketOps Daily Market Surveillance
 
 ## Goal
 
-Define the first MarketOps back-test substrate before implementation.
+Implement the first MarketOps back-test substrate MVP.
 
-G081 is a documentation and architecture gate only. It specifies how SignalOps should run bounded historical MarketOps DSM back-tests for policy calibration without mutating operational ledgers or writing to a production graph database.
+G081 now provides a bounded operator runner, isolated storage, deterministic policy evaluation, and read-only inspection APIs for historical MarketOps DSM back-tests without mutating operational ledgers or writing to a production graph database.
 
 The first objective is not trading simulation, PnL analysis, ML model training, or production graph materialization. The first objective is to evaluate whether deterministic graph-proposal review policy can safely reduce manual review volume using historical normalized events.
 
@@ -36,7 +36,7 @@ Symbol list and universe group filters resolve payload-level: the subject symbol
 
 ## Conceptual Outputs
 
-G081 proposes separate isolated back-test ledgers for future implementation:
+G081 implements separate isolated back-test ledgers:
 
 - Back-test run records.
 - Generated signal records for the run.
@@ -101,14 +101,22 @@ Each back-test run should produce at least:
 - symbol coverage
 - confidence-band distribution
 
-## Acceptance Criteria For This Spec Gate
+## Implemented MVP
 
-- The documentation clearly separates back-testing from operational replay.
-- The first implementation target is normalized-event based, not raw-provider based.
-- Back-test outputs are explicitly isolated from operational ledgers.
+- Migration `000014_marketops_backtest_substrate` adds isolated run, signal, artifact, graph proposal, and policy result tables.
+- `cmd/marketops-backtest` runs a synchronous bounded back-test from historical normalized events.
+- `python/signalops_workers/backtest_detector.py` executes existing Python detector logic as a JSONL batch adapter.
+- Read-only APIs expose persisted run, signal, graph proposal, and policy-result data under `/v1/marketops/backtests`.
+- The deterministic policy evaluator emits `auto_accept_candidate`, `auto_reject_candidate`, `manual_review_required`, and `supersede_candidate`.
+
+## Acceptance Criteria
+
+- The implementation separates back-testing from operational replay.
+- The first implementation source is normalized events, not raw-provider pulls.
+- Back-test outputs are isolated from operational ledgers.
 - Production graph writes remain deferred.
-- Policy calibration is deterministic in the first implementation.
-- The next implementation gate can build a thin MVP runner without committing to a final storage schema or implementation details.
+- Policy calibration is deterministic.
+- The MVP can run from CLI and be inspected through read-only APIs.
 
 ## Deferred Work
 
@@ -123,7 +131,7 @@ Each back-test run should produce at least:
 
 ## Recommended Next Gate
 
-G082 should implement a thin MVP back-test runner and storage boundary based on this specification after review approval.
+G082 should use G081 results to add operator ergonomics around run creation/inspection or broaden calibration metrics after one bounded smoke run is reviewed.
 
 ## Documentation Links
 

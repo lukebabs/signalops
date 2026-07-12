@@ -47,6 +47,20 @@ func (p Processor) Process(ctx context.Context, message broker.ConsumedMessage) 
 	return record, nil
 }
 
+// LedgerRecordFromEventJSON maps a signal.v1 JSON payload into the same ledger
+// representation used by the live signal persister without persisting it.
+func LedgerRecordFromEventJSON(value []byte, message broker.ConsumedMessage) (storage.SignalLedgerRecord, error) {
+	event, err := DecodeEvent(value)
+	if err != nil {
+		return storage.SignalLedgerRecord{}, InvalidEventError{Err: err}
+	}
+	record, err := ledgerRecord(event, message)
+	if err != nil {
+		return storage.SignalLedgerRecord{}, InvalidEventError{Err: err}
+	}
+	return record, nil
+}
+
 type Event struct {
 	SignalID          string           `json:"signal_id"`
 	TenantID          string           `json:"tenant_id"`

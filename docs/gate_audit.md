@@ -6099,3 +6099,34 @@ Validation performed:
 Result:
 
 - G081 remains ready for operator/architecture review. No implementation has started.
+
+
+## Gate G081: Back-Test Substrate MVP Implementation
+
+Timestamp: `2026-07-12T04:20:00Z`
+
+Status: `implemented`
+
+Scope:
+
+- Implement isolated MarketOps back-test storage and read APIs.
+- Run historical normalized MarketOps events through the existing Python detector path.
+- Persist generated signals, artifacts, graph proposals, and deterministic policy recommendations under a back-test run id only.
+
+Implementation:
+
+- Added migration `000014_marketops_backtest_substrate`.
+- Added `cmd/marketops-backtest` and `python/signalops_workers/backtest_detector.py`.
+- Added `internal/marketops/dsm` extraction and policy helpers.
+- Added read-only `/v1/marketops/backtests` routes and tests.
+
+Validation performed:
+
+- Full Go suite passed in Docker.
+- Full Python suite passed with `PYTHONPATH=python`.
+- JSON schema validation passed.
+- Docker builds passed for `marketops-backtest` and `python-worker` targets.
+
+Result:
+
+- G081 is implemented as a bounded MVP substrate. Operational replay and production graph materialization remain separate/deferred.

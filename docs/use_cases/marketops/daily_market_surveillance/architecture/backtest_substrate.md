@@ -1,6 +1,6 @@
 # Back-Test Substrate Architecture
 
-Status: specification proposed
+Status: MVP implemented
 Use case: MarketOps Daily Market Surveillance
 
 ## Purpose
@@ -23,7 +23,7 @@ The back-test substrate may reuse replay concepts such as windows, max records, 
 
 ## Architecture Boundary
 
-The proposed G082 implementation should use this flow:
+The implemented G081 MVP uses this flow:
 
 ```text
 normalized_event_ledger
@@ -53,7 +53,7 @@ Do not materialize graph writes from a back-test run. Accepted proposals from G0
 
 ## Conceptual Storage Model
 
-Future implementation should add a small isolated storage boundary:
+G081 adds this isolated storage boundary:
 
 - `marketops_backtest_runs`
 - `marketops_backtest_signals`
@@ -63,7 +63,7 @@ Future implementation should add a small isolated storage boundary:
 
 Aggregate run metrics are stored on the `marketops_backtest_runs` row rather than a separate metrics table.
 
-The exact schema should be decided in G082, but the interface must preserve:
+The MVP schema preserves:
 
 - run identity
 - source window and filters
@@ -82,7 +82,7 @@ Back-tests should be reproducible for the same:
 - policy version
 - run options
 
-Generated ids should include the back-test run id or a deterministic run namespace so that repeated runs do not collide with production ids. This follows the same deterministic-id philosophy as the G079 `proposal_id` convention, where replaying the same source data is idempotent.
+Back-test rows are keyed by `run_id` plus generated object ids, so repeated runs remain isolated from production rows and from each other. This follows the same deterministic-id philosophy as the G079 `proposal_id` convention, while preserving experiment-level isolation.
 
 ## Policy Calibration
 
@@ -127,3 +127,11 @@ A thin MVP is successful when it can:
 - G080 operator review workflow: `../gates/G080_operator_graph_proposal_review.md`
 - Current signal and artifact ledger semantics: `signal_artifact_persistence.md`
 - Replay API contract: `../../../../api.md`
+
+
+## Implemented Interfaces
+
+- Operator command: `cmd/marketops-backtest`.
+- Detector adapter: `python/signalops_workers/backtest_detector.py`.
+- Read-only APIs: `/v1/marketops/backtests`, `/v1/marketops/backtests/{run_id}`, `/v1/marketops/backtests/{run_id}/signals`, and `/v1/marketops/backtests/{run_id}/graph-proposals`.
+- Reusable DSM helpers: `internal/marketops/dsm` for artifact extraction, graph proposal extraction, and deterministic policy classification.

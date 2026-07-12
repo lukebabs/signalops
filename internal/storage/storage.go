@@ -82,6 +82,13 @@ const (
 	MarketOpsDSMGraphProposalStatusSuperseded = "superseded"
 )
 
+const (
+	MarketOpsBacktestPolicyAutoAcceptCandidate  = "auto_accept_candidate"
+	MarketOpsBacktestPolicyAutoRejectCandidate  = "auto_reject_candidate"
+	MarketOpsBacktestPolicyManualReviewRequired = "manual_review_required"
+	MarketOpsBacktestPolicySupersedeCandidate   = "supersede_candidate"
+)
+
 type SchedulerRunRecord struct {
 	RunID            string
 	TenantID         string
@@ -488,6 +495,63 @@ type MarketOpsDSMGraphProposalRecord struct {
 	UpdatedAt      time.Time
 }
 
+type MarketOpsBacktestRunRecord struct {
+	RunID           string
+	TenantID        string
+	AppID           string
+	Domain          string
+	UseCase         string
+	SourceID        string
+	SourceAdapter   string
+	Dataset         string
+	DetectorID      string
+	DetectorVersion string
+	Status          string
+	RequestedBy     string
+	WindowStart     time.Time
+	WindowEnd       time.Time
+	StartedAt       time.Time
+	CompletedAt     *time.Time
+	FiltersJSON     []byte
+	ParametersJSON  []byte
+	MetricsJSON     []byte
+	ErrorMessage    string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type MarketOpsBacktestSignalRecord struct {
+	RunID string
+	SignalLedgerRecord
+}
+
+type MarketOpsBacktestArtifactRecord struct {
+	RunID string
+	MarketOpsDSMArtifactRecord
+}
+
+type MarketOpsBacktestGraphProposalRecord struct {
+	RunID string
+	MarketOpsDSMGraphProposalRecord
+}
+
+type MarketOpsBacktestPolicyResultRecord struct {
+	RunID              string
+	PolicyResultID     string
+	ProposalID         string
+	ArtifactID         string
+	SignalID           string
+	TenantID           string
+	SubjectSymbol      string
+	CandidateType      string
+	Recommendation     string
+	Reason             string
+	PolicyVersion      string
+	Confidence         float64
+	DecisionInputsJSON []byte
+	CreatedAt          time.Time
+}
+
 type SchedulerRunRepository interface {
 	UpsertSchedulerRun(ctx context.Context, record SchedulerRunRecord) error
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
@@ -545,6 +609,19 @@ type MarketOpsDSMGraphProposalRepository interface {
 	ListMarketOpsDSMGraphProposals(ctx context.Context, filter MarketOpsDSMGraphProposalFilter) ([]MarketOpsDSMGraphProposalRecord, error)
 	GetMarketOpsDSMGraphProposal(ctx context.Context, proposalID string) (MarketOpsDSMGraphProposalRecord, error)
 	MutateMarketOpsDSMGraphProposal(ctx context.Context, mutation MarketOpsDSMGraphProposalMutation) (MarketOpsDSMGraphProposalRecord, error)
+}
+
+type MarketOpsBacktestRepository interface {
+	CreateMarketOpsBacktestRun(ctx context.Context, record MarketOpsBacktestRunRecord) error
+	CompleteMarketOpsBacktestRun(ctx context.Context, runID string, completedAt time.Time, metricsJSON []byte) (MarketOpsBacktestRunRecord, error)
+	FailMarketOpsBacktestRun(ctx context.Context, runID string, failedAt time.Time, errorMessage string, metricsJSON []byte) (MarketOpsBacktestRunRecord, error)
+	PersistMarketOpsBacktestBatch(ctx context.Context, run MarketOpsBacktestRunRecord, signals []MarketOpsBacktestSignalRecord, artifacts []MarketOpsBacktestArtifactRecord, proposals []MarketOpsBacktestGraphProposalRecord, policyResults []MarketOpsBacktestPolicyResultRecord) error
+	ListMarketOpsBacktestRuns(ctx context.Context, filter MarketOpsBacktestRunFilter) ([]MarketOpsBacktestRunRecord, error)
+	GetMarketOpsBacktestRun(ctx context.Context, runID string) (MarketOpsBacktestRunRecord, error)
+	ListMarketOpsBacktestSignals(ctx context.Context, filter MarketOpsBacktestSignalFilter) ([]MarketOpsBacktestSignalRecord, error)
+	ListMarketOpsBacktestGraphProposals(ctx context.Context, filter MarketOpsBacktestGraphProposalFilter) ([]MarketOpsBacktestGraphProposalRecord, error)
+	ListMarketOpsBacktestPolicyResults(ctx context.Context, filter MarketOpsBacktestGraphProposalFilter) ([]MarketOpsBacktestPolicyResultRecord, error)
+	ListMarketOpsBacktestNormalizedEvents(ctx context.Context, filter MarketOpsBacktestEventFilter) ([]NormalizedEventLedgerRecord, error)
 }
 
 type CatalogRepository interface {
@@ -638,6 +715,51 @@ type MarketOpsDSMGraphProposalMutation struct {
 	DecidedAt    time.Time
 }
 
+type MarketOpsBacktestRunFilter struct {
+	TenantID   string
+	AppID      string
+	Domain     string
+	UseCase    string
+	SourceID   string
+	Dataset    string
+	DetectorID string
+	Status     string
+	Limit      int
+}
+
+type MarketOpsBacktestSignalFilter struct {
+	RunID         string
+	TenantID      string
+	SignalType    string
+	SubjectSymbol string
+	Limit         int
+}
+
+type MarketOpsBacktestGraphProposalFilter struct {
+	RunID          string
+	TenantID       string
+	SignalType     string
+	SubjectSymbol  string
+	CandidateType  string
+	Recommendation string
+	Limit          int
+}
+
+type MarketOpsBacktestEventFilter struct {
+	TenantID      string
+	AppID         string
+	Domain        string
+	UseCase       string
+	SourceID      string
+	SourceAdapter string
+	Dataset       string
+	Symbols       []string
+	WindowStart   time.Time
+	WindowEnd     time.Time
+	Limit         int
+	Offset        int
+}
+
 type ReplayJobFilter struct {
 	TenantID   string
 	SourceID   string
@@ -650,6 +772,7 @@ type ReplayJobFilter struct {
 type QueryRepository interface {
 	ReplayJobRepository
 	ReplayWorkerHeartbeatRepository
+	MarketOpsBacktestRepository
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
 	ListReplayJobs(ctx context.Context, filter ReplayJobFilter) ([]ReplayJobRecord, error)
