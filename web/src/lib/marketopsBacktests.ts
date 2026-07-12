@@ -481,3 +481,130 @@ export function formatEvaluationPercent(value: unknown): string {
   if (!Number.isFinite(pct)) return '—';
   return Number.isInteger(pct) ? `${pct}%` : `${pct.toFixed(1)}%`;
 }
+
+// G086 promotion review display helpers. These power the promotion candidate
+// panel: readiness chips, candidate status chips, and the evidence summary
+// surfaced from the server-built evidence snapshot. Readiness/decision values
+// are advisory audit labels — the UI never renders them as runtime deploy
+// decisions.
+
+// Readiness status values. Mirror the backend constants in
+// internal/storage/storage.go (MarketOpsBacktestPromotionReadiness*).
+export const MARKETOPS_BACKTEST_PROMOTION_READINESS_STATUSES = [
+  'ready_for_review',
+  'needs_more_data',
+  'manual_review_required',
+  'regression_detected',
+  'blocked',
+] as const;
+
+// Restrained token colors for readiness chips. ready -> green,
+// manual_review -> amber, needs_more_data -> gray, regression/blocked -> red.
+export const PROMOTION_READINESS_STYLES: Record<string, string> = {
+  ready_for_review: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  needs_more_data: 'text-gray-700 bg-gray-50 border-gray-200',
+  manual_review_required: 'text-amber-700 bg-amber-50 border-amber-200',
+  regression_detected: 'text-red-700 bg-red-50 border-red-200',
+  blocked: 'text-red-700 bg-red-50 border-red-200',
+};
+
+export function promotionReadinessStyle(key: string): string {
+  return PROMOTION_READINESS_STYLES[key] ?? 'text-gray-700 bg-gray-50 border-gray-200';
+}
+
+// Humanize a readiness key: "needs_more_data" -> "needs more data".
+export function promotionReadinessLabel(key: string): string {
+  return typeof key === 'string' ? key.replace(/_/g, ' ') : '';
+}
+
+// Operator decision statuses (the values the decision endpoint accepts).
+// Mirror internal/storage/storage.go (MarketOpsBacktestPromotionCandidateStatus*).
+export const MARKETOPS_BACKTEST_PROMOTION_DECISION_STATUSES = [
+  'approved_for_promotion',
+  'rejected',
+  'deferred',
+  'superseded',
+] as const;
+
+// Restrained token colors for candidate status chips. approved -> green,
+// rejected -> red, deferred -> amber, superseded -> violet, proposed -> gray.
+export const PROMOTION_CANDIDATE_STATUS_STYLES: Record<string, string> = {
+  proposed: 'text-gray-700 bg-gray-50 border-gray-200',
+  approved_for_promotion: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  rejected: 'text-red-700 bg-red-50 border-red-200',
+  deferred: 'text-amber-700 bg-amber-50 border-amber-200',
+  superseded: 'text-violet-700 bg-violet-50 border-violet-200',
+};
+
+export function promotionCandidateStatusStyle(key: string): string {
+  return PROMOTION_CANDIDATE_STATUS_STYLES[key] ?? 'text-gray-700 bg-gray-50 border-gray-200';
+}
+
+export function promotionCandidateStatusLabel(key: string): string {
+  return typeof key === 'string' ? key.replace(/_/g, ' ') : '';
+}
+
+export interface PromotionEvidenceSummary {
+  comparisonRecommendation: string;
+  comparisonRecommendationReason: string;
+  hasEvaluation: boolean;
+  evaluationId: string;
+  evaluationRecommendation: string;
+  evaluationRecommendationNote: string;
+  precision: number;
+  recall: number;
+  accuracy: number;
+  labelCoverage: number;
+  policyVersion: string;
+  detectorVersion: string;
+  readinessReasons: string[];
+}
+
+const EMPTY_PROMOTION_EVIDENCE: PromotionEvidenceSummary = {
+  comparisonRecommendation: '',
+  comparisonRecommendationReason: '',
+  hasEvaluation: false,
+  evaluationId: '',
+  evaluationRecommendation: '',
+  evaluationRecommendationNote: '',
+  precision: 0,
+  recall: 0,
+  accuracy: 0,
+  labelCoverage: 0,
+  policyVersion: '',
+  detectorVersion: '',
+  readinessReasons: [],
+};
+
+// Tolerantly summarize a promotion candidate's evidence snapshot into display
+// values. Never throws: a missing/non-object evidence yields the empty summary.
+// Evaluation rates are kept as their 0–1 fractions; the UI formats them with
+// formatEvaluationPercent (compact percentages).
+export function summarizePromotionEvidence(evidence: unknown): PromotionEvidenceSummary {
+  if (!isRecord(evidence)) return { ...EMPTY_PROMOTION_EVIDENCE };
+  const comparison = isRecord(evidence.comparison) ? evidence.comparison : {};
+  const evaluation = isRecord(evidence.evaluation) ? evidence.evaluation : null;
+  const detector = isRecord(evidence.detector) ? evidence.detector : {};
+  const readiness = isRecord(evidence.readiness) ? evidence.readiness : {};
+  const reasons = Array.isArray(readiness.reasons)
+    ? readiness.reasons.filter((r): r is string => typeof r === 'string')
+    : [];
+  return {
+    comparisonRecommendation: typeof comparison.recommendation === 'string' ? comparison.recommendation : '',
+    comparisonRecommendationReason:
+      typeof comparison.recommendation_reason === 'string' ? comparison.recommendation_reason : '',
+    hasEvaluation: !!evaluation && typeof evaluation.evaluation_id === 'string' && evaluation.evaluation_id !== '',
+    evaluationId: evaluation && typeof evaluation.evaluation_id === 'string' ? evaluation.evaluation_id : '',
+    evaluationRecommendation:
+      evaluation && typeof evaluation.recommendation === 'string' ? evaluation.recommendation : '',
+    evaluationRecommendationNote:
+      evaluation && typeof evaluation.recommendation_note === 'string' ? evaluation.recommendation_note : '',
+    precision: evaluation ? asNumber(evaluation.precision) : 0,
+    recall: evaluation ? asNumber(evaluation.recall) : 0,
+    accuracy: evaluation ? asNumber(evaluation.accuracy) : 0,
+    labelCoverage: evaluation ? asNumber(evaluation.label_coverage) : 0,
+    policyVersion: typeof evidence.policy_version === 'string' ? evidence.policy_version : '',
+    detectorVersion: typeof detector.detector_version === 'string' ? detector.detector_version : '',
+    readinessReasons: reasons,
+  };
+}

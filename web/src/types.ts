@@ -1154,3 +1154,122 @@ export interface MarketOpsBacktestEvaluationFilter {
   recommendation?: MarketOpsBacktestEvaluationRecommendation | '';
   limit?: number;
 }
+
+// G086 promotion review candidates. A promotion candidate packages G083
+// baseline-comparison evidence and optional G085 evaluation evidence into an
+// auditable review record. This is a REVIEW workflow only — recording a
+// decision never deploys, edits thresholds, writes graph state, or trains.
+export type MarketOpsBacktestPromotionReadinessStatus =
+  | 'ready_for_review'
+  | 'needs_more_data'
+  | 'manual_review_required'
+  | 'regression_detected'
+  | 'blocked'
+  | string;
+
+export type MarketOpsBacktestPromotionCandidateStatus =
+  | 'proposed'
+  | 'approved_for_promotion'
+  | 'rejected'
+  | 'deferred'
+  | 'superseded'
+  | string;
+
+// evidence is a server-built snapshot. Every block is optional + permissive so
+// a forward-shaped or partial payload renders blanks instead of throwing.
+export interface MarketOpsBacktestPromotionEvidence {
+  baseline?: { baseline_id?: string; summary_id?: string; name?: string } & Record<string, unknown>;
+  comparison?: {
+    comparison_id?: string;
+    recommendation?: string;
+    recommendation_reason?: string;
+    metrics?: Record<string, unknown>;
+  } & Record<string, unknown>;
+  evaluation?: {
+    evaluation_id?: string;
+    recommendation?: string;
+    recommendation_note?: string;
+    precision?: number;
+    recall?: number;
+    accuracy?: number;
+    label_coverage?: number;
+    candidate_count?: number;
+    labeled_count?: number;
+    true_positive?: number;
+    false_positive?: number;
+    true_negative?: number;
+    false_negative?: number;
+  } & Record<string, unknown>;
+  detector?: { detector_id?: string; detector_version?: string } & Record<string, unknown>;
+  run?: { run_id?: string } & Record<string, unknown>;
+  policy_version?: string;
+  readiness?: { status?: string; reasons?: string[]; [key: string]: unknown };
+  [key: string]: unknown;
+}
+
+export interface MarketOpsBacktestPromotionCandidate {
+  candidate_id: string;
+  tenant_id: string;
+  app_id: string;
+  domain: string;
+  use_case: string;
+  baseline_id: string;
+  comparison_id: string;
+  evaluation_id: string;
+  run_id: string;
+  detector_id: string;
+  detector_version: string;
+  dataset: string;
+  policy_version: string;
+  candidate_version: string;
+  readiness_status: MarketOpsBacktestPromotionReadinessStatus;
+  readiness_reasons: string[];
+  evidence: MarketOpsBacktestPromotionEvidence;
+  status: MarketOpsBacktestPromotionCandidateStatus;
+  requested_by: string;
+  reviewed_by: string;
+  reviewed_at?: string;
+  decision_note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsBacktestPromotionCandidatesResponse {
+  promotion_candidates: MarketOpsBacktestPromotionCandidate[];
+}
+
+export interface MarketOpsBacktestPromotionCandidateResponse {
+  promotion_candidate: MarketOpsBacktestPromotionCandidate;
+}
+
+export interface MarketOpsBacktestPromotionCandidateCreateRequest {
+  candidate_id?: string;
+  tenant_id: string;
+  baseline_id: string;
+  comparison_id: string;
+  evaluation_id?: string;
+  candidate_version?: string;
+  requested_by?: string;
+}
+
+export interface MarketOpsBacktestPromotionCandidateDecisionRequest {
+  status: Exclude<MarketOpsBacktestPromotionCandidateStatus, 'proposed'>;
+  reviewed_by?: string;
+  decision_note?: string;
+}
+
+export interface MarketOpsBacktestPromotionCandidateFilter {
+  tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
+  baseline_id?: string;
+  comparison_id?: string;
+  evaluation_id?: string;
+  run_id?: string;
+  detector_id?: string;
+  dataset?: string;
+  readiness_status?: MarketOpsBacktestPromotionReadinessStatus | '';
+  status?: MarketOpsBacktestPromotionCandidateStatus | '';
+  limit?: number;
+}

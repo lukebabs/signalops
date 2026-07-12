@@ -32,6 +32,10 @@ import type {
   MarketOpsBacktestEvaluationFilter,
   MarketOpsBacktestEvaluationCreateRequest,
   MarketOpsBacktestEvaluationResponse,
+  MarketOpsBacktestPromotionCandidateFilter,
+  MarketOpsBacktestPromotionCandidateCreateRequest,
+  MarketOpsBacktestPromotionCandidateDecisionRequest,
+  MarketOpsBacktestPromotionCandidateResponse,
 } from '../types';
 
 export const queryKeys = {
@@ -88,6 +92,10 @@ export const queryKeys = {
     ['marketops-backtest-evaluations', filter] as const,
   marketOpsBacktestEvaluation: (evaluationId: string) =>
     ['marketops-backtest-evaluation', evaluationId] as const,
+  marketOpsBacktestPromotionCandidates: (filter: MarketOpsBacktestPromotionCandidateFilter) =>
+    ['marketops-backtest-promotion-candidates', filter] as const,
+  marketOpsBacktestPromotionCandidate: (candidateId: string) =>
+    ['marketops-backtest-promotion-candidate', candidateId] as const,
 };
 
 export function useHealthz() {
@@ -574,6 +582,75 @@ export function useCreateMarketOpsBacktestEvaluation() {
   return useMutation({
     mutationFn: (body: MarketOpsBacktestEvaluationCreateRequest) => api.createMarketOpsBacktestEvaluation(body),
     onSuccess: (data) => applyBacktestEvaluationCreateResult(queryClient, data),
+  });
+}
+
+// G086 promotion review candidates. Not polled; a create or decision
+// invalidation is enough for the panel to refresh without a manual reload.
+// Detail only runs while a candidate id is selected (guarded by a truthy id).
+export function useMarketOpsBacktestPromotionCandidates(filter: MarketOpsBacktestPromotionCandidateFilter = { tenant_id: 'tenant-local', limit: 50 }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestPromotionCandidates(filter),
+    queryFn: () => api.listMarketOpsBacktestPromotionCandidates(filter),
+  });
+}
+
+export function useMarketOpsBacktestPromotionCandidate(candidateId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestPromotionCandidate(candidateId ?? ''),
+    queryFn: () => api.getMarketOpsBacktestPromotionCandidate(candidateId!),
+    enabled: !!candidateId,
+  });
+}
+
+// Seed the candidate detail cache and invalidate promotion candidate list/detail
+// prefixes. Only promotion queries are touched — never production DSM graph
+// proposal, signal, alert, insight, or policy queries. Shared by create and
+// decision: both return the full candidate and need the same refresh.
+function applyBacktestPromotionCandidateResult(
+  queryClient: QueryClient,
+  data: MarketOpsBacktestPromotionCandidateResponse,
+) {
+  queryClient.setQueryData(
+    queryKeys.marketOpsBacktestPromotionCandidate(data.promotion_candidate.candidate_id),
+    data,
+  );
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtest-promotion-candidates'] });
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtest-promotion-candidate'] });
+}
+
+// Extracted so it can be exercised against a real QueryClient in tests without
+// rendering the hook. Frames the shared refresh as the create mutation.
+export function applyBacktestPromotionCandidateCreateResult(
+  queryClient: QueryClient,
+  data: MarketOpsBacktestPromotionCandidateResponse,
+) {
+  applyBacktestPromotionCandidateResult(queryClient, data);
+}
+
+// Frames the same shared refresh as the decision mutation.
+export function applyBacktestPromotionCandidateDecisionResult(
+  queryClient: QueryClient,
+  data: MarketOpsBacktestPromotionCandidateResponse,
+) {
+  applyBacktestPromotionCandidateResult(queryClient, data);
+}
+
+export function useCreateMarketOpsBacktestPromotionCandidate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MarketOpsBacktestPromotionCandidateCreateRequest) =>
+      api.createMarketOpsBacktestPromotionCandidate(body),
+    onSuccess: (data) => applyBacktestPromotionCandidateCreateResult(queryClient, data),
+  });
+}
+
+export function useDecideMarketOpsBacktestPromotionCandidate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { candidateId: string; request: MarketOpsBacktestPromotionCandidateDecisionRequest }) =>
+      api.decideMarketOpsBacktestPromotionCandidate(vars.candidateId, vars.request),
+    onSuccess: (data) => applyBacktestPromotionCandidateDecisionResult(queryClient, data),
   });
 }
 

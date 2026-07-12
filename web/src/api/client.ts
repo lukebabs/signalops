@@ -65,6 +65,11 @@ import type {
   MarketOpsBacktestEvaluationResponse,
   MarketOpsBacktestEvaluationCreateRequest,
   MarketOpsBacktestEvaluationFilter,
+  MarketOpsBacktestPromotionCandidatesResponse,
+  MarketOpsBacktestPromotionCandidateResponse,
+  MarketOpsBacktestPromotionCandidateCreateRequest,
+  MarketOpsBacktestPromotionCandidateDecisionRequest,
+  MarketOpsBacktestPromotionCandidateFilter,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -476,4 +481,40 @@ export const api = {
     ),
   createMarketOpsBacktestEvaluation: (body: MarketOpsBacktestEvaluationCreateRequest) =>
     post<MarketOpsBacktestEvaluationResponse>('/v1/marketops/backtest-evaluations', body),
+  // G086 promotion review candidates. A candidate packages G083 comparison +
+  // optional G085 evaluation evidence into an auditable review record. Like
+  // G082/G083/G085 these are plain same-origin reads + writes; the gateway
+  // derives the actor via replayActor (header -> body -> operator-local), so no
+  // actor header is sent. The decision endpoint mutates only the candidate row
+  // (it deploys nothing). Filters mirror the backend list query params.
+  listMarketOpsBacktestPromotionCandidates: (filter: MarketOpsBacktestPromotionCandidateFilter = {}) =>
+    get<MarketOpsBacktestPromotionCandidatesResponse>('/v1/marketops/backtest-promotion-candidates', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      app_id: filter.app_id || undefined,
+      domain: filter.domain || undefined,
+      use_case: filter.use_case || undefined,
+      baseline_id: filter.baseline_id || undefined,
+      comparison_id: filter.comparison_id || undefined,
+      evaluation_id: filter.evaluation_id || undefined,
+      run_id: filter.run_id || undefined,
+      detector_id: filter.detector_id || undefined,
+      dataset: filter.dataset || undefined,
+      readiness_status: filter.readiness_status || undefined,
+      status: filter.status || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getMarketOpsBacktestPromotionCandidate: (candidateId: string) =>
+    get<MarketOpsBacktestPromotionCandidateResponse>(
+      `/v1/marketops/backtest-promotion-candidates/${encodeURIComponent(candidateId)}`,
+    ),
+  createMarketOpsBacktestPromotionCandidate: (body: MarketOpsBacktestPromotionCandidateCreateRequest) =>
+    post<MarketOpsBacktestPromotionCandidateResponse>('/v1/marketops/backtest-promotion-candidates', body),
+  decideMarketOpsBacktestPromotionCandidate: (
+    candidateId: string,
+    body: MarketOpsBacktestPromotionCandidateDecisionRequest,
+  ) =>
+    post<MarketOpsBacktestPromotionCandidateResponse>(
+      `/v1/marketops/backtest-promotion-candidates/${encodeURIComponent(candidateId)}/decision`,
+      body,
+    ),
 };

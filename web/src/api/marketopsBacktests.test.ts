@@ -28,6 +28,8 @@ const {
   applyBacktestCalibrationBaselineCreateResult,
   applyBacktestCalibrationComparisonCreateResult,
   applyBacktestEvaluationCreateResult,
+  applyBacktestPromotionCandidateCreateResult,
+  applyBacktestPromotionCandidateDecisionResult,
 } = await import('./queries');
 
 afterEach(() => {
@@ -688,6 +690,206 @@ describe('applyBacktestEvaluationCreateResult (G085 mutation invalidation)', () 
     expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['signals'] });
     expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-dsm-graph-proposals'] });
     expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtests'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtest-graph-proposals'] });
+  });
+});
+
+describe('MarketOps back-test promotion candidates API client (G086)', () => {
+  it('creates, lists, fetches, and decides a candidate via the G086 endpoints', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            promotion_candidate: {
+              candidate_id: 'btpromo-1',
+              tenant_id: 'tenant-local',
+              baseline_id: 'btbase-1',
+              comparison_id: 'btcmp-1',
+              evaluation_id: 'bteval-1',
+              run_id: 'bt-1',
+              readiness_status: 'ready_for_review',
+              readiness_reasons: ['comparison and evaluation evidence meet review thresholds'],
+              status: 'proposed',
+              evidence: { comparison: { recommendation: 'neutral_candidate' }, readiness: { status: 'ready_for_review' } },
+            },
+          },
+          201,
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ promotion_candidates: [{ candidate_id: 'btpromo-1' }] }))
+      .mockResolvedValueOnce(jsonResponse({ promotion_candidate: { candidate_id: 'btpromo-1' } }))
+      .mockResolvedValueOnce(jsonResponse({ promotion_candidate: { candidate_id: 'btpromo-1', status: 'deferred', decision_note: 'hold' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    state.authEnabled = true;
+    state.token = 'jwt-abc';
+
+    const created = await api.createMarketOpsBacktestPromotionCandidate({
+      tenant_id: 'tenant-local',
+      baseline_id: 'btbase-1',
+      comparison_id: 'btcmp-1',
+      evaluation_id: 'bteval-1',
+      candidate_version: 'taxonomy-v1-policy-v1-review-20260712',
+    });
+    const list = await api.listMarketOpsBacktestPromotionCandidates({
+      tenant_id: 'tenant-local',
+      baseline_id: 'btbase-1',
+      status: 'proposed',
+      readiness_status: 'ready_for_review',
+      limit: 50,
+    });
+    const detail = await api.getMarketOpsBacktestPromotionCandidate('btpromo-1');
+    const decided = await api.decideMarketOpsBacktestPromotionCandidate('btpromo-1', {
+      status: 'deferred',
+      decision_note: 'hold',
+    });
+
+    // Create: POST with bearer + JSON body; only the request fields are sent.
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/marketops/backtest-promotion-candidates');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[0][1].headers['Authorization']).toBe('Bearer jwt-abc');
+    expect(fetchMock.mock.calls[0][1].headers['Content-Type']).toBe('application/json');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      tenant_id: 'tenant-local',
+      baseline_id: 'btbase-1',
+      comparison_id: 'btcmp-1',
+      evaluation_id: 'bteval-1',
+      candidate_version: 'taxonomy-v1-policy-v1-review-20260712',
+    });
+    // List: baseline + status + readiness filters + default limit.
+    const listUrl = String(fetchMock.mock.calls[1][0]);
+    expect(listUrl).toContain('tenant_id=tenant-local');
+    expect(listUrl).toContain('baseline_id=btbase-1');
+    expect(listUrl).toContain('status=proposed');
+    expect(listUrl).toContain('readiness_status=ready_for_review');
+    expect(listUrl).toContain('limit=50');
+    // Detail: encoded candidate id.
+    expect(String(fetchMock.mock.calls[2][0])).toContain('/v1/marketops/backtest-promotion-candidates/btpromo-1');
+    // Decision: POST to /{candidate_id}/decision with status + note.
+    expect(String(fetchMock.mock.calls[3][0])).toContain('/v1/marketops/backtest-promotion-candidates/btpromo-1/decision');
+    expect(fetchMock.mock.calls[3][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[3][1].body)).toEqual({ status: 'deferred', decision_note: 'hold' });
+    // Envelopes parse, including nested evidence + readiness_reasons.
+    expect(created.promotion_candidate.readiness_status).toBe('ready_for_review');
+    expect(created.promotion_candidate.readiness_reasons).toHaveLength(1);
+    expect(created.promotion_candidate.evidence.comparison?.recommendation).toBe('neutral_candidate');
+    expect(list.promotion_candidates[0].candidate_id).toBe('btpromo-1');
+    expect(detail.promotion_candidate.candidate_id).toBe('btpromo-1');
+    expect(decided.promotion_candidate.status).toBe('deferred');
+  });
+
+  it('omits optional fields from the create body and the decision body', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ promotion_candidate: { candidate_id: 'btpromo-2' } }, 201))
+      .mockResolvedValueOnce(jsonResponse({ promotion_candidate: { candidate_id: 'btpromo-2', status: 'rejected' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.createMarketOpsBacktestPromotionCandidate({
+      tenant_id: 'tenant-local',
+      baseline_id: 'btbase-1',
+      comparison_id: 'btcmp-1',
+    });
+    await api.decideMarketOpsBacktestPromotionCandidate('btpromo-2', { status: 'rejected' });
+
+    const createBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(createBody).toEqual({ tenant_id: 'tenant-local', baseline_id: 'btbase-1', comparison_id: 'btcmp-1' });
+    expect(createBody.evaluation_id).toBeUndefined();
+    expect(createBody.candidate_version).toBeUndefined();
+    const decisionBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(decisionBody).toEqual({ status: 'rejected' });
+    expect(decisionBody.decision_note).toBeUndefined();
+  });
+
+  it('encodes special characters in the candidate id on the detail + decision paths', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ promotion_candidate: {} }))
+      .mockResolvedValueOnce(jsonResponse({ promotion_candidate: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.getMarketOpsBacktestPromotionCandidate('btpromo/a b');
+    await api.decideMarketOpsBacktestPromotionCandidate('btpromo/a b', { status: 'deferred' });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/marketops/backtest-promotion-candidates/btpromo%2Fa%20b');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/v1/marketops/backtest-promotion-candidates/btpromo%2Fa%20b/decision');
+  });
+});
+
+describe('MarketOps back-test promotion candidate query keys (G086)', () => {
+  it('uses stable promotion candidate list/detail keys', () => {
+    const filter = { tenant_id: 'tenant-local', baseline_id: 'btbase-1', status: 'proposed' as const, limit: 50 };
+
+    expect(queryKeys.marketOpsBacktestPromotionCandidates(filter)).toEqual([
+      'marketops-backtest-promotion-candidates',
+      filter,
+    ]);
+    expect(queryKeys.marketOpsBacktestPromotionCandidates({ ...filter })).toEqual([
+      'marketops-backtest-promotion-candidates',
+      filter,
+    ]);
+    expect(queryKeys.marketOpsBacktestPromotionCandidate('btpromo-1')).toEqual([
+      'marketops-backtest-promotion-candidate',
+      'btpromo-1',
+    ]);
+  });
+
+  it('list and detail keys share the prefixes the create + decision mutations invalidate', () => {
+    const listKey = queryKeys.marketOpsBacktestPromotionCandidates({ tenant_id: 'tenant-local', limit: 50 });
+    const detailKey = queryKeys.marketOpsBacktestPromotionCandidate('btpromo-1');
+    expect(listKey[0]).toBe('marketops-backtest-promotion-candidates');
+    expect(detailKey[0]).toBe('marketops-backtest-promotion-candidate');
+  });
+});
+
+describe('applyBacktestPromotionCandidateCreateResult (G086 mutation invalidation)', () => {
+  it('seeds the candidate detail cache and invalidates only promotion prefixes', () => {
+    const queryClient = new QueryClient();
+    const setSpy = vi.spyOn(queryClient, 'setQueryData');
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const created = {
+      promotion_candidate: { candidate_id: 'btpromo-new', status: 'proposed', readiness_status: 'ready_for_review' },
+    } as never;
+
+    applyBacktestPromotionCandidateCreateResult(queryClient, created);
+
+    const detailKey = queryKeys.marketOpsBacktestPromotionCandidate('btpromo-new');
+    expect(setSpy).toHaveBeenCalledWith(detailKey, created);
+    expect(queryClient.getQueryData<{ promotion_candidate: { candidate_id: string } }>(detailKey)?.promotion_candidate.candidate_id).toBe('btpromo-new');
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-promotion-candidates'] });
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-promotion-candidate'] });
+    // No production or sibling evidence queries are invalidated by a create.
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['signals'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-dsm-graph-proposals'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtest-evaluations'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtest-calibration-baselines'] });
+  });
+});
+
+describe('applyBacktestPromotionCandidateDecisionResult (G086 mutation invalidation)', () => {
+  it('seeds the decided candidate detail cache and invalidates only promotion prefixes', () => {
+    const queryClient = new QueryClient();
+    const setSpy = vi.spyOn(queryClient, 'setQueryData');
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const decided = {
+      promotion_candidate: { candidate_id: 'btpromo-1', status: 'approved_for_promotion', decision_note: 'planning only' },
+    } as never;
+
+    applyBacktestPromotionCandidateDecisionResult(queryClient, decided);
+
+    const detailKey = queryKeys.marketOpsBacktestPromotionCandidate('btpromo-1');
+    expect(setSpy).toHaveBeenCalledWith(detailKey, decided);
+    expect(queryClient.getQueryData<{ promotion_candidate: { status: string } }>(detailKey)?.promotion_candidate.status).toBe('approved_for_promotion');
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-promotion-candidates'] });
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-promotion-candidate'] });
+    // A decision never touches production deploy/graph/signal queries.
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['signals'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-dsm-graph-proposals'] });
     expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtest-graph-proposals'] });
   });
 });

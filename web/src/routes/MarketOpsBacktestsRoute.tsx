@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlaskConical, Plus, GitCompareArrows, ClipboardCheck } from 'lucide-react';
+import { FlaskConical, Plus, GitCompareArrows, ClipboardCheck, GitPullRequestArrow } from 'lucide-react';
 import {
   useMarketOpsBacktests,
   useMarketOpsBacktest,
@@ -14,6 +14,9 @@ import {
   useCreateMarketOpsBacktestCalibrationComparison,
   useMarketOpsBacktestEvaluations,
   useCreateMarketOpsBacktestEvaluation,
+  useMarketOpsBacktestPromotionCandidates,
+  useCreateMarketOpsBacktestPromotionCandidate,
+  useDecideMarketOpsBacktestPromotionCandidate,
 } from '../api/queries';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
@@ -42,6 +45,12 @@ import {
   summarizeBacktestEvaluation,
   isNeedsMoreDataEvaluation,
   formatEvaluationPercent,
+  promotionReadinessLabel,
+  promotionReadinessStyle,
+  promotionCandidateStatusLabel,
+  promotionCandidateStatusStyle,
+  summarizePromotionEvidence,
+  MARKETOPS_BACKTEST_PROMOTION_DECISION_STATUSES,
 } from '../lib/marketopsBacktests';
 import { useTenant } from '../auth/session';
 import type {
@@ -54,6 +63,7 @@ import type {
   MarketOpsBacktestCalibrationBaseline,
   MarketOpsBacktestCalibrationComparison,
   MarketOpsBacktestEvaluation,
+  MarketOpsBacktestPromotionCandidate,
   SignalRecord,
 } from '../types';
 
@@ -169,6 +179,12 @@ export function MarketOpsBacktestsRoute() {
       />
 
       <LabelAwareEvaluationsPanel tenantId={TENANT_ID} selectedRunId={selectedId} />
+
+      <PromotionReviewPanel
+        tenantId={TENANT_ID}
+        baselines={calibrationBaselines.data?.calibration_baselines ?? []}
+        selectedRunId={selectedId}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <select
@@ -1448,6 +1464,312 @@ function EvaluationMetric({ label, value, highlight }: { label: string; value: s
     <div>
       <div className="text-[11px] uppercase tracking-wide text-gray-500">{label}</div>
       <div className={`text-sm font-semibold ${highlight ? 'text-amber-700' : 'text-gray-900'}`}>{value}</div>
+    </div>
+  );
+}
+
+// G086 promotion review. Packages a G083 baseline comparison + optional G085
+// evaluation into an auditable review record. This is a REVIEW workflow only:
+// recording a decision never deploys, edits thresholds, writes graph state, or
+// trains. Decision buttons are labeled to make the audit-only nature clear.
+const PROMOTION_DECISION_ACTION_LABELS: Record<string, string> = {
+  approved_for_promotion: 'Approve for promotion planning',
+  rejected: 'Reject',
+  deferred: 'Defer',
+  superseded: 'Supersede',
+};
+
+function PromotionReviewPanel({
+  tenantId,
+  baselines,
+  selectedRunId,
+}: {
+  tenantId: string;
+  baselines: MarketOpsBacktestCalibrationBaseline[];
+  selectedRunId: string | null;
+}) {
+  const [fBaselineId, setFBaselineId] = useState('');
+  const [fComparisonId, setFComparisonId] = useState('');
+  const [fEvaluationId, setFEvaluationId] = useState('');
+  const [fCandidateVersion, setFCandidateVersion] = useState('');
+
+  // Comparisons are baseline-scoped (gated on baseline_id); evaluations are
+  // run-scoped (gated on run_id). The evaluation selector is optional — when no
+  // run is selected it is empty and readiness will require manual review.
+  const comparisons = useMarketOpsBacktestCalibrationComparisons({
+    tenant_id: tenantId,
+    baseline_id: fBaselineId || undefined,
+    limit: 50,
+  });
+  const evaluations = useMarketOpsBacktestEvaluations({
+    tenant_id: tenantId,
+    run_id: selectedRunId ?? undefined,
+    limit: 50,
+  });
+  const candidates = useMarketOpsBacktestPromotionCandidates({ tenant_id: tenantId, limit: 50 });
+  const createCandidate = useCreateMarketOpsBacktestPromotionCandidate();
+  const decide = useDecideMarketOpsBacktestPromotionCandidate();
+
+  const comparisonRows = comparisons.data?.calibration_comparisons ?? [];
+  const evaluationRows = evaluations.data?.backtest_evaluations ?? [];
+  const candidateRows = candidates.data?.promotion_candidates ?? [];
+  const canCreate = fBaselineId !== '' && fComparisonId !== '' && !createCandidate.isPending;
+
+  function onBaselineChange(id: string) {
+    createCandidate.reset();
+    setFBaselineId(id);
+    setFComparisonId('');
+  }
+
+  function onCreate(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!canCreate) return;
+    createCandidate.mutate(
+      {
+        tenant_id: tenantId,
+        baseline_id: fBaselineId,
+        comparison_id: fComparisonId,
+        evaluation_id: fEvaluationId || undefined,
+        candidate_version: fCandidateVersion.trim() || undefined,
+      },
+      { onSuccess: () => { setFEvaluationId(''); setFCandidateVersion(''); } },
+    );
+  }
+
+  const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
+  const labelCls = 'text-xs text-gray-500';
+
+  return (
+    <div className="rounded border border-gray-200 bg-white p-3">
+      <div className="mb-2 flex items-center gap-1 text-sm font-semibold text-gray-900">
+        <GitPullRequestArrow size={14} /> Promotion Review
+        <span className="ml-1 text-xs font-normal text-gray-500">
+          Packages comparison + evaluation evidence for review · audit decisions only — does not deploy a policy or change runtime behavior
+        </span>
+      </div>
+
+      {/* Create candidate from a baseline comparison (+ optional evaluation). */}
+      <form onSubmit={onCreate} className="mb-3 space-y-2 rounded border border-gray-200 bg-gray-50 p-2" aria-label="Create promotion candidate">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <label className="block">
+            <span className={labelCls}>Baseline</span>
+            <select
+              value={fBaselineId}
+              onChange={(e) => onBaselineChange(e.target.value)}
+              className={`${inputCls} mt-0.5 w-full`}
+              aria-label="Baseline"
+            >
+              <option value="">{baselines.length ? 'select baseline' : 'no active baselines'}</option>
+              {baselines.map((b) => (
+                <option key={b.baseline_id} value={b.baseline_id}>{b.name || b.baseline_id}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className={labelCls}>Comparison <span className="text-gray-400">(required)</span></span>
+            <select
+              value={fComparisonId}
+              onChange={(e) => { createCandidate.reset(); setFComparisonId(e.target.value); }}
+              className={`${inputCls} mt-0.5 w-full`}
+              disabled={!fBaselineId}
+              aria-label="Comparison"
+            >
+              <option value="">{fBaselineId ? (comparisonRows.length ? 'select comparison' : 'no comparisons for baseline') : 'select a baseline first'}</option>
+              {comparisonRows.map((c) => (
+                <option key={c.comparison_id} value={c.comparison_id}>{c.comparison_id}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className={labelCls}>Label-aware evaluation <span className="text-gray-400">(optional)</span></span>
+            <select
+              value={fEvaluationId}
+              onChange={(e) => { createCandidate.reset(); setFEvaluationId(e.target.value); }}
+              className={`${inputCls} mt-0.5 w-full`}
+              aria-label="Label-aware evaluation"
+            >
+              <option value="">{selectedRunId ? (evaluationRows.length ? 'none' : 'no evaluations for selected run') : 'none (select a run to attach one)'}</option>
+              {evaluationRows.map((e) => (
+                <option key={e.evaluation_id} value={e.evaluation_id}>{e.evaluation_id}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className={labelCls}>Candidate version <span className="text-gray-400">(optional)</span></span>
+            <input
+              value={fCandidateVersion}
+              onChange={(e) => { createCandidate.reset(); setFCandidateVersion(e.target.value); }}
+              placeholder="e.g. taxonomy-v1-policy-v1-review-20260712"
+              className={`${inputCls} mt-0.5 w-full`}
+              aria-label="Candidate version"
+            />
+          </label>
+        </div>
+        <button
+          type="submit"
+          disabled={!canCreate}
+          className="inline-flex items-center gap-1 rounded bg-brand-500 px-3 py-1.5 text-sm text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus size={14} /> {createCandidate.isPending ? 'Packaging...' : 'Create promotion candidate'}
+        </button>
+        {createCandidate.isSuccess && createCandidate.data && (
+          <div className="rounded border border-green-200 bg-green-50 p-2 text-xs text-green-800">
+            Saved candidate <code className="font-mono">{createCandidate.data.promotion_candidate.candidate_id}</code>
+            {' · '}readiness {promotionReadinessLabel(createCandidate.data.promotion_candidate.readiness_status)}
+          </div>
+        )}
+        {createCandidate.isError && (
+          <p className="text-xs text-red-700" role="alert">
+            Create failed: {isApiError(createCandidate.error) ? createCandidate.error.message : 'unknown error'}.
+          </p>
+        )}
+      </form>
+
+      {candidates.isLoading ? (
+        <LoadingState label="Loading promotion candidates..." />
+      ) : candidates.isError ? (
+        <p className="text-xs text-amber-700">
+          Promotion candidates unavailable. {isApiError(candidates.error) ? candidates.error.message : ''}
+        </p>
+      ) : candidateRows.length ? (
+        <div className="space-y-2">
+          {candidateRows.map((candidate) => (
+            <PromotionCandidateRow key={candidate.candidate_id} candidate={candidate} decide={decide} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState message="No promotion candidates. Create one from a baseline comparison above." />
+      )}
+    </div>
+  );
+}
+
+function PromotionCandidateRow({
+  candidate,
+  decide,
+}: {
+  candidate: MarketOpsBacktestPromotionCandidate;
+  decide: ReturnType<typeof useDecideMarketOpsBacktestPromotionCandidate>;
+}) {
+  const evidence = summarizePromotionEvidence(candidate.evidence);
+  const [note, setNote] = useState(candidate.decision_note ?? '');
+  // Scope the shared mutation's pending/error state to the row currently acting.
+  const isActing = decide.variables?.candidateId === candidate.candidate_id;
+
+  function decideStatus(status: string) {
+    decide.mutate({
+      candidateId: candidate.candidate_id,
+      request: { status, decision_note: note.trim() || undefined },
+    });
+  }
+
+  return (
+    <div className="rounded border border-gray-200 bg-white p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium ${promotionReadinessStyle(candidate.readiness_status)}`}
+          title={`readiness: ${candidate.readiness_status}`}
+        >
+          {promotionReadinessLabel(candidate.readiness_status)}
+        </span>
+        <span
+          className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium ${promotionCandidateStatusStyle(candidate.status)}`}
+          title={`status: ${candidate.status}`}
+        >
+          {promotionCandidateStatusLabel(candidate.status)}
+        </span>
+        <code className="break-all text-xs text-gray-700">{candidate.candidate_id}</code>
+        <span className="text-xs text-gray-500">{formatUtc(candidate.created_at)}</span>
+      </div>
+
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
+        <span>baseline <code className="font-mono">{candidate.baseline_id || '—'}</code></span>
+        <span>comparison <code className="font-mono">{candidate.comparison_id || '—'}</code></span>
+        {candidate.evaluation_id && <span>evaluation <code className="font-mono">{candidate.evaluation_id}</code></span>}
+        {candidate.run_id && <span>run <code className="font-mono">{candidate.run_id}</code></span>}
+        {candidate.requested_by && <span>requested by {candidate.requested_by}</span>}
+      </div>
+
+      {evidence.readinessReasons.length > 0 && (
+        <ul className="mt-1 list-disc pl-4 text-xs text-gray-600">
+          {evidence.readinessReasons.map((reason, idx) => (
+            <li key={idx}>{reason}</li>
+          ))}
+        </ul>
+      )}
+
+      {/* Compact evidence summary. Comparison recommendation/reason is always
+          present; evaluation metrics render only when an evaluation is attached. */}
+      <div className="mt-1 space-y-1 text-xs text-gray-600">
+        {evidence.comparisonRecommendation && (
+          <div>
+            Comparison: <ComparisonRecommendationChip recommendation={evidence.comparisonRecommendation} />
+            {evidence.comparisonRecommendationReason && <span className="ml-1">— {evidence.comparisonRecommendationReason}</span>}
+          </div>
+        )}
+        {evidence.hasEvaluation && (
+          <>
+            <div>
+              Evaluation: <ComparisonRecommendationChip recommendation={evidence.evaluationRecommendation} />
+              {evidence.evaluationRecommendationNote && <span className="ml-1">— {evidence.evaluationRecommendationNote}</span>}
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+              <EvaluationMetric label="Precision" value={formatEvaluationPercent(evidence.precision)} />
+              <EvaluationMetric label="Recall" value={formatEvaluationPercent(evidence.recall)} />
+              <EvaluationMetric label="Accuracy" value={formatEvaluationPercent(evidence.accuracy)} />
+              <EvaluationMetric label="Label cov." value={formatEvaluationPercent(evidence.labelCoverage)} />
+            </div>
+          </>
+        )}
+        {(evidence.policyVersion || evidence.detectorVersion) && (
+          <div className="text-gray-500">
+            {evidence.policyVersion && <>policy <code className="font-mono">{evidence.policyVersion}</code></>}
+            {evidence.policyVersion && evidence.detectorVersion && ' · '}
+            {evidence.detectorVersion && <>detector v{evidence.detectorVersion}</>}
+          </div>
+        )}
+      </div>
+
+      {(candidate.reviewed_by || candidate.reviewed_at || candidate.decision_note) && (
+        <div className="mt-1 text-xs text-gray-500">
+          {candidate.reviewed_by && <>reviewed by {candidate.reviewed_by}</>}
+          {candidate.reviewed_by && candidate.reviewed_at && ' · '}
+          {candidate.reviewed_at && <>{formatUtc(candidate.reviewed_at)}</>}
+          {candidate.decision_note && <div className="text-gray-600">{candidate.decision_note}</div>}
+        </div>
+      )}
+
+      {/* Audit-only decision controls. No deploy/promote-now/enable wording. */}
+      <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-2">
+        <div className="mb-1 text-[11px] uppercase tracking-wide text-gray-500">Review decision (audit only — not a deployment)</div>
+        <textarea
+          value={note}
+          onChange={(e) => { decide.reset(); setNote(e.target.value); }}
+          placeholder="optional decision note"
+          rows={2}
+          className="mb-2 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+          aria-label="Decision note"
+        />
+        <div className="flex flex-wrap gap-1">
+          {MARKETOPS_BACKTEST_PROMOTION_DECISION_STATUSES.map((status) => (
+            <button
+              key={status}
+              type="button"
+              onClick={() => decideStatus(status)}
+              disabled={decide.isPending && isActing}
+              className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              title={`Record audit decision: ${promotionCandidateStatusLabel(status)}`}
+            >
+              {PROMOTION_DECISION_ACTION_LABELS[status] ?? promotionCandidateStatusLabel(status)}
+            </button>
+          ))}
+        </div>
+        {decide.isError && isActing && (
+          <p className="mt-1 text-xs text-red-700" role="alert">
+            Decision failed: {isApiError(decide.error) ? decide.error.message : 'unknown error'}.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

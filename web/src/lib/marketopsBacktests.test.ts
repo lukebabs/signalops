@@ -17,6 +17,13 @@ import {
   isNeedsMoreDataEvaluation,
   formatEvaluationPercent,
   MARKETOPS_BACKTEST_EVALUATION_RECOMMENDATIONS,
+  promotionReadinessLabel,
+  promotionReadinessStyle,
+  promotionCandidateStatusLabel,
+  promotionCandidateStatusStyle,
+  summarizePromotionEvidence,
+  MARKETOPS_BACKTEST_PROMOTION_READINESS_STATUSES,
+  MARKETOPS_BACKTEST_PROMOTION_DECISION_STATUSES,
 } from './marketopsBacktests';
 
 describe('summarizeBacktestMetrics (G081)', () => {
@@ -385,5 +392,111 @@ describe('formatEvaluationPercent (G085)', () => {
     expect(formatEvaluationPercent(null)).toBe('—');
     expect(formatEvaluationPercent('oops')).toBe('—');
     expect(formatEvaluationPercent(Infinity)).toBe('—');
+  });
+});
+
+describe('promotion readiness + status presentation (G086)', () => {
+  it('surfaces the spec readiness + decision status sets', () => {
+    expect([...MARKETOPS_BACKTEST_PROMOTION_READINESS_STATUSES]).toEqual([
+      'ready_for_review',
+      'needs_more_data',
+      'manual_review_required',
+      'regression_detected',
+      'blocked',
+    ]);
+    expect([...MARKETOPS_BACKTEST_PROMOTION_DECISION_STATUSES]).toEqual([
+      'approved_for_promotion',
+      'rejected',
+      'deferred',
+      'superseded',
+    ]);
+  });
+
+  it('humanizes readiness + candidate status keys', () => {
+    expect(promotionReadinessLabel('needs_more_data')).toBe('needs more data');
+    expect(promotionReadinessLabel('regression_detected')).toBe('regression detected');
+    expect(promotionCandidateStatusLabel('approved_for_promotion')).toBe('approved for promotion');
+    expect(promotionCandidateStatusLabel('unknown_future_value')).toBe('unknown future value');
+  });
+
+  it('resolves restrained readiness + status styles', () => {
+    expect(promotionReadinessStyle('ready_for_review')).toContain('emerald');
+    expect(promotionReadinessStyle('manual_review_required')).toContain('amber');
+    expect(promotionReadinessStyle('regression_detected')).toContain('red');
+    expect(promotionReadinessStyle('blocked')).toContain('red');
+    expect(promotionReadinessStyle('needs_more_data')).toContain('gray');
+    expect(promotionCandidateStatusStyle('approved_for_promotion')).toContain('emerald');
+    expect(promotionCandidateStatusStyle('rejected')).toContain('red');
+    expect(promotionCandidateStatusStyle('deferred')).toContain('amber');
+    expect(promotionCandidateStatusStyle('superseded')).toContain('violet');
+    expect(promotionCandidateStatusStyle('proposed')).toContain('gray');
+    // Unknown future values fall back to a neutral gray chip.
+    expect(promotionReadinessStyle('unknown_future_value')).toContain('gray');
+    expect(promotionCandidateStatusStyle('unknown_future_value')).toContain('gray');
+  });
+});
+
+describe('summarizePromotionEvidence (G086)', () => {
+  it('reads the comparison + evaluation + version evidence blocks', () => {
+    const s = summarizePromotionEvidence({
+      baseline: { baseline_id: 'btbase-1', summary_id: 'btcal-1', name: 'July' },
+      comparison: { comparison_id: 'btcmp-1', recommendation: 'neutral_candidate', recommendation_reason: 'within tolerance', metrics: {} },
+      evaluation: {
+        evaluation_id: 'bteval-1',
+        recommendation: 'improvement_candidate',
+        recommendation_note: 'labels align',
+        precision: 0.9,
+        recall: 0.8,
+        accuracy: 0.85,
+        label_coverage: 0.667,
+      },
+      detector: { detector_id: 'marketops.dsm.taxonomy_v1', detector_version: 'v1' },
+      run: { run_id: 'bt-1' },
+      policy_version: 'marketops.backtest.policy_v1',
+      readiness: { status: 'ready_for_review', reasons: ['comparison and evaluation evidence meet review thresholds', 'recall is below review threshold'] },
+    });
+    expect(s.comparisonRecommendation).toBe('neutral_candidate');
+    expect(s.comparisonRecommendationReason).toBe('within tolerance');
+    expect(s.hasEvaluation).toBe(true);
+    expect(s.evaluationId).toBe('bteval-1');
+    expect(s.evaluationRecommendation).toBe('improvement_candidate');
+    expect(s.evaluationRecommendationNote).toBe('labels align');
+    // Evaluation rates are preserved as 0–1 fractions (the UI formats them).
+    expect(s.precision).toBe(0.9);
+    expect(s.recall).toBe(0.8);
+    expect(s.accuracy).toBe(0.85);
+    expect(s.labelCoverage).toBeCloseTo(0.667, 3);
+    expect(s.policyVersion).toBe('marketops.backtest.policy_v1');
+    expect(s.detectorVersion).toBe('v1');
+    expect(s.readinessReasons).toEqual([
+      'comparison and evaluation evidence meet review thresholds',
+      'recall is below review threshold',
+    ]);
+  });
+
+  it('renders evidence metrics as compact percentages via formatEvaluationPercent', () => {
+    const s = summarizePromotionEvidence({ evaluation: { evaluation_id: 'bteval-1', precision: 0.9, recall: 0.333, accuracy: 1, label_coverage: 0 } });
+    expect(formatEvaluationPercent(s.precision)).toBe('90%');
+    expect(formatEvaluationPercent(s.recall)).toBe('33.3%');
+    expect(formatEvaluationPercent(s.accuracy)).toBe('100%');
+    expect(formatEvaluationPercent(s.labelCoverage)).toBe('0%');
+  });
+
+  it('flags a missing/empty evaluation block as no evaluation', () => {
+    expect(summarizePromotionEvidence({ comparison: { recommendation: 'neutral_candidate' } }).hasEvaluation).toBe(false);
+    expect(summarizePromotionEvidence({ evaluation: {} }).hasEvaluation).toBe(false);
+    expect(summarizePromotionEvidence({ evaluation: { evaluation_id: '' } }).hasEvaluation).toBe(false);
+  });
+
+  it('tolerates a non-object / partial evidence payload without throwing', () => {
+    const empty = summarizePromotionEvidence(undefined);
+    expect(empty.comparisonRecommendation).toBe('');
+    expect(empty.hasEvaluation).toBe(false);
+    expect(empty.readinessReasons).toEqual([]);
+    expect(summarizePromotionEvidence(null).policyVersion).toBe('');
+    expect(summarizePromotionEvidence('nope').precision).toBe(0);
+    // readiness.reasons drops non-string entries.
+    const mixed = summarizePromotionEvidence({ readiness: { reasons: ['ok', 5, null, 'also ok'] } });
+    expect(mixed.readinessReasons).toEqual(['ok', 'also ok']);
   });
 });
