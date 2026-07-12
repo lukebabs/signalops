@@ -5443,3 +5443,21 @@ Validation performed:
 - `docker compose up -d --build web`: passed.
 - `curl http://localhost:15173/marketops/backtests`: served the rebuilt SPA shell.
 - Rebuilt web bundle contains `No matching normalized events found.`.
+
+
+## 2026-07-12T05:36:00Z
+
+Summary:
+
+- Completed G081 UI closeout validation through the web same-origin API proxy using the known populated `SPY` / `2026-07-09` back-test window.
+- Created `bt-g081-ui-closeout-spy-20260712` with `source_id=src-massive`, `dataset=equity_eod_prices`, `max_records=5`, and detector `marketops.dsm.taxonomy_v1`.
+- Temporarily disabled local auth for the proxy validation because no fresh bearer was available, then restored gateway/web to `SIGNALOPS_AUTH_ENABLED=true`.
+
+Validation result:
+
+- Run status: `succeeded`.
+- Metrics: scanned `1`, signals `1`, artifacts `1`, graph proposals `5`, policy results `5`.
+- Recommendation counts: `auto_accept_candidate=5`.
+- Verified generated back-test signal and graph proposal APIs through `http://localhost:15173/v1/marketops/backtests/...`.
+- Production ledger rows newest at `2026-07-12T05:06:19Z`, before this `05:34` closeout run; this validation did not mutate production signal/artifact/graph proposal ledgers.
+- Restored and verified auth-enabled gateway/web health.

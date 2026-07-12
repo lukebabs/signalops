@@ -6257,3 +6257,27 @@ Validation performed:
 Result:
 
 - Operators now get actionable guidance when a run completes successfully but no normalized events matched the selected filters/window.
+
+
+## Gate G081: UI Known-Good Back-Test Closeout
+
+Timestamp: `2026-07-12T05:36:00Z`
+
+Status: `validated — known-good UI path passed via web proxy`
+
+Scope:
+
+- Validate that the MarketOps back-tests UI backend path can create and inspect a non-empty run after adding the zero-input state.
+- Use the same-origin web proxy route that the browser uses.
+
+Validation performed:
+
+- Created `bt-g081-ui-closeout-spy-20260712` through `http://localhost:15173/v1/marketops/backtests` with `SPY`, source `src-massive`, dataset `equity_eod_prices`, and window `2026-07-09T00:00:00Z` to `2026-07-10T00:00:00Z`.
+- Result: status `succeeded`, scanned `1`, signals `1`, artifacts `1`, graph proposals `5`, policy results `5`, recommendation counts `auto_accept_candidate=5`.
+- Verified run detail, generated back-test signals, and generated back-test graph proposals through the web proxy.
+- Confirmed production ledger rows newest at `2026-07-12T05:06:19Z`, before the `05:34` closeout run, so this validation did not mutate production ledgers.
+- Restored gateway/web to auth-enabled local configuration and verified health.
+
+Result:
+
+- G081 UI closeout has both zero-input and known-good non-empty run validation.
