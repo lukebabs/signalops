@@ -5611,3 +5611,17 @@ Validation performed:
 - `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
 - Authenticated smoke baseline create/list/detail: HTTP `201/200/200`.
 - Authenticated smoke comparison create/list/detail: HTTP `201/200/200`, recommendation `neutral_candidate`.
+
+
+## 2026-07-12T07:22:00Z
+
+Summary:
+
+- Added the frontend-agent specification for G083 MarketOps back-test calibration baseline and stored comparison UI wiring.
+- Scoped the frontend work to `/marketops/backtests` API client methods, React Query hooks, compact baseline/comparison panels, and tests.
+- Explicitly kept label-aware scoring, detector threshold promotion, graph writeback, model training, and policy deployment out of scope.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.

@@ -6427,3 +6427,21 @@ Validation performed:
 Result:
 
 - G083 now has a validated backend baseline/comparison substrate ready for frontend-agent wiring and later label-aware scoring.
+
+
+## Gate G083: Frontend-Agent Baseline Comparison Spec
+
+Timestamp: `2026-07-12T07:22:00Z`
+
+Status: `specification ready for frontend-agent`
+
+Scope:
+
+- Specify frontend wiring for the G083 baseline and stored comparison APIs.
+- Define API client methods, query hooks, UI placement, required user flow, tests, and acceptance criteria.
+- Keep the implementation limited to baseline/comparison visibility and creation on `/marketops/backtests`.
+
+Result:
+
+- Specification saved at `docs/frontend/marketops_backtest_baselines_ui_spec.md`.
+- Existing MarketOps back-tests UI spec now links to the G083 addendum.
