@@ -5624,3 +5624,26 @@ Validation performed:
 - `curl http://localhost:15173/marketops/backtests`: HTTP `200`.
 - Rebuilt web bundle contains `Calibration Baselines` and comparison UI text.
 - `docker compose ps web gateway`: both services running.
+
+
+## 2026-07-12T20:20:00Z
+
+Summary:
+
+- Implemented G084 as the first MarketOps evaluation-label substrate.
+- Added migration `000017_marketops_backtest_evaluation_labels` with idempotent `(source_proposal_id, label_version)` sync semantics.
+- Added storage records, Postgres repository methods, API DTOs, sync helper logic, and gateway routes under `/v1/marketops/backtest-evaluation-labels`.
+- Sync maps G080 graph proposal decision statuses into labels: `accepted` -> `positive`, `rejected` -> `negative`, `superseded` -> `superseded`, and optionally `proposed` -> `unresolved`.
+- Kept graph proposal decisions canonical; no graph writeback, scoring, promotion, detector threshold edit, policy deployment, or model training was added.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
+- `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
+- `git diff --check`: passed.
+- `make compose-storage-migrate`: applied `000017_marketops_backtest_evaluation_labels`.
+- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
+- Authenticated smoke generated a bearer in-memory, synced two accepted graph proposals into `positive` labels, listed labels, and fetched a label detail.
+- Authenticated smoke statuses: token `200`, proposal list `200`, sync `201`, label list `200`, label detail `200`.
+- Token material and temporary API response files were removed.

@@ -31,3 +31,8 @@ Recommended next gate:
 
 - G083: named back-test calibration baselines and stored baseline-to-summary comparisons; label/evaluation scoring remains follow-on.
 - Specification: `G083_backtest_baselines_and_evaluation.md`.
+
+## G084 Implemented
+
+- G084: evaluation label sync from G080 graph proposal decisions.
+- Specification: `G084_evaluation_label_sync.md`.

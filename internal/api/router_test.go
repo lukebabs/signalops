@@ -73,12 +73,14 @@ type fakeQueryRepository struct {
 	backtestCalibrationSummaries   []storage.MarketOpsBacktestCalibrationSummaryRecord
 	backtestCalibrationBaselines   []storage.MarketOpsBacktestCalibrationBaselineRecord
 	backtestCalibrationComparisons []storage.MarketOpsBacktestCalibrationComparisonRecord
+	backtestEvaluationLabels       []storage.MarketOpsBacktestEvaluationLabelRecord
 	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
 	lastBacktestSignalFilter       storage.MarketOpsBacktestSignalFilter
 	lastBacktestGraphFilter        storage.MarketOpsBacktestGraphProposalFilter
 	lastBacktestCalibrationFilter  storage.MarketOpsBacktestCalibrationSummaryFilter
 	lastBacktestBaselineFilter     storage.MarketOpsBacktestCalibrationBaselineFilter
 	lastBacktestComparisonFilter   storage.MarketOpsBacktestCalibrationComparisonFilter
+	lastEvaluationLabelFilter      storage.MarketOpsBacktestEvaluationLabelFilter
 	lastDSMFilter                  storage.MarketOpsDSMArtifactFilter
 	lastGraphProposalFilter        storage.MarketOpsDSMGraphProposalFilter
 	lastGraphProposalMutation      storage.MarketOpsDSMGraphProposalMutation
@@ -411,6 +413,44 @@ func (q *fakeQueryRepository) GetMarketOpsBacktestCalibrationComparison(_ contex
 		}
 	}
 	return storage.MarketOpsBacktestCalibrationComparisonRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertMarketOpsBacktestEvaluationLabel(_ context.Context, record storage.MarketOpsBacktestEvaluationLabelRecord) error {
+	for i, existing := range q.backtestEvaluationLabels {
+		if existing.LabelID == record.LabelID || (existing.SourceProposalID == record.SourceProposalID && existing.LabelVersion == record.LabelVersion) {
+			record.CreatedAt = existing.CreatedAt
+			if record.UpdatedAt.IsZero() {
+				record.UpdatedAt = time.Now().UTC()
+			}
+			q.backtestEvaluationLabels[i] = record
+			return nil
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	if record.UpdatedAt.IsZero() {
+		record.UpdatedAt = record.CreatedAt
+	}
+	q.backtestEvaluationLabels = append(q.backtestEvaluationLabels, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestEvaluationLabels(_ context.Context, filter storage.MarketOpsBacktestEvaluationLabelFilter) ([]storage.MarketOpsBacktestEvaluationLabelRecord, error) {
+	q.lastEvaluationLabelFilter = filter
+	return q.backtestEvaluationLabels, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsBacktestEvaluationLabel(_ context.Context, labelID string) (storage.MarketOpsBacktestEvaluationLabelRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsBacktestEvaluationLabelRecord{}, storage.ErrNotFound
+	}
+	for _, label := range q.backtestEvaluationLabels {
+		if label.LabelID == labelID {
+			return label, nil
+		}
+	}
+	return storage.MarketOpsBacktestEvaluationLabelRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListMarketOpsDSMArtifacts(_ context.Context, filter storage.MarketOpsDSMArtifactFilter) ([]storage.MarketOpsDSMArtifactRecord, error) {
@@ -1112,6 +1152,82 @@ func TestGetMarketOpsDSMArtifact(t *testing.T) {
 	}
 }
 
+func TestPostMarketOpsBacktestEvaluationLabelsSyncCreatesLabels(t *testing.T) {
+	proposal := validMarketOpsDSMGraphProposalRecord()
+	now := time.Date(2026, 7, 12, 20, 0, 0, 0, time.UTC)
+	proposal.Status = storage.MarketOpsDSMGraphProposalStatusAccepted
+	proposal.ReviewedBy = "operator-g080"
+	proposal.DecisionNote = "approved"
+	proposal.DecidedAt = &now
+	proposal.UpdatedAt = now
+	repo := &fakeQueryRepository{dsmGraphProposals: []storage.MarketOpsDSMGraphProposalRecord{proposal}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-evaluation-labels/sync", strings.NewReader(`{"tenant_id":"tenant-1","status":"accepted","limit":5}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastGraphProposalFilter.TenantID != "tenant-1" || repo.lastGraphProposalFilter.Status != storage.MarketOpsDSMGraphProposalStatusAccepted || repo.lastGraphProposalFilter.Limit != 5 {
+		t.Fatalf("graph filter = %+v", repo.lastGraphProposalFilter)
+	}
+	var response map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response["synced"].(float64) != 1 {
+		t.Fatalf("response = %#v", response)
+	}
+	labels := response["labels"].([]any)
+	label := labels[0].(map[string]any)
+	if label["source_proposal_id"] != proposal.ProposalID || label["label"] != "positive" || label["decision_status"] != storage.MarketOpsDSMGraphProposalStatusAccepted {
+		t.Fatalf("label = %#v", label)
+	}
+	if label["graph_fact_key"] != "node:ticker:AAPL" {
+		t.Fatalf("graph fact key = %#v", label["graph_fact_key"])
+	}
+}
+
+func TestGetMarketOpsBacktestEvaluationLabels(t *testing.T) {
+	repo := &fakeQueryRepository{backtestEvaluationLabels: []storage.MarketOpsBacktestEvaluationLabelRecord{validMarketOpsBacktestEvaluationLabelRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-evaluation-labels?tenant_id=tenant-1&label=positive&decision_status=accepted&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastEvaluationLabelFilter.TenantID != "tenant-1" || repo.lastEvaluationLabelFilter.Label != "positive" || repo.lastEvaluationLabelFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastEvaluationLabelFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response["evaluation_labels"]) != 1 || response["evaluation_labels"][0]["label_id"] != "btlabel-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestGetMarketOpsBacktestEvaluationLabel(t *testing.T) {
+	repo := &fakeQueryRepository{backtestEvaluationLabels: []storage.MarketOpsBacktestEvaluationLabelRecord{validMarketOpsBacktestEvaluationLabelRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-evaluation-labels/btlabel-1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response["evaluation_label"]["label_id"] != "btlabel-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestGetMarketOpsDSMGraphProposals(t *testing.T) {
 	repo := &fakeQueryRepository{dsmGraphProposals: []storage.MarketOpsDSMGraphProposalRecord{validMarketOpsDSMGraphProposalRecord()}}
 	router := NewRouter(RouterConfig{QueryRepository: repo})
@@ -1584,6 +1700,11 @@ func validMarketOpsDSMArtifactRecord() storage.MarketOpsDSMArtifactRecord {
 		CreatedAt:            time.Date(2026, 7, 8, 0, 2, 0, 0, time.UTC),
 		UpdatedAt:            time.Date(2026, 7, 8, 0, 3, 0, 0, time.UTC),
 	}
+}
+
+func validMarketOpsBacktestEvaluationLabelRecord() storage.MarketOpsBacktestEvaluationLabelRecord {
+	now := time.Date(2026, 7, 12, 20, 5, 0, 0, time.UTC)
+	return storage.MarketOpsBacktestEvaluationLabelRecord{LabelID: "btlabel-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceProposalID: "graphprop_marketops_dsm_v1_test", ArtifactID: "artifact_marketops_dsm_v1_test", SignalID: "signal-1", SubjectSymbol: "AAPL", CandidateType: "node_candidate", GraphFactKey: "node:ticker:AAPL", DecisionStatus: storage.MarketOpsDSMGraphProposalStatusAccepted, Label: "positive", LabelSource: "g080_graph_proposal_decision", LabeledBy: "operator-g080", LabeledAt: now, LabelVersion: "marketops.eval_label.v1", MetadataJSON: []byte(`{"decision_note":"approved"}`), CreatedAt: now, UpdatedAt: now}
 }
 
 func validMarketOpsDSMGraphProposalRecord() storage.MarketOpsDSMGraphProposalRecord {

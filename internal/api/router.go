@@ -713,6 +713,79 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"graph_proposal": marketOpsDSMGraphProposalResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/marketops/backtest-evaluation-labels/sync", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req marketOpsBacktestEvaluationLabelSyncRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if strings.TrimSpace(req.TenantID) == "" {
+			writeError(w, http.StatusBadRequest, "invalid_label_sync", "tenant_id is required")
+			return
+		}
+		limit := req.Limit
+		if limit <= 0 {
+			limit = 50
+		}
+		actor := replayActor(r, req.RequestedBy)
+		synced := []storage.MarketOpsBacktestEvaluationLabelRecord{}
+		for _, status := range marketOpsBacktestEvaluationLabelSyncStatuses(req) {
+			proposals, err := repo.ListMarketOpsDSMGraphProposals(r.Context(), storage.MarketOpsDSMGraphProposalFilter{TenantID: strings.TrimSpace(req.TenantID), AppID: strings.TrimSpace(req.AppID), Domain: strings.TrimSpace(req.Domain), UseCase: strings.TrimSpace(req.UseCase), Status: status, Limit: limit})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps graph proposals for label sync")
+				return
+			}
+			labels, err := marketOpsBacktestEvaluationLabelsFromProposals(proposals, actor)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "label_sync_failed", "failed to build MarketOps evaluation labels")
+				return
+			}
+			for _, label := range labels {
+				if err := repo.UpsertMarketOpsBacktestEvaluationLabel(r.Context(), label); err != nil {
+					writeError(w, http.StatusInternalServerError, "persist_failed", "failed to persist MarketOps evaluation label")
+					return
+				}
+				stored, err := repo.GetMarketOpsBacktestEvaluationLabel(r.Context(), label.LabelID)
+				if err != nil {
+					writeQueryError(w, err, "evaluation_label_not_found", "MarketOps evaluation label not found")
+					return
+				}
+				synced = append(synced, stored)
+			}
+		}
+		writeJSON(w, http.StatusCreated, marketOpsBacktestEvaluationLabelSyncResponse{Synced: len(synced), Labels: marketOpsBacktestEvaluationLabelResponses(synced)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-evaluation-labels", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestEvaluationLabels(r.Context(), storage.MarketOpsBacktestEvaluationLabelFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceProposalID: strings.TrimSpace(r.URL.Query().Get("source_proposal_id")), ArtifactID: strings.TrimSpace(r.URL.Query().Get("artifact_id")), SignalID: strings.TrimSpace(r.URL.Query().Get("signal_id")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), DecisionStatus: strings.TrimSpace(r.URL.Query().Get("decision_status")), Label: strings.TrimSpace(r.URL.Query().Get("label")), LabelSource: strings.TrimSpace(r.URL.Query().Get("label_source")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps evaluation labels")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"evaluation_labels": marketOpsBacktestEvaluationLabelResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-evaluation-labels/{label_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetMarketOpsBacktestEvaluationLabel(r.Context(), r.PathValue("label_id"))
+		if err != nil {
+			writeQueryError(w, err, "evaluation_label_not_found", "MarketOps evaluation label not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"evaluation_label": marketOpsBacktestEvaluationLabelResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/alerts", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

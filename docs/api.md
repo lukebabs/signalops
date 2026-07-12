@@ -657,6 +657,18 @@ Returns stored baseline comparisons. Recommendation filters use `needs_more_data
 
 Returns one stored baseline comparison.
 
+`POST /v1/marketops/backtest-evaluation-labels/sync`
+
+Synchronizes evaluation labels from reviewed MarketOps DSM graph proposal decisions. Required body field: `tenant_id`. Optional body fields: `app_id`, `domain`, `use_case`, `status`, `include_unresolved`, `limit`, and `requested_by`. When `status` is omitted, the sync defaults to `accepted`, `rejected`, and `superseded`; set `include_unresolved=true` to include `proposed` as `unresolved`.
+
+`GET /v1/marketops/backtest-evaluation-labels?tenant_id={tenant_id}&label={label}&decision_status={status}&limit=50`
+
+Returns synchronized evaluation labels. Labels are `positive`, `negative`, `superseded`, and `unresolved`.
+
+`GET /v1/marketops/backtest-evaluation-labels/{label_id}`
+
+Returns one synchronized evaluation label.
+
 ### Query Errors
 
 - `400 missing_query`: required idempotency lookup parameters are missing.

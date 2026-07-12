@@ -6470,3 +6470,30 @@ Validation performed:
 Result:
 
 - G083 backend plus frontend wiring is validated locally. Remaining work is follow-on gate planning for label extraction/label-aware scoring, not G083 closure.
+
+
+## Gate G084: Evaluation Label Sync
+
+Timestamp: `2026-07-12T20:20:00Z`
+
+Status: `validated — backend/API label sync implemented`
+
+Scope:
+
+- Normalize reviewed G080 MarketOps DSM graph proposal decisions into evaluation labels.
+- Store labels in `marketops_backtest_evaluation_labels` with idempotent source proposal/version semantics.
+- Expose sync/list/detail APIs without changing the graph proposal decision endpoint.
+
+Validation performed:
+
+- Added migration `000017_marketops_backtest_evaluation_labels`.
+- Added storage records, Postgres methods, API DTOs, sync helper logic, router handlers, and route tests.
+- Targeted API/Postgres tests and full Go tests passed.
+- JSON schema validation and `git diff --check` passed.
+- Applied the migration and rebuilt the gateway; Docker build ran `go test ./...`.
+- Authenticated smoke synced two accepted graph proposals into `positive` labels, then validated list/detail.
+- Token material was not printed or committed; temporary files were removed.
+
+Result:
+
+- G084 provides the durable label substrate needed for a later label-aware scoring/evaluation gate.

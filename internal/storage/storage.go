@@ -495,6 +495,29 @@ type MarketOpsDSMGraphProposalRecord struct {
 	UpdatedAt      time.Time
 }
 
+type MarketOpsBacktestEvaluationLabelRecord struct {
+	LabelID          string
+	TenantID         string
+	AppID            string
+	Domain           string
+	UseCase          string
+	SourceProposalID string
+	ArtifactID       string
+	SignalID         string
+	SubjectSymbol    string
+	CandidateType    string
+	GraphFactKey     string
+	DecisionStatus   string
+	Label            string
+	LabelSource      string
+	LabeledBy        string
+	LabeledAt        time.Time
+	LabelVersion     string
+	MetadataJSON     []byte
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
 type MarketOpsBacktestRunRecord struct {
 	RunID           string
 	TenantID        string
@@ -700,6 +723,9 @@ type MarketOpsBacktestRepository interface {
 	UpsertMarketOpsBacktestCalibrationSummary(ctx context.Context, record MarketOpsBacktestCalibrationSummaryRecord) error
 	ListMarketOpsBacktestCalibrationSummaries(ctx context.Context, filter MarketOpsBacktestCalibrationSummaryFilter) ([]MarketOpsBacktestCalibrationSummaryRecord, error)
 	GetMarketOpsBacktestCalibrationSummary(ctx context.Context, summaryID string) (MarketOpsBacktestCalibrationSummaryRecord, error)
+	UpsertMarketOpsBacktestEvaluationLabel(ctx context.Context, record MarketOpsBacktestEvaluationLabelRecord) error
+	ListMarketOpsBacktestEvaluationLabels(ctx context.Context, filter MarketOpsBacktestEvaluationLabelFilter) ([]MarketOpsBacktestEvaluationLabelRecord, error)
+	GetMarketOpsBacktestEvaluationLabel(ctx context.Context, labelID string) (MarketOpsBacktestEvaluationLabelRecord, error)
 	UpsertMarketOpsBacktestCalibrationBaseline(ctx context.Context, record MarketOpsBacktestCalibrationBaselineRecord) error
 	ListMarketOpsBacktestCalibrationBaselines(ctx context.Context, filter MarketOpsBacktestCalibrationBaselineFilter) ([]MarketOpsBacktestCalibrationBaselineRecord, error)
 	GetMarketOpsBacktestCalibrationBaseline(ctx context.Context, baselineID string) (MarketOpsBacktestCalibrationBaselineRecord, error)
@@ -820,6 +846,22 @@ type MarketOpsBacktestCalibrationSummaryFilter struct {
 	Dataset    string
 	DetectorID string
 	Limit      int
+}
+
+type MarketOpsBacktestEvaluationLabelFilter struct {
+	TenantID         string
+	AppID            string
+	Domain           string
+	UseCase          string
+	SourceProposalID string
+	ArtifactID       string
+	SignalID         string
+	SubjectSymbol    string
+	CandidateType    string
+	DecisionStatus   string
+	Label            string
+	LabelSource      string
+	Limit            int
 }
 
 type MarketOpsBacktestCalibrationBaselineFilter struct {
