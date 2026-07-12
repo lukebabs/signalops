@@ -6035,3 +6035,39 @@ Validation performed:
 Result:
 
 - G080 is implemented as a review-state workflow only. Accepted proposals remain persisted review records and do not mutate a production graph database.
+
+
+## Gate G081: Back-Test Substrate Specification
+
+Timestamp: `2026-07-12T01:25:00Z`
+
+Status: `specification proposed — awaiting review`
+
+Scope:
+
+- Define a MarketOps back-test substrate before implementation.
+- Focus the first version on policy calibration from historical normalized events.
+
+Implementation:
+
+- Added a G081 gate note for the back-test substrate.
+- Added architecture documentation distinguishing back-tests from operational replay.
+- Added operations documentation with first smoke scenario, safety controls, and go/no-go checklist.
+- Updated the MarketOps gate index to point to G081 review and G082 thin MVP implementation after approval.
+
+Key decisions captured:
+
+- First objective: policy calibration.
+- First source: historical normalized MarketOps events.
+- First storage model: isolated back-test ledgers.
+- First policy model: deterministic policy pack, not ML.
+- Production graph writes remain deferred.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.
+
+Result:
+
+- G081 is ready for operator/architecture review. No implementation has started.

@@ -5269,3 +5269,32 @@ Validation performed:
 Deferred:
 
 - Production graph database writes and graph materialization remain deferred to a later explicit gate.
+
+
+## 2026-07-12T01:25:00Z
+
+Summary:
+
+- Added G081 documentation for a MarketOps back-test substrate specification/architecture review gate.
+- Scoped G081 to policy calibration from historical normalized MarketOps events, with isolated back-test outputs and no operational ledger mutation.
+- Documented the distinction between operational replay and back-testing.
+- Added an operations note with the first bounded smoke scenario and go/no-go checklist.
+
+Files changed:
+
+- `docs/use_cases/marketops/daily_market_surveillance/gates/G081_backtest_substrate.md`
+- `docs/use_cases/marketops/daily_market_surveillance/architecture/backtest_substrate.md`
+- `docs/use_cases/marketops/daily_market_surveillance/operations/backtest_substrate.md`
+- `docs/use_cases/marketops/daily_market_surveillance/gates/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.
+
+Notes:
+
+- G081 is documentation-only. Implementation is deferred until review and explicit go/no-go.
+- Recommended implementation follow-up is G082: a thin MVP back-test runner and isolated storage boundary.
