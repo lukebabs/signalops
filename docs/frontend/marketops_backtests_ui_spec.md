@@ -399,3 +399,9 @@ Still out of scope:
 Frontend-agent implementation for G083 should follow `docs/frontend/marketops_backtest_baselines_ui_spec.md`.
 
 The addendum is intentionally limited to wiring the new baseline/comparison APIs into `/marketops/backtests`. It should not add policy promotion, graph writeback, detector threshold editing, label-aware scoring, or model training controls.
+
+## G085 Addendum: Label-Aware Evaluations
+
+Frontend-agent implementation for G085 should follow `docs/frontend/marketops_backtest_evaluations_ui_spec.md`.
+
+The addendum is intentionally limited to rendering stored label-aware evaluation results and creating evaluations for selected back-test runs. It should not add label sync controls, graph proposal decision controls, policy promotion, detector threshold editing, graph writeback, or model training controls.

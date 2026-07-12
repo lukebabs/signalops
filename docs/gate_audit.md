@@ -6524,3 +6524,26 @@ Validation performed:
 Result:
 
 - G085 provides the durable label-aware scoring substrate. The next useful work is frontend exposure or generating/replaying runs with matched label coverage for meaningful precision/recall review.
+
+
+## Gate G085: Matched-Label Validation And Frontend Spec
+
+Timestamp: `2026-07-12T20:55:00Z`
+
+Status: `validated — matched-label smoke passed; frontend spec ready`
+
+Scope:
+
+- Create a local matched-label validation scenario so G085 returns meaningful precision/recall rather than `needs_more_data`.
+- Document frontend-agent requirements for rendering G085 label-aware back-test evaluations.
+
+Validation performed:
+
+- Accepted five production graph proposals whose graph fact keys match back-test run `bt-g081-ui-closeout-spy-20260712`.
+- Synced labels from accepted graph proposal decisions.
+- Re-ran G085 evaluation and received precision `1`, recall `1`, label coverage `1`, and recommendation `improvement_candidate`.
+- Wrote frontend-agent specification at `docs/frontend/marketops_backtest_evaluations_ui_spec.md`.
+
+Result:
+
+- G085 has both zero-coverage and matched-label validation coverage. Frontend-agent can now wire evaluation visibility without backend changes.

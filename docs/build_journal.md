@@ -5670,3 +5670,23 @@ Validation performed:
 - Authenticated smoke generated a bearer in-memory and validated evaluation create/list/detail as HTTP `201/200/200` for run `bt-g081-ui-closeout-spy-20260712`.
 - Smoke result: candidates `5`, matched labels `0`, precision `0`, recommendation `needs_more_data`; this validates API/storage behavior while richer scoring remains dependent on matched label coverage.
 - Token material and temporary API response files were removed.
+
+
+## 2026-07-12T20:55:00Z
+
+Summary:
+
+- Created a matched-label G085 validation scenario for run `bt-g081-ui-closeout-spy-20260712`.
+- Used authenticated graph proposal decision APIs to accept the five production graph proposals that share graph fact keys with the selected back-test run.
+- Synced accepted G080 decisions into G084 evaluation labels, then re-ran G085 label-aware evaluation.
+- Added the frontend-agent specification for displaying G085 label-aware back-test evaluation results on `/marketops/backtests`.
+
+Validation performed:
+
+- Back-test run graph proposal fetch: HTTP `200`.
+- Graph proposal decision updates: `5/5` returned HTTP `200`.
+- Evaluation label sync: HTTP `201`, synced `7` accepted labels total.
+- G085 evaluation create/list/detail: HTTP `201/200/200`.
+- Matched-label evaluation `bteval-g085-matched-smoke-20260712205000`: candidates `5`, labeled `5`, true positives `5`, false positives `0`, precision `1`, recall `1`, label coverage `1`, recommendation `improvement_candidate`.
+- Token material and temporary API response files were removed.
+- Documentation readback completed.
