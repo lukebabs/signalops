@@ -6664,3 +6664,28 @@ Result:
 
 - Specification saved at `docs/frontend/marketops_backtest_promotion_review_ui_spec.md`.
 - Existing MarketOps back-tests UI spec now links to the G086 addendum.
+
+
+## Gate G086: Frontend Promotion Review Closeout
+
+Timestamp: `2026-07-12T23:00:00Z`
+
+Status: `validated — frontend promotion review UI implemented`
+
+Scope:
+
+- Close the loop on frontend-agent implementation for G086 promotion candidate APIs.
+- Validate API client/query hook tests, full frontend tests, production build, local web rebuild, route availability, and built UI text.
+- Keep scope limited to promotion-review visibility and audit decisions; runtime deployment, threshold editing, graph writeback, feature flag changes, automatic promotion, model training, and label sync controls remain out of scope.
+
+Validation performed:
+
+- Targeted MarketOps back-test frontend tests passed: 68 tests.
+- Full frontend suite passed: 189 tests.
+- Production web build passed.
+- Local web container rebuild passed.
+- `/marketops/backtests` served HTTP `200` and the built bundle contains the G086 promotion review UI text.
+
+Result:
+
+- G086 backend plus frontend promotion review is validated locally. Remaining work is a future deployment-planning gate, not G086 closure.

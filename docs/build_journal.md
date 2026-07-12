@@ -5778,3 +5778,23 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+
+## 2026-07-12T23:00:00Z
+
+Summary:
+
+- Closed the G086 frontend-agent implementation loop for MarketOps promotion review.
+- Verified commit `bdeba0a Wire G086 promotion review UI` is present on `main`.
+- Confirmed the implementation touched MarketOps back-test API types/client/query hooks, route rendering, and tests.
+- Validated the UI surface remains audit/review-only and does not add policy deployment, detector threshold editing, graph writeback, feature flag changes, automatic promotion, model training, or label sync controls.
+
+Validation performed:
+
+- `cd web && npm test -- src/api/marketopsBacktests.test.ts src/lib/marketopsBacktests.test.ts`: 68 passed.
+- `cd web && npm test`: 189 passed.
+- `cd web && npm run build`: passed.
+- `docker compose up -d --build web`: passed.
+- `curl http://localhost:15173/marketops/backtests`: HTTP `200`.
+- Rebuilt web bundle contains `Promotion Review`, `Create promotion candidate`, and `Approve for promotion planning` UI text.
+- `docker compose ps web gateway`: both services running.
