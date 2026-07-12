@@ -13,6 +13,10 @@ import {
   COMPARISON_DELTA_FIELDS,
   summarizeComparisonDeltas,
   comparisonMetrics,
+  summarizeBacktestEvaluation,
+  isNeedsMoreDataEvaluation,
+  formatEvaluationPercent,
+  MARKETOPS_BACKTEST_EVALUATION_RECOMMENDATIONS,
 } from './marketopsBacktests';
 
 describe('summarizeBacktestMetrics (G081)', () => {
@@ -276,5 +280,110 @@ describe('comparisonMetrics (G083)', () => {
     expect(comparisonMetrics({})).toEqual({});
     expect(comparisonMetrics(null)).toEqual({});
     expect(comparisonMetrics({ comparison_metrics: 'bad' })).toEqual({});
+  });
+});
+
+describe('summarizeBacktestEvaluation (G085)', () => {
+  it('reads the canonical evaluation fields', () => {
+    const s = summarizeBacktestEvaluation({
+      evaluation_id: 'bteval-1',
+      run_id: 'bt-1',
+      recommendation: 'improvement_candidate',
+      recommendation_note: 'automatic recommendations align with available labels',
+      candidate_count: 5,
+      labeled_count: 5,
+      positive_count: 5,
+      negative_count: 0,
+      true_positive: 5,
+      false_positive: 0,
+      true_negative: 0,
+      false_negative: 0,
+      manual_review_count: 0,
+      precision: 1,
+      recall: 1,
+      specificity: 0,
+      accuracy: 1,
+      label_coverage: 1,
+      created_at: '2026-07-12T20:50:00Z',
+    });
+    expect(s.evaluationId).toBe('bteval-1');
+    expect(s.runId).toBe('bt-1');
+    expect(s.recommendation).toBe('improvement_candidate');
+    expect(s.recommendationNote).toBe('automatic recommendations align with available labels');
+    expect(s.candidateCount).toBe(5);
+    expect(s.labeledCount).toBe(5);
+    expect(s.truePositive).toBe(5);
+    expect(s.falsePositive).toBe(0);
+    expect(s.manualReviewCount).toBe(0);
+    expect(s.precision).toBe(1);
+    expect(s.recall).toBe(1);
+    expect(s.specificity).toBe(0);
+    expect(s.accuracy).toBe(1);
+    expect(s.labelCoverage).toBe(1);
+    expect(s.createdAt).toBe('2026-07-12T20:50:00Z');
+  });
+
+  it('tolerates a non-object payload', () => {
+    expect(summarizeBacktestEvaluation(undefined).labeledCount).toBe(0);
+    expect(summarizeBacktestEvaluation(null).evaluationId).toBe('');
+    expect(summarizeBacktestEvaluation('not-an-object').candidateCount).toBe(0);
+    expect(summarizeBacktestEvaluation([1, 2, 3]).precision).toBe(0);
+  });
+
+  it('coerces numeric strings and ignores malformed values', () => {
+    const s = summarizeBacktestEvaluation({
+      candidate_count: '5',
+      labeled_count: { oops: 1 },
+      precision: null,
+      true_positive: '3',
+    });
+    expect(s.candidateCount).toBe(5);
+    expect(s.labeledCount).toBe(0);
+    expect(s.precision).toBe(0);
+    expect(s.truePositive).toBe(3);
+  });
+});
+
+describe('label-aware evaluation states (G085)', () => {
+  it('flags zero-label evaluations as needs-more-data (the authoritative signal)', () => {
+    expect(isNeedsMoreDataEvaluation({ labeled_count: 0, candidate_count: 5 })).toBe(true);
+    expect(isNeedsMoreDataEvaluation({ labeled_count: '0' })).toBe(true);
+    expect(isNeedsMoreDataEvaluation({ labeled_count: 3 })).toBe(false);
+    // A missing/empty record has zero labels and is treated as needs-more-data.
+    expect(isNeedsMoreDataEvaluation(undefined)).toBe(true);
+    expect(isNeedsMoreDataEvaluation({})).toBe(true);
+  });
+
+  it('surfaces the advisory recommendation token set (never deploy/promote commands)', () => {
+    expect([...MARKETOPS_BACKTEST_EVALUATION_RECOMMENDATIONS]).toEqual([
+      'needs_more_data',
+      'manual_review_required',
+      'improvement_candidate',
+      'neutral_candidate',
+      'regression_candidate',
+    ]);
+    // Evaluation tokens reuse the G083 advisory comparison palette.
+    for (const token of MARKETOPS_BACKTEST_EVALUATION_RECOMMENDATIONS) {
+      expect(comparisonRecommendationStyle(token)).not.toContain('brand');
+      expect(comparisonRecommendationLabel(token)).toBe(token.replace(/_/g, ' '));
+    }
+  });
+});
+
+describe('formatEvaluationPercent (G085)', () => {
+  it('renders 0–1 fractions as compact percentages', () => {
+    expect(formatEvaluationPercent(1)).toBe('100%');
+    expect(formatEvaluationPercent(0)).toBe('0%');
+    expect(formatEvaluationPercent(0.8)).toBe('80%');
+    expect(formatEvaluationPercent(0.3333333)).toBe('33.3%');
+    expect(formatEvaluationPercent(0.667)).toBe('66.7%');
+  });
+
+  it('coerces numeric strings and renders em-dash for malformed values', () => {
+    expect(formatEvaluationPercent('0.5')).toBe('50%');
+    expect(formatEvaluationPercent(undefined)).toBe('—');
+    expect(formatEvaluationPercent(null)).toBe('—');
+    expect(formatEvaluationPercent('oops')).toBe('—');
+    expect(formatEvaluationPercent(Infinity)).toBe('—');
   });
 });

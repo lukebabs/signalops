@@ -1066,3 +1066,91 @@ export interface MarketOpsBacktestCalibrationComparisonFilter {
   recommendation?: MarketOpsBacktestCalibrationComparisonRecommendation | '';
   limit?: number;
 }
+
+// G085 label-aware MarketOps back-test evaluations. An evaluation scores a
+// back-test run against synchronized G084 graph-proposal-decision labels and
+// stores precision/recall-style metrics. Recommendation tokens are advisory
+// evaluation outcomes — never deploy/promote decisions. The token set mirrors
+// the G083 advisory comparison recommendations.
+export type MarketOpsBacktestEvaluationRecommendation =
+  | 'needs_more_data'
+  | 'manual_review_required'
+  | 'improvement_candidate'
+  | 'neutral_candidate'
+  | 'regression_candidate'
+  | string;
+
+// metrics payload: matched_samples is a capped list of joined
+// proposal/label/recommendation rows; scoring_notes carries scoring caveats.
+// Both are optional + permissive so a forward-shaped payload renders blanks.
+export interface MarketOpsBacktestEvaluationMetrics {
+  matched_samples?: unknown[];
+  scoring_notes?: string[];
+  [key: string]: unknown;
+}
+
+export interface MarketOpsBacktestEvaluation {
+  evaluation_id: string;
+  tenant_id: string;
+  app_id: string;
+  domain: string;
+  use_case: string;
+  run_id: string;
+  detector_id: string;
+  dataset: string;
+  label_source: string;
+  label_version: string;
+  scoring_version: string;
+  requested_by: string;
+  candidate_count: number;
+  labeled_count: number;
+  positive_count: number;
+  negative_count: number;
+  superseded_count: number;
+  unresolved_count: number;
+  true_positive: number;
+  false_positive: number;
+  true_negative: number;
+  false_negative: number;
+  manual_review_count: number;
+  unscored_count: number;
+  precision: number;
+  recall: number;
+  specificity: number;
+  accuracy: number;
+  label_coverage: number;
+  recommendation: MarketOpsBacktestEvaluationRecommendation;
+  recommendation_note: string;
+  metrics: MarketOpsBacktestEvaluationMetrics;
+  created_at: string;
+}
+
+export interface MarketOpsBacktestEvaluationsResponse {
+  backtest_evaluations: MarketOpsBacktestEvaluation[];
+}
+
+export interface MarketOpsBacktestEvaluationResponse {
+  backtest_evaluation: MarketOpsBacktestEvaluation;
+}
+
+// label_source is accepted by the gateway but overridden server-side to the
+// canonical G084 source, so it is omitted on create by default.
+export interface MarketOpsBacktestEvaluationCreateRequest {
+  evaluation_id?: string;
+  tenant_id: string;
+  run_id: string;
+  label_source?: string;
+  requested_by?: string;
+}
+
+export interface MarketOpsBacktestEvaluationFilter {
+  tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
+  run_id?: string;
+  detector_id?: string;
+  dataset?: string;
+  recommendation?: MarketOpsBacktestEvaluationRecommendation | '';
+  limit?: number;
+}

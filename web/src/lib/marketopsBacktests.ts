@@ -374,3 +374,110 @@ export function comparisonMetrics(record: unknown): Record<string, unknown> {
   const metrics = (record as { comparison_metrics?: unknown }).comparison_metrics;
   return isRecord(metrics) ? metrics : {};
 }
+
+// G085 label-aware evaluation display helpers. An evaluation scores a back-test
+// run against synchronized G084 graph-proposal-decision labels; recommendation
+// tokens are advisory outcomes only — the UI never renders them as deploy/
+// promote decisions. The token set is identical to the G083 advisory comparison
+// recommendations, so evaluation chips reuse comparisonRecommendationStyle and
+// comparisonRecommendationLabel.
+
+// Advisory evaluation recommendation values. Mirror the backend constants in
+// internal/storage/storage.go (MarketOpsBacktestCalibrationRecommendation*).
+export const MARKETOPS_BACKTEST_EVALUATION_RECOMMENDATIONS = [
+  'needs_more_data',
+  'manual_review_required',
+  'improvement_candidate',
+  'neutral_candidate',
+  'regression_candidate',
+] as const;
+
+export interface BacktestEvaluationSummary {
+  evaluationId: string;
+  runId: string;
+  recommendation: string;
+  recommendationNote: string;
+  candidateCount: number;
+  labeledCount: number;
+  positiveCount: number;
+  negativeCount: number;
+  truePositive: number;
+  falsePositive: number;
+  trueNegative: number;
+  falseNegative: number;
+  manualReviewCount: number;
+  precision: number;
+  recall: number;
+  specificity: number;
+  accuracy: number;
+  labelCoverage: number;
+  createdAt: string;
+}
+
+const EMPTY_EVALUATION_SUMMARY: BacktestEvaluationSummary = {
+  evaluationId: '',
+  runId: '',
+  recommendation: '',
+  recommendationNote: '',
+  candidateCount: 0,
+  labeledCount: 0,
+  positiveCount: 0,
+  negativeCount: 0,
+  truePositive: 0,
+  falsePositive: 0,
+  trueNegative: 0,
+  falseNegative: 0,
+  manualReviewCount: 0,
+  precision: 0,
+  recall: 0,
+  specificity: 0,
+  accuracy: 0,
+  labelCoverage: 0,
+  createdAt: '',
+};
+
+// Tolerantly summarize a label-aware evaluation record into display values.
+// Never throws: a missing or non-object record yields the empty summary.
+export function summarizeBacktestEvaluation(evaluation: unknown): BacktestEvaluationSummary {
+  if (!isRecord(evaluation)) return { ...EMPTY_EVALUATION_SUMMARY };
+  const e = evaluation;
+  return {
+    evaluationId: typeof e.evaluation_id === 'string' ? e.evaluation_id : '',
+    runId: typeof e.run_id === 'string' ? e.run_id : '',
+    recommendation: typeof e.recommendation === 'string' ? e.recommendation : '',
+    recommendationNote: typeof e.recommendation_note === 'string' ? e.recommendation_note : '',
+    candidateCount: asNumber(e.candidate_count),
+    labeledCount: asNumber(e.labeled_count),
+    positiveCount: asNumber(e.positive_count),
+    negativeCount: asNumber(e.negative_count),
+    truePositive: asNumber(e.true_positive),
+    falsePositive: asNumber(e.false_positive),
+    trueNegative: asNumber(e.true_negative),
+    falseNegative: asNumber(e.false_negative),
+    manualReviewCount: asNumber(e.manual_review_count),
+    precision: asNumber(e.precision),
+    recall: asNumber(e.recall),
+    specificity: asNumber(e.specificity),
+    accuracy: asNumber(e.accuracy),
+    labelCoverage: asNumber(e.label_coverage),
+    createdAt: typeof e.created_at === 'string' ? e.created_at : '',
+  };
+}
+
+// A zero-label evaluation has no synchronized labels matching the run. The
+// backend emits needs_more_data for it (labeled_count === 0); surface that
+// without implying the API failed.
+export function isNeedsMoreDataEvaluation(evaluation: unknown): boolean {
+  return summarizeBacktestEvaluation(evaluation).labeledCount === 0;
+}
+
+// Compact percentage for 0–1 evaluation rates (precision/recall/specificity/
+// accuracy/label_coverage). Whole percents drop the decimal; missing/malformed
+// values render as '—'. Never throws.
+export function formatEvaluationPercent(value: unknown): string {
+  const n = asFiniteNumber(value);
+  if (n === undefined) return '—';
+  const pct = n * 100;
+  if (!Number.isFinite(pct)) return '—';
+  return Number.isInteger(pct) ? `${pct}%` : `${pct.toFixed(1)}%`;
+}

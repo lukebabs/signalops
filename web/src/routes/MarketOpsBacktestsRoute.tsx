@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlaskConical, Plus, GitCompareArrows } from 'lucide-react';
+import { FlaskConical, Plus, GitCompareArrows, ClipboardCheck } from 'lucide-react';
 import {
   useMarketOpsBacktests,
   useMarketOpsBacktest,
@@ -12,6 +12,8 @@ import {
   useCreateMarketOpsBacktestCalibrationBaseline,
   useMarketOpsBacktestCalibrationComparisons,
   useCreateMarketOpsBacktestCalibrationComparison,
+  useMarketOpsBacktestEvaluations,
+  useCreateMarketOpsBacktestEvaluation,
 } from '../api/queries';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
@@ -37,6 +39,9 @@ import {
   comparisonRecommendationStyle,
   summarizeComparisonDeltas,
   comparisonMetrics,
+  summarizeBacktestEvaluation,
+  isNeedsMoreDataEvaluation,
+  formatEvaluationPercent,
 } from '../lib/marketopsBacktests';
 import { useTenant } from '../auth/session';
 import type {
@@ -48,6 +53,7 @@ import type {
   MarketOpsBacktestCalibrationSummary,
   MarketOpsBacktestCalibrationBaseline,
   MarketOpsBacktestCalibrationComparison,
+  MarketOpsBacktestEvaluation,
   SignalRecord,
 } from '../types';
 
@@ -161,6 +167,8 @@ export function MarketOpsBacktestsRoute() {
         baselinesError={calibrationBaselines.isError}
         createBaseline={createCalibrationBaseline}
       />
+
+      <LabelAwareEvaluationsPanel tenantId={TENANT_ID} selectedRunId={selectedId} />
 
       <div className="flex flex-wrap items-center gap-2">
         <select
@@ -1302,5 +1310,144 @@ function BacktestGraphProposalRow({
         <span className="block truncate" title={policy?.reason || ''}>{policy?.reason || '—'}</span>
       </td>
     </tr>
+  );
+}
+
+// G085 label-aware evaluations panel. Scores the selected run against
+// synchronized G084 graph-proposal-decision labels and lists the stored
+// precision/recall-style results. Recommendation tokens are advisory outcomes
+// only; this panel performs no deployment, promotion, threshold edit, graph
+// writeback, or proposal-decision controls.
+function LabelAwareEvaluationsPanel({
+  tenantId,
+  selectedRunId,
+}: {
+  tenantId: string;
+  selectedRunId: string | null;
+}) {
+  const evaluations = useMarketOpsBacktestEvaluations({
+    tenant_id: tenantId,
+    run_id: selectedRunId ?? undefined,
+    limit: 50,
+  });
+  const createEvaluation = useCreateMarketOpsBacktestEvaluation();
+
+  const rows = evaluations.data?.backtest_evaluations ?? [];
+  const noRun = !selectedRunId;
+  const canCreate = !!selectedRunId && !createEvaluation.isPending;
+
+  function onCreate(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!selectedRunId) return;
+    createEvaluation.mutate({ tenant_id: tenantId, run_id: selectedRunId });
+  }
+
+  return (
+    <div className="rounded border border-gray-200 bg-white p-3">
+      <div className="mb-2 flex items-center gap-1 text-sm font-semibold text-gray-900">
+        <ClipboardCheck size={14} /> Label-Aware Evaluations
+        <span className="ml-1 text-xs font-normal text-gray-500">
+          Scores the selected run against synchronized G084 labels · precision/recall advisory (no deployment)
+        </span>
+      </div>
+
+      {/* Create evaluation for the selected run. label_source is derived server-side. */}
+      <form onSubmit={onCreate} className="mb-3 flex flex-wrap items-center gap-2" aria-label="Create label-aware evaluation">
+        <div className="text-xs text-gray-600">
+          {noRun ? (
+            <span>Select a back-test run to score it against synchronized labels.</span>
+          ) : (
+            <span>Score run <code className="font-mono">{selectedRunId}</code> against its synchronized G084 labels.</span>
+          )}
+        </div>
+        <button
+          type="submit"
+          disabled={!canCreate}
+          className="inline-flex items-center gap-1 rounded bg-brand-500 px-3 py-1.5 text-sm text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+          title={noRun ? 'Select a run first' : 'Create evaluation for the selected run'}
+        >
+          <Plus size={14} /> {createEvaluation.isPending ? 'Scoring...' : 'Create evaluation'}
+        </button>
+        {createEvaluation.isSuccess && createEvaluation.data && (
+          <div className="w-full rounded border border-green-200 bg-green-50 p-2 text-xs text-green-800">
+            Saved evaluation <code className="font-mono">{createEvaluation.data.backtest_evaluation.evaluation_id}</code>
+          </div>
+        )}
+        {createEvaluation.isError && (
+          <p className="w-full text-xs text-red-700" role="alert">
+            Create failed: {isApiError(createEvaluation.error) ? createEvaluation.error.message : 'unknown error'}.
+          </p>
+        )}
+      </form>
+
+      {noRun ? (
+        <EmptyState message="No back-test run selected. Select a run to list and create label-aware evaluations." />
+      ) : evaluations.isLoading ? (
+        <LoadingState label="Loading evaluations..." />
+      ) : evaluations.isError ? (
+        <p className="text-xs text-amber-700">
+          Evaluations unavailable. {isApiError(evaluations.error) ? evaluations.error.message : ''}
+        </p>
+      ) : rows.length ? (
+        <div className="space-y-2">
+          {rows.map((evaluation) => (
+            <EvaluationRow key={evaluation.evaluation_id} evaluation={evaluation} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState message="No label-aware evaluations for this run yet. Create one above." />
+      )}
+    </div>
+  );
+}
+
+function EvaluationRow({ evaluation }: { evaluation: MarketOpsBacktestEvaluation }) {
+  const s = summarizeBacktestEvaluation(evaluation);
+  const needsMore = isNeedsMoreDataEvaluation(evaluation);
+  return (
+    <div className="rounded border border-gray-200 bg-white p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ComparisonRecommendationChip recommendation={s.recommendation} />
+        <code className="break-all text-xs text-gray-700">{s.evaluationId}</code>
+        <span className="text-xs text-gray-500">
+          run <code className="font-mono">{s.runId || '—'}</code>
+        </span>
+        <span className="text-xs text-gray-500">{formatUtc(s.createdAt)}</span>
+      </div>
+      {needsMore ? (
+        <p className="mt-1 text-xs text-amber-700">
+          No synchronized labels matched this run ({s.candidateCount} candidate{s.candidateCount === 1 ? '' : 's'}, 0 labeled). Recommendation: needs more data — this is not an API failure.
+        </p>
+      ) : s.recommendationNote ? (
+        <p className="mt-1 text-xs text-gray-600">{s.recommendationNote}</p>
+      ) : null}
+      <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4 lg:grid-cols-6">
+        <EvaluationMetric label="Precision" value={formatEvaluationPercent(s.precision)} />
+        <EvaluationMetric label="Recall" value={formatEvaluationPercent(s.recall)} />
+        <EvaluationMetric label="Accuracy" value={formatEvaluationPercent(s.accuracy)} />
+        <EvaluationMetric label="Specificity" value={formatEvaluationPercent(s.specificity)} />
+        <EvaluationMetric
+          label="Label cov."
+          value={formatEvaluationPercent(s.labelCoverage)}
+          highlight={s.labelCoverage < 0.5}
+        />
+        <EvaluationMetric label="Manual rev." value={orDash(s.manualReviewCount)} />
+        <EvaluationMetric label="Candidates" value={orDash(s.candidateCount)} />
+        <EvaluationMetric label="Labeled" value={orDash(s.labeledCount)} />
+        <EvaluationMetric label="TP" value={orDash(s.truePositive)} />
+        <EvaluationMetric label="FP" value={orDash(s.falsePositive)} />
+        <EvaluationMetric label="TN" value={orDash(s.trueNegative)} />
+        <EvaluationMetric label="FN" value={orDash(s.falseNegative)} />
+      </div>
+    </div>
+  );
+}
+
+function EvaluationMetric({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wide text-gray-500">{label}</div>
+      <div className={`text-sm font-semibold ${highlight ? 'text-amber-700' : 'text-gray-900'}`}>{value}</div>
+    </div>
   );
 }

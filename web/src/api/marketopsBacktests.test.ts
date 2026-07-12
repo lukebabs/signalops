@@ -27,6 +27,7 @@ const {
   applyBacktestCalibrationSummaryCreateResult,
   applyBacktestCalibrationBaselineCreateResult,
   applyBacktestCalibrationComparisonCreateResult,
+  applyBacktestEvaluationCreateResult,
 } = await import('./queries');
 
 afterEach(() => {
@@ -550,5 +551,143 @@ describe('applyBacktestCalibrationComparisonCreateResult (G083 mutation invalida
     // No production or baseline-list invalidation leaks from a comparison create.
     expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtest-calibration-baselines'] });
     expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-dsm-graph-proposals'] });
+  });
+});
+
+describe('MarketOps back-test label-aware evaluations API client (G085)', () => {
+  it('creates, lists, and fetches an evaluation via the G085 endpoints with bearer + content type', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            backtest_evaluation: {
+              evaluation_id: 'bteval-1',
+              tenant_id: 'tenant-local',
+              run_id: 'bt-1',
+              recommendation: 'improvement_candidate',
+              recommendation_note: 'automatic recommendations align with available labels',
+              candidate_count: 5,
+              labeled_count: 5,
+              precision: 1,
+              recall: 1,
+              label_coverage: 1,
+              metrics: { matched_samples: [], scoring_notes: ['manual_review_required and supersede_candidate recommendations are not counted as automatic true/false outcomes'] },
+            },
+          },
+          201,
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ backtest_evaluations: [{ evaluation_id: 'bteval-1', run_id: 'bt-1' }] }))
+      .mockResolvedValueOnce(jsonResponse({ backtest_evaluation: { evaluation_id: 'bteval-1', recommendation: 'improvement_candidate' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    state.authEnabled = true;
+    state.token = 'jwt-abc';
+
+    const created = await api.createMarketOpsBacktestEvaluation({ tenant_id: 'tenant-local', run_id: 'bt-1' });
+    const list = await api.listMarketOpsBacktestEvaluations({
+      tenant_id: 'tenant-local',
+      run_id: 'bt-1',
+      recommendation: 'improvement_candidate',
+      limit: 50,
+    });
+    const detail = await api.getMarketOpsBacktestEvaluation('bteval-1');
+
+    // Create: POST to the evaluations endpoint with bearer + JSON body; only
+    // tenant_id + run_id are sent (label_source is derived server-side).
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/marketops/backtest-evaluations');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[0][1].headers['Authorization']).toBe('Bearer jwt-abc');
+    expect(fetchMock.mock.calls[0][1].headers['Content-Type']).toBe('application/json');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ tenant_id: 'tenant-local', run_id: 'bt-1' });
+    // List: run-scoped + recommendation filter + default limit.
+    const listUrl = String(fetchMock.mock.calls[1][0]);
+    expect(listUrl).toContain('tenant_id=tenant-local');
+    expect(listUrl).toContain('run_id=bt-1');
+    expect(listUrl).toContain('recommendation=improvement_candidate');
+    expect(listUrl).toContain('limit=50');
+    // Detail: encoded evaluation id.
+    expect(String(fetchMock.mock.calls[2][0])).toContain('/v1/marketops/backtest-evaluations/bteval-1');
+    // Envelopes parse, including nested metrics.matched_samples + scoring_notes.
+    expect(created.backtest_evaluation.recommendation).toBe('improvement_candidate');
+    expect(created.backtest_evaluation.metrics.matched_samples).toEqual([]);
+    expect(created.backtest_evaluation.metrics.scoring_notes).toHaveLength(1);
+    expect(list.backtest_evaluations[0].run_id).toBe('bt-1');
+    expect(detail.backtest_evaluation.evaluation_id).toBe('bteval-1');
+  });
+
+  it('omits label_source + requested_by + evaluation_id from the create body', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ backtest_evaluation: { evaluation_id: 'bteval-2' } }, 201));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.createMarketOpsBacktestEvaluation({ tenant_id: 'tenant-local', run_id: 'bt-1' });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.tenant_id).toBe('tenant-local');
+    expect(body.run_id).toBe('bt-1');
+    expect(body.label_source).toBeUndefined();
+    expect(body.requested_by).toBeUndefined();
+    expect(body.evaluation_id).toBeUndefined();
+  });
+
+  it('encodes special characters in the evaluation id on the detail path', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ backtest_evaluation: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.getMarketOpsBacktestEvaluation('bteval/a b');
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/marketops/backtest-evaluations/bteval%2Fa%20b');
+  });
+});
+
+describe('MarketOps back-test evaluation query keys (G085)', () => {
+  it('uses stable evaluation list/detail keys', () => {
+    const filter = { tenant_id: 'tenant-local', run_id: 'bt-1', limit: 50 };
+
+    expect(queryKeys.marketOpsBacktestEvaluations(filter)).toEqual(['marketops-backtest-evaluations', filter]);
+    expect(queryKeys.marketOpsBacktestEvaluations({ ...filter })).toEqual(['marketops-backtest-evaluations', filter]);
+    expect(queryKeys.marketOpsBacktestEvaluation('bteval-1')).toEqual(['marketops-backtest-evaluation', 'bteval-1']);
+  });
+
+  it('list and detail keys share the prefixes the create mutation invalidates', () => {
+    const listKey = queryKeys.marketOpsBacktestEvaluations({ tenant_id: 'tenant-local', run_id: 'bt-1', limit: 50 });
+    const detailKey = queryKeys.marketOpsBacktestEvaluation('bteval-1');
+    expect(listKey[0]).toBe('marketops-backtest-evaluations');
+    expect(detailKey[0]).toBe('marketops-backtest-evaluation');
+  });
+});
+
+describe('applyBacktestEvaluationCreateResult (G085 mutation invalidation)', () => {
+  it('seeds the evaluation detail cache and invalidates only evaluation prefixes', () => {
+    const queryClient = new QueryClient();
+    const setSpy = vi.spyOn(queryClient, 'setQueryData');
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const created = {
+      backtest_evaluation: {
+        evaluation_id: 'bteval-new',
+        tenant_id: 'tenant-local',
+        run_id: 'bt-1',
+        recommendation: 'improvement_candidate',
+      },
+    } as never;
+
+    applyBacktestEvaluationCreateResult(queryClient, created);
+
+    const detailKey = queryKeys.marketOpsBacktestEvaluation('bteval-new');
+    expect(setSpy).toHaveBeenCalledWith(detailKey, created);
+    expect(queryClient.getQueryData<{ backtest_evaluation: { evaluation_id: string } }>(detailKey)?.backtest_evaluation.evaluation_id).toBe('bteval-new');
+    // List + detail prefixes invalidated so the evaluations table refetches.
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-evaluations'] });
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['marketops-backtest-evaluation'] });
+    // Production signal / DSM graph proposal / back-test run + graph-proposal
+    // queries are never invalidated by an evaluation create.
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['signals'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-dsm-graph-proposals'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtests'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtest-graph-proposals'] });
   });
 });

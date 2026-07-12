@@ -29,6 +29,9 @@ import type {
   MarketOpsBacktestCalibrationComparisonFilter,
   MarketOpsBacktestCalibrationComparisonCreateRequest,
   MarketOpsBacktestCalibrationComparisonResponse,
+  MarketOpsBacktestEvaluationFilter,
+  MarketOpsBacktestEvaluationCreateRequest,
+  MarketOpsBacktestEvaluationResponse,
 } from '../types';
 
 export const queryKeys = {
@@ -81,6 +84,10 @@ export const queryKeys = {
     ['marketops-backtest-calibration-comparisons', filter] as const,
   marketOpsBacktestCalibrationComparison: (comparisonId: string) =>
     ['marketops-backtest-calibration-comparison', comparisonId] as const,
+  marketOpsBacktestEvaluations: (filter: MarketOpsBacktestEvaluationFilter) =>
+    ['marketops-backtest-evaluations', filter] as const,
+  marketOpsBacktestEvaluation: (evaluationId: string) =>
+    ['marketops-backtest-evaluation', evaluationId] as const,
 };
 
 export function useHealthz() {
@@ -524,6 +531,49 @@ export function useCreateMarketOpsBacktestCalibrationComparison() {
     mutationFn: (body: MarketOpsBacktestCalibrationComparisonCreateRequest) =>
       api.createMarketOpsBacktestCalibrationComparison(body),
     onSuccess: (data) => applyBacktestCalibrationComparisonCreateResult(queryClient, data),
+  });
+}
+
+// G085 label-aware back-test evaluations. The list is run-scoped and only runs
+// while a run is selected (guarded by a truthy run id); detail only runs while
+// an evaluation id is selected. A create invalidation is enough for a new
+// evaluation to appear without a manual reload.
+export function useMarketOpsBacktestEvaluations(filter: MarketOpsBacktestEvaluationFilter = { tenant_id: 'tenant-local', limit: 50 }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestEvaluations(filter),
+    queryFn: () => api.listMarketOpsBacktestEvaluations(filter),
+    enabled: !!filter.run_id,
+  });
+}
+
+export function useMarketOpsBacktestEvaluation(evaluationId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsBacktestEvaluation(evaluationId ?? ''),
+    queryFn: () => api.getMarketOpsBacktestEvaluation(evaluationId!),
+    enabled: !!evaluationId,
+  });
+}
+
+// On create, seed the evaluation detail cache and invalidate evaluation
+// list/detail prefixes. Only evaluation queries are touched — never production
+// DSM graph proposal, signal, or back-test run/graph-proposal queries.
+export function applyBacktestEvaluationCreateResult(
+  queryClient: QueryClient,
+  data: MarketOpsBacktestEvaluationResponse,
+) {
+  queryClient.setQueryData(
+    queryKeys.marketOpsBacktestEvaluation(data.backtest_evaluation.evaluation_id),
+    data,
+  );
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtest-evaluations'] });
+  queryClient.invalidateQueries({ queryKey: ['marketops-backtest-evaluation'] });
+}
+
+export function useCreateMarketOpsBacktestEvaluation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MarketOpsBacktestEvaluationCreateRequest) => api.createMarketOpsBacktestEvaluation(body),
+    onSuccess: (data) => applyBacktestEvaluationCreateResult(queryClient, data),
   });
 }
 

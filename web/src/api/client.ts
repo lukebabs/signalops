@@ -61,6 +61,10 @@ import type {
   MarketOpsBacktestCalibrationComparisonResponse,
   MarketOpsBacktestCalibrationComparisonCreateRequest,
   MarketOpsBacktestCalibrationComparisonFilter,
+  MarketOpsBacktestEvaluationsResponse,
+  MarketOpsBacktestEvaluationResponse,
+  MarketOpsBacktestEvaluationCreateRequest,
+  MarketOpsBacktestEvaluationFilter,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -448,4 +452,28 @@ export const api = {
     ),
   createMarketOpsBacktestCalibrationComparison: (body: MarketOpsBacktestCalibrationComparisonCreateRequest) =>
     post<MarketOpsBacktestCalibrationComparisonResponse>('/v1/marketops/backtest-calibration-comparisons', body),
+  // G085 label-aware back-test evaluations. Scores a run against synchronized
+  // G084 graph-proposal-decision labels. Like G082/G083 these are plain
+  // same-origin reads + a create; the gateway derives the actor (and overrides
+  // label_source server-side), so no actor header or label_source is sent.
+  // Filters mirror the backend list query params; defaults match the spec
+  // (tenant-local, limit 50).
+  listMarketOpsBacktestEvaluations: (filter: MarketOpsBacktestEvaluationFilter = {}) =>
+    get<MarketOpsBacktestEvaluationsResponse>('/v1/marketops/backtest-evaluations', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      app_id: filter.app_id || undefined,
+      domain: filter.domain || undefined,
+      use_case: filter.use_case || undefined,
+      run_id: filter.run_id || undefined,
+      detector_id: filter.detector_id || undefined,
+      dataset: filter.dataset || undefined,
+      recommendation: filter.recommendation || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getMarketOpsBacktestEvaluation: (evaluationId: string) =>
+    get<MarketOpsBacktestEvaluationResponse>(
+      `/v1/marketops/backtest-evaluations/${encodeURIComponent(evaluationId)}`,
+    ),
+  createMarketOpsBacktestEvaluation: (body: MarketOpsBacktestEvaluationCreateRequest) =>
+    post<MarketOpsBacktestEvaluationResponse>('/v1/marketops/backtest-evaluations', body),
 };
