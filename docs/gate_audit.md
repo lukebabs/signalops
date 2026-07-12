@@ -6378,3 +6378,23 @@ Validation performed:
 Result:
 
 - G082 persisted calibration summary backend and UI now have authenticated API closeout coverage.
+
+
+## Gate G083: Back-Test Baselines And Evaluation Specification
+
+Timestamp: `2026-07-12T06:36:00Z`
+
+Status: `specification proposed`
+
+Scope:
+
+- Define the next MarketOps back-test gate after G082 closeout.
+- Specify named calibration baselines pointing to immutable G082 summaries.
+- Specify stored comparison records with deterministic summary-level deltas and advisory recommendations.
+- Specify how G080 operator graph-proposal decisions should become evaluation labels only after normalization through a separate label substrate.
+
+Result:
+
+- Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G083_backtest_baselines_and_evaluation.md`.
+- Gate index and back-test architecture docs now reference the G083 direction.
+- Implementation remains pending operator review/approval.

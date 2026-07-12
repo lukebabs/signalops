@@ -26,3 +26,8 @@ Recommended next gate:
 
 - G081 implemented: isolated back-test storage, CLI runner, deterministic policy evaluation, and read-only APIs.
 - G082 candidate: back-test operator ergonomics, run creation API, or expanded calibration metrics after smoke review.
+
+## G083 Proposed
+
+- G083: named back-test calibration baselines, baseline-to-summary comparisons, and label/evaluation design.
+- Specification: `G083_backtest_baselines_and_evaluation.md`.

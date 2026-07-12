@@ -5544,3 +5544,18 @@ Validation result:
 - Summary metrics: run count `8`, zero-input count `3`, scanned `5`, signals `5`, policy results `25`.
 - Dominant recommendation: `auto_accept_candidate`, count `25`, share `1`.
 - Detail response matched the created summary id.
+
+
+## 2026-07-12T06:36:00Z
+
+Summary:
+
+- Added the G083 specification for MarketOps back-test calibration baselines and evaluation.
+- Scoped G083 to named baselines over immutable G082 calibration summaries, stored baseline-to-summary comparisons, and label/evaluation design using G080 operator decisions.
+- Explicitly deferred detector threshold promotion, policy deployment, graph writeback, ML training, and PnL/trading simulation.
+- Updated the MarketOps gate README and back-test architecture note to index the G083 direction.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.

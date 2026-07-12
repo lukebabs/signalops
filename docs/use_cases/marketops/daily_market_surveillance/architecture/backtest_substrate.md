@@ -148,3 +148,13 @@ This is intentionally separate from detector execution and production ledgers:
 - calibration summaries aggregate completed run metrics;
 - production signal, artifact, graph proposal, alert, and insight rows are not mutated;
 - policy promotion and named baseline management remain future gate work.
+
+## G083 Baselines And Evaluation Direction
+
+G083 should add named calibration baselines and stored comparison records over the G082 persisted summary snapshots.
+
+The baseline layer should treat calibration summaries as immutable evidence. A baseline points to a selected summary; a comparison captures deltas between a candidate summary and the baseline summary.
+
+G080 operator graph-proposal decisions can become evaluation labels only after they are normalized into a separate label substrate with a stable graph fact key. Accepted, rejected, superseded, proposed, and restored states should not be collapsed into binary truth without documented rules.
+
+Policy promotion remains deferred. Baseline comparisons can emit recommendations such as `needs_more_data`, `regression_candidate`, `improvement_candidate`, `neutral_candidate`, or `manual_review_required`, but those recommendations are advisory only.
