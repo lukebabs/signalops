@@ -518,6 +518,42 @@ type MarketOpsBacktestEvaluationLabelRecord struct {
 	UpdatedAt        time.Time
 }
 
+type MarketOpsBacktestEvaluationRecord struct {
+	EvaluationID       string
+	TenantID           string
+	AppID              string
+	Domain             string
+	UseCase            string
+	RunID              string
+	DetectorID         string
+	Dataset            string
+	LabelSource        string
+	LabelVersion       string
+	ScoringVersion     string
+	RequestedBy        string
+	CandidateCount     int
+	LabeledCount       int
+	PositiveCount      int
+	NegativeCount      int
+	SupersededCount    int
+	UnresolvedCount    int
+	TruePositive       int
+	FalsePositive      int
+	TrueNegative       int
+	FalseNegative      int
+	ManualReviewCount  int
+	UnscoredCount      int
+	Precision          float64
+	Recall             float64
+	Specificity        float64
+	Accuracy           float64
+	LabelCoverage      float64
+	Recommendation     string
+	RecommendationNote string
+	MetricsJSON        []byte
+	CreatedAt          time.Time
+}
+
 type MarketOpsBacktestRunRecord struct {
 	RunID           string
 	TenantID        string
@@ -726,6 +762,9 @@ type MarketOpsBacktestRepository interface {
 	UpsertMarketOpsBacktestEvaluationLabel(ctx context.Context, record MarketOpsBacktestEvaluationLabelRecord) error
 	ListMarketOpsBacktestEvaluationLabels(ctx context.Context, filter MarketOpsBacktestEvaluationLabelFilter) ([]MarketOpsBacktestEvaluationLabelRecord, error)
 	GetMarketOpsBacktestEvaluationLabel(ctx context.Context, labelID string) (MarketOpsBacktestEvaluationLabelRecord, error)
+	UpsertMarketOpsBacktestEvaluation(ctx context.Context, record MarketOpsBacktestEvaluationRecord) error
+	ListMarketOpsBacktestEvaluations(ctx context.Context, filter MarketOpsBacktestEvaluationFilter) ([]MarketOpsBacktestEvaluationRecord, error)
+	GetMarketOpsBacktestEvaluation(ctx context.Context, evaluationID string) (MarketOpsBacktestEvaluationRecord, error)
 	UpsertMarketOpsBacktestCalibrationBaseline(ctx context.Context, record MarketOpsBacktestCalibrationBaselineRecord) error
 	ListMarketOpsBacktestCalibrationBaselines(ctx context.Context, filter MarketOpsBacktestCalibrationBaselineFilter) ([]MarketOpsBacktestCalibrationBaselineRecord, error)
 	GetMarketOpsBacktestCalibrationBaseline(ctx context.Context, baselineID string) (MarketOpsBacktestCalibrationBaselineRecord, error)
@@ -862,6 +901,18 @@ type MarketOpsBacktestEvaluationLabelFilter struct {
 	Label            string
 	LabelSource      string
 	Limit            int
+}
+
+type MarketOpsBacktestEvaluationFilter struct {
+	TenantID       string
+	AppID          string
+	Domain         string
+	UseCase        string
+	RunID          string
+	DetectorID     string
+	Dataset        string
+	Recommendation string
+	Limit          int
 }
 
 type MarketOpsBacktestCalibrationBaselineFilter struct {

@@ -74,6 +74,7 @@ type fakeQueryRepository struct {
 	backtestCalibrationBaselines   []storage.MarketOpsBacktestCalibrationBaselineRecord
 	backtestCalibrationComparisons []storage.MarketOpsBacktestCalibrationComparisonRecord
 	backtestEvaluationLabels       []storage.MarketOpsBacktestEvaluationLabelRecord
+	backtestEvaluations            []storage.MarketOpsBacktestEvaluationRecord
 	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
 	lastBacktestSignalFilter       storage.MarketOpsBacktestSignalFilter
 	lastBacktestGraphFilter        storage.MarketOpsBacktestGraphProposalFilter
@@ -81,6 +82,7 @@ type fakeQueryRepository struct {
 	lastBacktestBaselineFilter     storage.MarketOpsBacktestCalibrationBaselineFilter
 	lastBacktestComparisonFilter   storage.MarketOpsBacktestCalibrationComparisonFilter
 	lastEvaluationLabelFilter      storage.MarketOpsBacktestEvaluationLabelFilter
+	lastBacktestEvaluationFilter   storage.MarketOpsBacktestEvaluationFilter
 	lastDSMFilter                  storage.MarketOpsDSMArtifactFilter
 	lastGraphProposalFilter        storage.MarketOpsDSMGraphProposalFilter
 	lastGraphProposalMutation      storage.MarketOpsDSMGraphProposalMutation
@@ -413,6 +415,38 @@ func (q *fakeQueryRepository) GetMarketOpsBacktestCalibrationComparison(_ contex
 		}
 	}
 	return storage.MarketOpsBacktestCalibrationComparisonRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertMarketOpsBacktestEvaluation(_ context.Context, record storage.MarketOpsBacktestEvaluationRecord) error {
+	for i, existing := range q.backtestEvaluations {
+		if existing.EvaluationID == record.EvaluationID {
+			record.CreatedAt = existing.CreatedAt
+			q.backtestEvaluations[i] = record
+			return nil
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	q.backtestEvaluations = append(q.backtestEvaluations, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestEvaluations(_ context.Context, filter storage.MarketOpsBacktestEvaluationFilter) ([]storage.MarketOpsBacktestEvaluationRecord, error) {
+	q.lastBacktestEvaluationFilter = filter
+	return q.backtestEvaluations, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsBacktestEvaluation(_ context.Context, evaluationID string) (storage.MarketOpsBacktestEvaluationRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsBacktestEvaluationRecord{}, storage.ErrNotFound
+	}
+	for _, evaluation := range q.backtestEvaluations {
+		if evaluation.EvaluationID == evaluationID {
+			return evaluation, nil
+		}
+	}
+	return storage.MarketOpsBacktestEvaluationRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) UpsertMarketOpsBacktestEvaluationLabel(_ context.Context, record storage.MarketOpsBacktestEvaluationLabelRecord) error {
@@ -1152,6 +1186,70 @@ func TestGetMarketOpsDSMArtifact(t *testing.T) {
 	}
 }
 
+func TestPostMarketOpsBacktestEvaluationScoresRunAgainstLabels(t *testing.T) {
+	proposal := validMarketOpsBacktestGraphProposalRecord()
+	proposal.NodeID = "ticker:AAPL"
+	policy := validMarketOpsBacktestPolicyResultRecord()
+	policy.ProposalID = proposal.ProposalID
+	policy.Recommendation = storage.MarketOpsBacktestPolicyAutoAcceptCandidate
+	repo := &fakeQueryRepository{backtestRuns: []storage.MarketOpsBacktestRunRecord{validMarketOpsBacktestRunRecord()}, backtestGraphProposals: []storage.MarketOpsBacktestGraphProposalRecord{proposal}, backtestPolicyResults: []storage.MarketOpsBacktestPolicyResultRecord{policy}, backtestEvaluationLabels: []storage.MarketOpsBacktestEvaluationLabelRecord{validMarketOpsBacktestEvaluationLabelRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-evaluations", strings.NewReader(`{"evaluation_id":"bteval-1","tenant_id":"tenant-1","run_id":"bt-marketops-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	evaluation := response["backtest_evaluation"]
+	if evaluation["evaluation_id"] != "bteval-1" || evaluation["true_positive"].(float64) != 1 || evaluation["precision"].(float64) != 1 {
+		t.Fatalf("evaluation = %#v", evaluation)
+	}
+}
+
+func TestGetMarketOpsBacktestEvaluations(t *testing.T) {
+	repo := &fakeQueryRepository{backtestEvaluations: []storage.MarketOpsBacktestEvaluationRecord{validMarketOpsBacktestEvaluationRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-evaluations?tenant_id=tenant-1&run_id=bt-marketops-1&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestEvaluationFilter.TenantID != "tenant-1" || repo.lastBacktestEvaluationFilter.RunID != "bt-marketops-1" || repo.lastBacktestEvaluationFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastBacktestEvaluationFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response["backtest_evaluations"]) != 1 || response["backtest_evaluations"][0]["evaluation_id"] != "bteval-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestGetMarketOpsBacktestEvaluation(t *testing.T) {
+	repo := &fakeQueryRepository{backtestEvaluations: []storage.MarketOpsBacktestEvaluationRecord{validMarketOpsBacktestEvaluationRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-evaluations/bteval-1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response["backtest_evaluation"]["evaluation_id"] != "bteval-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestPostMarketOpsBacktestEvaluationLabelsSyncCreatesLabels(t *testing.T) {
 	proposal := validMarketOpsDSMGraphProposalRecord()
 	now := time.Date(2026, 7, 12, 20, 0, 0, 0, time.UTC)
@@ -1700,6 +1798,11 @@ func validMarketOpsDSMArtifactRecord() storage.MarketOpsDSMArtifactRecord {
 		CreatedAt:            time.Date(2026, 7, 8, 0, 2, 0, 0, time.UTC),
 		UpdatedAt:            time.Date(2026, 7, 8, 0, 3, 0, 0, time.UTC),
 	}
+}
+
+func validMarketOpsBacktestEvaluationRecord() storage.MarketOpsBacktestEvaluationRecord {
+	now := time.Date(2026, 7, 12, 20, 30, 0, 0, time.UTC)
+	return storage.MarketOpsBacktestEvaluationRecord{EvaluationID: "bteval-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", RunID: "bt-marketops-1", DetectorID: "marketops.dsm.taxonomy_v1", Dataset: "equity_eod_prices", LabelSource: "g080_graph_proposal_decision", LabelVersion: "marketops.eval_label.v1", ScoringVersion: "marketops.eval_scoring.v1", RequestedBy: "operator-test", CandidateCount: 1, LabeledCount: 1, PositiveCount: 1, TruePositive: 1, Precision: 1, Recall: 1, Accuracy: 1, LabelCoverage: 1, Recommendation: storage.MarketOpsBacktestCalibrationRecommendationImprovement, RecommendationNote: "automatic recommendations align with available labels", MetricsJSON: []byte(`{"matched_samples":[]}`), CreatedAt: now}
 }
 
 func validMarketOpsBacktestEvaluationLabelRecord() storage.MarketOpsBacktestEvaluationLabelRecord {

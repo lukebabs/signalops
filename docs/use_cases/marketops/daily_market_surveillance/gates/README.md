@@ -36,3 +36,8 @@ Recommended next gate:
 
 - G084: evaluation label sync from G080 graph proposal decisions.
 - Specification: `G084_evaluation_label_sync.md`.
+
+## G085 Implemented
+
+- G085: label-aware back-test evaluation scoring over G084 labels.
+- Specification: `G085_label_aware_backtest_evaluation.md`.

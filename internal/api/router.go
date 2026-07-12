@@ -713,6 +713,92 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"graph_proposal": marketOpsDSMGraphProposalResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/marketops/backtest-evaluations", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req marketOpsBacktestEvaluationCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.RunID) == "" {
+			writeError(w, http.StatusBadRequest, "invalid_backtest_evaluation", "tenant_id and run_id are required")
+			return
+		}
+		run, err := repo.GetMarketOpsBacktestRun(r.Context(), req.RunID)
+		if err != nil {
+			writeQueryError(w, err, "backtest_run_not_found", "MarketOps backtest run not found")
+			return
+		}
+		if run.TenantID != strings.TrimSpace(req.TenantID) {
+			writeError(w, http.StatusBadRequest, "invalid_backtest_evaluation", "run tenant_id does not match request tenant_id")
+			return
+		}
+		proposalFilter := storage.MarketOpsBacktestGraphProposalFilter{RunID: run.RunID, TenantID: run.TenantID, Limit: 1000}
+		proposals, err := repo.ListMarketOpsBacktestGraphProposals(r.Context(), proposalFilter)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest graph proposals")
+			return
+		}
+		policy, err := repo.ListMarketOpsBacktestPolicyResults(r.Context(), proposalFilter)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest policy results")
+			return
+		}
+		labels, err := repo.ListMarketOpsBacktestEvaluationLabels(r.Context(), storage.MarketOpsBacktestEvaluationLabelFilter{TenantID: run.TenantID, LabelSource: firstNonEmptyBacktestValue(req.LabelSource, marketOpsEvaluationLabelSource), Limit: 1000})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps evaluation labels")
+			return
+		}
+		evaluationID := strings.TrimSpace(req.EvaluationID)
+		if evaluationID == "" {
+			evaluationID = newID("bteval_marketops")
+		}
+		record, err := buildMarketOpsBacktestEvaluation(evaluationID, replayActor(r, req.RequestedBy), run, proposals, policy, labels)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "evaluation_failed", "failed to score MarketOps backtest evaluation")
+			return
+		}
+		if err := repo.UpsertMarketOpsBacktestEvaluation(r.Context(), record); err != nil {
+			writeError(w, http.StatusInternalServerError, "persist_failed", "failed to persist MarketOps backtest evaluation")
+			return
+		}
+		stored, err := repo.GetMarketOpsBacktestEvaluation(r.Context(), evaluationID)
+		if err != nil {
+			writeQueryError(w, err, "backtest_evaluation_not_found", "MarketOps backtest evaluation not found")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"backtest_evaluation": marketOpsBacktestEvaluationResponse(stored)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-evaluations", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestEvaluations(r.Context(), storage.MarketOpsBacktestEvaluationFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), RunID: strings.TrimSpace(r.URL.Query().Get("run_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest evaluations")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"backtest_evaluations": marketOpsBacktestEvaluationResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-evaluations/{evaluation_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetMarketOpsBacktestEvaluation(r.Context(), r.PathValue("evaluation_id"))
+		if err != nil {
+			writeQueryError(w, err, "backtest_evaluation_not_found", "MarketOps backtest evaluation not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"backtest_evaluation": marketOpsBacktestEvaluationResponse(record)})
+	})
+
 	mux.HandleFunc("POST /v1/marketops/backtest-evaluation-labels/sync", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

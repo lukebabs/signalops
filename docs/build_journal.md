@@ -5647,3 +5647,26 @@ Validation performed:
 - Authenticated smoke generated a bearer in-memory, synced two accepted graph proposals into `positive` labels, listed labels, and fetched a label detail.
 - Authenticated smoke statuses: token `200`, proposal list `200`, sync `201`, label list `200`, label detail `200`.
 - Token material and temporary API response files were removed.
+
+
+## 2026-07-12T20:35:00Z
+
+Summary:
+
+- Implemented G085 as the first label-aware MarketOps back-test evaluation substrate.
+- Added migration `000018_marketops_backtest_evaluations` for persisted scoring snapshots.
+- Added storage records, Postgres repository methods, API DTOs, scoring helper logic, and gateway routes under `/v1/marketops/backtest-evaluations`.
+- Scoring matches back-test graph proposals to G084 labels by graph fact key and computes candidate/labeled counts, positive/negative/superseded/unresolved counts, TP/FP/TN/FN, manual review count, precision, recall, specificity, accuracy, and label coverage.
+- Kept scope read/evaluation-only: no detector threshold edit, policy promotion, graph writeback, model training, or PnL simulation.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
+- `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
+- `git diff --check`: passed.
+- `make compose-storage-migrate`: applied `000018_marketops_backtest_evaluations`.
+- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
+- Authenticated smoke generated a bearer in-memory and validated evaluation create/list/detail as HTTP `201/200/200` for run `bt-g081-ui-closeout-spy-20260712`.
+- Smoke result: candidates `5`, matched labels `0`, precision `0`, recommendation `needs_more_data`; this validates API/storage behavior while richer scoring remains dependent on matched label coverage.
+- Token material and temporary API response files were removed.

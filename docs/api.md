@@ -669,6 +669,18 @@ Returns synchronized evaluation labels. Labels are `positive`, `negative`, `supe
 
 Returns one synchronized evaluation label.
 
+`POST /v1/marketops/backtest-evaluations`
+
+Creates a label-aware evaluation for one MarketOps back-test run. Required body fields: `tenant_id` and `run_id`. Optional fields: `evaluation_id`, `label_source`, and `requested_by`. The scorer matches run-scoped generated graph proposals to synchronized evaluation labels by graph fact key and scores automatic policy recommendations against positive/negative labels.
+
+`GET /v1/marketops/backtest-evaluations?tenant_id={tenant_id}&run_id={run_id}&limit=50`
+
+Returns stored label-aware back-test evaluations.
+
+`GET /v1/marketops/backtest-evaluations/{evaluation_id}`
+
+Returns one stored label-aware back-test evaluation.
+
 ### Query Errors
 
 - `400 missing_query`: required idempotency lookup parameters are missing.

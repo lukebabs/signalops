@@ -6497,3 +6497,30 @@ Validation performed:
 Result:
 
 - G084 provides the durable label substrate needed for a later label-aware scoring/evaluation gate.
+
+
+## Gate G085: Label-Aware Back-Test Evaluation
+
+Timestamp: `2026-07-12T20:35:00Z`
+
+Status: `validated — backend/API scoring substrate implemented`
+
+Scope:
+
+- Score MarketOps back-test policy recommendations against G084 evaluation labels.
+- Persist aggregate scoring snapshots in `marketops_backtest_evaluations`.
+- Expose create/list/detail APIs without changing back-test execution, graph proposal decisions, or policy behavior.
+
+Validation performed:
+
+- Added migration `000018_marketops_backtest_evaluations`.
+- Added storage records, Postgres methods, API DTOs, scoring helper logic, router handlers, and route tests.
+- Targeted API/Postgres tests and full Go tests passed.
+- JSON schema validation and `git diff --check` passed.
+- Applied the migration and rebuilt the gateway; Docker build ran `go test ./...`.
+- Authenticated smoke validated evaluation create/list/detail as HTTP `201/200/200`.
+- The smoke run had no matched labels, yielding `needs_more_data`, which is the expected conservative outcome for zero label coverage.
+
+Result:
+
+- G085 provides the durable label-aware scoring substrate. The next useful work is frontend exposure or generating/replaying runs with matched label coverage for meaningful precision/recall review.
