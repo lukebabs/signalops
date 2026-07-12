@@ -6547,3 +6547,28 @@ Validation performed:
 Result:
 
 - G085 has both zero-coverage and matched-label validation coverage. Frontend-agent can now wire evaluation visibility without backend changes.
+
+
+## Gate G085: Frontend Evaluation UI Closeout
+
+Timestamp: `2026-07-12T21:05:00Z`
+
+Status: `validated — frontend label-aware evaluation UI implemented`
+
+Scope:
+
+- Close the loop on frontend-agent implementation for G085 label-aware back-test evaluations.
+- Validate API client/query hook tests, full frontend tests, production build, local web rebuild, route availability, and built UI text.
+- Keep scope limited to evaluation visibility and creation; label sync controls, graph proposal decisions, policy promotion, graph writeback, and threshold editing remain out of scope.
+
+Validation performed:
+
+- Targeted MarketOps back-test frontend tests passed: 54 tests.
+- Full frontend suite passed: 175 tests.
+- Production web build passed.
+- Local web container rebuild passed.
+- `/marketops/backtests` served HTTP `200` and the built bundle contains the G085 evaluation UI text.
+
+Result:
+
+- G085 backend plus frontend visibility is validated locally. Remaining work is broader operator workflow and product decisions around promotion, not G085 closure.

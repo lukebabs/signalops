@@ -5690,3 +5690,22 @@ Validation performed:
 - Matched-label evaluation `bteval-g085-matched-smoke-20260712205000`: candidates `5`, labeled `5`, true positives `5`, false positives `0`, precision `1`, recall `1`, label coverage `1`, recommendation `improvement_candidate`.
 - Token material and temporary API response files were removed.
 - Documentation readback completed.
+
+
+## 2026-07-12T21:05:00Z
+
+Summary:
+
+- Closed the G085 frontend-agent implementation loop for MarketOps label-aware back-test evaluations.
+- Verified commit `e0b09bd Implement G085 MarketOps back-test evaluations UI` is present on `main` and aligned with `origin/main`.
+- Confirmed the implementation touched MarketOps back-test API types/client/query hooks, route rendering, and tests.
+
+Validation performed:
+
+- `cd web && npm test -- src/api/marketopsBacktests.test.ts src/lib/marketopsBacktests.test.ts`: 54 passed.
+- `cd web && npm test`: 175 passed.
+- `cd web && npm run build`: passed.
+- `docker compose up -d --build web`: passed.
+- `curl http://localhost:15173/marketops/backtests`: HTTP `200`.
+- Rebuilt web bundle contains `Label-Aware Evaluations`, `Create evaluation`, and `Precision` UI text.
+- `docker compose ps web gateway`: both services running.
