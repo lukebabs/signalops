@@ -5179,3 +5179,33 @@ Files changed:
 Notes:
 
 - The bearer token was used only in-memory for live validation and was not written to repository files.
+
+
+## 2026-07-12T00:53:00Z
+
+Summary:
+
+- Closed the historical `signalops.signal-persister.v1` lag on older `signalops.local.signal.v1` partitions `0` and `1`.
+- Added `cmd/signal-backfill`, an operator command that replays captured `signal.v1` JSONL payloads through the existing `signals.Processor` and Postgres lifecycle repository without publishing to Kafka.
+- Audited and backfilled 11 historical MarketOps DSM smoke/replay records from G072-G077, materializing all 11 signal rows, all 11 DSM artifact rows, and 55 graph proposal rows.
+- Advanced the signal-persister consumer group offsets only after database backfill verification: partition `0` from offset `5` to `13`, partition `1` from offset `2` to `5`, partition `2` remained at `5`.
+
+Files changed:
+
+- `cmd/signal-backfill/main.go`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.24 go test ./cmd/signal-backfill ./internal/signals ./internal/storage/postgres`: passed.
+- `signal-backfill` dry-run decoded partition `0` offsets `5-12` and partition `1` offsets `2-4`.
+- Live backfill persisted partition `0` offsets `5-12` and partition `1` offsets `2-4` through the existing lifecycle repository.
+- Postgres verified `11` distinct historical signal rows, `11` distinct DSM artifact rows, and `55` graph proposal rows for the audited set.
+- `rpk group seek signalops.signal-persister.v1 --to end --topics signalops.local.signal.v1` advanced only the audited backlog offsets.
+- Final `rpk group describe signalops.signal-persister.v1`: Stable with one member and total lag `0` across partitions `0`, `1`, and `2`.
+
+Notes:
+
+- The pending records were bounded MarketOps DSM validation records, not live external-market ingestion.
+- Consumer offsets were advanced after successful backfill, so no audited signal/artifact/proposal data was skipped.

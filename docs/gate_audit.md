@@ -5951,4 +5951,34 @@ Result:
 
 Residual state:
 
-- Historical signal-persister lag on older partitions remains a separate operational cleanup/audit item.
+- Historical signal-persister lag on older partitions was closed in the follow-up operational cleanup documented below.
+
+
+## Historical Signal-Persister Lag Closure
+
+Timestamp: `2026-07-12T00:53:00Z`
+
+Status: `closed — historical partition lag backfilled and offsets reconciled`
+
+Scope:
+
+- Audit and close the historical `signalops.signal-persister.v1` lag on older `signalops.local.signal.v1` partitions `0` and `1` without losing MarketOps DSM ledger data.
+
+Implementation:
+
+- Added `cmd/signal-backfill` for operator-controlled JSONL replay through the existing signal lifecycle processor and Postgres repository.
+- Captured and audited the lagged records from partition `0` offsets `5-12` and partition `1` offsets `2-4`.
+- Backfilled 11 bounded MarketOps DSM smoke/replay records from G072-G077.
+- Materialized missing first-class DSM artifacts and graph proposals for the historical records.
+
+Validation performed:
+
+- Dry-run decoded all 11 payloads before persistence.
+- Live backfill completed for partition `0` offsets `5-12` and partition `1` offsets `2-4`.
+- Postgres verified `11` distinct signal rows, `11` distinct `marketops_dsm_artifacts` rows, and `55` `marketops_dsm_graph_proposals` rows for the audited set.
+- Consumer offsets were advanced after backfill: partition `0` `5 -> 13`, partition `1` `2 -> 5`, partition `2` unchanged at `5`.
+- Final Redpanda group state: `signalops.signal-persister.v1` Stable with one member and total lag `0`.
+
+Result:
+
+- The historical persister lag is closed. No audited MarketOps DSM signal, artifact, or graph proposal data was skipped.
