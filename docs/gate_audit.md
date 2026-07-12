@@ -6590,3 +6590,59 @@ Result:
 
 - Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G086_calibration_promotion_review.md`.
 - Gate README and back-test architecture docs now reference the G086 direction.
+
+
+## Gate G086: Calibration Promotion Review Backend
+
+Timestamp: `2026-07-12T21:42:00Z`
+
+Status: `validated — backend/API promotion review implemented`
+
+Scope:
+
+- Add durable promotion candidate records over G083/G085 evidence.
+- Add deterministic readiness checks and compact evidence snapshots.
+- Expose create/list/detail and decision APIs without runtime side effects.
+
+Validation performed:
+
+- Added migration `000019_marketops_backtest_promotion_candidates`.
+- Added storage records, repository methods, API DTOs, readiness logic, and router tests.
+- Targeted API/Postgres tests, full Go tests, and JSON schema validation passed.
+- Applied migration `000019_marketops_backtest_promotion_candidates`.
+- Rebuilt the gateway container; Docker build ran `go test ./...`.
+- Authenticated smoke validated create/list/detail/decision as HTTP `201/200/200/200`.
+- Smoke candidate `btpromo-g086-auth-smoke-20260712214200` returned readiness `ready_for_review`; decision changed candidate status to `deferred`.
+- Token material and temporary API response files were removed.
+
+Result:
+
+- G086 now has a validated backend promotion review substrate. Next work is frontend-agent specification and UI wiring.
+
+
+## Gate G086: Calibration Promotion Review Backend
+
+Timestamp: `2026-07-12T21:42:00Z`
+
+Status: `validated — backend/API promotion review implemented`
+
+Scope:
+
+- Add durable promotion candidate records over G083/G085 evidence.
+- Add deterministic readiness checks and compact evidence snapshots.
+- Expose create/list/detail and decision APIs without runtime side effects.
+
+Validation performed:
+
+- Added migration `000019_marketops_backtest_promotion_candidates`.
+- Added storage records, repository methods, API DTOs, readiness logic, and router tests.
+- Targeted API/Postgres tests, full Go tests, and JSON schema validation passed.
+- Applied migration `000019_marketops_backtest_promotion_candidates`.
+- Rebuilt the gateway container; Docker build ran `go test ./...`.
+- Authenticated smoke validated create/list/detail/decision as HTTP `201/200/200/200`.
+- Smoke candidate `btpromo-g086-auth-smoke-20260712214200` returned readiness `ready_for_review`; decision changed candidate status to `deferred`.
+- Token material and temporary API response files were removed.
+
+Result:
+
+- G086 now has a validated backend promotion review substrate. Next work is frontend-agent specification and UI wiring.

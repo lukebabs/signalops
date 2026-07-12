@@ -1,6 +1,6 @@
 # G086 Calibration Promotion Review
 
-Status: specification proposed
+Status: backend/API implemented and authenticated smoke validated
 Use case: MarketOps Daily Market Surveillance
 
 ## Goal
@@ -69,7 +69,7 @@ Out of scope:
 
 ## Promotion Candidate Model
 
-Suggested table: `marketops_backtest_promotion_candidates`.
+Implemented table: `marketops_backtest_promotion_candidates`.
 
 Fields:
 
@@ -98,7 +98,7 @@ Fields:
 - `created_at`
 - `updated_at`
 
-Suggested `status` values:
+Implemented `status` values:
 
 - `proposed`
 - `approved_for_promotion`
@@ -106,7 +106,7 @@ Suggested `status` values:
 - `deferred`
 - `superseded`
 
-Suggested `readiness_status` values:
+Implemented `readiness_status` values:
 
 - `ready_for_review`
 - `needs_more_data`
@@ -131,7 +131,7 @@ Initial rule recommendations:
 - If evaluation false positives are non-zero and precision is below threshold, status is `manual_review_required`.
 - If comparison and evaluation recommendations are both favorable and coverage is sufficient, status is `ready_for_review`.
 
-Suggested initial thresholds:
+Initial review thresholds:
 
 - minimum label coverage: `0.8`
 - minimum precision: `0.9`
@@ -155,7 +155,7 @@ Do not embed bearer tokens, operator emails beyond existing actor identifiers, o
 
 ## API Shape
 
-Suggested APIs:
+Implemented APIs:
 
 - `POST /v1/marketops/backtest-promotion-candidates`
 - `GET /v1/marketops/backtest-promotion-candidates`

@@ -5724,3 +5724,43 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+
+## 2026-07-12T21:42:00Z
+
+Summary:
+
+- Implemented the G086 backend/API substrate for MarketOps calibration promotion review.
+- Added migration `000019_marketops_backtest_promotion_candidates` for promotion candidate records.
+- Added storage records, Postgres repository methods, readiness-rule logic, gateway create/list/detail APIs, and decision mutation API.
+- Promotion candidates reference G083 baseline comparison evidence and optional G085 label-aware evaluation evidence.
+- Operator decisions only mutate the promotion candidate audit row; detector threshold edits, runtime policy deployment, graph writeback, model training, and automatic promotion remain out of scope.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
+- `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
+
+
+## 2026-07-12T21:42:00Z
+
+Summary:
+
+- Implemented the G086 backend/API substrate for MarketOps calibration promotion review.
+- Added migration `000019_marketops_backtest_promotion_candidates` for promotion candidate records.
+- Added storage records, Postgres repository methods, readiness-rule logic, gateway create/list/detail APIs, and decision mutation API.
+- Promotion candidates reference G083 baseline comparison evidence and optional G085 label-aware evaluation evidence.
+- Operator decisions only mutate the promotion candidate audit row; detector threshold edits, runtime policy deployment, graph writeback, model training, and automatic promotion remain out of scope.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./...`: passed.
+- `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
+- `git diff --check`: passed.
+- `make compose-storage-migrate`: applied `000019_marketops_backtest_promotion_candidates`.
+- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
+- Authenticated smoke promotion candidate create/list/detail/decision: HTTP `201/200/200/200`.
+- Smoke candidate `btpromo-g086-auth-smoke-20260712214200` returned readiness `ready_for_review`; decision changed candidate status to `deferred`.
+- Token material and temporary API response files were removed.

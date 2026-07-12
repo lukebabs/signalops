@@ -75,6 +75,7 @@ type fakeQueryRepository struct {
 	backtestCalibrationComparisons []storage.MarketOpsBacktestCalibrationComparisonRecord
 	backtestEvaluationLabels       []storage.MarketOpsBacktestEvaluationLabelRecord
 	backtestEvaluations            []storage.MarketOpsBacktestEvaluationRecord
+	backtestPromotionCandidates    []storage.MarketOpsBacktestPromotionCandidateRecord
 	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
 	lastBacktestSignalFilter       storage.MarketOpsBacktestSignalFilter
 	lastBacktestGraphFilter        storage.MarketOpsBacktestGraphProposalFilter
@@ -83,6 +84,7 @@ type fakeQueryRepository struct {
 	lastBacktestComparisonFilter   storage.MarketOpsBacktestCalibrationComparisonFilter
 	lastEvaluationLabelFilter      storage.MarketOpsBacktestEvaluationLabelFilter
 	lastBacktestEvaluationFilter   storage.MarketOpsBacktestEvaluationFilter
+	lastBacktestPromotionFilter    storage.MarketOpsBacktestPromotionCandidateFilter
 	lastDSMFilter                  storage.MarketOpsDSMArtifactFilter
 	lastGraphProposalFilter        storage.MarketOpsDSMGraphProposalFilter
 	lastGraphProposalMutation      storage.MarketOpsDSMGraphProposalMutation
@@ -447,6 +449,59 @@ func (q *fakeQueryRepository) GetMarketOpsBacktestEvaluation(_ context.Context, 
 		}
 	}
 	return storage.MarketOpsBacktestEvaluationRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertMarketOpsBacktestPromotionCandidate(_ context.Context, record storage.MarketOpsBacktestPromotionCandidateRecord) error {
+	for i, existing := range q.backtestPromotionCandidates {
+		if existing.CandidateID == record.CandidateID {
+			record.CreatedAt = existing.CreatedAt
+			if record.UpdatedAt.IsZero() {
+				record.UpdatedAt = time.Now().UTC()
+			}
+			q.backtestPromotionCandidates[i] = record
+			return nil
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	if record.UpdatedAt.IsZero() {
+		record.UpdatedAt = record.CreatedAt
+	}
+	q.backtestPromotionCandidates = append(q.backtestPromotionCandidates, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestPromotionCandidates(_ context.Context, filter storage.MarketOpsBacktestPromotionCandidateFilter) ([]storage.MarketOpsBacktestPromotionCandidateRecord, error) {
+	q.lastBacktestPromotionFilter = filter
+	return q.backtestPromotionCandidates, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsBacktestPromotionCandidate(_ context.Context, candidateID string) (storage.MarketOpsBacktestPromotionCandidateRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsBacktestPromotionCandidateRecord{}, storage.ErrNotFound
+	}
+	for _, candidate := range q.backtestPromotionCandidates {
+		if candidate.CandidateID == candidateID {
+			return candidate, nil
+		}
+	}
+	return storage.MarketOpsBacktestPromotionCandidateRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) MutateMarketOpsBacktestPromotionCandidateDecision(_ context.Context, mutation storage.MarketOpsBacktestPromotionCandidateDecisionMutation) (storage.MarketOpsBacktestPromotionCandidateRecord, error) {
+	for i, candidate := range q.backtestPromotionCandidates {
+		if candidate.CandidateID == mutation.CandidateID {
+			candidate.Status = mutation.Status
+			candidate.ReviewedBy = mutation.ReviewedBy
+			candidate.ReviewedAt = &mutation.ReviewedAt
+			candidate.DecisionNote = mutation.DecisionNote
+			candidate.UpdatedAt = mutation.ReviewedAt
+			q.backtestPromotionCandidates[i] = candidate
+			return candidate, nil
+		}
+	}
+	return storage.MarketOpsBacktestPromotionCandidateRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) UpsertMarketOpsBacktestEvaluationLabel(_ context.Context, record storage.MarketOpsBacktestEvaluationLabelRecord) error {
@@ -1250,6 +1305,122 @@ func TestGetMarketOpsBacktestEvaluation(t *testing.T) {
 	}
 }
 
+func TestPostMarketOpsBacktestPromotionCandidateCreatesReadyForReviewCandidate(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationBaselines: []storage.MarketOpsBacktestCalibrationBaselineRecord{validMarketOpsBacktestCalibrationBaselineRecord()}, backtestCalibrationComparisons: []storage.MarketOpsBacktestCalibrationComparisonRecord{validMarketOpsBacktestCalibrationComparisonRecord()}, backtestEvaluations: []storage.MarketOpsBacktestEvaluationRecord{validMarketOpsBacktestEvaluationRecord()}, backtestRuns: []storage.MarketOpsBacktestRunRecord{validMarketOpsBacktestRunRecord()}, backtestPolicyResults: []storage.MarketOpsBacktestPolicyResultRecord{validMarketOpsBacktestPolicyResultRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"candidate_id":"btpromo-1","tenant_id":"tenant-1","baseline_id":"btbase-1","comparison_id":"btcmp-1","evaluation_id":"bteval-1","candidate_version":"taxonomy-v1-policy-v1-test"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-promotion-candidates", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	candidate := response["promotion_candidate"]
+	if candidate["candidate_id"] != "btpromo-1" || candidate["readiness_status"] != storage.MarketOpsBacktestPromotionReadinessReadyForReview || candidate["status"] != storage.MarketOpsBacktestPromotionCandidateStatusProposed {
+		t.Fatalf("candidate = %#v", candidate)
+	}
+	if candidate["policy_version"] != "marketops.backtest.policy_v1" || candidate["run_id"] != "bt-marketops-1" {
+		t.Fatalf("candidate evidence refs = %#v", candidate)
+	}
+}
+
+func TestPostMarketOpsBacktestPromotionCandidateWithoutEvaluationRequiresManualReview(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationBaselines: []storage.MarketOpsBacktestCalibrationBaselineRecord{validMarketOpsBacktestCalibrationBaselineRecord()}, backtestCalibrationComparisons: []storage.MarketOpsBacktestCalibrationComparisonRecord{validMarketOpsBacktestCalibrationComparisonRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"candidate_id":"btpromo-1","tenant_id":"tenant-1","baseline_id":"btbase-1","comparison_id":"btcmp-1"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-promotion-candidates", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	candidate := response["promotion_candidate"]
+	if candidate["readiness_status"] != storage.MarketOpsBacktestPromotionReadinessManualReviewRequired {
+		t.Fatalf("candidate = %#v", candidate)
+	}
+}
+
+func TestGetMarketOpsBacktestPromotionCandidates(t *testing.T) {
+	repo := &fakeQueryRepository{backtestPromotionCandidates: []storage.MarketOpsBacktestPromotionCandidateRecord{validMarketOpsBacktestPromotionCandidateRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-promotion-candidates?tenant_id=tenant-1&baseline_id=btbase-1&readiness_status=ready_for_review&status=proposed&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestPromotionFilter.TenantID != "tenant-1" || repo.lastBacktestPromotionFilter.BaselineID != "btbase-1" || repo.lastBacktestPromotionFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastBacktestPromotionFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response["promotion_candidates"]) != 1 || response["promotion_candidates"][0]["candidate_id"] != "btpromo-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestGetMarketOpsBacktestPromotionCandidate(t *testing.T) {
+	repo := &fakeQueryRepository{backtestPromotionCandidates: []storage.MarketOpsBacktestPromotionCandidateRecord{validMarketOpsBacktestPromotionCandidateRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-promotion-candidates/btpromo-1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response["promotion_candidate"]["candidate_id"] != "btpromo-1" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestPostMarketOpsBacktestPromotionCandidateDecision(t *testing.T) {
+	repo := &fakeQueryRepository{backtestPromotionCandidates: []storage.MarketOpsBacktestPromotionCandidateRecord{validMarketOpsBacktestPromotionCandidateRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-promotion-candidates/btpromo-1/decision", strings.NewReader(`{"status":"approved_for_promotion","reviewed_by":"operator-test","decision_note":"approved for deployment planning only"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	candidate := response["promotion_candidate"]
+	if candidate["status"] != storage.MarketOpsBacktestPromotionCandidateStatusApprovedForPromotion || candidate["decision_note"] != "approved for deployment planning only" {
+		t.Fatalf("candidate = %#v", candidate)
+	}
+}
+
+func TestPostMarketOpsBacktestPromotionCandidateDecisionRejectsProposedStatus(t *testing.T) {
+	repo := &fakeQueryRepository{backtestPromotionCandidates: []storage.MarketOpsBacktestPromotionCandidateRecord{validMarketOpsBacktestPromotionCandidateRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-promotion-candidates/btpromo-1/decision", strings.NewReader(`{"status":"proposed"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestPostMarketOpsBacktestEvaluationLabelsSyncCreatesLabels(t *testing.T) {
 	proposal := validMarketOpsDSMGraphProposalRecord()
 	now := time.Date(2026, 7, 12, 20, 0, 0, 0, time.UTC)
@@ -1798,6 +1969,11 @@ func validMarketOpsDSMArtifactRecord() storage.MarketOpsDSMArtifactRecord {
 		CreatedAt:            time.Date(2026, 7, 8, 0, 2, 0, 0, time.UTC),
 		UpdatedAt:            time.Date(2026, 7, 8, 0, 3, 0, 0, time.UTC),
 	}
+}
+
+func validMarketOpsBacktestPromotionCandidateRecord() storage.MarketOpsBacktestPromotionCandidateRecord {
+	now := time.Date(2026, 7, 12, 21, 30, 0, 0, time.UTC)
+	return storage.MarketOpsBacktestPromotionCandidateRecord{CandidateID: "btpromo-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", BaselineID: "btbase-1", ComparisonID: "btcmp-1", EvaluationID: "bteval-1", RunID: "bt-marketops-1", DetectorID: "marketops.dsm.taxonomy_v1", DetectorVersion: "0.1.0", Dataset: "equity_eod_prices", PolicyVersion: "marketops.backtest.policy_v1", CandidateVersion: "taxonomy-v1-policy-v1-test", ReadinessStatus: storage.MarketOpsBacktestPromotionReadinessReadyForReview, ReadinessReasons: []string{"comparison and evaluation evidence meet review thresholds"}, EvidenceJSON: []byte(`{"readiness":{"status":"ready_for_review"}}`), Status: storage.MarketOpsBacktestPromotionCandidateStatusProposed, RequestedBy: "operator-test", CreatedAt: now, UpdatedAt: now}
 }
 
 func validMarketOpsBacktestEvaluationRecord() storage.MarketOpsBacktestEvaluationRecord {

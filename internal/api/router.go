@@ -578,6 +578,148 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"calibration_comparison": marketOpsBacktestCalibrationComparisonResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/marketops/backtest-promotion-candidates", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req marketOpsBacktestPromotionCandidateCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.BaselineID) == "" || strings.TrimSpace(req.ComparisonID) == "" {
+			writeError(w, http.StatusBadRequest, "invalid_promotion_candidate", "tenant_id, baseline_id, and comparison_id are required")
+			return
+		}
+		baseline, err := repo.GetMarketOpsBacktestCalibrationBaseline(r.Context(), req.BaselineID)
+		if err != nil {
+			writeQueryError(w, err, "calibration_baseline_not_found", "MarketOps backtest calibration baseline not found")
+			return
+		}
+		if baseline.TenantID != strings.TrimSpace(req.TenantID) {
+			writeError(w, http.StatusBadRequest, "invalid_promotion_candidate", "baseline tenant_id does not match request tenant_id")
+			return
+		}
+		comparison, err := repo.GetMarketOpsBacktestCalibrationComparison(r.Context(), req.ComparisonID)
+		if err != nil {
+			writeQueryError(w, err, "calibration_comparison_not_found", "MarketOps backtest calibration comparison not found")
+			return
+		}
+		if comparison.TenantID != baseline.TenantID || comparison.BaselineID != baseline.BaselineID {
+			writeError(w, http.StatusBadRequest, "invalid_promotion_candidate", "comparison must belong to the requested baseline and tenant")
+			return
+		}
+		var evaluation *storage.MarketOpsBacktestEvaluationRecord
+		if strings.TrimSpace(req.EvaluationID) != "" {
+			storedEvaluation, err := repo.GetMarketOpsBacktestEvaluation(r.Context(), req.EvaluationID)
+			if err != nil {
+				writeQueryError(w, err, "backtest_evaluation_not_found", "MarketOps backtest evaluation not found")
+				return
+			}
+			if storedEvaluation.TenantID != baseline.TenantID {
+				writeError(w, http.StatusBadRequest, "invalid_promotion_candidate", "evaluation tenant_id does not match baseline tenant_id")
+				return
+			}
+			evaluation = &storedEvaluation
+		}
+		var run *storage.MarketOpsBacktestRunRecord
+		if evaluation != nil && strings.TrimSpace(evaluation.RunID) != "" {
+			storedRun, err := repo.GetMarketOpsBacktestRun(r.Context(), evaluation.RunID)
+			if err != nil {
+				writeQueryError(w, err, "backtest_run_not_found", "MarketOps backtest run not found")
+				return
+			}
+			if storedRun.TenantID != baseline.TenantID {
+				writeError(w, http.StatusBadRequest, "invalid_promotion_candidate", "run tenant_id does not match baseline tenant_id")
+				return
+			}
+			run = &storedRun
+		}
+		policyVersion := ""
+		if run != nil {
+			policy, err := repo.ListMarketOpsBacktestPolicyResults(r.Context(), storage.MarketOpsBacktestGraphProposalFilter{RunID: run.RunID, TenantID: run.TenantID, Limit: 1})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest policy results")
+				return
+			}
+			if len(policy) > 0 {
+				policyVersion = policy[0].PolicyVersion
+			}
+		}
+		candidateID := strings.TrimSpace(req.CandidateID)
+		if candidateID == "" {
+			candidateID = newID("btpromo_marketops")
+		}
+		record, err := buildMarketOpsBacktestPromotionCandidate(candidateID, replayActor(r, req.RequestedBy), req.CandidateVersion, baseline, comparison, evaluation, run, policyVersion)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "promotion_candidate_failed", "failed to build MarketOps promotion candidate")
+			return
+		}
+		if err := repo.UpsertMarketOpsBacktestPromotionCandidate(r.Context(), record); err != nil {
+			writeError(w, http.StatusInternalServerError, "persist_failed", "failed to persist MarketOps backtest promotion candidate")
+			return
+		}
+		stored, err := repo.GetMarketOpsBacktestPromotionCandidate(r.Context(), candidateID)
+		if err != nil {
+			writeQueryError(w, err, "promotion_candidate_not_found", "MarketOps backtest promotion candidate not found")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"promotion_candidate": marketOpsBacktestPromotionCandidateResponse(stored)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-promotion-candidates", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestPromotionCandidates(r.Context(), storage.MarketOpsBacktestPromotionCandidateFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), ComparisonID: strings.TrimSpace(r.URL.Query().Get("comparison_id")), EvaluationID: strings.TrimSpace(r.URL.Query().Get("evaluation_id")), RunID: strings.TrimSpace(r.URL.Query().Get("run_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), ReadinessStatus: strings.TrimSpace(r.URL.Query().Get("readiness_status")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest promotion candidates")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"promotion_candidates": marketOpsBacktestPromotionCandidateResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-promotion-candidates/{candidate_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetMarketOpsBacktestPromotionCandidate(r.Context(), r.PathValue("candidate_id"))
+		if err != nil {
+			writeQueryError(w, err, "promotion_candidate_not_found", "MarketOps backtest promotion candidate not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"promotion_candidate": marketOpsBacktestPromotionCandidateResponse(record)})
+	})
+
+	mux.HandleFunc("POST /v1/marketops/backtest-promotion-candidates/{candidate_id}/decision", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req marketOpsBacktestPromotionCandidateDecisionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !marketOpsBacktestPromotionCandidateDecisionStatusAllowed(req.Status) {
+			writeError(w, http.StatusBadRequest, "invalid_status", "promotion candidate decision status is invalid")
+			return
+		}
+		record, err := repo.MutateMarketOpsBacktestPromotionCandidateDecision(r.Context(), storage.MarketOpsBacktestPromotionCandidateDecisionMutation{CandidateID: r.PathValue("candidate_id"), Status: strings.TrimSpace(req.Status), ReviewedBy: replayActor(r, req.ReviewedBy), ReviewedAt: time.Now().UTC(), DecisionNote: strings.TrimSpace(req.DecisionNote)})
+		if err != nil {
+			if strings.Contains(err.Error(), "status") {
+				writeError(w, http.StatusBadRequest, "invalid_status", "promotion candidate decision status is invalid")
+				return
+			}
+			writeQueryError(w, err, "promotion_candidate_not_found", "MarketOps backtest promotion candidate not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"promotion_candidate": marketOpsBacktestPromotionCandidateResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/marketops/backtests/{run_id}", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

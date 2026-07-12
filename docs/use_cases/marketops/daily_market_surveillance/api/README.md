@@ -19,6 +19,10 @@ Current MarketOps-specific endpoints:
 - `POST /v1/marketops/backtest-calibration-comparisons`
 - `GET /v1/marketops/backtest-calibration-comparisons`
 - `GET /v1/marketops/backtest-calibration-comparisons/{comparison_id}`
+- `POST /v1/marketops/backtest-promotion-candidates`
+- `GET /v1/marketops/backtest-promotion-candidates`
+- `GET /v1/marketops/backtest-promotion-candidates/{candidate_id}`
+- `POST /v1/marketops/backtest-promotion-candidates/{candidate_id}/decision`
 - `POST /v1/marketops/backtest-evaluation-labels/sync`
 - `GET /v1/marketops/backtest-evaluation-labels`
 - `GET /v1/marketops/backtest-evaluation-labels/{label_id}`
@@ -39,5 +43,6 @@ Current notes:
 - `graph_proposal_api.md`: G079 graph proposal list/detail/decision API boundary.
 - `backtest_calibration_summary_api.md`: G082 persisted back-test calibration summary API boundary.
 - `backtest_baseline_comparison_api.md`: G083 baseline and stored comparison API boundary.
+- `backtest_promotion_candidate_api.md`: G086 promotion candidate review API boundary.
 - `backtest_evaluation_label_api.md`: G084 graph-proposal decision label sync API boundary.
 - `backtest_label_aware_evaluation_api.md`: G085 label-aware back-test scoring API boundary.

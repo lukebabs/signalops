@@ -681,6 +681,22 @@ Returns stored label-aware back-test evaluations.
 
 Returns one stored label-aware back-test evaluation.
 
+`POST /v1/marketops/backtest-promotion-candidates`
+
+Creates a stored promotion candidate from G083/G085 evidence. Required fields are `tenant_id`, `baseline_id`, and `comparison_id`; `evaluation_id`, `candidate_id`, `candidate_version`, and `requested_by` are optional. Creation computes conservative readiness status and does not deploy policy or change detector thresholds.
+
+`GET /v1/marketops/backtest-promotion-candidates?tenant_id={tenant_id}&baseline_id={baseline_id}&readiness_status={status}&status=proposed&limit=50`
+
+Returns stored promotion candidates. Filters are optional.
+
+`GET /v1/marketops/backtest-promotion-candidates/{candidate_id}`
+
+Returns one stored promotion candidate.
+
+`POST /v1/marketops/backtest-promotion-candidates/{candidate_id}/decision`
+
+Records an operator review decision on a promotion candidate. Allowed decision statuses are `approved_for_promotion`, `rejected`, `deferred`, and `superseded`. This endpoint only mutates the candidate audit row; it does not deploy runtime policy, edit detector thresholds, or write graph state.
+
 ### Query Errors
 
 - `400 missing_query`: required idempotency lookup parameters are missing.
