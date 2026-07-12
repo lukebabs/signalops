@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   summarizeBacktestMetrics,
+  isZeroInputBacktest,
   dominantRecommendation,
   parseBacktestSymbols,
   policyResultsByProposal,
@@ -57,6 +58,13 @@ describe('summarizeBacktestMetrics (G081)', () => {
     expect(s.graphProposals).toBe(0);
     expect(s.recommendationCounts).toEqual({ auto_accept_candidate: 3, manual_review_required: 1 });
     expect(s.startedAt).toBe('');
+  });
+
+  it('identifies successful runs with no matching normalized events', () => {
+    expect(isZeroInputBacktest('succeeded', { scanned: 0 })).toBe(true);
+    expect(isZeroInputBacktest('succeeded', { scanned: '0' })).toBe(true);
+    expect(isZeroInputBacktest('succeeded', { scanned: 1 })).toBe(false);
+    expect(isZeroInputBacktest('failed', { scanned: 0 })).toBe(false);
   });
 });
 

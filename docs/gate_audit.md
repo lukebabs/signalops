@@ -6234,3 +6234,26 @@ Scope:
 Result:
 
 - Frontend-agent handoff saved at `docs/frontend/marketops_backtests_ui_spec.md` and indexed from the MarketOps frontend README.
+
+
+## Gate G081: Back-Test UI Zero-Input State
+
+Timestamp: `2026-07-12T05:32:00Z`
+
+Status: `validated — UI empty-success state added`
+
+Scope:
+
+- Clarify the operator experience for successful back-test runs that scan zero normalized events.
+- Distinguish empty input filters from execution failures.
+
+Validation performed:
+
+- Added a tested `isZeroInputBacktest` helper.
+- Rendered a MarketOps back-test detail notice when `status=succeeded` and `metrics.scanned=0`.
+- Full frontend tests and production build passed.
+- Rebuilt the local web container and verified the served bundle contains the new operator text.
+
+Result:
+
+- Operators now get actionable guidance when a run completes successfully but no normalized events matched the selected filters/window.

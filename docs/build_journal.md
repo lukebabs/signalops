@@ -5425,3 +5425,21 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+
+## 2026-07-12T05:32:00Z
+
+Summary:
+
+- Added an operator-facing zero-input state to the MarketOps back-tests UI.
+- A succeeded run with `scanned=0` now explains that no normalized events matched the selected symbols, source, dataset, and window.
+- The notice suggests broadening filters or using the known populated `SPY` / `2026-07-09` smoke window.
+
+Validation performed:
+
+- `cd web && npm test -- src/lib/marketopsBacktests.test.ts`: 12 passed.
+- `cd web && npm test`: 144 passed.
+- `cd web && npm run build`: passed.
+- `docker compose up -d --build web`: passed.
+- `curl http://localhost:15173/marketops/backtests`: served the rebuilt SPA shell.
+- Rebuilt web bundle contains `No matching normalized events found.`.

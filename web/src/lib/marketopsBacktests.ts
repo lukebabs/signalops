@@ -113,6 +113,12 @@ export function summarizeBacktestMetrics(metrics: unknown): BacktestMetricsSumma
   };
 }
 
+// A succeeded run with scanned=0 is not an execution failure; it means the
+// selected source/dataset/window/symbol filters matched no normalized events.
+export function isZeroInputBacktest(status: string, metrics: unknown): boolean {
+  return status === 'succeeded' && summarizeBacktestMetrics(metrics).scanned === 0;
+}
+
 // The recommendation with the highest count (>0). Ties keep the first insertion
 // order encountered. Returns null when no recommendation has a positive count.
 export function dominantRecommendation(counts: Record<string, number>): { key: string; count: number } | null {

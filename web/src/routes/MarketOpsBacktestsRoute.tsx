@@ -20,6 +20,7 @@ import {
   MARKETOPS_BACKTEST_DETECTOR_ID,
   MARKETOPS_BACKTEST_RECOMMENDATIONS,
   summarizeBacktestMetrics,
+  isZeroInputBacktest,
   dominantRecommendation,
   parseBacktestSymbols,
   policyResultsByProposal,
@@ -509,6 +510,7 @@ function BacktestRunDetail({
 }) {
   const m = summarizeBacktestMetrics(run.metrics);
   const symbols = filterSymbols(run.filters);
+  const zeroInput = isZeroInputBacktest(run.status, run.metrics);
   const recEntries = Object.entries(m.recommendationCounts).filter(([, c]) => c > 0);
 
   return (
@@ -544,6 +546,21 @@ function BacktestRunDetail({
         <MetricTile label="Graph Proposals" value={m.graphProposals} />
         <MetricTile label="Policy Results" value={m.policyResults} />
       </div>
+
+      {zeroInput && (
+        <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <div className="font-semibold">No matching normalized events found.</div>
+          <div className="mt-1 text-amber-800">
+            This back-test completed successfully, but no normalized rows matched the selected filters. Broaden the symbols or window, or use a known populated window such as SPY on 2026-07-09.
+          </div>
+          <div className="mt-2 grid gap-1 font-mono text-[11px] text-amber-950 sm:grid-cols-2">
+            <div>symbols: {symbols.length ? symbols.join(', ') : 'any'}</div>
+            <div>source: {run.source_id || 'any'}</div>
+            <div>dataset: {run.dataset || 'any'}</div>
+            <div>window: {formatUtc(run.window_start)} - {formatUtc(run.window_end)}</div>
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="mb-1 text-xs font-medium text-gray-600">Recommendation Counts</div>
