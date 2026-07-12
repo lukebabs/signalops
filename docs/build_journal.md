@@ -5404,3 +5404,24 @@ Smoke result:
 - Recommendation counts: `auto_accept_candidate=5`.
 - Isolated back-test totals after smoke: runs `3`, signals `3`, artifacts `3`, graph proposals `15`, policy results `15`.
 - Production ledger counts remained unchanged: `signal_ledger=19`, `alert_ledger=18`, `insight_ledger=19`, `marketops_dsm_artifacts=12`, `marketops_dsm_graph_proposals=60`.
+
+
+## 2026-07-12T04:45:00Z
+
+Summary:
+
+- Added a frontend-agent specification for the MarketOps G081 back-test UI.
+- Scoped the UI to isolated back-test run list, synchronous bounded run creation, run detail metrics, generated back-test signals, and generated graph proposal policy outputs.
+- Explicitly excluded production graph mutation, replay controls, ML training, policy promotion, and async job orchestration.
+
+Files changed:
+
+- `docs/frontend/marketops_backtests_ui_spec.md`
+- `docs/use_cases/marketops/daily_market_surveillance/frontend/README.md`
+- `docs/build_journal.md`
+- `docs/gate_audit.md`
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.

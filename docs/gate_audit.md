@@ -6217,3 +6217,20 @@ Validation performed:
 Result:
 
 - G081 API creation is validated under the normal auth-enabled gateway.
+
+
+## Gate G081: Frontend Back-Test UI Specification
+
+Timestamp: `2026-07-12T04:45:00Z`
+
+Status: `specification ready for frontend-agent`
+
+Scope:
+
+- Define the frontend follow-up for the implemented G081 MarketOps back-test substrate.
+- Keep the scope limited to isolated back-test run creation and review.
+- Avoid production graph mutation, replay semantics, policy promotion, ML training, and async job orchestration.
+
+Result:
+
+- Frontend-agent handoff saved at `docs/frontend/marketops_backtests_ui_spec.md` and indexed from the MarketOps frontend README.
