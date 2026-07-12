@@ -287,12 +287,12 @@ function AlertDetailBody({ alert }: { alert: AlertRecord }) {
       <div className="grid grid-cols-2 gap-2 text-sm">
         <div><div className="text-xs text-gray-500">Type</div><div className="text-xs font-mono">{alert.alert_type}</div></div>
         <div><div className="text-xs text-gray-500">Confidence</div><div>{alert.confidence.toFixed(2)}</div></div>
-        <div><div className="text-xs text-gray-500">Signal</div><div className="text-xs"><Link to="/signals" className="font-mono text-brand-700 hover:underline">{alert.signal_id}</Link></div></div>
-        <div><div className="text-xs text-gray-500">Detector</div><div className="text-xs font-mono">{alert.detector_id}</div></div>
-        <div><div className="text-xs text-gray-500">Source</div><div className="text-xs font-mono">{alert.source_id}</div></div>
+        <div><div className="text-xs text-gray-500">Signal</div><div className="break-all text-xs"><Link to="/signals" className="font-mono text-brand-700 hover:underline">{alert.signal_id}</Link></div></div>
+        <div><div className="text-xs text-gray-500">Detector</div><div className="break-all text-xs font-mono">{alert.detector_id}</div></div>
+        <div><div className="text-xs text-gray-500">Source</div><div className="break-all text-xs font-mono">{alert.source_id}</div></div>
         <div><div className="text-xs text-gray-500">Dataset</div><div className="text-xs">{alert.dataset}</div></div>
-        <div><div className="text-xs text-gray-500">Source Domain</div><div className="text-xs font-mono">{alert.source_domain}</div></div>
-        <div><div className="text-xs text-gray-500">Source Adapter</div><div className="text-xs font-mono">{alert.source_adapter}</div></div>
+        <div><div className="text-xs text-gray-500">Source Domain</div><div className="break-all text-xs font-mono">{alert.source_domain}</div></div>
+        <div><div className="text-xs text-gray-500">Source Adapter</div><div className="break-all text-xs font-mono">{alert.source_adapter}</div></div>
         <div><div className="text-xs text-gray-500">First Observed</div><div className="text-xs">{formatUtc(alert.first_observed_at)}</div></div>
         <div><div className="text-xs text-gray-500">Last Observed</div><div className="text-xs">{formatUtc(alert.last_observed_at)}</div></div>
         <div><div className="text-xs text-gray-500">Correlation</div><div className="break-all text-xs font-mono">{alert.correlation_id}</div></div>

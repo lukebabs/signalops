@@ -194,9 +194,9 @@ function SignalDetailBody({ signal }: { signal: SignalRecord }) {
       <div className="grid grid-cols-2 gap-2 text-sm">
         <div><div className="text-xs text-gray-500">Type</div><div className="text-xs">{signal.signal_type}</div></div>
         <div><div className="text-xs text-gray-500">Confidence</div><div>{signal.confidence.toFixed(2)}</div></div>
-        <div><div className="text-xs text-gray-500">Detector</div><div className="text-xs font-mono">{signal.detector_id} v{signal.detector_version}</div></div>
+        <div><div className="text-xs text-gray-500">Detector</div><div className="break-all text-xs font-mono">{signal.detector_id} v{signal.detector_version}</div></div>
         <div><div className="text-xs text-gray-500">Model</div><div className="text-xs font-mono">{signal.model_version}</div></div>
-        <div><div className="text-xs text-gray-500">Source</div><div className="text-xs font-mono">{signal.source_id}</div></div>
+        <div><div className="text-xs text-gray-500">Source</div><div className="break-all text-xs font-mono">{signal.source_id}</div></div>
         <div><div className="text-xs text-gray-500">Dataset</div><div className="text-xs">{signal.dataset}</div></div>
         <div><div className="text-xs text-gray-500">Window</div><div className="text-xs">{formatUtc(signal.window_start)} → {formatUtc(signal.window_end)}</div></div>
         <div><div className="text-xs text-gray-500">Broker</div><div className="text-xs font-mono">{signal.broker_partition}/{signal.broker_offset}</div></div>
