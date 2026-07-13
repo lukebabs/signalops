@@ -14,6 +14,7 @@ import (
 
 func TestConfigFromEnv(t *testing.T) {
 	t.Setenv("SYNCRATIC_API_BASE_URL", "https://portal.example")
+	t.Setenv("SYNCRATIC_AUTH_MODE", "api_key")
 	t.Setenv("SYNCRATIC_TOKEN_URL", "https://auth.example/token")
 	t.Setenv("SYNCRATIC_TOKEN_GRANT", "password")
 	t.Setenv("SYNCRATIC_CLIENT_ID", "client")
@@ -22,7 +23,7 @@ func TestConfigFromEnv(t *testing.T) {
 	t.Setenv("SYNCRATIC_PASSWORD", "secret")
 	t.Setenv("SYNCRATIC_TOKEN_AUDIENCE", "syncratic-user-api")
 	cfg := ConfigFromEnv()
-	if cfg.APIBaseURL != "https://portal.example" || cfg.TokenURL != "https://auth.example/token" || cfg.ClientSecret != "api-key" || cfg.TokenAudience != "syncratic-user-api" {
+	if cfg.APIBaseURL != "https://portal.example" || cfg.AuthMode != AuthModeAPIKey || cfg.TokenURL != "https://auth.example/token" || cfg.ClientSecret != "api-key" || cfg.TokenAudience != "syncratic-user-api" {
 		t.Fatalf("config = %+v", cfg)
 	}
 }
@@ -157,5 +158,39 @@ func TestConfigFromEnvDefaultsGrant(t *testing.T) {
 	cfg := ConfigFromEnv()
 	if cfg.TokenGrant != defaultGrant {
 		t.Fatalf("grant = %q", cfg.TokenGrant)
+	}
+}
+
+func TestAPIKeyAuthModeUsesAPIKeyAsBearerWithoutTokenRequest(t *testing.T) {
+	var tokenRequests int32
+	var authHeader string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&tokenRequests, 1)
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	mux.HandleFunc("/api/v1/search", func(w http.ResponseWriter, r *http.Request) {
+		authHeader = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"query_id":"query-api-key","status":"complete","results":[]}`))
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	client, err := New(Config{APIBaseURL: server.URL, AuthMode: AuthModeAPIKey, TokenURL: server.URL + "/token", ClientSecret: "api-key", HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Search(context.Background(), SearchRequest{Query: "MarketOps", Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.QueryID != "query-api-key" {
+		t.Fatalf("response = %+v", resp)
+	}
+	if authHeader != "Bearer api-key" {
+		t.Fatalf("authorization = %q", authHeader)
+	}
+	if atomic.LoadInt32(&tokenRequests) != 0 {
+		t.Fatalf("token requests = %d", tokenRequests)
 	}
 }

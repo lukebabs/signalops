@@ -18,12 +18,15 @@ import (
 const (
 	defaultTimeout = 15 * time.Second
 	defaultGrant   = "password"
+	AuthModeToken  = "token"
+	AuthModeAPIKey = "api_key"
 )
 
 // Config contains the Syncratic user-facade API boundary configuration.
 // ClientSecret is the Syncratic API key for the configured non-browser token flow.
 type Config struct {
 	APIBaseURL    string
+	AuthMode      string
 	TokenURL      string
 	TokenGrant    string
 	ClientID      string
@@ -88,6 +91,7 @@ type InsightListResponse struct {
 func ConfigFromEnv() Config {
 	return Config{
 		APIBaseURL:    os.Getenv("SYNCRATIC_API_BASE_URL"),
+		AuthMode:      firstNonEmpty(os.Getenv("SYNCRATIC_AUTH_MODE"), AuthModeToken),
 		TokenURL:      os.Getenv("SYNCRATIC_TOKEN_URL"),
 		TokenGrant:    firstNonEmpty(os.Getenv("SYNCRATIC_TOKEN_GRANT"), defaultGrant),
 		ClientID:      os.Getenv("SYNCRATIC_CLIENT_ID"),
@@ -100,13 +104,23 @@ func ConfigFromEnv() Config {
 
 func New(cfg Config) (*Client, error) {
 	cfg.APIBaseURL = strings.TrimRight(strings.TrimSpace(cfg.APIBaseURL), "/")
+	cfg.AuthMode = firstNonEmpty(strings.TrimSpace(cfg.AuthMode), AuthModeToken)
 	cfg.TokenURL = strings.TrimSpace(cfg.TokenURL)
 	cfg.TokenGrant = firstNonEmpty(strings.TrimSpace(cfg.TokenGrant), defaultGrant)
 	if cfg.APIBaseURL == "" {
 		return nil, errors.New("syncratic api base url is required")
 	}
-	if cfg.TokenURL == "" {
-		return nil, errors.New("syncratic token url is required")
+	switch cfg.AuthMode {
+	case AuthModeAPIKey:
+		if strings.TrimSpace(cfg.ClientSecret) == "" {
+			return nil, errors.New("syncratic client secret api key is required for api_key auth mode")
+		}
+	case AuthModeToken:
+		if cfg.TokenURL == "" {
+			return nil, errors.New("syncratic token url is required")
+		}
+	default:
+		return nil, fmt.Errorf("syncratic auth mode %q is invalid", cfg.AuthMode)
 	}
 	httpClient := cfg.HTTPClient
 	if httpClient == nil {
@@ -193,6 +207,9 @@ func (c *Client) Token(ctx context.Context) (TokenResponse, error) {
 }
 
 func (c *Client) bearerToken(ctx context.Context) (string, error) {
+	if c.cfg.AuthMode == AuthModeAPIKey {
+		return strings.TrimSpace(c.cfg.ClientSecret), nil
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.token != "" && time.Now().Before(c.expiresAt.Add(-30*time.Second)) {

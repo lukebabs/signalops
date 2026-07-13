@@ -5904,3 +5904,20 @@ Validation performed:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
 - `git diff --check`: passed.
 - Live token endpoint smoke with the configured `SYNCRATIC_TOKEN_GRANT=password` returned HTTP `401`; token material was removed. The client implementation is ready, but the accepted Syncratic non-browser token grant/client shape still needs confirmation before live Search/Ask smoke.
+
+
+## 2026-07-13T02:45:00Z
+
+Summary:
+
+- Confirmed the current Syncratic user facade accepts the configured API key directly for read-only Search using `Authorization: Bearer <api key>` and `X-API-Key`.
+- Added explicit `SYNCRATIC_AUTH_MODE=api_key` support to `internal/syncratic/userapi`; token mode remains available for future token-endpoint flows.
+- Updated `.env.example`, local ignored `.env`, and the Syncratic user API boundary docs to make API-key mode the current recommended mode.
+
+Validation performed:
+
+- Token endpoint variants returned HTTP `401`: password with API key, password without secret, password with `openid profile email` scope, and client credentials.
+- Direct read-only Search probes returned HTTP `200` with `Authorization: Bearer <api key>` and `X-API-Key`.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/syncratic/userapi -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `git diff --check`: passed.

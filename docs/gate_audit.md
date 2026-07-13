@@ -6825,3 +6825,25 @@ Validation performed:
 Result:
 
 - Future MarketOps gates can use `internal/syncratic/userapi` for Syncratic Search/Ask/Insights calls without duplicating credential handling.
+
+
+## Syncratic Direct API-Key Auth Confirmation
+
+Timestamp: `2026-07-13T02:45:00Z`
+
+Status: `validated — read-only API-key auth works`
+
+Scope:
+
+- Probe the accepted Syncratic user-facade non-browser auth shape without printing credentials or response bodies.
+- Update the internal Syncratic client boundary to support direct API-key bearer auth.
+
+Validation performed:
+
+- Token endpoint variants returned HTTP `401` for the currently configured password/client-credentials shapes.
+- Direct read-only Search returned HTTP `200` with `Authorization: Bearer <api key>` and `X-API-Key`.
+- The SignalOps client now supports `SYNCRATIC_AUTH_MODE=api_key` and does not call the token endpoint in that mode.
+
+Result:
+
+- Current recommended Syncratic facade mode is `SYNCRATIC_AUTH_MODE=api_key` with `SYNCRATIC_CLIENT_SECRET` as the API key.

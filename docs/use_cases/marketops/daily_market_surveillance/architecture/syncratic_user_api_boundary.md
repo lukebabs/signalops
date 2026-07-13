@@ -15,7 +15,8 @@ Use namespaced environment variables for this boundary:
 
 - `SYNCRATIC_API_BASE_URL`: base URL for the Syncratic user facade, such as `https://portal.syncratic.co`.
 - `SYNCRATIC_AUTH_ISSUER`: identity issuer used for Syncratic user-facade tokens.
-- `SYNCRATIC_TOKEN_URL`: token endpoint for obtaining a bearer JWT when non-browser automation is approved.
+- `SYNCRATIC_AUTH_MODE`: `api_key` for direct API-key bearer auth, or `token` for token-endpoint acquisition.
+- `SYNCRATIC_TOKEN_URL`: token endpoint for obtaining a bearer JWT when token mode is used.
 - `SYNCRATIC_TOKEN_GRANT`: configured token grant, for example `password` only when explicitly approved for CLI use.
 - `SYNCRATIC_CLIENT_ID`: token client id.
 - `SYNCRATIC_CLIENT_SECRET`: Syncratic API key used as the secret credential for the configured non-browser token flow.
@@ -45,7 +46,13 @@ SignalOps includes a small internal Go client package at `internal/syncratic/use
 - obtaining a bearer JWT from the configured token endpoint;
 - sending the Syncratic API key as `client_secret` during token acquisition;
 - caching the bearer token in process until shortly before expiry;
-- attaching `Authorization: Bearer <token>` to user-facade API calls;
+- attaching `Authorization: Bearer <api key>` in `api_key` mode or `Authorization: Bearer <token>` in `token` mode;
 - read-oriented calls for Search, Ask, and compact Insights listing.
 
 The package must not log API keys, bearer tokens, usernames, passwords, raw retrieval payloads, or long document text. Higher-level MarketOps gates should call this package instead of constructing Syncratic HTTP requests directly.
+
+## Live Auth Probe
+
+Live credential probes on 2026-07-13 showed that the current Syncratic user facade accepts `SYNCRATIC_CLIENT_SECRET` directly as an API key using `Authorization: Bearer <api key>` and `X-API-Key`. The token endpoint variants tested with the configured password/client-credentials shapes returned HTTP `401`.
+
+Recommended current mode: `SYNCRATIC_AUTH_MODE=api_key`.
