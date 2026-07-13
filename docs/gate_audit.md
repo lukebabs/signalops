@@ -6788,3 +6788,18 @@ Result:
 - Local ignored `.env` now uses `SYNCRATIC_*` variable names instead of generic `USERNAME` and `PASSWORD`.
 - Committed `.env.example` contains safe placeholders only.
 - MarketOps architecture docs now point to the Syncratic user API boundary note.
+
+## Syncratic API Key Naming Clarification
+
+Timestamp: `2026-07-13T02:13:22Z`
+
+Status: `documented`
+
+Scope:
+
+- Clarify that `SYNCRATIC_CLIENT_SECRET` is the Syncratic API key.
+- Keep committed files limited to safe placeholders and boundary documentation.
+
+Result:
+
+- Future SignalOps-to-Syncratic integration work should use `SYNCRATIC_CLIENT_SECRET` as the API key input to the configured token flow, while keeping values out of logs and commits.

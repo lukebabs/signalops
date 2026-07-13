@@ -5878,3 +5878,14 @@ Validation performed:
 
 - Confirmed generic `USERNAME` and `PASSWORD` entries were removed from the ignored local `.env`.
 - `git diff --check`: passed.
+
+## 2026-07-13T02:13:22Z
+
+Summary:
+
+- Clarified the Syncratic user API environment contract: `SYNCRATIC_CLIENT_SECRET` is the Syncratic API key for the configured non-browser token flow.
+- Updated `.env.example` and the MarketOps Syncratic user API boundary note without committing any secret values.
+
+Validation performed:
+
+- `git diff --check`: passed.

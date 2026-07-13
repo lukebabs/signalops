@@ -18,7 +18,7 @@ Use namespaced environment variables for this boundary:
 - `SYNCRATIC_TOKEN_URL`: token endpoint for obtaining a bearer JWT when non-browser automation is approved.
 - `SYNCRATIC_TOKEN_GRANT`: configured token grant, for example `password` only when explicitly approved for CLI use.
 - `SYNCRATIC_CLIENT_ID`: token client id.
-- `SYNCRATIC_CLIENT_SECRET`: token client secret, when required.
+- `SYNCRATIC_CLIENT_SECRET`: Syncratic API key used as the secret credential for the configured non-browser token flow.
 - `SYNCRATIC_USERNAME`: user credential for the configured token flow.
 - `SYNCRATIC_PASSWORD`: user credential for the configured token flow.
 
@@ -26,7 +26,7 @@ Do not use generic `USERNAME` or `PASSWORD` variables. They collide with common 
 
 ## Auth Boundary
 
-The OpenAPI contract declares `BearerAuth` with JWT bearer tokens. It does not define a login route. Therefore, integration code must not infer token acquisition from the OpenAPI file alone. Token acquisition must come from explicit environment configuration and must keep token material out of logs, docs, committed files, and URLs.
+The OpenAPI contract declares `BearerAuth` with JWT bearer tokens. It does not define a login route. Therefore, integration code must not infer token acquisition from the OpenAPI file alone. Token acquisition must come from explicit environment configuration. In this repo, `SYNCRATIC_CLIENT_SECRET` is the Syncratic API key for the configured non-browser token flow. Keep API keys and token material out of logs, docs, committed files, and URLs.
 
 ## Initial SignalOps Usage
 
