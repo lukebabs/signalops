@@ -112,11 +112,15 @@ Initial Ask request mapping:
 - `question`: the full structured context-window prompt;
 - `scope`: `tenant`;
 - `k`: `0` or omitted unless Syncratic Ask requires a positive value;
-- `filters`: omitted for G090 because the Syncratic facade currently rejects SignalOps-specific filter keys. SignalOps metadata is embedded in the bounded prompt and persisted locally in `metrics.syncratic_ask`.
+- `filters`: omitted for G090 because the Syncratic facade should not retrieve Syncratic corpus chunks for this path. SignalOps metadata is embedded in the bounded external context and persisted locally in `metrics.syncratic_ask`.
 - `thread_mode`: `off`.
 - `include_refs`: `false`.
+- `direct_reasoning`: `true`.
+- `external_context.items[0]`: one bounded SignalOps context-window payload with `source_id=context_window_id`.
+- `graph_enabled`: `false`.
+- `kee_enabled`: `false`.
 
-G090 should not enable graph-assisted or KEE-assisted Syncratic retrieval unless a later gate explicitly approves retrieval influence. The explanation should be based on the supplied context window.
+G090 should not enable corpus, graph-assisted, or KEE-assisted Syncratic retrieval unless a later gate explicitly approves retrieval influence. The explanation should be based on the supplied context window.
 
 ## Persistence Model
 
@@ -329,7 +333,7 @@ Implemented in G090:
 - persistence of generated explanation, recommendation, and `metrics.syncratic_ask` metadata onto `syncratic_insights`;
 - sanitized upstream Ask error handling;
 - gateway client construction from `SYNCRATIC_*` env only when `SYNCRATIC_API_BASE_URL` is configured;
-- live-compatible Ask client behavior: API-key mode sends both `Authorization` and `X-API-Key`, Ask timeout is 60 seconds, `confidence` accepts numeric strings, and the route sends `scope=tenant`, `k=1`, `thread_mode=off`, `include_refs=false`, and no facade filters.
+- live-compatible Ask client behavior: API-key mode sends both `Authorization` and `X-API-Key`, Ask timeout is 60 seconds, `confidence` accepts numeric strings, and the route sends `scope=tenant`, `k=1`, `thread_mode=off`, `include_refs=false`, `direct_reasoning=true`, `graph_enabled=false`, `kee_enabled=false`, one bounded `external_context` item, and no facade filters.
 
 The implementation still keeps scheduled Ask jobs, Syncratic Search enrichment, external ingestion, graph writes, alert lifecycle mutation, and frontend changes out of scope.
 
@@ -338,3 +342,9 @@ The implementation still keeps scheduled Ask jobs, Syncratic Search enrichment, 
 Validated on `2026-07-13T05:08:00Z` after Syncratic enabled non-human reasoning clients to use the Ask reasoning layer with the intended prompt quality.
 
 The route prompt prefix now uses the direct-validated non-human `CONTEXT_JSON` framing while preserving the bounded deterministic SignalOps context payload, prompt digest, and evidence digest. Authenticated forced Ask against `synctx_47bccf8af8af03a15d4c0d3f` returned HTTP `200`, `ask_status=completed`, `updated=true`, and persisted a `516` character generated explanation instead of `UNKNOWN`. A rerun with unchanged evidence returned `updated=false` and `skipped_reason=unchanged_prompt_and_evidence`.
+
+## Direct Reasoning API Alignment
+
+Validated in code on `2026-07-13T05:24:00Z` after `docs/syncratic_user_api_v1.yaml` added Ask `direct_reasoning` and `external_context` support for service-account reasoning without retrieved chunks.
+
+SignalOps now sends a short Ask `question` plus the bounded deterministic context-window prompt as `external_context.items[0].text`, with `direct_reasoning=true`, `graph_enabled=false`, `kee_enabled=false`, `thread_mode=off`, and `include_refs=false`. This keeps G090 on the intended no-ingestion/no-search/no-corpus-retrieval boundary while using the explicit Syncratic facade contract instead of relying only on prompt wording.

@@ -68,12 +68,26 @@ type SearchResponse struct {
 }
 
 type AskRequest struct {
-	Question    string         `json:"question"`
-	K           int            `json:"k,omitempty"`
-	Scope       string         `json:"scope,omitempty"`
-	Filters     map[string]any `json:"filters,omitempty"`
-	ThreadMode  string         `json:"thread_mode,omitempty"`
-	IncludeRefs *bool          `json:"include_refs,omitempty"`
+	Question        string              `json:"question"`
+	K               int                 `json:"k,omitempty"`
+	Scope           string              `json:"scope,omitempty"`
+	Filters         map[string]any      `json:"filters,omitempty"`
+	ThreadMode      string              `json:"thread_mode,omitempty"`
+	IncludeRefs     *bool               `json:"include_refs,omitempty"`
+	DirectReasoning *bool               `json:"direct_reasoning,omitempty"`
+	ExternalContext *AskExternalContext `json:"external_context,omitempty"`
+	GraphEnabled    *bool               `json:"graph_enabled,omitempty"`
+	KEEEnabled      *bool               `json:"kee_enabled,omitempty"`
+}
+
+type AskExternalContext struct {
+	Items []AskExternalContextItem `json:"items,omitempty"`
+}
+
+type AskExternalContextItem struct {
+	Title    string `json:"title,omitempty"`
+	SourceID string `json:"source_id,omitempty"`
+	Text     string `json:"text"`
 }
 
 type AskResponse struct {

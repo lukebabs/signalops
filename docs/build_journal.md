@@ -6056,3 +6056,20 @@ Validation performed:
 - Authenticated forced `POST /v1/syncratic/context-windows/synctx_47bccf8af8af03a15d4c0d3f/ask`: HTTP `200`, `ask_status=completed`, `updated=true`, explanation length `516`.
 - Persisted insight `synins_75c6d92b51d37352e0e57f00` has `metrics.syncratic_ask.ask_status=completed`, `recommendation.source=syncratic_ask`, and a non-`UNKNOWN` generated explanation.
 - Authenticated rerun with `force=false`: HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.
+
+## 2026-07-13T05:24:00Z
+
+Summary:
+
+- Aligned G090 Ask requests with the updated Syncratic user API contract in `docs/syncratic_user_api_v1.yaml`.
+- Added client support for Ask `direct_reasoning`, `external_context`, `graph_enabled`, and `kee_enabled` fields.
+- Changed the SignalOps Ask route to send the bounded context-window payload as caller-supplied external context, with graph and KEE retrieval explicitly disabled.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/syncratic/userapi -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
+- Authenticated forced Ask route call returned HTTP `200`, `ask_status=completed`, `updated=true`, `direct_reasoning=true`, `graph_enabled=false`, `kee_enabled=false`, and explanation length `520`.
+- Persisted insight `synins_75c6d92b51d37352e0e57f00` records completed Ask metadata, direct reasoning enabled, graph/KEE disabled, and `recommendation.source=syncratic_ask`.
+- Authenticated rerun returned HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.

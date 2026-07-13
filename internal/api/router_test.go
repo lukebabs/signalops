@@ -2630,8 +2630,14 @@ func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
-	if ask.calls != 1 || !strings.Contains(ask.req.Question, "synctx-test") || ask.req.Scope != defaultSyncraticAskScope || ask.req.K != 1 || ask.req.ThreadMode != "off" || ask.req.IncludeRefs == nil || *ask.req.IncludeRefs || len(ask.req.Filters) != 0 {
+	if ask.calls != 1 || ask.req.Scope != defaultSyncraticAskScope || ask.req.K != 1 || ask.req.ThreadMode != "off" || ask.req.IncludeRefs == nil || *ask.req.IncludeRefs || len(ask.req.Filters) != 0 {
 		t.Fatalf("ask call = %+v calls=%d", ask.req, ask.calls)
+	}
+	if ask.req.DirectReasoning == nil || !*ask.req.DirectReasoning || ask.req.GraphEnabled == nil || *ask.req.GraphEnabled || ask.req.KEEEnabled == nil || *ask.req.KEEEnabled {
+		t.Fatalf("ask reasoning flags = %+v", ask.req)
+	}
+	if ask.req.ExternalContext == nil || len(ask.req.ExternalContext.Items) != 1 || ask.req.ExternalContext.Items[0].SourceID != "synctx-test" || !strings.Contains(ask.req.ExternalContext.Items[0].Text, "synctx-test") {
+		t.Fatalf("ask external context = %+v", ask.req.ExternalContext)
 	}
 	stored := repo.syncraticInsights[0]
 	if stored.Explanation != "Generated Syncratic Ask explanation for AAPL." || stored.Title != "Ask title" || stored.Summary != "Ask summary" || stored.Confidence != 0.91 {

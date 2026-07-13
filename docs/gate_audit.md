@@ -7010,3 +7010,28 @@ Validation performed:
 Result:
 
 - G090 is now closed for both backend/API plumbing and prompt-quality validation. Remaining work should move to the next gate: frontend operator trigger/visibility or budgeted selective materialization, depending on priority.
+
+## Gate G090: Direct Reasoning API Alignment
+
+Timestamp: `2026-07-13T05:24:00Z`
+
+Status: `validated — direct-reasoning Ask API contract passed tests and live smoke`
+
+Scope:
+
+- Adopt the updated Syncratic Ask facade fields for service-account reasoning without retrieved chunks.
+- Send the deterministic SignalOps context window through `external_context` with `direct_reasoning=true`.
+- Keep graph retrieval, KEE retrieval, Syncratic Search, ingestion, scheduled jobs, and frontend changes out of scope.
+
+Validation performed:
+
+- Targeted API/userapi tests passed and assert the new request shape.
+- Full Go suite passed.
+- Gateway rebuild passed; Docker build also ran `go test ./...`.
+- Authenticated forced Ask route call returned HTTP `200`, `ask_status=completed`, `updated=true`, `direct_reasoning=true`, `graph_enabled=false`, `kee_enabled=false`, and explanation length `520`.
+- Persisted insight `synins_75c6d92b51d37352e0e57f00` records completed Ask metadata and `recommendation.source=syncratic_ask`.
+- Authenticated rerun returned HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.
+
+Result:
+
+- G090 now uses the explicit Syncratic direct-reasoning contract instead of relying only on prompt wording to suppress corpus retrieval, and the path is validated against the live local gateway.

@@ -108,6 +108,13 @@ func TestAskAndListInsights(t *testing.T) {
 		_, _ = w.Write([]byte(`{"access_token":"token","expires_in":3600}`))
 	})
 	mux.HandleFunc("/api/v1/ask", func(w http.ResponseWriter, r *http.Request) {
+		var req AskRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		if req.DirectReasoning == nil || !*req.DirectReasoning || req.ExternalContext == nil || len(req.ExternalContext.Items) != 1 || req.ExternalContext.Items[0].Text != "bounded context" {
+			t.Fatalf("ask request = %+v", req)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"query_id":"ask-1","answer":"answer","confidence":0.8,"evidence_count":2}`))
 	})
@@ -124,7 +131,8 @@ func TestAskAndListInsights(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ask, err := client.Ask(context.Background(), AskRequest{Question: "What changed?", K: 4})
+	directReasoning := true
+	ask, err := client.Ask(context.Background(), AskRequest{Question: "What changed?", K: 4, DirectReasoning: &directReasoning, ExternalContext: &AskExternalContext{Items: []AskExternalContextItem{{Text: "bounded context"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
