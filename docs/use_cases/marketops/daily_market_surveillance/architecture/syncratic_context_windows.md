@@ -47,3 +47,19 @@ Each context window should capture:
 - evidence digest.
 
 A reproduced context build with the same inputs should produce the same id and digest.
+
+## Selective Materialization
+
+Syncratic should scan broadly but materialize narrowly.
+
+For the MarketOps Top 50 universe, the daily process should perform a cheap aggregate candidate scan across all covered assets, then build full context windows only for candidates that cross deterministic thresholds.
+
+Default materialization triggers:
+
+- at least two related alerts or signals in the strategy window;
+- at least one critical alert in the strategy window;
+- related graph proposal, evaluation, promotion, or operator-label evidence for the same subject/window.
+
+The context builder should skip quiet assets, skip unchanged evidence digests, and enforce configurable caps for scanned assets, candidate windows, context windows, and synthesized insights. This keeps Syncratic explainability available across the universe without creating excessive unused batch work.
+
+The deterministic materialization key should be based on tenant, use case, context strategy, subject symbol, window start, window end, and builder version.

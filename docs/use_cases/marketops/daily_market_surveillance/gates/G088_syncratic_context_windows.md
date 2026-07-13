@@ -223,6 +223,43 @@ Initial strategies:
 - `graph_proposal_context`: alerts/signals that support the same graph fact key or proposal subject;
 - `promotion_evidence_context`: candidate/evaluation/baseline evidence supporting a promotion review.
 
+## Selective Materialization
+
+G088 should not create a Syncratic batch job, context window, or insight for every asset simply because the MarketOps Top 50 universe exists.
+
+The recommended pattern is:
+
+```text
+daily Top 50 scan -> candidate counts -> threshold-gated context build -> materialized insight
+```
+
+The daily scan should be cheap and aggregate-first. It can inspect all Top 50 assets after EOD processing, but it should only fetch full evidence and persist Syncratic rows for candidates that cross configured thresholds.
+
+MVP materialization rules:
+
+- scan the Top 50 MarketOps asset universe daily after EOD signal/alert persistence;
+- group candidate counts by tenant, use case, context strategy, subject symbol, signal family, and strategy window;
+- materialize a context window only when at least one default trigger is met:
+  - two or more related alerts or signals exist in the strategy window;
+  - one or more critical alerts exist in the strategy window;
+  - related graph proposal, evaluation, promotion, or operator-label evidence exists for the same subject/window;
+- skip materialization when the existing context window has the same evidence digest;
+- create at most one active synthesized insight for the same tenant, use case, strategy, subject symbol, window, and builder version;
+- enforce configurable run caps such as max assets scanned, max candidate windows, max context windows materialized, and max insights materialized;
+- record run metrics for scanned assets, candidate windows, materialized contexts, materialized insights, unchanged skips, below-threshold skips, and budget-cap skips.
+
+The deterministic idempotency key should include:
+
+- `tenant_id`
+- `use_case`
+- `context_strategy`
+- `subject_symbol`
+- `window_start`
+- `window_end`
+- `context_builder_version`
+
+On-demand UI actions may request a preview for a quiet asset, but preview-only output should not become the canonical Syncratic insight unless it is persisted through the same threshold, digest, idempotency, and audit path.
+
 ## Alert Versus Insight Semantics
 
 Alerts:
@@ -308,15 +345,21 @@ G088 is complete when:
 - context windows can be deterministically created from existing ledgers;
 - synthesized insights can reference context windows and supporting evidence;
 - insight creation requires multi-event evidence for the default strategies;
+- Top 50 daily coverage uses aggregate candidate scanning and does not eagerly materialize quiet assets;
+- unchanged evidence digests are skipped rather than rewritten;
+- materialization caps prevent excessive Syncratic context/insight creation in one run;
 - alerts remain event-level and unchanged;
 - one-signal insight duplication is documented and not expanded;
 - APIs expose context windows and synthesized insights;
-- tests cover deterministic ids, grouping rules, minimum evidence thresholds, and tenant isolation;
+- tests cover deterministic ids, grouping rules, minimum evidence thresholds, unchanged digest skips, materialization caps, idempotent reruns, and tenant isolation;
 - authenticated API smoke validates create/list/detail for context windows and synthesized insights.
 
 ## Validation Plan
 
 - Add unit tests for context builder grouping rules.
+- Add unit tests for candidate scan threshold gating.
+- Add unit tests for unchanged evidence digest skip behavior.
+- Add unit tests for materialization budget caps and idempotent reruns.
 - Add unit tests for deterministic ids and evidence digest construction.
 - Add API route tests for context window create/list/detail.
 - Add API route tests for synthesized insight create/list/detail and lifecycle mutations if included.
@@ -328,6 +371,8 @@ G088 is complete when:
 - Authenticated smoke:
   - create a context window from existing MarketOps alerts/signals;
   - create a synthesized insight from that context;
+  - verify a quiet Top 50 asset below thresholds is scanned but not materialized;
+  - rerun the same build and verify unchanged evidence is skipped;
   - fetch list/detail;
   - verify supporting alert/signal/event ids are present;
   - verify no alert lifecycle or production graph state was mutated.

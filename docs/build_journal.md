@@ -5828,3 +5828,16 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+## 2026-07-13T00:20:50Z
+
+Summary:
+
+- Refined the G088 Syncratic context-window specification to avoid excessive batch work across the MarketOps Top 50 universe.
+- Added selective materialization: broad aggregate candidate scans, threshold-gated context builds, unchanged evidence digest skips, deterministic idempotency keys, and configurable run caps.
+- Updated the architecture and operations notes so implementation and smoke validation distinguish scanned quiet assets from materialized Syncratic insights.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.

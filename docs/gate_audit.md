@@ -6726,3 +6726,20 @@ Result:
 - Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G088_syncratic_context_windows.md`.
 - Architecture note saved at `docs/use_cases/marketops/daily_market_surveillance/architecture/syncratic_context_windows.md`.
 - Operations note saved at `docs/use_cases/marketops/daily_market_surveillance/operations/syncratic_context_windows.md`.
+
+## Gate G088: Selective Materialization Refinement
+
+Timestamp: `2026-07-13T00:20:50Z`
+
+Status: `specification refined`
+
+Scope:
+
+- Refine G088 so Syncratic does not create batch jobs, context windows, or insights for every Top 50 asset by default.
+- Specify aggregate candidate scanning, threshold-gated materialization, unchanged evidence digest skips, idempotent reruns, and configurable materialization caps.
+- Keep G088 scoped to deterministic internal-ledger explainability; no external ingestion, LLM narrative generation, graph writeback, policy execution, or alert lifecycle mutation is added.
+
+Result:
+
+- Gate, architecture, and operations docs now distinguish broad scanning from narrow canonical materialization.
+- Acceptance criteria and validation plan now require tests for threshold gating, unchanged digest skips, run caps, and idempotent reruns.
