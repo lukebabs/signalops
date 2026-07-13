@@ -76,6 +76,14 @@ const (
 )
 
 const (
+	SyncraticInsightStatusActive     = "active"
+	SyncraticInsightStatusReviewed   = "reviewed"
+	SyncraticInsightStatusDismissed  = "dismissed"
+	SyncraticInsightStatusArchived   = "archived"
+	SyncraticInsightStatusSuperseded = "superseded"
+)
+
+const (
 	MarketOpsDSMGraphProposalStatusProposed   = "proposed"
 	MarketOpsDSMGraphProposalStatusAccepted   = "accepted"
 	MarketOpsDSMGraphProposalStatusRejected   = "rejected"
@@ -359,6 +367,68 @@ type InsightLifecycleMutation struct {
 	Actor        string
 	MutatedAt    time.Time
 	MetadataJSON []byte
+}
+
+type SyncraticContextWindowRecord struct {
+	ContextWindowID            string
+	TenantID                   string
+	AppID                      string
+	Domain                     string
+	UseCase                    string
+	SubjectType                string
+	SubjectID                  string
+	SubjectSymbol              string
+	WindowStart                time.Time
+	WindowEnd                  time.Time
+	ContextStrategy            string
+	ContextBuilderVersion      string
+	SignalTypes                []string
+	DetectorIDs                []string
+	EventIDs                   []string
+	SignalIDs                  []string
+	AlertIDs                   []string
+	ArtifactIDs                []string
+	GraphProposalIDs           []string
+	LabelIDs                   []string
+	BaselineRefsJSON           []byte
+	EvaluationRefsJSON         []byte
+	PromotionCandidateRefsJSON []byte
+	SummaryMetricsJSON         []byte
+	EvidenceDigest             string
+	IdempotencyKey             string
+	Status                     string
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
+}
+
+type SyncraticInsightRecord struct {
+	SyncraticInsightID      string
+	TenantID                string
+	AppID                   string
+	Domain                  string
+	UseCase                 string
+	ContextWindowID         string
+	InsightType             string
+	SubjectType             string
+	SubjectID               string
+	SubjectSymbol           string
+	Status                  string
+	Severity                string
+	Confidence              float64
+	Title                   string
+	Summary                 string
+	Explanation             string
+	SupportingAlertIDs      []string
+	SupportingSignalIDs     []string
+	SupportingEventIDs      []string
+	SupportingArtifactIDs   []string
+	RelatedGraphProposalIDs []string
+	RelatedLabelIDs         []string
+	MetricsJSON             []byte
+	RecommendationJSON      []byte
+	BuilderVersion          string
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 type CatalogSourceRecord struct {
@@ -775,6 +845,15 @@ type SignalLifecycleRepository interface {
 	PersistSignalLifecycle(ctx context.Context, signal SignalLedgerRecord, alerts []AlertLedgerRecord, insights []InsightLedgerRecord) error
 }
 
+type SyncraticRepository interface {
+	UpsertSyncraticContextWindow(ctx context.Context, record SyncraticContextWindowRecord) error
+	ListSyncraticContextWindows(ctx context.Context, filter SyncraticContextWindowFilter) ([]SyncraticContextWindowRecord, error)
+	GetSyncraticContextWindow(ctx context.Context, contextWindowID string) (SyncraticContextWindowRecord, error)
+	UpsertSyncraticInsight(ctx context.Context, record SyncraticInsightRecord) error
+	ListSyncraticInsights(ctx context.Context, filter SyncraticInsightFilter) ([]SyncraticInsightRecord, error)
+	GetSyncraticInsight(ctx context.Context, syncraticInsightID string) (SyncraticInsightRecord, error)
+}
+
 type MarketOpsDSMArtifactRepository interface {
 	ListMarketOpsDSMArtifacts(ctx context.Context, filter MarketOpsDSMArtifactFilter) ([]MarketOpsDSMArtifactRecord, error)
 	GetMarketOpsDSMArtifact(ctx context.Context, artifactID string) (MarketOpsDSMArtifactRecord, error)
@@ -874,6 +953,29 @@ type InsightLedgerFilter struct {
 	InsightType string
 	Status      string
 	Limit       int
+}
+
+type SyncraticContextWindowFilter struct {
+	TenantID        string
+	AppID           string
+	Domain          string
+	UseCase         string
+	SubjectSymbol   string
+	ContextStrategy string
+	Status          string
+	Limit           int
+}
+
+type SyncraticInsightFilter struct {
+	TenantID        string
+	AppID           string
+	Domain          string
+	UseCase         string
+	ContextWindowID string
+	InsightType     string
+	SubjectSymbol   string
+	Status          string
+	Limit           int
 }
 
 type MarketOpsDSMArtifactFilter struct {
@@ -1050,6 +1152,7 @@ type QueryRepository interface {
 	ReplayJobRepository
 	ReplayWorkerHeartbeatRepository
 	MarketOpsBacktestRepository
+	SyncraticRepository
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
 	ListReplayJobs(ctx context.Context, filter ReplayJobFilter) ([]ReplayJobRecord, error)

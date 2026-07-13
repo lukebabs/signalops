@@ -6743,3 +6743,30 @@ Result:
 
 - Gate, architecture, and operations docs now distinguish broad scanning from narrow canonical materialization.
 - Acceptance criteria and validation plan now require tests for threshold gating, unchanged digest skips, run caps, and idempotent reruns.
+
+## Gate G088: Syncratic Backend/API Implementation
+
+Timestamp: `2026-07-13T01:13:35Z`
+
+Status: `validated — backend/API selective materialization implemented`
+
+Scope:
+
+- Add durable Syncratic context-window and synthesized insight records.
+- Expose create/list/detail APIs plus selective materialization over the MarketOps Top 50 universe.
+- Enforce deterministic ids, evidence digests, unchanged-digest skips, threshold gating, and per-run materialization caps.
+- Keep the gate limited to internal-ledger explainability: no external ingestion, LLM generation, graph writeback, policy deployment, alert lifecycle mutation, detector threshold edits, or frontend changes.
+
+Validation performed:
+
+- Added migration `000020_syncratic_context_windows`.
+- Added storage records, repository methods, API DTOs/helpers, route wiring, and API tests.
+- Targeted API/Postgres tests, full Go tests, and JSON schema validation passed.
+- Applied migration locally and rebuilt the gateway container.
+- Authenticated smoke validated materialize/list/detail behavior.
+- First materialization scanned 5 Top 50 assets, produced 1 context and 1 Syncratic insight, and skipped 4 quiet assets below threshold.
+- Rerun skipped the unchanged evidence digest and produced 0 duplicate records.
+
+Result:
+
+- G088 backend/API is implemented and locally validated. Remaining work is frontend-agent UI wiring for Syncratic context windows and synthesized insights.

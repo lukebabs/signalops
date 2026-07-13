@@ -29,6 +29,13 @@ Current MarketOps-specific endpoints:
 - `POST /v1/marketops/backtest-evaluations`
 - `GET /v1/marketops/backtest-evaluations`
 - `GET /v1/marketops/backtest-evaluations/{evaluation_id}`
+- `POST /v1/syncratic/materialize`
+- `POST /v1/syncratic/context-windows`
+- `GET /v1/syncratic/context-windows`
+- `GET /v1/syncratic/context-windows/{context_window_id}`
+- `POST /v1/syncratic/insights`
+- `GET /v1/syncratic/insights`
+- `GET /v1/syncratic/insights/{syncratic_insight_id}`
 
 MarketOps signal, alert, insight, raw-event, normalized-event, and back-test run views use the shared `/v1/*` APIs with metadata filters where applicable:
 
@@ -44,5 +51,6 @@ Current notes:
 - `backtest_calibration_summary_api.md`: G082 persisted back-test calibration summary API boundary.
 - `backtest_baseline_comparison_api.md`: G083 baseline and stored comparison API boundary.
 - `backtest_promotion_candidate_api.md`: G086 promotion candidate review API boundary.
+- `syncratic_context_window_api.md`: G088 context-window and synthesized insight API boundary.
 - `backtest_evaluation_label_api.md`: G084 graph-proposal decision label sync API boundary.
 - `backtest_label_aware_evaluation_api.md`: G085 label-aware back-test scoring API boundary.

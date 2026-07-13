@@ -76,6 +76,8 @@ type fakeQueryRepository struct {
 	backtestEvaluationLabels       []storage.MarketOpsBacktestEvaluationLabelRecord
 	backtestEvaluations            []storage.MarketOpsBacktestEvaluationRecord
 	backtestPromotionCandidates    []storage.MarketOpsBacktestPromotionCandidateRecord
+	syncraticContextWindows        []storage.SyncraticContextWindowRecord
+	syncraticInsights              []storage.SyncraticInsightRecord
 	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
 	lastBacktestSignalFilter       storage.MarketOpsBacktestSignalFilter
 	lastBacktestGraphFilter        storage.MarketOpsBacktestGraphProposalFilter
@@ -90,6 +92,7 @@ type fakeQueryRepository struct {
 	lastGraphProposalMutation      storage.MarketOpsDSMGraphProposalMutation
 	lastUniverseGroup              string
 	lastActiveOnly                 bool
+	signals                        []storage.SignalLedgerRecord
 	alerts                         []storage.AlertLedgerRecord
 	insights                       []storage.InsightLedgerRecord
 	notFound                       bool
@@ -235,7 +238,7 @@ func (q *fakeQueryRepository) GetNormalizedEventLedger(context.Context, string) 
 }
 
 func (q *fakeQueryRepository) ListSignalLedger(context.Context, storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
-	return nil, nil
+	return q.signals, nil
 }
 func (q *fakeQueryRepository) GetSignalLedger(context.Context, string) (storage.SignalLedgerRecord, error) {
 	return storage.SignalLedgerRecord{}, storage.ErrNotFound
@@ -502,6 +505,106 @@ func (q *fakeQueryRepository) MutateMarketOpsBacktestPromotionCandidateDecision(
 		}
 	}
 	return storage.MarketOpsBacktestPromotionCandidateRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertSyncraticContextWindow(_ context.Context, record storage.SyncraticContextWindowRecord) error {
+	for i, existing := range q.syncraticContextWindows {
+		if existing.ContextWindowID == record.ContextWindowID || existing.IdempotencyKey == record.IdempotencyKey {
+			record.CreatedAt = existing.CreatedAt
+			if record.UpdatedAt.IsZero() {
+				record.UpdatedAt = time.Now().UTC()
+			}
+			q.syncraticContextWindows[i] = record
+			return nil
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	if record.UpdatedAt.IsZero() {
+		record.UpdatedAt = record.CreatedAt
+	}
+	q.syncraticContextWindows = append(q.syncraticContextWindows, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListSyncraticContextWindows(_ context.Context, filter storage.SyncraticContextWindowFilter) ([]storage.SyncraticContextWindowRecord, error) {
+	out := []storage.SyncraticContextWindowRecord{}
+	for _, record := range q.syncraticContextWindows {
+		if filter.TenantID != "" && record.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.SubjectSymbol != "" && record.SubjectSymbol != filter.SubjectSymbol {
+			continue
+		}
+		if filter.ContextStrategy != "" && record.ContextStrategy != filter.ContextStrategy {
+			continue
+		}
+		out = append(out, record)
+	}
+	return out, nil
+}
+
+func (q *fakeQueryRepository) GetSyncraticContextWindow(_ context.Context, contextWindowID string) (storage.SyncraticContextWindowRecord, error) {
+	if q.notFound {
+		return storage.SyncraticContextWindowRecord{}, storage.ErrNotFound
+	}
+	for _, record := range q.syncraticContextWindows {
+		if record.ContextWindowID == contextWindowID {
+			return record, nil
+		}
+	}
+	return storage.SyncraticContextWindowRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertSyncraticInsight(_ context.Context, record storage.SyncraticInsightRecord) error {
+	for i, existing := range q.syncraticInsights {
+		if existing.SyncraticInsightID == record.SyncraticInsightID || (existing.ContextWindowID == record.ContextWindowID && existing.InsightType == record.InsightType && existing.BuilderVersion == record.BuilderVersion) {
+			record.CreatedAt = existing.CreatedAt
+			if record.UpdatedAt.IsZero() {
+				record.UpdatedAt = time.Now().UTC()
+			}
+			q.syncraticInsights[i] = record
+			return nil
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	if record.UpdatedAt.IsZero() {
+		record.UpdatedAt = record.CreatedAt
+	}
+	q.syncraticInsights = append(q.syncraticInsights, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListSyncraticInsights(_ context.Context, filter storage.SyncraticInsightFilter) ([]storage.SyncraticInsightRecord, error) {
+	out := []storage.SyncraticInsightRecord{}
+	for _, record := range q.syncraticInsights {
+		if filter.TenantID != "" && record.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.ContextWindowID != "" && record.ContextWindowID != filter.ContextWindowID {
+			continue
+		}
+		if filter.SubjectSymbol != "" && record.SubjectSymbol != filter.SubjectSymbol {
+			continue
+		}
+		out = append(out, record)
+	}
+	return out, nil
+}
+
+func (q *fakeQueryRepository) GetSyncraticInsight(_ context.Context, syncraticInsightID string) (storage.SyncraticInsightRecord, error) {
+	if q.notFound {
+		return storage.SyncraticInsightRecord{}, storage.ErrNotFound
+	}
+	for _, record := range q.syncraticInsights {
+		if record.SyncraticInsightID == syncraticInsightID {
+			return record, nil
+		}
+	}
+	return storage.SyncraticInsightRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) UpsertMarketOpsBacktestEvaluationLabel(_ context.Context, record storage.MarketOpsBacktestEvaluationLabelRecord) error {
@@ -2362,4 +2465,113 @@ func validMarketOpsBacktestCalibrationComparisonRecord() storage.MarketOpsBackte
 func validMarketOpsBacktestCalibrationSummaryRecord() storage.MarketOpsBacktestCalibrationSummaryRecord {
 	now := time.Date(2026, 7, 12, 5, 55, 0, 0, time.UTC)
 	return storage.MarketOpsBacktestCalibrationSummaryRecord{SummaryID: "btcal-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", Dataset: "equity_eod_prices", DetectorID: "marketops.dsm.taxonomy_v1", StatusFilter: "succeeded", RequestedBy: "operator-test", RunIDs: []string{"bt-1"}, RunCount: 1, SucceededCount: 1, Scanned: 2, Signals: 1, Artifacts: 1, GraphProposals: 5, PolicyResults: 5, SignalYield: 0.5, PolicyResultsPerSignal: 5, RecommendationCounts: []byte(`{"auto_accept_candidate":5}`), RecommendationShares: []byte(`{"auto_accept_candidate":1}`), DominantRecommendation: []byte(`{"key":"auto_accept_candidate","count":5,"share":1}`), FiltersJSON: []byte(`{"tenant_id":"tenant-1"}`), ParametersJSON: []byte(`{"summary_version":"marketops.backtest.calibration_summary.v1"}`), CreatedAt: now}
+}
+
+func TestPostSyncraticContextWindowCreatesFromPersistedEvidence(t *testing.T) {
+	now := time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{
+		signals: []storage.SignalLedgerRecord{{SignalID: "sig-aapl-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-time.Hour), EventIDs: []string{"evt-aapl-1"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)}},
+		alerts:  []storage.AlertLedgerRecord{{AlertID: "alert-aapl-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", AlertType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", Severity: "medium", LastObservedAt: now.Add(-30 * time.Minute), EventIDs: []string{"evt-aapl-2"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)}},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"tenant_id":"tenant-1","subject_symbol":"AAPL","context_strategy":"symbol_signal_cluster_5d","window_start":"2026-07-12T00:00:00Z","window_end":"2026-07-14T00:00:00Z"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	ctx := response["context_window"]
+	if ctx["subject_symbol"] != "AAPL" || ctx["evidence_digest"] == "" || ctx["idempotency_key"] == "" {
+		t.Fatalf("context window = %#v", ctx)
+	}
+	if len(repo.syncraticContextWindows) != 1 || len(repo.syncraticContextWindows[0].SignalIDs) != 1 || len(repo.syncraticContextWindows[0].AlertIDs) != 1 {
+		t.Fatalf("stored context = %+v", repo.syncraticContextWindows)
+	}
+}
+
+func TestPostSyncraticInsightCreatesFromContextWindow(t *testing.T) {
+	ctx := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: "syncratic.context_builder.v1", SignalIDs: []string{"sig-aapl-1", "sig-aapl-2"}, AlertIDs: []string{"alert-aapl-1"}, EventIDs: []string{"evt-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":2,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{ctx}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/insights", strings.NewReader(`{"tenant_id":"tenant-1","context_window_id":"synctx-test","insight_type":"marketops.syncratic.recurring_volatility_cluster"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(repo.syncraticInsights) != 1 || repo.syncraticInsights[0].ContextWindowID != "synctx-test" || len(repo.syncraticInsights[0].SupportingSignalIDs) != 2 {
+		t.Fatalf("stored insights = %+v", repo.syncraticInsights)
+	}
+}
+
+func TestPostSyncraticMaterializeScansTop50AndSkipsQuietAssets(t *testing.T) {
+	now := time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{
+		marketOpsAssets: []storage.MarketOpsAssetRecord{{TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "AAPL", IsActive: true}, {TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "MSFT", IsActive: true}},
+		signals: []storage.SignalLedgerRecord{
+			{SignalID: "sig-aapl-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-time.Hour), EventIDs: []string{"evt-aapl-1"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)},
+			{SignalID: "sig-aapl-2", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.price_quality_exception", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-2 * time.Hour), EventIDs: []string{"evt-aapl-2"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)},
+		},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"tenant_id":"tenant-1","universe_group":"top50_megacap","context_strategy":"symbol_signal_cluster_5d","window_start":"2026-07-12T00:00:00Z","window_end":"2026-07-14T00:00:00Z","min_evidence_count":2,"max_assets":50,"max_context_windows":10,"max_insights":10}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/materialize", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	materialization := response["materialization"]
+	if materialization["scanned_assets"].(float64) != 2 || materialization["materialized_context_windows"].(float64) != 1 || materialization["skipped_below_threshold"].(float64) != 1 {
+		t.Fatalf("materialization = %#v", materialization)
+	}
+	if len(repo.syncraticContextWindows) != 1 || repo.syncraticContextWindows[0].SubjectSymbol != "AAPL" || len(repo.syncraticInsights) != 1 {
+		t.Fatalf("contexts=%+v insights=%+v", repo.syncraticContextWindows, repo.syncraticInsights)
+	}
+}
+
+func TestPostSyncraticMaterializeSkipsUnchangedEvidenceDigest(t *testing.T) {
+	now := time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{
+		marketOpsAssets: []storage.MarketOpsAssetRecord{{TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "AAPL", IsActive: true}},
+		signals: []storage.SignalLedgerRecord{
+			{SignalID: "sig-aapl-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-time.Hour), EventIDs: []string{"evt-aapl-1"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)},
+			{SignalID: "sig-aapl-2", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.price_quality_exception", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-2 * time.Hour), EventIDs: []string{"evt-aapl-2"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)},
+		},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"tenant_id":"tenant-1","universe_group":"top50_megacap","context_strategy":"symbol_signal_cluster_5d","window_start":"2026-07-12T00:00:00Z","window_end":"2026-07-14T00:00:00Z","min_evidence_count":2}`
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/materialize", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("run %d status = %d body=%s", i, rec.Code, rec.Body.String())
+		}
+		if i == 1 {
+			var response map[string]map[string]any
+			if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+				t.Fatal(err)
+			}
+			if response["materialization"]["skipped_unchanged"].(float64) != 1 || response["materialization"]["materialized_context_windows"].(float64) != 0 {
+				t.Fatalf("second materialization = %#v", response["materialization"])
+			}
+		}
+	}
+	if len(repo.syncraticContextWindows) != 1 || len(repo.syncraticInsights) != 1 {
+		t.Fatalf("contexts=%d insights=%d", len(repo.syncraticContextWindows), len(repo.syncraticInsights))
+	}
 }

@@ -1,6 +1,6 @@
 # G088 Syncratic Context Windows And Insight Synthesis
 
-Status: specification proposed
+Status: implemented — backend/API selective materialization validated
 Use case: MarketOps Daily Market Surveillance
 
 ## Goal

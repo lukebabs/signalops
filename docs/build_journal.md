@@ -5841,3 +5841,26 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+## 2026-07-13T01:13:35Z
+
+Summary:
+
+- Implemented G088 Syncratic context windows and synthesized insights as first-class backend/API records.
+- Added migration `000020_syncratic_context_windows` with `syncratic_context_windows` and `syncratic_insights`.
+- Added deterministic context/insight repository methods and `/v1/syncratic/*` gateway routes.
+- Added selective materialization through `POST /v1/syncratic/materialize`, including Top 50 scans, threshold gating, unchanged digest skips, idempotent keys, and per-run caps.
+- Documented the Syncratic API boundary under the MarketOps daily surveillance API docs.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
+- `make compose-storage-migrate`: applied `000020_syncratic_context_windows`.
+- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
+- Unauthenticated `/v1/syncratic/context-windows` returned `401`, confirming auth enforcement.
+- Authenticated materialization smoke returned `201`: scanned 5 Top 50 assets, created 1 context window, created 1 Syncratic insight, skipped 4 below threshold.
+- Authenticated rerun returned `201`: skipped 1 unchanged evidence digest and created 0 duplicate context/insight rows.
+- Authenticated context list/detail and Syncratic insight list returned `200`.
+- Token material and temporary API response files were removed.

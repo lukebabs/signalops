@@ -720,6 +720,149 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"promotion_candidate": marketOpsBacktestPromotionCandidateResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/syncratic/context-windows", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req syncraticContextWindowCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		windowStart, err := parseRFC3339(req.WindowStart)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_context_window", "window_start must be RFC3339")
+			return
+		}
+		windowEnd, err := parseRFC3339(req.WindowEnd)
+		if err != nil || !windowEnd.After(windowStart) {
+			writeError(w, http.StatusBadRequest, "invalid_context_window", "window_end must be RFC3339 and after window_start")
+			return
+		}
+		record, err := buildSyncraticContextWindow(r.Context(), repo, req.TenantID, req.SubjectSymbol, req.ContextStrategy, windowStart, windowEnd, req.ContextBuilderVersion, req.SignalTypes, 1000, 1000)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_context_window", err.Error())
+			return
+		}
+		if len(record.SignalIDs)+len(record.AlertIDs)+len(record.ArtifactIDs)+len(record.GraphProposalIDs)+len(record.LabelIDs) == 0 {
+			writeError(w, http.StatusBadRequest, "empty_context_window", "context window requires at least one persisted evidence record")
+			return
+		}
+		if err := repo.UpsertSyncraticContextWindow(r.Context(), record); err != nil {
+			writeError(w, http.StatusInternalServerError, "persist_failed", "failed to persist Syncratic context window")
+			return
+		}
+		stored, err := repo.GetSyncraticContextWindow(r.Context(), record.ContextWindowID)
+		if err != nil {
+			writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"context_window": syncraticContextWindowResponse(stored)})
+	})
+
+	mux.HandleFunc("GET /v1/syncratic/context-windows", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListSyncraticContextWindows(r.Context(), storage.SyncraticContextWindowFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), ContextStrategy: strings.TrimSpace(r.URL.Query().Get("context_strategy")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list Syncratic context windows")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"context_windows": syncraticContextWindowResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/syncratic/context-windows/{context_window_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetSyncraticContextWindow(r.Context(), r.PathValue("context_window_id"))
+		if err != nil {
+			writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"context_window": syncraticContextWindowResponse(record)})
+	})
+
+	mux.HandleFunc("POST /v1/syncratic/insights", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req syncraticInsightCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		contextWindow, err := repo.GetSyncraticContextWindow(r.Context(), req.ContextWindowID)
+		if err != nil {
+			writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
+			return
+		}
+		if strings.TrimSpace(req.TenantID) != "" && strings.TrimSpace(req.TenantID) != contextWindow.TenantID {
+			writeError(w, http.StatusBadRequest, "invalid_insight", "tenant_id does not match context window")
+			return
+		}
+		record := buildSyncraticInsight(contextWindow, req.InsightType, req.BuilderVersion)
+		if err := repo.UpsertSyncraticInsight(r.Context(), record); err != nil {
+			writeError(w, http.StatusInternalServerError, "persist_failed", "failed to persist Syncratic insight")
+			return
+		}
+		stored, err := repo.GetSyncraticInsight(r.Context(), record.SyncraticInsightID)
+		if err != nil {
+			writeQueryError(w, err, "syncratic_insight_not_found", "Syncratic insight not found")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"syncratic_insight": syncraticInsightResponse(stored)})
+	})
+
+	mux.HandleFunc("GET /v1/syncratic/insights", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListSyncraticInsights(r.Context(), storage.SyncraticInsightFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), ContextWindowID: strings.TrimSpace(r.URL.Query().Get("context_window_id")), InsightType: strings.TrimSpace(r.URL.Query().Get("insight_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list Syncratic insights")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"syncratic_insights": syncraticInsightResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/syncratic/insights/{syncratic_insight_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetSyncraticInsight(r.Context(), r.PathValue("syncratic_insight_id"))
+		if err != nil {
+			writeQueryError(w, err, "syncratic_insight_not_found", "Syncratic insight not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"syncratic_insight": syncraticInsightResponse(record)})
+	})
+
+	mux.HandleFunc("POST /v1/syncratic/materialize", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req syncraticMaterializeRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		result, err := materializeSyncraticContexts(r.Context(), repo, req)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "materialize_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"materialization": result})
+	})
+
 	mux.HandleFunc("GET /v1/marketops/backtests/{run_id}", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
