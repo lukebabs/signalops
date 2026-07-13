@@ -6864,3 +6864,22 @@ Result:
 
 - Specification saved at `docs/frontend/syncratic_context_windows_ui_spec.md`.
 - MarketOps frontend README now links to the G089 frontend-agent handoff.
+
+## Gate G089: Syncratic Insights UI Implementation
+
+Timestamp: `2026-07-13T03:08:00Z`
+
+Status: `implemented`
+
+Scope:
+
+- Wire the SignalOps frontend to G088 `/v1/syncratic/*` APIs: insight list/detail, context-window list/detail, and bounded selective materialization.
+- Add a MarketOps `/marketops/syncratic` route + `Syncratic Insights` nav item + icon, with a dense insights workspace (filter bar, insight list emphasizing pattern/window/evidence counts, detail panel rendering the insight + its context window + grouped evidence references), and an operator-triggered Materialize Contexts action with caps and scan/skip counters.
+- Keep the implementation read-oriented: no external Syncratic user-facade calls, ingestion, privacy-token reveal, LLM narratives, graph writes, alert lifecycle mutation, insight review/dismiss/archive mutation, scheduling, or auto-materialization.
+
+Result:
+
+- Types, API client methods, query keys/hooks, `lib/syncratic.ts` helpers, `MarketOpsSyncraticRoute.tsx`, route/nav/icon wiring, and API + helper tests landed.
+- `npm test`: 207 passed; `npm run build`: succeeded; local web container smoke: `/marketops/syncratic` HTTP 200, `/v1/syncratic/insights` HTTP 401 (auth-gated).
+- Materialization invalidates only Syncratic insight + context-window query prefixes; skip counters (below-threshold/unchanged/budget-cap) render as normal outcomes, not errors.
+- Acceptance criteria met; remaining step is operator browser validation per the spec's Manual Validation section.

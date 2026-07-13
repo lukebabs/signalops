@@ -70,6 +70,14 @@ import type {
   MarketOpsBacktestPromotionCandidateCreateRequest,
   MarketOpsBacktestPromotionCandidateDecisionRequest,
   MarketOpsBacktestPromotionCandidateFilter,
+  SyncraticInsightsResponse,
+  SyncraticInsightResponse,
+  SyncraticContextWindowsResponse,
+  SyncraticContextWindowResponse,
+  SyncraticMaterializationResponse,
+  SyncraticInsightFilter,
+  SyncraticContextWindowFilter,
+  SyncraticMaterializeRequest,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -517,4 +525,41 @@ export const api = {
       `/v1/marketops/backtest-promotion-candidates/${encodeURIComponent(candidateId)}/decision`,
       body,
     ),
+  // G088 Syncratic synthesized insights + deterministic context windows. These
+  // are read-only review surfaces over /v1/syncratic/*. Same authenticated
+  // same-origin pattern as the MarketOps reads; the gateway derives the actor,
+  // so materialize sends no actor header. Filters mirror the backend list query
+  // params; defaults match the spec (tenant-local, limit 50). This frontend
+  // never calls the external Syncratic user facade.
+  listSyncraticInsights: (filter: SyncraticInsightFilter = {}) =>
+    get<SyncraticInsightsResponse>('/v1/syncratic/insights', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      app_id: filter.app_id || undefined,
+      domain: filter.domain || undefined,
+      use_case: filter.use_case || undefined,
+      context_window_id: filter.context_window_id || undefined,
+      insight_type: filter.insight_type || undefined,
+      subject_symbol: filter.subject_symbol || undefined,
+      status: filter.status || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getSyncraticInsight: (insightId: string) =>
+    get<SyncraticInsightResponse>(`/v1/syncratic/insights/${encodeURIComponent(insightId)}`),
+  listSyncraticContextWindows: (filter: SyncraticContextWindowFilter = {}) =>
+    get<SyncraticContextWindowsResponse>('/v1/syncratic/context-windows', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      app_id: filter.app_id || undefined,
+      domain: filter.domain || undefined,
+      use_case: filter.use_case || undefined,
+      subject_symbol: filter.subject_symbol || undefined,
+      context_strategy: filter.context_strategy || undefined,
+      status: filter.status || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getSyncraticContextWindow: (contextWindowId: string) =>
+    get<SyncraticContextWindowResponse>(
+      `/v1/syncratic/context-windows/${encodeURIComponent(contextWindowId)}`,
+    ),
+  materializeSyncraticContexts: (request: SyncraticMaterializeRequest) =>
+    post<SyncraticMaterializationResponse>('/v1/syncratic/materialize', request),
 };

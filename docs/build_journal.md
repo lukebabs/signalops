@@ -5934,3 +5934,27 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+## 2026-07-13T03:08:00Z
+
+Summary:
+
+- Implemented the G089 frontend for G088 Syncratic context windows + synthesized insights under `/marketops/syncratic`.
+- Added TypeScript types, authenticated `/v1/*` API client methods (list/get insights, list/get context-windows, materialize), React Query hooks + query keys, a dedicated `lib/syncratic.ts` helper module, and the MarketOps Syncratic Insights route + nav item + icon.
+- The workspace lists pattern-level synthesized insights, shows a selected insight with its context window (digest, idempotency key, builder version, strategy, window, summary metrics) and grouped evidence references, and exposes a bounded, operator-triggered Materialize Contexts action that shows scan/skip counters and invalidates only Syncratic queries. UI copy distinguishes Syncratic insights from event-level alerts.
+- No external Syncratic user-facade Search/Ask, ingestion, privacy-token reveal, LLM narrative generation, graph writes, alert lifecycle mutation, insight review/dismiss/archive mutation, or automatic materialization was added.
+
+Iteration vs. spec:
+
+- Spec referenced `requestJson<T>`; used the actual `get<T>`/`post<T>` client helpers.
+- Typed context-window status defensively (`active | archived | superseded | string`) since the backend currently only emits `active`.
+- Omitted backend-only `signal_limit`/`alert_limit` materialize params (defaults cover them) and kept `max_candidate_windows` at the spec default of 50.
+
+Validation performed:
+
+- `cd web && npm test`: 19 files, 207 tests passed (new `src/api/syncratic.test.ts` + `src/lib/syncratic.test.ts`).
+- `cd web && npm run build`: succeeded (`MarketOpsSyncraticRoute` chunk ~19.6 kB).
+- `docker compose up -d --build web`: recreated.
+- `curl /marketops/syncratic`: HTTP 200.
+- `curl /v1/syncratic/insights?tenant_id=tenant-local&limit=1`: HTTP 401 `missing bearer token` (route registered + auth-gated, not 404).
+- `git diff --check`: passed.

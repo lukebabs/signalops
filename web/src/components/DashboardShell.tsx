@@ -18,6 +18,7 @@ import {
   LogOut,
   History,
   Network,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import { HealthIndicator } from './HealthIndicator';
@@ -50,6 +51,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   insights: Lightbulb,
   health: Gauge,
   dsm: Network,
+  syncratic: Sparkles,
 };
 
 export function DashboardShell() {

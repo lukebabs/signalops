@@ -36,6 +36,10 @@ import type {
   MarketOpsBacktestPromotionCandidateCreateRequest,
   MarketOpsBacktestPromotionCandidateDecisionRequest,
   MarketOpsBacktestPromotionCandidateResponse,
+  SyncraticInsightFilter,
+  SyncraticContextWindowFilter,
+  SyncraticMaterializeRequest,
+  SyncraticMaterializationResponse,
 } from '../types';
 
 export const queryKeys = {
@@ -96,6 +100,12 @@ export const queryKeys = {
     ['marketops-backtest-promotion-candidates', filter] as const,
   marketOpsBacktestPromotionCandidate: (candidateId: string) =>
     ['marketops-backtest-promotion-candidate', candidateId] as const,
+  syncraticInsights: (filter: SyncraticInsightFilter) => ['syncratic-insights', filter] as const,
+  syncraticInsight: (insightId: string) => ['syncratic-insight', insightId] as const,
+  syncraticContextWindows: (filter: SyncraticContextWindowFilter) =>
+    ['syncratic-context-windows', filter] as const,
+  syncraticContextWindow: (contextWindowId: string) =>
+    ['syncratic-context-window', contextWindowId] as const,
 };
 
 export function useHealthz() {
@@ -720,5 +730,59 @@ export function useMutateInsightLifecycle() {
       queryClient.setQueryData(queryKeys.insight(variables.insightId), data);
       queryClient.invalidateQueries({ queryKey: ['insights'] });
     },
+  });
+}
+
+// G088 Syncratic synthesized insights + context windows (read-only review).
+// Lists are not polled; detail hooks only run while an id is truthy.
+export function useSyncraticInsights(filter: SyncraticInsightFilter = { tenant_id: 'tenant-local', limit: 50 }) {
+  return useQuery({
+    queryKey: queryKeys.syncraticInsights(filter),
+    queryFn: () => api.listSyncraticInsights(filter),
+  });
+}
+
+export function useSyncraticInsight(insightId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.syncraticInsight(insightId ?? ''),
+    queryFn: () => api.getSyncraticInsight(insightId!),
+    enabled: !!insightId,
+  });
+}
+
+export function useSyncraticContextWindows(filter: SyncraticContextWindowFilter = { tenant_id: 'tenant-local', limit: 50 }) {
+  return useQuery({
+    queryKey: queryKeys.syncraticContextWindows(filter),
+    queryFn: () => api.listSyncraticContextWindows(filter),
+  });
+}
+
+export function useSyncraticContextWindow(contextWindowId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.syncraticContextWindow(contextWindowId ?? ''),
+    queryFn: () => api.getSyncraticContextWindow(contextWindowId!),
+    enabled: !!contextWindowId,
+  });
+}
+
+// After a bounded materialization, invalidate Syncratic insight + context-window
+// list/detail prefixes so newly materialized rows appear without a manual reload.
+// Only Syncratic queries are touched — never alert lifecycle, graph proposal,
+// back-test, calibration, promotion, or production signal queries.
+export function applySyncraticMaterializeResult(
+  queryClient: QueryClient,
+  _data: SyncraticMaterializationResponse,
+) {
+  queryClient.invalidateQueries({ queryKey: ['syncratic-insights'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-insight'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-context-windows'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-context-window'] });
+}
+
+export function useMaterializeSyncraticContexts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: SyncraticMaterializeRequest) => api.materializeSyncraticContexts(request),
+    onSuccess: (data) => applySyncraticMaterializeResult(queryClient, data),
   });
 }

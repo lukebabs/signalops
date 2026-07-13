@@ -1273,3 +1273,162 @@ export interface MarketOpsBacktestPromotionCandidateFilter {
   status?: MarketOpsBacktestPromotionCandidateStatus | '';
   limit?: number;
 }
+
+// G088 Syncratic synthesized insights + deterministic context windows. An
+// insight is a multi-record, pattern-level explanation assembled over a bounded
+// evidence window; a context window is the persisted evidence slice it was built
+// from. Both are read-only review surfaces — this gate adds no review/dismiss/
+// archive mutations (the G088 backend does not expose them) and writes no graph
+// state. Flexible JSON fields are typed `unknown` and narrowed defensively.
+export type SyncraticInsightStatus =
+  | 'active'
+  | 'reviewed'
+  | 'dismissed'
+  | 'archived'
+  | 'superseded'
+  | string;
+
+// The backend currently only emits "active"; archived/superseded are reserved
+// for forward compatibility. Kept permissive (| string) so future values render.
+export type SyncraticContextWindowStatus = 'active' | 'archived' | 'superseded' | string;
+
+export type SyncraticSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical' | string;
+
+export interface SyncraticInsight {
+  syncratic_insight_id: string;
+  tenant_id: string;
+  app_id: string;
+  domain: string;
+  use_case: string;
+  context_window_id: string;
+  insight_type: string;
+  subject_type: string;
+  subject_id: string;
+  subject_symbol: string;
+  status: SyncraticInsightStatus;
+  severity: SyncraticSeverity;
+  confidence: number;
+  title: string;
+  summary: string;
+  explanation: string;
+  supporting_alert_ids: string[];
+  supporting_signal_ids: string[];
+  supporting_event_ids: string[];
+  supporting_artifact_ids: string[];
+  related_graph_proposal_ids: string[];
+  related_label_ids: string[];
+  metrics: unknown;
+  recommendation: unknown;
+  builder_version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SyncraticContextWindow {
+  context_window_id: string;
+  tenant_id: string;
+  app_id: string;
+  domain: string;
+  use_case: string;
+  subject_type: string;
+  subject_id: string;
+  subject_symbol: string;
+  window_start: string;
+  window_end: string;
+  context_strategy: string;
+  context_builder_version: string;
+  signal_types: string[];
+  detector_ids: string[];
+  event_ids: string[];
+  signal_ids: string[];
+  alert_ids: string[];
+  artifact_ids: string[];
+  graph_proposal_ids: string[];
+  label_ids: string[];
+  baseline_refs: unknown;
+  evaluation_refs: unknown;
+  promotion_candidate_refs: unknown;
+  summary_metrics: unknown;
+  evidence_digest: string;
+  idempotency_key: string;
+  status: SyncraticContextWindowStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SyncraticMaterializationResult {
+  tenant_id: string;
+  universe_group: string;
+  context_strategy: string;
+  context_builder_version: string;
+  window_start: string;
+  window_end: string;
+  scanned_assets: number;
+  candidate_windows: number;
+  materialized_context_windows: number;
+  materialized_insights: number;
+  skipped_below_threshold: number;
+  skipped_unchanged: number;
+  skipped_budget_cap: number;
+  context_window_ids: string[];
+  syncratic_insight_ids: string[];
+}
+
+export interface SyncraticInsightsResponse {
+  syncratic_insights: SyncraticInsight[];
+}
+
+export interface SyncraticInsightResponse {
+  syncratic_insight: SyncraticInsight;
+}
+
+export interface SyncraticContextWindowsResponse {
+  context_windows: SyncraticContextWindow[];
+}
+
+export interface SyncraticContextWindowResponse {
+  context_window: SyncraticContextWindow;
+}
+
+export interface SyncraticMaterializationResponse {
+  materialization: SyncraticMaterializationResult;
+}
+
+export interface SyncraticInsightFilter {
+  tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
+  context_window_id?: string;
+  insight_type?: string;
+  subject_symbol?: string;
+  status?: SyncraticInsightStatus | '';
+  limit?: number;
+}
+
+export interface SyncraticContextWindowFilter {
+  tenant_id?: string;
+  app_id?: string;
+  domain?: string;
+  use_case?: string;
+  subject_symbol?: string;
+  context_strategy?: string;
+  status?: SyncraticContextWindowStatus | '';
+  limit?: number;
+}
+
+// signal_limit/alert_limit exist on the backend (default 1000) but are omitted —
+// the bounded materialize form does not expose them and defaults are safe.
+export interface SyncraticMaterializeRequest {
+  tenant_id: string;
+  universe_group?: string;
+  context_strategy?: string;
+  context_builder_version?: string;
+  window_start: string;
+  window_end: string;
+  min_evidence_count?: number;
+  max_assets?: number;
+  max_candidate_windows?: number;
+  max_context_windows?: number;
+  max_insights?: number;
+}
