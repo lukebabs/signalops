@@ -5958,3 +5958,21 @@ Validation performed:
 - `curl /marketops/syncratic`: HTTP 200.
 - `curl /v1/syncratic/insights?tenant_id=tenant-local&limit=1`: HTTP 401 `missing bearer token` (route registered + auth-gated, not 404).
 - `git diff --check`: passed.
+
+## 2026-07-13T03:25:20Z
+
+Summary:
+
+- Closed the G089 frontend-agent loop with an independent validation pass against commit `6d7a94f`.
+- Confirmed `/marketops/syncratic` uses the MarketOps metadata filter, same-origin `/v1/syncratic/*` client methods, Syncratic-only query invalidation after bounded materialization, and no frontend calls to the external Syncratic user facade.
+- Rebuilt the running `signalops-web-1` service and verified the deployed SPA route and Syncratic bundle content.
+
+Validation performed:
+
+- `cd web && npm test -- src/api/syncratic.test.ts src/lib/syncratic.test.ts`: 18 tests passed.
+- `cd web && npm test`: 19 files, 207 tests passed.
+- `cd web && npm run build`: succeeded.
+- `docker compose up -d --build web`: succeeded.
+- `curl http://localhost:15173/marketops/syncratic`: HTTP 200.
+- `docker exec signalops-web-1 ... grep Syncratic`: deployed bundle contains the Syncratic route/UI strings.
+- `rg "portal\.syncratic\.co|/api/v1/|syncratic_user_api|docs/syncratic_user_api" web/src`: no matches.

@@ -6883,3 +6883,27 @@ Result:
 - `npm test`: 207 passed; `npm run build`: succeeded; local web container smoke: `/marketops/syncratic` HTTP 200, `/v1/syncratic/insights` HTTP 401 (auth-gated).
 - Materialization invalidates only Syncratic insight + context-window query prefixes; skip counters (below-threshold/unchanged/budget-cap) render as normal outcomes, not errors.
 - Acceptance criteria met; remaining step is operator browser validation per the spec's Manual Validation section.
+
+## Gate G089: Syncratic Insights UI Closeout
+
+Timestamp: `2026-07-13T03:25:20Z`
+
+Status: `validated — frontend loop closed`
+
+Scope:
+
+- Independently validate the frontend-agent implementation now present at commit `6d7a94f`.
+- Confirm route/API scope stays within SignalOps `/v1/syncratic/*` and remains separate from event-level alerts and the external Syncratic user facade.
+
+Validation performed:
+
+- Focused Syncratic frontend tests passed: `src/api/syncratic.test.ts` and `src/lib/syncratic.test.ts` (18 tests).
+- Full frontend suite passed: 19 files, 207 tests.
+- Production frontend build passed.
+- Rebuilt the local `web` service; `http://localhost:15173/marketops/syncratic` returned HTTP 200.
+- Deployed bundle contains the Syncratic route/UI text.
+- Source scan found no frontend references to `portal.syncratic.co`, external `/api/v1/`, or the Syncratic user API spec/client boundary.
+
+Result:
+
+- G089 is closed. The remaining Syncratic work should proceed as a new gate, not as frontend scope creep on G089.
