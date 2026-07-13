@@ -6019,3 +6019,23 @@ Validation performed:
 - Unauthenticated `POST /v1/syncratic/context-windows/synctx-test/ask`: HTTP `401`, confirming the route is deployed and auth-gated.
 - Positive live Ask smoke is pending because local `.env` has `SO_USERNAME` and `SO_PASSWORD` unset, so an operator bearer could not be generated without a supplied token.
 - `git diff --check`: passed.
+
+## 2026-07-13T04:34:00Z
+
+Summary:
+
+- Completed the positive G090 authenticated Ask smoke after adding gateway `SYNCRATIC_*` env wiring and aligning the Ask client with the live facade.
+- Updated the Syncratic user API client to send `X-API-Key` in `api_key` mode, allow 60-second Ask calls, and decode string-valued `confidence`.
+- Updated G090 Ask requests to use `scope=tenant`, `k=1`, `thread_mode=off`, `include_refs=false`, and no unsupported facade filters.
+
+Validation performed:
+
+- Direct minimal Syncratic Ask probe from the gateway container returned HTTP `200`.
+- Reconstructed context-window prompt direct Ask returned HTTP `200` with prompt size `2961` bytes.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/syncratic/userapi -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
+- Authenticated `POST /v1/syncratic/context-windows/synctx_47bccf8af8af03a15d4c0d3f/ask`: HTTP `200`, `ask_status=completed`, `updated=true`.
+- Authenticated rerun returned HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.
+- Persisted insight `synins_75c6d92b51d37352e0e57f00` has `metrics.syncratic_ask.ask_status=completed` and `recommendation.source=syncratic_ask`.
+- `git diff --check`: passed.

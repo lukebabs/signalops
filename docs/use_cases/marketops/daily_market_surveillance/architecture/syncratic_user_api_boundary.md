@@ -18,6 +18,7 @@ Use namespaced environment variables for this boundary:
 - `SYNCRATIC_AUTH_MODE`: `api_key` for direct API-key bearer auth, or `token` for token-endpoint acquisition.
 - `SYNCRATIC_TOKEN_URL`: token endpoint for obtaining a bearer JWT when token mode is used.
 - `SYNCRATIC_TOKEN_GRANT`: configured token grant, for example `password` only when explicitly approved for CLI use.
+- `SYNCRATIC_TOKEN_AUDIENCE`: optional token audience for token-endpoint acquisition.
 - `SYNCRATIC_CLIENT_ID`: token client id.
 - `SYNCRATIC_CLIENT_SECRET`: Syncratic API key used as the secret credential for the configured non-browser token flow.
 - `SYNCRATIC_USERNAME`: user credential for the configured token flow.

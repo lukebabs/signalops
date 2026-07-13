@@ -18,7 +18,7 @@ const (
 	defaultSyncraticBuilderVersion   = "syncratic.context_builder.v1"
 	defaultSyncraticInsightType      = "marketops.syncratic.multi_event_context"
 	defaultSyncraticAskPromptVersion = "marketops.syncratic.ask_prompt.v1"
-	defaultSyncraticAskScope         = "marketops_signalops_context_window"
+	defaultSyncraticAskScope         = "tenant"
 )
 
 type syncraticAskClient interface {
@@ -336,7 +336,8 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 		return insight, syncraticAskResult{ContextWindowID: contextWindow.ContextWindowID, SyncraticInsightID: insight.SyncraticInsightID, AskStatus: "skipped", PromptDigest: promptMeta.PromptDigest, Updated: false, SkippedReason: "unchanged_prompt_and_evidence", PromptBuilderVersion: promptMeta.PromptBuilderVersion}, nil
 	}
 	started := time.Now().UTC()
-	askResp, err := askClient.Ask(ctx, userapi.AskRequest{Question: prompt, Scope: defaultSyncraticAskScope, Filters: map[string]any{"tenant_id": contextWindow.TenantID, "app_id": contextWindow.AppID, "domain": contextWindow.Domain, "use_case": contextWindow.UseCase, "context_window_id": contextWindow.ContextWindowID, "subject_symbol": contextWindow.SubjectSymbol, "evidence_digest": contextWindow.EvidenceDigest}})
+	includeRefs := false
+	askResp, err := askClient.Ask(ctx, userapi.AskRequest{Question: prompt, Scope: defaultSyncraticAskScope, K: 1, ThreadMode: "off", IncludeRefs: &includeRefs})
 	if err != nil {
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, fmt.Errorf("syncratic ask failed: %w", err)
 	}
@@ -435,10 +436,10 @@ func applySyncraticAskResponse(insight storage.SyncraticInsightRecord, contextWi
 	insight.Summary = firstNonEmpty(extractAskString(resp.Raw, "summary"), truncateForSummary(answer), insight.Summary)
 	insight.Title = firstNonEmpty(extractAskString(resp.Raw, "title"), insight.Title, fmt.Sprintf("%s Syncratic Ask explanation", contextWindow.SubjectSymbol))
 	if resp.Confidence > 0 {
-		insight.Confidence = resp.Confidence
+		insight.Confidence = float64(resp.Confidence)
 	}
 	metrics := jsonObjectOrEmpty(insight.MetricsJSON)
-	metrics["syncratic_ask"] = map[string]any{"enabled": true, "ask_query_id": resp.QueryID, "ask_status": "completed", "prompt_builder_version": meta.PromptBuilderVersion, "prompt_digest": meta.PromptDigest, "context_window_id": contextWindow.ContextWindowID, "context_evidence_digest": meta.ContextEvidenceDigest, "request_scope": defaultSyncraticAskScope, "request_k": 0, "included_record_details": meta.IncludedRecordDetails, "prompt_bytes": meta.PromptBytes, "caps": meta.Caps, "response": map[string]any{"confidence": resp.Confidence, "evidence_count": resp.EvidenceCount, "citation_count": len(resp.Citations)}, "started_at": started.Format(time.RFC3339Nano), "completed_at": completed.Format(time.RFC3339Nano), "latency_ms": completed.Sub(started).Milliseconds()}
+	metrics["syncratic_ask"] = map[string]any{"enabled": true, "ask_query_id": resp.QueryID, "ask_status": "completed", "prompt_builder_version": meta.PromptBuilderVersion, "prompt_digest": meta.PromptDigest, "context_window_id": contextWindow.ContextWindowID, "context_evidence_digest": meta.ContextEvidenceDigest, "request_scope": defaultSyncraticAskScope, "request_k": 1, "included_record_details": meta.IncludedRecordDetails, "prompt_bytes": meta.PromptBytes, "caps": meta.Caps, "response": map[string]any{"confidence": resp.Confidence, "evidence_count": resp.EvidenceCount, "citation_count": len(resp.Citations)}, "started_at": started.Format(time.RFC3339Nano), "completed_at": completed.Format(time.RFC3339Nano), "latency_ms": completed.Sub(started).Milliseconds()}
 	insight.MetricsJSON = mustJSON(metrics)
 	insight.RecommendationJSON = mustJSON(map[string]any{"action": firstNonEmpty(extractAskString(resp.Raw, "action"), "review"), "source": "syncratic_ask", "reason": "LLM-generated explanation over a bounded deterministic SignalOps context window", "ask_query_id": resp.QueryID, "prompt_digest": meta.PromptDigest})
 	return insight

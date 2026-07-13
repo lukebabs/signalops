@@ -10,13 +10,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	defaultTimeout = 15 * time.Second
+	defaultTimeout = 60 * time.Second
 	defaultGrant   = "password"
 	AuthModeToken  = "token"
 	AuthModeAPIKey = "api_key"
@@ -67,19 +68,45 @@ type SearchResponse struct {
 }
 
 type AskRequest struct {
-	Question string         `json:"question"`
-	K        int            `json:"k,omitempty"`
-	Scope    string         `json:"scope,omitempty"`
-	Filters  map[string]any `json:"filters,omitempty"`
+	Question    string         `json:"question"`
+	K           int            `json:"k,omitempty"`
+	Scope       string         `json:"scope,omitempty"`
+	Filters     map[string]any `json:"filters,omitempty"`
+	ThreadMode  string         `json:"thread_mode,omitempty"`
+	IncludeRefs *bool          `json:"include_refs,omitempty"`
 }
 
 type AskResponse struct {
 	QueryID       string           `json:"query_id,omitempty"`
 	Answer        string           `json:"answer,omitempty"`
-	Confidence    float64          `json:"confidence,omitempty"`
+	Confidence    NumericFloat     `json:"confidence,omitempty"`
 	EvidenceCount int              `json:"evidence_count,omitempty"`
 	Citations     []map[string]any `json:"citations,omitempty"`
 	Raw           json.RawMessage  `json:"-"`
+}
+
+type NumericFloat float64
+
+func (f *NumericFloat) UnmarshalJSON(raw []byte) error {
+	if string(raw) == "null" || string(raw) == `""` {
+		*f = 0
+		return nil
+	}
+	var n float64
+	if err := json.Unmarshal(raw, &n); err == nil {
+		*f = NumericFloat(n)
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return err
+	}
+	parsed, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil {
+		return err
+	}
+	*f = NumericFloat(parsed)
+	return nil
 }
 
 type InsightListResponse struct {
@@ -255,6 +282,9 @@ func (c *Client) doJSON(ctx context.Context, httpReq *http.Request, dest any) ([
 		return nil, err
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+token)
+	if c.cfg.AuthMode == AuthModeAPIKey {
+		httpReq.Header.Set("X-API-Key", token)
+	}
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("request syncratic api: %w", err)

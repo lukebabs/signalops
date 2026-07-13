@@ -64,7 +64,7 @@ Returns one context window with evidence references, summary metrics, `evidence_
 
 `POST /v1/syncratic/context-windows/{context_window_id}/ask`
 
-Calls Syncratic Ask server-side with a compact, bounded prompt built from the deterministic context window, then persists the generated explanation and Ask metadata onto the associated Syncratic insight.
+Calls Syncratic Ask server-side with a compact, bounded prompt built from the deterministic context window, then persists the generated explanation and Ask metadata onto the associated Syncratic insight. The G090 implementation uses Syncratic Ask `scope=tenant`, `k=1`, `thread_mode=off`, `include_refs=false`, and no facade filters; SignalOps metadata stays inside the bounded prompt and local persisted metrics.
 
 Request fields:
 
@@ -88,6 +88,8 @@ Response fields:
 Idempotency uses the context evidence digest plus prompt digest. With `force=false`, a repeated request for unchanged evidence returns `updated=false` and `skipped_reason=unchanged_prompt_and_evidence` without calling Syncratic Ask again.
 
 Syncratic Ask failures return a sanitized `502 syncratic_ask_failed`; raw upstream response bodies, prompts, bearer tokens, and API keys are not returned.
+
+The gateway service must receive `SYNCRATIC_API_BASE_URL`, `SYNCRATIC_AUTH_MODE`, and `SYNCRATIC_CLIENT_SECRET` so it can construct the server-side Ask client. In `api_key` mode, the user API client sends both `Authorization: Bearer <api key>` and `X-API-Key`.
 
 ## Synthesized Insights
 

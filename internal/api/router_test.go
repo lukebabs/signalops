@@ -48,7 +48,7 @@ func (c *fakeSyncraticAskClient) Ask(_ context.Context, req userapi.AskRequest) 
 		return userapi.AskResponse{}, c.err
 	}
 	if c.resp.Answer == "" && len(c.resp.Raw) == 0 {
-		c.resp = userapi.AskResponse{QueryID: "ask-test", Answer: "AAPL shows a bounded multi-event volatility pattern worth operator review.", Confidence: 0.82, EvidenceCount: 3}
+		c.resp = userapi.AskResponse{QueryID: "ask-test", Answer: "AAPL shows a bounded multi-event volatility pattern worth operator review.", Confidence: userapi.NumericFloat(0.82), EvidenceCount: 3}
 	}
 	return c.resp, nil
 }
@@ -2621,7 +2621,7 @@ func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T)
 	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1", "sig-aapl-2"}, AlertIDs: []string{"alert-aapl-1"}, EventIDs: []string{"evt-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":2,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
 	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{insight}}
-	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-1", Answer: "Generated Syncratic Ask explanation for AAPL.", Confidence: 0.91, EvidenceCount: 3, Raw: []byte(`{"title":"Ask title","summary":"Ask summary","action":"review"}`)}}
+	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-1", Answer: "Generated Syncratic Ask explanation for AAPL.", Confidence: userapi.NumericFloat(0.91), EvidenceCount: 3, Raw: []byte(`{"title":"Ask title","summary":"Ask summary","action":"review"}`)}}
 	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
 	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-test/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -2630,7 +2630,7 @@ func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
-	if ask.calls != 1 || !strings.Contains(ask.req.Question, "synctx-test") || ask.req.Scope != defaultSyncraticAskScope {
+	if ask.calls != 1 || !strings.Contains(ask.req.Question, "synctx-test") || ask.req.Scope != defaultSyncraticAskScope || ask.req.K != 1 || ask.req.ThreadMode != "off" || ask.req.IncludeRefs == nil || *ask.req.IncludeRefs || len(ask.req.Filters) != 0 {
 		t.Fatalf("ask call = %+v calls=%d", ask.req, ask.calls)
 	}
 	stored := repo.syncraticInsights[0]

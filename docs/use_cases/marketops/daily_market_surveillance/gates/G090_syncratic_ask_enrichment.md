@@ -110,9 +110,11 @@ Use `internal/syncratic/userapi.Client.Ask` and `SYNCRATIC_AUTH_MODE=api_key` un
 Initial Ask request mapping:
 
 - `question`: the full structured context-window prompt;
-- `scope`: `marketops_signalops_context_window`;
+- `scope`: `tenant`;
 - `k`: `0` or omitted unless Syncratic Ask requires a positive value;
-- `filters`: include non-sensitive metadata such as `tenant_id`, `app_id`, `domain`, `use_case`, `context_window_id`, `subject_symbol`, and `evidence_digest`.
+- `filters`: omitted for G090 because the Syncratic facade currently rejects SignalOps-specific filter keys. SignalOps metadata is embedded in the bounded prompt and persisted locally in `metrics.syncratic_ask`.
+- `thread_mode`: `off`.
+- `include_refs`: `false`.
 
 G090 should not enable graph-assisted or KEE-assisted Syncratic retrieval unless a later gate explicitly approves retrieval influence. The explanation should be based on the supplied context window.
 
@@ -326,6 +328,7 @@ Implemented in G090:
 - idempotent skip for unchanged context evidence digest and prompt digest when `force=false`;
 - persistence of generated explanation, recommendation, and `metrics.syncratic_ask` metadata onto `syncratic_insights`;
 - sanitized upstream Ask error handling;
-- gateway client construction from `SYNCRATIC_*` env only when `SYNCRATIC_API_BASE_URL` is configured.
+- gateway client construction from `SYNCRATIC_*` env only when `SYNCRATIC_API_BASE_URL` is configured;
+- live-compatible Ask client behavior: API-key mode sends both `Authorization` and `X-API-Key`, Ask timeout is 60 seconds, `confidence` accepts numeric strings, and the route sends `scope=tenant`, `k=1`, `thread_mode=off`, `include_refs=false`, and no facade filters.
 
 The implementation still keeps scheduled Ask jobs, Syncratic Search enrichment, external ingestion, graph writes, alert lifecycle mutation, and frontend changes out of scope.

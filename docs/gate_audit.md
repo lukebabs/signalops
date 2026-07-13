@@ -6964,3 +6964,24 @@ Validation performed:
 Result:
 
 - G090 backend implementation is deployed locally and auth-gated. Bounded positive Ask smoke remains pending until an operator bearer is available; local `.env` currently has `SO_USERNAME` and `SO_PASSWORD` unset.
+
+## Gate G090: Positive Ask Smoke Closeout
+
+Timestamp: `2026-07-13T04:34:00Z`
+
+Status: `validated — authenticated Ask smoke passed`
+
+Scope:
+
+- Wire gateway runtime Syncratic env, align the Ask client with the live Syncratic facade, and validate one bounded context-window Ask request end to end.
+
+Validation performed:
+
+- Gateway container can call Syncratic Ask with API-key auth.
+- Authenticated G090 route call updated one persisted Syncratic insight.
+- Unchanged prompt/evidence rerun skipped without a second Ask call.
+- Persisted insight metadata records completed Ask status and Syncratic Ask recommendation source.
+
+Result:
+
+- G090 is closed for the backend/API slice. The generated answer for the smoke context was short (`UNKNOWN`), which is acceptable for plumbing validation but should feed future prompt-quality work.

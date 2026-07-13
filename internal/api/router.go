@@ -741,12 +741,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
 				return
 			}
-			if strings.Contains(err.Error(), "tenant_id") || strings.Contains(err.Error(), "prompt") || strings.Contains(err.Error(), "max_prompt_bytes") {
-				writeError(w, http.StatusBadRequest, "syncratic_ask_invalid", err.Error())
-				return
-			}
 			if strings.Contains(err.Error(), "syncratic ask failed") {
 				writeError(w, http.StatusBadGateway, "syncratic_ask_failed", "Syncratic Ask request failed")
+				return
+			}
+			if strings.Contains(err.Error(), "tenant_id") || strings.Contains(err.Error(), "prompt") || strings.Contains(err.Error(), "max_prompt_bytes") {
+				writeError(w, http.StatusBadRequest, "syncratic_ask_invalid", err.Error())
 				return
 			}
 			writeError(w, http.StatusInternalServerError, "syncratic_ask_failed", "failed to enrich Syncratic insight")
