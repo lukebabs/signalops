@@ -51,3 +51,8 @@ Recommended next gate:
 
 - G087: deployment planning records for approved G086 promotion candidates, without runtime execution.
 - Specification: `G087_deployment_planning.md`.
+
+## G088 Proposed
+
+- G088: Syncratic context windows and multi-event insight synthesis from existing ledgers, without a new ingestion layer.
+- Specification: `G088_syncratic_context_windows.md`.

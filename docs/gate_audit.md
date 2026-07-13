@@ -6707,3 +6707,22 @@ Result:
 
 - Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G087_deployment_planning.md`.
 - Gate README and back-test architecture docs now reference the G087 direction.
+
+
+## Gate G088: Syncratic Context Windows Specification
+
+Timestamp: `2026-07-12T23:32:00Z`
+
+Status: `specification proposed`
+
+Scope:
+
+- Define Syncratic as the explainability layer over existing SignalOps and MarketOps ledgers.
+- Specify deterministic context windows and synthesized multi-event insights.
+- Clarify alert versus insight semantics and defer separate Syncratic ingestion.
+
+Result:
+
+- Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G088_syncratic_context_windows.md`.
+- Architecture note saved at `docs/use_cases/marketops/daily_market_surveillance/architecture/syncratic_context_windows.md`.
+- Operations note saved at `docs/use_cases/marketops/daily_market_surveillance/operations/syncratic_context_windows.md`.

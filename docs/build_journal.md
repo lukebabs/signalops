@@ -5813,3 +5813,18 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+
+## 2026-07-12T23:32:00Z
+
+Summary:
+
+- Added the G088 specification for Syncratic context windows and multi-event insight synthesis.
+- Defined the product boundary: alerts remain event-level operational work items; Syncratic insights become multi-event analytical explanations over durable context windows.
+- Explicitly scoped the MVP to existing internal ledgers and deferred a separate Syncratic ingestion layer, external data connectors, LLM narratives, graph writeback, policy deployment, and alert lifecycle changes.
+- Added architecture and operations notes for context-window reproducibility, evidence references, and validation safety rules.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.
