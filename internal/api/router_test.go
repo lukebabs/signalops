@@ -13,6 +13,7 @@ import (
 
 	marketopsbacktest "github.com/lukebabs/signalops/internal/marketops/backtest"
 	"github.com/lukebabs/signalops/internal/storage"
+	"github.com/lukebabs/signalops/internal/syncratic/userapi"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
 
@@ -31,6 +32,25 @@ func (p *fakePublisher) Publish(ctx context.Context, msg broker.Message) (broker
 
 func (p *fakePublisher) Close(ctx context.Context) error {
 	return nil
+}
+
+type fakeSyncraticAskClient struct {
+	calls int
+	req   userapi.AskRequest
+	resp  userapi.AskResponse
+	err   error
+}
+
+func (c *fakeSyncraticAskClient) Ask(_ context.Context, req userapi.AskRequest) (userapi.AskResponse, error) {
+	c.calls++
+	c.req = req
+	if c.err != nil {
+		return userapi.AskResponse{}, c.err
+	}
+	if c.resp.Answer == "" && len(c.resp.Raw) == 0 {
+		c.resp = userapi.AskResponse{QueryID: "ask-test", Answer: "AAPL shows a bounded multi-event volatility pattern worth operator review.", Confidence: 0.82, EvidenceCount: 3}
+	}
+	return c.resp, nil
 }
 
 type fakePublishRepository struct {
@@ -2573,5 +2593,99 @@ func TestPostSyncraticMaterializeSkipsUnchangedEvidenceDigest(t *testing.T) {
 	}
 	if len(repo.syncraticContextWindows) != 1 || len(repo.syncraticInsights) != 1 {
 		t.Fatalf("contexts=%d insights=%d", len(repo.syncraticContextWindows), len(repo.syncraticInsights))
+	}
+}
+
+func TestBuildSyncraticAskPromptIsStableAndCapped(t *testing.T) {
+	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalTypes: []string{"b", "a"}, DetectorIDs: []string{"det-1"}, SignalIDs: []string{"sig-3", "sig-1", "sig-2"}, AlertIDs: []string{"alert-1"}, SummaryMetricsJSON: []byte(`{"signal_count":3,"alert_count":1}`), EvidenceDigest: "digest"}
+	prompt1, meta1, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prompt2, meta2, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prompt1 != prompt2 || meta1.PromptDigest != meta2.PromptDigest || meta1.PromptBuilderVersion != defaultSyncraticAskPromptVersion {
+		t.Fatalf("prompt not stable meta1=%+v meta2=%+v", meta1, meta2)
+	}
+	if !strings.Contains(prompt1, "Use only the facts provided") || !strings.Contains(prompt1, "synctx-test") || !strings.Contains(prompt1, "digest") {
+		t.Fatalf("prompt missing required context: %s", prompt1)
+	}
+	if _, _, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 999}); err == nil {
+		t.Fatal("expected max_prompt_bytes validation error")
+	}
+}
+
+func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T) {
+	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1", "sig-aapl-2"}, AlertIDs: []string{"alert-aapl-1"}, EventIDs: []string{"evt-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":2,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{insight}}
+	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-1", Answer: "Generated Syncratic Ask explanation for AAPL.", Confidence: 0.91, EvidenceCount: 3, Raw: []byte(`{"title":"Ask title","summary":"Ask summary","action":"review"}`)}}
+	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-test/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if ask.calls != 1 || !strings.Contains(ask.req.Question, "synctx-test") || ask.req.Scope != defaultSyncraticAskScope {
+		t.Fatalf("ask call = %+v calls=%d", ask.req, ask.calls)
+	}
+	stored := repo.syncraticInsights[0]
+	if stored.Explanation != "Generated Syncratic Ask explanation for AAPL." || stored.Title != "Ask title" || stored.Summary != "Ask summary" || stored.Confidence != 0.91 {
+		t.Fatalf("stored insight = %+v", stored)
+	}
+	var metrics map[string]any
+	if err := json.Unmarshal(stored.MetricsJSON, &metrics); err != nil {
+		t.Fatal(err)
+	}
+	askMeta, ok := metrics["syncratic_ask"].(map[string]any)
+	if !ok || askMeta["ask_query_id"] != "ask-1" || askMeta["context_evidence_digest"] != "digest" {
+		t.Fatalf("ask metrics = %#v", metrics["syncratic_ask"])
+	}
+}
+
+func TestPostSyncraticContextWindowAskSkipsUnchangedEvidence(t *testing.T) {
+	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1"}, AlertIDs: []string{"alert-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":1,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active"}
+	_, meta, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
+	insight.MetricsJSON = mustJSON(map[string]any{"syncratic_ask": map[string]any{"ask_status": "completed", "prompt_digest": meta.PromptDigest, "context_evidence_digest": meta.ContextEvidenceDigest}})
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{insight}}
+	ask := &fakeSyncraticAskClient{}
+	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-test/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if ask.calls != 0 {
+		t.Fatalf("expected ask skip, calls=%d", ask.calls)
+	}
+	if !strings.Contains(rec.Body.String(), "unchanged_prompt_and_evidence") {
+		t.Fatalf("response = %s", rec.Body.String())
+	}
+}
+
+func TestPostSyncraticContextWindowAskSanitizesUpstreamError(t *testing.T) {
+	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1"}, AlertIDs: []string{"alert-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":1,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active"}
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)}}
+	ask := &fakeSyncraticAskClient{err: errors.New("secret upstream token failure details")}
+	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-test/ask", strings.NewReader(`{"tenant_id":"tenant-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "secret upstream") {
+		t.Fatalf("upstream details leaked: %s", rec.Body.String())
 	}
 }

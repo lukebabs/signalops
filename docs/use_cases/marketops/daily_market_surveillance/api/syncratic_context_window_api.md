@@ -1,8 +1,8 @@
 # Syncratic Context Window API
 
-G088 adds deterministic Syncratic context windows and synthesized insights over existing SignalOps and MarketOps ledgers.
+G088 adds deterministic Syncratic context windows and synthesized insights over existing SignalOps and MarketOps ledgers. G090 adds an optional server-side Syncratic Ask enrichment route for one bounded context window at a time.
 
-These APIs do not ingest external data, call LLMs, mutate alert lifecycle state, write graph state, deploy policies, or change detector thresholds.
+These APIs do not ingest external data, use Syncratic Search for enrichment, mutate alert lifecycle state, write graph state, deploy policies, or change detector thresholds.
 
 ## Materialize Selectively
 
@@ -58,6 +58,36 @@ Lists context windows. Common filters:
 `GET /v1/syncratic/context-windows/{context_window_id}`
 
 Returns one context window with evidence references, summary metrics, `evidence_digest`, and `idempotency_key`.
+
+
+## Syncratic Ask Enrichment
+
+`POST /v1/syncratic/context-windows/{context_window_id}/ask`
+
+Calls Syncratic Ask server-side with a compact, bounded prompt built from the deterministic context window, then persists the generated explanation and Ask metadata onto the associated Syncratic insight.
+
+Request fields:
+
+- `tenant_id` optional but must match the context window when provided.
+- `prompt_builder_version` defaults to `marketops.syncratic.ask_prompt.v1`.
+- `max_prompt_bytes` defaults to `12000` and is capped at `24000`.
+- `include_record_details` is accepted for contract stability but the G090 implementation sends IDs and summary metrics only.
+- `force` defaults to `false`; unchanged prompt/evidence skips the Ask call.
+
+Response fields:
+
+- `syncratic_insight`: the updated or unchanged Syncratic insight.
+- `ask_result.context_window_id`
+- `ask_result.syncratic_insight_id`
+- `ask_result.ask_query_id`
+- `ask_result.ask_status`
+- `ask_result.prompt_digest`
+- `ask_result.updated`
+- `ask_result.skipped_reason`
+
+Idempotency uses the context evidence digest plus prompt digest. With `force=false`, a repeated request for unchanged evidence returns `updated=false` and `skipped_reason=unchanged_prompt_and_evidence` without calling Syncratic Ask again.
+
+Syncratic Ask failures return a sanitized `502 syncratic_ask_failed`; raw upstream response bodies, prompts, bearer tokens, and API keys are not returned.
 
 ## Synthesized Insights
 

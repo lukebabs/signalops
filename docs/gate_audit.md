@@ -6941,3 +6941,26 @@ Result:
 
 - Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G090_syncratic_ask_enrichment.md`.
 - Gate index and architecture index now point to the proposed G090 document.
+
+## Gate G090: Syncratic Ask Enrichment Implementation
+
+Timestamp: `2026-07-13T04:05:53Z`
+
+Status: `implemented — backend/API tests passed`
+
+Scope:
+
+- Add a server-side Ask enrichment route for one deterministic Syncratic context window at a time.
+- Persist generated explanation and Ask metadata onto the existing Syncratic insight while preserving deterministic evidence references.
+- Keep Search enrichment, ingestion, scheduled batch jobs, graph writes, alert lifecycle mutation, and frontend changes out of scope.
+
+Validation performed:
+
+- Targeted API/userapi tests passed.
+- Full Go suite passed.
+- Gateway rebuild passed; Docker build also ran `go test ./...`.
+- Unauthenticated Ask route smoke returned `401`, confirming the deployed route is protected by auth.
+
+Result:
+
+- G090 backend implementation is deployed locally and auth-gated. Bounded positive Ask smoke remains pending until an operator bearer is available; local `.env` currently has `SO_USERNAME` and `SO_PASSWORD` unset.

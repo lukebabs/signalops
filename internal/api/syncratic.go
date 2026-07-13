@@ -11,12 +11,19 @@ import (
 	"time"
 
 	"github.com/lukebabs/signalops/internal/storage"
+	"github.com/lukebabs/signalops/internal/syncratic/userapi"
 )
 
 const (
-	defaultSyncraticBuilderVersion = "syncratic.context_builder.v1"
-	defaultSyncraticInsightType    = "marketops.syncratic.multi_event_context"
+	defaultSyncraticBuilderVersion   = "syncratic.context_builder.v1"
+	defaultSyncraticInsightType      = "marketops.syncratic.multi_event_context"
+	defaultSyncraticAskPromptVersion = "marketops.syncratic.ask_prompt.v1"
+	defaultSyncraticAskScope         = "marketops_signalops_context_window"
 )
+
+type syncraticAskClient interface {
+	Ask(context.Context, userapi.AskRequest) (userapi.AskResponse, error)
+}
 
 type syncraticContextWindowCreateRequest struct {
 	TenantID              string   `json:"tenant_id"`
@@ -49,6 +56,25 @@ type syncraticMaterializeRequest struct {
 	MaxInsights           int    `json:"max_insights"`
 	SignalLimit           int    `json:"signal_limit"`
 	AlertLimit            int    `json:"alert_limit"`
+}
+
+type syncraticAskRequest struct {
+	TenantID             string `json:"tenant_id"`
+	PromptBuilderVersion string `json:"prompt_builder_version"`
+	MaxPromptBytes       int    `json:"max_prompt_bytes"`
+	IncludeRecordDetails bool   `json:"include_record_details"`
+	Force                bool   `json:"force"`
+}
+
+type syncraticAskResult struct {
+	ContextWindowID      string `json:"context_window_id"`
+	SyncraticInsightID   string `json:"syncratic_insight_id"`
+	AskQueryID           string `json:"ask_query_id"`
+	AskStatus            string `json:"ask_status"`
+	PromptDigest         string `json:"prompt_digest"`
+	Updated              bool   `json:"updated"`
+	SkippedReason        string `json:"skipped_reason"`
+	PromptBuilderVersion string `json:"prompt_builder_version"`
 }
 
 type syncraticMaterializeResponse struct {
@@ -284,6 +310,181 @@ func buildSyncraticInsight(contextWindow storage.SyncraticContextWindowRecord, i
 	metrics := json.RawMessage(jsonOrDefault(contextWindow.SummaryMetricsJSON, `{}`))
 	recommendation := mustJSON(map[string]any{"action": "review_context", "reason": "Syncratic insight is derived from deterministic multi-record evidence"})
 	return storage.SyncraticInsightRecord{SyncraticInsightID: stableSyncraticID("synins", contextWindow.ContextWindowID, insightType, builderVersion), TenantID: contextWindow.TenantID, AppID: contextWindow.AppID, Domain: contextWindow.Domain, UseCase: contextWindow.UseCase, ContextWindowID: contextWindow.ContextWindowID, InsightType: insightType, SubjectType: contextWindow.SubjectType, SubjectID: contextWindow.SubjectID, SubjectSymbol: contextWindow.SubjectSymbol, Status: storage.SyncraticInsightStatusActive, Severity: severity, Confidence: confidence, Title: fmt.Sprintf("%s Syncratic context", contextWindow.SubjectSymbol), Summary: fmt.Sprintf("%s has %d supporting signals and %d supporting alerts in the %s window.", contextWindow.SubjectSymbol, len(contextWindow.SignalIDs), len(contextWindow.AlertIDs), contextWindow.ContextStrategy), Explanation: "This insight was synthesized from a deterministic Syncratic context window over persisted SignalOps and MarketOps evidence.", SupportingAlertIDs: contextWindow.AlertIDs, SupportingSignalIDs: contextWindow.SignalIDs, SupportingEventIDs: contextWindow.EventIDs, SupportingArtifactIDs: contextWindow.ArtifactIDs, RelatedGraphProposalIDs: contextWindow.GraphProposalIDs, RelatedLabelIDs: contextWindow.LabelIDs, MetricsJSON: metrics, RecommendationJSON: recommendation, BuilderVersion: builderVersion}
+}
+
+func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryRepository, askClient syncraticAskClient, contextWindowID string, req syncraticAskRequest) (storage.SyncraticInsightRecord, syncraticAskResult, error) {
+	if askClient == nil {
+		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, fmt.Errorf("syncratic ask client is not configured")
+	}
+	contextWindow, err := repo.GetSyncraticContextWindow(ctx, contextWindowID)
+	if err != nil {
+		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
+	}
+	tenantID := strings.TrimSpace(req.TenantID)
+	if tenantID != "" && tenantID != contextWindow.TenantID {
+		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, fmt.Errorf("tenant_id does not match context window")
+	}
+	prompt, promptMeta, err := buildSyncraticAskPrompt(contextWindow, req)
+	if err != nil {
+		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
+	}
+	insight, err := syncraticInsightForContext(ctx, repo, contextWindow)
+	if err != nil {
+		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
+	}
+	if !req.Force && syncraticAskAlreadyApplied(insight, promptMeta) {
+		return insight, syncraticAskResult{ContextWindowID: contextWindow.ContextWindowID, SyncraticInsightID: insight.SyncraticInsightID, AskStatus: "skipped", PromptDigest: promptMeta.PromptDigest, Updated: false, SkippedReason: "unchanged_prompt_and_evidence", PromptBuilderVersion: promptMeta.PromptBuilderVersion}, nil
+	}
+	started := time.Now().UTC()
+	askResp, err := askClient.Ask(ctx, userapi.AskRequest{Question: prompt, Scope: defaultSyncraticAskScope, Filters: map[string]any{"tenant_id": contextWindow.TenantID, "app_id": contextWindow.AppID, "domain": contextWindow.Domain, "use_case": contextWindow.UseCase, "context_window_id": contextWindow.ContextWindowID, "subject_symbol": contextWindow.SubjectSymbol, "evidence_digest": contextWindow.EvidenceDigest}})
+	if err != nil {
+		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, fmt.Errorf("syncratic ask failed: %w", err)
+	}
+	completed := time.Now().UTC()
+	updated := applySyncraticAskResponse(insight, contextWindow, promptMeta, askResp, started, completed)
+	if err := repo.UpsertSyncraticInsight(ctx, updated); err != nil {
+		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
+	}
+	stored, err := repo.GetSyncraticInsight(ctx, updated.SyncraticInsightID)
+	if err != nil {
+		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
+	}
+	return stored, syncraticAskResult{ContextWindowID: contextWindow.ContextWindowID, SyncraticInsightID: stored.SyncraticInsightID, AskQueryID: askResp.QueryID, AskStatus: "completed", PromptDigest: promptMeta.PromptDigest, Updated: true, PromptBuilderVersion: promptMeta.PromptBuilderVersion}, nil
+}
+
+type syncraticAskPromptMeta struct {
+	PromptBuilderVersion  string
+	PromptDigest          string
+	ContextEvidenceDigest string
+	MaxPromptBytes        int
+	IncludedRecordDetails bool
+	Caps                  map[string]int
+	PromptBytes           int
+}
+
+func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord, req syncraticAskRequest) (string, syncraticAskPromptMeta, error) {
+	version := firstNonEmpty(strings.TrimSpace(req.PromptBuilderVersion), defaultSyncraticAskPromptVersion)
+	maxPromptBytes := req.MaxPromptBytes
+	if maxPromptBytes <= 0 {
+		maxPromptBytes = 12000
+	}
+	if maxPromptBytes < 1000 {
+		return "", syncraticAskPromptMeta{}, fmt.Errorf("max_prompt_bytes must be at least 1000")
+	}
+	if maxPromptBytes > 24000 {
+		maxPromptBytes = 24000
+	}
+	caps := map[string]int{"max_alert_ids": 20, "max_signal_ids": 20, "max_event_ids": 20, "max_artifact_ids": 20, "max_graph_proposal_ids": 20, "max_label_ids": 20, "max_prompt_bytes": maxPromptBytes}
+	payload := map[string]any{
+		"prompt_builder_version": version,
+		"instructions":           []string{"Use only the facts provided.", "Do not invent prices, filings, news, recommendations, or unlisted events.", "Distinguish deterministic evidence from generated interpretation.", "Return concise operational relevance and uncertainty notes."},
+		"context_metadata":       map[string]any{"tenant_id": contextWindow.TenantID, "app_id": contextWindow.AppID, "domain": contextWindow.Domain, "use_case": contextWindow.UseCase, "context_window_id": contextWindow.ContextWindowID, "subject_symbol": contextWindow.SubjectSymbol, "subject_type": contextWindow.SubjectType, "subject_id": contextWindow.SubjectID, "window_start": contextWindow.WindowStart.UTC().Format(time.RFC3339), "window_end": contextWindow.WindowEnd.UTC().Format(time.RFC3339), "context_strategy": contextWindow.ContextStrategy, "context_builder_version": contextWindow.ContextBuilderVersion, "evidence_digest": contextWindow.EvidenceDigest},
+		"evidence_summary":       map[string]any{"signal_types": contextWindow.SignalTypes, "detector_ids": contextWindow.DetectorIDs, "summary_metrics": json.RawMessage(jsonOrDefault(contextWindow.SummaryMetricsJSON, `{}`)), "baseline_refs": json.RawMessage(jsonOrDefault(contextWindow.BaselineRefsJSON, `[]`)), "evaluation_refs": json.RawMessage(jsonOrDefault(contextWindow.EvaluationRefsJSON, `[]`)), "promotion_candidate_refs": json.RawMessage(jsonOrDefault(contextWindow.PromotionCandidateRefsJSON, `[]`))},
+		"evidence_ids":           map[string]any{"alerts": limitStrings(contextWindow.AlertIDs, caps["max_alert_ids"]), "signals": limitStrings(contextWindow.SignalIDs, caps["max_signal_ids"]), "events": limitStrings(contextWindow.EventIDs, caps["max_event_ids"]), "artifacts": limitStrings(contextWindow.ArtifactIDs, caps["max_artifact_ids"]), "graph_proposals": limitStrings(contextWindow.GraphProposalIDs, caps["max_graph_proposal_ids"]), "labels": limitStrings(contextWindow.LabelIDs, caps["max_label_ids"])},
+		"output_request":         []string{"title", "summary", "explanation", "recommendation.action one of observe, review, escalate, no_action", "uncertainty_notes", "cited_evidence_ids"},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return "", syncraticAskPromptMeta{}, err
+	}
+	prompt := "You are assisting a MarketOps surveillance operator. Explain this deterministic SignalOps context window.\n" + string(raw)
+	if len(prompt) > maxPromptBytes {
+		return "", syncraticAskPromptMeta{}, fmt.Errorf("prompt exceeds max_prompt_bytes")
+	}
+	sum := sha256.Sum256([]byte(prompt))
+	meta := syncraticAskPromptMeta{PromptBuilderVersion: version, PromptDigest: "sha256:" + hex.EncodeToString(sum[:]), ContextEvidenceDigest: contextWindow.EvidenceDigest, MaxPromptBytes: maxPromptBytes, IncludedRecordDetails: req.IncludeRecordDetails, Caps: caps, PromptBytes: len(prompt)}
+	return prompt, meta, nil
+}
+
+func syncraticInsightForContext(ctx context.Context, repo storage.QueryRepository, contextWindow storage.SyncraticContextWindowRecord) (storage.SyncraticInsightRecord, error) {
+	records, err := repo.ListSyncraticInsights(ctx, storage.SyncraticInsightFilter{TenantID: contextWindow.TenantID, ContextWindowID: contextWindow.ContextWindowID, InsightType: defaultSyncraticInsightType, Limit: 10})
+	if err != nil {
+		return storage.SyncraticInsightRecord{}, err
+	}
+	if len(records) > 0 {
+		return records[0], nil
+	}
+	insight := buildSyncraticInsight(contextWindow, defaultSyncraticInsightType, contextWindow.ContextBuilderVersion)
+	if err := repo.UpsertSyncraticInsight(ctx, insight); err != nil {
+		return storage.SyncraticInsightRecord{}, err
+	}
+	return insight, nil
+}
+
+func syncraticAskAlreadyApplied(insight storage.SyncraticInsightRecord, meta syncraticAskPromptMeta) bool {
+	metrics := jsonObjectOrEmpty(insight.MetricsJSON)
+	ask, ok := metrics["syncratic_ask"].(map[string]any)
+	if !ok {
+		return false
+	}
+	return asString(ask["ask_status"]) == "completed" && asString(ask["prompt_digest"]) == meta.PromptDigest && asString(ask["context_evidence_digest"]) == meta.ContextEvidenceDigest
+}
+
+func applySyncraticAskResponse(insight storage.SyncraticInsightRecord, contextWindow storage.SyncraticContextWindowRecord, meta syncraticAskPromptMeta, resp userapi.AskResponse, started, completed time.Time) storage.SyncraticInsightRecord {
+	answer := strings.TrimSpace(resp.Answer)
+	if answer == "" && len(resp.Raw) > 0 {
+		var raw map[string]any
+		if json.Unmarshal(resp.Raw, &raw) == nil {
+			answer = firstNonEmpty(asString(raw["answer"]), asString(raw["explanation"]), asString(raw["summary"]))
+		}
+	}
+	if answer == "" {
+		answer = "Syncratic Ask returned no textual explanation. Review deterministic evidence directly."
+	}
+	insight.Explanation = answer
+	insight.Summary = firstNonEmpty(extractAskString(resp.Raw, "summary"), truncateForSummary(answer), insight.Summary)
+	insight.Title = firstNonEmpty(extractAskString(resp.Raw, "title"), insight.Title, fmt.Sprintf("%s Syncratic Ask explanation", contextWindow.SubjectSymbol))
+	if resp.Confidence > 0 {
+		insight.Confidence = resp.Confidence
+	}
+	metrics := jsonObjectOrEmpty(insight.MetricsJSON)
+	metrics["syncratic_ask"] = map[string]any{"enabled": true, "ask_query_id": resp.QueryID, "ask_status": "completed", "prompt_builder_version": meta.PromptBuilderVersion, "prompt_digest": meta.PromptDigest, "context_window_id": contextWindow.ContextWindowID, "context_evidence_digest": meta.ContextEvidenceDigest, "request_scope": defaultSyncraticAskScope, "request_k": 0, "included_record_details": meta.IncludedRecordDetails, "prompt_bytes": meta.PromptBytes, "caps": meta.Caps, "response": map[string]any{"confidence": resp.Confidence, "evidence_count": resp.EvidenceCount, "citation_count": len(resp.Citations)}, "started_at": started.Format(time.RFC3339Nano), "completed_at": completed.Format(time.RFC3339Nano), "latency_ms": completed.Sub(started).Milliseconds()}
+	insight.MetricsJSON = mustJSON(metrics)
+	insight.RecommendationJSON = mustJSON(map[string]any{"action": firstNonEmpty(extractAskString(resp.Raw, "action"), "review"), "source": "syncratic_ask", "reason": "LLM-generated explanation over a bounded deterministic SignalOps context window", "ask_query_id": resp.QueryID, "prompt_digest": meta.PromptDigest})
+	return insight
+}
+
+func extractAskString(raw json.RawMessage, key string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var value map[string]any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	return asString(value[key])
+}
+
+func jsonObjectOrEmpty(raw []byte) map[string]any {
+	out := map[string]any{}
+	if len(raw) == 0 {
+		return out
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return map[string]any{}
+	}
+	return out
+}
+
+func asString(value any) string {
+	s, _ := value.(string)
+	return strings.TrimSpace(s)
+}
+
+func truncateForSummary(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) <= 240 {
+		return value
+	}
+	return value[:237] + "..."
+}
+
+func limitStrings(values []string, limit int) []string {
+	values = uniqueSorted(values)
+	if limit <= 0 || len(values) <= limit {
+		return values
+	}
+	return values[:limit]
 }
 
 func materializeSyncraticContexts(ctx context.Context, repo storage.QueryRepository, req syncraticMaterializeRequest) (syncraticMaterializeResponse, error) {

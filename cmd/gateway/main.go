@@ -15,6 +15,7 @@ import (
 	kafkabroker "github.com/lukebabs/signalops/internal/broker/kafka"
 	"github.com/lukebabs/signalops/internal/config"
 	postgresstorage "github.com/lukebabs/signalops/internal/storage/postgres"
+	"github.com/lukebabs/signalops/internal/syncratic/userapi"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
 
@@ -54,6 +55,14 @@ func main() {
 	if queryRepo != nil {
 		routerConfig.QueryRepository = queryRepo
 		routerConfig.PublishRepository = queryRepo
+	}
+	if strings.TrimSpace(os.Getenv("SYNCRATIC_API_BASE_URL")) != "" {
+		synClient, err := userapi.New(userapi.ConfigFromEnv())
+		if err != nil {
+			logger.Error("signalops gateway syncratic user api setup failed", "error", err)
+			os.Exit(1)
+		}
+		routerConfig.SyncraticAskClient = synClient
 	}
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,

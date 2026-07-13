@@ -46,6 +46,7 @@ type RouterConfig struct {
 	RawTopic                string
 	QueryRepository         storage.QueryRepository
 	PublishRepository       storage.PublishRepository
+	SyncraticAskClient      syncraticAskClient
 }
 
 // NewRouter creates the HTTP routes owned by the SignalOps gateway.
@@ -718,6 +719,40 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"promotion_candidate": marketOpsBacktestPromotionCandidateResponse(record)})
+	})
+
+	mux.HandleFunc("POST /v1/syncratic/context-windows/{context_window_id}/ask", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		if cfg.SyncraticAskClient == nil {
+			writeError(w, http.StatusServiceUnavailable, "syncratic_ask_unavailable", "Syncratic Ask client is not configured")
+			return
+		}
+		var req syncraticAskRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		insight, result, err := enrichSyncraticInsightWithAsk(r.Context(), repo, cfg.SyncraticAskClient, r.PathValue("context_window_id"), req)
+		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
+				return
+			}
+			if strings.Contains(err.Error(), "tenant_id") || strings.Contains(err.Error(), "prompt") || strings.Contains(err.Error(), "max_prompt_bytes") {
+				writeError(w, http.StatusBadRequest, "syncratic_ask_invalid", err.Error())
+				return
+			}
+			if strings.Contains(err.Error(), "syncratic ask failed") {
+				writeError(w, http.StatusBadGateway, "syncratic_ask_failed", "Syncratic Ask request failed")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "syncratic_ask_failed", "failed to enrich Syncratic insight")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"syncratic_insight": syncraticInsightResponse(insight), "ask_result": result})
 	})
 
 	mux.HandleFunc("POST /v1/syncratic/context-windows", func(w http.ResponseWriter, r *http.Request) {

@@ -33,6 +33,7 @@ Current MarketOps-specific endpoints:
 - `POST /v1/syncratic/context-windows`
 - `GET /v1/syncratic/context-windows`
 - `GET /v1/syncratic/context-windows/{context_window_id}`
+- `POST /v1/syncratic/context-windows/{context_window_id}/ask`
 - `POST /v1/syncratic/insights`
 - `GET /v1/syncratic/insights`
 - `GET /v1/syncratic/insights/{syncratic_insight_id}`

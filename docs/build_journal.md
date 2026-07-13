@@ -6002,3 +6002,20 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+## 2026-07-13T04:05:53Z
+
+Summary:
+
+- Implemented G090 backend/API Syncratic Ask enrichment for one context window at a time.
+- Added `POST /v1/syncratic/context-windows/{context_window_id}/ask`, a bounded prompt builder, server-side `userapi.Ask` call, idempotent unchanged prompt/evidence skip, and persistence of Ask explanation metadata into `syncratic_insights`.
+- Kept Syncratic Search enrichment, external ingestion, scheduled Ask jobs, graph writes, alert lifecycle mutation, and frontend changes out of scope.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/syncratic/userapi -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
+- Unauthenticated `POST /v1/syncratic/context-windows/synctx-test/ask`: HTTP `401`, confirming the route is deployed and auth-gated.
+- Positive live Ask smoke is pending because local `.env` has `SO_USERNAME` and `SO_PASSWORD` unset, so an operator bearer could not be generated without a supplied token.
+- `git diff --check`: passed.

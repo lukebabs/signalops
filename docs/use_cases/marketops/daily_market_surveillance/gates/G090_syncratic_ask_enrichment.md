@@ -1,6 +1,6 @@
 # G090 Syncratic Ask Enrichment
 
-Status: specification proposed
+Status: implemented — backend/API route and tests complete
 Use case: MarketOps Daily Market Surveillance
 
 ## Goal
@@ -314,3 +314,18 @@ Potential follow-ons after G090:
 - G092: budgeted selective Ask materialization queue with per-day caps and freshness rules.
 - G093: Ask quality review labels and feedback capture for supervised evaluation.
 - G094: optional retrieval policy if Syncratic gains a useful MarketOps corpus and Search becomes relevant.
+
+
+## Implementation Notes
+
+Implemented in G090:
+
+- `POST /v1/syncratic/context-windows/{context_window_id}/ask`;
+- versioned prompt builder `marketops.syncratic.ask_prompt.v1`;
+- server-side `internal/syncratic/userapi.Client.Ask` integration;
+- idempotent skip for unchanged context evidence digest and prompt digest when `force=false`;
+- persistence of generated explanation, recommendation, and `metrics.syncratic_ask` metadata onto `syncratic_insights`;
+- sanitized upstream Ask error handling;
+- gateway client construction from `SYNCRATIC_*` env only when `SYNCRATIC_API_BASE_URL` is configured.
+
+The implementation still keeps scheduled Ask jobs, Syncratic Search enrichment, external ingestion, graph writes, alert lifecycle mutation, and frontend changes out of scope.
