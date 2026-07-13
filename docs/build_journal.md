@@ -5976,3 +5976,16 @@ Validation performed:
 - `curl http://localhost:15173/marketops/syncratic`: HTTP 200.
 - `docker exec signalops-web-1 ... grep Syncratic`: deployed bundle contains the Syncratic route/UI strings.
 - `rg "portal\.syncratic\.co|/api/v1/|syncratic_user_api|docs/syncratic_user_api" web/src`: no matches.
+
+## 2026-07-13T03:40:00Z
+
+Summary:
+
+- Clarified the Syncratic user API boundary after reviewing the Search vs. Ask product intent.
+- Documented that the 2026-07-13 Syncratic Search probe was auth/connectivity validation only, not the SignalOps enrichment mechanism.
+- Updated the MarketOps Syncratic architecture/gate docs to make Syncratic Ask the intended future LLM synthesis path over bounded SignalOps context windows.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.

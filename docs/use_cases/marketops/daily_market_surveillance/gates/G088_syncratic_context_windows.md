@@ -34,6 +34,8 @@ It should answer:
 
 Syncratic should not be a detector or source adapter in this gate. It should consume existing ledgers and persist derived context/explanation records.
 
+For G088/G089, explanations are deterministic summaries stored from SignalOps evidence only. A future LLM synthesis gate should use Syncratic Ask with a bounded, redacted context-window prompt. Syncratic Search was used only to validate API-key auth and should not be treated as a SignalOps enrichment path unless a later gate establishes a useful Syncratic retrieval corpus.
+
 ## Starting Point
 
 Existing durable evidence sources include:

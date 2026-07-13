@@ -6907,3 +6907,20 @@ Validation performed:
 Result:
 
 - G089 is closed. The remaining Syncratic work should proceed as a new gate, not as frontend scope creep on G089.
+
+## Syncratic Ask Boundary Clarification
+
+Timestamp: `2026-07-13T03:40:00Z`
+
+Status: `documented`
+
+Scope:
+
+- Correct the interpretation of the Syncratic Search probe.
+- Keep Search documented as auth/connectivity validation only for the current SignalOps workflow.
+- Record Ask as the intended future Syncratic LLM explanation API for bounded context windows.
+
+Result:
+
+- Product enrichment remains: SignalOps deterministic context window -> Syncratic Ask -> persisted Syncratic insight explanation linked to evidence IDs.
+- Search is not a current SignalOps enrichment path because Syncratic Search has no SignalOps corpus to retrieve from.
