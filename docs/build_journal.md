@@ -5921,3 +5921,16 @@ Validation performed:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./internal/syncratic/userapi -count=1`: passed.
 - `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
 - `git diff --check`: passed.
+
+## 2026-07-13T02:38:30Z
+
+Summary:
+
+- Added the frontend-agent specification for G089 Syncratic context windows and synthesized insights UI.
+- Scoped frontend work to SignalOps `/v1/syncratic/*` APIs: insight list/detail, context-window list/detail, and optional bounded materialization.
+- Explicitly kept external Syncratic user-facade Search/Ask, ingestion, privacy-token reveal, LLM narrative generation, graph writes, alert lifecycle mutation, scheduling, and legacy insight suppression out of scope.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.

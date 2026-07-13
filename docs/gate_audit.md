@@ -6847,3 +6847,20 @@ Validation performed:
 Result:
 
 - Current recommended Syncratic facade mode is `SYNCRATIC_AUTH_MODE=api_key` with `SYNCRATIC_CLIENT_SECRET` as the API key.
+
+## Gate G089: Frontend-Agent Syncratic Insights Spec
+
+Timestamp: `2026-07-13T02:38:30Z`
+
+Status: `specification ready for frontend-agent`
+
+Scope:
+
+- Specify frontend wiring for G088 Syncratic context-window and synthesized insight APIs.
+- Define API client methods, query hooks, UI placement, evidence rendering, optional bounded materialization, tests, manual validation, and acceptance criteria.
+- Keep the implementation read-oriented and limited to SignalOps `/v1/syncratic/*`; no external Syncratic user-facade calls, ingestion, graph writes, narrative generation, alert lifecycle mutation, scheduling, or legacy insight suppression.
+
+Result:
+
+- Specification saved at `docs/frontend/syncratic_context_windows_ui_spec.md`.
+- MarketOps frontend README now links to the G089 frontend-agent handoff.
