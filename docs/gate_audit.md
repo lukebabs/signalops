@@ -6770,3 +6770,21 @@ Validation performed:
 Result:
 
 - G088 backend/API is implemented and locally validated. Remaining work is frontend-agent UI wiring for Syncratic context windows and synthesized insights.
+
+## Syncratic User API Boundary Cleanup
+
+Timestamp: `2026-07-13T02:00:55Z`
+
+Status: `documented — integration contract indexed`
+
+Scope:
+
+- Add the Syncratic user-facing OpenAPI contract to the docs tree.
+- Clarify environment naming for future SignalOps-to-Syncratic calls.
+- Document that the Syncratic user API declares bearer JWT auth and does not itself define a login route.
+
+Result:
+
+- Local ignored `.env` now uses `SYNCRATIC_*` variable names instead of generic `USERNAME` and `PASSWORD`.
+- Committed `.env.example` contains safe placeholders only.
+- MarketOps architecture docs now point to the Syncratic user API boundary note.

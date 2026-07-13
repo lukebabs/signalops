@@ -1,0 +1,2065 @@
+openapi: 3.0.3
+info:
+  title: Syncratic User Interaction API
+  version: "1.0.0"
+  description: >
+    Stable user-facing API facade for external ingestion, connector synchronization, Search, Ask, Knowledge Graph, Explorer document pivots, Insights, Document Delta Engine, Documents, and Ask threads.
+    This contract intentionally hides legacy LLMFS route names and avoids returning
+    raw retrieval payloads, raw chunks, prompt text, graph internals, or Qdrant
+    payloads by default.
+
+servers:
+  - url: http://localhost:8080
+    description: Docker development gateway
+  - url: https://{host}
+    description: Deployment-owned public host
+    variables:
+      host:
+        default: portal.syncratic.co
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: user
+    description: User-facing external ingestion, connector synchronization, Search, Ask, Knowledge Graph, Explorer document pivot, Insights, Document Delta Engine, Documents, and Threads endpoints.
+
+paths:
+  /api/v1/search:
+    post:
+      operationId: userSearch
+      tags: [user]
+      summary: Search accessible knowledge
+      description: >
+        Searches all caller-accessible knowledge by default and returns compact
+        result records. Raw hits, raw Qdrant payloads, graph internals, and long
+        document text are not returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserSearchRequest"
+            examples:
+              minimal:
+                value:
+                  query: Luke Babarinde profile
+                  limit: 10
+                  scope: all
+      responses:
+        "200":
+          description: Compact search results.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSearchResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/ask:
+    post:
+      operationId: userAsk
+      tags: [user]
+      summary: Ask an evidence-based question
+      description: >
+        Answers a user question using accessible evidence. The response includes
+        the answer, compact citations, confidence, evidence count, and thread
+        metadata. It does not return raw supporting hits by default.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserAskRequest"
+            examples:
+              minimal:
+                value:
+                  question: Tell me about Luke Babarinde
+                  k: 8
+                  scope: all
+              crm_tagged:
+                value:
+                  question: What changed in the Iota Cloud Tech contract value?
+                  k: 8
+                  scope: all
+                  filters:
+                    tags: [crm]
+      responses:
+        "200":
+          description: Evidence-based answer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAskResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+
+  /api/v1/privacy/tokens/reveal:
+    post:
+      operationId: userPrivacyTokenReveal
+      tags: [user]
+      summary: Reveal an authorized Privacy Engine token
+      description: >
+        Reveals a reversible Privacy Engine placeholder only when the caller has
+        document-level access to the source document associated with the token.
+        The endpoint performs metadata lookup and object-level access checks
+        before decrypting the token value, and audit metadata must never include
+        the raw value.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPrivacyTokenRevealRequest"
+            examples:
+              citation_review:
+                value:
+                  token_id: 00000000-0000-0000-0000-000000000111
+                  purpose: citation_review
+      responses:
+        "200":
+          description: Authorized token reveal response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPrivacyTokenRevealResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Caller lacks access to the token source document or the token is not document-bound.
+        "404":
+          description: Token or source document not found.
+        "410":
+          description: Token mapping has expired.
+
+  /api/v1/search/{query_id}:
+    get:
+      operationId: userSearchStatus
+      tags: [user]
+      summary: Get Search status by query id
+      parameters:
+        - name: query_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search status and compact result payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserQueryStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/ask/{query_id}:
+    get:
+      operationId: userAskStatus
+      tags: [user]
+      summary: Get Ask status by query id
+      parameters:
+        - name: query_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ask status and compact answer payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserQueryStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/feedback:
+    post:
+      operationId: userFeedbackEvent
+      tags: [user]
+      summary: Submit answer or citation feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserFeedbackEventRequest"
+      responses:
+        "200":
+          description: Feedback event accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserFeedbackEventResponse"
+
+  /api/v1/feedback/state:
+    post:
+      operationId: userFeedbackState
+      tags: [user]
+      summary: Read feedback state for result targets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserFeedbackStateRequest"
+      responses:
+        "200":
+          description: Current feedback state for requested targets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserFeedbackStateResponse"
+
+  /api/v1/citation-feedback:
+    post:
+      operationId: userCitationFeedback
+      tags: [user]
+      summary: Suppress a citation/result for a query context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCitationFeedbackRequest"
+      responses:
+        "200":
+          description: Citation suppression recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserCitationFeedbackResponse"
+
+  /api/v1/citation-feedback/list:
+    post:
+      operationId: userCitationFeedbackList
+      tags: [user]
+      summary: List citation suppressions for a query context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCitationFeedbackListRequest"
+      responses:
+        "200":
+          description: Active citation suppressions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserCitationFeedbackListResponse"
+
+  /api/v1/citation-feedback/remove:
+    post:
+      operationId: userCitationFeedbackRemove
+      tags: [user]
+      summary: Remove a citation suppression
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCitationFeedbackRemoveRequest"
+      responses:
+        "200":
+          description: Citation suppression removed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserCitationFeedbackRemoveResponse"
+
+
+  /api/v1/ingest/files:
+    post:
+      operationId: userIngestFiles
+      tags: [user]
+      summary: Upload files through the external ingestion facade
+      description: >
+        Stores a compact upload batch and optionally starts the standard Syncratic
+        ingestion pipeline. The route preserves tenant/RBAC/object boundaries and
+        does not expose raw extracted text, chunks, Qdrant payloads, graph internals,
+        or prompt context.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files, rel_paths]
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                rel_paths:
+                  type: array
+                  items:
+                    type: string
+                folder_label:
+                  type: string
+                auto_ingest:
+                  type: boolean
+                  default: true
+                recursive:
+                  type: boolean
+                  default: true
+                force:
+                  type: boolean
+                  default: false
+                classify_on_ingest:
+                  type: boolean
+                  default: false
+                ingestion_scope:
+                  type: string
+                  enum: [tenant, user]
+                  default: tenant
+                file_metadata_json:
+                  type: string
+                  description: JSON object keyed by relative path.
+      responses:
+        "200":
+          description: Compact upload and ingest-start response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserIngestFilesResponse"
+        "400":
+          description: Invalid upload request.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/connectors:
+    get:
+      operationId: userConnectors
+      tags: [user]
+      summary: List accessible connectors for external orchestration
+      responses:
+        "200":
+          description: Compact connector records.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserConnectorListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/connectors/{connector_id}/sync:
+    post:
+      operationId: userConnectorSync
+      tags: [user]
+      summary: Trigger a connector sync
+      parameters:
+        - name: connector_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserConnectorSyncRequest"
+      responses:
+        "200":
+          description: Connector sync queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserConnectorSyncResponse"
+        "400":
+          description: Invalid sync mode.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Connector not found or not visible to caller.
+        "409":
+          description: Connector is not syncable.
+
+  /api/v1/connectors/{connector_id}/sync-runs:
+    get:
+      operationId: userConnectorSyncRuns
+      tags: [user]
+      summary: List connector sync runs
+      parameters:
+        - name: connector_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Connector sync run records.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserConnectorSyncRunListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Connector not found or not visible to caller.
+
+  /api/v1/ingest-jobs/{ingest_job_id}:
+    get:
+      operationId: userIngestJobStatus
+      tags: [user]
+      summary: Get scoped ingest job status
+      parameters:
+        - name: ingest_job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ingest job status filtered by object-level access.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserIngestJobStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/graph:
+    get:
+      operationId: userGraph
+      tags: [user]
+      summary: Resolve compact Knowledge Graph workspace
+      description: >
+        Returns the broad document-slice Knowledge Graph for accessible documents.
+        The response is compact and does not expose raw graph internals or raw document text.
+      parameters:
+        - $ref: "#/components/parameters/Q"
+        - $ref: "#/components/parameters/Path"
+        - $ref: "#/components/parameters/Tag"
+        - $ref: "#/components/parameters/Status"
+        - $ref: "#/components/parameters/ClassificationStatus"
+        - name: date_from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 60
+            minimum: 1
+            maximum: 120
+      responses:
+        "200":
+          description: Compact Knowledge Graph workspace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGraphResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/graph/context:
+    get:
+      operationId: userGraphContext
+      tags: [user]
+      summary: Resolve focused graph context
+      description: >
+        Returns compact graph context for a query or document pivot. Search and Ask
+        `graph_ref` values point to this endpoint when a document id is available.
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, tenant, user]
+            default: all
+        - name: time_period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, 24h, 7d, 30d, 90d]
+            default: all
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 25
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: document_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Compact focused graph context.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGraphContextResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/explorer/documents/{document_id}:
+    get:
+      operationId: userExplorerDocument
+      tags: [user]
+      summary: Resolve an Explorer document pivot
+      description: >
+        Returns compact Explorer-ready metadata for a single accessible document.
+        This endpoint is designed as the follow-up target for Search result and
+        Ask citation `explorer_ref` values. It summarizes classification,
+        artifact counts, version lineage, DDE availability, graph readiness, and
+        source links without returning full raw document text.
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Compact Explorer document metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserExplorerDocumentResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Document not found or not accessible.
+
+
+  /api/v1/insights:
+    get:
+      operationId: userInsights
+      tags: [user]
+      summary: List compact user insights
+      description: >
+        Returns compact Insights events for the caller-accessible corpus. Items
+        include source document references that can chain into Explorer, Graph,
+        and DDE without exposing raw graph internals or long document text.
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, tenant, user]
+            default: all
+        - name: time_period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, 24h, 7d, 30d, 90d]
+            default: 90d
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 50
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: document_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: acknowledged
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, acknowledged, unacknowledged]
+            default: all
+      responses:
+        "200":
+          description: Compact Insights feed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInsightsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/insights/notes:
+    post:
+      operationId: userInsightNote
+      tags: [user]
+      summary: Add an auditable note to an insight
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInsightNoteRequest"
+      responses:
+        "200":
+          description: Created note audit event.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInsightAuditEventResponse"
+
+  /api/v1/insights/acknowledgements:
+    post:
+      operationId: userInsightAcknowledgement
+      tags: [user]
+      summary: Acknowledge an insight with audit state
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInsightAcknowledgeRequest"
+      responses:
+        "200":
+          description: Insight acknowledgement state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInsightAcknowledgeResponse"
+
+  /api/v1/insights/audit-state:
+    get:
+      operationId: userInsightAuditState
+      tags: [user]
+      summary: Get note and acknowledgement state for insights
+      parameters:
+        - name: insight_id
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: Insight audit state keyed by insight id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInsightAuditStateResponse"
+
+  /api/v1/dde/recent:
+    get:
+      operationId: userDDERecent
+      tags: [user]
+      summary: List recent Document Delta Engine changes
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, tenant, user]
+            default: all
+        - name: time_period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, 24h, 7d, 30d, 90d]
+            default: 90d
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Recent compact DDE deltas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDDERecentResponse"
+
+  /api/v1/dde/documents/{document_id}:
+    get:
+      operationId: userDDEDocument
+      tags: [user]
+      summary: Get DDE detail for a document
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Compact DDE detail and chained refs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDDEDetailResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/dde/documents/{document_id}/versions:
+    get:
+      operationId: userDDEDocumentVersions
+      tags: [user]
+      summary: List document lineage versions
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Compact document lineage versions and chained refs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDDEVersionsResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/documents:
+    get:
+      operationId: userDocuments
+      tags: [user]
+      summary: List accessible documents
+      description: >
+        Lists caller-accessible documents using compact document metadata. The
+        default limit is 25 and the maximum is 100.
+      parameters:
+        - $ref: "#/components/parameters/Q"
+        - $ref: "#/components/parameters/Path"
+        - $ref: "#/components/parameters/Tag"
+        - $ref: "#/components/parameters/Status"
+        - $ref: "#/components/parameters/ClassificationStatus"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Compact document list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDocumentsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/threads:
+    get:
+      operationId: userThreads
+      tags: [user]
+      summary: List recent Ask threads
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        "200":
+          description: Recent thread references.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserThreadsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/threads/{thread_id}:
+    patch:
+      operationId: userUpdateThread
+      tags: [user]
+      summary: Rename, archive, or expire a thread
+      parameters:
+        - $ref: "#/components/parameters/ThreadId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserThreadUpdateRequest"
+      responses:
+        "200":
+          description: Thread update result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserThreadActionResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: userDeleteThread
+      tags: [user]
+      summary: Delete a thread
+      parameters:
+        - $ref: "#/components/parameters/ThreadId"
+      responses:
+        "200":
+          description: Thread delete result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserThreadActionResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/threads/{thread_id}/turns:
+    get:
+      operationId: userThreadTurns
+      tags: [user]
+      summary: List compact thread turns
+      parameters:
+        - $ref: "#/components/parameters/ThreadId"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 50
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Compact thread turn list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserThreadTurnsResponse"
+    delete:
+      operationId: userClearThreadTurns
+      tags: [user]
+      summary: Clear stored turns for a thread
+      parameters:
+        - $ref: "#/components/parameters/ThreadId"
+      responses:
+        "200":
+          description: Thread turn cleanup result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserThreadActionResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ThreadId:
+      name: thread_id
+      in: path
+      required: true
+      schema:
+        type: string
+    Q:
+      name: q
+      in: query
+      required: false
+      schema:
+        type: string
+    Path:
+      name: path
+      in: query
+      required: false
+      schema:
+        type: string
+    Tag:
+      name: tag
+      in: query
+      required: false
+      schema:
+        type: string
+    Status:
+      name: status
+      in: query
+      required: false
+      schema:
+        type: string
+    ClassificationStatus:
+      name: classification_status
+      in: query
+      required: false
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: Unauthorized.
+    Forbidden:
+      description: Forbidden.
+    NotFound:
+      description: Not found.
+    BadGateway:
+      description: Upstream reasoning or model failure.
+
+  schemas:
+    UserSearchRequest:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+        limit:
+          type: integer
+          default: 10
+          minimum: 1
+          maximum: 25
+        scope:
+          type: string
+          enum: [all, tenant, user]
+          default: all
+        path:
+          type: string
+          nullable: true
+          description: Optional real relative path scope. Omit for all accessible content. Do not send generated placeholders such as "string".
+        filters:
+          type: object
+          additionalProperties: true
+          description: Optional allowlisted filters only, such as tags, tag, classification, classification_label, classification_status, category, source, source_type, or mime_type.
+        graph_enabled:
+          type: boolean
+          default: false
+          description: Explicit opt-in for graph-assisted retrieval. Omitted or false means the user API facade must not implicitly consult graph retrieval.
+        kee_enabled:
+          type: boolean
+          default: false
+          description: Explicit opt-in for KEE retrieval influence. Omitted or false means the user API facade must not implicitly consult KEE.
+        include_refs:
+          type: boolean
+          default: true
+          description: Include compact chained refs only. Refs are URLs for explicit follow-up calls and do not expand downstream data.
+        client_query_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional caller-supplied UUID. Omit unless tracing continuity requires it.
+
+    UserSearchResponse:
+      type: object
+      additionalProperties: false
+      required: [result_count, results, scope, latency_ms]
+      properties:
+        query_id:
+          type: string
+          nullable: true
+        result_count:
+          type: integer
+        scope:
+          type: string
+        latency_ms:
+          type: integer
+        meta:
+          type: object
+          additionalProperties: true
+          description: Compact facade metadata, including api_facade, include_refs, and consulted_subsystems.
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserSearchResult"
+
+    UserSearchResult:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        document_id:
+          type: string
+          nullable: true
+        title:
+          type: string
+        snippet:
+          type: string
+        score:
+          type: number
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        path:
+          type: string
+          nullable: true
+        source_web_url:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        evidence_type:
+          type: string
+          nullable: true
+        explorer_ref:
+          $ref: "#/components/schemas/UserExplorerRef"
+        graph_ref:
+          $ref: "#/components/schemas/UserGraphRef"
+        dde_ref:
+          $ref: "#/components/schemas/UserChainedRef"
+        insights_ref:
+          $ref: "#/components/schemas/UserChainedRef"
+
+    UserExplorerRef:
+      type: object
+      additionalProperties: false
+      required: [document_id, href]
+      properties:
+        document_id:
+          type: string
+        href:
+          type: string
+          description: Relative API URL for compact Explorer metadata.
+
+    UserGraphRef:
+      type: object
+      additionalProperties: false
+      required: [document_id, href]
+      properties:
+        document_id:
+          type: string
+        href:
+          type: string
+          description: Relative API URL for focused graph context.
+
+    UserChainedRef:
+      type: object
+      additionalProperties: false
+      required: [kind, href]
+      properties:
+        kind:
+          type: string
+        href:
+          type: string
+          description: Relative API URL for the next compact facade call.
+        document_id:
+          type: string
+          nullable: true
+
+
+    UserPrivacyTokenRevealRequest:
+      type: object
+      additionalProperties: false
+      required: [token_id]
+      properties:
+        token_id:
+          type: string
+          format: uuid
+          description: Privacy token mapping id generated by the Privacy Engine context gate.
+        purpose:
+          type: string
+          maxLength: 120
+          nullable: true
+          description: Human-readable reason for reveal. Stored in audit metadata without raw value.
+
+    UserPrivacyTokenRevealResponse:
+      type: object
+      additionalProperties: false
+      required: [token_id, label, placeholder, value]
+      properties:
+        token_id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        placeholder:
+          type: string
+        value:
+          type: string
+          description: Raw sensitive value. Only returned after object-level source document access succeeds.
+        document_id:
+          type: string
+          nullable: true
+        chunk_id:
+          type: string
+          nullable: true
+        trace_id:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+          nullable: true
+        operation:
+          type: string
+          nullable: true
+
+    UserAskRequest:
+      type: object
+      additionalProperties: false
+      required: [question]
+      properties:
+        question:
+          type: string
+          minLength: 1
+        k:
+          type: integer
+          default: 8
+          minimum: 1
+          maximum: 25
+        scope:
+          type: string
+          enum: [all, tenant, user]
+          default: all
+        path:
+          type: string
+          nullable: true
+          description: Optional real relative path scope. Omit for all accessible content. Do not send generated placeholders such as "string".
+        filters:
+          type: object
+          additionalProperties: true
+          description: Optional allowlisted filters only, such as tags, tag, classification, classification_label, classification_status, category, source, source_type, or mime_type.
+        reasoning_mode:
+          type: string
+          enum: [basic_reasoning, deeper_reasoning]
+          nullable: true
+        thread_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional existing Ask thread UUID. Omit for a fresh question.
+        thread_mode:
+          type: string
+          enum: [off, assist, strict]
+          default: assist
+        seed_context:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Advanced seeded-document context. Omit unless supplying document_id, document_ids, support_documents, or strict_support_documents.
+        graph_enabled:
+          type: boolean
+          default: false
+          description: Explicit opt-in for graph-assisted Ask retrieval. Omitted or false means the user API facade must not implicitly consult graph retrieval.
+        kee_enabled:
+          type: boolean
+          default: false
+          description: Explicit opt-in for KEE retrieval influence. Omitted or false means the user API facade must not implicitly consult KEE.
+        include_refs:
+          type: boolean
+          default: true
+          description: Include compact chained refs only. Refs are URLs for explicit follow-up calls and do not expand downstream data.
+        client_query_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional caller-supplied UUID. Omit unless tracing continuity requires it.
+
+    UserAskResponse:
+      type: object
+      additionalProperties: false
+      required: [answer, citations, evidence_count, scope, latency_ms, meta]
+      properties:
+        query_id:
+          type: string
+          nullable: true
+        thread_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional existing Ask thread UUID. Omit for a fresh question.
+        answer:
+          type: string
+        answer_with_citations:
+          type: string
+          nullable: true
+        confidence:
+          type: string
+          nullable: true
+        evidence_count:
+          type: integer
+        scope:
+          type: string
+        latency_ms:
+          type: integer
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserAskCitation"
+        meta:
+          $ref: "#/components/schemas/UserAskMeta"
+
+    UserAskMeta:
+      type: object
+      additionalProperties: false
+      required: [api_facade, evidence_files, citation_files, evidence_document_ids, citation_document_ids, explorer_refs, graph_refs, dde_refs, insights_refs]
+      properties:
+        api_facade:
+          type: string
+          description: Stable facade marker for orchestration clients.
+        query_id:
+          type: string
+          nullable: true
+        consulted_subsystems:
+          type: array
+          description: Subsystems explicitly consulted by this facade request. Graph and KEE appear only when explicitly enabled.
+          items:
+            type: string
+        include_refs:
+          type: boolean
+          description: Whether compact chained refs were included in the response.
+        evidence_files:
+          type: array
+          description: Filename-only list of supporting evidence documents used by the Ask facade.
+          items:
+            type: string
+        citation_files:
+          type: array
+          description: Filename-only list of documents surfaced as citations.
+          items:
+            type: string
+        evidence_document_ids:
+          type: array
+          description: Document IDs for evidence records when available.
+          items:
+            type: string
+        citation_document_ids:
+          type: array
+          description: Document IDs for citation records when available.
+          items:
+            type: string
+        explorer_refs:
+          type: array
+          description: Explorer pivot refs for citation and evidence documents.
+          items:
+            $ref: "#/components/schemas/UserExplorerRef"
+        graph_refs:
+          type: array
+          description: Focused graph context refs for citation and evidence documents.
+          items:
+            $ref: "#/components/schemas/UserGraphRef"
+        dde_refs:
+          type: array
+          description: DDE refs for citation and evidence documents.
+          items:
+            $ref: "#/components/schemas/UserChainedRef"
+        insights_refs:
+          type: array
+          description: Insights refs for citation and evidence documents.
+          items:
+            $ref: "#/components/schemas/UserChainedRef"
+
+    UserAskCitation:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        document_id:
+          type: string
+          nullable: true
+        source_web_url:
+          type: string
+          nullable: true
+        snippet:
+          type: string
+        explorer_ref:
+          $ref: "#/components/schemas/UserExplorerRef"
+        graph_ref:
+          $ref: "#/components/schemas/UserGraphRef"
+        dde_ref:
+          $ref: "#/components/schemas/UserChainedRef"
+        insights_ref:
+          $ref: "#/components/schemas/UserChainedRef"
+
+    UserGraphResponse:
+      type: object
+      additionalProperties: false
+      required: [graph_ready_documents, node_count, edge_count, nodes, edges]
+      properties:
+        graph_ready_documents:
+          type: integer
+        node_count:
+          type: integer
+        edge_count:
+          type: integer
+        nodes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        edges:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    UserGraphContextResponse:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, scope, time_period, context_type, freshness_status, graph, node_meta, edge_meta, path_count, document_count, communities, notes, generated_at]
+      properties:
+        tenant_id:
+          type: string
+        scope:
+          type: string
+        time_period:
+          type: string
+        context_type:
+          type: string
+        freshness_status:
+          type: string
+        graph:
+          type: object
+          additionalProperties: true
+        node_meta:
+          type: object
+          additionalProperties: true
+        edge_meta:
+          type: object
+          additionalProperties: true
+        path_count:
+          type: integer
+        document_count:
+          type: integer
+        communities:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        notes:
+          type: array
+          items:
+            type: string
+        generated_at:
+          type: string
+
+    UserExplorerDocumentResponse:
+      type: object
+      additionalProperties: false
+      required: [document, classification, artifacts_summary, version_summary, delta_summary, graph_summary, source_links, available_api_links]
+      properties:
+        document:
+          $ref: "#/components/schemas/UserDocumentRecord"
+        classification:
+          type: object
+          additionalProperties: true
+        artifacts_summary:
+          type: object
+          additionalProperties: true
+        version_summary:
+          type: object
+          additionalProperties: true
+        delta_summary:
+          type: object
+          additionalProperties: true
+        graph_summary:
+          type: object
+          additionalProperties: true
+        source_links:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+        available_api_links:
+          type: object
+          additionalProperties:
+            type: string
+        refs:
+          type: object
+          additionalProperties: true
+
+    UserDocumentsResponse:
+      type: object
+      additionalProperties: false
+      required: [documents, result_count, limit]
+      properties:
+        result_count:
+          type: integer
+        limit:
+          type: integer
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserDocumentRecord"
+
+
+    UserInsightsResponse:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, scope, time_period, context_type, items, clusters]
+      properties:
+        tenant_id:
+          type: string
+        scope:
+          type: string
+        time_period:
+          type: string
+        context_type:
+          type: string
+        graph_version:
+          type: string
+          nullable: true
+        candidate_count:
+          type: integer
+        filtered_count:
+          type: integer
+        returned_count:
+          type: integer
+        cluster_count:
+          type: integer
+        cache_hit:
+          type: boolean
+        refreshed_at:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        clusters:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    UserInsightNoteRequest:
+      type: object
+      additionalProperties: false
+      required: [insight_id, note_text]
+      properties:
+        insight_id:
+          type: string
+        insight_family:
+          type: string
+          default: insight
+        insight_title:
+          type: string
+          nullable: true
+        note_text:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    UserInsightAcknowledgeRequest:
+      type: object
+      additionalProperties: false
+      required: [insight_id]
+      properties:
+        insight_id:
+          type: string
+        insight_family:
+          type: string
+          default: insight
+        insight_title:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    UserInsightAuditEventResponse:
+      type: object
+      additionalProperties: true
+      required: [id, insight_id, action, actor_user_id]
+      properties:
+        id:
+          type: string
+        insight_id:
+          type: string
+        insight_family:
+          type: string
+        insight_title:
+          type: string
+          nullable: true
+        action:
+          type: string
+        actor_user_id:
+          type: string
+        actor_email:
+          type: string
+          nullable: true
+        actor_display_name:
+          type: string
+          nullable: true
+        note_text:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          nullable: true
+
+    UserInsightAcknowledgeResponse:
+      type: object
+      additionalProperties: true
+      required: [insight_id, acknowledged, acknowledged_by_user_id]
+      properties:
+        insight_id:
+          type: string
+        insight_family:
+          type: string
+        acknowledged:
+          type: boolean
+        acknowledged_by_user_id:
+          type: string
+        acknowledged_at:
+          type: string
+          nullable: true
+        acknowledgement_event_id:
+          type: string
+          nullable: true
+        created:
+          type: boolean
+
+    UserInsightAuditStateResponse:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, states]
+      properties:
+        tenant_id:
+          type: string
+        states:
+          type: object
+          additionalProperties: true
+
+    UserDDERecentResponse:
+      type: object
+      additionalProperties: false
+      required: [deltas]
+      properties:
+        deltas:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    UserDDEDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [delta, refs]
+      properties:
+        delta:
+          type: object
+          additionalProperties: true
+        refs:
+          type: object
+          additionalProperties: true
+
+    UserDDEVersionsResponse:
+      type: object
+      additionalProperties: false
+      required: [lineage_key, versions, refs]
+      properties:
+        lineage_key:
+          type: string
+        versions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        refs:
+          type: object
+          additionalProperties: true
+
+    UserDocumentRecord:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        document_id:
+          type: string
+          nullable: true
+        title:
+          type: string
+        file_name:
+          type: string
+          nullable: true
+        path:
+          type: string
+        location:
+          type: string
+          nullable: true
+        source_web_url:
+          type: string
+          nullable: true
+        status:
+          type: string
+        classification_label:
+          type: string
+          nullable: true
+        classification_status:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        updated_at:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          nullable: true
+
+    UserQueryStatus:
+      type: object
+      additionalProperties: true
+      required: [query_id, status]
+      properties:
+        query_id:
+          type: string
+        status:
+          type: string
+        result:
+          type: object
+          additionalProperties: true
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    UserFeedbackEventRequest:
+      type: object
+      additionalProperties: false
+      required: [scope, action, target_id]
+      properties:
+        type:
+          type: string
+          enum: [feedback_event]
+          default: feedback_event
+        scope:
+          type: string
+          enum: [citation, answer, fact]
+        action:
+          type: string
+          enum: [confirm, reject]
+        target_id:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    UserFeedbackEventResponse:
+      type: object
+      additionalProperties: false
+      required: [status, event_id, message]
+      properties:
+        status:
+          type: string
+          enum: [queued, applied, failed, disabled]
+        event_id:
+          type: string
+        message:
+          type: string
+
+    UserFeedbackStateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        query_id:
+          type: string
+          nullable: true
+        path:
+          type: string
+          nullable: true
+        scope:
+          type: string
+          enum: [citation, answer, fact]
+          nullable: true
+        target_ids:
+          type: array
+          items:
+            type: string
+
+    UserFeedbackStateResponse:
+      type: object
+      additionalProperties: false
+      required: [states]
+      properties:
+        states:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    UserCitationFeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [query_text, doc_rel_path, surface]
+      properties:
+        query_text:
+          type: string
+        doc_rel_path:
+          type: string
+        surface:
+          type: string
+          enum: [ask, search]
+        path:
+          type: string
+          nullable: true
+        tag:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        chunk_id:
+          type: string
+          nullable: true
+        document_id:
+          type: string
+          nullable: true
+        query_type:
+          type: string
+          nullable: true
+
+    UserCitationFeedbackListRequest:
+      type: object
+      additionalProperties: false
+      required: [query_text]
+      properties:
+        query_text:
+          type: string
+        path:
+          type: string
+          nullable: true
+        tag:
+          type: string
+          nullable: true
+        query_type:
+          type: string
+          nullable: true
+
+    UserCitationFeedbackRemoveRequest:
+      type: object
+      additionalProperties: false
+      required: [query_text, doc_rel_path]
+      properties:
+        query_text:
+          type: string
+        doc_rel_path:
+          type: string
+        path:
+          type: string
+          nullable: true
+        tag:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        query_type:
+          type: string
+          nullable: true
+
+    UserCitationFeedbackResponse:
+      type: object
+      additionalProperties: true
+      required: [status, message, doc_rel_path]
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+        doc_rel_path:
+          type: string
+
+    UserCitationFeedbackListResponse:
+      type: object
+      additionalProperties: false
+      required: [suppressions]
+      properties:
+        suppressions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    UserCitationFeedbackRemoveResponse:
+      type: object
+      additionalProperties: true
+      required: [status, message, removed_count]
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+        removed_count:
+          type: integer
+
+
+    UserIngestFileRecord:
+      type: object
+      additionalProperties: false
+      required: [rel_path, file_name, status]
+      properties:
+        rel_path:
+          type: string
+        file_name:
+          type: string
+        status:
+          type: string
+        file_size_bytes:
+          type: integer
+          nullable: true
+        mime_type:
+          type: string
+          nullable: true
+        error_code:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+
+    UserIngestFilesResponse:
+      type: object
+      additionalProperties: false
+      required: [status, upload_batch_id, stored_root, file_count, accepted_count, rejected_count, total_bytes, files]
+      properties:
+        status:
+          type: string
+        upload_batch_id:
+          type: string
+        stored_root:
+          type: string
+        file_count:
+          type: integer
+        accepted_count:
+          type: integer
+        rejected_count:
+          type: integer
+        total_bytes:
+          type: integer
+        ingest_job_id:
+          type: string
+          nullable: true
+        ingest_status:
+          type: string
+          nullable: true
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserIngestFileRecord"
+
+    UserConnectorListResponse:
+      type: object
+      additionalProperties: false
+      required: [connectors]
+      properties:
+        connectors:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    UserConnectorSyncRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          type: string
+          enum: [delta, full]
+          default: delta
+
+    UserConnectorSyncResponse:
+      type: object
+      additionalProperties: false
+      required: [sync_run_id, status]
+      properties:
+        sync_run_id:
+          type: string
+        status:
+          type: string
+
+    UserConnectorSyncRunListResponse:
+      type: object
+      additionalProperties: false
+      required: [sync_runs]
+      properties:
+        sync_runs:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    UserIngestJobStatus:
+      type: object
+      additionalProperties: true
+      required: [ingest_job_id, status, total_files]
+      properties:
+        ingest_job_id:
+          type: string
+        status:
+          type: string
+        total_files:
+          type: integer
+        files:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    UserThreadsResponse:
+      type: object
+      additionalProperties: false
+      required: [threads, result_count]
+      properties:
+        result_count:
+          type: integer
+        threads:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserThreadReference"
+
+    UserThreadReference:
+      type: object
+      additionalProperties: false
+      properties:
+        thread_id:
+          type: string
+        label:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        last_question_preview:
+          type: string
+
+    UserThreadTurnsResponse:
+      type: object
+      additionalProperties: false
+      required: [thread_id, turns, result_count]
+      properties:
+        thread_id:
+          type: string
+        result_count:
+          type: integer
+        turns:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserThreadTurn"
+
+    UserThreadTurn:
+      type: object
+      additionalProperties: false
+      properties:
+        query_id:
+          type: string
+        question:
+          type: string
+        answer:
+          type: string
+        created_at:
+          type: string
+          nullable: true
+        scope:
+          type: string
+          nullable: true
+
+    UserThreadUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          maxLength: 120
+        archived:
+          type: boolean
+        expires_at:
+          type: string
+          nullable: true
+
+    UserThreadActionResponse:
+      type: object
+      additionalProperties: false
+      required: [status, thread_id, deleted_turns]
+      properties:
+        status:
+          type: string
+        thread_id:
+          type: string
+        deleted_turns:
+          type: integer
+          default: 0

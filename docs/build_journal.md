@@ -5864,3 +5864,17 @@ Validation performed:
 - Authenticated rerun returned `201`: skipped 1 unchanged evidence digest and created 0 duplicate context/insight rows.
 - Authenticated context list/detail and Syncratic insight list returned `200`.
 - Token material and temporary API response files were removed.
+
+## 2026-07-13T02:00:55Z
+
+Summary:
+
+- Indexed the Syncratic user-facing OpenAPI contract at `docs/syncratic_user_api_v1.yaml`.
+- Replaced ambiguous local Syncratic `USERNAME`/`PASSWORD` environment names with namespaced `SYNCRATIC_*` variables in the ignored `.env` file.
+- Added committed `.env.example` placeholders for Syncratic user facade base URL, token endpoint, token grant, client fields, and user credentials.
+- Added a MarketOps architecture note documenting the Syncratic user API boundary and bearer-token acquisition caveat.
+
+Validation performed:
+
+- Confirmed generic `USERNAME` and `PASSWORD` entries were removed from the ignored local `.env`.
+- `git diff --check`: passed.

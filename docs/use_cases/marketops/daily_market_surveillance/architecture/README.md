@@ -19,3 +19,4 @@ Current notes:
 - `graph_proposal_acceptance.md`: proposed G079 boundary for first-class graph proposal review/storage.
 - `backtest_substrate.md`: implemented G081 back-test substrate boundary, isolated storage model, CLI/API surfaces, and replay distinction.
 - `syncratic_context_windows.md`: proposed G088 Syncratic context-window and multi-event insight architecture.
+- `syncratic_user_api_boundary.md`: Syncratic user facade OpenAPI and environment/auth boundary.
