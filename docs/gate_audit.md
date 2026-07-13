@@ -6803,3 +6803,25 @@ Scope:
 Result:
 
 - Future SignalOps-to-Syncratic integration work should use `SYNCRATIC_CLIENT_SECRET` as the API key input to the configured token flow, while keeping values out of logs and commits.
+
+## Syncratic User API Client Boundary
+
+Timestamp: `2026-07-13T02:30:00Z`
+
+Status: `implemented — internal client boundary added`
+
+Scope:
+
+- Add an internal Go client for the Syncratic user-facing API facade.
+- Centralize token acquisition, API key handling, bearer attachment, and read-oriented facade calls.
+- Keep SignalOps-to-Syncratic usage read-oriented; no ingestion, graph mutation, privacy-token reveal, or narrative generation is introduced.
+
+Validation performed:
+
+- Added unit tests for env loading, password grant token fields, bearer attachment, token caching, Search, Ask, Insights list, and missing credential validation.
+- Targeted client tests and full Go tests passed.
+- Live token endpoint smoke with the configured password grant returned HTTP `401`; token material was removed. Exact Syncratic token grant/client requirements remain to be confirmed before live facade calls.
+
+Result:
+
+- Future MarketOps gates can use `internal/syncratic/userapi` for Syncratic Search/Ask/Insights calls without duplicating credential handling.

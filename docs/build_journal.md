@@ -5889,3 +5889,18 @@ Summary:
 Validation performed:
 
 - `git diff --check`: passed.
+
+## 2026-07-13T02:30:00Z
+
+Summary:
+
+- Added `internal/syncratic/userapi`, a safe Go client boundary for the Syncratic user-facing API facade.
+- The client loads `SYNCRATIC_*` configuration, obtains bearer JWTs from the configured token endpoint, sends the Syncratic API key as `client_secret`, caches tokens in process, and supports Search, Ask, and compact Insights list calls.
+- Updated the Syncratic user API boundary note so future MarketOps integration work uses the client instead of ad hoc HTTP requests.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/syncratic/userapi -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `git diff --check`: passed.
+- Live token endpoint smoke with the configured `SYNCRATIC_TOKEN_GRANT=password` returned HTTP `401`; token material was removed. The client implementation is ready, but the accepted Syncratic non-browser token grant/client shape still needs confirmation before live Search/Ask smoke.

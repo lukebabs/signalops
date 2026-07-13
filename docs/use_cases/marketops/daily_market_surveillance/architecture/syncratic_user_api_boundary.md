@@ -37,3 +37,15 @@ The first safe MarketOps integration should be read-oriented:
 - Use graph context only as explicit opt-in supporting evidence.
 
 Do not ingest MarketOps data into Syncratic, write graph state, call privacy-token reveal, or generate operator-facing narratives until a dedicated gate approves the data boundary and retention rules.
+## Implemented Client Boundary
+
+SignalOps includes a small internal Go client package at `internal/syncratic/userapi`. It owns:
+
+- loading `SYNCRATIC_*` environment configuration;
+- obtaining a bearer JWT from the configured token endpoint;
+- sending the Syncratic API key as `client_secret` during token acquisition;
+- caching the bearer token in process until shortly before expiry;
+- attaching `Authorization: Bearer <token>` to user-facade API calls;
+- read-oriented calls for Search, Ask, and compact Insights listing.
+
+The package must not log API keys, bearer tokens, usernames, passwords, raw retrieval payloads, or long document text. Higher-level MarketOps gates should call this package instead of constructing Syncratic HTTP requests directly.
