@@ -6039,3 +6039,20 @@ Validation performed:
 - Authenticated rerun returned HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.
 - Persisted insight `synins_75c6d92b51d37352e0e57f00` has `metrics.syncratic_ask.ask_status=completed` and `recommendation.source=syncratic_ask`.
 - `git diff --check`: passed.
+
+## 2026-07-13T05:08:00Z
+
+Summary:
+
+- Retested G090 after the Syncratic prompt-quality fix for non-human reasoning clients.
+- Replaced the route prompt prefix with the direct-validated `CONTEXT_JSON` non-human reasoning framing while keeping the deterministic JSON context and evidence digest boundary unchanged.
+- Confirmed the authenticated Ask route now persists a useful generated MarketOps explanation instead of `UNKNOWN` for the MS context window.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/syncratic/userapi -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
+- Authenticated forced `POST /v1/syncratic/context-windows/synctx_47bccf8af8af03a15d4c0d3f/ask`: HTTP `200`, `ask_status=completed`, `updated=true`, explanation length `516`.
+- Persisted insight `synins_75c6d92b51d37352e0e57f00` has `metrics.syncratic_ask.ask_status=completed`, `recommendation.source=syncratic_ask`, and a non-`UNKNOWN` generated explanation.
+- Authenticated rerun with `force=false`: HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.

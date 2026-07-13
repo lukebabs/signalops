@@ -6984,4 +6984,29 @@ Validation performed:
 
 Result:
 
-- G090 is closed for the backend/API slice. The generated answer for the smoke context was short (`UNKNOWN`), which is acceptable for plumbing validation but should feed future prompt-quality work.
+- G090 backend/API plumbing was validated. The initial smoke generated `UNKNOWN`, then the prompt-quality closeout below updated the route prompt and verified a useful non-`UNKNOWN` explanation.
+
+## Gate G090: Prompt-Quality Retest Closeout
+
+Timestamp: `2026-07-13T05:08:00Z`
+
+Status: `validated — authenticated Ask returns useful generated explanation`
+
+Scope:
+
+- Retest G090 after Syncratic enabled non-human clients to query the reasoning layer with the intended prompt quality.
+- Align the route prompt prefix with the direct-validated non-human `CONTEXT_JSON` framing.
+- Preserve the deterministic SignalOps context window boundary, idempotent prompt/evidence digest behavior, and no-ingestion/no-search scope.
+
+Validation performed:
+
+- Targeted API/userapi tests passed.
+- Full Go suite passed.
+- Gateway rebuild passed; Docker build also ran `go test ./...`.
+- Authenticated forced Ask route call returned HTTP `200`, `ask_status=completed`, `updated=true`, and a `516` character generated explanation for `synctx_47bccf8af8af03a15d4c0d3f`.
+- Persisted insight `synins_75c6d92b51d37352e0e57f00` records completed Ask metadata and `recommendation.source=syncratic_ask`.
+- Authenticated rerun returned HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.
+
+Result:
+
+- G090 is now closed for both backend/API plumbing and prompt-quality validation. Remaining work should move to the next gate: frontend operator trigger/visibility or budgeted selective materialization, depending on priority.

@@ -2609,7 +2609,7 @@ func TestBuildSyncraticAskPromptIsStableAndCapped(t *testing.T) {
 	if prompt1 != prompt2 || meta1.PromptDigest != meta2.PromptDigest || meta1.PromptBuilderVersion != defaultSyncraticAskPromptVersion {
 		t.Fatalf("prompt not stable meta1=%+v meta2=%+v", meta1, meta2)
 	}
-	if !strings.Contains(prompt1, "Use only the facts provided") || !strings.Contains(prompt1, "synctx-test") || !strings.Contains(prompt1, "digest") {
+	if !strings.Contains(prompt1, "non-human reasoning client") || !strings.Contains(prompt1, "instead of UNKNOWN") || !strings.Contains(prompt1, "synctx-test") || !strings.Contains(prompt1, "digest") {
 		t.Fatalf("prompt missing required context: %s", prompt1)
 	}
 	if _, _, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 999}); err == nil {

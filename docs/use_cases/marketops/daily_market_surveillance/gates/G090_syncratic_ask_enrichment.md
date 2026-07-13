@@ -332,3 +332,9 @@ Implemented in G090:
 - live-compatible Ask client behavior: API-key mode sends both `Authorization` and `X-API-Key`, Ask timeout is 60 seconds, `confidence` accepts numeric strings, and the route sends `scope=tenant`, `k=1`, `thread_mode=off`, `include_refs=false`, and no facade filters.
 
 The implementation still keeps scheduled Ask jobs, Syncratic Search enrichment, external ingestion, graph writes, alert lifecycle mutation, and frontend changes out of scope.
+
+## Prompt-Quality Closeout
+
+Validated on `2026-07-13T05:08:00Z` after Syncratic enabled non-human reasoning clients to use the Ask reasoning layer with the intended prompt quality.
+
+The route prompt prefix now uses the direct-validated non-human `CONTEXT_JSON` framing while preserving the bounded deterministic SignalOps context payload, prompt digest, and evidence digest. Authenticated forced Ask against `synctx_47bccf8af8af03a15d4c0d3f` returned HTTP `200`, `ask_status=completed`, `updated=true`, and persisted a `516` character generated explanation instead of `UNKNOWN`. A rerun with unchanged evidence returned `updated=false` and `skipped_reason=unchanged_prompt_and_evidence`.

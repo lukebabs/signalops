@@ -64,7 +64,7 @@ Returns one context window with evidence references, summary metrics, `evidence_
 
 `POST /v1/syncratic/context-windows/{context_window_id}/ask`
 
-Calls Syncratic Ask server-side with a compact, bounded prompt built from the deterministic context window, then persists the generated explanation and Ask metadata onto the associated Syncratic insight. The G090 implementation uses Syncratic Ask `scope=tenant`, `k=1`, `thread_mode=off`, `include_refs=false`, and no facade filters; SignalOps metadata stays inside the bounded prompt and local persisted metrics.
+Calls Syncratic Ask server-side with a compact, bounded non-human reasoning prompt built from the deterministic context window, then persists the generated explanation and Ask metadata onto the associated Syncratic insight. The G090 implementation uses Syncratic Ask `scope=tenant`, `k=1`, `thread_mode=off`, `include_refs=false`, and no facade filters; SignalOps metadata stays inside the bounded prompt and local persisted metrics. The prompt explicitly instructs Syncratic to reason only from the supplied JSON context and to produce a useful MarketOps explanation instead of returning `UNKNOWN` when signals are present.
 
 Request fields:
 

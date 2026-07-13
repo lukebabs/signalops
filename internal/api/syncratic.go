@@ -378,7 +378,7 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 	caps := map[string]int{"max_alert_ids": 20, "max_signal_ids": 20, "max_event_ids": 20, "max_artifact_ids": 20, "max_graph_proposal_ids": 20, "max_label_ids": 20, "max_prompt_bytes": maxPromptBytes}
 	payload := map[string]any{
 		"prompt_builder_version": version,
-		"instructions":           []string{"Use only the facts provided.", "Do not invent prices, filings, news, recommendations, or unlisted events.", "Distinguish deterministic evidence from generated interpretation.", "Return concise operational relevance and uncertainty notes."},
+		"instructions":           []string{"You are a non-human reasoning client.", "Do not retrieve documents or use external knowledge.", "Use only the JSON context provided in this request.", "If the context has signals, produce a useful MarketOps explanation instead of UNKNOWN.", "Do not invent prices, filings, news, recommendations, or unlisted events.", "Distinguish deterministic evidence from generated interpretation.", "Return concise operational relevance and uncertainty notes."},
 		"context_metadata":       map[string]any{"tenant_id": contextWindow.TenantID, "app_id": contextWindow.AppID, "domain": contextWindow.Domain, "use_case": contextWindow.UseCase, "context_window_id": contextWindow.ContextWindowID, "subject_symbol": contextWindow.SubjectSymbol, "subject_type": contextWindow.SubjectType, "subject_id": contextWindow.SubjectID, "window_start": contextWindow.WindowStart.UTC().Format(time.RFC3339), "window_end": contextWindow.WindowEnd.UTC().Format(time.RFC3339), "context_strategy": contextWindow.ContextStrategy, "context_builder_version": contextWindow.ContextBuilderVersion, "evidence_digest": contextWindow.EvidenceDigest},
 		"evidence_summary":       map[string]any{"signal_types": contextWindow.SignalTypes, "detector_ids": contextWindow.DetectorIDs, "summary_metrics": json.RawMessage(jsonOrDefault(contextWindow.SummaryMetricsJSON, `{}`)), "baseline_refs": json.RawMessage(jsonOrDefault(contextWindow.BaselineRefsJSON, `[]`)), "evaluation_refs": json.RawMessage(jsonOrDefault(contextWindow.EvaluationRefsJSON, `[]`)), "promotion_candidate_refs": json.RawMessage(jsonOrDefault(contextWindow.PromotionCandidateRefsJSON, `[]`))},
 		"evidence_ids":           map[string]any{"alerts": limitStrings(contextWindow.AlertIDs, caps["max_alert_ids"]), "signals": limitStrings(contextWindow.SignalIDs, caps["max_signal_ids"]), "events": limitStrings(contextWindow.EventIDs, caps["max_event_ids"]), "artifacts": limitStrings(contextWindow.ArtifactIDs, caps["max_artifact_ids"]), "graph_proposals": limitStrings(contextWindow.GraphProposalIDs, caps["max_graph_proposal_ids"]), "labels": limitStrings(contextWindow.LabelIDs, caps["max_label_ids"])},
@@ -388,7 +388,7 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 	if err != nil {
 		return "", syncraticAskPromptMeta{}, err
 	}
-	prompt := "You are assisting a MarketOps surveillance operator. Explain this deterministic SignalOps context window.\n" + string(raw)
+	prompt := "You are a non-human reasoning client. Do not retrieve documents. Use only the JSON context below. If the context has signals, produce a useful MarketOps explanation instead of UNKNOWN. Return: title, summary, explanation, recommendation, uncertainty_notes.\nCONTEXT_JSON:\n" + string(raw)
 	if len(prompt) > maxPromptBytes {
 		return "", syncraticAskPromptMeta{}, fmt.Errorf("prompt exceeds max_prompt_bytes")
 	}
