@@ -56,3 +56,13 @@ Recommended next gate:
 
 - G088: Syncratic context windows and multi-event insight synthesis from existing ledgers, without a new ingestion layer.
 - Specification: `G088_syncratic_context_windows.md`.
+
+## G089 Implemented
+
+- G089: Syncratic Insights UI for G088 context windows and synthesized insights.
+- Specification: `../../../../frontend/syncratic_context_windows_ui_spec.md`.
+
+## G090 Proposed
+
+- G090: server-side Syncratic Ask enrichment for one bounded context window at a time, without Search enrichment or batch generation.
+- Specification: `G090_syncratic_ask_enrichment.md`.

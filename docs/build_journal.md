@@ -5989,3 +5989,16 @@ Validation performed:
 
 - Documentation readback completed.
 - `git diff --check`: passed.
+
+## 2026-07-13T03:52:00Z
+
+Summary:
+
+- Added the G090 Syncratic Ask enrichment specification for review.
+- Scoped G090 to a backend/API-triggered Ask call for one bounded context window at a time.
+- Explicitly excluded Syncratic Search enrichment, automatic batch generation, external ingestion, graph writes, alert lifecycle mutation, and frontend scope creep.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: passed.

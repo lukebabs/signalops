@@ -6924,3 +6924,20 @@ Result:
 
 - Product enrichment remains: SignalOps deterministic context window -> Syncratic Ask -> persisted Syncratic insight explanation linked to evidence IDs.
 - Search is not a current SignalOps enrichment path because Syncratic Search has no SignalOps corpus to retrieve from.
+
+## Gate G090: Syncratic Ask Enrichment Spec
+
+Timestamp: `2026-07-13T03:52:00Z`
+
+Status: `specification proposed`
+
+Scope:
+
+- Define the first controlled LLM explanation path from a deterministic SignalOps context window to Syncratic Ask.
+- Persist generated explanation metadata back onto the Syncratic insight while preserving deterministic evidence references.
+- Keep G090 backend/API-only for review; no scheduled Ask jobs, Search enrichment, ingestion, graph writes, alert lifecycle mutation, or frontend changes.
+
+Result:
+
+- Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G090_syncratic_ask_enrichment.md`.
+- Gate index and architecture index now point to the proposed G090 document.
