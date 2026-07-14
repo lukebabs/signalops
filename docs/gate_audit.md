@@ -7501,3 +7501,27 @@ Validation performed:
 Result:
 
 - Equity EOD calibration is no longer blocked by empty input. The remaining calibration gap is breadth: more dates, more Top 50 symbols, and options windows before G094 readiness can materially improve.
+
+## Gate G101: Bounded Options Campaign Expansion
+
+Timestamp: `2026-07-14T18:04:16Z`
+
+Status: `implemented - bounded live options ingestion, coverage, campaign, and summary validated`
+
+Scope:
+
+- Expand from equity-only input validation to one bounded options daily sample.
+- Use existing ingestion, normalization, coverage, campaign, and summary APIs.
+- Keep runtime deployment, detector mutation, synthetic data, direct ledger inserts, graph writes, and broad options-history campaigns out of scope.
+
+Validation performed:
+
+- Massive preflight passed.
+- Bounded ingestion published three `options_contracts_daily` raw events with zero failures.
+- G096 coverage returned one NVDA normalized MarketOps options row with `event_count=3`.
+- G095 campaign `btcamp-g101-options3-20260714180221` succeeded with `scanned=3`.
+- G082 summary `btsum-g101-options3-20260714180416` persisted aggregate succeeded-run metrics: `run_count=1`, `zero_input_count=0`, `scanned=3`, `signals=0`, `policy_results=0`.
+
+Result:
+
+- Options daily calibration is now wired through the same ingestion, coverage, campaign, and summary path as equity EOD. The remaining calibration gap is breadth across additional symbols and dates before G094 readiness can materially improve.

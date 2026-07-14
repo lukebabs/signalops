@@ -116,3 +116,8 @@ Recommended next gate:
 
 - G100: bounded three-symbol equity ingestion/campaign expansion and calibration summary refresh.
 - Specification: `G100_bounded_equity_campaign_expansion.md`.
+
+## G101 Implemented
+
+- G101: bounded options daily ingestion/campaign expansion and calibration summary refresh.
+- Specification: `G101_bounded_options_campaign_expansion.md`.

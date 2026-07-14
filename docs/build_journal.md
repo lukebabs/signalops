@@ -6396,3 +6396,21 @@ Validation performed:
 - Authenticated coverage check: `AAPL`, `GOOGL`, and `NVDA` each returned `event_count=1` for `2026-07-13`.
 - Authenticated campaign create: HTTP `201`, status `succeeded`, completed child runs `3`, scanned `3`, signals `0`.
 - Authenticated calibration summary create: HTTP `201`, summary `btsum-g100-equity3-20260714175749`, run count `13`, scanned `9`, signals `5`, policy results `25`.
+
+## 2026-07-14T18:04:16Z
+
+Summary:
+
+- Ran G101 bounded options expansion using the existing Massive puller, normalizer, coverage preflight, back-test campaign, and calibration summary APIs.
+- Ingested a one-symbol options daily sample for `2026-07-13` with strict provider/event bounds.
+- Confirmed G096 coverage for `NVDA` `options_contracts_daily`.
+- Ran G095 campaign `btcamp-g101-options3-20260714180221` over the data-bearing options row and confirmed `scanned=3`.
+- Created calibration summary `btsum-g101-options3-20260714180416` over succeeded MarketOps taxonomy options runs.
+
+Validation performed:
+
+- Massive credential preflight: HTTP `200`.
+- Bounded options ingestion: `provider_requests=1`, `events_built=3`, `events_published=3`, `events_by_dataset={"options_contracts_daily":3}`, `failures=0`.
+- Authenticated coverage check: `NVDA` returned `event_count=3` for `options_contracts_daily` on `2026-07-13`.
+- Authenticated campaign create: HTTP `201`, status `succeeded`, completed child runs `1`, scanned `3`, signals `0`.
+- Authenticated calibration summary create: HTTP `201`, summary `btsum-g101-options3-20260714180416`, run count `1`, zero-input count `0`, scanned `3`, signals `0`, policy results `0`.
