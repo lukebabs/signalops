@@ -6414,3 +6414,25 @@ Validation performed:
 - Authenticated coverage check: `NVDA` returned `event_count=3` for `options_contracts_daily` on `2026-07-13`.
 - Authenticated campaign create: HTTP `201`, status `succeeded`, completed child runs `1`, scanned `3`, signals `0`.
 - Authenticated calibration summary create: HTTP `201`, summary `btsum-g101-options3-20260714180416`, run count `1`, zero-input count `0`, scanned `3`, signals `0`, policy results `0`.
+
+## 2026-07-14T18:50:32Z
+
+Summary:
+
+- Ran G102 bounded multi-day campaign expansion using existing Massive ingestion, normalization, coverage, campaign, and calibration summary APIs.
+- Ingested three recent market days for `equity_eod_prices` with three bounded symbols per day.
+- Ingested three recent market days for `options_contracts_daily` with one bounded symbol and three option rows per day.
+- Confirmed coverage for the scoped G102 campaign inputs.
+- Ran bounded equity and options campaigns over the data-bearing windows.
+- Created refreshed calibration summaries for both datasets.
+
+Validation performed:
+
+- Massive credential preflight passed with HTTP `200` for `2026-07-10`.
+- Equity ingestion over `2026-07-09`, `2026-07-10`, and `2026-07-13`: aggregate `provider_requests=9`, `events_built=9`, `events_published=9`, `failures=0`.
+- Options ingestion over `2026-07-09`, `2026-07-10`, and `2026-07-13`: aggregate `provider_requests=3`, `events_built=9`, `events_published=9`, `failures=0`.
+- Coverage check returned scoped campaign rows for `AAPL`, `GOOGL`, and `NVDA` equity events plus `NVDA` options events across the three-day window.
+- Equity campaign `btcamp-g102-equity3x3-20260714185013`: status `succeeded`, planned child runs `15`, completed child runs `15`, scanned `9`, signals `1`, artifacts `1`, policy results `5`.
+- Options campaign `btcamp-g102-options1x3-20260714185013`: status `succeeded`, planned child runs `5`, completed child runs `5`, scanned `9`, signals `0`, artifacts `0`, policy results `0`.
+- Equity summary `btsum-g102-equity3x3-20260714185032`: run count `28`, zero-input count `10`, scanned `18`, signals `6`, artifacts `6`, policy results `30`, recommendation counts `auto_accept_candidate=25`, `manual_review_required=5`.
+- Options summary `btsum-g102-options1x3-20260714185032`: run count `6`, zero-input count `2`, scanned `12`, signals `0`, artifacts `0`, policy results `0`.

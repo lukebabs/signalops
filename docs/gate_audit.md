@@ -7525,3 +7525,30 @@ Validation performed:
 Result:
 
 - Options daily calibration is now wired through the same ingestion, coverage, campaign, and summary path as equity EOD. The remaining calibration gap is breadth across additional symbols and dates before G094 readiness can materially improve.
+
+## Gate G102: Bounded Multi-Day Campaign Expansion
+
+Timestamp: `2026-07-14T18:50:32Z`
+
+Status: `implemented - bounded multi-day live ingestion, coverage, campaigns, and summaries validated`
+
+Scope:
+
+- Expand from single-day samples to a three-market-day calibration slice.
+- Use existing ingestion, normalization, coverage, campaign, and summary APIs.
+- Keep runtime deployment, detector mutation, synthetic data, direct ledger inserts, graph writes, frontend changes, and broad historical backfill out of scope.
+
+Validation performed:
+
+- Massive preflight passed with HTTP `200`.
+- Bounded equity ingestion published nine `equity_eod_prices` raw events with zero failures.
+- Bounded options ingestion published nine `options_contracts_daily` raw events with zero failures.
+- G096 coverage confirmed data-bearing scoped campaign rows for `AAPL`, `GOOGL`, `NVDA`, and `NVDA` options across `2026-07-09`, `2026-07-10`, and `2026-07-13`.
+- G095 equity campaign `btcamp-g102-equity3x3-20260714185013` succeeded with `scanned=9`, `signals=1`, `artifacts=1`, and `policy_results=5`.
+- G095 options campaign `btcamp-g102-options1x3-20260714185013` succeeded with `scanned=9`, `signals=0`, `artifacts=0`, and `policy_results=0`.
+- G082 equity summary `btsum-g102-equity3x3-20260714185032` persisted aggregate metrics: `run_count=28`, `zero_input_count=10`, `scanned=18`, `signals=6`, `policy_results=30`.
+- G082 options summary `btsum-g102-options1x3-20260714185032` persisted aggregate metrics: `run_count=6`, `zero_input_count=2`, `scanned=12`, `signals=0`, `policy_results=0`.
+
+Result:
+
+- Calibration breadth now includes a bounded multi-day equity/options substrate. The remaining gap is still scale and reviewed labels, not input path viability.

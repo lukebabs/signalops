@@ -121,3 +121,8 @@ Recommended next gate:
 
 - G101: bounded options daily ingestion/campaign expansion and calibration summary refresh.
 - Specification: `G101_bounded_options_campaign_expansion.md`.
+
+## G102 Implemented
+
+- G102: bounded multi-day equity and options ingestion/campaign expansion with refreshed calibration summaries.
+- Specification: `G102_bounded_multiday_campaign_expansion.md`.
