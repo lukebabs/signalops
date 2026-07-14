@@ -7431,3 +7431,23 @@ Validation performed:
 Result:
 
 - The next execution step is operational: replace the Massive API key with a valid key, run `scripts/marketops_calibration_ingest_smoke.sh`, then confirm `GET /v1/marketops/backtest-coverage` returns at least one data-bearing MarketOps row before launching broader G095 campaigns.
+
+## Gate G098: Massive Credential Preflight
+
+Timestamp: `2026-07-14T17:35:00Z`
+
+Status: `implemented - operator script and ingestion-smoke integration validated`
+
+Scope:
+
+- Add a preflight step that checks the explicit Massive credential before starting Compose ingestion services.
+- Keep credential provisioning, synthetic data, direct DB writes, policy deployment, and detector mutation out of scope.
+
+Validation performed:
+
+- Shell syntax validation passed for the preflight and ingestion smoke scripts.
+- Preflight exited before Compose startup with HTTP `401`, confirming the current configured key is present but rejected by Massive.
+
+Result:
+
+- Invalid provider credentials are now isolated before ingestion pipeline validation. The next operational step remains replacing the Massive key, then rerunning `scripts/marketops_calibration_ingest_smoke.sh`.

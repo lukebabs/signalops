@@ -9,10 +9,12 @@ G096 proved that G095 campaigns are empty because no normalized MarketOps rows e
 ## Implemented Scope
 
 - Pass database and temporal database URLs into the one-shot `massive-puller` Compose service so published raw events can be persisted when storage is configured.
+- Add `scripts/marketops_massive_credential_preflight.sh`, a guarded Massive credential check that runs before local services are started.
 - Add `scripts/marketops_calibration_ingest_smoke.sh`, a guarded smoke script that:
   - sources `.env`;
   - fails before provider access if no explicit Massive API key is present;
-  - starts existing normalizer/worker/persister services;
+  - runs credential preflight unless `MARKETOPS_INGEST_SKIP_PREFLIGHT=true`;
+  - starts existing normalizer/worker/persister services only after preflight passes;
   - runs the existing Massive puller with one-company/one-event publish bounds by default, independent of broader `SIGNALOPS_MASSIVE_*` defaults in `.env`.
 - Document the runbook under MarketOps operations.
 

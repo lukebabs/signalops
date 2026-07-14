@@ -6344,3 +6344,17 @@ Validation performed:
 - `bash -n scripts/marketops_calibration_ingest_smoke.sh`: passed.
 - `docker compose -f compose.yaml -f compose.traefik.yaml --profile massive-pull config --quiet`: passed.
 - `scripts/marketops_calibration_ingest_smoke.sh`: executed with bounded defaults: `datasets=equity`, `max_companies=1`, `max_provider_requests=1`, `max_events_published=1`, `max_retries=0`; Massive returned HTTP `401`, so no events were built or published.
+
+## 2026-07-14T17:35:00Z
+
+Summary:
+
+- Implemented G098 Massive credential preflight after G097 showed the configured key is rejected with HTTP `401`.
+- Added `scripts/marketops_massive_credential_preflight.sh` for a single bounded provider auth check that ignores generic `API_KEY`.
+- Updated the bounded ingestion smoke to run credential preflight before starting Compose services, unless explicitly bypassed with `MARKETOPS_INGEST_SKIP_PREFLIGHT=true`.
+
+Validation performed:
+
+- `bash -n scripts/marketops_massive_credential_preflight.sh`: passed.
+- `bash -n scripts/marketops_calibration_ingest_smoke.sh`: passed.
+- `scripts/marketops_massive_credential_preflight.sh`: exited before Compose startup with HTTP `401`, confirming the configured key is present but rejected by Massive.

@@ -37,6 +37,10 @@ max_events_published="${MARKETOPS_INGEST_SMOKE_MAX_EVENTS_PUBLISHED:-1}"
 printf 'MarketOps calibration ingest smoke: date=%s datasets=%s max_companies=%s max_events_published=%s\n' \
   "$observation_date" "$datasets" "$max_companies" "$max_events_published"
 
+if [[ "${MARKETOPS_INGEST_SKIP_PREFLIGHT:-false}" != "true" ]]; then
+  MARKETOPS_MASSIVE_PREFLIGHT_DATE="$observation_date" scripts/marketops_massive_credential_preflight.sh
+fi
+
 docker compose -f compose.yaml -f compose.traefik.yaml up -d normalizer raw-worker signal-persister
 
 docker compose -f compose.yaml -f compose.traefik.yaml --profile massive-pull run --rm \

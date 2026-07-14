@@ -101,3 +101,8 @@ Recommended next gate:
 
 - G097: bounded Massive ingestion smoke path for creating normalized MarketOps input through the existing raw/normalizer pipeline.
 - Specification: `G097_backtest_input_ingestion_smoke.md`.
+
+## G098 Implemented
+
+- G098: Massive credential preflight before bounded ingestion smoke.
+- Specification: `G098_massive_credential_preflight.md`.

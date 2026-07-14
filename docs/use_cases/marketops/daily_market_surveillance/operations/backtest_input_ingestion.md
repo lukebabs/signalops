@@ -8,7 +8,23 @@ Set one of these in `.env` or the shell environment before running a live provid
 
 - `SIGNALOPS_MASSIVE_API_KEY`
 - `MASSIVE_API_KEY`
-The smoke script intentionally ignores generic `API_KEY` so unrelated credentials are not used by accident. It fails before provider access when no explicit key is present.
+The smoke script and credential preflight intentionally ignore generic `API_KEY` so unrelated credentials are not used by accident. They fail before provider access when no explicit key is present.
+
+## Credential Preflight
+
+Run this before starting a live ingestion smoke:
+
+```bash
+scripts/marketops_massive_credential_preflight.sh
+```
+
+Defaults:
+
+- symbol: `NVDA` unless `MARKETOPS_MASSIVE_PREFLIGHT_SYMBOL` is set
+- date: previous UTC day unless `MARKETOPS_MASSIVE_PREFLIGHT_DATE`, `MARKETOPS_INGEST_SMOKE_DATE`, or `SIGNALOPS_MASSIVE_OBSERVATION_DATE` is set
+- base URL: `https://api.massive.com` unless `SIGNALOPS_MASSIVE_BASE_URL` is set
+
+HTTP `401` or `403` means the configured key is present but Massive rejected it. No Compose services are started by this preflight.
 
 ## Bounded Smoke
 
@@ -32,7 +48,7 @@ Default behavior:
 
 Provider HTTP `401` means a credential was present but Massive rejected it. Replace the key before retrying.
 
-The script starts the existing `normalizer`, `raw-worker`, and `signal-persister` services, then runs the existing Compose `massive-puller` profile. The puller publishes canonical raw events to Redpanda; the normalizer creates `normalized_event_ledger` rows; downstream workers may produce signals if thresholds are crossed.
+The script runs the credential preflight first, unless `MARKETOPS_INGEST_SKIP_PREFLIGHT=true` is set. After preflight passes, it starts the existing `normalizer`, `raw-worker`, and `signal-persister` services, then runs the existing Compose `massive-puller` profile. The puller publishes canonical raw events to Redpanda; the normalizer creates `normalized_event_ledger` rows; downstream workers may produce signals if thresholds are crossed.
 
 ## Verification
 
