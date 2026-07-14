@@ -6073,3 +6073,20 @@ Validation performed:
 - Authenticated forced Ask route call returned HTTP `200`, `ask_status=completed`, `updated=true`, `direct_reasoning=true`, `graph_enabled=false`, `kee_enabled=false`, and explanation length `520`.
 - Persisted insight `synins_75c6d92b51d37352e0e57f00` records completed Ask metadata, direct reasoning enabled, graph/KEE disabled, and `recommendation.source=syncratic_ask`.
 - Authenticated rerun returned HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.
+
+## 2026-07-14T00:00:00Z
+
+Summary:
+
+- Improved G090 Syncratic Ask prompt quality after a generic response restated context counts and signal names without useful interpretation.
+- Added compact signal-detail evidence to the bounded Ask context: severity, confidence, metrics, event ids, entities, short evidence summaries, and subject-mismatch hints.
+- Added `analysis_mode=data_quality_blocked` so mismatched evidence leads to a data-quality warning instead of cross-symbol market interpretation.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/syncratic/userapi -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `docker compose build --no-cache gateway && docker compose up -d gateway`: passed; Docker build ran `go test ./...`.
+- Authenticated forced Ask route call returned HTTP `200`, `ask_status=completed`, `updated=true`, `prompt_bytes=9709`, and `direct_reasoning=true`.
+- Persisted explanation for `synins_75c6d92b51d37352e0e57f00` now begins `Data Quality Warning: Subject Mismatch Detected` and states that AAPL/SPY evidence does not support context subject MS.
+- Authenticated rerun returned HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.

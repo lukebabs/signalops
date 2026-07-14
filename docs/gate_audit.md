@@ -7035,3 +7035,27 @@ Validation performed:
 Result:
 
 - G090 now uses the explicit Syncratic direct-reasoning contract instead of relying only on prompt wording to suppress corpus retrieval, and the path is validated against the live local gateway.
+
+## Gate G090: Ask Prompt Quality And Evidence Blocking
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `validated — Ask response blocks unsupported evidence instead of generic interpretation`
+
+Scope:
+
+- Improve Syncratic Ask output quality by supplying compact per-signal evidence details and explicit quality checks.
+- Keep the route bounded, direct-reasoning only, no Search/corpus retrieval, no ingestion, no graph/KEE retrieval, and no frontend changes.
+
+Validation performed:
+
+- Targeted API/userapi tests passed.
+- Full Go suite passed.
+- Gateway no-cache rebuild passed; Docker build also ran `go test ./...`.
+- Authenticated forced Ask route call returned HTTP `200`, `ask_status=completed`, `updated=true`, `prompt_bytes=9709`, and `direct_reasoning=true`.
+- Persisted explanation for `synctx_47bccf8af8af03a15d4c0d3f` now leads with `Data Quality Warning: Subject Mismatch Detected`, states AAPL/SPY evidence does not support MS, and avoids market-impact claims.
+- Authenticated rerun returned HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.
+
+Result:
+
+- G090 Ask quality is materially improved for this evidence set: the reasoning layer now surfaces evidence-context mismatch rather than producing a generic market summary.

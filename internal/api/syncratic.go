@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -324,7 +325,11 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 	if tenantID != "" && tenantID != contextWindow.TenantID {
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, fmt.Errorf("tenant_id does not match context window")
 	}
-	prompt, promptMeta, err := buildSyncraticAskPrompt(contextWindow, req)
+	signalDetails, missingSignalDetails, err := syncraticAskSignalDetails(ctx, repo, contextWindow, 5)
+	if err != nil {
+		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
+	}
+	prompt, promptMeta, err := buildSyncraticAskPrompt(contextWindow, req, signalDetails, missingSignalDetails)
 	if err != nil {
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
 	}
@@ -341,7 +346,7 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 	graphEnabled := false
 	keeEnabled := false
 	askResp, err := askClient.Ask(ctx, userapi.AskRequest{
-		Question:        "Explain this deterministic SignalOps MarketOps context window using only the caller-supplied external context.",
+		Question:        "Interpret this deterministic SignalOps MarketOps context window for an operator. Rank the strongest drivers, explain why the cluster matters now, call out contradictions or weak evidence, and recommend next checks using only the caller-supplied external context.",
 		Scope:           defaultSyncraticAskScope,
 		K:               1,
 		ThreadMode:      "off",
@@ -376,7 +381,205 @@ type syncraticAskPromptMeta struct {
 	PromptBytes           int
 }
 
-func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord, req syncraticAskRequest) (string, syncraticAskPromptMeta, error) {
+type syncraticAskSignalDetail struct {
+	SignalID             string          `json:"signal_id"`
+	SignalType           string          `json:"signal_type"`
+	DetectorID           string          `json:"detector_id"`
+	DetectorVersion      string          `json:"detector_version,omitempty"`
+	SignalTime           string          `json:"signal_time"`
+	WindowStart          string          `json:"window_start,omitempty"`
+	WindowEnd            string          `json:"window_end,omitempty"`
+	Severity             string          `json:"severity"`
+	Confidence           float64         `json:"confidence"`
+	EventIDs             []string        `json:"event_ids,omitempty"`
+	ArtifactIDs          []string        `json:"artifact_ids,omitempty"`
+	Entities             json.RawMessage `json:"entities,omitempty"`
+	SupportingMetrics    json.RawMessage `json:"supporting_metrics,omitempty"`
+	EvidenceSummaries    []string        `json:"evidence_summaries,omitempty"`
+	SubjectMismatchHints []string        `json:"subject_mismatch_hints,omitempty"`
+}
+
+func syncraticAskSignalDetails(ctx context.Context, repo storage.QueryRepository, contextWindow storage.SyncraticContextWindowRecord, maxDetails int) ([]syncraticAskSignalDetail, []string, error) {
+	if maxDetails <= 0 || len(contextWindow.SignalIDs) == 0 {
+		return nil, nil, nil
+	}
+	details := []syncraticAskSignalDetail{}
+	missing := []string{}
+	for _, signalID := range limitStrings(contextWindow.SignalIDs, maxDetails) {
+		record, err := repo.GetSignalLedger(ctx, signalID)
+		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				missing = append(missing, signalID)
+				continue
+			}
+			return nil, nil, err
+		}
+		details = append(details, syncraticAskSignalDetail{
+			SignalID:             record.SignalID,
+			SignalType:           record.SignalType,
+			DetectorID:           record.DetectorID,
+			DetectorVersion:      record.DetectorVersion,
+			SignalTime:           record.SignalTime.UTC().Format(time.RFC3339),
+			WindowStart:          optionalTime(record.WindowStart),
+			WindowEnd:            optionalTime(record.WindowEnd),
+			Severity:             record.Severity,
+			Confidence:           record.Confidence,
+			EventIDs:             limitStrings(record.EventIDs, 5),
+			ArtifactIDs:          limitStrings(record.ArtifactIDs, 5),
+			Entities:             validJSONRaw(record.EntitiesJSON),
+			SupportingMetrics:    validJSONRaw(record.SupportingMetrics),
+			EvidenceSummaries:    compactEvidenceSummaries(record.EvidenceJSON, 2),
+			SubjectMismatchHints: signalSubjectMismatchHints(contextWindow.SubjectSymbol, record),
+		})
+	}
+	return details, missing, nil
+}
+
+func optionalTime(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.UTC().Format(time.RFC3339)
+}
+
+func validJSONRaw(raw []byte) json.RawMessage {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return nil
+	}
+	return json.RawMessage(raw)
+}
+
+func syncraticAskAnalysisMode(details []syncraticAskSignalDetail) string {
+	for _, detail := range details {
+		if len(detail.SubjectMismatchHints) > 0 {
+			return "data_quality_blocked"
+		}
+	}
+	return "market_interpretation_allowed"
+}
+
+func syncraticAskDataQualityChecks(details []syncraticAskSignalDetail, missing []string) map[string]any {
+	mismatchSignals := []map[string]any{}
+	for _, detail := range details {
+		if len(detail.SubjectMismatchHints) > 0 {
+			mismatchSignals = append(mismatchSignals, map[string]any{"signal_id": detail.SignalID, "hints": detail.SubjectMismatchHints})
+		}
+	}
+	return map[string]any{"subject_mismatch_count": len(mismatchSignals), "subject_mismatch_signals": mismatchSignals, "missing_signal_detail_count": len(missing)}
+}
+
+func signalSubjectMismatchHints(subject string, record storage.SignalLedgerRecord) []string {
+	subject = strings.ToUpper(strings.TrimSpace(subject))
+	if subject == "" {
+		return nil
+	}
+	symbols := map[string]struct{}{}
+	collectJSONSymbols(record.EntitiesJSON, symbols)
+	collectJSONSymbols(record.EvidenceJSON, symbols)
+	collectJSONSymbols(record.SemanticEvidenceJSON, symbols)
+	hints := []string{}
+	for _, candidate := range []string{"AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "MS"} {
+		if candidate != subject && jsonTextMentionsSymbol(record.EvidenceJSON, candidate) {
+			symbols[candidate] = struct{}{}
+		}
+	}
+	for symbol := range symbols {
+		if symbol != "" && symbol != subject {
+			hints = append(hints, fmt.Sprintf("context subject is %s but signal/evidence mentions %s", subject, symbol))
+		}
+	}
+	sort.Strings(hints)
+	return hints
+}
+
+func compactEvidenceSummaries(raw []byte, limit int) []string {
+	if limit <= 0 || len(raw) == 0 || !json.Valid(raw) {
+		return nil
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil
+	}
+	summaries := []string{}
+	collectEvidenceSummaries(value, &summaries, limit)
+	return summaries
+}
+
+func collectEvidenceSummaries(value any, summaries *[]string, limit int) {
+	if len(*summaries) >= limit {
+		return
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		if summary, ok := typed["summary"].(string); ok {
+			if text := strings.TrimSpace(summary); text != "" {
+				*summaries = append(*summaries, truncateText(text, 180))
+			}
+		}
+		for _, child := range typed {
+			collectEvidenceSummaries(child, summaries, limit)
+			if len(*summaries) >= limit {
+				return
+			}
+		}
+	case []any:
+		for _, child := range typed {
+			collectEvidenceSummaries(child, summaries, limit)
+			if len(*summaries) >= limit {
+				return
+			}
+		}
+	}
+}
+
+func truncateText(text string, maxLen int) string {
+	if maxLen <= 0 || len(text) <= maxLen {
+		return text
+	}
+	return strings.TrimSpace(text[:maxLen])
+}
+
+func jsonTextMentionsSymbol(raw []byte, symbol string) bool {
+	if len(raw) == 0 || symbol == "" {
+		return false
+	}
+	text := strings.ToUpper(string(raw))
+	return strings.Contains(text, strings.ToUpper(symbol))
+}
+
+func collectJSONSymbols(raw []byte, out map[string]struct{}) {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return
+	}
+	collectSymbols(value, out)
+}
+
+func collectSymbols(value any, out map[string]struct{}) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			lower := strings.ToLower(key)
+			if lower == "symbol" || lower == "ticker" || lower == "subject_symbol" {
+				if text, ok := child.(string); ok {
+					if symbol := strings.ToUpper(strings.TrimSpace(text)); symbol != "" {
+						out[symbol] = struct{}{}
+					}
+				}
+			}
+			collectSymbols(child, out)
+		}
+	case []any:
+		for _, child := range typed {
+			collectSymbols(child, out)
+		}
+	}
+}
+
+func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord, req syncraticAskRequest, signalDetails []syncraticAskSignalDetail, missingSignalDetails []string) (string, syncraticAskPromptMeta, error) {
 	version := firstNonEmpty(strings.TrimSpace(req.PromptBuilderVersion), defaultSyncraticAskPromptVersion)
 	maxPromptBytes := req.MaxPromptBytes
 	if maxPromptBytes <= 0 {
@@ -388,20 +591,40 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 	if maxPromptBytes > 24000 {
 		maxPromptBytes = 24000
 	}
-	caps := map[string]int{"max_alert_ids": 20, "max_signal_ids": 20, "max_event_ids": 20, "max_artifact_ids": 20, "max_graph_proposal_ids": 20, "max_label_ids": 20, "max_prompt_bytes": maxPromptBytes}
+	caps := map[string]int{"max_alert_ids": 20, "max_signal_ids": 20, "max_signal_details": 5, "max_event_ids": 20, "max_artifact_ids": 20, "max_graph_proposal_ids": 20, "max_label_ids": 20, "max_prompt_bytes": maxPromptBytes}
 	payload := map[string]any{
 		"prompt_builder_version": version,
-		"instructions":           []string{"You are a non-human reasoning client.", "Do not retrieve documents or use external knowledge.", "Use only the JSON context provided in this request.", "If the context has signals, produce a useful MarketOps explanation instead of UNKNOWN.", "Do not invent prices, filings, news, recommendations, or unlisted events.", "Distinguish deterministic evidence from generated interpretation.", "Return concise operational relevance and uncertainty notes."},
-		"context_metadata":       map[string]any{"tenant_id": contextWindow.TenantID, "app_id": contextWindow.AppID, "domain": contextWindow.Domain, "use_case": contextWindow.UseCase, "context_window_id": contextWindow.ContextWindowID, "subject_symbol": contextWindow.SubjectSymbol, "subject_type": contextWindow.SubjectType, "subject_id": contextWindow.SubjectID, "window_start": contextWindow.WindowStart.UTC().Format(time.RFC3339), "window_end": contextWindow.WindowEnd.UTC().Format(time.RFC3339), "context_strategy": contextWindow.ContextStrategy, "context_builder_version": contextWindow.ContextBuilderVersion, "evidence_digest": contextWindow.EvidenceDigest},
-		"evidence_summary":       map[string]any{"signal_types": contextWindow.SignalTypes, "detector_ids": contextWindow.DetectorIDs, "summary_metrics": json.RawMessage(jsonOrDefault(contextWindow.SummaryMetricsJSON, `{}`)), "baseline_refs": json.RawMessage(jsonOrDefault(contextWindow.BaselineRefsJSON, `[]`)), "evaluation_refs": json.RawMessage(jsonOrDefault(contextWindow.EvaluationRefsJSON, `[]`)), "promotion_candidate_refs": json.RawMessage(jsonOrDefault(contextWindow.PromotionCandidateRefsJSON, `[]`))},
-		"evidence_ids":           map[string]any{"alerts": limitStrings(contextWindow.AlertIDs, caps["max_alert_ids"]), "signals": limitStrings(contextWindow.SignalIDs, caps["max_signal_ids"]), "events": limitStrings(contextWindow.EventIDs, caps["max_event_ids"]), "artifacts": limitStrings(contextWindow.ArtifactIDs, caps["max_artifact_ids"]), "graph_proposals": limitStrings(contextWindow.GraphProposalIDs, caps["max_graph_proposal_ids"]), "labels": limitStrings(contextWindow.LabelIDs, caps["max_label_ids"])},
-		"output_request":         []string{"title", "summary", "explanation", "recommendation.action one of observe, review, escalate, no_action", "uncertainty_notes", "cited_evidence_ids"},
+		"role":                   "MarketOps surveillance reasoning layer over deterministic SignalOps evidence.",
+		"instructions": []string{
+			"Use only the supplied JSON context; do not retrieve documents or use external knowledge.",
+			"Do not restate counts or IDs as the main explanation. Interpret the strongest evidence.",
+			"Rank top drivers only when analysis_mode is market_interpretation_allowed.",
+			"Explain why the combined signal cluster matters for the operator now.",
+			"If analysis_mode is data_quality_blocked, do not provide market top-driver interpretation; explain only why evidence cannot support the context subject and recommend evidence rematerialization or mapping review.",
+			"Call out contradictions, weak evidence, missing details, or subject-symbol mismatches.",
+			"Tie every claim to cited signal_ids, event_ids, metrics, or evidence summaries from the context.",
+			"If evidence is too thin, say so specifically instead of giving generic market commentary.",
+		},
+		"context_metadata":    map[string]any{"tenant_id": contextWindow.TenantID, "app_id": contextWindow.AppID, "domain": contextWindow.Domain, "use_case": contextWindow.UseCase, "context_window_id": contextWindow.ContextWindowID, "subject_symbol": contextWindow.SubjectSymbol, "subject_type": contextWindow.SubjectType, "subject_id": contextWindow.SubjectID, "window_start": contextWindow.WindowStart.UTC().Format(time.RFC3339), "window_end": contextWindow.WindowEnd.UTC().Format(time.RFC3339), "context_strategy": contextWindow.ContextStrategy, "context_builder_version": contextWindow.ContextBuilderVersion, "evidence_digest": contextWindow.EvidenceDigest},
+		"evidence_summary":    map[string]any{"signal_types": contextWindow.SignalTypes, "detector_ids": contextWindow.DetectorIDs, "summary_metrics": json.RawMessage(jsonOrDefault(contextWindow.SummaryMetricsJSON, `{}`)), "baseline_refs": json.RawMessage(jsonOrDefault(contextWindow.BaselineRefsJSON, `[]`)), "evaluation_refs": json.RawMessage(jsonOrDefault(contextWindow.EvaluationRefsJSON, `[]`)), "promotion_candidate_refs": json.RawMessage(jsonOrDefault(contextWindow.PromotionCandidateRefsJSON, `[]`))},
+		"evidence_ids":        map[string]any{"alerts": limitStrings(contextWindow.AlertIDs, caps["max_alert_ids"]), "signals": limitStrings(contextWindow.SignalIDs, caps["max_signal_ids"]), "events": limitStrings(contextWindow.EventIDs, caps["max_event_ids"]), "artifacts": limitStrings(contextWindow.ArtifactIDs, caps["max_artifact_ids"]), "graph_proposals": limitStrings(contextWindow.GraphProposalIDs, caps["max_graph_proposal_ids"]), "labels": limitStrings(contextWindow.LabelIDs, caps["max_label_ids"])},
+		"evidence_details":    map[string]any{"signals": signalDetails, "missing_signal_detail_ids": missingSignalDetails, "omitted_signal_detail_count": max(0, len(contextWindow.SignalIDs)-caps["max_signal_details"])},
+		"data_quality_checks": syncraticAskDataQualityChecks(signalDetails, missingSignalDetails),
+		"output_contract": []string{
+			"title: concise finding, not the context_window_id",
+			"summary: one sentence stating the operator-relevant pattern",
+			"top_drivers: if analysis_mode=data_quality_blocked, write none; otherwise ranked bullets with signal_id, type, severity, confidence, key metrics, and why it matters",
+			"explanation: synthesize the cluster; do not merely list signal names",
+			"quality_warnings: put first when subject_mismatch_hints exist; state that affected evidence cannot support the context subject",
+			"recommendation: action one of observe, review, escalate, no_action plus next checks",
+			"uncertainty_notes and cited_evidence_ids",
+		},
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return "", syncraticAskPromptMeta{}, err
 	}
-	prompt := "You are a non-human reasoning client. Do not retrieve documents. Use only the JSON context below. If the context has signals, produce a useful MarketOps explanation instead of UNKNOWN. Return: title, summary, explanation, recommendation, uncertainty_notes.\nCONTEXT_JSON:\n" + string(raw)
+	prompt := "You are a non-human MarketOps reasoning client. Produce operator-useful interpretation, not a generic summary. If analysis_mode is data_quality_blocked, lead with DATA QUALITY WARNING, do not infer that one ticker impacts another, do not describe market impact, and make the recommendation about evidence remediation rather than trading/market action. Use only the JSON context below. Return the requested fields and cite evidence IDs.\nCONTEXT_JSON:\n" + string(raw)
 	if len(prompt) > maxPromptBytes {
 		return "", syncraticAskPromptMeta{}, fmt.Errorf("prompt exceeds max_prompt_bytes")
 	}

@@ -260,7 +260,12 @@ func (q *fakeQueryRepository) GetNormalizedEventLedger(context.Context, string) 
 func (q *fakeQueryRepository) ListSignalLedger(context.Context, storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
 	return q.signals, nil
 }
-func (q *fakeQueryRepository) GetSignalLedger(context.Context, string) (storage.SignalLedgerRecord, error) {
+func (q *fakeQueryRepository) GetSignalLedger(_ context.Context, signalID string) (storage.SignalLedgerRecord, error) {
+	for _, signal := range q.signals {
+		if signal.SignalID == signalID {
+			return signal, nil
+		}
+	}
 	return storage.SignalLedgerRecord{}, storage.ErrNotFound
 }
 
@@ -2598,21 +2603,21 @@ func TestPostSyncraticMaterializeSkipsUnchangedEvidenceDigest(t *testing.T) {
 
 func TestBuildSyncraticAskPromptIsStableAndCapped(t *testing.T) {
 	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalTypes: []string{"b", "a"}, DetectorIDs: []string{"det-1"}, SignalIDs: []string{"sig-3", "sig-1", "sig-2"}, AlertIDs: []string{"alert-1"}, SummaryMetricsJSON: []byte(`{"signal_count":3,"alert_count":1}`), EvidenceDigest: "digest"}
-	prompt1, meta1, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000})
+	prompt1, meta1, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000}, []syncraticAskSignalDetail{{SignalID: "sig-1", SignalType: "marketops.dsm.volatility_expansion", Severity: "high", Confidence: 0.91, SupportingMetrics: json.RawMessage(`{"daily_return_pct":6.9}`)}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	prompt2, meta2, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000})
+	prompt2, meta2, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000}, []syncraticAskSignalDetail{{SignalID: "sig-1", SignalType: "marketops.dsm.volatility_expansion", Severity: "high", Confidence: 0.91, SupportingMetrics: json.RawMessage(`{"daily_return_pct":6.9}`)}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if prompt1 != prompt2 || meta1.PromptDigest != meta2.PromptDigest || meta1.PromptBuilderVersion != defaultSyncraticAskPromptVersion {
 		t.Fatalf("prompt not stable meta1=%+v meta2=%+v", meta1, meta2)
 	}
-	if !strings.Contains(prompt1, "non-human reasoning client") || !strings.Contains(prompt1, "instead of UNKNOWN") || !strings.Contains(prompt1, "synctx-test") || !strings.Contains(prompt1, "digest") {
+	if !strings.Contains(prompt1, "operator-useful interpretation") || !strings.Contains(prompt1, "top_drivers") || !strings.Contains(prompt1, "daily_return_pct") || !strings.Contains(prompt1, "synctx-test") || !strings.Contains(prompt1, "digest") {
 		t.Fatalf("prompt missing required context: %s", prompt1)
 	}
-	if _, _, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 999}); err == nil {
+	if _, _, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 999}, nil, nil); err == nil {
 		t.Fatal("expected max_prompt_bytes validation error")
 	}
 }
@@ -2620,7 +2625,7 @@ func TestBuildSyncraticAskPromptIsStableAndCapped(t *testing.T) {
 func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T) {
 	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1", "sig-aapl-2"}, AlertIDs: []string{"alert-aapl-1"}, EventIDs: []string{"evt-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":2,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
-	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{insight}}
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{insight}, signals: []storage.SignalLedgerRecord{{SignalID: "sig-aapl-1", SignalType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", Severity: "high", Confidence: 0.91, EventIDs: []string{"evt-aapl-1"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`), SupportingMetrics: []byte(`{"daily_return_pct":6.9,"intraday_range_pct":13}`), EvidenceJSON: []byte(`[{"summary":"volatility expansion threshold crossed"}]`)}}}
 	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-1", Answer: "Generated Syncratic Ask explanation for AAPL.", Confidence: userapi.NumericFloat(0.91), EvidenceCount: 3, Raw: []byte(`{"title":"Ask title","summary":"Ask summary","action":"review"}`)}}
 	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
 	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-test/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
@@ -2655,13 +2660,18 @@ func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T)
 
 func TestPostSyncraticContextWindowAskSkipsUnchangedEvidence(t *testing.T) {
 	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1"}, AlertIDs: []string{"alert-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":1,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active"}
-	_, meta, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000})
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}}
+	details, missing, err := syncraticAskSignalDetails(context.Background(), repo, cw, 12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, meta, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000}, details, missing)
 	if err != nil {
 		t.Fatal(err)
 	}
 	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
 	insight.MetricsJSON = mustJSON(map[string]any{"syncratic_ask": map[string]any{"ask_status": "completed", "prompt_digest": meta.PromptDigest, "context_evidence_digest": meta.ContextEvidenceDigest}})
-	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{insight}}
+	repo.syncraticInsights = []storage.SyncraticInsightRecord{insight}
 	ask := &fakeSyncraticAskClient{}
 	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
 	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-test/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
