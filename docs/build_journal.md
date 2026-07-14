@@ -6107,3 +6107,16 @@ Validation performed:
 - Direct authenticated `POST /v1/syncratic/context-windows` for `MS`: HTTP `400 empty_context_window`, confirming impure AAPL/SPY evidence is excluded.
 - Direct authenticated `POST /v1/syncratic/context-windows` for `AAPL`: HTTP `201`, `signal_count=10`.
 - Authenticated materialization scan over 10 assets: `materialized_context_windows=1`, `skipped_below_threshold=9` after purity filtering.
+
+## 2026-07-14T00:00:00Z
+
+Summary:
+
+- Wrote the frontend-agent specification for the G090 Syncratic Ask quality UI follow-up.
+- Scoped the handoff to presentation and operator workflow only: Ask metadata, generated-vs-deterministic distinction, data-quality warning display, operator-triggered Ask/regenerate, skip handling, and empty-context messaging.
+- Explicitly excluded external Syncratic browser calls, batch Ask generation, ingestion, graph writes, alert lifecycle mutation, detector changes, and policy deployment.
+
+Validation performed:
+
+- Documentation readback completed.
+- `git diff --check`: pending final check in this turn.

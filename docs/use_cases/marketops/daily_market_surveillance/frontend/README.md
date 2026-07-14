@@ -20,3 +20,4 @@ Current notes:
 - `../../../../frontend/marketops_graph_proposals_readonly_spec.md`: frontend-agent handoff for G079 read-only graph proposal visibility.
 - `../../../../frontend/marketops_backtests_ui_spec.md`: frontend-agent handoff for G081 isolated back-test run creation and review UI.
 - `../../../../frontend/syncratic_context_windows_ui_spec.md`: frontend-agent handoff for G089 Syncratic context windows and synthesized insights UI.
+- `../../../../frontend/syncratic_ask_quality_ui_spec.md`: frontend-agent handoff for G090 Ask metadata, data-quality warning, and operator-triggered Ask UI.

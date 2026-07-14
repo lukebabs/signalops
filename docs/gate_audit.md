@@ -7083,3 +7083,19 @@ Validation performed:
 Result:
 
 - The system now prevents the root cause of the earlier Syncratic data-quality warning: a subject context cannot silently absorb evidence whose details reference another known ticker.
+
+## Frontend-Agent Spec: Syncratic Ask Quality UI
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `specification ready for frontend-agent`
+
+Scope:
+
+- Define the UI follow-up for G090 Ask metadata, data-quality warnings, and operator-triggered Ask/regenerate behavior.
+- Keep frontend scope on same-origin `/v1/syncratic/*` APIs and existing auth/client patterns.
+- Exclude external Syncratic user API calls, batch Ask generation, ingestion, graph writes, alert lifecycle mutation, detector changes, and policy deployment.
+
+Result:
+
+- Specification saved at `docs/frontend/syncratic_ask_quality_ui_spec.md` and indexed from the MarketOps frontend README.
