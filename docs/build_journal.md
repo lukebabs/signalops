@@ -6187,3 +6187,22 @@ Validation performed:
 - `git status --short`: clean before documentation closeout.
 - `git log -8 --oneline`: confirmed the G092 implementation and follow-up fix commits are present.
 - Source scan found G092 materialization preview types, API tests, helper tests, and UI helper markers under `web/src`.
+
+## 2026-07-14T00:00:00Z
+
+Summary:
+
+- Completed G092 frontend validation and redeployed the web container.
+- Verified frontend tests and production build pass after the G092 materialization preview implementation.
+- Rebuilt/restarted `signalops-web-1` from `compose.yaml` + `compose.traefik.yaml` and validated the `/marketops/syncratic` route is served.
+- Exercised the G092 materialization calls through the web origin so the same-origin frontend proxy path is covered.
+
+Validation performed:
+
+- `cd web && npm test`: passed, `19` test files and `243` tests.
+- `cd web && npm run build`: passed.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d --build web`: passed; the web image build also ran `npm run build`.
+- `GET http://localhost:15173/marketops/syncratic`: HTTP `200`.
+- Authenticated same-origin dry-run `POST http://localhost:15173/v1/syncratic/materialize`: HTTP `200`, `dry_run=true`, `scanned_assets=10`, `decisions=10`, `materialized_context_windows=0`, `materialized_insights=0`, `skipped_below_threshold=9`, `skipped_unchanged=1`.
+- Authenticated same-origin confirmed write `POST http://localhost:15173/v1/syncratic/materialize`: HTTP `201`, `materialized_context_windows=0`, `materialized_insights=0`, `skipped_unchanged=1`, AAPL decision `unchanged_evidence_digest`.
+- Web container request logs for the smoke showed `/v1/syncratic/materialize` and Syncratic insight list calls; no `/v1/syncratic/context-windows/{id}/ask` route was called by materialization.

@@ -7201,3 +7201,28 @@ Validation performed:
 Result:
 
 - G092 now has the frontend operator loop for G091 budgeted materialization preview and confirmed write UI implemented. Remaining work should move to the next explicitly selected gate rather than expanding G092.
+
+## Gate G092: Frontend Validation Closeout
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `validated - tests, build, deploy, route, and same-origin materialization smoke passed`
+
+Scope:
+
+- Validate the G092 Syncratic materialization preview UI implementation and deployed web container.
+- Cover frontend tests/build, web rebuild/restart, route availability, and same-origin API behavior used by the UI.
+- Keep validation limited to materialization preview/confirmed-write behavior; no backend changes, automatic Ask, Search, ingestion, graph writes, detector changes, policy deployment, or scheduler scope is added.
+
+Validation performed:
+
+- Frontend test suite passed: `19` files, `243` tests.
+- Frontend production build passed locally and during Docker image rebuild.
+- `signalops-web-1` rebuilt/restarted successfully and `/marketops/syncratic` returned HTTP `200`.
+- Authenticated same-origin dry-run materialization returned HTTP `200`, `decisions=10`, zero materialized rows, `skipped_below_threshold=9`, and `skipped_unchanged=1`.
+- Authenticated same-origin confirmed write returned HTTP `201`, zero new rows, and AAPL skipped with `reason=unchanged_evidence_digest`.
+- Web request logs for the smoke showed materialization/list calls and no automatic Ask route call.
+
+Result:
+
+- G092 is validated in the deployed local web path. The operator UI can call the budgeted materialization preview/write API through the same-origin web route without triggering Ask automatically.
