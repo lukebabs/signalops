@@ -895,7 +895,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "materialize_failed", err.Error())
 			return
 		}
-		writeJSON(w, http.StatusCreated, map[string]any{"materialization": result})
+		status := http.StatusCreated
+		if req.DryRun {
+			status = http.StatusOK
+		}
+		writeJSON(w, status, map[string]any{"materialization": result})
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtests/{run_id}", func(w http.ResponseWriter, r *http.Request) {

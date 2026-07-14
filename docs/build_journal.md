@@ -6133,3 +6133,16 @@ Validation performed:
 
 - `git status --short`: clean before documentation closeout.
 - `git log -5 --oneline`: confirmed `b5e5841 Implement Syncratic Ask quality UI (G090)` follows the frontend-agent specification commit.
+
+## 2026-07-14T00:00:00Z
+
+Summary:
+
+- Implemented G091 budgeted Syncratic materialization preview.
+- Extended `POST /v1/syncratic/materialize` with `dry_run` and per-asset `decisions[]` so operators can see which assets would materialize, skip, or hit budget caps before creating rows.
+- Kept Syncratic Ask operator-triggered; materialization still creates only deterministic context windows and synthesized insight rows in write mode.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.

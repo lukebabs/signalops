@@ -2598,6 +2598,83 @@ func TestPostSyncraticMaterializeRejectsSubjectMismatchedEvidence(t *testing.T) 
 	}
 }
 
+func TestPostSyncraticMaterializeDryRunReturnsDecisionPreview(t *testing.T) {
+	now := time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{
+		marketOpsAssets: []storage.MarketOpsAssetRecord{{TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "AAPL", IsActive: true}, {TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "MSFT", IsActive: true}},
+		signals: []storage.SignalLedgerRecord{
+			{SignalID: "sig-aapl-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-time.Hour), EventIDs: []string{"evt-aapl-1"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)},
+			{SignalID: "sig-aapl-2", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.price_quality_exception", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-2 * time.Hour), EventIDs: []string{"evt-aapl-2"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)},
+		},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"tenant_id":"tenant-1","universe_group":"top50_megacap","context_strategy":"symbol_signal_cluster_5d","window_start":"2026-07-12T00:00:00Z","window_end":"2026-07-14T00:00:00Z","min_evidence_count":2,"dry_run":true}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/materialize", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	materialization := response["materialization"]
+	if materialization["dry_run"] != true || materialization["candidate_windows"].(float64) != 1 || materialization["materialized_context_windows"].(float64) != 0 || materialization["skipped_below_threshold"].(float64) != 1 {
+		t.Fatalf("materialization = %#v", materialization)
+	}
+	decisions := materialization["decisions"].([]any)
+	if len(decisions) != 2 {
+		t.Fatalf("decisions = %#v", decisions)
+	}
+	first := decisions[0].(map[string]any)
+	second := decisions[1].(map[string]any)
+	if first["subject_symbol"] != "AAPL" || first["action"] != "would_materialize" || first["reason"] != "eligible" || second["action"] != "skipped" || second["reason"] != "below_threshold" {
+		t.Fatalf("decisions = %#v", decisions)
+	}
+	if len(repo.syncraticContextWindows) != 0 || len(repo.syncraticInsights) != 0 {
+		t.Fatalf("dry run persisted contexts=%+v insights=%+v", repo.syncraticContextWindows, repo.syncraticInsights)
+	}
+}
+
+func TestPostSyncraticMaterializeDryRunAppliesMaterializationBudget(t *testing.T) {
+	now := time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{
+		marketOpsAssets: []storage.MarketOpsAssetRecord{{TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "AAPL", IsActive: true}, {TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "MSFT", IsActive: true}},
+		signals: []storage.SignalLedgerRecord{
+			{SignalID: "sig-aapl-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-time.Hour), EventIDs: []string{"evt-aapl-1"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)},
+			{SignalID: "sig-aapl-2", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.price_quality_exception", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-2 * time.Hour), EventIDs: []string{"evt-aapl-2"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)},
+			{SignalID: "sig-msft-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-time.Hour), EventIDs: []string{"evt-msft-1"}, EntitiesJSON: []byte(`[{"symbol":"MSFT"}]`)},
+			{SignalID: "sig-msft-2", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.price_quality_exception", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-2 * time.Hour), EventIDs: []string{"evt-msft-2"}, EntitiesJSON: []byte(`[{"symbol":"MSFT"}]`)},
+		},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"tenant_id":"tenant-1","universe_group":"top50_megacap","context_strategy":"symbol_signal_cluster_5d","window_start":"2026-07-12T00:00:00Z","window_end":"2026-07-14T00:00:00Z","min_evidence_count":2,"max_context_windows":1,"max_insights":1,"dry_run":true}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/materialize", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	materialization := response["materialization"]
+	if materialization["candidate_windows"].(float64) != 2 || materialization["skipped_budget_cap"].(float64) != 1 {
+		t.Fatalf("materialization = %#v", materialization)
+	}
+	decisions := materialization["decisions"].([]any)
+	if decisions[0].(map[string]any)["action"] != "would_materialize" || decisions[1].(map[string]any)["reason"] != "materialization_budget_cap" {
+		t.Fatalf("decisions = %#v", decisions)
+	}
+	if len(repo.syncraticContextWindows) != 0 || len(repo.syncraticInsights) != 0 {
+		t.Fatalf("dry run persisted contexts=%+v insights=%+v", repo.syncraticContextWindows, repo.syncraticInsights)
+	}
+}
+
 func TestPostSyncraticMaterializeSkipsUnchangedEvidenceDigest(t *testing.T) {
 	now := time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
 	repo := &fakeQueryRepository{

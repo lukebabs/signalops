@@ -62,7 +62,12 @@ Recommended next gate:
 - G089: Syncratic Insights UI for G088 context windows and synthesized insights.
 - Specification: `../../../../frontend/syncratic_context_windows_ui_spec.md`.
 
-## G090 Proposed
+## G090 Implemented
 
 - G090: server-side Syncratic Ask enrichment for one bounded context window at a time, without Search enrichment or batch generation.
 - Specification: `G090_syncratic_ask_enrichment.md`.
+
+## G091 Implemented
+
+- G091: budgeted Syncratic context materialization with dry-run preview and per-asset decision audit.
+- Specification: `G091_budgeted_syncratic_materialization.md`.

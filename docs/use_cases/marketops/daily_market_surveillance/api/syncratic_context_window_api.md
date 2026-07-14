@@ -1,6 +1,6 @@
 # Syncratic Context Window API
 
-G088 adds deterministic Syncratic context windows and synthesized insights over existing SignalOps and MarketOps ledgers. G090 adds an optional server-side Syncratic Ask enrichment route for one bounded context window at a time.
+G088 adds deterministic Syncratic context windows and synthesized insights over existing SignalOps and MarketOps ledgers. G090 adds an optional server-side Syncratic Ask enrichment route for one bounded context window at a time. G091 adds budgeted dry-run materialization previews with per-asset decision audit.
 
 These APIs do not ingest external data, use Syncratic Search for enrichment, mutate alert lifecycle state, write graph state, deploy policies, or change detector thresholds.
 
@@ -23,6 +23,9 @@ Request fields:
 - `window_start` and `window_end` are RFC3339 timestamps.
 - `min_evidence_count` defaults to `2`.
 - `max_assets`, `max_candidate_windows`, `max_context_windows`, and `max_insights` cap work per request.
+- `dry_run` defaults to `false`; when `true`, the API returns a preview and does not write context windows or insights.
+
+Dry-run requests return `200 OK`; write-mode requests return `201 Created`.
 
 The response includes scan/materialization counters:
 
@@ -33,6 +36,10 @@ The response includes scan/materialization counters:
 - `skipped_below_threshold`
 - `skipped_unchanged`
 - `skipped_budget_cap`
+- `dry_run`
+- `decisions[]`
+
+Each `decisions[]` item explains one scanned asset with `subject_symbol`, `action`, `reason`, evidence counts, related-evidence flags, and candidate `context_window_id`/`evidence_digest` when available. Actions are `would_materialize`, `materialized`, or `skipped`. Reasons include `eligible`, `below_threshold`, `unchanged_evidence_digest`, `candidate_budget_cap`, and `materialization_budget_cap`.
 
 A rerun with the same evidence digest should increment `skipped_unchanged` and create no duplicate rows.
 

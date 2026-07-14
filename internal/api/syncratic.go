@@ -57,6 +57,7 @@ type syncraticMaterializeRequest struct {
 	MaxInsights           int    `json:"max_insights"`
 	SignalLimit           int    `json:"signal_limit"`
 	AlertLimit            int    `json:"alert_limit"`
+	DryRun                bool   `json:"dry_run"`
 }
 
 type syncraticAskRequest struct {
@@ -79,21 +80,39 @@ type syncraticAskResult struct {
 }
 
 type syncraticMaterializeResponse struct {
-	TenantID                   string    `json:"tenant_id"`
-	UniverseGroup              string    `json:"universe_group"`
-	ContextStrategy            string    `json:"context_strategy"`
-	ContextBuilderVersion      string    `json:"context_builder_version"`
-	WindowStart                time.Time `json:"window_start"`
-	WindowEnd                  time.Time `json:"window_end"`
-	ScannedAssets              int       `json:"scanned_assets"`
-	CandidateWindows           int       `json:"candidate_windows"`
-	MaterializedContextWindows int       `json:"materialized_context_windows"`
-	MaterializedInsights       int       `json:"materialized_insights"`
-	SkippedBelowThreshold      int       `json:"skipped_below_threshold"`
-	SkippedUnchanged           int       `json:"skipped_unchanged"`
-	SkippedBudgetCap           int       `json:"skipped_budget_cap"`
-	ContextWindowIDs           []string  `json:"context_window_ids"`
-	SyncraticInsightIDs        []string  `json:"syncratic_insight_ids"`
+	TenantID                   string                         `json:"tenant_id"`
+	UniverseGroup              string                         `json:"universe_group"`
+	ContextStrategy            string                         `json:"context_strategy"`
+	ContextBuilderVersion      string                         `json:"context_builder_version"`
+	WindowStart                time.Time                      `json:"window_start"`
+	WindowEnd                  time.Time                      `json:"window_end"`
+	DryRun                     bool                           `json:"dry_run"`
+	ScannedAssets              int                            `json:"scanned_assets"`
+	CandidateWindows           int                            `json:"candidate_windows"`
+	MaterializedContextWindows int                            `json:"materialized_context_windows"`
+	MaterializedInsights       int                            `json:"materialized_insights"`
+	SkippedBelowThreshold      int                            `json:"skipped_below_threshold"`
+	SkippedUnchanged           int                            `json:"skipped_unchanged"`
+	SkippedBudgetCap           int                            `json:"skipped_budget_cap"`
+	ContextWindowIDs           []string                       `json:"context_window_ids"`
+	SyncraticInsightIDs        []string                       `json:"syncratic_insight_ids"`
+	Decisions                  []syncraticMaterializeDecision `json:"decisions"`
+}
+
+type syncraticMaterializeDecision struct {
+	SubjectSymbol      string `json:"subject_symbol"`
+	Action             string `json:"action"`
+	Reason             string `json:"reason"`
+	EvidenceCount      int    `json:"evidence_count"`
+	SignalCount        int    `json:"signal_count"`
+	AlertCount         int    `json:"alert_count"`
+	ArtifactCount      int    `json:"artifact_count"`
+	GraphProposalCount int    `json:"graph_proposal_count"`
+	LabelCount         int    `json:"label_count"`
+	CriticalAlert      bool   `json:"critical_alert"`
+	RelatedEvidence    bool   `json:"related_evidence"`
+	EvidenceDigest     string `json:"evidence_digest,omitempty"`
+	ContextWindowID    string `json:"context_window_id,omitempty"`
 }
 
 type syncraticContextWindowDTO struct {
@@ -752,32 +771,48 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 	if err != nil {
 		return syncraticMaterializeResponse{}, err
 	}
-	resp := syncraticMaterializeResponse{TenantID: tenantID, UniverseGroup: universeGroup, ContextStrategy: strategy, ContextBuilderVersion: builderVersion, WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC()}
+	resp := syncraticMaterializeResponse{TenantID: tenantID, UniverseGroup: universeGroup, ContextStrategy: strategy, ContextBuilderVersion: builderVersion, WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), DryRun: req.DryRun}
+	criticalAlerts, err := repo.ListAlertLedger(ctx, storage.AlertLedgerFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Severity: "critical", Limit: alertLimitOrDefault(req.AlertLimit)})
+	if err != nil {
+		return resp, err
+	}
+	plannedContextWindows := 0
+	plannedInsights := 0
 	for _, asset := range assets {
 		resp.ScannedAssets++
+		decision := syncraticMaterializeDecision{SubjectSymbol: strings.ToUpper(strings.TrimSpace(asset.Ticker))}
 		if resp.CandidateWindows >= maxCandidates {
+			decision.Action = "skipped"
+			decision.Reason = "candidate_budget_cap"
 			resp.SkippedBudgetCap++
+			resp.Decisions = append(resp.Decisions, decision)
 			continue
 		}
 		contextWindow, err := buildSyncraticContextWindow(ctx, repo, tenantID, asset.Ticker, strategy, windowStart, windowEnd, builderVersion, nil, req.SignalLimit, req.AlertLimit)
 		if err != nil {
 			return resp, err
 		}
-		evidenceCount := len(contextWindow.SignalIDs) + len(contextWindow.AlertIDs)
-		critical := false
-		alerts, err := repo.ListAlertLedger(ctx, storage.AlertLedgerFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Severity: "critical", Limit: alertLimitOrDefault(req.AlertLimit)})
-		if err != nil {
-			return resp, err
-		}
-		for _, alert := range alerts {
+		decision.SubjectSymbol = contextWindow.SubjectSymbol
+		decision.SignalCount = len(contextWindow.SignalIDs)
+		decision.AlertCount = len(contextWindow.AlertIDs)
+		decision.ArtifactCount = len(contextWindow.ArtifactIDs)
+		decision.GraphProposalCount = len(contextWindow.GraphProposalIDs)
+		decision.LabelCount = len(contextWindow.LabelIDs)
+		decision.EvidenceCount = len(contextWindow.SignalIDs) + len(contextWindow.AlertIDs)
+		decision.EvidenceDigest = contextWindow.EvidenceDigest
+		decision.ContextWindowID = contextWindow.ContextWindowID
+		for _, alert := range criticalAlerts {
 			if timeInWindow(alert.LastObservedAt, windowStart, windowEnd) && recordEvidenceMatchesSymbol(asset.Ticker, alert.EntitiesJSON, alert.EvidenceJSON) {
-				critical = true
+				decision.CriticalAlert = true
 				break
 			}
 		}
-		related := len(contextWindow.GraphProposalIDs) > 0 || len(contextWindow.LabelIDs) > 0
-		if evidenceCount < minEvidence && !critical && !related {
+		decision.RelatedEvidence = len(contextWindow.GraphProposalIDs) > 0 || len(contextWindow.LabelIDs) > 0
+		if decision.EvidenceCount < minEvidence && !decision.CriticalAlert && !decision.RelatedEvidence {
+			decision.Action = "skipped"
+			decision.Reason = "below_threshold"
 			resp.SkippedBelowThreshold++
+			resp.Decisions = append(resp.Decisions, decision)
 			continue
 		}
 		resp.CandidateWindows++
@@ -793,11 +828,25 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 			}
 		}
 		if unchanged {
+			decision.Action = "skipped"
+			decision.Reason = "unchanged_evidence_digest"
 			resp.SkippedUnchanged++
+			resp.Decisions = append(resp.Decisions, decision)
 			continue
 		}
-		if resp.MaterializedContextWindows >= maxContexts || resp.MaterializedInsights >= maxInsights {
+		if plannedContextWindows >= maxContexts || plannedInsights >= maxInsights {
+			decision.Action = "skipped"
+			decision.Reason = "materialization_budget_cap"
 			resp.SkippedBudgetCap++
+			resp.Decisions = append(resp.Decisions, decision)
+			continue
+		}
+		if req.DryRun {
+			plannedContextWindows++
+			plannedInsights++
+			decision.Action = "would_materialize"
+			decision.Reason = "eligible"
+			resp.Decisions = append(resp.Decisions, decision)
 			continue
 		}
 		if err := repo.UpsertSyncraticContextWindow(ctx, contextWindow); err != nil {
@@ -807,10 +856,15 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 		if err := repo.UpsertSyncraticInsight(ctx, insight); err != nil {
 			return resp, err
 		}
+		plannedContextWindows++
+		plannedInsights++
 		resp.MaterializedContextWindows++
 		resp.MaterializedInsights++
 		resp.ContextWindowIDs = append(resp.ContextWindowIDs, contextWindow.ContextWindowID)
 		resp.SyncraticInsightIDs = append(resp.SyncraticInsightIDs, insight.SyncraticInsightID)
+		decision.Action = "materialized"
+		decision.Reason = "eligible"
+		resp.Decisions = append(resp.Decisions, decision)
 	}
 	return resp, nil
 }

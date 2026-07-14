@@ -7119,3 +7119,24 @@ Validation performed:
 Result:
 
 - G090 now has backend Ask enrichment, evidence-quality safeguards, and the frontend operator UI loop implemented. Remaining work should move to the next explicitly selected gate rather than expanding G090.
+
+## Gate G091: Budgeted Syncratic Context Materialization
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `implemented - backend/API dry-run selection and decision audit`
+
+Scope:
+
+- Add budgeted dry-run preview and per-asset decisions to `POST /v1/syncratic/materialize`.
+- Preserve existing write-mode materialization while making below-threshold, unchanged-digest, and budget-cap skips explicit.
+- Keep Syncratic Ask, Search, ingestion, graph writes, detector changes, policy deployment, scheduler work, and frontend changes out of scope.
+
+Validation performed:
+
+- Targeted API tests passed.
+- Full Go suite passed.
+
+Result:
+
+- Operators can now preview Syncratic context materialization over the Top 50 universe without creating context windows or insight rows, and write-mode responses expose the same selection decisions for auditability.
