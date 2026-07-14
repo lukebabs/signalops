@@ -96,6 +96,11 @@ export interface SyncraticInsightSummary {
   builderVersion: string;
   createdAt: string;
   updatedAt: string;
+  isCurrent: boolean;
+  currentnessReason: string;
+  currentnessKey: string;
+  supersededByContextWindowId: string;
+  supersededBySyncraticInsightId: string;
   supportingAlertIds: string[];
   supportingSignalIds: string[];
   supportingEventIds: string[];
@@ -126,6 +131,11 @@ const EMPTY_INSIGHT_SUMMARY: SyncraticInsightSummary = {
   builderVersion: '',
   createdAt: '',
   updatedAt: '',
+  isCurrent: true,
+  currentnessReason: '',
+  currentnessKey: '',
+  supersededByContextWindowId: '',
+  supersededBySyncraticInsightId: '',
   supportingAlertIds: [],
   supportingSignalIds: [],
   supportingEventIds: [],
@@ -151,6 +161,8 @@ export function summarizeSyncraticInsight(insight: unknown): SyncraticInsightSum
   const supportingArtifactIds = asStringArray(i.supporting_artifact_ids);
   const relatedGraphProposalIds = asStringArray(i.related_graph_proposal_ids);
   const relatedLabelIds = asStringArray(i.related_label_ids);
+  const currentness = isRecord(i.currentness) ? i.currentness : {};
+  const currentnessPresent = isRecord(i.currentness);
   return {
     insightId: asString(i.syncratic_insight_id),
     contextWindowId: asString(i.context_window_id),
@@ -167,6 +179,11 @@ export function summarizeSyncraticInsight(insight: unknown): SyncraticInsightSum
     builderVersion: asString(i.builder_version),
     createdAt: asString(i.created_at),
     updatedAt: asString(i.updated_at),
+    isCurrent: currentnessPresent ? asBoolean(currentness.is_current) : true,
+    currentnessReason: asString(currentness.reason),
+    currentnessKey: asString(currentness.currentness_key),
+    supersededByContextWindowId: asString(currentness.superseded_by_context_window_id),
+    supersededBySyncraticInsightId: asString(currentness.superseded_by_syncratic_insight_id),
     supportingAlertIds,
     supportingSignalIds,
     supportingEventIds,
@@ -180,6 +197,17 @@ export function summarizeSyncraticInsight(insight: unknown): SyncraticInsightSum
     graphProposalCount: relatedGraphProposalIds.length,
     labelCount: relatedLabelIds.length,
   };
+}
+
+
+export function syncraticCurrentnessLabel(summary: SyncraticInsightSummary): string {
+  return summary.isCurrent ? 'Current' : 'Historical';
+}
+
+export function syncraticCurrentnessStyle(isCurrent: boolean): string {
+  return isCurrent
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+    : 'border-gray-200 bg-gray-50 text-gray-500';
 }
 
 export interface SyncraticContextWindowSummary {

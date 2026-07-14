@@ -7246,3 +7246,26 @@ Non-goals:
 Result:
 
 - Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G093_syncratic_insight_deduplication.md` and indexed from the gate README.
+
+## Gate G093: Syncratic Insight Currentness Implementation
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `implemented - read-time currentness and UI clarity validated`
+
+Scope:
+
+- Implement non-destructive read-time currentness for Syncratic insight list/detail responses.
+- Render current/historical state in the MarketOps Syncratic UI separately from Ask-enriched/deterministic badges.
+- Keep storage lifecycle unchanged: no deletes, no automatic supersession writes, no Ask automation, no Search, no ingestion, no graph writes, no detector changes, no policy deployment, and no scheduler work.
+
+Validation performed:
+
+- Targeted API tests passed, including overlapping AAPL rows where the older Ask-enriched row is historical and the newer deterministic row is current.
+- Full Go suite passed.
+- Frontend tests passed: `19` files, `245` tests.
+- Frontend production build passed.
+
+Result:
+
+- Operators can distinguish current vs historical Syncratic rows independently from deterministic vs Ask-enriched state, without rewriting historical rows.

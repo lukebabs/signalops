@@ -1,6 +1,6 @@
 # G093 Syncratic Insight De-duplication And Ask State Clarity
 
-Status: specification proposed
+Status: implemented - read-time currentness and UI clarity
 Use case: MarketOps Daily Market Surveillance
 
 ## Goal
@@ -222,3 +222,20 @@ Run:
 - frontend helper/API tests if currentness is frontend-derived;
 - full Go and/or frontend suite matching touched code;
 - live UI smoke showing current/historical and Ask badges do not collapse into one state.
+
+## Implemented Slice
+
+Implemented in G093:
+
+- Added read-time `currentness` metadata to Syncratic insight list/detail API responses.
+- Currentness is derived non-destructively from existing insight/context-window rows using the approved tuple and latest `window_end` ordering.
+- Added frontend current/historical chips that render separately from Ask badges.
+- Preserved Ask metadata under `metrics.syncratic_ask`; Ask state does not determine currentness.
+- No rows are deleted, archived, dismissed, or superseded in storage by this slice.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `cd web && npm test`: passed, `19` files and `245` tests.
+- `cd web && npm run build`: passed.

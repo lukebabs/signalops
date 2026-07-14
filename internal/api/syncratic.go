@@ -147,34 +147,43 @@ type syncraticContextWindowDTO struct {
 	UpdatedAt              time.Time       `json:"updated_at"`
 }
 
+type syncraticInsightCurrentnessDTO struct {
+	IsCurrent                      bool   `json:"is_current"`
+	CurrentnessKey                 string `json:"currentness_key"`
+	SupersededByContextWindowID    string `json:"superseded_by_context_window_id"`
+	SupersededBySyncraticInsightID string `json:"superseded_by_syncratic_insight_id"`
+	Reason                         string `json:"reason"`
+}
+
 type syncraticInsightDTO struct {
-	SyncraticInsightID      string          `json:"syncratic_insight_id"`
-	TenantID                string          `json:"tenant_id"`
-	AppID                   string          `json:"app_id"`
-	Domain                  string          `json:"domain"`
-	UseCase                 string          `json:"use_case"`
-	ContextWindowID         string          `json:"context_window_id"`
-	InsightType             string          `json:"insight_type"`
-	SubjectType             string          `json:"subject_type"`
-	SubjectID               string          `json:"subject_id"`
-	SubjectSymbol           string          `json:"subject_symbol"`
-	Status                  string          `json:"status"`
-	Severity                string          `json:"severity"`
-	Confidence              float64         `json:"confidence"`
-	Title                   string          `json:"title"`
-	Summary                 string          `json:"summary"`
-	Explanation             string          `json:"explanation"`
-	SupportingAlertIDs      []string        `json:"supporting_alert_ids"`
-	SupportingSignalIDs     []string        `json:"supporting_signal_ids"`
-	SupportingEventIDs      []string        `json:"supporting_event_ids"`
-	SupportingArtifactIDs   []string        `json:"supporting_artifact_ids"`
-	RelatedGraphProposalIDs []string        `json:"related_graph_proposal_ids"`
-	RelatedLabelIDs         []string        `json:"related_label_ids"`
-	Metrics                 json.RawMessage `json:"metrics"`
-	Recommendation          json.RawMessage `json:"recommendation"`
-	BuilderVersion          string          `json:"builder_version"`
-	CreatedAt               time.Time       `json:"created_at"`
-	UpdatedAt               time.Time       `json:"updated_at"`
+	SyncraticInsightID      string                         `json:"syncratic_insight_id"`
+	TenantID                string                         `json:"tenant_id"`
+	AppID                   string                         `json:"app_id"`
+	Domain                  string                         `json:"domain"`
+	UseCase                 string                         `json:"use_case"`
+	ContextWindowID         string                         `json:"context_window_id"`
+	InsightType             string                         `json:"insight_type"`
+	SubjectType             string                         `json:"subject_type"`
+	SubjectID               string                         `json:"subject_id"`
+	SubjectSymbol           string                         `json:"subject_symbol"`
+	Status                  string                         `json:"status"`
+	Severity                string                         `json:"severity"`
+	Confidence              float64                        `json:"confidence"`
+	Title                   string                         `json:"title"`
+	Summary                 string                         `json:"summary"`
+	Explanation             string                         `json:"explanation"`
+	SupportingAlertIDs      []string                       `json:"supporting_alert_ids"`
+	SupportingSignalIDs     []string                       `json:"supporting_signal_ids"`
+	SupportingEventIDs      []string                       `json:"supporting_event_ids"`
+	SupportingArtifactIDs   []string                       `json:"supporting_artifact_ids"`
+	RelatedGraphProposalIDs []string                       `json:"related_graph_proposal_ids"`
+	RelatedLabelIDs         []string                       `json:"related_label_ids"`
+	Metrics                 json.RawMessage                `json:"metrics"`
+	Recommendation          json.RawMessage                `json:"recommendation"`
+	Currentness             syncraticInsightCurrentnessDTO `json:"currentness"`
+	BuilderVersion          string                         `json:"builder_version"`
+	CreatedAt               time.Time                      `json:"created_at"`
+	UpdatedAt               time.Time                      `json:"updated_at"`
 }
 
 func syncraticContextWindowResponse(record storage.SyncraticContextWindowRecord) syncraticContextWindowDTO {
@@ -190,15 +199,90 @@ func syncraticContextWindowResponses(records []storage.SyncraticContextWindowRec
 }
 
 func syncraticInsightResponse(record storage.SyncraticInsightRecord) syncraticInsightDTO {
-	return syncraticInsightDTO{SyncraticInsightID: record.SyncraticInsightID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, ContextWindowID: record.ContextWindowID, InsightType: record.InsightType, SubjectType: record.SubjectType, SubjectID: record.SubjectID, SubjectSymbol: record.SubjectSymbol, Status: record.Status, Severity: record.Severity, Confidence: record.Confidence, Title: record.Title, Summary: record.Summary, Explanation: record.Explanation, SupportingAlertIDs: record.SupportingAlertIDs, SupportingSignalIDs: record.SupportingSignalIDs, SupportingEventIDs: record.SupportingEventIDs, SupportingArtifactIDs: record.SupportingArtifactIDs, RelatedGraphProposalIDs: record.RelatedGraphProposalIDs, RelatedLabelIDs: record.RelatedLabelIDs, Metrics: json.RawMessage(jsonOrDefault(record.MetricsJSON, `{}`)), Recommendation: json.RawMessage(jsonOrDefault(record.RecommendationJSON, `{}`)), BuilderVersion: record.BuilderVersion, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+	return syncraticInsightResponseWithCurrentness(record, syncraticInsightCurrentnessDTO{IsCurrent: true, CurrentnessKey: syncraticCurrentnessKey(record, storage.SyncraticContextWindowRecord{}), Reason: "only_row"})
+}
+
+func syncraticInsightResponseWithCurrentness(record storage.SyncraticInsightRecord, currentness syncraticInsightCurrentnessDTO) syncraticInsightDTO {
+	return syncraticInsightDTO{SyncraticInsightID: record.SyncraticInsightID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, ContextWindowID: record.ContextWindowID, InsightType: record.InsightType, SubjectType: record.SubjectType, SubjectID: record.SubjectID, SubjectSymbol: record.SubjectSymbol, Status: record.Status, Severity: record.Severity, Confidence: record.Confidence, Title: record.Title, Summary: record.Summary, Explanation: record.Explanation, SupportingAlertIDs: record.SupportingAlertIDs, SupportingSignalIDs: record.SupportingSignalIDs, SupportingEventIDs: record.SupportingEventIDs, SupportingArtifactIDs: record.SupportingArtifactIDs, RelatedGraphProposalIDs: record.RelatedGraphProposalIDs, RelatedLabelIDs: record.RelatedLabelIDs, Metrics: json.RawMessage(jsonOrDefault(record.MetricsJSON, `{}`)), Recommendation: json.RawMessage(jsonOrDefault(record.RecommendationJSON, `{}`)), Currentness: currentness, BuilderVersion: record.BuilderVersion, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
 }
 
 func syncraticInsightResponses(records []storage.SyncraticInsightRecord) []syncraticInsightDTO {
+	return syncraticInsightResponsesWithContexts(records, nil)
+}
+
+func syncraticInsightResponsesWithContexts(records []storage.SyncraticInsightRecord, contexts map[string]storage.SyncraticContextWindowRecord) []syncraticInsightDTO {
+	currentness := syncraticInsightCurrentness(records, contexts)
 	responses := make([]syncraticInsightDTO, 0, len(records))
 	for _, record := range records {
-		responses = append(responses, syncraticInsightResponse(record))
+		responses = append(responses, syncraticInsightResponseWithCurrentness(record, currentness[record.SyncraticInsightID]))
 	}
 	return responses
+}
+
+func syncraticContextWindowMap(records []storage.SyncraticContextWindowRecord) map[string]storage.SyncraticContextWindowRecord {
+	out := map[string]storage.SyncraticContextWindowRecord{}
+	for _, record := range records {
+		out[record.ContextWindowID] = record
+	}
+	return out
+}
+
+func syncraticCurrentnessKey(record storage.SyncraticInsightRecord, contextWindow storage.SyncraticContextWindowRecord) string {
+	strategy := strings.TrimSpace(contextWindow.ContextStrategy)
+	builderVersion := firstNonEmpty(strings.TrimSpace(contextWindow.ContextBuilderVersion), strings.TrimSpace(record.BuilderVersion))
+	parts := []string{record.TenantID, record.AppID, record.Domain, record.UseCase, record.SubjectSymbol, strategy, builderVersion}
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	return strings.Join(parts, "|")
+}
+
+func syncraticInsightCurrentness(records []storage.SyncraticInsightRecord, contexts map[string]storage.SyncraticContextWindowRecord) map[string]syncraticInsightCurrentnessDTO {
+	if contexts == nil {
+		contexts = map[string]storage.SyncraticContextWindowRecord{}
+	}
+	type candidate struct {
+		record storage.SyncraticInsightRecord
+		ctx    storage.SyncraticContextWindowRecord
+	}
+	best := map[string]candidate{}
+	for _, record := range records {
+		ctx := contexts[record.ContextWindowID]
+		key := syncraticCurrentnessKey(record, ctx)
+		if strings.TrimSpace(record.Status) != storage.SyncraticInsightStatusActive {
+			continue
+		}
+		current, ok := best[key]
+		if !ok || syncraticInsightCurrentnessAfter(record, ctx, current.record, current.ctx) {
+			best[key] = candidate{record: record, ctx: ctx}
+		}
+	}
+	out := map[string]syncraticInsightCurrentnessDTO{}
+	for _, record := range records {
+		ctx := contexts[record.ContextWindowID]
+		key := syncraticCurrentnessKey(record, ctx)
+		bestCandidate, ok := best[key]
+		if !ok || bestCandidate.record.SyncraticInsightID == record.SyncraticInsightID {
+			reason := "latest_window_end"
+			if !ok {
+				reason = "non_active_status"
+			}
+			out[record.SyncraticInsightID] = syncraticInsightCurrentnessDTO{IsCurrent: ok, CurrentnessKey: key, Reason: reason}
+			continue
+		}
+		out[record.SyncraticInsightID] = syncraticInsightCurrentnessDTO{IsCurrent: false, CurrentnessKey: key, SupersededByContextWindowID: bestCandidate.record.ContextWindowID, SupersededBySyncraticInsightID: bestCandidate.record.SyncraticInsightID, Reason: "newer_context_window"}
+	}
+	return out
+}
+
+func syncraticInsightCurrentnessAfter(a storage.SyncraticInsightRecord, aCtx storage.SyncraticContextWindowRecord, b storage.SyncraticInsightRecord, bCtx storage.SyncraticContextWindowRecord) bool {
+	if !aCtx.WindowEnd.Equal(bCtx.WindowEnd) {
+		return aCtx.WindowEnd.After(bCtx.WindowEnd)
+	}
+	if !a.UpdatedAt.Equal(b.UpdatedAt) {
+		return a.UpdatedAt.After(b.UpdatedAt)
+	}
+	return a.SyncraticInsightID > b.SyncraticInsightID
 }
 
 func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryRepository, tenantID, subjectSymbol, strategy string, windowStart, windowEnd time.Time, builderVersion string, signalTypes []string, signalLimit, alertLimit int) (storage.SyncraticContextWindowRecord, error) {

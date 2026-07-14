@@ -106,7 +106,9 @@ Creates or refreshes a synthesized insight from a persisted context window.
 
 `GET /v1/syncratic/insights`
 
-Lists synthesized insights. Common filters:
+Lists synthesized insights. G093 adds non-destructive read-time `currentness` metadata to each insight so clients can distinguish current vs historical rows without deleting or mutating older context windows. Ask metadata remains separate under `metrics.syncratic_ask`.
+
+Common filters:
 
 - `tenant_id`
 - `context_window_id`
@@ -117,7 +119,7 @@ Lists synthesized insights. Common filters:
 
 `GET /v1/syncratic/insights/{syncratic_insight_id}`
 
-Returns one synthesized insight and its supporting context references.
+Returns one synthesized insight, its supporting context references, and G093 read-time `currentness` metadata.
 
 ## Auth Boundary
 

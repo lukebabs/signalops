@@ -859,12 +859,18 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		records, err := repo.ListSyncraticInsights(r.Context(), storage.SyncraticInsightFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), ContextWindowID: strings.TrimSpace(r.URL.Query().Get("context_window_id")), InsightType: strings.TrimSpace(r.URL.Query().Get("insight_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		filter := storage.SyncraticInsightFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), ContextWindowID: strings.TrimSpace(r.URL.Query().Get("context_window_id")), InsightType: strings.TrimSpace(r.URL.Query().Get("insight_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)}
+		records, err := repo.ListSyncraticInsights(r.Context(), filter)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list Syncratic insights")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"syncratic_insights": syncraticInsightResponses(records)})
+		contextWindows, err := repo.ListSyncraticContextWindows(r.Context(), storage.SyncraticContextWindowFilter{TenantID: filter.TenantID, AppID: filter.AppID, Domain: filter.Domain, UseCase: filter.UseCase, SubjectSymbol: filter.SubjectSymbol, Limit: 5000})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to derive Syncratic insight currentness")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"syncratic_insights": syncraticInsightResponsesWithContexts(records, syncraticContextWindowMap(contextWindows))})
 	})
 
 	mux.HandleFunc("GET /v1/syncratic/insights/{syncratic_insight_id}", func(w http.ResponseWriter, r *http.Request) {
@@ -877,7 +883,18 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "syncratic_insight_not_found", "Syncratic insight not found")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"syncratic_insight": syncraticInsightResponse(record)})
+		relatedInsights, err := repo.ListSyncraticInsights(r.Context(), storage.SyncraticInsightFilter{TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SubjectSymbol: record.SubjectSymbol, Limit: 5000})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to derive Syncratic insight currentness")
+			return
+		}
+		contextWindows, err := repo.ListSyncraticContextWindows(r.Context(), storage.SyncraticContextWindowFilter{TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SubjectSymbol: record.SubjectSymbol, Limit: 5000})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to derive Syncratic insight currentness")
+			return
+		}
+		currentness := syncraticInsightCurrentness(relatedInsights, syncraticContextWindowMap(contextWindows))
+		writeJSON(w, http.StatusOK, map[string]any{"syncratic_insight": syncraticInsightResponseWithCurrentness(record, currentness[record.SyncraticInsightID])})
 	})
 
 	mux.HandleFunc("POST /v1/syncratic/materialize", func(w http.ResponseWriter, r *http.Request) {

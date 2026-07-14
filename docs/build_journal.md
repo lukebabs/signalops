@@ -6218,3 +6218,19 @@ Summary:
 Validation performed:
 
 - Documentation readback completed.
+
+## 2026-07-14T00:00:00Z
+
+Summary:
+
+- Implemented G093 read-time Syncratic insight currentness and frontend clarity.
+- Added `currentness` metadata to Syncratic insight API responses without mutating, deleting, archiving, or superseding stored rows.
+- Added frontend current/historical chips that render separately from Syncratic Ask badges.
+- Preserved Ask as operator-triggered metadata only; currentness is derived from deterministic context-window ordering.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `cd web && npm test`: passed, `19` files and `245` tests.
+- `cd web && npm run build`: passed.

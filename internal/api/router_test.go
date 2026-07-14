@@ -2536,6 +2536,78 @@ func TestPostSyncraticInsightCreatesFromContextWindow(t *testing.T) {
 	}
 }
 
+func TestListSyncraticInsightsIncludesReadTimeCurrentness(t *testing.T) {
+	olderTime := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	newerTime := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
+	olderContext := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-old", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: olderTime.Add(-48 * time.Hour), WindowEnd: olderTime, ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, EvidenceDigest: "digest-old", Status: "active", UpdatedAt: olderTime}
+	newerContext := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-new", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: newerTime.Add(-48 * time.Hour), WindowEnd: newerTime, ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, EvidenceDigest: "digest-new", Status: "active", UpdatedAt: newerTime}
+	olderInsight := buildSyncraticInsight(olderContext, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
+	olderInsight.SyncraticInsightID = "synins-old"
+	olderInsight.MetricsJSON = []byte(`{"signal_count":2,"syncratic_ask":{"ask_status":"completed"}}`)
+	olderInsight.UpdatedAt = olderTime
+	newerInsight := buildSyncraticInsight(newerContext, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
+	newerInsight.SyncraticInsightID = "synins-new"
+	newerInsight.MetricsJSON = []byte(`{"signal_count":3}`)
+	newerInsight.UpdatedAt = newerTime
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{olderContext, newerContext}, syncraticInsights: []storage.SyncraticInsightRecord{olderInsight, newerInsight}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/syncratic/insights?tenant_id=tenant-1&subject_symbol=AAPL&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string][]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]map[string]any{}
+	for _, item := range response["syncratic_insights"] {
+		byID[item["syncratic_insight_id"].(string)] = item
+	}
+	oldCurrentness := byID["synins-old"]["currentness"].(map[string]any)
+	newCurrentness := byID["synins-new"]["currentness"].(map[string]any)
+	if oldCurrentness["is_current"].(bool) || oldCurrentness["superseded_by_syncratic_insight_id"] != "synins-new" || oldCurrentness["reason"] != "newer_context_window" {
+		t.Fatalf("old currentness = %#v", oldCurrentness)
+	}
+	if !newCurrentness["is_current"].(bool) || newCurrentness["reason"] != "latest_window_end" {
+		t.Fatalf("new currentness = %#v", newCurrentness)
+	}
+	metrics := byID["synins-old"]["metrics"].(map[string]any)
+	if _, ok := metrics["syncratic_ask"]; !ok {
+		t.Fatalf("older ask metadata missing from metrics = %#v", metrics)
+	}
+}
+
+func TestGetSyncraticInsightIncludesReadTimeCurrentness(t *testing.T) {
+	olderTime := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	newerTime := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
+	olderContext := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-old", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: olderTime.Add(-48 * time.Hour), WindowEnd: olderTime, ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, EvidenceDigest: "digest-old", Status: "active", UpdatedAt: olderTime}
+	newerContext := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-new", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: newerTime.Add(-48 * time.Hour), WindowEnd: newerTime, ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, EvidenceDigest: "digest-new", Status: "active", UpdatedAt: newerTime}
+	olderInsight := buildSyncraticInsight(olderContext, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
+	olderInsight.SyncraticInsightID = "synins-old"
+	olderInsight.UpdatedAt = olderTime
+	newerInsight := buildSyncraticInsight(newerContext, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
+	newerInsight.SyncraticInsightID = "synins-new"
+	newerInsight.UpdatedAt = newerTime
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{olderContext, newerContext}, syncraticInsights: []storage.SyncraticInsightRecord{olderInsight, newerInsight}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/syncratic/insights/synins-old", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	currentness := response["syncratic_insight"]["currentness"].(map[string]any)
+	if currentness["is_current"].(bool) || currentness["superseded_by_context_window_id"] != "synctx-new" || currentness["superseded_by_syncratic_insight_id"] != "synins-new" {
+		t.Fatalf("currentness = %#v", currentness)
+	}
+}
+
 func TestPostSyncraticMaterializeScansTop50AndSkipsQuietAssets(t *testing.T) {
 	now := time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
 	repo := &fakeQueryRepository{

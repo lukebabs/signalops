@@ -77,7 +77,7 @@ Recommended next gate:
 - G092: Syncratic materialization preview and confirmed write frontend workflow.
 - Specification: `../../../../frontend/syncratic_materialization_preview_ui_spec.md`.
 
-## G093 Proposed
+## G093 Implemented
 
 - G093: Syncratic insight de-duplication/currentness policy and Ask-state clarity for overlapping context windows.
 - Specification: `G093_syncratic_insight_deduplication.md`.

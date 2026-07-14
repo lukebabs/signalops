@@ -1294,6 +1294,14 @@ export type SyncraticContextWindowStatus = 'active' | 'archived' | 'superseded' 
 
 export type SyncraticSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical' | string;
 
+export interface SyncraticInsightCurrentness {
+  is_current: boolean;
+  currentness_key: string;
+  superseded_by_context_window_id: string;
+  superseded_by_syncratic_insight_id: string;
+  reason: string;
+}
+
 export interface SyncraticInsight {
   syncratic_insight_id: string;
   tenant_id: string;
@@ -1319,6 +1327,7 @@ export interface SyncraticInsight {
   related_label_ids: string[];
   metrics: unknown;
   recommendation: unknown;
+  currentness?: SyncraticInsightCurrentness;
   builder_version: string;
   created_at: string;
   updated_at: string;

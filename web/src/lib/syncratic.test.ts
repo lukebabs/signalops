@@ -21,6 +21,33 @@ import {
   shortSyncraticId,
 } from './syncratic';
 
+describe('summarizeSyncraticInsight currentness (G093)', () => {
+  it('keeps currentness separate from Ask metadata', () => {
+    const s = summarizeSyncraticInsight({
+      syncratic_insight_id: 'synins-old',
+      context_window_id: 'synctx-old',
+      metrics: { syncratic_ask: { ask_status: 'completed' } },
+      currentness: {
+        is_current: false,
+        currentness_key: 'tenant|marketops|market_data|daily_market_surveillance|AAPL|symbol_signal_cluster_5d|v1',
+        superseded_by_context_window_id: 'synctx-new',
+        superseded_by_syncratic_insight_id: 'synins-new',
+        reason: 'newer_context_window',
+      },
+    });
+    expect(s.isCurrent).toBe(false);
+    expect(s.currentnessReason).toBe('newer_context_window');
+    expect(s.supersededBySyncraticInsightId).toBe('synins-new');
+    expect(s.currentnessKey).toContain('AAPL');
+  });
+
+  it('defaults missing currentness to current for backwards compatibility', () => {
+    const s = summarizeSyncraticInsight({ syncratic_insight_id: 'synins-current' });
+    expect(s.isCurrent).toBe(true);
+    expect(s.currentnessReason).toBe('');
+  });
+});
+
 describe('summarizeSyncraticInsight (G088)', () => {
   it('reads fields and distinguishes alert vs signal evidence counts', () => {
     const s = summarizeSyncraticInsight({

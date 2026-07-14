@@ -23,6 +23,8 @@ import {
   classifySyncraticInsightBadge,
   syncraticSeverityStyle,
   syncraticInsightStatusStyle,
+  syncraticCurrentnessLabel,
+  syncraticCurrentnessStyle,
   shortSyncraticId,
   sortSyncraticMaterializationDecisions,
   countSyncraticMaterializationDecisions,
@@ -74,6 +76,18 @@ function SyncraticBadgeChip({ badge }: { badge: ReturnType<typeof classifySyncra
     >
       {badge === 'data_quality' && <AlertTriangle size={11} />}
       {SYNCRATIC_ASK_BADGE_LABELS[badge]}
+    </span>
+  );
+}
+
+
+function SyncraticCurrentnessChip({ summary }: { summary: ReturnType<typeof summarizeSyncraticInsight> }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium ${syncraticCurrentnessStyle(summary.isCurrent)}`}
+      title={summary.isCurrent ? 'Current preferred context for this symbol/strategy' : `Historical context superseded by ${summary.supersededBySyncraticInsightId || 'a newer context'}`}
+    >
+      {syncraticCurrentnessLabel(summary)}
     </span>
   );
 }
@@ -213,6 +227,7 @@ export function MarketOpsSyncraticRoute() {
                         <td className="max-w-[20rem] px-3 py-2">
                           <div className="flex items-center gap-1.5">
                             <SyncraticBadgeChip badge={classifySyncraticInsightBadge(i)} />
+                            <SyncraticCurrentnessChip summary={s} />
                             <span className="min-w-0 truncate text-xs font-medium text-gray-800" title={s.title || s.insightId}>
                               {s.title || s.insightId}
                             </span>
@@ -296,11 +311,17 @@ function SyncraticInsightDetail({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <SyncraticBadgeChip badge={badge} />
+        <SyncraticCurrentnessChip summary={summary} />
         <StatusLabel status={summary.status} />
         <SeverityLabel severity={summary.severity} />
         <span className="text-xs text-gray-600">conf {summary.confidence.toFixed(2)}</span>
         <code className="break-all text-xs text-gray-700">{summary.insightId}</code>
         <CopyButton value={summary.insightId} />
+        {!summary.isCurrent && summary.supersededBySyncraticInsightId && (
+          <span className="text-[11px] text-gray-500">
+            superseded by {shortSyncraticId(summary.supersededBySyncraticInsightId)}
+          </span>
+        )}
       </div>
 
       {dataQuality && (
