@@ -207,12 +207,18 @@ export function MarketOpsSyncraticRoute() {
                         className={`cursor-pointer align-top hover:bg-gray-50 ${selectedId === i.syncratic_insight_id ? 'bg-brand-50' : ''}`}
                       >
                         <td className="px-3 py-2 text-xs font-semibold text-gray-900">{s.subjectSymbol || '—'}</td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-wrap items-center gap-1.5">
+                        <td className="max-w-[20rem] px-3 py-2">
+                          <div className="flex items-center gap-1.5">
                             <SyncraticBadgeChip badge={classifySyncraticInsightBadge(i)} />
-                            <span className="text-xs font-medium text-gray-800">{s.title || s.insightId}</span>
+                            <span className="min-w-0 truncate text-xs font-medium text-gray-800" title={s.title || s.insightId}>
+                              {s.title || s.insightId}
+                            </span>
                           </div>
-                          {s.summary && <div className="break-all text-xs text-gray-500">{s.summary}</div>}
+                          {s.summary && (
+                            <div className="mt-0.5 truncate text-xs text-gray-500" title={s.summary}>
+                              {s.summary}
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2"><StatusLabel status={s.status} /></td>
                         <td className="px-3 py-2"><SeverityLabel severity={s.severity} /></td>
