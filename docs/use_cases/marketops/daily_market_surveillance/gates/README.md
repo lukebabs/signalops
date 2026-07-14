@@ -126,3 +126,8 @@ Recommended next gate:
 
 - G102: bounded multi-day equity and options ingestion/campaign expansion with refreshed calibration summaries.
 - Specification: `G102_bounded_multiday_campaign_expansion.md`.
+
+## G103 Implemented
+
+- G103: calibration readiness re-check after bounded multi-day evidence.
+- Specification: `G103_calibration_readiness_recheck.md`.

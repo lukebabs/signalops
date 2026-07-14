@@ -6436,3 +6436,25 @@ Validation performed:
 - Options campaign `btcamp-g102-options1x3-20260714185013`: status `succeeded`, planned child runs `5`, completed child runs `5`, scanned `9`, signals `0`, artifacts `0`, policy results `0`.
 - Equity summary `btsum-g102-equity3x3-20260714185032`: run count `28`, zero-input count `10`, scanned `18`, signals `6`, artifacts `6`, policy results `30`, recommendation counts `auto_accept_candidate=25`, `manual_review_required=5`.
 - Options summary `btsum-g102-options1x3-20260714185032`: run count `6`, zero-input count `2`, scanned `12`, signals `0`, artifacts `0`, policy results `0`.
+
+## 2026-07-14T18:56:49Z
+
+Summary:
+
+- Ran G103 calibration readiness re-check using the existing G094 readiness API after G102 added bounded multi-day equity/options evidence.
+- Reused persisted G083-G086 baseline, comparison, evaluation, and promotion candidate evidence.
+- Included both `equity_eod_prices` and `options_contracts_daily` plus `top50_megacap` universe scope.
+- Persisted advisory readiness snapshot `btready-g103-recheck-20260714185649`.
+
+Validation performed:
+
+- Authenticated readiness create returned HTTP `201`.
+- Readiness status: `needs_more_historical_data`.
+- Readiness reasons: historical Top 50/window coverage below thresholds, options daily window coverage below threshold, and reviewed label volume below threshold.
+- Coverage metrics: run count `34`, scanned `30`, covered symbols `5` of `50`, symbol coverage ratio `0.1`, distinct windows `8`, options windows `5`, dataset counts `equity_eod_prices=28` and `options_contracts_daily=6`.
+- Label metrics: matched labels `7`, conflicting label ratio `0`.
+- Evaluation metrics: evaluation present with precision `1`, recall `1`, and label coverage `1`.
+
+Result:
+
+- G102 improved the evidence substrate, but G094 readiness remains correctly blocked by scale and reviewed-label volume. No thresholds were relaxed and no runtime deployment was performed.

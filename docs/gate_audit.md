@@ -7552,3 +7552,28 @@ Validation performed:
 Result:
 
 - Calibration breadth now includes a bounded multi-day equity/options substrate. The remaining gap is still scale and reviewed labels, not input path viability.
+
+## Gate G103: Calibration Readiness Re-Check
+
+Timestamp: `2026-07-14T18:56:49Z`
+
+Status: `implemented - advisory readiness snapshot persisted and validated`
+
+Scope:
+
+- Re-check G094 readiness after G102 bounded multi-day evidence.
+- Use existing baseline, comparison, evaluation, promotion candidate, run, label, and asset evidence.
+- Keep ingestion, detector mutation, threshold relaxation, runtime deployment, synthetic labels, graph writes, and frontend changes out of scope.
+
+Validation performed:
+
+- Authenticated readiness create returned HTTP `201` for `btready-g103-recheck-20260714185649`.
+- Snapshot status is `needs_more_historical_data`.
+- Coverage metrics show `34` succeeded runs, `30` scanned rows, `5` covered symbols out of `50`, `8` distinct windows, and `5` options windows.
+- Dataset counts are `equity_eod_prices=28` and `options_contracts_daily=6`.
+- Label metrics show `7` matched labels and `0` conflicting label ratio.
+- Evaluation evidence remains present with precision `1`, recall `1`, and label coverage `1`.
+
+Result:
+
+- Calibration readiness is still correctly blocked by historical breadth, options-window breadth, and reviewed-label volume. The next narrow work should increase real evidence scale or reviewed labels, not alter readiness thresholds or deploy policy.
