@@ -385,3 +385,15 @@ G088 is complete when:
 - G090: migration/suppression plan for legacy one-signal insights in `insight_ledger`.
 - G091: optional external explanatory data ingestion, after source quality and licensing are explicitly reviewed.
 - G092: narrative explanation generation, if deterministic evidence boundaries are already in place.
+
+## Evidence Purity Closeout
+
+Validated on `2026-07-14T00:00:00Z` after G090 Ask quality checks exposed an `MS` context containing AAPL/SPY evidence.
+
+The context-window builder now uses stricter evidence purity checks for signal and alert inclusion. A record must have an exact entity symbol match for the context subject, and supporting evidence must not mention a different known ticker. This prevents a subject context such as `MS` from absorbing evidence whose summaries or semantic evidence refer to AAPL/SPY.
+
+Live validation:
+
+- Direct `POST /v1/syncratic/context-windows` for `MS` over the smoke window returned HTTP `400 empty_context_window`, because the available candidate evidence was rejected as impure.
+- Direct `POST /v1/syncratic/context-windows` for `AAPL` over the same window returned HTTP `201` with `signal_count=10`.
+- Bounded materialization over the Top 50 smoke window scanned 10 assets, materialized 1 context, and skipped 9 below threshold after purity filtering.

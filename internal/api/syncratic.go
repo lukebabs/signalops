@@ -220,7 +220,7 @@ func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryReposito
 	detectors := map[string]struct{}{}
 	signalTypeSet := map[string]struct{}{}
 	for _, signal := range signals {
-		if !timeInWindow(signal.SignalTime, windowStart, windowEnd) || !recordMatchesSymbol(signal.EntitiesJSON, signal.EventJSON, subjectSymbol) {
+		if !timeInWindow(signal.SignalTime, windowStart, windowEnd) || !recordEvidenceMatchesSymbol(subjectSymbol, signal.EntitiesJSON, signal.EventJSON, signal.SemanticEvidenceJSON, signal.EvidenceJSON) {
 			continue
 		}
 		if len(allowedTypes) > 0 {
@@ -236,7 +236,7 @@ func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryReposito
 		}
 	}
 	for _, alert := range alerts {
-		if !timeInWindow(alert.LastObservedAt, windowStart, windowEnd) || !recordMatchesSymbol(alert.EntitiesJSON, alert.EvidenceJSON, subjectSymbol) {
+		if !timeInWindow(alert.LastObservedAt, windowStart, windowEnd) || !recordEvidenceMatchesSymbol(subjectSymbol, alert.EntitiesJSON, alert.EvidenceJSON) {
 			continue
 		}
 		record.AlertIDs = append(record.AlertIDs, alert.AlertID)
@@ -478,7 +478,7 @@ func signalSubjectMismatchHints(subject string, record storage.SignalLedgerRecor
 	collectJSONSymbols(record.EvidenceJSON, symbols)
 	collectJSONSymbols(record.SemanticEvidenceJSON, symbols)
 	hints := []string{}
-	for _, candidate := range []string{"AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "MS"} {
+	for _, candidate := range knownMarketOpsSymbols() {
 		if candidate != subject && jsonTextMentionsSymbol(record.EvidenceJSON, candidate) {
 			symbols[candidate] = struct{}{}
 		}
@@ -770,7 +770,7 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 			return resp, err
 		}
 		for _, alert := range alerts {
-			if timeInWindow(alert.LastObservedAt, windowStart, windowEnd) && recordMatchesSymbol(alert.EntitiesJSON, alert.EvidenceJSON, asset.Ticker) {
+			if timeInWindow(alert.LastObservedAt, windowStart, windowEnd) && recordEvidenceMatchesSymbol(asset.Ticker, alert.EntitiesJSON, alert.EvidenceJSON) {
 				critical = true
 				break
 			}
@@ -887,6 +887,59 @@ func syncraticEvidenceDigest(record storage.SyncraticContextWindowRecord) string
 	raw := mustJSON(map[string]any{"events": record.EventIDs, "signals": record.SignalIDs, "alerts": record.AlertIDs, "artifacts": record.ArtifactIDs, "graph_proposals": record.GraphProposalIDs, "labels": record.LabelIDs, "metrics": json.RawMessage(jsonOrDefault(record.SummaryMetricsJSON, `{}`))})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
+}
+
+func recordEvidenceMatchesSymbol(symbol string, requiredRaw []byte, supportingRaw ...[]byte) bool {
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	if symbol == "" || !jsonPayloadHasExactSymbol(requiredRaw, symbol) {
+		return false
+	}
+	for _, raw := range supportingRaw {
+		for other := range extractKnownSymbols(raw) {
+			if other != "" && other != symbol {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func jsonPayloadHasExactSymbol(raw []byte, symbol string) bool {
+	if len(raw) == 0 || symbol == "" || !json.Valid(raw) {
+		return false
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return false
+	}
+	symbols := map[string]struct{}{}
+	collectSymbols(value, symbols)
+	_, ok := symbols[strings.ToUpper(strings.TrimSpace(symbol))]
+	return ok
+}
+
+func extractKnownSymbols(raw []byte) map[string]struct{} {
+	out := map[string]struct{}{}
+	if len(raw) == 0 {
+		return out
+	}
+	if json.Valid(raw) {
+		var value any
+		if err := json.Unmarshal(raw, &value); err == nil {
+			collectSymbols(value, out)
+		}
+	}
+	upper := strings.ToUpper(string(raw))
+	for _, candidate := range knownMarketOpsSymbols() {
+		if strings.Contains(upper, candidate) {
+			out[candidate] = struct{}{}
+		}
+	}
+	return out
+}
+
+func knownMarketOpsSymbols() []string {
+	return []string{"AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "MS", "GE", "MA", "V", "MU", "SPY"}
 }
 
 func recordMatchesSymbolValue(raw []byte, symbol string) bool {

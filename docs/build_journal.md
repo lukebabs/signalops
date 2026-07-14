@@ -6090,3 +6090,20 @@ Validation performed:
 - Authenticated forced Ask route call returned HTTP `200`, `ask_status=completed`, `updated=true`, `prompt_bytes=9709`, and `direct_reasoning=true`.
 - Persisted explanation for `synins_75c6d92b51d37352e0e57f00` now begins `Data Quality Warning: Subject Mismatch Detected` and states that AAPL/SPY evidence does not support context subject MS.
 - Authenticated rerun returned HTTP `200`, `updated=false`, `skipped_reason=unchanged_prompt_and_evidence`.
+
+## 2026-07-14T00:00:00Z
+
+Summary:
+
+- Closed the first outstanding MarketOps evidence-quality task by hardening Syncratic context-window materialization.
+- Added strict subject/evidence purity checks so `symbol_signal_cluster_5d` contexts require exact entity-symbol matches and reject supporting evidence that mentions another known ticker.
+- Added a regression test proving MS contexts do not materialize from AAPL/SPY-tainted evidence.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/syncratic/userapi -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `docker compose build --no-cache gateway && docker compose up -d gateway`: passed; Docker build ran `go test ./...`.
+- Direct authenticated `POST /v1/syncratic/context-windows` for `MS`: HTTP `400 empty_context_window`, confirming impure AAPL/SPY evidence is excluded.
+- Direct authenticated `POST /v1/syncratic/context-windows` for `AAPL`: HTTP `201`, `signal_count=10`.
+- Authenticated materialization scan over 10 assets: `materialized_context_windows=1`, `skipped_below_threshold=9` after purity filtering.

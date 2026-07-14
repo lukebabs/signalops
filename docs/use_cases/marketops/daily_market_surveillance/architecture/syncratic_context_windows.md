@@ -63,3 +63,7 @@ Default materialization triggers:
 The context builder should skip quiet assets, skip unchanged evidence digests, and enforce configurable caps for scanned assets, candidate windows, context windows, and synthesized insights. This keeps Syncratic explainability available across the universe without creating excessive unused batch work.
 
 The deterministic materialization key should be based on tenant, use case, context strategy, subject symbol, window start, window end, and builder version.
+
+## Evidence Purity
+
+Subject-scoped context windows must not include evidence for another ticker unless a later cross-asset context strategy explicitly allows that behavior. For the current `symbol_signal_cluster_5d` strategy, signal and alert inclusion requires an exact entity-symbol match for the context subject, and supporting evidence must not mention a different known ticker. Evidence that fails this check is excluded before the context window and Syncratic Ask prompt are built.

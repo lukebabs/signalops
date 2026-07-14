@@ -7059,3 +7059,27 @@ Validation performed:
 Result:
 
 - G090 Ask quality is materially improved for this evidence set: the reasoning layer now surfaces evidence-context mismatch rather than producing a generic market summary.
+
+## MarketOps Syncratic Context Evidence Purity
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `validated — subject-scoped contexts reject cross-symbol evidence`
+
+Scope:
+
+- Fix the upstream context-window evidence-quality issue exposed by G090 Ask tests.
+- Keep this scoped to `symbol_signal_cluster_5d` materialization; no cross-asset context strategy, frontend work, graph writes, or Syncratic ingestion is introduced.
+
+Validation performed:
+
+- Targeted API/userapi tests passed, including a regression test for MS rejecting AAPL/SPY-tainted signal evidence.
+- Full Go suite passed.
+- Gateway no-cache rebuild passed; Docker build also ran `go test ./...`.
+- Direct authenticated MS context creation returned HTTP `400 empty_context_window` after purity filtering.
+- Direct authenticated AAPL context creation returned HTTP `201`, `signal_count=10`.
+- Authenticated materialization scan over 10 assets materialized 1 context and skipped 9 below threshold after purity filtering.
+
+Result:
+
+- The system now prevents the root cause of the earlier Syncratic data-quality warning: a subject context cannot silently absorb evidence whose details reference another known ticker.
