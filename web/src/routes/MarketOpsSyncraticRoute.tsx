@@ -67,7 +67,7 @@ function StatusLabel({ status }: { status: string }) {
 function SyncraticBadgeChip({ badge }: { badge: ReturnType<typeof classifySyncraticInsightBadge> }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium ${SYNCRATIC_ASK_BADGE_STYLES[badge]}`}
+      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium ${SYNCRATIC_ASK_BADGE_STYLES[badge]}`}
     >
       {badge === 'data_quality' && <AlertTriangle size={11} />}
       {SYNCRATIC_ASK_BADGE_LABELS[badge]}
@@ -187,7 +187,6 @@ export function MarketOpsSyncraticRoute() {
                     <th className="px-3 py-2">Symbol</th>
                     <th className="px-3 py-2">Title</th>
                     <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Source</th>
                     <th className="px-3 py-2">Severity</th>
                     <th className="px-3 py-2">Conf.</th>
                     <th className="px-3 py-2">Type</th>
@@ -209,11 +208,13 @@ export function MarketOpsSyncraticRoute() {
                       >
                         <td className="px-3 py-2 text-xs font-semibold text-gray-900">{s.subjectSymbol || '—'}</td>
                         <td className="px-3 py-2">
-                          <div className="text-xs font-medium text-gray-800">{s.title || s.insightId}</div>
-                          <div className="break-all text-xs text-gray-500">{s.summary}</div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <SyncraticBadgeChip badge={classifySyncraticInsightBadge(i)} />
+                            <span className="text-xs font-medium text-gray-800">{s.title || s.insightId}</span>
+                          </div>
+                          {s.summary && <div className="break-all text-xs text-gray-500">{s.summary}</div>}
                         </td>
                         <td className="px-3 py-2"><StatusLabel status={s.status} /></td>
-                        <td className="px-3 py-2"><SyncraticBadgeChip badge={classifySyncraticInsightBadge(i)} /></td>
                         <td className="px-3 py-2"><SeverityLabel severity={s.severity} /></td>
                         <td className="px-3 py-2 text-xs">{s.confidence.toFixed(2)}</td>
                         <td className="px-3 py-2"><code className="break-all text-xs text-gray-700">{s.insightType || '—'}</code></td>
