@@ -91,3 +91,8 @@ Recommended next gate:
 
 - G095: bounded historical back-test campaigns over existing isolated back-test runs.
 - Specification: `G095_backtest_historical_campaigns.md`.
+
+## G096 Implemented
+
+- G096: read-only normalized-event coverage preflight for data-bearing back-test campaign planning.
+- Specification: `G096_backtest_coverage_preflight.md`.

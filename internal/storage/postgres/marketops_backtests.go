@@ -352,6 +352,38 @@ ORDER BY created_at DESC LIMIT $6`, strings.TrimSpace(filter.RunID), strings.Tri
 	return records, nil
 }
 
+func (r *Repository) ListMarketOpsBacktestCoverage(ctx context.Context, filter storage.MarketOpsBacktestCoverageFilter) ([]storage.MarketOpsBacktestCoverageRecord, error) {
+	windowStart := filter.WindowStart
+	windowEnd := filter.WindowEnd
+	rows, err := r.temporal().QueryContext(ctx, `
+SELECT tenant_id, app_id, domain, use_case, source_id, source_adapter, dataset,
+ upper(COALESCE(normalized_payload->>'symbol', normalized_payload->>'ticker', normalized_payload->>'underlying_symbol', '')) AS subject_symbol,
+ count(*) AS event_count, min(observation_time) AS first_observed, max(observation_time) AS last_observed
+FROM normalized_event_ledger
+WHERE tenant_id=$1 AND ($2='' OR app_id=$2) AND ($3='' OR domain=$3) AND ($4='' OR use_case=$4)
+ AND ($5='' OR source_id=$5) AND ($6='' OR source_adapter=$6) AND ($7='' OR dataset=$7)
+ AND ($8::timestamptz IS NULL OR observation_time >= $8) AND ($9::timestamptz IS NULL OR observation_time < $9)
+ AND ($10::text[] = '{}'::text[] OR upper(COALESCE(normalized_payload->>'symbol', normalized_payload->>'ticker', normalized_payload->>'underlying_symbol', '')) = ANY($10::text[]))
+GROUP BY tenant_id, app_id, domain, use_case, source_id, source_adapter, dataset, subject_symbol
+ORDER BY event_count DESC, dataset ASC, subject_symbol ASC LIMIT $11`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID), strings.TrimSpace(filter.SourceAdapter), strings.TrimSpace(filter.Dataset), nullTime(windowStart), nullTime(windowEnd), pqArray(upperStrings(filter.Symbols)), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list marketops backtest coverage: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.MarketOpsBacktestCoverageRecord{}
+	for rows.Next() {
+		var rec storage.MarketOpsBacktestCoverageRecord
+		if err := rows.Scan(&rec.TenantID, &rec.AppID, &rec.Domain, &rec.UseCase, &rec.SourceID, &rec.SourceAdapter, &rec.Dataset, &rec.SubjectSymbol, &rec.EventCount, &rec.FirstObserved, &rec.LastObserved); err != nil {
+			return nil, mapScanError("scan marketops backtest coverage", err)
+		}
+		records = append(records, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list marketops backtest coverage rows: %w", err)
+	}
+	return records, nil
+}
+
 func (r *Repository) ListMarketOpsBacktestNormalizedEvents(ctx context.Context, filter storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error) {
 	rows, err := r.temporal().QueryContext(ctx, normalizedEventSelect+`
 WHERE tenant_id=$1 AND ($2='' OR app_id=$2) AND ($3='' OR domain=$3) AND ($4='' OR use_case=$4)

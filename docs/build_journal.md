@@ -5860,6 +5860,14 @@ Validation performed:
 
 Live validation performed:
 
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d --build gateway`: passed; Docker build ran full Go tests.
+- Authenticated `GET /v1/marketops/backtest-coverage?tenant_id=tenant-local&dataset=equity_eod_prices&symbols=AAPL&window_start=2026-07-09T00:00:00Z&window_end=2026-07-10T00:00:00Z`: HTTP `200`, `coverage_count=0`.
+- Direct storage inspection confirmed `normalized_event_ledger` has no rows with `app_id=marketops`, `domain=market_data`, `use_case=daily_market_surveillance`; specialized MarketOps equity/options tables are also empty locally.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `python3 scripts/validate_json_schemas.py`: passed.
+
+Live validation performed:
+
 - `make compose-storage-migrate`: applied `000022_marketops_backtest_campaigns`.
 - `docker compose -f compose.yaml -f compose.traefik.yaml up -d --build gateway`: passed; Docker build ran full Go tests.
 - Authenticated campaign create: HTTP `201`, id `btcamp-g095-smoke-20260714160756`, status `succeeded`, one child run id recorded.
@@ -6305,6 +6313,18 @@ Summary:
 - Implemented G095 bounded historical back-test campaigns.
 - Added persisted campaign metadata, create/list/detail APIs, universe-group symbol resolution, child run planning, and aggregate campaign metrics.
 - Kept the boundary advisory and isolated: campaigns create only back-test child runs and campaign rows, with no runtime policy deployment, detector mutation, production ledger writes, or graph writes.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres -count=1`: passed.
+
+## 2026-07-14T16:55:00Z
+
+Summary:
+
+- Implemented G096 back-test coverage preflight after G095 live validation showed zero scanned rows.
+- Added read-only normalized-event coverage grouped by dataset and subject symbol, with MarketOps metadata defaults and optional source/dataset/symbol/window filters.
+- Confirmed local storage currently has no normalized MarketOps rows, so broader campaigns require ingestion/normalization before they can improve readiness.
 
 Validation performed:
 

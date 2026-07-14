@@ -726,6 +726,20 @@ type MarketOpsBacktestRunRecord struct {
 	UpdatedAt       time.Time
 }
 
+type MarketOpsBacktestCoverageRecord struct {
+	TenantID      string
+	AppID         string
+	Domain        string
+	UseCase       string
+	SourceID      string
+	SourceAdapter string
+	Dataset       string
+	SubjectSymbol string
+	EventCount    int
+	FirstObserved time.Time
+	LastObserved  time.Time
+}
+
 type MarketOpsBacktestCampaignRecord struct {
 	CampaignID      string
 	TenantID        string
@@ -940,6 +954,7 @@ type MarketOpsBacktestRepository interface {
 	PersistMarketOpsBacktestBatch(ctx context.Context, run MarketOpsBacktestRunRecord, signals []MarketOpsBacktestSignalRecord, artifacts []MarketOpsBacktestArtifactRecord, proposals []MarketOpsBacktestGraphProposalRecord, policyResults []MarketOpsBacktestPolicyResultRecord) error
 	ListMarketOpsBacktestRuns(ctx context.Context, filter MarketOpsBacktestRunFilter) ([]MarketOpsBacktestRunRecord, error)
 	GetMarketOpsBacktestRun(ctx context.Context, runID string) (MarketOpsBacktestRunRecord, error)
+	ListMarketOpsBacktestCoverage(ctx context.Context, filter MarketOpsBacktestCoverageFilter) ([]MarketOpsBacktestCoverageRecord, error)
 	UpsertMarketOpsBacktestCampaign(ctx context.Context, record MarketOpsBacktestCampaignRecord) error
 	ListMarketOpsBacktestCampaigns(ctx context.Context, filter MarketOpsBacktestCampaignFilter) ([]MarketOpsBacktestCampaignRecord, error)
 	GetMarketOpsBacktestCampaign(ctx context.Context, campaignID string) (MarketOpsBacktestCampaignRecord, error)
@@ -1083,6 +1098,20 @@ type MarketOpsDSMGraphProposalMutation struct {
 	ReviewedBy   string
 	DecisionNote string
 	DecidedAt    time.Time
+}
+
+type MarketOpsBacktestCoverageFilter struct {
+	TenantID      string
+	AppID         string
+	Domain        string
+	UseCase       string
+	SourceID      string
+	SourceAdapter string
+	Dataset       string
+	Symbols       []string
+	WindowStart   time.Time
+	WindowEnd     time.Time
+	Limit         int
 }
 
 type MarketOpsBacktestRunFilter struct {

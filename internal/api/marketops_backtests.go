@@ -30,6 +30,32 @@ type marketOpsBacktestCreateResponse struct {
 	Metrics     json.RawMessage         `json:"metrics"`
 }
 
+type marketOpsBacktestCoverageDTO struct {
+	TenantID      string    `json:"tenant_id"`
+	AppID         string    `json:"app_id"`
+	Domain        string    `json:"domain"`
+	UseCase       string    `json:"use_case"`
+	SourceID      string    `json:"source_id"`
+	SourceAdapter string    `json:"source_adapter"`
+	Dataset       string    `json:"dataset"`
+	SubjectSymbol string    `json:"subject_symbol"`
+	EventCount    int       `json:"event_count"`
+	FirstObserved time.Time `json:"first_observed"`
+	LastObserved  time.Time `json:"last_observed"`
+}
+
+func marketOpsBacktestCoverageResponse(record storage.MarketOpsBacktestCoverageRecord) marketOpsBacktestCoverageDTO {
+	return marketOpsBacktestCoverageDTO{TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SourceID: record.SourceID, SourceAdapter: record.SourceAdapter, Dataset: record.Dataset, SubjectSymbol: record.SubjectSymbol, EventCount: record.EventCount, FirstObserved: record.FirstObserved, LastObserved: record.LastObserved}
+}
+
+func marketOpsBacktestCoverageResponses(records []storage.MarketOpsBacktestCoverageRecord) []marketOpsBacktestCoverageDTO {
+	responses := make([]marketOpsBacktestCoverageDTO, 0, len(records))
+	for _, record := range records {
+		responses = append(responses, marketOpsBacktestCoverageResponse(record))
+	}
+	return responses
+}
+
 type marketOpsBacktestCampaignCreateRequest struct {
 	CampaignID           string   `json:"campaign_id"`
 	TenantID             string   `json:"tenant_id"`

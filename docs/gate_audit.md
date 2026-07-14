@@ -7386,3 +7386,27 @@ Validation performed:
 Result:
 
 - Operators now have a controlled API path to generate broader historical back-test coverage required by G094 readiness checks, while child evidence remains in the existing isolated back-test ledgers. The smoke campaign scanned zero records for its narrow AAPL window, so the next calibration task is running broader historical campaigns with data-bearing windows.
+
+## Gate G096: Back-Test Coverage Preflight Implementation
+
+Timestamp: `2026-07-14T16:55:00Z`
+
+Status: `implemented - backend/API slice targeted tests passed`
+
+Scope:
+
+- Add a read-only API for normalized MarketOps event coverage before creating G095 campaigns.
+- Group coverage by dataset and subject symbol using the same symbol extraction used by back-test execution.
+- Keep ingestion, replay, synthetic seed generation, detector changes, policy deployment, and production ledger mutation out of scope.
+
+Validation performed:
+
+- Targeted Go tests passed for `./internal/api` and `./internal/storage/postgres`.
+- Full Go suite passed.
+- JSON schema validation passed.
+- Gateway rebuilt/restarted successfully; Docker build ran full Go tests.
+- Authenticated coverage preflight returned HTTP `200` with empty coverage for the AAPL smoke window.
+
+Result:
+
+- Operators can now distinguish an empty campaign caused by missing normalized input from detector behavior or policy behavior. Local validation confirms the current blocker is missing normalized MarketOps input, not the G095 campaign API.

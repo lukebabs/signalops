@@ -305,6 +305,38 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"signal": signalResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/marketops/backtest-coverage", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		windowStart, err := optionalQueryTime(r, "window_start")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_coverage_filter", "window_start must be an RFC3339 timestamp")
+			return
+		}
+		windowEnd, err := optionalQueryTime(r, "window_end")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_coverage_filter", "window_end must be an RFC3339 timestamp")
+			return
+		}
+		if !windowStart.IsZero() && !windowEnd.IsZero() && !windowEnd.After(windowStart) {
+			writeError(w, http.StatusBadRequest, "invalid_coverage_filter", "window_end must be after window_start")
+			return
+		}
+		filter := storage.MarketOpsBacktestCoverageFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: firstNonEmptyBacktestValue(r.URL.Query().Get("app_id"), "marketops"), Domain: firstNonEmptyBacktestValue(r.URL.Query().Get("domain"), "market_data"), UseCase: firstNonEmptyBacktestValue(r.URL.Query().Get("use_case"), "daily_market_surveillance"), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), SourceAdapter: strings.TrimSpace(r.URL.Query().Get("source_adapter")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Symbols: querySymbols(r), WindowStart: windowStart, WindowEnd: windowEnd, Limit: queryLimit(r, 100)}
+		if filter.TenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_coverage_filter", "tenant_id is required")
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestCoverage(r.Context(), filter)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest coverage")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"coverage": marketOpsBacktestCoverageResponses(records)})
+	})
+
 	mux.HandleFunc("POST /v1/marketops/backtest-campaigns", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -2454,6 +2486,33 @@ func marketOpsBacktestConfigFromRequest(req marketOpsBacktestCreateRequest, acto
 		return marketopsbacktest.Config{}, errors.New("max_records must be between 1 and 1000")
 	}
 	return cfg, nil
+}
+
+func optionalQueryTime(r *http.Request, key string) (time.Time, error) {
+	value := strings.TrimSpace(r.URL.Query().Get(key))
+	if value == "" {
+		return time.Time{}, nil
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parsed.UTC(), nil
+}
+
+func querySymbols(r *http.Request) []string {
+	values := []string{}
+	for _, key := range []string{"symbol", "symbols", "subject_symbol"} {
+		for _, raw := range r.URL.Query()[key] {
+			for _, part := range strings.Split(raw, ",") {
+				part = strings.TrimSpace(part)
+				if part != "" {
+					values = append(values, part)
+				}
+			}
+		}
+	}
+	return cleanSymbols(values)
 }
 
 func marketOpsBacktestCampaignPlan(ctx context.Context, repo storage.QueryRepository, req marketOpsBacktestCampaignCreateRequest, campaignID string, actor string) (storage.MarketOpsBacktestCampaignRecord, []marketopsbacktest.Config, error) {

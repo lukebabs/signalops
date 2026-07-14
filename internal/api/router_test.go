@@ -87,6 +87,7 @@ type fakeQueryRepository struct {
 	dsmArtifacts                   []storage.MarketOpsDSMArtifactRecord
 	dsmGraphProposals              []storage.MarketOpsDSMGraphProposalRecord
 	backtestRuns                   []storage.MarketOpsBacktestRunRecord
+	backtestCoverage               []storage.MarketOpsBacktestCoverageRecord
 	backtestCampaigns              []storage.MarketOpsBacktestCampaignRecord
 	backtestSignals                []storage.MarketOpsBacktestSignalRecord
 	backtestGraphProposals         []storage.MarketOpsBacktestGraphProposalRecord
@@ -101,6 +102,7 @@ type fakeQueryRepository struct {
 	syncraticContextWindows        []storage.SyncraticContextWindowRecord
 	syncraticInsights              []storage.SyncraticInsightRecord
 	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
+	lastBacktestCoverageFilter     storage.MarketOpsBacktestCoverageFilter
 	lastBacktestCampaignFilter     storage.MarketOpsBacktestCampaignFilter
 	lastBacktestSignalFilter       storage.MarketOpsBacktestSignalFilter
 	lastBacktestGraphFilter        storage.MarketOpsBacktestGraphProposalFilter
@@ -316,6 +318,11 @@ func (q *fakeQueryRepository) PersistMarketOpsBacktestBatch(_ context.Context, _
 func (q *fakeQueryRepository) ListMarketOpsBacktestRuns(_ context.Context, filter storage.MarketOpsBacktestRunFilter) ([]storage.MarketOpsBacktestRunRecord, error) {
 	q.lastBacktestRunFilter = filter
 	return q.backtestRuns, nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestCoverage(_ context.Context, filter storage.MarketOpsBacktestCoverageFilter) ([]storage.MarketOpsBacktestCoverageRecord, error) {
+	q.lastBacktestCoverageFilter = filter
+	return q.backtestCoverage, nil
 }
 
 func (q *fakeQueryRepository) GetMarketOpsBacktestRun(_ context.Context, runID string) (storage.MarketOpsBacktestRunRecord, error) {
@@ -1257,6 +1264,42 @@ func TestGetMarketOpsAssets(t *testing.T) {
 	}
 	if response["assets"][0]["app_id"] != "marketops" || response["assets"][0]["use_case"] != "daily_market_surveillance" {
 		t.Fatalf("asset metadata = %+v", response["assets"][0])
+	}
+}
+
+func TestGetMarketOpsBacktestCoverageUsesDefaultMarketOpsFilters(t *testing.T) {
+	now := time.Date(2026, 7, 9, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{backtestCoverage: []storage.MarketOpsBacktestCoverageRecord{{TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", SourceAdapter: "market_data.massive", Dataset: "equity_eod_prices", SubjectSymbol: "AAPL", EventCount: 2, FirstObserved: now, LastObserved: now.Add(24 * time.Hour)}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-coverage?tenant_id=tenant-local&symbols=aapl,msft&window_start=2026-07-09T00:00:00Z&window_end=2026-07-11T00:00:00Z&limit=7", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	filter := repo.lastBacktestCoverageFilter
+	if filter.TenantID != "tenant-local" || filter.AppID != "marketops" || filter.Domain != "market_data" || filter.UseCase != "daily_market_surveillance" || filter.Limit != 7 {
+		t.Fatalf("filter = %+v", filter)
+	}
+	if len(filter.Symbols) != 2 || filter.Symbols[0] != "AAPL" || filter.Symbols[1] != "MSFT" {
+		t.Fatalf("symbols = %+v", filter.Symbols)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if len(response["coverage"]) != 1 || response["coverage"][0]["event_count"].(float64) != 2 {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestGetMarketOpsBacktestCoverageRejectsInvalidWindow(t *testing.T) {
+	router := NewRouter(RouterConfig{QueryRepository: &fakeQueryRepository{}})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-coverage?tenant_id=tenant-local&window_start=2026-07-11T00:00:00Z&window_end=2026-07-09T00:00:00Z", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }
 

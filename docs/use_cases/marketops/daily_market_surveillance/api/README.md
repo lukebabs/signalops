@@ -10,6 +10,7 @@ Current MarketOps-specific endpoints:
 - `GET /v1/marketops/dsm/graph-proposals`
 - `GET /v1/marketops/dsm/graph-proposals/{proposal_id}`
 - `POST /v1/marketops/dsm/graph-proposals/{proposal_id}/decision`
+- `GET /v1/marketops/backtest-coverage`
 - `POST /v1/marketops/backtest-campaigns`
 - `GET /v1/marketops/backtest-campaigns`
 - `GET /v1/marketops/backtest-campaigns/{campaign_id}`
@@ -55,6 +56,7 @@ Authentication is enforced by the gateway when enabled. Positive live API valida
 Current notes:
 
 - `graph_proposal_api.md`: G079 graph proposal list/detail/decision API boundary.
+- `backtest_coverage_api.md`: G096 normalized-event coverage preflight API boundary.
 - `backtest_campaign_api.md`: G095 bounded historical back-test campaign API boundary.
 - `backtest_calibration_summary_api.md`: G082 persisted back-test calibration summary API boundary.
 - `backtest_baseline_comparison_api.md`: G083 baseline and stored comparison API boundary.
