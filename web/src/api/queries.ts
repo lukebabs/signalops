@@ -40,6 +40,8 @@ import type {
   SyncraticContextWindowFilter,
   SyncraticMaterializeRequest,
   SyncraticMaterializationResponse,
+  SyncraticAskRequest,
+  SyncraticAskResponse,
 } from '../types';
 
 export const queryKeys = {
@@ -784,5 +786,32 @@ export function useMaterializeSyncraticContexts() {
   return useMutation({
     mutationFn: (request: SyncraticMaterializeRequest) => api.materializeSyncraticContexts(request),
     onSuccess: (data) => applySyncraticMaterializeResult(queryClient, data),
+  });
+}
+
+// G090 operator-triggered Syncratic Ask. On success the route returns the full
+// refreshed insight, so seed the detail cache for an instant update (the skip path
+// returns the pre-existing insight too), then invalidate Syncratic insight +
+// context-window list/detail prefixes so badges and counts refresh. Only Syncratic
+// queries are touched — never alert, signal, graph proposal, or production queries.
+export function applySyncraticAskResult(queryClient: QueryClient, data: SyncraticAskResponse) {
+  const insightId = data.syncratic_insight?.syncratic_insight_id;
+  if (insightId) {
+    queryClient.setQueryData(queryKeys.syncraticInsight(insightId), {
+      syncratic_insight: data.syncratic_insight,
+    });
+  }
+  queryClient.invalidateQueries({ queryKey: ['syncratic-insights'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-insight'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-context-windows'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-context-window'] });
+}
+
+export function useAskSyncraticContextWindow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { contextWindowId: string; request: SyncraticAskRequest }) =>
+      api.askSyncraticContextWindow(vars.contextWindowId, vars.request),
+    onSuccess: (data) => applySyncraticAskResult(queryClient, data),
   });
 }

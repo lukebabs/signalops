@@ -125,12 +125,16 @@ Skip response:
 }
 ```
 
-Expected errors:
+Expected errors (verified against `internal/api/router.go` Ask handler):
 
 - `401 unauthorized`: auth expired or missing.
-- `400 empty_context_window`: context creation/materialization had no pure supporting evidence.
-- `400 syncratic_ask_invalid`: request/prompt validation failed.
-- `502 syncratic_ask_failed`: upstream Syncratic Ask failed; backend sanitizes upstream details.
+- `404 context_window_not_found`: the context window id does not exist.
+- `400 syncratic_ask_invalid`: request/prompt validation failed (e.g. `max_prompt_bytes` out of range, tenant mismatch).
+- `502 syncratic_ask_failed`: upstream Syncratic Ask failed; the backend sanitizes the upstream detail to a fixed message and never returns the upstream body.
+- `500 syncratic_ask_failed`: other internal enrichment failure (same sanitized code/message).
+- `503 syncratic_ask_unavailable`: the Syncratic Ask client is not configured on this gateway.
+
+Note: `400 empty_context_window` is **not** emitted by the Ask route — the Ask route operates on an already-persisted context window. That code is emitted by the context-window create/materialize purity filter (`POST /v1/syncratic/context-windows`) when no pure supporting evidence matches the subject. The UI still handles it defensively under the Ask action (see below) because the operator-facing guidance is identical and the code can surface from the materialize flow operators use alongside Ask.
 
 ## Required UI Changes
 
@@ -186,8 +190,12 @@ Add an operator-triggered action if it is not already implemented:
   - invalidate/refetch Syncratic insight and context-window queries;
   - show skipped state if `updated=false`.
 - On `401`, rely on existing auth error behavior.
-- On `400 empty_context_window`, show copy equivalent to: `No pure supporting evidence exists for this context subject. Review signal/entity mapping or rematerialize after evidence is corrected.`
-- On `502`, show a sanitized failure message. Do not display upstream response bodies.
+- On `404 context_window_not_found`, show a sanitized not-found message.
+- On `400 syncratic_ask_invalid`, show a validation-failed message.
+- On `502`/`500 syncratic_ask_failed`, show a sanitized failure message. Do not display upstream response bodies.
+- On `503 syncratic_ask_unavailable`, show that Ask is not configured on this gateway.
+- On `400 empty_context_window` (defensive — see contract note above; surfaces from the materialize/create flow, not the Ask route itself), show copy equivalent to: `No pure supporting evidence exists for this context subject. Review signal/entity mapping or rematerialize after evidence is corrected.`
+- Network failures (`network_error`) show a gateway-unreachable message.
 
 Do not add automatic Ask execution on page load, list load, materialization completion, or asset iteration.
 

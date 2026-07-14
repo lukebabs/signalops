@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, AlertTriangle, RefreshCw } from 'lucide-react';
 import {
   useSyncraticInsights,
   useSyncraticInsight,
   useSyncraticContextWindow,
   useMaterializeSyncraticContexts,
+  useAskSyncraticContextWindow,
 } from '../api/queries';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
@@ -17,9 +18,16 @@ import {
   summarizeSyncraticInsight,
   summarizeSyncraticContextWindow,
   summarizeSyncraticMaterialization,
+  summarizeSyncraticAsk,
+  summarizeSyncraticAskRouteResult,
+  detectSyncraticDataQualityWarning,
+  classifySyncraticInsightBadge,
   syncraticSeverityStyle,
   syncraticInsightStatusStyle,
   shortSyncraticId,
+  SYNCRATIC_ASK_BADGE_LABELS,
+  SYNCRATIC_ASK_BADGE_STYLES,
+  messageForSyncraticAskError,
 } from '../lib/syncratic';
 import { useTenant } from '../auth/session';
 import { useAppProfile } from '../apps/AppProfileContext';
@@ -50,6 +58,20 @@ function SeverityLabel({ severity }: { severity: string }) {
 function StatusLabel({ status }: { status: string }) {
   return (
     <span className={`text-xs font-medium ${syncraticInsightStatusStyle(status)}`}>{status || '—'}</span>
+  );
+}
+
+// G090 compact source/badge chip. Distinguishes deterministic SignalOps context
+// from Ask-enriched, and flags data-quality-blocked results so they never read
+// as a valid market thesis. Ask-skipped is transient (latest route result only).
+function SyncraticBadgeChip({ badge }: { badge: ReturnType<typeof classifySyncraticInsightBadge> }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium ${SYNCRATIC_ASK_BADGE_STYLES[badge]}`}
+    >
+      {badge === 'data_quality' && <AlertTriangle size={11} />}
+      {SYNCRATIC_ASK_BADGE_LABELS[badge]}
+    </span>
   );
 }
 
@@ -165,6 +187,7 @@ export function MarketOpsSyncraticRoute() {
                     <th className="px-3 py-2">Symbol</th>
                     <th className="px-3 py-2">Title</th>
                     <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Source</th>
                     <th className="px-3 py-2">Severity</th>
                     <th className="px-3 py-2">Conf.</th>
                     <th className="px-3 py-2">Type</th>
@@ -190,6 +213,7 @@ export function MarketOpsSyncraticRoute() {
                           <div className="break-all text-xs text-gray-500">{s.summary}</div>
                         </td>
                         <td className="px-3 py-2"><StatusLabel status={s.status} /></td>
+                        <td className="px-3 py-2"><SyncraticBadgeChip badge={classifySyncraticInsightBadge(i)} /></td>
                         <td className="px-3 py-2"><SeverityLabel severity={s.severity} /></td>
                         <td className="px-3 py-2 text-xs">{s.confidence.toFixed(2)}</td>
                         <td className="px-3 py-2"><code className="break-all text-xs text-gray-700">{s.insightType || '—'}</code></td>
@@ -222,7 +246,12 @@ export function MarketOpsSyncraticRoute() {
           ) : insightDetail.isError ? (
             <ErrorState error={insightDetail.error} />
           ) : selected && selectedSummary ? (
-            <SyncraticInsightDetail insight={selected} summary={selectedSummary} />
+            <SyncraticInsightDetail
+              key={selectedId}
+              insight={selected}
+              summary={selectedSummary}
+              tenantId={TENANT_ID}
+            />
           ) : null}
         </div>
       </div>
@@ -233,30 +262,122 @@ export function MarketOpsSyncraticRoute() {
 function SyncraticInsightDetail({
   insight,
   summary,
+  tenantId,
 }: {
   insight: SyncraticInsight;
   summary: ReturnType<typeof summarizeSyncraticInsight>;
+  tenantId: string;
 }) {
   // Fetch the context window detail by context_window_id (read-only review).
   const contextWindow = useSyncraticContextWindow(summary.contextWindowId || null);
   const cwSummary = contextWindow.data ? summarizeSyncraticContextWindow(contextWindow.data.context_window) : null;
 
+  // G090 Ask enrichment state. `ask` is read from persisted metrics; `askMutation`
+  // carries the latest operator-triggered route result (transient skip/success).
+  const askMutation = useAskSyncraticContextWindow();
+  const ask = summarizeSyncraticAsk(insight);
+  const dataQuality = detectSyncraticDataQualityWarning(insight);
+  const latestRoute = askMutation.data?.ask_result
+    ? summarizeSyncraticAskRouteResult(askMutation.data.ask_result)
+    : null;
+  const badge = classifySyncraticInsightBadge(insight, latestRoute?.askStatus);
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
+        <SyncraticBadgeChip badge={badge} />
         <StatusLabel status={summary.status} />
         <SeverityLabel severity={summary.severity} />
         <span className="text-xs text-gray-600">conf {summary.confidence.toFixed(2)}</span>
         <code className="break-all text-xs text-gray-700">{summary.insightId}</code>
         <CopyButton value={summary.insightId} />
       </div>
+
+      {dataQuality && (
+        <div className="flex items-start gap-2 rounded border border-red-300 bg-red-50 p-2" role="alert">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-red-700" />
+          <div>
+            <div className="text-xs font-semibold text-red-800">Data Quality Warning</div>
+            <div className="text-[11px] text-red-700">
+              Evidence does not support this context subject. Treat this as an evidence-quality issue, not a market insight.
+            </div>
+          </div>
+        </div>
+      )}
+
       <div>
         <div className="text-sm font-medium text-gray-900">{summary.title}</div>
         {summary.summary && <div className="mt-0.5 text-xs text-gray-600">{summary.summary}</div>}
       </div>
       {summary.explanation && (
-        <p className="rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-700">{summary.explanation}</p>
+        <div>
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-gray-700">
+              {ask.present ? 'Ask Explanation' : 'Deterministic Explanation'}
+            </span>
+            {ask.present && (
+              <span className="text-[11px] text-gray-500">
+                generated by Syncratic Ask over the bounded context window
+              </span>
+            )}
+          </div>
+          <p
+            className={`whitespace-pre-wrap break-words rounded border p-2 text-xs ${
+              dataQuality
+                ? 'border-red-300 bg-red-50 text-red-800'
+                : ask.present
+                  ? 'border-brand-200 bg-brand-50 text-gray-800'
+                  : 'border-gray-200 bg-gray-50 text-gray-700'
+            }`}
+          >
+            {summary.explanation}
+          </p>
+          {ask.present && (
+            <div className="mt-0.5 text-[11px] text-gray-500">
+              SignalOps deterministic context and evidence references are shown below. This explanation is Syncratic Ask output, not deterministic synthesis.
+            </div>
+          )}
+        </div>
       )}
+
+      {ask.present && (
+        <div className="rounded border border-brand-100 bg-brand-50/40 p-2">
+          <div className="mb-1 text-xs font-semibold text-gray-700">Syncratic Ask metadata</div>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              ['Ask status', ask.askStatus || '—'],
+              ['Direct reasoning', ask.directReasoning ? 'on' : 'off'],
+              ['Graph', ask.graphEnabled ? 'on' : 'off'],
+              ['KEE', ask.keeEnabled ? 'on' : 'off'],
+              ['Prompt bytes', orDash(ask.promptBytes)],
+              ['Latency', ask.latencyMs ? `${ask.latencyMs} ms` : '—'],
+              ['Confidence', ask.responseConfidence ? ask.responseConfidence.toFixed(2) : '—'],
+              ['Evidence / citations', `${orDash(ask.responseEvidenceCount)} / ${orDash(ask.responseCitationCount)}`],
+            ] as const).map(([label, value]) => (
+              <div key={label}>
+                <div className="text-xs text-gray-500">{label}</div>
+                <div className="text-xs">{value}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-1">
+            <div className="text-xs text-gray-500">Prompt builder</div>
+            <code className="break-all text-xs font-mono text-gray-700">{ask.promptBuilderVersion || '—'}</code>
+          </div>
+          {latestRoute && (
+            <div className="mt-1 text-[11px] text-gray-500">
+              Last route: {latestRoute.updated ? 'updated' : 'skipped'}
+              {latestRoute.skippedReason ? ` · ${latestRoute.skippedReason}` : ''}
+            </div>
+          )}
+        </div>
+      )}
+
+      <SyncraticAskControls
+        contextWindowId={summary.contextWindowId}
+        tenantId={tenantId}
+        askMutation={askMutation}
+      />
 
       <div className="grid grid-cols-2 gap-2 text-sm">
         <div><div className="text-xs text-gray-500">Type</div><div className="break-all text-xs">{summary.insightType || '—'}</div></div>
@@ -297,6 +418,98 @@ function SyncraticInsightDetail({
         )}
       </div>
     </div>
+  );
+}
+
+// G090 operator-triggered Syncratic Ask controls. Never runs automatically —
+// only on explicit click. Ask sends force=false (skips on unchanged prompt +
+// evidence); Regenerate sends force=true. Disabled while pending. Errors are
+// sanitized server-side and here (no raw prompt, tokens, or upstream bodies).
+function SyncraticAskControls({
+  contextWindowId,
+  tenantId,
+  askMutation,
+}: {
+  contextWindowId: string;
+  tenantId: string;
+  askMutation: ReturnType<typeof useAskSyncraticContextWindow>;
+}) {
+  if (!contextWindowId || !tenantId) return null;
+  const disabled = askMutation.isPending;
+
+  function trigger(force: boolean) {
+    askMutation.mutate({
+      contextWindowId,
+      request: { tenant_id: tenantId, max_prompt_bytes: 12000, force },
+    });
+  }
+
+  return (
+    <div className="rounded border border-gray-200 bg-white p-2">
+      <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-gray-700">
+        <Sparkles size={12} /> Syncratic Ask
+      </div>
+      <p className="mb-2 text-[11px] text-gray-500">
+        Operator-triggered enrichment over the bounded context window — never runs automatically.
+        Ask sends force=false; Regenerate sends force=true.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => trigger(false)}
+          disabled={disabled}
+          className="inline-flex items-center gap-1 rounded bg-brand-500 px-2.5 py-1 text-xs text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Sparkles size={12} /> {disabled ? 'Asking…' : 'Ask Syncratic'}
+        </button>
+        <button
+          type="button"
+          onClick={() => trigger(true)}
+          disabled={disabled}
+          className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <RefreshCw size={12} /> Regenerate
+        </button>
+      </div>
+
+      {askMutation.isSuccess && askMutation.data?.ask_result && (
+        <AskResultBanner
+          status={askMutation.data.ask_result.ask_status}
+          updated={askMutation.data.ask_result.updated}
+          skippedReason={askMutation.data.ask_result.skipped_reason}
+        />
+      )}
+      {askMutation.isError && (
+        <p className="mt-2 text-xs text-red-700" role="alert">
+          {messageForSyncraticAskError(askMutation.error)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Transient route-result banner. A skip (updated=false / ask_status=skipped) is a
+// normal outcome, rendered as amber info — never red.
+function AskResultBanner({
+  status,
+  updated,
+  skippedReason,
+}: {
+  status: string;
+  updated: boolean;
+  skippedReason: string;
+}) {
+  if (status === 'skipped' || !updated) {
+    return (
+      <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
+        Skipped — {skippedReason || 'unchanged prompt and evidence'}. No insight update was written.
+      </p>
+    );
+  }
+  return (
+    <p className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+      Ask completed. Insight explanation refreshed.
+    </p>
   );
 }
 
@@ -411,6 +624,9 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
           Bounded synthesis over {MATERIALIZE_UNIVERSE_GROUP} · {MATERIALIZE_STRATEGY} · operator-triggered only
         </span>
       </div>
+      <p className="-mt-1 mb-2 text-[11px] text-gray-500">
+        Subject-scoped contexts require evidence that matches the selected ticker. Evidence mentioning another known ticker is excluded (purity filtering).
+      </p>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-6">
         <label className="block">
           <span className={labelCls}>Window start</span>
@@ -512,6 +728,13 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
           ))}
         </div>
       )}
+      {materialize.isSuccess &&
+        (materialize.data?.materialization?.materialized_context_windows ?? 0) === 0 &&
+        (materialize.data?.materialization?.materialized_insights ?? 0) === 0 && (
+          <p className="mt-2 text-xs text-gray-600">
+            No eligible evidence for this window — not a system error. Lower the minimum-evidence threshold, widen the window, or rematerialize after evidence is corrected.
+          </p>
+        )}
       {materialize.isError && (
         <p className="mt-2 text-xs text-red-700" role="alert">
           Materialize failed: {isApiError(materialize.error) ? materialize.error.message : 'unknown error'}. Form values preserved.

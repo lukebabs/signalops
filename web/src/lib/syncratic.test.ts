@@ -3,6 +3,13 @@ import {
   summarizeSyncraticInsight,
   summarizeSyncraticContextWindow,
   summarizeSyncraticMaterialization,
+  summarizeSyncraticAsk,
+  summarizeSyncraticAskRouteResult,
+  detectSyncraticDataQualityWarning,
+  classifySyncraticInsightBadge,
+  classifySyncraticAskError,
+  messageForSyncraticAskError,
+  SYNCRATIC_ASK_BADGE_LABELS,
   syncraticSeverityStyle,
   syncraticInsightStatusStyle,
   shortSyncraticId,
@@ -141,5 +148,170 @@ describe('shortSyncraticId (G088)', () => {
     expect(shortSyncraticId('synctx_abc123def')).toBe('abc123def');
     expect(shortSyncraticId('synins_9dd57597915529ef')).toBe('9dd57597915529ef');
     expect(shortSyncraticId('noseparator')).toBe('noseparator');
+  });
+});
+
+// --- G090 Syncratic Ask enrichment helpers ---------------------------------
+
+const ASK_METRICS = {
+  metrics: {
+    syncratic_ask: {
+      enabled: true,
+      ask_query_id: 'ask-1',
+      ask_status: 'completed',
+      prompt_builder_version: 'marketops.syncratic.ask_prompt.v1',
+      prompt_digest: 'sha256:abc',
+      context_window_id: 'synctx_1',
+      context_evidence_digest: 'digest',
+      request_scope: 'tenant',
+      request_k: 1,
+      direct_reasoning: true,
+      graph_enabled: false,
+      kee_enabled: false,
+      prompt_bytes: 9709,
+      caps: {},
+      response: { confidence: 0.82, evidence_count: 3, citation_count: 2 },
+      latency_ms: 1234,
+    },
+  },
+};
+
+describe('summarizeSyncraticAsk (G090)', () => {
+  it('reads the persisted Ask metadata scalars without throwing', () => {
+    const a = summarizeSyncraticAsk(ASK_METRICS);
+    expect(a.present).toBe(true);
+    expect(a.askQueryId).toBe('ask-1');
+    expect(a.askStatus).toBe('completed');
+    expect(a.promptBuilderVersion).toBe('marketops.syncratic.ask_prompt.v1');
+    expect(a.directReasoning).toBe(true);
+    expect(a.graphEnabled).toBe(false);
+    expect(a.keeEnabled).toBe(false);
+    expect(a.promptBytes).toBe(9709);
+    expect(a.latencyMs).toBe(1234);
+    expect(a.responseConfidence).toBeCloseTo(0.82);
+    expect(a.responseEvidenceCount).toBe(3);
+    expect(a.responseCitationCount).toBe(2);
+  });
+
+  it('reports present:false for a deterministic insight (no Ask metadata)', () => {
+    const a = summarizeSyncraticAsk({ metrics: {} });
+    expect(a.present).toBe(false);
+    expect(a.askStatus).toBe('');
+  });
+
+  it('tolerates missing/malformed payloads', () => {
+    expect(summarizeSyncraticAsk(undefined).present).toBe(false);
+    expect(summarizeSyncraticAsk(null).present).toBe(false);
+    expect(summarizeSyncraticAsk('nope').present).toBe(false);
+    // response nested under a non-object collapses to 0s, not a throw.
+    const a = summarizeSyncraticAsk({ metrics: { syncratic_ask: { ask_status: 'completed', response: 'oops' } } });
+    expect(a.present).toBe(true);
+    expect(a.responseConfidence).toBe(0);
+  });
+});
+
+describe('summarizeSyncraticAskRouteResult (G090)', () => {
+  it('reads the ask_result envelope and flags a skip', () => {
+    const r = summarizeSyncraticAskRouteResult({
+      context_window_id: 'synctx_1',
+      syncratic_insight_id: 'synins_1',
+      ask_query_id: '',
+      ask_status: 'skipped',
+      prompt_digest: 'sha256:abc',
+      updated: false,
+      skipped_reason: 'unchanged_prompt_and_evidence',
+      prompt_builder_version: 'marketops.syncratic.ask_prompt.v1',
+    });
+    expect(r.askStatus).toBe('skipped');
+    expect(r.updated).toBe(false);
+    expect(r.skippedReason).toBe('unchanged_prompt_and_evidence');
+  });
+
+  it('tolerates a non-object result', () => {
+    const r = summarizeSyncraticAskRouteResult(null);
+    expect(r.updated).toBe(false);
+    expect(r.askStatus).toBe('');
+  });
+});
+
+describe('detectSyncraticDataQualityWarning (G090)', () => {
+  it('matches "data quality warning" case-insensitively', () => {
+    expect(
+      detectSyncraticDataQualityWarning({ explanation: 'DATA QUALITY WARNING: evidence mismatch' }),
+    ).toBe(true);
+    expect(detectSyncraticDataQualityWarning({ title: 'Data Quality warning' })).toBe(true);
+  });
+
+  it('matches "subject mismatch" and "does not support"', () => {
+    expect(detectSyncraticDataQualityWarning({ summary: 'Subject mismatch detected' })).toBe(true);
+    expect(
+      detectSyncraticDataQualityWarning({ explanation: 'evidence does not support the context subject' }),
+    ).toBe(true);
+  });
+
+  it('does not flag a clean market thesis and does not infer from symbol alone', () => {
+    expect(
+      detectSyncraticDataQualityWarning({ subject_symbol: 'AAPL', explanation: 'AAPL shows bounded volatility worth review.' }),
+    ).toBe(false);
+    // Symbol present but no warning language → not a data-quality block.
+    expect(detectSyncraticDataQualityWarning({ subject_symbol: 'MSFT' })).toBe(false);
+  });
+});
+
+describe('classifySyncraticInsightBadge (G090)', () => {
+  it('returns deterministic when no Ask metadata is present', () => {
+    expect(classifySyncraticInsightBadge({ metrics: {} })).toBe('deterministic');
+  });
+
+  it('returns ask_completed when metrics.syncratic_ask.ask_status is completed', () => {
+    expect(classifySyncraticInsightBadge(ASK_METRICS)).toBe('ask_completed');
+  });
+
+  it('returns ask_skipped from the latest transient route result', () => {
+    // Persisted state is ask_completed, but the latest action skipped.
+    expect(classifySyncraticInsightBadge(ASK_METRICS, 'skipped')).toBe('ask_skipped');
+  });
+
+  it('overrides to data_quality when warning language is present, even if Ask completed', () => {
+    const blocked = { ...ASK_METRICS, explanation: 'DATA QUALITY WARNING' };
+    expect(classifySyncraticInsightBadge(blocked)).toBe('data_quality');
+  });
+
+  it('labels every badge kind for the chip renderer', () => {
+    expect(SYNCRATIC_ASK_BADGE_LABELS.deterministic).toBe('Deterministic');
+    expect(SYNCRATIC_ASK_BADGE_LABELS.ask_completed).toBe('Ask completed');
+    expect(SYNCRATIC_ASK_BADGE_LABELS.ask_skipped).toBe('Ask skipped');
+    expect(SYNCRATIC_ASK_BADGE_LABELS.data_quality).toBe('Data Quality Warning');
+  });
+});
+
+describe('classifySyncraticAskError / messageForSyncraticAskError (G090)', () => {
+  it('maps each backend code to a sanitized kind', () => {
+    expect(classifySyncraticAskError(0, 'network_error')).toBe('network');
+    expect(classifySyncraticAskError(401, 'unauthorized')).toBe('auth');
+    expect(classifySyncraticAskError(400, 'empty_context_window')).toBe('empty');
+    expect(classifySyncraticAskError(400, 'syncratic_ask_invalid')).toBe('invalid');
+    expect(classifySyncraticAskError(404, 'context_window_not_found')).toBe('not_found');
+    expect(classifySyncraticAskError(503, 'syncratic_ask_unavailable')).toBe('unavailable');
+    expect(classifySyncraticAskError(502, 'syncratic_ask_failed')).toBe('failed');
+    expect(classifySyncraticAskError(500, 'syncratic_ask_failed')).toBe('failed');
+    expect(classifySyncraticAskError(418, 'im_a_teapot')).toBe('unknown');
+  });
+
+  it('renders the verbatim empty_context_window operator copy', () => {
+    expect(messageForSyncraticAskError({ status: 400, code: 'empty_context_window' })).toBe(
+      'No pure supporting evidence exists for this context subject. Review signal/entity mapping or rematerialize after evidence is corrected.',
+    );
+  });
+
+  it('sanitizes 502 failures — never surfaces upstream bodies', () => {
+    const msg = messageForSyncraticAskError({ status: 502, code: 'syncratic_ask_failed' });
+    expect(msg).toBe('Syncratic Ask failed. Upstream details are not exposed; retry or review gateway logs.');
+    expect(msg).not.toContain('portal.syncratic');
+    expect(msg).not.toContain('upstream');
+  });
+
+  it('falls back to the unknown message for non-ApiError shapes', () => {
+    expect(messageForSyncraticAskError(new Error('boom'))).toContain('unexpectedly');
   });
 });

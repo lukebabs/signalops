@@ -78,6 +78,8 @@ import type {
   SyncraticInsightFilter,
   SyncraticContextWindowFilter,
   SyncraticMaterializeRequest,
+  SyncraticAskRequest,
+  SyncraticAskResponse,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -562,4 +564,14 @@ export const api = {
     ),
   materializeSyncraticContexts: (request: SyncraticMaterializeRequest) =>
     post<SyncraticMaterializationResponse>('/v1/syncratic/materialize', request),
+  // G090 operator-triggered Syncratic Ask enrichment over an existing context
+  // window. Same authenticated same-origin pattern; the gateway derives the actor,
+  // so no actor header is sent. force=false skips on an unchanged prompt+evidence
+  // digest; force=true regenerates. Like materialize, this never calls the external
+  // Syncratic user facade from the browser.
+  askSyncraticContextWindow: (contextWindowId: string, request: SyncraticAskRequest) =>
+    post<SyncraticAskResponse>(
+      `/v1/syncratic/context-windows/${encodeURIComponent(contextWindowId)}/ask`,
+      request,
+    ),
 };

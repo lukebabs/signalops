@@ -1432,3 +1432,36 @@ export interface SyncraticMaterializeRequest {
   max_context_windows?: number;
   max_insights?: number;
 }
+
+// G090 operator-triggered Syncratic Ask enrichment. Mirrors the gateway DTOs in
+// internal/api/syncratic.go (syncraticAskRequest / syncraticAskResult). The route
+// operates on an already-persisted context window: force=false skips when the
+// prompt+evidence digest is unchanged; force=true regenerates. prompt_builder_version
+// and include_record_details are accepted by the backend but omitted here (defaults).
+export interface SyncraticAskRequest {
+  tenant_id: string;
+  max_prompt_bytes?: number;
+  force?: boolean;
+}
+
+// ask_status is "completed" (updated insight written) or "skipped"
+// (unchanged_prompt_and_evidence, force=false, no write). updated mirrors ask_status
+// for convenience. Fields are always present in the route response.
+export interface SyncraticAskResult {
+  context_window_id: string;
+  syncratic_insight_id: string;
+  ask_query_id: string;
+  ask_status: string;
+  prompt_digest: string;
+  updated: boolean;
+  skipped_reason: string;
+  prompt_builder_version: string;
+}
+
+// The route always returns the full refreshed insight under syncratic_insight, even
+// on skip (the pre-existing insight row). Typed as SyncraticInsight; summarizeSyncratic*
+// helpers tolerate a malformed/empty payload without throwing.
+export interface SyncraticAskResponse {
+  ask_result: SyncraticAskResult;
+  syncratic_insight: SyncraticInsight;
+}

@@ -21,7 +21,7 @@ vi.mock('../auth/session', () => ({
 
 // Import the client AFTER the mocks are registered.
 const { api } = await import('./client');
-const { queryKeys, applySyncraticMaterializeResult } = await import('./queries');
+const { queryKeys, applySyncraticMaterializeResult, applySyncraticAskResult } = await import('./queries');
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -227,5 +227,93 @@ describe('applySyncraticMaterializeResult (G088 invalidation)', () => {
     expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtests'] });
     expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtest-promotion-candidates'] });
     expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-dsm-graph-proposals'] });
+  });
+});
+
+describe('askSyncraticContextWindow (G090)', () => {
+  it('posts the ask request with force=false to the context-window ask path', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ask_result: { ask_status: 'completed', updated: true },
+        syncratic_insight: { syncratic_insight_id: 'synins-1' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    state.authEnabled = true;
+    state.token = 'jwt-abc';
+
+    await api.askSyncraticContextWindow('synctx-1', {
+      tenant_id: 'tenant-local',
+      max_prompt_bytes: 12000,
+      force: false,
+    });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/syncratic/context-windows/synctx-1/ask');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[0][1].headers['Authorization']).toBe('Bearer jwt-abc');
+    expect(fetchMock.mock.calls[0][1].headers['Content-Type']).toBe('application/json');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      tenant_id: 'tenant-local',
+      max_prompt_bytes: 12000,
+      force: false,
+    });
+  });
+
+  it('sends force=true for an explicit regenerate action', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ask_result: {}, syncratic_insight: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.askSyncraticContextWindow('synctx/a b', {
+      tenant_id: 'tenant-local',
+      force: true,
+    });
+
+    // URL-encodes the context window id on the ask path.
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/syncratic/context-windows/synctx%2Fa%20b/ask');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).force).toBe(true);
+  });
+});
+
+describe('applySyncraticAskResult (G090 cache effect)', () => {
+  it('seeds the refreshed insight into the detail cache and invalidates only Syncratic prefixes', () => {
+    const queryClient = new QueryClient();
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const setSpy = vi.spyOn(queryClient, 'setQueryData');
+
+    applySyncraticAskResult(queryClient, {
+      ask_result: { ask_status: 'completed', updated: true } as never,
+      syncratic_insight: { syncratic_insight_id: 'synins-1' } as never,
+    });
+
+    // Instant detail update from the full returned insight.
+    expect(setSpy).toHaveBeenCalledWith(['syncratic-insight', 'synins-1'], {
+      syncratic_insight: { syncratic_insight_id: 'synins-1' },
+    });
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['syncratic-insights'] });
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['syncratic-insight'] });
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['syncratic-context-windows'] });
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['syncratic-context-window'] });
+    // Production + sibling queries are untouched by an Ask action.
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['alerts'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['signals'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['insights'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['marketops-backtests'] });
+  });
+
+  it('skips the cache seed when the returned insight has no id (defensive)', () => {
+    const queryClient = new QueryClient();
+    const setSpy = vi.spyOn(queryClient, 'setQueryData');
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    applySyncraticAskResult(queryClient, {
+      ask_result: { ask_status: 'skipped', updated: false } as never,
+      syncratic_insight: {} as never,
+    });
+
+    // No id to seed under, but the list/detail prefixes still invalidate.
+    expect(setSpy).not.toHaveBeenCalled();
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['syncratic-insights'] });
   });
 });

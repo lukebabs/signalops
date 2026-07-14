@@ -44,6 +44,14 @@ function asString(v: unknown): string {
   return typeof v === 'string' ? v : '';
 }
 
+// Coerce to boolean defensively: strict booleans pass; the literal strings
+// "true"/"false" parse; everything else (missing/objects) is false.
+function asBoolean(v: unknown): boolean {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'string') return v.toLowerCase() === 'true';
+  return false;
+}
+
 // Restrained severity token colors, mirroring the Alert/Insight severity palette.
 export const SYNCRATIC_SEVERITY_STYLES: Record<string, string> = {
   critical: 'text-red-700',
@@ -319,4 +327,230 @@ export function shortSyncraticId(id: string): string {
   const v = typeof id === 'string' ? id : '';
   const idx = v.lastIndexOf('_');
   return idx >= 0 && idx < v.length - 1 ? v.slice(idx + 1) : v;
+}
+
+// --- G090 Syncratic Ask enrichment helpers ---------------------------------
+// Ask metadata lives under metrics.syncratic_ask. These helpers read it
+// tolerantly (never throw) and never surface raw prompt text, bearer tokens,
+// upstream bodies, or provider payloads — only the sanitized scalar fields the
+// detail panel renders.
+
+export interface SyncraticAskSummary {
+  present: boolean;
+  enabled: boolean;
+  askQueryId: string;
+  askStatus: string;
+  promptBuilderVersion: string;
+  promptDigest: string;
+  contextWindowId: string;
+  contextEvidenceDigest: string;
+  requestScope: string;
+  requestK: number;
+  directReasoning: boolean;
+  graphEnabled: boolean;
+  keeEnabled: boolean;
+  includedRecordDetails: boolean;
+  promptBytes: number;
+  latencyMs: number;
+  startedAt: string;
+  completedAt: string;
+  responseConfidence: number;
+  responseEvidenceCount: number;
+  responseCitationCount: number;
+}
+
+const EMPTY_ASK_SUMMARY: SyncraticAskSummary = {
+  present: false,
+  enabled: false,
+  askQueryId: '',
+  askStatus: '',
+  promptBuilderVersion: '',
+  promptDigest: '',
+  contextWindowId: '',
+  contextEvidenceDigest: '',
+  requestScope: '',
+  requestK: 0,
+  directReasoning: false,
+  graphEnabled: false,
+  keeEnabled: false,
+  includedRecordDetails: false,
+  promptBytes: 0,
+  latencyMs: 0,
+  startedAt: '',
+  completedAt: '',
+  responseConfidence: 0,
+  responseEvidenceCount: 0,
+  responseCitationCount: 0,
+};
+
+// Read metrics.syncratic_ask off an insight (or any object carrying metrics).
+// Returns present:false (with the empty summary) when Ask metadata is absent —
+// the signal that the insight is deterministic, not Ask-enriched.
+export function summarizeSyncraticAsk(insight: unknown): SyncraticAskSummary {
+  if (!isRecord(insight)) return { ...EMPTY_ASK_SUMMARY };
+  const metrics = (insight as Record<string, unknown>).metrics;
+  const ask = isRecord(metrics) ? (metrics as Record<string, unknown>).syncratic_ask : undefined;
+  if (!isRecord(ask)) return { ...EMPTY_ASK_SUMMARY };
+  const response = isRecord(ask.response) ? ask.response : {};
+  return {
+    present: true,
+    enabled: asBoolean(ask.enabled),
+    askQueryId: asString(ask.ask_query_id),
+    askStatus: asString(ask.ask_status),
+    promptBuilderVersion: asString(ask.prompt_builder_version),
+    promptDigest: asString(ask.prompt_digest),
+    contextWindowId: asString(ask.context_window_id),
+    contextEvidenceDigest: asString(ask.context_evidence_digest),
+    requestScope: asString(ask.request_scope),
+    requestK: asNumber(ask.request_k),
+    directReasoning: asBoolean(ask.direct_reasoning),
+    graphEnabled: asBoolean(ask.graph_enabled),
+    keeEnabled: asBoolean(ask.kee_enabled),
+    includedRecordDetails: asBoolean(ask.included_record_details),
+    promptBytes: asNumber(ask.prompt_bytes),
+    latencyMs: asNumber(ask.latency_ms),
+    startedAt: asString(ask.started_at),
+    completedAt: asString(ask.completed_at),
+    responseConfidence: asNumber(response.confidence),
+    responseEvidenceCount: asNumber(response.evidence_count),
+    responseCitationCount: asNumber(response.citation_count),
+  };
+}
+
+export interface SyncraticAskRouteSummary {
+  contextWindowId: string;
+  syncraticInsightId: string;
+  askQueryId: string;
+  askStatus: string;
+  promptDigest: string;
+  updated: boolean;
+  skippedReason: string;
+  promptBuilderVersion: string;
+}
+
+const EMPTY_ASK_ROUTE: SyncraticAskRouteSummary = {
+  contextWindowId: '',
+  syncraticInsightId: '',
+  askQueryId: '',
+  askStatus: '',
+  promptDigest: '',
+  updated: false,
+  skippedReason: '',
+  promptBuilderVersion: '',
+};
+
+// Read the ask_result envelope from the POST .../ask route response. Never
+// throws; a non-object result yields the empty route summary.
+export function summarizeSyncraticAskRouteResult(result: unknown): SyncraticAskRouteSummary {
+  if (!isRecord(result)) return { ...EMPTY_ASK_ROUTE };
+  return {
+    contextWindowId: asString(result.context_window_id),
+    syncraticInsightId: asString(result.syncratic_insight_id),
+    askQueryId: asString(result.ask_query_id),
+    askStatus: asString(result.ask_status),
+    promptDigest: asString(result.prompt_digest),
+    updated: asBoolean(result.updated),
+    skippedReason: asString(result.skipped_reason),
+    promptBuilderVersion: asString(result.prompt_builder_version),
+  };
+}
+
+// Data-quality subject-mismatch detection over the rendered text fields. The
+// Ask prompt instructs the model to lead with "DATA QUALITY WARNING" when
+// evidence cannot support the context subject, so matching that phrase is the
+// primary signal; subject mismatch and "does not support" cover phrasing
+// variants. Never inferred from subject symbol alone.
+const DATA_QUALITY_PHRASES = ['data quality warning', 'subject mismatch', 'does not support'];
+
+export function detectSyncraticDataQualityWarning(insight: unknown): boolean {
+  if (!isRecord(insight)) return false;
+  const text = `${asString(insight.title)} ${asString(insight.summary)} ${asString(insight.explanation)}`.toLowerCase();
+  return DATA_QUALITY_PHRASES.some((phrase) => text.includes(phrase));
+}
+
+// Insight badge classification. `deterministic` = no Ask metadata. `ask_completed`
+// = metrics.syncratic_ask.ask_status === completed. `ask_skipped` is transient —
+// only set from the latest route response (there is no persisted skip state). A
+// data-quality warning overrides all of the above so a blocked result never reads
+// as a valid market thesis.
+export type SyncraticAskBadge =
+  | 'deterministic'
+  | 'ask_completed'
+  | 'ask_skipped'
+  | 'data_quality';
+
+export function classifySyncraticInsightBadge(
+  insight: unknown,
+  latestAskStatus?: string,
+): SyncraticAskBadge {
+  if (detectSyncraticDataQualityWarning(insight)) return 'data_quality';
+  if (latestAskStatus === 'skipped') return 'ask_skipped';
+  const ask = summarizeSyncraticAsk(insight);
+  return ask.present && ask.askStatus === 'completed' ? 'ask_completed' : 'deterministic';
+}
+
+export const SYNCRATIC_ASK_BADGE_LABELS: Record<SyncraticAskBadge, string> = {
+  deterministic: 'Deterministic',
+  ask_completed: 'Ask completed',
+  ask_skipped: 'Ask skipped',
+  data_quality: 'Data Quality Warning',
+};
+
+// Restrained badge chip colors. data_quality leads with amber/red so it is
+// visually distinct from a valid ask_completed (emerald) or deterministic (gray).
+export const SYNCRATIC_ASK_BADGE_STYLES: Record<SyncraticAskBadge, string> = {
+  deterministic: 'border-gray-200 bg-gray-50 text-gray-600',
+  ask_completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  ask_skipped: 'border-amber-200 bg-amber-50 text-amber-700',
+  data_quality: 'border-red-200 bg-red-50 text-red-700',
+};
+
+// Sanitized Ask action error mapping. The gateway already strips upstream Syncratic
+// bodies before responding (it returns fixed messages for syncratic_ask_failed),
+// and these strings carry no prompt text, bearer tokens, or provider payloads.
+// `empty_context_window` is handled defensively: it is emitted by context-window
+// create/materialize purity filtering rather than the Ask route itself, but the
+// operator-facing guidance is the same.
+export type SyncraticAskErrorKind =
+  | 'network'
+  | 'auth'
+  | 'empty'
+  | 'invalid'
+  | 'not_found'
+  | 'unavailable'
+  | 'failed'
+  | 'unknown';
+
+export function classifySyncraticAskError(status: number, code: string): SyncraticAskErrorKind {
+  if (status === 0) return 'network';
+  if (status === 401 || code === 'unauthorized') return 'auth';
+  if (code === 'empty_context_window') return 'empty';
+  if (code === 'syncratic_ask_invalid') return 'invalid';
+  if (code === 'context_window_not_found') return 'not_found';
+  if (code === 'syncratic_ask_unavailable') return 'unavailable';
+  if (status === 502 || status === 500 || code === 'syncratic_ask_failed') return 'failed';
+  return 'unknown';
+}
+
+export const SYNCRATIC_ASK_ERROR_MESSAGES: Record<SyncraticAskErrorKind, string> = {
+  network: 'Gateway unreachable.',
+  auth: 'Authentication required — please sign in again.',
+  empty:
+    'No pure supporting evidence exists for this context subject. Review signal/entity mapping or rematerialize after evidence is corrected.',
+  invalid: 'Ask request validation failed. Adjust inputs and retry.',
+  not_found: 'Syncratic context window not found. It may have been removed.',
+  unavailable: 'Syncratic Ask is not configured on this gateway.',
+  failed: 'Syncratic Ask failed. Upstream details are not exposed; retry or review gateway logs.',
+  unknown: 'Syncratic Ask failed unexpectedly. Retry or review gateway logs.',
+};
+
+// Resolve a sanitized Ask error message from a thrown error. Accepts the ApiError
+// shape ({ status, code }) or anything else (falls back to the unknown message).
+export function messageForSyncraticAskError(error: unknown): string {
+  if (isRecord(error) && typeof error.status === 'number' && 'code' in error) {
+    return SYNCRATIC_ASK_ERROR_MESSAGES[
+      classifySyncraticAskError(error.status, asString(error.code))
+    ];
+  }
+  return SYNCRATIC_ASK_ERROR_MESSAGES.unknown;
 }
