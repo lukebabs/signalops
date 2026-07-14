@@ -96,6 +96,7 @@ type fakeQueryRepository struct {
 	backtestEvaluationLabels       []storage.MarketOpsBacktestEvaluationLabelRecord
 	backtestEvaluations            []storage.MarketOpsBacktestEvaluationRecord
 	backtestPromotionCandidates    []storage.MarketOpsBacktestPromotionCandidateRecord
+	backtestCalibrationReadiness   []storage.MarketOpsBacktestCalibrationReadinessRecord
 	syncraticContextWindows        []storage.SyncraticContextWindowRecord
 	syncraticInsights              []storage.SyncraticInsightRecord
 	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
@@ -107,6 +108,7 @@ type fakeQueryRepository struct {
 	lastEvaluationLabelFilter      storage.MarketOpsBacktestEvaluationLabelFilter
 	lastBacktestEvaluationFilter   storage.MarketOpsBacktestEvaluationFilter
 	lastBacktestPromotionFilter    storage.MarketOpsBacktestPromotionCandidateFilter
+	lastBacktestReadinessFilter    storage.MarketOpsBacktestCalibrationReadinessFilter
 	lastDSMFilter                  storage.MarketOpsDSMArtifactFilter
 	lastGraphProposalFilter        storage.MarketOpsDSMGraphProposalFilter
 	lastGraphProposalMutation      storage.MarketOpsDSMGraphProposalMutation
@@ -530,6 +532,38 @@ func (q *fakeQueryRepository) MutateMarketOpsBacktestPromotionCandidateDecision(
 		}
 	}
 	return storage.MarketOpsBacktestPromotionCandidateRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertMarketOpsBacktestCalibrationReadiness(_ context.Context, record storage.MarketOpsBacktestCalibrationReadinessRecord) error {
+	for i, existing := range q.backtestCalibrationReadiness {
+		if existing.ReadinessID == record.ReadinessID {
+			record.CreatedAt = existing.CreatedAt
+			q.backtestCalibrationReadiness[i] = record
+			return nil
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	q.backtestCalibrationReadiness = append(q.backtestCalibrationReadiness, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestCalibrationReadiness(_ context.Context, filter storage.MarketOpsBacktestCalibrationReadinessFilter) ([]storage.MarketOpsBacktestCalibrationReadinessRecord, error) {
+	q.lastBacktestReadinessFilter = filter
+	return q.backtestCalibrationReadiness, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsBacktestCalibrationReadiness(_ context.Context, readinessID string) (storage.MarketOpsBacktestCalibrationReadinessRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsBacktestCalibrationReadinessRecord{}, storage.ErrNotFound
+	}
+	for _, record := range q.backtestCalibrationReadiness {
+		if record.ReadinessID == readinessID {
+			return record, nil
+		}
+	}
+	return storage.MarketOpsBacktestCalibrationReadinessRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) UpsertSyncraticContextWindow(_ context.Context, record storage.SyncraticContextWindowRecord) error {
@@ -1549,6 +1583,70 @@ func TestPostMarketOpsBacktestPromotionCandidateDecisionRejectsProposedStatus(t 
 	}
 }
 
+func TestPostMarketOpsBacktestCalibrationReadinessCreatesNeedsMoreDataSnapshot(t *testing.T) {
+	repo := &fakeQueryRepository{
+		backtestCalibrationBaselines:   []storage.MarketOpsBacktestCalibrationBaselineRecord{validMarketOpsBacktestCalibrationBaselineRecord()},
+		backtestCalibrationComparisons: []storage.MarketOpsBacktestCalibrationComparisonRecord{validMarketOpsBacktestCalibrationComparisonRecord()},
+		backtestEvaluations:            []storage.MarketOpsBacktestEvaluationRecord{validMarketOpsBacktestEvaluationRecord()},
+		backtestPromotionCandidates:    []storage.MarketOpsBacktestPromotionCandidateRecord{validMarketOpsBacktestPromotionCandidateRecord()},
+		backtestRuns:                   []storage.MarketOpsBacktestRunRecord{validMarketOpsBacktestRunRecord()},
+		backtestEvaluationLabels:       []storage.MarketOpsBacktestEvaluationLabelRecord{validMarketOpsBacktestEvaluationLabelRecord()},
+		marketOpsAssets:                []storage.MarketOpsAssetRecord{{TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "AAPL", IsActive: true}, {TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "MSFT", IsActive: true}},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"readiness_id":"btready-1","tenant_id":"tenant-1","baseline_id":"btbase-1","comparison_id":"btcmp-1","evaluation_id":"bteval-1","candidate_id":"btpromo-1","dataset_scope":["equity_eod_prices","options_contracts_daily"],"universe_group":"top50_megacap","thresholds":{"min_reviewed_labels":100}}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-calibration-readiness", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	readiness := response["calibration_readiness"]
+	if readiness["readiness_id"] != "btready-1" || readiness["readiness_status"] != storage.MarketOpsBacktestCalibrationReadinessNeedsMoreHistoricalData {
+		t.Fatalf("readiness = %#v", readiness)
+	}
+	if repo.lastBacktestRunFilter.Status != storage.RunStatusSucceeded || repo.lastUniverseGroup != "top50_megacap" {
+		t.Fatalf("filters run=%+v universe=%s", repo.lastBacktestRunFilter, repo.lastUniverseGroup)
+	}
+}
+
+func TestGetMarketOpsBacktestCalibrationReadiness(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationReadiness: []storage.MarketOpsBacktestCalibrationReadinessRecord{validMarketOpsBacktestCalibrationReadinessRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-calibration-readiness/btready-1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response["calibration_readiness"]["readiness_id"] != "btready-1" {
+		t.Fatalf("response = %s", rec.Body.String())
+	}
+}
+
+func TestGetMarketOpsBacktestCalibrationReadinessList(t *testing.T) {
+	repo := &fakeQueryRepository{backtestCalibrationReadiness: []storage.MarketOpsBacktestCalibrationReadinessRecord{validMarketOpsBacktestCalibrationReadinessRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-calibration-readiness?tenant_id=tenant-1&readiness_status=needs_more_labels&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestReadinessFilter.TenantID != "tenant-1" || repo.lastBacktestReadinessFilter.ReadinessStatus != storage.MarketOpsBacktestCalibrationReadinessNeedsMoreLabels || repo.lastBacktestReadinessFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastBacktestReadinessFilter)
+	}
+}
+
 func TestPostMarketOpsBacktestEvaluationLabelsSyncCreatesLabels(t *testing.T) {
 	proposal := validMarketOpsDSMGraphProposalRecord()
 	now := time.Date(2026, 7, 12, 20, 0, 0, 0, time.UTC)
@@ -2097,6 +2195,11 @@ func validMarketOpsDSMArtifactRecord() storage.MarketOpsDSMArtifactRecord {
 		CreatedAt:            time.Date(2026, 7, 8, 0, 2, 0, 0, time.UTC),
 		UpdatedAt:            time.Date(2026, 7, 8, 0, 3, 0, 0, time.UTC),
 	}
+}
+
+func validMarketOpsBacktestCalibrationReadinessRecord() storage.MarketOpsBacktestCalibrationReadinessRecord {
+	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
+	return storage.MarketOpsBacktestCalibrationReadinessRecord{ReadinessID: "btready-1", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", BaselineID: "btbase-1", ComparisonID: "btcmp-1", EvaluationID: "bteval-1", CandidateID: "btpromo-1", DetectorID: "marketops.dsm.taxonomy_v1", DatasetScope: []string{"equity_eod_prices"}, UniverseGroup: "top50_megacap", ReadinessStatus: storage.MarketOpsBacktestCalibrationReadinessNeedsMoreLabels, ReadinessReasons: []string{"reviewed label volume or label coverage is below readiness thresholds"}, CoverageMetricsJSON: []byte(`{"symbol_coverage_ratio":0.02}`), LabelMetricsJSON: []byte(`{"matched_label_count":1}`), EvaluationMetricsJSON: []byte(`{"label_coverage":1}`), ThresholdsJSON: []byte(`{"min_reviewed_labels":100}`), EvidenceJSON: []byte(`{"deployment_block":"calibration readiness is advisory"}`), RequestedBy: "operator-test", CreatedAt: now}
 }
 
 func validMarketOpsBacktestPromotionCandidateRecord() storage.MarketOpsBacktestPromotionCandidateRecord {

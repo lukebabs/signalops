@@ -29,6 +29,9 @@ Current MarketOps-specific endpoints:
 - `POST /v1/marketops/backtest-evaluations`
 - `GET /v1/marketops/backtest-evaluations`
 - `GET /v1/marketops/backtest-evaluations/{evaluation_id}`
+- `POST /v1/marketops/backtest-calibration-readiness`
+- `GET /v1/marketops/backtest-calibration-readiness`
+- `GET /v1/marketops/backtest-calibration-readiness/{readiness_id}`
 - `POST /v1/syncratic/materialize`
 - `POST /v1/syncratic/context-windows`
 - `GET /v1/syncratic/context-windows`
@@ -55,3 +58,4 @@ Current notes:
 - `syncratic_context_window_api.md`: G088 context-window and synthesized insight API boundary.
 - `backtest_evaluation_label_api.md`: G084 graph-proposal decision label sync API boundary.
 - `backtest_label_aware_evaluation_api.md`: G085 label-aware back-test scoring API boundary.
+- `backtest_calibration_readiness_api.md`: G094 calibration readiness snapshot API boundary.

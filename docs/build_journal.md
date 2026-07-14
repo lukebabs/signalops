@@ -6264,3 +6264,26 @@ Summary:
 Validation performed:
 
 - Documentation readback completed; no code or production runtime changes made.
+
+## 2026-07-14T15:46:09Z
+
+Summary:
+
+- Implemented the G094 calibration readiness snapshot backend/API slice.
+- Added persisted readiness snapshots over existing G081-G086 evidence with conservative readiness statuses for historical coverage, label volume, label quality, regression, and blocked states.
+- Added API documentation for `/v1/marketops/backtest-calibration-readiness`.
+- Preserved the no-runtime-deployment boundary: readiness snapshots do not mutate detector policy, graph state, production ledgers, or promotion decisions.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `python3 scripts/validate_json_schemas.py`: passed.
+Live validation performed:
+
+- `make compose-storage-migrate`: applied `000021_marketops_backtest_calibration_readiness`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d --build gateway`: passed; Docker build ran full Go tests.
+- Authenticated prerequisite reads for G083/G085/G086 evidence: HTTP `200`.
+- Authenticated readiness create: HTTP `201`, id `btready-g094-auth-smoke-20260714154609`, status `needs_more_historical_data`.
+- Authenticated readiness detail/list reads: HTTP `200`.
+- Snapshot metrics confirmed the intended block: `4/50` symbol coverage, `4` distinct windows, `0` options windows, and `7` matched labels.

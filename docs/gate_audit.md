@@ -7312,3 +7312,51 @@ Result:
 - Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G094_backtest_calibration_readiness.md`.
 - Gate index, use-case README, back-test architecture note, and operations notes now reference the G094 direction.
 - Recommended next implementation slice is calibration readiness snapshots over existing G081-G086 evidence, not runtime deployment.
+
+## Gate G094: Calibration Readiness Snapshot Implementation
+
+Timestamp: `2026-07-14T15:46:09Z`
+
+Status: `implemented - backend/API slice validated with targeted tests`
+
+Scope:
+
+- Add persisted calibration readiness snapshots over existing back-test, baseline, label, evaluation, and promotion evidence.
+- Expose create/list/detail routes for readiness snapshots.
+- Keep actual runtime policy deployment, detector threshold changes, graph writeback, model training, and production ledger mutation out of scope.
+
+Validation performed:
+
+- Targeted Go tests passed for `./internal/api` and `./internal/storage/postgres`.
+- Full Go suite passed.
+- JSON schema validation passed.
+
+Result:
+
+- G094 now has the backend substrate needed to show whether a candidate is blocked by insufficient historical data, insufficient labels, label conflicts, regression evidence, or missing required evidence before any deployment planning is treated as actionable.
+
+## Gate G094: Deploy And Live Validation Closeout
+
+Timestamp: `2026-07-14T15:46:09Z`
+
+Status: `validated - migration, gateway deploy, authenticated create/list/detail smoke passed`
+
+Scope:
+
+- Apply the readiness snapshot migration.
+- Rebuild/restart the gateway.
+- Validate authenticated create/list/detail behavior against existing G083/G085/G086 evidence.
+- Confirm readiness remains advisory and does not mutate runtime policy or production ledgers.
+
+Validation performed:
+
+- Migration `000021_marketops_backtest_calibration_readiness` applied successfully.
+- Gateway rebuilt/restarted successfully; the Docker build ran full Go tests.
+- Authenticated prerequisite reads returned HTTP `200`.
+- Authenticated readiness create returned HTTP `201` for `btready-g094-auth-smoke-20260714154609`.
+- Authenticated readiness detail and filtered list returned HTTP `200`.
+- Snapshot status was `needs_more_historical_data`, with reasons for sparse Top 50/window coverage, missing options windows, and insufficient reviewed labels.
+
+Result:
+
+- G094 backend/API is live-validated. Current calibration evidence is correctly blocked from deployment readiness by insufficient historical/options/label coverage.

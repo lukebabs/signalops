@@ -665,6 +665,42 @@ type MarketOpsBacktestPromotionCandidateRecord struct {
 	UpdatedAt        time.Time
 }
 
+const (
+	MarketOpsBacktestCalibrationReadinessReady                   = "calibration_ready"
+	MarketOpsBacktestCalibrationReadinessNeedsMoreHistoricalData = "needs_more_historical_data"
+	MarketOpsBacktestCalibrationReadinessNeedsMoreLabels         = "needs_more_labels"
+	MarketOpsBacktestCalibrationReadinessLabelQualityBlocked     = "label_quality_blocked"
+	MarketOpsBacktestCalibrationReadinessRegressionDetected      = "regression_detected"
+	MarketOpsBacktestCalibrationReadinessManualReviewRequired    = "manual_review_required"
+	MarketOpsBacktestCalibrationReadinessBlocked                 = "blocked"
+)
+
+type MarketOpsBacktestCalibrationReadinessRecord struct {
+	ReadinessID           string
+	TenantID              string
+	AppID                 string
+	Domain                string
+	UseCase               string
+	BaselineID            string
+	ComparisonID          string
+	EvaluationID          string
+	CandidateID           string
+	DetectorID            string
+	DatasetScope          []string
+	UniverseGroup         string
+	WindowStart           *time.Time
+	WindowEnd             *time.Time
+	ReadinessStatus       string
+	ReadinessReasons      []string
+	CoverageMetricsJSON   []byte
+	LabelMetricsJSON      []byte
+	EvaluationMetricsJSON []byte
+	ThresholdsJSON        []byte
+	EvidenceJSON          []byte
+	RequestedBy           string
+	CreatedAt             time.Time
+}
+
 type MarketOpsBacktestRunRecord struct {
 	RunID           string
 	TenantID        string
@@ -889,6 +925,9 @@ type MarketOpsBacktestRepository interface {
 	ListMarketOpsBacktestPromotionCandidates(ctx context.Context, filter MarketOpsBacktestPromotionCandidateFilter) ([]MarketOpsBacktestPromotionCandidateRecord, error)
 	GetMarketOpsBacktestPromotionCandidate(ctx context.Context, candidateID string) (MarketOpsBacktestPromotionCandidateRecord, error)
 	MutateMarketOpsBacktestPromotionCandidateDecision(ctx context.Context, mutation MarketOpsBacktestPromotionCandidateDecisionMutation) (MarketOpsBacktestPromotionCandidateRecord, error)
+	UpsertMarketOpsBacktestCalibrationReadiness(ctx context.Context, record MarketOpsBacktestCalibrationReadinessRecord) error
+	ListMarketOpsBacktestCalibrationReadiness(ctx context.Context, filter MarketOpsBacktestCalibrationReadinessFilter) ([]MarketOpsBacktestCalibrationReadinessRecord, error)
+	GetMarketOpsBacktestCalibrationReadiness(ctx context.Context, readinessID string) (MarketOpsBacktestCalibrationReadinessRecord, error)
 	UpsertMarketOpsBacktestCalibrationBaseline(ctx context.Context, record MarketOpsBacktestCalibrationBaselineRecord) error
 	ListMarketOpsBacktestCalibrationBaselines(ctx context.Context, filter MarketOpsBacktestCalibrationBaselineFilter) ([]MarketOpsBacktestCalibrationBaselineRecord, error)
 	GetMarketOpsBacktestCalibrationBaseline(ctx context.Context, baselineID string) (MarketOpsBacktestCalibrationBaselineRecord, error)
@@ -1084,6 +1123,20 @@ type MarketOpsBacktestPromotionCandidateDecisionMutation struct {
 	ReviewedBy   string
 	ReviewedAt   time.Time
 	DecisionNote string
+}
+
+type MarketOpsBacktestCalibrationReadinessFilter struct {
+	TenantID        string
+	AppID           string
+	Domain          string
+	UseCase         string
+	BaselineID      string
+	ComparisonID    string
+	EvaluationID    string
+	CandidateID     string
+	DetectorID      string
+	ReadinessStatus string
+	Limit           int
 }
 
 type MarketOpsBacktestCalibrationBaselineFilter struct {

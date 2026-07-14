@@ -191,3 +191,34 @@ When implementation is approved:
 - G096: label quality dashboard and conflict-resolution workflow.
 - G097: persisted calibration readiness API/UI.
 - G098: controlled policy deployment execution, only after readiness and deployment planning gates are accepted.
+
+## Implemented Slice
+
+Implemented on `2026-07-14T15:46:09Z`:
+
+- Added migration `000021_marketops_backtest_calibration_readiness` for persisted readiness snapshots.
+- Added storage records and repository methods for create/list/detail readiness snapshots.
+- Added same-origin gateway routes:
+  - `POST /v1/marketops/backtest-calibration-readiness`
+  - `GET /v1/marketops/backtest-calibration-readiness`
+  - `GET /v1/marketops/backtest-calibration-readiness/{readiness_id}`
+- Implemented conservative readiness classification over G083 baseline/comparison evidence, optional G085 evaluation, optional G086 promotion candidate, succeeded G081 runs, G084 labels, and optional Top 50 universe assets.
+- Kept policy deployment blocked: readiness snapshots are advisory evidence and do not mutate runtime detector/policy configuration or production graph/signal/artifact ledgers.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres -count=1`: passed.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `python3 scripts/validate_json_schemas.py`: passed.
+
+## Deploy And Live Validation Closeout
+
+Validated on `2026-07-14T15:46:09Z`:
+
+- Applied relational migration `000021_marketops_backtest_calibration_readiness` with `make compose-storage-migrate`.
+- Rebuilt/restarted `signalops-gateway-1` with `docker compose -f compose.yaml -f compose.traefik.yaml up -d --build gateway`.
+- Authenticated prerequisite list calls for baselines, comparisons, evaluations, and promotion candidates returned HTTP `200`.
+- Authenticated `POST /v1/marketops/backtest-calibration-readiness` returned HTTP `201` for `btready-g094-auth-smoke-20260714154609`.
+- Authenticated detail and filtered list reads returned HTTP `200`.
+- The readiness snapshot correctly stayed conservative: `needs_more_historical_data` with `4/50` symbol coverage, `4` distinct windows, `0` options windows, and `7` matched labels.
+- No runtime policy, detector threshold, graph state, production signal/artifact/proposal ledger, or promotion decision was mutated by readiness creation.

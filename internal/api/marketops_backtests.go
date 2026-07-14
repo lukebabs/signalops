@@ -283,6 +283,296 @@ func buildMarketOpsBacktestCalibrationSummary(summaryID string, requestedBy stri
 	return summary, nil
 }
 
+type marketOpsBacktestCalibrationReadinessCreateRequest struct {
+	ReadinessID   string          `json:"readiness_id"`
+	TenantID      string          `json:"tenant_id"`
+	BaselineID    string          `json:"baseline_id"`
+	ComparisonID  string          `json:"comparison_id"`
+	EvaluationID  string          `json:"evaluation_id"`
+	CandidateID   string          `json:"candidate_id"`
+	DatasetScope  []string        `json:"dataset_scope"`
+	UniverseGroup string          `json:"universe_group"`
+	WindowStart   string          `json:"window_start"`
+	WindowEnd     string          `json:"window_end"`
+	Thresholds    json.RawMessage `json:"thresholds"`
+	RequestedBy   string          `json:"requested_by"`
+}
+
+type marketOpsBacktestCalibrationReadinessDTO struct {
+	ReadinessID       string          `json:"readiness_id"`
+	TenantID          string          `json:"tenant_id"`
+	AppID             string          `json:"app_id"`
+	Domain            string          `json:"domain"`
+	UseCase           string          `json:"use_case"`
+	BaselineID        string          `json:"baseline_id"`
+	ComparisonID      string          `json:"comparison_id"`
+	EvaluationID      string          `json:"evaluation_id"`
+	CandidateID       string          `json:"candidate_id"`
+	DetectorID        string          `json:"detector_id"`
+	DatasetScope      []string        `json:"dataset_scope"`
+	UniverseGroup     string          `json:"universe_group"`
+	WindowStart       *time.Time      `json:"window_start,omitempty"`
+	WindowEnd         *time.Time      `json:"window_end,omitempty"`
+	ReadinessStatus   string          `json:"readiness_status"`
+	ReadinessReasons  []string        `json:"readiness_reasons"`
+	CoverageMetrics   json.RawMessage `json:"coverage_metrics"`
+	LabelMetrics      json.RawMessage `json:"label_metrics"`
+	EvaluationMetrics json.RawMessage `json:"evaluation_metrics"`
+	Thresholds        json.RawMessage `json:"thresholds"`
+	Evidence          json.RawMessage `json:"evidence"`
+	RequestedBy       string          `json:"requested_by"`
+	CreatedAt         time.Time       `json:"created_at"`
+}
+
+type marketOpsBacktestReadinessThresholds struct {
+	MinSymbolCoverageRatio   float64 `json:"min_symbol_coverage_ratio"`
+	MinHistoricalWindows     int     `json:"min_historical_windows"`
+	MinOptionsWindows        int     `json:"min_options_windows"`
+	MinReviewedLabels        int     `json:"min_reviewed_labels"`
+	MinLabelCoverageRatio    float64 `json:"min_label_coverage_ratio"`
+	MaxConflictingLabelRatio float64 `json:"max_conflicting_label_ratio"`
+}
+
+func defaultMarketOpsBacktestReadinessThresholds() marketOpsBacktestReadinessThresholds {
+	return marketOpsBacktestReadinessThresholds{MinSymbolCoverageRatio: 0.8, MinHistoricalWindows: 20, MinOptionsWindows: 10, MinReviewedLabels: 100, MinLabelCoverageRatio: 0.8, MaxConflictingLabelRatio: 0.05}
+}
+
+func marketOpsBacktestCalibrationReadinessResponse(record storage.MarketOpsBacktestCalibrationReadinessRecord) marketOpsBacktestCalibrationReadinessDTO {
+	return marketOpsBacktestCalibrationReadinessDTO{ReadinessID: record.ReadinessID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, BaselineID: record.BaselineID, ComparisonID: record.ComparisonID, EvaluationID: record.EvaluationID, CandidateID: record.CandidateID, DetectorID: record.DetectorID, DatasetScope: record.DatasetScope, UniverseGroup: record.UniverseGroup, WindowStart: record.WindowStart, WindowEnd: record.WindowEnd, ReadinessStatus: record.ReadinessStatus, ReadinessReasons: record.ReadinessReasons, CoverageMetrics: json.RawMessage(jsonOrDefault(record.CoverageMetricsJSON, `{}`)), LabelMetrics: json.RawMessage(jsonOrDefault(record.LabelMetricsJSON, `{}`)), EvaluationMetrics: json.RawMessage(jsonOrDefault(record.EvaluationMetricsJSON, `{}`)), Thresholds: json.RawMessage(jsonOrDefault(record.ThresholdsJSON, `{}`)), Evidence: json.RawMessage(jsonOrDefault(record.EvidenceJSON, `{}`)), RequestedBy: record.RequestedBy, CreatedAt: record.CreatedAt}
+}
+
+func marketOpsBacktestCalibrationReadinessResponses(records []storage.MarketOpsBacktestCalibrationReadinessRecord) []marketOpsBacktestCalibrationReadinessDTO {
+	responses := make([]marketOpsBacktestCalibrationReadinessDTO, 0, len(records))
+	for _, record := range records {
+		responses = append(responses, marketOpsBacktestCalibrationReadinessResponse(record))
+	}
+	return responses
+}
+
+func buildMarketOpsBacktestCalibrationReadiness(readinessID string, actor string, req marketOpsBacktestCalibrationReadinessCreateRequest, baseline storage.MarketOpsBacktestCalibrationBaselineRecord, comparison storage.MarketOpsBacktestCalibrationComparisonRecord, evaluation *storage.MarketOpsBacktestEvaluationRecord, candidate *storage.MarketOpsBacktestPromotionCandidateRecord, runs []storage.MarketOpsBacktestRunRecord, labels []storage.MarketOpsBacktestEvaluationLabelRecord, universeAssets []storage.MarketOpsAssetRecord) (storage.MarketOpsBacktestCalibrationReadinessRecord, error) {
+	thresholds := defaultMarketOpsBacktestReadinessThresholds()
+	if len(req.Thresholds) > 0 {
+		if err := json.Unmarshal(req.Thresholds, &thresholds); err != nil {
+			return storage.MarketOpsBacktestCalibrationReadinessRecord{}, err
+		}
+	}
+	if thresholds.MinSymbolCoverageRatio <= 0 {
+		thresholds.MinSymbolCoverageRatio = 0.8
+	}
+	if thresholds.MinHistoricalWindows <= 0 {
+		thresholds.MinHistoricalWindows = 20
+	}
+	if thresholds.MinOptionsWindows <= 0 {
+		thresholds.MinOptionsWindows = 10
+	}
+	if thresholds.MinReviewedLabels <= 0 {
+		thresholds.MinReviewedLabels = 100
+	}
+	if thresholds.MinLabelCoverageRatio <= 0 {
+		thresholds.MinLabelCoverageRatio = 0.8
+	}
+	if thresholds.MaxConflictingLabelRatio <= 0 {
+		thresholds.MaxConflictingLabelRatio = 0.05
+	}
+
+	status := storage.MarketOpsBacktestCalibrationReadinessReady
+	reasons := []string{}
+	datasets := cleanDatasetScope(req.DatasetScope)
+	if len(datasets) == 0 {
+		datasets = cleanDatasetScope([]string{comparison.Dataset, baseline.Dataset})
+	}
+	coverage := marketOpsBacktestCoverageMetrics(runs, datasets, universeAssets)
+	labelMetrics := marketOpsBacktestLabelMetrics(labels)
+	evalMetrics := map[string]any{"present": evaluation != nil}
+	if evaluation != nil {
+		evalMetrics = map[string]any{"present": true, "evaluation_id": evaluation.EvaluationID, "run_id": evaluation.RunID, "candidate_count": evaluation.CandidateCount, "labeled_count": evaluation.LabeledCount, "precision": evaluation.Precision, "recall": evaluation.Recall, "accuracy": evaluation.Accuracy, "label_coverage": evaluation.LabelCoverage, "false_positive": evaluation.FalsePositive, "false_negative": evaluation.FalseNegative, "recommendation": evaluation.Recommendation, "recommendation_note": evaluation.RecommendationNote}
+	}
+
+	coveredRatio := floatFromMap(coverage, "symbol_coverage_ratio")
+	distinctWindows := intFromMap(coverage, "distinct_window_count")
+	optionsWindows := intFromMap(coverage, "options_window_count")
+	matchedLabels := intFromMap(labelMetrics, "matched_label_count")
+	conflictRatio := floatFromMap(labelMetrics, "conflicting_label_ratio")
+
+	if comparison.Recommendation == storage.MarketOpsBacktestCalibrationRecommendationRegression || (evaluation != nil && evaluation.Recommendation == storage.MarketOpsBacktestCalibrationRecommendationRegression) {
+		status = storage.MarketOpsBacktestCalibrationReadinessRegressionDetected
+		reasons = append(reasons, "comparison or evaluation recommendation indicates regression")
+	}
+	if comparison.ComparisonID == "" || baseline.BaselineID == "" {
+		status = storage.MarketOpsBacktestCalibrationReadinessBlocked
+		reasons = append(reasons, "baseline and comparison evidence are required")
+	}
+	if len(runs) == 0 || coveredRatio < thresholds.MinSymbolCoverageRatio || distinctWindows < thresholds.MinHistoricalWindows {
+		if status == storage.MarketOpsBacktestCalibrationReadinessReady {
+			status = storage.MarketOpsBacktestCalibrationReadinessNeedsMoreHistoricalData
+		}
+		reasons = append(reasons, "historical Top 50/window coverage is below readiness thresholds")
+	}
+	if containsString(datasets, "options_contracts_daily") && optionsWindows < thresholds.MinOptionsWindows {
+		if status == storage.MarketOpsBacktestCalibrationReadinessReady {
+			status = storage.MarketOpsBacktestCalibrationReadinessNeedsMoreHistoricalData
+		}
+		reasons = append(reasons, "options daily window coverage is below readiness threshold")
+	}
+	if evaluation == nil || matchedLabels < thresholds.MinReviewedLabels || (evaluation != nil && evaluation.LabelCoverage < thresholds.MinLabelCoverageRatio) || (evaluation != nil && evaluation.Recommendation == storage.MarketOpsBacktestCalibrationRecommendationNeedsMoreData) {
+		if status == storage.MarketOpsBacktestCalibrationReadinessReady {
+			status = storage.MarketOpsBacktestCalibrationReadinessNeedsMoreLabels
+		}
+		reasons = append(reasons, "reviewed label volume or label coverage is below readiness thresholds")
+	}
+	if conflictRatio > thresholds.MaxConflictingLabelRatio {
+		if status == storage.MarketOpsBacktestCalibrationReadinessReady || status == storage.MarketOpsBacktestCalibrationReadinessNeedsMoreLabels {
+			status = storage.MarketOpsBacktestCalibrationReadinessLabelQualityBlocked
+		}
+		reasons = append(reasons, "conflicting labels exceed readiness threshold")
+	}
+	if status == storage.MarketOpsBacktestCalibrationReadinessReady {
+		reasons = append(reasons, "historical coverage, label volume, and evaluation evidence meet calibration readiness thresholds")
+	}
+
+	thresholdJSON, _ := json.Marshal(thresholds)
+	coverageJSON, _ := json.Marshal(coverage)
+	labelJSON, _ := json.Marshal(labelMetrics)
+	evalJSON, _ := json.Marshal(evalMetrics)
+	evidenceJSON, _ := json.Marshal(map[string]any{"baseline_id": baseline.BaselineID, "comparison_id": comparison.ComparisonID, "evaluation_id": strings.TrimSpace(req.EvaluationID), "candidate_id": strings.TrimSpace(req.CandidateID), "deployment_block": "calibration readiness is advisory and does not deploy runtime policy"})
+	var windowStart, windowEnd *time.Time
+	if parsed, ok := parseOptionalRFC3339(req.WindowStart); ok {
+		windowStart = &parsed
+	}
+	if parsed, ok := parseOptionalRFC3339(req.WindowEnd); ok {
+		windowEnd = &parsed
+	}
+	return storage.MarketOpsBacktestCalibrationReadinessRecord{ReadinessID: strings.TrimSpace(readinessID), TenantID: strings.TrimSpace(req.TenantID), AppID: baseline.AppID, Domain: baseline.Domain, UseCase: baseline.UseCase, BaselineID: baseline.BaselineID, ComparisonID: comparison.ComparisonID, EvaluationID: strings.TrimSpace(req.EvaluationID), CandidateID: strings.TrimSpace(req.CandidateID), DetectorID: firstNonEmptyBacktestValue(comparison.DetectorID, baseline.DetectorID), DatasetScope: datasets, UniverseGroup: strings.TrimSpace(req.UniverseGroup), WindowStart: windowStart, WindowEnd: windowEnd, ReadinessStatus: status, ReadinessReasons: reasons, CoverageMetricsJSON: coverageJSON, LabelMetricsJSON: labelJSON, EvaluationMetricsJSON: evalJSON, ThresholdsJSON: thresholdJSON, EvidenceJSON: evidenceJSON, RequestedBy: firstNonEmptyBacktestValue(actor, "operator-local")}, nil
+}
+
+func marketOpsBacktestCoverageMetrics(runs []storage.MarketOpsBacktestRunRecord, datasets []string, universeAssets []storage.MarketOpsAssetRecord) map[string]any {
+	coveredSymbols := map[string]struct{}{}
+	windowKeys := map[string]struct{}{}
+	optionsWindowKeys := map[string]struct{}{}
+	datasetCounts := map[string]int{}
+	scanned := 0
+	for _, run := range runs {
+		if run.Status != storage.RunStatusSucceeded {
+			continue
+		}
+		datasetCounts[run.Dataset]++
+		windowKeys[run.WindowStart.UTC().Format("2006-01-02")] = struct{}{}
+		if run.Dataset == "options_contracts_daily" {
+			optionsWindowKeys[run.WindowStart.UTC().Format("2006-01-02")] = struct{}{}
+		}
+		for _, symbol := range symbolsFromBacktestRun(run) {
+			coveredSymbols[symbol] = struct{}{}
+		}
+		var metrics backtestMetricSnapshot
+		_ = json.Unmarshal(run.MetricsJSON, &metrics)
+		scanned += metrics.Scanned
+	}
+	universeCount := len(universeAssets)
+	if universeCount == 0 {
+		universeCount = len(coveredSymbols)
+	}
+	ratio := 0.0
+	if universeCount > 0 {
+		ratio = float64(len(coveredSymbols)) / float64(universeCount)
+	}
+	return map[string]any{"run_count": len(runs), "succeeded_run_count": len(runs), "scanned": scanned, "covered_symbol_count": len(coveredSymbols), "universe_symbol_count": universeCount, "symbol_coverage_ratio": ratio, "distinct_window_count": len(windowKeys), "options_window_count": len(optionsWindowKeys), "dataset_counts": datasetCounts, "dataset_scope": datasets}
+}
+
+func marketOpsBacktestLabelMetrics(labels []storage.MarketOpsBacktestEvaluationLabelRecord) map[string]any {
+	byFact := map[string]map[string]struct{}{}
+	labelCounts := map[string]int{}
+	for _, label := range labels {
+		labelCounts[label.Label]++
+		key := label.GraphFactKey
+		if key == "" {
+			key = label.SourceProposalID
+		}
+		if byFact[key] == nil {
+			byFact[key] = map[string]struct{}{}
+		}
+		byFact[key][label.Label] = struct{}{}
+	}
+	conflicts := 0
+	for _, labelsForFact := range byFact {
+		if len(labelsForFact) > 1 {
+			conflicts++
+		}
+	}
+	ratio := 0.0
+	if len(byFact) > 0 {
+		ratio = float64(conflicts) / float64(len(byFact))
+	}
+	return map[string]any{"matched_label_count": len(labels), "distinct_graph_fact_count": len(byFact), "conflicting_graph_fact_count": conflicts, "conflicting_label_ratio": ratio, "label_counts": labelCounts}
+}
+
+func symbolsFromBacktestRun(run storage.MarketOpsBacktestRunRecord) []string {
+	payload := struct {
+		Symbols []string `json:"symbols"`
+	}{}
+	_ = json.Unmarshal(run.FiltersJSON, &payload)
+	return cleanSymbols(payload.Symbols)
+}
+
+func cleanDatasetScope(values []string) []string {
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func intFromMap(values map[string]any, key string) int {
+	switch v := values[key].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+func floatFromMap(values map[string]any, key string) float64 {
+	switch v := values[key].(type) {
+	case float64:
+		return v
+	case int:
+		return float64(v)
+	default:
+		return 0
+	}
+}
+
+func parseOptionalRFC3339(value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return parsed.UTC(), true
+}
+
 func firstNonEmptyBacktestValue(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

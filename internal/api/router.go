@@ -721,6 +721,129 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"promotion_candidate": marketOpsBacktestPromotionCandidateResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/marketops/backtest-calibration-readiness", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req marketOpsBacktestCalibrationReadinessCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.BaselineID) == "" || strings.TrimSpace(req.ComparisonID) == "" {
+			writeError(w, http.StatusBadRequest, "invalid_calibration_readiness", "tenant_id, baseline_id, and comparison_id are required")
+			return
+		}
+		baseline, err := repo.GetMarketOpsBacktestCalibrationBaseline(r.Context(), req.BaselineID)
+		if err != nil {
+			writeQueryError(w, err, "calibration_baseline_not_found", "MarketOps backtest calibration baseline not found")
+			return
+		}
+		if baseline.TenantID != strings.TrimSpace(req.TenantID) {
+			writeError(w, http.StatusBadRequest, "invalid_calibration_readiness", "baseline tenant_id does not match request tenant_id")
+			return
+		}
+		comparison, err := repo.GetMarketOpsBacktestCalibrationComparison(r.Context(), req.ComparisonID)
+		if err != nil {
+			writeQueryError(w, err, "calibration_comparison_not_found", "MarketOps backtest calibration comparison not found")
+			return
+		}
+		if comparison.TenantID != baseline.TenantID || comparison.BaselineID != baseline.BaselineID {
+			writeError(w, http.StatusBadRequest, "invalid_calibration_readiness", "comparison must belong to the requested baseline and tenant")
+			return
+		}
+		var evaluation *storage.MarketOpsBacktestEvaluationRecord
+		if strings.TrimSpace(req.EvaluationID) != "" {
+			storedEvaluation, err := repo.GetMarketOpsBacktestEvaluation(r.Context(), req.EvaluationID)
+			if err != nil {
+				writeQueryError(w, err, "backtest_evaluation_not_found", "MarketOps backtest evaluation not found")
+				return
+			}
+			if storedEvaluation.TenantID != baseline.TenantID {
+				writeError(w, http.StatusBadRequest, "invalid_calibration_readiness", "evaluation tenant_id does not match baseline tenant_id")
+				return
+			}
+			evaluation = &storedEvaluation
+		}
+		var candidate *storage.MarketOpsBacktestPromotionCandidateRecord
+		if strings.TrimSpace(req.CandidateID) != "" {
+			storedCandidate, err := repo.GetMarketOpsBacktestPromotionCandidate(r.Context(), req.CandidateID)
+			if err != nil {
+				writeQueryError(w, err, "promotion_candidate_not_found", "MarketOps backtest promotion candidate not found")
+				return
+			}
+			if storedCandidate.TenantID != baseline.TenantID {
+				writeError(w, http.StatusBadRequest, "invalid_calibration_readiness", "promotion candidate tenant_id does not match baseline tenant_id")
+				return
+			}
+			candidate = &storedCandidate
+		}
+		runs, err := repo.ListMarketOpsBacktestRuns(r.Context(), storage.MarketOpsBacktestRunFilter{TenantID: strings.TrimSpace(req.TenantID), AppID: baseline.AppID, Domain: baseline.Domain, UseCase: baseline.UseCase, DetectorID: firstNonEmptyBacktestValue(comparison.DetectorID, baseline.DetectorID), Status: storage.RunStatusSucceeded, Limit: 200})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest runs for readiness")
+			return
+		}
+		labels, err := repo.ListMarketOpsBacktestEvaluationLabels(r.Context(), storage.MarketOpsBacktestEvaluationLabelFilter{TenantID: strings.TrimSpace(req.TenantID), AppID: baseline.AppID, Domain: baseline.Domain, UseCase: baseline.UseCase, Limit: 200})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps evaluation labels for readiness")
+			return
+		}
+		assets := []storage.MarketOpsAssetRecord{}
+		if strings.TrimSpace(req.UniverseGroup) != "" {
+			assets, err = repo.ListMarketOpsAssets(r.Context(), strings.TrimSpace(req.TenantID), strings.TrimSpace(req.UniverseGroup), true, 200)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps universe assets for readiness")
+				return
+			}
+		}
+		readinessID := strings.TrimSpace(req.ReadinessID)
+		if readinessID == "" {
+			readinessID = newID("btready_marketops")
+		}
+		record, err := buildMarketOpsBacktestCalibrationReadiness(readinessID, replayActor(r, req.RequestedBy), req, baseline, comparison, evaluation, candidate, runs, labels, assets)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_calibration_readiness", err.Error())
+			return
+		}
+		if err := repo.UpsertMarketOpsBacktestCalibrationReadiness(r.Context(), record); err != nil {
+			writeError(w, http.StatusInternalServerError, "persist_failed", "failed to persist MarketOps calibration readiness")
+			return
+		}
+		stored, err := repo.GetMarketOpsBacktestCalibrationReadiness(r.Context(), readinessID)
+		if err != nil {
+			writeQueryError(w, err, "calibration_readiness_not_found", "MarketOps calibration readiness not found")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"calibration_readiness": marketOpsBacktestCalibrationReadinessResponse(stored)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-calibration-readiness", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestCalibrationReadiness(r.Context(), storage.MarketOpsBacktestCalibrationReadinessFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), ComparisonID: strings.TrimSpace(r.URL.Query().Get("comparison_id")), EvaluationID: strings.TrimSpace(r.URL.Query().Get("evaluation_id")), CandidateID: strings.TrimSpace(r.URL.Query().Get("candidate_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), ReadinessStatus: strings.TrimSpace(r.URL.Query().Get("readiness_status")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps calibration readiness snapshots")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"calibration_readiness": marketOpsBacktestCalibrationReadinessResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-calibration-readiness/{readiness_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetMarketOpsBacktestCalibrationReadiness(r.Context(), r.PathValue("readiness_id"))
+		if err != nil {
+			writeQueryError(w, err, "calibration_readiness_not_found", "MarketOps calibration readiness not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"calibration_readiness": marketOpsBacktestCalibrationReadinessResponse(record)})
+	})
+
 	mux.HandleFunc("POST /v1/syncratic/context-windows/{context_window_id}/ask", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
