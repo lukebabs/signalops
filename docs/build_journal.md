@@ -6358,3 +6358,23 @@ Validation performed:
 - `bash -n scripts/marketops_massive_credential_preflight.sh`: passed.
 - `bash -n scripts/marketops_calibration_ingest_smoke.sh`: passed.
 - `scripts/marketops_massive_credential_preflight.sh`: exited before Compose startup with HTTP `401`, confirming the configured key is present but rejected by Massive.
+
+## 2026-07-14T17:50:01Z
+
+Summary:
+
+- Closed out the MarketOps input ingestion blocker without replacing the Massive key.
+- Found `.env` had a non-empty generic `API_KEY` earlier in the file and a different rejected value in `SIGNALOPS_MASSIVE_API_KEY`; corrected the local env mapping so `SIGNALOPS_MASSIVE_API_KEY` uses the existing valid key value.
+- Fixed `idempotency_records` upsert SQL to remove invalid `app_id`, `domain`, and `use_case` assignments that do not exist in the idempotency table.
+- Rebuilt the Massive puller and reran bounded ingestion successfully.
+- Confirmed normalized MarketOps coverage and a one-run back-test campaign over the ingested NVDA event.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/storage/postgres -count=1`: passed.
+- `docker compose -f compose.yaml -f compose.traefik.yaml --profile massive-pull build massive-puller`: passed; Docker build ran full Go tests.
+- `python3 scripts/validate_json_schemas.py`: passed.
+- `scripts/marketops_massive_credential_preflight.sh`: passed with HTTP `200`.
+- `scripts/marketops_calibration_ingest_smoke.sh`: passed with one provider request, one event built, one event published, and zero failures.
+- Authenticated G096 coverage check returned one NVDA `equity_eod_prices` row for `2026-07-13`.
+- Authenticated G095 campaign `btcamp-g098-nvda-20260714175001` returned HTTP `201`, status `succeeded`, and `scanned=1`.

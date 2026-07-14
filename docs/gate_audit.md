@@ -7451,3 +7451,29 @@ Validation performed:
 Result:
 
 - Invalid provider credentials are now isolated before ingestion pipeline validation. The next operational step remains replacing the Massive key, then rerunning `scripts/marketops_calibration_ingest_smoke.sh`.
+
+## Gate G099: MarketOps Input Smoke Closeout
+
+Timestamp: `2026-07-14T17:50:01Z`
+
+Status: `implemented - storage fix, ingestion smoke, coverage, and one-run campaign validated`
+
+Scope:
+
+- Correct the local env mapping to use the existing valid Massive key value.
+- Fix idempotency upsert SQL so publish-mode Massive ingestion can persist broker-acknowledged raw events cleanly.
+- Validate the existing raw/normalizer/back-test path with a bounded NVDA equity EOD event.
+
+Validation performed:
+
+- Targeted Postgres storage tests passed.
+- Massive puller image rebuild passed and ran full Go tests.
+- JSON schema validation passed.
+- Massive credential preflight passed with HTTP `200`.
+- Bounded ingestion smoke passed with one published raw event and zero failures.
+- G096 coverage returned one data-bearing normalized MarketOps row.
+- G095 campaign over that row succeeded with `scanned=1`.
+
+Result:
+
+- The immediate blocker is closed. The system can now ingest at least one real MarketOps normalized event and back-test against it. Broader Top 50/options historical coverage remains the next calibration task.

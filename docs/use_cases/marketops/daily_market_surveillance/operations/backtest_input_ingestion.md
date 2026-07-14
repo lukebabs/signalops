@@ -26,6 +26,8 @@ Defaults:
 
 HTTP `401` or `403` means the configured key is present but Massive rejected it. No Compose services are started by this preflight.
 
+Duplicate `API_KEY` entries in `.env` can mask a valid generic key if a later blank assignment overwrites it. Prefer copying the intended value into `SIGNALOPS_MASSIVE_API_KEY` or `MASSIVE_API_KEY`; these explicit variables are the only credentials used by the smoke scripts.
+
 ## Bounded Smoke
 
 Run:

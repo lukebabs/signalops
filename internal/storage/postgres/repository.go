@@ -241,9 +241,6 @@ INSERT INTO idempotency_records (
 )
 ON CONFLICT (tenant_id, source_id, idempotency_key) DO UPDATE SET
   event_id = EXCLUDED.event_id,
-  app_id = EXCLUDED.app_id,
-  domain = EXCLUDED.domain,
-  use_case = EXCLUDED.use_case,
   source_adapter = EXCLUDED.source_adapter,
   dataset = EXCLUDED.dataset,
   topic = EXCLUDED.topic,

@@ -106,3 +106,8 @@ Recommended next gate:
 
 - G098: Massive credential preflight before bounded ingestion smoke.
 - Specification: `G098_massive_credential_preflight.md`.
+
+## G099 Implemented
+
+- G099: MarketOps input smoke closeout after env mapping correction, idempotency upsert fix, clean ingestion smoke, coverage check, and one-run campaign validation.
+- Specification: `G099_marketops_input_smoke_closeout.md`.
