@@ -554,3 +554,147 @@ export function messageForSyncraticAskError(error: unknown): string {
   }
   return SYNCRATIC_ASK_ERROR_MESSAGES.unknown;
 }
+
+// --- G091/G092 budgeted materialization decision helpers -------------------
+// Dry-run preview returns one decision per scanned asset. These helpers read the
+// decision rows tolerantly, order them for display, count actions, and style the
+// row chip — never throwing on unknown future action/reason tokens.
+
+export interface SyncraticMaterializationDecisionSummary {
+  subjectSymbol: string;
+  action: string;
+  reason: string;
+  evidenceCount: number;
+  signalCount: number;
+  alertCount: number;
+  artifactCount: number;
+  graphProposalCount: number;
+  labelCount: number;
+  criticalAlert: boolean;
+  relatedEvidence: boolean;
+  evidenceDigest: string;
+  contextWindowId: string;
+}
+
+const EMPTY_DECISION: SyncraticMaterializationDecisionSummary = {
+  subjectSymbol: '',
+  action: '',
+  reason: '',
+  evidenceCount: 0,
+  signalCount: 0,
+  alertCount: 0,
+  artifactCount: 0,
+  graphProposalCount: 0,
+  labelCount: 0,
+  criticalAlert: false,
+  relatedEvidence: false,
+  evidenceDigest: '',
+  contextWindowId: '',
+};
+
+export function summarizeSyncraticMaterializationDecision(d: unknown): SyncraticMaterializationDecisionSummary {
+  if (!isRecord(d)) return { ...EMPTY_DECISION };
+  return {
+    subjectSymbol: asString(d.subject_symbol),
+    action: asString(d.action),
+    reason: asString(d.reason),
+    evidenceCount: asNumber(d.evidence_count),
+    signalCount: asNumber(d.signal_count),
+    alertCount: asNumber(d.alert_count),
+    artifactCount: asNumber(d.artifact_count),
+    graphProposalCount: asNumber(d.graph_proposal_count),
+    labelCount: asNumber(d.label_count),
+    criticalAlert: asBoolean(d.critical_alert),
+    relatedEvidence: asBoolean(d.related_evidence),
+    evidenceDigest: asString(d.evidence_digest),
+    contextWindowId: asString(d.context_window_id),
+  };
+}
+
+// Display sort rank per the spec ordering:
+//   0 = would_materialize / materialized
+//   1 = budget-cap skips (candidate_budget_cap, materialization_budget_cap)
+//   2 = unchanged-evidence skips
+//   3 = below-threshold skips
+//   4 = unknown/other
+// Stable within a rank (input order preserved) because Array.prototype.sort is
+// stable on the supported runtimes.
+export function syncraticDecisionSortRank(action: string, reason: string): number {
+  if (action === 'would_materialize' || action === 'materialized') return 0;
+  if (reason === 'materialization_budget_cap' || reason === 'candidate_budget_cap') return 1;
+  if (reason === 'unchanged_evidence_digest') return 2;
+  if (reason === 'below_threshold') return 3;
+  return 4;
+}
+
+// Map + stably sort raw decision rows into display summaries. Non-object entries
+// collapse to empty summaries and sort last; never throws.
+export function sortSyncraticMaterializationDecisions(
+  decisions: unknown,
+): SyncraticMaterializationDecisionSummary[] {
+  if (!Array.isArray(decisions)) return [];
+  return decisions
+    .map((d) => {
+      const s = summarizeSyncraticMaterializationDecision(d);
+      return { s, rank: syncraticDecisionSortRank(s.action, s.reason) };
+    })
+    .sort((a, b) => a.rank - b.rank)
+    .map((entry) => entry.s);
+}
+
+export interface SyncraticMaterializationDecisionCounts {
+  would_materialize: number;
+  materialized: number;
+  skipped: number;
+}
+
+// Count decisions by action. would_materialize is the dry-run "would create" count;
+// skipped is the aggregate skip count regardless of reason.
+export function countSyncraticMaterializationDecisions(
+  decisions: unknown,
+): SyncraticMaterializationDecisionCounts {
+  const counts: SyncraticMaterializationDecisionCounts = {
+    would_materialize: 0,
+    materialized: 0,
+    skipped: 0,
+  };
+  if (!Array.isArray(decisions)) return counts;
+  for (const d of decisions) {
+    const action = isRecord(d) ? asString(d.action) : '';
+    if (action === 'would_materialize') counts.would_materialize++;
+    else if (action === 'materialized') counts.materialized++;
+    else if (action === 'skipped') counts.skipped++;
+  }
+  return counts;
+}
+
+// Restrained chip style for a decision row, keyed by action then reason. Unknown
+// tokens fall back to the neutral style rather than failing.
+export function syncraticDecisionStyle(action: string, reason: string): string {
+  if (action === 'materialized') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (action === 'would_materialize') return 'border-brand-200 bg-brand-50 text-brand-700';
+  if (reason === 'materialization_budget_cap' || reason === 'candidate_budget_cap')
+    return 'border-amber-200 bg-amber-50 text-amber-700';
+  if (reason === 'unchanged_evidence_digest') return 'border-gray-200 bg-gray-50 text-gray-600';
+  if (reason === 'below_threshold') return 'border-gray-200 bg-gray-50 text-gray-400';
+  return 'border-gray-200 bg-gray-50 text-gray-600';
+}
+
+// Sanitized materialize action error message. The gateway already returns safe
+// validation text for materialize_failed; storage_unavailable and network get
+// fixed operator copy. Never surfaces bearer tokens, .env, or upstream bodies.
+export function messageForSyncraticMaterializeError(error: unknown): string {
+  if (isRecord(error) && typeof error.status === 'number') {
+    const status = error.status;
+    const code = asString(error.code);
+    const message = asString(error.message);
+    if (status === 0) return 'Gateway unreachable.';
+    if (status === 401 || code === 'unauthorized')
+      return 'Authentication required — please sign in again.';
+    if (status === 503 || code === 'storage_unavailable')
+      return 'Syncratic storage is unavailable on this gateway.';
+    if (status === 400) return message || 'Materialization request validation failed.';
+    return 'Materialization failed unexpectedly. Retry or review gateway logs.';
+  }
+  return 'Materialization failed unexpectedly. Retry or review gateway logs.';
+}

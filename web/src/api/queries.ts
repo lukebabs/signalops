@@ -770,11 +770,13 @@ export function useSyncraticContextWindow(contextWindowId: string | null) {
 // After a bounded materialization, invalidate Syncratic insight + context-window
 // list/detail prefixes so newly materialized rows appear without a manual reload.
 // Only Syncratic queries are touched — never alert lifecycle, graph proposal,
-// back-test, calibration, promotion, or production signal queries.
+// back-test, calibration, promotion, or production signal queries. A dry-run
+// preview (G091) writes nothing, so it skips invalidation entirely.
 export function applySyncraticMaterializeResult(
   queryClient: QueryClient,
-  _data: SyncraticMaterializationResponse,
+  data: SyncraticMaterializationResponse,
 ) {
+  if (data?.materialization?.dry_run) return;
   queryClient.invalidateQueries({ queryKey: ['syncratic-insights'] });
   queryClient.invalidateQueries({ queryKey: ['syncratic-insight'] });
   queryClient.invalidateQueries({ queryKey: ['syncratic-context-windows'] });

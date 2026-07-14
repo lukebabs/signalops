@@ -1356,6 +1356,39 @@ export interface SyncraticContextWindow {
   updated_at: string;
 }
 
+// G091/G092 budgeted materialization. Actions/reasons are narrowed for current
+// rendering but accept `| string` so unknown future tokens render in a neutral
+// style instead of failing the UI.
+export type SyncraticMaterializationAction =
+  | 'would_materialize'
+  | 'materialized'
+  | 'skipped'
+  | string;
+
+export type SyncraticMaterializationReason =
+  | 'eligible'
+  | 'below_threshold'
+  | 'unchanged_evidence_digest'
+  | 'candidate_budget_cap'
+  | 'materialization_budget_cap'
+  | string;
+
+export interface SyncraticMaterializationDecision {
+  subject_symbol: string;
+  action: SyncraticMaterializationAction;
+  reason: SyncraticMaterializationReason;
+  evidence_count: number;
+  signal_count: number;
+  alert_count: number;
+  artifact_count: number;
+  graph_proposal_count: number;
+  label_count: number;
+  critical_alert: boolean;
+  related_evidence: boolean;
+  evidence_digest?: string;
+  context_window_id?: string;
+}
+
 export interface SyncraticMaterializationResult {
   tenant_id: string;
   universe_group: string;
@@ -1363,6 +1396,7 @@ export interface SyncraticMaterializationResult {
   context_builder_version: string;
   window_start: string;
   window_end: string;
+  dry_run: boolean;
   scanned_assets: number;
   candidate_windows: number;
   materialized_context_windows: number;
@@ -1372,6 +1406,7 @@ export interface SyncraticMaterializationResult {
   skipped_budget_cap: number;
   context_window_ids: string[];
   syncratic_insight_ids: string[];
+  decisions: SyncraticMaterializationDecision[];
 }
 
 export interface SyncraticInsightsResponse {
@@ -1419,6 +1454,8 @@ export interface SyncraticContextWindowFilter {
 
 // signal_limit/alert_limit exist on the backend (default 1000) but are omitted —
 // the bounded materialize form does not expose them and defaults are safe.
+// dry_run (G091/G092) selects preview mode: dry_run=true returns a 200 preview
+// with decisions[] and writes nothing; dry_run=false creates/updates rows (201).
 export interface SyncraticMaterializeRequest {
   tenant_id: string;
   universe_group?: string;
@@ -1431,6 +1468,7 @@ export interface SyncraticMaterializeRequest {
   max_candidate_windows?: number;
   max_context_windows?: number;
   max_insights?: number;
+  dry_run?: boolean;
 }
 
 // G090 operator-triggered Syncratic Ask enrichment. Mirrors the gateway DTOs in

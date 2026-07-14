@@ -317,3 +317,98 @@ describe('applySyncraticAskResult (G090 cache effect)', () => {
     expect(invSpy).toHaveBeenCalledWith({ queryKey: ['syncratic-insights'] });
   });
 });
+
+describe('materializeSyncraticContexts dry_run (G092)', () => {
+  it('sends dry_run=true for a preview and parses decisions[]', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        materialization: {
+          dry_run: true,
+          scanned_assets: 10,
+          materialized_context_windows: 0,
+          materialized_insights: 0,
+          skipped_below_threshold: 9,
+          decisions: [
+            {
+              subject_symbol: 'AAPL',
+              action: 'would_materialize',
+              reason: 'eligible',
+              evidence_count: 9,
+              signal_count: 9,
+              alert_count: 0,
+              artifact_count: 0,
+              graph_proposal_count: 0,
+              label_count: 0,
+              critical_alert: false,
+              related_evidence: false,
+              context_window_id: 'synctx_aapl',
+            },
+          ],
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await api.materializeSyncraticContexts({
+      tenant_id: 'tenant-local',
+      window_start: '2026-07-12T00:00:00Z',
+      window_end: '2026-07-14T00:00:00Z',
+      max_assets: 10,
+      max_context_windows: 1,
+      max_insights: 1,
+      dry_run: true,
+    });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/syncratic/materialize');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).dry_run).toBe(true);
+    // Dry-run returns 200, not 201 — the client treats any 2xx as success.
+    expect(res.materialization.dry_run).toBe(true);
+    expect(res.materialization.decisions).toHaveLength(1);
+    expect(res.materialization.decisions[0].action).toBe('would_materialize');
+    expect(res.materialization.decisions[0].subject_symbol).toBe('AAPL');
+  });
+
+  it('sends dry_run=false for a confirmed write', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ materialization: { dry_run: false, materialized_insights: 1, decisions: [] } }, 201),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.materializeSyncraticContexts({
+      tenant_id: 'tenant-local',
+      window_start: '2026-07-12T00:00:00Z',
+      window_end: '2026-07-14T00:00:00Z',
+      dry_run: false,
+    });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).dry_run).toBe(false);
+  });
+});
+
+describe('applySyncraticMaterializeResult dry_run guard (G092)', () => {
+  it('does not invalidate caches on a dry-run preview', () => {
+    const queryClient = new QueryClient();
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    applySyncraticMaterializeResult(queryClient, {
+      materialization: { dry_run: true, decisions: [] },
+    } as never);
+
+    expect(invSpy).not.toHaveBeenCalled();
+  });
+
+  it('invalidates Syncratic prefixes on a confirmed write', () => {
+    const queryClient = new QueryClient();
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    applySyncraticMaterializeResult(queryClient, {
+      materialization: { dry_run: false, materialized_insights: 1, decisions: [] },
+    } as never);
+
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['syncratic-insights'] });
+    expect(invSpy).toHaveBeenCalledWith({ queryKey: ['syncratic-context-window'] });
+    expect(invSpy).not.toHaveBeenCalledWith({ queryKey: ['alerts'] });
+  });
+});

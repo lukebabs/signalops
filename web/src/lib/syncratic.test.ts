@@ -9,6 +9,12 @@ import {
   classifySyncraticInsightBadge,
   classifySyncraticAskError,
   messageForSyncraticAskError,
+  summarizeSyncraticMaterializationDecision,
+  syncraticDecisionSortRank,
+  sortSyncraticMaterializationDecisions,
+  countSyncraticMaterializationDecisions,
+  syncraticDecisionStyle,
+  messageForSyncraticMaterializeError,
   SYNCRATIC_ASK_BADGE_LABELS,
   syncraticSeverityStyle,
   syncraticInsightStatusStyle,
@@ -313,5 +319,113 @@ describe('classifySyncraticAskError / messageForSyncraticAskError (G090)', () =>
 
   it('falls back to the unknown message for non-ApiError shapes', () => {
     expect(messageForSyncraticAskError(new Error('boom'))).toContain('unexpectedly');
+  });
+});
+
+// --- G091/G092 budgeted materialization decision helpers -------------------
+
+describe('summarizeSyncraticMaterializationDecision (G092)', () => {
+  it('reads decision fields tolerantly', () => {
+    const d = summarizeSyncraticMaterializationDecision({
+      subject_symbol: 'aapl',
+      action: 'would_materialize',
+      reason: 'eligible',
+      evidence_count: 9,
+      signal_count: 9,
+      alert_count: 0,
+      artifact_count: 0,
+      graph_proposal_count: 0,
+      label_count: 0,
+      critical_alert: false,
+      related_evidence: false,
+      evidence_digest: 'sha256:abc',
+      context_window_id: 'synctx_1',
+    });
+    expect(d.subjectSymbol).toBe('aapl');
+    expect(d.action).toBe('would_materialize');
+    expect(d.reason).toBe('eligible');
+    expect(d.evidenceCount).toBe(9);
+    expect(d.evidenceDigest).toBe('sha256:abc');
+    expect(d.contextWindowId).toBe('synctx_1');
+  });
+
+  it('collapses non-object payloads to the empty summary', () => {
+    const d = summarizeSyncraticMaterializationDecision(null);
+    expect(d.subjectSymbol).toBe('');
+    expect(d.evidenceCount).toBe(0);
+  });
+});
+
+describe('syncraticDecisionSortRank (G092)', () => {
+  it('orders would-materialize/materialized first, then budget-cap, unchanged, below-threshold, unknown', () => {
+    expect(syncraticDecisionSortRank('would_materialize', 'eligible')).toBe(0);
+    expect(syncraticDecisionSortRank('materialized', 'eligible')).toBe(0);
+    expect(syncraticDecisionSortRank('skipped', 'candidate_budget_cap')).toBe(1);
+    expect(syncraticDecisionSortRank('skipped', 'materialization_budget_cap')).toBe(1);
+    expect(syncraticDecisionSortRank('skipped', 'unchanged_evidence_digest')).toBe(2);
+    expect(syncraticDecisionSortRank('skipped', 'below_threshold')).toBe(3);
+    expect(syncraticDecisionSortRank('skipped', 'future_reason')).toBe(4);
+  });
+});
+
+describe('sortSyncraticMaterializationDecisions (G092)', () => {
+  it('sorts by the spec ordering and tolerates malformed entries', () => {
+    const sorted = sortSyncraticMaterializationDecisions([
+      { subject_symbol: 'MSFT', action: 'skipped', reason: 'below_threshold' },
+      { subject_symbol: 'AAPL', action: 'would_materialize', reason: 'eligible' },
+      { subject_symbol: 'NVDA', action: 'skipped', reason: 'unchanged_evidence_digest' },
+      { subject_symbol: 'TSLA', action: 'skipped', reason: 'materialization_budget_cap' },
+      null,
+    ]);
+    expect(sorted.map((d) => d.subjectSymbol)).toEqual(['AAPL', 'TSLA', 'NVDA', 'MSFT', '']);
+  });
+
+  it('returns [] for a non-array input', () => {
+    expect(sortSyncraticMaterializationDecisions(undefined)).toEqual([]);
+    expect(sortSyncraticMaterializationDecisions({})).toEqual([]);
+  });
+});
+
+describe('countSyncraticMaterializationDecisions (G092)', () => {
+  it('counts actions across decisions', () => {
+    const counts = countSyncraticMaterializationDecisions([
+      { action: 'would_materialize' },
+      { action: 'would_materialize' },
+      { action: 'materialized' },
+      { action: 'skipped' },
+      { action: 'skipped' },
+      { action: 'future_action' },
+    ]);
+    expect(counts.would_materialize).toBe(2);
+    expect(counts.materialized).toBe(1);
+    expect(counts.skipped).toBe(2);
+  });
+});
+
+describe('syncraticDecisionStyle (G092)', () => {
+  it('maps known action/reason pairs to restrained styles', () => {
+    expect(syncraticDecisionStyle('materialized', 'eligible')).toContain('emerald');
+    expect(syncraticDecisionStyle('would_materialize', 'eligible')).toContain('brand');
+    expect(syncraticDecisionStyle('skipped', 'materialization_budget_cap')).toContain('amber');
+    expect(syncraticDecisionStyle('skipped', 'below_threshold')).toContain('gray-400');
+  });
+  it('falls back to neutral for unknown tokens', () => {
+    expect(syncraticDecisionStyle('future_action', 'future_reason')).toContain('gray-600');
+  });
+});
+
+describe('messageForSyncraticMaterializeError (G092)', () => {
+  it('maps auth, storage-unavailable, network, and validation errors', () => {
+    expect(messageForSyncraticMaterializeError({ status: 401, code: 'unauthorized', message: '' })).toContain('Authentication');
+    expect(messageForSyncraticMaterializeError({ status: 503, code: 'storage_unavailable', message: '' })).toContain('storage is unavailable');
+    expect(messageForSyncraticMaterializeError({ status: 0, code: 'network_error', message: '' })).toBe('Gateway unreachable.');
+  });
+  it('surfaces the sanitized backend validation message for materialize_failed', () => {
+    expect(messageForSyncraticMaterializeError({ status: 400, code: 'materialize_failed', message: 'window_start is required' })).toBe(
+      'window_start is required',
+    );
+  });
+  it('falls back for non-ApiError shapes', () => {
+    expect(messageForSyncraticMaterializeError(new Error('boom'))).toContain('unexpectedly');
   });
 });

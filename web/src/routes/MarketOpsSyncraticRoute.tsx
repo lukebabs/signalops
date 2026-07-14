@@ -7,7 +7,6 @@ import {
   useMaterializeSyncraticContexts,
   useAskSyncraticContextWindow,
 } from '../api/queries';
-import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
 import { CopyButton } from '../components/CopyButton';
@@ -25,13 +24,17 @@ import {
   syncraticSeverityStyle,
   syncraticInsightStatusStyle,
   shortSyncraticId,
+  sortSyncraticMaterializationDecisions,
+  countSyncraticMaterializationDecisions,
+  syncraticDecisionStyle,
+  messageForSyncraticAskError,
+  messageForSyncraticMaterializeError,
   SYNCRATIC_ASK_BADGE_LABELS,
   SYNCRATIC_ASK_BADGE_STYLES,
-  messageForSyncraticAskError,
 } from '../lib/syncratic';
 import { useTenant } from '../auth/session';
 import { useAppProfile } from '../apps/AppProfileContext';
-import type { SyncraticInsight, SyncraticContextWindow, SyncraticInsightStatus } from '../types';
+import type { SyncraticInsight, SyncraticContextWindow, SyncraticInsightStatus, SyncraticMaterializeRequest } from '../types';
 
 const STATUSES: (SyncraticInsightStatus | '')[] = [
   '',
@@ -591,10 +594,19 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
     return toDatetimeLocal(d.toISOString());
   });
   const [windowEnd, setWindowEnd] = useState(() => toDatetimeLocal(new Date().toISOString()));
+  // Safe preview/write defaults: small asset scan and a single context/insight cap.
+  const [maxAssets, setMaxAssets] = useState(10);
+  const [maxContextWindows, setMaxContextWindows] = useState(1);
+  const [maxInsights, setMaxInsights] = useState(1);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [minEvidenceCount, setMinEvidenceCount] = useState(2);
-  const [maxAssets, setMaxAssets] = useState(50);
-  const [maxContextWindows, setMaxContextWindows] = useState(10);
-  const [maxInsights, setMaxInsights] = useState(10);
+  const [maxCandidateWindows, setMaxCandidateWindows] = useState(MATERIALIZE_MAX_CANDIDATE_WINDOWS);
+  const [universeGroup, setUniverseGroup] = useState(MATERIALIZE_UNIVERSE_GROUP);
+  const [contextStrategy, setContextStrategy] = useState(MATERIALIZE_STRATEGY);
+  // Preview-first gating: write is disabled until a dry-run has succeeded, and
+  // needs a two-click confirm so context/insight rows are never created by accident.
+  const [previewDone, setPreviewDone] = useState(false);
+  const [confirmWrite, setConfirmWrite] = useState(false);
 
   const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
   const labelCls = 'text-xs text-gray-500';
@@ -603,44 +615,85 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
     windowStart.trim() !== '' &&
     windowEnd.trim() !== '';
 
-  function onSubmit(ev: React.FormEvent) {
-    ev.preventDefault();
-    if (!canSubmit) return;
-    materialize.mutate({
+  function buildRequest(dryRun: boolean): SyncraticMaterializeRequest {
+    return {
       tenant_id: tenantId,
-      universe_group: MATERIALIZE_UNIVERSE_GROUP,
-      context_strategy: MATERIALIZE_STRATEGY,
+      universe_group: universeGroup,
+      context_strategy: contextStrategy,
       context_builder_version: MATERIALIZE_BUILDER_VERSION,
       window_start: toRfc3339Utc(windowStart),
       window_end: toRfc3339Utc(windowEnd),
       min_evidence_count: minEvidenceCount,
       max_assets: maxAssets,
-      max_candidate_windows: MATERIALIZE_MAX_CANDIDATE_WINDOWS,
+      max_candidate_windows: maxCandidateWindows,
       max_context_windows: maxContextWindows,
       max_insights: maxInsights,
-    });
+      dry_run: dryRun,
+    };
   }
 
-  const counters = materialize.data ? summarizeSyncraticMaterialization(materialize.data.materialization) : [];
+  // Any input change clears the stale result and re-arms the preview gate, so the
+  // write action always reflects a fresh preview of the current parameters.
+  function resetTransient<T>(setter: (v: T) => void) {
+    return (v: T) => {
+      materialize.reset();
+      setPreviewDone(false);
+      setConfirmWrite(false);
+      setter(v);
+    };
+  }
+
+  // Primary action: dry-run preview (form submit). Writes nothing.
+  function onPreview(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (!canSubmit) return;
+    setConfirmWrite(false);
+    materialize.mutate(buildRequest(true), { onSuccess: () => setPreviewDone(true) });
+  }
+
+  // Secondary action: confirmed write (dry_run=false). First click arms the
+  // confirm; second click performs the write with the last preview's parameters.
+  function onWrite() {
+    if (!canSubmit || !previewDone) return;
+    if (!confirmWrite) {
+      setConfirmWrite(true);
+      return;
+    }
+    materialize.mutate(buildRequest(false), { onSuccess: () => setConfirmWrite(false) });
+  }
+
+  const result = materialize.data?.materialization ?? null;
+  const counters = result ? summarizeSyncraticMaterialization(result) : [];
+  const decisionCounts = result ? countSyncraticMaterializationDecisions(result.decisions) : null;
+  const sortedDecisions = result ? sortSyncraticMaterializationDecisions(result.decisions) : [];
+  const isDryRun = result?.dry_run ?? false;
+  const writeCreated =
+    !!result && !isDryRun && (result.materialized_context_windows > 0 || result.materialized_insights > 0);
+  const idempotentUnchanged =
+    !!result &&
+    !isDryRun &&
+    result.materialized_context_windows === 0 &&
+    result.materialized_insights === 0 &&
+    result.skipped_unchanged > 0;
 
   return (
-    <form onSubmit={onSubmit} className="rounded border border-gray-200 bg-white p-3" aria-label="Materialize Syncratic contexts">
+    <form onSubmit={onPreview} className="rounded border border-gray-200 bg-white p-3" aria-label="Materialize Syncratic contexts">
       <div className="mb-2 flex items-center gap-1 text-sm font-semibold text-gray-900">
         <Sparkles size={14} /> Materialize Contexts
         <span className="ml-1 text-xs font-normal text-gray-500">
-          Bounded synthesis over {MATERIALIZE_UNIVERSE_GROUP} · {MATERIALIZE_STRATEGY} · operator-triggered only
+          Preview-first · bounded synthesis over {universeGroup} · {contextStrategy} · operator-triggered only
         </span>
       </div>
       <p className="-mt-1 mb-2 text-[11px] text-gray-500">
         Subject-scoped contexts require evidence that matches the selected ticker. Evidence mentioning another known ticker is excluded (purity filtering).
       </p>
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5">
         <label className="block">
           <span className={labelCls}>Window start</span>
           <input
             type="datetime-local"
             value={windowStart}
-            onChange={(e) => { materialize.reset(); setWindowStart(e.target.value); }}
+            onChange={(e) => resetTransient(setWindowStart)(e.target.value)}
             className={`${inputCls} mt-0.5 w-full`}
             aria-label="Materialize window start"
           />
@@ -650,20 +703,9 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
           <input
             type="datetime-local"
             value={windowEnd}
-            onChange={(e) => { materialize.reset(); setWindowEnd(e.target.value); }}
+            onChange={(e) => resetTransient(setWindowEnd)(e.target.value)}
             className={`${inputCls} mt-0.5 w-full`}
             aria-label="Materialize window end"
-          />
-        </label>
-        <label className="block">
-          <span className={labelCls}>Min evidence</span>
-          <input
-            type="number"
-            min={1}
-            value={minEvidenceCount}
-            onChange={(e) => { materialize.reset(); setMinEvidenceCount(Number(e.target.value)); }}
-            className={`${inputCls} mt-0.5 w-full`}
-            aria-label="Minimum evidence count"
           />
         </label>
         <label className="block">
@@ -673,7 +715,7 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
             min={1}
             max={5000}
             value={maxAssets}
-            onChange={(e) => { materialize.reset(); setMaxAssets(Number(e.target.value)); }}
+            onChange={(e) => resetTransient(setMaxAssets)(Number(e.target.value))}
             className={`${inputCls} mt-0.5 w-full`}
             aria-label="Max assets"
           />
@@ -685,7 +727,7 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
             min={1}
             max={5000}
             value={maxContextWindows}
-            onChange={(e) => { materialize.reset(); setMaxContextWindows(Number(e.target.value)); }}
+            onChange={(e) => resetTransient(setMaxContextWindows)(Number(e.target.value))}
             className={`${inputCls} mt-0.5 w-full`}
             aria-label="Max context windows"
           />
@@ -697,27 +739,175 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
             min={1}
             max={5000}
             value={maxInsights}
-            onChange={(e) => { materialize.reset(); setMaxInsights(Number(e.target.value)); }}
+            onChange={(e) => resetTransient(setMaxInsights)(Number(e.target.value))}
             className={`${inputCls} mt-0.5 w-full`}
             aria-label="Max insights"
           />
         </label>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((v) => !v)}
+        className="mt-1 text-[11px] text-brand-700 hover:underline"
+        aria-expanded={showAdvanced}
+      >
+        {showAdvanced ? '▾ Hide advanced' : '▸ Advanced'}
+      </button>
+      {showAdvanced && (
+        <div className="mt-1 grid grid-cols-2 gap-2 md:grid-cols-4">
+          <label className="block">
+            <span className={labelCls}>Min evidence</span>
+            <input
+              type="number"
+              min={1}
+              value={minEvidenceCount}
+              onChange={(e) => resetTransient(setMinEvidenceCount)(Number(e.target.value))}
+              className={`${inputCls} mt-0.5 w-full`}
+              aria-label="Minimum evidence count"
+            />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Max candidate windows</span>
+            <input
+              type="number"
+              min={1}
+              max={5000}
+              value={maxCandidateWindows}
+              onChange={(e) => resetTransient(setMaxCandidateWindows)(Number(e.target.value))}
+              className={`${inputCls} mt-0.5 w-full`}
+              aria-label="Max candidate windows"
+            />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Universe group</span>
+            <input
+              type="text"
+              value={universeGroup}
+              onChange={(e) => resetTransient(setUniverseGroup)(e.target.value)}
+              className={`${inputCls} mt-0.5 w-full`}
+              aria-label="Universe group"
+            />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Context strategy</span>
+            <input
+              type="text"
+              value={contextStrategy}
+              onChange={(e) => resetTransient(setContextStrategy)(e.target.value)}
+              className={`${inputCls} mt-0.5 w-full`}
+              aria-label="Context strategy"
+            />
+          </label>
+        </div>
+      )}
+
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <button
           type="submit"
           disabled={!canSubmit}
           className="inline-flex items-center gap-1 rounded bg-brand-500 px-3 py-1.5 text-sm text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Sparkles size={14} /> {materialize.isPending ? 'Materializing...' : 'Materialize Contexts'}
+          <Sparkles size={14} /> {materialize.isPending && isDryRun ? 'Previewing…' : 'Preview materialization'}
+        </button>
+        <button
+          type="button"
+          onClick={onWrite}
+          disabled={!canSubmit || !previewDone}
+          className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          title={previewDone ? 'Create context windows and insights with the previewed budget' : 'Run a preview first'}
+        >
+          {materialize.isPending && !isDryRun
+            ? 'Materializing…'
+            : confirmWrite
+              ? 'Confirm write — create contexts/insights'
+              : 'Materialize selected budget'}
         </button>
         <span className="text-xs text-gray-500">
           Caps: {maxAssets} assets · {maxContextWindows} windows · {maxInsights} insights
         </span>
       </div>
 
-      {materialize.isSuccess && counters.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
+      {confirmWrite && (
+        <p className="mt-1 text-[11px] text-amber-700">
+          Write mode will create or update up to {maxContextWindows} context window(s) and {maxInsights} insight(s). Click again to confirm.
+        </p>
+      )}
+
+      {result && (
+        <MaterializeResultPanel
+          isDryRun={isDryRun}
+          counters={counters}
+          wouldMaterialize={decisionCounts?.would_materialize ?? 0}
+          writeCreated={writeCreated}
+          idempotentUnchanged={idempotentUnchanged}
+          skippedUnchanged={result.skipped_unchanged}
+          materializedContextWindows={result.materialized_context_windows}
+          materializedInsights={result.materialized_insights}
+          decisions={sortedDecisions}
+        />
+      )}
+
+      {materialize.isError && (
+        <p className="mt-2 text-xs text-red-700" role="alert">
+          {messageForSyncraticMaterializeError(materialize.error)} Form values preserved.
+        </p>
+      )}
+    </form>
+  );
+}
+
+// Aggregate counters + mode banner + per-asset decision table for a preview or
+// write result. Zero materializations on a successful response is not an error.
+function MaterializeResultPanel({
+  isDryRun,
+  counters,
+  wouldMaterialize,
+  writeCreated,
+  idempotentUnchanged,
+  skippedUnchanged,
+  materializedContextWindows,
+  materializedInsights,
+  decisions,
+}: {
+  isDryRun: boolean;
+  counters: ReturnType<typeof summarizeSyncraticMaterialization>;
+  wouldMaterialize: number;
+  writeCreated: boolean;
+  idempotentUnchanged: boolean;
+  skippedUnchanged: number;
+  materializedContextWindows: number;
+  materializedInsights: number;
+  decisions: ReturnType<typeof sortSyncraticMaterializationDecisions>;
+}) {
+  return (
+    <div className="mt-3 space-y-2">
+      {/* Mode banner: distinguishes preview (no writes) from write outcomes. */}
+      <p
+        className={`rounded border px-2 py-1 text-xs ${
+          writeCreated
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            : idempotentUnchanged
+              ? 'border-gray-200 bg-gray-50 text-gray-600'
+              : 'border-brand-100 bg-brand-50/50 text-gray-700'
+        }`}
+      >
+        {isDryRun
+          ? 'Dry-run preview — no context windows or insights were written.'
+          : writeCreated
+            ? `Write complete — ${materializedContextWindows} context window(s), ${materializedInsights} insight(s) created.`
+            : idempotentUnchanged
+              ? `Idempotent success — evidence unchanged, no duplicates written (skipped_unchanged=${skippedUnchanged}).`
+              : 'Write complete — no rows created for this window.'}
+      </p>
+
+      {counters.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {isDryRun && (
+            <span className="inline-flex items-center gap-1 rounded border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs text-brand-700">
+              Would materialize <span className="font-semibold">{wouldMaterialize}</span>
+            </span>
+          )}
           {counters.map((c) => (
             <span
               key={c.key}
@@ -735,18 +925,60 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
           ))}
         </div>
       )}
-      {materialize.isSuccess &&
-        (materialize.data?.materialization?.materialized_context_windows ?? 0) === 0 &&
-        (materialize.data?.materialization?.materialized_insights ?? 0) === 0 && (
-          <p className="mt-2 text-xs text-gray-600">
-            No eligible evidence for this window — not a system error. Lower the minimum-evidence threshold, widen the window, or rematerialize after evidence is corrected.
-          </p>
-        )}
-      {materialize.isError && (
-        <p className="mt-2 text-xs text-red-700" role="alert">
-          Materialize failed: {isApiError(materialize.error) ? materialize.error.message : 'unknown error'}. Form values preserved.
-        </p>
+
+      {decisions.length > 0 && (
+        <div className="overflow-x-auto rounded border border-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 text-[11px]">
+            <thead className="bg-gray-50 text-left uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="whitespace-nowrap px-2 py-1">Symbol</th>
+                <th className="whitespace-nowrap px-2 py-1">Action</th>
+                <th className="whitespace-nowrap px-2 py-1">Reason</th>
+                <th className="whitespace-nowrap px-2 py-1">Evidence</th>
+                <th className="whitespace-nowrap px-2 py-1">Signals</th>
+                <th className="whitespace-nowrap px-2 py-1">Alerts</th>
+                <th className="whitespace-nowrap px-2 py-1">Artifacts</th>
+                <th className="whitespace-nowrap px-2 py-1">Graph</th>
+                <th className="whitespace-nowrap px-2 py-1">Labels</th>
+                <th className="whitespace-nowrap px-2 py-1">Critical</th>
+                <th className="whitespace-nowrap px-2 py-1">Related</th>
+                <th className="whitespace-nowrap px-2 py-1">Context</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {decisions.map((d, idx) => (
+                <tr key={d.contextWindowId || d.subjectSymbol || idx} className="align-top">
+                  <td className="whitespace-nowrap px-2 py-1 font-semibold text-gray-900">{d.subjectSymbol || '—'}</td>
+                  <td className="px-2 py-1">
+                    <span
+                      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded border px-1.5 py-0.5 font-medium ${syncraticDecisionStyle(
+                        d.action,
+                        d.reason,
+                      )}`}
+                    >
+                      {d.action || '—'}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1 text-gray-600">{d.reason || '—'}</td>
+                  <td className="whitespace-nowrap px-2 py-1">{d.evidenceCount}</td>
+                  <td className="whitespace-nowrap px-2 py-1">{d.signalCount}</td>
+                  <td className="whitespace-nowrap px-2 py-1">{d.alertCount}</td>
+                  <td className="whitespace-nowrap px-2 py-1">{d.artifactCount}</td>
+                  <td className="whitespace-nowrap px-2 py-1">{d.graphProposalCount}</td>
+                  <td className="whitespace-nowrap px-2 py-1">{d.labelCount}</td>
+                  <td className="whitespace-nowrap px-2 py-1">{d.criticalAlert ? 'yes' : 'no'}</td>
+                  <td className="whitespace-nowrap px-2 py-1">{d.relatedEvidence ? 'yes' : 'no'}</td>
+                  <td className="px-2 py-1">
+                    <code className="text-gray-600" title={d.contextWindowId}>
+                      {d.contextWindowId ? shortSyncraticId(d.contextWindowId) : '—'}
+                    </code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-    </form>
+    </div>
   );
 }
