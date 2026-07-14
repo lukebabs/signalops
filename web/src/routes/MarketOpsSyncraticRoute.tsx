@@ -659,7 +659,12 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
       setConfirmWrite(true);
       return;
     }
-    materialize.mutate(buildRequest(false), { onSuccess: () => setConfirmWrite(false) });
+    materialize.mutate(buildRequest(false), {
+      onSuccess: () => setConfirmWrite(false),
+      // Disarm the confirm on failure so the operator re-confirms intent after
+      // reading the error, rather than one-click retrying a write.
+      onError: () => setConfirmWrite(false),
+    });
   }
 
   const result = materialize.data?.materialization ?? null;
@@ -667,6 +672,10 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
   const decisionCounts = result ? countSyncraticMaterializationDecisions(result.decisions) : null;
   const sortedDecisions = result ? sortSyncraticMaterializationDecisions(result.decisions) : [];
   const isDryRun = result?.dry_run ?? false;
+  // In-flight request mode (from the pending mutation's own variables), used for
+  // accurate pending labels — distinct from `isDryRun`, which reflects the last
+  // *completed* result and would mislabel the first request.
+  const pendingDryRun = materialize.variables?.dry_run;
   const writeCreated =
     !!result && !isDryRun && (result.materialized_context_windows > 0 || result.materialized_insights > 0);
   const idempotentUnchanged =
@@ -808,7 +817,7 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
           disabled={!canSubmit}
           className="inline-flex items-center gap-1 rounded bg-brand-500 px-3 py-1.5 text-sm text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Sparkles size={14} /> {materialize.isPending && isDryRun ? 'Previewing…' : 'Preview materialization'}
+          <Sparkles size={14} /> {materialize.isPending && pendingDryRun === true ? 'Previewing…' : 'Preview materialization'}
         </button>
         <button
           type="button"
@@ -817,7 +826,7 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
           className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           title={previewDone ? 'Create context windows and insights with the previewed budget' : 'Run a preview first'}
         >
-          {materialize.isPending && !isDryRun
+          {materialize.isPending && pendingDryRun === false
             ? 'Materializing…'
             : confirmWrite
               ? 'Confirm write — create contexts/insights'
