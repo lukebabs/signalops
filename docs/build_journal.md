@@ -6146,3 +6146,18 @@ Validation performed:
 
 - `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api -count=1`: passed.
 - `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+
+## 2026-07-14T00:00:00Z
+
+Summary:
+
+- Completed G091 live validation against the rebuilt local gateway.
+- Verified authenticated dry-run preview returns per-asset decisions without writing context windows or insights.
+- Verified tight-cap write mode persists exactly one deterministic AAPL context/insight, does not trigger Syncratic Ask, and idempotent reruns skip unchanged evidence.
+
+Validation performed:
+
+- Authenticated dry-run `POST /v1/syncratic/materialize`: HTTP `200`, `dry_run=true`, `scanned_assets=10`, `decisions=10`, `candidate_windows=1`, `materialized_context_windows=0`, `materialized_insights=0`, `skipped_below_threshold=9`.
+- Authenticated tight-cap write `POST /v1/syncratic/materialize`: HTTP `201`, `materialized_context_windows=1`, `materialized_insights=1`, AAPL context `synctx_9f96168debca2528ce72efe5`, insight `synins_467aef31771fd45262d48de8`.
+- Persisted insight detail fetch: HTTP `200`; `metrics.syncratic_ask` absent.
+- Authenticated write rerun: HTTP `201`, `skipped_unchanged=1`, `materialized_context_windows=0`, `materialized_insights=0`, AAPL decision reason `unchanged_evidence_digest`.

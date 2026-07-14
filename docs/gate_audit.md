@@ -7140,3 +7140,26 @@ Validation performed:
 Result:
 
 - Operators can now preview Syncratic context materialization over the Top 50 universe without creating context windows or insight rows, and write-mode responses expose the same selection decisions for auditability.
+
+## Gate G091: Live Validation Closeout
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `validated - authenticated dry-run, write-mode, no-Ask, and idempotency smokes passed`
+
+Scope:
+
+- Validate G091 behavior against the rebuilt local gateway using configured non-human auth credentials.
+- Keep validation limited to `POST /v1/syncratic/materialize` and read-back of the created deterministic insight.
+- Do not trigger Syncratic Ask, Search, ingestion, graph writes, detector changes, policy deployment, scheduler work, or frontend changes.
+
+Validation performed:
+
+- Authenticated dry-run returned HTTP `200`, scanned `10` assets, returned `10` decisions, selected AAPL as `would_materialize`, and wrote zero context/insight rows.
+- Authenticated tight-cap write returned HTTP `201`, materialized AAPL context `synctx_9f96168debca2528ce72efe5` and deterministic insight `synins_467aef31771fd45262d48de8`, with `9` below-threshold skips.
+- Persisted insight detail returned HTTP `200`; `metrics.syncratic_ask` was absent, confirming materialization did not trigger Ask.
+- Authenticated rerun returned HTTP `201`, `skipped_unchanged=1`, `materialized_context_windows=0`, and `materialized_insights=0`; AAPL skipped with `reason=unchanged_evidence_digest`.
+
+Result:
+
+- G091 is live-validated. Operators can preview budgeted Syncratic materialization, execute a capped write, and rely on digest idempotency to avoid duplicate context/insight rows.

@@ -79,8 +79,10 @@ Implemented validation:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api -count=1`: passed.
 - `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
 
-Follow-on validation before production use:
+Live validation:
 
-- run a dry-run over a bounded Top 50 smoke window and confirm `decisions[]` matches operator expectations;
-- run write mode with a low materialization cap and confirm only the selected budgeted contexts persist;
-- confirm no Syncratic Ask calls are emitted by materialization.
+- Gateway was rebuilt/restarted with the G091 route changes.
+- Authenticated dry-run over a bounded Top 50 smoke window returned `200 OK`, scanned `10` assets, returned `10` decisions, selected AAPL as `would_materialize`, reported `materialized_context_windows=0`, and reported `materialized_insights=0`.
+- Authenticated write mode with `max_context_windows=1` and `max_insights=1` returned `201 Created`, scanned `10` assets, materialized exactly one AAPL context (`synctx_9f96168debca2528ce72efe5`) and one deterministic insight (`synins_467aef31771fd45262d48de8`), and skipped `9` assets below threshold.
+- The materialized insight did not include `metrics.syncratic_ask`, confirming materialization did not trigger Syncratic Ask.
+- Authenticated rerun of the same write request returned `201 Created`, reported `skipped_unchanged=1`, `materialized_context_windows=0`, and `materialized_insights=0`; the AAPL decision was `skipped` with `reason=unchanged_evidence_digest`.
