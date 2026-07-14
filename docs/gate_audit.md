@@ -7179,3 +7179,25 @@ Scope:
 Result:
 
 - Specification saved at `docs/frontend/syncratic_materialization_preview_ui_spec.md` and indexed from the MarketOps frontend README.
+
+## Gate G092: Syncratic Materialization Preview UI Closeout
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `implemented by frontend-agent`
+
+Scope:
+
+- Close the frontend-agent handoff for the Syncratic materialization preview UI specified in `docs/frontend/syncratic_materialization_preview_ui_spec.md`.
+- Keep closeout limited to UI implementation acknowledgement and documentation.
+- No backend API, automatic Ask, Search, ingestion, graph writes, detector changes, policy deployment, or scheduler scope is added.
+
+Validation performed:
+
+- `git status --short`: clean before documentation closeout.
+- `git log -8 --oneline`: confirmed `9695c2a Add Syncratic materialization preview UI (G092)` and `6965a77 Fix G092 materialize pending labels + write-confirm-on-error`.
+- Source scan confirmed G091/G092 materialization preview types, API tests, decision helpers, helper tests, and UI references exist under `web/src`.
+
+Result:
+
+- G092 now has the frontend operator loop for G091 budgeted materialization preview and confirmed write UI implemented. Remaining work should move to the next explicitly selected gate rather than expanding G092.
