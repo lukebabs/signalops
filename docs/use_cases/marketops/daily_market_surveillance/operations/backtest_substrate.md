@@ -124,3 +124,18 @@ The runner writes only to `marketops_backtest_*` tables. It does not publish to 
 - `GET /v1/marketops/backtests/{run_id}`
 - `GET /v1/marketops/backtests/{run_id}/signals`
 - `GET /v1/marketops/backtests/{run_id}/graph-proposals?recommendation=manual_review_required`
+
+## Calibration Readiness Campaign Direction
+
+G094 expands the operational expectation from smoke runs to calibration campaigns. Operators should use the isolated back-test runner/API to build broader coverage before trusting promotion candidates.
+
+Recommended campaign shape:
+
+- run equity EOD back-tests across the Top 50 universe over multiple historical windows;
+- run options daily back-tests separately for symbols with normalized options coverage;
+- keep `max_records` bounded per run and aggregate with G082 summaries rather than creating unbounded single runs;
+- sync reviewed graph proposal decisions into G084 labels after operator review;
+- run G085 label-aware evaluations only after enough labels exist;
+- treat weak label volume, label conflicts, or sparse historical windows as `needs_more_data`, not as a deployment signal.
+
+Policy deployment remains out of scope for calibration operations until a later execution gate is explicitly approved.

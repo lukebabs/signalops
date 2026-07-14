@@ -168,3 +168,9 @@ A promotion candidate should reference immutable comparison and evaluation evide
 ## G087 Deployment Planning Direction
 
 G087 should add deployment plan records above approved G086 promotion candidates. A deployment plan describes target type, environment, rollout strategy, preflight checks, rollback plan, and evidence. It should not execute a deployment or mutate runtime detector, policy, graph, signal, alert, or insight state.
+
+## G094 Calibration Readiness Direction
+
+G094 should sit above G081-G086 as an evidence sufficiency layer. It should measure whether historical run coverage and reviewed label quality are strong enough for promotion decisions to be trusted.
+
+The readiness layer should not deploy policies or mutate runtime detector behavior. It should evaluate Top 50 symbol coverage, equity/options dataset coverage, historical window breadth, label volume, label conflicts, label coverage, and G085 evaluation strength. A favorable readiness result is permission to continue review, not permission to execute deployment.

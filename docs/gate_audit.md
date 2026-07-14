@@ -7294,3 +7294,21 @@ Validation performed:
 Result:
 
 - G093 is deployed and live-validated. Operators can distinguish current vs historical Syncratic insights through the deployed UI/API path while Ask-enriched state remains separate and unchanged.
+
+## Gate G094: Back-Test Calibration Readiness Spec
+
+Timestamp: `2026-07-14T15:34:31Z`
+
+Status: `specification proposed`
+
+Scope:
+
+- Start the Back-Test And Calibration workstream after G081-G087.
+- Define readiness criteria for broader historical run coverage, Top 50 equity/options dataset breadth, and label volume/quality.
+- Keep runtime policy deployment, detector threshold changes, graph writeback, model training, and production ledger mutation out of scope.
+
+Result:
+
+- Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G094_backtest_calibration_readiness.md`.
+- Gate index, use-case README, back-test architecture note, and operations notes now reference the G094 direction.
+- Recommended next implementation slice is calibration readiness snapshots over existing G081-G086 evidence, not runtime deployment.

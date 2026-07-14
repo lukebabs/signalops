@@ -6252,3 +6252,15 @@ Validation performed:
 - Currentness result: `synins_6d0a6728b8d185b658bac8e4` marked current with `reason=latest_window_end`; `synins_467aef31771fd45262d48de8`, `synins_354626f2f72e74adb5400a4c`, and `synins_8e4cccf1ff5a61faf0cb0571` marked historical with `reason=newer_context_window` and `superseded_by_syncratic_insight_id=synins_6d0a6728b8d185b658bac8e4`.
 - Authenticated same-origin detail fetch for historical insight `synins_467aef31771fd45262d48de8`: HTTP `200`, preserved `metrics.syncratic_ask` and returned historical currentness metadata.
 - Web/gateway logs for the smoke showed the route and read-only Syncratic insight GET calls; no `/v1/syncratic/context-windows/{id}/ask` route was called.
+
+## 2026-07-14T15:34:31Z
+
+Summary:
+
+- Started the Back-Test And Calibration workstream with the G094 calibration readiness specification.
+- Scoped G094 to broader historical run coverage, Top 50 equity/options windows, and label volume/quality thresholds before runtime policy deployment.
+- Updated back-test architecture and operations notes to distinguish smoke validation from calibration campaigns.
+
+Validation performed:
+
+- Documentation readback completed; no code or production runtime changes made.
