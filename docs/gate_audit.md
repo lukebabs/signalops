@@ -7410,3 +7410,24 @@ Validation performed:
 Result:
 
 - Operators can now distinguish an empty campaign caused by missing normalized input from detector behavior or policy behavior. Local validation confirms the current blocker is missing normalized MarketOps input, not the G095 campaign API.
+
+## Gate G097: Back-Test Input Ingestion Smoke
+
+Timestamp: `2026-07-14T17:20:00Z`
+
+Status: `implemented - operator script and Compose wiring validated; provider execution blocked by missing local API key`
+
+Scope:
+
+- Add the bounded operator path for producing normalized MarketOps input through the existing Massive puller, raw topic, normalizer, and ledger pipeline.
+- Keep synthetic data, direct DB inserts, policy deployment, detector mutation, graph writes, and unbounded historical ingestion out of scope.
+
+Validation performed:
+
+- Shell syntax validation passed for the ingestion smoke script.
+- Compose validation passed with the `massive-pull` profile.
+- Local env has an explicit `SIGNALOPS_MASSIVE_API_KEY`, but the bounded smoke received Massive HTTP `401`; no events were built or published.
+
+Result:
+
+- The next execution step is operational: replace the Massive API key with a valid key, run `scripts/marketops_calibration_ingest_smoke.sh`, then confirm `GET /v1/marketops/backtest-coverage` returns at least one data-bearing MarketOps row before launching broader G095 campaigns.

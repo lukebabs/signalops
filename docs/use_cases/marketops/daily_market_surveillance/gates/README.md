@@ -96,3 +96,8 @@ Recommended next gate:
 
 - G096: read-only normalized-event coverage preflight for data-bearing back-test campaign planning.
 - Specification: `G096_backtest_coverage_preflight.md`.
+
+## G097 Implemented
+
+- G097: bounded Massive ingestion smoke path for creating normalized MarketOps input through the existing raw/normalizer pipeline.
+- Specification: `G097_backtest_input_ingestion_smoke.md`.

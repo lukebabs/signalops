@@ -6329,3 +6329,18 @@ Summary:
 Validation performed:
 
 - `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres -count=1`: passed.
+
+## 2026-07-14T17:20:00Z
+
+Summary:
+
+- Implemented G097 back-test input ingestion smoke path.
+- Updated the one-shot Massive puller Compose service to receive database and temporal database URLs so broker-acknowledged raw events can be ledgered during publish-mode validation.
+- Added `scripts/marketops_calibration_ingest_smoke.sh`, which fails fast without a Massive API key and otherwise runs a one-company/one-event bounded publish through the existing Massive puller and normalizer pipeline.
+- Documented the MarketOps operation runbook for converting empty G096 coverage into data-bearing normalized input.
+
+Validation performed:
+
+- `bash -n scripts/marketops_calibration_ingest_smoke.sh`: passed.
+- `docker compose -f compose.yaml -f compose.traefik.yaml --profile massive-pull config --quiet`: passed.
+- `scripts/marketops_calibration_ingest_smoke.sh`: executed with bounded defaults: `datasets=equity`, `max_companies=1`, `max_provider_requests=1`, `max_events_published=1`, `max_retries=0`; Massive returned HTTP `401`, so no events were built or published.

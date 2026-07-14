@@ -18,3 +18,7 @@ Current recurring validations:
 ## Syncratic Context Operations
 
 `syncratic_context_windows.md` covers the proposed G088 validation shape for deterministic context windows and synthesized insights over existing ledgers.
+
+## Back-Test Input Ingestion
+
+- `backtest_input_ingestion.md`: bounded Massive puller smoke for creating normalized MarketOps input rows before calibration campaigns.
