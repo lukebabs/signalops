@@ -239,3 +239,19 @@ Validation performed:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
 - `cd web && npm test`: passed, `19` files and `245` tests.
 - `cd web && npm run build`: passed.
+
+
+## Deploy And Live Validation Closeout
+
+Timestamp: `2026-07-14T15:08:17Z`
+
+Status: `validated - deployed web/gateway route and same-origin API path`
+
+Validated behavior:
+
+- Rebuilt/restarted `signalops-gateway-1` and `signalops-web-1`.
+- Confirmed `/marketops/syncratic` returns HTTP `200`.
+- Confirmed authenticated same-origin AAPL list returns `4` Syncratic insights with read-time `currentness`.
+- Confirmed `synins_6d0a6728b8d185b658bac8e4` is the current AAPL insight for the currentness tuple, while `synins_467aef31771fd45262d48de8`, `synins_354626f2f72e74adb5400a4c`, and `synins_8e4cccf1ff5a61faf0cb0571` are historical and point to the current insight.
+- Confirmed historical detail fetch preserves `metrics.syncratic_ask`; Ask state is not used as currentness state.
+- Confirmed validation did not call the Ask endpoint and did not mutate storage lifecycle state.

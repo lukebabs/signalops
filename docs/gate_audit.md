@@ -7269,3 +7269,28 @@ Validation performed:
 Result:
 
 - Operators can distinguish current vs historical Syncratic rows independently from deterministic vs Ask-enriched state, without rewriting historical rows.
+
+## Gate G093: Deploy And Live Validation Closeout
+
+Timestamp: `2026-07-14T15:08:17Z`
+
+Status: `validated - deployed web/gateway path exposes currentness metadata`
+
+Scope:
+
+- Rebuild and restart the deployed local web/gateway path for the implemented G093 currentness slice.
+- Validate the Syncratic UI route and same-origin Syncratic insight list/detail APIs.
+- Keep validation read-only for Syncratic insights; no Ask automation, Search, ingestion, graph writes, detector changes, policy deployment, scheduler work, or storage lifecycle mutation is added.
+
+Validation performed:
+
+- `signalops-gateway-1` and `signalops-web-1` rebuilt/restarted successfully.
+- `/marketops/syncratic` returned HTTP `200`.
+- Authenticated same-origin AAPL insight list returned HTTP `200` with `4` insights and read-time `currentness` metadata.
+- One AAPL insight, `synins_6d0a6728b8d185b658bac8e4`, is current with `reason=latest_window_end`; three older AAPL insights are historical with `reason=newer_context_window` and point to the current insight.
+- Historical detail fetch for `synins_467aef31771fd45262d48de8` returned HTTP `200`, preserved `metrics.syncratic_ask`, and returned historical currentness metadata.
+- Logs showed only route/read-only insight GET calls from the validation smoke; no Ask endpoint call was made.
+
+Result:
+
+- G093 is deployed and live-validated. Operators can distinguish current vs historical Syncratic insights through the deployed UI/API path while Ask-enriched state remains separate and unchanged.

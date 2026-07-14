@@ -6234,3 +6234,21 @@ Validation performed:
 - `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
 - `cd web && npm test`: passed, `19` files and `245` tests.
 - `cd web && npm run build`: passed.
+
+## 2026-07-14T15:08:17Z
+
+Summary:
+
+- Completed the G093 deploy and live-validation closeout.
+- Rebuilt/restarted `signalops-gateway-1` and `signalops-web-1` from `compose.yaml` plus `compose.traefik.yaml`.
+- Validated that the deployed Syncratic UI route and same-origin Syncratic insight APIs expose read-time currentness without triggering Ask.
+
+Validation performed:
+
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d --build gateway web`: passed.
+- `docker ps --filter name=signalops-gateway-1 --filter name=signalops-web-1`: both containers up.
+- `GET http://localhost:15173/marketops/syncratic`: HTTP `200`.
+- Authenticated same-origin `GET http://localhost:15173/v1/syncratic/insights?tenant_id=tenant-local&subject_symbol=AAPL&limit=10`: HTTP `200`, returned `4` AAPL Syncratic insights with `currentness` metadata.
+- Currentness result: `synins_6d0a6728b8d185b658bac8e4` marked current with `reason=latest_window_end`; `synins_467aef31771fd45262d48de8`, `synins_354626f2f72e74adb5400a4c`, and `synins_8e4cccf1ff5a61faf0cb0571` marked historical with `reason=newer_context_window` and `superseded_by_syncratic_insight_id=synins_6d0a6728b8d185b658bac8e4`.
+- Authenticated same-origin detail fetch for historical insight `synins_467aef31771fd45262d48de8`: HTTP `200`, preserved `metrics.syncratic_ask` and returned historical currentness metadata.
+- Web/gateway logs for the smoke showed the route and read-only Syncratic insight GET calls; no `/v1/syncratic/context-windows/{id}/ask` route was called.
