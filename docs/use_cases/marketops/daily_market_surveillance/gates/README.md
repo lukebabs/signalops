@@ -111,3 +111,8 @@ Recommended next gate:
 
 - G099: MarketOps input smoke closeout after env mapping correction, idempotency upsert fix, clean ingestion smoke, coverage check, and one-run campaign validation.
 - Specification: `G099_marketops_input_smoke_closeout.md`.
+
+## G100 Implemented
+
+- G100: bounded three-symbol equity ingestion/campaign expansion and calibration summary refresh.
+- Specification: `G100_bounded_equity_campaign_expansion.md`.

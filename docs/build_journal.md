@@ -6378,3 +6378,21 @@ Validation performed:
 - `scripts/marketops_calibration_ingest_smoke.sh`: passed with one provider request, one event built, one event published, and zero failures.
 - Authenticated G096 coverage check returned one NVDA `equity_eod_prices` row for `2026-07-13`.
 - Authenticated G095 campaign `btcamp-g098-nvda-20260714175001` returned HTTP `201`, status `succeeded`, and `scanned=1`.
+
+## 2026-07-14T17:57:49Z
+
+Summary:
+
+- Ran G100 bounded equity expansion using the existing Massive puller, normalizer, coverage preflight, back-test campaign, and calibration summary APIs.
+- Ingested a three-symbol equity EOD sample for `2026-07-13` with strict provider/event bounds.
+- Confirmed G096 coverage for `AAPL`, `GOOGL`, and `NVDA`.
+- Ran G095 campaign `btcamp-g100-equity3-20260714175733` over the three data-bearing symbols and confirmed `scanned=3`.
+- Created calibration summary `btsum-g100-equity3-20260714175749` over succeeded MarketOps taxonomy equity runs.
+
+Validation performed:
+
+- Massive credential preflight: HTTP `200`.
+- Bounded ingestion: `provider_requests=3`, `events_built=3`, `events_published=3`, `failures=0`.
+- Authenticated coverage check: `AAPL`, `GOOGL`, and `NVDA` each returned `event_count=1` for `2026-07-13`.
+- Authenticated campaign create: HTTP `201`, status `succeeded`, completed child runs `3`, scanned `3`, signals `0`.
+- Authenticated calibration summary create: HTTP `201`, summary `btsum-g100-equity3-20260714175749`, run count `13`, scanned `9`, signals `5`, policy results `25`.

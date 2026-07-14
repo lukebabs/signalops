@@ -7477,3 +7477,27 @@ Validation performed:
 Result:
 
 - The immediate blocker is closed. The system can now ingest at least one real MarketOps normalized event and back-test against it. Broader Top 50/options historical coverage remains the next calibration task.
+
+## Gate G100: Bounded Equity Campaign Expansion
+
+Timestamp: `2026-07-14T17:57:49Z`
+
+Status: `implemented - bounded live ingestion, coverage, campaign, and summary validated`
+
+Scope:
+
+- Expand from one NVDA input smoke to three Top 50 equity symbols on one date.
+- Use existing ingestion, normalization, coverage, campaign, and summary APIs.
+- Keep runtime deployment, detector mutation, synthetic data, direct ledger inserts, and graph writes out of scope.
+
+Validation performed:
+
+- Massive preflight passed.
+- Bounded ingestion published three equity EOD raw events with zero failures.
+- G096 coverage returned AAPL, GOOGL, and NVDA normalized MarketOps rows.
+- G095 campaign `btcamp-g100-equity3-20260714175733` succeeded with `scanned=3`.
+- G082 summary `btsum-g100-equity3-20260714175749` persisted aggregate succeeded-run metrics: `run_count=13`, `scanned=9`, `signals=5`, `policy_results=25`.
+
+Result:
+
+- Equity EOD calibration is no longer blocked by empty input. The remaining calibration gap is breadth: more dates, more Top 50 symbols, and options windows before G094 readiness can materially improve.
