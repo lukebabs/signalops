@@ -7226,3 +7226,23 @@ Validation performed:
 Result:
 
 - G092 is validated in the deployed local web path. The operator UI can call the budgeted materialization preview/write API through the same-origin web route without triggering Ask automatically.
+
+## Gate G093: Syncratic Insight De-duplication And Ask State Clarity Spec
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `specification proposed`
+
+Scope:
+
+- Define currentness and lifecycle policy for overlapping Syncratic context windows and insights.
+- Separate deterministic materialization state from Ask enrichment state so older Ask-enriched rows do not imply new materialization triggered Ask.
+- Recommend non-destructive read-time currentness as the first implementation slice.
+
+Non-goals:
+
+- No deletes, automatic Ask, Search, ingestion, graph writes, detector changes, policy deployment, scheduler work, or historical rewrite without a later explicit implementation gate.
+
+Result:
+
+- Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G093_syncratic_insight_deduplication.md` and indexed from the gate README.

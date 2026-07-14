@@ -6206,3 +6206,15 @@ Validation performed:
 - Authenticated same-origin dry-run `POST http://localhost:15173/v1/syncratic/materialize`: HTTP `200`, `dry_run=true`, `scanned_assets=10`, `decisions=10`, `materialized_context_windows=0`, `materialized_insights=0`, `skipped_below_threshold=9`, `skipped_unchanged=1`.
 - Authenticated same-origin confirmed write `POST http://localhost:15173/v1/syncratic/materialize`: HTTP `201`, `materialized_context_windows=0`, `materialized_insights=0`, `skipped_unchanged=1`, AAPL decision `unchanged_evidence_digest`.
 - Web container request logs for the smoke showed `/v1/syncratic/materialize` and Syncratic insight list calls; no `/v1/syncratic/context-windows/{id}/ask` route was called by materialization.
+
+## 2026-07-14T00:00:00Z
+
+Summary:
+
+- Wrote the G093 specification for Syncratic insight de-duplication and Ask-state clarity.
+- Scoped the proposed gate to currentness policy for overlapping context windows and clear separation of deterministic materialization state from Ask enrichment state.
+- Recommended a non-destructive MVP: read-time currentness plus UI clarity before any persisted supersession/backfill work.
+
+Validation performed:
+
+- Documentation readback completed.

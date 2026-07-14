@@ -71,3 +71,13 @@ Recommended next gate:
 
 - G091: budgeted Syncratic context materialization with dry-run preview and per-asset decision audit.
 - Specification: `G091_budgeted_syncratic_materialization.md`.
+
+## G092 Implemented
+
+- G092: Syncratic materialization preview and confirmed write frontend workflow.
+- Specification: `../../../../frontend/syncratic_materialization_preview_ui_spec.md`.
+
+## G093 Proposed
+
+- G093: Syncratic insight de-duplication/currentness policy and Ask-state clarity for overlapping context windows.
+- Specification: `G093_syncratic_insight_deduplication.md`.
