@@ -82,7 +82,12 @@ Recommended next gate:
 - G093: Syncratic insight de-duplication/currentness policy and Ask-state clarity for overlapping context windows.
 - Specification: `G093_syncratic_insight_deduplication.md`.
 
-## G094 Proposed
+## G094 Implemented
 
-- G094: back-test calibration readiness criteria for broader historical coverage, Top 50 equity/options windows, and label volume/quality before runtime policy deployment.
+- G094: back-test calibration readiness criteria and persisted snapshots for broader historical coverage, Top 50 equity/options windows, and label volume/quality before runtime policy deployment.
 - Specification: `G094_backtest_calibration_readiness.md`.
+
+## G095 Implemented
+
+- G095: bounded historical back-test campaigns over existing isolated back-test runs.
+- Specification: `G095_backtest_historical_campaigns.md`.

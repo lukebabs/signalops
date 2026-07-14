@@ -5856,6 +5856,16 @@ Validation performed:
 
 - `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres -count=1`: passed.
 - `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
+- `python3 scripts/validate_json_schemas.py`: passed.
+
+Live validation performed:
+
+- `make compose-storage-migrate`: applied `000022_marketops_backtest_campaigns`.
+- `docker compose -f compose.yaml -f compose.traefik.yaml up -d --build gateway`: passed; Docker build ran full Go tests.
+- Authenticated campaign create: HTTP `201`, id `btcamp-g095-smoke-20260714160756`, status `succeeded`, one child run id recorded.
+- Authenticated campaign detail/list reads: HTTP `200`.
+- Smoke child run scanned `0` records for the narrow AAPL window, confirming the API path while leaving broader historical coverage as the next calibration task.
+- `docker run --rm -v ... golang:1.22-bookworm go test ./... -count=1`: passed.
 - `docker run --rm -v ... python:3.12-slim python scripts/validate_json_schemas.py`: passed.
 - `make compose-storage-migrate`: applied `000020_syncratic_context_windows`.
 - `docker compose up -d --build gateway`: passed; Docker build ran `go test ./...`.
@@ -6287,3 +6297,15 @@ Live validation performed:
 - Authenticated readiness create: HTTP `201`, id `btready-g094-auth-smoke-20260714154609`, status `needs_more_historical_data`.
 - Authenticated readiness detail/list reads: HTTP `200`.
 - Snapshot metrics confirmed the intended block: `4/50` symbol coverage, `4` distinct windows, `0` options windows, and `7` matched labels.
+
+## 2026-07-14T16:30:00Z
+
+Summary:
+
+- Implemented G095 bounded historical back-test campaigns.
+- Added persisted campaign metadata, create/list/detail APIs, universe-group symbol resolution, child run planning, and aggregate campaign metrics.
+- Kept the boundary advisory and isolated: campaigns create only back-test child runs and campaign rows, with no runtime policy deployment, detector mutation, production ledger writes, or graph writes.
+
+Validation performed:
+
+- `docker run --rm -v ... golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres -count=1`: passed.

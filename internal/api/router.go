@@ -305,6 +305,107 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"signal": signalResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/marketops/backtest-campaigns", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		defer r.Body.Close()
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, defaultMaxRawEventBytes))
+		decoder.DisallowUnknownFields()
+		var req marketOpsBacktestCampaignCreateRequest
+		if err := decoder.Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		runner := cfg.MarketOpsBacktestRunner
+		if runner == nil {
+			runner = marketopsbacktest.Run
+		}
+		campaignID := strings.TrimSpace(req.CampaignID)
+		if campaignID == "" {
+			campaignID = newID("btcamp_marketops")
+		}
+		record, childConfigs, err := marketOpsBacktestCampaignPlan(r.Context(), repo, req, campaignID, replayActor(r, req.RequestedBy))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_backtest_campaign", err.Error())
+			return
+		}
+		if err := repo.UpsertMarketOpsBacktestCampaign(r.Context(), record); err != nil {
+			writeError(w, http.StatusInternalServerError, "persist_failed", "failed to persist MarketOps backtest campaign")
+			return
+		}
+		metrics := map[string]any{"planned_runs": len(childConfigs), "completed_runs": 0, "failed_runs": 0, "scanned": 0, "signals": 0, "artifacts": 0, "graph_proposals": 0, "policy_results": 0, "recommendation_counts": map[string]int{}, "datasets": record.DatasetScope, "symbols": record.Symbols, "window_step_days": record.WindowStepDays}
+		childRunIDs := []string{}
+		var runErr error
+		for _, childCfg := range childConfigs {
+			result, err := runner(r.Context(), repo, childCfg)
+			childRunIDs = append(childRunIDs, childCfg.RunID)
+			if err != nil {
+				metrics["failed_runs"] = metrics["failed_runs"].(int) + 1
+				runErr = err
+				break
+			}
+			metrics["completed_runs"] = metrics["completed_runs"].(int) + 1
+			metrics["scanned"] = metrics["scanned"].(int) + result.Metrics.Scanned
+			metrics["signals"] = metrics["signals"].(int) + result.Metrics.Signals
+			metrics["artifacts"] = metrics["artifacts"].(int) + result.Metrics.Artifacts
+			metrics["graph_proposals"] = metrics["graph_proposals"].(int) + result.Metrics.GraphProposals
+			metrics["policy_results"] = metrics["policy_results"].(int) + result.Metrics.PolicyResults
+			recCounts := metrics["recommendation_counts"].(map[string]int)
+			for key, count := range result.Metrics.RecommendationCounts {
+				recCounts[key] += count
+			}
+		}
+		completedAt := time.Now().UTC()
+		record.ChildRunIDs = childRunIDs
+		record.CompletedAt = &completedAt
+		if runErr != nil {
+			record.Status = storage.RunStatusFailed
+			record.ErrorMessage = runErr.Error()
+		} else {
+			record.Status = storage.RunStatusSucceeded
+		}
+		metrics["child_run_ids"] = childRunIDs
+		record.MetricsJSON = mustJSON(metrics)
+		if err := repo.UpsertMarketOpsBacktestCampaign(r.Context(), record); err != nil {
+			writeError(w, http.StatusInternalServerError, "persist_failed", "failed to persist completed MarketOps backtest campaign")
+			return
+		}
+		stored, err := repo.GetMarketOpsBacktestCampaign(r.Context(), campaignID)
+		if err != nil {
+			writeQueryError(w, err, "backtest_campaign_not_found", "MarketOps backtest campaign not found")
+			return
+		}
+		writeJSON(w, http.StatusCreated, marketOpsBacktestCampaignCreateResponse{Campaign: marketOpsBacktestCampaignResponse(stored)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-campaigns", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestCampaigns(r.Context(), storage.MarketOpsBacktestCampaignFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest campaigns")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"backtest_campaigns": marketOpsBacktestCampaignResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/backtest-campaigns/{campaign_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		record, err := repo.GetMarketOpsBacktestCampaign(r.Context(), r.PathValue("campaign_id"))
+		if err != nil {
+			writeQueryError(w, err, "backtest_campaign_not_found", "MarketOps backtest campaign not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"backtest_campaign": marketOpsBacktestCampaignResponse(record)})
+	})
+
 	mux.HandleFunc("POST /v1/marketops/backtests", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -2353,6 +2454,159 @@ func marketOpsBacktestConfigFromRequest(req marketOpsBacktestCreateRequest, acto
 		return marketopsbacktest.Config{}, errors.New("max_records must be between 1 and 1000")
 	}
 	return cfg, nil
+}
+
+func marketOpsBacktestCampaignPlan(ctx context.Context, repo storage.QueryRepository, req marketOpsBacktestCampaignCreateRequest, campaignID string, actor string) (storage.MarketOpsBacktestCampaignRecord, []marketopsbacktest.Config, error) {
+	windowStart, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(req.WindowStart))
+	if err != nil {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, errors.New("window_start must be an RFC3339 timestamp")
+	}
+	windowEnd, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(req.WindowEnd))
+	if err != nil {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, errors.New("window_end must be an RFC3339 timestamp")
+	}
+	if !windowEnd.After(windowStart) {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, errors.New("window_end must be after window_start")
+	}
+	tenantID := strings.TrimSpace(req.TenantID)
+	if tenantID == "" {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, errors.New("tenant_id is required")
+	}
+	maxSymbols, err := boundedInt(req.MaxSymbols, 5, 1, 50, "max_symbols")
+	if err != nil {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, err
+	}
+	maxWindows, err := boundedInt(req.MaxWindows, 5, 1, 60, "max_windows")
+	if err != nil {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, err
+	}
+	maxRuns, err := boundedInt(req.MaxRuns, 25, 1, 250, "max_runs")
+	if err != nil {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, err
+	}
+	maxRecords, err := boundedInt(req.MaxRecords, 50, 1, 1000, "max_records")
+	if err != nil {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, err
+	}
+	batchSize := req.BatchSize
+	if batchSize <= 0 || batchSize > maxRecords {
+		batchSize = maxRecords
+	}
+	if batchSize > 1000 {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, errors.New("batch_size must be between 1 and 1000")
+	}
+	stepDays := req.WindowStepDays
+	if stepDays <= 0 {
+		stepDays = 1
+	}
+	if stepDays > 31 {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, errors.New("window_step_days must be between 1 and 31")
+	}
+	datasets := cleanDatasetScope(req.DatasetScope)
+	if len(datasets) == 0 {
+		datasets = []string{"equity_eod_prices"}
+	}
+	symbols := cleanSymbols(req.Symbols)
+	universeGroup := strings.TrimSpace(req.UniverseGroup)
+	if len(symbols) == 0 && universeGroup != "" {
+		assets, err := repo.ListMarketOpsAssets(ctx, tenantID, universeGroup, true, maxSymbols)
+		if err != nil {
+			return storage.MarketOpsBacktestCampaignRecord{}, nil, err
+		}
+		for _, asset := range assets {
+			if len(symbols) >= maxSymbols {
+				break
+			}
+			ticker := strings.ToUpper(strings.TrimSpace(asset.Ticker))
+			if ticker != "" {
+				symbols = append(symbols, ticker)
+			}
+		}
+	}
+	if len(symbols) == 0 {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, errors.New("symbols or universe_group is required")
+	}
+	if len(symbols) > maxSymbols {
+		symbols = symbols[:maxSymbols]
+	}
+	windows := marketOpsCampaignWindows(windowStart.UTC(), windowEnd.UTC(), stepDays, maxWindows)
+	if len(windows) == 0 {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, errors.New("at least one campaign window is required")
+	}
+	pythonBin := strings.TrimSpace(os.Getenv("SIGNALOPS_MARKETOPS_BACKTEST_PYTHON_BIN"))
+	if pythonBin == "" {
+		pythonBin = "python3"
+	}
+	detectorID := firstNonEmptyBacktestValue(req.DetectorID, "marketops.dsm.taxonomy_v1")
+	sourceAdapter := firstNonEmptyBacktestValue(req.SourceAdapter, "market_data.massive")
+	configs := []marketopsbacktest.Config{}
+	for _, dataset := range datasets {
+		for _, symbol := range symbols {
+			for _, window := range windows {
+				if len(configs) >= maxRuns {
+					break
+				}
+				configs = append(configs, marketopsbacktest.Config{RunID: marketOpsCampaignChildRunID(campaignID, dataset, symbol, window[0]), TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: strings.TrimSpace(req.SourceID), SourceAdapter: sourceAdapter, Dataset: dataset, DetectorID: detectorID, DetectorVersion: strings.TrimSpace(req.DetectorVersion), RequestedBy: actor, WindowStart: window[0], WindowEnd: window[1], Symbols: []string{symbol}, MaxRecords: maxRecords, BatchSize: batchSize, AutoAcceptConfidence: req.AutoAcceptConfidence, PythonBin: pythonBin})
+			}
+		}
+	}
+	if len(configs) == 0 {
+		return storage.MarketOpsBacktestCampaignRecord{}, nil, errors.New("campaign produced no child runs")
+	}
+	now := time.Now().UTC()
+	record := storage.MarketOpsBacktestCampaignRecord{CampaignID: strings.TrimSpace(campaignID), TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: strings.TrimSpace(req.SourceID), SourceAdapter: sourceAdapter, DetectorID: detectorID, DetectorVersion: strings.TrimSpace(req.DetectorVersion), RequestedBy: firstNonEmptyBacktestValue(actor, "operator-local"), UniverseGroup: universeGroup, DatasetScope: datasets, Symbols: symbols, WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), WindowStepDays: stepDays, MaxSymbols: maxSymbols, MaxWindows: maxWindows, MaxRuns: maxRuns, MaxRecords: maxRecords, BatchSize: batchSize, Status: storage.RunStatusStarted, ChildRunIDs: []string{}, MetricsJSON: []byte(`{}`), StartedAt: now}
+	return record, configs, nil
+}
+
+func boundedInt(value int, fallback int, min int, max int, name string) (int, error) {
+	if value <= 0 {
+		value = fallback
+	}
+	if value < min || value > max {
+		return 0, fmt.Errorf("%s must be between %d and %d", name, min, max)
+	}
+	return value, nil
+}
+
+func marketOpsCampaignWindows(start time.Time, end time.Time, stepDays int, maxWindows int) [][2]time.Time {
+	windows := [][2]time.Time{}
+	cursor := start.UTC()
+	for cursor.Before(end) && len(windows) < maxWindows {
+		next := cursor.AddDate(0, 0, stepDays)
+		if next.After(end) {
+			next = end
+		}
+		windows = append(windows, [2]time.Time{cursor, next})
+		cursor = next
+	}
+	return windows
+}
+
+func marketOpsCampaignChildRunID(campaignID string, dataset string, symbol string, windowStart time.Time) string {
+	value := strings.ToLower(strings.TrimSpace(campaignID)) + "-" + sanitizeBacktestIDPart(dataset) + "-" + sanitizeBacktestIDPart(symbol) + "-" + windowStart.UTC().Format("20060102")
+	if len(value) > 180 {
+		return value[:180]
+	}
+	return value
+}
+
+func sanitizeBacktestIDPart(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var b strings.Builder
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteByte('-')
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if out == "" {
+		return "x"
+	}
+	return out
 }
 
 func cleanSymbols(values []string) []string {

@@ -7360,3 +7360,29 @@ Validation performed:
 Result:
 
 - G094 backend/API is live-validated. Current calibration evidence is correctly blocked from deployment readiness by insufficient historical/options/label coverage.
+
+## Gate G095: Back-Test Historical Campaigns Implementation
+
+Timestamp: `2026-07-14T16:30:00Z`
+
+Status: `implemented - backend/API slice targeted tests passed`
+
+Scope:
+
+- Add a bounded campaign layer above existing MarketOps back-test runs.
+- Persist campaign request/audit metadata and aggregate metrics.
+- Resolve Top 50/universe symbols when requested, fan out to child back-test runs, and expose list/detail APIs.
+- Keep runtime policy deployment, detector threshold changes, graph writeback, production ledgers, and background scheduling out of scope.
+
+Validation performed:
+
+- Targeted Go tests passed for `./internal/api` and `./internal/storage/postgres`.
+- Full Go suite passed.
+- JSON schema validation passed.
+- Migration `000022_marketops_backtest_campaigns` applied successfully.
+- Gateway rebuilt/restarted successfully; the Docker build ran full Go tests.
+- Authenticated create/list/detail smoke passed for `btcamp-g095-smoke-20260714160756`.
+
+Result:
+
+- Operators now have a controlled API path to generate broader historical back-test coverage required by G094 readiness checks, while child evidence remains in the existing isolated back-test ledgers. The smoke campaign scanned zero records for its narrow AAPL window, so the next calibration task is running broader historical campaigns with data-bearing windows.

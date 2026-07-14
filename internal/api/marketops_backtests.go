@@ -30,6 +30,64 @@ type marketOpsBacktestCreateResponse struct {
 	Metrics     json.RawMessage         `json:"metrics"`
 }
 
+type marketOpsBacktestCampaignCreateRequest struct {
+	CampaignID           string   `json:"campaign_id"`
+	TenantID             string   `json:"tenant_id"`
+	SourceID             string   `json:"source_id"`
+	SourceAdapter        string   `json:"source_adapter"`
+	DatasetScope         []string `json:"dataset_scope"`
+	UniverseGroup        string   `json:"universe_group"`
+	Symbols              []string `json:"symbols"`
+	DetectorID           string   `json:"detector_id"`
+	DetectorVersion      string   `json:"detector_version"`
+	RequestedBy          string   `json:"requested_by"`
+	WindowStart          string   `json:"window_start"`
+	WindowEnd            string   `json:"window_end"`
+	WindowStepDays       int      `json:"window_step_days"`
+	MaxSymbols           int      `json:"max_symbols"`
+	MaxWindows           int      `json:"max_windows"`
+	MaxRuns              int      `json:"max_runs"`
+	MaxRecords           int      `json:"max_records"`
+	BatchSize            int      `json:"batch_size"`
+	AutoAcceptConfidence float64  `json:"auto_accept_confidence"`
+}
+
+type marketOpsBacktestCampaignCreateResponse struct {
+	Campaign marketOpsBacktestCampaignDTO `json:"campaign"`
+}
+
+type marketOpsBacktestCampaignDTO struct {
+	CampaignID      string          `json:"campaign_id"`
+	TenantID        string          `json:"tenant_id"`
+	AppID           string          `json:"app_id"`
+	Domain          string          `json:"domain"`
+	UseCase         string          `json:"use_case"`
+	SourceID        string          `json:"source_id"`
+	SourceAdapter   string          `json:"source_adapter"`
+	DetectorID      string          `json:"detector_id"`
+	DetectorVersion string          `json:"detector_version"`
+	RequestedBy     string          `json:"requested_by"`
+	UniverseGroup   string          `json:"universe_group"`
+	DatasetScope    []string        `json:"dataset_scope"`
+	Symbols         []string        `json:"symbols"`
+	WindowStart     time.Time       `json:"window_start"`
+	WindowEnd       time.Time       `json:"window_end"`
+	WindowStepDays  int             `json:"window_step_days"`
+	MaxSymbols      int             `json:"max_symbols"`
+	MaxWindows      int             `json:"max_windows"`
+	MaxRuns         int             `json:"max_runs"`
+	MaxRecords      int             `json:"max_records"`
+	BatchSize       int             `json:"batch_size"`
+	Status          string          `json:"status"`
+	ChildRunIDs     []string        `json:"child_run_ids"`
+	Metrics         json.RawMessage `json:"metrics"`
+	ErrorMessage    string          `json:"error_message,omitempty"`
+	StartedAt       time.Time       `json:"started_at"`
+	CompletedAt     *time.Time      `json:"completed_at,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+}
+
 type marketOpsBacktestRunDTO struct {
 	RunID           string          `json:"run_id"`
 	TenantID        string          `json:"tenant_id"`
@@ -80,6 +138,18 @@ type marketOpsBacktestPolicyResultDTO struct {
 	Confidence     float64         `json:"confidence"`
 	DecisionInputs json.RawMessage `json:"decision_inputs"`
 	CreatedAt      time.Time       `json:"created_at"`
+}
+
+func marketOpsBacktestCampaignResponse(record storage.MarketOpsBacktestCampaignRecord) marketOpsBacktestCampaignDTO {
+	return marketOpsBacktestCampaignDTO{CampaignID: record.CampaignID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SourceID: record.SourceID, SourceAdapter: record.SourceAdapter, DetectorID: record.DetectorID, DetectorVersion: record.DetectorVersion, RequestedBy: record.RequestedBy, UniverseGroup: record.UniverseGroup, DatasetScope: record.DatasetScope, Symbols: record.Symbols, WindowStart: record.WindowStart, WindowEnd: record.WindowEnd, WindowStepDays: record.WindowStepDays, MaxSymbols: record.MaxSymbols, MaxWindows: record.MaxWindows, MaxRuns: record.MaxRuns, MaxRecords: record.MaxRecords, BatchSize: record.BatchSize, Status: record.Status, ChildRunIDs: record.ChildRunIDs, Metrics: json.RawMessage(jsonOrDefault(record.MetricsJSON, `{}`)), ErrorMessage: record.ErrorMessage, StartedAt: record.StartedAt, CompletedAt: record.CompletedAt, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+}
+
+func marketOpsBacktestCampaignResponses(records []storage.MarketOpsBacktestCampaignRecord) []marketOpsBacktestCampaignDTO {
+	responses := make([]marketOpsBacktestCampaignDTO, 0, len(records))
+	for _, record := range records {
+		responses = append(responses, marketOpsBacktestCampaignResponse(record))
+	}
+	return responses
 }
 
 func marketOpsBacktestRunResponse(record storage.MarketOpsBacktestRunRecord) marketOpsBacktestRunDTO {

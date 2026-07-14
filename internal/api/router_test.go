@@ -87,6 +87,7 @@ type fakeQueryRepository struct {
 	dsmArtifacts                   []storage.MarketOpsDSMArtifactRecord
 	dsmGraphProposals              []storage.MarketOpsDSMGraphProposalRecord
 	backtestRuns                   []storage.MarketOpsBacktestRunRecord
+	backtestCampaigns              []storage.MarketOpsBacktestCampaignRecord
 	backtestSignals                []storage.MarketOpsBacktestSignalRecord
 	backtestGraphProposals         []storage.MarketOpsBacktestGraphProposalRecord
 	backtestPolicyResults          []storage.MarketOpsBacktestPolicyResultRecord
@@ -100,6 +101,7 @@ type fakeQueryRepository struct {
 	syncraticContextWindows        []storage.SyncraticContextWindowRecord
 	syncraticInsights              []storage.SyncraticInsightRecord
 	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
+	lastBacktestCampaignFilter     storage.MarketOpsBacktestCampaignFilter
 	lastBacktestSignalFilter       storage.MarketOpsBacktestSignalFilter
 	lastBacktestGraphFilter        storage.MarketOpsBacktestGraphProposalFilter
 	lastBacktestCalibrationFilter  storage.MarketOpsBacktestCalibrationSummaryFilter
@@ -326,6 +328,34 @@ func (q *fakeQueryRepository) GetMarketOpsBacktestRun(_ context.Context, runID s
 		}
 	}
 	return storage.MarketOpsBacktestRunRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertMarketOpsBacktestCampaign(_ context.Context, record storage.MarketOpsBacktestCampaignRecord) error {
+	for i, existing := range q.backtestCampaigns {
+		if existing.CampaignID == record.CampaignID {
+			q.backtestCampaigns[i] = record
+			return nil
+		}
+	}
+	q.backtestCampaigns = append(q.backtestCampaigns, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsBacktestCampaigns(_ context.Context, filter storage.MarketOpsBacktestCampaignFilter) ([]storage.MarketOpsBacktestCampaignRecord, error) {
+	q.lastBacktestCampaignFilter = filter
+	return q.backtestCampaigns, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsBacktestCampaign(_ context.Context, campaignID string) (storage.MarketOpsBacktestCampaignRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsBacktestCampaignRecord{}, storage.ErrNotFound
+	}
+	for _, campaign := range q.backtestCampaigns {
+		if campaign.CampaignID == campaignID {
+			return campaign, nil
+		}
+	}
+	return storage.MarketOpsBacktestCampaignRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListMarketOpsBacktestSignals(_ context.Context, filter storage.MarketOpsBacktestSignalFilter) ([]storage.MarketOpsBacktestSignalRecord, error) {
@@ -1253,6 +1283,97 @@ func TestPostMarketOpsBacktestCreatesRun(t *testing.T) {
 	}
 	if response.BacktestRun.RunID != "bt-api-1" || response.BacktestRun.RequestedBy != "operator-api" {
 		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestPostMarketOpsBacktestCampaignCreatesBoundedChildRuns(t *testing.T) {
+	repo := &fakeQueryRepository{}
+	seen := []marketopsbacktest.Config{}
+	runner := func(ctx context.Context, repo storage.MarketOpsBacktestRepository, cfg marketopsbacktest.Config) (marketopsbacktest.Result, error) {
+		seen = append(seen, cfg)
+		now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+		completed := now.Add(time.Second)
+		record := storage.MarketOpsBacktestRunRecord{RunID: cfg.RunID, TenantID: cfg.TenantID, AppID: cfg.AppID, Domain: cfg.Domain, UseCase: cfg.UseCase, SourceID: cfg.SourceID, SourceAdapter: cfg.SourceAdapter, Dataset: cfg.Dataset, DetectorID: cfg.DetectorID, Status: storage.RunStatusSucceeded, RequestedBy: cfg.RequestedBy, WindowStart: cfg.WindowStart, WindowEnd: cfg.WindowEnd, StartedAt: now, CompletedAt: &completed, MetricsJSON: []byte(`{"scanned":2}`), CreatedAt: now, UpdatedAt: completed}
+		return marketopsbacktest.Result{Run: record, Metrics: marketopsbacktest.Metrics{RunID: cfg.RunID, Scanned: 2, Signals: 1, Artifacts: 1, GraphProposals: 1, PolicyResults: 1, RecommendationCounts: map[string]int{storage.MarketOpsBacktestPolicyManualReviewRequired: 1}}}, nil
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo, MarketOpsBacktestRunner: runner})
+	body := `{"campaign_id":"campaign-1","tenant_id":"tenant-local","source_id":"src-massive","dataset_scope":["equity_eod_prices"],"symbols":["aapl","msft"],"window_start":"2026-07-09T00:00:00Z","window_end":"2026-07-11T00:00:00Z","max_symbols":2,"max_windows":2,"max_runs":3,"max_records":5}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-campaigns", strings.NewReader(body))
+	req.Header.Set("X-SignalOps-Actor", "operator-api")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if len(seen) != 3 {
+		t.Fatalf("child run count = %d", len(seen))
+	}
+	if seen[0].Symbols[0] != "AAPL" || seen[2].Symbols[0] != "MSFT" {
+		t.Fatalf("child configs = %+v", seen)
+	}
+	var response marketOpsBacktestCampaignCreateResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if response.Campaign.Status != storage.RunStatusSucceeded || len(response.Campaign.ChildRunIDs) != 3 {
+		t.Fatalf("campaign response = %+v", response.Campaign)
+	}
+	var metrics map[string]any
+	if err := json.Unmarshal(response.Campaign.Metrics, &metrics); err != nil {
+		t.Fatalf("metrics JSON error = %v", err)
+	}
+	if metrics["completed_runs"].(float64) != 3 || metrics["scanned"].(float64) != 6 {
+		t.Fatalf("metrics = %+v", metrics)
+	}
+}
+
+func TestPostMarketOpsBacktestCampaignResolvesUniverseSymbols(t *testing.T) {
+	repo := &fakeQueryRepository{marketOpsAssets: []storage.MarketOpsAssetRecord{{Ticker: "NVDA"}, {Ticker: "MSFT"}}}
+	seen := []marketopsbacktest.Config{}
+	runner := func(ctx context.Context, repo storage.MarketOpsBacktestRepository, cfg marketopsbacktest.Config) (marketopsbacktest.Result, error) {
+		seen = append(seen, cfg)
+		now := time.Now().UTC()
+		return marketopsbacktest.Result{Run: storage.MarketOpsBacktestRunRecord{RunID: cfg.RunID, TenantID: cfg.TenantID, AppID: cfg.AppID, Domain: cfg.Domain, UseCase: cfg.UseCase, DetectorID: cfg.DetectorID, Status: storage.RunStatusSucceeded, StartedAt: now, CreatedAt: now, UpdatedAt: now}, Metrics: marketopsbacktest.Metrics{RunID: cfg.RunID, RecommendationCounts: map[string]int{}}}, nil
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo, MarketOpsBacktestRunner: runner})
+	body := `{"tenant_id":"tenant-local","universe_group":"top50_megacap","window_start":"2026-07-09T00:00:00Z","window_end":"2026-07-10T00:00:00Z","max_symbols":1,"max_runs":1}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-campaigns", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastUniverseGroup != "top50_megacap" || !repo.lastActiveOnly {
+		t.Fatalf("universe lookup = %q/%t", repo.lastUniverseGroup, repo.lastActiveOnly)
+	}
+	if len(seen) != 1 || seen[0].Symbols[0] != "NVDA" {
+		t.Fatalf("seen = %+v", seen)
+	}
+}
+
+func TestPostMarketOpsBacktestCampaignRejectsUnboundedRequest(t *testing.T) {
+	router := NewRouter(RouterConfig{QueryRepository: &fakeQueryRepository{}})
+	body := `{"tenant_id":"tenant-local","symbols":["AAPL"],"window_start":"2026-07-09T00:00:00Z","window_end":"2026-07-10T00:00:00Z","max_runs":251}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/backtest-campaigns", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetMarketOpsBacktestCampaigns(t *testing.T) {
+	now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{backtestCampaigns: []storage.MarketOpsBacktestCampaignRecord{{CampaignID: "campaign-1", TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", DetectorID: "marketops.dsm.taxonomy_v1", UniverseGroup: "top50_megacap", DatasetScope: []string{"equity_eod_prices"}, Symbols: []string{"AAPL"}, WindowStart: now, WindowEnd: now.Add(24 * time.Hour), Status: storage.RunStatusSucceeded, MetricsJSON: []byte(`{}`), StartedAt: now, CreatedAt: now, UpdatedAt: now}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/backtest-campaigns?tenant_id=tenant-local&universe_group=top50_megacap&status=succeeded&limit=5", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastBacktestCampaignFilter.TenantID != "tenant-local" || repo.lastBacktestCampaignFilter.UniverseGroup != "top50_megacap" || repo.lastBacktestCampaignFilter.Status != storage.RunStatusSucceeded || repo.lastBacktestCampaignFilter.Limit != 5 {
+		t.Fatalf("filter = %+v", repo.lastBacktestCampaignFilter)
 	}
 }
 

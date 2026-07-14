@@ -726,6 +726,38 @@ type MarketOpsBacktestRunRecord struct {
 	UpdatedAt       time.Time
 }
 
+type MarketOpsBacktestCampaignRecord struct {
+	CampaignID      string
+	TenantID        string
+	AppID           string
+	Domain          string
+	UseCase         string
+	SourceID        string
+	SourceAdapter   string
+	DetectorID      string
+	DetectorVersion string
+	RequestedBy     string
+	UniverseGroup   string
+	DatasetScope    []string
+	Symbols         []string
+	WindowStart     time.Time
+	WindowEnd       time.Time
+	WindowStepDays  int
+	MaxSymbols      int
+	MaxWindows      int
+	MaxRuns         int
+	MaxRecords      int
+	BatchSize       int
+	Status          string
+	ChildRunIDs     []string
+	MetricsJSON     []byte
+	ErrorMessage    string
+	StartedAt       time.Time
+	CompletedAt     *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type MarketOpsBacktestSignalRecord struct {
 	RunID string
 	SignalLedgerRecord
@@ -908,6 +940,9 @@ type MarketOpsBacktestRepository interface {
 	PersistMarketOpsBacktestBatch(ctx context.Context, run MarketOpsBacktestRunRecord, signals []MarketOpsBacktestSignalRecord, artifacts []MarketOpsBacktestArtifactRecord, proposals []MarketOpsBacktestGraphProposalRecord, policyResults []MarketOpsBacktestPolicyResultRecord) error
 	ListMarketOpsBacktestRuns(ctx context.Context, filter MarketOpsBacktestRunFilter) ([]MarketOpsBacktestRunRecord, error)
 	GetMarketOpsBacktestRun(ctx context.Context, runID string) (MarketOpsBacktestRunRecord, error)
+	UpsertMarketOpsBacktestCampaign(ctx context.Context, record MarketOpsBacktestCampaignRecord) error
+	ListMarketOpsBacktestCampaigns(ctx context.Context, filter MarketOpsBacktestCampaignFilter) ([]MarketOpsBacktestCampaignRecord, error)
+	GetMarketOpsBacktestCampaign(ctx context.Context, campaignID string) (MarketOpsBacktestCampaignRecord, error)
 	ListMarketOpsBacktestSignals(ctx context.Context, filter MarketOpsBacktestSignalFilter) ([]MarketOpsBacktestSignalRecord, error)
 	ListMarketOpsBacktestGraphProposals(ctx context.Context, filter MarketOpsBacktestGraphProposalFilter) ([]MarketOpsBacktestGraphProposalRecord, error)
 	ListMarketOpsBacktestPolicyResults(ctx context.Context, filter MarketOpsBacktestGraphProposalFilter) ([]MarketOpsBacktestPolicyResultRecord, error)
@@ -1060,6 +1095,18 @@ type MarketOpsBacktestRunFilter struct {
 	DetectorID string
 	Status     string
 	Limit      int
+}
+
+type MarketOpsBacktestCampaignFilter struct {
+	TenantID      string
+	AppID         string
+	Domain        string
+	UseCase       string
+	SourceID      string
+	DetectorID    string
+	UniverseGroup string
+	Status        string
+	Limit         int
 }
 
 type MarketOpsBacktestCalibrationSummaryFilter struct {
