@@ -136,3 +136,8 @@ Recommended next gate:
 
 - G104: reviewed-label workflow specification for increasing real graph-proposal labels without synthetic labels or threshold relaxation.
 - Specification: `G104_reviewed_label_workflow.md`.
+
+## G105 Implemented
+
+- G105: reviewed-label batch inventory and idempotent sync readiness for the first 25-label milestone.
+- Specification: `G105_reviewed_label_batch_inventory.md`.

@@ -7599,3 +7599,27 @@ Documentation completed:
 Result:
 
 - The next execution step is an operator review batch toward the `25` matched-label milestone, followed by label sync, label-aware evaluation, and readiness re-check. Frontend-agent work is only needed if the current UI cannot support bounded proposal selection, review decisions, and label-count visibility.
+
+## Gate G105: Reviewed Label Batch Inventory And Sync Readiness
+
+Timestamp: `2026-07-14T19:20:00Z`
+
+Status: `implemented - inventory and idempotent sync validated; operator decisions outstanding`
+
+Scope:
+
+- Inventory canonical DSM graph proposals for the first G104 label milestone.
+- Sync existing reviewed graph proposal decisions into evaluation labels.
+- Identify a bounded proposed review queue without making semantic decisions.
+- Keep automatic labeling, synthetic labels, threshold relaxation, runtime deployment, detector mutation, graph writes, frontend changes, and additional ingestion out of scope.
+
+Validation performed:
+
+- G080 proposal inventory returned `50` proposed rows with `39` distinct graph facts and `7` accepted rows with `7` distinct graph facts.
+- Proposed rows span `AAPL`, `NVDA`, and `SPY`; node and relationship candidates; and six DSM signal types.
+- G084 label sync returned `synced=7` and persisted labels remained `7`, all `positive` from `accepted` decisions.
+- G105 documented `18` proposed graph proposal ids for operator review toward the `25` matched-label milestone.
+
+Result:
+
+- Label infrastructure is ready for the first milestone batch. The blocking step is human review of proposed graph facts, not API wiring or sync behavior.
