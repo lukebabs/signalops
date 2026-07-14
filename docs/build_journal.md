@@ -6458,3 +6458,23 @@ Validation performed:
 Result:
 
 - G102 improved the evidence substrate, but G094 readiness remains correctly blocked by scale and reviewed-label volume. No thresholds were relaxed and no runtime deployment was performed.
+
+## 2026-07-14T19:08:00Z
+
+Summary:
+
+- Drafted G104 reviewed-label workflow specification after G103 showed readiness remained blocked by reviewed-label volume.
+- Defined staged label milestones of `25`, `50`, and `100` matched reviewed labels.
+- Grounded the workflow in existing G080 graph proposal decisions, G084 label sync, G085 label-aware evaluations, and G094 readiness snapshots.
+- Added an operations runbook for selecting review batches, syncing labels, checking label quality, and re-running readiness.
+- Kept frontend-agent work conditional on missing UI support for proposal review and label-count visibility.
+
+Validation performed:
+
+- Documentation review confirmed G080 graph proposal decisions remain canonical.
+- Documentation review confirmed G084 sync maps `accepted` to `positive`, `rejected` to `negative`, and `superseded` to `superseded` labels.
+- Documentation review confirmed G103 current label state is `7` matched labels against the G094 threshold of `100`.
+
+Result:
+
+- G104 is a no-code operator workflow specification. It does not add synthetic labels, threshold relaxation, runtime deployment, detector mutation, graph writeback, or ingestion breadth.

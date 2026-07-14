@@ -7577,3 +7577,25 @@ Validation performed:
 Result:
 
 - Calibration readiness is still correctly blocked by historical breadth, options-window breadth, and reviewed-label volume. The next narrow work should increase real evidence scale or reviewed labels, not alter readiness thresholds or deploy policy.
+
+## Gate G104: Reviewed Label Workflow Specification
+
+Timestamp: `2026-07-14T19:08:00Z`
+
+Status: `proposed - operator workflow specification documented`
+
+Scope:
+
+- Define how operators should increase real reviewed labels from graph proposal decisions.
+- Reuse G080, G084, G085, and G094 APIs.
+- Keep synthetic labels, threshold relaxation, runtime deployment, detector mutation, graph writes, model training, and additional ingestion out of scope.
+
+Documentation completed:
+
+- Added `docs/use_cases/marketops/daily_market_surveillance/gates/G104_reviewed_label_workflow.md`.
+- Added `docs/use_cases/marketops/daily_market_surveillance/operations/reviewed_label_workflow.md`.
+- Updated the gate and operations indexes.
+
+Result:
+
+- The next execution step is an operator review batch toward the `25` matched-label milestone, followed by label sync, label-aware evaluation, and readiness re-check. Frontend-agent work is only needed if the current UI cannot support bounded proposal selection, review decisions, and label-count visibility.

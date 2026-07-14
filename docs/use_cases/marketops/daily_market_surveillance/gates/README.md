@@ -131,3 +131,8 @@ Recommended next gate:
 
 - G103: calibration readiness re-check after bounded multi-day evidence.
 - Specification: `G103_calibration_readiness_recheck.md`.
+
+## G104 Proposed
+
+- G104: reviewed-label workflow specification for increasing real graph-proposal labels without synthetic labels or threshold relaxation.
+- Specification: `G104_reviewed_label_workflow.md`.

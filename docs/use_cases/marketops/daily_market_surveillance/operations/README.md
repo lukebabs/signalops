@@ -22,3 +22,7 @@ Current recurring validations:
 ## Back-Test Input Ingestion
 
 - `backtest_input_ingestion.md`: bounded Massive puller smoke for creating normalized MarketOps input rows before calibration campaigns.
+
+## Reviewed Label Workflow
+
+- `reviewed_label_workflow.md`: operator workflow for increasing real reviewed graph-proposal labels through existing G080, G084, G085, and G094 APIs.
