@@ -21,3 +21,4 @@ Current notes:
 - `../../../../frontend/marketops_backtests_ui_spec.md`: frontend-agent handoff for G081 isolated back-test run creation and review UI.
 - `../../../../frontend/syncratic_context_windows_ui_spec.md`: frontend-agent handoff for G089 Syncratic context windows and synthesized insights UI.
 - `../../../../frontend/syncratic_ask_quality_ui_spec.md`: frontend-agent handoff for G090 Ask metadata, data-quality warning, and operator-triggered Ask UI.
+- `../../../../frontend/syncratic_materialization_preview_ui_spec.md`: frontend-agent handoff for G092 budgeted materialization preview and confirmed write UI.

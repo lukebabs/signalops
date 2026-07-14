@@ -7163,3 +7163,19 @@ Validation performed:
 Result:
 
 - G091 is live-validated. Operators can preview budgeted Syncratic materialization, execute a capped write, and rely on digest idempotency to avoid duplicate context/insight rows.
+
+## Frontend-Agent Spec: G092 Syncratic Materialization Preview UI
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `specification ready for frontend-agent`
+
+Scope:
+
+- Define the frontend follow-up for G091 dry-run materialization preview and operator-confirmed capped write mode.
+- Keep frontend scope on same-origin `/v1/syncratic/materialize` and existing auth/client/query patterns.
+- Exclude backend changes, scheduled materialization, automatic Ask, external Syncratic browser calls, Search, ingestion, graph writes, detector changes, and policy deployment.
+
+Result:
+
+- Specification saved at `docs/frontend/syncratic_materialization_preview_ui_spec.md` and indexed from the MarketOps frontend README.

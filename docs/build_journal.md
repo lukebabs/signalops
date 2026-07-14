@@ -6161,3 +6161,15 @@ Validation performed:
 - Authenticated tight-cap write `POST /v1/syncratic/materialize`: HTTP `201`, `materialized_context_windows=1`, `materialized_insights=1`, AAPL context `synctx_9f96168debca2528ce72efe5`, insight `synins_467aef31771fd45262d48de8`.
 - Persisted insight detail fetch: HTTP `200`; `metrics.syncratic_ask` absent.
 - Authenticated write rerun: HTTP `201`, `skipped_unchanged=1`, `materialized_context_windows=0`, `materialized_insights=0`, AAPL decision reason `unchanged_evidence_digest`.
+
+## 2026-07-14T00:00:00Z
+
+Summary:
+
+- Wrote the frontend-agent specification for G092 Syncratic materialization preview UI.
+- Scoped the handoff to G091 `dry_run` preview, per-asset `decisions[]`, aggregate counters, and separate operator-confirmed write mode.
+- Explicitly excluded scheduled materialization, automatic Ask, external Syncratic browser calls, Search, ingestion, graph writes, detector changes, policy deployment, and backend changes.
+
+Validation performed:
+
+- Documentation readback completed.
