@@ -7099,3 +7099,23 @@ Scope:
 Result:
 
 - Specification saved at `docs/frontend/syncratic_ask_quality_ui_spec.md` and indexed from the MarketOps frontend README.
+
+## Gate G090: Syncratic Ask Quality UI Frontend Closeout
+
+Timestamp: `2026-07-14T00:00:00Z`
+
+Status: `implemented by frontend-agent`
+
+Scope:
+
+- Close the frontend-agent handoff for the Syncratic Ask quality UI specified in `docs/frontend/syncratic_ask_quality_ui_spec.md`.
+- Keep the closeout limited to UI implementation acknowledgement and documentation; no backend API, detector, policy, graph, ingestion, or scheduled Ask scope is added.
+
+Validation performed:
+
+- `git status --short`: clean before documentation closeout.
+- `git log -5 --oneline`: confirmed frontend implementation commit `b5e5841 Implement Syncratic Ask quality UI (G090)`.
+
+Result:
+
+- G090 now has backend Ask enrichment, evidence-quality safeguards, and the frontend operator UI loop implemented. Remaining work should move to the next explicitly selected gate rather than expanding G090.
