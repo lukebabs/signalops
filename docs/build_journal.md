@@ -6501,3 +6501,22 @@ Validation performed:
 Result:
 
 - The first label milestone is ready for operator review, but no semantic decisions were automated. G085 evaluation and G094 readiness re-check should run only after real operator decisions add new reviewed labels.
+
+## 2026-07-15T02:47:37Z
+
+Summary:
+
+- Implemented G106 as the first generic SignalOps algorithm substrate slice from the updated Algorithm Plugin Framework direction.
+- Added Postgres-backed algorithm definitions, execution requests, and immutable/idempotent algorithm result ledgers.
+- Seeded six draft standard-library algorithm definitions: z-score anomaly, River anomaly, Ruptures change point, Statsmodels forecast, Scikit-Learn classifier, and Scikit-Learn isolation forest.
+- Added `/v1/algorithms/*` definition, execution-request, and result read/create APIs.
+- Added API tests for definition create/list/get, execution request create/list/get, and result list/get flows.
+
+Validation performed:
+
+- Docker Go formatting completed for the touched Go files.
+- Focused Docker Go tests passed for `./internal/api` and `./internal/storage/postgres`.
+
+Result:
+
+- SignalOps now has a generic algorithm registry/result ledger foundation, still intentionally separate from MarketOps-specific DSM detectors. G107 should add the first executable plugin runner around `signalops.algorithms.zscore_anomaly_v1`; no runtime policy deployment, frontend workbench, ML library installation, Syncratic graph ingestion, or signal conversion was added in G106.

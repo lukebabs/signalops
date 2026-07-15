@@ -1557,6 +1557,160 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"idempotency": idempotencyResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/algorithms/definitions", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req algorithmDefinitionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		record := algorithmDefinitionRecord(req)
+		if err := repo.UpsertAlgorithmDefinition(r.Context(), record); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_definition", err.Error())
+			return
+		}
+		stored, err := repo.GetAlgorithmDefinition(r.Context(), record.TenantID, record.AlgorithmID)
+		if err != nil {
+			writeQueryError(w, err, "algorithm_definition_not_found", "Algorithm definition not found")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"algorithm_definition": algorithmDefinitionResponse(stored)})
+	})
+
+	mux.HandleFunc("GET /v1/algorithms/definitions", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		records, err := repo.ListAlgorithmDefinitions(r.Context(), storage.AlgorithmDefinitionFilter{TenantID: tenantID, AlgorithmType: strings.TrimSpace(r.URL.Query().Get("algorithm_type")), RuntimeType: strings.TrimSpace(r.URL.Query().Get("runtime_type")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list algorithm definitions")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_definitions": algorithmDefinitionResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/algorithms/definitions/{algorithm_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		record, err := repo.GetAlgorithmDefinition(r.Context(), tenantID, r.PathValue("algorithm_id"))
+		if err != nil {
+			writeQueryError(w, err, "algorithm_definition_not_found", "Algorithm definition not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_definition": algorithmDefinitionResponse(record)})
+	})
+
+	mux.HandleFunc("POST /v1/algorithms/execution-requests", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req algorithmExecutionRequestCreate
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		record := algorithmExecutionRequestRecord(req, replayActor(r, req.RequestedBy))
+		if err := repo.UpsertAlgorithmExecutionRequest(r.Context(), record); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_execution_request", err.Error())
+			return
+		}
+		stored, err := repo.GetAlgorithmExecutionRequest(r.Context(), record.TenantID, record.ExecutionRequestID)
+		if err != nil {
+			writeQueryError(w, err, "algorithm_execution_request_not_found", "Algorithm execution request not found")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"algorithm_execution_request": algorithmExecutionRequestResponse(stored)})
+	})
+
+	mux.HandleFunc("GET /v1/algorithms/execution-requests", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		records, err := repo.ListAlgorithmExecutionRequests(r.Context(), storage.AlgorithmExecutionRequestFilter{TenantID: tenantID, AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list algorithm execution requests")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_execution_requests": algorithmExecutionRequestResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/algorithms/execution-requests/{execution_request_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		record, err := repo.GetAlgorithmExecutionRequest(r.Context(), tenantID, r.PathValue("execution_request_id"))
+		if err != nil {
+			writeQueryError(w, err, "algorithm_execution_request_not_found", "Algorithm execution request not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_execution_request": algorithmExecutionRequestResponse(record)})
+	})
+
+	mux.HandleFunc("GET /v1/algorithms/results", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		records, err := repo.ListAlgorithmResults(r.Context(), storage.AlgorithmResultFilter{TenantID: tenantID, AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), ResultType: strings.TrimSpace(r.URL.Query().Get("result_type")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list algorithm results")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_results": algorithmResultResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/algorithms/results/{algorithm_result_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		record, err := repo.GetAlgorithmResult(r.Context(), tenantID, r.PathValue("algorithm_result_id"))
+		if err != nil {
+			writeQueryError(w, err, "algorithm_result_not_found", "Algorithm result not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_result": algorithmResultResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/catalog/sources", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

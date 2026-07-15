@@ -7623,3 +7623,31 @@ Validation performed:
 Result:
 
 - Label infrastructure is ready for the first milestone batch. The blocking step is human review of proposed graph facts, not API wiring or sync behavior.
+
+## Gate G106: Algorithm Registry And Result Ledger
+
+Timestamp: `2026-07-15T02:47:37Z`
+
+Status: `implemented - generic backend substrate for algorithm definitions, execution requests, and results`
+
+Scope:
+
+- Implement the first SignalOps-wide algorithm substrate, not a MarketOps-only detector change.
+- Persist versioned algorithm definitions with runtime type, input metadata, schemas, config, status, and metadata.
+- Persist algorithm execution requests as queued lifecycle records for later runners.
+- Persist immutable/idempotent algorithm results with scores, confidence, severity, evidence refs, feature refs, source event lineage, and correlation ids.
+- Seed the six initial algorithm definitions from the reviewed direction as `draft` records.
+- Expose backend APIs under the existing `/v1/*` API surface.
+
+Validation performed:
+
+- Docker Go formatting completed for touched Go files.
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/api ./internal/storage/postgres -count=1` passed.
+
+Out of scope:
+
+- Python/container runner execution, ML dependency installation, frontend workbench, runtime policy deployment, detector mutation, signal/artifact conversion, and Syncratic graph or metadata ingestion.
+
+Result:
+
+- The algorithm layer is now visible as durable platform metadata and output evidence. The next narrow task is G107: execute `signalops.algorithms.zscore_anomaly_v1` through a bounded runner and write `algorithm_results` without changing signal production semantics.

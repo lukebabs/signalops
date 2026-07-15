@@ -62,6 +62,27 @@ const (
 )
 
 const (
+	AlgorithmDefinitionStatusDraft      = "draft"
+	AlgorithmDefinitionStatusActive     = "active"
+	AlgorithmDefinitionStatusDisabled   = "disabled"
+	AlgorithmDefinitionStatusDeprecated = "deprecated"
+)
+
+const (
+	AlgorithmRuntimePythonPlugin    = "python_plugin"
+	AlgorithmRuntimeContainerPlugin = "container_plugin"
+	AlgorithmRuntimeHTTPPlugin      = "http_plugin"
+)
+
+const (
+	AlgorithmExecutionStatusQueued    = "queued"
+	AlgorithmExecutionStatusRunning   = "running"
+	AlgorithmExecutionStatusSucceeded = "succeeded"
+	AlgorithmExecutionStatusFailed    = "failed"
+	AlgorithmExecutionStatusCanceled  = "canceled"
+)
+
+const (
 	AlertStatusOpen         = "open"
 	AlertStatusAcknowledged = "acknowledged"
 	AlertStatusResolved     = "resolved"
@@ -480,6 +501,88 @@ type CatalogRuleRecord struct {
 	MetadataJSON   []byte
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+type AlgorithmDefinitionRecord struct {
+	AlgorithmID     string
+	TenantID        string
+	Name            string
+	Description     string
+	AlgorithmType   string
+	RuntimeType     string
+	InputFeatures   []string
+	InputEventTypes []string
+	OutputSchema    []byte
+	ConfigSchema    []byte
+	DefaultConfig   []byte
+	Version         string
+	Status          string
+	MetadataJSON    []byte
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type AlgorithmExecutionRequestRecord struct {
+	ExecutionRequestID string
+	TenantID           string
+	AlgorithmID        string
+	AlgorithmVersion   string
+	EventIDs           []string
+	FeatureRefs        []string
+	EntityRefs         []string
+	WindowRef          string
+	ConfigJSON         []byte
+	CorrelationID      string
+	Status             string
+	RequestedBy        string
+	ResultJSON         []byte
+	ErrorMessage       string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type AlgorithmResultRecord struct {
+	AlgorithmResultID  string
+	TenantID           string
+	AlgorithmID        string
+	AlgorithmVersion   string
+	ExecutionRequestID string
+	ResultType         string
+	Score              float64
+	Confidence         float64
+	Severity           string
+	ResultPayloadJSON  []byte
+	SourceEventIDs     []string
+	FeatureValueIDs    []string
+	EvidenceRefs       []string
+	CorrelationID      string
+	CreatedAt          time.Time
+}
+
+type AlgorithmDefinitionFilter struct {
+	TenantID      string
+	AlgorithmType string
+	RuntimeType   string
+	Status        string
+	Limit         int
+}
+
+type AlgorithmExecutionRequestFilter struct {
+	TenantID      string
+	AlgorithmID   string
+	Status        string
+	CorrelationID string
+	Limit         int
+}
+
+type AlgorithmResultFilter struct {
+	TenantID           string
+	AlgorithmID        string
+	ExecutionRequestID string
+	ResultType         string
+	Severity           string
+	CorrelationID      string
+	Limit              int
 }
 
 type MarketOpsAssetRecord struct {
@@ -992,6 +1095,18 @@ type CatalogRepository interface {
 	UpsertCatalogRule(ctx context.Context, record CatalogRuleRecord) error
 }
 
+type AlgorithmRepository interface {
+	UpsertAlgorithmDefinition(ctx context.Context, record AlgorithmDefinitionRecord) error
+	ListAlgorithmDefinitions(ctx context.Context, filter AlgorithmDefinitionFilter) ([]AlgorithmDefinitionRecord, error)
+	GetAlgorithmDefinition(ctx context.Context, tenantID string, algorithmID string) (AlgorithmDefinitionRecord, error)
+	UpsertAlgorithmExecutionRequest(ctx context.Context, record AlgorithmExecutionRequestRecord) error
+	ListAlgorithmExecutionRequests(ctx context.Context, filter AlgorithmExecutionRequestFilter) ([]AlgorithmExecutionRequestRecord, error)
+	GetAlgorithmExecutionRequest(ctx context.Context, tenantID string, executionRequestID string) (AlgorithmExecutionRequestRecord, error)
+	InsertAlgorithmResult(ctx context.Context, record AlgorithmResultRecord) error
+	ListAlgorithmResults(ctx context.Context, filter AlgorithmResultFilter) ([]AlgorithmResultRecord, error)
+	GetAlgorithmResult(ctx context.Context, tenantID string, algorithmResultID string) (AlgorithmResultRecord, error)
+}
+
 type PublishRepository interface {
 	IdempotencyRepository
 	RawEventLedgerRepository
@@ -1282,6 +1397,7 @@ type QueryRepository interface {
 	ReplayWorkerHeartbeatRepository
 	MarketOpsBacktestRepository
 	SyncraticRepository
+	AlgorithmRepository
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
 	ListReplayJobs(ctx context.Context, filter ReplayJobFilter) ([]ReplayJobRecord, error)

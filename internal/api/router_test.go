@@ -101,6 +101,9 @@ type fakeQueryRepository struct {
 	backtestCalibrationReadiness   []storage.MarketOpsBacktestCalibrationReadinessRecord
 	syncraticContextWindows        []storage.SyncraticContextWindowRecord
 	syncraticInsights              []storage.SyncraticInsightRecord
+	algorithmDefinitions           []storage.AlgorithmDefinitionRecord
+	algorithmExecutionRequests     []storage.AlgorithmExecutionRequestRecord
+	algorithmResults               []storage.AlgorithmResultRecord
 	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
 	lastBacktestCoverageFilter     storage.MarketOpsBacktestCoverageFilter
 	lastBacktestCampaignFilter     storage.MarketOpsBacktestCampaignFilter
@@ -113,6 +116,9 @@ type fakeQueryRepository struct {
 	lastBacktestEvaluationFilter   storage.MarketOpsBacktestEvaluationFilter
 	lastBacktestPromotionFilter    storage.MarketOpsBacktestPromotionCandidateFilter
 	lastBacktestReadinessFilter    storage.MarketOpsBacktestCalibrationReadinessFilter
+	lastAlgorithmDefinitionFilter  storage.AlgorithmDefinitionFilter
+	lastAlgorithmExecutionFilter   storage.AlgorithmExecutionRequestFilter
+	lastAlgorithmResultFilter      storage.AlgorithmResultFilter
 	lastDSMFilter                  storage.MarketOpsDSMArtifactFilter
 	lastGraphProposalFilter        storage.MarketOpsDSMGraphProposalFilter
 	lastGraphProposalMutation      storage.MarketOpsDSMGraphProposalMutation
@@ -885,6 +891,82 @@ func (q *fakeQueryRepository) ListCatalogPipelines(context.Context, string, int)
 
 func (q *fakeQueryRepository) ListCatalogRules(context.Context, string, int) ([]storage.CatalogRuleRecord, error) {
 	return q.rules, nil
+}
+
+func (q *fakeQueryRepository) UpsertAlgorithmDefinition(_ context.Context, record storage.AlgorithmDefinitionRecord) error {
+	for i, existing := range q.algorithmDefinitions {
+		if existing.TenantID == record.TenantID && existing.AlgorithmID == record.AlgorithmID {
+			record.CreatedAt = existing.CreatedAt
+			q.algorithmDefinitions[i] = record
+			return nil
+		}
+	}
+	q.algorithmDefinitions = append(q.algorithmDefinitions, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListAlgorithmDefinitions(_ context.Context, filter storage.AlgorithmDefinitionFilter) ([]storage.AlgorithmDefinitionRecord, error) {
+	q.lastAlgorithmDefinitionFilter = filter
+	return q.algorithmDefinitions, nil
+}
+
+func (q *fakeQueryRepository) GetAlgorithmDefinition(_ context.Context, tenantID string, algorithmID string) (storage.AlgorithmDefinitionRecord, error) {
+	for _, record := range q.algorithmDefinitions {
+		if record.TenantID == tenantID && record.AlgorithmID == algorithmID {
+			return record, nil
+		}
+	}
+	return storage.AlgorithmDefinitionRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertAlgorithmExecutionRequest(_ context.Context, record storage.AlgorithmExecutionRequestRecord) error {
+	for i, existing := range q.algorithmExecutionRequests {
+		if existing.TenantID == record.TenantID && existing.ExecutionRequestID == record.ExecutionRequestID {
+			record.CreatedAt = existing.CreatedAt
+			q.algorithmExecutionRequests[i] = record
+			return nil
+		}
+	}
+	q.algorithmExecutionRequests = append(q.algorithmExecutionRequests, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListAlgorithmExecutionRequests(_ context.Context, filter storage.AlgorithmExecutionRequestFilter) ([]storage.AlgorithmExecutionRequestRecord, error) {
+	q.lastAlgorithmExecutionFilter = filter
+	return q.algorithmExecutionRequests, nil
+}
+
+func (q *fakeQueryRepository) GetAlgorithmExecutionRequest(_ context.Context, tenantID string, executionRequestID string) (storage.AlgorithmExecutionRequestRecord, error) {
+	for _, record := range q.algorithmExecutionRequests {
+		if record.TenantID == tenantID && record.ExecutionRequestID == executionRequestID {
+			return record, nil
+		}
+	}
+	return storage.AlgorithmExecutionRequestRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) InsertAlgorithmResult(_ context.Context, record storage.AlgorithmResultRecord) error {
+	for _, existing := range q.algorithmResults {
+		if existing.TenantID == record.TenantID && existing.AlgorithmResultID == record.AlgorithmResultID {
+			return nil
+		}
+	}
+	q.algorithmResults = append(q.algorithmResults, record)
+	return nil
+}
+
+func (q *fakeQueryRepository) ListAlgorithmResults(_ context.Context, filter storage.AlgorithmResultFilter) ([]storage.AlgorithmResultRecord, error) {
+	q.lastAlgorithmResultFilter = filter
+	return q.algorithmResults, nil
+}
+
+func (q *fakeQueryRepository) GetAlgorithmResult(_ context.Context, tenantID string, algorithmResultID string) (storage.AlgorithmResultRecord, error) {
+	for _, record := range q.algorithmResults {
+		if record.TenantID == tenantID && record.AlgorithmResultID == algorithmResultID {
+			return record, nil
+		}
+	}
+	return storage.AlgorithmResultRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListMarketOpsAssets(_ context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]storage.MarketOpsAssetRecord, error) {
@@ -3150,5 +3232,106 @@ func TestPostSyncraticContextWindowAskSanitizesUpstreamError(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), "secret upstream") {
 		t.Fatalf("upstream details leaked: %s", rec.Body.String())
+	}
+}
+
+func TestAlgorithmDefinitionCreateListAndGet(t *testing.T) {
+	repo := &fakeQueryRepository{}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"tenant_id":"tenant-local","algorithm_id":"signalops.algorithms.zscore_anomaly_v1","name":"Z-Score Anomaly","algorithm_type":"anomaly_detection","runtime_type":"python_plugin","input_features":["daily_return_pct"],"input_event_types":["normalized_event"],"output_schema":{"type":"object"},"config_schema":{"type":"object"},"default_config":{"z_threshold":3},"version":"v1","status":"draft"}`
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/algorithms/definitions", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/algorithms/definitions?tenant_id=tenant-local&algorithm_type=anomaly_detection&runtime_type=python_plugin&status=draft&limit=5", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastAlgorithmDefinitionFilter.TenantID != "tenant-local" || repo.lastAlgorithmDefinitionFilter.Limit != 5 {
+		t.Fatalf("filter = %+v", repo.lastAlgorithmDefinitionFilter)
+	}
+	var list map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	if got := list["algorithm_definitions"][0]["algorithm_id"]; got != "signalops.algorithms.zscore_anomaly_v1" {
+		t.Fatalf("algorithm_id = %v", got)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/algorithms/definitions/signalops.algorithms.zscore_anomaly_v1?tenant_id=tenant-local", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAlgorithmExecutionRequestCreateListAndGet(t *testing.T) {
+	repo := &fakeQueryRepository{}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	body := `{"tenant_id":"tenant-local","execution_request_id":"algexec-1","algorithm_id":"signalops.algorithms.zscore_anomaly_v1","algorithm_version":"v1","event_ids":["evt-1"],"feature_refs":["feature:daily_return_pct"],"entity_refs":["ticker:AAPL"],"window_ref":"2026-07-09/2026-07-14","config":{"z_threshold":3},"correlation_id":"corr-1"}`
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/algorithms/execution-requests", strings.NewReader(body))
+	req.Header.Set("X-SignalOps-Actor", "analyst-1")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.algorithmExecutionRequests[0].Status != storage.AlgorithmExecutionStatusQueued || repo.algorithmExecutionRequests[0].RequestedBy != "analyst-1" {
+		t.Fatalf("execution request = %+v", repo.algorithmExecutionRequests[0])
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/algorithms/execution-requests?tenant_id=tenant-local&algorithm_id=signalops.algorithms.zscore_anomaly_v1&status=queued&correlation_id=corr-1&limit=10", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastAlgorithmExecutionFilter.AlgorithmID != "signalops.algorithms.zscore_anomaly_v1" || repo.lastAlgorithmExecutionFilter.Status != "queued" {
+		t.Fatalf("filter = %+v", repo.lastAlgorithmExecutionFilter)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/algorithms/execution-requests/algexec-1?tenant_id=tenant-local", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAlgorithmResultsListAndGet(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &fakeQueryRepository{algorithmResults: []storage.AlgorithmResultRecord{{AlgorithmResultID: "algres-1", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "anomaly_score", Score: 3.4, Confidence: 0.82, Severity: "medium", ResultPayloadJSON: []byte(`{"z_score":3.4}`), SourceEventIDs: []string{"evt-1"}, EvidenceRefs: []string{"evt-1"}, CorrelationID: "corr-1", CreatedAt: now}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/algorithms/results?tenant_id=tenant-local&algorithm_id=signalops.algorithms.zscore_anomaly_v1&execution_request_id=algexec-1&result_type=anomaly_score&severity=medium&correlation_id=corr-1&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastAlgorithmResultFilter.ResultType != "anomaly_score" || repo.lastAlgorithmResultFilter.Severity != "medium" {
+		t.Fatalf("filter = %+v", repo.lastAlgorithmResultFilter)
+	}
+	var list map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	if list["algorithm_results"][0]["algorithm_result_id"] != "algres-1" {
+		t.Fatalf("list = %+v", list)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/algorithms/results/algres-1?tenant_id=tenant-local", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }

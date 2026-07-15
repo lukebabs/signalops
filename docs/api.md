@@ -697,6 +697,40 @@ Returns one stored promotion candidate.
 
 Records an operator review decision on a promotion candidate. Allowed decision statuses are `approved_for_promotion`, `rejected`, `deferred`, and `superseded`. This endpoint only mutates the candidate audit row; it does not deploy runtime policy, edit detector thresholds, or write graph state.
 
+### Algorithm Registry
+
+`POST /v1/algorithms/definitions`
+
+Creates or updates a versioned algorithm definition. Definitions describe algorithm id, type, runtime type, input feature names, input event types, schemas, default config, status, and metadata. Seeded G106 definitions are draft records and are not executable until a runner gate is added.
+
+`GET /v1/algorithms/definitions?tenant_id={tenant_id}&algorithm_type={type}&runtime_type={runtime_type}&status={status}&limit=50`
+
+Returns algorithm definitions for a tenant. Optional filters narrow by algorithm type, runtime type, and status.
+
+`GET /v1/algorithms/definitions/{algorithm_id}?tenant_id={tenant_id}`
+
+Returns one algorithm definition.
+
+`POST /v1/algorithms/execution-requests`
+
+Creates or updates a queued algorithm execution request. Required fields are `tenant_id`, `algorithm_id`, and `algorithm_version`; optional fields include `execution_request_id`, `event_ids`, `feature_refs`, `entity_refs`, `window_ref`, `config`, `correlation_id`, and `requested_by`. This records intent only; G106 does not execute algorithms.
+
+`GET /v1/algorithms/execution-requests?tenant_id={tenant_id}&algorithm_id={algorithm_id}&status={status}&correlation_id={correlation_id}&limit=50`
+
+Returns algorithm execution request ledger rows.
+
+`GET /v1/algorithms/execution-requests/{execution_request_id}?tenant_id={tenant_id}`
+
+Returns one algorithm execution request.
+
+`GET /v1/algorithms/results?tenant_id={tenant_id}&algorithm_id={algorithm_id}&execution_request_id={execution_request_id}&result_type={result_type}&severity={severity}&correlation_id={correlation_id}&limit=50`
+
+Returns immutable algorithm result ledger rows. Results include score, confidence, severity, payload, source event ids, feature value ids, evidence refs, and correlation id.
+
+`GET /v1/algorithms/results/{algorithm_result_id}?tenant_id={tenant_id}`
+
+Returns one algorithm result.
+
 ### Query Errors
 
 - `400 missing_query`: required idempotency lookup parameters are missing.

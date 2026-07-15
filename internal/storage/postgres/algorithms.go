@@ -1,0 +1,295 @@
+package postgres
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/lukebabs/signalops/internal/storage"
+)
+
+func (r *Repository) UpsertAlgorithmDefinition(ctx context.Context, record storage.AlgorithmDefinitionRecord) error {
+	if err := validateAlgorithmDefinition(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO algorithm_definitions (
+  tenant_id, algorithm_id, name, description, algorithm_type, runtime_type,
+  input_features, input_event_types, output_schema, config_schema, default_config,
+  version, status, metadata, updated_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6,
+  $7, $8, $9, $10, $11,
+  $12, $13, $14, now()
+)
+ON CONFLICT (tenant_id, algorithm_id) DO UPDATE SET
+  name=EXCLUDED.name,
+  description=EXCLUDED.description,
+  algorithm_type=EXCLUDED.algorithm_type,
+  runtime_type=EXCLUDED.runtime_type,
+  input_features=EXCLUDED.input_features,
+  input_event_types=EXCLUDED.input_event_types,
+  output_schema=EXCLUDED.output_schema,
+  config_schema=EXCLUDED.config_schema,
+  default_config=EXCLUDED.default_config,
+  version=EXCLUDED.version,
+  status=EXCLUDED.status,
+  metadata=EXCLUDED.metadata,
+  updated_at=now()`, strings.TrimSpace(record.TenantID), strings.TrimSpace(record.AlgorithmID), strings.TrimSpace(record.Name), strings.TrimSpace(record.Description), strings.TrimSpace(record.AlgorithmType), strings.TrimSpace(record.RuntimeType), pqArray(record.InputFeatures), pqArray(record.InputEventTypes), jsonOrEmpty(record.OutputSchema), jsonOrEmpty(record.ConfigSchema), jsonOrEmpty(record.DefaultConfig), strings.TrimSpace(record.Version), strings.TrimSpace(record.Status), jsonOrEmpty(record.MetadataJSON))
+	if err != nil {
+		return fmt.Errorf("upsert algorithm definition: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ListAlgorithmDefinitions(ctx context.Context, filter storage.AlgorithmDefinitionFilter) ([]storage.AlgorithmDefinitionRecord, error) {
+	rows, err := r.db.QueryContext(ctx, algorithmDefinitionSelect+`
+WHERE tenant_id=$1 AND ($2='' OR algorithm_type=$2) AND ($3='' OR runtime_type=$3) AND ($4='' OR status=$4)
+ORDER BY algorithm_id ASC LIMIT $5`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AlgorithmType), strings.TrimSpace(filter.RuntimeType), strings.TrimSpace(filter.Status), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list algorithm definitions: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.AlgorithmDefinitionRecord{}
+	for rows.Next() {
+		record, err := scanAlgorithmDefinition(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list algorithm definitions rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetAlgorithmDefinition(ctx context.Context, tenantID string, algorithmID string) (storage.AlgorithmDefinitionRecord, error) {
+	record, err := scanAlgorithmDefinition(r.db.QueryRowContext(ctx, algorithmDefinitionSelect+` WHERE tenant_id=$1 AND algorithm_id=$2`, strings.TrimSpace(tenantID), strings.TrimSpace(algorithmID)))
+	if err != nil {
+		return storage.AlgorithmDefinitionRecord{}, err
+	}
+	return record, nil
+}
+
+func (r *Repository) UpsertAlgorithmExecutionRequest(ctx context.Context, record storage.AlgorithmExecutionRequestRecord) error {
+	if err := validateAlgorithmExecutionRequest(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO algorithm_execution_requests (
+  tenant_id, execution_request_id, algorithm_id, algorithm_version, event_ids, feature_refs,
+  entity_refs, window_ref, config, correlation_id, status, requested_by, result, error_message, updated_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6,
+  $7, $8, $9, $10, $11, $12, $13, $14, now()
+)
+ON CONFLICT (tenant_id, execution_request_id) DO UPDATE SET
+  algorithm_id=EXCLUDED.algorithm_id,
+  algorithm_version=EXCLUDED.algorithm_version,
+  event_ids=EXCLUDED.event_ids,
+  feature_refs=EXCLUDED.feature_refs,
+  entity_refs=EXCLUDED.entity_refs,
+  window_ref=EXCLUDED.window_ref,
+  config=EXCLUDED.config,
+  correlation_id=EXCLUDED.correlation_id,
+  status=EXCLUDED.status,
+  requested_by=EXCLUDED.requested_by,
+  result=EXCLUDED.result,
+  error_message=EXCLUDED.error_message,
+  updated_at=now()`, strings.TrimSpace(record.TenantID), strings.TrimSpace(record.ExecutionRequestID), strings.TrimSpace(record.AlgorithmID), strings.TrimSpace(record.AlgorithmVersion), pqArray(record.EventIDs), pqArray(record.FeatureRefs), pqArray(record.EntityRefs), strings.TrimSpace(record.WindowRef), jsonOrEmpty(record.ConfigJSON), strings.TrimSpace(record.CorrelationID), strings.TrimSpace(record.Status), firstNonEmptyString(record.RequestedBy, "operator-local"), jsonOrEmpty(record.ResultJSON), strings.TrimSpace(record.ErrorMessage))
+	if err != nil {
+		return fmt.Errorf("upsert algorithm execution request: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ListAlgorithmExecutionRequests(ctx context.Context, filter storage.AlgorithmExecutionRequestFilter) ([]storage.AlgorithmExecutionRequestRecord, error) {
+	rows, err := r.db.QueryContext(ctx, algorithmExecutionRequestSelect+`
+WHERE tenant_id=$1 AND ($2='' OR algorithm_id=$2) AND ($3='' OR status=$3) AND ($4='' OR correlation_id=$4)
+ORDER BY updated_at DESC LIMIT $5`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AlgorithmID), strings.TrimSpace(filter.Status), strings.TrimSpace(filter.CorrelationID), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list algorithm execution requests: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.AlgorithmExecutionRequestRecord{}
+	for rows.Next() {
+		record, err := scanAlgorithmExecutionRequest(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list algorithm execution requests rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetAlgorithmExecutionRequest(ctx context.Context, tenantID string, executionRequestID string) (storage.AlgorithmExecutionRequestRecord, error) {
+	return scanAlgorithmExecutionRequest(r.db.QueryRowContext(ctx, algorithmExecutionRequestSelect+` WHERE tenant_id=$1 AND execution_request_id=$2`, strings.TrimSpace(tenantID), strings.TrimSpace(executionRequestID)))
+}
+
+func (r *Repository) InsertAlgorithmResult(ctx context.Context, record storage.AlgorithmResultRecord) error {
+	if err := validateAlgorithmResult(record); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO algorithm_results (
+  tenant_id, algorithm_result_id, algorithm_id, algorithm_version, execution_request_id,
+  result_type, score, confidence, severity, result_payload, source_event_ids,
+  feature_value_ids, evidence_refs, correlation_id
+) VALUES (
+  $1, $2, $3, $4, $5,
+  $6, $7, $8, $9, $10, $11,
+  $12, $13, $14
+)
+ON CONFLICT (tenant_id, algorithm_result_id) DO NOTHING`, strings.TrimSpace(record.TenantID), strings.TrimSpace(record.AlgorithmResultID), strings.TrimSpace(record.AlgorithmID), strings.TrimSpace(record.AlgorithmVersion), strings.TrimSpace(record.ExecutionRequestID), strings.TrimSpace(record.ResultType), record.Score, record.Confidence, strings.TrimSpace(record.Severity), jsonOrEmpty(record.ResultPayloadJSON), pqArray(record.SourceEventIDs), pqArray(record.FeatureValueIDs), pqArray(record.EvidenceRefs), strings.TrimSpace(record.CorrelationID))
+	if err != nil {
+		return fmt.Errorf("insert algorithm result: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ListAlgorithmResults(ctx context.Context, filter storage.AlgorithmResultFilter) ([]storage.AlgorithmResultRecord, error) {
+	rows, err := r.db.QueryContext(ctx, algorithmResultSelect+`
+WHERE tenant_id=$1 AND ($2='' OR algorithm_id=$2) AND ($3='' OR execution_request_id=$3)
+  AND ($4='' OR result_type=$4) AND ($5='' OR severity=$5) AND ($6='' OR correlation_id=$6)
+ORDER BY created_at DESC LIMIT $7`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AlgorithmID), strings.TrimSpace(filter.ExecutionRequestID), strings.TrimSpace(filter.ResultType), strings.TrimSpace(filter.Severity), strings.TrimSpace(filter.CorrelationID), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list algorithm results: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.AlgorithmResultRecord{}
+	for rows.Next() {
+		record, err := scanAlgorithmResult(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list algorithm results rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetAlgorithmResult(ctx context.Context, tenantID string, algorithmResultID string) (storage.AlgorithmResultRecord, error) {
+	return scanAlgorithmResult(r.db.QueryRowContext(ctx, algorithmResultSelect+` WHERE tenant_id=$1 AND algorithm_result_id=$2`, strings.TrimSpace(tenantID), strings.TrimSpace(algorithmResultID)))
+}
+
+const algorithmDefinitionSelect = `SELECT algorithm_id, tenant_id, name, description, algorithm_type, runtime_type,
+ COALESCE(array_to_json(input_features), '[]'::json)::text, COALESCE(array_to_json(input_event_types), '[]'::json)::text,
+ output_schema, config_schema, default_config, version, status, metadata, created_at, updated_at FROM algorithm_definitions`
+
+const algorithmExecutionRequestSelect = `SELECT execution_request_id, tenant_id, algorithm_id, algorithm_version,
+ COALESCE(array_to_json(event_ids), '[]'::json)::text, COALESCE(array_to_json(feature_refs), '[]'::json)::text,
+ COALESCE(array_to_json(entity_refs), '[]'::json)::text, window_ref, config, correlation_id, status, requested_by,
+ result, error_message, created_at, updated_at FROM algorithm_execution_requests`
+
+const algorithmResultSelect = `SELECT algorithm_result_id, tenant_id, algorithm_id, algorithm_version, execution_request_id,
+ result_type, score, confidence, severity, result_payload, COALESCE(array_to_json(source_event_ids), '[]'::json)::text,
+ COALESCE(array_to_json(feature_value_ids), '[]'::json)::text, COALESCE(array_to_json(evidence_refs), '[]'::json)::text,
+ correlation_id, created_at FROM algorithm_results`
+
+type algorithmDefinitionScanner interface{ Scan(dest ...any) error }
+type algorithmExecutionRequestScanner interface{ Scan(dest ...any) error }
+type algorithmResultScanner interface{ Scan(dest ...any) error }
+
+func scanAlgorithmDefinition(scanner algorithmDefinitionScanner) (storage.AlgorithmDefinitionRecord, error) {
+	var record storage.AlgorithmDefinitionRecord
+	var inputFeaturesJSON, inputEventTypesJSON string
+	if err := scanner.Scan(&record.AlgorithmID, &record.TenantID, &record.Name, &record.Description, &record.AlgorithmType, &record.RuntimeType, &inputFeaturesJSON, &inputEventTypesJSON, &record.OutputSchema, &record.ConfigSchema, &record.DefaultConfig, &record.Version, &record.Status, &record.MetadataJSON, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		return storage.AlgorithmDefinitionRecord{}, mapScanError("scan algorithm definition", err)
+	}
+	if err := json.Unmarshal([]byte(inputFeaturesJSON), &record.InputFeatures); err != nil {
+		return storage.AlgorithmDefinitionRecord{}, fmt.Errorf("scan algorithm definition input features: %w", err)
+	}
+	if err := json.Unmarshal([]byte(inputEventTypesJSON), &record.InputEventTypes); err != nil {
+		return storage.AlgorithmDefinitionRecord{}, fmt.Errorf("scan algorithm definition input event types: %w", err)
+	}
+	return record, nil
+}
+
+func scanAlgorithmExecutionRequest(scanner algorithmExecutionRequestScanner) (storage.AlgorithmExecutionRequestRecord, error) {
+	var record storage.AlgorithmExecutionRequestRecord
+	var eventIDsJSON, featureRefsJSON, entityRefsJSON string
+	if err := scanner.Scan(&record.ExecutionRequestID, &record.TenantID, &record.AlgorithmID, &record.AlgorithmVersion, &eventIDsJSON, &featureRefsJSON, &entityRefsJSON, &record.WindowRef, &record.ConfigJSON, &record.CorrelationID, &record.Status, &record.RequestedBy, &record.ResultJSON, &record.ErrorMessage, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		return storage.AlgorithmExecutionRequestRecord{}, mapScanError("scan algorithm execution request", err)
+	}
+	for _, item := range []struct {
+		raw  string
+		dest *[]string
+		name string
+	}{{eventIDsJSON, &record.EventIDs, "event ids"}, {featureRefsJSON, &record.FeatureRefs, "feature refs"}, {entityRefsJSON, &record.EntityRefs, "entity refs"}} {
+		if err := json.Unmarshal([]byte(item.raw), item.dest); err != nil {
+			return storage.AlgorithmExecutionRequestRecord{}, fmt.Errorf("scan algorithm execution request %s: %w", item.name, err)
+		}
+	}
+	return record, nil
+}
+
+func scanAlgorithmResult(scanner algorithmResultScanner) (storage.AlgorithmResultRecord, error) {
+	var record storage.AlgorithmResultRecord
+	var sourceEventIDsJSON, featureValueIDsJSON, evidenceRefsJSON string
+	if err := scanner.Scan(&record.AlgorithmResultID, &record.TenantID, &record.AlgorithmID, &record.AlgorithmVersion, &record.ExecutionRequestID, &record.ResultType, &record.Score, &record.Confidence, &record.Severity, &record.ResultPayloadJSON, &sourceEventIDsJSON, &featureValueIDsJSON, &evidenceRefsJSON, &record.CorrelationID, &record.CreatedAt); err != nil {
+		return storage.AlgorithmResultRecord{}, mapScanError("scan algorithm result", err)
+	}
+	for _, item := range []struct {
+		raw  string
+		dest *[]string
+		name string
+	}{{sourceEventIDsJSON, &record.SourceEventIDs, "source event ids"}, {featureValueIDsJSON, &record.FeatureValueIDs, "feature value ids"}, {evidenceRefsJSON, &record.EvidenceRefs, "evidence refs"}} {
+		if err := json.Unmarshal([]byte(item.raw), item.dest); err != nil {
+			return storage.AlgorithmResultRecord{}, fmt.Errorf("scan algorithm result %s: %w", item.name, err)
+		}
+	}
+	return record, nil
+}
+
+func validateAlgorithmDefinition(record storage.AlgorithmDefinitionRecord) error {
+	for name, value := range map[string]string{"tenant id": record.TenantID, "algorithm id": record.AlgorithmID, "name": record.Name, "algorithm type": record.AlgorithmType, "runtime type": record.RuntimeType, "version": record.Version, "status": record.Status} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("algorithm definition %s is required", name)
+		}
+	}
+	return validateAlgorithmJSON(record.OutputSchema, record.ConfigSchema, record.DefaultConfig, record.MetadataJSON)
+}
+
+func validateAlgorithmExecutionRequest(record storage.AlgorithmExecutionRequestRecord) error {
+	for name, value := range map[string]string{"tenant id": record.TenantID, "execution request id": record.ExecutionRequestID, "algorithm id": record.AlgorithmID, "algorithm version": record.AlgorithmVersion, "correlation id": record.CorrelationID, "status": record.Status} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("algorithm execution request %s is required", name)
+		}
+	}
+	return validateAlgorithmJSON(record.ConfigJSON, record.ResultJSON)
+}
+
+func validateAlgorithmResult(record storage.AlgorithmResultRecord) error {
+	for name, value := range map[string]string{"tenant id": record.TenantID, "algorithm result id": record.AlgorithmResultID, "algorithm id": record.AlgorithmID, "algorithm version": record.AlgorithmVersion, "execution request id": record.ExecutionRequestID, "result type": record.ResultType, "severity": record.Severity, "correlation id": record.CorrelationID} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("algorithm result %s is required", name)
+		}
+	}
+	if record.Score < 0 {
+		return errors.New("algorithm result score must be non-negative")
+	}
+	if record.Confidence < 0 || record.Confidence > 1 {
+		return errors.New("algorithm result confidence must be between 0 and 1")
+	}
+	return validateAlgorithmJSON(record.ResultPayloadJSON)
+}
+
+func validateAlgorithmJSON(values ...[]byte) error {
+	for _, value := range values {
+		if len(value) == 0 {
+			continue
+		}
+		if !json.Valid(value) {
+			return errors.New("algorithm json fields must be valid json")
+		}
+	}
+	return nil
+}

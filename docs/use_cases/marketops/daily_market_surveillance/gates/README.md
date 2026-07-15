@@ -141,3 +141,8 @@ Recommended next gate:
 
 - G105: reviewed-label batch inventory and idempotent sync readiness for the first 25-label milestone.
 - Specification: `G105_reviewed_label_batch_inventory.md`.
+
+## G106 Implemented
+
+- G106: generic SignalOps algorithm registry, execution request ledger, result ledger, seed definitions, and read APIs.
+- Specification: `G106_algorithm_registry_result_ledger.md`.
