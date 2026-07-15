@@ -156,3 +156,8 @@ Recommended next gate:
 
 - G108: read-only algorithm execution summary API with result counts, severity counts, max score/confidence, and top result rows.
 - Specification: `G108_algorithm_execution_visibility.md`.
+
+## G109 Implemented
+
+- G109: read-only algorithm execution visibility UI for definitions, execution requests, summaries, result rows, and result lineage.
+- Specification: `G109_algorithm_execution_visibility_ui.md`.

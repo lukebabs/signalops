@@ -7745,3 +7745,22 @@ Out of scope:
 Result:
 
 - Analysts can inspect registered algorithms and their persisted execution evidence end to end without any write controls. The algorithm layer (G106-G108) is now fully visible from the operator UI.
+
+## Gate G109 Browser Validation
+
+Timestamp: `2026-07-15T04:20:12Z`
+
+Status: `validated - operator UI confirmed against rebuilt local stack`
+
+Validation performed:
+
+- User confirmed the Algorithms UI loads in the rebuilt Docker stack.
+- `signalops.algorithms.zscore_anomaly_v1` is visible and selectable.
+- Execution request `algexec-g109-validate-aapl-openclose` is visible and selectable.
+- Summary shows `result_count=3`, severity counts, max score, and top result rows.
+- Result detail shows payload and normalized-event lineage.
+- No mutation controls were introduced.
+
+Result:
+
+- G109 is closed. The G106-G109 algorithm visibility path is implemented, deployed locally, and browser-validated.

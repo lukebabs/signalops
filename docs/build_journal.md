@@ -6592,3 +6592,21 @@ Validation performed:
 Result:
 
 - The G106-G109 algorithm path is now visible from the operator UI with no mutation controls. Two minor spec display fields remain as optional follow-ups: `created_at` on the execution-requests table (only `updated_at` is shown today) and `requested_by` on the execution summary tile row (status is shown today; requested_by is already available in the row summary).
+
+## 2026-07-15T04:20:12Z
+
+Summary:
+
+- Closed G109 after user browser validation on the rebuilt local Docker stack.
+- Confirmed the Algorithms UI loads and exposes the G106-G108 algorithm layer through the operator workflow.
+- Confirmed `signalops.algorithms.zscore_anomaly_v1` and execution request `algexec-g109-validate-aapl-openclose` are visible and selectable.
+
+Validation performed:
+
+- Browser validation confirmed the execution summary renders `result_count=3`, severity counts, max score, and top result rows.
+- Result detail shows formatted result payload and normalized-event lineage.
+- No mutation controls were present.
+
+Result:
+
+- G109 is closed from implementation through browser validation. The algorithm layer is now visible end to end without adding execution, tuning, deployment, or conversion controls.
