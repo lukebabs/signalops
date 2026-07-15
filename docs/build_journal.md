@@ -6576,3 +6576,19 @@ Validation performed:
 Result:
 
 - The G106-G108 backend path is live-validated end to end: migration, runner persistence, authenticated API summary, and gateway deployment are all working for the bounded AAPL sample. The default `daily_return_pct` run produced no samples because the existing AAPL rows lacked `previous_close`; use an available feature such as `open_close_move_pct` for this bounded data slice.
+
+## 2026-07-15T04:01:34Z
+
+Summary:
+
+- Frontend-agent landed the G109 algorithm execution visibility UI (commit `3125352`, pushed to `origin/main`); the implementation was then reviewed and the gate recorded.
+- New read-only MarketOps route `/marketops/algorithms` exposing algorithm definitions, execution requests, execution summaries (result count, severity counts, max score/confidence, collapsed config/result JSON), and result lineage, over the existing G108 endpoints.
+
+Validation performed:
+
+- `npm test` passed (263 tests / 21 files), including the new algorithm client and lib tests and the updated app-routing nav test.
+- `npm run build` (`tsc && vite build`) passed.
+
+Result:
+
+- The G106-G109 algorithm path is now visible from the operator UI with no mutation controls. Two minor spec display fields remain as optional follow-ups: `created_at` on the execution-requests table (only `updated_at` is shown today) and `requested_by` on the execution summary tile row (status is shown today; requested_by is already available in the row summary).

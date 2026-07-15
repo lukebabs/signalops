@@ -7720,3 +7720,28 @@ Validation performed:
 Result:
 
 - Backend algorithm visibility is now live-validated. Frontend-agent can consume the documented G109 APIs without requiring additional backend scope.
+
+## Gate G109: Algorithm Execution Visibility UI
+
+Timestamp: `2026-07-15T04:01:34Z`
+
+Status: `implemented - read-only frontend visibility over the G106-G108 algorithm layer`
+
+Scope:
+
+- Add read-only analyst/operator visibility for algorithm definitions, execution requests, execution summaries, and result evidence, consuming only the seven existing G108 endpoints.
+- New MarketOps route `/marketops/algorithms` (nav label `Algorithms`) with a definitions → execution requests → execution summary → result detail drill-down.
+- Typed API client methods, React Query hooks, and tolerant `lib/algorithms.ts` summarizers/style helpers. No mutation, execution, tuning, policy, or conversion controls.
+
+Validation performed:
+
+- `npm test` passed: 263 tests across 21 files, including new `web/src/api/algorithms.test.ts` (6), `web/src/lib/algorithms.test.ts` (11), and updated `web/src/apps/appRouting.test.ts` (15).
+- `npm run build` (`tsc && vite build`) passed; the code-split `AlgorithmsRoute` bundle was emitted.
+
+Out of scope:
+
+- Starting executions, editing definitions, runtime policy deployment, threshold tuning, model training, new backend endpoints, signal/artifact/alert/insight conversion, and Syncratic integration — per the G109 frontend spec.
+
+Result:
+
+- Analysts can inspect registered algorithms and their persisted execution evidence end to end without any write controls. The algorithm layer (G106-G108) is now fully visible from the operator UI.
