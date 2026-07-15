@@ -6556,3 +6556,23 @@ Validation performed:
 Result:
 
 - Operators now have a compact backend view of persisted algorithm result evidence from G107 runs before heavier algorithm adapters or UI work are added.
+
+## 2026-07-15T03:29:58Z
+
+Summary:
+
+- Completed live backend validation for G107/G108 while frontend-agent worked on the G109 UI.
+- Applied pending migration `000023_algorithm_plugin_framework` to the running local Postgres service.
+- Ran the z-score algorithm runner against bounded AAPL normalized equity rows using `open_close_move_pct`.
+- Rebuilt/restarted the gateway so the G108 summary route was available locally.
+- Generated a short-lived bearer token in-memory from configured `SO_*` client credentials; token material was not printed or committed and the temporary token file was removed.
+
+Validation performed:
+
+- `algexec-g109-validate-aapl-openclose` completed with `scanned=3`, `usable_samples=3`, and `results=3`.
+- Direct Postgres check confirmed three `algorithm_results` rows for the execution request.
+- Authenticated G108 summary endpoint returned HTTP `200`, `result_count=3`, severity counts `high=1`, `medium=1`, `low=1`, `max_score=1.412466`, and two top result rows for `limit=2`.
+
+Result:
+
+- The G106-G108 backend path is live-validated end to end: migration, runner persistence, authenticated API summary, and gateway deployment are all working for the bounded AAPL sample. The default `daily_return_pct` run produced no samples because the existing AAPL rows lacked `previous_close`; use an available feature such as `open_close_move_pct` for this bounded data slice.

@@ -7701,3 +7701,22 @@ Out of scope:
 Result:
 
 - G108 closes the backend visibility gap for G107 results. The next no-scope-creep step is a frontend-agent spec if analyst-facing inspection is needed.
+
+## Gate G108 Live Validation
+
+Timestamp: `2026-07-15T03:29:58Z`
+
+Status: `validated - local migration, runner persistence, and authenticated summary API smoke passed`
+
+Validation performed:
+
+- Applied storage migration `000023_algorithm_plugin_framework` to the running local Postgres service.
+- Ran `signalops-algorithm-runner` for AAPL `open_close_move_pct` over `2026-07-09T00:00:00Z/2026-07-14T00:00:00Z`.
+- Execution request `algexec-g109-validate-aapl-openclose` persisted with `status=succeeded`, `scanned=3`, `usable_samples=3`, and `results=3`.
+- Three `algorithm_results` rows were persisted with severity counts `high=1`, `medium=1`, and `low=1`.
+- Rebuilt/restarted the gateway and validated the G108 summary endpoint with a short-lived bearer token.
+- Authenticated summary returned HTTP `200`, `result_count=3`, `max_score=1.412466`, and top result rows with normalized-event lineage.
+
+Result:
+
+- Backend algorithm visibility is now live-validated. Frontend-agent can consume the documented G109 APIs without requiring additional backend scope.
