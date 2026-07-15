@@ -7677,3 +7677,27 @@ Out of scope:
 Result:
 
 - G107 closes the first executable algorithm path. The next narrow decision is whether to add operator visibility for algorithm executions/results before adding heavier algorithm adapters.
+
+## Gate G108: Algorithm Execution Visibility
+
+Timestamp: `2026-07-15T03:04:57Z`
+
+Status: `implemented - read-only algorithm execution summary API`
+
+Scope:
+
+- Add backend operator visibility over one algorithm execution request and its persisted result evidence.
+- Return result count, severity counts, max score, max confidence, and top result rows.
+- Keep the endpoint read-only and derived from existing G106/G107 ledgers.
+
+Validation performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/api -count=1` passed.
+
+Out of scope:
+
+- Algorithm execution triggers, additional algorithm adapters, frontend workbench, signal/artifact/alert/insight conversion, runtime policy deployment, and Syncratic graph/metadata ingestion.
+
+Result:
+
+- G108 closes the backend visibility gap for G107 results. The next no-scope-creep step is a frontend-agent spec if analyst-facing inspection is needed.

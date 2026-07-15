@@ -3335,3 +3335,41 @@ func TestAlgorithmResultsListAndGet(t *testing.T) {
 		t.Fatalf("get status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestAlgorithmExecutionSummaryIncludesResultRollup(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &fakeQueryRepository{
+		algorithmExecutionRequests: []storage.AlgorithmExecutionRequestRecord{{ExecutionRequestID: "algexec-1", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", Status: storage.AlgorithmExecutionStatusSucceeded, CorrelationID: "corr-1", RequestedBy: "operator-test", ConfigJSON: []byte(`{"feature":"daily_return_pct"}`), ResultJSON: []byte(`{"results":3}`), CreatedAt: now, UpdatedAt: now}},
+		algorithmResults: []storage.AlgorithmResultRecord{
+			{AlgorithmResultID: "algres-low", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "z_score", Score: 1.2, Confidence: 0.2, Severity: "low", ResultPayloadJSON: []byte(`{"z_score":1.2}`), CorrelationID: "corr-1", CreatedAt: now},
+			{AlgorithmResultID: "algres-high", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "z_score", Score: 3.7, Confidence: 0.9, Severity: "high", ResultPayloadJSON: []byte(`{"z_score":3.7}`), CorrelationID: "corr-1", CreatedAt: now.Add(time.Second)},
+			{AlgorithmResultID: "algres-medium", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "z_score", Score: 2.1, Confidence: 0.5, Severity: "medium", ResultPayloadJSON: []byte(`{"z_score":2.1}`), CorrelationID: "corr-1", CreatedAt: now.Add(2 * time.Second)},
+		},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/algorithms/execution-requests/algexec-1/summary?tenant_id=tenant-local&limit=2", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastAlgorithmResultFilter.ExecutionRequestID != "algexec-1" || repo.lastAlgorithmResultFilter.Limit != 200 {
+		t.Fatalf("filter = %+v", repo.lastAlgorithmResultFilter)
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	summary := response["algorithm_execution_summary"]
+	if summary["result_count"].(float64) != 3 || summary["max_score"].(float64) != 3.7 || summary["max_confidence"].(float64) != 0.9 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	severityCounts := summary["severity_counts"].(map[string]any)
+	if severityCounts["high"].(float64) != 1 || severityCounts["medium"].(float64) != 1 || severityCounts["low"].(float64) != 1 {
+		t.Fatalf("severity_counts = %#v", severityCounts)
+	}
+	topResults := summary["top_results"].([]any)
+	if len(topResults) != 2 || topResults[0].(map[string]any)["algorithm_result_id"] != "algres-high" || topResults[1].(map[string]any)["algorithm_result_id"] != "algres-medium" {
+		t.Fatalf("top_results = %#v", topResults)
+	}
+}

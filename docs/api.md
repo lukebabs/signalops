@@ -723,6 +723,10 @@ Returns algorithm execution request ledger rows.
 
 Returns one algorithm execution request.
 
+`GET /v1/algorithms/execution-requests/{execution_request_id}/summary?tenant_id={tenant_id}&limit=10`
+
+Returns a read-only execution summary with the execution request, result count, severity counts, max score, max confidence, and top result rows ordered by score descending. `limit` controls the number of top rows returned.
+
 `GET /v1/algorithms/results?tenant_id={tenant_id}&algorithm_id={algorithm_id}&execution_request_id={execution_request_id}&result_type={result_type}&severity={severity}&correlation_id={correlation_id}&limit=50`
 
 Returns immutable algorithm result ledger rows. Results include score, confidence, severity, payload, source event ids, feature value ids, evidence refs, and correlation id.

@@ -6539,3 +6539,20 @@ Validation performed:
 Result:
 
 - The algorithm substrate now has a working stdlib z-score execution path. G107 intentionally does not convert algorithm results into signals/artifacts, add a frontend workbench, install external ML libraries, deploy policy, or ingest Syncratic graph/metadata.
+
+## 2026-07-15T03:04:57Z
+
+Summary:
+
+- Implemented G108 backend visibility for algorithm execution/result inspection.
+- Added `GET /v1/algorithms/execution-requests/{execution_request_id}/summary`.
+- The endpoint returns execution metadata, result count, severity counts, max score, max confidence, and top result rows sorted by score.
+- Kept execution, new algorithms, frontend work, signal conversion, runtime policy deployment, and Syncratic integration out of scope.
+
+Validation performed:
+
+- Focused Docker Go tests passed for `./internal/api`.
+
+Result:
+
+- Operators now have a compact backend view of persisted algorithm result evidence from G107 runs before heavier algorithm adapters or UI work are added.

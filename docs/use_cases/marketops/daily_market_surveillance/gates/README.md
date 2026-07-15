@@ -151,3 +151,8 @@ Recommended next gate:
 
 - G107: first executable generic algorithm runner for `signalops.algorithms.zscore_anomaly_v1`, writing deterministic `algorithm_results`.
 - Specification: `G107_zscore_algorithm_runner.md`.
+
+## G108 Implemented
+
+- G108: read-only algorithm execution summary API with result counts, severity counts, max score/confidence, and top result rows.
+- Specification: `G108_algorithm_execution_visibility.md`.

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -169,4 +170,39 @@ func cleanStrings(values []string) []string {
 		out = append(out, value)
 	}
 	return out
+}
+
+type algorithmExecutionSummaryDTO struct {
+	ExecutionRequest algorithmExecutionRequestDTO `json:"execution_request"`
+	ResultCount      int                          `json:"result_count"`
+	SeverityCounts   map[string]int               `json:"severity_counts"`
+	MaxScore         float64                      `json:"max_score"`
+	MaxConfidence    float64                      `json:"max_confidence"`
+	TopResults       []algorithmResultDTO         `json:"top_results"`
+}
+
+func algorithmExecutionSummaryResponse(request storage.AlgorithmExecutionRequestRecord, results []storage.AlgorithmResultRecord, topLimit int) algorithmExecutionSummaryDTO {
+	severityCounts := map[string]int{}
+	maxScore := 0.0
+	maxConfidence := 0.0
+	ordered := append([]storage.AlgorithmResultRecord(nil), results...)
+	for _, result := range ordered {
+		severityCounts[result.Severity]++
+		if result.Score > maxScore {
+			maxScore = result.Score
+		}
+		if result.Confidence > maxConfidence {
+			maxConfidence = result.Confidence
+		}
+	}
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].Score == ordered[j].Score {
+			return ordered[i].CreatedAt.After(ordered[j].CreatedAt)
+		}
+		return ordered[i].Score > ordered[j].Score
+	})
+	if topLimit <= 0 || topLimit > len(ordered) {
+		topLimit = len(ordered)
+	}
+	return algorithmExecutionSummaryDTO{ExecutionRequest: algorithmExecutionRequestResponse(request), ResultCount: len(results), SeverityCounts: severityCounts, MaxScore: maxScore, MaxConfidence: maxConfidence, TopResults: algorithmResultResponses(ordered[:topLimit])}
 }
