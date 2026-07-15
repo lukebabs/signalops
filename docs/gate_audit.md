@@ -7651,3 +7651,29 @@ Out of scope:
 Result:
 
 - The algorithm layer is now visible as durable platform metadata and output evidence. The next narrow task is G107: execute `signalops.algorithms.zscore_anomaly_v1` through a bounded runner and write `algorithm_results` without changing signal production semantics.
+
+## Gate G107: Z-Score Algorithm Runner
+
+Timestamp: `2026-07-15T02:58:06Z`
+
+Status: `implemented - first executable generic algorithm writes result-ledger rows`
+
+Scope:
+
+- Implement `signalops.algorithms.zscore_anomaly_v1` as a bounded runner over existing normalized events.
+- Create/update `algorithm_execution_requests` lifecycle state.
+- Write deterministic immutable/idempotent `algorithm_results` rows with z-score payloads and normalized-event lineage.
+- Provide an operator CLI and Docker runtime target.
+
+Validation performed:
+
+- Docker Go formatting completed for touched Go files.
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/algorithms ./cmd/algorithm-runner -count=1` passed.
+
+Out of scope:
+
+- Runtime signal conversion, alerts, insights, graph proposals, frontend workbench, non-stdlib ML libraries, policy deployment, and Syncratic graph/metadata ingestion.
+
+Result:
+
+- G107 closes the first executable algorithm path. The next narrow decision is whether to add operator visibility for algorithm executions/results before adding heavier algorithm adapters.

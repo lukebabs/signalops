@@ -15,6 +15,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-normalizer 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-persister ./cmd/signal-persister
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-runner ./cmd/algorithm-runner
 
 FROM python:3.12-slim AS gateway
 
@@ -72,3 +73,9 @@ COPY contracts ./contracts
 ENV PYTHONPATH=/app/python
 
 ENTRYPOINT ["signalops-marketops-backtest"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-runner
+
+COPY --from=build /out/signalops-algorithm-runner /signalops-algorithm-runner
+
+ENTRYPOINT ["/signalops-algorithm-runner"]

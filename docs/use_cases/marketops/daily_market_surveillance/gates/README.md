@@ -146,3 +146,8 @@ Recommended next gate:
 
 - G106: generic SignalOps algorithm registry, execution request ledger, result ledger, seed definitions, and read APIs.
 - Specification: `G106_algorithm_registry_result_ledger.md`.
+
+## G107 Implemented
+
+- G107: first executable generic algorithm runner for `signalops.algorithms.zscore_anomaly_v1`, writing deterministic `algorithm_results`.
+- Specification: `G107_zscore_algorithm_runner.md`.

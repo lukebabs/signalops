@@ -1,0 +1,154 @@
+package algorithms
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+	"time"
+
+	"github.com/lukebabs/signalops/internal/storage"
+)
+
+type fakeAlgorithmRepository struct {
+	events            []storage.NormalizedEventLedgerRecord
+	requests          []storage.AlgorithmExecutionRequestRecord
+	results           []storage.AlgorithmResultRecord
+	lastEventFilter   storage.MarketOpsBacktestEventFilter
+	insertResultCalls int
+}
+
+func (f *fakeAlgorithmRepository) UpsertAlgorithmDefinition(context.Context, storage.AlgorithmDefinitionRecord) error {
+	return nil
+}
+func (f *fakeAlgorithmRepository) ListAlgorithmDefinitions(context.Context, storage.AlgorithmDefinitionFilter) ([]storage.AlgorithmDefinitionRecord, error) {
+	return nil, nil
+}
+func (f *fakeAlgorithmRepository) GetAlgorithmDefinition(context.Context, string, string) (storage.AlgorithmDefinitionRecord, error) {
+	return storage.AlgorithmDefinitionRecord{}, storage.ErrNotFound
+}
+func (f *fakeAlgorithmRepository) UpsertAlgorithmExecutionRequest(_ context.Context, record storage.AlgorithmExecutionRequestRecord) error {
+	for i, existing := range f.requests {
+		if existing.TenantID == record.TenantID && existing.ExecutionRequestID == record.ExecutionRequestID {
+			f.requests[i] = record
+			return nil
+		}
+	}
+	f.requests = append(f.requests, record)
+	return nil
+}
+func (f *fakeAlgorithmRepository) ListAlgorithmExecutionRequests(context.Context, storage.AlgorithmExecutionRequestFilter) ([]storage.AlgorithmExecutionRequestRecord, error) {
+	return f.requests, nil
+}
+func (f *fakeAlgorithmRepository) GetAlgorithmExecutionRequest(_ context.Context, tenantID string, executionRequestID string) (storage.AlgorithmExecutionRequestRecord, error) {
+	for _, record := range f.requests {
+		if record.TenantID == tenantID && record.ExecutionRequestID == executionRequestID {
+			return record, nil
+		}
+	}
+	return storage.AlgorithmExecutionRequestRecord{}, storage.ErrNotFound
+}
+func (f *fakeAlgorithmRepository) InsertAlgorithmResult(_ context.Context, record storage.AlgorithmResultRecord) error {
+	f.insertResultCalls++
+	for _, existing := range f.results {
+		if existing.TenantID == record.TenantID && existing.AlgorithmResultID == record.AlgorithmResultID {
+			return nil
+		}
+	}
+	f.results = append(f.results, record)
+	return nil
+}
+func (f *fakeAlgorithmRepository) ListAlgorithmResults(context.Context, storage.AlgorithmResultFilter) ([]storage.AlgorithmResultRecord, error) {
+	return f.results, nil
+}
+func (f *fakeAlgorithmRepository) GetAlgorithmResult(_ context.Context, tenantID string, algorithmResultID string) (storage.AlgorithmResultRecord, error) {
+	for _, record := range f.results {
+		if record.TenantID == tenantID && record.AlgorithmResultID == algorithmResultID {
+			return record, nil
+		}
+	}
+	return storage.AlgorithmResultRecord{}, storage.ErrNotFound
+}
+func (f *fakeAlgorithmRepository) ListMarketOpsBacktestNormalizedEvents(_ context.Context, filter storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error) {
+	f.lastEventFilter = filter
+	start := filter.Offset
+	if start >= len(f.events) {
+		return []storage.NormalizedEventLedgerRecord{}, nil
+	}
+	end := start + filter.Limit
+	if end > len(f.events) {
+		end = len(f.events)
+	}
+	return f.events[start:end], nil
+}
+
+func TestRunZScoreWritesDeterministicResults(t *testing.T) {
+	now := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	repo := &fakeAlgorithmRepository{events: []storage.NormalizedEventLedgerRecord{
+		normalizedEvent("evt-1", "AAPL", 1, now),
+		normalizedEvent("evt-2", "AAPL", 2, now.Add(time.Hour)),
+		normalizedEvent("evt-3", "AAPL", 9, now.Add(2*time.Hour)),
+	}}
+	cfg := Config{ExecutionRequestID: "algexec-1", TenantID: "tenant-local", Symbols: []string{"aapl"}, WindowStart: now.Add(-time.Hour), WindowEnd: now.Add(24 * time.Hour), MaxRecords: 10, BatchSize: 2, ZThreshold: 1.5, MinSamples: 3}
+	result, err := Run(context.Background(), repo, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ExecutionRequest.Status != storage.AlgorithmExecutionStatusSucceeded || result.Metrics.Results != 3 || result.Metrics.UsableSamples != 3 {
+		t.Fatalf("result = %+v request=%+v", result.Metrics, result.ExecutionRequest)
+	}
+	if len(repo.requests) != 1 || repo.requests[0].Status != storage.AlgorithmExecutionStatusSucceeded {
+		t.Fatalf("requests = %+v", repo.requests)
+	}
+	if len(repo.results) != 3 {
+		t.Fatalf("results = %d", len(repo.results))
+	}
+	firstID := repo.results[0].AlgorithmResultID
+	if firstID == "" || repo.results[0].ResultType != "z_score" || repo.results[0].FeatureValueIDs[0] != "evt-1:daily_return_pct" || repo.results[0].EvidenceRefs[0] != "normalized_event:evt-1" {
+		t.Fatalf("first result = %+v", repo.results[0])
+	}
+	if repo.lastEventFilter.Symbols[0] != "AAPL" || repo.lastEventFilter.Limit != 2 {
+		t.Fatalf("event filter = %+v", repo.lastEventFilter)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(repo.results[2].ResultPayloadJSON, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["feature"] != DefaultZScoreFeature || payload["symbol"] != "AAPL" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if _, err := Run(context.Background(), repo, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.results) != 3 || repo.results[0].AlgorithmResultID != firstID || repo.insertResultCalls != 6 {
+		t.Fatalf("idempotent results len=%d first=%s calls=%d", len(repo.results), repo.results[0].AlgorithmResultID, repo.insertResultCalls)
+	}
+}
+
+func TestRunZScoreSkipsWhenMinSamplesNotMet(t *testing.T) {
+	now := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	repo := &fakeAlgorithmRepository{events: []storage.NormalizedEventLedgerRecord{normalizedEvent("evt-1", "MSFT", 1, now)}}
+	result, err := Run(context.Background(), repo, Config{ExecutionRequestID: "algexec-2", TenantID: "tenant-local", WindowStart: now.Add(-time.Hour), WindowEnd: now.Add(time.Hour), MinSamples: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Metrics.Scanned != 1 || result.Metrics.UsableSamples != 1 || result.Metrics.Results != 0 || len(repo.results) != 0 {
+		t.Fatalf("metrics=%+v results=%d", result.Metrics, len(repo.results))
+	}
+}
+
+func TestRunRejectsUnsupportedAlgorithm(t *testing.T) {
+	now := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	repo := &fakeAlgorithmRepository{}
+	_, err := Run(context.Background(), repo, Config{ExecutionRequestID: "algexec-3", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.unknown_v1", WindowStart: now.Add(-time.Hour), WindowEnd: now.Add(time.Hour)})
+	if err == nil {
+		t.Fatal("expected unsupported algorithm error")
+	}
+	if len(repo.requests) != 1 || repo.requests[0].Status != storage.AlgorithmExecutionStatusFailed {
+		t.Fatalf("requests = %+v", repo.requests)
+	}
+}
+
+func normalizedEvent(eventID string, symbol string, dailyReturn float64, observationTime time.Time) storage.NormalizedEventLedgerRecord {
+	payload, _ := json.Marshal(map[string]any{"symbol": symbol, "features": map[string]any{"daily_return_pct": dailyReturn}})
+	return storage.NormalizedEventLedgerRecord{EventID: eventID, TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", SourceAdapter: "market_data.massive", Dataset: "equity_eod_prices", ObservationTime: observationTime, NormalizedPayload: payload}
+}

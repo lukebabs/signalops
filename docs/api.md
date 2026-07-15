@@ -731,6 +731,8 @@ Returns immutable algorithm result ledger rows. Results include score, confidenc
 
 Returns one algorithm result.
 
+`signalops-algorithm-runner` executes `signalops.algorithms.zscore_anomaly_v1` from the command line. It requires `SIGNALOPS_DATABASE_URL` and `SIGNALOPS_TEMPORAL_DATABASE_URL`, reads bounded normalized events, updates `algorithm_execution_requests`, and writes immutable `algorithm_results`. G107 does not add an API trigger endpoint for execution.
+
 ### Query Errors
 
 - `400 missing_query`: required idempotency lookup parameters are missing.

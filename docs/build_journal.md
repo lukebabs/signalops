@@ -6520,3 +6520,22 @@ Validation performed:
 Result:
 
 - SignalOps now has a generic algorithm registry/result ledger foundation, still intentionally separate from MarketOps-specific DSM detectors. G107 should add the first executable plugin runner around `signalops.algorithms.zscore_anomaly_v1`; no runtime policy deployment, frontend workbench, ML library installation, Syncratic graph ingestion, or signal conversion was added in G106.
+
+## 2026-07-15T02:58:06Z
+
+Summary:
+
+- Implemented G107 as the first executable generic SignalOps algorithm path.
+- Added `internal/algorithms` with bounded z-score execution for `signalops.algorithms.zscore_anomaly_v1`.
+- Added `cmd/algorithm-runner` and Docker target `algorithm-runner`.
+- The runner scans bounded normalized events, computes z-score metrics for one numeric feature, and writes immutable/idempotent `algorithm_results` rows.
+- Execution lifecycle is tracked through `algorithm_execution_requests` from `running` to `succeeded` or `failed`.
+
+Validation performed:
+
+- Docker Go formatting completed for the new runner and CLI files.
+- Focused Docker Go tests passed for `./internal/algorithms` and `./cmd/algorithm-runner`.
+
+Result:
+
+- The algorithm substrate now has a working stdlib z-score execution path. G107 intentionally does not convert algorithm results into signals/artifacts, add a frontend workbench, install external ML libraries, deploy policy, or ingest Syncratic graph/metadata.
