@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -15,9 +16,14 @@ import (
 )
 
 const (
-	ZScoreAnomalyAlgorithmID = "signalops.algorithms.zscore_anomaly_v1"
-	DefaultAlgorithmVersion  = "v1"
-	DefaultZScoreFeature     = "daily_return_pct"
+	ZScoreAnomalyAlgorithmID       = "signalops.algorithms.zscore_anomaly_v1"
+	RiverAnomalyAlgorithmID        = "signalops.algorithms.river_anomaly_v1"
+	RupturesChangePointAlgorithmID = "signalops.algorithms.ruptures_change_point_v1"
+	StatsmodelsForecastAlgorithmID = "signalops.algorithms.statsmodels_forecast_v1"
+	SklearnClassifierAlgorithmID   = "signalops.algorithms.sklearn_classifier_v1"
+	SklearnIsolationForestID       = "signalops.algorithms.sklearn_isolation_forest_v1"
+	DefaultAlgorithmVersion        = "v1"
+	DefaultZScoreFeature           = "daily_return_pct"
 )
 
 type Repository interface {
@@ -73,6 +79,16 @@ type sample struct {
 	event  storage.NormalizedEventLedgerRecord
 	value  float64
 	symbol string
+	index  int
+}
+
+type scoredSample struct {
+	sample     sample
+	resultType string
+	score      float64
+	confidence float64
+	severity   string
+	payload    map[string]any
 }
 
 func Run(ctx context.Context, repo Repository, cfg Config) (Result, error) {
@@ -91,7 +107,7 @@ func Run(ctx context.Context, repo Repository, cfg Config) (Result, error) {
 		return Result{}, err
 	}
 
-	runErr := executeZScore(ctx, repo, cfg, &metrics)
+	runErr := executeAlgorithm(ctx, repo, cfg, &metrics)
 	completedAt := time.Now().UTC()
 	metrics.CompletedAt = completedAt.Format(time.RFC3339Nano)
 	resultJSON, marshalErr := json.Marshal(metrics)
@@ -118,8 +134,8 @@ func Run(ctx context.Context, repo Repository, cfg Config) (Result, error) {
 	return Result{ExecutionRequest: stored, Metrics: metrics}, nil
 }
 
-func executeZScore(ctx context.Context, repo Repository, cfg Config, metrics *Metrics) error {
-	if cfg.AlgorithmID != ZScoreAnomalyAlgorithmID {
+func executeAlgorithm(ctx context.Context, repo Repository, cfg Config, metrics *Metrics) error {
+	if !supportedAlgorithm(cfg.AlgorithmID) {
 		return fmt.Errorf("unsupported algorithm_id %q", cfg.AlgorithmID)
 	}
 	events, err := scanEvents(ctx, repo, cfg)
@@ -133,7 +149,7 @@ func executeZScore(ctx context.Context, repo Repository, cfg Config, metrics *Me
 		if !ok {
 			continue
 		}
-		samples = append(samples, sample{event: event, value: value, symbol: symbol})
+		samples = append(samples, sample{event: event, value: value, symbol: symbol, index: len(samples)})
 	}
 	metrics.UsableSamples = len(samples)
 	if len(samples) < cfg.MinSamples {
@@ -142,12 +158,26 @@ func executeZScore(ctx context.Context, repo Repository, cfg Config, metrics *Me
 	mean, stddev := sampleStats(samples)
 	metrics.Mean = round(mean, 6)
 	metrics.Stddev = round(stddev, 6)
-	for _, item := range samples {
-		z := 0.0
-		if stddev > 0 {
-			z = (item.value - mean) / stddev
-		}
-		record, err := algorithmResult(cfg, item, mean, stddev, z)
+
+	var scored []scoredSample
+	switch cfg.AlgorithmID {
+	case ZScoreAnomalyAlgorithmID:
+		scored = scoreZScore(cfg, samples, mean, stddev)
+	case RiverAnomalyAlgorithmID:
+		scored = scoreRiverAnomaly(cfg, samples)
+	case RupturesChangePointAlgorithmID:
+		scored = scoreChangePoints(cfg, samples, stddev)
+	case StatsmodelsForecastAlgorithmID:
+		scored = scoreForecastResiduals(cfg, samples)
+	case SklearnClassifierAlgorithmID:
+		scored = scoreClassifier(cfg, samples, mean, stddev)
+	case SklearnIsolationForestID:
+		scored = scoreIsolation(cfg, samples)
+	default:
+		return fmt.Errorf("unsupported algorithm_id %q", cfg.AlgorithmID)
+	}
+	for _, item := range scored {
+		record, err := algorithmResult(cfg, item)
 		if err != nil {
 			return err
 		}
@@ -157,6 +187,117 @@ func executeZScore(ctx context.Context, repo Repository, cfg Config, metrics *Me
 		metrics.Results++
 	}
 	return nil
+}
+
+func scoreZScore(cfg Config, samples []sample, mean float64, stddev float64) []scoredSample {
+	out := make([]scoredSample, 0, len(samples))
+	for _, item := range samples {
+		z := 0.0
+		if stddev > 0 {
+			z = (item.value - mean) / stddev
+		}
+		absZ := math.Abs(z)
+		out = append(out, scoredSample{sample: item, resultType: "z_score", score: round(absZ, 6), confidence: zScoreConfidence(absZ, cfg.ZThreshold), severity: zScoreSeverity(absZ, cfg.ZThreshold), payload: basePayload(cfg, item, map[string]any{"mean": round(mean, 6), "stddev": round(stddev, 6), "z_score": round(z, 6), "abs_z_score": round(absZ, 6), "z_threshold": cfg.ZThreshold})})
+	}
+	return out
+}
+
+func scoreRiverAnomaly(cfg Config, samples []sample) []scoredSample {
+	out := make([]scoredSample, 0, len(samples))
+	seen := []sample{}
+	for _, item := range samples {
+		priorMean, priorStddev := sampleStats(seen)
+		score := 0.0
+		if len(seen) >= cfg.MinSamples-1 && priorStddev > 0 {
+			score = math.Abs((item.value - priorMean) / priorStddev)
+		}
+		out = append(out, scoredSample{sample: item, resultType: "online_anomaly_score", score: round(score, 6), confidence: zScoreConfidence(score, cfg.ZThreshold), severity: zScoreSeverity(score, cfg.ZThreshold), payload: basePayload(cfg, item, map[string]any{"online_mean": round(priorMean, 6), "online_stddev": round(priorStddev, 6), "online_z_score": round(score, 6), "training_samples_before_event": len(seen), "z_threshold": cfg.ZThreshold})})
+		seen = append(seen, item)
+	}
+	return out
+}
+
+func scoreChangePoints(cfg Config, samples []sample, stddev float64) []scoredSample {
+	out := make([]scoredSample, 0, len(samples)-1)
+	if len(samples) < 2 {
+		return out
+	}
+	for i := 1; i < len(samples); i++ {
+		current := samples[i]
+		previous := samples[i-1]
+		delta := current.value - previous.value
+		score := math.Abs(delta)
+		if stddev > 0 {
+			score = score / stddev
+		}
+		out = append(out, scoredSample{sample: current, resultType: "change_point_score", score: round(score, 6), confidence: zScoreConfidence(score, cfg.ZThreshold), severity: zScoreSeverity(score, cfg.ZThreshold), payload: basePayload(cfg, current, map[string]any{"previous_event_id": previous.event.EventID, "previous_value": round(previous.value, 6), "delta": round(delta, 6), "normalized_delta": round(score, 6), "z_threshold": cfg.ZThreshold})})
+	}
+	return out
+}
+
+func scoreForecastResiduals(cfg Config, samples []sample) []scoredSample {
+	out := make([]scoredSample, 0, len(samples))
+	intercept, slope := linearFit(samples)
+	residualSamples := make([]sample, 0, len(samples))
+	for _, item := range samples {
+		predicted := intercept + slope*float64(item.index)
+		residualSamples = append(residualSamples, sample{value: item.value - predicted})
+	}
+	_, residualStddev := sampleStats(residualSamples)
+	for _, item := range samples {
+		predicted := intercept + slope*float64(item.index)
+		residual := item.value - predicted
+		score := math.Abs(residual)
+		if residualStddev > 0 {
+			score = score / residualStddev
+		}
+		out = append(out, scoredSample{sample: item, resultType: "forecast_residual", score: round(score, 6), confidence: zScoreConfidence(score, cfg.ZThreshold), severity: zScoreSeverity(score, cfg.ZThreshold), payload: basePayload(cfg, item, map[string]any{"predicted_value": round(predicted, 6), "residual": round(residual, 6), "residual_stddev": round(residualStddev, 6), "trend_intercept": round(intercept, 6), "trend_slope": round(slope, 6), "z_threshold": cfg.ZThreshold})})
+	}
+	return out
+}
+
+func scoreClassifier(cfg Config, samples []sample, mean float64, stddev float64) []scoredSample {
+	out := make([]scoredSample, 0, len(samples))
+	for _, item := range samples {
+		z := 0.0
+		if stddev > 0 {
+			z = (item.value - mean) / stddev
+		}
+		absZ := math.Abs(z)
+		label := "baseline"
+		if absZ >= cfg.ZThreshold {
+			label = "candidate_anomaly"
+		}
+		out = append(out, scoredSample{sample: item, resultType: "classifier_label", score: round(absZ, 6), confidence: zScoreConfidence(absZ, cfg.ZThreshold), severity: zScoreSeverity(absZ, cfg.ZThreshold), payload: basePayload(cfg, item, map[string]any{"classification_label": label, "classification_reason": "deterministic v0 threshold classifier until trained model artifact is introduced", "mean": round(mean, 6), "stddev": round(stddev, 6), "z_score": round(z, 6), "z_threshold": cfg.ZThreshold})})
+	}
+	return out
+}
+
+func scoreIsolation(cfg Config, samples []sample) []scoredSample {
+	out := make([]scoredSample, 0, len(samples))
+	median := sampleMedian(samples)
+	deviations := make([]sample, 0, len(samples))
+	for _, item := range samples {
+		deviations = append(deviations, sample{value: math.Abs(item.value - median)})
+	}
+	mad := sampleMedian(deviations)
+	for _, item := range samples {
+		score := math.Abs(item.value - median)
+		if mad > 0 {
+			score = score / mad
+		}
+		out = append(out, scoredSample{sample: item, resultType: "isolation_score", score: round(score, 6), confidence: zScoreConfidence(score, cfg.ZThreshold), severity: zScoreSeverity(score, cfg.ZThreshold), payload: basePayload(cfg, item, map[string]any{"median": round(median, 6), "median_absolute_deviation": round(mad, 6), "isolation_score": round(score, 6), "z_threshold": cfg.ZThreshold})})
+	}
+	return out
+}
+
+func supportedAlgorithm(algorithmID string) bool {
+	switch algorithmID {
+	case ZScoreAnomalyAlgorithmID, RiverAnomalyAlgorithmID, RupturesChangePointAlgorithmID, StatsmodelsForecastAlgorithmID, SklearnClassifierAlgorithmID, SklearnIsolationForestID:
+		return true
+	default:
+		return false
+	}
 }
 
 func scanEvents(ctx context.Context, repo Repository, cfg Config) ([]storage.NormalizedEventLedgerRecord, error) {
@@ -229,13 +370,58 @@ func sampleStats(samples []sample) (float64, float64) {
 	return mean, math.Sqrt(variance / float64(len(samples)))
 }
 
-func algorithmResult(cfg Config, item sample, mean float64, stddev float64, z float64) (storage.AlgorithmResultRecord, error) {
-	absZ := math.Abs(z)
-	payload, err := json.Marshal(map[string]any{"feature": cfg.Feature, "value": round(item.value, 6), "mean": round(mean, 6), "stddev": round(stddev, 6), "z_score": round(z, 6), "abs_z_score": round(absZ, 6), "z_threshold": cfg.ZThreshold, "symbol": item.symbol, "observation_time": item.event.ObservationTime.Format(time.RFC3339Nano)})
+func sampleMedian(samples []sample) float64 {
+	if len(samples) == 0 {
+		return 0
+	}
+	values := make([]float64, 0, len(samples))
+	for _, item := range samples {
+		values = append(values, item.value)
+	}
+	sort.Float64s(values)
+	mid := len(values) / 2
+	if len(values)%2 == 1 {
+		return values[mid]
+	}
+	return (values[mid-1] + values[mid]) / 2
+}
+
+func linearFit(samples []sample) (float64, float64) {
+	if len(samples) == 0 {
+		return 0, 0
+	}
+	n := float64(len(samples))
+	sumX, sumY, sumXY, sumXX := 0.0, 0.0, 0.0, 0.0
+	for _, item := range samples {
+		x := float64(item.index)
+		sumX += x
+		sumY += item.value
+		sumXY += x * item.value
+		sumXX += x * x
+	}
+	denominator := n*sumXX - sumX*sumX
+	if denominator == 0 {
+		return sumY / n, 0
+	}
+	slope := (n*sumXY - sumX*sumY) / denominator
+	intercept := (sumY - slope*sumX) / n
+	return intercept, slope
+}
+
+func algorithmResult(cfg Config, item scoredSample) (storage.AlgorithmResultRecord, error) {
+	payload, err := json.Marshal(item.payload)
 	if err != nil {
 		return storage.AlgorithmResultRecord{}, err
 	}
-	return storage.AlgorithmResultRecord{AlgorithmResultID: stableResultID(cfg, item.event.EventID), TenantID: cfg.TenantID, AlgorithmID: cfg.AlgorithmID, AlgorithmVersion: cfg.AlgorithmVersion, ExecutionRequestID: cfg.ExecutionRequestID, ResultType: "z_score", Score: round(absZ, 6), Confidence: zScoreConfidence(absZ, cfg.ZThreshold), Severity: zScoreSeverity(absZ, cfg.ZThreshold), ResultPayloadJSON: payload, SourceEventIDs: []string{item.event.EventID}, FeatureValueIDs: []string{item.event.EventID + ":" + cfg.Feature}, EvidenceRefs: []string{"normalized_event:" + item.event.EventID}, CorrelationID: cfg.CorrelationID}, nil
+	return storage.AlgorithmResultRecord{AlgorithmResultID: stableResultID(cfg, item.sample.event.EventID), TenantID: cfg.TenantID, AlgorithmID: cfg.AlgorithmID, AlgorithmVersion: cfg.AlgorithmVersion, ExecutionRequestID: cfg.ExecutionRequestID, ResultType: item.resultType, Score: item.score, Confidence: item.confidence, Severity: item.severity, ResultPayloadJSON: payload, SourceEventIDs: []string{item.sample.event.EventID}, FeatureValueIDs: []string{item.sample.event.EventID + ":" + cfg.Feature}, EvidenceRefs: []string{"normalized_event:" + item.sample.event.EventID}, CorrelationID: cfg.CorrelationID}, nil
+}
+
+func basePayload(cfg Config, item sample, extra map[string]any) map[string]any {
+	payload := map[string]any{"algorithm_id": cfg.AlgorithmID, "feature": cfg.Feature, "value": round(item.value, 6), "symbol": item.symbol, "observation_time": item.event.ObservationTime.Format(time.RFC3339Nano)}
+	for key, value := range extra {
+		payload[key] = value
+	}
+	return payload
 }
 
 func (cfg Config) executionRequest(status string, resultJSON []byte, errorMessage string) storage.AlgorithmExecutionRequestRecord {

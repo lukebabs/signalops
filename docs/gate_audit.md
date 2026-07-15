@@ -7764,3 +7764,59 @@ Validation performed:
 Result:
 
 - G109 is closed. The G106-G109 algorithm visibility path is implemented, deployed locally, and browser-validated.
+
+## Gate G110: Algorithm Adapter Pack v0
+
+Timestamp: `2026-07-15T20:54:51Z`
+
+Status: `implemented - all seeded algorithm ids executable through deterministic v0 adapters`
+
+Scope:
+
+- Extend the G107 runner to support all six G106 seeded algorithm ids.
+- Keep execution bounded, deterministic, dependency-free, and result-ledger-only.
+- Preserve normalized-event and feature lineage in `algorithm_results`.
+
+Validation performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/algorithms -count=1` passed.
+
+Out of scope:
+
+- External ML libraries, trained model artifacts, hyperparameter tuning, signal conversion, frontend changes, policy deployment, and Syncratic integration.
+
+Result:
+
+- The algorithm substrate can now execute every seeded algorithm id at v0 fidelity. Library-faithful implementations remain follow-on calibration work.
+
+## Gate G111: Algorithm Result To Signal Proposal Design
+
+Timestamp: `2026-07-15T20:54:51Z`
+
+Status: `proposed - design only`
+
+Scope:
+
+- Define a future proposal-ledger path from `algorithm_results` to candidate signal materialization.
+- Preserve explainability, lineage, operator review, and duplicate-control boundaries.
+- Keep production signal writes, alerts, insights, graph proposals, and frontend implementation out of scope.
+
+Result:
+
+- G111 is ready for review. Recommended next implementation is a read-only proposal ledger/API, not direct signal materialization.
+
+## Gate G110 Live Smoke
+
+Timestamp: `2026-07-15T20:56:59Z`
+
+Status: `validated - change-point adapter live smoke passed`
+
+Validation performed:
+
+- Ran `signalops.algorithms.ruptures_change_point_v1` with `open_close_move_pct` for AAPL over `2026-07-09T00:00:00Z/2026-07-14T00:00:00Z`.
+- Execution request `algexec-g110-ruptures-aapl-openclose` persisted with `status=succeeded`, `scanned=3`, `usable_samples=3`, and `results=2`.
+- Result rows persisted as `change_point_score` with severities `critical` and `info`.
+
+Result:
+
+- G110 has both unit coverage for every seeded adapter and live persistence validation for a newly added adapter.

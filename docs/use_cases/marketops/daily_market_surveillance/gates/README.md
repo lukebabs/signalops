@@ -161,3 +161,13 @@ Recommended next gate:
 
 - G109: read-only algorithm execution visibility UI for definitions, execution requests, summaries, result rows, and result lineage.
 - Specification: `G109_algorithm_execution_visibility_ui.md`.
+
+## G110 Implemented
+
+- G110: deterministic v0 runner adapters for every seeded G106 algorithm id, all writing `algorithm_results`.
+- Specification: `G110_algorithm_adapter_pack_v0.md`.
+
+## G111 Proposed
+
+- G111: design for converting `algorithm_results` into reviewed signal proposals without direct production signal writes.
+- Specification: `G111_algorithm_result_signal_proposal_design.md`.

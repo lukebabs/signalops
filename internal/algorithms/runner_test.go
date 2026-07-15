@@ -152,3 +152,51 @@ func normalizedEvent(eventID string, symbol string, dailyReturn float64, observa
 	payload, _ := json.Marshal(map[string]any{"symbol": symbol, "features": map[string]any{"daily_return_pct": dailyReturn}})
 	return storage.NormalizedEventLedgerRecord{EventID: eventID, TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", SourceAdapter: "market_data.massive", Dataset: "equity_eod_prices", ObservationTime: observationTime, NormalizedPayload: payload}
 }
+
+func TestRunAdditionalAlgorithmAdaptersWriteResults(t *testing.T) {
+	now := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name       string
+		algorithm  string
+		resultType string
+		wantCount  int
+	}{
+		{name: "river", algorithm: RiverAnomalyAlgorithmID, resultType: "online_anomaly_score", wantCount: 4},
+		{name: "ruptures", algorithm: RupturesChangePointAlgorithmID, resultType: "change_point_score", wantCount: 3},
+		{name: "statsmodels", algorithm: StatsmodelsForecastAlgorithmID, resultType: "forecast_residual", wantCount: 4},
+		{name: "sklearn classifier", algorithm: SklearnClassifierAlgorithmID, resultType: "classifier_label", wantCount: 4},
+		{name: "sklearn isolation", algorithm: SklearnIsolationForestID, resultType: "isolation_score", wantCount: 4},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeAlgorithmRepository{events: []storage.NormalizedEventLedgerRecord{
+				normalizedFeatureEvent("evt-1", "AAPL", "open_close_move_pct", 1, now),
+				normalizedFeatureEvent("evt-2", "AAPL", "open_close_move_pct", 1.2, now.Add(time.Hour)),
+				normalizedFeatureEvent("evt-3", "AAPL", "open_close_move_pct", 1.1, now.Add(2*time.Hour)),
+				normalizedFeatureEvent("evt-4", "AAPL", "open_close_move_pct", 7.5, now.Add(3*time.Hour)),
+			}}
+			result, err := Run(context.Background(), repo, Config{ExecutionRequestID: "algexec-" + tc.name, TenantID: "tenant-local", AlgorithmID: tc.algorithm, Feature: "open_close_move_pct", Symbols: []string{"AAPL"}, WindowStart: now.Add(-time.Hour), WindowEnd: now.Add(24 * time.Hour), MaxRecords: 10, BatchSize: 3, ZThreshold: 1, MinSamples: 3})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.ExecutionRequest.Status != storage.AlgorithmExecutionStatusSucceeded || result.Metrics.Results != tc.wantCount || len(repo.results) != tc.wantCount {
+				t.Fatalf("metrics=%+v requests=%+v results=%d", result.Metrics, repo.requests, len(repo.results))
+			}
+			if repo.results[0].AlgorithmID != tc.algorithm || repo.results[0].ResultType != tc.resultType {
+				t.Fatalf("result = %+v", repo.results[0])
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(repo.results[len(repo.results)-1].ResultPayloadJSON, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["algorithm_id"] != tc.algorithm || payload["feature"] != "open_close_move_pct" || payload["symbol"] != "AAPL" {
+				t.Fatalf("payload = %#v", payload)
+			}
+		})
+	}
+}
+
+func normalizedFeatureEvent(eventID string, symbol string, feature string, value float64, observationTime time.Time) storage.NormalizedEventLedgerRecord {
+	payload, _ := json.Marshal(map[string]any{"symbol": symbol, "features": map[string]any{feature: value}})
+	return storage.NormalizedEventLedgerRecord{EventID: eventID, TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", SourceAdapter: "market_data.massive", Dataset: "equity_eod_prices", ObservationTime: observationTime, NormalizedPayload: payload}
+}

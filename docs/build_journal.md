@@ -6610,3 +6610,36 @@ Validation performed:
 Result:
 
 - G109 is closed from implementation through browser validation. The algorithm layer is now visible end to end without adding execution, tuning, deployment, or conversion controls.
+
+## 2026-07-15T20:54:51Z
+
+Summary:
+
+- Implemented G110 as a deterministic v0 adapter pack for all six seeded G106 algorithm ids.
+- Extended `signalops-algorithm-runner` beyond z-score to support online anomaly, change-point, forecast residual, threshold classifier, and isolation-style scoring modes.
+- Kept all adapters on the existing bounded normalized-event input path and immutable `algorithm_results` output path.
+- Added G111 design documentation for future `algorithm_result` to signal-proposal conversion.
+
+Validation performed:
+
+- Focused Docker Go tests passed for `./internal/algorithms`.
+
+Result:
+
+- The seeded algorithm IDs are now executable through the runner contract without adding external ML dependencies. Result-to-signal conversion remains design-only and should proceed through a proposal ledger before any production signal writes.
+
+## 2026-07-15T20:56:59Z
+
+Summary:
+
+- Ran live smoke validation for the G110 change-point adapter after the full unit/schema/build validation set passed.
+- Used bounded AAPL equity normalized rows and the `open_close_move_pct` feature.
+
+Validation performed:
+
+- `algexec-g110-ruptures-aapl-openclose` completed with `scanned=3`, `usable_samples=3`, and `results=2`.
+- Direct Postgres check confirmed two `algorithm_results` rows with `result_type=change_point_score` and severity counts `critical=1`, `info=1`.
+
+Result:
+
+- At least one newly added non-z-score adapter is live-validated through the same runner and result-ledger path as G107.
