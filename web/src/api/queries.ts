@@ -42,6 +42,9 @@ import type {
   SyncraticMaterializationResponse,
   SyncraticAskRequest,
   SyncraticAskResponse,
+  AlgorithmDefinitionFilter,
+  AlgorithmExecutionRequestFilter,
+  AlgorithmResultFilter,
 } from '../types';
 
 export const queryKeys = {
@@ -108,6 +111,18 @@ export const queryKeys = {
     ['syncratic-context-windows', filter] as const,
   syncraticContextWindow: (contextWindowId: string) =>
     ['syncratic-context-window', contextWindowId] as const,
+  algorithmDefinitions: (filter: AlgorithmDefinitionFilter) => ['algorithm-definitions', filter] as const,
+  algorithmDefinition: (algorithmId: string, tenantId: string) =>
+    ['algorithm-definition', algorithmId, tenantId] as const,
+  algorithmExecutionRequests: (filter: AlgorithmExecutionRequestFilter) =>
+    ['algorithm-execution-requests', filter] as const,
+  algorithmExecutionRequest: (executionRequestId: string, tenantId: string) =>
+    ['algorithm-execution-request', executionRequestId, tenantId] as const,
+  algorithmExecutionSummary: (executionRequestId: string, tenantId: string, limit: number) =>
+    ['algorithm-execution-summary', executionRequestId, tenantId, limit] as const,
+  algorithmResults: (filter: AlgorithmResultFilter) => ['algorithm-results', filter] as const,
+  algorithmResult: (algorithmResultId: string, tenantId: string) =>
+    ['algorithm-result', algorithmResultId, tenantId] as const,
 };
 
 export function useHealthz() {
@@ -815,5 +830,64 @@ export function useAskSyncraticContextWindow() {
     mutationFn: (vars: { contextWindowId: string; request: SyncraticAskRequest }) =>
       api.askSyncraticContextWindow(vars.contextWindowId, vars.request),
     onSuccess: (data) => applySyncraticAskResult(queryClient, data),
+  });
+}
+
+// G109 algorithm execution visibility (read-only). Lists/detail only run while
+// their selector is truthy; the summary is scoped to a selected execution request.
+// No mutations, polling, or automatic execution.
+export function useAlgorithmDefinitions(filter: AlgorithmDefinitionFilter = { tenant_id: 'tenant-local' }) {
+  return useQuery({
+    queryKey: queryKeys.algorithmDefinitions(filter),
+    queryFn: () => api.listAlgorithmDefinitions(filter),
+  });
+}
+
+export function useAlgorithmDefinition(algorithmId: string | null, tenantId: string = 'tenant-local') {
+  return useQuery({
+    queryKey: queryKeys.algorithmDefinition(algorithmId ?? '', tenantId),
+    queryFn: () => api.getAlgorithmDefinition(algorithmId!, tenantId),
+    enabled: !!algorithmId,
+  });
+}
+
+export function useAlgorithmExecutionRequests(filter: AlgorithmExecutionRequestFilter = { tenant_id: 'tenant-local' }) {
+  return useQuery({
+    queryKey: queryKeys.algorithmExecutionRequests(filter),
+    queryFn: () => api.listAlgorithmExecutionRequests(filter),
+    // The visibility workflow drills from a selected algorithm; do not fetch the
+    // unfiltered execution-request universe before one is chosen.
+    enabled: !!filter.algorithm_id,
+  });
+}
+
+export function useAlgorithmExecutionRequest(executionRequestId: string | null, tenantId: string = 'tenant-local') {
+  return useQuery({
+    queryKey: queryKeys.algorithmExecutionRequest(executionRequestId ?? '', tenantId),
+    queryFn: () => api.getAlgorithmExecutionRequest(executionRequestId!, tenantId),
+    enabled: !!executionRequestId,
+  });
+}
+
+export function useAlgorithmExecutionSummary(executionRequestId: string | null, tenantId: string = 'tenant-local', limit = 10) {
+  return useQuery({
+    queryKey: queryKeys.algorithmExecutionSummary(executionRequestId ?? '', tenantId, limit),
+    queryFn: () => api.getAlgorithmExecutionSummary(executionRequestId!, tenantId, limit),
+    enabled: !!executionRequestId,
+  });
+}
+
+export function useAlgorithmResults(filter: AlgorithmResultFilter = { tenant_id: 'tenant-local' }) {
+  return useQuery({
+    queryKey: queryKeys.algorithmResults(filter),
+    queryFn: () => api.listAlgorithmResults(filter),
+  });
+}
+
+export function useAlgorithmResult(algorithmResultId: string | null, tenantId: string = 'tenant-local') {
+  return useQuery({
+    queryKey: queryKeys.algorithmResult(algorithmResultId ?? '', tenantId),
+    queryFn: () => api.getAlgorithmResult(algorithmResultId!, tenantId),
+    enabled: !!algorithmResultId,
   });
 }

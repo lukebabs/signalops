@@ -121,4 +121,20 @@ describe('navForApp (G067)', () => {
     expect(navForApp('console').some((n) => n.to === '/marketops/backtests')).toBe(false);
     expect(navForApp('console').map((n) => n.label)).not.toContain('Back-Tests');
   });
+
+  it('exposes the MarketOps algorithms route only under marketops (G109)', () => {
+    const algorithms = navForApp('marketops').find((n) => n.module === 'algorithms');
+    expect(algorithms).toBeDefined();
+    expect(algorithms?.to).toBe('/marketops/algorithms');
+    expect(algorithms?.label).toBe('Algorithms');
+    // Sits in the operator/evidence area alongside Syncratic.
+    const marketopsNav = navForApp('marketops');
+    const syncraticIndex = marketopsNav.findIndex((n) => n.module === 'syncratic');
+    const algorithmsIndex = marketopsNav.findIndex((n) => n.module === 'algorithms');
+    expect(syncraticIndex).toBeGreaterThanOrEqual(0);
+    expect(algorithmsIndex).toBeGreaterThan(syncraticIndex);
+    // Console parity: algorithms never appear in console nav.
+    expect(navForApp('console').some((n) => n.to === '/marketops/algorithms')).toBe(false);
+    expect(navForApp('console').map((n) => n.label)).not.toContain('Algorithms');
+  });
 });

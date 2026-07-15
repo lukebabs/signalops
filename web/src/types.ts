@@ -1512,3 +1512,122 @@ export interface SyncraticAskResponse {
   ask_result: SyncraticAskResult;
   syncratic_insight: SyncraticInsight;
 }
+
+// G109 algorithm execution visibility (read-only). Mirrors the gateway DTOs in
+// internal/api/algorithms.go. Flexible JSON fields (output_schema, config_schema,
+// default_config, metadata, config, result, result_payload) arrive already-parsed
+// from the gateway and are typed `unknown`; render via JsonViewer, never JSON.parse.
+// status/severity/result_type/runtime_type are permissive (| string) so unknown
+// future tokens render in a neutral style instead of failing.
+export interface AlgorithmDefinition {
+  algorithm_id: string;
+  tenant_id: string;
+  name: string;
+  description: string;
+  algorithm_type: string;
+  runtime_type: string;
+  input_features: string[];
+  input_event_types: string[];
+  output_schema: unknown;
+  config_schema: unknown;
+  default_config: unknown;
+  version: string;
+  status: string;
+  metadata: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlgorithmExecutionRequest {
+  execution_request_id: string;
+  tenant_id: string;
+  algorithm_id: string;
+  algorithm_version: string;
+  event_ids: string[];
+  feature_refs: string[];
+  entity_refs: string[];
+  window_ref: string;
+  config: unknown;
+  correlation_id: string;
+  status: string;
+  requested_by: string;
+  result: unknown;
+  error_message: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlgorithmResult {
+  algorithm_result_id: string;
+  tenant_id: string;
+  algorithm_id: string;
+  algorithm_version: string;
+  execution_request_id: string;
+  result_type: string;
+  score: number;
+  confidence: number;
+  severity: string;
+  result_payload: unknown;
+  source_event_ids: string[];
+  feature_value_ids: string[];
+  evidence_refs: string[];
+  correlation_id: string;
+  created_at: string;
+}
+
+export interface AlgorithmExecutionSummary {
+  execution_request: AlgorithmExecutionRequest;
+  result_count: number;
+  severity_counts: Record<string, number>;
+  max_score: number;
+  max_confidence: number;
+  top_results: AlgorithmResult[];
+}
+
+export interface AlgorithmDefinitionFilter {
+  tenant_id?: string;
+  algorithm_type?: string;
+  runtime_type?: string;
+  status?: string;
+  limit?: number;
+}
+
+export interface AlgorithmExecutionRequestFilter {
+  tenant_id?: string;
+  algorithm_id?: string;
+  status?: string;
+  correlation_id?: string;
+  limit?: number;
+}
+
+export interface AlgorithmResultFilter {
+  tenant_id?: string;
+  algorithm_id?: string;
+  execution_request_id?: string;
+  result_type?: string;
+  severity?: string;
+  correlation_id?: string;
+  limit?: number;
+}
+
+export interface AlgorithmDefinitionsResponse {
+  algorithm_definitions: AlgorithmDefinition[];
+}
+export interface AlgorithmDefinitionResponse {
+  algorithm_definition: AlgorithmDefinition;
+}
+export interface AlgorithmExecutionRequestsResponse {
+  algorithm_execution_requests: AlgorithmExecutionRequest[];
+}
+export interface AlgorithmExecutionRequestResponse {
+  algorithm_execution_request: AlgorithmExecutionRequest;
+}
+export interface AlgorithmExecutionSummaryResponse {
+  algorithm_execution_summary: AlgorithmExecutionSummary;
+}
+export interface AlgorithmResultsResponse {
+  algorithm_results: AlgorithmResult[];
+}
+export interface AlgorithmResultResponse {
+  algorithm_result: AlgorithmResult;
+}

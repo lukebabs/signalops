@@ -80,6 +80,16 @@ import type {
   SyncraticMaterializeRequest,
   SyncraticAskRequest,
   SyncraticAskResponse,
+  AlgorithmDefinitionFilter,
+  AlgorithmDefinitionsResponse,
+  AlgorithmDefinitionResponse,
+  AlgorithmExecutionRequestFilter,
+  AlgorithmExecutionRequestsResponse,
+  AlgorithmExecutionRequestResponse,
+  AlgorithmExecutionSummaryResponse,
+  AlgorithmResultFilter,
+  AlgorithmResultsResponse,
+  AlgorithmResultResponse,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -573,5 +583,56 @@ export const api = {
     post<SyncraticAskResponse>(
       `/v1/syncratic/context-windows/${encodeURIComponent(contextWindowId)}/ask`,
       request,
+    ),
+  // G109 algorithm execution visibility (read-only). Same authenticated
+  // same-origin GET pattern; tenant_id is required by the gateway (it 400s with
+  // invalid_algorithm_filter when absent), so it defaults to tenant-local like
+  // the other list endpoints. Flexible JSON fields arrive already-parsed.
+  listAlgorithmDefinitions: (filter: AlgorithmDefinitionFilter = { tenant_id: 'tenant-local' }) =>
+    get<AlgorithmDefinitionsResponse>('/v1/algorithms/definitions', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      algorithm_type: filter.algorithm_type || undefined,
+      runtime_type: filter.runtime_type || undefined,
+      status: filter.status || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getAlgorithmDefinition: (algorithmId: string, tenantId: string = 'tenant-local') =>
+    get<AlgorithmDefinitionResponse>(
+      `/v1/algorithms/definitions/${encodeURIComponent(algorithmId)}`,
+      { tenant_id: tenantId },
+    ),
+  listAlgorithmExecutionRequests: (filter: AlgorithmExecutionRequestFilter = { tenant_id: 'tenant-local' }) =>
+    get<AlgorithmExecutionRequestsResponse>('/v1/algorithms/execution-requests', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      algorithm_id: filter.algorithm_id || undefined,
+      status: filter.status || undefined,
+      correlation_id: filter.correlation_id || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getAlgorithmExecutionRequest: (executionRequestId: string, tenantId: string = 'tenant-local') =>
+    get<AlgorithmExecutionRequestResponse>(
+      `/v1/algorithms/execution-requests/${encodeURIComponent(executionRequestId)}`,
+      { tenant_id: tenantId },
+    ),
+  // limit defaults to 10 (the backend's summary top-results cap).
+  getAlgorithmExecutionSummary: (executionRequestId: string, tenantId: string = 'tenant-local', limit = 10) =>
+    get<AlgorithmExecutionSummaryResponse>(
+      `/v1/algorithms/execution-requests/${encodeURIComponent(executionRequestId)}/summary`,
+      { tenant_id: tenantId, limit },
+    ),
+  listAlgorithmResults: (filter: AlgorithmResultFilter = { tenant_id: 'tenant-local' }) =>
+    get<AlgorithmResultsResponse>('/v1/algorithms/results', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      algorithm_id: filter.algorithm_id || undefined,
+      execution_request_id: filter.execution_request_id || undefined,
+      result_type: filter.result_type || undefined,
+      severity: filter.severity || undefined,
+      correlation_id: filter.correlation_id || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getAlgorithmResult: (algorithmResultId: string, tenantId: string = 'tenant-local') =>
+    get<AlgorithmResultResponse>(
+      `/v1/algorithms/results/${encodeURIComponent(algorithmResultId)}`,
+      { tenant_id: tenantId },
     ),
 };
