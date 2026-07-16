@@ -6845,3 +6845,36 @@ Summary:
 Result:
 
 - Frontend-agent can add the materialize action without expanding the G122 backend contract.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Completed the positive authenticated G122 materialization smoke through the local SignalOps gateway on `localhost:18000`.
+- Generated the bearer token in memory from configured `SO_*` client credentials; token material and secrets were not printed or committed.
+- Verified one reviewed proposal, one eligible preflight item, one first materialization write, idempotent retry behavior, and one materialization ledger row for the proposal.
+
+Validation result:
+
+- `GET /v1/algorithms/signal-proposals`: HTTP `200`, reviewed proposals `1`.
+- `GET /v1/algorithms/signal-proposals/materialization-preflight`: HTTP `200`, eligible count `1`, would-write count `1`.
+- First `POST /v1/algorithms/signal-proposals/{proposal_id}/materializations`: HTTP `201`, status `succeeded`, signal id `sig_alg_358720b0b5a6a0a4db8709b7`.
+- Retry `POST /v1/algorithms/signal-proposals/{proposal_id}/materializations`: HTTP `200`, same materialization id `algmat_358720b0b5a6a0a4db8709b7`.
+- `GET /v1/algorithms/signal-materializations`: HTTP `200`, ledger rows for proposal `1`.
+
+Result:
+
+- G122 is live-validated end to end with auth, preflight, materialization write, idempotent retry, and ledger read.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Wrote G124 algorithm materialized signal lifecycle policy decision.
+- Recorded the decision to keep G122 signal-ledger-only for now.
+- Recommended a future separate lifecycle policy processor for alerts, insights, graph proposals, and Syncratic reasoning rather than direct fanout inside the materialization POST route.
+- Preserved a clear distinction between proposal review, materialization audit, canonical signal storage, event-level alerts, synthesized insights, graph proposals, and reasoning context windows.
+
+Result:
+
+- The materialized algorithm signal lifecycle boundary is documented without expanding runtime behavior.

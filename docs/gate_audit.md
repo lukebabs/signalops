@@ -8151,3 +8151,44 @@ Scope:
 Result:
 
 - Specification saved at `docs/frontend/algorithm_signal_materialization_action_ui_spec.md`.
+
+## Gate G122: Positive Authenticated Materialization Smoke
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `validated - positive authenticated smoke passed`
+
+Validation performed:
+
+- Generated a short-lived bearer token in memory from configured `SO_*` client credentials without printing or committing token material.
+- Called the local SignalOps gateway on `localhost:18000`.
+- Confirmed reviewed proposal count `1`.
+- Confirmed preflight eligible count `1` and would-write count `1`.
+- First materialization POST returned HTTP `201`, status `succeeded`, materialization id `algmat_358720b0b5a6a0a4db8709b7`, signal id `sig_alg_358720b0b5a6a0a4db8709b7`.
+- Retry POST returned HTTP `200` with the same materialization id.
+- Materialization ledger list returned HTTP `200` with one row for the proposal.
+
+Result:
+
+- G122 positive auth path is validated end to end.
+
+## Gate G124: Algorithm Materialized Signal Lifecycle Policy
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `proposed - lifecycle decision recorded`
+
+Scope:
+
+- Decide whether G122 materialization should directly create alerts, insights, graph proposals, or Syncratic reasoning artifacts.
+- Preserve G122 as a narrow production signal write.
+- Define the recommended future lifecycle policy boundary.
+
+Decision:
+
+- Keep G122 signal-ledger-only.
+- Defer alert, insight, graph, and Syncratic fanout to a separate audited lifecycle policy gate.
+
+Result:
+
+- Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G124_algorithm_materialized_signal_lifecycle_policy.md`.

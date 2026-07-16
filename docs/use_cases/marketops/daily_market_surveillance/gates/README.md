@@ -231,3 +231,8 @@ Recommended next gate:
 
 - G123: frontend-agent specification for single-proposal algorithm signal materialization action UI over the G122 API.
 - Specification: `G123_algorithm_signal_materialization_action_ui_spec.md`.
+
+## G124 Proposed
+
+- G124: lifecycle policy decision for production signals created by algorithm proposal materialization; keep G122 signal-ledger-only and defer alert/insight/graph/Syncratic fanout to a separate audited policy gate.
+- Specification: `G124_algorithm_materialized_signal_lifecycle_policy.md`.
