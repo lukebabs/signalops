@@ -8087,3 +8087,24 @@ Scope:
 Result:
 
 - G120 recommends G121 for storage/read APIs first, then G122 for single-proposal signal materialization mutation.
+
+## Gate G121: Algorithm Signal Materialization Ledger Reads
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `implemented - storage and read-only APIs`
+
+Scope:
+
+- Add `algorithm_signal_materializations` migration.
+- Add storage record/filter and Postgres list/detail methods.
+- Add read-only API routes for materialization list/detail.
+- Preserve the no-materialization boundary.
+
+Validation performed:
+
+- Focused Go tests passed for API, storage/postgres, algorithms, and algorithm proposal packages.
+
+Result:
+
+- The materialization ledger can be queried before any future write-path gate creates rows or production signals.

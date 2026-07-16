@@ -1735,6 +1735,42 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"algorithm_result": algorithmResultResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/algorithms/signal-materializations", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		records, err := repo.ListAlgorithmSignalMaterializations(r.Context(), storage.AlgorithmSignalMaterializationFilter{TenantID: tenantID, ProposalID: strings.TrimSpace(r.URL.Query().Get("proposal_id")), AlgorithmResultID: strings.TrimSpace(r.URL.Query().Get("algorithm_result_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), MaterializationStatus: strings.TrimSpace(r.URL.Query().Get("status")), SignalID: strings.TrimSpace(r.URL.Query().Get("signal_id")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list algorithm signal materializations")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_materializations": algorithmSignalMaterializationResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/algorithms/signal-materializations/{materialization_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		record, err := repo.GetAlgorithmSignalMaterialization(r.Context(), tenantID, r.PathValue("materialization_id"))
+		if err != nil {
+			writeQueryError(w, err, "algorithm_signal_materialization_not_found", "Algorithm signal materialization not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_materialization": algorithmSignalMaterializationResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/algorithms/signal-proposals/summary", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

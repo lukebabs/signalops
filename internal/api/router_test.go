@@ -72,70 +72,72 @@ func (p *fakePublishRepository) PersistPublishedRawEvent(_ context.Context, ledg
 }
 
 type fakeQueryRepository struct {
-	runs                           []storage.SchedulerRunRecord
-	replayJobs                     []storage.ReplayJobRecord
-	replayCounts                   []storage.ReplayJobStatusCount
-	replayWorkers                  []storage.ReplayWorkerHeartbeatRecord
-	lastReplayFilter               storage.ReplayJobFilter
-	usage                          []storage.ProviderUsageRecord
-	rawEvents                      []storage.RawEventLedgerRecord
-	idem                           storage.IdempotencyRecord
-	sources                        []storage.CatalogSourceRecord
-	pipelines                      []storage.CatalogPipelineRecord
-	rules                          []storage.CatalogRuleRecord
-	marketOpsAssets                []storage.MarketOpsAssetRecord
-	dsmArtifacts                   []storage.MarketOpsDSMArtifactRecord
-	dsmGraphProposals              []storage.MarketOpsDSMGraphProposalRecord
-	backtestRuns                   []storage.MarketOpsBacktestRunRecord
-	backtestCoverage               []storage.MarketOpsBacktestCoverageRecord
-	backtestCampaigns              []storage.MarketOpsBacktestCampaignRecord
-	backtestSignals                []storage.MarketOpsBacktestSignalRecord
-	backtestGraphProposals         []storage.MarketOpsBacktestGraphProposalRecord
-	backtestPolicyResults          []storage.MarketOpsBacktestPolicyResultRecord
-	backtestCalibrationSummaries   []storage.MarketOpsBacktestCalibrationSummaryRecord
-	backtestCalibrationBaselines   []storage.MarketOpsBacktestCalibrationBaselineRecord
-	backtestCalibrationComparisons []storage.MarketOpsBacktestCalibrationComparisonRecord
-	backtestEvaluationLabels       []storage.MarketOpsBacktestEvaluationLabelRecord
-	backtestEvaluations            []storage.MarketOpsBacktestEvaluationRecord
-	backtestPromotionCandidates    []storage.MarketOpsBacktestPromotionCandidateRecord
-	backtestCalibrationReadiness   []storage.MarketOpsBacktestCalibrationReadinessRecord
-	syncraticContextWindows        []storage.SyncraticContextWindowRecord
-	syncraticInsights              []storage.SyncraticInsightRecord
-	algorithmDefinitions           []storage.AlgorithmDefinitionRecord
-	algorithmExecutionRequests     []storage.AlgorithmExecutionRequestRecord
-	algorithmResults               []storage.AlgorithmResultRecord
-	algorithmSignalProposals       []storage.AlgorithmSignalProposalRecord
-	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
-	lastBacktestCoverageFilter     storage.MarketOpsBacktestCoverageFilter
-	lastBacktestCampaignFilter     storage.MarketOpsBacktestCampaignFilter
-	lastBacktestSignalFilter       storage.MarketOpsBacktestSignalFilter
-	lastBacktestGraphFilter        storage.MarketOpsBacktestGraphProposalFilter
-	lastBacktestCalibrationFilter  storage.MarketOpsBacktestCalibrationSummaryFilter
-	lastBacktestBaselineFilter     storage.MarketOpsBacktestCalibrationBaselineFilter
-	lastBacktestComparisonFilter   storage.MarketOpsBacktestCalibrationComparisonFilter
-	lastEvaluationLabelFilter      storage.MarketOpsBacktestEvaluationLabelFilter
-	lastBacktestEvaluationFilter   storage.MarketOpsBacktestEvaluationFilter
-	lastBacktestPromotionFilter    storage.MarketOpsBacktestPromotionCandidateFilter
-	lastBacktestReadinessFilter    storage.MarketOpsBacktestCalibrationReadinessFilter
-	lastAlgorithmDefinitionFilter  storage.AlgorithmDefinitionFilter
-	lastAlgorithmExecutionFilter   storage.AlgorithmExecutionRequestFilter
-	lastAlgorithmResultFilter      storage.AlgorithmResultFilter
-	lastAlgorithmProposalFilter    storage.AlgorithmSignalProposalFilter
-	lastAlgorithmSummaryFilter     storage.AlgorithmSignalProposalFilter
-	lastAlgorithmProposalMutation  storage.AlgorithmSignalProposalMutation
-	lastDSMFilter                  storage.MarketOpsDSMArtifactFilter
-	lastGraphProposalFilter        storage.MarketOpsDSMGraphProposalFilter
-	lastGraphProposalMutation      storage.MarketOpsDSMGraphProposalMutation
-	lastUniverseGroup              string
-	lastActiveOnly                 bool
-	signals                        []storage.SignalLedgerRecord
-	alerts                         []storage.AlertLedgerRecord
-	insights                       []storage.InsightLedgerRecord
-	notFound                       bool
-	lastFilter                     storage.RawEventLedgerFilter
-	schedulerQueries               int
-	rawEventQueries                int
-	usageQueries                   int
+	runs                               []storage.SchedulerRunRecord
+	replayJobs                         []storage.ReplayJobRecord
+	replayCounts                       []storage.ReplayJobStatusCount
+	replayWorkers                      []storage.ReplayWorkerHeartbeatRecord
+	lastReplayFilter                   storage.ReplayJobFilter
+	usage                              []storage.ProviderUsageRecord
+	rawEvents                          []storage.RawEventLedgerRecord
+	idem                               storage.IdempotencyRecord
+	sources                            []storage.CatalogSourceRecord
+	pipelines                          []storage.CatalogPipelineRecord
+	rules                              []storage.CatalogRuleRecord
+	marketOpsAssets                    []storage.MarketOpsAssetRecord
+	dsmArtifacts                       []storage.MarketOpsDSMArtifactRecord
+	dsmGraphProposals                  []storage.MarketOpsDSMGraphProposalRecord
+	backtestRuns                       []storage.MarketOpsBacktestRunRecord
+	backtestCoverage                   []storage.MarketOpsBacktestCoverageRecord
+	backtestCampaigns                  []storage.MarketOpsBacktestCampaignRecord
+	backtestSignals                    []storage.MarketOpsBacktestSignalRecord
+	backtestGraphProposals             []storage.MarketOpsBacktestGraphProposalRecord
+	backtestPolicyResults              []storage.MarketOpsBacktestPolicyResultRecord
+	backtestCalibrationSummaries       []storage.MarketOpsBacktestCalibrationSummaryRecord
+	backtestCalibrationBaselines       []storage.MarketOpsBacktestCalibrationBaselineRecord
+	backtestCalibrationComparisons     []storage.MarketOpsBacktestCalibrationComparisonRecord
+	backtestEvaluationLabels           []storage.MarketOpsBacktestEvaluationLabelRecord
+	backtestEvaluations                []storage.MarketOpsBacktestEvaluationRecord
+	backtestPromotionCandidates        []storage.MarketOpsBacktestPromotionCandidateRecord
+	backtestCalibrationReadiness       []storage.MarketOpsBacktestCalibrationReadinessRecord
+	syncraticContextWindows            []storage.SyncraticContextWindowRecord
+	syncraticInsights                  []storage.SyncraticInsightRecord
+	algorithmDefinitions               []storage.AlgorithmDefinitionRecord
+	algorithmExecutionRequests         []storage.AlgorithmExecutionRequestRecord
+	algorithmResults                   []storage.AlgorithmResultRecord
+	algorithmSignalProposals           []storage.AlgorithmSignalProposalRecord
+	algorithmSignalMaterializations    []storage.AlgorithmSignalMaterializationRecord
+	lastBacktestRunFilter              storage.MarketOpsBacktestRunFilter
+	lastBacktestCoverageFilter         storage.MarketOpsBacktestCoverageFilter
+	lastBacktestCampaignFilter         storage.MarketOpsBacktestCampaignFilter
+	lastBacktestSignalFilter           storage.MarketOpsBacktestSignalFilter
+	lastBacktestGraphFilter            storage.MarketOpsBacktestGraphProposalFilter
+	lastBacktestCalibrationFilter      storage.MarketOpsBacktestCalibrationSummaryFilter
+	lastBacktestBaselineFilter         storage.MarketOpsBacktestCalibrationBaselineFilter
+	lastBacktestComparisonFilter       storage.MarketOpsBacktestCalibrationComparisonFilter
+	lastEvaluationLabelFilter          storage.MarketOpsBacktestEvaluationLabelFilter
+	lastBacktestEvaluationFilter       storage.MarketOpsBacktestEvaluationFilter
+	lastBacktestPromotionFilter        storage.MarketOpsBacktestPromotionCandidateFilter
+	lastBacktestReadinessFilter        storage.MarketOpsBacktestCalibrationReadinessFilter
+	lastAlgorithmDefinitionFilter      storage.AlgorithmDefinitionFilter
+	lastAlgorithmExecutionFilter       storage.AlgorithmExecutionRequestFilter
+	lastAlgorithmResultFilter          storage.AlgorithmResultFilter
+	lastAlgorithmProposalFilter        storage.AlgorithmSignalProposalFilter
+	lastAlgorithmSummaryFilter         storage.AlgorithmSignalProposalFilter
+	lastAlgorithmProposalMutation      storage.AlgorithmSignalProposalMutation
+	lastAlgorithmMaterializationFilter storage.AlgorithmSignalMaterializationFilter
+	lastDSMFilter                      storage.MarketOpsDSMArtifactFilter
+	lastGraphProposalFilter            storage.MarketOpsDSMGraphProposalFilter
+	lastGraphProposalMutation          storage.MarketOpsDSMGraphProposalMutation
+	lastUniverseGroup                  string
+	lastActiveOnly                     bool
+	signals                            []storage.SignalLedgerRecord
+	alerts                             []storage.AlertLedgerRecord
+	insights                           []storage.InsightLedgerRecord
+	notFound                           bool
+	lastFilter                         storage.RawEventLedgerFilter
+	schedulerQueries                   int
+	rawEventQueries                    int
+	usageQueries                       int
 }
 
 func (q *fakeQueryRepository) ListSchedulerRuns(context.Context, int) ([]storage.SchedulerRunRecord, error) {
@@ -1065,6 +1067,45 @@ func (q *fakeQueryRepository) MutateAlgorithmSignalProposal(_ context.Context, m
 		}
 	}
 	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListAlgorithmSignalMaterializations(_ context.Context, filter storage.AlgorithmSignalMaterializationFilter) ([]storage.AlgorithmSignalMaterializationRecord, error) {
+	q.lastAlgorithmMaterializationFilter = filter
+	out := []storage.AlgorithmSignalMaterializationRecord{}
+	for _, record := range q.algorithmSignalMaterializations {
+		if filter.TenantID != "" && record.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.ProposalID != "" && record.ProposalID != filter.ProposalID {
+			continue
+		}
+		if filter.AlgorithmResultID != "" && record.AlgorithmResultID != filter.AlgorithmResultID {
+			continue
+		}
+		if filter.ExecutionRequestID != "" && record.ExecutionRequestID != filter.ExecutionRequestID {
+			continue
+		}
+		if filter.AlgorithmID != "" && record.AlgorithmID != filter.AlgorithmID {
+			continue
+		}
+		if filter.MaterializationStatus != "" && record.MaterializationStatus != filter.MaterializationStatus {
+			continue
+		}
+		if filter.SignalID != "" && record.SignalID != filter.SignalID {
+			continue
+		}
+		out = append(out, record)
+	}
+	return out, nil
+}
+
+func (q *fakeQueryRepository) GetAlgorithmSignalMaterialization(_ context.Context, tenantID string, materializationID string) (storage.AlgorithmSignalMaterializationRecord, error) {
+	for _, record := range q.algorithmSignalMaterializations {
+		if record.TenantID == tenantID && record.MaterializationID == materializationID {
+			return record, nil
+		}
+	}
+	return storage.AlgorithmSignalMaterializationRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListMarketOpsAssets(_ context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]storage.MarketOpsAssetRecord, error) {
@@ -3469,6 +3510,44 @@ func TestAlgorithmExecutionSummaryIncludesResultRollup(t *testing.T) {
 	topResults := summary["top_results"].([]any)
 	if len(topResults) != 2 || topResults[0].(map[string]any)["algorithm_result_id"] != "algres-high" || topResults[1].(map[string]any)["algorithm_result_id"] != "algres-medium" {
 		t.Fatalf("top_results = %#v", topResults)
+	}
+}
+
+func TestAlgorithmSignalMaterializationsListAndGet(t *testing.T) {
+	now := time.Now().UTC()
+	completedAt := now.Add(time.Second)
+	repo := &fakeQueryRepository{algorithmSignalMaterializations: []storage.AlgorithmSignalMaterializationRecord{{MaterializationID: "algmat-1", TenantID: "tenant-local", ProposalID: "algsigprop-1", AlgorithmResultID: "algres-1", ExecutionRequestID: "algexec-1", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", SignalID: "sig_alg_1", MaterializationStatus: storage.AlgorithmSignalMaterializationStatusSucceeded, MaterializationPolicyVersion: "algorithm_materialization.v1", IdempotencyKey: "idem-1", RequestedBy: "operator-1", RequestedAt: now, CompletedAt: &completedAt, RequestMetadataJSON: []byte(`{"note":"ok"}`), PreflightSnapshotJSON: []byte(`{"eligible":true}`), SignalPayloadPreviewJSON: []byte(`{"signal_type":"signalops.algorithm.anomaly_candidate"}`), CreatedAt: now, UpdatedAt: completedAt}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/algorithms/signal-materializations?tenant_id=tenant-local&proposal_id=algsigprop-1&algorithm_result_id=algres-1&execution_request_id=algexec-1&algorithm_id=signalops.algorithms.zscore_anomaly_v1&status=succeeded&signal_id=sig_alg_1&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastAlgorithmMaterializationFilter.ProposalID != "algsigprop-1" || repo.lastAlgorithmMaterializationFilter.MaterializationStatus != "succeeded" || repo.lastAlgorithmMaterializationFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastAlgorithmMaterializationFilter)
+	}
+	var list map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	if list["algorithm_signal_materializations"][0]["materialization_id"] != "algmat-1" || list["algorithm_signal_materializations"][0]["signal_id"] != "sig_alg_1" {
+		t.Fatalf("list = %#v", list)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/algorithms/signal-materializations/algmat-1?tenant_id=tenant-local", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var detail map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &detail); err != nil {
+		t.Fatal(err)
+	}
+	if detail["algorithm_signal_materialization"]["materialization_status"] != "succeeded" || detail["algorithm_signal_materialization"]["request_metadata"].(map[string]any)["note"] != "ok" {
+		t.Fatalf("detail = %#v", detail)
 	}
 }
 

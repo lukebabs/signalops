@@ -308,6 +308,38 @@ SET status=$3, reviewed_by=$4, decision_note=$5, decided_at=$6, decision_metadat
 WHERE tenant_id=$1 AND proposal_id=$2 `+algorithmSignalProposalReturning, strings.TrimSpace(mutation.TenantID), strings.TrimSpace(mutation.ProposalID), strings.TrimSpace(mutation.Status), firstNonEmptyString(mutation.ReviewedBy, "operator-local"), strings.TrimSpace(mutation.DecisionNote), decidedAt, jsonOrEmpty(mutation.MetadataJSON)))
 }
 
+func (r *Repository) ListAlgorithmSignalMaterializations(ctx context.Context, filter storage.AlgorithmSignalMaterializationFilter) ([]storage.AlgorithmSignalMaterializationRecord, error) {
+	tenantID := strings.TrimSpace(filter.TenantID)
+	if tenantID == "" {
+		return nil, fmt.Errorf("algorithm signal materialization tenant id is required")
+	}
+	rows, err := r.db.QueryContext(ctx, algorithmSignalMaterializationSelect+`
+WHERE tenant_id=$1 AND ($2='' OR proposal_id=$2) AND ($3='' OR algorithm_result_id=$3)
+  AND ($4='' OR execution_request_id=$4) AND ($5='' OR algorithm_id=$5)
+  AND ($6='' OR materialization_status=$6) AND ($7='' OR signal_id=$7)
+ORDER BY updated_at DESC LIMIT $8`, tenantID, strings.TrimSpace(filter.ProposalID), strings.TrimSpace(filter.AlgorithmResultID), strings.TrimSpace(filter.ExecutionRequestID), strings.TrimSpace(filter.AlgorithmID), strings.TrimSpace(filter.MaterializationStatus), strings.TrimSpace(filter.SignalID), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list algorithm signal materializations: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.AlgorithmSignalMaterializationRecord{}
+	for rows.Next() {
+		record, err := scanAlgorithmSignalMaterialization(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list algorithm signal materializations rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetAlgorithmSignalMaterialization(ctx context.Context, tenantID string, materializationID string) (storage.AlgorithmSignalMaterializationRecord, error) {
+	return scanAlgorithmSignalMaterialization(r.db.QueryRowContext(ctx, algorithmSignalMaterializationSelect+` WHERE tenant_id=$1 AND materialization_id=$2`, strings.TrimSpace(tenantID), strings.TrimSpace(materializationID)))
+}
+
 const algorithmDefinitionSelect = `SELECT algorithm_id, tenant_id, name, description, algorithm_type, runtime_type,
  COALESCE(array_to_json(input_features), '[]'::json)::text, COALESCE(array_to_json(input_event_types), '[]'::json)::text,
  output_schema, config_schema, default_config, version, status, metadata, created_at, updated_at FROM algorithm_definitions`
@@ -332,10 +364,17 @@ const algorithmSignalProposalReturning = `RETURNING proposal_id, tenant_id, algo
  COALESCE(array_to_json(source_event_ids), '[]'::json)::text, COALESCE(array_to_json(evidence_refs), '[]'::json)::text,
  correlation_id, created_by, reviewed_by, decision_note, decided_at, created_at, updated_at`
 
+const algorithmSignalMaterializationSelect = `SELECT materialization_id, tenant_id, proposal_id, algorithm_result_id,
+ execution_request_id, algorithm_id, algorithm_version, proposed_signal_type, COALESCE(signal_id, ''),
+ materialization_status, materialization_policy_version, idempotency_key, COALESCE(duplicate_of_signal_id, ''),
+ requested_by, requested_at, started_at, completed_at, failed_at, COALESCE(error_code, ''), COALESCE(error_message, ''),
+ request_metadata, preflight_snapshot, signal_payload_preview, created_at, updated_at FROM algorithm_signal_materializations`
+
 type algorithmDefinitionScanner interface{ Scan(dest ...any) error }
 type algorithmExecutionRequestScanner interface{ Scan(dest ...any) error }
 type algorithmResultScanner interface{ Scan(dest ...any) error }
 type algorithmSignalProposalScanner interface{ Scan(dest ...any) error }
+type algorithmSignalMaterializationScanner interface{ Scan(dest ...any) error }
 
 func scanAlgorithmDefinition(scanner algorithmDefinitionScanner) (storage.AlgorithmDefinitionRecord, error) {
 	var record storage.AlgorithmDefinitionRecord
@@ -402,6 +441,14 @@ func scanAlgorithmSignalProposal(scanner algorithmSignalProposalScanner) (storag
 		if err := json.Unmarshal([]byte(item.raw), item.dest); err != nil {
 			return storage.AlgorithmSignalProposalRecord{}, fmt.Errorf("scan algorithm signal proposal %s: %w", item.name, err)
 		}
+	}
+	return record, nil
+}
+
+func scanAlgorithmSignalMaterialization(scanner algorithmSignalMaterializationScanner) (storage.AlgorithmSignalMaterializationRecord, error) {
+	var record storage.AlgorithmSignalMaterializationRecord
+	if err := scanner.Scan(&record.MaterializationID, &record.TenantID, &record.ProposalID, &record.AlgorithmResultID, &record.ExecutionRequestID, &record.AlgorithmID, &record.AlgorithmVersion, &record.ProposedSignalType, &record.SignalID, &record.MaterializationStatus, &record.MaterializationPolicyVersion, &record.IdempotencyKey, &record.DuplicateOfSignalID, &record.RequestedBy, &record.RequestedAt, &record.StartedAt, &record.CompletedAt, &record.FailedAt, &record.ErrorCode, &record.ErrorMessage, &record.RequestMetadataJSON, &record.PreflightSnapshotJSON, &record.SignalPayloadPreviewJSON, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		return storage.AlgorithmSignalMaterializationRecord{}, mapScanError("scan algorithm signal materialization", err)
 	}
 	return record, nil
 }

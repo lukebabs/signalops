@@ -1,0 +1,4 @@
+DROP INDEX IF EXISTS idx_algorithm_signal_materializations_signal;
+DROP INDEX IF EXISTS idx_algorithm_signal_materializations_proposal;
+DROP INDEX IF EXISTS idx_algorithm_signal_materializations_status;
+DROP TABLE IF EXISTS algorithm_signal_materializations;

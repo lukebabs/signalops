@@ -90,6 +90,16 @@ const (
 )
 
 const (
+	AlgorithmSignalMaterializationStatusRequested  = "requested"
+	AlgorithmSignalMaterializationStatusRunning    = "running"
+	AlgorithmSignalMaterializationStatusSucceeded  = "succeeded"
+	AlgorithmSignalMaterializationStatusDuplicate  = "duplicate"
+	AlgorithmSignalMaterializationStatusBlocked    = "blocked"
+	AlgorithmSignalMaterializationStatusFailed     = "failed"
+	AlgorithmSignalMaterializationStatusSuperseded = "superseded"
+)
+
+const (
 	AlertStatusOpen         = "open"
 	AlertStatusAcknowledged = "acknowledged"
 	AlertStatusResolved     = "resolved"
@@ -601,6 +611,34 @@ type AlgorithmSignalProposalMutation struct {
 	MetadataJSON []byte
 }
 
+type AlgorithmSignalMaterializationRecord struct {
+	MaterializationID            string
+	TenantID                     string
+	ProposalID                   string
+	AlgorithmResultID            string
+	ExecutionRequestID           string
+	AlgorithmID                  string
+	AlgorithmVersion             string
+	ProposedSignalType           string
+	SignalID                     string
+	MaterializationStatus        string
+	MaterializationPolicyVersion string
+	IdempotencyKey               string
+	DuplicateOfSignalID          string
+	RequestedBy                  string
+	RequestedAt                  time.Time
+	StartedAt                    *time.Time
+	CompletedAt                  *time.Time
+	FailedAt                     *time.Time
+	ErrorCode                    string
+	ErrorMessage                 string
+	RequestMetadataJSON          []byte
+	PreflightSnapshotJSON        []byte
+	SignalPayloadPreviewJSON     []byte
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
+}
+
 type AlgorithmDefinitionFilter struct {
 	TenantID      string
 	AlgorithmType string
@@ -636,6 +674,17 @@ type AlgorithmSignalProposalFilter struct {
 	Severity           string
 	CorrelationID      string
 	Limit              int
+}
+
+type AlgorithmSignalMaterializationFilter struct {
+	TenantID              string
+	ProposalID            string
+	AlgorithmResultID     string
+	ExecutionRequestID    string
+	AlgorithmID           string
+	MaterializationStatus string
+	SignalID              string
+	Limit                 int
 }
 
 type AlgorithmSignalProposalSummaryRecord struct {
@@ -1179,6 +1228,8 @@ type AlgorithmRepository interface {
 	GetAlgorithmSignalProposal(ctx context.Context, tenantID string, proposalID string) (AlgorithmSignalProposalRecord, error)
 	SummarizeAlgorithmSignalProposals(ctx context.Context, filter AlgorithmSignalProposalFilter) (AlgorithmSignalProposalSummaryRecord, error)
 	MutateAlgorithmSignalProposal(ctx context.Context, mutation AlgorithmSignalProposalMutation) (AlgorithmSignalProposalRecord, error)
+	ListAlgorithmSignalMaterializations(ctx context.Context, filter AlgorithmSignalMaterializationFilter) ([]AlgorithmSignalMaterializationRecord, error)
+	GetAlgorithmSignalMaterialization(ctx context.Context, tenantID string, materializationID string) (AlgorithmSignalMaterializationRecord, error)
 }
 
 type PublishRepository interface {

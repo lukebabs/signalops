@@ -216,3 +216,8 @@ Recommended next gate:
 
 - G120: design-only architecture for explicit algorithm signal materialization requests, ledger semantics, idempotency, stable signal ids, auth/audit, payload mapping, and failure behavior.
 - Specification: `G120_algorithm_signal_materialization_request_design.md`.
+
+## G121 Implemented
+
+- G121: storage migration and read-only APIs for `algorithm_signal_materializations`, with no materialization mutation or production signal writes.
+- Specification: `G121_algorithm_signal_materialization_ledger_reads.md`.

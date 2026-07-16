@@ -735,6 +735,14 @@ Returns immutable algorithm result ledger rows. Results include score, confidenc
 
 Returns one algorithm result.
 
+`GET /v1/algorithms/signal-materializations?tenant_id={tenant_id}&proposal_id={proposal_id}&algorithm_result_id={algorithm_result_id}&execution_request_id={execution_request_id}&algorithm_id={algorithm_id}&status={status}&signal_id={signal_id}&limit=50`
+
+Returns read-only algorithm signal materialization ledger rows. G121 only exposes the ledger surface; it does not create materialization rows or write production signals.
+
+`GET /v1/algorithms/signal-materializations/{materialization_id}?tenant_id={tenant_id}`
+
+Returns one algorithm signal materialization ledger row.
+
 `GET /v1/algorithms/signal-proposals/summary?tenant_id={tenant_id}&algorithm_id={algorithm_id}&execution_request_id={execution_request_id}&algorithm_result_id={algorithm_result_id}&status={status}&severity={severity}&correlation_id={correlation_id}`
 
 Returns a read-only proposal summary with total proposal count, status counts, severity counts, proposed signal type counts, algorithm id counts, reviewer counts, reviewed ratio, and high/critical unreviewed count.

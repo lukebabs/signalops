@@ -83,6 +83,12 @@ func (f *fakeAlgorithmRepository) SummarizeAlgorithmSignalProposals(context.Cont
 func (f *fakeAlgorithmRepository) MutateAlgorithmSignalProposal(context.Context, storage.AlgorithmSignalProposalMutation) (storage.AlgorithmSignalProposalRecord, error) {
 	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
 }
+func (f *fakeAlgorithmRepository) ListAlgorithmSignalMaterializations(context.Context, storage.AlgorithmSignalMaterializationFilter) ([]storage.AlgorithmSignalMaterializationRecord, error) {
+	return nil, nil
+}
+func (f *fakeAlgorithmRepository) GetAlgorithmSignalMaterialization(context.Context, string, string) (storage.AlgorithmSignalMaterializationRecord, error) {
+	return storage.AlgorithmSignalMaterializationRecord{}, storage.ErrNotFound
+}
 func (f *fakeAlgorithmRepository) ListMarketOpsBacktestNormalizedEvents(_ context.Context, filter storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error) {
 	f.lastEventFilter = filter
 	start := filter.Offset

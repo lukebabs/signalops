@@ -66,6 +66,14 @@ func (f *fakeProposalRepository) MutateAlgorithmSignalProposal(context.Context, 
 	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
 }
 
+func (f *fakeProposalRepository) ListAlgorithmSignalMaterializations(context.Context, storage.AlgorithmSignalMaterializationFilter) ([]storage.AlgorithmSignalMaterializationRecord, error) {
+	return nil, nil
+}
+
+func (f *fakeProposalRepository) GetAlgorithmSignalMaterialization(context.Context, string, string) (storage.AlgorithmSignalMaterializationRecord, error) {
+	return storage.AlgorithmSignalMaterializationRecord{}, storage.ErrNotFound
+}
+
 func TestGenerateCreatesStableSignalProposals(t *testing.T) {
 	now := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)
 	repo := &fakeProposalRepository{results: []storage.AlgorithmResultRecord{

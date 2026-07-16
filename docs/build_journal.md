@@ -6793,3 +6793,21 @@ Summary:
 Result:
 
 - The materialization write path has a concrete reviewable architecture without changing production signal behavior.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Implemented G121 algorithm signal materialization ledger reads.
+- Added migration `000026_algorithm_signal_materializations` with lineage, status, idempotency, optional signal/duplicate ids, timestamps, metadata, preflight snapshot, and signal payload preview columns.
+- Added storage records/filters and Postgres read methods for list/detail materialization lookup.
+- Added read-only API routes for materialization list/detail.
+- Preserved the no-materialization boundary: no mutation route, signal writes, alerts, insights, graph proposals, policy deployment, frontend changes, or Syncratic integration.
+
+Validation performed:
+
+- Focused Go tests passed for API, storage/postgres, algorithms, and algorithm proposal packages.
+
+Result:
+
+- Future G122 can implement a bounded single-proposal materialization write path against a first-class ledger surface.

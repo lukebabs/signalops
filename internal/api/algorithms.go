@@ -180,6 +180,34 @@ type algorithmSignalProposalMaterializationPreflightItemDTO struct {
 	MaterializationPolicy string   `json:"materialization_policy"`
 }
 
+type algorithmSignalMaterializationDTO struct {
+	MaterializationID            string          `json:"materialization_id"`
+	TenantID                     string          `json:"tenant_id"`
+	ProposalID                   string          `json:"proposal_id"`
+	AlgorithmResultID            string          `json:"algorithm_result_id"`
+	ExecutionRequestID           string          `json:"execution_request_id"`
+	AlgorithmID                  string          `json:"algorithm_id"`
+	AlgorithmVersion             string          `json:"algorithm_version"`
+	ProposedSignalType           string          `json:"proposed_signal_type"`
+	SignalID                     string          `json:"signal_id"`
+	MaterializationStatus        string          `json:"materialization_status"`
+	MaterializationPolicyVersion string          `json:"materialization_policy_version"`
+	IdempotencyKey               string          `json:"idempotency_key"`
+	DuplicateOfSignalID          string          `json:"duplicate_of_signal_id"`
+	RequestedBy                  string          `json:"requested_by"`
+	RequestedAt                  time.Time       `json:"requested_at"`
+	StartedAt                    *time.Time      `json:"started_at,omitempty"`
+	CompletedAt                  *time.Time      `json:"completed_at,omitempty"`
+	FailedAt                     *time.Time      `json:"failed_at,omitempty"`
+	ErrorCode                    string          `json:"error_code"`
+	ErrorMessage                 string          `json:"error_message"`
+	RequestMetadata              json.RawMessage `json:"request_metadata"`
+	PreflightSnapshot            json.RawMessage `json:"preflight_snapshot"`
+	SignalPayloadPreview         json.RawMessage `json:"signal_payload_preview"`
+	CreatedAt                    time.Time       `json:"created_at"`
+	UpdatedAt                    time.Time       `json:"updated_at"`
+}
+
 func algorithmDefinitionRecord(req algorithmDefinitionRequest) storage.AlgorithmDefinitionRecord {
 	return storage.AlgorithmDefinitionRecord{AlgorithmID: strings.TrimSpace(req.AlgorithmID), TenantID: strings.TrimSpace(req.TenantID), Name: strings.TrimSpace(req.Name), Description: strings.TrimSpace(req.Description), AlgorithmType: strings.TrimSpace(req.AlgorithmType), RuntimeType: firstNonEmptyBacktestValue(req.RuntimeType, storage.AlgorithmRuntimePythonPlugin), InputFeatures: cleanStrings(req.InputFeatures), InputEventTypes: cleanStrings(req.InputEventTypes), OutputSchema: algorithmJSONOrDefaultObject(req.OutputSchema), ConfigSchema: algorithmJSONOrDefaultObject(req.ConfigSchema), DefaultConfig: algorithmJSONOrDefaultObject(req.DefaultConfig), Version: strings.TrimSpace(req.Version), Status: firstNonEmptyBacktestValue(req.Status, storage.AlgorithmDefinitionStatusDraft), MetadataJSON: algorithmJSONOrDefaultObject(req.Metadata)}
 }
@@ -246,6 +274,18 @@ func algorithmSignalProposalResponses(records []storage.AlgorithmSignalProposalR
 
 func algorithmSignalProposalSummaryResponse(record storage.AlgorithmSignalProposalSummaryRecord) algorithmSignalProposalSummaryDTO {
 	return algorithmSignalProposalSummaryDTO{TenantID: record.TenantID, TotalProposals: record.TotalProposals, ProposedCount: record.ProposedCount, ReviewedCount: record.ReviewedCount, RejectedCount: record.RejectedCount, SupersededCount: record.SupersededCount, ReviewedRatio: record.ReviewedRatio, HighCriticalUnreviewedCount: record.HighCriticalUnreviewedCount, StatusCounts: mapOrEmpty(record.StatusCounts), SeverityCounts: mapOrEmpty(record.SeverityCounts), ProposedSignalTypeCounts: mapOrEmpty(record.ProposedSignalTypeCounts), AlgorithmIDCounts: mapOrEmpty(record.AlgorithmIDCounts), ReviewerCounts: mapOrEmpty(record.ReviewerCounts)}
+}
+
+func algorithmSignalMaterializationResponse(record storage.AlgorithmSignalMaterializationRecord) algorithmSignalMaterializationDTO {
+	return algorithmSignalMaterializationDTO{MaterializationID: record.MaterializationID, TenantID: record.TenantID, ProposalID: record.ProposalID, AlgorithmResultID: record.AlgorithmResultID, ExecutionRequestID: record.ExecutionRequestID, AlgorithmID: record.AlgorithmID, AlgorithmVersion: record.AlgorithmVersion, ProposedSignalType: record.ProposedSignalType, SignalID: record.SignalID, MaterializationStatus: record.MaterializationStatus, MaterializationPolicyVersion: record.MaterializationPolicyVersion, IdempotencyKey: record.IdempotencyKey, DuplicateOfSignalID: record.DuplicateOfSignalID, RequestedBy: record.RequestedBy, RequestedAt: record.RequestedAt, StartedAt: record.StartedAt, CompletedAt: record.CompletedAt, FailedAt: record.FailedAt, ErrorCode: record.ErrorCode, ErrorMessage: record.ErrorMessage, RequestMetadata: json.RawMessage(jsonOrDefault(record.RequestMetadataJSON, `{}`)), PreflightSnapshot: json.RawMessage(jsonOrDefault(record.PreflightSnapshotJSON, `{}`)), SignalPayloadPreview: json.RawMessage(jsonOrDefault(record.SignalPayloadPreviewJSON, `{}`)), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+}
+
+func algorithmSignalMaterializationResponses(records []storage.AlgorithmSignalMaterializationRecord) []algorithmSignalMaterializationDTO {
+	out := make([]algorithmSignalMaterializationDTO, 0, len(records))
+	for _, record := range records {
+		out = append(out, algorithmSignalMaterializationResponse(record))
+	}
+	return out
 }
 
 func algorithmSignalProposalMaterializationPreflightResponse(tenantID string, policyVersion string, minReviewedRatio float64, proposals []storage.AlgorithmSignalProposalRecord, results map[string]storage.AlgorithmResultRecord, signals []storage.SignalLedgerRecord, summary storage.AlgorithmSignalProposalSummaryRecord) algorithmSignalProposalMaterializationPreflightDTO {
