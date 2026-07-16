@@ -7952,3 +7952,19 @@ Out of scope:
 Result:
 
 - G115 gives operators a compact read-only proposal review readiness surface.
+
+## Gate G116: Algorithm Signal Proposal Summary UI Spec
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `proposed - frontend-agent specification ready`
+
+Scope:
+
+- Add read-only summary panel to the existing Signal Proposals UI.
+- Use G115 summary API with active proposal filters.
+- Preserve the no-materialization boundary.
+
+Result:
+
+- Specification saved at `docs/frontend/algorithm_signal_proposals_summary_ui_spec.md`.

@@ -6725,3 +6725,16 @@ Validation performed:
 Result:
 
 - Operators and future UI work can inspect proposal review coverage without changing production signal semantics.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Wrote the G116 frontend-agent specification for algorithm signal proposal summary visibility.
+- Scoped the UI to a read-only summary panel inside the existing Algorithms / Signal Proposals surface.
+- Required use of the G115 summary API and active proposal filters.
+- Explicitly excluded new backend endpoints, materialization, alerts, insights, graph proposals, algorithm execution, tuning, policy deployment, and Syncratic integration.
+
+Result:
+
+- Frontend-agent can add proposal review coverage/readiness visibility without backend or materialization scope creep.
