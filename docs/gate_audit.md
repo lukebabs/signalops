@@ -8071,3 +8071,19 @@ Scope:
 Result:
 
 - Specification saved at `docs/frontend/algorithm_signal_materialization_preflight_ui_spec.md`.
+
+## Gate G120: Algorithm Signal Materialization Request Design
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `proposed - design only`
+
+Scope:
+
+- Define explicit materialization request architecture before production signal writes.
+- Specify materialization ledger, statuses, idempotency, stable signal ids, API shape, authorization, audit fields, preflight enforcement, payload mapping, and testing requirements.
+- Preserve the no-materialization boundary.
+
+Result:
+
+- G120 recommends G121 for storage/read APIs first, then G122 for single-proposal signal materialization mutation.

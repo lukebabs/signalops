@@ -211,3 +211,8 @@ Recommended next gate:
 
 - G119: frontend-agent specification for read-only algorithm signal materialization preflight visibility over the G118 API.
 - Specification: `G119_algorithm_signal_materialization_preflight_ui_spec.md`.
+
+## G120 Proposed
+
+- G120: design-only architecture for explicit algorithm signal materialization requests, ledger semantics, idempotency, stable signal ids, auth/audit, payload mapping, and failure behavior.
+- Specification: `G120_algorithm_signal_materialization_request_design.md`.

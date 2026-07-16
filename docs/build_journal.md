@@ -6780,3 +6780,16 @@ Summary:
 Result:
 
 - Frontend-agent can implement preflight visibility without changing backend semantics or creating materialization scope creep.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Wrote G120 as the final design gate before any algorithm proposal can write production `signal.v1` rows.
+- Defined the recommended `algorithm_signal_materializations` ledger, materialization statuses, idempotency key, stable signal id, API shape, auth/audit rules, preflight enforcement, signal payload mapping, transaction model, and testing requirements.
+- Recommended staging G121 as storage/read APIs first and G122 as the first single-proposal materialization write path.
+- Explicitly excluded migrations, API implementation, signal writes, alerts, insights, graph proposals, frontend changes, bulk workers, policy deployment, DSM taxonomy remapping, and Syncratic integration.
+
+Result:
+
+- The materialization write path has a concrete reviewable architecture without changing production signal behavior.
