@@ -42,6 +42,19 @@ Confirmed:
 - Syncratic Ask/Search integration.
 - Graph proposal review changes.
 
+## Spec Reconciliation (2026-07-16)
+
+A re-evaluation of the implemented UI against this spec found and fixed two
+minor deviations; no behavior or backend contract changed:
+
+- Execution Requests table now shows both `created at` and `updated at`
+  (previously only `updated at`). The summarizer already exposed `createdAt`.
+- Execution Summary now shows `requested by` (previously omitted from the
+  metric strip). Sourced from the summary execution request.
+
+Re-validation: `npx vitest run` (281 tests), `npx tsc --noEmit`, and
+`npm run build` all pass.
+
 ## References
 
 - Frontend spec: `../../../../frontend/algorithm_execution_visibility_ui_spec.md`

@@ -7994,3 +7994,27 @@ Out of scope:
 Result:
 
 - G116 closes the G116 spec as a read-only review-coverage surface over the G115 summary endpoint; browser validation remains the documented follow-on.
+
+## Gate G109: Algorithm Execution Visibility UI Spec Reconciliation
+
+Timestamp: `2026-07-16T06:33:00Z`
+
+Status: `implemented - two minor spec deviations reconciled`
+
+Scope:
+
+- Re-evaluate the implemented G109 Algorithms UI against its frontend spec and fix deviations only; no new behavior or backend contract.
+
+Validation performed:
+
+- Added `created at` to the Execution Requests table (spec lists both created at and updated at; previously only updated at rendered).
+- Added `requested by` to the Execution Summary metric strip (spec lists it; previously omitted).
+- `npx vitest run` (281 tests), `npx tsc --noEmit`, and `npm run build` all pass.
+
+Out of scope:
+
+- All original G109 out-of-scope items remain out of scope; no mutation, execution, tuning, deployment, or conversion controls added.
+
+Result:
+
+- The G109 UI now matches its spec field-for-field; documented in `G109_algorithm_execution_visibility_ui.md`.

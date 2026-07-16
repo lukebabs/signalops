@@ -365,6 +365,7 @@ export function AlgorithmsRoute() {
                     <th className="whitespace-nowrap px-3 py-2">Correlation</th>
                     <th className="whitespace-nowrap px-3 py-2">Window ref</th>
                     <th className="whitespace-nowrap px-3 py-2">Feature refs</th>
+                    <th className="whitespace-nowrap px-3 py-2">Created</th>
                     <th className="whitespace-nowrap px-3 py-2">Updated</th>
                   </tr>
                 </thead>
@@ -388,6 +389,7 @@ export function AlgorithmsRoute() {
                             {s.featureRefs.length ? s.featureRefs.join(', ') : '—'}
                           </code>
                         </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">{formatUtc(s.createdAt)}</td>
                         <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">{formatUtc(s.updatedAt)}</td>
                       </tr>
                     );
@@ -418,6 +420,13 @@ export function AlgorithmsRoute() {
                 <MetricTile label="Max score" value={summaryView.maxScore.toFixed(3)} />
                 <MetricTile label="Max confidence" value={summaryView.maxConfidence.toFixed(2)} />
                 <MetricTile label="Status" value={summaryView.executionRequest.status || '—'} />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+                <span>
+                  <span className="text-gray-500">Requested by: </span>
+                  {summaryView.executionRequest.requestedBy || '—'}
+                </span>
               </div>
 
               {summaryView.severityCounts.length > 0 && (
