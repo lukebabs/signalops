@@ -7,6 +7,7 @@ import {
   summarizeAlgorithmSignalProposal,
   summarizeAlgorithmSignalProposalSummary,
   summarizeAlgorithmSignalMaterializationPreflight,
+  summarizeAlgorithmSignalMaterialization,
   algorithmSeverityCountEntries,
   algorithmCountEntries,
   algorithmDefinitionStatusStyle,
@@ -14,6 +15,9 @@ import {
   algorithmSeverityStyle,
   algorithmProposalStatusStyle,
   algorithmPreflightStatusStyle,
+  algorithmMaterializationStatusStyle,
+  findPreflightItemByProposalId,
+  describeMaterializationEligibility,
 } from './algorithms';
 
 describe('summarizeAlgorithmDefinition (G109)', () => {
@@ -363,5 +367,141 @@ describe('summarizeAlgorithmSignalMaterializationPreflight (G119)', () => {
     const v2 = summarizeAlgorithmSignalMaterializationPreflight({ total_proposals: 0, items: 'nope' });
     expect(v2.totalProposals).toBe(0);
     expect(v2.items).toEqual([]);
+  });
+});
+
+describe('algorithmMaterializationStatusStyle (G123)', () => {
+  it('tones succeeded/duplicate/blocked/failed/in-progress/superseded and falls back for unknown', () => {
+    expect(algorithmMaterializationStatusStyle('succeeded')).toContain('emerald');
+    expect(algorithmMaterializationStatusStyle('duplicate')).toContain('amber');
+    expect(algorithmMaterializationStatusStyle('blocked')).toContain('orange');
+    expect(algorithmMaterializationStatusStyle('failed')).toContain('red');
+    expect(algorithmMaterializationStatusStyle('requested')).toContain('blue');
+    expect(algorithmMaterializationStatusStyle('running')).toContain('blue');
+    expect(algorithmMaterializationStatusStyle('superseded')).toContain('gray');
+    expect(algorithmMaterializationStatusStyle('future')).toContain('gray-600');
+  });
+});
+
+describe('summarizeAlgorithmSignalMaterialization (G123)', () => {
+  it('normalizes scalars, omitempty timestamps, and passes JSON through', () => {
+    const v = summarizeAlgorithmSignalMaterialization({
+      materialization_id: 'algmat_1',
+      tenant_id: 'tenant-local',
+      proposal_id: 'algsigprop_1',
+      algorithm_id: 'zscore_anomaly_v1',
+      algorithm_version: '0.1.0',
+      proposed_signal_type: 'signalops.algorithm.anomaly_candidate',
+      signal_id: 'sig_alg_1',
+      materialization_status: 'succeeded',
+      materialization_policy_version: 'algorithm_materialization.v1',
+      idempotency_key: 'algmat_idem_abc',
+      duplicate_of_signal_id: '',
+      requested_by: 'operator-1',
+      requested_at: '2026-07-16T00:00:00Z',
+      completed_at: '2026-07-16T00:00:05Z',
+      error_code: '',
+      error_message: '',
+      request_metadata: { note: 'ok' },
+      preflight_snapshot: { eligible: true },
+      signal_payload_preview: { signal_type: 'signalops.algorithm.anomaly_candidate' },
+      created_at: '2026-07-16T00:00:00Z',
+      updated_at: '2026-07-16T00:00:05Z',
+    });
+    expect(v.materializationId).toBe('algmat_1');
+    expect(v.materializationStatus).toBe('succeeded');
+    expect(v.signalId).toBe('sig_alg_1');
+    expect(v.completedAt).toBe('2026-07-16T00:00:05Z');
+    expect(v.failedAt).toBe('');
+    expect(v.requestMetadata).toEqual({ note: 'ok' });
+    expect(v.preflightSnapshot).toEqual({ eligible: true });
+  });
+
+  it('collapses non-object payloads to the empty view', () => {
+    const v = summarizeAlgorithmSignalMaterialization(null);
+    expect(v.materializationId).toBe('');
+    expect(v.materializationStatus).toBe('');
+    expect(v.requestMetadata).toEqual({});
+    expect(v.signalPayloadPreview).toEqual({});
+  });
+});
+
+describe('findPreflightItemByProposalId (G123)', () => {
+  const view = summarizeAlgorithmSignalMaterializationPreflight({
+    total_proposals: 2,
+    items: [
+      { proposal_id: 'algsigprop-1', preflight_status: 'eligible', would_write: true },
+      { proposal_id: 'algsigprop-2', preflight_status: 'blocked', would_write: false },
+    ],
+  });
+
+  it('returns the matching item and null when absent', () => {
+    expect(findPreflightItemByProposalId(view, 'algsigprop-1')?.preflightStatus).toBe('eligible');
+    expect(findPreflightItemByProposalId(view, 'missing')).toBeNull();
+    expect(findPreflightItemByProposalId(null, 'algsigprop-1')).toBeNull();
+    expect(findPreflightItemByProposalId(view, '')).toBeNull();
+  });
+});
+
+describe('describeMaterializationEligibility (G123)', () => {
+  const eligibleItem = summarizeAlgorithmSignalMaterializationPreflight({
+    items: [{ proposal_id: 'algsigprop-1', preflight_status: 'eligible', would_write: true }],
+  }).items[0];
+
+  const baseInput = {
+    proposalStatus: 'reviewed',
+    preflightItem: eligibleItem,
+    preflightLoading: false,
+    preflightFailed: false,
+    globalBlockingActive: false,
+    canMutate: true,
+    mutationPending: false,
+    hasRecordedMaterialization: false,
+  };
+
+  it('allows a reviewed eligible would-write proposal for an operator', () => {
+    expect(describeMaterializationEligibility(baseInput)).toEqual({ canMaterialize: true, reason: '' });
+  });
+
+  it('disables without operator/admin role', () => {
+    const r = describeMaterializationEligibility({ ...baseInput, canMutate: false });
+    expect(r.canMaterialize).toBe(false);
+    expect(r.reason).toContain('operator');
+  });
+
+  it('disables while a mutation is pending', () => {
+    expect(describeMaterializationEligibility({ ...baseInput, mutationPending: true }).canMaterialize).toBe(false);
+  });
+
+  it('disables when preflight is loading or failed', () => {
+    expect(describeMaterializationEligibility({ ...baseInput, preflightLoading: true }).canMaterialize).toBe(false);
+    expect(describeMaterializationEligibility({ ...baseInput, preflightFailed: true }).canMaterialize).toBe(false);
+  });
+
+  it('disables when there is no matching preflight item', () => {
+    expect(describeMaterializationEligibility({ ...baseInput, preflightItem: null }).canMaterialize).toBe(false);
+  });
+
+  it('disables when the proposal is not reviewed', () => {
+    const r = describeMaterializationEligibility({ ...baseInput, proposalStatus: 'proposed' });
+    expect(r.canMaterialize).toBe(false);
+    expect(r.reason).toContain('reviewed');
+  });
+
+  it('disables when a materialization is already recorded', () => {
+    const r = describeMaterializationEligibility({ ...baseInput, hasRecordedMaterialization: true });
+    expect(r.canMaterialize).toBe(false);
+    expect(r.reason).toContain('Already materialized');
+  });
+
+  it('disables on global blockers', () => {
+    expect(describeMaterializationEligibility({ ...baseInput, globalBlockingActive: true }).canMaterialize).toBe(false);
+  });
+
+  it('disables when the preflight item is not eligible or would not write', () => {
+    const blockedItem = { ...eligibleItem, preflightStatus: 'blocked', wouldWrite: true };
+    expect(describeMaterializationEligibility({ ...baseInput, preflightItem: blockedItem }).canMaterialize).toBe(false);
+    const noWriteItem = { ...eligibleItem, preflightStatus: 'eligible', wouldWrite: false };
+    expect(describeMaterializationEligibility({ ...baseInput, preflightItem: noWriteItem }).canMaterialize).toBe(false);
   });
 });

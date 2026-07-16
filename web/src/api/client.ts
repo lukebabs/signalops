@@ -97,6 +97,10 @@ import type {
   AlgorithmSignalProposalSummaryResponse,
   AlgorithmSignalMaterializationPreflightFilter,
   AlgorithmSignalMaterializationPreflightResponse,
+  AlgorithmSignalMaterializationRequest,
+  AlgorithmSignalMaterializationResponse,
+  AlgorithmSignalMaterializationsResponse,
+  AlgorithmSignalMaterializationFilter,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -708,4 +712,31 @@ export const api = {
       `/v1/algorithms/signal-proposals/${encodeURIComponent(proposalId)}/decision`,
       request,
     ),
+  // G123 single-proposal materialization (G122 backend). The only write control on
+  // this surface: materializes one reviewed eligible proposal into a production
+  // signal. tenant_id goes in the body (the gateway reads body first, then query);
+  // policy_version is the fixed algorithm_materialization.v1 default; requested_by
+  // and idempotency_key are derived server-side from the JWT/digest, so — like the
+  // sibling decision mutation — no actor header is sent. The gateway requires the
+  // signalops:operator/admin role. The POST returns 201/200 with the envelope for
+  // succeeded/duplicate/blocked; only not-found/auth/server failures throw.
+  materializeAlgorithmSignalProposal: (proposalId: string, request: AlgorithmSignalMaterializationRequest) =>
+    post<AlgorithmSignalMaterializationResponse>(
+      `/v1/algorithms/signal-proposals/${encodeURIComponent(proposalId)}/materializations`,
+      request,
+    ),
+  // G121 materialization ledger reads. tenant_id is required by the gateway
+  // (defaults to tenant-local). The proposal detail scopes this to one proposal;
+  // limit defaults to 50 (max 200). Read-only.
+  listAlgorithmSignalMaterializations: (filter: AlgorithmSignalMaterializationFilter = {}) =>
+    get<AlgorithmSignalMaterializationsResponse>('/v1/algorithms/signal-materializations', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      proposal_id: filter.proposal_id || undefined,
+      algorithm_result_id: filter.algorithm_result_id || undefined,
+      execution_request_id: filter.execution_request_id || undefined,
+      algorithm_id: filter.algorithm_id || undefined,
+      status: filter.status || undefined,
+      signal_id: filter.signal_id || undefined,
+      limit: filter.limit ?? 50,
+    }),
 };

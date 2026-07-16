@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Cpu, GitPullRequestArrow } from 'lucide-react';
+import { Cpu, GitPullRequestArrow, Zap } from 'lucide-react';
 import {
   useAlgorithmDefinitions,
   useAlgorithmExecutionRequests,
@@ -8,6 +8,8 @@ import {
   useAlgorithmSignalProposal,
   useAlgorithmSignalProposalSummary,
   useAlgorithmSignalMaterializationPreflight,
+  useAlgorithmSignalMaterializations,
+  useMaterializeAlgorithmSignalProposal,
   useDecideAlgorithmSignalProposal,
 } from '../api/queries';
 import { isApiError } from '../api/client';
@@ -24,17 +26,23 @@ import {
   summarizeAlgorithmSignalProposal,
   summarizeAlgorithmSignalProposalSummary,
   summarizeAlgorithmSignalMaterializationPreflight,
+  summarizeAlgorithmSignalMaterialization,
   algorithmDefinitionStatusStyle,
   algorithmExecutionStatusStyle,
   algorithmSeverityStyle,
   algorithmProposalStatusStyle,
   algorithmPreflightStatusStyle,
+  algorithmMaterializationStatusStyle,
+  findPreflightItemByProposalId,
+  describeMaterializationEligibility,
   type AlgorithmSignalProposalSummary,
   type AlgorithmSignalProposalSummaryView,
   type AlgorithmSignalMaterializationPreflightView,
+  type AlgorithmSignalMaterializationPreflightItemView,
+  type AlgorithmSignalMaterializationView,
   type AlgorithmCountEntry,
 } from '../lib/algorithms';
-import { useTenant } from '../auth/session';
+import { useTenant, useCanMutateLifecycle } from '../auth/session';
 import type {
   AlgorithmDefinition,
   AlgorithmResult,
@@ -229,6 +237,12 @@ export function AlgorithmsRoute() {
     proposalDetailQ.data?.algorithm_signal_proposal ??
     proposals.find((p) => p.proposal_id === selectedProposalId) ??
     null;
+  // G123: the materialize action is gated on the selected proposal's preflight
+  // item (eligible + would_write) and on any global preflight blockers. The
+  // preflight slice follows the proposal-list filters, so a selected proposal
+  // outside the current filter has no item and the action stays disabled.
+  const selectedPreflightItem = findPreflightItemByProposalId(preflightView, selectedProposalId ?? '');
+  const preflightGlobalBlockingActive = !!preflightView && preflightView.globalBlockingReasons.length > 0;
 
   function selectAlgorithm(id: string) {
     setSelectedAlgorithmId(id);
@@ -717,6 +731,10 @@ export function AlgorithmsRoute() {
           tenantId={TENANT_ID}
           detailLoading={proposalDetailQ.isLoading && !!selectedProposalId}
           detailError={proposalDetailQ.isError ? proposalDetailQ.error : null}
+          preflightItem={selectedPreflightItem}
+          preflightLoading={preflightQ.isLoading}
+          preflightFailed={preflightQ.isError}
+          globalBlockingActive={preflightGlobalBlockingActive}
         />
       ) : (
         <div className="rounded border border-gray-200 bg-white p-3">
@@ -729,17 +747,26 @@ export function AlgorithmsRoute() {
 
 // Selected algorithm signal proposal evidence detail. Renders all spec-required
 // fields, lineage id lists, and the collapsible proposal_payload / rationale
-// JSON, then the bounded review controls. Read-only except for the review form.
+// JSON, then the bounded review controls, the G123 materialization action, and
+// the materialization ledger. Read-only except for the review + materialize forms.
 function ProposalDetail({
   proposal,
   tenantId,
   detailLoading,
   detailError,
+  preflightItem,
+  preflightLoading,
+  preflightFailed,
+  globalBlockingActive,
 }: {
   proposal: AlgorithmSignalProposal;
   tenantId: string;
   detailLoading: boolean;
   detailError: unknown;
+  preflightItem: AlgorithmSignalMaterializationPreflightItemView | null;
+  preflightLoading: boolean;
+  preflightFailed: boolean;
+  globalBlockingActive: boolean;
 }) {
   const p = summarizeAlgorithmSignalProposal(proposal);
   return (
@@ -788,6 +815,15 @@ function ProposalDetail({
         <JsonViewer label="Rationale JSON" value={p.rationale} />
 
         <ProposalReviewControls proposal={p} tenantId={tenantId} />
+
+        <ProposalMaterializationSection
+          proposal={p}
+          tenantId={tenantId}
+          preflightItem={preflightItem}
+          preflightLoading={preflightLoading}
+          preflightFailed={preflightFailed}
+          globalBlockingActive={globalBlockingActive}
+        />
       </div>
     </div>
   );
@@ -876,6 +912,326 @@ function ProposalReviewControls({
         {errorMessage ? <span className="text-[11px] text-red-700">{errorMessage}</span> : null}
       </div>
       <p className="mt-1 text-[11px] text-gray-400">Review records operator metadata only; no production signal is materialized.</p>
+    </div>
+  );
+}
+
+// Truncate a string for dense table cells; full value stays available via title.
+function truncate(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}…`;
+}
+
+// Materialization status badge (G121/G123). Mirrors the preflight/proposal badge
+// shape; tones per algorithmMaterializationStatusStyle.
+function MaterializationStatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium ${algorithmMaterializationStatusStyle(status)}`}
+    >
+      {status || '—'}
+    </span>
+  );
+}
+
+// G123 single-proposal materialization action + ledger. The Materialize button is
+// gated by describeMaterializationEligibility (reviewed + eligible preflight item
+// + would_write + operator/admin role + no global blockers + not already
+// materialized). A click expands an inline confirmation (no modal in this app);
+// confirming POSTs the G122 mutation. Result rendering branches on
+// materialization_status — succeeded/duplicate/blocked come back as 2xx
+// envelopes, so they are read from mutation.data, not mutation.error. This is the
+// only control on the surface that writes a production signal.
+function ProposalMaterializationSection({
+  proposal,
+  tenantId,
+  preflightItem,
+  preflightLoading,
+  preflightFailed,
+  globalBlockingActive,
+}: {
+  proposal: AlgorithmSignalProposalSummary;
+  tenantId: string;
+  preflightItem: AlgorithmSignalMaterializationPreflightItemView | null;
+  preflightLoading: boolean;
+  preflightFailed: boolean;
+  globalBlockingActive: boolean;
+}) {
+  const canMutate = useCanMutateLifecycle();
+  const materializationsQ = useAlgorithmSignalMaterializations({
+    tenant_id: tenantId,
+    proposal_id: proposal.proposalId,
+    limit: 50,
+  });
+  const mutation = useMaterializeAlgorithmSignalProposal();
+  const [confirming, setConfirming] = useState(false);
+  const [note, setNote] = useState('');
+
+  const rows = (materializationsQ.data?.algorithm_signal_materializations ?? []).map(summarizeAlgorithmSignalMaterialization);
+  const hasRecordedMaterialization = rows.some(
+    (r) => r.materializationStatus === 'succeeded' || r.materializationStatus === 'duplicate',
+  );
+  const eligibility = describeMaterializationEligibility({
+    proposalStatus: proposal.status,
+    preflightItem,
+    preflightLoading,
+    preflightFailed,
+    globalBlockingActive,
+    canMutate,
+    mutationPending: mutation.isPending,
+    hasRecordedMaterialization,
+  });
+
+  function confirm() {
+    if (mutation.isPending) return;
+    mutation.mutate(
+      {
+        proposalId: proposal.proposalId,
+        request: {
+          tenant_id: tenantId,
+          policy_version: 'algorithm_materialization.v1',
+          metadata: note.trim() ? { note: note.trim() } : {},
+        },
+      },
+      { onSuccess: () => setConfirming(false) },
+    );
+  }
+  function cancel() {
+    setConfirming(false);
+    mutation.reset();
+  }
+
+  const resultView = mutation.data
+    ? summarizeAlgorithmSignalMaterialization(mutation.data.algorithm_signal_materialization)
+    : null;
+  const btnCls = 'inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium';
+
+  return (
+    <div className="space-y-2">
+      <div className="rounded border border-gray-200 bg-gray-50 p-2">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs font-medium text-gray-600">Materialization</div>
+          <span className="text-[11px] text-gray-400">Writes one production signal · no alerts/insights/graph</span>
+        </div>
+        {!confirming ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              disabled={!eligibility.canMaterialize}
+              title={!eligibility.canMaterialize ? eligibility.reason : undefined}
+              className={`${btnCls} border-gray-300 bg-white text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <Zap size={14} /> Materialize
+            </button>
+            {!eligibility.canMaterialize ? (
+              <span className="text-[11px] text-gray-500">{eligibility.reason}</span>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-2 rounded border border-amber-200 bg-amber-50 p-2">
+            <div className="text-xs font-medium text-amber-800">Confirm materialization</div>
+            <div className="grid grid-cols-2 gap-1 text-[11px] text-gray-700">
+              <div className="col-span-2">Proposal: <code className="break-all">{proposal.proposalId || '—'}</code></div>
+              <div>Signal type: <code className="break-all">{proposal.proposedSignalType || '—'}</code></div>
+              <div>Algorithm: <span className="break-all">{proposal.algorithmId || '—'} <span className="text-gray-500">v{proposal.algorithmVersion || '—'}</span></span></div>
+              <div>Severity: <SeverityBadge severity={proposal.severity} /></div>
+              <div>Confidence: {proposal.confidence.toFixed(2)}</div>
+              <div>Source events: {proposal.sourceEventIds.length}</div>
+              <div>Policy: <code>algorithm_materialization.v1</code></div>
+            </div>
+            <p className="text-[11px] text-amber-800">
+              One production signal may be created. Alerts, insights, and graph proposals are not directly created by this action.
+            </p>
+            <div>
+              <label className="mb-0.5 block text-[11px] text-gray-500" htmlFor="materialize-note">Note (optional)</label>
+              <textarea
+                id="materialize-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Optional operator note recorded in materialization metadata"
+                className="h-14 w-full resize-none rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                disabled={mutation.isPending}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={confirm}
+                disabled={mutation.isPending}
+                className={`${btnCls} border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                <Zap size={14} /> Confirm materialization
+              </button>
+              <button
+                type="button"
+                onClick={cancel}
+                disabled={mutation.isPending}
+                className={`${btnCls} border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50`}
+              >
+                Cancel
+              </button>
+              {mutation.isPending ? <span className="text-[11px] text-gray-500">Materializing…</span> : null}
+            </div>
+          </div>
+        )}
+
+        <MaterializationResultBanner view={resultView} error={mutation.isError ? mutation.error : null} />
+
+        <p className="mt-1 text-[11px] text-gray-400">
+          The backend remains authoritative; eligibility here only controls the button. The action is idempotent — repeating it returns the existing record.
+        </p>
+      </div>
+
+      <MaterializationLedgerPanel
+        rows={rows}
+        isLoading={materializationsQ.isLoading}
+        isError={materializationsQ.isError}
+        error={materializationsQ.error}
+      />
+    </div>
+  );
+}
+
+// Render the latest mutation outcome. succeeded/duplicate/blocked arrive as 2xx
+// envelopes (read from mutation.data); only not-found/auth/server failures throw
+// and surface via the error branch. Sanitized — no tokens/headers/stack.
+function MaterializationResultBanner({
+  view,
+  error,
+}: {
+  view: AlgorithmSignalMaterializationView | null;
+  error: unknown;
+}) {
+  if (error) {
+    const msg = isApiError(error) ? `${error.code}: ${error.message}` : 'Materialization failed.';
+    return (
+      <p className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">{msg}</p>
+    );
+  }
+  if (!view) return null;
+  const status = view.materializationStatus;
+  if (status === 'succeeded') {
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+        <span>Materialized as signal <code className="break-all">{view.signalId || '—'}</code></span>
+        {view.signalId ? <CopyButton value={view.signalId} /> : null}
+        {view.signalId ? <a className="underline hover:text-emerald-800" href="/signals">view in Signals</a> : null}
+      </div>
+    );
+  }
+  if (status === 'duplicate') {
+    return (
+      <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
+        Already exists as signal <code className="break-all">{view.duplicateOfSignalId || '—'}</code>; no new signal created.
+      </p>
+    );
+  }
+  if (status === 'blocked') {
+    return (
+      <p className="mt-2 rounded border border-orange-200 bg-orange-50 px-2 py-1 text-xs text-orange-700">
+        Blocked: {view.errorMessage || view.errorCode || 'blocked'}
+      </p>
+    );
+  }
+  if (status === 'failed') {
+    return (
+      <p className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+        Failed: {view.errorMessage || view.errorCode || 'failed'}
+      </p>
+    );
+  }
+  if (status === 'requested' || status === 'running') {
+    return (
+      <p className="mt-2 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-700">
+        Materialization in progress…
+      </p>
+    );
+  }
+  if (status === 'superseded') {
+    return (
+      <p className="mt-2 rounded border border-gray-200 bg-gray-100 px-2 py-1 text-xs text-gray-500">Superseded.</p>
+    );
+  }
+  return null;
+}
+
+// G121 materialization ledger for the selected proposal. Dense rows (status,
+// policy, signal ids, requester, timestamps, error, idempotency key) with the
+// three JSON fields collapsed via JsonViewer. Scoped loading/error/empty.
+function MaterializationLedgerPanel({
+  rows,
+  isLoading,
+  isError,
+  error,
+}: {
+  rows: AlgorithmSignalMaterializationView[];
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+}) {
+  return (
+    <div className="rounded border border-gray-200 bg-white p-2">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Materialization Records</div>
+      {isLoading ? (
+        <div className="text-xs text-gray-500">Loading materialization records…</div>
+      ) : isError ? (
+        <div className="text-xs text-red-700">
+          Materialization records unavailable{isApiError(error) ? `: ${error.message}` : ''}.
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="text-xs text-gray-500">No materialization records for this proposal.</div>
+      ) : (
+        <div className="space-y-2">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="whitespace-nowrap px-3 py-2">Materialization</th>
+                  <th className="whitespace-nowrap px-3 py-2">Status</th>
+                  <th className="whitespace-nowrap px-3 py-2">Policy</th>
+                  <th className="whitespace-nowrap px-3 py-2">Signal</th>
+                  <th className="whitespace-nowrap px-3 py-2">Duplicate of</th>
+                  <th className="whitespace-nowrap px-3 py-2">Requested by</th>
+                  <th className="whitespace-nowrap px-3 py-2">Requested</th>
+                  <th className="whitespace-nowrap px-3 py-2">Completed</th>
+                  <th className="whitespace-nowrap px-3 py-2">Error</th>
+                  <th className="whitespace-nowrap px-3 py-2">Idempotency key</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rows.map((r) => (
+                  <tr key={r.materializationId} className="align-top">
+                    <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-700">{r.materializationId || '—'}</code></td>
+                    <td className="px-3 py-2"><MaterializationStatusBadge status={r.materializationStatus} /></td>
+                    <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-600">{r.materializationPolicyVersion || '—'}</code></td>
+                    <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-700">{r.signalId || '—'}</code></td>
+                    <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-600">{r.duplicateOfSignalId || '—'}</code></td>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-700">{r.requestedBy || '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">{r.requestedAt ? formatUtc(r.requestedAt) : '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">{(r.completedAt || r.failedAt) ? formatUtc(r.completedAt || r.failedAt) : '—'}</td>
+                    <td className="px-3 py-2">
+                      <code className="break-all text-[11px] text-gray-600" title={r.errorMessage || r.errorCode || ''}>
+                        {r.errorCode || r.errorMessage
+                          ? `${r.errorCode || ''}${r.errorCode && r.errorMessage ? ': ' : ''}${truncate(r.errorMessage, 60)}`
+                          : '—'}
+                      </code>
+                    </td>
+                    <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-500" title={r.idempotencyKey}>{truncate(r.idempotencyKey, 24)}</code></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {rows.map((r) => (
+            <div key={`${r.materializationId}-json`} className="grid grid-cols-1 gap-2 md:grid-cols-3">
+              <JsonViewer label="Request metadata" value={r.requestMetadata} />
+              <JsonViewer label="Preflight snapshot" value={r.preflightSnapshot} />
+              <JsonViewer label="Signal payload preview" value={r.signalPayloadPreview} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

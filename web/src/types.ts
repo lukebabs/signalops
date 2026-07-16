@@ -1798,3 +1798,81 @@ export interface AlgorithmSignalMaterializationPreflightFilter {
   min_reviewed_ratio?: number;
   policy_version?: string;
 }
+
+// G121/G122/G123 algorithm signal materialization. Mirrors the
+// algorithmSignalMaterializationDTO in internal/api/algorithms.go. The G122 POST
+// materializes a reviewed eligible proposal into a production signal; it is the
+// first write control on this surface. materialization_status is permissive
+// (| string) so unknown future tokens render in a neutral style. The POST returns
+// 201/200 with this envelope for succeeded/duplicate/blocked (branch on status);
+// only not-found/auth/server failures throw. requested_at is always present;
+// started_at/completed_at/failed_at are omitempty (absent until set). The three
+// JSON fields arrive already-parsed (typed unknown; render via JsonViewer).
+export type AlgorithmSignalMaterializationStatus =
+  | 'requested'
+  | 'running'
+  | 'succeeded'
+  | 'duplicate'
+  | 'blocked'
+  | 'failed'
+  | 'superseded'
+  | string;
+
+export interface AlgorithmSignalMaterialization {
+  materialization_id: string;
+  tenant_id: string;
+  proposal_id: string;
+  algorithm_result_id: string;
+  execution_request_id: string;
+  algorithm_id: string;
+  algorithm_version: string;
+  proposed_signal_type: string;
+  signal_id: string;
+  materialization_status: AlgorithmSignalMaterializationStatus;
+  materialization_policy_version: string;
+  idempotency_key: string;
+  duplicate_of_signal_id: string;
+  requested_by: string;
+  requested_at: string;
+  started_at?: string;
+  completed_at?: string;
+  failed_at?: string;
+  error_code: string;
+  error_message: string;
+  request_metadata: unknown;
+  preflight_snapshot: unknown;
+  signal_payload_preview: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+// POST /v1/algorithms/signal-proposals/{proposal_id}/materializations body.
+// tenant_id is read from the body first (then query); policy_version is the fixed
+// algorithm_materialization.v1 default; requested_by and idempotency_key are
+// derived server-side (never sent). metadata defaults to {} when omitted.
+export interface AlgorithmSignalMaterializationRequest {
+  tenant_id: string;
+  policy_version?: string;
+  metadata?: unknown;
+}
+
+export interface AlgorithmSignalMaterializationResponse {
+  algorithm_signal_materialization: AlgorithmSignalMaterialization;
+}
+
+export interface AlgorithmSignalMaterializationsResponse {
+  algorithm_signal_materializations: AlgorithmSignalMaterialization[];
+}
+
+// Ledger list filter. tenant_id is required by the gateway (defaults to
+// tenant-local in the client); the rest are optional narrowers.
+export interface AlgorithmSignalMaterializationFilter {
+  tenant_id?: string;
+  proposal_id?: string;
+  algorithm_result_id?: string;
+  execution_request_id?: string;
+  algorithm_id?: string;
+  status?: AlgorithmSignalMaterializationStatus | '';
+  signal_id?: string;
+  limit?: number;
+}

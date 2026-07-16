@@ -24,7 +24,7 @@ Use these existing endpoints only:
 - `GET /v1/algorithms/signal-materializations/{materialization_id}?tenant_id={tenant_id}`
 - existing signal detail/list API if already wired in the UI; do not invent a new signal endpoint.
 
-POST request body:
+POST request body (`tenant_id` is read from the body first, then the query string; `policy_version` defaults to `algorithm_materialization.v1`; `requested_by` and `idempotency_key` are derived server-side from the JWT/digest — the UI sends neither):
 
 ```json
 {
@@ -36,7 +36,7 @@ POST request body:
 }
 ```
 
-Response envelope:
+Response envelope (abbreviated — the backend DTO also returns `tenant_id`, `algorithm_result_id`, `execution_request_id`, `algorithm_id`, `algorithm_version`, `proposed_signal_type`, `requested_by`, `requested_at`, `started_at`/`completed_at`/`failed_at` (omitempty), `error_code`, `error_message`, `request_metadata`, `preflight_snapshot`, `signal_payload_preview`, and `created_at`/`updated_at`):
 
 ```json
 {
@@ -47,10 +47,14 @@ Response envelope:
     "signal_id": "sig_alg_...",
     "duplicate_of_signal_id": "",
     "materialization_policy_version": "algorithm_materialization.v1",
-    "idempotency_key": "algmat_idem_..."
+    "idempotency_key": "algmat_idem_...",
+    "error_code": "",
+    "error_message": ""
   }
 }
 ```
+
+Response status semantics: the POST returns `201 Created` (or `200 OK` on an idempotent repeat of the same proposal) with the envelope above for `succeeded`, `duplicate`, and `blocked` outcomes — the UI must branch on `materialization_status`, not on HTTP success. Only true failures throw a non-2xx the client surfaces as an error: `404 algorithm_signal_proposal_not_found`, `401 unauthorized` / `403 insufficient_role`, or `5xx` (`query_failed`, `preflight_failed`, `signal_write_failed`).
 
 ## UI Placement
 
@@ -116,6 +120,8 @@ After mutation succeeds:
 - if `materialization_status=duplicate`, show `duplicate_of_signal_id` and do not imply a new signal was created;
 - if `materialization_status=blocked`, show the preflight/blocker reason from the row;
 - if `materialization_status=failed`, show sanitized error code/message.
+- if `materialization_status` is `requested` or `running`, show an in-progress/neutral state (these do not normally persist for this synchronous POST);
+- if `materialization_status=superseded`, show a muted state and do not imply an active signal.
 
 Idempotent retry behavior:
 

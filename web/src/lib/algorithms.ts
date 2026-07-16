@@ -545,6 +545,176 @@ export function summarizeAlgorithmSignalMaterializationPreflight(p: unknown): Al
   };
 }
 
+// Find the preflight item for a given proposal id within a preflight view, or
+// null when the proposal is outside the current preflight slice. Used by G123 to
+// gate the materialize action on the matching item's status.
+export function findPreflightItemByProposalId(
+  view: AlgorithmSignalMaterializationPreflightView | null,
+  proposalId: string,
+): AlgorithmSignalMaterializationPreflightItemView | null {
+  if (!view || !proposalId) return null;
+  return view.items.find((it) => it.proposalId === proposalId) ?? null;
+}
+
+// Restrained algorithm signal materialization status colors (G121/G123).
+// succeeded -> success emerald; duplicate -> warning amber; blocked -> warning
+// orange (kept distinct from duplicate); failed -> error red; requested/running
+// -> in-progress blue; superseded -> muted gray. Unknown values fall back to
+// neutral gray.
+const MATERIALIZATION_STATUS_STYLES: Record<string, string> = {
+  requested: 'border-blue-200 bg-blue-50 text-blue-700',
+  running: 'border-blue-200 bg-blue-50 text-blue-700',
+  succeeded: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  duplicate: 'border-amber-200 bg-amber-50 text-amber-700',
+  blocked: 'border-orange-200 bg-orange-50 text-orange-700',
+  failed: 'border-red-200 bg-red-50 text-red-700',
+  superseded: 'border-gray-200 bg-gray-100 text-gray-500',
+};
+
+export function algorithmMaterializationStatusStyle(status: string): string {
+  return MATERIALIZATION_STATUS_STYLES[status] ?? 'border-gray-200 bg-gray-50 text-gray-600';
+}
+
+export interface AlgorithmSignalMaterializationView {
+  materializationId: string;
+  tenantId: string;
+  proposalId: string;
+  algorithmResultId: string;
+  executionRequestId: string;
+  algorithmId: string;
+  algorithmVersion: string;
+  proposedSignalType: string;
+  signalId: string;
+  materializationStatus: string;
+  materializationPolicyVersion: string;
+  idempotencyKey: string;
+  duplicateOfSignalId: string;
+  requestedBy: string;
+  requestedAt: string;
+  startedAt: string;
+  completedAt: string;
+  failedAt: string;
+  errorCode: string;
+  errorMessage: string;
+  requestMetadata: unknown;
+  preflightSnapshot: unknown;
+  signalPayloadPreview: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const EMPTY_MATERIALIZATION: AlgorithmSignalMaterializationView = {
+  materializationId: '',
+  tenantId: '',
+  proposalId: '',
+  algorithmResultId: '',
+  executionRequestId: '',
+  algorithmId: '',
+  algorithmVersion: '',
+  proposedSignalType: '',
+  signalId: '',
+  materializationStatus: '',
+  materializationPolicyVersion: '',
+  idempotencyKey: '',
+  duplicateOfSignalId: '',
+  requestedBy: '',
+  requestedAt: '',
+  startedAt: '',
+  completedAt: '',
+  failedAt: '',
+  errorCode: '',
+  errorMessage: '',
+  requestMetadata: {},
+  preflightSnapshot: {},
+  signalPayloadPreview: {},
+  createdAt: '',
+  updatedAt: '',
+};
+
+// Narrow a G121/G122 materialization DTO into a display view. Scalars collapse to
+// 0/'', omitempty timestamps to '', and the three JSON fields pass through
+// verbatim (already parsed). Never throws.
+export function summarizeAlgorithmSignalMaterialization(m: unknown): AlgorithmSignalMaterializationView {
+  if (!isRecord(m)) return { ...EMPTY_MATERIALIZATION };
+  return {
+    materializationId: asString(m.materialization_id),
+    tenantId: asString(m.tenant_id),
+    proposalId: asString(m.proposal_id),
+    algorithmResultId: asString(m.algorithm_result_id),
+    executionRequestId: asString(m.execution_request_id),
+    algorithmId: asString(m.algorithm_id),
+    algorithmVersion: asString(m.algorithm_version),
+    proposedSignalType: asString(m.proposed_signal_type),
+    signalId: asString(m.signal_id),
+    materializationStatus: asString(m.materialization_status),
+    materializationPolicyVersion: asString(m.materialization_policy_version),
+    idempotencyKey: asString(m.idempotency_key),
+    duplicateOfSignalId: asString(m.duplicate_of_signal_id),
+    requestedBy: asString(m.requested_by),
+    requestedAt: asString(m.requested_at),
+    startedAt: asString(m.started_at),
+    completedAt: asString(m.completed_at),
+    failedAt: asString(m.failed_at),
+    errorCode: asString(m.error_code),
+    errorMessage: asString(m.error_message),
+    requestMetadata: m.request_metadata ?? {},
+    preflightSnapshot: m.preflight_snapshot ?? {},
+    signalPayloadPreview: m.signal_payload_preview ?? {},
+    createdAt: asString(m.created_at),
+    updatedAt: asString(m.updated_at),
+  };
+}
+
+// Pure G123 materialization-eligibility gate. Encodes the spec's enable/disable
+// rules so the UI and tests share one definition. The backend stays authoritative
+// — this only controls whether the button is enabled and what reason is shown.
+// `hasRecordedMaterialization` should be true when the ledger already has a
+// succeeded/duplicate row for the proposal; `globalBlockingActive` when the
+// preflight reports any global blocking reason.
+export interface MaterializationEligibilityInput {
+  proposalStatus: string;
+  preflightItem: AlgorithmSignalMaterializationPreflightItemView | null;
+  preflightLoading: boolean;
+  preflightFailed: boolean;
+  globalBlockingActive: boolean;
+  canMutate: boolean;
+  mutationPending: boolean;
+  hasRecordedMaterialization: boolean;
+}
+
+export interface MaterializationEligibility {
+  canMaterialize: boolean;
+  reason: string;
+}
+
+export function describeMaterializationEligibility(input: MaterializationEligibilityInput): MaterializationEligibility {
+  const {
+    proposalStatus,
+    preflightItem,
+    preflightLoading,
+    preflightFailed,
+    globalBlockingActive,
+    canMutate,
+    mutationPending,
+    hasRecordedMaterialization,
+  } = input;
+  if (!canMutate) return { canMaterialize: false, reason: 'Requires operator or admin role.' };
+  if (mutationPending) return { canMaterialize: false, reason: 'Materialization in progress…' };
+  if (preflightLoading) return { canMaterialize: false, reason: 'Loading materialization preflight…' };
+  if (preflightFailed) return { canMaterialize: false, reason: 'Materialization preflight unavailable.' };
+  if (!preflightItem) return { canMaterialize: false, reason: 'No preflight row for this proposal.' };
+  if (proposalStatus !== 'reviewed') {
+    return { canMaterialize: false, reason: `Proposal is ${proposalStatus || 'unknown'}; must be reviewed.` };
+  }
+  if (hasRecordedMaterialization) return { canMaterialize: false, reason: 'Already materialized.' };
+  if (globalBlockingActive) return { canMaterialize: false, reason: 'Global preflight blockers active.' };
+  if (preflightItem.preflightStatus !== 'eligible') {
+    return { canMaterialize: false, reason: `Preflight status: ${preflightItem.preflightStatus || 'unknown'}.` };
+  }
+  if (!preflightItem.wouldWrite) return { canMaterialize: false, reason: 'Preflight indicates no write.' };
+  return { canMaterialize: true, reason: '' };
+}
+
 export interface AlgorithmExecutionSummaryView {
   executionRequest: AlgorithmExecutionRequestSummary;
   resultCount: number;

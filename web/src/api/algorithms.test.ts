@@ -21,7 +21,7 @@ vi.mock('../auth/session', () => ({
 }));
 
 const { api } = await import('./client');
-const { applyAlgorithmSignalProposalDecisionResult } = await import('./queries');
+const { applyAlgorithmSignalProposalDecisionResult, applyMaterializeAlgorithmSignalProposalResult } = await import('./queries');
 
 function sampleProposal(overrides: Partial<AlgorithmSignalProposal> = {}): AlgorithmSignalProposal {
   return {
@@ -507,5 +507,105 @@ describe('algorithm signal materialization preflight API client (G119)', () => {
     expect(env.items[0].proposal_id).toBe('algsigprop-reviewed');
     expect(env.items[0].preflight_status).toBe('blocked');
     expect(env.items[0].source_event_ids).toEqual(['evt-1']);
+  });
+});
+
+describe('algorithm signal materialization API client (G123)', () => {
+  it('posts the materialization body to the materializations path with bearer and no actor header', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ algorithm_signal_materialization: { materialization_id: 'algmat_1', materialization_status: 'succeeded' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.materializeAlgorithmSignalProposal('algsigprop_1', {
+      tenant_id: 'tenant-local',
+      policy_version: 'algorithm_materialization.v1',
+      metadata: { note: 'ship it' },
+    });
+
+    const call = fetchMock.mock.calls[0];
+    expect(String(call[0])).toContain('/v1/algorithms/signal-proposals/algsigprop_1/materializations');
+    expect(call[1].method).toBe('POST');
+    expect(call[1].headers['Authorization']).toBe('Bearer jwt-abc');
+    // The gateway derives the actor from the JWT (no operator-local header).
+    expect(call[1].headers['X-SignalOps-Actor']).toBeUndefined();
+    const body = JSON.parse(call[1].body as string);
+    expect(body).toEqual({
+      tenant_id: 'tenant-local',
+      policy_version: 'algorithm_materialization.v1',
+      metadata: { note: 'ship it' },
+    });
+  });
+
+  it('builds the materializations list path with filters + tenant + limit + bearer', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ algorithm_signal_materializations: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.listAlgorithmSignalMaterializations({
+      tenant_id: 'tenant-local',
+      proposal_id: 'algsigprop_1',
+      status: 'succeeded',
+      signal_id: 'sig_alg_1',
+      limit: 25,
+    });
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('/v1/algorithms/signal-materializations');
+    expect(url).toContain('tenant_id=tenant-local');
+    expect(url).toContain('proposal_id=algsigprop_1');
+    expect(url).toContain('status=succeeded');
+    expect(url).toContain('signal_id=sig_alg_1');
+    expect(url).toContain('limit=25');
+    expect(fetchMock.mock.calls[0][1].headers['Authorization']).toBe('Bearer jwt-abc');
+  });
+
+  it('parses the materialization + list envelopes', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          algorithm_signal_materialization: {
+            materialization_id: 'algmat_1',
+            materialization_status: 'succeeded',
+            signal_id: 'sig_alg_1',
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          algorithm_signal_materializations: [
+            { materialization_id: 'algmat_1', materialization_status: 'duplicate', duplicate_of_signal_id: 'sig_existing' },
+          ],
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const one = await api.materializeAlgorithmSignalProposal('algsigprop_1', { tenant_id: 'tenant-local' });
+    const list = await api.listAlgorithmSignalMaterializations({ tenant_id: 'tenant-local', proposal_id: 'algsigprop_1' });
+
+    expect(one.algorithm_signal_materialization.materialization_status).toBe('succeeded');
+    expect(one.algorithm_signal_materialization.signal_id).toBe('sig_alg_1');
+    expect(list.algorithm_signal_materializations[0].materialization_status).toBe('duplicate');
+    expect(list.algorithm_signal_materializations[0].duplicate_of_signal_id).toBe('sig_existing');
+  });
+});
+
+describe('applyMaterializeAlgorithmSignalProposalResult (G123 mutation invalidation)', () => {
+  it('invalidates materialization ledger, preflight, and proposal prefixes only', () => {
+    const queryClient = new QueryClient();
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    applyMaterializeAlgorithmSignalProposalResult(queryClient);
+
+    const invalidated = invSpy.mock.calls.map((c) => c[0]);
+    expect(invalidated).toContainEqual({ queryKey: ['algorithm-signal-materializations'] });
+    expect(invalidated).toContainEqual({ queryKey: ['algorithm-signal-materialization-preflight'] });
+    expect(invalidated).toContainEqual({ queryKey: ['algorithm-signal-proposals'] });
+    expect(invalidated).toContainEqual({ queryKey: ['algorithm-signal-proposal-summary'] });
+    // No production signal/alert/insight/execution queries are touched.
+    expect(invalidated).not.toContainEqual({ queryKey: ['signals'] });
+    expect(invalidated).not.toContainEqual({ queryKey: ['alerts'] });
   });
 });

@@ -49,6 +49,9 @@ import type {
   AlgorithmSignalProposalDecisionRequest,
   AlgorithmSignalProposalResponse,
   AlgorithmSignalMaterializationPreflightFilter,
+  AlgorithmSignalMaterializationRequest,
+  AlgorithmSignalMaterializationResponse,
+  AlgorithmSignalMaterializationFilter,
 } from '../types';
 
 export const queryKeys = {
@@ -139,6 +142,10 @@ export const queryKeys = {
   // min_reviewed_ratio + policy_version) so it refetches on any filter change.
   algorithmSignalMaterializationPreflight: (filter: AlgorithmSignalMaterializationPreflightFilter) =>
     ['algorithm-signal-materialization-preflight', filter] as const,
+  // Materialization ledger rows for one proposal. Keyed by tenant + proposal id
+  // (+limit) so it refetches when the selected proposal changes.
+  algorithmSignalMaterializations: (filter: AlgorithmSignalMaterializationFilter) =>
+    ['algorithm-signal-materializations', filter] as const,
 };
 
 export function useHealthz() {
@@ -976,5 +983,37 @@ export function useDecideAlgorithmSignalProposal() {
       api.decideAlgorithmSignalProposal(vars.proposalId, vars.request),
     onSuccess: (data, variables) =>
       applyAlgorithmSignalProposalDecisionResult(queryClient, data, variables.proposalId, variables.tenantId),
+  });
+}
+
+// G121 materialization ledger for the selected proposal. Only runs while a
+// proposal is selected (guarded by a truthy proposal_id). Read-only.
+export function useAlgorithmSignalMaterializations(filter: AlgorithmSignalMaterializationFilter = { tenant_id: 'tenant-local' }) {
+  return useQuery({
+    queryKey: queryKeys.algorithmSignalMaterializations(filter),
+    queryFn: () => api.listAlgorithmSignalMaterializations(filter),
+    enabled: !!filter.proposal_id,
+  });
+}
+
+// G123 single-proposal materialization mutation (G122 backend). On success the
+// ledger refetches (the new row appears), the preflight refreshes (the proposal
+// is no longer would-write), and the proposal list/detail/summary refresh so
+// badges/states stay consistent. The POST records a production signal — this is
+// the only materializing control on the surface. The backend is idempotent on
+// repeat, so a re-submit returns the existing row rather than erroring.
+export function applyMaterializeAlgorithmSignalProposalResult(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ['algorithm-signal-materializations'] });
+  queryClient.invalidateQueries({ queryKey: ['algorithm-signal-materialization-preflight'] });
+  queryClient.invalidateQueries({ queryKey: ['algorithm-signal-proposals'] });
+  queryClient.invalidateQueries({ queryKey: ['algorithm-signal-proposal-summary'] });
+}
+
+export function useMaterializeAlgorithmSignalProposal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { proposalId: string; request: AlgorithmSignalMaterializationRequest }) =>
+      api.materializeAlgorithmSignalProposal(vars.proposalId, vars.request),
+    onSuccess: () => applyMaterializeAlgorithmSignalProposalResult(queryClient),
   });
 }
