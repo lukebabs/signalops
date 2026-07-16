@@ -305,6 +305,9 @@ describe('applyAlgorithmSignalProposalDecisionResult (G114 mutation invalidation
     });
     // G116: the coverage summary prefix is also invalidated so it refreshes after a decision.
     expect(invalidated).toContainEqual({ queryKey: ['algorithm-signal-proposal-summary'] });
+    // G119: the materialization preflight prefix is invalidated too, because a
+    // review decision flips a proposal's preflight_status (e.g. unreviewed -> eligible).
+    expect(invalidated).toContainEqual({ queryKey: ['algorithm-signal-materialization-preflight'] });
   });
 });
 
@@ -381,5 +384,128 @@ describe('algorithm signal proposal summary API client (G116)', () => {
     expect(s.algorithm_signal_proposal_summary.high_critical_unreviewed_count).toBe(0);
     expect(s.algorithm_signal_proposal_summary.status_counts.reviewed).toBe(1);
     expect(s.algorithm_signal_proposal_summary.proposed_signal_type_counts['signalops.algorithm.change_point_candidate']).toBe(1);
+  });
+});
+
+describe('algorithm signal materialization preflight API client (G119)', () => {
+  it('builds the preflight path with coupled filters + tenant + bearer + limit + defaults', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ algorithm_signal_materialization_preflight: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.getAlgorithmSignalMaterializationPreflight({
+      tenant_id: 'tenant-local',
+      algorithm_id: 'ruptures_change_point_v1',
+      execution_request_id: 'algexec_1',
+      algorithm_result_id: 'algres_1',
+      status: 'reviewed',
+      severity: 'medium',
+      correlation_id: 'corr_1',
+      limit: 50,
+    });
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('/v1/algorithms/signal-proposals/materialization-preflight');
+    expect(url).toContain('tenant_id=tenant-local');
+    expect(url).toContain('algorithm_id=ruptures_change_point_v1');
+    expect(url).toContain('execution_request_id=algexec_1');
+    expect(url).toContain('algorithm_result_id=algres_1');
+    expect(url).toContain('status=reviewed');
+    expect(url).toContain('severity=medium');
+    expect(url).toContain('correlation_id=corr_1');
+    // limit is coupled to the proposal list (sent), not the endpoint's 200 default.
+    expect(url).toContain('limit=50');
+    // Preflight-only defaults are sent explicitly so the request is self-describing.
+    expect(url).toContain('min_reviewed_ratio=1');
+    expect(url).toContain('policy_version=materialization_preflight.v1');
+    expect(fetchMock.mock.calls[0][1].headers['Authorization']).toBe('Bearer jwt-abc');
+  });
+
+  it('omits unset filters, defaults tenant, and still couples limit + preflight defaults', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ algorithm_signal_materialization_preflight: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.getAlgorithmSignalMaterializationPreflight({});
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('tenant_id=tenant-local');
+    expect(url).not.toContain('status=');
+    expect(url).not.toContain('severity=');
+    // limit couples to the proposal-list default of 50 (not the endpoint's 200).
+    expect(url).toContain('limit=50');
+    expect(url).toContain('min_reviewed_ratio=1');
+    expect(url).toContain('policy_version=materialization_preflight.v1');
+  });
+
+  it('forwards explicit min_reviewed_ratio and policy_version overrides', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ algorithm_signal_materialization_preflight: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.getAlgorithmSignalMaterializationPreflight({
+      tenant_id: 'tenant-local',
+      min_reviewed_ratio: 0.5,
+      policy_version: 'materialization_preflight.v2',
+    });
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('min_reviewed_ratio=0.5');
+    expect(url).toContain('policy_version=materialization_preflight.v2');
+  });
+
+  it('parses the preflight envelope (counts, items, statuses, reason maps, coverage)', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        algorithm_signal_materialization_preflight: {
+          tenant_id: 'tenant-local',
+          policy_version: 'materialization_preflight.v1',
+          total_proposals: 4,
+          eligible_count: 0,
+          duplicate_risk_count: 1,
+          blocked_count: 2,
+          invalid_count: 1,
+          would_write_count: 0,
+          reviewed_ratio: 0.75,
+          min_reviewed_ratio: 1,
+          review_coverage_satisfied: false,
+          high_critical_unreviewed_count: 1,
+          global_blocking_reasons: { review_coverage_below_threshold: 1, high_critical_unreviewed_proposals: 1 },
+          item_reason_counts: { unreviewed_proposal: 1, duplicate_signal_event_overlap: 1, missing_source_events: 1 },
+          items: [
+            {
+              proposal_id: 'algsigprop-reviewed',
+              algorithm_result_id: 'algres-reviewed',
+              algorithm_id: 'signalops.algorithms.zscore_anomaly_v1',
+              execution_request_id: 'algexec-1',
+              proposed_signal_type: 'signalops.algorithm.anomaly_candidate',
+              status: 'reviewed',
+              severity: 'medium',
+              confidence: 0.9,
+              preflight_status: 'blocked',
+              reasons: [],
+              duplicate_signal_ids: [],
+              source_event_ids: ['evt-1'],
+              would_write: false,
+              materialization_policy: 'materialization_preflight.v1',
+            },
+          ],
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const p = await api.getAlgorithmSignalMaterializationPreflight({ tenant_id: 'tenant-local' });
+    const env = p.algorithm_signal_materialization_preflight;
+    expect(env.total_proposals).toBe(4);
+    expect(env.blocked_count).toBe(2);
+    expect(env.review_coverage_satisfied).toBe(false);
+    expect(env.high_critical_unreviewed_count).toBe(1);
+    expect(env.global_blocking_reasons.review_coverage_below_threshold).toBe(1);
+    expect(env.item_reason_counts.missing_source_events).toBe(1);
+    expect(env.items[0].proposal_id).toBe('algsigprop-reviewed');
+    expect(env.items[0].preflight_status).toBe('blocked');
+    expect(env.items[0].source_event_ids).toEqual(['evt-1']);
   });
 });

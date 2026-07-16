@@ -7,6 +7,7 @@ import {
   useAlgorithmSignalProposals,
   useAlgorithmSignalProposal,
   useAlgorithmSignalProposalSummary,
+  useAlgorithmSignalMaterializationPreflight,
   useDecideAlgorithmSignalProposal,
 } from '../api/queries';
 import { isApiError } from '../api/client';
@@ -22,12 +23,15 @@ import {
   summarizeAlgorithmExecutionSummary,
   summarizeAlgorithmSignalProposal,
   summarizeAlgorithmSignalProposalSummary,
+  summarizeAlgorithmSignalMaterializationPreflight,
   algorithmDefinitionStatusStyle,
   algorithmExecutionStatusStyle,
   algorithmSeverityStyle,
   algorithmProposalStatusStyle,
+  algorithmPreflightStatusStyle,
   type AlgorithmSignalProposalSummary,
   type AlgorithmSignalProposalSummaryView,
+  type AlgorithmSignalMaterializationPreflightView,
   type AlgorithmCountEntry,
 } from '../lib/algorithms';
 import { useTenant } from '../auth/session';
@@ -86,6 +90,19 @@ function ProposalStatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-flex shrink-0 items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium ${algorithmProposalStatusStyle(status)}`}
+    >
+      {status || '—'}
+    </span>
+  );
+}
+
+// Read-only materialization preflight status badge (G119). `eligible` is neutral
+// tone only — it must never read as accepted/deployed/materialized. See
+// algorithmPreflightStatusStyle.
+function PreflightStatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium ${algorithmPreflightStatusStyle(status)}`}
     >
       {status || '—'}
     </span>
@@ -188,6 +205,24 @@ export function AlgorithmsRoute() {
   });
   const proposalSummaryView = proposalSummaryQ.data
     ? summarizeAlgorithmSignalProposalSummary(proposalSummaryQ.data.algorithm_signal_proposal_summary)
+    : null;
+  // G119 read-only materialization preflight. Couples to the same proposal
+  // filters as the list (including limit); min_reviewed_ratio defaults to 1 and
+  // policy_version to materialization_preflight.v1 in the API client. Runs
+  // independently so its loading/error/empty states never block the list/detail.
+  const preflightQ = useAlgorithmSignalMaterializationPreflight({
+    tenant_id: TENANT_ID,
+    algorithm_id: propAlgorithmId || undefined,
+    execution_request_id: propExecReqId || undefined,
+    status: (propStatus || undefined) as AlgorithmSignalProposalStatus | undefined,
+    severity: propSeverity || undefined,
+    correlation_id: propCorrelationId || undefined,
+    limit: propLimit,
+  });
+  const preflightView = preflightQ.data
+    ? summarizeAlgorithmSignalMaterializationPreflight(
+        preflightQ.data.algorithm_signal_materialization_preflight,
+      )
     : null;
   const proposalDetailQ = useAlgorithmSignalProposal(selectedProposalId, TENANT_ID);
   const selectedProposal =
@@ -610,6 +645,13 @@ export function AlgorithmsRoute() {
           error={proposalSummaryQ.error}
         />
 
+        <MaterializationPreflightPanel
+          view={preflightView}
+          isLoading={preflightQ.isLoading}
+          isError={preflightQ.isError}
+          error={preflightQ.error}
+        />
+
         {proposalsQ.isLoading ? (
           <LoadingState label="Loading algorithm signal proposals..." />
         ) : proposalsQ.isError ? (
@@ -893,6 +935,140 @@ function ProposalSummaryPanel({
             <SummaryCountChips label="Algorithm" entries={view.algorithmIdCounts} />
             <SummaryCountChips label="Reviewer" entries={view.reviewerCounts} />
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// G119 compact read-only materialization preflight panel. Dense metrics strip +
+// prominent global-blocker warnings + reason/global-blocker chip lists + a small
+// per-proposal preflight table. Loading / error / empty states are scoped to
+// this panel and never block the list, detail, or review workflow. `eligible` and
+// `would_write` are forecast-only — this panel materializes nothing and never
+// says proposals are accepted, deployed, or production signals.
+function MaterializationPreflightPanel({
+  view,
+  isLoading,
+  isError,
+  error,
+}: {
+  view: AlgorithmSignalMaterializationPreflightView | null;
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+}) {
+  const coverageBelow = view ? !view.reviewCoverageSatisfied : false;
+  const hasHighCriticalUnreviewed = (view?.highCriticalUnreviewedCount ?? 0) > 0;
+  return (
+    <div className="mb-2 rounded border border-gray-200 bg-gray-50 p-2">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Materialization Preflight</div>
+        <span className="text-[11px] text-gray-400">Read-only preflight · no signal is materialized</span>
+      </div>
+      {isLoading ? (
+        <div className="text-xs text-gray-500">Loading materialization preflight…</div>
+      ) : isError ? (
+        <div className="text-xs text-red-700">
+          Materialization preflight unavailable{isApiError(error) ? `: ${error.message}` : ''}.
+        </div>
+      ) : !view || view.totalProposals === 0 ? (
+        <div className="text-xs text-gray-500">No materialization preflight rows for this filter.</div>
+      ) : (
+        <div className="space-y-2">
+          {(coverageBelow || hasHighCriticalUnreviewed) && (
+            <div className="flex flex-wrap gap-1.5">
+              {coverageBelow && (
+                <span className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">
+                  Review coverage below threshold
+                </span>
+              )}
+              {hasHighCriticalUnreviewed && (
+                <span className="inline-flex items-center gap-1 rounded border border-red-300 bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-700">
+                  High/critical unreviewed <strong>{view.highCriticalUnreviewedCount}</strong>
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-700">
+            <SummaryStat label="Total" value={view.totalProposals} />
+            <SummaryStat label="Eligible" value={view.eligibleCount} />
+            <SummaryStat label="Duplicate risk" value={view.duplicateRiskCount} />
+            <SummaryStat label="Blocked" value={view.blockedCount} />
+            <SummaryStat label="Invalid" value={view.invalidCount} />
+            <SummaryStat label="Would write" value={view.wouldWriteCount} />
+            <SummaryStat label="Reviewed" value={formatPercent(view.reviewedRatio)} />
+            <SummaryStat label="Min reviewed" value={formatPercent(view.minReviewedRatio)} />
+            <SummaryStat label="High/critical unreviewed" value={view.highCriticalUnreviewedCount} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <SummaryCountChips
+              label="Global blockers"
+              entries={view.globalBlockingReasons}
+              chipClassName={() => 'border-amber-200 bg-amber-50 text-amber-700'}
+            />
+            <SummaryCountChips label="Reason breakdown" entries={view.itemReasonCounts} />
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="whitespace-nowrap px-3 py-2">Proposal</th>
+                  <th className="whitespace-nowrap px-3 py-2">Signal type</th>
+                  <th className="whitespace-nowrap px-3 py-2">Preflight</th>
+                  <th className="whitespace-nowrap px-3 py-2">Review</th>
+                  <th className="whitespace-nowrap px-3 py-2">Severity</th>
+                  <th className="whitespace-nowrap px-3 py-2">Conf.</th>
+                  <th className="whitespace-nowrap px-3 py-2">Would write</th>
+                  <th className="whitespace-nowrap px-3 py-2">Reasons</th>
+                  <th className="whitespace-nowrap px-3 py-2">Dup signals</th>
+                  <th className="whitespace-nowrap px-3 py-2">Algorithm</th>
+                  <th className="whitespace-nowrap px-3 py-2">Execution request</th>
+                  <th className="whitespace-nowrap px-3 py-2">Result</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {view.items.map((it) => (
+                  <tr key={it.proposalId || `${it.algorithmResultId}-${it.proposedSignalType}`} className="align-top">
+                    <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-700">{it.proposalId || '—'}</code></td>
+                    <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-700">{it.proposedSignalType || '—'}</code></td>
+                    <td className="px-3 py-2"><PreflightStatusBadge status={it.preflightStatus} /></td>
+                    <td className="px-3 py-2"><ProposalStatusBadge status={it.status} /></td>
+                    <td className="px-3 py-2"><SeverityBadge severity={it.severity} /></td>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-800">{it.confidence.toFixed(2)}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">{it.wouldWrite ? 'Yes' : 'No'}</td>
+                    <td className="px-3 py-2">
+                      <code className="break-all text-[11px] text-gray-600" title={it.reasons.join(', ')}>
+                        {it.reasons.length ? it.reasons.join(', ') : '—'}
+                      </code>
+                    </td>
+                    <td className="px-3 py-2">
+                      {it.duplicateSignalIds.length ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="rounded border border-gray-200 px-1 text-[11px] text-gray-600">{it.duplicateSignalIds.length}</span>
+                          <code className="break-all text-[10px] text-gray-500" title={it.duplicateSignalIds.join(', ')}>
+                            {it.duplicateSignalIds.join(', ')}
+                          </code>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-700">{it.algorithmId || '—'}</td>
+                    <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-600">{it.executionRequestId || '—'}</code></td>
+                    <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-600">{it.algorithmResultId || '—'}</code></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-[11px] text-gray-400">
+            Preflight forecasts materialization eligibility only; would-write counts are hypothetical and perform no action.
+          </p>
         </div>
       )}
     </div>

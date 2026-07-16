@@ -48,6 +48,7 @@ import type {
   AlgorithmSignalProposalFilter,
   AlgorithmSignalProposalDecisionRequest,
   AlgorithmSignalProposalResponse,
+  AlgorithmSignalMaterializationPreflightFilter,
 } from '../types';
 
 export const queryKeys = {
@@ -134,6 +135,10 @@ export const queryKeys = {
   // matched slice and must not refetch when only the page limit changes.
   algorithmSignalProposalSummary: (filter: AlgorithmSignalProposalFilter) =>
     ['algorithm-signal-proposal-summary', filter] as const,
+  // Preflight key includes the full filter (coupled proposal filters + limit +
+  // min_reviewed_ratio + policy_version) so it refetches on any filter change.
+  algorithmSignalMaterializationPreflight: (filter: AlgorithmSignalMaterializationPreflightFilter) =>
+    ['algorithm-signal-materialization-preflight', filter] as const,
 };
 
 export function useHealthz() {
@@ -931,12 +936,26 @@ export function useAlgorithmSignalProposalSummary(filter: AlgorithmSignalProposa
   });
 }
 
+// G119 read-only materialization preflight over the G118 endpoint. Couples to the
+// active proposal filters (including limit) plus the preflight-only params. Not
+// polled — filter changes and review decisions both trigger a refetch (the
+// decision handler invalidates this prefix because a review flips preflight_status).
+export function useAlgorithmSignalMaterializationPreflight(
+  filter: AlgorithmSignalMaterializationPreflightFilter = { tenant_id: 'tenant-local' },
+) {
+  return useQuery({
+    queryKey: queryKeys.algorithmSignalMaterializationPreflight(filter),
+    queryFn: () => api.getAlgorithmSignalMaterializationPreflight(filter),
+  });
+}
+
 // On decision, seed the proposal detail cache with the returned (reviewed) row
-// and invalidate proposal list/detail/summary prefixes so filtered tables,
-// badges, and the G116 coverage summary refresh. Only algorithm-signal-proposal
-// queries are touched — never production signal, alert, insight, graph proposal,
-// or algorithm execution queries. The decision records review metadata only; it
-// materializes nothing.
+// and invalidate proposal list/detail/summary/preflight prefixes so filtered
+// tables, badges, the G116 coverage summary, and the G119 preflight (whose
+// preflight_status depends on review status) refresh. Only algorithm-signal-
+// proposal queries are touched — never production signal, alert, insight, graph
+// proposal, or algorithm execution queries. The decision records review metadata
+// only; it materializes nothing.
 export function applyAlgorithmSignalProposalDecisionResult(
   queryClient: QueryClient,
   data: AlgorithmSignalProposalResponse,
@@ -947,6 +966,7 @@ export function applyAlgorithmSignalProposalDecisionResult(
   queryClient.invalidateQueries({ queryKey: ['algorithm-signal-proposals'] });
   queryClient.invalidateQueries({ queryKey: ['algorithm-signal-proposal', proposalId, tenantId] });
   queryClient.invalidateQueries({ queryKey: ['algorithm-signal-proposal-summary'] });
+  queryClient.invalidateQueries({ queryKey: ['algorithm-signal-materialization-preflight'] });
 }
 
 export function useDecideAlgorithmSignalProposal() {

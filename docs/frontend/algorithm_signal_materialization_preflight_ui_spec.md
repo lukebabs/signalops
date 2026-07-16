@@ -81,7 +81,7 @@ Do not create a new top-level route.
 
 ## Filter Coupling
 
-The preflight query must use the same active proposal filters as the proposal list, including `limit`.
+The preflight query must use the same active proposal filters as the proposal list, including `limit`. (The `limit=200` shown in the example endpoint above is the endpoint's own default; the UI instead sends the active proposal-list limit and keeps it coupled, so it defaults to 50 in the app and follows the operator's limit selector.)
 
 Couple these filters:
 
@@ -128,6 +128,7 @@ Show global blockers:
 Show reason breakdown:
 
 - `item_reason_counts`, sorted by count descending and then token ascending.
+- Any unknown item-reason token must render safely as plain text — the same forward-compatible treatment as unknown global blockers.
 
 Show per-proposal preflight rows:
 

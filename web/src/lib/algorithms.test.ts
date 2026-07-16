@@ -6,12 +6,14 @@ import {
   summarizeAlgorithmExecutionSummary,
   summarizeAlgorithmSignalProposal,
   summarizeAlgorithmSignalProposalSummary,
+  summarizeAlgorithmSignalMaterializationPreflight,
   algorithmSeverityCountEntries,
   algorithmCountEntries,
   algorithmDefinitionStatusStyle,
   algorithmExecutionStatusStyle,
   algorithmSeverityStyle,
   algorithmProposalStatusStyle,
+  algorithmPreflightStatusStyle,
 } from './algorithms';
 
 describe('summarizeAlgorithmDefinition (G109)', () => {
@@ -276,5 +278,90 @@ describe('summarizeAlgorithmSignalProposalSummary (G116)', () => {
     const v2 = summarizeAlgorithmSignalProposalSummary({ total_proposals: 0, status_counts: {} });
     expect(v2.totalProposals).toBe(0);
     expect(v2.statusCounts).toEqual([]);
+  });
+});
+
+describe('algorithmPreflightStatusStyle (G119)', () => {
+  it('tones eligible neutrally, warns on duplicate_risk/blocked, errors on invalid', () => {
+    // eligible is deliberately neutral (slate) — never a deploy/accept green.
+    expect(algorithmPreflightStatusStyle('eligible')).toContain('slate');
+    expect(algorithmPreflightStatusStyle('eligible')).not.toContain('emerald');
+    expect(algorithmPreflightStatusStyle('duplicate_risk')).toContain('amber');
+    expect(algorithmPreflightStatusStyle('blocked')).toContain('orange');
+    expect(algorithmPreflightStatusStyle('invalid')).toContain('red');
+    // Unknown future tokens fall back to neutral gray.
+    expect(algorithmPreflightStatusStyle('future')).toContain('gray-600');
+  });
+});
+
+describe('summarizeAlgorithmSignalMaterializationPreflight (G119)', () => {
+  it('normalizes scalars/bools/arrays and orders reason maps by count desc then token asc', () => {
+    const v = summarizeAlgorithmSignalMaterializationPreflight({
+      tenant_id: 'tenant-local',
+      policy_version: 'materialization_preflight.v1',
+      total_proposals: 4,
+      eligible_count: 0,
+      duplicate_risk_count: 1,
+      blocked_count: 2,
+      invalid_count: 1,
+      would_write_count: 0,
+      reviewed_ratio: 0.75,
+      min_reviewed_ratio: 1,
+      review_coverage_satisfied: false,
+      high_critical_unreviewed_count: 1,
+      global_blocking_reasons: { high_critical_unreviewed_proposals: 1, review_coverage_below_threshold: 1 },
+      item_reason_counts: { missing_source_events: 2, unreviewed_proposal: 2, duplicate_signal_event_overlap: 1 },
+      items: [
+        {
+          proposal_id: 'algsigprop-1',
+          preflight_status: 'blocked',
+          reasons: ['unreviewed_proposal'],
+          duplicate_signal_ids: [],
+          source_event_ids: ['evt-1'],
+          would_write: false,
+          confidence: 0.9,
+        },
+        {
+          proposal_id: 'algsigprop-2',
+          preflight_status: 'duplicate_risk',
+          reasons: ['duplicate_signal_event_overlap'],
+          duplicate_signal_ids: ['sig-1', 'sig-2'],
+          source_event_ids: [],
+          would_write: true,
+          confidence: 0.8,
+        },
+      ],
+    });
+    expect(v.totalProposals).toBe(4);
+    expect(v.blockedCount).toBe(2);
+    expect(v.duplicateRiskCount).toBe(1);
+    expect(v.reviewCoverageSatisfied).toBe(false);
+    expect(v.minReviewedRatio).toBeCloseTo(1);
+    expect(v.highCriticalUnreviewedCount).toBe(1);
+    // Reason maps ordered count desc then token asc. Two reasons tie at 2 -> token asc.
+    expect(v.itemReasonCounts.map((e) => e.key)).toEqual(['missing_source_events', 'unreviewed_proposal', 'duplicate_signal_event_overlap']);
+    expect(v.itemReasonCounts[0]).toEqual({ key: 'missing_source_events', count: 2 });
+    expect(v.globalBlockingReasons.map((e) => e.key)).toEqual([
+      'high_critical_unreviewed_proposals',
+      'review_coverage_below_threshold',
+    ]);
+    expect(v.items).toHaveLength(2);
+    expect(v.items[0].preflightStatus).toBe('blocked');
+    expect(v.items[0].reasons).toEqual(['unreviewed_proposal']);
+    expect(v.items[1].duplicateSignalIds).toEqual(['sig-1', 'sig-2']);
+    expect(v.items[1].wouldWrite).toBe(true);
+  });
+
+  it('collapses non-object payloads and empty reason maps to empty values', () => {
+    const v = summarizeAlgorithmSignalMaterializationPreflight(null);
+    expect(v.totalProposals).toBe(0);
+    expect(v.reviewCoverageSatisfied).toBe(false);
+    expect(v.itemReasonCounts).toEqual([]);
+    expect(v.globalBlockingReasons).toEqual([]);
+    expect(v.items).toEqual([]);
+
+    const v2 = summarizeAlgorithmSignalMaterializationPreflight({ total_proposals: 0, items: 'nope' });
+    expect(v2.totalProposals).toBe(0);
+    expect(v2.items).toEqual([]);
   });
 });

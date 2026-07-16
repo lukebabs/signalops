@@ -95,6 +95,8 @@ import type {
   AlgorithmSignalProposalResponse,
   AlgorithmSignalProposalDecisionRequest,
   AlgorithmSignalProposalSummaryResponse,
+  AlgorithmSignalMaterializationPreflightFilter,
+  AlgorithmSignalMaterializationPreflightResponse,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -674,6 +676,29 @@ export const api = {
       severity: filter.severity || undefined,
       correlation_id: filter.correlation_id || undefined,
     }),
+  // G119 algorithm signal materialization preflight (read-only). Couples to the
+  // same proposal-list filters as the list/summary (tenant_id required by the
+  // gateway, defaults to tenant-local) AND sends limit (the proposal-list limit,
+  // so the preflight slice matches the reviewed list). min_reviewed_ratio defaults
+  // to 1 and policy_version to materialization_preflight.v1 per the spec; both are
+  // sent explicitly so the request is self-describing. This forecasts eligibility
+  // only — it materializes no production signal, alert, insight, or graph proposal.
+  getAlgorithmSignalMaterializationPreflight: (filter: AlgorithmSignalMaterializationPreflightFilter = {}) =>
+    get<AlgorithmSignalMaterializationPreflightResponse>(
+      '/v1/algorithms/signal-proposals/materialization-preflight',
+      {
+        tenant_id: filter.tenant_id ?? 'tenant-local',
+        algorithm_id: filter.algorithm_id || undefined,
+        execution_request_id: filter.execution_request_id || undefined,
+        algorithm_result_id: filter.algorithm_result_id || undefined,
+        status: filter.status || undefined,
+        severity: filter.severity || undefined,
+        correlation_id: filter.correlation_id || undefined,
+        limit: filter.limit ?? 50,
+        min_reviewed_ratio: filter.min_reviewed_ratio ?? 1,
+        policy_version: filter.policy_version ?? 'materialization_preflight.v1',
+      },
+    ),
   // Decision mutation. The gateway derives the reviewer via replayActor
   // (header -> body -> operator-local), so no actor header is sent — matching
   // the promotion-candidate decision. This only records review metadata; it

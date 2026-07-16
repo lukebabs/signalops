@@ -407,6 +407,144 @@ export function summarizeAlgorithmSignalProposalSummary(s: unknown): AlgorithmSi
   };
 }
 
+function asBoolean(v: unknown): boolean {
+  return v === true;
+}
+
+// Restrained algorithm signal materialization preflight-status colors (G119).
+// eligible is deliberately NEUTRAL (slate), not a success/deploy green — the
+// spec requires it not imply signal creation. duplicate_risk and blocked are both
+// warning tones (amber / orange, kept distinct); invalid is an error red. Unknown
+// future values fall back to neutral gray. Never reads as accepted/deployed.
+const PREFLIGHT_STATUS_STYLES: Record<string, string> = {
+  eligible: 'border-slate-200 bg-slate-50 text-slate-700',
+  duplicate_risk: 'border-amber-200 bg-amber-50 text-amber-700',
+  blocked: 'border-orange-200 bg-orange-50 text-orange-700',
+  invalid: 'border-red-200 bg-red-50 text-red-700',
+};
+
+export function algorithmPreflightStatusStyle(status: string): string {
+  return PREFLIGHT_STATUS_STYLES[status] ?? 'border-gray-200 bg-gray-50 text-gray-600';
+}
+
+export interface AlgorithmSignalMaterializationPreflightItemView {
+  proposalId: string;
+  algorithmResultId: string;
+  algorithmId: string;
+  executionRequestId: string;
+  proposedSignalType: string;
+  status: string;
+  severity: string;
+  confidence: number;
+  preflightStatus: string;
+  reasons: string[];
+  duplicateSignalIds: string[];
+  sourceEventIds: string[];
+  wouldWrite: boolean;
+  materializationPolicy: string;
+}
+
+const EMPTY_PREFLIGHT_ITEM: AlgorithmSignalMaterializationPreflightItemView = {
+  proposalId: '',
+  algorithmResultId: '',
+  algorithmId: '',
+  executionRequestId: '',
+  proposedSignalType: '',
+  status: '',
+  severity: '',
+  confidence: 0,
+  preflightStatus: '',
+  reasons: [],
+  duplicateSignalIds: [],
+  sourceEventIds: [],
+  wouldWrite: false,
+  materializationPolicy: '',
+};
+
+export function summarizeAlgorithmSignalMaterializationPreflightItem(i: unknown): AlgorithmSignalMaterializationPreflightItemView {
+  if (!isRecord(i)) return { ...EMPTY_PREFLIGHT_ITEM };
+  return {
+    proposalId: asString(i.proposal_id),
+    algorithmResultId: asString(i.algorithm_result_id),
+    algorithmId: asString(i.algorithm_id),
+    executionRequestId: asString(i.execution_request_id),
+    proposedSignalType: asString(i.proposed_signal_type),
+    status: asString(i.status),
+    severity: asString(i.severity),
+    confidence: asNumber(i.confidence),
+    preflightStatus: asString(i.preflight_status),
+    reasons: asStringArray(i.reasons),
+    duplicateSignalIds: asStringArray(i.duplicate_signal_ids),
+    sourceEventIds: asStringArray(i.source_event_ids),
+    wouldWrite: asBoolean(i.would_write),
+    materializationPolicy: asString(i.materialization_policy),
+  };
+}
+
+export interface AlgorithmSignalMaterializationPreflightView {
+  tenantId: string;
+  policyVersion: string;
+  totalProposals: number;
+  eligibleCount: number;
+  duplicateRiskCount: number;
+  blockedCount: number;
+  invalidCount: number;
+  wouldWriteCount: number;
+  reviewedRatio: number;
+  minReviewedRatio: number;
+  reviewCoverageSatisfied: boolean;
+  highCriticalUnreviewedCount: number;
+  globalBlockingReasons: AlgorithmCountEntry[];
+  itemReasonCounts: AlgorithmCountEntry[];
+  items: AlgorithmSignalMaterializationPreflightItemView[];
+}
+
+const EMPTY_PREFLIGHT: AlgorithmSignalMaterializationPreflightView = {
+  tenantId: '',
+  policyVersion: '',
+  totalProposals: 0,
+  eligibleCount: 0,
+  duplicateRiskCount: 0,
+  blockedCount: 0,
+  invalidCount: 0,
+  wouldWriteCount: 0,
+  reviewedRatio: 0,
+  minReviewedRatio: 0,
+  reviewCoverageSatisfied: false,
+  highCriticalUnreviewedCount: 0,
+  globalBlockingReasons: [],
+  itemReasonCounts: [],
+  items: [],
+};
+
+// Narrow the G118 preflight payload into a read-only display view. Numeric
+// scalars collapse to 0, booleans to false, id arrays to []. The two reason maps
+// (global_blocking_reasons, item_reason_counts) become ordered entries sorted by
+// count desc then token asc so the heaviest reason leads and unknown future
+// tokens still render as plain text. Items map through the item summarizer.
+// Never throws; never implies materialization.
+export function summarizeAlgorithmSignalMaterializationPreflight(p: unknown): AlgorithmSignalMaterializationPreflightView {
+  if (!isRecord(p)) return { ...EMPTY_PREFLIGHT };
+  const rawItems = Array.isArray(p.items) ? p.items : [];
+  return {
+    tenantId: asString(p.tenant_id),
+    policyVersion: asString(p.policy_version),
+    totalProposals: asNumber(p.total_proposals),
+    eligibleCount: asNumber(p.eligible_count),
+    duplicateRiskCount: asNumber(p.duplicate_risk_count),
+    blockedCount: asNumber(p.blocked_count),
+    invalidCount: asNumber(p.invalid_count),
+    wouldWriteCount: asNumber(p.would_write_count),
+    reviewedRatio: asNumber(p.reviewed_ratio),
+    minReviewedRatio: asNumber(p.min_reviewed_ratio),
+    reviewCoverageSatisfied: asBoolean(p.review_coverage_satisfied),
+    highCriticalUnreviewedCount: asNumber(p.high_critical_unreviewed_count),
+    globalBlockingReasons: algorithmCountEntries(p.global_blocking_reasons),
+    itemReasonCounts: algorithmCountEntries(p.item_reason_counts),
+    items: rawItems.map(summarizeAlgorithmSignalMaterializationPreflightItem),
+  };
+}
+
 export interface AlgorithmExecutionSummaryView {
   executionRequest: AlgorithmExecutionRequestSummary;
   resultCount: number;

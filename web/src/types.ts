@@ -1727,3 +1727,74 @@ export interface AlgorithmSignalProposalSummary {
 export interface AlgorithmSignalProposalSummaryResponse {
   algorithm_signal_proposal_summary: AlgorithmSignalProposalSummary;
 }
+
+// G119 algorithm signal materialization preflight (read-only). Mirrors the
+// algorithmSignalProposalMaterializationPreflightDTO in internal/api/algorithms.go
+// (G118 backend). This is a READ-ONLY preflight: it forecasts whether reviewed
+// proposals *would* be eligible for a later materialization gate — it writes no
+// production signal, alert, insight, graph proposal, or policy. preflight_status
+// is permissive (| string) so unknown future tokens render in a neutral style.
+// global_blocking_reasons / item_reason_counts are backend-owned string->int maps;
+// reasons / duplicate_signal_ids / source_event_ids are backend-owned string[].
+export type AlgorithmSignalMaterializationPreflightStatus =
+  | 'eligible'
+  | 'duplicate_risk'
+  | 'blocked'
+  | 'invalid'
+  | string;
+
+export interface AlgorithmSignalMaterializationPreflightItem {
+  proposal_id: string;
+  algorithm_result_id: string;
+  algorithm_id: string;
+  execution_request_id: string;
+  proposed_signal_type: string;
+  status: string;
+  severity: string;
+  confidence: number;
+  preflight_status: AlgorithmSignalMaterializationPreflightStatus;
+  reasons: string[];
+  duplicate_signal_ids: string[];
+  source_event_ids: string[];
+  would_write: boolean;
+  materialization_policy: string;
+}
+
+export interface AlgorithmSignalMaterializationPreflight {
+  tenant_id: string;
+  policy_version: string;
+  total_proposals: number;
+  eligible_count: number;
+  duplicate_risk_count: number;
+  blocked_count: number;
+  invalid_count: number;
+  would_write_count: number;
+  reviewed_ratio: number;
+  min_reviewed_ratio: number;
+  review_coverage_satisfied: boolean;
+  high_critical_unreviewed_count: number;
+  global_blocking_reasons: Record<string, number>;
+  item_reason_counts: Record<string, number>;
+  items: AlgorithmSignalMaterializationPreflightItem[];
+}
+
+export interface AlgorithmSignalMaterializationPreflightResponse {
+  algorithm_signal_materialization_preflight: AlgorithmSignalMaterializationPreflight;
+}
+
+// Preflight filter: the coupled proposal-list filters (tenant id, algorithm id,
+// execution request id, algorithm result id, status, severity, correlation id,
+// limit) plus the two preflight-only params. min_reviewed_ratio defaults to 1 and
+// policy_version to materialization_preflight.v1 (applied in the API client).
+export interface AlgorithmSignalMaterializationPreflightFilter {
+  tenant_id?: string;
+  algorithm_id?: string;
+  execution_request_id?: string;
+  algorithm_result_id?: string;
+  status?: AlgorithmSignalProposalStatus | '';
+  severity?: string;
+  correlation_id?: string;
+  limit?: number;
+  min_reviewed_ratio?: number;
+  policy_version?: string;
+}
