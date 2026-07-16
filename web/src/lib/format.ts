@@ -27,6 +27,15 @@ export function orDash(value: string | number | null | undefined): string {
   return String(value);
 }
 
+// Format a 0..1 ratio as a human-readable percentage. Whole percents render
+// without a decimal (1 -> "100%", 0 -> "0%"); fractional ratios get one decimal
+// place (0.333 -> "33.3%"). Non-finite values collapse to —.
+export function formatPercent(ratio: number): string {
+  if (!Number.isFinite(ratio)) return '—';
+  const pct = ratio * 100;
+  return Number.isInteger(pct) ? `${pct}%` : `${pct.toFixed(1)}%`;
+}
+
 export function truncate(value: string, n = 24): string {
   return value.length > n ? `${value.slice(0, n - 1)}…` : value;
 }

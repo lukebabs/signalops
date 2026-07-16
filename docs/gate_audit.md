@@ -7968,3 +7968,29 @@ Scope:
 Result:
 
 - Specification saved at `docs/frontend/algorithm_signal_proposals_summary_ui_spec.md`.
+
+## Gate G116: Algorithm Signal Proposal Summary UI
+
+Timestamp: `2026-07-16T06:25:00Z`
+
+Status: `implemented - compact read-only review-coverage panel over G115; automated tests, typecheck, and build green`
+
+Scope:
+
+- Implement the G116 frontend spec: a compact summary panel above the G114 proposal list.
+- Use the G115 summary API with the active proposal filters (no `limit`).
+- Preserve the no-materialization boundary.
+
+Validation performed:
+
+- `npx vitest run` (full web suite) passed: 21 files, 281 tests, including new G116 coverage for summary path construction (coupled filters, no limit), envelope parsing, the summary view summarizer, count-entry ordering, percentage formatting, and G114 decision invalidation now covering the summary prefix.
+- `npx tsc --noEmit` passed.
+- `npm run build` (`tsc && vite build`) passed.
+
+Out of scope:
+
+- New backend endpoints, decision mutations beyond G114, bulk decisions, production signal materialization, alerts, insights, graph proposals, algorithm execution, tuning, policy deployment, Syncratic Ask/Search, new navigation, and live browser validation (auth gate requires browser login).
+
+Result:
+
+- G116 closes the G116 spec as a read-only review-coverage surface over the G115 summary endpoint; browser validation remains the documented follow-on.

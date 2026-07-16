@@ -1702,3 +1702,28 @@ export interface AlgorithmSignalProposalsResponse {
 export interface AlgorithmSignalProposalResponse {
   algorithm_signal_proposal: AlgorithmSignalProposal;
 }
+
+// G115/G116 algorithm signal proposal review-coverage summary. Mirrors the
+// algorithmSignalProposalSummaryDTO in internal/api/algorithms.go. Read-only
+// aggregate over the G111/G112 ledger; carries no materialization semantics.
+// Count maps are backend-owned string->int; the *_counts fields are typed
+// Record<string, number> and narrowed defensively in the lib summarizer.
+export interface AlgorithmSignalProposalSummary {
+  tenant_id: string;
+  total_proposals: number;
+  proposed_count: number;
+  reviewed_count: number;
+  rejected_count: number;
+  superseded_count: number;
+  reviewed_ratio: number;
+  high_critical_unreviewed_count: number;
+  status_counts: Record<string, number>;
+  severity_counts: Record<string, number>;
+  proposed_signal_type_counts: Record<string, number>;
+  algorithm_id_counts: Record<string, number>;
+  reviewer_counts: Record<string, number>;
+}
+
+export interface AlgorithmSignalProposalSummaryResponse {
+  algorithm_signal_proposal_summary: AlgorithmSignalProposalSummary;
+}

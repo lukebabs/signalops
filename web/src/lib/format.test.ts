@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { duration, formatUtc, orDash, truncate, toRfc3339Utc, toDatetimeLocal } from './format';
+import { duration, formatUtc, formatPercent, orDash, truncate, toRfc3339Utc, toDatetimeLocal } from './format';
 
 describe('format helpers', () => {
   it('formats UTC timestamps and preserves invalid values', () => {
@@ -35,5 +35,13 @@ describe('format helpers', () => {
   it('pre-fills datetime-local inputs from UTC ISO strings', () => {
     expect(toDatetimeLocal('2026-07-09T00:00:00Z')).toBe('2026-07-09T00:00');
     expect(toDatetimeLocal('')).toBe('');
+  });
+
+  it('formats ratios as human-readable percentages (G116)', () => {
+    expect(formatPercent(1)).toBe('100%');
+    expect(formatPercent(0)).toBe('0%');
+    expect(formatPercent(0.5)).toBe('50%');
+    expect(formatPercent(0.3333)).toBe('33.3%');
+    expect(formatPercent(NaN)).toBe('—');
   });
 });

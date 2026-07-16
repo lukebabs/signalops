@@ -54,6 +54,22 @@ export function algorithmSeverityCountEntries(counts: unknown): AlgorithmSeverit
     });
 }
 
+// Generic count-map -> ordered entries for the G116 summary breakdowns
+// (status / proposed signal type / algorithm id / reviewer). Sorts by count
+// desc then key asc so the display is stable and the heaviest buckets lead.
+export interface AlgorithmCountEntry {
+  key: string;
+  count: number;
+}
+
+export function algorithmCountEntries(counts: unknown): AlgorithmCountEntry[] {
+  if (!isRecord(counts)) return [];
+  return Object.entries(counts)
+    .filter(([, c]) => typeof c === 'number')
+    .map(([key, count]) => ({ key, count: count as number }))
+    .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+}
+
 // Restrained severity token colors, mirroring the app-wide severity palette.
 const SEVERITY_STYLES: Record<string, string> = {
   critical: 'text-red-700',
@@ -333,6 +349,61 @@ export function summarizeAlgorithmSignalProposal(p: unknown): AlgorithmSignalPro
     decidedAt: asString(p.decided_at),
     createdAt: asString(p.created_at),
     updatedAt: asString(p.updated_at),
+  };
+}
+
+export interface AlgorithmSignalProposalSummaryView {
+  tenantId: string;
+  totalProposals: number;
+  proposedCount: number;
+  reviewedCount: number;
+  rejectedCount: number;
+  supersededCount: number;
+  reviewedRatio: number;
+  highCriticalUnreviewedCount: number;
+  statusCounts: AlgorithmCountEntry[];
+  severityCounts: AlgorithmCountEntry[];
+  proposedSignalTypeCounts: AlgorithmCountEntry[];
+  algorithmIdCounts: AlgorithmCountEntry[];
+  reviewerCounts: AlgorithmCountEntry[];
+}
+
+const EMPTY_SUMMARY: AlgorithmSignalProposalSummaryView = {
+  tenantId: '',
+  totalProposals: 0,
+  proposedCount: 0,
+  reviewedCount: 0,
+  rejectedCount: 0,
+  supersededCount: 0,
+  reviewedRatio: 0,
+  highCriticalUnreviewedCount: 0,
+  statusCounts: [],
+  severityCounts: [],
+  proposedSignalTypeCounts: [],
+  algorithmIdCounts: [],
+  reviewerCounts: [],
+};
+
+// Narrow the G115 summary payload into a display view. Numeric scalars collapse
+// to 0; count maps become ordered entries (severity ordered by rank, the rest by
+// count desc). Severity entries are normalized to {key,count} so all breakdowns
+// share one shape, while keeping severity-rank ordering. Never throws.
+export function summarizeAlgorithmSignalProposalSummary(s: unknown): AlgorithmSignalProposalSummaryView {
+  if (!isRecord(s)) return { ...EMPTY_SUMMARY };
+  return {
+    tenantId: asString(s.tenant_id),
+    totalProposals: asNumber(s.total_proposals),
+    proposedCount: asNumber(s.proposed_count),
+    reviewedCount: asNumber(s.reviewed_count),
+    rejectedCount: asNumber(s.rejected_count),
+    supersededCount: asNumber(s.superseded_count),
+    reviewedRatio: asNumber(s.reviewed_ratio),
+    highCriticalUnreviewedCount: asNumber(s.high_critical_unreviewed_count),
+    statusCounts: algorithmCountEntries(s.status_counts),
+    severityCounts: algorithmSeverityCountEntries(s.severity_counts).map((e) => ({ key: e.severity, count: e.count })),
+    proposedSignalTypeCounts: algorithmCountEntries(s.proposed_signal_type_counts),
+    algorithmIdCounts: algorithmCountEntries(s.algorithm_id_counts),
+    reviewerCounts: algorithmCountEntries(s.reviewer_counts),
   };
 }
 

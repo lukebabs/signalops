@@ -5,7 +5,9 @@ import {
   summarizeAlgorithmResult,
   summarizeAlgorithmExecutionSummary,
   summarizeAlgorithmSignalProposal,
+  summarizeAlgorithmSignalProposalSummary,
   algorithmSeverityCountEntries,
+  algorithmCountEntries,
   algorithmDefinitionStatusStyle,
   algorithmExecutionStatusStyle,
   algorithmSeverityStyle,
@@ -210,5 +212,69 @@ describe('algorithmProposalStatusStyle (G114)', () => {
     // accepted is intentionally not a status; render it as neutral, not positive.
     expect(algorithmProposalStatusStyle('accepted')).toContain('gray-600');
     expect(algorithmProposalStatusStyle('future')).toContain('gray-600');
+  });
+});
+
+describe('algorithmCountEntries (G116)', () => {
+  it('orders by count desc then key asc and drops non-numeric values', () => {
+    expect(algorithmCountEntries({ b: 2, a: 2, c: 5, d: 'x', e: null })).toEqual([
+      { key: 'c', count: 5 },
+      { key: 'a', count: 2 },
+      { key: 'b', count: 2 },
+    ]);
+  });
+
+  it('tolerates a non-object map', () => {
+    expect(algorithmCountEntries(null)).toEqual([]);
+    expect(algorithmCountEntries('nope')).toEqual([]);
+    expect(algorithmCountEntries({})).toEqual([]);
+  });
+});
+
+describe('summarizeAlgorithmSignalProposalSummary (G116)', () => {
+  it('reads scalar metrics and orders breakdown counts', () => {
+    const v = summarizeAlgorithmSignalProposalSummary({
+      tenant_id: 'tenant-local',
+      total_proposals: 5,
+      proposed_count: 2,
+      reviewed_count: 2,
+      rejected_count: 1,
+      superseded_count: 0,
+      reviewed_ratio: 0.4,
+      high_critical_unreviewed_count: 1,
+      status_counts: { reviewed: 2, proposed: 2, rejected: 1 },
+      severity_counts: { info: 3, critical: 2, high: 1 },
+      proposed_signal_type_counts: { 'signalops.algorithm.change_point_candidate': 4, 'signalops.algorithm.other': 1 },
+      algorithm_id_counts: { algo_a: 3, algo_b: 2 },
+      reviewer_counts: { 'analyst-1': 2 },
+    });
+    expect(v.tenantId).toBe('tenant-local');
+    expect(v.totalProposals).toBe(5);
+    expect(v.reviewedRatio).toBeCloseTo(0.4);
+    expect(v.highCriticalUnreviewedCount).toBe(1);
+    // Generic counts: count desc, tie broken by key asc.
+    expect(v.statusCounts.map((e) => e.key)).toEqual(['proposed', 'reviewed', 'rejected']);
+    expect(v.statusCounts[0]).toEqual({ key: 'proposed', count: 2 });
+    expect(v.proposedSignalTypeCounts[0]).toEqual({ key: 'signalops.algorithm.change_point_candidate', count: 4 });
+    // Severity keeps rank ordering (critical, high, info), normalized to {key,count}.
+    expect(v.severityCounts).toEqual([
+      { key: 'critical', count: 2 },
+      { key: 'high', count: 1 },
+      { key: 'info', count: 3 },
+    ]);
+    expect(v.reviewerCounts).toEqual([{ key: 'analyst-1', count: 2 }]);
+  });
+
+  it('collapses non-object summaries and empty maps to empty values', () => {
+    const v = summarizeAlgorithmSignalProposalSummary(null);
+    expect(v.totalProposals).toBe(0);
+    expect(v.reviewedRatio).toBe(0);
+    expect(v.statusCounts).toEqual([]);
+    expect(v.severityCounts).toEqual([]);
+    expect(v.reviewerCounts).toEqual([]);
+
+    const v2 = summarizeAlgorithmSignalProposalSummary({ total_proposals: 0, status_counts: {} });
+    expect(v2.totalProposals).toBe(0);
+    expect(v2.statusCounts).toEqual([]);
   });
 });

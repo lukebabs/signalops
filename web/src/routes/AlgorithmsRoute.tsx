@@ -6,6 +6,7 @@ import {
   useAlgorithmExecutionSummary,
   useAlgorithmSignalProposals,
   useAlgorithmSignalProposal,
+  useAlgorithmSignalProposalSummary,
   useDecideAlgorithmSignalProposal,
 } from '../api/queries';
 import { isApiError } from '../api/client';
@@ -13,21 +14,29 @@ import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
 import { CopyButton } from '../components/CopyButton';
-import { formatUtc } from '../lib/format';
+import { formatUtc, formatPercent } from '../lib/format';
 import {
   summarizeAlgorithmDefinition,
   summarizeAlgorithmExecutionRequest,
   summarizeAlgorithmResult,
   summarizeAlgorithmExecutionSummary,
   summarizeAlgorithmSignalProposal,
+  summarizeAlgorithmSignalProposalSummary,
   algorithmDefinitionStatusStyle,
   algorithmExecutionStatusStyle,
   algorithmSeverityStyle,
   algorithmProposalStatusStyle,
   type AlgorithmSignalProposalSummary,
+  type AlgorithmSignalProposalSummaryView,
+  type AlgorithmCountEntry,
 } from '../lib/algorithms';
 import { useTenant } from '../auth/session';
-import type { AlgorithmDefinition, AlgorithmResult, AlgorithmSignalProposal, AlgorithmSignalProposalStatus } from '../types';
+import type {
+  AlgorithmDefinition,
+  AlgorithmResult,
+  AlgorithmSignalProposal,
+  AlgorithmSignalProposalStatus,
+} from '../types';
 
 // G109 algorithm execution visibility (read-only). Mirrors the dense, restrained
 // table layout of the other MarketOps workbenches. No Run/Tune/Promote/Deploy/
@@ -166,6 +175,20 @@ export function AlgorithmsRoute() {
     limit: propLimit,
   });
   const proposals = proposalsQ.data?.algorithm_signal_proposals ?? [];
+  // G116 review-coverage summary. Couples to the same filters as the list except
+  // limit (the summary aggregates the whole matched slice). Runs independently so
+  // its loading/error/empty states never block the list/detail workflow.
+  const proposalSummaryQ = useAlgorithmSignalProposalSummary({
+    tenant_id: TENANT_ID,
+    algorithm_id: propAlgorithmId || undefined,
+    execution_request_id: propExecReqId || undefined,
+    status: (propStatus || undefined) as AlgorithmSignalProposalStatus | undefined,
+    severity: propSeverity || undefined,
+    correlation_id: propCorrelationId || undefined,
+  });
+  const proposalSummaryView = proposalSummaryQ.data
+    ? summarizeAlgorithmSignalProposalSummary(proposalSummaryQ.data.algorithm_signal_proposal_summary)
+    : null;
   const proposalDetailQ = useAlgorithmSignalProposal(selectedProposalId, TENANT_ID);
   const selectedProposal =
     proposalDetailQ.data?.algorithm_signal_proposal ??
@@ -571,6 +594,13 @@ export function AlgorithmsRoute() {
           </select>
         </div>
 
+        <ProposalSummaryPanel
+          view={proposalSummaryView}
+          isLoading={proposalSummaryQ.isLoading}
+          isError={proposalSummaryQ.isError}
+          error={proposalSummaryQ.error}
+        />
+
         {proposalsQ.isLoading ? (
           <LoadingState label="Loading algorithm signal proposals..." />
         ) : proposalsQ.isError ? (
@@ -795,6 +825,112 @@ function ProposalReviewControls({
         {errorMessage ? <span className="text-[11px] text-red-700">{errorMessage}</span> : null}
       </div>
       <p className="mt-1 text-[11px] text-gray-400">Review records operator metadata only; no production signal is materialized.</p>
+    </div>
+  );
+}
+
+// G116 compact review-coverage summary for the currently filtered proposal
+// slice. Dense metrics strip + small breakdown chip lists. Loading / error /
+// empty states are scoped to this panel and never block the list or detail.
+// `reviewed` is shown as coverage only — it never implies accepted or deployed.
+function ProposalSummaryPanel({
+  view,
+  isLoading,
+  isError,
+  error,
+}: {
+  view: AlgorithmSignalProposalSummaryView | null;
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+}) {
+  const hasHighCriticalUnreviewed = (view?.highCriticalUnreviewedCount ?? 0) > 0;
+  return (
+    <div className="mb-2 rounded border border-gray-200 bg-gray-50 p-2">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Review Coverage</div>
+      {isLoading ? (
+        <div className="text-xs text-gray-500">Loading proposal summary…</div>
+      ) : isError ? (
+        <div className="text-xs text-red-700">
+          Proposal summary unavailable{isApiError(error) ? `: ${error.message}` : ''}.
+        </div>
+      ) : !view || view.totalProposals === 0 ? (
+        <div className="text-xs text-gray-500">No proposal summary for this filter.</div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-700">
+            <SummaryStat label="Total" value={view.totalProposals} />
+            <SummaryStat label="Reviewed" value={formatPercent(view.reviewedRatio)} />
+            <SummaryStat label="Proposed" value={view.proposedCount} />
+            <SummaryStat label="Reviewed #" value={view.reviewedCount} />
+            <SummaryStat label="Rejected" value={view.rejectedCount} />
+            <SummaryStat label="Superseded" value={view.supersededCount} />
+            {hasHighCriticalUnreviewed ? (
+              <span className="inline-flex items-center gap-1 rounded border border-red-300 bg-red-50 px-1.5 py-0.5 font-medium text-red-700">
+                High/critical unreviewed <strong>{view.highCriticalUnreviewedCount}</strong>
+              </span>
+            ) : (
+              <SummaryStat label="High/critical unreviewed" value={view.highCriticalUnreviewedCount} />
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+            <SummaryCountChips label="Status" entries={view.statusCounts} chipClassName={algorithmProposalStatusStyle} />
+            <SummaryCountChips
+              label="Severity"
+              entries={view.severityCounts}
+              chipClassName={(s) => `border-gray-200 bg-white ${algorithmSeverityStyle(s)}`}
+            />
+            <SummaryCountChips label="Signal type" entries={view.proposedSignalTypeCounts} />
+            <SummaryCountChips label="Algorithm" entries={view.algorithmIdCounts} />
+            <SummaryCountChips label="Reviewer" entries={view.reviewerCounts} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SummaryStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <span>
+      <span className="text-gray-500">{label}: </span>
+      <strong className="text-gray-800">{value}</strong>
+    </span>
+  );
+}
+
+// Compact `key count` chip list for a summary breakdown. chipClassName returns
+// the full chip tone (status uses proposal status style; severity layers the
+// severity text color over a neutral chip); omitted falls back to neutral.
+// Empty maps render as `None`, never raw `{}`.
+function SummaryCountChips({
+  label,
+  entries,
+  chipClassName,
+}: {
+  label: string;
+  entries: AlgorithmCountEntry[];
+  chipClassName?: (key: string) => string;
+}) {
+  const base = 'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px]';
+  return (
+    <div>
+      <div className="mb-0.5 text-[11px] font-medium text-gray-600">{label}</div>
+      {entries.length ? (
+        <div className="flex flex-wrap gap-1">
+          {entries.map((e) => (
+            <span
+              key={e.key}
+              className={`${base} ${chipClassName ? chipClassName(e.key) : 'border-gray-200 bg-white text-gray-700'}`}
+            >
+              <span className="break-all">{e.key}</span>
+              <strong>{e.count}</strong>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="text-[11px] text-gray-400">None</span>
+      )}
     </div>
   );
 }

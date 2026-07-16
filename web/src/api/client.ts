@@ -94,6 +94,7 @@ import type {
   AlgorithmSignalProposalsResponse,
   AlgorithmSignalProposalResponse,
   AlgorithmSignalProposalDecisionRequest,
+  AlgorithmSignalProposalSummaryResponse,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -660,6 +661,19 @@ export const api = {
       `/v1/algorithms/signal-proposals/${encodeURIComponent(proposalId)}`,
       { tenant_id: tenantId },
     ),
+  // G115/G116 review-coverage summary. Couples to the same filters as the list
+  // (tenant_id required by the gateway, defaults to tenant-local) but NEVER sends
+  // limit — the summary endpoint aggregates the whole matched slice.
+  getAlgorithmSignalProposalSummary: (filter: AlgorithmSignalProposalFilter = {}) =>
+    get<AlgorithmSignalProposalSummaryResponse>('/v1/algorithms/signal-proposals/summary', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      algorithm_id: filter.algorithm_id || undefined,
+      execution_request_id: filter.execution_request_id || undefined,
+      algorithm_result_id: filter.algorithm_result_id || undefined,
+      status: filter.status || undefined,
+      severity: filter.severity || undefined,
+      correlation_id: filter.correlation_id || undefined,
+    }),
   // Decision mutation. The gateway derives the reviewer via replayActor
   // (header -> body -> operator-local), so no actor header is sent — matching
   // the promotion-candidate decision. This only records review metadata; it
