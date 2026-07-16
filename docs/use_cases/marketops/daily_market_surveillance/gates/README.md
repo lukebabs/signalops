@@ -196,3 +196,8 @@ Recommended next gate:
 
 - G116: implements the G116 frontend spec — compact read-only review-coverage summary panel above the G114 proposal list, over the G115 summary API, with coupled filters (no `limit`) and independent loading/error/empty states. Automated tests, typecheck, and build green; browser validation pending the auth gate.
 - Specification: `G116_algorithm_signal_proposal_summary_ui.md`.
+
+## G117 Proposed
+
+- G117: design-only architecture for future materialization of reviewed `algorithm_signal_proposals` into production `signal.v1` rows.
+- Specification: `G117_algorithm_signal_materialization_design.md`.

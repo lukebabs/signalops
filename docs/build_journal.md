@@ -6738,3 +6738,15 @@ Summary:
 Result:
 
 - Frontend-agent can add proposal review coverage/readiness visibility without backend or materialization scope creep.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Wrote G117 as a design-only architecture gate for future algorithm signal materialization.
+- Defined preconditions, preferred materialization ledger, signal payload requirements, duplicate detection, alert/insight boundaries, future API shape, readiness gates, and test requirements.
+- Explicitly excluded migrations, API implementation, workers, signal writes, alerts, insights, graph proposals, frontend changes, policy deployment, and Syncratic integration.
+
+Result:
+
+- Future materialization work has a reviewable architecture without changing production signal behavior.

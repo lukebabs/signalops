@@ -8018,3 +8018,19 @@ Out of scope:
 Result:
 
 - The G109 UI now matches its spec field-for-field; documented in `G109_algorithm_execution_visibility_ui.md`.
+
+## Gate G117: Algorithm Signal Materialization Design
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `proposed - design only`
+
+Scope:
+
+- Define future materialization architecture from reviewed algorithm signal proposals to production `signal.v1`.
+- Specify preconditions, duplicate controls, materialization ledger, payload requirements, and readiness gates.
+- Preserve the no-materialization boundary.
+
+Result:
+
+- Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G117_algorithm_signal_materialization_design.md`.
