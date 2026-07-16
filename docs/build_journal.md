@@ -6833,3 +6833,15 @@ Validation performed:
 Result:
 
 - A reviewed algorithm signal proposal can now be explicitly materialized into one production signal ledger row while preserving idempotency and duplicate/blocker controls.
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Wrote the G123 frontend-agent specification for single-proposal algorithm signal materialization action UI.
+- Scoped the UI to the existing Algorithms / Signal Proposals detail panel and the G122 single-proposal mutation.
+- Required preflight-based eligibility, explicit confirmation, materialization ledger visibility, idempotent result handling, and status-specific result rendering.
+- Explicitly excluded bulk materialization, policy deployment, alert/insight/graph controls, DSM taxonomy remapping, Syncratic, tuning, execution controls, new backend endpoints, and new navigation.
+
+Result:
+
+- Frontend-agent can add the materialize action without expanding the G122 backend contract.

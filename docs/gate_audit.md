@@ -8135,3 +8135,19 @@ Validation performed:
 Result:
 
 - G122 closes the first explicit algorithm-to-signal materialization path with bounded semantics and idempotency.
+## Gate G123: Algorithm Signal Materialization Action UI Spec
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `proposed - frontend-agent specification ready`
+
+Scope:
+
+- Add a frontend-agent spec for a single-proposal materialize action.
+- Require G119 preflight eligibility and explicit confirmation.
+- Show G121/G122 materialization ledger results.
+- Preserve no-bulk and no-alert/insight/graph boundary.
+
+Result:
+
+- Specification saved at `docs/frontend/algorithm_signal_materialization_action_ui_spec.md`.

@@ -226,3 +226,8 @@ Recommended next gate:
 
 - G122: single-proposal algorithm signal materialization mutation with server-side preflight, idempotent ledger rows, duplicate/blocked handling, and one production signal write for eligible reviewed proposals.
 - Specification: `G122_algorithm_signal_materialization_write_path.md`.
+
+## G123 Proposed
+
+- G123: frontend-agent specification for single-proposal algorithm signal materialization action UI over the G122 API.
+- Specification: `G123_algorithm_signal_materialization_action_ui_spec.md`.
