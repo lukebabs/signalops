@@ -743,6 +743,10 @@ Returns read-only algorithm signal proposal rows generated from `algorithm_resul
 
 Returns one algorithm signal proposal.
 
+`POST /v1/algorithms/signal-proposals/{proposal_id}/decision?tenant_id={tenant_id}`
+
+Records an operator review decision for an algorithm signal proposal. Body fields are `status`, `note`, optional `tenant_id`, optional `actor`, and optional `metadata`. Valid statuses are `proposed`, `reviewed`, `rejected`, and `superseded`. This updates proposal review metadata only; it does not write production signals, alerts, insights, graph proposals, or policy changes.
+
 `signalops-algorithm-runner` executes the seeded algorithm ids from the command line, including z-score, online anomaly, change-point, forecast residual, threshold classifier, and isolation-style scoring adapters. It requires `SIGNALOPS_DATABASE_URL` and `SIGNALOPS_TEMPORAL_DATABASE_URL`, reads bounded normalized events, updates `algorithm_execution_requests`, and writes immutable `algorithm_results`. G107-G110 do not add an API trigger endpoint for execution.
 
 `signalops-algorithm-proposal-generator` reads bounded `algorithm_results` and writes idempotent `algorithm_signal_proposals` review candidates. It requires `SIGNALOPS_DATABASE_URL`. G111 does not materialize proposals into production signals.

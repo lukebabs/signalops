@@ -81,4 +81,4 @@ No create/update API was added for operators in this gate. Proposal generation i
 
 ## Next Gate
 
-G112 should add operator review lifecycle around `algorithm_signal_proposals` or read-only frontend visibility. Production signal materialization should wait until proposal quality can be inspected and reviewed.
+G112 adds operator review lifecycle around `algorithm_signal_proposals`. Frontend visibility and production signal materialization remain later gates.

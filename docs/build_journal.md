@@ -6666,3 +6666,27 @@ Validation performed:
 Result:
 
 - Algorithm outputs now have a durable, reviewable bridge toward future signal materialization without mutating production signal semantics.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Implemented G112 algorithm signal proposal review lifecycle.
+- Added review metadata migration, storage mutation, operator/admin-gated decision endpoint, and API response fields.
+- Kept production signal writes, alert/insight creation, graph proposals, frontend changes, and policy deployment out of scope.
+
+Validation performed:
+
+- Focused Go tests passed for algorithm proposal decision APIs and algorithm/generator packages.
+- Full Go test suite passed.
+- JSON schema validation passed.
+- Gateway image build passed.
+- Applied migration `000025_algorithm_signal_proposal_review` to local Postgres.
+- Rebuilt/restarted local gateway.
+- Authenticated `POST /v1/algorithms/signal-proposals/algsigprop_c6c2acad697176d0f438b66e/decision` marked the proposal `reviewed` with decision note and timestamp.
+- Direct Postgres check confirmed `status=reviewed`, reviewer metadata, non-empty decision note, and non-null `decided_at`.
+- Bearer token was generated in-memory from configured `SO_*` credentials; token material was not printed or committed.
+
+Result:
+
+- Algorithm-derived signal proposals can now receive auditable operator review decisions without changing production signal semantics.

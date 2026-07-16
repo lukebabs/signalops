@@ -1771,6 +1771,38 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_proposal": algorithmSignalProposalResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/algorithms/signal-proposals/{proposal_id}/decision", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req algorithmSignalProposalDecisionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		tenantID := strings.TrimSpace(req.TenantID)
+		if tenantID == "" {
+			tenantID = strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		}
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		status := strings.TrimSpace(req.Status)
+		if status != storage.AlgorithmSignalProposalStatusProposed && status != storage.AlgorithmSignalProposalStatusReviewed && status != storage.AlgorithmSignalProposalStatusRejected && status != storage.AlgorithmSignalProposalStatusSuperseded {
+			writeError(w, http.StatusBadRequest, "invalid_status", "algorithm signal proposal decision status is invalid")
+			return
+		}
+		metadata := algorithmJSONOrDefaultObject(req.Metadata)
+		record, err := repo.MutateAlgorithmSignalProposal(r.Context(), storage.AlgorithmSignalProposalMutation{TenantID: tenantID, ProposalID: r.PathValue("proposal_id"), Status: status, ReviewedBy: replayActor(r, req.Actor), DecisionNote: strings.TrimSpace(req.Note), DecidedAt: time.Now().UTC(), MetadataJSON: metadata})
+		if err != nil {
+			writeQueryError(w, err, "algorithm_signal_proposal_not_found", "Algorithm signal proposal not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_proposal": algorithmSignalProposalResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/catalog/sources", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

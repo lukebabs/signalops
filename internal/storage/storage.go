@@ -584,8 +584,21 @@ type AlgorithmSignalProposalRecord struct {
 	EvidenceRefs        []string
 	CorrelationID       string
 	CreatedBy           string
+	ReviewedBy          string
+	DecisionNote        string
+	DecidedAt           *time.Time
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+}
+
+type AlgorithmSignalProposalMutation struct {
+	TenantID     string
+	ProposalID   string
+	Status       string
+	ReviewedBy   string
+	DecisionNote string
+	DecidedAt    time.Time
+	MetadataJSON []byte
 }
 
 type AlgorithmDefinitionFilter struct {
@@ -1148,6 +1161,7 @@ type AlgorithmRepository interface {
 	InsertAlgorithmSignalProposal(ctx context.Context, record AlgorithmSignalProposalRecord) (bool, error)
 	ListAlgorithmSignalProposals(ctx context.Context, filter AlgorithmSignalProposalFilter) ([]AlgorithmSignalProposalRecord, error)
 	GetAlgorithmSignalProposal(ctx context.Context, tenantID string, proposalID string) (AlgorithmSignalProposalRecord, error)
+	MutateAlgorithmSignalProposal(ctx context.Context, mutation AlgorithmSignalProposalMutation) (AlgorithmSignalProposalRecord, error)
 }
 
 type PublishRepository interface {

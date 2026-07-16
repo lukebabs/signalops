@@ -114,8 +114,19 @@ type algorithmSignalProposalDTO struct {
 	EvidenceRefs       []string        `json:"evidence_refs"`
 	CorrelationID      string          `json:"correlation_id"`
 	CreatedBy          string          `json:"created_by"`
+	ReviewedBy         string          `json:"reviewed_by"`
+	DecisionNote       string          `json:"decision_note"`
+	DecidedAt          *time.Time      `json:"decided_at,omitempty"`
 	CreatedAt          time.Time       `json:"created_at"`
 	UpdatedAt          time.Time       `json:"updated_at"`
+}
+
+type algorithmSignalProposalDecisionRequest struct {
+	TenantID string          `json:"tenant_id"`
+	Status   string          `json:"status"`
+	Note     string          `json:"note"`
+	Actor    string          `json:"actor"`
+	Metadata json.RawMessage `json:"metadata"`
 }
 
 func algorithmDefinitionRecord(req algorithmDefinitionRequest) storage.AlgorithmDefinitionRecord {
@@ -171,7 +182,7 @@ func algorithmResultResponses(records []storage.AlgorithmResultRecord) []algorit
 }
 
 func algorithmSignalProposalResponse(record storage.AlgorithmSignalProposalRecord) algorithmSignalProposalDTO {
-	return algorithmSignalProposalDTO{ProposalID: record.ProposalID, TenantID: record.TenantID, AlgorithmResultID: record.AlgorithmResultID, AlgorithmID: record.AlgorithmID, AlgorithmVersion: record.AlgorithmVersion, ExecutionRequestID: record.ExecutionRequestID, ProposedSignalType: record.ProposedSignalType, Status: record.Status, Score: record.Score, Confidence: record.Confidence, Severity: record.Severity, ProposalPayload: json.RawMessage(jsonOrDefault(record.ProposalPayloadJSON, `{}`)), Rationale: json.RawMessage(jsonOrDefault(record.RationaleJSON, `{}`)), SourceEventIDs: record.SourceEventIDs, EvidenceRefs: record.EvidenceRefs, CorrelationID: record.CorrelationID, CreatedBy: record.CreatedBy, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+	return algorithmSignalProposalDTO{ProposalID: record.ProposalID, TenantID: record.TenantID, AlgorithmResultID: record.AlgorithmResultID, AlgorithmID: record.AlgorithmID, AlgorithmVersion: record.AlgorithmVersion, ExecutionRequestID: record.ExecutionRequestID, ProposedSignalType: record.ProposedSignalType, Status: record.Status, Score: record.Score, Confidence: record.Confidence, Severity: record.Severity, ProposalPayload: json.RawMessage(jsonOrDefault(record.ProposalPayloadJSON, `{}`)), Rationale: json.RawMessage(jsonOrDefault(record.RationaleJSON, `{}`)), SourceEventIDs: record.SourceEventIDs, EvidenceRefs: record.EvidenceRefs, CorrelationID: record.CorrelationID, CreatedBy: record.CreatedBy, ReviewedBy: record.ReviewedBy, DecisionNote: record.DecisionNote, DecidedAt: record.DecidedAt, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
 }
 
 func algorithmSignalProposalResponses(records []storage.AlgorithmSignalProposalRecord) []algorithmSignalProposalDTO {

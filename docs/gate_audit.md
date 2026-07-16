@@ -7851,3 +7851,33 @@ Out of scope:
 Result:
 
 - G111 closes the first algorithm-result conversion boundary as reviewable proposals only.
+
+## Gate G112: Algorithm Signal Proposal Review Lifecycle
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `implemented - operator review mutation for algorithm signal proposals`
+
+Scope:
+
+- Add review metadata to `algorithm_signal_proposals`.
+- Add storage and API mutation for proposal decisions.
+- Require operator/admin authorization for the decision route when auth is enabled.
+
+Validation performed:
+
+- Focused API tests passed for decision mutation and invalid status rejection.
+- Focused algorithm/generator tests passed against the expanded repository interface.
+- Full Go test suite passed.
+- JSON schema validation passed.
+- Gateway build passed.
+- `make compose-storage-migrate` applied `000025_algorithm_signal_proposal_review`.
+- Authenticated live decision smoke marked `algsigprop_c6c2acad697176d0f438b66e` as `reviewed`; DB verification confirmed reviewer metadata and decision timestamp.
+
+Out of scope:
+
+- Production signal materialization, alerts, insights, graph proposals, frontend review workflow, and policy deployment.
+
+Result:
+
+- G112 makes algorithm proposal review auditable while preserving the G111 no-materialization boundary.

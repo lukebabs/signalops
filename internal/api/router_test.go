@@ -121,6 +121,7 @@ type fakeQueryRepository struct {
 	lastAlgorithmExecutionFilter   storage.AlgorithmExecutionRequestFilter
 	lastAlgorithmResultFilter      storage.AlgorithmResultFilter
 	lastAlgorithmProposalFilter    storage.AlgorithmSignalProposalFilter
+	lastAlgorithmProposalMutation  storage.AlgorithmSignalProposalMutation
 	lastDSMFilter                  storage.MarketOpsDSMArtifactFilter
 	lastGraphProposalFilter        storage.MarketOpsDSMGraphProposalFilter
 	lastGraphProposalMutation      storage.MarketOpsDSMGraphProposalMutation
@@ -989,6 +990,23 @@ func (q *fakeQueryRepository) ListAlgorithmSignalProposals(_ context.Context, fi
 func (q *fakeQueryRepository) GetAlgorithmSignalProposal(_ context.Context, tenantID string, proposalID string) (storage.AlgorithmSignalProposalRecord, error) {
 	for _, record := range q.algorithmSignalProposals {
 		if record.TenantID == tenantID && record.ProposalID == proposalID {
+			return record, nil
+		}
+	}
+	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) MutateAlgorithmSignalProposal(_ context.Context, mutation storage.AlgorithmSignalProposalMutation) (storage.AlgorithmSignalProposalRecord, error) {
+	q.lastAlgorithmProposalMutation = mutation
+	for i, record := range q.algorithmSignalProposals {
+		if record.TenantID == mutation.TenantID && record.ProposalID == mutation.ProposalID {
+			record.Status = mutation.Status
+			record.ReviewedBy = mutation.ReviewedBy
+			record.DecisionNote = mutation.DecisionNote
+			decidedAt := mutation.DecidedAt.UTC()
+			record.DecidedAt = &decidedAt
+			record.UpdatedAt = decidedAt
+			q.algorithmSignalProposals[i] = record
 			return record, nil
 		}
 	}
@@ -3427,5 +3445,41 @@ func TestAlgorithmSignalProposalsListAndGet(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAlgorithmSignalProposalDecision(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &fakeQueryRepository{algorithmSignalProposals: []storage.AlgorithmSignalProposalRecord{{ProposalID: "algsigprop-1", TenantID: "tenant-local", AlgorithmResultID: "algres-1", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusProposed, Score: 3.4, Confidence: 0.82, Severity: "medium", ProposalPayloadJSON: []byte(`{"schema_version":"algorithm_signal_proposal.v1"}`), RationaleJSON: []byte(`{"review_required":true}`), CorrelationID: "corr-1", CreatedBy: "analyst-1", CreatedAt: now, UpdatedAt: now}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/algorithms/signal-proposals/algsigprop-1/decision", strings.NewReader(`{"tenant_id":"tenant-local","status":"rejected","note":"not enough supporting evidence"}`))
+	req.Header.Set("X-SignalOps-Actor", "operator-g112")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastAlgorithmProposalMutation.TenantID != "tenant-local" || repo.lastAlgorithmProposalMutation.Status != storage.AlgorithmSignalProposalStatusRejected || repo.lastAlgorithmProposalMutation.ReviewedBy != "operator-g112" || repo.lastAlgorithmProposalMutation.DecisionNote == "" {
+		t.Fatalf("mutation = %+v", repo.lastAlgorithmProposalMutation)
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	proposal := response["algorithm_signal_proposal"]
+	if proposal["status"] != "rejected" || proposal["reviewed_by"] != "operator-g112" || proposal["decision_note"] == "" || proposal["decided_at"] == nil {
+		t.Fatalf("proposal = %#v", proposal)
+	}
+}
+
+func TestAlgorithmSignalProposalDecisionRejectsInvalidStatus(t *testing.T) {
+	repo := &fakeQueryRepository{algorithmSignalProposals: []storage.AlgorithmSignalProposalRecord{{ProposalID: "algsigprop-1", TenantID: "tenant-local", Status: storage.AlgorithmSignalProposalStatusProposed}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/algorithms/signal-proposals/algsigprop-1/decision", strings.NewReader(`{"tenant_id":"tenant-local","status":"accepted"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }

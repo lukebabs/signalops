@@ -59,6 +59,9 @@ func (f *fakeProposalRepository) ListAlgorithmSignalProposals(context.Context, s
 func (f *fakeProposalRepository) GetAlgorithmSignalProposal(context.Context, string, string) (storage.AlgorithmSignalProposalRecord, error) {
 	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
 }
+func (f *fakeProposalRepository) MutateAlgorithmSignalProposal(context.Context, storage.AlgorithmSignalProposalMutation) (storage.AlgorithmSignalProposalRecord, error) {
+	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
+}
 
 func TestGenerateCreatesStableSignalProposals(t *testing.T) {
 	now := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)

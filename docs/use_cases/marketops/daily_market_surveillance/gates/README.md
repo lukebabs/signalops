@@ -171,3 +171,8 @@ Recommended next gate:
 
 - G111: first-class `algorithm_signal_proposals` ledger, bounded generator CLI, and read-only APIs for converting `algorithm_results` into reviewed signal proposals without direct production signal writes.
 - Specification: `G111_algorithm_result_signal_proposal_design.md`.
+
+## G112 Implemented
+
+- G112: operator review lifecycle for `algorithm_signal_proposals` with decision metadata and no production signal materialization.
+- Specification: `G112_algorithm_signal_proposal_review.md`.

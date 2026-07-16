@@ -142,20 +142,25 @@ func isLifecycleMutationRoute(r *http.Request) bool {
 		return false
 	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if len(parts) != 4 || parts[0] != "v1" {
+	if len(parts) < 4 || parts[0] != "v1" {
 		return false
 	}
-	switch parts[1] {
-	case "alerts":
-		switch parts[3] {
-		case "acknowledge", "resolve", "suppress":
-			return true
+	if len(parts) == 4 {
+		switch parts[1] {
+		case "alerts":
+			switch parts[3] {
+			case "acknowledge", "resolve", "suppress":
+				return true
+			}
+		case "insights":
+			switch parts[3] {
+			case "review", "dismiss", "archive":
+				return true
+			}
 		}
-	case "insights":
-		switch parts[3] {
-		case "review", "dismiss", "archive":
-			return true
-		}
+	}
+	if len(parts) == 5 && parts[1] == "algorithms" && parts[2] == "signal-proposals" && parts[4] == "decision" {
+		return true
 	}
 	return false
 }
