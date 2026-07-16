@@ -4,10 +4,12 @@ import {
   summarizeAlgorithmExecutionRequest,
   summarizeAlgorithmResult,
   summarizeAlgorithmExecutionSummary,
+  summarizeAlgorithmSignalProposal,
   algorithmSeverityCountEntries,
   algorithmDefinitionStatusStyle,
   algorithmExecutionStatusStyle,
   algorithmSeverityStyle,
+  algorithmProposalStatusStyle,
 } from './algorithms';
 
 describe('summarizeAlgorithmDefinition (G109)', () => {
@@ -137,5 +139,76 @@ describe('algorithm style helpers (G109)', () => {
     expect(algorithmSeverityStyle('critical')).toContain('red');
     expect(algorithmSeverityStyle('high')).toContain('orange');
     expect(algorithmSeverityStyle('future')).toContain('gray-600');
+  });
+});
+
+describe('summarizeAlgorithmSignalProposal (G114)', () => {
+  it('reads scalar, lineage, and JSON fields without throwing', () => {
+    const s = summarizeAlgorithmSignalProposal({
+      proposal_id: 'algsigprop_1',
+      tenant_id: 'tenant-local',
+      algorithm_result_id: 'algres_1',
+      algorithm_id: 'ruptures_change_point_v1',
+      algorithm_version: '0.1.0',
+      execution_request_id: 'algexec_1',
+      proposed_signal_type: 'signalops.algorithm.change_point_candidate',
+      status: 'proposed',
+      score: 2.5,
+      confidence: 0.9,
+      severity: 'critical',
+      proposal_payload: { window: { start: 't0', end: 't1' } },
+      rationale: { detector: 'ruptures' },
+      source_event_ids: ['evt_1', 'evt_2'],
+      evidence_refs: ['ev_1'],
+      correlation_id: 'corr_1',
+      created_by: 'operator-local',
+      created_at: '2026-07-16T00:00:00Z',
+      updated_at: '2026-07-16T00:00:00Z',
+    });
+    expect(s.proposalId).toBe('algsigprop_1');
+    expect(s.proposedSignalType).toBe('signalops.algorithm.change_point_candidate');
+    expect(s.status).toBe('proposed');
+    expect(s.score).toBeCloseTo(2.5);
+    expect(s.confidence).toBeCloseTo(0.9);
+    expect(s.sourceEventIds).toEqual(['evt_1', 'evt_2']);
+    expect(s.evidenceRefs).toEqual(['ev_1']);
+    expect(s.proposalPayload).toEqual({ window: { start: 't0', end: 't1' } });
+    expect(s.rationale).toEqual({ detector: 'ruptures' });
+    // decided_at omitted on the backend until a decision is recorded.
+    expect(s.decidedAt).toBe('');
+    expect(s.reviewedBy).toBe('');
+  });
+
+  it('reads review metadata when a decision has been recorded', () => {
+    const s = summarizeAlgorithmSignalProposal({
+      proposal_id: 'algsigprop_1',
+      status: 'reviewed',
+      reviewed_by: 'analyst-1',
+      decision_note: 'Useful evidence; no production signal materialized.',
+      decided_at: '2026-07-16T01:00:00Z',
+    });
+    expect(s.status).toBe('reviewed');
+    expect(s.reviewedBy).toBe('analyst-1');
+    expect(s.decisionNote).toBe('Useful evidence; no production signal materialized.');
+    expect(s.decidedAt).toBe('2026-07-16T01:00:00Z');
+  });
+
+  it('collapses non-object payloads to the empty summary', () => {
+    expect(summarizeAlgorithmSignalProposal(null).proposalId).toBe('');
+    expect(summarizeAlgorithmSignalProposal('nope').sourceEventIds).toEqual([]);
+    expect(summarizeAlgorithmSignalProposal(42).proposalPayload).toEqual({});
+  });
+});
+
+describe('algorithmProposalStatusStyle (G114)', () => {
+  it('maps the four reviewable statuses and falls back for unknown', () => {
+    expect(algorithmProposalStatusStyle('proposed')).toContain('blue');
+    // reviewed is positive/complete tone but NOT a deploy/accept green token.
+    expect(algorithmProposalStatusStyle('reviewed')).toContain('emerald');
+    expect(algorithmProposalStatusStyle('rejected')).toContain('red');
+    expect(algorithmProposalStatusStyle('superseded')).toContain('gray');
+    // accepted is intentionally not a status; render it as neutral, not positive.
+    expect(algorithmProposalStatusStyle('accepted')).toContain('gray-600');
+    expect(algorithmProposalStatusStyle('future')).toContain('gray-600');
   });
 });

@@ -45,6 +45,9 @@ import type {
   AlgorithmDefinitionFilter,
   AlgorithmExecutionRequestFilter,
   AlgorithmResultFilter,
+  AlgorithmSignalProposalFilter,
+  AlgorithmSignalProposalDecisionRequest,
+  AlgorithmSignalProposalResponse,
 } from '../types';
 
 export const queryKeys = {
@@ -123,6 +126,10 @@ export const queryKeys = {
   algorithmResults: (filter: AlgorithmResultFilter) => ['algorithm-results', filter] as const,
   algorithmResult: (algorithmResultId: string, tenantId: string) =>
     ['algorithm-result', algorithmResultId, tenantId] as const,
+  algorithmSignalProposals: (filter: AlgorithmSignalProposalFilter) =>
+    ['algorithm-signal-proposals', filter] as const,
+  algorithmSignalProposal: (proposalId: string, tenantId: string) =>
+    ['algorithm-signal-proposal', proposalId, tenantId] as const,
 };
 
 export function useHealthz() {
@@ -889,5 +896,49 @@ export function useAlgorithmResult(algorithmResultId: string | null, tenantId: s
     queryKey: queryKeys.algorithmResult(algorithmResultId ?? '', tenantId),
     queryFn: () => api.getAlgorithmResult(algorithmResultId!, tenantId),
     enabled: !!algorithmResultId,
+  });
+}
+
+// G113/G114 algorithm signal proposals review surface (read-only review over the
+// G111/G112 backend). The list is not polled; detail only runs while a proposal
+// id is selected (guarded by a truthy id). tenant_id defaults to tenant-local.
+export function useAlgorithmSignalProposals(filter: AlgorithmSignalProposalFilter = { tenant_id: 'tenant-local' }) {
+  return useQuery({
+    queryKey: queryKeys.algorithmSignalProposals(filter),
+    queryFn: () => api.listAlgorithmSignalProposals(filter),
+  });
+}
+
+export function useAlgorithmSignalProposal(proposalId: string | null, tenantId: string = 'tenant-local') {
+  return useQuery({
+    queryKey: queryKeys.algorithmSignalProposal(proposalId ?? '', tenantId),
+    queryFn: () => api.getAlgorithmSignalProposal(proposalId!, tenantId),
+    enabled: !!proposalId,
+  });
+}
+
+// On decision, seed the proposal detail cache with the returned (reviewed) row
+// and invalidate proposal list/detail prefixes so filtered tables + badges
+// refresh. Only algorithm-signal-proposal queries are touched — never production
+// signal, alert, insight, graph proposal, or algorithm execution queries. The
+// decision records review metadata only; it materializes nothing.
+export function applyAlgorithmSignalProposalDecisionResult(
+  queryClient: QueryClient,
+  data: AlgorithmSignalProposalResponse,
+  proposalId: string,
+  tenantId: string,
+) {
+  queryClient.setQueryData(queryKeys.algorithmSignalProposal(proposalId, tenantId), data);
+  queryClient.invalidateQueries({ queryKey: ['algorithm-signal-proposals'] });
+  queryClient.invalidateQueries({ queryKey: ['algorithm-signal-proposal', proposalId, tenantId] });
+}
+
+export function useDecideAlgorithmSignalProposal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { proposalId: string; tenantId: string; request: AlgorithmSignalProposalDecisionRequest }) =>
+      api.decideAlgorithmSignalProposal(vars.proposalId, vars.request),
+    onSuccess: (data, variables) =>
+      applyAlgorithmSignalProposalDecisionResult(queryClient, data, variables.proposalId, variables.tenantId),
   });
 }

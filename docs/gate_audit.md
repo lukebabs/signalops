@@ -7897,3 +7897,29 @@ Scope:
 Result:
 
 - Specification saved at `docs/frontend/algorithm_signal_proposals_review_ui_spec.md`.
+
+## Gate G114: Algorithm Signal Proposal Review UI
+
+Timestamp: `2026-07-16T05:24:00Z`
+
+Status: `implemented - review UI over G111/G112; automated tests, typecheck, and build green`
+
+Scope:
+
+- Implement the G113 frontend spec: proposal list/detail/review UI inside the existing Algorithms route.
+- Use G111/G112 APIs only (list, get, decision).
+- Preserve the no-materialization boundary.
+
+Validation performed:
+
+- `npx vitest run` (full web suite) passed: 21 files, 273 tests, including new G114 coverage for API path construction, decision POST body/no-actor-header, envelope parsing, query invalidation, the proposal summarizer, and proposal status styling.
+- `npx tsc --noEmit` passed.
+- `npm run build` (`tsc && vite build`) passed.
+
+Out of scope:
+
+- Production signal materialization, alerts, insights, graph proposals, algorithm execution, tuning, policy deployment, Syncratic Ask/Search, bulk decisions, multi-review history, new backend endpoints, and live browser validation (auth gate requires browser login).
+
+Result:
+
+- G114 closes the G113 spec as a review-only operator surface over the G111/G112 proposal ledger; browser validation remains the documented follow-on.

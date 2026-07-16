@@ -1631,3 +1631,74 @@ export interface AlgorithmResultsResponse {
 export interface AlgorithmResultResponse {
   algorithm_result: AlgorithmResult;
 }
+
+// G113/G114 algorithm signal proposals review surface. Mirrors the G111/G112
+// gateway DTOs in internal/api/algorithms.go (algorithmSignalProposalDTO).
+// This is a REVIEW-ONLY ledger: it never materializes production signals,
+// alerts, insights, or graph proposals — the status union intentionally has no
+// `accepted` token. proposal_payload / rationale arrive already-parsed from the
+// gateway (typed `unknown`); render via JsonViewer, never JSON.parse.
+// decided_at is omitempty on the backend (absent until a decision is recorded).
+// status/severity are permissive (| string) so unknown future tokens render in a
+// neutral style instead of failing the UI.
+export type AlgorithmSignalProposalStatus =
+  | 'proposed'
+  | 'reviewed'
+  | 'rejected'
+  | 'superseded'
+  | string;
+
+export interface AlgorithmSignalProposal {
+  proposal_id: string;
+  tenant_id: string;
+  algorithm_result_id: string;
+  algorithm_id: string;
+  algorithm_version: string;
+  execution_request_id: string;
+  proposed_signal_type: string;
+  status: AlgorithmSignalProposalStatus;
+  score: number;
+  confidence: number;
+  severity: string;
+  proposal_payload: unknown;
+  rationale: unknown;
+  source_event_ids: string[];
+  evidence_refs: string[];
+  correlation_id: string;
+  created_by: string;
+  reviewed_by: string;
+  decision_note: string;
+  decided_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlgorithmSignalProposalFilter {
+  tenant_id?: string;
+  algorithm_id?: string;
+  execution_request_id?: string;
+  algorithm_result_id?: string;
+  status?: AlgorithmSignalProposalStatus | '';
+  severity?: string;
+  correlation_id?: string;
+  limit?: number;
+}
+
+// Decision body for POST /v1/algorithms/signal-proposals/{proposal_id}/decision.
+// The gateway derives the reviewer via replayActor (header -> body -> operator-
+// local), so no actor header is sent — matching the promotion-candidate decision.
+// metadata is optional; the backend defaults it to {}.
+export interface AlgorithmSignalProposalDecisionRequest {
+  tenant_id: string;
+  status: AlgorithmSignalProposalStatus;
+  note?: string;
+  metadata?: unknown;
+}
+
+export interface AlgorithmSignalProposalsResponse {
+  algorithm_signal_proposals: AlgorithmSignalProposal[];
+}
+
+export interface AlgorithmSignalProposalResponse {
+  algorithm_signal_proposal: AlgorithmSignalProposal;
+}

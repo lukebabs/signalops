@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
+import type { AlgorithmSignalProposal, AlgorithmSignalProposalResponse } from '../types';
 
 // Hoisted mutable auth state so the mocked auth modules read live values.
 const state = vi.hoisted(() => ({ token: 'jwt-abc' as string | null, authEnabled: true }));
@@ -19,6 +21,34 @@ vi.mock('../auth/session', () => ({
 }));
 
 const { api } = await import('./client');
+const { applyAlgorithmSignalProposalDecisionResult } = await import('./queries');
+
+function sampleProposal(overrides: Partial<AlgorithmSignalProposal> = {}): AlgorithmSignalProposal {
+  return {
+    proposal_id: 'algsigprop_c6c2acad697176d0f438b66e',
+    tenant_id: 'tenant-local',
+    algorithm_result_id: 'algres_1',
+    algorithm_id: 'ruptures_change_point_v1',
+    algorithm_version: '0.1.0',
+    execution_request_id: 'algexec-g110-ruptures-aapl-openclose',
+    proposed_signal_type: 'signalops.algorithm.change_point_candidate',
+    status: 'proposed',
+    score: 2.5,
+    confidence: 0.9,
+    severity: 'critical',
+    proposal_payload: { window: {} },
+    rationale: { detector: 'ruptures' },
+    source_event_ids: ['evt_1'],
+    evidence_refs: ['ev_1'],
+    correlation_id: 'corr_1',
+    created_by: 'operator-local',
+    reviewed_by: '',
+    decision_note: '',
+    created_at: '2026-07-16T00:00:00Z',
+    updated_at: '2026-07-16T00:00:00Z',
+    ...overrides,
+  };
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -142,5 +172,136 @@ describe('algorithm API client (G109)', () => {
     expect(summary.algorithm_execution_summary.result_count).toBe(2);
     expect(summary.algorithm_execution_summary.top_results[0].algorithm_result_id).toBe('algres_1');
     expect(summary.algorithm_execution_summary.severity_counts.high).toBe(2);
+  });
+});
+
+describe('algorithm signal proposal API client (G114)', () => {
+  it('builds the proposals list path with filters + tenant + bearer + default limit', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ algorithm_signal_proposals: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.listAlgorithmSignalProposals({
+      tenant_id: 'tenant-local',
+      status: 'proposed',
+      severity: 'critical',
+      algorithm_id: 'ruptures_change_point_v1',
+      execution_request_id: 'algexec_1',
+      algorithm_result_id: 'algres_1',
+      correlation_id: 'corr_1',
+    });
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('/v1/algorithms/signal-proposals');
+    expect(url).toContain('tenant_id=tenant-local');
+    expect(url).toContain('status=proposed');
+    expect(url).toContain('severity=critical');
+    expect(url).toContain('algorithm_id=ruptures_change_point_v1');
+    expect(url).toContain('execution_request_id=algexec_1');
+    expect(url).toContain('algorithm_result_id=algres_1');
+    expect(url).toContain('correlation_id=corr_1');
+    expect(url).toContain('limit=50');
+    expect(fetchMock.mock.calls[0][1].headers['Authorization']).toBe('Bearer jwt-abc');
+  });
+
+  it('omits unset proposal filters, defaults tenant, and applies status=proposed from the route', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ algorithm_signal_proposals: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.listAlgorithmSignalProposals({ tenant_id: 'tenant-local', status: 'proposed' });
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('tenant_id=tenant-local');
+    expect(url).toContain('status=proposed');
+    expect(url).not.toContain('severity=');
+    expect(url).not.toContain('correlation_id=');
+  });
+
+  it('URL-encodes the proposal id on the detail path and sends the tenant + bearer', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ algorithm_signal_proposal: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.getAlgorithmSignalProposal('algsigprop/a b', 'tenant-local');
+
+    const call = fetchMock.mock.calls[0];
+    expect(String(call[0])).toContain('/v1/algorithms/signal-proposals/algsigprop%2Fa%20b');
+    expect(String(call[0])).toContain('tenant_id=tenant-local');
+    expect(call[1].headers['Authorization']).toBe('Bearer jwt-abc');
+  });
+
+  it('posts the decision body to the decision path with bearer and no actor header', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ algorithm_signal_proposal: sampleProposal({ status: 'reviewed' }) }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.decideAlgorithmSignalProposal('algsigprop_1', {
+      tenant_id: 'tenant-local',
+      status: 'reviewed',
+      note: 'Useful evidence; no production signal materialized.',
+    });
+
+    const call = fetchMock.mock.calls[0];
+    expect(String(call[0])).toContain('/v1/algorithms/signal-proposals/algsigprop_1/decision');
+    expect(call[1].method).toBe('POST');
+    expect(call[1].headers['Authorization']).toBe('Bearer jwt-abc');
+    expect(call[1].headers['X-SignalOps-Actor']).toBeUndefined();
+    const body = JSON.parse(call[1].body as string);
+    expect(body).toEqual({
+      tenant_id: 'tenant-local',
+      status: 'reviewed',
+      note: 'Useful evidence; no production signal materialized.',
+    });
+  });
+
+  it('parses the list and detail envelopes', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ algorithm_signal_proposals: [sampleProposal()] }))
+      .mockResolvedValueOnce(
+        jsonResponse({ algorithm_signal_proposal: sampleProposal({ status: 'rejected', reviewed_by: 'a1' }) }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const list = await api.listAlgorithmSignalProposals({ tenant_id: 'tenant-local' });
+    const detail = await api.getAlgorithmSignalProposal('algsigprop_c6c2acad697176d0f438b66e');
+
+    expect(list.algorithm_signal_proposals[0].proposal_id).toBe('algsigprop_c6c2acad697176d0f438b66e');
+    expect(list.algorithm_signal_proposals[0].proposed_signal_type).toBe('signalops.algorithm.change_point_candidate');
+    expect(detail.algorithm_signal_proposal.status).toBe('rejected');
+    expect(detail.algorithm_signal_proposal.reviewed_by).toBe('a1');
+  });
+});
+
+describe('applyAlgorithmSignalProposalDecisionResult (G114 mutation invalidation)', () => {
+  it('seeds the detail cache and invalidates list/detail prefixes only', () => {
+    const queryClient = new QueryClient();
+    const setSpy = vi.spyOn(queryClient, 'setQueryData');
+    const invSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const decided: AlgorithmSignalProposalResponse = {
+      algorithm_signal_proposal: sampleProposal({ status: 'reviewed', reviewed_by: 'analyst-1' }),
+    };
+
+    applyAlgorithmSignalProposalDecisionResult(queryClient, decided, 'algsigprop_c6c2acad697176d0f438b66e', 'tenant-local');
+
+    // Detail cache seeded under the proposal detail key with the returned row.
+    expect(setSpy).toHaveBeenCalledOnce();
+    expect(setSpy.mock.calls[0][0]).toEqual([
+      'algorithm-signal-proposal',
+      'algsigprop_c6c2acad697176d0f438b66e',
+      'tenant-local',
+    ]);
+    expect(setSpy.mock.calls[0][1]).toEqual(decided);
+
+    // List + detail prefixes invalidated; nothing else (no production signal/exec queries).
+    const invalidated = invSpy.mock.calls.map((c) => c[0]);
+    expect(invalidated).toContainEqual({ queryKey: ['algorithm-signal-proposals'] });
+    expect(invalidated).toContainEqual({
+      queryKey: ['algorithm-signal-proposal', 'algsigprop_c6c2acad697176d0f438b66e', 'tenant-local'],
+    });
   });
 });

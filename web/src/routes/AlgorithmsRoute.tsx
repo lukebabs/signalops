@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { Cpu } from 'lucide-react';
+import { Cpu, GitPullRequestArrow } from 'lucide-react';
 import {
   useAlgorithmDefinitions,
   useAlgorithmExecutionRequests,
   useAlgorithmExecutionSummary,
+  useAlgorithmSignalProposals,
+  useAlgorithmSignalProposal,
+  useDecideAlgorithmSignalProposal,
 } from '../api/queries';
+import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
@@ -15,12 +19,15 @@ import {
   summarizeAlgorithmExecutionRequest,
   summarizeAlgorithmResult,
   summarizeAlgorithmExecutionSummary,
+  summarizeAlgorithmSignalProposal,
   algorithmDefinitionStatusStyle,
   algorithmExecutionStatusStyle,
   algorithmSeverityStyle,
+  algorithmProposalStatusStyle,
+  type AlgorithmSignalProposalSummary,
 } from '../lib/algorithms';
 import { useTenant } from '../auth/session';
-import type { AlgorithmDefinition, AlgorithmResult } from '../types';
+import type { AlgorithmDefinition, AlgorithmResult, AlgorithmSignalProposal, AlgorithmSignalProposalStatus } from '../types';
 
 // G109 algorithm execution visibility (read-only). Mirrors the dense, restrained
 // table layout of the other MarketOps workbenches. No Run/Tune/Promote/Deploy/
@@ -30,6 +37,13 @@ const DEFINITION_STATUSES = ['', 'draft', 'active', 'disabled', 'deprecated'];
 const RUNTIME_TYPES = ['', 'python_plugin', 'container_plugin', 'http_plugin'];
 const EXECUTION_STATUSES = ['', 'queued', 'running', 'succeeded', 'failed', 'canceled'];
 const LIMITS = [25, 50, 100, 200];
+
+// G113/G114 signal proposal review. The filter dropdowns include an empty "any"
+// option; the review selector lists all four reviewable statuses (no `accepted`).
+// Default list filter is status=proposed, limit=50 per the spec.
+const PROPOSAL_STATUSES = ['', 'proposed', 'reviewed', 'rejected', 'superseded'];
+const REVIEW_STATUSES: AlgorithmSignalProposalStatus[] = ['proposed', 'reviewed', 'rejected', 'superseded'];
+const PROPOSAL_SEVERITIES = ['', 'critical', 'high', 'medium', 'low', 'info'];
 
 function DefinitionStatusBadge({ status }: { status: string }) {
   return (
@@ -54,6 +68,18 @@ function ExecutionStatusBadge({ status }: { status: string }) {
 function SeverityBadge({ severity }: { severity: string }) {
   return (
     <span className={`text-xs font-medium ${algorithmSeverityStyle(severity)}`}>{severity || '—'}</span>
+  );
+}
+
+// Review-only proposal status badge. `reviewed` is positive/complete tone but
+// must never read as accepted/deployed — see algorithmProposalStatusStyle.
+function ProposalStatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium ${algorithmProposalStatusStyle(status)}`}
+    >
+      {status || '—'}
+    </span>
   );
 }
 
@@ -89,6 +115,18 @@ export function AlgorithmsRoute() {
   const [selectedExecutionRequestId, setSelectedExecutionRequestId] = useState<string | null>(null);
   const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
 
+  // G113/G114 signal proposal review filters + selection. Default status=proposed
+  // and limit=50 per the spec; propExecReqId is carried over from a selected
+  // execution request (selectExecutionRequest) but stays operator-editable so the
+  // tenant-wide "all recent proposals" view is one clear away.
+  const [propStatus, setPropStatus] = useState('proposed');
+  const [propSeverity, setPropSeverity] = useState('');
+  const [propAlgorithmId, setPropAlgorithmId] = useState('');
+  const [propExecReqId, setPropExecReqId] = useState('');
+  const [propCorrelationId, setPropCorrelationId] = useState('');
+  const [propLimit, setPropLimit] = useState(50);
+  const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
+
   const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
 
   const definitions = useAlgorithmDefinitions({
@@ -115,6 +153,25 @@ export function AlgorithmsRoute() {
   const selectedResult: AlgorithmResult | null =
     summaryRaw?.top_results.find((r) => r.algorithm_result_id === selectedResultId) ?? null;
 
+  // Signal proposal list + selected-proposal detail. The list runs tenant-wide
+  // with the operator filters; detail falls back to the matched list row while
+  // the detail GET resolves. No polling — a decision invalidates both prefixes.
+  const proposalsQ = useAlgorithmSignalProposals({
+    tenant_id: TENANT_ID,
+    algorithm_id: propAlgorithmId || undefined,
+    execution_request_id: propExecReqId || undefined,
+    status: (propStatus || undefined) as AlgorithmSignalProposalStatus | undefined,
+    severity: propSeverity || undefined,
+    correlation_id: propCorrelationId || undefined,
+    limit: propLimit,
+  });
+  const proposals = proposalsQ.data?.algorithm_signal_proposals ?? [];
+  const proposalDetailQ = useAlgorithmSignalProposal(selectedProposalId, TENANT_ID);
+  const selectedProposal =
+    proposalDetailQ.data?.algorithm_signal_proposal ??
+    proposals.find((p) => p.proposal_id === selectedProposalId) ??
+    null;
+
   function selectAlgorithm(id: string) {
     setSelectedAlgorithmId(id);
     setSelectedExecutionRequestId(null);
@@ -123,6 +180,9 @@ export function AlgorithmsRoute() {
   function selectExecutionRequest(id: string) {
     setSelectedExecutionRequestId(id);
     setSelectedResultId(null);
+    // Scope the proposals review view to this execution request per the spec.
+    // The field stays editable so operators can clear it for the tenant-wide view.
+    setPropExecReqId(id);
   }
 
   return (
@@ -442,6 +502,299 @@ export function AlgorithmsRoute() {
           })()}
         </div>
       )}
+
+      {/* G113/G114 signal proposals review surface (review-only). Renders the
+          tenant-wide proposal ledger with operator filters; selecting a row
+          opens evidence detail + bounded review controls. No materialization. */}
+      <div className="rounded border border-gray-200 bg-white p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <GitPullRequestArrow size={16} className="text-brand-700" />
+          <div>
+            <div className="text-xs font-semibold text-gray-700">Signal Proposals</div>
+            <p className="text-[11px] text-gray-500">
+              Review-only ledger of algorithm-derived candidate signal proposals · no production signal is materialized
+            </p>
+          </div>
+        </div>
+
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <select
+            value={propStatus}
+            onChange={(e) => setPropStatus(e.target.value)}
+            className={inputCls}
+            aria-label="Filter proposals by status"
+          >
+            {PROPOSAL_STATUSES.map((s) => (
+              <option key={s} value={s}>{s || 'any status'}</option>
+            ))}
+          </select>
+          <select
+            value={propSeverity}
+            onChange={(e) => setPropSeverity(e.target.value)}
+            className={inputCls}
+            aria-label="Filter proposals by severity"
+          >
+            {PROPOSAL_SEVERITIES.map((s) => (
+              <option key={s} value={s}>{s || 'any severity'}</option>
+            ))}
+          </select>
+          <input
+            value={propAlgorithmId}
+            onChange={(e) => setPropAlgorithmId(e.target.value)}
+            className={inputCls}
+            aria-label="Filter by algorithm id"
+            placeholder="algorithm id"
+          />
+          <input
+            value={propExecReqId}
+            onChange={(e) => setPropExecReqId(e.target.value)}
+            className={inputCls}
+            aria-label="Filter by execution request id"
+            placeholder="execution request id"
+          />
+          <input
+            value={propCorrelationId}
+            onChange={(e) => setPropCorrelationId(e.target.value)}
+            className={inputCls}
+            aria-label="Filter by correlation id"
+            placeholder="correlation id"
+          />
+          <select
+            value={propLimit}
+            onChange={(e) => setPropLimit(Number(e.target.value))}
+            className={inputCls}
+            aria-label="Proposal page limit"
+          >
+            {LIMITS.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
+
+        {proposalsQ.isLoading ? (
+          <LoadingState label="Loading algorithm signal proposals..." />
+        ) : proposalsQ.isError ? (
+          <ErrorState error={proposalsQ.error} />
+        ) : proposals.length ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="whitespace-nowrap px-3 py-2">Proposal</th>
+                  <th className="whitespace-nowrap px-3 py-2">Signal type</th>
+                  <th className="whitespace-nowrap px-3 py-2">Status</th>
+                  <th className="whitespace-nowrap px-3 py-2">Severity</th>
+                  <th className="whitespace-nowrap px-3 py-2">Score</th>
+                  <th className="whitespace-nowrap px-3 py-2">Conf.</th>
+                  <th className="whitespace-nowrap px-3 py-2">Algorithm</th>
+                  <th className="whitespace-nowrap px-3 py-2">Execution request</th>
+                  <th className="whitespace-nowrap px-3 py-2">Result</th>
+                  <th className="whitespace-nowrap px-3 py-2">Correlation</th>
+                  <th className="whitespace-nowrap px-3 py-2">Reviewed by</th>
+                  <th className="whitespace-nowrap px-3 py-2">Decided</th>
+                  <th className="whitespace-nowrap px-3 py-2">Updated</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {proposals.map((p) => {
+                  const s = summarizeAlgorithmSignalProposal(p);
+                  return (
+                    <tr
+                      key={p.proposal_id}
+                      onClick={() => setSelectedProposalId(p.proposal_id)}
+                      className={`cursor-pointer align-top hover:bg-gray-50 ${selectedProposalId === p.proposal_id ? 'bg-brand-50' : ''}`}
+                    >
+                      <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-700">{s.proposalId || '—'}</code></td>
+                      <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-700">{s.proposedSignalType || '—'}</code></td>
+                      <td className="px-3 py-2"><ProposalStatusBadge status={s.status} /></td>
+                      <td className="px-3 py-2"><SeverityBadge severity={s.severity} /></td>
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-800">{s.score.toFixed(3)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-800">{s.confidence.toFixed(2)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-700">{s.algorithmId || '—'}</td>
+                      <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-600">{s.executionRequestId || '—'}</code></td>
+                      <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-600">{s.algorithmResultId || '—'}</code></td>
+                      <td className="px-3 py-2"><code className="break-all text-[11px] text-gray-600">{s.correlationId || '—'}</code></td>
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-700">{s.reviewedBy || '—'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">{s.decidedAt ? formatUtc(s.decidedAt) : '—'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">{formatUtc(s.updatedAt)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState message="No algorithm signal proposals found." />
+        )}
+      </div>
+
+      {/* Selected proposal detail + review controls */}
+      {selectedProposal ? (
+        <ProposalDetail
+          key={selectedProposal.proposal_id}
+          proposal={selectedProposal}
+          tenantId={TENANT_ID}
+          detailLoading={proposalDetailQ.isLoading && !!selectedProposalId}
+          detailError={proposalDetailQ.isError ? proposalDetailQ.error : null}
+        />
+      ) : (
+        <div className="rounded border border-gray-200 bg-white p-3">
+          <EmptyState message="Select a proposal to inspect its evidence." />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Selected algorithm signal proposal evidence detail. Renders all spec-required
+// fields, lineage id lists, and the collapsible proposal_payload / rationale
+// JSON, then the bounded review controls. Read-only except for the review form.
+function ProposalDetail({
+  proposal,
+  tenantId,
+  detailLoading,
+  detailError,
+}: {
+  proposal: AlgorithmSignalProposal;
+  tenantId: string;
+  detailLoading: boolean;
+  detailError: unknown;
+}) {
+  const p = summarizeAlgorithmSignalProposal(proposal);
+  return (
+    <div className="rounded border border-gray-200 bg-white p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="text-xs font-semibold text-gray-700">Proposal Detail</div>
+          <ProposalStatusBadge status={p.status} />
+          <code className="break-all text-[11px] text-gray-500">{p.proposedSignalType}</code>
+          {detailLoading ? <span className="text-[11px] text-gray-400">refreshing…</span> : null}
+        </div>
+        <CopyButton value={p.proposalId} />
+      </div>
+
+      {detailError ? (
+        <p className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
+          Detail refresh unavailable; showing the latest list row.
+        </p>
+      ) : null}
+
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div><div className="text-xs text-gray-500">Proposal id</div><code className="break-all text-xs text-gray-700">{p.proposalId || '—'}</code></div>
+          <div><div className="text-xs text-gray-500">Tenant id</div><code className="break-all text-xs text-gray-700">{p.tenantId || '—'}</code></div>
+          <div><div className="text-xs text-gray-500">Proposed signal type</div><code className="break-all text-xs text-gray-700">{p.proposedSignalType || '—'}</code></div>
+          <div><div className="text-xs text-gray-500">Status</div><div><ProposalStatusBadge status={p.status} /></div></div>
+          <div><div className="text-xs text-gray-500">Score / confidence</div><div className="text-xs">{p.score.toFixed(3)} / {p.confidence.toFixed(2)}</div></div>
+          <div><div className="text-xs text-gray-500">Severity</div><div><SeverityBadge severity={p.severity} /></div></div>
+          <div><div className="text-xs text-gray-500">Algorithm</div><div className="break-all text-xs">{p.algorithmId || '—'} <span className="text-gray-500">v{p.algorithmVersion || '—'}</span></div></div>
+          <div><div className="text-xs text-gray-500">Execution request</div><code className="break-all text-xs text-gray-700">{p.executionRequestId || '—'}</code></div>
+          <div><div className="text-xs text-gray-500">Algorithm result</div><code className="break-all text-xs text-gray-700">{p.algorithmResultId || '—'}</code></div>
+          <div><div className="text-xs text-gray-500">Correlation id</div><code className="break-all text-xs text-gray-700">{p.correlationId || '—'}</code></div>
+          <div><div className="text-xs text-gray-500">Created by</div><div className="break-all text-xs">{p.createdBy || '—'}</div></div>
+          <div><div className="text-xs text-gray-500">Reviewed by</div><div className="break-all text-xs">{p.reviewedBy || '—'}</div></div>
+          <div><div className="text-xs text-gray-500">Decided at</div><div className="text-xs">{p.decidedAt ? formatUtc(p.decidedAt) : '—'}</div></div>
+          <div><div className="text-xs text-gray-500">Created / updated</div><div className="text-xs">{formatUtc(p.createdAt)} / {formatUtc(p.updatedAt)}</div></div>
+          <div className="col-span-2"><div className="text-xs text-gray-500">Decision note</div><div className="break-all text-xs">{p.decisionNote || '—'}</div></div>
+        </div>
+
+        <div className="space-y-2">
+          <IdRefList label="Source event ids" ids={p.sourceEventIds} />
+          <IdRefList label="Evidence refs" ids={p.evidenceRefs} />
+        </div>
+
+        <JsonViewer label="Proposal payload JSON" value={p.proposalPayload} />
+        <JsonViewer label="Rationale JSON" value={p.rationale} />
+
+        <ProposalReviewControls proposal={p} tenantId={tenantId} />
+      </div>
+    </div>
+  );
+}
+
+// Bounded review form for a single algorithm signal proposal. Records one review
+// decision (reviewed / rejected / superseded / restore to proposed) with an
+// optional note that is required for rejected and superseded. The POST only
+// updates review metadata — it materializes no production signal.
+function ProposalReviewControls({
+  proposal,
+  tenantId,
+}: {
+  proposal: AlgorithmSignalProposalSummary;
+  tenantId: string;
+}) {
+  const [status, setStatus] = useState<AlgorithmSignalProposalStatus>(proposal.status || 'proposed');
+  const [note, setNote] = useState(proposal.decisionNote || '');
+  const mutation = useDecideAlgorithmSignalProposal();
+
+  const requiresNote = status === 'rejected' || status === 'superseded';
+  const noteMissing = requiresNote && note.trim() === '';
+  const canSubmit = !mutation.isPending && !noteMissing;
+
+  function submit() {
+    if (!canSubmit) return;
+    mutation.mutate({
+      proposalId: proposal.proposalId,
+      tenantId,
+      request: {
+        tenant_id: tenantId,
+        status,
+        note: note.trim() || undefined,
+      },
+    });
+  }
+
+  const errorMessage = mutation.isError
+    ? isApiError(mutation.error)
+      ? mutation.error.message
+      : 'Review update failed.'
+    : '';
+
+  return (
+    <div className="rounded border border-gray-200 bg-gray-50 p-2">
+      <div className="mb-2 text-xs font-medium text-gray-600">Review Decision</div>
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+        <div>
+          <label className="mb-0.5 block text-[11px] text-gray-500" htmlFor="proposal-review-status">Status</label>
+          <select
+            id="proposal-review-status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as AlgorithmSignalProposalStatus)}
+            className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            disabled={mutation.isPending}
+          >
+            {REVIEW_STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        <div className="md:col-span-2">
+          <label className="mb-0.5 block text-[11px] text-gray-500" htmlFor="proposal-review-note">Note</label>
+          <textarea
+            id="proposal-review-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={requiresNote ? 'Required note for this decision' : 'Optional review note'}
+            className="h-16 w-full resize-none rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            disabled={mutation.isPending}
+          />
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!canSubmit}
+          className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Save review
+        </button>
+        {noteMissing ? <span className="text-[11px] text-red-700">A note is required for {status}.</span> : null}
+        {mutation.isPending ? <span className="text-[11px] text-gray-400">Saving…</span> : null}
+        {mutation.isSuccess ? <span className="text-[11px] text-emerald-700">Review saved.</span> : null}
+        {errorMessage ? <span className="text-[11px] text-red-700">{errorMessage}</span> : null}
+      </div>
+      <p className="mt-1 text-[11px] text-gray-400">Review records operator metadata only; no production signal is materialized.</p>
     </div>
   );
 }

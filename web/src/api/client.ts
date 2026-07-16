@@ -90,6 +90,10 @@ import type {
   AlgorithmResultFilter,
   AlgorithmResultsResponse,
   AlgorithmResultResponse,
+  AlgorithmSignalProposalFilter,
+  AlgorithmSignalProposalsResponse,
+  AlgorithmSignalProposalResponse,
+  AlgorithmSignalProposalDecisionRequest,
 } from '../types';
 import { authConfig } from '../auth/config';
 import { getAccessToken } from '../auth/session';
@@ -634,5 +638,35 @@ export const api = {
     get<AlgorithmResultResponse>(
       `/v1/algorithms/results/${encodeURIComponent(algorithmResultId)}`,
       { tenant_id: tenantId },
+    ),
+  // G113/G114 algorithm signal proposals review surface (G111/G112 backend).
+  // Same authenticated same-origin GET pattern; tenant_id is required by the
+  // gateway (it 400s with invalid_algorithm_filter when absent), so it defaults
+  // to tenant-local like the other algorithm list endpoints. Default status
+  // filter is unset here; the route applies status=proposed per the spec.
+  listAlgorithmSignalProposals: (filter: AlgorithmSignalProposalFilter = {}) =>
+    get<AlgorithmSignalProposalsResponse>('/v1/algorithms/signal-proposals', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      algorithm_id: filter.algorithm_id || undefined,
+      execution_request_id: filter.execution_request_id || undefined,
+      algorithm_result_id: filter.algorithm_result_id || undefined,
+      status: filter.status || undefined,
+      severity: filter.severity || undefined,
+      correlation_id: filter.correlation_id || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getAlgorithmSignalProposal: (proposalId: string, tenantId: string = 'tenant-local') =>
+    get<AlgorithmSignalProposalResponse>(
+      `/v1/algorithms/signal-proposals/${encodeURIComponent(proposalId)}`,
+      { tenant_id: tenantId },
+    ),
+  // Decision mutation. The gateway derives the reviewer via replayActor
+  // (header -> body -> operator-local), so no actor header is sent — matching
+  // the promotion-candidate decision. This only records review metadata; it
+  // materializes no production signal, alert, insight, or graph proposal.
+  decideAlgorithmSignalProposal: (proposalId: string, request: AlgorithmSignalProposalDecisionRequest) =>
+    post<AlgorithmSignalProposalResponse>(
+      `/v1/algorithms/signal-proposals/${encodeURIComponent(proposalId)}/decision`,
+      request,
     ),
 };

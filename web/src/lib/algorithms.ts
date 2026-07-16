@@ -94,6 +94,22 @@ export function algorithmExecutionStatusStyle(status: string): string {
   return EXECUTION_STATUS_STYLES[status] ?? 'border-gray-200 bg-gray-50 text-gray-600';
 }
 
+// Restrained algorithm signal proposal review-status colors (G113/G114). Mirrors
+// the spec tone guidance: proposed -> neutral/pending gray-blue, reviewed ->
+// positive/complete-but-not-production emerald (NOT a deploy/accept green),
+// rejected -> negative red, superseded -> muted secondary gray. Unknown future
+// values fall back to neutral gray. Never implies `reviewed` == accepted/deployed.
+const PROPOSAL_STATUS_STYLES: Record<string, string> = {
+  proposed: 'border-blue-200 bg-blue-50 text-blue-700',
+  reviewed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  rejected: 'border-red-200 bg-red-50 text-red-700',
+  superseded: 'border-gray-200 bg-gray-100 text-gray-500',
+};
+
+export function algorithmProposalStatusStyle(status: string): string {
+  return PROPOSAL_STATUS_STYLES[status] ?? 'border-gray-200 bg-gray-50 text-gray-600';
+}
+
 export interface AlgorithmDefinitionSummary {
   algorithmId: string;
   name: string;
@@ -238,6 +254,85 @@ export function summarizeAlgorithmResult(r: unknown): AlgorithmResultSummary {
     evidenceRefs: asStringArray(r.evidence_refs),
     correlationId: asString(r.correlation_id),
     createdAt: asString(r.created_at),
+  };
+}
+
+export interface AlgorithmSignalProposalSummary {
+  proposalId: string;
+  tenantId: string;
+  algorithmResultId: string;
+  algorithmId: string;
+  algorithmVersion: string;
+  executionRequestId: string;
+  proposedSignalType: string;
+  status: string;
+  score: number;
+  confidence: number;
+  severity: string;
+  proposalPayload: unknown;
+  rationale: unknown;
+  sourceEventIds: string[];
+  evidenceRefs: string[];
+  correlationId: string;
+  createdBy: string;
+  reviewedBy: string;
+  decisionNote: string;
+  decidedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const EMPTY_PROPOSAL: AlgorithmSignalProposalSummary = {
+  proposalId: '',
+  tenantId: '',
+  algorithmResultId: '',
+  algorithmId: '',
+  algorithmVersion: '',
+  executionRequestId: '',
+  proposedSignalType: '',
+  status: '',
+  score: 0,
+  confidence: 0,
+  severity: '',
+  proposalPayload: {},
+  rationale: {},
+  sourceEventIds: [],
+  evidenceRefs: [],
+  correlationId: '',
+  createdBy: '',
+  reviewedBy: '',
+  decisionNote: '',
+  decidedAt: '',
+  createdAt: '',
+  updatedAt: '',
+};
+
+export function summarizeAlgorithmSignalProposal(p: unknown): AlgorithmSignalProposalSummary {
+  if (!isRecord(p)) return { ...EMPTY_PROPOSAL };
+  return {
+    proposalId: asString(p.proposal_id),
+    tenantId: asString(p.tenant_id),
+    algorithmResultId: asString(p.algorithm_result_id),
+    algorithmId: asString(p.algorithm_id),
+    algorithmVersion: asString(p.algorithm_version),
+    executionRequestId: asString(p.execution_request_id),
+    proposedSignalType: asString(p.proposed_signal_type),
+    status: asString(p.status),
+    score: asNumber(p.score),
+    confidence: asNumber(p.confidence),
+    severity: asString(p.severity),
+    // Flexible JSON: pass through verbatim (already parsed by the gateway).
+    proposalPayload: p.proposal_payload ?? {},
+    rationale: p.rationale ?? {},
+    sourceEventIds: asStringArray(p.source_event_ids),
+    evidenceRefs: asStringArray(p.evidence_refs),
+    correlationId: asString(p.correlation_id),
+    createdBy: asString(p.created_by),
+    reviewedBy: asString(p.reviewed_by),
+    decisionNote: asString(p.decision_note),
+    decidedAt: asString(p.decided_at),
+    createdAt: asString(p.created_at),
+    updatedAt: asString(p.updated_at),
   };
 }
 

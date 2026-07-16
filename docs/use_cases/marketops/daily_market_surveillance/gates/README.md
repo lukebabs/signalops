@@ -181,3 +181,8 @@ Recommended next gate:
 
 - G113: frontend visibility and review workflow for `algorithm_signal_proposals`, using G111/G112 APIs without production signal materialization.
 - Specification: `../../../../frontend/algorithm_signal_proposals_review_ui_spec.md`.
+
+## G114 Implemented
+
+- G114: implements the G113 frontend spec — proposal list/detail/review UI inside the existing Algorithms route over G111/G112 APIs, with bounded review controls and no production signal materialization. Automated tests, typecheck, and build green; browser validation pending the auth gate.
+- Specification: `G114_algorithm_signal_proposal_review_ui.md`.
