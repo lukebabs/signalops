@@ -287,6 +287,17 @@ func (q *fakeQueryRepository) GetSignalLedger(_ context.Context, signalID string
 	return storage.SignalLedgerRecord{}, storage.ErrNotFound
 }
 
+func (q *fakeQueryRepository) UpsertSignalLedger(_ context.Context, record storage.SignalLedgerRecord) error {
+	for i, signal := range q.signals {
+		if signal.SignalID == record.SignalID {
+			q.signals[i] = record
+			return nil
+		}
+	}
+	q.signals = append(q.signals, record)
+	return nil
+}
+
 func (q *fakeQueryRepository) CreateMarketOpsBacktestRun(_ context.Context, record storage.MarketOpsBacktestRunRecord) error {
 	q.backtestRuns = append(q.backtestRuns, record)
 	return nil
@@ -1067,6 +1078,29 @@ func (q *fakeQueryRepository) MutateAlgorithmSignalProposal(_ context.Context, m
 		}
 	}
 	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) UpsertAlgorithmSignalMaterialization(_ context.Context, record storage.AlgorithmSignalMaterializationRecord) (storage.AlgorithmSignalMaterializationRecord, error) {
+	for i, existing := range q.algorithmSignalMaterializations {
+		if existing.TenantID == record.TenantID && existing.IdempotencyKey == record.IdempotencyKey {
+			if record.CreatedAt.IsZero() {
+				record.CreatedAt = existing.CreatedAt
+			}
+			if record.UpdatedAt.IsZero() {
+				record.UpdatedAt = time.Now().UTC()
+			}
+			q.algorithmSignalMaterializations[i] = record
+			return record, nil
+		}
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	if record.UpdatedAt.IsZero() {
+		record.UpdatedAt = record.CreatedAt
+	}
+	q.algorithmSignalMaterializations = append(q.algorithmSignalMaterializations, record)
+	return record, nil
 }
 
 func (q *fakeQueryRepository) ListAlgorithmSignalMaterializations(_ context.Context, filter storage.AlgorithmSignalMaterializationFilter) ([]storage.AlgorithmSignalMaterializationRecord, error) {
@@ -3510,6 +3544,90 @@ func TestAlgorithmExecutionSummaryIncludesResultRollup(t *testing.T) {
 	topResults := summary["top_results"].([]any)
 	if len(topResults) != 2 || topResults[0].(map[string]any)["algorithm_result_id"] != "algres-high" || topResults[1].(map[string]any)["algorithm_result_id"] != "algres-medium" {
 		t.Fatalf("top_results = %#v", topResults)
+	}
+}
+
+func TestAlgorithmSignalProposalMaterializationCreatesSignal(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &fakeQueryRepository{
+		algorithmResults:         []storage.AlgorithmResultRecord{{AlgorithmResultID: "algres-1", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "anomaly", Score: 3.2, Confidence: 0.88, Severity: "high", ResultPayloadJSON: []byte(`{"zscore":3.2}`), SourceEventIDs: []string{"evt-1"}, CorrelationID: "corr-1", CreatedAt: now}},
+		algorithmSignalProposals: []storage.AlgorithmSignalProposalRecord{{ProposalID: "algsigprop-1", TenantID: "tenant-local", AlgorithmResultID: "algres-1", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusReviewed, Score: 3.2, Confidence: 0.88, Severity: "high", ProposalPayloadJSON: []byte(`{"symbol":"AAPL"}`), RationaleJSON: []byte(`{"review_required":true}`), SourceEventIDs: []string{"evt-1"}, CorrelationID: "corr-1", ReviewedBy: "operator-1", CreatedAt: now, UpdatedAt: now}},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/algorithms/signal-proposals/algsigprop-1/materializations", strings.NewReader(`{"tenant_id":"tenant-local","policy_version":"algorithm_materialization.v1","requested_by":"operator-1","metadata":{"note":"ship it"}}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(repo.signals) != 1 {
+		t.Fatalf("signals = %+v", repo.signals)
+	}
+	if repo.signals[0].SignalType != "signalops.algorithm.anomaly_candidate" || repo.signals[0].DetectorID != "signalops.algorithms.zscore_anomaly_v1" || repo.signals[0].CausationID != "algsigprop-1" {
+		t.Fatalf("signal = %+v", repo.signals[0])
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	mat := response["algorithm_signal_materialization"]
+	if mat["materialization_status"] != "succeeded" || mat["signal_id"] == "" || mat["requested_by"] != "operator-1" {
+		t.Fatalf("materialization = %#v", mat)
+	}
+
+	retryReq := httptest.NewRequest(http.MethodPost, "/v1/algorithms/signal-proposals/algsigprop-1/materializations", strings.NewReader(`{"tenant_id":"tenant-local","policy_version":"algorithm_materialization.v1","requested_by":"operator-1","metadata":{"note":"ship it"}}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, retryReq)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("retry status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(repo.signals) != 1 || len(repo.algorithmSignalMaterializations) != 1 {
+		t.Fatalf("retry wrote duplicates signals=%d mats=%d", len(repo.signals), len(repo.algorithmSignalMaterializations))
+	}
+}
+
+func TestAlgorithmSignalProposalMaterializationRecordsDuplicate(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &fakeQueryRepository{
+		algorithmResults:         []storage.AlgorithmResultRecord{{AlgorithmResultID: "algres-dup", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "anomaly", Score: 3.2, Confidence: 0.88, Severity: "high", ResultPayloadJSON: []byte(`{}`), SourceEventIDs: []string{"evt-dup"}, CorrelationID: "corr-1", CreatedAt: now}},
+		algorithmSignalProposals: []storage.AlgorithmSignalProposalRecord{{ProposalID: "algsigprop-dup", TenantID: "tenant-local", AlgorithmResultID: "algres-dup", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusReviewed, Score: 3.2, Confidence: 0.88, Severity: "high", ProposalPayloadJSON: []byte(`{}`), RationaleJSON: []byte(`{}`), SourceEventIDs: []string{"evt-dup"}, CorrelationID: "corr-1", ReviewedBy: "operator-1", CreatedAt: now, UpdatedAt: now}},
+		signals:                  []storage.SignalLedgerRecord{{SignalID: "sig-existing", TenantID: "tenant-local", SignalType: "signalops.algorithm.anomaly_candidate", EventIDs: []string{"evt-dup"}}},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/algorithms/signal-proposals/algsigprop-dup/materializations", strings.NewReader(`{"tenant_id":"tenant-local"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(repo.signals) != 1 {
+		t.Fatalf("duplicate wrote signal: %+v", repo.signals)
+	}
+	mat := repo.algorithmSignalMaterializations[0]
+	if mat.MaterializationStatus != storage.AlgorithmSignalMaterializationStatusDuplicate || mat.DuplicateOfSignalID != "sig-existing" || mat.SignalID != "" {
+		t.Fatalf("materialization = %+v", mat)
+	}
+}
+
+func TestAlgorithmSignalProposalMaterializationBlocksUnreviewed(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &fakeQueryRepository{
+		algorithmResults:         []storage.AlgorithmResultRecord{{AlgorithmResultID: "algres-proposed", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "anomaly", Score: 3.2, Confidence: 0.88, Severity: "high", ResultPayloadJSON: []byte(`{}`), SourceEventIDs: []string{"evt-1"}, CorrelationID: "corr-1", CreatedAt: now}},
+		algorithmSignalProposals: []storage.AlgorithmSignalProposalRecord{{ProposalID: "algsigprop-proposed", TenantID: "tenant-local", AlgorithmResultID: "algres-proposed", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusProposed, Score: 3.2, Confidence: 0.88, Severity: "high", ProposalPayloadJSON: []byte(`{}`), RationaleJSON: []byte(`{}`), SourceEventIDs: []string{"evt-1"}, CorrelationID: "corr-1", CreatedAt: now, UpdatedAt: now}},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodPost, "/v1/algorithms/signal-proposals/algsigprop-proposed/materializations", strings.NewReader(`{"tenant_id":"tenant-local"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(repo.signals) != 0 {
+		t.Fatalf("blocked wrote signal: %+v", repo.signals)
+	}
+	mat := repo.algorithmSignalMaterializations[0]
+	if mat.MaterializationStatus != storage.AlgorithmSignalMaterializationStatusBlocked || !strings.Contains(mat.ErrorMessage, "unreviewed_proposal") {
+		t.Fatalf("materialization = %+v", mat)
 	}
 }
 

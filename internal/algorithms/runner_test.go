@@ -83,6 +83,10 @@ func (f *fakeAlgorithmRepository) SummarizeAlgorithmSignalProposals(context.Cont
 func (f *fakeAlgorithmRepository) MutateAlgorithmSignalProposal(context.Context, storage.AlgorithmSignalProposalMutation) (storage.AlgorithmSignalProposalRecord, error) {
 	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
 }
+func (f *fakeAlgorithmRepository) UpsertAlgorithmSignalMaterialization(context.Context, storage.AlgorithmSignalMaterializationRecord) (storage.AlgorithmSignalMaterializationRecord, error) {
+	return storage.AlgorithmSignalMaterializationRecord{}, nil
+}
+
 func (f *fakeAlgorithmRepository) ListAlgorithmSignalMaterializations(context.Context, storage.AlgorithmSignalMaterializationFilter) ([]storage.AlgorithmSignalMaterializationRecord, error) {
 	return nil, nil
 }

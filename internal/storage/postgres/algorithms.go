@@ -308,6 +308,49 @@ SET status=$3, reviewed_by=$4, decision_note=$5, decided_at=$6, decision_metadat
 WHERE tenant_id=$1 AND proposal_id=$2 `+algorithmSignalProposalReturning, strings.TrimSpace(mutation.TenantID), strings.TrimSpace(mutation.ProposalID), strings.TrimSpace(mutation.Status), firstNonEmptyString(mutation.ReviewedBy, "operator-local"), strings.TrimSpace(mutation.DecisionNote), decidedAt, jsonOrEmpty(mutation.MetadataJSON)))
 }
 
+func (r *Repository) UpsertAlgorithmSignalMaterialization(ctx context.Context, record storage.AlgorithmSignalMaterializationRecord) (storage.AlgorithmSignalMaterializationRecord, error) {
+	if err := validateAlgorithmSignalMaterialization(record); err != nil {
+		return storage.AlgorithmSignalMaterializationRecord{}, err
+	}
+	return scanAlgorithmSignalMaterialization(r.db.QueryRowContext(ctx, `
+INSERT INTO algorithm_signal_materializations (
+  materialization_id, tenant_id, proposal_id, algorithm_result_id, execution_request_id,
+  algorithm_id, algorithm_version, proposed_signal_type, signal_id, materialization_status,
+  materialization_policy_version, idempotency_key, duplicate_of_signal_id, requested_by,
+  requested_at, started_at, completed_at, failed_at, error_code, error_message,
+  request_metadata, preflight_snapshot, signal_payload_preview, updated_at
+) VALUES (
+  $1, $2, $3, $4, $5,
+  $6, $7, $8, $9, $10,
+  $11, $12, $13, $14,
+  $15, $16, $17, $18, $19, $20,
+  $21, $22, $23, now()
+)
+ON CONFLICT (tenant_id, idempotency_key) DO UPDATE SET
+  proposal_id=EXCLUDED.proposal_id,
+  algorithm_result_id=EXCLUDED.algorithm_result_id,
+  execution_request_id=EXCLUDED.execution_request_id,
+  algorithm_id=EXCLUDED.algorithm_id,
+  algorithm_version=EXCLUDED.algorithm_version,
+  proposed_signal_type=EXCLUDED.proposed_signal_type,
+  signal_id=EXCLUDED.signal_id,
+  materialization_status=EXCLUDED.materialization_status,
+  materialization_policy_version=EXCLUDED.materialization_policy_version,
+  duplicate_of_signal_id=EXCLUDED.duplicate_of_signal_id,
+  requested_by=EXCLUDED.requested_by,
+  requested_at=EXCLUDED.requested_at,
+  started_at=EXCLUDED.started_at,
+  completed_at=EXCLUDED.completed_at,
+  failed_at=EXCLUDED.failed_at,
+  error_code=EXCLUDED.error_code,
+  error_message=EXCLUDED.error_message,
+  request_metadata=EXCLUDED.request_metadata,
+  preflight_snapshot=EXCLUDED.preflight_snapshot,
+  signal_payload_preview=EXCLUDED.signal_payload_preview,
+  updated_at=now()
+`+algorithmSignalMaterializationReturning, strings.TrimSpace(record.MaterializationID), strings.TrimSpace(record.TenantID), strings.TrimSpace(record.ProposalID), strings.TrimSpace(record.AlgorithmResultID), strings.TrimSpace(record.ExecutionRequestID), strings.TrimSpace(record.AlgorithmID), strings.TrimSpace(record.AlgorithmVersion), strings.TrimSpace(record.ProposedSignalType), nullString(record.SignalID), strings.TrimSpace(record.MaterializationStatus), strings.TrimSpace(record.MaterializationPolicyVersion), strings.TrimSpace(record.IdempotencyKey), nullString(record.DuplicateOfSignalID), firstNonEmptyString(record.RequestedBy, "operator-local"), record.RequestedAt.UTC(), record.StartedAt, record.CompletedAt, record.FailedAt, nullString(record.ErrorCode), nullString(record.ErrorMessage), jsonOrEmpty(record.RequestMetadataJSON), jsonOrEmpty(record.PreflightSnapshotJSON), jsonOrEmpty(record.SignalPayloadPreviewJSON)))
+}
+
 func (r *Repository) ListAlgorithmSignalMaterializations(ctx context.Context, filter storage.AlgorithmSignalMaterializationFilter) ([]storage.AlgorithmSignalMaterializationRecord, error) {
 	tenantID := strings.TrimSpace(filter.TenantID)
 	if tenantID == "" {
@@ -369,6 +412,12 @@ const algorithmSignalMaterializationSelect = `SELECT materialization_id, tenant_
  materialization_status, materialization_policy_version, idempotency_key, COALESCE(duplicate_of_signal_id, ''),
  requested_by, requested_at, started_at, completed_at, failed_at, COALESCE(error_code, ''), COALESCE(error_message, ''),
  request_metadata, preflight_snapshot, signal_payload_preview, created_at, updated_at FROM algorithm_signal_materializations`
+
+const algorithmSignalMaterializationReturning = `RETURNING materialization_id, tenant_id, proposal_id, algorithm_result_id,
+ execution_request_id, algorithm_id, algorithm_version, proposed_signal_type, COALESCE(signal_id, ''),
+ materialization_status, materialization_policy_version, idempotency_key, COALESCE(duplicate_of_signal_id, ''),
+ requested_by, requested_at, started_at, completed_at, failed_at, COALESCE(error_code, ''), COALESCE(error_message, ''),
+ request_metadata, preflight_snapshot, signal_payload_preview, created_at, updated_at`
 
 type algorithmDefinitionScanner interface{ Scan(dest ...any) error }
 type algorithmExecutionRequestScanner interface{ Scan(dest ...any) error }
@@ -486,6 +535,21 @@ func validateAlgorithmResult(record storage.AlgorithmResultRecord) error {
 	return validateAlgorithmJSON(record.ResultPayloadJSON)
 }
 
+func validateAlgorithmSignalMaterialization(record storage.AlgorithmSignalMaterializationRecord) error {
+	for name, value := range map[string]string{"materialization id": record.MaterializationID, "tenant id": record.TenantID, "proposal id": record.ProposalID, "algorithm result id": record.AlgorithmResultID, "execution request id": record.ExecutionRequestID, "algorithm id": record.AlgorithmID, "algorithm version": record.AlgorithmVersion, "proposed signal type": record.ProposedSignalType, "materialization status": record.MaterializationStatus, "materialization policy version": record.MaterializationPolicyVersion, "idempotency key": record.IdempotencyKey, "requested by": record.RequestedBy} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("algorithm signal materialization %s is required", name)
+		}
+	}
+	if record.RequestedAt.IsZero() {
+		return errors.New("algorithm signal materialization requested at is required")
+	}
+	if !validAlgorithmSignalMaterializationStatus(record.MaterializationStatus) {
+		return errors.New("algorithm signal materialization status is invalid")
+	}
+	return validateAlgorithmJSON(record.RequestMetadataJSON, record.PreflightSnapshotJSON, record.SignalPayloadPreviewJSON)
+}
+
 func validateAlgorithmSignalProposal(record storage.AlgorithmSignalProposalRecord) error {
 	for name, value := range map[string]string{"tenant id": record.TenantID, "proposal id": record.ProposalID, "algorithm result id": record.AlgorithmResultID, "algorithm id": record.AlgorithmID, "algorithm version": record.AlgorithmVersion, "execution request id": record.ExecutionRequestID, "proposed signal type": record.ProposedSignalType, "status": record.Status, "severity": record.Severity, "correlation id": record.CorrelationID} {
 		if strings.TrimSpace(value) == "" {
@@ -507,6 +571,15 @@ func validateAlgorithmSignalProposal(record storage.AlgorithmSignalProposalRecor
 func validAlgorithmSignalProposalStatus(status string) bool {
 	switch strings.TrimSpace(status) {
 	case storage.AlgorithmSignalProposalStatusProposed, storage.AlgorithmSignalProposalStatusReviewed, storage.AlgorithmSignalProposalStatusRejected, storage.AlgorithmSignalProposalStatusSuperseded:
+		return true
+	default:
+		return false
+	}
+}
+
+func validAlgorithmSignalMaterializationStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case storage.AlgorithmSignalMaterializationStatusRequested, storage.AlgorithmSignalMaterializationStatusRunning, storage.AlgorithmSignalMaterializationStatusSucceeded, storage.AlgorithmSignalMaterializationStatusDuplicate, storage.AlgorithmSignalMaterializationStatusBlocked, storage.AlgorithmSignalMaterializationStatusFailed, storage.AlgorithmSignalMaterializationStatusSuperseded:
 		return true
 	default:
 		return false

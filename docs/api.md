@@ -743,6 +743,10 @@ Returns read-only algorithm signal materialization ledger rows. G121 only expose
 
 Returns one algorithm signal materialization ledger row.
 
+`POST /v1/algorithms/signal-proposals/{proposal_id}/materializations?tenant_id={tenant_id}`
+
+Creates or returns one idempotent algorithm signal materialization request for a reviewed proposal. The server re-runs preflight checks before writing. Eligible proposals write one production signal ledger row and a `succeeded` materialization. Duplicate evidence records a `duplicate` materialization without writing a second signal. Blocked proposals record a `blocked` materialization without writing a signal. This route does not directly create alerts, insights, graph proposals, or policy changes.
+
 `GET /v1/algorithms/signal-proposals/summary?tenant_id={tenant_id}&algorithm_id={algorithm_id}&execution_request_id={execution_request_id}&algorithm_result_id={algorithm_result_id}&status={status}&severity={severity}&correlation_id={correlation_id}`
 
 Returns a read-only proposal summary with total proposal count, status counts, severity counts, proposed signal type counts, algorithm id counts, reviewer counts, reviewed ratio, and high/critical unreviewed count.

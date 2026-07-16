@@ -66,6 +66,10 @@ func (f *fakeProposalRepository) MutateAlgorithmSignalProposal(context.Context, 
 	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
 }
 
+func (f *fakeProposalRepository) UpsertAlgorithmSignalMaterialization(context.Context, storage.AlgorithmSignalMaterializationRecord) (storage.AlgorithmSignalMaterializationRecord, error) {
+	return storage.AlgorithmSignalMaterializationRecord{}, nil
+}
+
 func (f *fakeProposalRepository) ListAlgorithmSignalMaterializations(context.Context, storage.AlgorithmSignalMaterializationFilter) ([]storage.AlgorithmSignalMaterializationRecord, error) {
 	return nil, nil
 }

@@ -687,6 +687,10 @@ type AlgorithmSignalMaterializationFilter struct {
 	Limit                 int
 }
 
+type AlgorithmSignalMaterializationMutation struct {
+	Record AlgorithmSignalMaterializationRecord
+}
+
 type AlgorithmSignalProposalSummaryRecord struct {
 	TenantID                    string
 	TotalProposals              int
@@ -1228,6 +1232,7 @@ type AlgorithmRepository interface {
 	GetAlgorithmSignalProposal(ctx context.Context, tenantID string, proposalID string) (AlgorithmSignalProposalRecord, error)
 	SummarizeAlgorithmSignalProposals(ctx context.Context, filter AlgorithmSignalProposalFilter) (AlgorithmSignalProposalSummaryRecord, error)
 	MutateAlgorithmSignalProposal(ctx context.Context, mutation AlgorithmSignalProposalMutation) (AlgorithmSignalProposalRecord, error)
+	UpsertAlgorithmSignalMaterialization(ctx context.Context, record AlgorithmSignalMaterializationRecord) (AlgorithmSignalMaterializationRecord, error)
 	ListAlgorithmSignalMaterializations(ctx context.Context, filter AlgorithmSignalMaterializationFilter) ([]AlgorithmSignalMaterializationRecord, error)
 	GetAlgorithmSignalMaterialization(ctx context.Context, tenantID string, materializationID string) (AlgorithmSignalMaterializationRecord, error)
 }
@@ -1523,6 +1528,7 @@ type QueryRepository interface {
 	MarketOpsBacktestRepository
 	SyncraticRepository
 	AlgorithmRepository
+	SignalLedgerRepository
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
 	ListReplayJobs(ctx context.Context, filter ReplayJobFilter) ([]ReplayJobRecord, error)

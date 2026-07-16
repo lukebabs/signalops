@@ -6811,3 +6811,25 @@ Validation performed:
 Result:
 
 - Future G122 can implement a bounded single-proposal materialization write path against a first-class ledger surface.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Implemented G122 single-proposal algorithm signal materialization write path.
+- Added `POST /v1/algorithms/signal-proposals/{proposal_id}/materializations` with server-side preflight, stable materialization id, stable signal id, idempotency, duplicate handling, blocked handling, and failed status handling.
+- Wrote production signals with generic SignalOps algorithm metadata via `UpsertSignalLedger` only.
+- Kept direct alert/insight creation, graph proposals, DSM taxonomy remapping, bulk materialization, async workers, frontend controls, policy deployment, and Syncratic integration out of scope.
+
+Validation performed:
+
+- Focused Go tests passed for API, storage/postgres, algorithms, and algorithm proposal packages.
+- Full Go test suite passed via Docker.
+- JSON schema validation passed.
+- Gateway Docker build passed.
+- Local gateway rebuilt/restarted.
+- Unauthenticated live POST smoke returned expected `401 missing bearer token`; positive live mutation requires a bearer token and a reviewed eligible proposal.
+
+Result:
+
+- A reviewed algorithm signal proposal can now be explicitly materialized into one production signal ledger row while preserving idempotency and duplicate/blocker controls.

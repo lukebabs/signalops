@@ -8108,3 +8108,30 @@ Validation performed:
 Result:
 
 - The materialization ledger can be queried before any future write-path gate creates rows or production signals.
+
+## Gate G122: Algorithm Signal Materialization Write Path
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `implemented - single-proposal materialization mutation`
+
+Scope:
+
+- Add one POST route for proposal materialization.
+- Re-run server-side preflight before writing.
+- Persist materialization rows with `succeeded`, `duplicate`, `blocked`, or `failed` statuses.
+- Write one production signal ledger row only for eligible reviewed proposals.
+- Preserve no direct alert/insight/graph write boundary.
+
+Validation performed:
+
+- Focused Go tests passed for API, storage/postgres, algorithms, and algorithm proposal packages.
+- Full Go test suite passed via Docker.
+- JSON schema validation passed.
+- Gateway Docker build passed.
+- Local gateway rebuilt/restarted.
+- Unauthenticated live POST smoke returned expected `401 missing bearer token`; positive live mutation requires a bearer token and a reviewed eligible proposal.
+
+Result:
+
+- G122 closes the first explicit algorithm-to-signal materialization path with bounded semantics and idempotency.

@@ -1908,6 +1908,130 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_proposal": algorithmSignalProposalResponse(record)})
 	})
 
+	mux.HandleFunc("POST /v1/algorithms/signal-proposals/{proposal_id}/materializations", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req algorithmSignalMaterializationRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		tenantID := strings.TrimSpace(req.TenantID)
+		if tenantID == "" {
+			tenantID = strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		}
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		proposal, err := repo.GetAlgorithmSignalProposal(r.Context(), tenantID, r.PathValue("proposal_id"))
+		if err != nil {
+			writeQueryError(w, err, "algorithm_signal_proposal_not_found", "Algorithm signal proposal not found")
+			return
+		}
+		policyVersion := algorithmMaterializationPolicyVersion(req.PolicyVersion)
+		digest := algorithmMaterializationDigest(tenantID, proposal, policyVersion)
+		materializationID := algorithmMaterializationID(digest)
+		if existing, err := repo.GetAlgorithmSignalMaterialization(r.Context(), tenantID, materializationID); err == nil {
+			writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_materialization": algorithmSignalMaterializationResponse(existing)})
+			return
+		} else if !errors.Is(err, storage.ErrNotFound) {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to load algorithm signal materialization")
+			return
+		}
+		result, err := repo.GetAlgorithmResult(r.Context(), tenantID, proposal.AlgorithmResultID)
+		results := map[string]storage.AlgorithmResultRecord{}
+		if err == nil {
+			results[proposal.AlgorithmResultID] = result
+		} else if !errors.Is(err, storage.ErrNotFound) {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to load algorithm result for materialization")
+			return
+		}
+		summary, err := repo.SummarizeAlgorithmSignalProposals(r.Context(), storage.AlgorithmSignalProposalFilter{TenantID: tenantID})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to summarize algorithm signal proposals")
+			return
+		}
+		signals, err := repo.ListSignalLedger(r.Context(), storage.SignalLedgerFilter{TenantID: tenantID, Limit: 500})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list signal ledger for materialization")
+			return
+		}
+		preflight := algorithmSignalProposalMaterializationPreflightResponse(tenantID, policyVersion, 1, []storage.AlgorithmSignalProposalRecord{proposal}, results, signals, summary)
+		if len(preflight.Items) == 0 {
+			writeError(w, http.StatusInternalServerError, "preflight_failed", "materialization preflight returned no rows")
+			return
+		}
+		item := preflight.Items[0]
+		now := time.Now().UTC()
+		materialization := algorithmSignalMaterializationBase(tenantID, proposal, policyVersion, digest, replayActor(r, req.RequestedBy), now, req)
+		materialization.PreflightSnapshotJSON = algorithmPreflightSnapshot(item)
+		signalID := algorithmMaterializationSignalID(digest)
+		if item.PreflightStatus == "duplicate_risk" {
+			completedAt := now
+			materialization.MaterializationStatus = storage.AlgorithmSignalMaterializationStatusDuplicate
+			if len(item.DuplicateSignalIDs) > 0 {
+				materialization.DuplicateOfSignalID = item.DuplicateSignalIDs[0]
+			}
+			materialization.CompletedAt = &completedAt
+			record, err := repo.UpsertAlgorithmSignalMaterialization(r.Context(), materialization)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to persist duplicate materialization")
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{"algorithm_signal_materialization": algorithmSignalMaterializationResponse(record)})
+			return
+		}
+		if item.PreflightStatus != "eligible" || !item.WouldWrite {
+			completedAt := now
+			materialization.MaterializationStatus = storage.AlgorithmSignalMaterializationStatusBlocked
+			materialization.CompletedAt = &completedAt
+			materialization.ErrorCode = "materialization_preflight_blocked"
+			materialization.ErrorMessage = strings.Join(item.Reasons, ",")
+			if materialization.ErrorMessage == "" && !preflight.ReviewCoverageSatisfied {
+				materialization.ErrorMessage = "global_preflight_blocked"
+			}
+			record, err := repo.UpsertAlgorithmSignalMaterialization(r.Context(), materialization)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to persist blocked materialization")
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{"algorithm_signal_materialization": algorithmSignalMaterializationResponse(record)})
+			return
+		}
+		signal := algorithmSignalRecordFromMaterialization(proposal, result, materialization, signalID, now)
+		materialization.SignalID = signalID
+		materialization.SignalPayloadPreviewJSON = algorithmMaterializationPreview(signal)
+		startedAt := now
+		materialization.StartedAt = &startedAt
+		materialization.MaterializationStatus = storage.AlgorithmSignalMaterializationStatusRunning
+		if _, err := repo.UpsertAlgorithmSignalMaterialization(r.Context(), materialization); err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to persist running materialization")
+			return
+		}
+		if err := repo.UpsertSignalLedger(r.Context(), signal); err != nil {
+			failedAt := time.Now().UTC()
+			materialization.MaterializationStatus = storage.AlgorithmSignalMaterializationStatusFailed
+			materialization.FailedAt = &failedAt
+			materialization.ErrorCode = "signal_write_failed"
+			materialization.ErrorMessage = err.Error()
+			_, _ = repo.UpsertAlgorithmSignalMaterialization(r.Context(), materialization)
+			writeError(w, http.StatusInternalServerError, "signal_write_failed", "failed to write materialized signal")
+			return
+		}
+		completedAt := time.Now().UTC()
+		materialization.MaterializationStatus = storage.AlgorithmSignalMaterializationStatusSucceeded
+		materialization.CompletedAt = &completedAt
+		record, err := repo.UpsertAlgorithmSignalMaterialization(r.Context(), materialization)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to persist succeeded materialization")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"algorithm_signal_materialization": algorithmSignalMaterializationResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/catalog/sources", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

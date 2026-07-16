@@ -159,8 +159,11 @@ func isLifecycleMutationRoute(r *http.Request) bool {
 			}
 		}
 	}
-	if len(parts) == 5 && parts[1] == "algorithms" && parts[2] == "signal-proposals" && parts[4] == "decision" {
-		return true
+	if len(parts) == 5 && parts[1] == "algorithms" && parts[2] == "signal-proposals" {
+		switch parts[4] {
+		case "decision", "materializations":
+			return true
+		}
 	}
 	return false
 }

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"sort"
 	"strings"
@@ -127,6 +129,14 @@ type algorithmSignalProposalDecisionRequest struct {
 	Note     string          `json:"note"`
 	Actor    string          `json:"actor"`
 	Metadata json.RawMessage `json:"metadata"`
+}
+
+type algorithmSignalMaterializationRequest struct {
+	TenantID       string          `json:"tenant_id"`
+	PolicyVersion  string          `json:"policy_version"`
+	RequestedBy    string          `json:"requested_by"`
+	IdempotencyKey string          `json:"idempotency_key"`
+	Metadata       json.RawMessage `json:"metadata"`
 }
 
 type algorithmSignalProposalSummaryDTO struct {
@@ -286,6 +296,74 @@ func algorithmSignalMaterializationResponses(records []storage.AlgorithmSignalMa
 		out = append(out, algorithmSignalMaterializationResponse(record))
 	}
 	return out
+}
+
+func algorithmMaterializationPolicyVersion(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "algorithm_materialization.v1"
+	}
+	return value
+}
+
+func algorithmMaterializationDigest(tenantID string, proposal storage.AlgorithmSignalProposalRecord, policyVersion string) string {
+	events := append([]string{}, proposal.SourceEventIDs...)
+	sort.Strings(events)
+	raw := strings.Join([]string{strings.TrimSpace(tenantID), strings.TrimSpace(proposal.ProposalID), strings.TrimSpace(policyVersion), strings.Join(events, ","), strings.TrimSpace(proposal.ProposedSignalType)}, "|")
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+func algorithmMaterializationID(digest string) string {
+	if len(digest) > 24 {
+		digest = digest[:24]
+	}
+	return "algmat_" + digest
+}
+
+func algorithmMaterializationSignalID(digest string) string {
+	if len(digest) > 24 {
+		digest = digest[:24]
+	}
+	return "sig_alg_" + digest
+}
+
+func algorithmMaterializationIdempotencyKey(digest string, clientKey string) string {
+	clientKey = strings.TrimSpace(clientKey)
+	if clientKey == "" {
+		return "algmat_idem_" + digest
+	}
+	return "algmat_client_" + clientKey
+}
+
+func algorithmSignalMaterializationBase(tenantID string, proposal storage.AlgorithmSignalProposalRecord, policyVersion string, digest string, requestedBy string, requestedAt time.Time, req algorithmSignalMaterializationRequest) storage.AlgorithmSignalMaterializationRecord {
+	return storage.AlgorithmSignalMaterializationRecord{MaterializationID: algorithmMaterializationID(digest), TenantID: tenantID, ProposalID: proposal.ProposalID, AlgorithmResultID: proposal.AlgorithmResultID, ExecutionRequestID: proposal.ExecutionRequestID, AlgorithmID: proposal.AlgorithmID, AlgorithmVersion: proposal.AlgorithmVersion, ProposedSignalType: proposal.ProposedSignalType, MaterializationStatus: storage.AlgorithmSignalMaterializationStatusRequested, MaterializationPolicyVersion: policyVersion, IdempotencyKey: algorithmMaterializationIdempotencyKey(digest, req.IdempotencyKey), RequestedBy: firstNonEmptyBacktestValue(requestedBy, req.RequestedBy, "operator-local"), RequestedAt: requestedAt, RequestMetadataJSON: algorithmJSONOrDefaultObject(req.Metadata), PreflightSnapshotJSON: []byte(`{}`), SignalPayloadPreviewJSON: []byte(`{}`)}
+}
+
+func algorithmSignalRecordFromMaterialization(proposal storage.AlgorithmSignalProposalRecord, result storage.AlgorithmResultRecord, materialization storage.AlgorithmSignalMaterializationRecord, signalID string, now time.Time) storage.SignalLedgerRecord {
+	signalTime := proposal.CreatedAt
+	if signalTime.IsZero() {
+		signalTime = result.CreatedAt
+	}
+	if signalTime.IsZero() {
+		signalTime = now
+	}
+	metrics, _ := json.Marshal(map[string]any{"algorithm_result_id": result.AlgorithmResultID, "algorithm_result_type": result.ResultType, "score": proposal.Score, "result_score": result.Score, "proposal_payload": json.RawMessage(jsonOrDefault(proposal.ProposalPayloadJSON, `{}`)), "result_payload": json.RawMessage(jsonOrDefault(result.ResultPayloadJSON, `{}`))})
+	semantic, _ := json.Marshal([]map[string]any{{"kind": "algorithm_signal_materialization", "materialization_id": materialization.MaterializationID, "proposal_id": proposal.ProposalID, "algorithm_result_id": result.AlgorithmResultID, "algorithm_id": proposal.AlgorithmID, "algorithm_version": proposal.AlgorithmVersion, "score": proposal.Score, "confidence": proposal.Confidence, "severity": proposal.Severity, "reviewed_by": proposal.ReviewedBy, "decision_note": proposal.DecisionNote, "policy_version": materialization.MaterializationPolicyVersion}})
+	evidence, _ := json.Marshal([]map[string]any{{"kind": "algorithm_signal_proposal", "proposal_id": proposal.ProposalID}, {"kind": "algorithm_result", "algorithm_result_id": result.AlgorithmResultID}, {"kind": "algorithm_signal_materialization", "materialization_id": materialization.MaterializationID}, {"kind": "source_event_ids", "event_ids": proposal.SourceEventIDs}})
+	recommendation, _ := json.Marshal(map[string]any{"action": "review", "source": "algorithm_materialization", "policy_version": materialization.MaterializationPolicyVersion})
+	eventJSON, _ := json.Marshal(map[string]any{"schema_version": "signal.v1", "signal_id": signalID, "signal_type": proposal.ProposedSignalType, "source": "algorithm_signal_materialization", "materialization_id": materialization.MaterializationID, "proposal_id": proposal.ProposalID, "algorithm_result_id": result.AlgorithmResultID, "event_ids": proposal.SourceEventIDs})
+	return storage.SignalLedgerRecord{SignalID: signalID, TenantID: proposal.TenantID, SourceID: "algorithm_signal_materialization", AppID: "signalops", Domain: "algorithms", UseCase: "algorithm_signal_materialization", SourceDomain: "algorithms", SourceAdapter: "signalops.algorithms", IngestionMode: "materialization", Dataset: "algorithm_signal_proposals", EventIDs: proposal.SourceEventIDs, ArtifactIDs: []string{}, SignalType: proposal.ProposedSignalType, DetectorID: proposal.AlgorithmID, DetectorVersion: proposal.AlgorithmVersion, ModelVersion: materialization.MaterializationPolicyVersion, SignalTime: signalTime, ObservationTime: signalTime, EffectiveTime: signalTime, ProcessingTime: now, WindowStart: signalTime, WindowEnd: signalTime, Confidence: proposal.Confidence, Severity: proposal.Severity, EntitiesJSON: []byte(`[]`), SupportingMetrics: metrics, GraphTargetsJSON: []byte(`[]`), SemanticEvidenceJSON: semantic, EvidenceJSON: evidence, RecommendationJSON: recommendation, CorrelationID: proposal.CorrelationID, TraceID: proposal.ExecutionRequestID, CausationID: proposal.ProposalID, BrokerTopic: "signalops.internal.algorithm_materializations.v1", EventJSON: eventJSON}
+}
+
+func algorithmMaterializationPreview(signal storage.SignalLedgerRecord) []byte {
+	preview, _ := json.Marshal(map[string]any{"signal_id": signal.SignalID, "signal_type": signal.SignalType, "detector_id": signal.DetectorID, "detector_version": signal.DetectorVersion, "model_version": signal.ModelVersion, "event_ids": signal.EventIDs, "confidence": signal.Confidence, "severity": signal.Severity})
+	return preview
+}
+
+func algorithmPreflightSnapshot(item algorithmSignalProposalMaterializationPreflightItemDTO) []byte {
+	snapshot, _ := json.Marshal(item)
+	return snapshot
 }
 
 func algorithmSignalProposalMaterializationPreflightResponse(tenantID string, policyVersion string, minReviewedRatio float64, proposals []storage.AlgorithmSignalProposalRecord, results map[string]storage.AlgorithmResultRecord, signals []storage.SignalLedgerRecord, summary storage.AlgorithmSignalProposalSummaryRecord) algorithmSignalProposalMaterializationPreflightDTO {

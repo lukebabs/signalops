@@ -221,3 +221,8 @@ Recommended next gate:
 
 - G121: storage migration and read-only APIs for `algorithm_signal_materializations`, with no materialization mutation or production signal writes.
 - Specification: `G121_algorithm_signal_materialization_ledger_reads.md`.
+
+## G122 Implemented
+
+- G122: single-proposal algorithm signal materialization mutation with server-side preflight, idempotent ledger rows, duplicate/blocked handling, and one production signal write for eligible reviewed proposals.
+- Specification: `G122_algorithm_signal_materialization_write_path.md`.
