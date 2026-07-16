@@ -8055,3 +8055,19 @@ Validation performed:
 Result:
 
 - G118 closes the first backend readiness surface for future materialization while preserving the review-only proposal boundary.
+
+## Gate G119: Algorithm Signal Materialization Preflight UI Spec
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `proposed - frontend-agent specification ready`
+
+Scope:
+
+- Add read-only preflight visibility to the existing Algorithms / Signal Proposals UI.
+- Use the G118 preflight endpoint with active proposal filters.
+- Preserve the no-materialization boundary.
+
+Result:
+
+- Specification saved at `docs/frontend/algorithm_signal_materialization_preflight_ui_spec.md`.

@@ -6767,3 +6767,16 @@ Validation performed:
 Result:
 
 - Operators and future frontend work can inspect materialization readiness before any later gate introduces production signal writes.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Wrote the G119 frontend-agent specification for algorithm signal materialization preflight visibility.
+- Scoped the UI to the existing Algorithms / Signal Proposals surface and the G118 read-only preflight endpoint.
+- Required readiness counts, global blockers, reason breakdowns, and per-proposal preflight statuses.
+- Explicitly excluded materialization mutations, new backend endpoints, production signal writes, alerts, insights, graph proposals, policy deployment, Syncratic work, tuning, and execution controls.
+
+Result:
+
+- Frontend-agent can implement preflight visibility without changing backend semantics or creating materialization scope creep.

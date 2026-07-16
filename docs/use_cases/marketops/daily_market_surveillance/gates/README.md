@@ -206,3 +206,8 @@ Recommended next gate:
 
 - G118: read-only backend materialization preflight for `algorithm_signal_proposals`, reporting eligible, duplicate-risk, blocked, invalid, and would-write counts without production signal writes.
 - Specification: `G118_algorithm_signal_materialization_preflight.md`.
+
+## G119 Proposed
+
+- G119: frontend-agent specification for read-only algorithm signal materialization preflight visibility over the G118 API.
+- Specification: `G119_algorithm_signal_materialization_preflight_ui_spec.md`.
