@@ -234,6 +234,60 @@ func (r *Repository) GetAlgorithmSignalProposal(ctx context.Context, tenantID st
 	return scanAlgorithmSignalProposal(r.db.QueryRowContext(ctx, algorithmSignalProposalSelect+` WHERE tenant_id=$1 AND proposal_id=$2`, strings.TrimSpace(tenantID), strings.TrimSpace(proposalID)))
 }
 
+func (r *Repository) SummarizeAlgorithmSignalProposals(ctx context.Context, filter storage.AlgorithmSignalProposalFilter) (storage.AlgorithmSignalProposalSummaryRecord, error) {
+	tenantID := strings.TrimSpace(filter.TenantID)
+	if tenantID == "" {
+		return storage.AlgorithmSignalProposalSummaryRecord{}, fmt.Errorf("algorithm signal proposal summary tenant id is required")
+	}
+	rows, err := r.db.QueryContext(ctx, `
+SELECT status, severity, proposed_signal_type, algorithm_id, reviewed_by, COUNT(*)
+FROM algorithm_signal_proposals
+WHERE tenant_id=$1 AND ($2='' OR algorithm_id=$2) AND ($3='' OR execution_request_id=$3)
+  AND ($4='' OR algorithm_result_id=$4) AND ($5='' OR status=$5) AND ($6='' OR severity=$6)
+  AND ($7='' OR correlation_id=$7)
+GROUP BY status, severity, proposed_signal_type, algorithm_id, reviewed_by`, tenantID, strings.TrimSpace(filter.AlgorithmID), strings.TrimSpace(filter.ExecutionRequestID), strings.TrimSpace(filter.AlgorithmResultID), strings.TrimSpace(filter.Status), strings.TrimSpace(filter.Severity), strings.TrimSpace(filter.CorrelationID))
+	if err != nil {
+		return storage.AlgorithmSignalProposalSummaryRecord{}, fmt.Errorf("summarize algorithm signal proposals: %w", err)
+	}
+	defer rows.Close()
+	summary := storage.AlgorithmSignalProposalSummaryRecord{TenantID: tenantID, StatusCounts: map[string]int{}, SeverityCounts: map[string]int{}, ProposedSignalTypeCounts: map[string]int{}, AlgorithmIDCounts: map[string]int{}, ReviewerCounts: map[string]int{}}
+	for rows.Next() {
+		var status, severity, signalType, algorithmID, reviewer string
+		var count int
+		if err := rows.Scan(&status, &severity, &signalType, &algorithmID, &reviewer, &count); err != nil {
+			return storage.AlgorithmSignalProposalSummaryRecord{}, mapScanError("scan algorithm signal proposal summary", err)
+		}
+		summary.TotalProposals += count
+		summary.StatusCounts[status] += count
+		summary.SeverityCounts[severity] += count
+		summary.ProposedSignalTypeCounts[signalType] += count
+		summary.AlgorithmIDCounts[algorithmID] += count
+		if strings.TrimSpace(reviewer) != "" {
+			summary.ReviewerCounts[reviewer] += count
+		}
+		switch status {
+		case storage.AlgorithmSignalProposalStatusProposed:
+			summary.ProposedCount += count
+		case storage.AlgorithmSignalProposalStatusReviewed:
+			summary.ReviewedCount += count
+		case storage.AlgorithmSignalProposalStatusRejected:
+			summary.RejectedCount += count
+		case storage.AlgorithmSignalProposalStatusSuperseded:
+			summary.SupersededCount += count
+		}
+		if status == storage.AlgorithmSignalProposalStatusProposed && (severity == "high" || severity == "critical") {
+			summary.HighCriticalUnreviewedCount += count
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return storage.AlgorithmSignalProposalSummaryRecord{}, fmt.Errorf("summarize algorithm signal proposals rows: %w", err)
+	}
+	if summary.TotalProposals > 0 {
+		summary.ReviewedRatio = float64(summary.ReviewedCount+summary.RejectedCount+summary.SupersededCount) / float64(summary.TotalProposals)
+	}
+	return summary, nil
+}
+
 func (r *Repository) MutateAlgorithmSignalProposal(ctx context.Context, mutation storage.AlgorithmSignalProposalMutation) (storage.AlgorithmSignalProposalRecord, error) {
 	if strings.TrimSpace(mutation.TenantID) == "" {
 		return storage.AlgorithmSignalProposalRecord{}, fmt.Errorf("algorithm signal proposal tenant id is required")

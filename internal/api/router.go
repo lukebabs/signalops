@@ -1735,6 +1735,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"algorithm_result": algorithmResultResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/algorithms/signal-proposals/summary", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		summary, err := repo.SummarizeAlgorithmSignalProposals(r.Context(), storage.AlgorithmSignalProposalFilter{TenantID: tenantID, AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), AlgorithmResultID: strings.TrimSpace(r.URL.Query().Get("algorithm_result_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id"))})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to summarize algorithm signal proposals")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_proposal_summary": algorithmSignalProposalSummaryResponse(summary)})
+	})
+
 	mux.HandleFunc("GET /v1/algorithms/signal-proposals", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

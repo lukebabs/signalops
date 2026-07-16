@@ -735,6 +735,10 @@ Returns immutable algorithm result ledger rows. Results include score, confidenc
 
 Returns one algorithm result.
 
+`GET /v1/algorithms/signal-proposals/summary?tenant_id={tenant_id}&algorithm_id={algorithm_id}&execution_request_id={execution_request_id}&algorithm_result_id={algorithm_result_id}&status={status}&severity={severity}&correlation_id={correlation_id}`
+
+Returns a read-only proposal summary with total proposal count, status counts, severity counts, proposed signal type counts, algorithm id counts, reviewer counts, reviewed ratio, and high/critical unreviewed count.
+
 `GET /v1/algorithms/signal-proposals?tenant_id={tenant_id}&algorithm_id={algorithm_id}&execution_request_id={execution_request_id}&algorithm_result_id={algorithm_result_id}&status={status}&severity={severity}&correlation_id={correlation_id}&limit=50`
 
 Returns read-only algorithm signal proposal rows generated from `algorithm_results`. Proposals are review candidates only; they are not production `signal.v1` rows.

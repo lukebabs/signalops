@@ -7923,3 +7923,32 @@ Out of scope:
 Result:
 
 - G114 closes the G113 spec as a review-only operator surface over the G111/G112 proposal ledger; browser validation remains the documented follow-on.
+
+## Gate G115: Algorithm Signal Proposal Summary
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `implemented - read-only proposal review summary`
+
+Scope:
+
+- Add read-only summary aggregation for `algorithm_signal_proposals`.
+- Expose counts by status, severity, proposed signal type, algorithm id, and reviewer.
+- Include reviewed ratio and high/critical unreviewed count.
+
+Validation performed:
+
+- Focused API tests passed for summary aggregation and filter propagation.
+- Focused algorithm/generator tests passed against the expanded repository interface.
+- Full Go test suite passed.
+- JSON schema validation passed.
+- Gateway build passed.
+- Authenticated live summary smoke returned `total_proposals=1`, `reviewed_count=1`, `reviewed_ratio=1`, and `high_critical_unreviewed_count=0` for `tenant-local`.
+
+Out of scope:
+
+- New mutations, production signal materialization, alerts, insights, graph proposals, frontend changes, and policy deployment.
+
+Result:
+
+- G115 gives operators a compact read-only proposal review readiness surface.

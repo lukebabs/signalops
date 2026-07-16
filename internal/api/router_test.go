@@ -121,6 +121,7 @@ type fakeQueryRepository struct {
 	lastAlgorithmExecutionFilter   storage.AlgorithmExecutionRequestFilter
 	lastAlgorithmResultFilter      storage.AlgorithmResultFilter
 	lastAlgorithmProposalFilter    storage.AlgorithmSignalProposalFilter
+	lastAlgorithmSummaryFilter     storage.AlgorithmSignalProposalFilter
 	lastAlgorithmProposalMutation  storage.AlgorithmSignalProposalMutation
 	lastDSMFilter                  storage.MarketOpsDSMArtifactFilter
 	lastGraphProposalFilter        storage.MarketOpsDSMGraphProposalFilter
@@ -994,6 +995,59 @@ func (q *fakeQueryRepository) GetAlgorithmSignalProposal(_ context.Context, tena
 		}
 	}
 	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) SummarizeAlgorithmSignalProposals(_ context.Context, filter storage.AlgorithmSignalProposalFilter) (storage.AlgorithmSignalProposalSummaryRecord, error) {
+	q.lastAlgorithmSummaryFilter = filter
+	summary := storage.AlgorithmSignalProposalSummaryRecord{TenantID: filter.TenantID, StatusCounts: map[string]int{}, SeverityCounts: map[string]int{}, ProposedSignalTypeCounts: map[string]int{}, AlgorithmIDCounts: map[string]int{}, ReviewerCounts: map[string]int{}}
+	for _, record := range q.algorithmSignalProposals {
+		if filter.TenantID != "" && record.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.AlgorithmID != "" && record.AlgorithmID != filter.AlgorithmID {
+			continue
+		}
+		if filter.ExecutionRequestID != "" && record.ExecutionRequestID != filter.ExecutionRequestID {
+			continue
+		}
+		if filter.AlgorithmResultID != "" && record.AlgorithmResultID != filter.AlgorithmResultID {
+			continue
+		}
+		if filter.Status != "" && record.Status != filter.Status {
+			continue
+		}
+		if filter.Severity != "" && record.Severity != filter.Severity {
+			continue
+		}
+		if filter.CorrelationID != "" && record.CorrelationID != filter.CorrelationID {
+			continue
+		}
+		summary.TotalProposals++
+		summary.StatusCounts[record.Status]++
+		summary.SeverityCounts[record.Severity]++
+		summary.ProposedSignalTypeCounts[record.ProposedSignalType]++
+		summary.AlgorithmIDCounts[record.AlgorithmID]++
+		if record.ReviewedBy != "" {
+			summary.ReviewerCounts[record.ReviewedBy]++
+		}
+		switch record.Status {
+		case storage.AlgorithmSignalProposalStatusProposed:
+			summary.ProposedCount++
+		case storage.AlgorithmSignalProposalStatusReviewed:
+			summary.ReviewedCount++
+		case storage.AlgorithmSignalProposalStatusRejected:
+			summary.RejectedCount++
+		case storage.AlgorithmSignalProposalStatusSuperseded:
+			summary.SupersededCount++
+		}
+		if record.Status == storage.AlgorithmSignalProposalStatusProposed && (record.Severity == "high" || record.Severity == "critical") {
+			summary.HighCriticalUnreviewedCount++
+		}
+	}
+	if summary.TotalProposals > 0 {
+		summary.ReviewedRatio = float64(summary.ReviewedCount+summary.RejectedCount+summary.SupersededCount) / float64(summary.TotalProposals)
+	}
+	return summary, nil
 }
 
 func (q *fakeQueryRepository) MutateAlgorithmSignalProposal(_ context.Context, mutation storage.AlgorithmSignalProposalMutation) (storage.AlgorithmSignalProposalRecord, error) {
@@ -3415,6 +3469,40 @@ func TestAlgorithmExecutionSummaryIncludesResultRollup(t *testing.T) {
 	topResults := summary["top_results"].([]any)
 	if len(topResults) != 2 || topResults[0].(map[string]any)["algorithm_result_id"] != "algres-high" || topResults[1].(map[string]any)["algorithm_result_id"] != "algres-medium" {
 		t.Fatalf("top_results = %#v", topResults)
+	}
+}
+
+func TestAlgorithmSignalProposalSummary(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &fakeQueryRepository{algorithmSignalProposals: []storage.AlgorithmSignalProposalRecord{
+		{ProposalID: "algsigprop-proposed", TenantID: "tenant-local", AlgorithmResultID: "algres-1", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusProposed, Severity: "critical", Confidence: 0.9, CorrelationID: "corr-1", CreatedAt: now},
+		{ProposalID: "algsigprop-reviewed", TenantID: "tenant-local", AlgorithmResultID: "algres-2", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusReviewed, Severity: "medium", Confidence: 0.8, CorrelationID: "corr-1", ReviewedBy: "operator-1", CreatedAt: now},
+		{ProposalID: "algsigprop-rejected", TenantID: "tenant-local", AlgorithmResultID: "algres-3", AlgorithmID: "signalops.algorithms.ruptures_change_point_v1", ExecutionRequestID: "algexec-2", ProposedSignalType: "signalops.algorithm.change_point_candidate", Status: storage.AlgorithmSignalProposalStatusRejected, Severity: "high", Confidence: 0.7, CorrelationID: "corr-2", ReviewedBy: "operator-1", CreatedAt: now},
+	}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/algorithms/signal-proposals/summary?tenant_id=tenant-local&algorithm_id=signalops.algorithms.zscore_anomaly_v1&execution_request_id=algexec-1&correlation_id=corr-1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastAlgorithmSummaryFilter.AlgorithmID != "signalops.algorithms.zscore_anomaly_v1" || repo.lastAlgorithmSummaryFilter.ExecutionRequestID != "algexec-1" || repo.lastAlgorithmSummaryFilter.CorrelationID != "corr-1" {
+		t.Fatalf("filter = %+v", repo.lastAlgorithmSummaryFilter)
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	summary := response["algorithm_signal_proposal_summary"]
+	if summary["total_proposals"].(float64) != 2 || summary["proposed_count"].(float64) != 1 || summary["reviewed_count"].(float64) != 1 || summary["high_critical_unreviewed_count"].(float64) != 1 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	if summary["reviewed_ratio"].(float64) != 0.5 {
+		t.Fatalf("reviewed_ratio = %#v", summary["reviewed_ratio"])
+	}
+	statusCounts := summary["status_counts"].(map[string]any)
+	if statusCounts["proposed"].(float64) != 1 || statusCounts["reviewed"].(float64) != 1 {
+		t.Fatalf("status_counts = %#v", statusCounts)
 	}
 }
 

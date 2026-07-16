@@ -638,6 +638,22 @@ type AlgorithmSignalProposalFilter struct {
 	Limit              int
 }
 
+type AlgorithmSignalProposalSummaryRecord struct {
+	TenantID                    string
+	TotalProposals              int
+	ProposedCount               int
+	ReviewedCount               int
+	RejectedCount               int
+	SupersededCount             int
+	ReviewedRatio               float64
+	HighCriticalUnreviewedCount int
+	StatusCounts                map[string]int
+	SeverityCounts              map[string]int
+	ProposedSignalTypeCounts    map[string]int
+	AlgorithmIDCounts           map[string]int
+	ReviewerCounts              map[string]int
+}
+
 type MarketOpsAssetRecord struct {
 	TenantID      string
 	AppID         string
@@ -1161,6 +1177,7 @@ type AlgorithmRepository interface {
 	InsertAlgorithmSignalProposal(ctx context.Context, record AlgorithmSignalProposalRecord) (bool, error)
 	ListAlgorithmSignalProposals(ctx context.Context, filter AlgorithmSignalProposalFilter) ([]AlgorithmSignalProposalRecord, error)
 	GetAlgorithmSignalProposal(ctx context.Context, tenantID string, proposalID string) (AlgorithmSignalProposalRecord, error)
+	SummarizeAlgorithmSignalProposals(ctx context.Context, filter AlgorithmSignalProposalFilter) (AlgorithmSignalProposalSummaryRecord, error)
 	MutateAlgorithmSignalProposal(ctx context.Context, mutation AlgorithmSignalProposalMutation) (AlgorithmSignalProposalRecord, error)
 }
 

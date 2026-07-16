@@ -77,6 +77,9 @@ func (f *fakeAlgorithmRepository) ListAlgorithmSignalProposals(context.Context, 
 func (f *fakeAlgorithmRepository) GetAlgorithmSignalProposal(context.Context, string, string) (storage.AlgorithmSignalProposalRecord, error) {
 	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
 }
+func (f *fakeAlgorithmRepository) SummarizeAlgorithmSignalProposals(context.Context, storage.AlgorithmSignalProposalFilter) (storage.AlgorithmSignalProposalSummaryRecord, error) {
+	return storage.AlgorithmSignalProposalSummaryRecord{}, nil
+}
 func (f *fakeAlgorithmRepository) MutateAlgorithmSignalProposal(context.Context, storage.AlgorithmSignalProposalMutation) (storage.AlgorithmSignalProposalRecord, error) {
 	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
 }

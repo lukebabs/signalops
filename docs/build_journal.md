@@ -6702,3 +6702,26 @@ Summary:
 Result:
 
 - Frontend-agent can implement proposal list/detail/review workflow without backend scope creep.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Implemented G115 read-only algorithm signal proposal summary.
+- Added aggregate counts by status, severity, proposed signal type, algorithm id, and reviewer.
+- Added readiness-oriented fields for reviewed ratio and high/critical unreviewed count.
+- Kept mutations, signal materialization, alerts, insights, graph proposals, frontend work, and policy deployment out of scope.
+
+Validation performed:
+
+- Focused Go tests passed for algorithm proposal summary APIs and algorithm/generator packages.
+- Full Go test suite passed.
+- JSON schema validation passed.
+- Gateway build passed.
+- Rebuilt/restarted local gateway.
+- Authenticated `GET /v1/algorithms/signal-proposals/summary?tenant_id=tenant-local` returned `total_proposals=1`, `reviewed_count=1`, `reviewed_ratio=1`, and `high_critical_unreviewed_count=0`.
+- Bearer token was generated in-memory from configured `SO_*` credentials; token material was not printed or committed.
+
+Result:
+
+- Operators and future UI work can inspect proposal review coverage without changing production signal semantics.

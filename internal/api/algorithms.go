@@ -129,6 +129,22 @@ type algorithmSignalProposalDecisionRequest struct {
 	Metadata json.RawMessage `json:"metadata"`
 }
 
+type algorithmSignalProposalSummaryDTO struct {
+	TenantID                    string         `json:"tenant_id"`
+	TotalProposals              int            `json:"total_proposals"`
+	ProposedCount               int            `json:"proposed_count"`
+	ReviewedCount               int            `json:"reviewed_count"`
+	RejectedCount               int            `json:"rejected_count"`
+	SupersededCount             int            `json:"superseded_count"`
+	ReviewedRatio               float64        `json:"reviewed_ratio"`
+	HighCriticalUnreviewedCount int            `json:"high_critical_unreviewed_count"`
+	StatusCounts                map[string]int `json:"status_counts"`
+	SeverityCounts              map[string]int `json:"severity_counts"`
+	ProposedSignalTypeCounts    map[string]int `json:"proposed_signal_type_counts"`
+	AlgorithmIDCounts           map[string]int `json:"algorithm_id_counts"`
+	ReviewerCounts              map[string]int `json:"reviewer_counts"`
+}
+
 func algorithmDefinitionRecord(req algorithmDefinitionRequest) storage.AlgorithmDefinitionRecord {
 	return storage.AlgorithmDefinitionRecord{AlgorithmID: strings.TrimSpace(req.AlgorithmID), TenantID: strings.TrimSpace(req.TenantID), Name: strings.TrimSpace(req.Name), Description: strings.TrimSpace(req.Description), AlgorithmType: strings.TrimSpace(req.AlgorithmType), RuntimeType: firstNonEmptyBacktestValue(req.RuntimeType, storage.AlgorithmRuntimePythonPlugin), InputFeatures: cleanStrings(req.InputFeatures), InputEventTypes: cleanStrings(req.InputEventTypes), OutputSchema: algorithmJSONOrDefaultObject(req.OutputSchema), ConfigSchema: algorithmJSONOrDefaultObject(req.ConfigSchema), DefaultConfig: algorithmJSONOrDefaultObject(req.DefaultConfig), Version: strings.TrimSpace(req.Version), Status: firstNonEmptyBacktestValue(req.Status, storage.AlgorithmDefinitionStatusDraft), MetadataJSON: algorithmJSONOrDefaultObject(req.Metadata)}
 }
@@ -191,6 +207,17 @@ func algorithmSignalProposalResponses(records []storage.AlgorithmSignalProposalR
 		out = append(out, algorithmSignalProposalResponse(record))
 	}
 	return out
+}
+
+func algorithmSignalProposalSummaryResponse(record storage.AlgorithmSignalProposalSummaryRecord) algorithmSignalProposalSummaryDTO {
+	return algorithmSignalProposalSummaryDTO{TenantID: record.TenantID, TotalProposals: record.TotalProposals, ProposedCount: record.ProposedCount, ReviewedCount: record.ReviewedCount, RejectedCount: record.RejectedCount, SupersededCount: record.SupersededCount, ReviewedRatio: record.ReviewedRatio, HighCriticalUnreviewedCount: record.HighCriticalUnreviewedCount, StatusCounts: mapOrEmpty(record.StatusCounts), SeverityCounts: mapOrEmpty(record.SeverityCounts), ProposedSignalTypeCounts: mapOrEmpty(record.ProposedSignalTypeCounts), AlgorithmIDCounts: mapOrEmpty(record.AlgorithmIDCounts), ReviewerCounts: mapOrEmpty(record.ReviewerCounts)}
+}
+
+func mapOrEmpty(values map[string]int) map[string]int {
+	if values == nil {
+		return map[string]int{}
+	}
+	return values
 }
 
 func algorithmJSONOrDefaultObject(raw json.RawMessage) []byte {
