@@ -8034,3 +8034,24 @@ Scope:
 Result:
 
 - Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G117_algorithm_signal_materialization_design.md`.
+
+## Gate G118: Algorithm Signal Materialization Preflight
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `implemented - read-only backend preflight`
+
+Scope:
+
+- Add `GET /v1/algorithms/signal-proposals/materialization-preflight`.
+- Reuse proposal filters and summarize readiness without mutations.
+- Flag duplicate risk against existing production signal event overlap.
+- Keep production signal materialization out of scope.
+
+Validation performed:
+
+- Focused API tests passed for G118 and adjacent proposal routes.
+
+Result:
+
+- G118 closes the first backend readiness surface for future materialization while preserving the review-only proposal boundary.

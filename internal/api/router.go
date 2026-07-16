@@ -1771,6 +1771,57 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_proposals": algorithmSignalProposalResponses(records)})
 	})
 
+	mux.HandleFunc("GET /v1/algorithms/signal-proposals/materialization-preflight", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		filter := storage.AlgorithmSignalProposalFilter{TenantID: tenantID, AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), AlgorithmResultID: strings.TrimSpace(r.URL.Query().Get("algorithm_result_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id")), Limit: queryLimit(r, 200)}
+		proposals, err := repo.ListAlgorithmSignalProposals(r.Context(), filter)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list algorithm signal proposals")
+			return
+		}
+		summary, err := repo.SummarizeAlgorithmSignalProposals(r.Context(), storage.AlgorithmSignalProposalFilter{TenantID: tenantID, AlgorithmID: filter.AlgorithmID, ExecutionRequestID: filter.ExecutionRequestID, AlgorithmResultID: filter.AlgorithmResultID, Status: filter.Status, Severity: filter.Severity, CorrelationID: filter.CorrelationID})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to summarize algorithm signal proposals")
+			return
+		}
+		signals, err := repo.ListSignalLedger(r.Context(), storage.SignalLedgerFilter{TenantID: tenantID, Limit: 500})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list signal ledger for preflight")
+			return
+		}
+		results := map[string]storage.AlgorithmResultRecord{}
+		for _, proposal := range proposals {
+			resultID := strings.TrimSpace(proposal.AlgorithmResultID)
+			if resultID == "" {
+				continue
+			}
+			if _, exists := results[resultID]; exists {
+				continue
+			}
+			result, err := repo.GetAlgorithmResult(r.Context(), tenantID, resultID)
+			if err == nil {
+				results[resultID] = result
+				continue
+			}
+			if !errors.Is(err, storage.ErrNotFound) {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to load algorithm result for preflight")
+				return
+			}
+		}
+		minReviewedRatio := queryFloat64(r, "min_reviewed_ratio", 1)
+		policyVersion := firstNonEmptyBacktestValue(r.URL.Query().Get("policy_version"), "materialization_preflight.v1")
+		preflight := algorithmSignalProposalMaterializationPreflightResponse(tenantID, policyVersion, minReviewedRatio, proposals, results, signals, summary)
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_materialization_preflight": preflight})
+	})
+
 	mux.HandleFunc("GET /v1/algorithms/signal-proposals/{proposal_id}", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -3400,6 +3451,18 @@ func queryLimit(r *http.Request, fallback int) int {
 	}
 	if parsed > 200 {
 		return 200
+	}
+	return parsed
+}
+
+func queryFloat64(r *http.Request, key string, fallback float64) float64 {
+	value := strings.TrimSpace(r.URL.Query().Get(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return fallback
 	}
 	return parsed
 }

@@ -6750,3 +6750,20 @@ Summary:
 Result:
 
 - Future materialization work has a reviewable architecture without changing production signal behavior.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Implemented G118 read-only algorithm signal materialization preflight API.
+- Added proposal-level checks for review status, source evidence, JSON validity, source result lineage, and duplicate-risk overlap with existing production signals.
+- Added aggregate gates for reviewed-ratio threshold and unresolved high/critical unreviewed proposals.
+- Preserved the no-materialization boundary: no signal ledger writes, materialization ledger rows, alerts, insights, graph proposals, policy deployment, or frontend changes.
+
+Validation performed:
+
+- Focused API tests passed for materialization preflight, proposal summary, proposal list/detail, and proposal decision routes.
+
+Result:
+
+- Operators and future frontend work can inspect materialization readiness before any later gate introduces production signal writes.

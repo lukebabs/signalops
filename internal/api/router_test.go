@@ -3506,6 +3506,58 @@ func TestAlgorithmSignalProposalSummary(t *testing.T) {
 	}
 }
 
+func TestAlgorithmSignalProposalMaterializationPreflight(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &fakeQueryRepository{
+		algorithmResults: []storage.AlgorithmResultRecord{
+			{AlgorithmResultID: "algres-reviewed", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "anomaly", Severity: "medium", Confidence: 0.9, Score: 3.4, ResultPayloadJSON: []byte(`{}`), SourceEventIDs: []string{"evt-1"}, CorrelationID: "corr-1", CreatedAt: now},
+			{AlgorithmResultID: "algres-dup", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "anomaly", Severity: "medium", Confidence: 0.86, Score: 3.1, ResultPayloadJSON: []byte(`{}`), SourceEventIDs: []string{"evt-dup"}, CorrelationID: "corr-1", CreatedAt: now},
+			{AlgorithmResultID: "algres-proposed", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "anomaly", Severity: "critical", Confidence: 0.94, Score: 4.2, ResultPayloadJSON: []byte(`{}`), SourceEventIDs: []string{"evt-2"}, CorrelationID: "corr-1", CreatedAt: now},
+		},
+		algorithmSignalProposals: []storage.AlgorithmSignalProposalRecord{
+			{ProposalID: "algsigprop-reviewed", TenantID: "tenant-local", AlgorithmResultID: "algres-reviewed", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusReviewed, Score: 3.4, Confidence: 0.9, Severity: "medium", ProposalPayloadJSON: []byte(`{"schema_version":"algorithm_signal_proposal.v1"}`), RationaleJSON: []byte(`{"review_required":true}`), SourceEventIDs: []string{"evt-1"}, CorrelationID: "corr-1", ReviewedBy: "operator-1", CreatedAt: now, UpdatedAt: now},
+			{ProposalID: "algsigprop-dup", TenantID: "tenant-local", AlgorithmResultID: "algres-dup", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusReviewed, Score: 3.1, Confidence: 0.86, Severity: "medium", ProposalPayloadJSON: []byte(`{"schema_version":"algorithm_signal_proposal.v1"}`), RationaleJSON: []byte(`{"review_required":true}`), SourceEventIDs: []string{"evt-dup"}, CorrelationID: "corr-1", ReviewedBy: "operator-1", CreatedAt: now, UpdatedAt: now},
+			{ProposalID: "algsigprop-proposed", TenantID: "tenant-local", AlgorithmResultID: "algres-proposed", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusProposed, Score: 4.2, Confidence: 0.94, Severity: "critical", ProposalPayloadJSON: []byte(`{"schema_version":"algorithm_signal_proposal.v1"}`), RationaleJSON: []byte(`{"review_required":true}`), SourceEventIDs: []string{"evt-2"}, CorrelationID: "corr-1", CreatedAt: now, UpdatedAt: now},
+			{ProposalID: "algsigprop-invalid", TenantID: "tenant-local", AlgorithmResultID: "algres-missing", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusReviewed, Score: 2.5, Confidence: 0.8, Severity: "low", ProposalPayloadJSON: []byte(`{"schema_version":"algorithm_signal_proposal.v1"}`), RationaleJSON: []byte(`{"review_required":true}`), CorrelationID: "corr-1", ReviewedBy: "operator-1", CreatedAt: now, UpdatedAt: now},
+		},
+		signals: []storage.SignalLedgerRecord{{SignalID: "sig-existing", TenantID: "tenant-local", SignalType: "signalops.algorithm.anomaly_candidate", EventIDs: []string{"evt-dup"}}},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/algorithms/signal-proposals/materialization-preflight?tenant_id=tenant-local&algorithm_id=signalops.algorithms.zscore_anomaly_v1&execution_request_id=algexec-1&correlation_id=corr-1&limit=25&min_reviewed_ratio=0.5", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastAlgorithmProposalFilter.Limit != 25 || repo.lastAlgorithmProposalFilter.ExecutionRequestID != "algexec-1" || repo.lastAlgorithmSummaryFilter.Limit != 0 {
+		t.Fatalf("filters proposal=%+v summary=%+v", repo.lastAlgorithmProposalFilter, repo.lastAlgorithmSummaryFilter)
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	preflight := response["algorithm_signal_materialization_preflight"]
+	if preflight["total_proposals"].(float64) != 4 || preflight["eligible_count"].(float64) != 0 || preflight["duplicate_risk_count"].(float64) != 1 || preflight["blocked_count"].(float64) != 2 || preflight["invalid_count"].(float64) != 1 || preflight["would_write_count"].(float64) != 0 {
+		t.Fatalf("preflight = %#v", preflight)
+	}
+	if preflight["review_coverage_satisfied"].(bool) {
+		t.Fatalf("expected global review coverage blocker: %#v", preflight)
+	}
+	globalReasons := preflight["global_blocking_reasons"].(map[string]any)
+	if globalReasons["high_critical_unreviewed_proposals"].(float64) != 1 {
+		t.Fatalf("global reasons = %#v", globalReasons)
+	}
+	items := preflight["items"].([]any)
+	statuses := map[string]string{}
+	for _, raw := range items {
+		item := raw.(map[string]any)
+		statuses[item["proposal_id"].(string)] = item["preflight_status"].(string)
+	}
+	if statuses["algsigprop-reviewed"] != "blocked" || statuses["algsigprop-dup"] != "duplicate_risk" || statuses["algsigprop-proposed"] != "blocked" || statuses["algsigprop-invalid"] != "invalid" {
+		t.Fatalf("statuses = %#v", statuses)
+	}
+}
+
 func TestAlgorithmSignalProposalsListAndGet(t *testing.T) {
 	now := time.Now().UTC()
 	repo := &fakeQueryRepository{algorithmSignalProposals: []storage.AlgorithmSignalProposalRecord{{ProposalID: "algsigprop-1", TenantID: "tenant-local", AlgorithmResultID: "algres-1", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusProposed, Score: 3.4, Confidence: 0.82, Severity: "medium", ProposalPayloadJSON: []byte(`{"schema_version":"algorithm_signal_proposal.v1"}`), RationaleJSON: []byte(`{"review_required":true}`), SourceEventIDs: []string{"evt-1"}, EvidenceRefs: []string{"normalized_event:evt-1"}, CorrelationID: "corr-1", CreatedBy: "analyst-1", CreatedAt: now, UpdatedAt: now}}}

@@ -201,3 +201,8 @@ Recommended next gate:
 
 - G117: design-only architecture for future materialization of reviewed `algorithm_signal_proposals` into production `signal.v1` rows.
 - Specification: `G117_algorithm_signal_materialization_design.md`.
+
+## G118 Implemented
+
+- G118: read-only backend materialization preflight for `algorithm_signal_proposals`, reporting eligible, duplicate-risk, blocked, invalid, and would-write counts without production signal writes.
+- Specification: `G118_algorithm_signal_materialization_preflight.md`.

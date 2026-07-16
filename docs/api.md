@@ -739,6 +739,10 @@ Returns one algorithm result.
 
 Returns a read-only proposal summary with total proposal count, status counts, severity counts, proposed signal type counts, algorithm id counts, reviewer counts, reviewed ratio, and high/critical unreviewed count.
 
+`GET /v1/algorithms/signal-proposals/materialization-preflight?tenant_id={tenant_id}&algorithm_id={algorithm_id}&execution_request_id={execution_request_id}&algorithm_result_id={algorithm_result_id}&status={status}&severity={severity}&correlation_id={correlation_id}&limit=200&min_reviewed_ratio=1&policy_version=materialization_preflight.v1`
+
+Returns a read-only materialization preflight for algorithm signal proposals. The response reports eligible, duplicate-risk, blocked, invalid, and would-write counts plus per-proposal reason tokens. This endpoint does not write production signals, materialization ledger rows, alerts, insights, graph proposals, or policy changes.
+
 `GET /v1/algorithms/signal-proposals?tenant_id={tenant_id}&algorithm_id={algorithm_id}&execution_request_id={execution_request_id}&algorithm_result_id={algorithm_result_id}&status={status}&severity={severity}&correlation_id={correlation_id}&limit=50`
 
 Returns read-only algorithm signal proposal rows generated from `algorithm_results`. Proposals are review candidates only; they are not production `signal.v1` rows.
