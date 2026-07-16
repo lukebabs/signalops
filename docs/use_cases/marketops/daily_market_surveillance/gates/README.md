@@ -236,3 +236,8 @@ Recommended next gate:
 
 - G124: lifecycle policy decision for production signals created by algorithm proposal materialization; keep G122 signal-ledger-only and defer alert/insight/graph/Syncratic fanout to a separate audited policy gate.
 - Specification: `G124_algorithm_materialized_signal_lifecycle_policy.md`.
+
+## G125 Implemented
+
+- G125: MarketOps options-chain substrate with persisted full-chain rows, 10-trade-day distribution snapshots, asset-scoped read APIs, and a reserved non-persisting live-preview endpoint.
+- Specification: `G125_marketops_options_chain_substrate.md`.

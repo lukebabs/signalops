@@ -731,6 +731,96 @@ type MarketOpsAssetRecord struct {
 	UpdatedAt     time.Time
 }
 
+type MarketOpsOptionsChainRecord struct {
+	TenantID          string
+	Symbol            string
+	TradeDate         time.Time
+	OptionTicker      string
+	Provider          string
+	SourceID          string
+	IngestionRunID    string
+	ContractType      string
+	ExpirationDate    time.Time
+	StrikePrice       float64
+	UnderlyingClose   *float64
+	Moneyness         *float64
+	Open              *float64
+	High              *float64
+	Low               *float64
+	Close             *float64
+	VWAP              *float64
+	Volume            *int64
+	OpenInterest      *int64
+	ImpliedVolatility *float64
+	Delta             *float64
+	Gamma             *float64
+	Theta             *float64
+	Vega              *float64
+	ProviderRequestID string
+	PayloadHash       string
+	RawPayloadJSON    []byte
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type MarketOpsOptionsChainFilter struct {
+	TenantID     string
+	Symbol       string
+	TradeDate    time.Time
+	WindowStart  time.Time
+	WindowEnd    time.Time
+	ContractType string
+	Limit        int
+}
+
+type MarketOpsOptionsCoverageRecord struct {
+	TenantID       string
+	Symbol         string
+	TradeDayCount  int
+	ContractCount  int
+	FirstTradeDate time.Time
+	LastTradeDate  time.Time
+	LastUpdatedAt  time.Time
+}
+
+type MarketOpsOptionsDistributionRecord struct {
+	TenantID                   string
+	Symbol                     string
+	TradeDate                  time.Time
+	WindowName                 string
+	SourceID                   string
+	Provider                   string
+	TradeDays                  int
+	ContractCount              int
+	CallContractCount          int
+	PutContractCount           int
+	TotalCallOpenInterest      int64
+	TotalPutOpenInterest       int64
+	TotalCallVolume            int64
+	TotalPutVolume             int64
+	MissingOpenInterestCount   int
+	CallPutOpenInterestRatio   float64
+	CallPutVolumeRatio         float64
+	RatioDelta                 float64
+	RatioChangePct             float64
+	RatioZScore                float64
+	ChangePointScore           float64
+	Confidence                 float64
+	MoneynessDistributionJSON  []byte
+	ExpirationDistributionJSON []byte
+	MetricsJSON                []byte
+	SourceTradeDates           []time.Time
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
+}
+
+type MarketOpsOptionsDistributionFilter struct {
+	TenantID   string
+	Symbol     string
+	WindowName string
+	Limit      int
+}
+
 type MarketOpsDSMArtifactRecord struct {
 	ArtifactID           string
 	TenantID             string
@@ -1561,4 +1651,7 @@ type QueryRepository interface {
 	ListCatalogPipelines(ctx context.Context, tenantID string, limit int) ([]CatalogPipelineRecord, error)
 	ListCatalogRules(ctx context.Context, tenantID string, limit int) ([]CatalogRuleRecord, error)
 	ListMarketOpsAssets(ctx context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]MarketOpsAssetRecord, error)
+	ListMarketOpsOptionsChain(ctx context.Context, filter MarketOpsOptionsChainFilter) ([]MarketOpsOptionsChainRecord, error)
+	GetMarketOpsOptionsCoverage(ctx context.Context, tenantID string, symbol string) (MarketOpsOptionsCoverageRecord, error)
+	ListMarketOpsOptionsDistributions(ctx context.Context, filter MarketOpsOptionsDistributionFilter) ([]MarketOpsOptionsDistributionRecord, error)
 }

@@ -2106,6 +2106,73 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"assets": marketOpsAssetResponses(assets)})
 	})
 
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/coverage", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		symbol := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
+		if tenantID == "" || symbol == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id and symbol are required")
+			return
+		}
+		record, err := repo.GetMarketOpsOptionsCoverage(r.Context(), tenantID, symbol)
+		if err != nil {
+			writeQueryError(w, err, "options_coverage_not_found", "MarketOps options coverage not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"options_coverage": marketOpsOptionsCoverageResponse(record)})
+	})
+
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/distribution", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		symbol := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
+		if tenantID == "" || symbol == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id and symbol are required")
+			return
+		}
+		windowName := firstNonEmpty(strings.TrimSpace(r.URL.Query().Get("window")), "10_trade_days")
+		records, err := repo.ListMarketOpsOptionsDistributions(r.Context(), storage.MarketOpsOptionsDistributionFilter{TenantID: tenantID, Symbol: symbol, WindowName: windowName, Limit: queryLimit(r, 10)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps options distributions")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"options_distributions": marketOpsOptionsDistributionResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/chain", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		symbol := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
+		if tenantID == "" || symbol == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id and symbol are required")
+			return
+		}
+		tradeDate, err := queryDate(r, "trade_date")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_trade_date", "trade_date must be YYYY-MM-DD")
+			return
+		}
+		records, err := repo.ListMarketOpsOptionsChain(r.Context(), storage.MarketOpsOptionsChainFilter{TenantID: tenantID, Symbol: symbol, TradeDate: tradeDate, ContractType: strings.TrimSpace(r.URL.Query().Get("contract_type")), Limit: queryLimit(r, 500)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps options chain")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"options_chain": marketOpsOptionsChainResponses(records)})
+	})
+
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/live-preview", func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, http.StatusNotImplemented, "live_preview_not_configured", "Massive live options preview is not configured in this gateway")
+	})
+
 	mux.HandleFunc("GET /v1/streams/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		channels, err := dashboardStreamChannels(r)
 		if err != nil {
@@ -2776,6 +2843,79 @@ type marketOpsAssetDTO struct {
 	Metadata      json.RawMessage `json:"metadata"`
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+type marketOpsOptionsCoverageDTO struct {
+	TenantID       string    `json:"tenant_id"`
+	Symbol         string    `json:"symbol"`
+	TradeDayCount  int       `json:"trade_day_count"`
+	ContractCount  int       `json:"contract_count"`
+	FirstTradeDate time.Time `json:"first_trade_date"`
+	LastTradeDate  time.Time `json:"last_trade_date"`
+	LastUpdatedAt  time.Time `json:"last_updated_at"`
+}
+
+type marketOpsOptionsChainDTO struct {
+	TenantID          string          `json:"tenant_id"`
+	Symbol            string          `json:"symbol"`
+	TradeDate         time.Time       `json:"trade_date"`
+	OptionTicker      string          `json:"option_ticker"`
+	Provider          string          `json:"provider"`
+	SourceID          string          `json:"source_id"`
+	IngestionRunID    string          `json:"ingestion_run_id"`
+	ContractType      string          `json:"contract_type"`
+	ExpirationDate    time.Time       `json:"expiration_date"`
+	StrikePrice       float64         `json:"strike_price"`
+	UnderlyingClose   *float64        `json:"underlying_close,omitempty"`
+	Moneyness         *float64        `json:"moneyness,omitempty"`
+	Open              *float64        `json:"open,omitempty"`
+	High              *float64        `json:"high,omitempty"`
+	Low               *float64        `json:"low,omitempty"`
+	Close             *float64        `json:"close,omitempty"`
+	VWAP              *float64        `json:"vwap,omitempty"`
+	Volume            *int64          `json:"volume,omitempty"`
+	OpenInterest      *int64          `json:"open_interest,omitempty"`
+	ImpliedVolatility *float64        `json:"implied_volatility,omitempty"`
+	Delta             *float64        `json:"delta,omitempty"`
+	Gamma             *float64        `json:"gamma,omitempty"`
+	Theta             *float64        `json:"theta,omitempty"`
+	Vega              *float64        `json:"vega,omitempty"`
+	ProviderRequestID string          `json:"provider_request_id"`
+	PayloadHash       string          `json:"payload_hash"`
+	RawPayload        json.RawMessage `json:"raw_payload"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+}
+
+type marketOpsOptionsDistributionDTO struct {
+	TenantID                 string          `json:"tenant_id"`
+	Symbol                   string          `json:"symbol"`
+	TradeDate                time.Time       `json:"trade_date"`
+	WindowName               string          `json:"window_name"`
+	SourceID                 string          `json:"source_id"`
+	Provider                 string          `json:"provider"`
+	TradeDays                int             `json:"trade_days"`
+	ContractCount            int             `json:"contract_count"`
+	CallContractCount        int             `json:"call_contract_count"`
+	PutContractCount         int             `json:"put_contract_count"`
+	TotalCallOpenInterest    int64           `json:"total_call_open_interest"`
+	TotalPutOpenInterest     int64           `json:"total_put_open_interest"`
+	TotalCallVolume          int64           `json:"total_call_volume"`
+	TotalPutVolume           int64           `json:"total_put_volume"`
+	MissingOpenInterestCount int             `json:"missing_open_interest_count"`
+	CallPutOpenInterestRatio float64         `json:"call_put_open_interest_ratio"`
+	CallPutVolumeRatio       float64         `json:"call_put_volume_ratio"`
+	RatioDelta               float64         `json:"ratio_delta"`
+	RatioChangePct           float64         `json:"ratio_change_pct"`
+	RatioZScore              float64         `json:"ratio_zscore"`
+	ChangePointScore         float64         `json:"change_point_score"`
+	Confidence               float64         `json:"confidence"`
+	MoneynessDistribution    json.RawMessage `json:"moneyness_distribution"`
+	ExpirationDistribution   json.RawMessage `json:"expiration_distribution"`
+	Metrics                  json.RawMessage `json:"metrics"`
+	SourceTradeDates         []time.Time     `json:"source_trade_dates"`
+	CreatedAt                time.Time       `json:"created_at"`
+	UpdatedAt                time.Time       `json:"updated_at"`
 }
 
 type catalogSourceDTO struct {
@@ -3482,6 +3622,26 @@ func marketOpsAssetResponses(records []storage.MarketOpsAssetRecord) []marketOps
 	return items
 }
 
+func marketOpsOptionsCoverageResponse(record storage.MarketOpsOptionsCoverageRecord) marketOpsOptionsCoverageDTO {
+	return marketOpsOptionsCoverageDTO{TenantID: record.TenantID, Symbol: record.Symbol, TradeDayCount: record.TradeDayCount, ContractCount: record.ContractCount, FirstTradeDate: record.FirstTradeDate, LastTradeDate: record.LastTradeDate, LastUpdatedAt: record.LastUpdatedAt}
+}
+
+func marketOpsOptionsChainResponses(records []storage.MarketOpsOptionsChainRecord) []marketOpsOptionsChainDTO {
+	items := make([]marketOpsOptionsChainDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, marketOpsOptionsChainDTO{TenantID: record.TenantID, Symbol: record.Symbol, TradeDate: record.TradeDate, OptionTicker: record.OptionTicker, Provider: record.Provider, SourceID: record.SourceID, IngestionRunID: record.IngestionRunID, ContractType: record.ContractType, ExpirationDate: record.ExpirationDate, StrikePrice: record.StrikePrice, UnderlyingClose: record.UnderlyingClose, Moneyness: record.Moneyness, Open: record.Open, High: record.High, Low: record.Low, Close: record.Close, VWAP: record.VWAP, Volume: record.Volume, OpenInterest: record.OpenInterest, ImpliedVolatility: record.ImpliedVolatility, Delta: record.Delta, Gamma: record.Gamma, Theta: record.Theta, Vega: record.Vega, ProviderRequestID: record.ProviderRequestID, PayloadHash: record.PayloadHash, RawPayload: jsonRawOrEmptyObject(record.RawPayloadJSON), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt})
+	}
+	return items
+}
+
+func marketOpsOptionsDistributionResponses(records []storage.MarketOpsOptionsDistributionRecord) []marketOpsOptionsDistributionDTO {
+	items := make([]marketOpsOptionsDistributionDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, marketOpsOptionsDistributionDTO{TenantID: record.TenantID, Symbol: record.Symbol, TradeDate: record.TradeDate, WindowName: record.WindowName, SourceID: record.SourceID, Provider: record.Provider, TradeDays: record.TradeDays, ContractCount: record.ContractCount, CallContractCount: record.CallContractCount, PutContractCount: record.PutContractCount, TotalCallOpenInterest: record.TotalCallOpenInterest, TotalPutOpenInterest: record.TotalPutOpenInterest, TotalCallVolume: record.TotalCallVolume, TotalPutVolume: record.TotalPutVolume, MissingOpenInterestCount: record.MissingOpenInterestCount, CallPutOpenInterestRatio: record.CallPutOpenInterestRatio, CallPutVolumeRatio: record.CallPutVolumeRatio, RatioDelta: record.RatioDelta, RatioChangePct: record.RatioChangePct, RatioZScore: record.RatioZScore, ChangePointScore: record.ChangePointScore, Confidence: record.Confidence, MoneynessDistribution: jsonRawOrEmptyObject(record.MoneynessDistributionJSON), ExpirationDistribution: jsonRawOrEmptyObject(record.ExpirationDistributionJSON), Metrics: jsonRawOrEmptyObject(record.MetricsJSON), SourceTradeDates: record.SourceTradeDates, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt})
+	}
+	return items
+}
+
 func catalogSourceResponses(records []storage.CatalogSourceRecord) []catalogSourceDTO {
 	items := make([]catalogSourceDTO, 0, len(records))
 	for _, record := range records {
@@ -3598,6 +3758,18 @@ func writeQueryError(w http.ResponseWriter, err error, notFoundCode string, notF
 		return
 	}
 	writeError(w, http.StatusInternalServerError, "query_failed", "query failed")
+}
+
+func queryDate(r *http.Request, name string) (time.Time, error) {
+	value := strings.TrimSpace(r.URL.Query().Get(name))
+	if value == "" {
+		return time.Time{}, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parsed.UTC(), nil
 }
 
 func queryLimit(r *http.Request, fallback int) int {

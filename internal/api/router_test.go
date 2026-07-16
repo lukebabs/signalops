@@ -84,6 +84,9 @@ type fakeQueryRepository struct {
 	pipelines                          []storage.CatalogPipelineRecord
 	rules                              []storage.CatalogRuleRecord
 	marketOpsAssets                    []storage.MarketOpsAssetRecord
+	marketOpsOptionsChain              []storage.MarketOpsOptionsChainRecord
+	marketOpsOptionsCoverage           storage.MarketOpsOptionsCoverageRecord
+	marketOpsOptionsDistributions      []storage.MarketOpsOptionsDistributionRecord
 	dsmArtifacts                       []storage.MarketOpsDSMArtifactRecord
 	dsmGraphProposals                  []storage.MarketOpsDSMGraphProposalRecord
 	backtestRuns                       []storage.MarketOpsBacktestRunRecord
@@ -130,6 +133,8 @@ type fakeQueryRepository struct {
 	lastGraphProposalMutation          storage.MarketOpsDSMGraphProposalMutation
 	lastUniverseGroup                  string
 	lastActiveOnly                     bool
+	lastOptionsChainFilter             storage.MarketOpsOptionsChainFilter
+	lastOptionsDistributionFilter      storage.MarketOpsOptionsDistributionFilter
 	signals                            []storage.SignalLedgerRecord
 	alerts                             []storage.AlertLedgerRecord
 	insights                           []storage.InsightLedgerRecord
@@ -1150,6 +1155,61 @@ func (q *fakeQueryRepository) ListMarketOpsAssets(_ context.Context, tenantID st
 	return q.marketOpsAssets, nil
 }
 
+func (q *fakeQueryRepository) ListMarketOpsOptionsChain(_ context.Context, filter storage.MarketOpsOptionsChainFilter) ([]storage.MarketOpsOptionsChainRecord, error) {
+	q.lastOptionsChainFilter = filter
+	out := []storage.MarketOpsOptionsChainRecord{}
+	for _, record := range q.marketOpsOptionsChain {
+		if filter.TenantID != "" && record.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.Symbol != "" && record.Symbol != filter.Symbol {
+			continue
+		}
+		if !filter.TradeDate.IsZero() && !sameTestDay(record.TradeDate, filter.TradeDate) {
+			continue
+		}
+		if filter.ContractType != "" && record.ContractType != filter.ContractType {
+			continue
+		}
+		out = append(out, record)
+	}
+	return out, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsOptionsCoverage(_ context.Context, tenantID string, symbol string) (storage.MarketOpsOptionsCoverageRecord, error) {
+	if q.notFound || q.marketOpsOptionsCoverage.TenantID == "" {
+		return storage.MarketOpsOptionsCoverageRecord{}, storage.ErrNotFound
+	}
+	if q.marketOpsOptionsCoverage.TenantID == tenantID && q.marketOpsOptionsCoverage.Symbol == symbol {
+		return q.marketOpsOptionsCoverage, nil
+	}
+	return storage.MarketOpsOptionsCoverageRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListMarketOpsOptionsDistributions(_ context.Context, filter storage.MarketOpsOptionsDistributionFilter) ([]storage.MarketOpsOptionsDistributionRecord, error) {
+	q.lastOptionsDistributionFilter = filter
+	out := []storage.MarketOpsOptionsDistributionRecord{}
+	for _, record := range q.marketOpsOptionsDistributions {
+		if filter.TenantID != "" && record.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.Symbol != "" && record.Symbol != filter.Symbol {
+			continue
+		}
+		if filter.WindowName != "" && record.WindowName != filter.WindowName {
+			continue
+		}
+		out = append(out, record)
+	}
+	return out, nil
+}
+
+func sameTestDay(a time.Time, b time.Time) bool {
+	aa := time.Date(a.UTC().Year(), a.UTC().Month(), a.UTC().Day(), 0, 0, 0, 0, time.UTC)
+	bb := time.Date(b.UTC().Year(), b.UTC().Month(), b.UTC().Day(), 0, 0, 0, 0, time.UTC)
+	return aa.Equal(bb)
+}
+
 func TestPostRawEventPublishesMessage(t *testing.T) {
 	publisher := &fakePublisher{}
 	repository := &fakePublishRepository{}
@@ -1519,6 +1579,93 @@ func TestGetMarketOpsAssets(t *testing.T) {
 	}
 	if response["assets"][0]["app_id"] != "marketops" || response["assets"][0]["use_case"] != "daily_market_surveillance" {
 		t.Fatalf("asset metadata = %+v", response["assets"][0])
+	}
+}
+
+func TestGetMarketOpsOptionsCoverage(t *testing.T) {
+	now := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{marketOpsOptionsCoverage: storage.MarketOpsOptionsCoverageRecord{TenantID: "tenant-1", Symbol: "NVDA", TradeDayCount: 10, ContractCount: 420, FirstTradeDate: now.AddDate(0, 0, -14), LastTradeDate: now, LastUpdatedAt: now}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/marketops/assets/nvda/options/coverage", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var response map[string]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	coverage := response["options_coverage"]
+	if coverage["symbol"] != "NVDA" || coverage["trade_day_count"].(float64) != 10 || coverage["contract_count"].(float64) != 420 {
+		t.Fatalf("coverage = %+v", coverage)
+	}
+}
+
+func TestGetMarketOpsOptionsDistribution(t *testing.T) {
+	tradeDate := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{marketOpsOptionsDistributions: []storage.MarketOpsOptionsDistributionRecord{{TenantID: "tenant-1", Symbol: "NVDA", TradeDate: tradeDate, WindowName: "10_trade_days", Provider: "massive", TradeDays: 10, ContractCount: 420, CallContractCount: 210, PutContractCount: 210, TotalCallOpenInterest: 120000, TotalPutOpenInterest: 80000, CallPutOpenInterestRatio: 1.5, RatioZScore: 2.1, Confidence: 0.7, MoneynessDistributionJSON: []byte(`{"95-100%":{"call_open_interest":100}}`), ExpirationDistributionJSON: []byte(`{"8-30d":{"put_open_interest":200}}`), MetricsJSON: []byte(`{"primary_metric":"open_interest"}`), SourceTradeDates: []time.Time{tradeDate.AddDate(0, 0, -1), tradeDate}}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/marketops/assets/NVDA/options/distribution?window=10_trade_days&limit=5", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastOptionsDistributionFilter.Symbol != "NVDA" || repo.lastOptionsDistributionFilter.WindowName != "10_trade_days" {
+		t.Fatalf("filter = %+v", repo.lastOptionsDistributionFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	rows := response["options_distributions"]
+	if len(rows) != 1 || rows[0]["call_put_open_interest_ratio"].(float64) != 1.5 || rows[0]["trade_days"].(float64) != 10 {
+		t.Fatalf("distribution = %+v", rows)
+	}
+}
+
+func TestGetMarketOpsOptionsChain(t *testing.T) {
+	tradeDate := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)
+	oi := int64(2500)
+	delta := 0.42
+	repo := &fakeQueryRepository{marketOpsOptionsChain: []storage.MarketOpsOptionsChainRecord{{TenantID: "tenant-1", Symbol: "NVDA", TradeDate: tradeDate, OptionTicker: "O:NVDA260717C00170000", Provider: "massive", ContractType: "call", ExpirationDate: tradeDate.AddDate(0, 0, 1), StrikePrice: 170, OpenInterest: &oi, Delta: &delta, RawPayloadJSON: []byte(`{"provider":"massive"}`), CreatedAt: tradeDate, UpdatedAt: tradeDate}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/marketops/assets/nvda/options/chain?trade_date=2026-07-16&contract_type=call&limit=25", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastOptionsChainFilter.Symbol != "NVDA" || repo.lastOptionsChainFilter.ContractType != "call" || repo.lastOptionsChainFilter.Limit != 25 {
+		t.Fatalf("filter = %+v", repo.lastOptionsChainFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	rows := response["options_chain"]
+	if len(rows) != 1 || rows[0]["option_ticker"] != "O:NVDA260717C00170000" || rows[0]["open_interest"].(float64) != 2500 {
+		t.Fatalf("chain = %+v", rows)
+	}
+}
+
+func TestPostMarketOpsOptionsLivePreviewNotConfigured(t *testing.T) {
+	router := NewRouter(RouterConfig{QueryRepository: &fakeQueryRepository{}})
+	req := httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-1/marketops/assets/NVDA/options/live-preview", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "live_preview_not_configured") {
+		t.Fatalf("body = %s", rec.Body.String())
 	}
 }
 

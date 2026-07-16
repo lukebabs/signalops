@@ -697,6 +697,24 @@ Returns one stored promotion candidate.
 
 Records an operator review decision on a promotion candidate. Allowed decision statuses are `approved_for_promotion`, `rejected`, `deferred`, and `superseded`. This endpoint only mutates the candidate audit row; it does not deploy runtime policy, edit detector thresholds, or write graph state.
 
+### MarketOps Options
+
+`GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/coverage`
+
+Returns persisted options-chain coverage for one asset symbol, including trade-day count, contract count, first/last stored trade date, and last update time.
+
+`GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/distribution?window=10_trade_days&limit=10`
+
+Returns persisted daily options distribution snapshots for one asset symbol. G125 uses `10_trade_days` as the canonical window and open interest as the primary call/put divergence basis.
+
+`GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/chain?trade_date=YYYY-MM-DD&contract_type=call&limit=500`
+
+Returns persisted full-chain rows for one asset symbol and optional trade date / contract type filters. Rows include contract identity, expiration, strike, open interest, volume, optional OHLC/VWAP/greeks fields, provider metadata, payload hash, and raw provider payload.
+
+`POST /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/live-preview`
+
+Reserved for just-in-time Massive live preview. G125 intentionally returns `501 live_preview_not_configured` until a Massive live client is wired into the gateway; it does not persist rows.
+
 ### Algorithm Registry
 
 `POST /v1/algorithms/definitions`

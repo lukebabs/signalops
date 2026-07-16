@@ -8135,6 +8135,7 @@ Validation performed:
 Result:
 
 - G122 closes the first explicit algorithm-to-signal materialization path with bounded semantics and idempotency.
+
 ## Gate G123: Algorithm Signal Materialization Action UI Spec
 
 Timestamp: `2026-07-16T00:00:00Z`
@@ -8192,3 +8193,24 @@ Decision:
 Result:
 
 - Specification saved at `docs/use_cases/marketops/daily_market_surveillance/gates/G124_algorithm_materialized_signal_lifecycle_policy.md`.
+
+## Gate G125: MarketOps Options Chain Substrate
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `implemented - backend substrate`
+
+Scope:
+
+- Add persisted options-chain daily rows for asset-level MarketOps inspection.
+- Add derived `10_trade_days` call/put distribution snapshots using open interest as the primary metric.
+- Add read-only APIs for asset options coverage, distribution, and chain rows.
+- Reserve live preview as a non-persisting endpoint without wiring Massive live calls yet.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/api`, `./internal/storage/postgres`, and `./internal/marketops/options`.
+
+Result:
+
+- G125 establishes the options data representation and interaction substrate for NVDA-first validation without expanding into Top 50 batch ingestion, frontend work, or algorithm execution yet.

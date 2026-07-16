@@ -6878,3 +6878,21 @@ Summary:
 Result:
 
 - The materialized algorithm signal lifecycle boundary is documented without expanding runtime behavior.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Implemented G125 MarketOps options-chain substrate.
+- Added durable storage for full option-chain daily rows and derived `10_trade_days` options distribution snapshots.
+- Added deterministic distribution metrics over open interest, volume, moneyness buckets, expiration buckets, and rolling divergence measures.
+- Added asset-scoped read APIs for options coverage, distribution snapshots, and chain rows.
+- Added a reserved live-preview route that returns `501 live_preview_not_configured` until a Massive live client is explicitly wired.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/api`, `./internal/storage/postgres`, and `./internal/marketops/options`.
+
+Result:
+
+- MarketOps now has the backend substrate needed to inspect NVDA options chain evidence and feed later algorithms from derived call/put distribution features rather than raw option-contract rows.
