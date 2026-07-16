@@ -6690,3 +6690,15 @@ Validation performed:
 Result:
 
 - Algorithm-derived signal proposals can now receive auditable operator review decisions without changing production signal semantics.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Wrote the G113 frontend-agent specification for algorithm signal proposal visibility and review.
+- Scoped the UI to the existing Algorithms route and G111/G112 APIs.
+- Explicitly excluded production signal materialization, alerts, insights, graph proposals, algorithm execution, tuning, policy deployment, Syncratic integration, and new backend endpoints.
+
+Result:
+
+- Frontend-agent can implement proposal list/detail/review workflow without backend scope creep.

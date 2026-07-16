@@ -7881,3 +7881,19 @@ Out of scope:
 Result:
 
 - G112 makes algorithm proposal review auditable while preserving the G111 no-materialization boundary.
+
+## Gate G113: Algorithm Signal Proposal Review UI Spec
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `proposed - frontend-agent specification ready`
+
+Scope:
+
+- Add proposal list/detail/review UI inside the existing Algorithms route.
+- Use G111/G112 APIs only.
+- Preserve the no-materialization boundary.
+
+Result:
+
+- Specification saved at `docs/frontend/algorithm_signal_proposals_review_ui_spec.md`.

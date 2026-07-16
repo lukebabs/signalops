@@ -176,3 +176,8 @@ Recommended next gate:
 
 - G112: operator review lifecycle for `algorithm_signal_proposals` with decision metadata and no production signal materialization.
 - Specification: `G112_algorithm_signal_proposal_review.md`.
+
+## G113 Proposed
+
+- G113: frontend visibility and review workflow for `algorithm_signal_proposals`, using G111/G112 APIs without production signal materialization.
+- Specification: `../../../../frontend/algorithm_signal_proposals_review_ui_spec.md`.
