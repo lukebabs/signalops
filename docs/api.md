@@ -735,7 +735,17 @@ Returns immutable algorithm result ledger rows. Results include score, confidenc
 
 Returns one algorithm result.
 
+`GET /v1/algorithms/signal-proposals?tenant_id={tenant_id}&algorithm_id={algorithm_id}&execution_request_id={execution_request_id}&algorithm_result_id={algorithm_result_id}&status={status}&severity={severity}&correlation_id={correlation_id}&limit=50`
+
+Returns read-only algorithm signal proposal rows generated from `algorithm_results`. Proposals are review candidates only; they are not production `signal.v1` rows.
+
+`GET /v1/algorithms/signal-proposals/{proposal_id}?tenant_id={tenant_id}`
+
+Returns one algorithm signal proposal.
+
 `signalops-algorithm-runner` executes the seeded algorithm ids from the command line, including z-score, online anomaly, change-point, forecast residual, threshold classifier, and isolation-style scoring adapters. It requires `SIGNALOPS_DATABASE_URL` and `SIGNALOPS_TEMPORAL_DATABASE_URL`, reads bounded normalized events, updates `algorithm_execution_requests`, and writes immutable `algorithm_results`. G107-G110 do not add an API trigger endpoint for execution.
+
+`signalops-algorithm-proposal-generator` reads bounded `algorithm_results` and writes idempotent `algorithm_signal_proposals` review candidates. It requires `SIGNALOPS_DATABASE_URL`. G111 does not materialize proposals into production signals.
 
 ### Query Errors
 

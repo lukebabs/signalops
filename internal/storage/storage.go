@@ -83,6 +83,13 @@ const (
 )
 
 const (
+	AlgorithmSignalProposalStatusProposed   = "proposed"
+	AlgorithmSignalProposalStatusReviewed   = "reviewed"
+	AlgorithmSignalProposalStatusRejected   = "rejected"
+	AlgorithmSignalProposalStatusSuperseded = "superseded"
+)
+
+const (
 	AlertStatusOpen         = "open"
 	AlertStatusAcknowledged = "acknowledged"
 	AlertStatusResolved     = "resolved"
@@ -559,6 +566,28 @@ type AlgorithmResultRecord struct {
 	CreatedAt          time.Time
 }
 
+type AlgorithmSignalProposalRecord struct {
+	ProposalID          string
+	TenantID            string
+	AlgorithmResultID   string
+	AlgorithmID         string
+	AlgorithmVersion    string
+	ExecutionRequestID  string
+	ProposedSignalType  string
+	Status              string
+	Score               float64
+	Confidence          float64
+	Severity            string
+	ProposalPayloadJSON []byte
+	RationaleJSON       []byte
+	SourceEventIDs      []string
+	EvidenceRefs        []string
+	CorrelationID       string
+	CreatedBy           string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
 type AlgorithmDefinitionFilter struct {
 	TenantID      string
 	AlgorithmType string
@@ -580,6 +609,17 @@ type AlgorithmResultFilter struct {
 	AlgorithmID        string
 	ExecutionRequestID string
 	ResultType         string
+	Severity           string
+	CorrelationID      string
+	Limit              int
+}
+
+type AlgorithmSignalProposalFilter struct {
+	TenantID           string
+	AlgorithmID        string
+	ExecutionRequestID string
+	AlgorithmResultID  string
+	Status             string
 	Severity           string
 	CorrelationID      string
 	Limit              int
@@ -1105,6 +1145,9 @@ type AlgorithmRepository interface {
 	InsertAlgorithmResult(ctx context.Context, record AlgorithmResultRecord) error
 	ListAlgorithmResults(ctx context.Context, filter AlgorithmResultFilter) ([]AlgorithmResultRecord, error)
 	GetAlgorithmResult(ctx context.Context, tenantID string, algorithmResultID string) (AlgorithmResultRecord, error)
+	InsertAlgorithmSignalProposal(ctx context.Context, record AlgorithmSignalProposalRecord) (bool, error)
+	ListAlgorithmSignalProposals(ctx context.Context, filter AlgorithmSignalProposalFilter) ([]AlgorithmSignalProposalRecord, error)
+	GetAlgorithmSignalProposal(ctx context.Context, tenantID string, proposalID string) (AlgorithmSignalProposalRecord, error)
 }
 
 type PublishRepository interface {

@@ -7820,3 +7820,34 @@ Validation performed:
 Result:
 
 - G110 has both unit coverage for every seeded adapter and live persistence validation for a newly added adapter.
+
+## Gate G111: Algorithm Result To Signal Proposal Ledger
+
+Timestamp: `2026-07-16T00:00:00Z`
+
+Status: `implemented - proposal ledger, bounded generator, and read-only APIs`
+
+Scope:
+
+- Add `algorithm_signal_proposals` as a first-class review ledger for algorithm-derived candidate signals.
+- Add deterministic, idempotent proposal generation from `algorithm_results`.
+- Add read-only list/get APIs for proposal inspection.
+
+Validation performed:
+
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/algorithms ./internal/algorithms/proposals ./cmd/algorithm-proposal-generator -count=1` passed.
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./internal/api -run 'TestAlgorithm' -count=1` passed.
+- Full Docker build path ran `go test ./...` successfully.
+- `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py` passed.
+- `docker build --target algorithm-proposal-generator -t signalops-algorithm-proposal-generator:local .` passed.
+- `make compose-storage-migrate` applied `000024_algorithm_signal_proposals` locally.
+- Live generator smoke against `algexec-g110-ruptures-aapl-openclose` inserted proposal `algsigprop_c6c2acad697176d0f438b66e`; idempotency rerun reported `proposed=0`, `scanned=2`, `skipped=2`.
+- Rebuilt local gateway and authenticated `GET /v1/algorithms/signal-proposals` returned the persisted proposal.
+
+Out of scope:
+
+- Production signal writes, alert/insight creation, graph proposals, frontend review workflow, and runtime policy deployment.
+
+Result:
+
+- G111 closes the first algorithm-result conversion boundary as reviewable proposals only.

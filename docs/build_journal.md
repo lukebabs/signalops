@@ -6643,3 +6643,26 @@ Validation performed:
 Result:
 
 - At least one newly added non-z-score adapter is live-validated through the same runner and result-ledger path as G107.
+
+## 2026-07-16T00:00:00Z
+
+Summary:
+
+- Implemented G111 algorithm result-to-signal proposal ledger.
+- Added `algorithm_signal_proposals` storage, read-only proposal APIs, and `signalops-algorithm-proposal-generator`.
+- Kept proposal generation separate from production `signal.v1`, alerts, insights, graph proposals, UI review, and policy deployment.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/algorithms`, `./internal/algorithms/proposals`, `./cmd/algorithm-proposal-generator`, and G111 algorithm API tests.
+- Full Go test suite passed through the Docker build path.
+- JSON schema validation passed.
+- Built `signalops-algorithm-proposal-generator:local`.
+- Applied migration `000024_algorithm_signal_proposals` to local Postgres.
+- Ran the generator against `algexec-g110-ruptures-aapl-openclose`; it inserted one `signalops.algorithm.change_point_candidate` proposal for the critical result.
+- Reran the generator and confirmed idempotency metrics reported `proposed=0`, `scanned=2`, `skipped=2`.
+- Rebuilt/restarted the local gateway and validated authenticated `GET /v1/algorithms/signal-proposals` with a short-lived bearer generated in-memory from configured `SO_*` credentials; token material was not printed or committed.
+
+Result:
+
+- Algorithm outputs now have a durable, reviewable bridge toward future signal materialization without mutating production signal semantics.

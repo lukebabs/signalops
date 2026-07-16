@@ -96,6 +96,28 @@ type algorithmResultDTO struct {
 	CreatedAt          time.Time       `json:"created_at"`
 }
 
+type algorithmSignalProposalDTO struct {
+	ProposalID         string          `json:"proposal_id"`
+	TenantID           string          `json:"tenant_id"`
+	AlgorithmResultID  string          `json:"algorithm_result_id"`
+	AlgorithmID        string          `json:"algorithm_id"`
+	AlgorithmVersion   string          `json:"algorithm_version"`
+	ExecutionRequestID string          `json:"execution_request_id"`
+	ProposedSignalType string          `json:"proposed_signal_type"`
+	Status             string          `json:"status"`
+	Score              float64         `json:"score"`
+	Confidence         float64         `json:"confidence"`
+	Severity           string          `json:"severity"`
+	ProposalPayload    json.RawMessage `json:"proposal_payload"`
+	Rationale          json.RawMessage `json:"rationale"`
+	SourceEventIDs     []string        `json:"source_event_ids"`
+	EvidenceRefs       []string        `json:"evidence_refs"`
+	CorrelationID      string          `json:"correlation_id"`
+	CreatedBy          string          `json:"created_by"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+}
+
 func algorithmDefinitionRecord(req algorithmDefinitionRequest) storage.AlgorithmDefinitionRecord {
 	return storage.AlgorithmDefinitionRecord{AlgorithmID: strings.TrimSpace(req.AlgorithmID), TenantID: strings.TrimSpace(req.TenantID), Name: strings.TrimSpace(req.Name), Description: strings.TrimSpace(req.Description), AlgorithmType: strings.TrimSpace(req.AlgorithmType), RuntimeType: firstNonEmptyBacktestValue(req.RuntimeType, storage.AlgorithmRuntimePythonPlugin), InputFeatures: cleanStrings(req.InputFeatures), InputEventTypes: cleanStrings(req.InputEventTypes), OutputSchema: algorithmJSONOrDefaultObject(req.OutputSchema), ConfigSchema: algorithmJSONOrDefaultObject(req.ConfigSchema), DefaultConfig: algorithmJSONOrDefaultObject(req.DefaultConfig), Version: strings.TrimSpace(req.Version), Status: firstNonEmptyBacktestValue(req.Status, storage.AlgorithmDefinitionStatusDraft), MetadataJSON: algorithmJSONOrDefaultObject(req.Metadata)}
 }
@@ -144,6 +166,18 @@ func algorithmResultResponses(records []storage.AlgorithmResultRecord) []algorit
 	out := make([]algorithmResultDTO, 0, len(records))
 	for _, record := range records {
 		out = append(out, algorithmResultResponse(record))
+	}
+	return out
+}
+
+func algorithmSignalProposalResponse(record storage.AlgorithmSignalProposalRecord) algorithmSignalProposalDTO {
+	return algorithmSignalProposalDTO{ProposalID: record.ProposalID, TenantID: record.TenantID, AlgorithmResultID: record.AlgorithmResultID, AlgorithmID: record.AlgorithmID, AlgorithmVersion: record.AlgorithmVersion, ExecutionRequestID: record.ExecutionRequestID, ProposedSignalType: record.ProposedSignalType, Status: record.Status, Score: record.Score, Confidence: record.Confidence, Severity: record.Severity, ProposalPayload: json.RawMessage(jsonOrDefault(record.ProposalPayloadJSON, `{}`)), Rationale: json.RawMessage(jsonOrDefault(record.RationaleJSON, `{}`)), SourceEventIDs: record.SourceEventIDs, EvidenceRefs: record.EvidenceRefs, CorrelationID: record.CorrelationID, CreatedBy: record.CreatedBy, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+}
+
+func algorithmSignalProposalResponses(records []storage.AlgorithmSignalProposalRecord) []algorithmSignalProposalDTO {
+	out := make([]algorithmSignalProposalDTO, 0, len(records))
+	for _, record := range records {
+		out = append(out, algorithmSignalProposalResponse(record))
 	}
 	return out
 }

@@ -180,6 +180,59 @@ func (r *Repository) GetAlgorithmResult(ctx context.Context, tenantID string, al
 	return scanAlgorithmResult(r.db.QueryRowContext(ctx, algorithmResultSelect+` WHERE tenant_id=$1 AND algorithm_result_id=$2`, strings.TrimSpace(tenantID), strings.TrimSpace(algorithmResultID)))
 }
 
+func (r *Repository) InsertAlgorithmSignalProposal(ctx context.Context, record storage.AlgorithmSignalProposalRecord) (bool, error) {
+	if err := validateAlgorithmSignalProposal(record); err != nil {
+		return false, err
+	}
+	result, err := r.db.ExecContext(ctx, `
+INSERT INTO algorithm_signal_proposals (
+  tenant_id, proposal_id, algorithm_result_id, algorithm_id, algorithm_version, execution_request_id,
+  proposed_signal_type, status, score, confidence, severity, proposal_payload, rationale,
+  source_event_ids, evidence_refs, correlation_id, created_by, updated_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6,
+  $7, $8, $9, $10, $11, $12, $13,
+  $14, $15, $16, $17, now()
+)
+ON CONFLICT (tenant_id, algorithm_result_id, proposed_signal_type) DO NOTHING`, strings.TrimSpace(record.TenantID), strings.TrimSpace(record.ProposalID), strings.TrimSpace(record.AlgorithmResultID), strings.TrimSpace(record.AlgorithmID), strings.TrimSpace(record.AlgorithmVersion), strings.TrimSpace(record.ExecutionRequestID), strings.TrimSpace(record.ProposedSignalType), strings.TrimSpace(record.Status), record.Score, record.Confidence, strings.TrimSpace(record.Severity), jsonOrEmpty(record.ProposalPayloadJSON), jsonOrEmpty(record.RationaleJSON), pqArray(record.SourceEventIDs), pqArray(record.EvidenceRefs), strings.TrimSpace(record.CorrelationID), firstNonEmptyString(record.CreatedBy, "operator-local"))
+	if err != nil {
+		return false, fmt.Errorf("insert algorithm signal proposal: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("insert algorithm signal proposal rows affected: %w", err)
+	}
+	return rows > 0, nil
+}
+
+func (r *Repository) ListAlgorithmSignalProposals(ctx context.Context, filter storage.AlgorithmSignalProposalFilter) ([]storage.AlgorithmSignalProposalRecord, error) {
+	rows, err := r.db.QueryContext(ctx, algorithmSignalProposalSelect+`
+WHERE tenant_id=$1 AND ($2='' OR algorithm_id=$2) AND ($3='' OR execution_request_id=$3)
+  AND ($4='' OR algorithm_result_id=$4) AND ($5='' OR status=$5) AND ($6='' OR severity=$6)
+  AND ($7='' OR correlation_id=$7)
+ORDER BY created_at DESC LIMIT $8`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AlgorithmID), strings.TrimSpace(filter.ExecutionRequestID), strings.TrimSpace(filter.AlgorithmResultID), strings.TrimSpace(filter.Status), strings.TrimSpace(filter.Severity), strings.TrimSpace(filter.CorrelationID), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list algorithm signal proposals: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.AlgorithmSignalProposalRecord{}
+	for rows.Next() {
+		record, err := scanAlgorithmSignalProposal(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list algorithm signal proposals rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) GetAlgorithmSignalProposal(ctx context.Context, tenantID string, proposalID string) (storage.AlgorithmSignalProposalRecord, error) {
+	return scanAlgorithmSignalProposal(r.db.QueryRowContext(ctx, algorithmSignalProposalSelect+` WHERE tenant_id=$1 AND proposal_id=$2`, strings.TrimSpace(tenantID), strings.TrimSpace(proposalID)))
+}
+
 const algorithmDefinitionSelect = `SELECT algorithm_id, tenant_id, name, description, algorithm_type, runtime_type,
  COALESCE(array_to_json(input_features), '[]'::json)::text, COALESCE(array_to_json(input_event_types), '[]'::json)::text,
  output_schema, config_schema, default_config, version, status, metadata, created_at, updated_at FROM algorithm_definitions`
@@ -194,9 +247,15 @@ const algorithmResultSelect = `SELECT algorithm_result_id, tenant_id, algorithm_
  COALESCE(array_to_json(feature_value_ids), '[]'::json)::text, COALESCE(array_to_json(evidence_refs), '[]'::json)::text,
  correlation_id, created_at FROM algorithm_results`
 
+const algorithmSignalProposalSelect = `SELECT proposal_id, tenant_id, algorithm_result_id, algorithm_id, algorithm_version, execution_request_id,
+ proposed_signal_type, status, score, confidence, severity, proposal_payload, rationale,
+ COALESCE(array_to_json(source_event_ids), '[]'::json)::text, COALESCE(array_to_json(evidence_refs), '[]'::json)::text,
+ correlation_id, created_by, created_at, updated_at FROM algorithm_signal_proposals`
+
 type algorithmDefinitionScanner interface{ Scan(dest ...any) error }
 type algorithmExecutionRequestScanner interface{ Scan(dest ...any) error }
 type algorithmResultScanner interface{ Scan(dest ...any) error }
+type algorithmSignalProposalScanner interface{ Scan(dest ...any) error }
 
 func scanAlgorithmDefinition(scanner algorithmDefinitionScanner) (storage.AlgorithmDefinitionRecord, error) {
 	var record storage.AlgorithmDefinitionRecord
@@ -249,6 +308,24 @@ func scanAlgorithmResult(scanner algorithmResultScanner) (storage.AlgorithmResul
 	return record, nil
 }
 
+func scanAlgorithmSignalProposal(scanner algorithmSignalProposalScanner) (storage.AlgorithmSignalProposalRecord, error) {
+	var record storage.AlgorithmSignalProposalRecord
+	var sourceEventIDsJSON, evidenceRefsJSON string
+	if err := scanner.Scan(&record.ProposalID, &record.TenantID, &record.AlgorithmResultID, &record.AlgorithmID, &record.AlgorithmVersion, &record.ExecutionRequestID, &record.ProposedSignalType, &record.Status, &record.Score, &record.Confidence, &record.Severity, &record.ProposalPayloadJSON, &record.RationaleJSON, &sourceEventIDsJSON, &evidenceRefsJSON, &record.CorrelationID, &record.CreatedBy, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		return storage.AlgorithmSignalProposalRecord{}, mapScanError("scan algorithm signal proposal", err)
+	}
+	for _, item := range []struct {
+		raw  string
+		dest *[]string
+		name string
+	}{{sourceEventIDsJSON, &record.SourceEventIDs, "source event ids"}, {evidenceRefsJSON, &record.EvidenceRefs, "evidence refs"}} {
+		if err := json.Unmarshal([]byte(item.raw), item.dest); err != nil {
+			return storage.AlgorithmSignalProposalRecord{}, fmt.Errorf("scan algorithm signal proposal %s: %w", item.name, err)
+		}
+	}
+	return record, nil
+}
+
 func validateAlgorithmDefinition(record storage.AlgorithmDefinitionRecord) error {
 	for name, value := range map[string]string{"tenant id": record.TenantID, "algorithm id": record.AlgorithmID, "name": record.Name, "algorithm type": record.AlgorithmType, "runtime type": record.RuntimeType, "version": record.Version, "status": record.Status} {
 		if strings.TrimSpace(value) == "" {
@@ -280,6 +357,21 @@ func validateAlgorithmResult(record storage.AlgorithmResultRecord) error {
 		return errors.New("algorithm result confidence must be between 0 and 1")
 	}
 	return validateAlgorithmJSON(record.ResultPayloadJSON)
+}
+
+func validateAlgorithmSignalProposal(record storage.AlgorithmSignalProposalRecord) error {
+	for name, value := range map[string]string{"tenant id": record.TenantID, "proposal id": record.ProposalID, "algorithm result id": record.AlgorithmResultID, "algorithm id": record.AlgorithmID, "algorithm version": record.AlgorithmVersion, "execution request id": record.ExecutionRequestID, "proposed signal type": record.ProposedSignalType, "status": record.Status, "severity": record.Severity, "correlation id": record.CorrelationID} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("algorithm signal proposal %s is required", name)
+		}
+	}
+	if record.Score < 0 {
+		return errors.New("algorithm signal proposal score must be non-negative")
+	}
+	if record.Confidence < 0 || record.Confidence > 1 {
+		return errors.New("algorithm signal proposal confidence must be between 0 and 1")
+	}
+	return validateAlgorithmJSON(record.ProposalPayloadJSON, record.RationaleJSON)
 }
 
 func validateAlgorithmJSON(values ...[]byte) error {

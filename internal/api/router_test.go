@@ -104,6 +104,7 @@ type fakeQueryRepository struct {
 	algorithmDefinitions           []storage.AlgorithmDefinitionRecord
 	algorithmExecutionRequests     []storage.AlgorithmExecutionRequestRecord
 	algorithmResults               []storage.AlgorithmResultRecord
+	algorithmSignalProposals       []storage.AlgorithmSignalProposalRecord
 	lastBacktestRunFilter          storage.MarketOpsBacktestRunFilter
 	lastBacktestCoverageFilter     storage.MarketOpsBacktestCoverageFilter
 	lastBacktestCampaignFilter     storage.MarketOpsBacktestCampaignFilter
@@ -119,6 +120,7 @@ type fakeQueryRepository struct {
 	lastAlgorithmDefinitionFilter  storage.AlgorithmDefinitionFilter
 	lastAlgorithmExecutionFilter   storage.AlgorithmExecutionRequestFilter
 	lastAlgorithmResultFilter      storage.AlgorithmResultFilter
+	lastAlgorithmProposalFilter    storage.AlgorithmSignalProposalFilter
 	lastDSMFilter                  storage.MarketOpsDSMArtifactFilter
 	lastGraphProposalFilter        storage.MarketOpsDSMGraphProposalFilter
 	lastGraphProposalMutation      storage.MarketOpsDSMGraphProposalMutation
@@ -967,6 +969,30 @@ func (q *fakeQueryRepository) GetAlgorithmResult(_ context.Context, tenantID str
 		}
 	}
 	return storage.AlgorithmResultRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) InsertAlgorithmSignalProposal(_ context.Context, record storage.AlgorithmSignalProposalRecord) (bool, error) {
+	for _, existing := range q.algorithmSignalProposals {
+		if existing.TenantID == record.TenantID && existing.ProposalID == record.ProposalID {
+			return false, nil
+		}
+	}
+	q.algorithmSignalProposals = append(q.algorithmSignalProposals, record)
+	return true, nil
+}
+
+func (q *fakeQueryRepository) ListAlgorithmSignalProposals(_ context.Context, filter storage.AlgorithmSignalProposalFilter) ([]storage.AlgorithmSignalProposalRecord, error) {
+	q.lastAlgorithmProposalFilter = filter
+	return q.algorithmSignalProposals, nil
+}
+
+func (q *fakeQueryRepository) GetAlgorithmSignalProposal(_ context.Context, tenantID string, proposalID string) (storage.AlgorithmSignalProposalRecord, error) {
+	for _, record := range q.algorithmSignalProposals {
+		if record.TenantID == tenantID && record.ProposalID == proposalID {
+			return record, nil
+		}
+	}
+	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListMarketOpsAssets(_ context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]storage.MarketOpsAssetRecord, error) {
@@ -3371,5 +3397,35 @@ func TestAlgorithmExecutionSummaryIncludesResultRollup(t *testing.T) {
 	topResults := summary["top_results"].([]any)
 	if len(topResults) != 2 || topResults[0].(map[string]any)["algorithm_result_id"] != "algres-high" || topResults[1].(map[string]any)["algorithm_result_id"] != "algres-medium" {
 		t.Fatalf("top_results = %#v", topResults)
+	}
+}
+
+func TestAlgorithmSignalProposalsListAndGet(t *testing.T) {
+	now := time.Now().UTC()
+	repo := &fakeQueryRepository{algorithmSignalProposals: []storage.AlgorithmSignalProposalRecord{{ProposalID: "algsigprop-1", TenantID: "tenant-local", AlgorithmResultID: "algres-1", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ProposedSignalType: "signalops.algorithm.anomaly_candidate", Status: storage.AlgorithmSignalProposalStatusProposed, Score: 3.4, Confidence: 0.82, Severity: "medium", ProposalPayloadJSON: []byte(`{"schema_version":"algorithm_signal_proposal.v1"}`), RationaleJSON: []byte(`{"review_required":true}`), SourceEventIDs: []string{"evt-1"}, EvidenceRefs: []string{"normalized_event:evt-1"}, CorrelationID: "corr-1", CreatedBy: "analyst-1", CreatedAt: now, UpdatedAt: now}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/algorithms/signal-proposals?tenant_id=tenant-local&algorithm_id=signalops.algorithms.zscore_anomaly_v1&execution_request_id=algexec-1&algorithm_result_id=algres-1&status=proposed&severity=medium&correlation_id=corr-1&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastAlgorithmProposalFilter.AlgorithmResultID != "algres-1" || repo.lastAlgorithmProposalFilter.Status != "proposed" || repo.lastAlgorithmProposalFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastAlgorithmProposalFilter)
+	}
+	var list map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	if list["algorithm_signal_proposals"][0]["proposal_id"] != "algsigprop-1" {
+		t.Fatalf("list = %+v", list)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/algorithms/signal-proposals/algsigprop-1?tenant_id=tenant-local", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get status = %d body=%s", rec.Code, rec.Body.String())
 	}
 }

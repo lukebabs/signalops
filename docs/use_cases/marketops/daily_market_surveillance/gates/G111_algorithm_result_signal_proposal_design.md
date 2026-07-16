@@ -1,112 +1,84 @@
-# G111 Algorithm Result To Signal Proposal Design
+# G111 Algorithm Result To Signal Proposal Ledger
 
-Status: proposed design
-Timestamp: 2026-07-15T20:54:51Z
+Status: implemented
+Timestamp: 2026-07-16T00:00:00Z
 
 ## Purpose
 
-G111 defines how persisted `algorithm_results` should later become candidate signal/artifact proposals without mutating production signal, alert, insight, or graph state prematurely.
+G111 implements the first reviewed boundary between persisted `algorithm_results` and future production signals. Algorithm outputs can now become durable signal proposals, but they do not write `signal.v1` rows, alerts, insights, graph proposals, or runtime policy changes.
 
-This is a design gate only. It must be reviewed before implementation.
+## Implemented Substrate
 
-## Design Principles
-
-- Algorithm results are evidence, not production signals by default.
-- Conversion must be explicit, auditable, and reversible.
-- Conversion must preserve the original `algorithm_result_id`, execution request id, normalized event lineage, feature refs, result payload, score, confidence, and severity.
-- Conversion must avoid duplicating existing deterministic DSM signals unless the algorithm result adds distinct evidence.
-- Conversion must not create Alerts and Insights with identical semantics. Alerts should represent individual qualifying events; Insights should aggregate repeated or multi-event patterns.
-
-## Proposed Substrate
-
-Add a proposal ledger, not direct signal writes:
-
-`algorithm_signal_proposals`
-
-Suggested fields:
+Added `algorithm_signal_proposals` as an idempotent proposal ledger. Each row preserves:
 
 - `proposal_id`
 - `tenant_id`
 - `algorithm_result_id`
 - `execution_request_id`
-- `algorithm_id`
-- `algorithm_version`
-- `candidate_signal_type`
-- `candidate_severity`
-- `candidate_confidence`
-- `source_event_ids`
-- `feature_value_ids`
-- `evidence_refs`
-- `proposal_payload`
-- `decision_status`: `proposed`, `accepted`, `rejected`, `superseded`, `restored`
-- `decision_by`
-- `decision_note`
-- `created_at`
-- `updated_at`
+- `algorithm_id` and `algorithm_version`
+- `proposed_signal_type`
+- `status` (`proposed`, `reviewed`, `rejected`, `superseded`)
+- score, confidence, and severity
+- proposal payload and rationale JSON
+- source event ids and evidence refs
+- correlation id and creator metadata
+
+The table has a unique guard on `(tenant_id, algorithm_result_id, proposed_signal_type)` so reruns do not duplicate unchanged evidence.
+
+## Generator
+
+Added `signalops-algorithm-proposal-generator` as a bounded CLI process. It reads existing `algorithm_results`, applies filters, maps supported result types to candidate signal types, and inserts proposal rows idempotently.
+
+Supported filters:
+
+- tenant id
+- algorithm id
+- execution request id
+- algorithm result id
+- result type
+- severity
+- correlation id
+- minimum confidence
+- limit
 
 ## Candidate Signal Mapping
 
-Initial mappings should be conservative:
+Initial mappings are deliberately conservative:
 
-- `z_score`, `online_anomaly_score`, and `isolation_score` can propose `signalops.algorithm.anomaly_candidate`.
-- `change_point_score` can propose `signalops.algorithm.change_point_candidate`.
-- `forecast_residual` can propose `signalops.algorithm.forecast_deviation_candidate`.
-- `classifier_label` can propose `signalops.algorithm.classification_candidate` only when the label is not `baseline`.
+- `z_score`, `anomaly_score`, `online_anomaly_score`, and `isolation_score` propose `signalops.algorithm.anomaly_candidate`.
+- `change_point_score` proposes `signalops.algorithm.change_point_candidate`.
+- `forecast_residual` proposes `signalops.algorithm.forecast_deviation_candidate`.
+- `classifier_label` proposes `signalops.algorithm.classification_candidate`.
 
-These signal types should remain distinct from MarketOps DSM taxonomy signals until a reviewed mapping proves semantic equivalence.
+These remain generic SignalOps algorithm proposal types. They are not automatically treated as MarketOps DSM taxonomy signals.
 
-## Proposal Rules
+## Read APIs
 
-A result may become a proposal only when all are true:
+Added read-only APIs:
 
-- result severity is `medium`, `high`, or `critical`;
-- result confidence is greater than or equal to the configured proposal threshold;
-- source event lineage is present;
-- result payload is valid JSON;
-- a matching proposal does not already exist for the same `algorithm_result_id` and candidate signal type.
+- `GET /v1/algorithms/signal-proposals?tenant_id={tenant_id}&algorithm_id={algorithm_id}&execution_request_id={execution_request_id}&algorithm_result_id={algorithm_result_id}&status={status}&severity={severity}&correlation_id={correlation_id}&limit=50`
+- `GET /v1/algorithms/signal-proposals/{proposal_id}?tenant_id={tenant_id}`
 
-## Operator Review
-
-Operators should be able to:
-
-- accept a proposal for later signal materialization;
-- reject it as noise;
-- supersede it with a better proposal;
-- restore a previously rejected/superseded proposal.
-
-Review decisions should train calibration and threshold decisions later, but should not immediately mutate detector policies.
-
-## Alert And Insight Boundary
-
-If proposals are later materialized:
-
-- Alert creation should happen only for accepted/materialized candidate signals with event-level semantics.
-- Insight generation should require grouped evidence across multiple events, symbols, windows, or repeated algorithm outputs.
-- A single algorithm result should not generate both an alert and an insight with the same explanation.
-
-## Explainability Requirements
-
-Every materialized candidate must expose:
-
-- source algorithm id/version;
-- execution request id;
-- result payload;
-- score/confidence/severity;
-- source event ids;
-- feature refs;
-- evidence refs;
-- conversion policy version;
-- operator decision, if any.
+No create/update API was added for operators in this gate. Proposal generation is owned by the bounded CLI path.
 
 ## Explicitly Out Of Scope
 
-- Implementing the proposal table/API.
 - Writing production `signal.v1` rows.
 - Creating alerts or insights.
 - Graph proposals.
+- Proposal accept/reject/supersede workflow.
 - Frontend implementation.
 - Automatic policy deployment.
 
-## Recommended Next Implementation Gate
+## Validation
 
-G112 should implement the proposal ledger and read-only APIs only. Signal materialization should wait until operators can inspect proposal quality over broader historical windows.
+- Focused Go tests for proposal generation, stable IDs, idempotent reruns, confidence filtering, unsupported result skipping, and read API filter/get behavior.
+- Full Docker build path ran `go test ./...` successfully.
+- JSON schema validation passed.
+- Local migration `000024_algorithm_signal_proposals` was applied.
+- Live generator smoke inserted one proposal from `algexec-g110-ruptures-aapl-openclose`; the idempotency rerun inserted none.
+- Authenticated read API smoke returned the persisted proposal through the rebuilt local gateway.
+
+## Next Gate
+
+G112 should add operator review lifecycle around `algorithm_signal_proposals` or read-only frontend visibility. Production signal materialization should wait until proposal quality can be inspected and reviewed.

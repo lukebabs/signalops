@@ -68,6 +68,15 @@ func (f *fakeAlgorithmRepository) GetAlgorithmResult(_ context.Context, tenantID
 	}
 	return storage.AlgorithmResultRecord{}, storage.ErrNotFound
 }
+func (f *fakeAlgorithmRepository) InsertAlgorithmSignalProposal(context.Context, storage.AlgorithmSignalProposalRecord) (bool, error) {
+	return false, nil
+}
+func (f *fakeAlgorithmRepository) ListAlgorithmSignalProposals(context.Context, storage.AlgorithmSignalProposalFilter) ([]storage.AlgorithmSignalProposalRecord, error) {
+	return nil, nil
+}
+func (f *fakeAlgorithmRepository) GetAlgorithmSignalProposal(context.Context, string, string) (storage.AlgorithmSignalProposalRecord, error) {
+	return storage.AlgorithmSignalProposalRecord{}, storage.ErrNotFound
+}
 func (f *fakeAlgorithmRepository) ListMarketOpsBacktestNormalizedEvents(_ context.Context, filter storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error) {
 	f.lastEventFilter = filter
 	start := filter.Offset

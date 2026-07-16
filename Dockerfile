@@ -16,6 +16,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-pers
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-runner ./cmd/algorithm-runner
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-proposal-generator ./cmd/algorithm-proposal-generator
 
 FROM python:3.12-slim AS gateway
 
@@ -79,3 +80,9 @@ FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-runner
 COPY --from=build /out/signalops-algorithm-runner /signalops-algorithm-runner
 
 ENTRYPOINT ["/signalops-algorithm-runner"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-proposal-generator
+
+COPY --from=build /out/signalops-algorithm-proposal-generator /signalops-algorithm-proposal-generator
+
+ENTRYPOINT ["/signalops-algorithm-proposal-generator"]

@@ -1735,6 +1735,42 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"algorithm_result": algorithmResultResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/algorithms/signal-proposals", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		records, err := repo.ListAlgorithmSignalProposals(r.Context(), storage.AlgorithmSignalProposalFilter{TenantID: tenantID, AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), AlgorithmResultID: strings.TrimSpace(r.URL.Query().Get("algorithm_result_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list algorithm signal proposals")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_proposals": algorithmSignalProposalResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/algorithms/signal-proposals/{proposal_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
+			return
+		}
+		record, err := repo.GetAlgorithmSignalProposal(r.Context(), tenantID, r.PathValue("proposal_id"))
+		if err != nil {
+			writeQueryError(w, err, "algorithm_signal_proposal_not_found", "Algorithm signal proposal not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"algorithm_signal_proposal": algorithmSignalProposalResponse(record)})
+	})
+
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/catalog/sources", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
