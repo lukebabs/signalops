@@ -8372,3 +8372,25 @@ Scope:
 Result:
 
 - Specification saved at `docs/frontend/marketops_options_quality_visibility_ui_spec.md` and indexed from MarketOps frontend and gates notes.
+
+## Gate G132: Zero Open-Interest UI Clarification
+
+Timestamp: `2026-07-17T00:00:00Z`
+
+Status: `implemented - frontend clarification`
+
+Scope:
+
+- Clarify the `/marketops/assets` options chain table for provider-returned zero open-interest values.
+- Preserve missing-value rendering as `—`.
+- Avoid backend/API changes, ingestion controls, and algorithm workflow changes.
+
+Validation performed:
+
+- Confirmed sample NVDA contracts `O:NVDA260717P00002500` and `O:NVDA260717P00005000` have `open_interest=0` in normalized storage and raw provider payloads.
+- `npm test -- --run` passed: 24 files, 340 tests.
+- `npm run build` passed.
+
+Result:
+
+- G132 quality visibility now makes zero OI legible as provider-returned data rather than visually collapsing into a missing-data concern.

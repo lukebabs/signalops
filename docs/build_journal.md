@@ -7030,3 +7030,20 @@ Summary:
 Result:
 
 - Frontend-agent handoff is saved at `docs/frontend/marketops_options_quality_visibility_ui_spec.md`.
+
+## 2026-07-17T00:00:00Z
+
+Summary:
+
+- Clarified the G132 asset options chain table so provider-returned `open_interest=0` renders distinctly from missing open-interest values.
+- Zero OI rows now display a compact `zero OI` marker; missing values continue to render as `—`.
+- Verified the NVDA sample rows have `open_interest=0` in both normalized storage and raw provider payloads, while `volume` is absent for those specific contracts.
+
+Validation performed:
+
+- `npm test -- --run` passed: 24 files, 340 tests.
+- `npm run build` passed.
+
+Result:
+
+- Analysts can distinguish provider-returned zero open interest from missing open-interest data in the NVDA options chain table.

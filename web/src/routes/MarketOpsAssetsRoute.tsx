@@ -384,7 +384,7 @@ function AssetOptionsPanel({
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">{r.expirationDate ? formatUtc(r.expirationDate) : '—'}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-800">{r.strikePrice.toFixed(2)}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-700"><NullNum value={r.moneyness} digits={4} /></td>
-                    <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-800"><NullNum value={r.openInterest} /></td>
+                    <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-800"><OpenInterestCell value={r.openInterest} /></td>
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-800"><NullNum value={r.volume} /></td>
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-700"><NullNum value={r.impliedVolatility} digits={2} /></td>
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-700"><NullNum value={r.delta} digits={2} /></td>
@@ -419,6 +419,19 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 function NullNum({ value, digits = 0 }: { value: number | null; digits?: number }) {
   if (value === null) return <span className="text-gray-400">—</span>;
   return <>{digits > 0 ? value.toFixed(digits) : String(value)}</>;
+}
+
+function OpenInterestCell({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-gray-400">—</span>;
+  if (value === 0) {
+    return (
+      <span className="inline-flex items-center gap-1" title="Provider returned open_interest=0 for this contract">
+        <span>0</span>
+        <span className="rounded bg-amber-50 px-1 text-[10px] font-medium uppercase text-amber-700">zero OI</span>
+      </span>
+    );
+  }
+  return <>{String(value)}</>;
 }
 
 function ContractTypeBadge({ type }: { type: string }) {
