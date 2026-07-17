@@ -8267,3 +8267,19 @@ Validation performed:
 Result:
 
 - G127 closes the first real data-population path for the options distribution substrate without adding Top 50 batch ingestion, automatic algorithm execution, or frontend scope.
+
+## Gate G128: Asset Options Distribution UI Spec
+
+Timestamp: `2026-07-17T00:00:00Z`
+
+Status: `specified - frontend-agent handoff`
+
+Scope:
+
+- Define the frontend implementation contract for persisted asset-level options coverage, distribution snapshots, and chain-row inspection.
+- Preserve backend boundaries from G125-G127.
+- Avoid ingestion, live-preview, Top 50 batch, algorithm execution, and materialization controls.
+
+Result:
+
+- Specification saved at `docs/frontend/marketops_asset_options_distribution_ui_spec.md`.

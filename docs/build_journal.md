@@ -6942,3 +6942,15 @@ Validation performed:
 Result:
 
 - MarketOps can now populate the options chain/distribution tables from an explicit provider-backed snapshot run and expose the resulting feature event to the algorithm runner.
+
+## 2026-07-17T00:00:00Z
+
+Summary:
+
+- Wrote G128 frontend-agent specification for MarketOps asset options distribution UI.
+- Scoped the UI to persisted coverage, distribution snapshots, and chain rows.
+- Explicitly excluded ingestion triggers, Massive live preview, Top 50 batch controls, algorithm execution controls, and signal materialization controls.
+
+Result:
+
+- Frontend-agent handoff is saved at `docs/frontend/marketops_asset_options_distribution_ui_spec.md`.

@@ -251,3 +251,8 @@ Recommended next gate:
 
 - G127: adds a bounded Massive option-chain snapshot ingestor that persists current chain rows and derives the rolling MarketOps options distribution snapshot for one symbol at a time.
 - Specification: `G127_options_chain_snapshot_ingestion.md`.
+
+## G128 Proposed
+
+- G128: frontend-agent specification for persisted asset-level options coverage, call/put distribution, and chain-row inspection on `/marketops/assets`.
+- Specification: `../../../../frontend/marketops_asset_options_distribution_ui_spec.md`.
