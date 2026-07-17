@@ -85,6 +85,29 @@ describe('summarizeAlgorithmResult (G109)', () => {
     expect(s.severity).toBe('high');
     expect(s.sourceEventIds).toHaveLength(2);
   });
+
+  it('extracts options ratio quality from result_payload (G132)', () => {
+    const s = summarizeAlgorithmResult({
+      algorithm_result_id: 'algres_opt',
+      result_payload: {
+        dataset: 'options_distribution_daily',
+        feature: 'call_put_open_interest_ratio',
+        call_put_oi_ratio_quality: 'usable',
+        open_interest_quality: 'usable',
+      },
+    });
+    expect(s.isOptionsRatio).toBe(true);
+    expect(s.optionsRatioQuality).toBe('usable');
+  });
+
+  it('leaves options quality undefined for non-options results (G132)', () => {
+    const s = summarizeAlgorithmResult({
+      algorithm_result_id: 'algres_other',
+      result_payload: { dataset: 'other_dataset', feature: 'something_else' },
+    });
+    expect(s.isOptionsRatio).toBeUndefined();
+    expect(s.optionsRatioQuality).toBeUndefined();
+  });
 });
 
 describe('algorithmSeverityCountEntries (G109)', () => {

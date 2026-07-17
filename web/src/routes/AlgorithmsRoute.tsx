@@ -17,6 +17,7 @@ import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
 import { CopyButton } from '../components/CopyButton';
+import { OptionsQualityBadge } from '../components/OptionsQualityBadge';
 import { formatUtc, formatPercent } from '../lib/format';
 import {
   summarizeAlgorithmDefinition,
@@ -42,6 +43,12 @@ import {
   type AlgorithmSignalMaterializationView,
   type AlgorithmCountEntry,
 } from '../lib/algorithms';
+import {
+  summarizeAlgorithmResultQuality,
+  summarizeProposalQualityGate,
+  formatZeroRate,
+  isOptionsRatioQualityUsable,
+} from '../lib/optionsQuality';
 import { useTenant, useCanMutateLifecycle } from '../auth/session';
 import type {
   AlgorithmDefinition,
@@ -519,6 +526,7 @@ export function AlgorithmsRoute() {
                         <th className="whitespace-nowrap px-3 py-2">Created</th>
                         <th className="whitespace-nowrap px-3 py-2">Source events</th>
                         <th className="whitespace-nowrap px-3 py-2">Feature values</th>
+                        <th className="whitespace-nowrap px-3 py-2">Quality</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -536,6 +544,13 @@ export function AlgorithmsRoute() {
                           <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-600">{formatUtc(r.createdAt)}</td>
                           <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-700">{r.sourceEventIds.length}</td>
                           <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-700">{r.featureValueIds.length}</td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {r.isOptionsRatio && r.optionsRatioQuality ? (
+                              <OptionsQualityBadge quality={r.optionsRatioQuality} />
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -556,6 +571,26 @@ export function AlgorithmsRoute() {
             <div className="text-xs font-semibold text-gray-700">Result Detail</div>
             <CopyButton value={selectedResult.algorithm_result_id} />
           </div>
+          {(() => {
+            const q = summarizeAlgorithmResultQuality(selectedResult.result_payload);
+            if (!q.isOptionsRatio) return null;
+            const usable = isOptionsRatioQualityUsable(q.ratioQuality);
+            return (
+              <div className={`mb-2 rounded border p-2 text-xs ${usable ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <OptionsQualityBadge quality={q.ratioQuality} label={`Ratio ${q.ratioQuality}`} />
+                  <span>OI quality <strong>{q.quality.openInterestQuality || '—'}</strong></span>
+                  <span>Zero rate <strong>{formatZeroRate(q.quality.openInterestZeroRate)}</strong></span>
+                  <span>Zero/positive <strong>{q.quality.openInterestZeroCount ?? 0}/{q.quality.openInterestPositiveCount ?? 0}</strong></span>
+                </div>
+                <p className="mt-1 text-[11px]">
+                  {usable
+                    ? 'Usable evidence — eligible for the G131 proposal gate.'
+                    : 'Not eligible for the G131 proposal gate — skipped from the proposal queue on quality grounds (still an algorithm result, not a vanished row).'}
+                </p>
+              </div>
+            );
+          })()}
           {(() => {
             const r = summarizeAlgorithmResult(selectedResult);
             return (
@@ -810,6 +845,39 @@ function ProposalDetail({
           <IdRefList label="Source event ids" ids={p.sourceEventIds} />
           <IdRefList label="Evidence refs" ids={p.evidenceRefs} />
         </div>
+
+        {(() => {
+          // G131 evidence-quality gate + nested options ratio quality.
+          const g = summarizeProposalQualityGate(p.proposalPayload);
+          if (!g.present && !g.isOptionsRatio) return null;
+          return (
+            <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs">
+              <div className="mb-1 font-medium text-gray-600">Evidence quality</div>
+              <div className="flex flex-wrap items-center gap-2">
+                {g.present ? (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium ${g.passed ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}
+                  >
+                    Gate {g.passed === null ? '—' : g.passed ? 'passed' : 'not passed'}
+                  </span>
+                ) : null}
+                {g.policy ? (
+                  <span className="text-gray-600">policy <code>{g.policy}</code></span>
+                ) : null}
+                {g.isOptionsRatio ? <OptionsQualityBadge quality={g.ratioQuality} label={`Ratio ${g.ratioQuality}`} /> : null}
+                {g.openInterestQuality ? (
+                  <span className="text-gray-600">OI <strong>{g.openInterestQuality}</strong></span>
+                ) : null}
+                {g.isOptionsRatio ? (
+                  <span className="text-gray-600">Zero rate <strong>{formatZeroRate(g.quality.openInterestZeroRate)}</strong></span>
+                ) : null}
+              </div>
+              {!g.present ? (
+                <p className="mt-1 text-[11px] text-gray-400">No G131 quality gate recorded for this proposal.</p>
+              ) : null}
+            </div>
+          );
+        })()}
 
         <JsonViewer label="Proposal payload JSON" value={p.proposalPayload} />
         <JsonViewer label="Rationale JSON" value={p.rationale} />

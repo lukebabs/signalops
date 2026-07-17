@@ -103,6 +103,27 @@ describe('summarizeMarketOpsOptionsDistribution (G128)', () => {
     expect(v.expirationBuckets.map((e) => e.key)).toEqual(['8-30d']);
     expect(v.metrics).toEqual({ z: 1.5 });
     expect(v.sourceTradeDates).toHaveLength(2);
+    // No quality fields in metrics => unknown ratio quality, empty quality.
+    expect(v.ratioQuality).toBe('unknown');
+    expect(v.quality).toEqual({});
+  });
+
+  it('reads options ratio quality from the distribution metrics object (G132)', () => {
+    const v = summarizeMarketOpsOptionsDistribution({
+      trade_date: '2026-07-17T00:00:00Z',
+      metrics: {
+        open_interest_quality: 'partial_zero',
+        open_interest_zero_count: 21,
+        open_interest_positive_count: 12,
+        open_interest_zero_rate: 0.636364,
+        call_put_oi_denominator_is_zero: false,
+        call_put_oi_ratio_quality: 'usable',
+      },
+    });
+    expect(v.ratioQuality).toBe('usable');
+    expect(v.quality.openInterestQuality).toBe('partial_zero');
+    expect(v.quality.openInterestZeroCount).toBe(21);
+    expect(v.quality.callPutOiDenominatorIsZero).toBe(false);
   });
 
   it('collapses non-object payloads to empty values', () => {

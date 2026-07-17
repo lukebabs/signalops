@@ -66,9 +66,15 @@ GET /v1/algorithms/signal-proposals/summary?tenant_id={tenant_id}&execution_requ
 
 ## Quality Fields
 
-Distribution snapshots may expose quality fields directly or under `metrics`, depending on the current DTO shape. The UI should read both locations defensively.
+Quality field locations are fixed per the current backend (G130/G131), not variable — read them from the location below for each surface:
 
-Preferred direct fields:
+- Distribution snapshot: the quality fields live **only inside the `metrics` JSON object** on the distribution DTO (there are no direct top-level quality fields). Read `metrics.open_interest_quality`, `metrics.open_interest_zero_count`, `metrics.open_interest_positive_count`, `metrics.open_interest_zero_rate`, `metrics.call_put_oi_denominator_is_zero`, `metrics.call_put_oi_ratio_quality`.
+- Algorithm result: the quality fields are **top-level keys of `result_payload`** (alongside `dataset`, `feature`, `value`, `symbol`).
+- Signal proposal: read `proposal_payload.quality_gate.{passed,policy}` and the nested `proposal_payload.algorithm_result.payload.{call_put_oi_ratio_quality,open_interest_quality,...}`.
+
+`metrics` / `result_payload` / `proposal_payload` arrive already parsed; do not `JSON.parse`.
+
+Distribution `metrics` example:
 
 ```json
 {
@@ -121,7 +127,9 @@ Known quality values:
 - `partial_zero`: some OI values are zero; ratio should be treated as degraded evidence and currently does not pass G131 proposal gating for call/put OI ratio results.
 - `all_zero`: all relevant OI values are zero; do not treat ratio as market signal evidence.
 - `denominator_zero`: put-side denominator is zero; call/put OI ratio is not interpretable.
-- Missing/unknown: show as `unknown`, not as usable.
+- `empty`: no contracts in the snapshot; treat as not usable (blocked tone).
+- `missing`: OI is missing for every contract; treat as not usable (blocked tone).
+- Any other / absent value: show as `unknown`, not as usable.
 
 ## UX Requirements
 

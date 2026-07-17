@@ -8,7 +8,9 @@ import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { StatusBadge } from '../components/StatusBadge';
 import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
+import { OptionsQualityBadge } from '../components/OptionsQualityBadge';
 import { formatUtc } from '../lib/format';
+import { formatZeroRate } from '../lib/optionsQuality';
 import {
   summarizeMarketOpsOptionsCoverage,
   summarizeMarketOpsOptionsDistribution,
@@ -238,6 +240,24 @@ function AssetOptionsPanel({
                 <Stat label="Missing OI" value={latest.missingOpenInterestCount} />
               )}
             </div>
+
+            {/* G132 quality summary: ratio quality, open-interest quality, zero rate/counts, denominator-zero. */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <OptionsQualityBadge quality={latest.ratioQuality} label={`Ratio ${latest.ratioQuality}`} />
+              {latest.quality.openInterestQuality ? (
+                <span className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-gray-600">
+                  OI <span className="font-medium">{latest.quality.openInterestQuality}</span>
+                </span>
+              ) : null}
+              <span className="text-gray-600">Zero rate <strong className="text-gray-800">{formatZeroRate(latest.quality.openInterestZeroRate)}</strong></span>
+              <span className="text-gray-600">Zero/positive <strong className="text-gray-800">{latest.quality.openInterestZeroCount ?? 0}/{latest.quality.openInterestPositiveCount ?? 0}</strong></span>
+              {latest.quality.callPutOiDenominatorIsZero ? (
+                <span className="inline-flex items-center rounded border border-red-300 bg-red-50 px-1.5 py-0.5 font-medium text-red-700">
+                  Denominator zero — ratio not interpretable
+                </span>
+              ) : null}
+            </div>
+
             {latest.provider || latest.sourceId ? (
               <div className="text-[11px] text-gray-500">
                 Provider <span className="text-gray-700">{latest.provider || '—'}</span>
@@ -246,6 +266,19 @@ function AssetOptionsPanel({
             ) : null}
 
             {chartRows.length > 1 ? <OptionsRatioChart rows={chartRows} /> : null}
+
+            {/* G132 quality trend across snapshots so analysts can see quality change over time. */}
+            {chartRows.length ? (
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="text-gray-500">Quality trend:</span>
+                {chartRows.map((r) => (
+                  <span key={r.tradeDate} className="inline-flex items-center gap-1">
+                    <span className="text-gray-500">{marketOpsOptionsDateOnly(r.tradeDate)}</span>
+                    <OptionsQualityBadge quality={r.ratioQuality} />
+                  </span>
+                ))}
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
@@ -257,6 +290,22 @@ function AssetOptionsPanel({
                 <BucketBars entries={latest.expirationBuckets} />
               </div>
             </div>
+
+            {/* G132 quality details disclosure. */}
+            <details className="rounded border border-gray-200 bg-white p-2 text-xs">
+              <summary className="cursor-pointer font-medium text-gray-600">Quality details</summary>
+              <div className="mt-1 grid grid-cols-2 gap-1 text-gray-700">
+                <div>Ratio quality: <strong>{latest.ratioQuality}</strong></div>
+                <div>Open-interest quality: <strong>{latest.quality.openInterestQuality || '—'}</strong></div>
+                <div>Zero count: <strong>{latest.quality.openInterestZeroCount ?? '—'}</strong></div>
+                <div>Positive count: <strong>{latest.quality.openInterestPositiveCount ?? '—'}</strong></div>
+                <div>Zero rate: <strong>{formatZeroRate(latest.quality.openInterestZeroRate)}</strong></div>
+                <div>Denominator zero: <strong>{latest.quality.callPutOiDenominatorIsZero ? 'yes' : 'no'}</strong></div>
+              </div>
+              <p className="mt-1 text-[11px] text-gray-400">
+                Quality is derived from persisted chain rows; non-usable ratios are skipped by the G131 proposal gate, not persisted as proposals.
+              </p>
+            </details>
           </div>
         ) : null}
       </div>

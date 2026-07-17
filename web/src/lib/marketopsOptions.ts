@@ -1,3 +1,5 @@
+import { getOptionsQualityFields, normalizeRatioQuality, type MarketOpsOptionsQualityFields, type MarketOpsOptionsRatioQuality } from './optionsQuality';
+
 // Pure display helpers for the G128 MarketOps asset options intelligence panel.
 // Coverage / distribution / chain JSON arrives already-parsed from the gateway
 // (typed `unknown` on flexible fields). Narrow with type guards only; never
@@ -141,6 +143,9 @@ export interface MarketOpsOptionsDistributionView {
   moneynessBuckets: MarketOpsOptionsBucketEntry[];
   expirationBuckets: MarketOpsOptionsBucketEntry[];
   metrics: unknown;
+  // G132 options quality, read from the distribution `metrics` object.
+  quality: MarketOpsOptionsQualityFields;
+  ratioQuality: MarketOpsOptionsRatioQuality;
   sourceTradeDates: string[];
   updatedAt: string;
 }
@@ -169,12 +174,15 @@ const EMPTY_DISTRIBUTION: MarketOpsOptionsDistributionView = {
   moneynessBuckets: [],
   expirationBuckets: [],
   metrics: {},
+  quality: {},
+  ratioQuality: 'unknown',
   sourceTradeDates: [],
   updatedAt: '',
 };
 
 export function summarizeMarketOpsOptionsDistribution(d: unknown): MarketOpsOptionsDistributionView {
   if (!isRecord(d)) return { ...EMPTY_DISTRIBUTION };
+  const quality = getOptionsQualityFields(d.metrics);
   return {
     tradeDate: asString(d.trade_date),
     windowName: asString(d.window_name),
@@ -199,6 +207,8 @@ export function summarizeMarketOpsOptionsDistribution(d: unknown): MarketOpsOpti
     moneynessBuckets: optionsBucketEntries(d.moneyness_distribution, MONEYNESS_BUCKET_ORDER),
     expirationBuckets: optionsBucketEntries(d.expiration_distribution, EXPIRATION_BUCKET_ORDER),
     metrics: d.metrics ?? {},
+    quality,
+    ratioQuality: normalizeRatioQuality(quality.callPutOiRatioQuality),
     sourceTradeDates: asStringArray(d.source_trade_dates),
     updatedAt: asString(d.updated_at),
   };

@@ -1,3 +1,5 @@
+import { summarizeAlgorithmResultQuality } from './optionsQuality';
+
 // Pure display helpers for the G109 algorithm execution visibility UI.
 // Algorithm definition / execution-request / result / summary JSON arrives
 // already-parsed from the gateway (typed `unknown` on flexible fields). Narrow
@@ -236,6 +238,11 @@ export interface AlgorithmResultSummary {
   evidenceRefs: string[];
   correlationId: string;
   createdAt: string;
+  // G132 options-ratio quality (only set for options_distribution_daily
+  // call_put_open_interest_ratio results). Undefined for other results so the UI
+  // shows no options-specific quality badge on unrelated results.
+  isOptionsRatio?: boolean;
+  optionsRatioQuality?: string;
 }
 
 const EMPTY_RESULT: AlgorithmResultSummary = {
@@ -256,6 +263,7 @@ const EMPTY_RESULT: AlgorithmResultSummary = {
 
 export function summarizeAlgorithmResult(r: unknown): AlgorithmResultSummary {
   if (!isRecord(r)) return { ...EMPTY_RESULT };
+  const quality = summarizeAlgorithmResultQuality(r.result_payload);
   return {
     algorithmResultId: asString(r.algorithm_result_id),
     algorithmId: asString(r.algorithm_id),
@@ -270,6 +278,8 @@ export function summarizeAlgorithmResult(r: unknown): AlgorithmResultSummary {
     evidenceRefs: asStringArray(r.evidence_refs),
     correlationId: asString(r.correlation_id),
     createdAt: asString(r.created_at),
+    isOptionsRatio: quality.isOptionsRatio ? true : undefined,
+    optionsRatioQuality: quality.isOptionsRatio ? quality.ratioQuality : undefined,
   };
 }
 
