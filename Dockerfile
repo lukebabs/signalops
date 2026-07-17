@@ -15,6 +15,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-normalizer 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-persister ./cmd/signal-persister
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-options-feature-materializer ./cmd/marketops-options-feature-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-runner ./cmd/algorithm-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-proposal-generator ./cmd/algorithm-proposal-generator
 
@@ -80,6 +81,12 @@ FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-runner
 COPY --from=build /out/signalops-algorithm-runner /signalops-algorithm-runner
 
 ENTRYPOINT ["/signalops-algorithm-runner"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-options-feature-materializer
+
+COPY --from=build /out/signalops-marketops-options-feature-materializer /signalops-marketops-options-feature-materializer
+
+ENTRYPOINT ["/signalops-marketops-options-feature-materializer"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-proposal-generator
 

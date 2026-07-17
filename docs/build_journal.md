@@ -6896,3 +6896,25 @@ Validation performed:
 Result:
 
 - MarketOps now has the backend substrate needed to inspect NVDA options chain evidence and feed later algorithms from derived call/put distribution features rather than raw option-contract rows.
+
+## 2026-07-17T00:00:00Z
+
+Summary:
+
+- Implemented G126 options distribution algorithm feature substrate.
+- Added conversion from persisted options distribution snapshots to canonical `options_distribution_daily` normalized feature events.
+- Added `signalops-marketops-options-feature-materializer` with write and dry-run modes.
+- Added a Docker build target for the materializer.
+- Deployed G125 locally before starting G126: migration `000027_marketops_options_chain` applied, gateway rebuilt/restarted, authenticated empty coverage returned `404`, and authenticated live preview returned the expected `501 live_preview_not_configured` boundary.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/marketops/options`, `./cmd/marketops-options-feature-materializer`, and `./internal/algorithms`.
+- Full Go suite passed with `go test ./... -count=1`.
+- JSON schema validation passed with `python3 scripts/validate_json_schemas.py`.
+- Docker target build passed for `marketops-options-feature-materializer`.
+- Local materializer dry-run against Compose storage returned `scanned=0`, `upserted=0`, `dry_run=true` because no G127 distribution rows exist yet.
+
+Result:
+
+- Existing algorithms can now consume options distribution features once G127 populates persisted distribution snapshots.

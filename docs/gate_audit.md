@@ -8214,3 +8214,28 @@ Validation performed:
 Result:
 
 - G125 establishes the options data representation and interaction substrate for NVDA-first validation without expanding into Top 50 batch ingestion, frontend work, or algorithm execution yet.
+
+## Gate G126: Options Distribution Algorithm Features
+
+Timestamp: `2026-07-17T00:00:00Z`
+
+Status: `implemented - backend/CLI substrate`
+
+Scope:
+
+- Convert persisted G125 options distribution snapshots into algorithm-ready normalized feature events.
+- Add a CLI materializer for `options_distribution_daily` rows.
+- Preserve the existing algorithm runner as the scoring path.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/marketops/options`, `./cmd/marketops-options-feature-materializer`, and `./internal/algorithms`.
+- Full Go suite passed with `go test ./... -count=1`.
+- JSON schema validation passed with `python3 scripts/validate_json_schemas.py`.
+- Docker target build passed for `marketops-options-feature-materializer`.
+- Local materializer dry-run against Compose storage returned `scanned=0`, `upserted=0`, `dry_run=true`; the empty result is expected until G127 populates options distribution rows.
+- G125 local deploy smoke passed before G126: migration applied, gateway rebuilt, authenticated coverage returned `404` with no data, live preview returned `501 live_preview_not_configured`.
+
+Result:
+
+- G126 closes the feature bridge from options distribution snapshots to the generic SignalOps algorithm substrate without provider ingestion, signal proposal generation, or frontend scope.

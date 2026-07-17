@@ -787,6 +787,8 @@ Records an operator review decision for an algorithm signal proposal. Body field
 
 `signalops-algorithm-runner` executes the seeded algorithm ids from the command line, including z-score, online anomaly, change-point, forecast residual, threshold classifier, and isolation-style scoring adapters. It requires `SIGNALOPS_DATABASE_URL` and `SIGNALOPS_TEMPORAL_DATABASE_URL`, reads bounded normalized events, updates `algorithm_execution_requests`, and writes immutable `algorithm_results`. G107-G110 do not add an API trigger endpoint for execution.
 
+`signalops-marketops-options-feature-materializer` reads persisted `marketops_options_distribution_daily` snapshots and upserts canonical `options_distribution_daily` rows into `normalized_event_ledger`. Those rows expose call/put open-interest and divergence features to the existing algorithm runner.
+
 `signalops-algorithm-proposal-generator` reads bounded `algorithm_results` and writes idempotent `algorithm_signal_proposals` review candidates. It requires `SIGNALOPS_DATABASE_URL`. G111 does not materialize proposals into production signals.
 
 ### Query Errors

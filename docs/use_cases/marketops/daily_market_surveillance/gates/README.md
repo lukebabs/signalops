@@ -241,3 +241,8 @@ Recommended next gate:
 
 - G125: MarketOps options-chain substrate with persisted full-chain rows, 10-trade-day distribution snapshots, asset-scoped read APIs, and a reserved non-persisting live-preview endpoint.
 - Specification: `G125_marketops_options_chain_substrate.md`.
+
+## G126 Implemented
+
+- G126: converts persisted options distribution snapshots into canonical `options_distribution_daily` normalized feature events and adds a CLI materializer so existing algorithms can score call/put divergence features.
+- Specification: `G126_options_distribution_algorithm_features.md`.
