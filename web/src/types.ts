@@ -591,6 +591,123 @@ export interface MarketOpsAssetFilter {
   limit?: number;
 }
 
+// G128 MarketOps asset options intelligence (read-only). Served by
+// GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/{coverage|
+// distribution|chain}. Persisted options-chain coverage, derived call/put
+// distribution snapshots, and chain rows. contract_type/window are permissive
+// (| string) so unknown tokens render neutrally. Chain numeric columns are
+// server-nullable (omitempty pointers) — typed optional and rendered as absent.
+// moneyness_distribution / expiration_distribution / metrics / raw_payload
+// arrive already parsed (typed unknown / Record); never JSON.parse them.
+export type MarketOpsOptionContractType = 'call' | 'put' | string;
+export type MarketOpsOptionsWindowName = '10_trade_days' | string;
+
+export interface MarketOpsOptionsBucketTotals {
+  call_open_interest?: number;
+  put_open_interest?: number;
+  call_volume?: number;
+  put_volume?: number;
+  contract_count?: number;
+}
+
+export interface MarketOpsOptionsCoverage {
+  tenant_id: string;
+  symbol: string;
+  trade_day_count: number;
+  contract_count: number;
+  first_trade_date: string;
+  last_trade_date: string;
+  last_updated_at: string;
+}
+
+export interface MarketOpsOptionsCoverageResponse {
+  options_coverage: MarketOpsOptionsCoverage;
+}
+
+export interface MarketOpsOptionsDistribution {
+  tenant_id: string;
+  symbol: string;
+  trade_date: string;
+  window_name: string;
+  source_id: string;
+  provider: string;
+  trade_days: number;
+  contract_count: number;
+  call_contract_count: number;
+  put_contract_count: number;
+  total_call_open_interest: number;
+  total_put_open_interest: number;
+  total_call_volume: number;
+  total_put_volume: number;
+  missing_open_interest_count: number;
+  call_put_open_interest_ratio: number;
+  call_put_volume_ratio: number;
+  ratio_delta: number;
+  ratio_change_pct: number;
+  ratio_zscore: number;
+  change_point_score: number;
+  confidence: number;
+  moneyness_distribution: Record<string, MarketOpsOptionsBucketTotals>;
+  expiration_distribution: Record<string, MarketOpsOptionsBucketTotals>;
+  metrics: unknown;
+  source_trade_dates: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsOptionsDistributionsResponse {
+  options_distributions: MarketOpsOptionsDistribution[];
+}
+
+export interface MarketOpsOptionsChainRow {
+  tenant_id: string;
+  symbol: string;
+  trade_date: string;
+  option_ticker: string;
+  provider: string;
+  source_id: string;
+  ingestion_run_id: string;
+  contract_type: string;
+  expiration_date: string;
+  strike_price: number;
+  underlying_close?: number;
+  moneyness?: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  vwap?: number;
+  volume?: number;
+  open_interest?: number;
+  implied_volatility?: number;
+  delta?: number;
+  gamma?: number;
+  theta?: number;
+  vega?: number;
+  provider_request_id: string;
+  payload_hash: string;
+  raw_payload: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsOptionsChainResponse {
+  options_chain: MarketOpsOptionsChainRow[];
+}
+
+// Chain list filter. trade_date is YYYY-MM-DD (date-only). The gateway clamps
+// limit to a 200 maximum even though the spec default is 500.
+export interface MarketOpsOptionsChainFilter {
+  trade_date?: string;
+  contract_type?: MarketOpsOptionContractType | '';
+  limit?: number;
+}
+
+export interface MarketOpsOptionsDistributionFilter {
+  window?: string;
+  limit?: number;
+}
+
 
 // G078 MarketOps DSM artifacts. Served by
 // GET /v1/marketops/dsm/artifacts and /v1/marketops/dsm/artifacts/{artifact_id}.

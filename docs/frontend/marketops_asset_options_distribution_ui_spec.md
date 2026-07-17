@@ -149,6 +149,14 @@ Chain response:
 
 Use type guards over `unknown`. JSON object fields such as `moneyness_distribution`, `expiration_distribution`, `metrics`, and `raw_payload` are already parsed by the gateway; do not call `JSON.parse` on them.
 
+Nullable and extra fields (authoritative vs the abbreviated examples above):
+
+- Chain numeric columns are server-nullable (`*float64` / `*int64`, omitempty): `underlying_close`, `moneyness`, `open`, `high`, `low`, `close`, `vwap`, `volume`, `open_interest`, `implied_volatility`, `delta`, `gamma`, `theta`, `vega`. The UI must render missing values as `—` (not `0`) — this especially affects `open_interest` / `volume`, which directly weakens call/put ratio interpretation.
+- The chain row also carries `provider`, `source_id`, `ingestion_run_id`, `provider_request_id`, `raw_payload`, and `created_at`; the distribution snapshot also carries `source_id`, `provider`, `metrics`, and `created_at`. Render the trust-relevant ones (provider, source id, ingestion run id) and keep `raw_payload` / `metrics` behind a disclosure.
+- `trade_date` / `expiration_date` / `source_trade_dates` arrive as RFC3339 timestamps; the chain `trade_date` query param must be `YYYY-MM-DD` (pass the date-only portion).
+- `limit` defaults to 500 on chain but the gateway clamps to a 200 maximum.
+- Known bucket keys (render in this order, unknown future keys appended after): moneyness `<90%`, `90-95%`, `95-100%`, `100-105%`, `105-110%`, `>110%`, `unknown`; expiration `0-7d`, `8-30d`, `31-60d`, `61d+`.
+
 ## Required Implementation
 
 ### 1. Types

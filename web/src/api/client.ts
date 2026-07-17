@@ -33,6 +33,11 @@ import type {
   AppProfilesResponse,
   MarketOpsAssetsResponse,
   MarketOpsAssetFilter,
+  MarketOpsOptionsCoverageResponse,
+  MarketOpsOptionsDistributionsResponse,
+  MarketOpsOptionsChainResponse,
+  MarketOpsOptionsChainFilter,
+  MarketOpsOptionsDistributionFilter,
   MarketOpsDSMArtifactsResponse,
   MarketOpsDSMArtifactResponse,
   MarketOpsDSMArtifactFilter,
@@ -332,6 +337,33 @@ export const api = {
         universe_group: filter.universe_group || 'top50_megacap',
         active_only: filter.active_only === false ? 'false' : 'true',
         limit: filter.limit ?? 50,
+      },
+    ),
+  // G128 MarketOps asset options intelligence (read-only). Persisted coverage,
+  // derived distribution snapshots, and chain rows for one asset. tenant_id and
+  // symbol are path segments (the gateway upper-cases symbol). window defaults to
+  // 10_trade_days and distribution limit to 10; chain limit defaults to 500
+  // (gateway clamps to 200). trade_date is date-only (YYYY-MM-DD). This surface
+  // performs no ingestion and never calls live-preview (which stays 501).
+  getMarketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
+    get<MarketOpsOptionsCoverageResponse>(
+      `/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/options/coverage`,
+    ),
+  listMarketOpsOptionsDistributions: (tenantId: string, symbol: string, filter: MarketOpsOptionsDistributionFilter = {}) =>
+    get<MarketOpsOptionsDistributionsResponse>(
+      `/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/options/distribution`,
+      {
+        window: filter.window || '10_trade_days',
+        limit: filter.limit ?? 10,
+      },
+    ),
+  listMarketOpsOptionsChain: (tenantId: string, symbol: string, filter: MarketOpsOptionsChainFilter = {}) =>
+    get<MarketOpsOptionsChainResponse>(
+      `/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/options/chain`,
+      {
+        trade_date: filter.trade_date || undefined,
+        contract_type: filter.contract_type || undefined,
+        limit: filter.limit ?? 500,
       },
     ),
   listMarketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter = {}) =>

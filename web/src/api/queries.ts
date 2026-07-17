@@ -12,6 +12,8 @@ import type {
   ReplayJobCreateRequest,
   ReplayJob,
   MarketOpsAssetFilter,
+  MarketOpsOptionsChainFilter,
+  MarketOpsOptionsDistributionFilter,
   MarketOpsDSMArtifactFilter,
   MarketOpsDSMGraphProposalFilter,
   MarketOpsDSMGraphProposalDecisionOptions,
@@ -81,6 +83,12 @@ export const queryKeys = {
   replayStatus: (tenantId: string, limit?: number) => ['replay-status', tenantId, limit] as const,
   appProfiles: ['app-profiles'] as const,
   marketOpsAssets: (filter: MarketOpsAssetFilter) => ['marketops-assets', filter] as const,
+  marketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
+    ['marketops-options-coverage', tenantId, symbol] as const,
+  marketOpsOptionsDistributions: (tenantId: string, symbol: string, filter: MarketOpsOptionsDistributionFilter) =>
+    ['marketops-options-distributions', tenantId, symbol, filter] as const,
+  marketOpsOptionsChain: (tenantId: string, symbol: string, filter: MarketOpsOptionsChainFilter) =>
+    ['marketops-options-chain', tenantId, symbol, filter] as const,
   marketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter) => ['marketops-dsm-artifacts', filter] as const,
   marketOpsDSMArtifact: (artifactId: string) => ['marketops-dsm-artifact', artifactId] as const,
   marketOpsDSMGraphProposals: (filter: MarketOpsDSMGraphProposalFilter) =>
@@ -358,6 +366,45 @@ export function useMarketOpsAssets(
   return useQuery({
     queryKey: queryKeys.marketOpsAssets(filter),
     queryFn: () => api.listMarketOpsAssets(filter),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// G128 MarketOps asset options intelligence (read-only). Coverage + distribution
+// run only while an asset is selected (tenant + symbol). The chain query also
+// waits for a selected trade date. Not polled; short stale time mirrors the
+// other MarketOps reads. Performs no ingestion and never calls live-preview.
+export function useMarketOpsOptionsCoverage(tenantId: string, symbol: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsOptionsCoverage(tenantId, symbol ?? ''),
+    queryFn: () => api.getMarketOpsOptionsCoverage(tenantId, symbol!),
+    enabled: !!tenantId && !!symbol,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useMarketOpsOptionsDistributions(
+  tenantId: string,
+  symbol: string | null,
+  filter: MarketOpsOptionsDistributionFilter = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsOptionsDistributions(tenantId, symbol ?? '', filter),
+    queryFn: () => api.listMarketOpsOptionsDistributions(tenantId, symbol!, filter),
+    enabled: !!tenantId && !!symbol,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useMarketOpsOptionsChain(
+  tenantId: string,
+  symbol: string | null,
+  filter: MarketOpsOptionsChainFilter = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsOptionsChain(tenantId, symbol ?? '', filter),
+    queryFn: () => api.listMarketOpsOptionsChain(tenantId, symbol!, filter),
+    enabled: !!tenantId && !!symbol && !!filter.trade_date,
     staleTime: 5 * 60 * 1000,
   });
 }
