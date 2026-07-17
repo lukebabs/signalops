@@ -6954,3 +6954,26 @@ Summary:
 Result:
 
 - Frontend-agent handoff is saved at `docs/frontend/marketops_asset_options_distribution_ui_spec.md`.
+
+## 2026-07-17T00:00:00Z
+
+Summary:
+
+- Implemented G129 options distribution backfill substrate.
+- Added `signalops-marketops-options-distribution-backfill` to derive per-trade-date distribution snapshots from already-persisted option-chain rows without making provider calls.
+- Added a Docker target for the backfill CLI.
+- Increased the options-chain read clamp locally for the options-chain query path so backfill and inspection can read more than 200 persisted rows.
+
+Validation performed:
+
+- Focused Go tests passed for `./cmd/marketops-options-distribution-backfill`, `./internal/storage/postgres`, `./internal/api`, and `./internal/marketops/options`.
+- Full Go suite passed with `go test ./... -count=1`.
+- JSON schema validation passed with `python3 scripts/validate_json_schemas.py`.
+- Docker target build passed for `marketops-options-distribution-backfill`.
+- Live NVDA backfill scanned 250 persisted chain rows, found 27 trade dates, and upserted 27 distribution snapshots.
+- G126 materialization wrote 27 normalized `options_distribution_daily` feature rows with the temporal DSN configured.
+- Algorithm runner z-score smoke scanned 27 usable NVDA `call_put_open_interest_ratio` samples and wrote 27 results.
+
+Result:
+
+- MarketOps can now create multiple distribution snapshots from existing NVDA option-chain rows and produce real algorithm scores over options-distribution features.

@@ -791,6 +791,8 @@ Records an operator review decision for an algorithm signal proposal. Body field
 
 `signalops-marketops-options-chain-ingestor` fetches bounded Massive option-chain snapshots for one symbol, upserts `marketops_options_chain_daily` rows, and writes a rolling `marketops_options_distribution_daily` snapshot. It requires `SIGNALOPS_DATABASE_URL` and Massive API credentials; `SIGNALOPS_TEMPORAL_DATABASE_URL` should also be provided in split-store deployments. G127 keeps provider calls explicit and does not add a scheduler or Top 50 batch job.
 
+`signalops-marketops-options-distribution-backfill` reads persisted options-chain rows for one symbol and upserts one `10_trade_days` distribution snapshot per available trade date. It requires `SIGNALOPS_DATABASE_URL` and makes no provider calls. Use it before the feature materializer when a single provider snapshot has produced multiple chain trade dates but only the latest distribution exists.
+
 `signalops-algorithm-proposal-generator` reads bounded `algorithm_results` and writes idempotent `algorithm_signal_proposals` review candidates. It requires `SIGNALOPS_DATABASE_URL`. G111 does not materialize proposals into production signals.
 
 ### Query Errors

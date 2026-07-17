@@ -8283,3 +8283,29 @@ Scope:
 Result:
 
 - Specification saved at `docs/frontend/marketops_asset_options_distribution_ui_spec.md`.
+
+## Gate G129: Options Distribution Backfill
+
+Timestamp: `2026-07-17T00:00:00Z`
+
+Status: `implemented - backend/CLI substrate`
+
+Scope:
+
+- Add a no-provider-call CLI to derive distribution snapshots from persisted options-chain rows.
+- Keep the path explicit and bounded to one tenant/symbol.
+- Avoid scheduler, Top 50 loop, algorithm automation, and frontend scope.
+
+Validation performed:
+
+- Focused Go tests passed for `./cmd/marketops-options-distribution-backfill`, `./internal/storage/postgres`, `./internal/api`, and `./internal/marketops/options`.
+- Full Go suite passed with `go test ./... -count=1`.
+- JSON schema validation passed with `python3 scripts/validate_json_schemas.py`.
+- Docker target build passed for `marketops-options-distribution-backfill`.
+- Live NVDA backfill scanned 250 persisted chain rows, found 27 trade dates, and upserted 27 distribution snapshots.
+- G126 materialization wrote 27 normalized `options_distribution_daily` feature rows with the temporal DSN configured.
+- Algorithm runner z-score smoke scanned 27 usable NVDA `call_put_open_interest_ratio` samples and wrote 27 results.
+
+Result:
+
+- G129 closes the immediate sample-volume gap exposed after G127 by creating multiple distribution snapshots from already-ingested chain data and proving algorithm scoring over those feature rows.

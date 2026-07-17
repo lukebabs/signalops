@@ -62,7 +62,7 @@ WHERE tenant_id=$1 AND upper(symbol)=upper($2)
  AND ($5::timestamptz IS NULL OR trade_date < $5::date)
  AND ($6='' OR contract_type=$6)
 ORDER BY trade_date DESC, expiration_date ASC, strike_price ASC, contract_type ASC
-LIMIT $7`, strings.TrimSpace(filter.TenantID), strings.ToUpper(strings.TrimSpace(filter.Symbol)), nullTime(filter.TradeDate), nullTime(filter.WindowStart), nullTime(filter.WindowEnd), strings.ToLower(strings.TrimSpace(filter.ContractType)), clampLimit(filter.Limit))
+LIMIT $7`, strings.TrimSpace(filter.TenantID), strings.ToUpper(strings.TrimSpace(filter.Symbol)), nullTime(filter.TradeDate), nullTime(filter.WindowStart), nullTime(filter.WindowEnd), strings.ToLower(strings.TrimSpace(filter.ContractType)), clampOptionsChainLimit(filter.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list marketops options chain: %w", err)
 	}
@@ -151,6 +151,16 @@ ORDER BY trade_date DESC LIMIT $4`, strings.TrimSpace(filter.TenantID), strings.
 		return nil, fmt.Errorf("list marketops options distributions rows: %w", err)
 	}
 	return records, nil
+}
+
+func clampOptionsChainLimit(limit int) int {
+	if limit <= 0 {
+		return 500
+	}
+	if limit > 5000 {
+		return 5000
+	}
+	return limit
 }
 
 func scanMarketOpsOptionsChain(scanner interface{ Scan(...any) error }) (storage.MarketOpsOptionsChainRecord, error) {

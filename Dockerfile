@@ -17,6 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-work
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-options-feature-materializer ./cmd/marketops-options-feature-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-options-chain-ingestor ./cmd/marketops-options-chain-ingestor
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-options-distribution-backfill ./cmd/marketops-options-distribution-backfill
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-runner ./cmd/algorithm-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-proposal-generator ./cmd/algorithm-proposal-generator
 
@@ -94,6 +95,12 @@ FROM gcr.io/distroless/static-debian12:nonroot AS marketops-options-chain-ingest
 COPY --from=build /out/signalops-marketops-options-chain-ingestor /signalops-marketops-options-chain-ingestor
 
 ENTRYPOINT ["/signalops-marketops-options-chain-ingestor"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-options-distribution-backfill
+
+COPY --from=build /out/signalops-marketops-options-distribution-backfill /signalops-marketops-options-distribution-backfill
+
+ENTRYPOINT ["/signalops-marketops-options-distribution-backfill"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-proposal-generator
 

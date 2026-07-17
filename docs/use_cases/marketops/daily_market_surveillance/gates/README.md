@@ -256,3 +256,8 @@ Recommended next gate:
 
 - G128: frontend-agent specification for persisted asset-level options coverage, call/put distribution, and chain-row inspection on `/marketops/assets`.
 - Specification: `../../../../frontend/marketops_asset_options_distribution_ui_spec.md`.
+
+## G129 Implemented
+
+- G129: adds a no-provider-call options distribution backfill CLI that derives one `10_trade_days` snapshot per persisted chain trade date.
+- Specification: `G129_options_distribution_backfill.md`.
