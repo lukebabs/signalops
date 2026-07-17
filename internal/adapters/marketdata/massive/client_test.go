@@ -82,6 +82,76 @@ func TestClientListOptionContracts(t *testing.T) {
 	}
 }
 
+func TestClientListOptionChainSnapshot(t *testing.T) {
+	calls := 0
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Path != "/v3/snapshot/options/NVDA" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		assertQuery(t, r.URL.Query(), "apiKey", "test-key")
+		if calls == 1 {
+			assertQuery(t, r.URL.Query(), "limit", "2")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if calls == 1 {
+			_, _ = w.Write([]byte(`{
+				"request_id":"req-1",
+				"next_url":"` + server.URL + `/v3/snapshot/options/NVDA?cursor=next",
+				"results":[{
+					"day":{"open":10.1,"high":11.2,"low":9.9,"close":10.8,"volume":123,"vwap":10.6,"last_updated":1783814400000000000},
+					"details":{"ticker":"O:NVDA260116C00100000","contract_type":"call","expiration_date":"2026-01-16","strike_price":100},
+					"greeks":{"delta":0.51,"gamma":0.02,"theta":-0.01,"vega":0.2},
+					"implied_volatility":0.45,
+					"open_interest":1543,
+					"underlying_asset":{"ticker":"NVDA","price":172.5}
+				}]
+			}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{
+			"request_id":"req-2",
+			"results":[{
+				"day":{"close":8.4,"volume":50,"last_updated":1783814400000000000},
+				"details":{"ticker":"O:NVDA260116P00100000","contract_type":"put","expiration_date":"2026-01-16","strike_price":"100"},
+				"open_interest":900,
+				"underlying_asset":{"ticker":"NVDA","price":172.5}
+			}]
+		}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(ClientConfig{BaseURL: server.URL, APIKey: "test-key", HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+	records, err := client.ListOptionChainSnapshot(context.Background(), "nvda", 2, 2)
+	if err != nil {
+		t.Fatalf("list option chain snapshot: %v", err)
+	}
+	if len(records) != 2 || calls != 2 {
+		t.Fatalf("records/calls = %d/%d", len(records), calls)
+	}
+	call := records[0]
+	if call.OptionTicker != "O:NVDA260116C00100000" || call.ContractType != "call" || call.StrikePrice != 100 {
+		t.Fatalf("call record = %+v", call)
+	}
+	if call.OpenInterest == nil || *call.OpenInterest != 1543 {
+		t.Fatalf("open interest = %v", call.OpenInterest)
+	}
+	if call.UnderlyingClose == nil || *call.UnderlyingClose != 172.5 {
+		t.Fatalf("underlying close = %v", call.UnderlyingClose)
+	}
+	if call.ImpliedVolatility == nil || *call.ImpliedVolatility != 0.45 || call.Delta == nil || *call.Delta != 0.51 {
+		t.Fatalf("iv/delta = %v/%v", call.ImpliedVolatility, call.Delta)
+	}
+	put := records[1]
+	if put.ContractType != "put" || put.StrikePrice != 100 || put.OpenInterest == nil || *put.OpenInterest != 900 {
+		t.Fatalf("put record = %+v", put)
+	}
+}
+
 func TestClientGetEquityDailyBar(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v2/aggs/ticker/QQQ/range/1/day/2026-07-06/2026-07-06" {

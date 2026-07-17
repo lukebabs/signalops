@@ -47,6 +47,12 @@ type OptionContractDailyRecord struct {
 	Volume             *int64
 	OpenInterest       *int64
 	VWAP               *float64
+	UnderlyingClose    *float64
+	ImpliedVolatility  *float64
+	Delta              *float64
+	Gamma              *float64
+	Theta              *float64
+	Vega               *float64
 	Raw                map[string]any
 }
 
@@ -113,6 +119,12 @@ func BuildOptionContractDailyEvent(cfg AdapterConfig, record OptionContractDaily
 	addOptionalInt(payload, "volume", record.Volume)
 	addOptionalInt(payload, "open_interest", record.OpenInterest)
 	addOptionalFloat(payload, "vwap", record.VWAP)
+	addOptionalFloat(payload, "underlying_close", record.UnderlyingClose)
+	addOptionalFloat(payload, "implied_volatility", record.ImpliedVolatility)
+	addOptionalFloat(payload, "delta", record.Delta)
+	addOptionalFloat(payload, "gamma", record.Gamma)
+	addOptionalFloat(payload, "theta", record.Theta)
+	addOptionalFloat(payload, "vega", record.Vega)
 	if record.Raw != nil {
 		payload["raw"] = record.Raw
 	}

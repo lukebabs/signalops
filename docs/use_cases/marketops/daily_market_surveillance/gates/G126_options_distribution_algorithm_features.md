@@ -32,6 +32,8 @@ Example dry run:
 signalops-marketops-options-feature-materializer   --tenant-id tenant-local   --symbol NVDA   --window 10_trade_days   --limit 10   --dry-run
 ```
 
+When a separate Timescale temporal store is enabled, pass `SIGNALOPS_TEMPORAL_DATABASE_URL` to the materializer. The algorithm runner reads normalized events through the temporal connection.
+
 After feature rows exist, existing algorithms can run over `options_distribution_daily`, for example:
 
 ```sh

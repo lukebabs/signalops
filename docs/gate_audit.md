@@ -8239,3 +8239,31 @@ Validation performed:
 Result:
 
 - G126 closes the feature bridge from options distribution snapshots to the generic SignalOps algorithm substrate without provider ingestion, signal proposal generation, or frontend scope.
+
+## Gate G127: Options Chain Snapshot Ingestion
+
+Timestamp: `2026-07-17T00:00:00Z`
+
+Status: `implemented - backend/CLI substrate`
+
+Scope:
+
+- Add bounded Massive option-chain snapshot fetch support.
+- Persist current snapshot rows into `marketops_options_chain_daily`.
+- Derive and upsert a rolling `marketops_options_distribution_daily` snapshot for one symbol.
+- Preserve provider budget controls through explicit CLI limits and no scheduler fanout.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/adapters/marketdata/massive`, `./internal/marketops/options`, `./cmd/marketops-options-chain-ingestor`, and `./cmd/marketops-options-feature-materializer`.
+- Full Go suite passed with `go test ./... -count=1`.
+- JSON schema validation passed with `python3 scripts/validate_json_schemas.py`.
+- Docker target build passed for `marketops-options-chain-ingestor`.
+- Authenticated Massive dry-run for NVDA fetched/converted 5 records with no writes.
+- Authenticated NVDA persist run upserted 250 chain rows and wrote one `10_trade_days` distribution snapshot.
+- G126 materialization wrote one temporal `options_distribution_daily` feature row for NVDA when `SIGNALOPS_TEMPORAL_DATABASE_URL` was provided.
+- Algorithm runner smoke scanned 1 usable NVDA options-distribution sample and wrote 0 results because only one distribution day is currently available.
+
+Result:
+
+- G127 closes the first real data-population path for the options distribution substrate without adding Top 50 batch ingestion, automatic algorithm execution, or frontend scope.

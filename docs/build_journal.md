@@ -6918,3 +6918,27 @@ Validation performed:
 Result:
 
 - Existing algorithms can now consume options distribution features once G127 populates persisted distribution snapshots.
+
+## 2026-07-17T00:00:00Z
+
+Summary:
+
+- Implemented G127 options chain snapshot ingestion substrate.
+- Added Massive option-chain snapshot parsing for current chain rows, including open interest, implied volatility, greeks, day price fields, and underlying price.
+- Added `signalops-marketops-options-chain-ingestor` to fetch one bounded symbol snapshot, persist chain rows, and derive the rolling options distribution snapshot.
+- Added conversion tests, client pagination tests, CLI write/dry-run tests, and a Docker target for the ingestor.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/adapters/marketdata/massive`, `./internal/marketops/options`, `./cmd/marketops-options-chain-ingestor`, and `./cmd/marketops-options-feature-materializer`.
+- Full Go suite passed with `go test ./... -count=1`.
+- JSON schema validation passed with `python3 scripts/validate_json_schemas.py`.
+- Docker target build passed for `marketops-options-chain-ingestor`.
+- Authenticated Massive dry-run for NVDA fetched/converted 5 records with no writes.
+- Authenticated NVDA persist run upserted 250 chain rows and wrote one `10_trade_days` distribution snapshot.
+- G126 materialization wrote one temporal `options_distribution_daily` feature row for NVDA when `SIGNALOPS_TEMPORAL_DATABASE_URL` was provided.
+- Algorithm runner smoke scanned 1 usable NVDA options-distribution sample and wrote 0 results because only one distribution day is currently available.
+
+Result:
+
+- MarketOps can now populate the options chain/distribution tables from an explicit provider-backed snapshot run and expose the resulting feature event to the algorithm runner.

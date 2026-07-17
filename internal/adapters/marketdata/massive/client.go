@@ -68,6 +68,43 @@ func (c *Client) ListOptionContracts(ctx context.Context, underlying string, asO
 	return response.records(asOf), nil
 }
 
+func (c *Client) ListOptionChainSnapshot(ctx context.Context, underlying string, limit int, maxPages int) ([]OptionContractDailyRecord, error) {
+	underlying = normalizeSymbol(underlying)
+	if underlying == "" {
+		return nil, errors.New("underlying symbol is required")
+	}
+	if limit <= 0 || limit > 250 {
+		limit = 250
+	}
+	if maxPages <= 0 || maxPages > 20 {
+		maxPages = 1
+	}
+	query := url.Values{}
+	query.Set("limit", fmt.Sprintf("%d", limit))
+	path := fmt.Sprintf("/v3/snapshot/options/%s", url.PathEscape(underlying))
+	fallback := time.Now().UTC()
+	records := []OptionContractDailyRecord{}
+	nextURL := ""
+	for page := 0; page < maxPages; page++ {
+		var response optionChainSnapshotResponse
+		var err error
+		if page == 0 {
+			err = c.getJSON(ctx, path, query, &response)
+		} else {
+			err = c.getJSONURL(ctx, nextURL, &response)
+		}
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, response.records(underlying, fallback)...)
+		nextURL = strings.TrimSpace(response.NextURL)
+		if nextURL == "" {
+			break
+		}
+	}
+	return records, nil
+}
+
 func (c *Client) GetEquityDailyBar(ctx context.Context, symbol string, date time.Time) (EquityEODPriceRecord, error) {
 	path := fmt.Sprintf("/v2/aggs/ticker/%s/range/1/day/%s/%s", url.PathEscape(normalizeSymbol(symbol)), dateKey(date), dateKey(date))
 	var response aggregateBarsResponse
@@ -105,7 +142,23 @@ func (c *Client) getJSON(ctx context.Context, path string, query url.Values, tar
 	}
 	values.Set("apiKey", c.apiKey)
 	endpoint.RawQuery = values.Encode()
+	return c.getJSONEndpoint(ctx, endpoint, target)
+}
 
+func (c *Client) getJSONURL(ctx context.Context, rawURL string, target any) error {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("invalid massive next url")
+	}
+	values := parsed.Query()
+	if values.Get("apiKey") == "" {
+		values.Set("apiKey", c.apiKey)
+		parsed.RawQuery = values.Encode()
+	}
+	return c.getJSONEndpoint(ctx, parsed, target)
+}
+
+func (c *Client) getJSONEndpoint(ctx context.Context, endpoint *url.URL, target any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return fmt.Errorf("build massive request: %w", err)

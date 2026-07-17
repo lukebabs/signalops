@@ -246,3 +246,8 @@ Recommended next gate:
 
 - G126: converts persisted options distribution snapshots into canonical `options_distribution_daily` normalized feature events and adds a CLI materializer so existing algorithms can score call/put divergence features.
 - Specification: `G126_options_distribution_algorithm_features.md`.
+
+## G127 Implemented
+
+- G127: adds a bounded Massive option-chain snapshot ingestor that persists current chain rows and derives the rolling MarketOps options distribution snapshot for one symbol at a time.
+- Specification: `G127_options_chain_snapshot_ingestion.md`.

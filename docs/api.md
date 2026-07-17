@@ -787,7 +787,9 @@ Records an operator review decision for an algorithm signal proposal. Body field
 
 `signalops-algorithm-runner` executes the seeded algorithm ids from the command line, including z-score, online anomaly, change-point, forecast residual, threshold classifier, and isolation-style scoring adapters. It requires `SIGNALOPS_DATABASE_URL` and `SIGNALOPS_TEMPORAL_DATABASE_URL`, reads bounded normalized events, updates `algorithm_execution_requests`, and writes immutable `algorithm_results`. G107-G110 do not add an API trigger endpoint for execution.
 
-`signalops-marketops-options-feature-materializer` reads persisted `marketops_options_distribution_daily` snapshots and upserts canonical `options_distribution_daily` rows into `normalized_event_ledger`. Those rows expose call/put open-interest and divergence features to the existing algorithm runner.
+`signalops-marketops-options-feature-materializer` reads persisted `marketops_options_distribution_daily` snapshots and upserts canonical `options_distribution_daily` rows into `normalized_event_ledger`. When `SIGNALOPS_TEMPORAL_DATABASE_URL` is configured, the row is written to the temporal store read by the algorithm runner. Those rows expose call/put open-interest and divergence features to the existing algorithm runner.
+
+`signalops-marketops-options-chain-ingestor` fetches bounded Massive option-chain snapshots for one symbol, upserts `marketops_options_chain_daily` rows, and writes a rolling `marketops_options_distribution_daily` snapshot. It requires `SIGNALOPS_DATABASE_URL` and Massive API credentials; `SIGNALOPS_TEMPORAL_DATABASE_URL` should also be provided in split-store deployments. G127 keeps provider calls explicit and does not add a scheduler or Top 50 batch job.
 
 `signalops-algorithm-proposal-generator` reads bounded `algorithm_results` and writes idempotent `algorithm_signal_proposals` review candidates. It requires `SIGNALOPS_DATABASE_URL`. G111 does not materialize proposals into production signals.
 
