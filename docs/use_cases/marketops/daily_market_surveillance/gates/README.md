@@ -271,3 +271,8 @@ Recommended next gate:
 
 - G131: gates algorithm signal proposal generation for options call/put open-interest ratio results so only `call_put_oi_ratio_quality=usable` evidence enters the proposal queue.
 - Specification: `G131_quality_aware_algorithm_proposals.md`.
+
+## G132 Proposed
+
+- G132: frontend-agent specification for options ratio/open-interest quality visibility in asset options, algorithm results, and signal proposal views.
+- Specification: `../../../../frontend/marketops_options_quality_visibility_ui_spec.md`.

@@ -8355,3 +8355,20 @@ Validation performed:
 Result:
 
 - G131 closes the G130 follow-up by keeping algorithm output immutable and diagnostic while preventing low-quality options ratio evidence from becoming reviewable signal proposals.
+
+## Gate G132: Options Quality Visibility UI Spec
+
+Timestamp: `2026-07-17T00:00:00Z`
+
+Status: `specified - frontend-agent handoff`
+
+Scope:
+
+- Define UI visibility for options ratio/open-interest quality metadata added by G130 and used by G131.
+- Cover `/marketops/assets` options distribution rows, `/marketops/algorithms` result detail, and signal proposal detail.
+- Preserve frontend-only scope unless implementation proves a required field is unavailable through existing APIs.
+- Exclude ingestion triggers, live preview, Top 50 controls, algorithm execution controls, and materialization policy changes.
+
+Result:
+
+- Specification saved at `docs/frontend/marketops_options_quality_visibility_ui_spec.md` and indexed from MarketOps frontend and gates notes.

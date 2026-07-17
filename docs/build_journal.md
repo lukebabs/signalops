@@ -7017,3 +7017,16 @@ Validation performed:
 Result:
 
 - Algorithm results remain durable for audit, but low-quality options call/put ratio evidence no longer reaches the operator signal-proposal queue.
+
+## 2026-07-17T00:00:00Z
+
+Summary:
+
+- Wrote G132 frontend-agent specification for MarketOps options quality visibility.
+- Scoped the UI to existing asset options, algorithm result, and signal proposal surfaces.
+- Required visibility for `call_put_oi_ratio_quality`, `open_interest_quality`, zero-rate/counts, denominator-zero state, and G131 `quality_gate` metadata.
+- Explicitly excluded ingestion controls, live-preview triggers, Top 50 batch controls, algorithm execution changes, backend route changes, and materialization policy changes.
+
+Result:
+
+- Frontend-agent handoff is saved at `docs/frontend/marketops_options_quality_visibility_ui_spec.md`.
