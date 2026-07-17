@@ -417,9 +417,29 @@ func algorithmResult(cfg Config, item scoredSample) (storage.AlgorithmResultReco
 }
 
 func basePayload(cfg Config, item sample, extra map[string]any) map[string]any {
-	payload := map[string]any{"algorithm_id": cfg.AlgorithmID, "feature": cfg.Feature, "value": round(item.value, 6), "symbol": item.symbol, "observation_time": item.event.ObservationTime.Format(time.RFC3339Nano)}
+	payload := map[string]any{"algorithm_id": cfg.AlgorithmID, "dataset": cfg.Dataset, "feature": cfg.Feature, "value": round(item.value, 6), "symbol": item.symbol, "observation_time": item.event.ObservationTime.Format(time.RFC3339Nano)}
+	for key, value := range eventQualityMetadata(item.event) {
+		payload[key] = value
+	}
 	for key, value := range extra {
 		payload[key] = value
+	}
+	return payload
+}
+
+func eventQualityMetadata(event storage.NormalizedEventLedgerRecord) map[string]any {
+	payload := map[string]any{}
+	if len(event.NormalizedPayload) == 0 {
+		return payload
+	}
+	decoded := map[string]any{}
+	if err := json.Unmarshal(event.NormalizedPayload, &decoded); err != nil {
+		return payload
+	}
+	for _, key := range []string{"open_interest_quality", "open_interest_zero_count", "open_interest_positive_count", "open_interest_zero_rate", "call_put_oi_denominator_is_zero", "call_put_oi_ratio_quality"} {
+		if value, ok := decoded[key]; ok {
+			payload[key] = value
+		}
 	}
 	return payload
 }

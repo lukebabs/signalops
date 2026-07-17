@@ -104,6 +104,38 @@ func TestGenerateCreatesStableSignalProposals(t *testing.T) {
 	}
 }
 
+func TestGenerateSkipsLowQualityOptionsRatioResults(t *testing.T) {
+	repo := &fakeProposalRepository{results: []storage.AlgorithmResultRecord{
+		{AlgorithmResultID: "algres-usable", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "z_score", Score: 1.2, Confidence: 0.8, Severity: "medium", ResultPayloadJSON: []byte(`{"dataset":"options_distribution_daily","feature":"call_put_open_interest_ratio","symbol":"NVDA","call_put_oi_ratio_quality":"usable"}`), SourceEventIDs: []string{"evt-usable"}, EvidenceRefs: []string{"normalized_event:evt-usable"}, CorrelationID: "corr-1"},
+		{AlgorithmResultID: "algres-denom-zero", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "z_score", Score: 4.9, Confidence: 0.99, Severity: "critical", ResultPayloadJSON: []byte(`{"dataset":"options_distribution_daily","feature":"call_put_open_interest_ratio","symbol":"NVDA","call_put_oi_ratio_quality":"denominator_zero"}`), SourceEventIDs: []string{"evt-bad"}, EvidenceRefs: []string{"normalized_event:evt-bad"}, CorrelationID: "corr-1"},
+	}}
+
+	result, err := Generate(context.Background(), repo, Config{TenantID: "tenant-local", ExecutionRequestID: "algexec-1", MinConfidence: 0.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Scanned != 2 || result.Proposed != 1 || result.Skipped != 1 || len(repo.proposals) != 1 {
+		t.Fatalf("result=%+v proposals=%d", result, len(repo.proposals))
+	}
+	if repo.proposals[0].AlgorithmResultID != "algres-usable" {
+		t.Fatalf("proposal result id = %s", repo.proposals[0].AlgorithmResultID)
+	}
+}
+
+func TestGenerateDoesNotApplyOptionsQualityGateToOtherFeatures(t *testing.T) {
+	repo := &fakeProposalRepository{results: []storage.AlgorithmResultRecord{
+		{AlgorithmResultID: "algres-equity", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "z_score", Score: 1.2, Confidence: 0.8, Severity: "medium", ResultPayloadJSON: []byte(`{"dataset":"equity_eod_prices","feature":"daily_return_pct","symbol":"NVDA","call_put_oi_ratio_quality":"denominator_zero"}`), SourceEventIDs: []string{"evt-equity"}, EvidenceRefs: []string{"normalized_event:evt-equity"}, CorrelationID: "corr-1"},
+	}}
+
+	result, err := Generate(context.Background(), repo, Config{TenantID: "tenant-local", ExecutionRequestID: "algexec-1", MinConfidence: 0.5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Proposed != 1 || result.Skipped != 0 || len(repo.proposals) != 1 {
+		t.Fatalf("result=%+v proposals=%d", result, len(repo.proposals))
+	}
+}
+
 func TestGenerateSkipsLowConfidenceAndUnsupportedResults(t *testing.T) {
 	repo := &fakeProposalRepository{results: []storage.AlgorithmResultRecord{
 		{AlgorithmResultID: "algres-low", TenantID: "tenant-local", AlgorithmID: "signalops.algorithms.zscore_anomaly_v1", AlgorithmVersion: "v1", ExecutionRequestID: "algexec-1", ResultType: "z_score", Score: 1.2, Confidence: 0.2, Severity: "low", CorrelationID: "corr-1"},

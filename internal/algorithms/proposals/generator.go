@@ -57,6 +57,10 @@ func Generate(ctx context.Context, repo storage.AlgorithmRepository, cfg Config)
 			out.Skipped++
 			continue
 		}
+		if !passesQualityGate(result) {
+			out.Skipped++
+			continue
+		}
 		proposal, ok, err := ProposalFromResult(result, cfg)
 		if err != nil {
 			return out, err
@@ -79,6 +83,33 @@ func Generate(ctx context.Context, repo storage.AlgorithmRepository, cfg Config)
 	return out, nil
 }
 
+func passesQualityGate(result storage.AlgorithmResultRecord) bool {
+	payload := resultPayloadMap(result)
+	dataset := strings.TrimSpace(stringFromPayload(payload, "dataset"))
+	feature := strings.TrimSpace(stringFromPayload(payload, "feature"))
+	if dataset != "options_distribution_daily" || feature != "call_put_open_interest_ratio" {
+		return true
+	}
+	return strings.EqualFold(stringFromPayload(payload, "call_put_oi_ratio_quality"), "usable")
+}
+
+func resultPayloadMap(result storage.AlgorithmResultRecord) map[string]any {
+	payload := map[string]any{}
+	if len(result.ResultPayloadJSON) == 0 {
+		return payload
+	}
+	_ = json.Unmarshal(result.ResultPayloadJSON, &payload)
+	return payload
+}
+
+func stringFromPayload(payload map[string]any, key string) string {
+	value, ok := payload[key].(string)
+	if !ok {
+		return ""
+	}
+	return value
+}
+
 func ProposalFromResult(result storage.AlgorithmResultRecord, cfg Config) (storage.AlgorithmSignalProposalRecord, bool, error) {
 	signalType := proposedSignalType(result)
 	if signalType == "" {
@@ -98,6 +129,10 @@ func ProposalFromResult(result storage.AlgorithmResultRecord, cfg Config) (stora
 			"confidence":           result.Confidence,
 			"severity":             result.Severity,
 			"payload":              rawJSON(result.ResultPayloadJSON),
+		},
+		"quality_gate": map[string]any{
+			"passed": true,
+			"policy": "g131.options_distribution_quality.v1",
 		},
 		"lineage": map[string]any{
 			"source_event_ids":  result.SourceEventIDs,

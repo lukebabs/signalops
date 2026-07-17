@@ -8331,3 +8331,27 @@ Validation performed:
 Result:
 
 - G130 confirms the data issue is provider-returned zero OI, not parser loss, and prevents downstream layers from treating denominator-zero or all-zero ratios as clean evidence.
+
+## Gate G131: Quality-Aware Algorithm Proposals
+
+Timestamp: `2026-07-17T00:00:00Z`
+
+Status: `implemented - backend/proposal gate`
+
+Scope:
+
+- Propagate options-distribution quality metadata into algorithm result payloads.
+- Gate signal proposal generation for `options_distribution_daily` + `call_put_open_interest_ratio`.
+- Allow only `call_put_oi_ratio_quality=usable` evidence to enter the proposal queue.
+- Preserve existing proposal behavior for non-options datasets and other features.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/algorithms`, `./internal/algorithms/proposals`, `./cmd/algorithm-runner`, and `./cmd/algorithm-proposal-generator`.
+- Docker target builds passed for `algorithm-runner` and `algorithm-proposal-generator`.
+- Live NVDA execution `algexec_9b5c5859ecb0d78233495268` produced 27 algorithm results with quality breakdown `usable=9`, `all_zero=10`, `denominator_zero=6`, `partial_zero=2`.
+- Proposal generation created 9 proposals, all from `usable` evidence, with 0 non-usable proposals.
+
+Result:
+
+- G131 closes the G130 follow-up by keeping algorithm output immutable and diagnostic while preventing low-quality options ratio evidence from becoming reviewable signal proposals.

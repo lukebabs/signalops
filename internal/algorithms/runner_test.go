@@ -221,6 +221,33 @@ func TestRunAdditionalAlgorithmAdaptersWriteResults(t *testing.T) {
 	}
 }
 
+func TestRunCopiesOptionsQualityMetadataIntoResultPayload(t *testing.T) {
+	now := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	repo := &fakeAlgorithmRepository{events: []storage.NormalizedEventLedgerRecord{
+		normalizedOptionsDistributionEvent("evt-1", "NVDA", 1.0, "usable", now),
+		normalizedOptionsDistributionEvent("evt-2", "NVDA", 2.0, "denominator_zero", now.Add(time.Hour)),
+	}}
+	_, err := Run(context.Background(), repo, Config{ExecutionRequestID: "algexec-quality", TenantID: "tenant-local", Dataset: "options_distribution_daily", Feature: "call_put_open_interest_ratio", Symbols: []string{"NVDA"}, WindowStart: now.Add(-time.Hour), WindowEnd: now.Add(24 * time.Hour), MaxRecords: 10, BatchSize: 10, MinSamples: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.results) != 2 {
+		t.Fatalf("results = %d", len(repo.results))
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(repo.results[1].ResultPayloadJSON, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["dataset"] != "options_distribution_daily" || payload["call_put_oi_ratio_quality"] != "denominator_zero" || payload["open_interest_quality"] != "partial_zero" {
+		t.Fatalf("payload = %#v", payload)
+	}
+}
+
+func normalizedOptionsDistributionEvent(eventID string, symbol string, ratio float64, ratioQuality string, observationTime time.Time) storage.NormalizedEventLedgerRecord {
+	payload, _ := json.Marshal(map[string]any{"symbol": symbol, "call_put_oi_ratio_quality": ratioQuality, "open_interest_quality": "partial_zero", "open_interest_zero_rate": 0.5, "call_put_oi_denominator_is_zero": ratioQuality == "denominator_zero", "features": map[string]any{"call_put_open_interest_ratio": ratio}})
+	return storage.NormalizedEventLedgerRecord{EventID: eventID, TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", SourceAdapter: "market_data.massive", Dataset: "options_distribution_daily", ObservationTime: observationTime, NormalizedPayload: payload}
+}
+
 func normalizedFeatureEvent(eventID string, symbol string, feature string, value float64, observationTime time.Time) storage.NormalizedEventLedgerRecord {
 	payload, _ := json.Marshal(map[string]any{"symbol": symbol, "features": map[string]any{feature: value}})
 	return storage.NormalizedEventLedgerRecord{EventID: eventID, TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", SourceAdapter: "market_data.massive", Dataset: "equity_eod_prices", ObservationTime: observationTime, NormalizedPayload: payload}

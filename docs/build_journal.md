@@ -6997,3 +6997,23 @@ Validation performed:
 Result:
 
 - Options call/put ratio evidence is now quality-labeled. Proposal generation should wait for quality-aware filtering.
+
+## 2026-07-17T00:00:00Z
+
+Summary:
+
+- Implemented G131 quality-aware algorithm proposal filtering.
+- Propagated options distribution quality metadata from normalized events into algorithm result payloads.
+- Added a proposal-generation gate for `options_distribution_daily` + `call_put_open_interest_ratio` so only `call_put_oi_ratio_quality=usable` results can become reviewable signal proposals.
+- Added `quality_gate` metadata to generated proposal payloads.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/algorithms`, `./internal/algorithms/proposals`, `./cmd/algorithm-runner`, and `./cmd/algorithm-proposal-generator`.
+- Docker target builds passed for `algorithm-runner` and `algorithm-proposal-generator`.
+- Live NVDA execution `algexec_9b5c5859ecb0d78233495268` wrote 27 algorithm results with quality breakdown `usable=9`, `all_zero=10`, `denominator_zero=6`, `partial_zero=2`.
+- Proposal generation created 9 proposals, all from `usable` evidence; non-usable proposals were 0.
+
+Result:
+
+- Algorithm results remain durable for audit, but low-quality options call/put ratio evidence no longer reaches the operator signal-proposal queue.
