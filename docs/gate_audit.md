@@ -8309,3 +8309,25 @@ Validation performed:
 Result:
 
 - G129 closes the immediate sample-volume gap exposed after G127 by creating multiple distribution snapshots from already-ingested chain data and proving algorithm scoring over those feature rows.
+
+## Gate G130: Options Distribution Quality Metrics
+
+Timestamp: `2026-07-17T00:00:00Z`
+
+Status: `implemented - backend/data-quality substrate`
+
+Scope:
+
+- Determine whether NVDA zero open-interest values were provider data or parser loss.
+- Add explicit quality metadata for open-interest and call/put OI ratio interpretation.
+- Propagate quality metadata to normalized options distribution feature rows.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/marketops/options`, `./cmd/marketops-options-distribution-backfill`, and `./cmd/marketops-options-feature-materializer`.
+- Docker target builds passed for `marketops-options-distribution-backfill` and `marketops-options-feature-materializer`, with the full Go suite run inside the builds.
+- Live NVDA quality breakdown: `usable=9`, `all_zero=10`, `denominator_zero=6`, `partial_zero=2`.
+
+Result:
+
+- G130 confirms the data issue is provider-returned zero OI, not parser loss, and prevents downstream layers from treating denominator-zero or all-zero ratios as clean evidence.

@@ -93,10 +93,74 @@ func BuildDistribution(tenantID string, symbol string, tradeDate time.Time, rows
 			}
 		}
 	}
+	zeroOpenInterestCount, positiveOpenInterestCount := openInterestQualityCounts(latestRows)
+	zeroRate := 0.0
+	if record.ContractCount > 0 {
+		zeroRate = roundRatio(float64(zeroOpenInterestCount) / float64(record.ContractCount))
+	}
 	record.MoneynessDistributionJSON, _ = json.Marshal(materializeBuckets(moneyness))
 	record.ExpirationDistributionJSON, _ = json.Marshal(materializeBuckets(expiration))
-	record.MetricsJSON, _ = json.Marshal(map[string]any{"primary_metric": "open_interest", "secondary_metric": "volume", "window_name": DefaultWindowName})
+	record.MetricsJSON, _ = json.Marshal(map[string]any{
+		"primary_metric":                  "open_interest",
+		"secondary_metric":                "volume",
+		"window_name":                     DefaultWindowName,
+		"open_interest_zero_count":        zeroOpenInterestCount,
+		"open_interest_positive_count":    positiveOpenInterestCount,
+		"open_interest_zero_rate":         zeroRate,
+		"open_interest_quality":           openInterestQuality(record.ContractCount, record.MissingOpenInterestCount, zeroOpenInterestCount, positiveOpenInterestCount),
+		"call_put_oi_denominator_is_zero": record.TotalPutOpenInterest == 0,
+		"call_put_oi_ratio_quality":       callPutOIRatioQuality(record.TotalCallOpenInterest, record.TotalPutOpenInterest, record.ContractCount, record.MissingOpenInterestCount, zeroOpenInterestCount, positiveOpenInterestCount),
+	})
 	return record
+}
+
+func openInterestQualityCounts(rows []storage.MarketOpsOptionsChainRecord) (int, int) {
+	zeroCount := 0
+	positiveCount := 0
+	for _, row := range rows {
+		if row.OpenInterest == nil {
+			continue
+		}
+		if *row.OpenInterest == 0 {
+			zeroCount++
+		}
+		if *row.OpenInterest > 0 {
+			positiveCount++
+		}
+	}
+	return zeroCount, positiveCount
+}
+
+func openInterestQuality(contractCount int, missingCount int, zeroCount int, positiveCount int) string {
+	switch {
+	case contractCount == 0:
+		return "empty"
+	case missingCount == contractCount:
+		return "missing"
+	case positiveCount == 0:
+		return "all_zero"
+	case zeroCount > 0:
+		return "partial_zero"
+	default:
+		return "usable"
+	}
+}
+
+func callPutOIRatioQuality(totalCallOpenInterest int64, totalPutOpenInterest int64, contractCount int, missingCount int, zeroCount int, positiveCount int) string {
+	switch {
+	case contractCount == 0:
+		return "empty"
+	case missingCount == contractCount:
+		return "missing"
+	case positiveCount == 0:
+		return "all_zero"
+	case totalPutOpenInterest == 0:
+		return "denominator_zero"
+	case zeroCount > 0:
+		return "partial_zero"
+	default:
+		return "usable"
+	}
 }
 
 func addBucket(buckets map[string]*bucketTotals, name string, call bool, put bool, openInterest int64, volume int64) {

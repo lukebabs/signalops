@@ -16,7 +16,7 @@ func TestNormalizedEventFromDistributionBuildsAlgorithmReadyFeaturePayload(t *te
 		CallPutVolumeRatio: 1.25, RatioDelta: 0.2, RatioChangePct: 15.384615, RatioZScore: 2.1, ChangePointScore: 2.1, Confidence: 0.525,
 		MoneynessDistributionJSON:  []byte(`{"100-105%":{"call_open_interest":900}}`),
 		ExpirationDistributionJSON: []byte(`{"8-30d":{"put_open_interest":400}}`),
-		MetricsJSON:                []byte(`{"primary_metric":"open_interest"}`),
+		MetricsJSON:                []byte(`{"primary_metric":"open_interest","open_interest_zero_count":1,"open_interest_positive_count":1,"open_interest_zero_rate":0.5,"open_interest_quality":"partial_zero","call_put_oi_denominator_is_zero":false,"call_put_oi_ratio_quality":"partial_zero"}`),
 		SourceTradeDates:           []time.Time{tradeDate.AddDate(0, 0, -1), tradeDate},
 	}
 

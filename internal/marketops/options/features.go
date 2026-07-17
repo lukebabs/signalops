@@ -30,32 +30,46 @@ func NormalizedEventFromDistribution(record storage.MarketOpsOptionsDistribution
 	eventID := stableFeatureID("evt_opt_dist", record.TenantID, symbol, dayOnly(record.TradeDate).Format("2006-01-02"), windowName)
 	idempotencyKey := stableFeatureID("idem_opt_dist", record.TenantID, symbol, dayOnly(record.TradeDate).Format("2006-01-02"), windowName)
 
+	metrics := jsonObject(record.MetricsJSON)
+	openInterestZeroCount := intFromMetrics(metrics, "open_interest_zero_count")
+	openInterestPositiveCount := intFromMetrics(metrics, "open_interest_positive_count")
+	openInterestZeroRate := floatFromMetrics(metrics, "open_interest_zero_rate")
+	openInterestQuality := stringFromMetrics(metrics, "open_interest_quality")
+	callPutOIDenominatorZero := boolFromMetrics(metrics, "call_put_oi_denominator_is_zero")
+	callPutOIRatioQuality := stringFromMetrics(metrics, "call_put_oi_ratio_quality")
+
 	payload := map[string]any{
-		"provider":                       firstNonEmptyString(record.Provider, "massive"),
-		"dataset":                        DistributionFeatureDataset,
-		"symbol":                         symbol,
-		"asset_type":                     "equity",
-		"observation_date":               dayOnly(record.TradeDate).Format("2006-01-02"),
-		"window_name":                    windowName,
-		"trade_days":                     record.TradeDays,
-		"contract_count":                 record.ContractCount,
-		"call_contract_count":            record.CallContractCount,
-		"put_contract_count":             record.PutContractCount,
-		"total_call_open_interest":       record.TotalCallOpenInterest,
-		"total_put_open_interest":        record.TotalPutOpenInterest,
-		"total_call_volume":              record.TotalCallVolume,
-		"total_put_volume":               record.TotalPutVolume,
-		"missing_open_interest_count":    record.MissingOpenInterestCount,
-		"call_put_open_interest_ratio":   record.CallPutOpenInterestRatio,
-		"call_put_volume_ratio":          record.CallPutVolumeRatio,
-		"call_put_oi_ratio_delta":        record.RatioDelta,
-		"call_put_oi_ratio_change_pct":   record.RatioChangePct,
-		"call_put_oi_zscore":             record.RatioZScore,
-		"call_put_oi_change_point_score": record.ChangePointScore,
-		"distribution_confidence":        record.Confidence,
-		"moneyness_distribution":         jsonObject(record.MoneynessDistributionJSON),
-		"expiration_distribution":        jsonObject(record.ExpirationDistributionJSON),
-		"source_trade_dates":             dateStrings(record.SourceTradeDates),
+		"provider":                        firstNonEmptyString(record.Provider, "massive"),
+		"dataset":                         DistributionFeatureDataset,
+		"symbol":                          symbol,
+		"asset_type":                      "equity",
+		"observation_date":                dayOnly(record.TradeDate).Format("2006-01-02"),
+		"window_name":                     windowName,
+		"trade_days":                      record.TradeDays,
+		"contract_count":                  record.ContractCount,
+		"call_contract_count":             record.CallContractCount,
+		"put_contract_count":              record.PutContractCount,
+		"total_call_open_interest":        record.TotalCallOpenInterest,
+		"total_put_open_interest":         record.TotalPutOpenInterest,
+		"total_call_volume":               record.TotalCallVolume,
+		"total_put_volume":                record.TotalPutVolume,
+		"missing_open_interest_count":     record.MissingOpenInterestCount,
+		"open_interest_zero_count":        openInterestZeroCount,
+		"open_interest_positive_count":    openInterestPositiveCount,
+		"open_interest_zero_rate":         openInterestZeroRate,
+		"open_interest_quality":           openInterestQuality,
+		"call_put_oi_denominator_is_zero": callPutOIDenominatorZero,
+		"call_put_oi_ratio_quality":       callPutOIRatioQuality,
+		"call_put_open_interest_ratio":    record.CallPutOpenInterestRatio,
+		"call_put_volume_ratio":           record.CallPutVolumeRatio,
+		"call_put_oi_ratio_delta":         record.RatioDelta,
+		"call_put_oi_ratio_change_pct":    record.RatioChangePct,
+		"call_put_oi_zscore":              record.RatioZScore,
+		"call_put_oi_change_point_score":  record.ChangePointScore,
+		"distribution_confidence":         record.Confidence,
+		"moneyness_distribution":          jsonObject(record.MoneynessDistributionJSON),
+		"expiration_distribution":         jsonObject(record.ExpirationDistributionJSON),
+		"source_trade_dates":              dateStrings(record.SourceTradeDates),
 		"features": map[string]any{
 			"call_put_open_interest_ratio":   record.CallPutOpenInterestRatio,
 			"call_put_volume_ratio":          record.CallPutVolumeRatio,
@@ -67,11 +81,12 @@ func NormalizedEventFromDistribution(record storage.MarketOpsOptionsDistribution
 			"total_put_open_interest":        record.TotalPutOpenInterest,
 			"total_call_volume":              record.TotalCallVolume,
 			"total_put_volume":               record.TotalPutVolume,
+			"open_interest_zero_rate":        openInterestZeroRate,
 		},
 	}
 	entities := []map[string]any{{"type": "ticker", "external_id": symbol}}
 	evidence := []map[string]any{{"type": "marketops_options_distribution", "ref": strings.Join([]string{record.TenantID, symbol, dayOnly(record.TradeDate).Format("2006-01-02"), windowName}, ":"), "metadata": map[string]any{"source": "marketops_options_distribution_daily"}}}
-	metadata := map[string]any{"feature_builder": "marketops.options_distribution_feature_v1", "primary_metric": "open_interest", "window_name": windowName, "source_distribution_metrics": jsonObject(record.MetricsJSON)}
+	metadata := map[string]any{"feature_builder": "marketops.options_distribution_feature_v1", "primary_metric": "open_interest", "window_name": windowName, "source_distribution_metrics": metrics}
 	event := map[string]any{
 		"tenant_id":          record.TenantID,
 		"source_id":          sourceID,
@@ -128,6 +143,58 @@ func NormalizedEventFromDistribution(record storage.MarketOpsOptionsDistribution
 		RawPartition: -1, RawOffset: -1, NormalizedTopic: "signalops.internal.normalized.v1", NormalizedPartition: -1, NormalizedOffset: -1,
 		NormalizedPayload: payloadJSON, EntitiesJSON: entitiesJSON, EvidenceJSON: evidenceJSON, MetadataJSON: metadataJSON, EventJSON: eventJSON,
 	}, nil
+}
+
+func intFromMetrics(metrics map[string]any, key string) int {
+	value, ok := metrics[key]
+	if !ok {
+		return 0
+	}
+	switch typed := value.(type) {
+	case float64:
+		return int(typed)
+	case int:
+		return typed
+	case json.Number:
+		parsed, _ := typed.Int64()
+		return int(parsed)
+	default:
+		return 0
+	}
+}
+
+func floatFromMetrics(metrics map[string]any, key string) float64 {
+	value, ok := metrics[key]
+	if !ok {
+		return 0
+	}
+	switch typed := value.(type) {
+	case float64:
+		return typed
+	case int:
+		return float64(typed)
+	case json.Number:
+		parsed, _ := typed.Float64()
+		return parsed
+	default:
+		return 0
+	}
+}
+
+func stringFromMetrics(metrics map[string]any, key string) string {
+	value, ok := metrics[key].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+func boolFromMetrics(metrics map[string]any, key string) bool {
+	value, ok := metrics[key].(bool)
+	if !ok {
+		return false
+	}
+	return value
 }
 
 func jsonObject(raw []byte) map[string]any {

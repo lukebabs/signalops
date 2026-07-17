@@ -261,3 +261,8 @@ Recommended next gate:
 
 - G129: adds a no-provider-call options distribution backfill CLI that derives one `10_trade_days` snapshot per persisted chain trade date.
 - Specification: `G129_options_distribution_backfill.md`.
+
+## G130 Implemented
+
+- G130: adds explicit open-interest and call/put ratio quality metadata for options distribution snapshots and normalized feature rows.
+- Specification: `G130_options_distribution_quality_metrics.md`.

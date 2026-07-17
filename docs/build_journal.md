@@ -6977,3 +6977,23 @@ Validation performed:
 Result:
 
 - MarketOps can now create multiple distribution snapshots from existing NVDA option-chain rows and produce real algorithm scores over options-distribution features.
+
+## 2026-07-17T00:00:00Z
+
+Summary:
+
+- Implemented G130 options distribution quality metrics.
+- Confirmed NVDA `open_interest=0` values came from Massive raw payloads rather than parser loss.
+- Added `open_interest_quality` and `call_put_oi_ratio_quality` metadata to distribution snapshots and normalized feature rows.
+- Regenerated NVDA distribution snapshots and feature rows with quality metadata.
+
+Validation performed:
+
+- Focused Go tests passed for `./internal/marketops/options`, `./cmd/marketops-options-distribution-backfill`, and `./cmd/marketops-options-feature-materializer`.
+- Docker target builds passed for `marketops-options-distribution-backfill` and `marketops-options-feature-materializer`, with the full Go suite run inside the builds.
+- Live NVDA quality breakdown: `usable=9`, `all_zero=10`, `denominator_zero=6`, `partial_zero=2`.
+- Algorithm runner still scanned 27 samples and wrote 27 z-score results, but those results now have upstream quality metadata for filtering.
+
+Result:
+
+- Options call/put ratio evidence is now quality-labeled. Proposal generation should wait for quality-aware filtering.
