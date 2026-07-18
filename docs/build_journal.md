@@ -7068,3 +7068,22 @@ Validation performed:
 Result:
 
 - MarketOps has a bounded operator path to expand options coverage beyond NVDA while preserving explicit provider controls and data-quality reporting.
+
+## 2026-07-18T00:00:00Z
+
+Summary:
+
+- Implemented G134 expanded options quality-gate validation.
+- Ran `signalops.algorithms.zscore_anomaly_v1` over AAPL/MSFT `options_distribution_daily` rows created by G133.
+- Generated proposals for execution `algexec_acbb37f455555b59a2b90fc1` and confirmed G131 skipped every non-usable options ratio result.
+
+Validation performed:
+
+- Algorithm runner scanned 5 rows, used 5 numeric samples, and wrote 5 algorithm results.
+- Result quality breakdown was AAPL `all_zero=1`, AAPL `denominator_zero=2`, MSFT `all_zero=1`, MSFT `denominator_zero=1`.
+- Proposal generator scanned 5, proposed 0, skipped 5.
+- Ledger checks confirmed 0 signal proposals, 0 materializations, and 0 production algorithm signals for the execution.
+
+Result:
+
+- Expanded options coverage can be scored for audit while low-quality call/put OI evidence remains blocked from proposal review and production signal paths.

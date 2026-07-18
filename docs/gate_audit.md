@@ -8422,3 +8422,27 @@ Validation performed:
 Result:
 
 - G133 closes the immediate coverage breadth gap by moving from NVDA-only options coverage to a bounded multi-symbol operator path without adding automatic provider fanout.
+
+## Gate G134: Expanded Options Quality Gate Validation
+
+Timestamp: `2026-07-18T00:00:00Z`
+
+Status: `implemented - validation gate`
+
+Scope:
+
+- Run the z-score algorithm over expanded AAPL/MSFT `options_distribution_daily` feature rows.
+- Run the G131 proposal generator over those results.
+- Confirm low-quality options ratio evidence is retained as algorithm results but blocked from proposals.
+- Confirm no materializations or production algorithm signals are created.
+
+Validation performed:
+
+- Execution request `algexec_acbb37f455555b59a2b90fc1` scanned 5 rows, used 5 samples, and wrote 5 results.
+- Result quality breakdown: AAPL `all_zero=1`, AAPL `denominator_zero=2`, MSFT `all_zero=1`, MSFT `denominator_zero=1`.
+- Proposal generation scanned 5, proposed 0, skipped 5.
+- Database checks showed 0 `algorithm_signal_proposals`, 0 `algorithm_signal_materializations`, and 0 production algorithm signals for the execution.
+
+Result:
+
+- G134 confirms the intended separation: algorithm results are durable audit evidence, while non-usable options call/put ratio evidence does not enter the signal proposal or production signal path.

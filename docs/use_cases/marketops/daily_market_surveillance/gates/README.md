@@ -281,3 +281,8 @@ Recommended next gate:
 
 - G133: adds a bounded operator CLI for selected-symbol or capped Top 50 options coverage expansion, including chain ingest, distribution derivation, normalized feature materialization, and quality reporting.
 - Specification: `G133_bounded_top50_options_coverage_expansion.md`.
+
+## G134 Implemented
+
+- G134: validates that expanded AAPL/MSFT options feature rows produce algorithm results but zero proposals when G131 quality gating sees only `all_zero` and `denominator_zero` call/put OI ratio evidence.
+- Specification: `G134_expanded_options_quality_gate_validation.md`.
