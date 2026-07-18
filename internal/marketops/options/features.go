@@ -2,6 +2,7 @@ package options
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -140,7 +141,7 @@ func NormalizedEventFromDistribution(record storage.MarketOpsOptionsDistribution
 		SourceAdapter: "market_data.massive", Dataset: DistributionFeatureDataset, IdempotencyKey: idempotencyKey,
 		SchemaID: DistributionFeatureSchemaID, SchemaVersion: DistributionFeatureSchemaVersion, ObservationTime: dayOnly(record.TradeDate),
 		ProcessingTime: processingTime.UTC(), Confidence: 1.0, RawTopic: "signalops.internal.marketops.options_distribution.v1",
-		RawPartition: -1, RawOffset: -1, NormalizedTopic: "signalops.internal.normalized.v1", NormalizedPartition: -1, NormalizedOffset: -1,
+		RawPartition: -1, RawOffset: stableFeatureOffset(eventID), NormalizedTopic: "signalops.internal.normalized.v1", NormalizedPartition: -1, NormalizedOffset: -1,
 		NormalizedPayload: payloadJSON, EntitiesJSON: entitiesJSON, EvidenceJSON: evidenceJSON, MetadataJSON: metadataJSON, EventJSON: eventJSON,
 	}, nil
 }
@@ -229,4 +230,9 @@ func firstNonEmptyString(values ...string) string {
 func stableFeatureID(prefix string, values ...string) string {
 	sum := sha256.Sum256([]byte(strings.Join(values, "|")))
 	return prefix + "_" + hex.EncodeToString(sum[:])[:32]
+}
+
+func stableFeatureOffset(value string) int64 {
+	sum := sha256.Sum256([]byte(value))
+	return int64(binary.BigEndian.Uint64(sum[:8]) & ((1 << 63) - 1))
 }

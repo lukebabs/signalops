@@ -8394,3 +8394,31 @@ Validation performed:
 Result:
 
 - G132 quality visibility now makes zero OI legible as provider-returned data rather than visually collapsing into a missing-data concern.
+
+## Gate G133: Bounded Top 50 Options Coverage Expansion
+
+Timestamp: `2026-07-18T00:00:00Z`
+
+Status: `implemented - backend/CLI substrate`
+
+Scope:
+
+- Add an explicit, capped options coverage runner for selected symbols or a limited `top50_megacap` universe slice.
+- Reuse Massive env credentials and existing MarketOps options builders/storage.
+- Persist chain rows, distribution snapshots, and normalized `options_distribution_daily` feature rows in write mode.
+- Report per-symbol and aggregate quality counts.
+- Fix stable synthetic raw offsets for derived options feature rows.
+- Exclude scheduler, frontend controls, algorithm execution, proposal generation, and policy deployment.
+
+Validation performed:
+
+- Focused Go tests passed for `./cmd/marketops-options-coverage-runner`, `./internal/marketops/options`, `./cmd/marketops-options-feature-materializer`, `./internal/storage/postgres`, and `./internal/api`.
+- Docker target build passed for `marketops-options-coverage-runner`; the build ran `go test ./...`.
+- Live dry-run AAPL/MSFT: fetched 10, converted 10, built 5 distributions, wrote 0.
+- Live write AAPL/MSFT: fetched 10, converted 10, chain upserted 10, distributions upserted 5, normalized feature rows upserted 5.
+- Storage verification showed AAPL coverage at 3 trade days / 5 contracts and MSFT coverage at 2 trade days / 5 contracts.
+- AAPL/MSFT ratio quality remained low (`all_zero`/`denominator_zero`), confirming the quality reporting path is necessary before algorithm proposal use.
+
+Result:
+
+- G133 closes the immediate coverage breadth gap by moving from NVDA-only options coverage to a bounded multi-symbol operator path without adding automatic provider fanout.

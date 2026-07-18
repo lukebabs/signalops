@@ -276,3 +276,8 @@ Recommended next gate:
 
 - G132: frontend-agent specification for options ratio/open-interest quality visibility in asset options, algorithm results, and signal proposal views.
 - Specification: `../../../../frontend/marketops_options_quality_visibility_ui_spec.md`.
+
+## G133 Implemented
+
+- G133: adds a bounded operator CLI for selected-symbol or capped Top 50 options coverage expansion, including chain ingest, distribution derivation, normalized feature materialization, and quality reporting.
+- Specification: `G133_bounded_top50_options_coverage_expansion.md`.

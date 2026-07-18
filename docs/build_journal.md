@@ -7047,3 +7047,24 @@ Validation performed:
 Result:
 
 - Analysts can distinguish provider-returned zero open interest from missing open-interest data in the NVDA options chain table.
+
+## 2026-07-18T00:00:00Z
+
+Summary:
+
+- Implemented G133 bounded Top 50 options coverage expansion.
+- Added `signalops-marketops-options-coverage-runner` to process explicit symbols or a capped `marketops_asset_universe` slice.
+- The runner fetches bounded Massive option-chain snapshots, persists chain rows, derives distribution snapshots, materializes `options_distribution_daily` rows, and reports quality counts.
+- Fixed derived options feature events to use a stable synthetic raw offset per event, preventing raw-position collisions during multi-row materialization.
+
+Validation performed:
+
+- Focused Go tests passed for `./cmd/marketops-options-coverage-runner`, `./internal/marketops/options`, `./cmd/marketops-options-feature-materializer`, `./internal/storage/postgres`, and `./internal/api`.
+- Docker target build passed for `marketops-options-coverage-runner`; the build ran `go test ./...`.
+- Live dry-run for AAPL/MSFT fetched 10 contracts, converted 10, built 5 distributions, and wrote 0 rows.
+- Live write run for AAPL/MSFT fetched 10 contracts, converted 10, upserted 10 chain rows, upserted 5 distributions, and upserted 5 normalized feature rows.
+- Persisted coverage now includes AAPL with 3 trade days / 5 contracts and MSFT with 2 trade days / 5 contracts, alongside existing NVDA coverage.
+
+Result:
+
+- MarketOps has a bounded operator path to expand options coverage beyond NVDA while preserving explicit provider controls and data-quality reporting.

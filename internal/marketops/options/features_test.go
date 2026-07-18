@@ -27,8 +27,15 @@ func TestNormalizedEventFromDistributionBuildsAlgorithmReadyFeaturePayload(t *te
 	if event.Dataset != DistributionFeatureDataset || event.AppID != "marketops" || event.Domain != "market_data" || event.UseCase != "daily_market_surveillance" {
 		t.Fatalf("event metadata = %+v", event)
 	}
-	if event.EventID == "" || event.IdempotencyKey == "" {
+	if event.EventID == "" || event.IdempotencyKey == "" || event.RawOffset <= 0 {
 		t.Fatalf("event identity = %+v", event)
+	}
+	again, err := NormalizedEventFromDistribution(record, tradeDate.Add(3*time.Hour))
+	if err != nil {
+		t.Fatalf("second event error = %v", err)
+	}
+	if again.RawOffset != event.RawOffset {
+		t.Fatalf("raw offset is not stable: %d != %d", again.RawOffset, event.RawOffset)
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(event.NormalizedPayload, &payload); err != nil {

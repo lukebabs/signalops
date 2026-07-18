@@ -793,6 +793,8 @@ Records an operator review decision for an algorithm signal proposal. Body field
 
 `signalops-marketops-options-distribution-backfill` reads persisted options-chain rows for one symbol and upserts one `10_trade_days` distribution snapshot per available trade date. It requires `SIGNALOPS_DATABASE_URL` and makes no provider calls. Use it before the feature materializer when a single provider snapshot has produced multiple chain trade dates but only the latest distribution exists.
 
+`signalops-marketops-options-coverage-runner` is the bounded G133 operator CLI for selected-symbol or capped Top 50 options coverage expansion. It resolves symbols from `--symbols` or `marketops_asset_universe`, fetches bounded Massive option-chain snapshots, upserts chain rows, derives distribution snapshots, materializes `options_distribution_daily` normalized feature rows, and reports per-symbol quality counts. It is explicit and capped; it does not install a scheduler or automatic Top 50 fanout.
+
 `signalops-algorithm-proposal-generator` reads bounded `algorithm_results` and writes idempotent `algorithm_signal_proposals` review candidates. It requires `SIGNALOPS_DATABASE_URL`. G111 does not materialize proposals into production signals.
 
 ### Query Errors
