@@ -286,3 +286,8 @@ Recommended next gate:
 
 - G134: validates that expanded AAPL/MSFT options feature rows produce algorithm results but zero proposals when G131 quality gating sees only `all_zero` and `denominator_zero` call/put OI ratio evidence.
 - Specification: `G134_expanded_options_quality_gate_validation.md`.
+
+## G135 Implemented
+
+- G135: validates a real live Massive pull for non-NVDA options data, persists AMZN coverage, runs algorithm scoring, and confirms G131 generates a proposal only for usable call/put OI ratio evidence.
+- Specification: `G135_live_options_positive_quality_path.md`.

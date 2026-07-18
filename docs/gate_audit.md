@@ -8446,3 +8446,31 @@ Validation performed:
 Result:
 
 - G134 confirms the intended separation: algorithm results are durable audit evidence, while non-usable options call/put ratio evidence does not enter the signal proposal or production signal path.
+
+## Gate G135: Live Options Positive Quality Path
+
+Timestamp: `2026-07-18T00:00:00Z`
+
+Status: `implemented - live validation gate`
+
+Scope:
+
+- Run a bounded live Massive dry-run over a small Top 50 slice to find non-NVDA usable options ratio evidence.
+- Persist bounded AMZN options coverage after usable evidence was found.
+- Run algorithm scoring and proposal generation over AMZN `options_distribution_daily` rows.
+- Confirm G131 creates proposals only for usable evidence and leaves non-usable rows skipped.
+- Exclude scheduler, broad Top 50 writes, UI changes, materialization, and policy deployment.
+
+Validation performed:
+
+- Five-symbol dry-run fetched 250 contracts, converted 250, built 51 distributions, and wrote 0 rows; aggregate quality counts included `usable=10`.
+- AMZN write run `optcov_0db0a5614c70aca430674449` upserted 50 chain rows, 4 distributions, and 4 normalized feature rows.
+- Algorithm execution `algexec_cb5de5407e4a222ff1a24992` wrote 4 AMZN z-score results.
+- AMZN result quality breakdown: `usable=1`, `all_zero=1`, `denominator_zero=2`.
+- Proposal generation scanned 4, proposed 1, skipped 3.
+- Proposal ledger check showed 1 proposal, 1 usable, 0 non-usable.
+- Materialization and production signal checks both returned 0.
+
+Result:
+
+- G135 confirms the positive non-NVDA live options path while preserving the G131 data-quality boundary.

@@ -7087,3 +7087,24 @@ Validation performed:
 Result:
 
 - Expanded options coverage can be scored for audit while low-quality call/put OI evidence remains blocked from proposal review and production signal paths.
+
+## 2026-07-18T00:00:00Z
+
+Summary:
+
+- Implemented G135 live options positive-quality validation.
+- Ran a bounded live Massive dry-run over five Top 50 symbols with `--limit 50 --max-pages 1` and found usable non-NVDA options ratio evidence in AMZN.
+- Persisted a bounded AMZN pull, materialized options distribution feature rows, ran z-score scoring, and generated quality-aware proposals.
+
+Validation performed:
+
+- Dry-run fetched and converted 250 contracts across 5 symbols, built 51 distributions, and wrote 0 rows.
+- Persisted AMZN run `optcov_0db0a5614c70aca430674449` upserted 50 chain rows, 4 distributions, and 4 normalized feature rows.
+- Algorithm execution `algexec_cb5de5407e4a222ff1a24992` scanned 4 AMZN rows and wrote 4 results.
+- Result quality breakdown was `usable=1`, `all_zero=1`, `denominator_zero=2`.
+- Proposal generation scanned 4, proposed 1, skipped 3; the one proposal was usable and non-usable proposals were 0.
+- Ledger checks confirmed 0 materializations and 0 production algorithm signals for the execution.
+
+Result:
+
+- The live non-NVDA positive path is confirmed: usable AMZN options ratio evidence can become a proposal while non-usable rows remain blocked.
