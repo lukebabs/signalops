@@ -21,3 +21,4 @@ Current notes:
 - `syncratic_context_windows.md`: proposed G088 Syncratic context-window and multi-event insight architecture.
 - `syncratic_user_api_boundary.md`: Syncratic user facade OpenAPI and environment/auth boundary.
 - `../gates/G090_syncratic_ask_enrichment.md`: proposed Ask-based LLM synthesis boundary over deterministic context windows.
+- `functional_components.md`: broad summary of implemented MarketOps functional components and technical component purposes.

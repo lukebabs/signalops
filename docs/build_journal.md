@@ -7129,3 +7129,15 @@ Validation performed:
 Result:
 
 - G132 documentation status is accurate, the AMZN proposal is preflight-blocked until review, and MarketOps now has more usable AMZN options ratio samples for the next algorithm-usefulness workstream.
+
+## 2026-07-19T00:00:00Z
+
+Summary:
+
+- Added a broad MarketOps functional component map.
+- Documented implemented functional areas including asset universe, ingestion/normalization, DSM detection, signal/artifact/graph workflows, back-tests, algorithms, options distribution, quality gating, Syncratic reasoning, and frontend surfaces.
+- Indexed the component map from the MarketOps daily surveillance README and architecture README.
+
+Result:
+
+- Component summary saved at `docs/use_cases/marketops/daily_market_surveillance/architecture/functional_components.md`.
