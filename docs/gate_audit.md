@@ -8474,3 +8474,27 @@ Validation performed:
 Result:
 
 - G135 confirms the positive non-NVDA live options path while preserving the G131 data-quality boundary.
+
+## Gate G135 Follow-Up: Outstanding Closeout
+
+Timestamp: `2026-07-19T00:00:00Z`
+
+Status: `implemented - closeout validation`
+
+Scope:
+
+- Clean up stale G132 documentation status.
+- Run read-only materialization preflight for the live AMZN usable proposal.
+- Add more bounded usable options samples without scheduler, broad Top 50 write, materialization, or production signal changes.
+
+Validation performed:
+
+- G132 gates index and frontend spec now reflect implemented status.
+- Authenticated preflight for `algsigprop_bede162c6a016bc5ecabc8d6` returned `blocked` with `unreviewed_proposal`, `would_write=false`, and global `review_coverage_below_threshold`; no materialization was requested.
+- Additional dry-run scans over two bounded five-symbol sets found no new usable call/put OI ratio rows outside AMZN.
+- Bounded AMZN live write `optcov_d650df3dc4537c421546bacc` upserted 100 chain rows, 8 distributions, and 8 normalized feature rows.
+- AMZN now has 105 persisted chain rows across 8 trade days and normalized/distribution quality counts `usable=3`, `partial_zero=2`, `all_zero=2`, `denominator_zero=1`.
+
+Result:
+
+- The immediate post-G135 outstanding items are closed. Next work should start the separate algorithm usefulness and policy deployment workstream rather than expanding this closeout.

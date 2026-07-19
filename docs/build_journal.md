@@ -7108,3 +7108,24 @@ Validation performed:
 Result:
 
 - The live non-NVDA positive path is confirmed: usable AMZN options ratio evidence can become a proposal while non-usable rows remain blocked.
+
+## 2026-07-19T00:00:00Z
+
+Summary:
+
+- Closed the immediate outstanding items after G135.
+- Updated the G132 status from proposed to implemented in the MarketOps gates index and frontend spec.
+- Ran authenticated read-only materialization preflight for AMZN proposal `algsigprop_bede162c6a016bc5ecabc8d6`.
+- Ran additional bounded live options scans, then persisted a larger AMZN pull to increase usable call/put OI ratio samples.
+
+Validation performed:
+
+- AMZN preflight returned `total_proposals=1`, `eligible_count=0`, `blocked_count=1`, `would_write_count=0`; reason was `unreviewed_proposal`, with global blocker `review_coverage_below_threshold`.
+- Additional dry-runs over META/AVGO/TSLA/BRK.B/TSM and MU/LLY/JPM/WMT/V found no additional usable call/put OI ratio rows.
+- A bounded AMZN write with `--limit 100 --max-pages 1` upserted 100 chain rows, 8 distributions, and 8 normalized feature rows.
+- Persisted AMZN coverage now has 105 chain rows across 8 trade days, from 2026-07-08 through 2026-07-19.
+- Persisted AMZN quality counts now are `usable=3`, `partial_zero=2`, `all_zero=2`, `denominator_zero=1` in both distribution and normalized feature rows.
+
+Result:
+
+- G132 documentation status is accurate, the AMZN proposal is preflight-blocked until review, and MarketOps now has more usable AMZN options ratio samples for the next algorithm-usefulness workstream.

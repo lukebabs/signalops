@@ -1,10 +1,11 @@
 # MarketOps Options Quality Visibility UI Specification
 
-Status: proposed for frontend-agent implementation
+Status: implemented
 Gate: G132 frontend follow-up
 Author: Codex
 Date: 2026-07-17
 Backend baseline: G130-G131, latest backend commit `1367148`
+Implementation closeout: frontend implementation commit `16cd582`; zero-OI clarification commit `5e703fd`.
 
 ## Purpose
 
