@@ -87,6 +87,11 @@ type fakeQueryRepository struct {
 	marketOpsOptionsChain              []storage.MarketOpsOptionsChainRecord
 	marketOpsOptionsCoverage           storage.MarketOpsOptionsCoverageRecord
 	marketOpsOptionsDistributions      []storage.MarketOpsOptionsDistributionRecord
+	marketOpsFeatureDefinitions        []storage.MarketOpsFeatureDefinitionRecord
+	marketOpsFeatureObservations       []storage.MarketOpsFeatureObservationRecord
+	marketOpsMarketStates              []storage.MarketOpsMarketStateRecord
+	marketOpsStateTransitions          []storage.MarketOpsStateTransitionRecord
+	marketOpsEvidence                  []storage.MarketOpsEvidenceRecord
 	dsmArtifacts                       []storage.MarketOpsDSMArtifactRecord
 	dsmGraphProposals                  []storage.MarketOpsDSMGraphProposalRecord
 	backtestRuns                       []storage.MarketOpsBacktestRunRecord
@@ -135,6 +140,11 @@ type fakeQueryRepository struct {
 	lastActiveOnly                     bool
 	lastOptionsChainFilter             storage.MarketOpsOptionsChainFilter
 	lastOptionsDistributionFilter      storage.MarketOpsOptionsDistributionFilter
+	lastFeatureDefinitionFilter        storage.MarketOpsFeatureDefinitionFilter
+	lastFeatureObservationFilter       storage.MarketOpsFeatureObservationFilter
+	lastMarketStateFilter              storage.MarketOpsMarketStateFilter
+	lastStateTransitionFilter          storage.MarketOpsStateTransitionFilter
+	lastEvidenceFilter                 storage.MarketOpsEvidenceFilter
 	signals                            []storage.SignalLedgerRecord
 	alerts                             []storage.AlertLedgerRecord
 	insights                           []storage.InsightLedgerRecord
@@ -767,6 +777,68 @@ func (q *fakeQueryRepository) GetMarketOpsBacktestEvaluationLabel(_ context.Cont
 		}
 	}
 	return storage.MarketOpsBacktestEvaluationLabelRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListMarketOpsFeatureDefinitions(_ context.Context, filter storage.MarketOpsFeatureDefinitionFilter) ([]storage.MarketOpsFeatureDefinitionRecord, error) {
+	q.lastFeatureDefinitionFilter = filter
+	return q.marketOpsFeatureDefinitions, nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsFeatureObservations(_ context.Context, filter storage.MarketOpsFeatureObservationFilter) ([]storage.MarketOpsFeatureObservationRecord, error) {
+	q.lastFeatureObservationFilter = filter
+	if len(filter.FeatureObservationIDs) == 0 {
+		return q.marketOpsFeatureObservations, nil
+	}
+	wanted := map[string]struct{}{}
+	for _, id := range filter.FeatureObservationIDs {
+		wanted[id] = struct{}{}
+	}
+	records := []storage.MarketOpsFeatureObservationRecord{}
+	for _, record := range q.marketOpsFeatureObservations {
+		if _, ok := wanted[record.FeatureObservationID]; ok {
+			records = append(records, record)
+		}
+	}
+	return records, nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsMarketStates(_ context.Context, filter storage.MarketOpsMarketStateFilter) ([]storage.MarketOpsMarketStateRecord, error) {
+	q.lastMarketStateFilter = filter
+	return q.marketOpsMarketStates, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsMarketState(_ context.Context, marketStateID string) (storage.MarketOpsMarketStateRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsMarketStateRecord{}, storage.ErrNotFound
+	}
+	for _, record := range q.marketOpsMarketStates {
+		if record.MarketStateID == marketStateID {
+			return record, nil
+		}
+	}
+	return storage.MarketOpsMarketStateRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListMarketOpsStateTransitions(_ context.Context, filter storage.MarketOpsStateTransitionFilter) ([]storage.MarketOpsStateTransitionRecord, error) {
+	q.lastStateTransitionFilter = filter
+	return q.marketOpsStateTransitions, nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsEvidence(_ context.Context, filter storage.MarketOpsEvidenceFilter) ([]storage.MarketOpsEvidenceRecord, error) {
+	q.lastEvidenceFilter = filter
+	return q.marketOpsEvidence, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsEvidence(_ context.Context, evidenceID string) (storage.MarketOpsEvidenceRecord, error) {
+	if q.notFound {
+		return storage.MarketOpsEvidenceRecord{}, storage.ErrNotFound
+	}
+	for _, record := range q.marketOpsEvidence {
+		if record.EvidenceID == evidenceID {
+			return record, nil
+		}
+	}
+	return storage.MarketOpsEvidenceRecord{}, storage.ErrNotFound
 }
 
 func (q *fakeQueryRepository) ListMarketOpsDSMArtifacts(_ context.Context, filter storage.MarketOpsDSMArtifactFilter) ([]storage.MarketOpsDSMArtifactRecord, error) {

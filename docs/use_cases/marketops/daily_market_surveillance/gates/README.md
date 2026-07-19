@@ -291,3 +291,8 @@ Recommended next gate:
 
 - G135: validates a real live Massive pull for non-NVDA options data, persists AMZN coverage, runs algorithm scoring, and confirms G131 generates a proposal only for usable call/put OI ratio evidence.
 - Specification: `G135_live_options_positive_quality_path.md`.
+
+## G136 Implemented
+
+- G136: adds first-class feature-definition, feature-observation, market-state, state-transition, and evidence ledgers with read-only APIs and exact state lineage resolution.
+- Specification: `G136_market_state_foundation.md`.

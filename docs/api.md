@@ -715,6 +715,40 @@ Returns persisted full-chain rows for one asset symbol and optional trade date /
 
 Reserved for just-in-time Massive live preview. G125 intentionally returns `501 live_preview_not_configured` until a Massive live client is wired into the gateway; it does not persist rows.
 
+### MarketOps Market State Foundation
+
+`GET /v1/marketops/features/definitions?tenant_id={tenant_id}&feature_key={feature_key}&feature_version={version}&domain={domain}&status={status}&limit=50`
+
+Returns versioned feature registry rows with value type, calculation specification, required inputs, quality policy, and lifecycle status.
+
+`GET /v1/marketops/features/observations?tenant_id={tenant_id}&symbol=AAPL&session_start=YYYY-MM-DD&session_end=YYYY-MM-DD&feature_key={key}&feature_version={version}&domain={domain}&quality_state=usable&dimensions={json_object}&limit=50`
+
+Returns typed, quality-aware feature observations with source event/artifact lineage. The optional `dimensions` JSON object applies containment matching.
+
+`GET /v1/marketops/states?tenant_id={tenant_id}&symbol=AAPL&session_start=YYYY-MM-DD&session_end=YYYY-MM-DD&state_schema_version={version}&quality_state=usable&limit=50`
+
+Returns canonical market states with exact feature-observation references, completeness, quality, and build lineage.
+
+`GET /v1/marketops/states/{market_state_id}`
+
+Returns one market state.
+
+`GET /v1/marketops/states/{market_state_id}/lineage`
+
+Resolves the state's referenced feature observations, aggregates source event/artifact IDs, and reports missing feature references.
+
+`GET /v1/marketops/transitions?tenant_id={tenant_id}&symbol=AAPL&current_state_id={id}&feature_key={key}&transition_type={type}&quality_state=usable&session_start=YYYY-MM-DD&session_end=YYYY-MM-DD&limit=50`
+
+Returns persisted state transitions with baseline/current state references, change statistics, persistence, direction, quality, and calculation lineage.
+
+`GET /v1/marketops/evidence?tenant_id={tenant_id}&symbol=AAPL&evidence_type={type}&evidence_version={version}&domain={domain}&direction={direction}&session_start=YYYY-MM-DD&session_end=YYYY-MM-DD&limit=50`
+
+Returns reusable, versioned evidence claims and their source feature/transition IDs.
+
+`GET /v1/marketops/evidence/{evidence_id}`
+
+Returns one evidence record. G136 is read-only at the API boundary and does not schedule materialization, evaluate hypotheses, or write signal proposals.
+
 ### Algorithm Registry
 
 `POST /v1/algorithms/definitions`

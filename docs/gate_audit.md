@@ -8522,3 +8522,30 @@ Result:
 - Added `docs/use_cases/marketops/daily_market_surveillance/architecture/market_state_intelligence_evaluation.md`.
 - Indexed the evaluation from the MarketOps daily surveillance README and architecture README.
 - Recommended G136 through G140 as the next workstream.
+
+## Gate G136: Market State Foundation
+
+Timestamp: `2026-07-19T03:31:39Z`
+
+Status: `implemented - backend foundation`
+
+Scope:
+
+- Add first-class MarketOps feature-definition, feature-observation, market-state, state-transition, and evidence ledgers.
+- Preserve MarketOps tenant/application metadata, versioning, quality, deterministic keys, and exact source lineage.
+- Add repository write/read methods and read-only APIs from the target Market State Intelligence specification.
+- Add collision-safe deterministic identity utilities with canonical JSON dimensions.
+- Keep acquisition, scheduling, materialization triggers, hypotheses, opportunities, outcomes, signals, graph mutation, Syncratic changes, and frontend work out of scope.
+
+Validation performed:
+
+- Repository validation tests cover required fields, typed values, quality states, JSON shapes, completeness, lookbacks, and bounded scores.
+- API tests cover filters, response contracts, exact lineage ordering, source reference aggregation, missing lineage, and invalid query inputs.
+- Full Go tests and JSON schema validation passed.
+- Fresh-schema apply/down validation passed for migration `00028`, including tenant-scoped transition foreign keys; the temporary schema was dropped.
+- Migration `000028_marketops_market_state_foundation` applied successfully to local PostgreSQL.
+- Gateway image rebuild passed its embedded full Go test stage, and authenticated feature-definition list smoke returned HTTP `200` with `{"feature_definitions":[]}`.
+
+Result:
+
+- The Market State Intelligence model now has a durable, read-only foundation. G137 can build a bounded AAPL feature/state/transition/evidence path without changing the production signal workflow.

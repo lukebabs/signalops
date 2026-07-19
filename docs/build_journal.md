@@ -7154,3 +7154,25 @@ Summary:
 Result:
 
 - Evaluation saved at `docs/use_cases/marketops/daily_market_surveillance/architecture/market_state_intelligence_evaluation.md`.
+
+## 2026-07-19T03:31:39Z
+
+Summary:
+
+- Implemented G136 Market State Foundation as the first execution gate from the Market State Intelligence architecture evaluation.
+- Added tenant-aware, versioned, idempotent ledgers for feature definitions, feature observations, market states, state transitions, and reusable evidence.
+- Added repository upserts and read queries plus read-only API routes and exact state-to-feature lineage resolution.
+- Added shared deterministic identity and canonical-dimensions utilities for G137 materializers.
+- Preserved the gate boundary: no provider calls, schedulers, hypothesis evaluation, proposal generation, production signals, graph mutation, Syncratic changes, or frontend work.
+
+Validation performed:
+
+- Focused PostgreSQL repository and API tests passed in Go 1.22.
+- Full Go suite and JSON schema validation passed.
+- Fresh-schema migration apply and rollback validation passed in isolated PostgreSQL schema `g136_validation_20260719_0331`; the validation schema was removed.
+- Migration `000028_marketops_market_state_foundation` applied cleanly to local SignalOps PostgreSQL.
+- Rebuilt and restarted the local gateway; authenticated `GET /v1/marketops/features/definitions?tenant_id=tenant-local` returned HTTP `200` with the expected empty foundation ledger.
+
+Result:
+
+- SignalOps now has the durable MarketOps state/evidence substrate required for the bounded G137 AAPL vertical slice.

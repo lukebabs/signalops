@@ -23,3 +23,4 @@ Current notes:
 - `../gates/G090_syncratic_ask_enrichment.md`: proposed Ask-based LLM synthesis boundary over deterministic context windows.
 - `functional_components.md`: broad summary of implemented MarketOps functional components and technical component purposes.
 - `market_state_intelligence_evaluation.md`: evaluation of the Market State Intelligence target design against implemented MarketOps functional outcomes and design gaps.
+- `../gates/G136_market_state_foundation.md`: implemented storage and read-API foundation for feature observations, market states, transitions, evidence, and exact lineage.

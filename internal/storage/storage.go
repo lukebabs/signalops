@@ -135,6 +135,24 @@ const (
 	MarketOpsBacktestPolicySupersedeCandidate   = "supersede_candidate"
 )
 
+const (
+	MarketOpsFeatureDefinitionStatusDraft      = "draft"
+	MarketOpsFeatureDefinitionStatusActive     = "active"
+	MarketOpsFeatureDefinitionStatusDisabled   = "disabled"
+	MarketOpsFeatureDefinitionStatusDeprecated = "deprecated"
+)
+
+const (
+	MarketOpsQualityUsable            = "usable"
+	MarketOpsQualityUsableWithWarning = "usable_with_warning"
+	MarketOpsQualityPartial           = "partial"
+	MarketOpsQualitySparse            = "sparse"
+	MarketOpsQualityStale             = "stale"
+	MarketOpsQualityInvalid           = "invalid"
+	MarketOpsQualityMissing           = "missing"
+	MarketOpsQualityNotApplicable     = "not_applicable"
+)
+
 type SchedulerRunRecord struct {
 	RunID            string
 	TenantID         string
@@ -821,6 +839,189 @@ type MarketOpsOptionsDistributionFilter struct {
 	Limit      int
 }
 
+type MarketOpsFeatureDefinitionRecord struct {
+	TenantID        string
+	FeatureKey      string
+	FeatureVersion  string
+	Domain          string
+	Title           string
+	Description     string
+	ValueType       string
+	Unit            string
+	CalculationSpec []byte
+	RequiredInputs  []byte
+	QualityPolicy   []byte
+	Status          string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type MarketOpsFeatureDefinitionFilter struct {
+	TenantID       string
+	FeatureKey     string
+	FeatureVersion string
+	Domain         string
+	Status         string
+	Limit          int
+}
+
+type MarketOpsFeatureObservationRecord struct {
+	FeatureObservationID string
+	TenantID             string
+	AppID                string
+	AssetID              string
+	Symbol               string
+	SessionDate          time.Time
+	AsOfTime             time.Time
+	FeatureKey           string
+	FeatureVersion       string
+	DimensionsJSON       []byte
+	NumericValue         *float64
+	TextValue            *string
+	BooleanValue         *bool
+	QualityState         string
+	QualityScore         *float64
+	QualityDetailsJSON   []byte
+	SourceEventIDs       []string
+	SourceArtifactIDs    []string
+	CalculationRunID     string
+	DeterministicKey     string
+	CreatedAt            time.Time
+}
+
+type MarketOpsFeatureObservationFilter struct {
+	TenantID              string
+	AppID                 string
+	AssetID               string
+	Symbol                string
+	FeatureKey            string
+	FeatureVersion        string
+	Domain                string
+	QualityState          string
+	DimensionsJSON        []byte
+	SessionStart          time.Time
+	SessionEnd            time.Time
+	FeatureObservationIDs []string
+	Limit                 int
+}
+
+type MarketOpsMarketStateRecord struct {
+	MarketStateID         string
+	TenantID              string
+	AppID                 string
+	AssetID               string
+	Symbol                string
+	SessionDate           time.Time
+	AsOfTime              time.Time
+	StateSchemaVersion    string
+	StatePayloadJSON      []byte
+	FeatureObservationIDs []string
+	FeatureCount          int
+	RequiredFeatureCount  int
+	CompletenessRatio     float64
+	QualityState          string
+	QualityScore          *float64
+	QualitySummaryJSON    []byte
+	EligibleHypotheses    []string
+	BuildRunID            string
+	DeterministicKey      string
+	CreatedAt             time.Time
+}
+
+type MarketOpsMarketStateFilter struct {
+	TenantID           string
+	AppID              string
+	AssetID            string
+	Symbol             string
+	StateSchemaVersion string
+	QualityState       string
+	SessionStart       time.Time
+	SessionEnd         time.Time
+	Limit              int
+}
+
+type MarketOpsStateTransitionRecord struct {
+	TransitionID          string
+	TenantID              string
+	AppID                 string
+	AssetID               string
+	Symbol                string
+	SessionDate           time.Time
+	AsOfTime              time.Time
+	CurrentStateID        string
+	BaselineStateID       string
+	FeatureKey            string
+	FeatureVersion        string
+	DimensionsJSON        []byte
+	TransitionType        string
+	LookbackSessions      *int
+	CurrentValue          *float64
+	BaselineValue         *float64
+	TransitionValue       *float64
+	ZScore                *float64
+	Percentile            *float64
+	PersistenceSessions   *int
+	Direction             string
+	QualityState          string
+	TransitionPayloadJSON []byte
+	CalculationRunID      string
+	DeterministicKey      string
+	CreatedAt             time.Time
+}
+
+type MarketOpsStateTransitionFilter struct {
+	TenantID       string
+	AppID          string
+	AssetID        string
+	Symbol         string
+	CurrentStateID string
+	FeatureKey     string
+	FeatureVersion string
+	TransitionType string
+	QualityState   string
+	SessionStart   time.Time
+	SessionEnd     time.Time
+	Limit          int
+}
+
+type MarketOpsEvidenceRecord struct {
+	EvidenceID          string
+	TenantID            string
+	AppID               string
+	AssetID             string
+	Symbol              string
+	SessionDate         time.Time
+	AsOfTime            time.Time
+	EvidenceType        string
+	EvidenceVersion     string
+	Domain              string
+	Direction           string
+	Magnitude           *float64
+	RarityScore         *float64
+	PersistenceScore    *float64
+	QualityScore        *float64
+	Statement           string
+	EvidencePayloadJSON []byte
+	SourceFeatureIDs    []string
+	SourceTransitionIDs []string
+	DeterministicKey    string
+	CreatedAt           time.Time
+}
+
+type MarketOpsEvidenceFilter struct {
+	TenantID        string
+	AppID           string
+	AssetID         string
+	Symbol          string
+	EvidenceType    string
+	EvidenceVersion string
+	Domain          string
+	Direction       string
+	SessionStart    time.Time
+	SessionEnd      time.Time
+	Limit           int
+}
+
 type MarketOpsDSMArtifactRecord struct {
 	ArtifactID           string
 	TenantID             string
@@ -1251,6 +1452,24 @@ type SyncraticRepository interface {
 	GetSyncraticInsight(ctx context.Context, syncraticInsightID string) (SyncraticInsightRecord, error)
 }
 
+type MarketOpsMarketStateWriteRepository interface {
+	UpsertMarketOpsFeatureDefinition(ctx context.Context, record MarketOpsFeatureDefinitionRecord) error
+	UpsertMarketOpsFeatureObservation(ctx context.Context, record MarketOpsFeatureObservationRecord) error
+	UpsertMarketOpsMarketState(ctx context.Context, record MarketOpsMarketStateRecord) error
+	UpsertMarketOpsStateTransition(ctx context.Context, record MarketOpsStateTransitionRecord) error
+	UpsertMarketOpsEvidence(ctx context.Context, record MarketOpsEvidenceRecord) error
+}
+
+type MarketOpsMarketStateQueryRepository interface {
+	ListMarketOpsFeatureDefinitions(ctx context.Context, filter MarketOpsFeatureDefinitionFilter) ([]MarketOpsFeatureDefinitionRecord, error)
+	ListMarketOpsFeatureObservations(ctx context.Context, filter MarketOpsFeatureObservationFilter) ([]MarketOpsFeatureObservationRecord, error)
+	ListMarketOpsMarketStates(ctx context.Context, filter MarketOpsMarketStateFilter) ([]MarketOpsMarketStateRecord, error)
+	GetMarketOpsMarketState(ctx context.Context, marketStateID string) (MarketOpsMarketStateRecord, error)
+	ListMarketOpsStateTransitions(ctx context.Context, filter MarketOpsStateTransitionFilter) ([]MarketOpsStateTransitionRecord, error)
+	ListMarketOpsEvidence(ctx context.Context, filter MarketOpsEvidenceFilter) ([]MarketOpsEvidenceRecord, error)
+	GetMarketOpsEvidence(ctx context.Context, evidenceID string) (MarketOpsEvidenceRecord, error)
+}
+
 type MarketOpsDSMArtifactRepository interface {
 	ListMarketOpsDSMArtifacts(ctx context.Context, filter MarketOpsDSMArtifactFilter) ([]MarketOpsDSMArtifactRecord, error)
 	GetMarketOpsDSMArtifact(ctx context.Context, artifactID string) (MarketOpsDSMArtifactRecord, error)
@@ -1618,6 +1837,7 @@ type QueryRepository interface {
 	MarketOpsBacktestRepository
 	SyncraticRepository
 	AlgorithmRepository
+	MarketOpsMarketStateQueryRepository
 	SignalLedgerRepository
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)
