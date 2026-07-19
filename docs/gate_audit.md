@@ -8498,3 +8498,27 @@ Validation performed:
 Result:
 
 - The immediate post-G135 outstanding items are closed. Next work should start the separate algorithm usefulness and policy deployment workstream rather than expanding this closeout.
+
+## Market State Intelligence Architecture Evaluation
+
+Timestamp: `2026-07-19T00:00:00Z`
+
+Status: `documented - architecture evaluation`
+
+Scope:
+
+- Evaluate `docs/design/syncratic_marketops_market_state_intelligence_architecture_v1.md` against the implemented MarketOps component baseline.
+- Separate implemented functional outcomes from target design abstractions.
+- Identify the definitive path from current event/proposal-centered MarketOps toward market-state intelligence.
+
+Findings:
+
+- Implemented MarketOps has the required operating substrate: asset universe, ingestion, raw/normalized ledgers, DSM detectors, artifacts, graph proposals, backtests, algorithms, options chain/distribution storage, quality gating, proposal materialization, Syncratic Ask, and frontend operator surfaces.
+- The target architecture's first-class abstractions are not yet implemented: market states, state transitions, evidence ledger, hypothesis registry/evaluator, opportunities, and forward outcomes.
+- The highest-value next path is to build these abstractions incrementally rather than adding more isolated detectors or broad raw options collection first.
+
+Result:
+
+- Added `docs/use_cases/marketops/daily_market_surveillance/architecture/market_state_intelligence_evaluation.md`.
+- Indexed the evaluation from the MarketOps daily surveillance README and architecture README.
+- Recommended G136 through G140 as the next workstream.

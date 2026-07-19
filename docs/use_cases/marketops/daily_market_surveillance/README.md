@@ -31,6 +31,7 @@ It does not mean the signal itself only just became persistent. Signals are pers
 ## Cross-References
 
 - Functional component map: `architecture/functional_components.md`
+- Market State Intelligence evaluation: `architecture/market_state_intelligence_evaluation.md`
 - Global API contract: `docs/api.md`
 - Python worker/detector behavior: `docs/python_worker.md`
 - Original MarketOps target specs: `docs/marketops/`

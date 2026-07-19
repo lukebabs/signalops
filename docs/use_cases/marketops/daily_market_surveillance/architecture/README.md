@@ -22,3 +22,4 @@ Current notes:
 - `syncratic_user_api_boundary.md`: Syncratic user facade OpenAPI and environment/auth boundary.
 - `../gates/G090_syncratic_ask_enrichment.md`: proposed Ask-based LLM synthesis boundary over deterministic context windows.
 - `functional_components.md`: broad summary of implemented MarketOps functional components and technical component purposes.
+- `market_state_intelligence_evaluation.md`: evaluation of the Market State Intelligence target design against implemented MarketOps functional outcomes and design gaps.
