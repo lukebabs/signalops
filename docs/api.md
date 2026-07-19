@@ -829,6 +829,8 @@ Records an operator review decision for an algorithm signal proposal. Body field
 
 `signalops-marketops-options-coverage-runner` is the bounded G133 operator CLI for selected-symbol or capped Top 50 options coverage expansion. It resolves symbols from `--symbols` or `marketops_asset_universe`, fetches bounded Massive option-chain snapshots, upserts chain rows, derives distribution snapshots, materializes `options_distribution_daily` normalized feature rows, and reports per-symbol quality counts. It is explicit and capped; it does not install a scheduler or automatic Top 50 fanout.
 
+`signalops-marketops-state-materializer` is the bounded G137 AAPL CLI. It reads normalized equity EOD events from the temporal ledger and approved persisted option chain/distribution rows, then idempotently upserts versioned feature observations, canonical states, one-session transitions, and quality-gated evidence. It requires both SignalOps database URLs, supports inclusive/exclusive date bounds and `--dry-run`, makes no provider calls, and does not evaluate hypotheses or write production signals.
+
 `signalops-algorithm-proposal-generator` reads bounded `algorithm_results` and writes idempotent `algorithm_signal_proposals` review candidates. It requires `SIGNALOPS_DATABASE_URL`. G111 does not materialize proposals into production signals.
 
 ### Query Errors

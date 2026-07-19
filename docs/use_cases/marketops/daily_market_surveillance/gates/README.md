@@ -296,3 +296,8 @@ Recommended next gate:
 
 - G136: adds first-class feature-definition, feature-observation, market-state, state-transition, and evidence ledgers with read-only APIs and exact state lineage resolution.
 - Specification: `G136_market_state_foundation.md`.
+
+## G137 Implemented
+
+- G137: materializes the bounded AAPL path from persisted equity/options evidence into versioned feature observations, canonical states, transitions, and quality-gated evidence.
+- Specification: `G137_aapl_market_state_vertical_slice.md`.

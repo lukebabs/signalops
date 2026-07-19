@@ -7176,3 +7176,25 @@ Validation performed:
 Result:
 
 - SignalOps now has the durable MarketOps state/evidence substrate required for the bounded G137 AAPL vertical slice.
+
+## 2026-07-19T21:19:02Z
+
+Summary:
+
+- Implemented G137 AAPL Market State Vertical Slice over existing persisted equity and options evidence.
+- Added 24 versioned feature definitions and a deterministic 25-slot per-session materializer for underlying momentum, IV surface, premium availability, option positioning, liquidity, and quality.
+- Added canonical state, one-session transition, quality-gated evidence, dry-run/write CLI, and Docker target.
+- Preserved the gate boundary: no provider calls, scheduling, hypotheses, production signals, graph/Syncratic changes, or frontend work.
+
+Validation performed:
+
+- Focused G137 package and CLI tests passed, including bounded equity/OI lookback warm-up and a 60-session replay, usable IV/OI fixtures, unusable OI blocking, exact state lineage, dry-run behavior, and stable rerun identities.
+- Docker target `marketops-state-materializer` built successfully; its build stage ran the full Go suite.
+- Live AAPL dry-run read 3 equity events, 3 option distributions, and 5 option contracts, producing 24 definitions, 150 observations, 6 states, 11 transitions, and 2 valid return evidence rows.
+- Repeated bounded live writes produced identical logical counts; persisted totals remained 24 definitions, 150 AAPL observations, 6 states, 11 transitions, and 2 evidence rows.
+- All six states retained 25 feature IDs and the database lineage check found zero unresolved references.
+- All three live AAPL put/call OI ratio rows were missing/invalid with no numeric value and generated zero OI evidence.
+
+Result:
+
+- MarketOps now has its first durable market-state vertical slice. Current live AAPL quality remains sparse and honestly represented; G138 can add research-only hypothesis evaluation without bypassing source-quality gates.

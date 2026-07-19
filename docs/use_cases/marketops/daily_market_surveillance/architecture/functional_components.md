@@ -45,6 +45,8 @@ MarketOps currently supports this end-to-end workflow:
 | Options distribution features | Convert persisted option distributions into normalized algorithm-ready feature events. | `signalops-marketops-options-feature-materializer`, `options_distribution_daily`, stable derived feature IDs/raw offsets. |
 | Bounded options coverage expansion | Pull selected or capped Top 50 options snapshots without scheduling broad provider fanout. | `signalops-marketops-options-coverage-runner`, explicit `--symbols`/`--max-symbols`/`--limit`/`--max-pages`, quality-count reporting. |
 | Options quality gating | Prevent low-quality call/put OI ratio evidence from becoming reviewable proposals while retaining algorithm audit rows. | `open_interest_quality`, `call_put_oi_ratio_quality`, G131 proposal gate `g131.options_distribution_quality.v1`. |
+| Market state intelligence foundation | Persist reusable point-in-time feature, state, transition, and evidence abstractions above event-level signals. | `marketops_feature_definitions`, `marketops_feature_observations`, `marketops_market_states`, `marketops_state_transitions`, `marketops_evidence`, G136 read APIs. |
+| Bounded AAPL state materialization | Prove deterministic market-state construction and quality blocking over existing equity/options evidence. | `signalops-marketops-state-materializer`, 25 feature slots, canonical state schema, exact lineage, idempotent upserts. |
 | Syncratic context and Ask integration | Provide bounded explainability context and generated interpretation without ingesting MarketOps data into Syncratic core. | Syncratic context windows, selective materialization, Ask enrichment, evidence purity checks, data-quality blocking. |
 | Frontend operator surfaces | Let analysts inspect MarketOps state and review evidence through app-specific workflows. | `/marketops/assets`, `/marketops/dsm`, `/marketops/algorithms`, `/marketops/backtests`, `/marketops/syncratic`. |
 
@@ -98,6 +100,10 @@ Provider open-interest data often contains zero or missing values. MarketOps rec
 
 The options coverage runner exists to expand coverage deliberately. It can process explicit symbols or a capped Top 50 slice, but it does not schedule itself or fan out automatically. Its purpose is operator-controlled data acquisition with visible quality counts and provider budget limits.
 
+### Market State Intelligence
+
+G136 provides first-class feature, state, transition, and evidence ledgers. G137 now materializes one bounded AAPL path from persisted equity and options evidence. Missing history, unusable open interest, absent bid/ask, and uncovered IV cells remain explicit quality states; only usable observations can become analytical evidence. Hypothesis evaluation and opportunities are not yet implemented.
+
 ### Syncratic Reasoning Boundary
 
 SignalOps does not ingest MarketOps data into Syncratic core. Instead, SignalOps builds bounded context windows from its own persisted evidence and calls Syncratic Ask for explanation when useful. Evidence purity and data-quality gates prevent the reasoning layer from interpreting mismatched or unsupported evidence as market analysis.
@@ -116,6 +122,8 @@ Recent validated gates include:
 - G133: bounded multi-symbol options coverage runner.
 - G134: validation that non-usable AAPL/MSFT options evidence produces no proposals.
 - G135: live AMZN positive path where usable options evidence produced exactly one proposal.
+- G136: first-class feature/state/transition/evidence foundation and read APIs.
+- G137: bounded AAPL materialization with exact lineage, deterministic reruns, and live OI evidence blocking.
 
 The latest live AMZN closeout expanded usable options samples to 3 persisted usable rows across 8 AMZN trade days while leaving proposal materialization blocked until operator review.
 

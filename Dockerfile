@@ -19,6 +19,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-o
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-options-chain-ingestor ./cmd/marketops-options-chain-ingestor
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-options-distribution-backfill ./cmd/marketops-options-distribution-backfill
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-options-coverage-runner ./cmd/marketops-options-coverage-runner
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-state-materializer ./cmd/marketops-state-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-runner ./cmd/algorithm-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-proposal-generator ./cmd/algorithm-proposal-generator
 
@@ -108,6 +109,12 @@ FROM gcr.io/distroless/static-debian12:nonroot AS marketops-options-coverage-run
 COPY --from=build /out/signalops-marketops-options-coverage-runner /signalops-marketops-options-coverage-runner
 
 ENTRYPOINT ["/signalops-marketops-options-coverage-runner"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-state-materializer
+
+COPY --from=build /out/signalops-marketops-state-materializer /signalops-marketops-state-materializer
+
+ENTRYPOINT ["/signalops-marketops-state-materializer"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-proposal-generator
 

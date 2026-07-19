@@ -24,3 +24,4 @@ Current notes:
 - `functional_components.md`: broad summary of implemented MarketOps functional components and technical component purposes.
 - `market_state_intelligence_evaluation.md`: evaluation of the Market State Intelligence target design against implemented MarketOps functional outcomes and design gaps.
 - `../gates/G136_market_state_foundation.md`: implemented storage and read-API foundation for feature observations, market states, transitions, evidence, and exact lineage.
+- `../gates/G137_aapl_market_state_vertical_slice.md`: implemented bounded AAPL feature/state/transition/evidence materialization over persisted equity and options evidence.

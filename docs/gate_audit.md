@@ -8549,3 +8549,31 @@ Validation performed:
 Result:
 
 - The Market State Intelligence model now has a durable, read-only foundation. G137 can build a bounded AAPL feature/state/transition/evidence path without changing the production signal workflow.
+
+## Gate G137: AAPL Market State Vertical Slice
+
+Timestamp: `2026-07-19T21:19:02Z`
+
+Status: `implemented - backend materialization and live validation`
+
+Scope:
+
+- Materialize one bounded AAPL path from normalized equity EOD and approved persisted option chain/distribution evidence.
+- Persist versioned feature observations, one canonical state per unioned source session, one-session transitions, and reusable quality-gated evidence.
+- Add an explicit dry-run/write CLI and Docker target.
+- Keep provider calls, scheduling, Top 50 fanout, hypotheses, signals, graph/Syncratic changes, and frontend work out of scope.
+
+Validation performed:
+
+- Positive fixtures covered point-in-time equity/OI warm-up, five eligible IV cells, usable OI, usable state construction, transitions, return/OI evidence, and a bounded 60-session historical replay with exact lineage.
+- Negative fixture confirmed denominator-zero OI retains an invalid audit observation but produces no numeric value or OI evidence.
+- Rerun test confirmed deterministic observation, state, transition, and evidence identities across different calculation run IDs.
+- CLI tests confirmed dry-run writes nothing and write metrics match repository calls.
+- Docker target build passed and ran `go test ./...`.
+- Live dry-run and repeated writes over `2026-07-01` through `2026-07-20` each calculated 24 definitions, 150 observations, 6 states, 11 transitions, and 2 evidence rows from 3 equity events, 3 distributions, and 5 contracts.
+- Persisted counts remained unchanged after rerun, all states had 25 lineage IDs, and zero lineage references were unresolved.
+- Live AAPL OI source quality blocked every OI ratio value and OI evidence row; only two valid underlying return evidence rows were stored.
+
+Result:
+
+- G137 closes the first AAPL state-materialization slice while exposing the real historical-coverage and bid/ask gaps. G138 is the next bounded gate for research-only H001/H004/H006/H007 definitions and explainable trigger/non-trigger evaluation.
