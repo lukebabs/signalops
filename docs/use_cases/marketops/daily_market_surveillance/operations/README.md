@@ -30,3 +30,7 @@ Current recurring validations:
 ## Market State Materialization
 
 - `market_state_materialization.md`: bounded G137 AAPL dry-run, write, idempotency, lineage, and quality-blocking checks over existing persisted evidence.
+
+## Research Hypothesis Evaluation
+
+- `hypothesis_evaluation.md`: bounded G138 AAPL dry-run, write, idempotency, trigger/rejection, and reason-code checks over existing G137 states.

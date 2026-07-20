@@ -8577,3 +8577,31 @@ Validation performed:
 Result:
 
 - G137 closes the first AAPL state-materialization slice while exposing the real historical-coverage and bid/ask gaps. G138 is the next bounded gate for research-only H001/H004/H006/H007 definitions and explainable trigger/non-trigger evaluation.
+
+## Gate G138: Research Hypothesis Evaluator
+
+Timestamp: `2026-07-20T00:00:14Z`
+
+Status: `implemented - backend research evaluation and live validation`
+
+Scope:
+
+- Add tenant-aware, versioned hypothesis definitions for H001, H004, H006, and H007 v1 in research status.
+- Persist deterministic evaluations for eligible, triggered, non-triggered, and rejected outcomes with component scores, evidence links, and reason codes.
+- Add a bounded AAPL dry-run/write CLI, Docker target, repository queries, and read-only APIs.
+- Keep proposal generation, opportunities, production signals, graph/Syncratic changes, scheduling, provider calls, promotion, and frontend work out of scope.
+
+Validation performed:
+
+- Evaluator unit tests cover registry boundaries, positive triggers for all four hypotheses, sparse-input rejection, stable identities across run IDs, and research-only payloads.
+- CLI tests confirm AAPL-only bounds, dry-run no-write behavior, and one evaluation per state/definition pair.
+- Repository and API tests cover validation, upsert/query contracts, filters, detail responses, and invalid boolean/session queries.
+- Docker target build completed with the full Go test suite.
+- Fresh-database apply and rollback validation passed for migrations `000028` and `000029`; migration `000029` also applied to local PostgreSQL.
+- Bounded live AAPL dry-run produced 24 evaluations from 6 states and 4 definitions, with 0 eligible, 0 triggered, and 24 rejected.
+- Repeated writes with distinct run IDs retained exactly 4 definition rows and 24 deterministic evaluation rows.
+- Full Go and JSON schema validation passed. The rebuilt auth-enabled gateway returned expected unauthenticated `401` responses and authenticated HTTP `200` responses with 4 definitions and 24 evaluations.
+
+Result:
+
+- G138 closes the first hypothesis-registry/evaluator slice without bypassing data quality or production governance. G139 is the next bounded gate for analyst-facing opportunities formed only from compatible eligible evaluations.

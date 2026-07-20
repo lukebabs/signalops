@@ -301,3 +301,8 @@ Recommended next gate:
 
 - G137: materializes the bounded AAPL path from persisted equity/options evidence into versioned feature observations, canonical states, transitions, and quality-gated evidence.
 - Specification: `G137_aapl_market_state_vertical_slice.md`.
+
+## G138 Implemented
+
+- G138: registers research-only H001/H004/H006/H007 definitions and persists deterministic eligible, triggered, non-triggered, and rejected evaluations over bounded AAPL states with explicit reason codes.
+- Specification: `G138_research_hypothesis_evaluator.md`.

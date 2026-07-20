@@ -102,7 +102,7 @@ The options coverage runner exists to expand coverage deliberately. It can proce
 
 ### Market State Intelligence
 
-G136 provides first-class feature, state, transition, and evidence ledgers. G137 now materializes one bounded AAPL path from persisted equity and options evidence. Missing history, unusable open interest, absent bid/ask, and uncovered IV cells remain explicit quality states; only usable observations can become analytical evidence. Hypothesis evaluation and opportunities are not yet implemented.
+G136 provides first-class feature, state, transition, and evidence ledgers. G137 materializes one bounded AAPL path from persisted equity and options evidence. G138 adds the first versioned research hypothesis registry and deterministic evaluation ledger for H001, H004, H006, and H007. Missing history, unusable open interest, absent bid/ask, and uncovered IV cells remain explicit rejection reasons; only eligible research evaluations can trigger. Opportunity grouping is not yet implemented.
 
 ### Syncratic Reasoning Boundary
 
@@ -124,6 +124,7 @@ Recent validated gates include:
 - G135: live AMZN positive path where usable options evidence produced exactly one proposal.
 - G136: first-class feature/state/transition/evidence foundation and read APIs.
 - G137: bounded AAPL materialization with exact lineage, deterministic reruns, and live OI evidence blocking.
+- G138: research-only H001/H004/H006/H007 registry and explainable AAPL trigger/non-trigger evaluation.
 
 The latest live AMZN closeout expanded usable options samples to 3 persisted usable rows across 8 AMZN trade days while leaving proposal materialization blocked until operator review.
 

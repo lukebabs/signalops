@@ -749,6 +749,20 @@ Returns reusable, versioned evidence claims and their source feature/transition 
 
 Returns one evidence record. G136 is read-only at the API boundary and does not schedule materialization, evaluate hypotheses, or write signal proposals.
 
+### MarketOps Research Hypotheses
+
+`GET /v1/marketops/hypotheses?tenant_id={tenant_id}&hypothesis_key=H001&hypothesis_version=v1&domain={domain}&lifecycle_status=research&limit=50`
+
+Returns versioned hypothesis definitions, including required features and transitions, quality and trigger policies, expected outcomes, scoring configuration, calibration policy, and lifecycle status.
+
+`GET /v1/marketops/hypotheses/{hypothesis_key}/{hypothesis_version}?tenant_id={tenant_id}`
+
+Returns one tenant-scoped hypothesis definition. `tenant_id` is required.
+
+`GET /v1/marketops/hypothesis-evaluations?tenant_id={tenant_id}&symbol=AAPL&hypothesis_key=H001&hypothesis_version=v1&market_state_id={id}&eligible=false&triggered=false&invalidated=false&session_start=YYYY-MM-DD&session_end=YYYY-MM-DD&limit=50`
+
+Returns deterministic research evaluations with state linkage, component scores, evidence IDs, reason codes, run lineage, and trigger status. Boolean filters must be `true` or `false`. G138 exposes no API mutation or execution trigger and cannot materialize a proposal or production signal.
+
 ### Algorithm Registry
 
 `POST /v1/algorithms/definitions`
@@ -830,6 +844,8 @@ Records an operator review decision for an algorithm signal proposal. Body field
 `signalops-marketops-options-coverage-runner` is the bounded G133 operator CLI for selected-symbol or capped Top 50 options coverage expansion. It resolves symbols from `--symbols` or `marketops_asset_universe`, fetches bounded Massive option-chain snapshots, upserts chain rows, derives distribution snapshots, materializes `options_distribution_daily` normalized feature rows, and reports per-symbol quality counts. It is explicit and capped; it does not install a scheduler or automatic Top 50 fanout.
 
 `signalops-marketops-state-materializer` is the bounded G137 AAPL CLI. It reads normalized equity EOD events from the temporal ledger and approved persisted option chain/distribution rows, then idempotently upserts versioned feature observations, canonical states, one-session transitions, and quality-gated evidence. It requires both SignalOps database URLs, supports inclusive/exclusive date bounds and `--dry-run`, makes no provider calls, and does not evaluate hypotheses or write production signals.
+
+`signalops-marketops-hypothesis-evaluator` is the bounded G138 AAPL CLI. It reads existing G137 states, feature observations, transitions, and evidence, registers research-only H001/H004/H006/H007 v1 definitions, and idempotently persists both trigger and non-trigger evaluations with reason codes. It requires `SIGNALOPS_DATABASE_URL`, supports inclusive session dates, a maximum-session cap, explicit run lineage, and `--dry-run`. It makes no provider calls and writes no proposals, opportunities, or production signals.
 
 `signalops-algorithm-proposal-generator` reads bounded `algorithm_results` and writes idempotent `algorithm_signal_proposals` review candidates. It requires `SIGNALOPS_DATABASE_URL`. G111 does not materialize proposals into production signals.
 

@@ -1838,6 +1838,7 @@ type QueryRepository interface {
 	SyncraticRepository
 	AlgorithmRepository
 	MarketOpsMarketStateQueryRepository
+	MarketOpsHypothesisQueryRepository
 	SignalLedgerRepository
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)

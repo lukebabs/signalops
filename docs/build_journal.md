@@ -7198,3 +7198,26 @@ Validation performed:
 Result:
 
 - MarketOps now has its first durable market-state vertical slice. Current live AAPL quality remains sparse and honestly represented; G138 can add research-only hypothesis evaluation without bypassing source-quality gates.
+
+## 2026-07-20T00:00:14Z
+
+Summary:
+
+- Implemented G138 Research Hypothesis Evaluator over the G137 state substrate.
+- Added tenant-aware hypothesis definition and deterministic evaluation ledgers, repository methods, read APIs, bounded AAPL CLI, and Docker target.
+- Registered H001, H004, H006, and H007 v1 in research status with production materialization disabled.
+- Preserved explicit non-trigger/rejection records and reason codes; no proposal, opportunity, graph, Syncratic, alert, insight, or production signal path was added.
+
+Validation performed:
+
+- Positive unit fixtures triggered each of H001/H004/H006/H007 and negative fixtures retained missing/unusable-input reasons.
+- PostgreSQL repository, API, identity, evaluator, and CLI tests passed; the Docker target build ran the full Go suite.
+- Fresh-database apply and rollback validation passed for migrations `000028` and `000029`; migration `000029_marketops_hypothesis_research` also applied to local PostgreSQL.
+- Live AAPL dry-run evaluated 6 states x 4 definitions: 24 evaluations, 0 eligible, 0 triggered, and 24 rejected with explicit coverage/quality reasons.
+- Two write runs with different run IDs left exactly 4 definitions and 24 evaluations, confirming deterministic idempotency.
+- Full `go test ./...`, JSON schema validation, and `git diff --check` passed.
+- Rebuilt/restarted the gateway; unauthenticated G138 reads returned `401`, and authenticated definition/evaluation reads returned HTTP `200` with 4 and 24 records respectively.
+
+Result:
+
+- MarketOps now has its first governed research hypothesis layer. Current sparse AAPL inputs are rejected honestly; G139 can add opportunities without allowing rejected evaluations into analyst-facing groupings.

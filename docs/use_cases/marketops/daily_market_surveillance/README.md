@@ -35,6 +35,8 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - G136 Market State Foundation: `gates/G136_market_state_foundation.md`
 - G137 AAPL Market State Vertical Slice: `gates/G137_aapl_market_state_vertical_slice.md`
 - Market state materialization operations: `operations/market_state_materialization.md`
+- G138 Research Hypothesis Evaluator: `gates/G138_research_hypothesis_evaluator.md`
+- Research hypothesis evaluation operations: `operations/hypothesis_evaluation.md`
 - Global API contract: `docs/api.md`
 - Python worker/detector behavior: `docs/python_worker.md`
 - Original MarketOps target specs: `docs/marketops/`

@@ -35,16 +35,16 @@ Implemented MarketOps capabilities include:
 - Syncratic bounded context windows and Ask integration without ingesting MarketOps data into Syncratic core.
 - Frontend views for assets, DSM workbench, algorithms, backtests, options quality, proposal review, materialization, and Syncratic reasoning.
 
-This baseline is a strong operational substrate. It preserves evidence, review boundaries, quality gates, and replayability. The main limitation is that it still presents much of the system through events, algorithm rows, proposals, and ledgers rather than a canonical market-state model.
+This baseline is a strong operational substrate. It preserves evidence, review boundaries, quality gates, and replayability. G136-G138 now add a bounded canonical state and research-hypothesis path; the main limitation is that coverage remains sparse and no opportunity or forward-outcome layer converts those records into ranked analyst decisions.
 
 ## Functional Outcome Evaluation
 
 | Outcome | Current state | Gap |
 | --- | --- | --- |
-| Daily canonical market state | Not implemented as a first-class object. Current data exists across normalized events, options distributions, algorithm results, DSM artifacts, and UI panels. | Analysts cannot inspect one authoritative asset/session state with completeness, quality, lineage, and evaluable hypotheses. |
-| State-transition observations | Partially implied by detector metrics, options rolling windows, and algorithm scores. | Material changes are not persisted as reusable state transitions with lookback, rarity, persistence, divergence, or migration semantics. |
-| Versioned hypothesis registry | Not implemented. DSM detectors and algorithm proposal policies are versioned, but H001-H007 are not registered hypotheses. | The system cannot govern, evaluate, calibrate, or promote market hypotheses as first-class research objects. |
-| Evidence-first signal generation | Partially implemented through DSM artifacts, graph proposals, algorithm results, and proposal review. | There is no common evidence ledger connecting features, transitions, hypotheses, opportunities, Syncratic context, and outcomes. |
+| Daily canonical market state | G136 provides the ledger/API and G137 materializes a bounded AAPL state per source session with completeness, quality, and exact feature lineage. | Coverage is AAPL-only, historically sparse, and not yet exposed as the target analyst Market State view. |
+| State-transition observations | G136 provides the ledger/API and G137 persists one-session numeric transitions when both observations are usable. | Broader lookbacks, robust rarity/persistence, divergence, and migration semantics remain incomplete. |
+| Versioned hypothesis registry | G138 implements tenant-scoped H001/H004/H006/H007 v1 definitions in `research` status plus deterministic evaluation rows. | Promotion, broad historical calibration, and approved production materialization remain future gates. |
+| Evidence-first signal generation | G136/G137 provide a shared evidence ledger, and G138 links eligible inputs/evidence to research evaluations. | Evidence does not yet flow through opportunities, outcome measurement, or a governed hypothesis-to-signal proposal adapter. |
 | Opportunity ranking | Not implemented. Current UI exposes alerts, insights, proposals, algorithms, and options evidence separately. | Analysts still need to manually synthesize related evidence into one actionable market opportunity. |
 | Closed-loop outcome evaluation | Partially implemented for detector back-test metrics and calibration workflows. | Outcomes are not tied to hypothesis-triggered signals and opportunities across forward horizons. |
 | Insight distinction from alert | Conceptually documented, not fully realized. | Insights can still appear too close to one persisted signal or incident; the design expects insights/opportunities to summarize multi-event state changes. |
@@ -56,15 +56,12 @@ The target architecture is additive and aligns with existing SignalOps principle
 
 Critical design gaps:
 
-- No `marketops_feature_definitions` or generic MarketOps feature-observation registry exists.
-- No canonical `marketops_market_states` model exists.
-- No persisted `marketops_state_transitions` model exists.
-- No shared `marketops_evidence` ledger exists.
-- No `marketops_hypothesis_definitions` or `marketops_hypothesis_evaluations` registry exists.
+- G136 provides `marketops_feature_definitions`, typed feature observations, canonical market states, state transitions, and reusable evidence ledgers; G137 materialization is currently bounded to AAPL.
+- G138 now provides `marketops_hypothesis_definitions` and `marketops_hypothesis_evaluations`; current scope is bounded to research-only H001/H004/H006/H007 over AAPL G137 states.
 - No `marketops_opportunities` queue exists.
 - No `marketops_signal_outcomes` materializer exists.
-- No API surface exists for `/v1/marketops/features`, `/states`, `/transitions`, `/evidence`, `/hypotheses`, `/opportunities`, or `/outcomes`.
-- No worker topology exists for feature materialization, state building, transition calculation, evidence generation, hypothesis evaluation, opportunity building, or outcome materialization.
+- G136/G138 provide read APIs for features, states, transitions, evidence, hypotheses, and evaluations; opportunities and outcomes have no API surface.
+- Materialization and evaluation are explicit bounded CLIs, not a scheduled worker topology; opportunity and outcome workers do not exist.
 - No frontend Market State view, Surface matrix, Transition timeline, Hypothesis workbench, or Opportunity queue exists as defined by the architecture.
 
 The design does not conflict with the implemented algorithm substrate. The algorithm layer should become one producer of feature observations or evidence, while hypothesis evaluation remains the governed path to market-state signal proposals.

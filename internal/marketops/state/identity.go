@@ -15,10 +15,11 @@ import (
 type IdentityKind string
 
 const (
-	IdentityFeatureObservation IdentityKind = "feature_observation"
-	IdentityMarketState        IdentityKind = "market_state"
-	IdentityStateTransition    IdentityKind = "state_transition"
-	IdentityEvidence           IdentityKind = "evidence"
+	IdentityFeatureObservation   IdentityKind = "feature_observation"
+	IdentityMarketState          IdentityKind = "market_state"
+	IdentityStateTransition      IdentityKind = "state_transition"
+	IdentityEvidence             IdentityKind = "evidence"
+	IdentityHypothesisEvaluation IdentityKind = "hypothesis_evaluation"
 )
 
 type Identity struct {
@@ -84,6 +85,8 @@ func identityPrefix(kind IdentityKind) (string, bool) {
 		return "mtrans_", true
 	case IdentityEvidence:
 		return "mevidence_", true
+	case IdentityHypothesisEvaluation:
+		return "mhypeval_", true
 	default:
 		return "", false
 	}
