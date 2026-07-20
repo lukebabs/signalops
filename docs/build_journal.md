@@ -7245,3 +7245,23 @@ Validation performed:
 Result:
 
 - MarketOps now has a governed research opportunity layer that cannot convert sparse or rejected evidence into analyst-facing opportunities. The frontend handoff is saved at `docs/frontend/marketops_opportunities_workbench_spec.md`; G140 remains the next backend gate for forward outcomes.
+
+## 2026-07-20T01:41:51Z
+
+Summary:
+
+- Closed the G139 frontend handoff with the deployed MarketOps Opportunities workbench at `/marketops/opportunities`.
+- Added a dense, responsive master/detail queue, URL-persisted selection, bounded lazy supporting reads, research-state visibility, and contribution/conflict/evidence inspection.
+- Made the expected empty live ledger actionable by showing bounded hypothesis-evaluation counts and ranked rejection reasons instead of a generic blank state.
+
+Validation performed:
+
+- Focused G139 API, query-key, helper, and navigation tests passed: 33 tests.
+- Full frontend suite passed: 358 tests.
+- TypeScript and Vite production build passed.
+- Rebuilt the Docker web service; `GET http://localhost:15173/marketops/opportunities` returned HTTP `200` and the deployed bundles contained the G139 API and diagnostic paths.
+- Backend/API DTOs were checked against the frontend types and request parameters.
+
+Result:
+
+- G139 is closed end to end as a read-only research opportunity workflow. Current AAPL data still produces zero valid opportunities, and the UI now explains that outcome. G140 remains the next bounded backend gate for forward outcome materialization.

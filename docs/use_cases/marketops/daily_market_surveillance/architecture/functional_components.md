@@ -125,7 +125,7 @@ Recent validated gates include:
 - G136: first-class feature/state/transition/evidence foundation and read APIs.
 - G137: bounded AAPL materialization with exact lineage, deterministic reruns, and live OI evidence blocking.
 - G138: research-only H001/H004/H006/H007 registry and explainable AAPL trigger/non-trigger evaluation.
-- G139: research-only opportunity grouping with overlap control, conflict scoring, read APIs, and a UX-first frontend handoff.
+- G139: research-only opportunity grouping with overlap control, conflict scoring, read APIs, and a deployed UX-first analyst workbench.
 
 The latest live AMZN closeout expanded usable options samples to 3 persisted usable rows across 8 AMZN trade days while leaving proposal materialization blocked until operator review.
 

@@ -35,7 +35,7 @@ Implemented MarketOps capabilities include:
 - Syncratic bounded context windows and Ask integration without ingesting MarketOps data into Syncratic core.
 - Frontend views for assets, DSM workbench, algorithms, backtests, options quality, proposal review, materialization, and Syncratic reasoning.
 
-This baseline is a strong operational substrate. It preserves evidence, review boundaries, quality gates, and replayability. G136-G139 now add a bounded canonical state, research-hypothesis, and opportunity path; the main limitation is that coverage remains sparse, the opportunity UI is pending, and no forward-outcome layer measures realized behavior.
+This baseline is a strong operational substrate. It preserves evidence, review boundaries, quality gates, and replayability. G136-G139 now add a bounded canonical state, research-hypothesis, opportunity, and analyst-workbench path; the main limitation is that coverage remains sparse and no forward-outcome layer measures realized behavior.
 
 ## Functional Outcome Evaluation
 
@@ -45,7 +45,7 @@ This baseline is a strong operational substrate. It preserves evidence, review b
 | State-transition observations | G136 provides the ledger/API and G137 persists one-session numeric transitions when both observations are usable. | Broader lookbacks, robust rarity/persistence, divergence, and migration semantics remain incomplete. |
 | Versioned hypothesis registry | G138 implements tenant-scoped H001/H004/H006/H007 v1 definitions in `research` status plus deterministic evaluation rows. | Promotion, broad historical calibration, and approved production materialization remain future gates. |
 | Evidence-first signal generation | G136/G137 provide a shared evidence ledger, and G138 links eligible inputs/evidence to research evaluations. | Evidence now flows into research opportunities, but not into outcome measurement, opportunity-scoped Syncratic context, or a governed hypothesis-to-signal proposal adapter. |
-| Opportunity ranking | G139 implements deterministic research-only grouping, overlap suppression, conflict scoring, contribution/evidence lineage, and list/detail APIs. | The analyst workbench is specified but not yet implemented; historical calibration and forward outcomes are absent. |
+| Opportunity ranking | G139 implements deterministic research-only grouping, overlap suppression, conflict scoring, contribution/evidence lineage, list/detail APIs, and the deployed analyst workbench. | Historical calibration and forward outcomes are absent. |
 | Closed-loop outcome evaluation | Partially implemented for detector back-test metrics and calibration workflows. | Outcomes are not tied to hypothesis-triggered signals and opportunities across forward horizons. |
 | Insight distinction from alert | Conceptually documented, not fully realized. | Insights can still appear too close to one persisted signal or incident; the design expects insights/opportunities to summarize multi-event state changes. |
 | Syncratic explainability | Implemented as bounded Ask over SignalOps context. | Once states, transitions, hypotheses, and opportunities exist, Syncratic context should shift from raw event summaries toward evidence-pure market-state bundles. |
@@ -58,7 +58,7 @@ Critical design gaps:
 
 - G136 provides `marketops_feature_definitions`, typed feature observations, canonical market states, state transitions, and reusable evidence ledgers; G137 materialization is currently bounded to AAPL.
 - G138 now provides `marketops_hypothesis_definitions` and `marketops_hypothesis_evaluations`; current scope is bounded to research-only H001/H004/H006/H007 over AAPL G137 states.
-- G139 provides the `marketops_opportunities` research queue; current AAPL quality produces zero eligible rows, and the frontend workbench remains pending.
+- G139 provides the `marketops_opportunities` research queue and deployed workbench; current AAPL quality produces zero eligible rows, which the UI explains through bounded rejection diagnostics.
 - No `marketops_signal_outcomes` materializer exists.
 - G136/G138/G139 provide read APIs for features, states, transitions, evidence, hypotheses, evaluations, and opportunities; outcomes have no API surface.
 - Materialization, evaluation, and opportunity building are explicit bounded CLIs, not a scheduled worker topology; the outcome worker does not exist.

@@ -8634,3 +8634,33 @@ Validation performed:
 Result:
 
 - G139 closes the first research opportunity slice while preserving the data-quality boundary. The live empty queue is an expected analytical result, and the frontend specification makes those blockers visible rather than presenting a blank page. G140 is next for forward outcome materialization.
+
+## Gate G139: Frontend Workbench Closeout
+
+Timestamp: `2026-07-20T01:41:51Z`
+
+Status: `implemented - frontend validated and deployed`
+
+Scope:
+
+- Add the MarketOps-only `/marketops/opportunities` analyst route and navigation entry.
+- Provide a dense desktop master/detail and mobile list-first inspection flow with URL-persisted selection.
+- Use bounded, lazy reads for opportunity detail, hypothesis definitions/evaluations, evidence, and market-state lineage.
+- Expose research state, deterministic scoring, contributions, conflicts, evidence, and audit lineage without mutation controls.
+- Explain the expected empty AAPL opportunity queue with evaluation counts and ranked rejection reasons.
+
+Validation performed:
+
+- Focused G139 frontend tests passed: 33 tests.
+- Complete frontend suite passed: 358 tests.
+- TypeScript/Vite production build and Docker web rebuild passed.
+- Local deployed route returned HTTP `200`; deployed bundle markers confirmed the workbench and sparse-data diagnostic.
+- Runtime API paths and DTOs were checked against the G136-G139 handlers.
+
+Residual risk:
+
+- The current frontend stack does not automate rendered route states or desktop/mobile screenshots. API, pure view-model, navigation, compile, bundle, and deployment checks are green.
+
+Result:
+
+- G139 is closed across backend and frontend. The live zero-opportunity result remains a truthful quality outcome, now visible and interpretable to the analyst. G140 remains next.

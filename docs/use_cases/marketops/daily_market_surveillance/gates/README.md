@@ -311,4 +311,4 @@ Recommended next gate:
 
 - G139: groups compatible triggered evaluations into deterministic research-only opportunities with overlap suppression, conflict scoring, evidence lineage, and read APIs.
 - Specification: `G139_opportunity_layer.md`.
-- Frontend handoff: `../../../../frontend/marketops_opportunities_workbench_spec.md`.
+- Implemented frontend workbench: `../../../../frontend/marketops_opportunities_workbench_spec.md`.

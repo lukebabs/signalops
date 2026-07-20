@@ -1,6 +1,6 @@
 # G139 Opportunity Layer
 
-Status: backend implemented and live-validated on 2026-07-20; frontend-agent specification ready.
+Status: implemented, live-validated, and frontend-deployed on 2026-07-20.
 
 ## Purpose
 
@@ -18,7 +18,7 @@ G139 adds the first analyst-facing MarketOps opportunity object. It groups compa
 - Concise deterministic summary plus linked evaluation, evidence, suppressed-overlap, conflict, and invalidation references.
 - Read-only list/detail APIs.
 - G138 evaluation payload compatibility fields for resolved direction, horizon, and hypothesis family.
-- UX-first frontend-agent implementation specification.
+- UX-first analyst workbench with a dense queue, immediate detail, lazy evidence drill-down, and sparse-data diagnostics.
 
 Every G139 row is `research_only=true`. Lifecycle `active` means independently corroborated within the research queue; it does not mean approved, tradable, or materialized.
 
@@ -53,9 +53,11 @@ G139 does not add:
 - browser-triggered opportunity builds;
 - hypothesis promotion or runtime policy deployment.
 
-## Frontend Handoff
+## Frontend Workbench
 
-The frontend must implement a dense work queue with immediate detail, contribution/conflict/evidence drill-down, research-only visibility, and a useful empty-queue diagnostic based on the existing hypothesis-evaluation API. It must not invent review, build, trade, or materialization controls.
+The MarketOps-only `/marketops/opportunities` route implements a dense work queue with immediate detail, contribution/conflict/evidence drill-down, research-only visibility, and a useful empty-queue diagnostic based on the existing hypothesis-evaluation API. It does not expose review, build, trade, or materialization controls.
+
+The current live ledger has no opportunity rows, so the primary rendered path reports the bounded supporting evaluation counts and rejection reasons. This preserves the distinction between no source evaluations and evaluations blocked by coverage or quality.
 
 Specification: `../../../../frontend/marketops_opportunities_workbench_spec.md`.
 

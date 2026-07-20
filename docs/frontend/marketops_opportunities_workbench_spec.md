@@ -1,6 +1,6 @@
 # G139 Frontend-Agent Specification: MarketOps Opportunities Workbench
 
-Status: ready for frontend-agent implementation after the G139 backend is deployed.
+Status: implemented, validated, and deployed on 2026-07-20.
 
 ## Objective
 
@@ -222,3 +222,17 @@ Do not refactor DSM, Assets, Back-Tests, Algorithms, alerts, insights, auth, or 
 - Triggering the opportunity builder from the browser.
 - Top 50 expansion, provider acquisition, scheduling, or policy promotion.
 - Redesigning existing MarketOps pages.
+
+## Implementation Closeout
+
+The workbench is live at `/marketops/opportunities`. It provides MarketOps-only navigation, bounded list/detail and supporting reads, URL-persisted selection, desktop master/detail and mobile list-first flows, research-state visibility, and the required empty-queue rejection diagnostics. The current AAPL scope correctly renders 24 evaluated, 0 eligible, and 0 triggered evaluations rather than presenting the expected zero-opportunity ledger as an unexplained blank state.
+
+Validation completed on 2026-07-20:
+
+- focused G139 API, query-key, helper, and navigation tests: 33 passed;
+- complete frontend suite: 358 passed;
+- TypeScript and Vite production build: passed;
+- Docker web rebuild and local route smoke: HTTP `200` at `http://localhost:15173/marketops/opportunities`;
+- deployed bundle inspection confirmed the G139 API path and empty-queue diagnostic.
+
+Rendered route-state and viewport screenshot automation is not currently present in the frontend test stack. This is a residual test-automation gap, not a blocker for the deployed read-only workbench.
