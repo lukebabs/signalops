@@ -9009,3 +9009,17 @@ Result:
 - G148-A is accepted as an effective, source-aware review boundary with real idempotency and compatibility evidence.
 - This proves structural mapping and review safety, not empirical hypothesis effectiveness.
 - G148-B Market State context and Ask v2 is the required next slice.
+
+## 2026-07-20 - Gate G148-B/C Market State Context, Ask v2, And Cohort Readiness
+
+Status: validated — ordered backend slices implemented and live bounded dry-run passed
+
+Validation:
+
+- Migration 000036/000037 apply, down, and re-apply passed in an isolated database before live application.
+- Full Go regression suite and packaged gateway/cohort-runner builds passed.
+- Authenticated AAPL `market_state_session_v1` creation was deterministic across reruns; Ask v2 prompt cap/truncation behavior is covered without spending Ask budget.
+- AAPL/MSFT all-stage dry-run completed with no stage errors after correcting the pre-existing opportunity default/session-cap mismatch.
+- AAPL remained blocked by partial state quality and unavailable exact calibration; MSFT remained not observed.
+- Dry-run wrote no cohort, state, evaluation, opportunity, outcome, graph proposal, or signal rows.
+- Readiness never returns `production_ready`; provider acquisition, automatic Ask, graph decisions, lifecycle promotion, and signal materialization remain out of scope.

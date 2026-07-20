@@ -977,6 +977,78 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"calibration_readiness": marketOpsBacktestCalibrationReadinessResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/marketops/intelligence/cohort-runs", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_cohort_filter", "tenant_id is required")
+			return
+		}
+		records, err := repo.ListMarketOpsIntelligenceCohortRuns(r.Context(), storage.MarketOpsIntelligenceCohortRunFilter{TenantID: tenantID, UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list intelligence cohort runs")
+			return
+		}
+		out := make([]map[string]any, 0, len(records))
+		for _, record := range records {
+			out = append(out, marketOpsCohortRunResponse(record))
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"cohort_runs": out})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/intelligence/cohort-runs/{run_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_cohort_filter", "tenant_id is required")
+			return
+		}
+		record, err := repo.GetMarketOpsIntelligenceCohortRun(r.Context(), tenantID, r.PathValue("run_id"))
+		if err != nil {
+			writeQueryError(w, err, "cohort_run_not_found", "MarketOps intelligence cohort run not found")
+			return
+		}
+		rows, err := repo.ListMarketOpsIntelligenceCohortSymbolResults(r.Context(), tenantID, record.RunID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list cohort symbol results")
+			return
+		}
+		results := make([]map[string]any, 0, len(rows))
+		for _, row := range rows {
+			results = append(results, marketOpsCohortResultResponse(row))
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"cohort_run": marketOpsCohortRunResponse(record), "symbol_results": results})
+	})
+
+	mux.HandleFunc("GET /v1/marketops/intelligence/readiness", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_readiness_filter", "tenant_id is required")
+			return
+		}
+		latest, err := queryDate(r, "latest_session_date")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_readiness_filter", "latest_session_date must be YYYY-MM-DD")
+			return
+		}
+		rows, err := repo.ListMarketOpsIntelligenceReadiness(r.Context(), storage.MarketOpsIntelligenceReadinessFilter{TenantID: tenantID, UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Symbols: parseCommaSymbols(r.URL.Query().Get("symbols")), LatestSession: latest, RolloutStatus: strings.TrimSpace(r.URL.Query().Get("rollout_status")), Limit: queryLimit(r, 50)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list intelligence readiness")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"readiness": marketOpsReadinessResponse(rows)})
+	})
+
 	mux.HandleFunc("POST /v1/syncratic/context-windows/{context_window_id}/ask", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -1021,22 +1093,28 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
-		windowStart, err := parseRFC3339(req.WindowStart)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_context_window", "window_start must be RFC3339")
-			return
+		var record storage.SyncraticContextWindowRecord
+		var err error
+		if strings.TrimSpace(req.ContextStrategy) == marketStateContextStrategy {
+			record, err = buildMarketStateSyncraticContext(r.Context(), repo, req.TenantID, req.MarketStateID, req.ContextBuilderVersion)
+		} else {
+			windowStart, parseErr := parseRFC3339(req.WindowStart)
+			if parseErr != nil {
+				writeError(w, http.StatusBadRequest, "invalid_context_window", "window_start must be RFC3339")
+				return
+			}
+			windowEnd, parseErr := parseRFC3339(req.WindowEnd)
+			if parseErr != nil || !windowEnd.After(windowStart) {
+				writeError(w, http.StatusBadRequest, "invalid_context_window", "window_end must be RFC3339 and after window_start")
+				return
+			}
+			record, err = buildSyncraticContextWindow(r.Context(), repo, req.TenantID, req.SubjectSymbol, req.ContextStrategy, windowStart, windowEnd, req.ContextBuilderVersion, req.SignalTypes, 1000, 1000)
 		}
-		windowEnd, err := parseRFC3339(req.WindowEnd)
-		if err != nil || !windowEnd.After(windowStart) {
-			writeError(w, http.StatusBadRequest, "invalid_context_window", "window_end must be RFC3339 and after window_start")
-			return
-		}
-		record, err := buildSyncraticContextWindow(r.Context(), repo, req.TenantID, req.SubjectSymbol, req.ContextStrategy, windowStart, windowEnd, req.ContextBuilderVersion, req.SignalTypes, 1000, 1000)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_context_window", err.Error())
 			return
 		}
-		if len(record.SignalIDs)+len(record.AlertIDs)+len(record.ArtifactIDs)+len(record.GraphProposalIDs)+len(record.LabelIDs) == 0 {
+		if len(record.SignalIDs)+len(record.AlertIDs)+len(record.ArtifactIDs)+len(record.GraphProposalIDs)+len(record.LabelIDs)+len(record.MarketStateIDs) == 0 {
 			writeError(w, http.StatusBadRequest, "empty_context_window", "context window requires at least one persisted evidence record")
 			return
 		}

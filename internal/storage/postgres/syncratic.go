@@ -16,20 +16,24 @@ func (r *Repository) UpsertSyncraticContextWindow(ctx context.Context, record st
 	_, err := r.db.ExecContext(ctx, `
 INSERT INTO syncratic_context_windows (
  context_window_id, tenant_id, app_id, domain, use_case, subject_type, subject_id, subject_symbol,
- window_start, window_end, context_strategy, context_builder_version, signal_types, detector_ids,
- event_ids, signal_ids, alert_ids, artifact_ids, graph_proposal_ids, label_ids, baseline_refs,
- evaluation_refs, promotion_candidate_refs, summary_metrics, evidence_digest, idempotency_key, status
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+ window_start, window_end, context_strategy, context_builder_version, context_payload_version, signal_types, detector_ids,
+ event_ids, signal_ids, alert_ids, artifact_ids, graph_proposal_ids, label_ids, market_state_ids, state_transition_ids, marketops_evidence_ids, hypothesis_evaluation_ids, opportunity_ids, outcome_ids, calibration_summary_ids, baseline_refs,
+ evaluation_refs, promotion_candidate_refs, summary_metrics, quality_warnings, lineage_refs, evidence_digest, idempotency_key, status
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37)
 ON CONFLICT (tenant_id, use_case, context_strategy, subject_symbol, window_start, window_end, context_builder_version)
 DO UPDATE SET
  context_window_id=EXCLUDED.context_window_id, app_id=EXCLUDED.app_id, domain=EXCLUDED.domain,
- subject_type=EXCLUDED.subject_type, subject_id=EXCLUDED.subject_id, signal_types=EXCLUDED.signal_types,
+ subject_type=EXCLUDED.subject_type, subject_id=EXCLUDED.subject_id, context_payload_version=EXCLUDED.context_payload_version, signal_types=EXCLUDED.signal_types,
  detector_ids=EXCLUDED.detector_ids, event_ids=EXCLUDED.event_ids, signal_ids=EXCLUDED.signal_ids,
  alert_ids=EXCLUDED.alert_ids, artifact_ids=EXCLUDED.artifact_ids, graph_proposal_ids=EXCLUDED.graph_proposal_ids,
- label_ids=EXCLUDED.label_ids, baseline_refs=EXCLUDED.baseline_refs, evaluation_refs=EXCLUDED.evaluation_refs,
+ label_ids=EXCLUDED.label_ids, market_state_ids=EXCLUDED.market_state_ids, state_transition_ids=EXCLUDED.state_transition_ids,
+ marketops_evidence_ids=EXCLUDED.marketops_evidence_ids, hypothesis_evaluation_ids=EXCLUDED.hypothesis_evaluation_ids,
+ opportunity_ids=EXCLUDED.opportunity_ids, outcome_ids=EXCLUDED.outcome_ids, calibration_summary_ids=EXCLUDED.calibration_summary_ids,
+ baseline_refs=EXCLUDED.baseline_refs, evaluation_refs=EXCLUDED.evaluation_refs,
  promotion_candidate_refs=EXCLUDED.promotion_candidate_refs, summary_metrics=EXCLUDED.summary_metrics,
+ quality_warnings=EXCLUDED.quality_warnings, lineage_refs=EXCLUDED.lineage_refs,
  evidence_digest=EXCLUDED.evidence_digest, idempotency_key=EXCLUDED.idempotency_key, status=EXCLUDED.status,
- updated_at=now()`, record.ContextWindowID, strings.TrimSpace(record.TenantID), recordAppID(record.AppID), recordDomain(record.Domain), recordUseCase(record.UseCase), firstNonEmptyString(record.SubjectType, "ticker"), strings.TrimSpace(record.SubjectID), strings.TrimSpace(record.SubjectSymbol), record.WindowStart.UTC(), record.WindowEnd.UTC(), strings.TrimSpace(record.ContextStrategy), strings.TrimSpace(record.ContextBuilderVersion), pqArray(record.SignalTypes), pqArray(record.DetectorIDs), pqArray(record.EventIDs), pqArray(record.SignalIDs), pqArray(record.AlertIDs), pqArray(record.ArtifactIDs), pqArray(record.GraphProposalIDs), pqArray(record.LabelIDs), jsonArrayOrEmpty(record.BaselineRefsJSON), jsonArrayOrEmpty(record.EvaluationRefsJSON), jsonArrayOrEmpty(record.PromotionCandidateRefsJSON), jsonOrEmpty(record.SummaryMetricsJSON), strings.TrimSpace(record.EvidenceDigest), strings.TrimSpace(record.IdempotencyKey), firstNonEmptyString(record.Status, "active"))
+ updated_at=now()`, record.ContextWindowID, strings.TrimSpace(record.TenantID), recordAppID(record.AppID), recordDomain(record.Domain), recordUseCase(record.UseCase), firstNonEmptyString(record.SubjectType, "ticker"), strings.TrimSpace(record.SubjectID), strings.TrimSpace(record.SubjectSymbol), record.WindowStart.UTC(), record.WindowEnd.UTC(), strings.TrimSpace(record.ContextStrategy), strings.TrimSpace(record.ContextBuilderVersion), firstNonEmptyString(record.ContextPayloadVersion, "signalops.syncratic.context_payload.v1"), pqArray(record.SignalTypes), pqArray(record.DetectorIDs), pqArray(record.EventIDs), pqArray(record.SignalIDs), pqArray(record.AlertIDs), pqArray(record.ArtifactIDs), pqArray(record.GraphProposalIDs), pqArray(record.LabelIDs), pqArray(record.MarketStateIDs), pqArray(record.StateTransitionIDs), pqArray(record.MarketOpsEvidenceIDs), pqArray(record.HypothesisEvaluationIDs), pqArray(record.OpportunityIDs), pqArray(record.OutcomeIDs), pqArray(record.CalibrationSummaryIDs), jsonArrayOrEmpty(record.BaselineRefsJSON), jsonArrayOrEmpty(record.EvaluationRefsJSON), jsonArrayOrEmpty(record.PromotionCandidateRefsJSON), jsonOrEmpty(record.SummaryMetricsJSON), jsonArrayOrEmpty(record.QualityWarningsJSON), jsonOrEmpty(record.LineageRefsJSON), strings.TrimSpace(record.EvidenceDigest), strings.TrimSpace(record.IdempotencyKey), firstNonEmptyString(record.Status, "active"))
 	if err != nil {
 		return fmt.Errorf("upsert syncratic context window: %w", err)
 	}
@@ -119,25 +123,29 @@ func (r *Repository) GetSyncraticInsight(ctx context.Context, syncraticInsightID
 }
 
 const syncraticContextWindowSelect = `SELECT context_window_id, tenant_id, app_id, domain, use_case, subject_type, subject_id, subject_symbol,
- window_start, window_end, context_strategy, context_builder_version, COALESCE(array_to_json(signal_types), '[]'::json)::text,
+ window_start, window_end, context_strategy, context_builder_version, context_payload_version, COALESCE(array_to_json(signal_types), '[]'::json)::text,
  COALESCE(array_to_json(detector_ids), '[]'::json)::text, COALESCE(array_to_json(event_ids), '[]'::json)::text,
  COALESCE(array_to_json(signal_ids), '[]'::json)::text, COALESCE(array_to_json(alert_ids), '[]'::json)::text,
  COALESCE(array_to_json(artifact_ids), '[]'::json)::text, COALESCE(array_to_json(graph_proposal_ids), '[]'::json)::text,
- COALESCE(array_to_json(label_ids), '[]'::json)::text, baseline_refs, evaluation_refs, promotion_candidate_refs,
- summary_metrics, evidence_digest, idempotency_key, status, created_at, updated_at FROM syncratic_context_windows`
+ COALESCE(array_to_json(label_ids), '[]'::json)::text,
+ COALESCE(array_to_json(market_state_ids), '[]'::json)::text, COALESCE(array_to_json(state_transition_ids), '[]'::json)::text,
+ COALESCE(array_to_json(marketops_evidence_ids), '[]'::json)::text, COALESCE(array_to_json(hypothesis_evaluation_ids), '[]'::json)::text,
+ COALESCE(array_to_json(opportunity_ids), '[]'::json)::text, COALESCE(array_to_json(outcome_ids), '[]'::json)::text,
+ COALESCE(array_to_json(calibration_summary_ids), '[]'::json)::text, baseline_refs, evaluation_refs, promotion_candidate_refs,
+ summary_metrics, quality_warnings, lineage_refs, evidence_digest, idempotency_key, status, created_at, updated_at FROM syncratic_context_windows`
 
 type syncraticContextWindowScanner interface{ Scan(dest ...any) error }
 
 func scanSyncraticContextWindow(scanner syncraticContextWindowScanner) (storage.SyncraticContextWindowRecord, error) {
 	var record storage.SyncraticContextWindowRecord
-	var signalTypesJSON, detectorIDsJSON, eventIDsJSON, signalIDsJSON, alertIDsJSON, artifactIDsJSON, graphProposalIDsJSON, labelIDsJSON string
-	if err := scanner.Scan(&record.ContextWindowID, &record.TenantID, &record.AppID, &record.Domain, &record.UseCase, &record.SubjectType, &record.SubjectID, &record.SubjectSymbol, &record.WindowStart, &record.WindowEnd, &record.ContextStrategy, &record.ContextBuilderVersion, &signalTypesJSON, &detectorIDsJSON, &eventIDsJSON, &signalIDsJSON, &alertIDsJSON, &artifactIDsJSON, &graphProposalIDsJSON, &labelIDsJSON, &record.BaselineRefsJSON, &record.EvaluationRefsJSON, &record.PromotionCandidateRefsJSON, &record.SummaryMetricsJSON, &record.EvidenceDigest, &record.IdempotencyKey, &record.Status, &record.CreatedAt, &record.UpdatedAt); err != nil {
+	var signalTypesJSON, detectorIDsJSON, eventIDsJSON, signalIDsJSON, alertIDsJSON, artifactIDsJSON, graphProposalIDsJSON, labelIDsJSON, marketStateIDsJSON, transitionIDsJSON, marketOpsEvidenceIDsJSON, hypothesisEvaluationIDsJSON, opportunityIDsJSON, outcomeIDsJSON, calibrationSummaryIDsJSON string
+	if err := scanner.Scan(&record.ContextWindowID, &record.TenantID, &record.AppID, &record.Domain, &record.UseCase, &record.SubjectType, &record.SubjectID, &record.SubjectSymbol, &record.WindowStart, &record.WindowEnd, &record.ContextStrategy, &record.ContextBuilderVersion, &record.ContextPayloadVersion, &signalTypesJSON, &detectorIDsJSON, &eventIDsJSON, &signalIDsJSON, &alertIDsJSON, &artifactIDsJSON, &graphProposalIDsJSON, &labelIDsJSON, &marketStateIDsJSON, &transitionIDsJSON, &marketOpsEvidenceIDsJSON, &hypothesisEvaluationIDsJSON, &opportunityIDsJSON, &outcomeIDsJSON, &calibrationSummaryIDsJSON, &record.BaselineRefsJSON, &record.EvaluationRefsJSON, &record.PromotionCandidateRefsJSON, &record.SummaryMetricsJSON, &record.QualityWarningsJSON, &record.LineageRefsJSON, &record.EvidenceDigest, &record.IdempotencyKey, &record.Status, &record.CreatedAt, &record.UpdatedAt); err != nil {
 		return storage.SyncraticContextWindowRecord{}, mapScanError("scan syncratic context window", err)
 	}
 	for _, item := range []struct {
 		raw  string
 		dest *[]string
-	}{{signalTypesJSON, &record.SignalTypes}, {detectorIDsJSON, &record.DetectorIDs}, {eventIDsJSON, &record.EventIDs}, {signalIDsJSON, &record.SignalIDs}, {alertIDsJSON, &record.AlertIDs}, {artifactIDsJSON, &record.ArtifactIDs}, {graphProposalIDsJSON, &record.GraphProposalIDs}, {labelIDsJSON, &record.LabelIDs}} {
+	}{{signalTypesJSON, &record.SignalTypes}, {detectorIDsJSON, &record.DetectorIDs}, {eventIDsJSON, &record.EventIDs}, {signalIDsJSON, &record.SignalIDs}, {alertIDsJSON, &record.AlertIDs}, {artifactIDsJSON, &record.ArtifactIDs}, {graphProposalIDsJSON, &record.GraphProposalIDs}, {labelIDsJSON, &record.LabelIDs}, {marketStateIDsJSON, &record.MarketStateIDs}, {transitionIDsJSON, &record.StateTransitionIDs}, {marketOpsEvidenceIDsJSON, &record.MarketOpsEvidenceIDs}, {hypothesisEvaluationIDsJSON, &record.HypothesisEvaluationIDs}, {opportunityIDsJSON, &record.OpportunityIDs}, {outcomeIDsJSON, &record.OutcomeIDs}, {calibrationSummaryIDsJSON, &record.CalibrationSummaryIDs}} {
 		if err := json.Unmarshal([]byte(item.raw), item.dest); err != nil {
 			return storage.SyncraticContextWindowRecord{}, err
 		}

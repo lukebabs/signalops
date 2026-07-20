@@ -1,0 +1,71 @@
+CREATE TABLE IF NOT EXISTS marketops_intelligence_cohort_runs (
+  run_id text PRIMARY KEY,
+  tenant_id text NOT NULL,
+  app_id text NOT NULL DEFAULT 'marketops',
+  universe_group text NOT NULL DEFAULT '',
+  requested_symbols text[] NOT NULL DEFAULT '{}',
+  resolved_symbols text[] NOT NULL DEFAULT '{}',
+  stages text[] NOT NULL DEFAULT '{}',
+  max_symbols integer NOT NULL CHECK (max_symbols BETWEEN 1 AND 10),
+  dry_run boolean NOT NULL DEFAULT true,
+  continue_on_error boolean NOT NULL DEFAULT false,
+  status text NOT NULL CHECK (status IN ('planned','running','succeeded','partial','failed','dry_run')),
+  aggregate_metrics jsonb NOT NULL DEFAULT '{}'::jsonb,
+  errors jsonb NOT NULL DEFAULT '[]'::jsonb,
+  actor text NOT NULL,
+  session_start date NOT NULL,
+  session_end date NOT NULL,
+  started_at timestamptz NOT NULL,
+  completed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (tenant_id, run_id),
+  CHECK (session_end >= session_start),
+  CHECK (cardinality(resolved_symbols) <= 10)
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketops_intelligence_cohort_runs_scope
+  ON marketops_intelligence_cohort_runs (tenant_id, universe_group, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS marketops_intelligence_cohort_symbol_results (
+  result_id text PRIMARY KEY,
+  run_id text NOT NULL,
+  tenant_id text NOT NULL,
+  universe_group text NOT NULL DEFAULT '',
+  symbol text NOT NULL,
+  asset_id text NOT NULL DEFAULT '',
+  stage_status jsonb NOT NULL DEFAULT '{}',
+  stage_errors jsonb NOT NULL DEFAULT '{}',
+  input_coverage jsonb NOT NULL DEFAULT '{}',
+  latest_market_state_id text NOT NULL DEFAULT '',
+  latest_state_date date,
+  latest_state_schema_version text NOT NULL DEFAULT '',
+  latest_state_quality text NOT NULL DEFAULT '',
+  latest_state_completeness double precision NOT NULL DEFAULT 0,
+  required_feature_coverage double precision NOT NULL DEFAULT 0,
+  surface_coverage double precision NOT NULL DEFAULT 0,
+  evaluation_count integer NOT NULL DEFAULT 0,
+  eligible_count integer NOT NULL DEFAULT 0,
+  triggered_count integer NOT NULL DEFAULT 0,
+  evaluation_rejection_reasons text[] NOT NULL DEFAULT '{}',
+  opportunity_count integer NOT NULL DEFAULT 0,
+  pending_outcome_count integer NOT NULL DEFAULT 0,
+  matured_outcome_count integer NOT NULL DEFAULT 0,
+  proposal_status_counts jsonb NOT NULL DEFAULT '{}',
+  exact_calibration_count integer NOT NULL DEFAULT 0,
+  calibration_below_minimum boolean NOT NULL DEFAULT false,
+  coverage_state text NOT NULL CHECK (coverage_state IN ('unavailable','incomplete','usable')),
+  evaluation_state text NOT NULL CHECK (evaluation_state IN ('not_run','blocked','evaluated_no_trigger','triggered')),
+  governance_state text NOT NULL CHECK (governance_state IN ('research_only','candidate','approved','proposal_pending','reviewed')),
+  calibration_state text NOT NULL CHECK (calibration_state IN ('unavailable','below_minimum','available')),
+  outcome_state text NOT NULL CHECK (outcome_state IN ('unavailable','pending','matured')),
+  rollout_status text NOT NULL CHECK (rollout_status IN ('not_observed','inspection_ready','research_evaluation_ready','review_ready','blocked')),
+  readiness_reasons text[] NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  FOREIGN KEY (tenant_id, run_id) REFERENCES marketops_intelligence_cohort_runs(tenant_id, run_id) ON DELETE CASCADE,
+  UNIQUE (run_id, symbol)
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketops_intelligence_cohort_results_readiness
+  ON marketops_intelligence_cohort_symbol_results (tenant_id, universe_group, rollout_status, updated_at DESC);

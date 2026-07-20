@@ -124,3 +124,20 @@ Returns one synthesized insight, its supporting context references, and G093 rea
 ## Auth Boundary
 
 When gateway auth is enabled, all `/v1/syncratic/*` routes require a valid bearer token. Unauthenticated probes should return `401` while `/healthz` remains public.
+
+
+## G148-B Market State Context
+
+Create a server-derived session context with:
+
+```json
+{"tenant_id":"tenant-local","context_strategy":"market_state_session_v1","market_state_id":"mstate_..."}
+```
+
+The server derives asset, symbol, session, schema version, and time bounds from the persisted state. It returns `context_payload_version=marketops.syncratic.context_payload.v2` plus state, transition, evidence, evaluation, opportunity, outcome, calibration-summary ID arrays, bounded `quality_warnings`, `lineage_refs`, and available/returned/truncated counts.
+
+The v2 builder caps stored features at 25, transitions at 50, evaluations at 8, evidence at 20, opportunities at 10, outcomes at 20, and exact-version calibration summaries at 8. The seven canonical surface cells remain explicit when missing.
+
+Ask for this strategy defaults to `marketops.syncratic.ask_prompt.v2` and caps serialized prompts at 12,000 bytes. A deterministic compact projection records prompt truncation metadata while preserving all persisted top-level IDs and calibration warnings. V2 requires categorized claims, persisted citations, missing-not-zero semantics, historical-association caveats, and no trade or lifecycle instructions. Data-quality-blocked contexts permit remediation explanation only.
+
+Legacy signal contexts and Ask v1 remain compatible.

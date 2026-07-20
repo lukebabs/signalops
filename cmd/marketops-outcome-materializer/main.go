@@ -33,6 +33,7 @@ type cliConfig struct {
 	MaxSessions              int
 	Threshold                float64
 	DryRun                   bool
+	CohortRunID              string
 }
 
 type metrics struct {
@@ -117,7 +118,7 @@ func materialize(ctx context.Context, repo repository, cfg cliConfig) (metrics, 
 	}
 	result.Evaluations, result.Opportunities, result.EquityEvents = len(evaluations), len(opportunities), len(events)
 	built, err := outcomes.Build(outcomes.BuildConfig{
-		TenantID: cfg.TenantID, Symbol: cfg.Symbol, RunID: cfg.RunID, AsOf: cfg.AsOf, Threshold: cfg.Threshold,
+		TenantID: cfg.TenantID, Symbol: cfg.Symbol, RunID: cfg.RunID, AsOf: cfg.AsOf, Threshold: cfg.Threshold, BoundedCohort: cfg.CohortRunID != "",
 	}, outcomes.BuildInput{Evaluations: evaluations, Opportunities: opportunities, EquityEvents: events})
 	if err != nil {
 		return result, err
@@ -149,6 +150,7 @@ func loadConfig() (cliConfig, error) {
 	flag.Float64Var(&cfg.Threshold, "threshold", outcomes.DefaultThreshold, "absolute threshold return (0-1)")
 	flag.StringVar(&cfg.RunID, "run-id", "", "calculation run id")
 	flag.BoolVar(&cfg.DryRun, "dry-run", false, "calculate without writes")
+	flag.StringVar(&cfg.CohortRunID, "cohort-run-id", "", "bounded G148 cohort run marker")
 	flag.Parse()
 	var err error
 	if cfg.SessionStart, err = time.Parse("2006-01-02", strings.TrimSpace(startValue)); err != nil {
@@ -161,6 +163,7 @@ func loadConfig() (cliConfig, error) {
 		return cfg, err
 	}
 	cfg.TenantID, cfg.Symbol, cfg.RunID = strings.TrimSpace(cfg.TenantID), strings.ToUpper(strings.TrimSpace(cfg.Symbol)), strings.TrimSpace(cfg.RunID)
+	cfg.CohortRunID = strings.TrimSpace(cfg.CohortRunID)
 	if cfg.RunID == "" {
 		cfg.RunID = "outcome_" + randomHex(12)
 	}
@@ -171,7 +174,7 @@ func (cfg cliConfig) validate() error {
 	if cfg.TenantID == "" || cfg.RunID == "" {
 		return errors.New("tenant-id and run-id are required")
 	}
-	if cfg.Symbol != "AAPL" {
+	if cfg.Symbol != "AAPL" && cfg.CohortRunID == "" {
 		return errors.New("G140 is intentionally bounded to AAPL")
 	}
 	if cfg.SessionStart.IsZero() || cfg.SessionEnd.IsZero() || cfg.AsOf.IsZero() || cfg.SessionEnd.Before(cfg.SessionStart) {

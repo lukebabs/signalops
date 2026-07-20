@@ -30,6 +30,7 @@ type cliConfig struct {
 	SessionStart, SessionEnd time.Time
 	MaxSessions              int
 	DryRun                   bool
+	CohortRunID              string
 }
 
 type metrics struct {
@@ -131,9 +132,10 @@ func loadConfig() (cliConfig, error) {
 	flag.StringVar(&cfg.Symbol, "symbol", "AAPL", "G139 asset symbol; AAPL only")
 	flag.StringVar(&startValue, "session-start", now.AddDate(-1, 0, 0).Format("2006-01-02"), "inclusive session start")
 	flag.StringVar(&endValue, "session-end", now.Format("2006-01-02"), "inclusive session end")
-	flag.IntVar(&cfg.MaxSessions, "max-sessions", 100, "maximum source sessions (1-50)")
+	flag.IntVar(&cfg.MaxSessions, "max-sessions", 50, "maximum source sessions (1-50)")
 	flag.StringVar(&cfg.RunID, "run-id", "", "build run id")
 	flag.BoolVar(&cfg.DryRun, "dry-run", false, "build without writes")
+	flag.StringVar(&cfg.CohortRunID, "cohort-run-id", "", "bounded G148 cohort run marker")
 	flag.Parse()
 	var err error
 	if cfg.SessionStart, err = time.Parse("2006-01-02", strings.TrimSpace(startValue)); err != nil {
@@ -143,6 +145,7 @@ func loadConfig() (cliConfig, error) {
 		return cfg, err
 	}
 	cfg.TenantID, cfg.Symbol, cfg.RunID = strings.TrimSpace(cfg.TenantID), strings.ToUpper(strings.TrimSpace(cfg.Symbol)), strings.TrimSpace(cfg.RunID)
+	cfg.CohortRunID = strings.TrimSpace(cfg.CohortRunID)
 	if cfg.RunID == "" {
 		cfg.RunID = "oppbuild_" + randomHex(12)
 	}
@@ -153,7 +156,7 @@ func (cfg cliConfig) validate() error {
 	if cfg.TenantID == "" || cfg.RunID == "" {
 		return errors.New("tenant-id and run-id are required")
 	}
-	if cfg.Symbol != "AAPL" {
+	if cfg.Symbol != "AAPL" && cfg.CohortRunID == "" {
 		return errors.New("G139 is intentionally bounded to AAPL")
 	}
 	if cfg.SessionStart.IsZero() || cfg.SessionEnd.IsZero() || cfg.SessionEnd.Before(cfg.SessionStart) {

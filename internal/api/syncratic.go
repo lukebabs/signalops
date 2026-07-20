@@ -28,6 +28,7 @@ type syncraticAskClient interface {
 
 type syncraticContextWindowCreateRequest struct {
 	TenantID              string   `json:"tenant_id"`
+	MarketStateID         string   `json:"market_state_id"`
 	SubjectSymbol         string   `json:"subject_symbol"`
 	ContextStrategy       string   `json:"context_strategy"`
 	ContextBuilderVersion string   `json:"context_builder_version"`
@@ -116,35 +117,45 @@ type syncraticMaterializeDecision struct {
 }
 
 type syncraticContextWindowDTO struct {
-	ContextWindowID        string          `json:"context_window_id"`
-	TenantID               string          `json:"tenant_id"`
-	AppID                  string          `json:"app_id"`
-	Domain                 string          `json:"domain"`
-	UseCase                string          `json:"use_case"`
-	SubjectType            string          `json:"subject_type"`
-	SubjectID              string          `json:"subject_id"`
-	SubjectSymbol          string          `json:"subject_symbol"`
-	WindowStart            time.Time       `json:"window_start"`
-	WindowEnd              time.Time       `json:"window_end"`
-	ContextStrategy        string          `json:"context_strategy"`
-	ContextBuilderVersion  string          `json:"context_builder_version"`
-	SignalTypes            []string        `json:"signal_types"`
-	DetectorIDs            []string        `json:"detector_ids"`
-	EventIDs               []string        `json:"event_ids"`
-	SignalIDs              []string        `json:"signal_ids"`
-	AlertIDs               []string        `json:"alert_ids"`
-	ArtifactIDs            []string        `json:"artifact_ids"`
-	GraphProposalIDs       []string        `json:"graph_proposal_ids"`
-	LabelIDs               []string        `json:"label_ids"`
-	BaselineRefs           json.RawMessage `json:"baseline_refs"`
-	EvaluationRefs         json.RawMessage `json:"evaluation_refs"`
-	PromotionCandidateRefs json.RawMessage `json:"promotion_candidate_refs"`
-	SummaryMetrics         json.RawMessage `json:"summary_metrics"`
-	EvidenceDigest         string          `json:"evidence_digest"`
-	IdempotencyKey         string          `json:"idempotency_key"`
-	Status                 string          `json:"status"`
-	CreatedAt              time.Time       `json:"created_at"`
-	UpdatedAt              time.Time       `json:"updated_at"`
+	ContextWindowID         string          `json:"context_window_id"`
+	TenantID                string          `json:"tenant_id"`
+	AppID                   string          `json:"app_id"`
+	Domain                  string          `json:"domain"`
+	UseCase                 string          `json:"use_case"`
+	SubjectType             string          `json:"subject_type"`
+	SubjectID               string          `json:"subject_id"`
+	SubjectSymbol           string          `json:"subject_symbol"`
+	WindowStart             time.Time       `json:"window_start"`
+	WindowEnd               time.Time       `json:"window_end"`
+	ContextStrategy         string          `json:"context_strategy"`
+	ContextBuilderVersion   string          `json:"context_builder_version"`
+	ContextPayloadVersion   string          `json:"context_payload_version"`
+	SignalTypes             []string        `json:"signal_types"`
+	DetectorIDs             []string        `json:"detector_ids"`
+	EventIDs                []string        `json:"event_ids"`
+	SignalIDs               []string        `json:"signal_ids"`
+	AlertIDs                []string        `json:"alert_ids"`
+	ArtifactIDs             []string        `json:"artifact_ids"`
+	GraphProposalIDs        []string        `json:"graph_proposal_ids"`
+	LabelIDs                []string        `json:"label_ids"`
+	MarketStateIDs          []string        `json:"market_state_ids"`
+	StateTransitionIDs      []string        `json:"state_transition_ids"`
+	MarketOpsEvidenceIDs    []string        `json:"marketops_evidence_ids"`
+	HypothesisEvaluationIDs []string        `json:"hypothesis_evaluation_ids"`
+	OpportunityIDs          []string        `json:"opportunity_ids"`
+	OutcomeIDs              []string        `json:"outcome_ids"`
+	CalibrationSummaryIDs   []string        `json:"calibration_summary_ids"`
+	BaselineRefs            json.RawMessage `json:"baseline_refs"`
+	EvaluationRefs          json.RawMessage `json:"evaluation_refs"`
+	PromotionCandidateRefs  json.RawMessage `json:"promotion_candidate_refs"`
+	SummaryMetrics          json.RawMessage `json:"summary_metrics"`
+	QualityWarnings         json.RawMessage `json:"quality_warnings"`
+	LineageRefs             json.RawMessage `json:"lineage_refs"`
+	EvidenceDigest          string          `json:"evidence_digest"`
+	IdempotencyKey          string          `json:"idempotency_key"`
+	Status                  string          `json:"status"`
+	CreatedAt               time.Time       `json:"created_at"`
+	UpdatedAt               time.Time       `json:"updated_at"`
 }
 
 type syncraticInsightCurrentnessDTO struct {
@@ -187,7 +198,7 @@ type syncraticInsightDTO struct {
 }
 
 func syncraticContextWindowResponse(record storage.SyncraticContextWindowRecord) syncraticContextWindowDTO {
-	return syncraticContextWindowDTO{ContextWindowID: record.ContextWindowID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SubjectType: record.SubjectType, SubjectID: record.SubjectID, SubjectSymbol: record.SubjectSymbol, WindowStart: record.WindowStart, WindowEnd: record.WindowEnd, ContextStrategy: record.ContextStrategy, ContextBuilderVersion: record.ContextBuilderVersion, SignalTypes: record.SignalTypes, DetectorIDs: record.DetectorIDs, EventIDs: record.EventIDs, SignalIDs: record.SignalIDs, AlertIDs: record.AlertIDs, ArtifactIDs: record.ArtifactIDs, GraphProposalIDs: record.GraphProposalIDs, LabelIDs: record.LabelIDs, BaselineRefs: json.RawMessage(jsonOrDefault(record.BaselineRefsJSON, `[]`)), EvaluationRefs: json.RawMessage(jsonOrDefault(record.EvaluationRefsJSON, `[]`)), PromotionCandidateRefs: json.RawMessage(jsonOrDefault(record.PromotionCandidateRefsJSON, `[]`)), SummaryMetrics: json.RawMessage(jsonOrDefault(record.SummaryMetricsJSON, `{}`)), EvidenceDigest: record.EvidenceDigest, IdempotencyKey: record.IdempotencyKey, Status: record.Status, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+	return syncraticContextWindowDTO{ContextWindowID: record.ContextWindowID, TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SubjectType: record.SubjectType, SubjectID: record.SubjectID, SubjectSymbol: record.SubjectSymbol, WindowStart: record.WindowStart, WindowEnd: record.WindowEnd, ContextStrategy: record.ContextStrategy, ContextBuilderVersion: record.ContextBuilderVersion, ContextPayloadVersion: record.ContextPayloadVersion, SignalTypes: record.SignalTypes, DetectorIDs: record.DetectorIDs, EventIDs: record.EventIDs, SignalIDs: record.SignalIDs, AlertIDs: record.AlertIDs, ArtifactIDs: record.ArtifactIDs, GraphProposalIDs: record.GraphProposalIDs, LabelIDs: record.LabelIDs, MarketStateIDs: record.MarketStateIDs, StateTransitionIDs: record.StateTransitionIDs, MarketOpsEvidenceIDs: record.MarketOpsEvidenceIDs, HypothesisEvaluationIDs: record.HypothesisEvaluationIDs, OpportunityIDs: record.OpportunityIDs, OutcomeIDs: record.OutcomeIDs, CalibrationSummaryIDs: record.CalibrationSummaryIDs, BaselineRefs: json.RawMessage(jsonOrDefault(record.BaselineRefsJSON, `[]`)), EvaluationRefs: json.RawMessage(jsonOrDefault(record.EvaluationRefsJSON, `[]`)), PromotionCandidateRefs: json.RawMessage(jsonOrDefault(record.PromotionCandidateRefsJSON, `[]`)), SummaryMetrics: json.RawMessage(jsonOrDefault(record.SummaryMetricsJSON, `{}`)), QualityWarnings: json.RawMessage(jsonOrDefault(record.QualityWarningsJSON, `[]`)), LineageRefs: json.RawMessage(jsonOrDefault(record.LineageRefsJSON, `{}`)), EvidenceDigest: record.EvidenceDigest, IdempotencyKey: record.IdempotencyKey, Status: record.Status, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
 }
 
 func syncraticContextWindowResponses(records []storage.SyncraticContextWindowRecord) []syncraticContextWindowDTO {
@@ -428,11 +439,17 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 	if tenantID != "" && tenantID != contextWindow.TenantID {
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, fmt.Errorf("tenant_id does not match context window")
 	}
-	signalDetails, missingSignalDetails, err := syncraticAskSignalDetails(ctx, repo, contextWindow, 5)
-	if err != nil {
-		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
+	var prompt string
+	var promptMeta syncraticAskPromptMeta
+	if contextWindow.ContextStrategy == marketStateContextStrategy {
+		prompt, promptMeta, err = buildMarketStateAskPrompt(contextWindow, req)
+	} else {
+		signalDetails, missingSignalDetails, detailErr := syncraticAskSignalDetails(ctx, repo, contextWindow, 5)
+		if detailErr != nil {
+			return storage.SyncraticInsightRecord{}, syncraticAskResult{}, detailErr
+		}
+		prompt, promptMeta, err = buildSyncraticAskPrompt(contextWindow, req, signalDetails, missingSignalDetails)
 	}
-	prompt, promptMeta, err := buildSyncraticAskPrompt(contextWindow, req, signalDetails, missingSignalDetails)
 	if err != nil {
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
 	}
@@ -444,12 +461,16 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 		return insight, syncraticAskResult{ContextWindowID: contextWindow.ContextWindowID, SyncraticInsightID: insight.SyncraticInsightID, AskStatus: "skipped", PromptDigest: promptMeta.PromptDigest, Updated: false, SkippedReason: "unchanged_prompt_and_evidence", PromptBuilderVersion: promptMeta.PromptBuilderVersion}, nil
 	}
 	started := time.Now().UTC()
+	question := "Interpret this deterministic SignalOps MarketOps context window for an operator. Rank the strongest drivers, explain why the cluster matters now, call out contradictions or weak evidence, and recommend next checks using only the caller-supplied external context."
+	if contextWindow.ContextStrategy == marketStateContextStrategy {
+		question = marketStateAskQuestion(contextWindow)
+	}
 	includeRefs := false
 	directReasoning := true
 	graphEnabled := false
 	keeEnabled := false
 	askResp, err := askClient.Ask(ctx, userapi.AskRequest{
-		Question:        "Interpret this deterministic SignalOps MarketOps context window for an operator. Rank the strongest drivers, explain why the cluster matters now, call out contradictions or weak evidence, and recommend next checks using only the caller-supplied external context.",
+		Question:        question,
 		Scope:           defaultSyncraticAskScope,
 		K:               1,
 		ThreadMode:      "off",

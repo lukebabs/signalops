@@ -30,6 +30,7 @@ type cliConfig struct {
 	SessionStart, SessionEnd           time.Time
 	MaxSessions                        int
 	DryRun                             bool
+	CohortRunID                        string
 }
 
 type metrics struct {
@@ -122,6 +123,7 @@ func loadConfig() (cliConfig, error) {
 	flag.StringVar(&cfg.RunID, "run-id", "", "proposal run id")
 	flag.StringVar(&cfg.CreatedBy, "created-by", "marketops-proposal-generator", "proposal creator")
 	flag.BoolVar(&cfg.DryRun, "dry-run", false, "build without writes")
+	flag.StringVar(&cfg.CohortRunID, "cohort-run-id", "", "bounded G148 cohort run marker")
 	flag.Parse()
 	var err error
 	if cfg.SessionStart, err = time.Parse("2006-01-02", strings.TrimSpace(startValue)); err != nil {
@@ -132,6 +134,7 @@ func loadConfig() (cliConfig, error) {
 	}
 	cfg.TenantID, cfg.Symbol = strings.TrimSpace(cfg.TenantID), strings.ToUpper(strings.TrimSpace(cfg.Symbol))
 	cfg.RunID, cfg.CreatedBy = strings.TrimSpace(cfg.RunID), strings.TrimSpace(cfg.CreatedBy)
+	cfg.CohortRunID = strings.TrimSpace(cfg.CohortRunID)
 	if cfg.RunID == "" {
 		cfg.RunID = "hypprop_" + randomHex(12)
 	}
@@ -142,7 +145,7 @@ func (cfg cliConfig) validate() error {
 	if cfg.TenantID == "" || cfg.RunID == "" || cfg.CreatedBy == "" {
 		return errors.New("tenant-id, run-id, and created-by are required")
 	}
-	if cfg.Symbol != "AAPL" {
+	if cfg.Symbol != "AAPL" && cfg.CohortRunID == "" {
 		return errors.New("G146 is intentionally bounded to AAPL")
 	}
 	if cfg.SessionStart.IsZero() || cfg.SessionEnd.IsZero() || cfg.SessionEnd.Before(cfg.SessionStart) {

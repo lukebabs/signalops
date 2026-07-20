@@ -1,6 +1,6 @@
 # G148 Graph, Ask, And Cohort Rollout
 
-Status: G148-A implemented and accepted; G148-B and G148-C proposed
+Status: G148-A, G148-B, and G148-C implemented; backend validation passed
 
 Date: 2026-07-20
 
@@ -482,4 +482,4 @@ Expected frontend work comes after backend contracts are validated:
 
 ## Gate Result
 
-This specification is ready for a backend agent to implement G148-A first. G148-B and G148-C remain ordered follow-on slices inside the gate, not parallel workstreams. A frontend-agent specification is intentionally deferred until the new source-aware graph, state-context, and aggregate readiness API contracts are implemented and live-validated.
+G148-A, G148-B, and G148-C are implemented in sequence. Migrations 000036 and 000037 passed isolated apply, down, and re-apply validation; the full Go suite and packaged cohort runner build pass. A live authenticated AAPL market-state context was created, and an AAPL/MSFT all-stage dry-run truthfully reported AAPL blocked and MSFT not observed while cohort, state, evaluation, opportunity, outcome, graph-proposal, and signal counts remained unchanged. The read-only frontend-agent specification may now consume the validated aggregate readiness contract.

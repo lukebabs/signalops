@@ -21,12 +21,13 @@ const (
 var DefaultHorizons = []int{1, 5, 10, 20}
 
 type BuildConfig struct {
-	TenantID  string
-	Symbol    string
-	RunID     string
-	AsOf      time.Time
-	Threshold float64
-	Horizons  []int
+	TenantID      string
+	Symbol        string
+	RunID         string
+	AsOf          time.Time
+	Threshold     float64
+	BoundedCohort bool
+	Horizons      []int
 }
 
 type BuildInput struct {
@@ -127,7 +128,7 @@ func validateConfig(config BuildConfig) error {
 	if config.TenantID == "" || config.Symbol == "" || config.RunID == "" || config.AsOf.IsZero() {
 		return errors.New("G140 tenant_id, symbol, run_id, and as_of are required")
 	}
-	if config.Symbol != "AAPL" {
+	if config.Symbol != "AAPL" && !config.BoundedCohort {
 		return errors.New("G140 is intentionally bounded to AAPL")
 	}
 	if config.Threshold <= 0 || config.Threshold >= 1 {

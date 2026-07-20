@@ -7571,3 +7571,14 @@ Result:
 - G148-A is implemented and accepted.
 - The source-aware proposal ledger is operational and idempotent without adding automatic acceptance or graph mutation.
 - G148-B bounded Market State context and Ask v2 is next; Ask, cohort execution, production readiness, and empirical hypothesis effectiveness remain unclaimed.
+
+## 2026-07-20 - G148-B/C Market State Ask And Cohort Readiness
+
+- Added migrations 000036 and 000037 for additive Market State Syncratic context fields and durable intelligence cohort run/symbol-result ledgers.
+- Added server-derived `market_state_session_v1` contexts, exact-version evaluation/calibration isolation, evidence-purity blocking, seven-cell missingness, bounded lineage, deterministic IDs/digests, and categorized Ask v2 with a 12 KB compact prompt projection.
+- Added the explicit 10-symbol intelligence cohort runner, dependency-ordered stages, no-write dry run, write acknowledgement, per-symbol continuation, immutable run scope, and bounded child-stage markers that preserve standalone AAPL guards.
+- Added aggregate-first cohort run/readiness APIs with independent coverage, evaluation, governance, calibration, outcome, and rollout states; production readiness is explicitly unsupported.
+- Full Go tests passed. Migrations passed isolated apply/down/reapply. Gateway and runner images built, migrations applied live, and gateway remained healthy.
+- Authenticated AAPL context reruns produced the same `synctx_b895bd14ba9da67743cbef2c` ID and evidence digest. No Ask call was forced.
+- The corrected AAPL/MSFT all-stage dry-run reported AAPL blocked at 0.20 completeness and MSFT not observed. Cohort rows stayed 0; state/evaluation/opportunity/outcome/graph/signal counts remained 6/24/0/0/231/31.
+- Added the read-only frontend-agent readiness specification. Sparse fixtures demonstrate structural effectiveness only, not empirical hypothesis effectiveness.

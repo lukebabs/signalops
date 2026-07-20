@@ -33,6 +33,7 @@ type cliConfig struct {
 	SessionStart, SessionEnd time.Time
 	MaxSessions              int
 	DryRun                   bool
+	CohortRunID              string
 }
 
 type metrics struct {
@@ -156,6 +157,7 @@ func loadConfig() (cliConfig, error) {
 	flag.IntVar(&cfg.MaxSessions, "max-sessions", 100, "maximum states")
 	flag.StringVar(&cfg.RunID, "run-id", "", "evaluation run id")
 	flag.BoolVar(&cfg.DryRun, "dry-run", false, "evaluate without writes")
+	flag.StringVar(&cfg.CohortRunID, "cohort-run-id", "", "bounded G148 cohort run marker")
 	flag.Parse()
 	var err error
 	if cfg.SessionStart, err = time.Parse("2006-01-02", strings.TrimSpace(startValue)); err != nil {
@@ -167,6 +169,7 @@ func loadConfig() (cliConfig, error) {
 	cfg.TenantID = strings.TrimSpace(cfg.TenantID)
 	cfg.Symbol = strings.ToUpper(strings.TrimSpace(cfg.Symbol))
 	cfg.RunID = strings.TrimSpace(cfg.RunID)
+	cfg.CohortRunID = strings.TrimSpace(cfg.CohortRunID)
 	if cfg.RunID == "" {
 		cfg.RunID = "hypeval_" + randomHex(12)
 	}
@@ -177,7 +180,7 @@ func (cfg cliConfig) validate() error {
 	if cfg.TenantID == "" || cfg.RunID == "" {
 		return errors.New("tenant-id and run-id are required")
 	}
-	if cfg.Symbol != "AAPL" {
+	if cfg.Symbol != "AAPL" && cfg.CohortRunID == "" {
 		return errors.New("G138 is intentionally bounded to AAPL")
 	}
 	if cfg.SessionStart.IsZero() || cfg.SessionEnd.IsZero() || cfg.SessionEnd.Before(cfg.SessionStart) {

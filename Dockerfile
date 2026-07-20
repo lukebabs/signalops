@@ -23,6 +23,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-o
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-state-materializer ./cmd/marketops-state-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-hypothesis-evaluator ./cmd/marketops-hypothesis-evaluator
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-intelligence-graph-mapper ./cmd/marketops-intelligence-graph-mapper
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-intelligence-cohort-runner ./cmd/marketops-intelligence-cohort-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-hypothesis-proposal-generator ./cmd/marketops-hypothesis-proposal-generator
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-opportunity-builder ./cmd/marketops-opportunity-builder
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-outcome-materializer ./cmd/marketops-outcome-materializer
@@ -170,3 +171,14 @@ FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-proposal-generator
 COPY --from=build /out/signalops-algorithm-proposal-generator /signalops-algorithm-proposal-generator
 
 ENTRYPOINT ["/signalops-algorithm-proposal-generator"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-intelligence-cohort-runner
+
+COPY --from=build /out/signalops-marketops-intelligence-cohort-runner /usr/local/bin/signalops-marketops-intelligence-cohort-runner
+COPY --from=build /out/signalops-marketops-state-materializer /usr/local/bin/signalops-marketops-state-materializer
+COPY --from=build /out/signalops-marketops-hypothesis-evaluator /usr/local/bin/signalops-marketops-hypothesis-evaluator
+COPY --from=build /out/signalops-marketops-opportunity-builder /usr/local/bin/signalops-marketops-opportunity-builder
+COPY --from=build /out/signalops-marketops-outcome-materializer /usr/local/bin/signalops-marketops-outcome-materializer
+COPY --from=build /out/signalops-marketops-hypothesis-proposal-generator /usr/local/bin/signalops-marketops-hypothesis-proposal-generator
+
+ENTRYPOINT ["/usr/local/bin/signalops-marketops-intelligence-cohort-runner"]

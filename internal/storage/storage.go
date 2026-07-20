@@ -448,6 +448,7 @@ type SyncraticContextWindowRecord struct {
 	WindowEnd                  time.Time
 	ContextStrategy            string
 	ContextBuilderVersion      string
+	ContextPayloadVersion      string
 	SignalTypes                []string
 	DetectorIDs                []string
 	EventIDs                   []string
@@ -456,10 +457,19 @@ type SyncraticContextWindowRecord struct {
 	ArtifactIDs                []string
 	GraphProposalIDs           []string
 	LabelIDs                   []string
+	MarketStateIDs             []string
+	StateTransitionIDs         []string
+	MarketOpsEvidenceIDs       []string
+	HypothesisEvaluationIDs    []string
+	OpportunityIDs             []string
+	OutcomeIDs                 []string
+	CalibrationSummaryIDs      []string
 	BaselineRefsJSON           []byte
 	EvaluationRefsJSON         []byte
 	PromotionCandidateRefsJSON []byte
 	SummaryMetricsJSON         []byte
+	QualityWarningsJSON        []byte
+	LineageRefsJSON            []byte
 	EvidenceDigest             string
 	IdempotencyKey             string
 	Status                     string
@@ -1925,6 +1935,7 @@ type QueryRepository interface {
 	MarketOpsHypothesisQueryRepository
 	MarketOpsOpportunityQueryRepository
 	MarketOpsOutcomeQueryRepository
+	MarketOpsIntelligenceCohortRepository
 	SignalLedgerRepository
 	ListSchedulerRuns(ctx context.Context, limit int) ([]SchedulerRunRecord, error)
 	GetSchedulerRun(ctx context.Context, runID string) (SchedulerRunRecord, error)

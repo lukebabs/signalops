@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS marketops_intelligence_cohort_symbol_results;
+DROP TABLE IF EXISTS marketops_intelligence_cohort_runs;

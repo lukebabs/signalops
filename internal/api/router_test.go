@@ -119,6 +119,8 @@ type fakeQueryRepository struct {
 	backtestCalibrationReadiness       []storage.MarketOpsBacktestCalibrationReadinessRecord
 	syncraticContextWindows            []storage.SyncraticContextWindowRecord
 	syncraticInsights                  []storage.SyncraticInsightRecord
+	cohortRuns                         []storage.MarketOpsIntelligenceCohortRunRecord
+	cohortResults                      []storage.MarketOpsIntelligenceCohortSymbolResultRecord
 	algorithmDefinitions               []storage.AlgorithmDefinitionRecord
 	algorithmExecutionRequests         []storage.AlgorithmExecutionRequestRecord
 	algorithmResults                   []storage.AlgorithmResultRecord
