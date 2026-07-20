@@ -8981,3 +8981,31 @@ Result:
 - The backend agent can implement G148-A without inventing graph authority or false signal lineage.
 - G148-B and G148-C remain ordered follow-ons inside the same gate.
 - A frontend handoff will follow only after the new backend contracts are live-validated.
+
+## 2026-07-20 - Gate G148-A Source-Aware Market-Intelligence Graph Proposals
+
+Status: implemented and accepted
+
+Acceptance evidence:
+
+- Migration `000035` generalized the existing reviewed graph-proposal ledger with typed source identity, bounded source/lineage references, nullable signal-only fields, source constraints, indexes, and a lossy-rollback refusal.
+- The migration preserved all 120 legacy proposal IDs and decisions: 7 accepted, 113 proposed, with unchanged proposal/status digest `298c9c5bbf18d3035e1fdbdb29a95ee6`.
+- Canonical authenticated routes now exist under `/v1/marketops/graph-proposals`; legacy DSM list/detail/decision routes are restricted to `dsm_signal`.
+- Generic API records omit severity/confidence rather than fabricating values. Actor-attributed decision mutation continues to use the existing review audit fields.
+- The deterministic persisted-input mapper and distroless CLI support explicit source/date/symbol selection, source/proposal caps, dry-run default, and explicit `--write` acknowledgement.
+- Full Dockerized Go tests passed, the mapper image built, the gateway rebuilt and returned HTTP 200 from `/healthz`, and the deployed canonical route retained auth enforcement.
+- Exact built-image contract validation returned two `market_state` records without legacy severity/confidence fields and two `dsm_signal` records from the legacy alias.
+- The bounded AAPL run read 45 sources: 6 states, 11 transitions, 4 exact definitions, and 24 evaluations. It emitted 111 candidates; no opportunity or outcome candidates were manufactured.
+- Two explicit write runs retained exactly 111 non-signal proposal IDs with digest `4edeaead4784500bc04e297de928100e`. All remain `proposed`, and no duplicate rows or fabricated artifact/signal/severity/confidence values exist.
+
+Boundaries retained:
+
+- The mapper does not accept proposals or write an external graph database.
+- No provider acquisition, Ask, cohort rollout, threshold relaxation, lifecycle promotion, signal materialization, trade, or portfolio behavior was added.
+- Sparse quality remains visible: five partial and one missing state; all 24 evaluations remain non-eligible/non-triggered; opportunities and outcomes remain absent.
+
+Result:
+
+- G148-A is accepted as an effective, source-aware review boundary with real idempotency and compatibility evidence.
+- This proves structural mapping and review safety, not empirical hypothesis effectiveness.
+- G148-B Market State context and Ask v2 is the required next slice.

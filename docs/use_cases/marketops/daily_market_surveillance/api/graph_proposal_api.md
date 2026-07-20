@@ -118,3 +118,29 @@ Unauthenticated requests should return `401 unauthorized` when auth is enabled. 
 The DSM Workbench uses `POST /v1/marketops/dsm/graph-proposals/{proposal_id}/decision` to update review state only. The request body contains the target `status` and optional `note`. Auth-enabled requests derive the actor from the bearer token; auth-disabled local development requests may use the existing `X-SignalOps-Actor` fallback.
 
 The frontend must not use this endpoint to imply graph materialization. Accepted proposals remain review records until a later gate introduces explicit production graph-write semantics.
+## G148 Source-Aware Extension
+
+G148-A adds the canonical source-aware routes:
+
+- `GET /v1/marketops/graph-proposals`
+- `GET /v1/marketops/graph-proposals/{proposal_id}`
+- `POST /v1/marketops/graph-proposals/{proposal_id}/decision`
+
+The canonical list accepts `proposal_source`, `source_record_type`, and `source_record_id` in addition to tenant/app/domain/use-case, symbol, candidate type, status, and bounded limit filters. Allowed sources are `dsm_signal`, `market_state`, `state_transition`, `hypothesis_definition`, `hypothesis_evaluation`, `opportunity`, and `outcome`.
+
+Generic records return `proposal_source`, source identity/version, and bounded `source_refs` and `lineage_refs`. Signal-only artifact, signal, severity, and confidence fields are omitted rather than fabricated. The existing DSM routes remain legacy aliases; their list is implicitly restricted to `proposal_source=dsm_signal`, and their detail/decision routes reject non-signal records.
+
+The operator mapper reads persisted records only and defaults to dry-run:
+
+```bash
+signalops-marketops-intelligence-graph-mapper \
+  --tenant-id tenant-local \
+  --symbol AAPL \
+  --session-start 2026-07-09 \
+  --session-end 2026-07-18 \
+  --source-types market_state,state_transition,hypothesis_definition,hypothesis_evaluation,opportunity,outcome \
+  --max-source-records 100 \
+  --max-proposals 500
+```
+
+Proposal-ledger writes require the explicit `--write` acknowledgement. The mapper never accepts proposals and never writes to an external graph database.

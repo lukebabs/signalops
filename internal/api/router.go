@@ -1249,6 +1249,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"artifact": marketOpsDSMArtifactResponse(record)})
 	})
 
+	mux.HandleFunc("GET /v1/marketops/graph-proposals", marketOpsGraphProposalListHandler(cfg.QueryRepository))
+	mux.HandleFunc("GET /v1/marketops/graph-proposals/{proposal_id}", marketOpsGraphProposalGetHandler(cfg.QueryRepository))
+	mux.HandleFunc("POST /v1/marketops/graph-proposals/{proposal_id}/decision", marketOpsGraphProposalDecisionHandler(cfg.QueryRepository))
+
 	mux.HandleFunc("GET /v1/marketops/dsm/graph-proposals", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -1257,7 +1261,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		records, err := repo.ListMarketOpsDSMGraphProposals(r.Context(), storage.MarketOpsDSMGraphProposalFilter{
 			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			ArtifactID: strings.TrimSpace(r.URL.Query().Get("artifact_id")), SignalID: strings.TrimSpace(r.URL.Query().Get("signal_id")), SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")),
-			CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
+			CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), Status: strings.TrimSpace(r.URL.Query().Get("status")), ProposalSource: storage.MarketOpsGraphProposalSourceDSMSignal, Limit: queryLimit(r, 50),
 		})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps DSM graph proposals")
@@ -1276,12 +1280,25 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
 			return
 		}
+		if record.ProposalSource != "" && record.ProposalSource != storage.MarketOpsGraphProposalSourceDSMSignal {
+			writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"graph_proposal": marketOpsDSMGraphProposalResponse(record)})
 	})
 
 	mux.HandleFunc("POST /v1/marketops/dsm/graph-proposals/{proposal_id}/decision", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
+			return
+		}
+		existing, err := repo.GetMarketOpsDSMGraphProposal(r.Context(), r.PathValue("proposal_id"))
+		if err != nil || (existing.ProposalSource != "" && existing.ProposalSource != storage.MarketOpsGraphProposalSourceDSMSignal) {
+			if err != nil {
+				writeQueryError(w, err, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
+			} else {
+				writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
+			}
 			return
 		}
 		var req graphProposalDecisionRequest

@@ -2404,6 +2404,68 @@ func TestGetMarketOpsBacktestEvaluationLabel(t *testing.T) {
 	}
 }
 
+func TestGetMarketOpsGraphProposalsCanonicalSourceFilters(t *testing.T) {
+	proposal := validMarketOpsDSMGraphProposalRecord()
+	proposal.ProposalID = "graphprop_marketops_intel_v1_test"
+	proposal.ArtifactID, proposal.SignalID, proposal.SignalType, proposal.DetectorID, proposal.Severity = "", "", "", "", ""
+	proposal.Confidence = 0
+	proposal.ProposalSource = storage.MarketOpsGraphProposalSourceMarketState
+	proposal.SourceRecordType = storage.MarketOpsGraphProposalSourceMarketState
+	proposal.SourceRecordID = "state-1"
+	proposal.SourceRecordVersion = "marketops.state.v1"
+	proposal.SourceRefsJSON = []byte(`{"market_state_id":"state-1"}`)
+	proposal.LineageRefsJSON = []byte(`{"feature_observation_ids":["feature-1"]}`)
+	proposal.NodeID = "market_state:state-1"
+	repo := &fakeQueryRepository{dsmGraphProposals: []storage.MarketOpsDSMGraphProposalRecord{proposal}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/marketops/graph-proposals?tenant_id=tenant-1&proposal_source=market_state&source_record_type=market_state&source_record_id=state-1&subject_symbol=AAPL&candidate_type=node_candidate&status=proposed&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	filter := repo.lastGraphProposalFilter
+	if filter.ProposalSource != storage.MarketOpsGraphProposalSourceMarketState || filter.SourceRecordType != storage.MarketOpsGraphProposalSourceMarketState || filter.SourceRecordID != "state-1" || filter.Limit != 10 {
+		t.Fatalf("filter = %+v", filter)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	got := response["graph_proposals"][0]
+	if got["proposal_source"] != "market_state" || got["source_record_id"] != "state-1" || got["node_id"] != "market_state:state-1" {
+		t.Fatalf("proposal = %+v", got)
+	}
+	if _, exists := got["severity"]; exists {
+		t.Fatalf("generic proposal fabricated severity: %+v", got)
+	}
+	if _, exists := got["confidence"]; exists {
+		t.Fatalf("generic proposal fabricated confidence: %+v", got)
+	}
+}
+
+func TestPostMarketOpsGraphProposalCanonicalDecision(t *testing.T) {
+	proposal := validMarketOpsDSMGraphProposalRecord()
+	proposal.ProposalID = "graphprop_marketops_intel_v1_test"
+	proposal.ProposalSource = storage.MarketOpsGraphProposalSourceMarketState
+	proposal.SourceRecordType = storage.MarketOpsGraphProposalSourceMarketState
+	proposal.SourceRecordID = "state-1"
+	repo := &fakeQueryRepository{dsmGraphProposals: []storage.MarketOpsDSMGraphProposalRecord{proposal}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/marketops/graph-proposals/graphprop_marketops_intel_v1_test/decision", strings.NewReader(`{"status":"accepted","note":"reviewed"}`))
+	req.Header.Set("X-SignalOps-Actor", "operator-g148")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastGraphProposalMutation.ReviewedBy != "operator-g148" || repo.lastGraphProposalMutation.Status != storage.MarketOpsDSMGraphProposalStatusAccepted {
+		t.Fatalf("mutation = %+v", repo.lastGraphProposalMutation)
+	}
+}
+
 func TestGetMarketOpsDSMGraphProposals(t *testing.T) {
 	repo := &fakeQueryRepository{dsmGraphProposals: []storage.MarketOpsDSMGraphProposalRecord{validMarketOpsDSMGraphProposalRecord()}}
 	router := NewRouter(RouterConfig{QueryRepository: repo})
@@ -2416,7 +2478,7 @@ func TestGetMarketOpsDSMGraphProposals(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	filter := repo.lastGraphProposalFilter
-	if filter.TenantID != "tenant-1" || filter.ArtifactID != "artifact_marketops_dsm_v1_test" || filter.SignalID != "signal-1" || filter.CandidateType != "node_candidate" || filter.Status != "proposed" || filter.Limit != 10 {
+	if filter.TenantID != "tenant-1" || filter.ArtifactID != "artifact_marketops_dsm_v1_test" || filter.SignalID != "signal-1" || filter.CandidateType != "node_candidate" || filter.Status != "proposed" || filter.ProposalSource != storage.MarketOpsGraphProposalSourceDSMSignal || filter.Limit != 10 {
 		t.Fatalf("filter = %+v", filter)
 	}
 	var response map[string][]map[string]any
@@ -2900,30 +2962,36 @@ func validMarketOpsBacktestEvaluationLabelRecord() storage.MarketOpsBacktestEval
 
 func validMarketOpsDSMGraphProposalRecord() storage.MarketOpsDSMGraphProposalRecord {
 	return storage.MarketOpsDSMGraphProposalRecord{
-		ProposalID:     "graphprop_marketops_dsm_v1_test",
-		TenantID:       "tenant-1",
-		AppID:          "marketops",
-		Domain:         "market_data",
-		UseCase:        "daily_market_surveillance",
-		SourceID:       "src-massive",
-		SourceAdapter:  "market_data.massive",
-		Dataset:        "options_contracts_daily",
-		ArtifactID:     "artifact_marketops_dsm_v1_test",
-		SignalID:       "signal-1",
-		SignalType:     "marketops.dsm.pinning_risk",
-		DetectorID:     "marketops.dsm.taxonomy_v1",
-		Severity:       "high",
-		Confidence:     0.84,
-		EventIDs:       []string{"event-1"},
-		SubjectSymbol:  "AAPL",
-		CandidateType:  "node_candidate",
-		NodeID:         "ticker:AAPL",
-		Labels:         []string{"MarketAsset", "Ticker"},
-		PropertiesJSON: []byte(`{"symbol":"AAPL"}`),
-		RawCandidate:   []byte(`{"type":"node_candidate","node_id":"ticker:AAPL"}`),
-		Status:         storage.MarketOpsDSMGraphProposalStatusProposed,
-		CreatedAt:      time.Date(2026, 7, 8, 0, 4, 0, 0, time.UTC),
-		UpdatedAt:      time.Date(2026, 7, 8, 0, 5, 0, 0, time.UTC),
+		ProposalID:          "graphprop_marketops_dsm_v1_test",
+		TenantID:            "tenant-1",
+		AppID:               "marketops",
+		Domain:              "market_data",
+		UseCase:             "daily_market_surveillance",
+		SourceID:            "src-massive",
+		SourceAdapter:       "market_data.massive",
+		Dataset:             "options_contracts_daily",
+		ArtifactID:          "artifact_marketops_dsm_v1_test",
+		SignalID:            "signal-1",
+		SignalType:          "marketops.dsm.pinning_risk",
+		DetectorID:          "marketops.dsm.taxonomy_v1",
+		Severity:            "high",
+		Confidence:          0.84,
+		EventIDs:            []string{"event-1"},
+		SubjectSymbol:       "AAPL",
+		CandidateType:       "node_candidate",
+		NodeID:              "ticker:AAPL",
+		ProposalSource:      storage.MarketOpsGraphProposalSourceDSMSignal,
+		SourceRecordType:    storage.MarketOpsGraphProposalSourceDSMSignal,
+		SourceRecordID:      "signal-1",
+		SourceRecordVersion: "marketops.dsm.taxonomy_v1",
+		SourceRefsJSON:      []byte(`{"artifact_id":"artifact_marketops_dsm_v1_test","signal_id":"signal-1"}`),
+		LineageRefsJSON:     []byte(`{"event_ids":["event-1"]}`),
+		Labels:              []string{"MarketAsset", "Ticker"},
+		PropertiesJSON:      []byte(`{"symbol":"AAPL"}`),
+		RawCandidate:        []byte(`{"type":"node_candidate","node_id":"ticker:AAPL"}`),
+		Status:              storage.MarketOpsDSMGraphProposalStatusProposed,
+		CreatedAt:           time.Date(2026, 7, 8, 0, 4, 0, 0, time.UTC),
+		UpdatedAt:           time.Date(2026, 7, 8, 0, 5, 0, 0, time.UTC),
 	}
 }
 

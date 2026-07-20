@@ -7,6 +7,9 @@ Current MarketOps-specific endpoints:
 - `GET /v1/tenants/{tenant_id}/marketops/assets`
 - `GET /v1/marketops/dsm/artifacts`
 - `GET /v1/marketops/dsm/artifacts/{artifact_id}`
+- `GET /v1/marketops/graph-proposals`
+- `GET /v1/marketops/graph-proposals/{proposal_id}`
+- `POST /v1/marketops/graph-proposals/{proposal_id}/decision`
 - `GET /v1/marketops/dsm/graph-proposals`
 - `GET /v1/marketops/dsm/graph-proposals/{proposal_id}`
 - `POST /v1/marketops/dsm/graph-proposals/{proposal_id}/decision`

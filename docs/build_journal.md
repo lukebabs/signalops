@@ -7546,3 +7546,28 @@ Result:
 - G148 is proposed with an implementation-ready backend specification.
 - G148-A source-aware graph proposals is the required first implementation slice.
 - Frontend specification is deferred until the graph, state-context, and aggregate-readiness response contracts are implemented and live-validated.
+
+## 2026-07-20 - G148-A Source-Aware Market-Intelligence Graph Proposals
+
+Summary:
+
+- Generalized `marketops_dsm_graph_proposals` in place with typed source identity and bounded lineage while retaining the existing review ledger and audit fields.
+- Added canonical source-aware list/detail/decision routes and preserved DSM routes as signal-only compatibility aliases.
+- Added a deterministic persisted-input mapper for market states, material transitions, exact hypothesis definitions/evaluations, opportunities, matured outcomes, and their governed relationships.
+- Added dry-run-by-default and explicit-write CLI controls, hard source/proposal caps, stable SHA-256 identities, a distroless target, tests, and operator/API documentation.
+
+Validation performed:
+
+- Full Dockerized `go test ./...` passed, including mapper stability/idempotency/cap/zero-result tests and canonical/legacy API tests.
+- Migration `000035` applied to the live local database and preserved the 120-row legacy ledger and its 7 accepted decisions exactly.
+- A bounded AAPL dry-run read 45 persisted sources and emitted 111 candidates: 46 nodes and 65 relationships.
+- The first live write attempt failed closed on the existing non-null empty-array contract; the repository adapter was corrected, retested, and no partial row was inserted.
+- Two subsequent explicit write runs produced the same 111 proposal IDs and database digest with no duplicates. All generic rows are proposed and all signal-only columns are null.
+- The mapper distroless image and gateway image built successfully. The gateway redeployed healthy; the canonical route is auth-protected.
+- Exact-image local contract validation confirmed canonical `market_state` filtering, omission of generic severity/confidence, and implicit `dsm_signal` filtering on the legacy list.
+
+Result:
+
+- G148-A is implemented and accepted.
+- The source-aware proposal ledger is operational and idempotent without adding automatic acceptance or graph mutation.
+- G148-B bounded Market State context and Ask v2 is next; Ask, cohort execution, production readiness, and empirical hypothesis effectiveness remain unclaimed.

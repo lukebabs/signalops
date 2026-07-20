@@ -136,7 +136,7 @@ func TestExtractMarketOpsDSMGraphProposals(t *testing.T) {
 	if len(proposals) != 2 {
 		t.Fatalf("proposal count = %d", len(proposals))
 	}
-	if proposals[0].ProposalID == "" || proposals[0].Status != storage.MarketOpsDSMGraphProposalStatusProposed {
+	if proposals[0].ProposalID == "" || proposals[0].Status != storage.MarketOpsDSMGraphProposalStatusProposed || proposals[0].ProposalSource != storage.MarketOpsGraphProposalSourceDSMSignal {
 		t.Fatalf("proposal = %+v", proposals[0])
 	}
 	if proposals[0].CandidateType != "node_candidate" || proposals[0].NodeID != "ticker:AAPL" || len(proposals[0].Labels) != 2 {
@@ -183,6 +183,25 @@ func TestStableMarketOpsDSMGraphProposalID(t *testing.T) {
 	}
 	if first == third || !strings.HasPrefix(first, "graphprop_marketops_dsm_v1_") {
 		t.Fatalf("unexpected ids: first=%s third=%s", first, third)
+	}
+}
+
+func TestValidateMarketOpsGraphProposalAllowsGenericSourceWithoutLegacyFields(t *testing.T) {
+	record := storage.MarketOpsDSMGraphProposalRecord{
+		ProposalID: "graphprop_marketops_intel_v1_test", TenantID: "tenant-1",
+		SourceID: "marketops_intelligence", SourceAdapter: "persisted_marketops", Dataset: "marketops_intelligence_graph",
+		ProposalSource: storage.MarketOpsGraphProposalSourceMarketState, SourceRecordType: storage.MarketOpsGraphProposalSourceMarketState,
+		SourceRecordID: "state-1", SourceRecordVersion: "v1", SubjectSymbol: "AAPL",
+		CandidateType: "node_candidate", NodeID: "market_state:state-1", Labels: []string{"MarketState"},
+		SourceRefsJSON: []byte(`{"market_state_id":"state-1"}`), LineageRefsJSON: []byte(`{"feature_observation_ids":[]}`),
+		PropertiesJSON: []byte(`{"quality_state":"partial"}`), RawCandidate: []byte(`{"type":"node_candidate","node_id":"market_state:state-1"}`),
+	}
+	if err := validateMarketOpsDSMGraphProposal(record); err != nil {
+		t.Fatalf("generic proposal should validate without signal fields: %v", err)
+	}
+	record.SourceRecordID = ""
+	if err := validateMarketOpsDSMGraphProposal(record); err == nil {
+		t.Fatal("generic proposal without source record identity should fail")
 	}
 }
 

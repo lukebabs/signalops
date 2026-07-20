@@ -125,10 +125,17 @@ const (
 )
 
 const (
-	MarketOpsDSMGraphProposalStatusProposed   = "proposed"
-	MarketOpsDSMGraphProposalStatusAccepted   = "accepted"
-	MarketOpsDSMGraphProposalStatusRejected   = "rejected"
-	MarketOpsDSMGraphProposalStatusSuperseded = "superseded"
+	MarketOpsDSMGraphProposalStatusProposed          = "proposed"
+	MarketOpsDSMGraphProposalStatusAccepted          = "accepted"
+	MarketOpsDSMGraphProposalStatusRejected          = "rejected"
+	MarketOpsDSMGraphProposalStatusSuperseded        = "superseded"
+	MarketOpsGraphProposalSourceDSMSignal            = "dsm_signal"
+	MarketOpsGraphProposalSourceMarketState          = "market_state"
+	MarketOpsGraphProposalSourceStateTransition      = "state_transition"
+	MarketOpsGraphProposalSourceHypothesisDefinition = "hypothesis_definition"
+	MarketOpsGraphProposalSourceHypothesisEvaluation = "hypothesis_evaluation"
+	MarketOpsGraphProposalSourceOpportunity          = "opportunity"
+	MarketOpsGraphProposalSourceOutcome              = "outcome"
 )
 
 const (
@@ -1113,36 +1120,42 @@ type MarketOpsDSMArtifactRecord struct {
 }
 
 type MarketOpsDSMGraphProposalRecord struct {
-	ProposalID     string
-	TenantID       string
-	AppID          string
-	Domain         string
-	UseCase        string
-	SourceID       string
-	SourceAdapter  string
-	Dataset        string
-	ArtifactID     string
-	SignalID       string
-	SignalType     string
-	DetectorID     string
-	Severity       string
-	Confidence     float64
-	EventIDs       []string
-	SubjectSymbol  string
-	CandidateType  string
-	NodeID         string
-	FromNode       string
-	Relationship   string
-	ToNode         string
-	Labels         []string
-	PropertiesJSON []byte
-	RawCandidate   []byte
-	Status         string
-	ReviewedBy     string
-	DecisionNote   string
-	DecidedAt      *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ProposalID          string
+	TenantID            string
+	AppID               string
+	Domain              string
+	UseCase             string
+	SourceID            string
+	SourceAdapter       string
+	Dataset             string
+	ArtifactID          string
+	SignalID            string
+	SignalType          string
+	DetectorID          string
+	Severity            string
+	Confidence          float64
+	ProposalSource      string
+	SourceRecordType    string
+	SourceRecordID      string
+	SourceRecordVersion string
+	SourceRefsJSON      []byte
+	LineageRefsJSON     []byte
+	EventIDs            []string
+	SubjectSymbol       string
+	CandidateType       string
+	NodeID              string
+	FromNode            string
+	Relationship        string
+	ToNode              string
+	Labels              []string
+	PropertiesJSON      []byte
+	RawCandidate        []byte
+	Status              string
+	ReviewedBy          string
+	DecisionNote        string
+	DecidedAt           *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type MarketOpsBacktestEvaluationLabelRecord struct {
@@ -1545,6 +1558,10 @@ type MarketOpsDSMGraphProposalRepository interface {
 	MutateMarketOpsDSMGraphProposal(ctx context.Context, mutation MarketOpsDSMGraphProposalMutation) (MarketOpsDSMGraphProposalRecord, error)
 }
 
+type MarketOpsDSMGraphProposalWriteRepository interface {
+	UpsertMarketOpsDSMGraphProposal(ctx context.Context, record MarketOpsDSMGraphProposalRecord) error
+}
+
 type MarketOpsBacktestRepository interface {
 	CreateMarketOpsBacktestRun(ctx context.Context, record MarketOpsBacktestRunRecord) error
 	CompleteMarketOpsBacktestRun(ctx context.Context, runID string, completedAt time.Time, metricsJSON []byte) (MarketOpsBacktestRunRecord, error)
@@ -1697,17 +1714,20 @@ type MarketOpsDSMArtifactFilter struct {
 }
 
 type MarketOpsDSMGraphProposalFilter struct {
-	TenantID      string
-	AppID         string
-	Domain        string
-	UseCase       string
-	ArtifactID    string
-	SignalID      string
-	SignalType    string
-	SubjectSymbol string
-	CandidateType string
-	Status        string
-	Limit         int
+	TenantID         string
+	AppID            string
+	Domain           string
+	UseCase          string
+	ArtifactID       string
+	SignalID         string
+	SignalType       string
+	SubjectSymbol    string
+	CandidateType    string
+	Status           string
+	ProposalSource   string
+	SourceRecordType string
+	SourceRecordID   string
+	Limit            int
 }
 
 type MarketOpsDSMGraphProposalMutation struct {

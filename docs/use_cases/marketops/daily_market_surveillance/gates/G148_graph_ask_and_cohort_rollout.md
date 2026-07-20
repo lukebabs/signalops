@@ -1,6 +1,6 @@
 # G148 Graph, Ask, And Cohort Rollout
 
-Status: proposed - backend implementation specification ready
+Status: G148-A implemented and accepted; G148-B and G148-C proposed
 
 Date: 2026-07-20
 
