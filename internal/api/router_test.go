@@ -95,7 +95,9 @@ type fakeQueryRepository struct {
 	marketOpsHypothesisDefinitions     []storage.MarketOpsHypothesisDefinitionRecord
 	marketOpsHypothesisEvaluations     []storage.MarketOpsHypothesisEvaluationRecord
 	marketOpsOpportunities             []storage.MarketOpsOpportunityRecord
+	marketOpsOutcomes                  []storage.MarketOpsSignalOutcomeRecord
 	lastOpportunityFilter              storage.MarketOpsOpportunityFilter
+	lastOutcomeFilter                  storage.MarketOpsSignalOutcomeFilter
 	lastHypothesisDefinitionFilter     storage.MarketOpsHypothesisDefinitionFilter
 	lastHypothesisEvaluationFilter     storage.MarketOpsHypothesisEvaluationFilter
 	dsmArtifacts                       []storage.MarketOpsDSMArtifactRecord

@@ -2249,6 +2249,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerMarketOpsMarketStateRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsHypothesisRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsOpportunityRoutes(mux, cfg.QueryRepository)
+	registerMarketOpsOutcomeRoutes(mux, cfg.QueryRepository)
 
 	return authMiddleware(mux, cfg.Auth)
 }

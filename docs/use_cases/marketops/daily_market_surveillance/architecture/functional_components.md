@@ -47,6 +47,7 @@ MarketOps currently supports this end-to-end workflow:
 | Options quality gating | Prevent low-quality call/put OI ratio evidence from becoming reviewable proposals while retaining algorithm audit rows. | `open_interest_quality`, `call_put_oi_ratio_quality`, G131 proposal gate `g131.options_distribution_quality.v1`. |
 | Market state intelligence foundation | Persist reusable point-in-time feature, state, transition, and evidence abstractions above event-level signals. | `marketops_feature_definitions`, `marketops_feature_observations`, `marketops_market_states`, `marketops_state_transitions`, `marketops_evidence`, G136 read APIs. |
 | Bounded AAPL state materialization | Prove deterministic market-state construction and quality blocking over existing equity/options evidence. | `signalops-marketops-state-materializer`, 25 feature slots, canonical state schema, exact lineage, idempotent upserts. |
+| Forward outcome evaluation | Measure realized behavior after triggered research sources without mutating source records. | `marketops_signal_outcomes`, `signalops-marketops-outcome-materializer`, 1/5/10/20-session outcomes, point-in-time status and event lineage. |
 | Syncratic context and Ask integration | Provide bounded explainability context and generated interpretation without ingesting MarketOps data into Syncratic core. | Syncratic context windows, selective materialization, Ask enrichment, evidence purity checks, data-quality blocking. |
 | Frontend operator surfaces | Let analysts inspect MarketOps state and review evidence through app-specific workflows. | `/marketops/assets`, `/marketops/dsm`, `/marketops/algorithms`, `/marketops/backtests`, `/marketops/syncratic`. |
 
@@ -126,6 +127,7 @@ Recent validated gates include:
 - G137: bounded AAPL materialization with exact lineage, deterministic reruns, and live OI evidence blocking.
 - G138: research-only H001/H004/H006/H007 registry and explainable AAPL trigger/non-trigger evaluation.
 - G139: research-only opportunity grouping with overlap control, conflict scoring, read APIs, and a deployed UX-first analyst workbench.
+- G140: immutable forward outcome ledger, deterministic AAPL materializer, maturity/missing-price semantics, and read APIs.
 
 The latest live AMZN closeout expanded usable options samples to 3 persisted usable rows across 8 AMZN trade days while leaving proposal materialization blocked until operator review.
 

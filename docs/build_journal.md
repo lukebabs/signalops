@@ -7265,3 +7265,29 @@ Validation performed:
 Result:
 
 - G139 is closed end to end as a read-only research opportunity workflow. Current AAPL data still produces zero valid opportunities, and the UI now explains that outcome. G140 remains the next bounded backend gate for forward outcome materialization.
+
+
+## 2026-07-20T02:31:49Z
+
+Summary:
+
+- Implemented G140 Forward Outcome Evaluation as an immutable, point-in-time research outcome layer.
+- Added migration `000031_marketops_signal_outcomes`, deterministic outcome identities, PostgreSQL repository methods, read-only list/detail APIs, and the bounded `signalops-marketops-outcome-materializer`.
+- Added 1, 5, 10, and 20-session return, excursion, drawdown, realized-volatility, direction-hit, threshold-hit, maturity, missing-price, and exact normalized-event lineage semantics.
+- Enforced monotonic outcome progression so older point-in-time reruns cannot overwrite matured observations or regress missing-price rows to pending.
+- Preserved source immutability and deferred materialized-signal adaptation until an explicit governed hypothesis-to-signal link exists.
+
+Validation performed:
+
+- Focused outcome engine, repository validation, API, and CLI tests passed.
+- Full Go suite passed in the pinned Go 1.22 Docker toolchain.
+- JSON schema validation passed.
+- Migration `000031` passed isolated apply/schema/down validation and applied to local PostgreSQL.
+- PostgreSQL repository upsert, list, detail, and idempotent status-update integration passed in a disposable schema; the schema was removed.
+- Dedicated `marketops-outcome-materializer` Docker target built successfully and ran the full Go suite.
+- Bounded AAPL dry-run and write each read 24 evaluations, 0 opportunities, and 3 EOD events; all 24 evaluations were skipped as not triggered, producing 0 outcome rows.
+- Rebuilt the gateway. Unauthenticated outcome API returned `401`; an in-memory configured client-credential bearer returned `200` with 0 rows.
+
+Result:
+
+- MarketOps now has the closed-loop storage and calculation substrate for forward outcomes without converting rejected research into performance evidence. Broader historical price coverage and actual triggered sources are required before outcome calibration is meaningful.

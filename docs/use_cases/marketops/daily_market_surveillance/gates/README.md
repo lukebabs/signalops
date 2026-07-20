@@ -312,3 +312,9 @@ Recommended next gate:
 - G139: groups compatible triggered evaluations into deterministic research-only opportunities with overlap suppression, conflict scoring, evidence lineage, and read APIs.
 - Specification: `G139_opportunity_layer.md`.
 - Implemented frontend workbench: `../../../../frontend/marketops_opportunities_workbench_spec.md`.
+
+
+## G140 Implemented
+
+- G140: adds immutable point-in-time forward outcomes for eligible triggered evaluations and opportunities at 1, 5, 10, and 20 sessions, with exact EOD lineage, pending/matured/missing-price states, a bounded CLI, and read APIs.
+- Specification: `G140_forward_outcome_evaluation.md`.

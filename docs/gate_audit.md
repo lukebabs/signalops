@@ -8664,3 +8664,36 @@ Residual risk:
 Result:
 
 - G139 is closed across backend and frontend. The live zero-opportunity result remains a truthful quality outcome, now visible and interpretable to the analyst. G140 remains next.
+
+
+## Gate G140: Forward Outcome Evaluation
+
+Timestamp: `2026-07-20T02:31:49Z`
+
+Status: `implemented - bounded backend and live validation`
+
+Scope:
+
+- Persist one immutable deterministic outcome row per admitted source, horizon, and calculation version.
+- Admit only eligible triggered non-invalidated hypothesis evaluations and persisted opportunities in v1.
+- Calculate point-in-time 1/5/10/20-session outcomes from persisted normalized equity EOD events.
+- Distinguish pending, matured, and missing-price states without coercing absent values to zero.
+- Enforce monotonic status progression so older point-in-time reruns cannot regress settled observations.
+- Preserve exact origin/forward event lineage and separate calculation-run lineage.
+- Add a bounded AAPL CLI, Docker target, repository validation, and read-only APIs.
+- Keep provider calls, scheduling, signal inference, source mutation, calibration decisions, and frontend work out of scope.
+
+Validation performed:
+
+- Deterministic tests cover all horizons, positive upside/downside/non-directional paths, threshold timing, pending/missing-price states, exact lineage, stable rerun identities, dry-run behavior, and scope rejection.
+- PostgreSQL validation and API filter/detail tests passed.
+- Repository upsert, list, detail, and idempotent update passed against a disposable PostgreSQL schema; the schema was removed.
+- Full Go and JSON schema suites passed.
+- Migration `000031` applied and rolled back in an isolated schema, then applied locally.
+- Docker target build passed and ran the full Go suite.
+- Live AAPL dry-run and write produced 0 outcome rows from 24 rejected evaluations, 0 opportunities, and 3 EOD events.
+- Auth-enabled gateway returned expected `401` unauthenticated and `200` authenticated outcome reads.
+
+Result:
+
+- G140 closes the first forward-outcome substrate without manufacturing observations from rejected sources. The next bounded work must improve historical coverage and produce real triggered research sources before calibration or policy decisions.

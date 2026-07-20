@@ -38,3 +38,8 @@ Current recurring validations:
 ## Opportunity Building
 
 - `opportunity_building.md`: bounded G139 AAPL grouping, overlap, conflict, research-only, empty-ledger, and idempotency checks over G138 evaluations.
+
+
+## Forward Outcome Evaluation
+
+- `outcome_evaluation.md`: bounded G140 AAPL dry-run/write, maturity, missing-price, point-in-time, lineage, and idempotency checks over triggered evaluations and opportunities.

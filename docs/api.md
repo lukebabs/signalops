@@ -773,6 +773,16 @@ Returns analyst-facing opportunity records ordered by opportunity score and date
 
 Returns one tenant-scoped opportunity. `tenant_id` is required. G139 is read-only at the API boundary and provides no review, build, trade, signal, or materialization mutation route.
 
+### MarketOps Forward Outcomes
+
+`GET /v1/marketops/outcomes?tenant_id={tenant_id}&source_type=hypothesis_evaluation&source_id={id}&hypothesis_key=H001&hypothesis_version=v1&symbol=AAPL&direction=downside&outcome_status=matured&horizon_sessions=5&session_start=YYYY-MM-DD&session_end=YYYY-MM-DD&limit=50`
+
+Returns immutable point-in-time outcome records ordered by source session, source, and horizon. Rows include source identity, direction, 1/5/10/20-session horizon, pending/matured/missing-price state, forward return, excursions, drawdown, realized-volatility change when available, direction/threshold hits, exact normalized-event lineage, and calculation lineage.
+
+`GET /v1/marketops/outcomes/{outcome_id}?tenant_id={tenant_id}`
+
+Returns one tenant-scoped outcome. `tenant_id` is required. G140 is read-only at the API boundary and exposes no browser materialization or calibration-decision mutation.
+
 ### Algorithm Registry
 
 `POST /v1/algorithms/definitions`
@@ -858,6 +868,8 @@ Records an operator review decision for an algorithm signal proposal. Body field
 `signalops-marketops-hypothesis-evaluator` is the bounded G138 AAPL CLI. It reads existing G137 states, feature observations, transitions, and evidence, registers research-only H001/H004/H006/H007 v1 definitions, and idempotently persists both trigger and non-trigger evaluations with reason codes. It requires `SIGNALOPS_DATABASE_URL`, supports inclusive session dates, a maximum-session cap, explicit run lineage, and `--dry-run`. It makes no provider calls and writes no proposals, opportunities, or production signals.
 
 `signalops-marketops-opportunity-builder` is the bounded G139 AAPL CLI. It reads persisted hypothesis definitions/evaluations, admits only eligible triggered non-invalidated evaluations, groups compatible direction/horizon contributions, suppresses overlapping domains, scores opposing conflicts, and idempotently upserts research-only opportunities. It requires `SIGNALOPS_DATABASE_URL`, supports inclusive dates, a 50-session cap, explicit run lineage, and `--dry-run`. It makes no provider calls and writes no signals, proposals, alerts, insights, graph state, trades, or outcomes.
+
+`signalops-marketops-outcome-materializer` is the bounded G140 AAPL CLI. It reads eligible triggered non-invalidated hypothesis evaluations, persisted opportunities, and normalized equity EOD events, then idempotently upserts separate 1/5/10/20-session forward outcomes with pending, matured, or missing-price status. It requires both SignalOps database URLs, explicit source-session and point-in-time bounds, a maximum-session cap, and supports `--dry-run`. It makes no provider calls and does not mutate source evaluations, opportunities, signals, or governance records. Materialized-signal source adaptation is deferred until an explicit hypothesis-to-signal link exists.
 
 `signalops-algorithm-proposal-generator` reads bounded `algorithm_results` and writes idempotent `algorithm_signal_proposals` review candidates. It requires `SIGNALOPS_DATABASE_URL`. G111 does not materialize proposals into production signals.
 

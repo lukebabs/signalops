@@ -27,3 +27,4 @@ Current notes:
 - `../gates/G137_aapl_market_state_vertical_slice.md`: implemented bounded AAPL feature/state/transition/evidence materialization over persisted equity and options evidence.
 - `../gates/G138_research_hypothesis_evaluator.md`: implemented research-only H001/H004/H006/H007 registry and deterministic evaluation over bounded AAPL states.
 - `../gates/G139_opportunity_layer.md`: implemented research-only opportunity grouping, overlap control, conflict scoring, evidence lineage, and read APIs.
+- `../gates/G140_forward_outcome_evaluation.md`: implemented point-in-time forward outcome ledger, bounded materializer, and read APIs.

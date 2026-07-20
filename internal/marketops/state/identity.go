@@ -21,6 +21,7 @@ const (
 	IdentityEvidence             IdentityKind = "evidence"
 	IdentityHypothesisEvaluation IdentityKind = "hypothesis_evaluation"
 	IdentityOpportunity          IdentityKind = "opportunity"
+	IdentityOutcome              IdentityKind = "outcome"
 )
 
 type Identity struct {
@@ -90,6 +91,8 @@ func identityPrefix(kind IdentityKind) (string, bool) {
 		return "mhypeval_", true
 	case IdentityOpportunity:
 		return "mopp_", true
+	case IdentityOutcome:
+		return "moutcome_", true
 	default:
 		return "", false
 	}

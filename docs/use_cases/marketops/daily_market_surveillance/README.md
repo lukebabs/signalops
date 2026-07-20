@@ -39,6 +39,8 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - Research hypothesis evaluation operations: `operations/hypothesis_evaluation.md`
 - G139 Opportunity Layer: `gates/G139_opportunity_layer.md`
 - Opportunity-building operations: `operations/opportunity_building.md`
+- G140 Forward Outcome Evaluation: `gates/G140_forward_outcome_evaluation.md`
+- Forward outcome operations: `operations/outcome_evaluation.md`
 - Opportunities workbench implementation and contract: `../../../frontend/marketops_opportunities_workbench_spec.md`
 - Global API contract: `docs/api.md`
 - Python worker/detector behavior: `docs/python_worker.md`
