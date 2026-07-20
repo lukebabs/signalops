@@ -99,28 +99,36 @@ type algorithmResultDTO struct {
 }
 
 type algorithmSignalProposalDTO struct {
-	ProposalID         string          `json:"proposal_id"`
-	TenantID           string          `json:"tenant_id"`
-	AlgorithmResultID  string          `json:"algorithm_result_id"`
-	AlgorithmID        string          `json:"algorithm_id"`
-	AlgorithmVersion   string          `json:"algorithm_version"`
-	ExecutionRequestID string          `json:"execution_request_id"`
-	ProposedSignalType string          `json:"proposed_signal_type"`
-	Status             string          `json:"status"`
-	Score              float64         `json:"score"`
-	Confidence         float64         `json:"confidence"`
-	Severity           string          `json:"severity"`
-	ProposalPayload    json.RawMessage `json:"proposal_payload"`
-	Rationale          json.RawMessage `json:"rationale"`
-	SourceEventIDs     []string        `json:"source_event_ids"`
-	EvidenceRefs       []string        `json:"evidence_refs"`
-	CorrelationID      string          `json:"correlation_id"`
-	CreatedBy          string          `json:"created_by"`
-	ReviewedBy         string          `json:"reviewed_by"`
-	DecisionNote       string          `json:"decision_note"`
-	DecidedAt          *time.Time      `json:"decided_at,omitempty"`
-	CreatedAt          time.Time       `json:"created_at"`
-	UpdatedAt          time.Time       `json:"updated_at"`
+	ProposalID              string          `json:"proposal_id"`
+	TenantID                string          `json:"tenant_id"`
+	ProposalSource          string          `json:"proposal_source"`
+	AlgorithmResultID       string          `json:"algorithm_result_id"`
+	AlgorithmID             string          `json:"algorithm_id"`
+	AlgorithmVersion        string          `json:"algorithm_version"`
+	ExecutionRequestID      string          `json:"execution_request_id"`
+	HypothesisEvaluationID  string          `json:"hypothesis_evaluation_id"`
+	HypothesisKey           string          `json:"hypothesis_key"`
+	HypothesisVersion       string          `json:"hypothesis_version"`
+	HypothesisLifecycle     string          `json:"hypothesis_lifecycle_status"`
+	ProposedSignalType      string          `json:"proposed_signal_type"`
+	Status                  string          `json:"status"`
+	Score                   float64         `json:"score"`
+	Confidence              float64         `json:"confidence"`
+	Severity                string          `json:"severity"`
+	ProposalPayload         json.RawMessage `json:"proposal_payload"`
+	Rationale               json.RawMessage `json:"rationale"`
+	SourceEventIDs          []string        `json:"source_event_ids"`
+	EvidenceRefs            []string        `json:"evidence_refs"`
+	CorrelationID           string          `json:"correlation_id"`
+	ResearchOnly            bool            `json:"research_only"`
+	MaterializationEligible bool            `json:"materialization_eligible"`
+	EligibilitySnapshot     json.RawMessage `json:"eligibility_snapshot"`
+	CreatedBy               string          `json:"created_by"`
+	ReviewedBy              string          `json:"reviewed_by"`
+	DecisionNote            string          `json:"decision_note"`
+	DecidedAt               *time.Time      `json:"decided_at,omitempty"`
+	CreatedAt               time.Time       `json:"created_at"`
+	UpdatedAt               time.Time       `json:"updated_at"`
 }
 
 type algorithmSignalProposalDecisionRequest struct {
@@ -271,7 +279,7 @@ func algorithmResultResponses(records []storage.AlgorithmResultRecord) []algorit
 }
 
 func algorithmSignalProposalResponse(record storage.AlgorithmSignalProposalRecord) algorithmSignalProposalDTO {
-	return algorithmSignalProposalDTO{ProposalID: record.ProposalID, TenantID: record.TenantID, AlgorithmResultID: record.AlgorithmResultID, AlgorithmID: record.AlgorithmID, AlgorithmVersion: record.AlgorithmVersion, ExecutionRequestID: record.ExecutionRequestID, ProposedSignalType: record.ProposedSignalType, Status: record.Status, Score: record.Score, Confidence: record.Confidence, Severity: record.Severity, ProposalPayload: json.RawMessage(jsonOrDefault(record.ProposalPayloadJSON, `{}`)), Rationale: json.RawMessage(jsonOrDefault(record.RationaleJSON, `{}`)), SourceEventIDs: record.SourceEventIDs, EvidenceRefs: record.EvidenceRefs, CorrelationID: record.CorrelationID, CreatedBy: record.CreatedBy, ReviewedBy: record.ReviewedBy, DecisionNote: record.DecisionNote, DecidedAt: record.DecidedAt, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+	return algorithmSignalProposalDTO{ProposalID: record.ProposalID, TenantID: record.TenantID, ProposalSource: firstNonEmptyBacktestValue(record.ProposalSource, storage.SignalProposalSourceAlgorithmResult), AlgorithmResultID: record.AlgorithmResultID, AlgorithmID: record.AlgorithmID, AlgorithmVersion: record.AlgorithmVersion, ExecutionRequestID: record.ExecutionRequestID, HypothesisEvaluationID: record.HypothesisEvaluationID, HypothesisKey: record.HypothesisKey, HypothesisVersion: record.HypothesisVersion, HypothesisLifecycle: record.HypothesisLifecycle, ProposedSignalType: record.ProposedSignalType, Status: record.Status, Score: record.Score, Confidence: record.Confidence, Severity: record.Severity, ProposalPayload: json.RawMessage(jsonOrDefault(record.ProposalPayloadJSON, `{}`)), Rationale: json.RawMessage(jsonOrDefault(record.RationaleJSON, `{}`)), SourceEventIDs: record.SourceEventIDs, EvidenceRefs: record.EvidenceRefs, CorrelationID: record.CorrelationID, ResearchOnly: record.ResearchOnly, MaterializationEligible: record.MaterializationEligible, EligibilitySnapshot: json.RawMessage(jsonOrDefault(record.EligibilitySnapshotJSON, `{}`)), CreatedBy: record.CreatedBy, ReviewedBy: record.ReviewedBy, DecisionNote: record.DecisionNote, DecidedAt: record.DecidedAt, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
 }
 
 func algorithmSignalProposalResponses(records []storage.AlgorithmSignalProposalRecord) []algorithmSignalProposalDTO {
@@ -386,10 +394,18 @@ func algorithmSignalProposalMaterializationPreflightResponse(tenantID string, po
 	for _, proposal := range proposals {
 		item := algorithmSignalProposalMaterializationPreflightItemDTO{ProposalID: proposal.ProposalID, AlgorithmResultID: proposal.AlgorithmResultID, AlgorithmID: proposal.AlgorithmID, ExecutionRequestID: proposal.ExecutionRequestID, ProposedSignalType: proposal.ProposedSignalType, Status: proposal.Status, Severity: proposal.Severity, Confidence: proposal.Confidence, SourceEventIDs: proposal.SourceEventIDs, DuplicateSignalIDs: []string{}, MaterializationPolicy: policyVersion}
 		reasons := []string{}
+		proposalSource := firstNonEmptyBacktestValue(proposal.ProposalSource, storage.SignalProposalSourceAlgorithmResult)
+		isHypothesisProposal := proposalSource == storage.SignalProposalSourceHypothesisEvaluation
+		if isHypothesisProposal {
+			if proposal.ResearchOnly || !proposal.MaterializationEligible {
+				reasons = append(reasons, "proposal_not_materialization_eligible")
+			}
+			reasons = append(reasons, "hypothesis_materialization_adapter_unavailable")
+		}
 		if proposal.Status != storage.AlgorithmSignalProposalStatusReviewed {
 			reasons = append(reasons, proposalStatusPreflightReason(proposal.Status))
 		}
-		if len(proposal.SourceEventIDs) == 0 {
+		if !isHypothesisProposal && len(proposal.SourceEventIDs) == 0 {
 			reasons = append(reasons, "missing_source_events")
 		}
 		if !json.Valid([]byte(jsonOrDefault(proposal.ProposalPayloadJSON, `{}`))) {
@@ -399,9 +415,9 @@ func algorithmSignalProposalMaterializationPreflightResponse(tenantID string, po
 			reasons = append(reasons, "invalid_rationale")
 		}
 		result, ok := results[proposal.AlgorithmResultID]
-		if !ok {
+		if !isHypothesisProposal && !ok {
 			reasons = append(reasons, "missing_algorithm_result")
-		} else {
+		} else if !isHypothesisProposal {
 			if strings.TrimSpace(result.TenantID) != strings.TrimSpace(proposal.TenantID) {
 				reasons = append(reasons, "algorithm_result_tenant_mismatch")
 			}

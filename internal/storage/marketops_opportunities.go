@@ -6,13 +6,18 @@ import (
 )
 
 const (
-	MarketOpsOpportunityEmerging      = "emerging"
-	MarketOpsOpportunityActive        = "active"
-	MarketOpsOpportunityStrengthening = "strengthening"
-	MarketOpsOpportunityWeakening     = "weakening"
-	MarketOpsOpportunityInvalidated   = "invalidated"
-	MarketOpsOpportunityResolved      = "resolved"
-	MarketOpsOpportunityExpired       = "expired"
+	MarketOpsOpportunityEmerging                     = "emerging"
+	MarketOpsOpportunityActive                       = "active"
+	MarketOpsOpportunityStrengthening                = "strengthening"
+	MarketOpsOpportunityWeakening                    = "weakening"
+	MarketOpsOpportunityInvalidated                  = "invalidated"
+	MarketOpsOpportunityResolved                     = "resolved"
+	MarketOpsOpportunityExpired                      = "expired"
+	MarketOpsOpportunityDispositionWatch             = "watch"
+	MarketOpsOpportunityDispositionAdvance           = "advance"
+	MarketOpsOpportunityDispositionNeedsMoreEvidence = "needs_more_evidence"
+	MarketOpsOpportunityDispositionDismiss           = "dismiss"
+	MarketOpsOpportunityDispositionResolved          = "resolved"
 )
 
 type MarketOpsOpportunityRecord struct {
@@ -60,11 +65,32 @@ type MarketOpsOpportunityFilter struct {
 	Limit           int
 }
 
+type MarketOpsOpportunityDispositionRecord struct {
+	DispositionID string
+	TenantID      string
+	OpportunityID string
+	Disposition   string
+	Actor         string
+	Note          string
+	MetadataJSON  []byte
+	CreatedAt     time.Time
+}
+
+type MarketOpsOpportunityDispositionFilter struct {
+	TenantID      string
+	OpportunityID string
+	Disposition   string
+	Limit         int
+}
+
 type MarketOpsOpportunityWriteRepository interface {
 	UpsertMarketOpsOpportunity(context.Context, MarketOpsOpportunityRecord) error
+	InsertMarketOpsOpportunityDisposition(context.Context, MarketOpsOpportunityDispositionRecord) error
 }
 
 type MarketOpsOpportunityQueryRepository interface {
+	InsertMarketOpsOpportunityDisposition(context.Context, MarketOpsOpportunityDispositionRecord) error
 	ListMarketOpsOpportunities(context.Context, MarketOpsOpportunityFilter) ([]MarketOpsOpportunityRecord, error)
 	GetMarketOpsOpportunity(context.Context, string, string) (MarketOpsOpportunityRecord, error)
+	ListMarketOpsOpportunityDispositions(context.Context, MarketOpsOpportunityDispositionFilter) ([]MarketOpsOpportunityDispositionRecord, error)
 }

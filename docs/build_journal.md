@@ -7442,3 +7442,34 @@ Result:
 - Live reports remain sparse until genuine analytics-ready option sessions produce triggered evaluations and matured outcomes.
 - No hypothesis lifecycle change, promotion candidate, production signal/proposal, provider call, graph mutation, or frontend behavior was added.
 - G146 Hypothesis Proposal And Opportunity Governance is next.
+
+
+## 2026-07-20T18:25:45Z - G146 Hypothesis Proposal And Opportunity Governance
+
+Summary:
+
+- Generalized the existing signal-proposal ledger with explicit algorithm-result or hypothesis-evaluation source lineage while preserving legacy proposal behavior.
+- Added a deterministic bounded AAPL proposal CLI that admits only exact-version eligible, triggered, non-invalidated `candidate` or `approved` evaluations.
+- Candidate proposals are always research-only; approved proposals require approval actor/time and an explicit production policy before they can be marked materialization-eligible.
+- Reused existing proposal review states and list/detail/summary/preflight APIs with source and hypothesis filters.
+- Kept signal materialization fail-closed: hypothesis sources return `409 unsupported_materialization_source` and preflight exposes the missing governed adapter.
+- Added append-only `watch`, `advance`, `needs_more_evidence`, `dismiss`, and `resolved` opportunity dispositions without mutating computed lifecycle or creating alert/insight rows.
+- Added migration `000034`, exact lineage and eligibility snapshots, a distroless CLI target, API/repository tests, and gate/API/architecture documentation.
+
+Validation performed:
+
+- Full Dockerized Go suite passed.
+- Python regression suite passed: 43 tests.
+- All six JSON event schemas validated.
+- Migration `000034` applied locally and passed isolated all-migrations apply, down, and re-apply validation.
+- The `marketops-hypothesis-proposal-generator` Docker target built successfully and reran the full Go suite.
+- A real bounded run scanned 24 persisted AAPL evaluations, built zero proposals, and inserted zero because every evaluation was non-triggered or ineligible; all four definitions remain `research`.
+- Existing algorithm proposals remained intact: 10 proposed and one reviewed, all algorithm-result sourced and materialization-eligible.
+- The gateway was rebuilt with G146 routes and `/healthz` returned HTTP 200.
+
+Result:
+
+- G146 is complete as a backend governance boundary.
+- Its proposal admission behavior is structurally proven, while real hypothesis proposal effectiveness remains unobserved until genuine evidence triggers and an operator promotes a calibrated version.
+- No lifecycle promotion, provider call, threshold relaxation, direct signal, opportunity lifecycle mutation, alert/insight synthesis, graph write, scheduling, or frontend behavior was added.
+- G147 Market State Analyst Experience is next.

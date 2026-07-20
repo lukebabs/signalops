@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +23,26 @@ func (q *fakeQueryRepository) GetMarketOpsOpportunity(_ context.Context, tenantI
 		}
 	}
 	return storage.MarketOpsOpportunityRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) InsertMarketOpsOpportunityDisposition(_ context.Context, record storage.MarketOpsOpportunityDispositionRecord) error {
+	for _, opportunity := range q.marketOpsOpportunities {
+		if opportunity.TenantID == record.TenantID && opportunity.OpportunityID == record.OpportunityID {
+			q.marketOpsOpportunityDispositions = append(q.marketOpsOpportunityDispositions, record)
+			return nil
+		}
+	}
+	return storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListMarketOpsOpportunityDispositions(_ context.Context, filter storage.MarketOpsOpportunityDispositionFilter) ([]storage.MarketOpsOpportunityDispositionRecord, error) {
+	out := []storage.MarketOpsOpportunityDispositionRecord{}
+	for _, record := range q.marketOpsOpportunityDispositions {
+		if record.TenantID == filter.TenantID && (filter.OpportunityID == "" || record.OpportunityID == filter.OpportunityID) && (filter.Disposition == "" || record.Disposition == filter.Disposition) {
+			out = append(out, record)
+		}
+	}
+	return out, nil
 }
 
 func TestMarketOpsOpportunityReadAPIs(t *testing.T) {
@@ -48,6 +69,26 @@ func TestMarketOpsOpportunityReadAPIs(t *testing.T) {
 	}
 	if repo.lastOpportunityFilter.Symbol != "aapl" || repo.lastOpportunityFilter.ResearchOnly == nil || !*repo.lastOpportunityFilter.ResearchOnly || repo.lastOpportunityFilter.LifecycleStatus != "active" {
 		t.Fatalf("filter=%+v", repo.lastOpportunityFilter)
+	}
+}
+
+func TestMarketOpsOpportunityDispositionAPIs(t *testing.T) {
+	now := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{marketOpsOpportunities: []storage.MarketOpsOpportunityRecord{{OpportunityID: "mopp-1", TenantID: "tenant-1"}}, marketOpsOpportunityDispositions: []storage.MarketOpsOpportunityDispositionRecord{{DispositionID: "disp-1", TenantID: "tenant-1", OpportunityID: "mopp-1", Disposition: storage.MarketOpsOpportunityDispositionWatch, Actor: "analyst-1", CreatedAt: now}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	get := httptest.NewRecorder()
+	router.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "/v1/marketops/opportunities/mopp-1/dispositions?tenant_id=tenant-1", nil))
+	if get.Code != http.StatusOK || !strings.Contains(get.Body.String(), "disp-1") {
+		t.Fatalf("get status=%d body=%s", get.Code, get.Body.String())
+	}
+	post := httptest.NewRecorder()
+	body := strings.NewReader(`{"tenant_id":"tenant-1","disposition":"needs_more_evidence","actor":"analyst-2","note":"await another session","metadata":{"ticket":"G146"}}`)
+	router.ServeHTTP(post, httptest.NewRequest(http.MethodPost, "/v1/marketops/opportunities/mopp-1/dispositions", body))
+	if post.Code != http.StatusCreated || len(repo.marketOpsOpportunityDispositions) != 2 {
+		t.Fatalf("post status=%d body=%s records=%d", post.Code, post.Body.String(), len(repo.marketOpsOpportunityDispositions))
+	}
+	if repo.marketOpsOpportunityDispositions[1].Disposition != storage.MarketOpsOpportunityDispositionNeedsMoreEvidence {
+		t.Fatalf("record=%+v", repo.marketOpsOpportunityDispositions[1])
 	}
 }
 

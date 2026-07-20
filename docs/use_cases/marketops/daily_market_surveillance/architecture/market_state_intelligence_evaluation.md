@@ -34,7 +34,7 @@ The current system provides:
 | Phase 1: foundation and schemas | Substantially complete | Migrations `000028`-`000031`, deterministic identities, versioned ledgers, shared quality states, and read APIs exist. | Mutation/job APIs, durable run status for all logical workers, immutable approved-definition enforcement, and broader integration coverage remain. |
 | Phase 2: initial hypothesis slice | Structurally complete, functionally partial | G137/G143/G144 build 44 definitions, 69 state-v2 slots, longitudinal and event context, multi-window transitions, bounded explicit-symbol execution, quote-derived surface evidence, and explicit quality; G138 evaluates H001/H004/H006/H007. | Historical options coverage is absent, live quote/event completeness is unproven, and broader surface/concentration/migration domains remain incomplete. |
 | Phase 3: backtest integration | Substantially complete, evidence sparse | G145 adapts exact hypothesis/outcome versions into existing isolated runs and calibration summaries with single/comparison/walk-forward modes, point-in-time event/regime segmentation, confidence metrics, and sample warnings. | Live matured samples remain insufficient; cross-sectional ranking, ablation, 3/60-session outcomes, bootstrap intervals, reviewed-label metrics, and promotion evidence remain absent. |
-| Phase 4: proposal and opportunity integration | Partial | G139 opportunity grouping, overlap suppression, conflict scoring, read APIs, and analyst queue exist. | No hypothesis-evaluation-to-proposal adapter, lifecycle eligibility bridge, opportunity review/disposition, or calibrated ranking exists. |
+| Phase 4: proposal and opportunity integration | Substantially complete | G139 groups opportunities; G146 adds exact-version lifecycle-gated hypothesis proposals through the existing review ledger plus append-only analyst dispositions. | A governed hypothesis signal materialization adapter, calibrated ranking contribution, and mature live population remain absent. |
 | Phase 5: graph and Ask | Foundation only | Existing graph proposals remain review-controlled; G088-G093 provide bounded Ask and evidence-purity controls. | State, transition, hypothesis, opportunity, and outcome graph mappings and Market State Ask bundles are absent. |
 | Phase 6: Top 50 bounded rollout | Acquisition and state controls partial | Asset cohorts, bounded ingestion, G142 provider budgets, quality summaries, and G144 explicit state cohorts capped at 10 symbols exist. | Hypothesis/outcome coordination remains AAPL-only; no universe-resolved staged rollout, operational state dashboard, or per-symbol end-to-end readiness exists. |
 
@@ -47,16 +47,16 @@ The current system provides:
 | State Transition Engine | Partial | 1/3/5/10/20-session differences, point-in-time rarity/persistence, selected-feature acceleration, curve-slope change, and term-regime transitions persist. Explicit divergence, migration, concentration, curvature, and sign-consistency operators remain incomplete. |
 | Evidence Ledger | Partial | Reusable return, OI-ratio, and ATM-IV-change claims exist with lineage. Evidence coverage is too narrow for the target hypothesis pack. |
 | Hypothesis Registry | Partial | H001, H004, H006, and H007 v1 are versioned and research-only. H002, H003, and H005 are absent; no audited lifecycle mutation or approved immutability path exists. |
-| Hypothesis Evaluator | Partial | Deterministic trigger/non-trigger/rejection rows and reason codes exist. Live evaluations are blocked by sparse inputs, and no proposal bridge exists. |
-| Opportunity Engine | Partial | Grouping, domain overlap suppression, conflicts, scores, and research lifecycle exist. There is no review disposition, calibration contribution, or mature live opportunity population. |
+| Hypothesis Evaluator | Partial | Deterministic trigger/non-trigger/rejection rows and reason codes exist; G146 bridges eligible candidate/approved exact versions into reviewed proposals. | Live evaluations remain sparse and no hypothesis signal materialization adapter exists. |
+| Opportunity Engine | Partial | Grouping, domain overlap suppression, conflicts, scores, research lifecycle, and append-only analyst dispositions exist. | Calibration contribution and a mature live opportunity population remain absent. |
 | Outcome Evaluator | Partial | Immutable 1/5/10/20-session outcomes feed G145 horizon/asset/year/event/term-regime and confidence-band summaries with as-of maturity filtering. Live triggered sources remain too sparse for readiness claims. |
 | Data Acquisition | Partial | G142/G143 are analytically bounded and compact. Request IDs, page completeness, selected quotes/contract metadata, quote freshness, selection lineage, and candidate rejection metrics are captured; rate-limit telemetry and durable scheduling are absent. |
-| API surface | Read-heavy partial | Core list/detail reads exist. Feature/state build, transition calculation, hypothesis mutation/evaluation, opportunity build/review, outcome materialization, coverage, calibration, and durable job-request APIs are absent. |
+| API surface | Read-heavy partial | Core reads, source-aware proposal review/preflight, and opportunity disposition create/list APIs exist. | Feature/state build, transition calculation, hypothesis mutation/evaluation, opportunity build, outcome materialization, coverage, calibration, and durable job-request APIs remain absent. |
 | Worker topology | CLI prototype | State materialization combines feature/state/transition/evidence stages; separate hypothesis, opportunity, outcome, and history CLIs exist. Durable job records, partial-failure ledgers, consistent version metrics, and approved scheduling are absent. |
 | Frontend | Partial | Asset/options, algorithms, backtests, proposal controls, Syncratic views, and the opportunity queue exist. The specified Market State, DTE-delta surface, transition timeline, hypothesis workbench, and outcome calibration views do not. |
 | Syncratic Ask | Partial | Bounded on-demand reasoning and evidence purity exist. Context is still signal/event oriented rather than a compact state/transition/hypothesis/opportunity bundle. |
-| Observability | Partial | CLIs emit run summaries and G142 records capture metrics. Stage-level durable metrics, latency, incompatible-version counts, proposal rejection rates, opportunity dispositions, and calibration drift are missing. |
-| Security and governance | Strong foundation | Existing auth, proposal review, graph review, and research/production separation are preserved. Audited hypothesis promotion and opportunity disposition controls remain absent. |
+| Observability | Partial | CLIs emit run summaries, G142 captures acquisition metrics, and G146 dispositions are durable. | Stage-level metrics, latency, incompatible-version counts, proposal rejection rates, and calibration drift remain missing. |
+| Security and governance | Strong foundation | Existing auth, proposal review, graph review, research/production separation, source-aware eligibility snapshots, and opportunity dispositions are preserved. | Audited hypothesis promotion and a dedicated hypothesis materialization adapter remain absent. |
 
 ## Feature Catalog Reconciliation
 
@@ -94,14 +94,14 @@ Missing or not yet analytically usable:
 | 6 | Quality failures block hypotheses without deleting audit evidence | Pass |
 | 7 | Four v1 hypotheses evaluate historically | Partial: provider-shaped G143 path makes all four eligible; live historical options evidence is insufficient |
 | 8 | Evaluations cannot directly write production signals | Pass |
-| 9 | Proposal review/materialization controls remain mandatory | Pass as a governance rule; hypothesis proposal bridge is absent |
+| 9 | Proposal review/materialization controls remain mandatory | Pass: G146 reuses review and preflight, and unsupported hypothesis materialization fails closed |
 | 10 | Opportunities avoid correlated double counting | Pass in deterministic research logic |
 | 11 | Outcomes materialize without source mutation | Pass |
 | 12 | Backtests enforce point-in-time correctness | Pass for G145 hypothesis modes: exact versions, as-of outcome maturity, point-in-time segments, and chronological folds are tested |
 | 13 | Graph changes remain proposal-based | Pass |
 | 14 | Ask receives bounded evidence-pure context | Partial: generic context is bounded; state/opportunity context is absent |
 | 15 | Top 50 execution is explicitly bounded | Pass for acquisition and explicit analytical cohorts capped at 10; universe-resolved staged rollout remains absent |
-| 16 | Lineage can reproduce any signal proposal | Partial: algorithm proposals have lineage; hypothesis proposals do not exist |
+| 16 | Lineage can reproduce any signal proposal | Pass for algorithm and G146 hypothesis proposals through exact source, evaluation, definition version, evidence, and eligibility snapshots |
 | 17 | Confidence is not presented as guaranteed performance | Pass |
 | 18 | Semantic definitions are versioned | Partial: ledgers are versioned; acquisition/selection and some scoring policies need explicit semantic versions |
 
@@ -148,7 +148,9 @@ G145 reuses existing isolated back-test runs and calibration summaries for exact
 
 ### G146: Hypothesis Proposal And Opportunity Governance
 
-Bridge only eligible lifecycle states into the existing proposal workflow, retain preflight/review/materialization controls, add opportunity analyst disposition, and keep alerts event-level while opportunities become the multi-evidence insight object.
+Status: implemented 2026-07-20.
+
+G146 adds exact-version candidate/approved hypothesis proposals to the existing reviewed proposal ledger without false algorithm lineage. Candidate and policy-blocked approved rows remain research-only; hypothesis materialization is explicitly unsupported and fail-closed until a dedicated adapter exists. Append-only opportunity dispositions preserve computed lifecycle separately. The live validation correctly built zero proposals from 24 non-triggered/ineligible evaluations.
 
 ### G147: Market State Analyst Experience
 
@@ -173,7 +175,7 @@ Add review-controlled graph mappings and bounded Market State Ask bundles, then 
 
 MarketOps is beyond a prototype database: it has genuine deterministic state, longitudinal features, hypothesis, opportunity, outcome, and version-isolated calibration infrastructure with strong governance. It is not yet a useful complete market-state intelligence product because genuine longitudinal options/event coverage and statistically meaningful calibration evidence remain incomplete.
 
-G145 has completed the bounded hypothesis backtest/calibration adapter without manufacturing evidence or promoting research. The definitive next step is G146 Hypothesis Proposal And Opportunity Governance; live research remains coverage-blocked until genuine prospective option sessions accumulate.
+G146 has completed the reviewed proposal eligibility bridge and opportunity disposition control without manufacturing evidence, promoting research, or writing signals. The definitive next step is G147 Market State Analyst Experience; live research remains coverage-blocked until genuine prospective option sessions accumulate.
 
 ## References
 

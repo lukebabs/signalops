@@ -83,6 +83,9 @@ const (
 )
 
 const (
+	SignalProposalSourceAlgorithmResult      = "algorithm_result"
+	SignalProposalSourceHypothesisEvaluation = "hypothesis_evaluation"
+
 	AlgorithmSignalProposalStatusProposed   = "proposed"
 	AlgorithmSignalProposalStatusReviewed   = "reviewed"
 	AlgorithmSignalProposalStatusRejected   = "rejected"
@@ -595,28 +598,36 @@ type AlgorithmResultRecord struct {
 }
 
 type AlgorithmSignalProposalRecord struct {
-	ProposalID          string
-	TenantID            string
-	AlgorithmResultID   string
-	AlgorithmID         string
-	AlgorithmVersion    string
-	ExecutionRequestID  string
-	ProposedSignalType  string
-	Status              string
-	Score               float64
-	Confidence          float64
-	Severity            string
-	ProposalPayloadJSON []byte
-	RationaleJSON       []byte
-	SourceEventIDs      []string
-	EvidenceRefs        []string
-	CorrelationID       string
-	CreatedBy           string
-	ReviewedBy          string
-	DecisionNote        string
-	DecidedAt           *time.Time
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ProposalID              string
+	TenantID                string
+	ProposalSource          string
+	AlgorithmResultID       string
+	AlgorithmID             string
+	AlgorithmVersion        string
+	ExecutionRequestID      string
+	HypothesisEvaluationID  string
+	HypothesisKey           string
+	HypothesisVersion       string
+	HypothesisLifecycle     string
+	ProposedSignalType      string
+	Status                  string
+	Score                   float64
+	Confidence              float64
+	Severity                string
+	ProposalPayloadJSON     []byte
+	RationaleJSON           []byte
+	SourceEventIDs          []string
+	EvidenceRefs            []string
+	CorrelationID           string
+	ResearchOnly            bool
+	MaterializationEligible bool
+	EligibilitySnapshotJSON []byte
+	CreatedBy               string
+	ReviewedBy              string
+	DecisionNote            string
+	DecidedAt               *time.Time
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 type AlgorithmSignalProposalMutation struct {
@@ -684,14 +695,17 @@ type AlgorithmResultFilter struct {
 }
 
 type AlgorithmSignalProposalFilter struct {
-	TenantID           string
-	AlgorithmID        string
-	ExecutionRequestID string
-	AlgorithmResultID  string
-	Status             string
-	Severity           string
-	CorrelationID      string
-	Limit              int
+	TenantID               string
+	ProposalSource         string
+	AlgorithmID            string
+	ExecutionRequestID     string
+	AlgorithmResultID      string
+	HypothesisEvaluationID string
+	HypothesisKey          string
+	Status                 string
+	Severity               string
+	CorrelationID          string
+	Limit                  int
 }
 
 type AlgorithmSignalMaterializationFilter struct {

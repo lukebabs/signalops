@@ -1781,7 +1781,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
 		}
-		summary, err := repo.SummarizeAlgorithmSignalProposals(r.Context(), storage.AlgorithmSignalProposalFilter{TenantID: tenantID, AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), AlgorithmResultID: strings.TrimSpace(r.URL.Query().Get("algorithm_result_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id"))})
+		summary, err := repo.SummarizeAlgorithmSignalProposals(r.Context(), storage.AlgorithmSignalProposalFilter{TenantID: tenantID, ProposalSource: strings.TrimSpace(r.URL.Query().Get("proposal_source")), HypothesisEvaluationID: strings.TrimSpace(r.URL.Query().Get("hypothesis_evaluation_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), AlgorithmResultID: strings.TrimSpace(r.URL.Query().Get("algorithm_result_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id"))})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to summarize algorithm signal proposals")
 			return
@@ -1799,7 +1799,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
 		}
-		records, err := repo.ListAlgorithmSignalProposals(r.Context(), storage.AlgorithmSignalProposalFilter{TenantID: tenantID, AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), AlgorithmResultID: strings.TrimSpace(r.URL.Query().Get("algorithm_result_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id")), Limit: queryLimit(r, 50)})
+		records, err := repo.ListAlgorithmSignalProposals(r.Context(), storage.AlgorithmSignalProposalFilter{TenantID: tenantID, ProposalSource: strings.TrimSpace(r.URL.Query().Get("proposal_source")), HypothesisEvaluationID: strings.TrimSpace(r.URL.Query().Get("hypothesis_evaluation_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), AlgorithmResultID: strings.TrimSpace(r.URL.Query().Get("algorithm_result_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list algorithm signal proposals")
 			return
@@ -1817,13 +1817,13 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
 		}
-		filter := storage.AlgorithmSignalProposalFilter{TenantID: tenantID, AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), AlgorithmResultID: strings.TrimSpace(r.URL.Query().Get("algorithm_result_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id")), Limit: queryLimit(r, 200)}
+		filter := storage.AlgorithmSignalProposalFilter{TenantID: tenantID, ProposalSource: strings.TrimSpace(r.URL.Query().Get("proposal_source")), HypothesisEvaluationID: strings.TrimSpace(r.URL.Query().Get("hypothesis_evaluation_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), ExecutionRequestID: strings.TrimSpace(r.URL.Query().Get("execution_request_id")), AlgorithmResultID: strings.TrimSpace(r.URL.Query().Get("algorithm_result_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id")), Limit: queryLimit(r, 200)}
 		proposals, err := repo.ListAlgorithmSignalProposals(r.Context(), filter)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list algorithm signal proposals")
 			return
 		}
-		summary, err := repo.SummarizeAlgorithmSignalProposals(r.Context(), storage.AlgorithmSignalProposalFilter{TenantID: tenantID, AlgorithmID: filter.AlgorithmID, ExecutionRequestID: filter.ExecutionRequestID, AlgorithmResultID: filter.AlgorithmResultID, Status: filter.Status, Severity: filter.Severity, CorrelationID: filter.CorrelationID})
+		summary, err := repo.SummarizeAlgorithmSignalProposals(r.Context(), storage.AlgorithmSignalProposalFilter{TenantID: tenantID, ProposalSource: strings.TrimSpace(r.URL.Query().Get("proposal_source")), HypothesisEvaluationID: strings.TrimSpace(r.URL.Query().Get("hypothesis_evaluation_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), AlgorithmID: filter.AlgorithmID, ExecutionRequestID: filter.ExecutionRequestID, AlgorithmResultID: filter.AlgorithmResultID, Status: filter.Status, Severity: filter.Severity, CorrelationID: filter.CorrelationID})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to summarize algorithm signal proposals")
 			return
@@ -1929,6 +1929,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		proposal, err := repo.GetAlgorithmSignalProposal(r.Context(), tenantID, r.PathValue("proposal_id"))
 		if err != nil {
 			writeQueryError(w, err, "algorithm_signal_proposal_not_found", "Algorithm signal proposal not found")
+			return
+		}
+		if firstNonEmptyBacktestValue(proposal.ProposalSource, storage.SignalProposalSourceAlgorithmResult) != storage.SignalProposalSourceAlgorithmResult {
+			writeError(w, http.StatusConflict, "unsupported_materialization_source", "hypothesis proposals require a governed hypothesis materialization adapter")
 			return
 		}
 		policyVersion := algorithmMaterializationPolicyVersion(req.PolicyVersion)

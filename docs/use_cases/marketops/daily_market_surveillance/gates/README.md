@@ -348,4 +348,10 @@ Recommended next gate:
 - Reports are permanently advisory and never mutate hypothesis lifecycle or promotion state.
 - Specification: `G145_hypothesis_backtest_and_calibration.md`.
 
-## G146 Recommended Next
+## G146 Implemented
+
+- G146: source-aware exact-version hypothesis proposal bridge through the existing review ledger, lifecycle and production-policy eligibility snapshots, fail-closed materialization for unsupported hypothesis sources, and append-only opportunity analyst dispositions separate from computed lifecycle.
+- The real validation run scanned 24 AAPL evaluations and correctly built zero proposals because no evaluation was eligible and triggered; all definitions remain research-only.
+- Specification: `G146_hypothesis_proposal_and_opportunity_governance.md`.
+
+## G147 Recommended Next

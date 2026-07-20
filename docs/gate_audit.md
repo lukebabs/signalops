@@ -8863,3 +8863,37 @@ Result:
 
 - G145 is accepted. It closes the bounded hypothesis-specific backtest adapter gap while truthfully preserving sparse live sample warnings.
 - G146 reviewed proposal and opportunity governance is next.
+
+
+## 2026-07-20T18:25:45Z - Gate G146 Hypothesis Proposal And Opportunity Governance
+
+Status: implemented and accepted backend governance contract
+
+Scope:
+
+- Bridge exact eligible hypothesis evaluation/version pairs into the existing reviewed proposal ledger without false algorithm lineage.
+- Enforce candidate research isolation, approved-version audit requirements, and explicit production-policy eligibility.
+- Preserve review and preflight controls and reject unsupported hypothesis materialization.
+- Add append-only analyst opportunity dispositions separate from deterministic opportunity lifecycle.
+
+Validation performed:
+
+- Full Go, Python, and JSON schema suites passed.
+- Focused tests prove lifecycle admission, exact versions, approval audit, policy gating, deterministic proposal identity, source-aware storage validation, review/API visibility, fail-closed materialization, and disposition create/list validation.
+- Migration `000034` passed isolated apply/down/re-apply validation and is applied locally.
+- The new distroless CLI image built successfully.
+- The gateway was rebuilt with G146 routes and `/healthz` returned HTTP 200.
+- Live execution scanned 24 AAPL evaluations and correctly produced zero proposals because none were eligible and triggered; the four definitions remain research-only.
+
+Boundaries retained:
+
+- G145 advisory calibration cannot promote a definition or create a proposal automatically.
+- Candidate proposals cannot become materialization-eligible.
+- A proposal eligibility flag cannot bypass a missing source-specific signal adapter.
+- Analyst dispositions do not overwrite computed opportunity lifecycle.
+- No provider, signal, alert, insight, graph, scheduler, trade, or frontend mutation was introduced.
+
+Result:
+
+- G146 is accepted. The governance machinery is effective and fail-closed, but empirical proposal/disposition utility cannot be claimed until genuine triggered evidence and reviewed candidate/approved versions exist.
+- G147 Market State Analyst Experience is next.
