@@ -7221,3 +7221,27 @@ Validation performed:
 Result:
 
 - MarketOps now has its first governed research hypothesis layer. Current sparse AAPL inputs are rejected honestly; G139 can add opportunities without allowing rejected evaluations into analyst-facing groupings.
+
+
+## 2026-07-20T00:59:23Z
+
+Summary:
+
+- Implemented G139 Opportunity Layer over the G138 research evaluation ledger.
+- Added a tenant-aware deterministic opportunity ledger, repository, list/detail APIs, AAPL-bounded dry-run/write CLI, and Docker target.
+- Added compatibility metadata to G138 evaluation payloads for resolved direction, shared v1 horizon, and hypothesis family.
+- Added overlap suppression, opposing-direction conflict scoring, contribution/evidence lineage, research-only status, deterministic summaries, and emerging/active lifecycle semantics.
+- Added a UX-first frontend-agent specification for a fast analyst opportunity queue and sparse-data diagnostics.
+
+Validation performed:
+
+- Unit tests cover positive grouping, independent-domain corroboration, overlap suppression, conflicts, rejected/non-triggered exclusion, conditional direction profiles, stable identities, CLI dry-run/write behavior, API filters/contracts, and repository validation.
+- Docker target `marketops-opportunity-builder` built successfully and ran the full Go suite.
+- Fresh-database apply/down validation passed for migration `000030`; the migration also applied to local PostgreSQL.
+- Refreshed all 24 AAPL G138 evaluation payloads without changing eligibility, trigger, identity, or row counts.
+- Live G139 dry-run and two writes each scanned 24 evaluations, skipped 24 as ineligible, and produced zero opportunities.
+- Rebuilt/restarted the gateway; unauthenticated opportunity reads returned `401`, and authenticated opportunity/evaluation reads returned HTTP `200` with 0 and 24 rows respectively.
+
+Result:
+
+- MarketOps now has a governed research opportunity layer that cannot convert sparse or rejected evidence into analyst-facing opportunities. The frontend handoff is saved at `docs/frontend/marketops_opportunities_workbench_spec.md`; G140 remains the next backend gate for forward outcomes.

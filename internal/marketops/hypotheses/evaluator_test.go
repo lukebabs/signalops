@@ -83,6 +83,39 @@ func TestEvaluateResearchHypothesesPositiveFixtures(t *testing.T) {
 	}
 }
 
+func TestEvaluateAddsOpportunityCompatibilityProfile(t *testing.T) {
+	definitions := ResearchDefinitions("tenant-local")
+	cases := []struct {
+		key, expectedDirection string
+		observations           []storage.MarketOpsFeatureObservationRecord
+		transitions            []storage.MarketOpsStateTransitionRecord
+	}{
+		{"H006", "downside", []storage.MarketOpsFeatureObservationRecord{
+			feature("return_1d", 2.5, nil), feature("mid_premium", 3.2, dims("put", 30, .25)), feature("iv", .31, dims("put", 30, .25)),
+		}, []storage.MarketOpsStateTransitionRecord{
+			transition("mid_premium", -.2, dims("put", 30, .25), 1, nil, nil), transition("iv", -.03, dims("put", 30, .25), 1, nil, nil),
+		}},
+		{"H007", "upside", []storage.MarketOpsFeatureObservationRecord{
+			feature("oi_change_1d", 500, dims("call", 30, .25)), feature("surface_coverage_ratio", .8, nil),
+		}, []storage.MarketOpsStateTransitionRecord{
+			transition("oi_change_1d", 500, dims("call", 30, .25), 1, floatPointer(2.5), floatPointer(.98)),
+		}},
+	}
+	for _, testCase := range cases {
+		result, err := Evaluate("profile-run", definitionByKey(definitions, testCase.key), testState(), testCase.observations, testCase.transitions, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(result.EvaluationPayloadJSON, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["resolved_direction"] != testCase.expectedDirection || payload["horizon"] != "5_to_20_sessions" {
+			t.Fatalf("key=%s payload=%v", testCase.key, payload)
+		}
+	}
+}
+
 func TestEvaluateEligibleNonTrigger(t *testing.T) {
 	definition := definitionByKey(ResearchDefinitions("tenant-local"), "H007")
 	result, err := Evaluate("non-trigger-run", definition, testState(), []storage.MarketOpsFeatureObservationRecord{

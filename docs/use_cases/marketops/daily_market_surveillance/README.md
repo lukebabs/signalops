@@ -37,6 +37,9 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - Market state materialization operations: `operations/market_state_materialization.md`
 - G138 Research Hypothesis Evaluator: `gates/G138_research_hypothesis_evaluator.md`
 - Research hypothesis evaluation operations: `operations/hypothesis_evaluation.md`
+- G139 Opportunity Layer: `gates/G139_opportunity_layer.md`
+- Opportunity-building operations: `operations/opportunity_building.md`
+- Opportunities frontend-agent specification: `../../../frontend/marketops_opportunities_workbench_spec.md`
 - Global API contract: `docs/api.md`
 - Python worker/detector behavior: `docs/python_worker.md`
 - Original MarketOps target specs: `docs/marketops/`

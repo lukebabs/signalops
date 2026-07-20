@@ -34,3 +34,7 @@ Current recurring validations:
 ## Research Hypothesis Evaluation
 
 - `hypothesis_evaluation.md`: bounded G138 AAPL dry-run, write, idempotency, trigger/rejection, and reason-code checks over existing G137 states.
+
+## Opportunity Building
+
+- `opportunity_building.md`: bounded G139 AAPL grouping, overlap, conflict, research-only, empty-ledger, and idempotency checks over G138 evaluations.

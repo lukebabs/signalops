@@ -20,6 +20,7 @@ const (
 	IdentityStateTransition      IdentityKind = "state_transition"
 	IdentityEvidence             IdentityKind = "evidence"
 	IdentityHypothesisEvaluation IdentityKind = "hypothesis_evaluation"
+	IdentityOpportunity          IdentityKind = "opportunity"
 )
 
 type Identity struct {
@@ -87,6 +88,8 @@ func identityPrefix(kind IdentityKind) (string, bool) {
 		return "mevidence_", true
 	case IdentityHypothesisEvaluation:
 		return "mhypeval_", true
+	case IdentityOpportunity:
+		return "mopp_", true
 	default:
 		return "", false
 	}

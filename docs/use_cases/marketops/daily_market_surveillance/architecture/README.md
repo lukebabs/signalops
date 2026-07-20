@@ -26,3 +26,4 @@ Current notes:
 - `../gates/G136_market_state_foundation.md`: implemented storage and read-API foundation for feature observations, market states, transitions, evidence, and exact lineage.
 - `../gates/G137_aapl_market_state_vertical_slice.md`: implemented bounded AAPL feature/state/transition/evidence materialization over persisted equity and options evidence.
 - `../gates/G138_research_hypothesis_evaluator.md`: implemented research-only H001/H004/H006/H007 registry and deterministic evaluation over bounded AAPL states.
+- `../gates/G139_opportunity_layer.md`: implemented research-only opportunity grouping, overlap control, conflict scoring, evidence lineage, and read APIs.

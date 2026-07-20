@@ -21,6 +21,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-o
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-options-coverage-runner ./cmd/marketops-options-coverage-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-state-materializer ./cmd/marketops-state-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-hypothesis-evaluator ./cmd/marketops-hypothesis-evaluator
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-opportunity-builder ./cmd/marketops-opportunity-builder
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-runner ./cmd/algorithm-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-proposal-generator ./cmd/algorithm-proposal-generator
 
@@ -122,6 +123,12 @@ FROM gcr.io/distroless/static-debian12:nonroot AS marketops-hypothesis-evaluator
 COPY --from=build /out/signalops-marketops-hypothesis-evaluator /signalops-marketops-hypothesis-evaluator
 
 ENTRYPOINT ["/signalops-marketops-hypothesis-evaluator"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-opportunity-builder
+
+COPY --from=build /out/signalops-marketops-opportunity-builder /signalops-marketops-opportunity-builder
+
+ENTRYPOINT ["/signalops-marketops-opportunity-builder"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-proposal-generator
 

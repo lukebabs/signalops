@@ -306,3 +306,9 @@ Recommended next gate:
 
 - G138: registers research-only H001/H004/H006/H007 definitions and persists deterministic eligible, triggered, non-triggered, and rejected evaluations over bounded AAPL states with explicit reason codes.
 - Specification: `G138_research_hypothesis_evaluator.md`.
+
+## G139 Implemented
+
+- G139: groups compatible triggered evaluations into deterministic research-only opportunities with overlap suppression, conflict scoring, evidence lineage, and read APIs.
+- Specification: `G139_opportunity_layer.md`.
+- Frontend handoff: `../../../../frontend/marketops_opportunities_workbench_spec.md`.

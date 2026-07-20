@@ -8605,3 +8605,32 @@ Validation performed:
 Result:
 
 - G138 closes the first hypothesis-registry/evaluator slice without bypassing data quality or production governance. G139 is the next bounded gate for analyst-facing opportunities formed only from compatible eligible evaluations.
+
+
+## Gate G139: Opportunity Layer
+
+Timestamp: `2026-07-20T00:59:23Z`
+
+Status: `implemented - backend opportunity layer, live validation, and frontend handoff`
+
+Scope:
+
+- Group eligible triggered non-invalidated hypothesis evaluations by tenant, asset, session, direction, and compatible horizon.
+- Suppress weaker same-domain contributions, retain opposing-direction conflicts, calculate bounded scores, and preserve evaluation/evidence lineage.
+- Persist deterministic research-only opportunities with emerging/active lifecycle and concise deterministic summaries.
+- Add a bounded AAPL CLI, Docker target, repository validation, and read-only list/detail APIs.
+- Produce a frontend-agent specification prioritizing fast triage, immediate detail, conflict/quality visibility, and useful empty-queue diagnostics.
+- Keep review mutation, trading, signals/proposals, graph/Syncratic changes, provider calls, scheduling, policy promotion, and outcomes out of scope.
+
+Validation performed:
+
+- Focused builder tests cover corroboration, overlap control, conflict links, score bounds, stable identity, rejected/non-triggered exclusion, and unresolved-direction blocking.
+- G138 evaluator tests cover H006/H007 opportunity direction and horizon metadata without changing trigger decisions.
+- CLI, API, repository, and identity tests passed; the Docker build ran `go test ./...`.
+- Migration `000030_marketops_opportunities` passed fresh-database apply/down validation and applied locally.
+- Bounded live AAPL dry-run and repeated writes each scanned 24 evaluations, skipped 24 ineligible rows, and wrote zero opportunities.
+- Auth-enabled gateway smoke returned expected unauthenticated `401` and authenticated HTTP `200` with 0 opportunities and 24 supporting evaluations.
+
+Result:
+
+- G139 closes the first research opportunity slice while preserving the data-quality boundary. The live empty queue is an expected analytical result, and the frontend specification makes those blockers visible rather than presenting a blank page. G140 is next for forward outcome materialization.

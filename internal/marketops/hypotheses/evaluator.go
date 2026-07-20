@@ -62,7 +62,8 @@ func Evaluate(runID string, definition storage.MarketOpsHypothesisDefinitionReco
 		magnitudePtr, rarityPtr, persistencePtr, corroborationPtr = pointer(clamp(result.magnitude)), pointer(clamp(result.rarity)), pointer(clamp(result.persistence)), pointer(clamp(result.corroboration))
 	}
 	evidenceIDs := linkedEvidenceIDs(evidence, result.featureIDs, result.transitionIDs)
-	payload, _ := json.Marshal(map[string]any{"research_only": true, "checks": result.checks, "source_feature_ids": unique(result.featureIDs), "source_transition_ids": unique(result.transitionIDs), "state_quality": state.QualityState})
+	direction, horizon, family := evaluationOpportunityProfile(definition, result.checks)
+	payload, _ := json.Marshal(map[string]any{"research_only": true, "checks": result.checks, "source_feature_ids": unique(result.featureIDs), "source_transition_ids": unique(result.transitionIDs), "state_quality": state.QualityState, "resolved_direction": direction, "horizon": horizon, "hypothesis_family": family})
 	return storage.MarketOpsHypothesisEvaluationRecord{EvaluationID: identity.ID, TenantID: state.TenantID, AppID: "marketops", HypothesisKey: definition.HypothesisKey, HypothesisVersion: definition.HypothesisVersion, MarketStateID: state.MarketStateID, AssetID: state.AssetID, Symbol: state.Symbol, SessionDate: state.SessionDate, AsOfTime: state.AsOfTime, Eligible: result.eligible, Triggered: result.triggered, TriggerScore: triggerScorePtr, ConfidenceScore: confidencePtr, MagnitudeScore: magnitudePtr, RarityScore: rarityPtr, PersistenceScore: persistencePtr, CorroborationScore: corroborationPtr, QualityScore: qualityPtr, Invalidated: result.invalidated, EvidenceIDs: evidenceIDs, ReasonCodes: result.reasons, EvaluationPayloadJSON: payload, EvaluationRunID: runID, DeterministicKey: identity.DeterministicKey}, nil
 }
 
@@ -147,7 +148,7 @@ func evaluateH007(in inputSet) evaluation {
 	if r.eligible {
 		rare := (transition.ZScore != nil && *transition.ZScore >= 2) || (transition.Percentile != nil && *transition.Percentile >= .95)
 		r.triggered = value(oi) >= 100 && value(coverage) >= .6 && rare
-		r.checks = map[string]any{"oi_change_1d": value(oi), "surface_coverage_ratio": value(coverage), "zscore": transition.ZScore, "percentile": transition.Percentile, "rarity_threshold_met": rare}
+		r.checks = map[string]any{"oi_change_1d": value(oi), "surface_coverage_ratio": value(coverage), "zscore": transition.ZScore, "percentile": transition.Percentile, "rarity_threshold_met": rare, "option_type": dimensionString(oi.DimensionsJSON, "option_type")}
 		r.magnitude, r.rarity, r.persistence, r.corroboration = clamp(value(oi)/1000), boolScore(rare), .5, .25
 		if !r.triggered {
 			r.reasons = thresholdReasons(map[string]bool{"oi_change_below_minimum": value(oi) < 100, "surface_coverage_below_minimum": value(coverage) < .6, "oi_change_not_statistically_unusual": !rare})
@@ -331,6 +332,32 @@ func unique(values []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+func evaluationOpportunityProfile(definition storage.MarketOpsHypothesisDefinitionRecord, checks map[string]any) (string, string, string) {
+	direction := definition.Direction
+	switch definition.HypothesisKey {
+	case "H006":
+		move, _ := checks["return_1d"].(float64)
+		if move > 0 {
+			direction = "downside"
+		} else if move < 0 {
+			direction = "upside"
+		}
+	case "H007":
+		optionType, _ := checks["option_type"].(string)
+		if optionType == "put" {
+			direction = "downside"
+		} else if optionType == "call" {
+			direction = "upside"
+		}
+	}
+	return direction, "5_to_20_sessions", definition.Domain
+}
+func dimensionString(raw []byte, key string) string {
+	values := map[string]any{}
+	_ = json.Unmarshal(raw, &values)
+	value, _ := values[key].(string)
+	return value
 }
 func clamp(v float64) float64 {
 	if v < 0 {
