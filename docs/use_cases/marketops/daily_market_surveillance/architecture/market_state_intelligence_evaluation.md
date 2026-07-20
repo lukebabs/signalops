@@ -154,11 +154,11 @@ G146 adds exact-version candidate/approved hypothesis proposals to the existing 
 
 ### G147: Market State Analyst Experience
 
-Status: proposed; frontend-agent specification ready 2026-07-20.
+Status: implemented and accepted 2026-07-20.
 
-Build the specified asset/date state view, DTE-delta surface, transition timeline, hypothesis workbench, and calibrated opportunity detail. Keep provider acquisition, research calculation, proposal review, signal materialization, graph review, and opportunity disposition as distinct controls.
+Implemented the asset/date state view, persisted seven-cell DTE-delta surface, bounded multi-session transition timeline, exact-version hypothesis/evidence/calibration workbench, and calibrated opportunity detail. Provider acquisition, research calculation, proposal review, signal materialization, graph review, and opportunity disposition remain distinct controls.
 
-Implementation handoff: `../gates/G147_market_state_analyst_experience_ui_spec.md` and `../../../../frontend/marketops_market_state_analyst_experience_spec.md`.
+Implementation record: `../gates/G147_market_state_analyst_experience_ui_spec.md` and `../../../../frontend/marketops_market_state_analyst_experience_spec.md`.
 
 ### G148: Graph, Ask, And Cohort Rollout
 
@@ -179,7 +179,7 @@ Add review-controlled graph mappings and bounded Market State Ask bundles, then 
 
 MarketOps is beyond a prototype database: it has genuine deterministic state, longitudinal features, hypothesis, opportunity, outcome, and version-isolated calibration infrastructure with strong governance. It is not yet a useful complete market-state intelligence product because genuine longitudinal options/event coverage and statistically meaningful calibration evidence remain incomplete.
 
-G146 has completed the reviewed proposal eligibility bridge and opportunity disposition control without manufacturing evidence, promoting research, or writing signals. The definitive next step is G147 Market State Analyst Experience; live research remains coverage-blocked until genuine prospective option sessions accumulate.
+G147 now makes the governed state, transition, hypothesis, calibration, opportunity, and disposition ledgers usable without manufacturing readiness. The definitive next product gate is G148 Graph, Ask, and Cohort Rollout; live research remains coverage-blocked until genuine prospective option sessions accumulate.
 
 ## References
 

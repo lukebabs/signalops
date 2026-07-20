@@ -189,6 +189,9 @@ describe('algorithm signal proposal API client (G114)', () => {
       execution_request_id: 'algexec_1',
       algorithm_result_id: 'algres_1',
       correlation_id: 'corr_1',
+      proposal_source: 'hypothesis_evaluation',
+      hypothesis_evaluation_id: 'heval_1',
+      hypothesis_key: 'H001',
     });
 
     const url = String(fetchMock.mock.calls[0][0]);
@@ -200,6 +203,9 @@ describe('algorithm signal proposal API client (G114)', () => {
     expect(url).toContain('execution_request_id=algexec_1');
     expect(url).toContain('algorithm_result_id=algres_1');
     expect(url).toContain('correlation_id=corr_1');
+    expect(url).toContain('proposal_source=hypothesis_evaluation');
+    expect(url).toContain('hypothesis_evaluation_id=heval_1');
+    expect(url).toContain('hypothesis_key=H001');
     expect(url).toContain('limit=50');
     expect(fetchMock.mock.calls[0][1].headers['Authorization']).toBe('Bearer jwt-abc');
   });

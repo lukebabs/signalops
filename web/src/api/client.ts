@@ -886,9 +886,12 @@ export const api = {
   listAlgorithmSignalProposals: (filter: AlgorithmSignalProposalFilter = {}) =>
     get<AlgorithmSignalProposalsResponse>('/v1/algorithms/signal-proposals', {
       tenant_id: filter.tenant_id ?? 'tenant-local',
+      proposal_source: filter.proposal_source || undefined,
       algorithm_id: filter.algorithm_id || undefined,
       execution_request_id: filter.execution_request_id || undefined,
       algorithm_result_id: filter.algorithm_result_id || undefined,
+      hypothesis_evaluation_id: filter.hypothesis_evaluation_id || undefined,
+      hypothesis_key: filter.hypothesis_key || undefined,
       status: filter.status || undefined,
       severity: filter.severity || undefined,
       correlation_id: filter.correlation_id || undefined,

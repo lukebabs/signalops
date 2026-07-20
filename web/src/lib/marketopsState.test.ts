@@ -8,6 +8,9 @@ import {
   summarizeMarketOpsHypothesisEvaluation,
   observationSurfaceCellId,
   groupObservationsBySurfaceCell,
+  parseHypothesisRequirements,
+  requirementMatches,
+  qualityReason,
   selectPriorState,
   isMaterialTransition,
   partitionMaterialTransitions,
@@ -15,6 +18,7 @@ import {
   qualityStateStyle,
   dispositionStyle,
   formatNullableNumber,
+  formatNullablePercent,
 } from './marketopsState';
 
 describe('summarizers (G147)', () => {
@@ -58,39 +62,62 @@ describe('summarizers (G147)', () => {
   });
 
   it('hypothesis evaluation surfaces all nullable scores', () => {
-    const e = summarizeMarketOpsHypothesisEvaluation({ evaluation_id: 'e-1', hypothesis_key: 'H1', eligible: true, triggered: false, trigger_score: 0.3, rarity_score: 0.9, evaluation_run_id: 'run-1' });
+    const e = summarizeMarketOpsHypothesisEvaluation({ evaluation_id: 'e-1', hypothesis_key: 'H1', eligible: true, triggered: false, trigger_score: 0.3, rarity_score: 0.9, evaluation_payload: { threshold: 2 }, evaluation_run_id: 'run-1', deterministic_key: 'eval-key', created_at: '2026-07-20T01:00:00Z' });
     expect(e.eligible).toBe(true);
     expect(e.triggerScore).toBeCloseTo(0.3);
     expect(e.rarityScore).toBeCloseTo(0.9);
     expect(e.confidenceScore).toBeNull();
+    expect(e.evaluationPayload).toEqual({ threshold: 2 });
     expect(e.evaluationRunId).toBe('run-1');
+    expect(e.deterministicKey).toBe('eval-key');
   });
 });
 
 describe('observationSurfaceCellId (G147)', () => {
   it('maps ATM and 25-delta wing cells by dimensions', () => {
-    expect(observationSurfaceCellId({ target_dte: 30 })).toBe('atm-30');
-    expect(observationSurfaceCellId({ target_dte: 90 })).toBe('atm-90');
-    expect(observationSurfaceCellId({ option_type: 'put', target_dte: 30, target_delta: 25 })).toBe('put-30-25d');
-    expect(observationSurfaceCellId({ option_type: 'call', target_dte: 60, target_delta: 25 })).toBe('call-60-25d');
+    expect(observationSurfaceCellId('atm_iv_30d', {})).toBe('atm-30');
+    expect(observationSurfaceCellId('atm_iv_90d', {})).toBe('atm-90');
+    expect(observationSurfaceCellId('iv', { option_type: 'put', target_dte: 30, target_delta: 0.25 })).toBe('put-30-25d');
+    expect(observationSurfaceCellId('iv', { option_type: 'call', target_dte: 60, target_delta: 0.25 })).toBe('call-60-25d');
+    expect(observationSurfaceCellId('iv_change_1d', { surface_cell: 'atm', target_dte: 60, target_delta: 0.5 })).toBe('atm-60');
   });
 
   it('returns null for non-surface dimensions', () => {
-    expect(observationSurfaceCellId({})).toBeNull();
-    expect(observationSurfaceCellId({ target_dte: 45 })).toBeNull();
-    expect(observationSurfaceCellId({ option_type: 'put', target_dte: 30, target_delta: 10 })).toBeNull();
+    expect(observationSurfaceCellId('iv', {})).toBeNull();
+    expect(observationSurfaceCellId('iv', { target_dte: 45 })).toBeNull();
+    expect(observationSurfaceCellId('iv', { option_type: 'put', target_dte: 30, target_delta: 25 })).toBeNull();
   });
 
   it('groups observations by canonical cell', () => {
     const obs = [
-      summarizeMarketOpsFeatureObservation({ feature_observation_id: 'a', dimensions: { target_dte: 30 }, numeric_value: 1 }),
-      summarizeMarketOpsFeatureObservation({ feature_observation_id: 'b', dimensions: { option_type: 'put', target_dte: 30, target_delta: 25 }, numeric_value: 2 }),
-      summarizeMarketOpsFeatureObservation({ feature_observation_id: 'c', dimensions: {}, numeric_value: 3 }),
+      summarizeMarketOpsFeatureObservation({ feature_observation_id: 'a', feature_key: 'atm_iv_30d', dimensions: {}, numeric_value: 1 }),
+      summarizeMarketOpsFeatureObservation({ feature_observation_id: 'b', feature_key: 'iv', dimensions: { option_type: 'put', target_dte: 30, target_delta: 0.25 }, numeric_value: 2 }),
+      summarizeMarketOpsFeatureObservation({ feature_observation_id: 'c', feature_key: 'iv', dimensions: {}, numeric_value: 3 }),
     ];
     const groups = groupObservationsBySurfaceCell(obs);
     expect(groups.get('atm-30')).toHaveLength(1);
     expect(groups.get('put-30-25d')).toHaveLength(1);
     expect(groups.has('atm-60')).toBe(false);
+  });
+});
+
+describe('hypothesis requirements (G147)', () => {
+  it('parses string and dimension-aware requirements', () => {
+    const requirements = parseHypothesisRequirements([
+      'atm_iv_30d',
+      { feature_key: 'iv', dimensions: { option_type: 'put_or_call', target_dte: 30, target_delta: 0.25 } },
+      { ignored: true },
+    ]);
+    expect(requirements).toHaveLength(2);
+    expect(requirementMatches(requirements[0], 'atm_iv_30d', {})).toBe(true);
+    expect(requirementMatches(requirements[1], 'iv', { option_type: 'put', target_dte: 30, target_delta: 0.25 })).toBe(true);
+    expect(requirementMatches(requirements[1], 'iv', { option_type: 'call', target_dte: 30, target_delta: 0.25 })).toBe(true);
+    expect(requirementMatches(requirements[1], 'iv', { option_type: 'put', target_dte: 30, target_delta: 25 })).toBe(false);
+  });
+
+  it('surfaces persisted quality reasons only', () => {
+    expect(qualityReason({ missing_reason: 'stale input' })).toBe('stale input');
+    expect(qualityReason({})).toBe('');
   });
 });
 
@@ -148,6 +175,12 @@ describe('parseHypothesisCalibrationReport (G147)', () => {
           evaluations: 250, eligible_states: 240, triggers: 60, trigger_rate: 0.25, independent_samples: 120,
           matured_outcome_samples: 110, directional_hit_rate: 0.55, mean_forward_return: 0.01, below_minimum_sample_size: false,
         },
+        by_horizon: {
+          '5': {
+            evaluations: 60, eligible_states: 55, triggers: 12, independent_samples: 30,
+            matured_outcome_samples: 25, directional_hit_rate: null, mean_forward_return: null,
+          },
+        },
       },
     },
   });
@@ -158,6 +191,8 @@ describe('parseHypothesisCalibrationReport (G147)', () => {
     expect(r.promotionAllowed).toBe(false);
     expect(r.selectedVersion?.overall.independentSamples).toBe(120);
     expect(r.selectedVersion?.overall.directionalHitRate).toBeCloseTo(0.55);
+    expect(r.selectedVersion?.byHorizon['5'].maturedOutcomeSamples).toBe(25);
+    expect(r.selectedVersion?.byHorizon['5'].directionalHitRate).toBeNull();
     expect(r.warnings).toEqual(['short window']);
   });
 
@@ -214,5 +249,7 @@ describe('styles + formatting (G147)', () => {
   it('formats nullable numbers and em-dashes nulls', () => {
     expect(formatNullableNumber(0.5, 3)).toBe('0.500');
     expect(formatNullableNumber(null)).toBe('—');
+    expect(formatNullablePercent(0.125)).toBe('12.5%');
+    expect(formatNullablePercent(null)).toBe('—');
   });
 });

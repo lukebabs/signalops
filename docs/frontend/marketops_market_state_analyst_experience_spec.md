@@ -1,8 +1,23 @@
 # G147 Frontend-Agent Specification: Market State Analyst Experience
 
-Status: proposed - frontend-agent specification ready
+Status: implemented and accepted - deployed validation complete
 
 Date: 2026-07-20
+
+## Implementation Closeout
+
+G147 is implemented in the existing MarketOps application and deployed at `/marketops/state`. The accepted implementation composes persisted state and lineage reads, the canonical seven-cell surface, a bounded multi-session transition timeline, exact-version hypothesis evidence and calibration, source-aware proposal governance status, and the existing append-only opportunity disposition workflow.
+
+Acceptance corrections aligned the UI with live persisted contracts: wing delta is decimal `0.25`; ATM observations may use explicit `atm_iv_*` keys with empty dimensions; completeness ratio is distinct from total and required feature counts; nullable calibration values remain unavailable rather than becoming zero; and mobile hypothesis detail has a return path to the selector.
+
+Validation evidence:
+
+- 393 frontend tests passed across 28 files.
+- `npm run build` passed, including TypeScript and Vite production compilation.
+- The Docker web image rebuilt successfully and the deployed route returned HTTP 200.
+- The deployed bundle contains the exact-version governance and persisted-surface behavior.
+- Authenticated browser traffic showed bounded state, definition, selected-lineage, and prior-lineage reads rather than per-cell or per-row N+1 requests.
+- Gateway `/healthz` remained HTTP 200 after deployment.
 
 ## Objective
 

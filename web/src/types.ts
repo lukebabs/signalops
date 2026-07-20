@@ -2272,10 +2272,15 @@ export type AlgorithmSignalProposalStatus =
 export interface AlgorithmSignalProposal {
   proposal_id: string;
   tenant_id: string;
+  proposal_source?: string;
   algorithm_result_id: string;
   algorithm_id: string;
   algorithm_version: string;
   execution_request_id: string;
+  hypothesis_evaluation_id?: string;
+  hypothesis_key?: string;
+  hypothesis_version?: string;
+  hypothesis_lifecycle_status?: string;
   proposed_signal_type: string;
   status: AlgorithmSignalProposalStatus;
   score: number;
@@ -2286,6 +2291,9 @@ export interface AlgorithmSignalProposal {
   source_event_ids: string[];
   evidence_refs: string[];
   correlation_id: string;
+  research_only?: boolean;
+  materialization_eligible?: boolean;
+  eligibility_snapshot?: unknown;
   created_by: string;
   reviewed_by: string;
   decision_note: string;
@@ -2296,9 +2304,12 @@ export interface AlgorithmSignalProposal {
 
 export interface AlgorithmSignalProposalFilter {
   tenant_id?: string;
+  proposal_source?: string;
   algorithm_id?: string;
   execution_request_id?: string;
   algorithm_result_id?: string;
+  hypothesis_evaluation_id?: string;
+  hypothesis_key?: string;
   status?: AlgorithmSignalProposalStatus | '';
   severity?: string;
   correlation_id?: string;

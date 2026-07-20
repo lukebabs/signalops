@@ -193,6 +193,7 @@ export function summarizeMarketOpsFeatureObservation(o: unknown): MarketOpsFeatu
 export interface MarketOpsStateTransitionView {
   transitionId: string;
   sessionDate: string;
+  asOfTime: string;
   currentStateId: string;
   baselineStateId: string | null;
   featureKey: string;
@@ -216,7 +217,7 @@ export interface MarketOpsStateTransitionView {
 export function summarizeMarketOpsStateTransition(t: unknown): MarketOpsStateTransitionView {
   if (!isRecord(t)) {
     return {
-      transitionId: '', sessionDate: '', currentStateId: '', baselineStateId: null, featureKey: '',
+      transitionId: '', sessionDate: '', asOfTime: '', currentStateId: '', baselineStateId: null, featureKey: '',
       featureVersion: '', dimensions: {}, transitionType: '', lookbackSessions: null, currentValue: null,
       baselineValue: null, transitionValue: null, zscore: null, percentile: null, persistenceSessions: null,
       direction: null, qualityState: '', transitionPayload: {}, calculationRunId: '', deterministicKey: '',
@@ -225,6 +226,7 @@ export function summarizeMarketOpsStateTransition(t: unknown): MarketOpsStateTra
   return {
     transitionId: asString(t.transition_id),
     sessionDate: asString(t.session_date),
+    asOfTime: asString(t.as_of_time),
     currentStateId: asString(t.current_state_id),
     baselineStateId: asNullableString(t.baseline_state_id),
     featureKey: asString(t.feature_key),
@@ -350,7 +352,10 @@ export interface MarketOpsHypothesisEvaluationStateView {
   qualityScore: number | null;
   reasonCodes: string[];
   evidenceIds: string[];
+  evaluationPayload: unknown;
   evaluationRunId: string;
+  deterministicKey: string;
+  createdAt: string;
 }
 
 // Full hypothesis-evaluation view with all nullable scores surfaced (the G139
@@ -362,7 +367,8 @@ export function summarizeMarketOpsHypothesisEvaluation(e: unknown): MarketOpsHyp
       evaluationId: '', hypothesisKey: '', hypothesisVersion: '', marketStateId: '', assetId: '', symbol: '',
       sessionDate: '', eligible: false, triggered: false, invalidated: false, triggerScore: null,
       confidenceScore: null, magnitudeScore: null, rarityScore: null, persistenceScore: null,
-      corroborationScore: null, qualityScore: null, reasonCodes: [], evidenceIds: [], evaluationRunId: '',
+      corroborationScore: null, qualityScore: null, reasonCodes: [], evidenceIds: [], evaluationPayload: {},
+      evaluationRunId: '', deterministicKey: '', createdAt: '',
     };
   }
   return {
@@ -385,45 +391,56 @@ export function summarizeMarketOpsHypothesisEvaluation(e: unknown): MarketOpsHyp
     qualityScore: asNullableNumber(e.quality_score),
     reasonCodes: asStringArray(e.reason_codes),
     evidenceIds: asStringArray(e.evidence_ids),
+    evaluationPayload: e.evaluation_payload ?? {},
     evaluationRunId: asString(e.evaluation_run_id),
+    deterministicKey: asString(e.deterministic_key),
+    createdAt: asString(e.created_at),
   };
 }
 
-// Canonical seven-cell surface. Cells are identified by exact dimensions, never
-// by array position. ATM cells carry only target_dte (no option_type/delta);
-// 25-delta wings carry option_type + target_delta=25 + target_dte.
+// Canonical seven-cell surface. Core ATM observations use explicit feature keys
+// with {} dimensions; normalized ATM changes use surface_cell=atm, delta=.50;
+// wing observations use option_type + target_delta=.25 + target_dte.
 export interface SurfaceCellSpec {
   id: string;
   label: string;
   optionType?: string;
-  targetDte?: number;
-  targetDelta?: number;
+  targetDte: number;
+  targetDelta: number;
 }
 
 export const SURFACE_CELLS: SurfaceCellSpec[] = [
-  { id: 'atm-30', label: '30-DTE ATM' },
-  { id: 'atm-60', label: '60-DTE ATM' },
-  { id: 'atm-90', label: '90-DTE ATM' },
-  { id: 'put-30-25d', label: '30-DTE 25Δ Put', optionType: 'put', targetDte: 30, targetDelta: 25 },
-  { id: 'put-60-25d', label: '60-DTE 25Δ Put', optionType: 'put', targetDte: 60, targetDelta: 25 },
-  { id: 'call-30-25d', label: '30-DTE 25Δ Call', optionType: 'call', targetDte: 30, targetDelta: 25 },
-  { id: 'call-60-25d', label: '60-DTE 25Δ Call', optionType: 'call', targetDte: 60, targetDelta: 25 },
+  { id: 'atm-30', label: '30-DTE ATM', targetDte: 30, targetDelta: 0.5 },
+  { id: 'atm-60', label: '60-DTE ATM', targetDte: 60, targetDelta: 0.5 },
+  { id: 'atm-90', label: '90-DTE ATM', targetDte: 90, targetDelta: 0.5 },
+  { id: 'put-30-25d', label: '30-DTE 25Δ Put', optionType: 'put', targetDte: 30, targetDelta: 0.25 },
+  { id: 'put-60-25d', label: '60-DTE 25Δ Put', optionType: 'put', targetDte: 60, targetDelta: 0.25 },
+  { id: 'call-30-25d', label: '30-DTE 25Δ Call', optionType: 'call', targetDte: 30, targetDelta: 0.25 },
+  { id: 'call-60-25d', label: '60-DTE 25Δ Call', optionType: 'call', targetDte: 60, targetDelta: 0.25 },
 ];
 
-// Map an observation's dimensions to a canonical cell id, or null when it does
-// not belong to the persisted seven-cell surface. ATM = target_dte only.
-export function observationSurfaceCellId(dimensions: unknown): string | null {
+export function observationSurfaceCellId(featureKey: string, dimensions: unknown): string | null {
+  const explicitAtm = /^atm_iv_(30|60|90)d$/.exec(featureKey);
+  if (explicitAtm) return `atm-${explicitAtm[1]}`;
+
   const dte = dimNumber(dimensions, 'target_dte');
-  const ot = dimString(dimensions, 'option_type');
+  const optionType = dimString(dimensions, 'option_type');
+  const surfaceCell = dimString(dimensions, 'surface_cell');
   const delta = dimNumber(dimensions, 'target_delta');
   if (dte === undefined) return null;
-  // ATM: no option_type / no delta (only target_dte).
-  if (ot === undefined && delta === undefined) {
-    if (dte === 30 || dte === 60 || dte === 90) return `atm-${dte}`;
-    return null;
+
+  if (
+    (dte === 30 || dte === 60 || dte === 90) &&
+    (surfaceCell === 'atm' || (optionType === undefined && delta === 0.5))
+  ) {
+    return `atm-${dte}`;
   }
-  if ((ot === 'put' || ot === 'call') && delta === 25 && (dte === 30 || dte === 60)) {
-    return `${ot}-${dte}-25d`;
+  if (
+    (optionType === 'put' || optionType === 'call') &&
+    delta === 0.25 &&
+    (dte === 30 || dte === 60)
+  ) {
+    return `${optionType}-${dte}-25d`;
   }
   return null;
 }
@@ -432,14 +449,50 @@ export function groupObservationsBySurfaceCell(
   observations: MarketOpsFeatureObservationView[],
 ): Map<string, MarketOpsFeatureObservationView[]> {
   const groups = new Map<string, MarketOpsFeatureObservationView[]>();
-  for (const o of observations) {
-    const cellId = observationSurfaceCellId(o.dimensions);
+  for (const observation of observations) {
+    const cellId = observationSurfaceCellId(observation.featureKey, observation.dimensions);
     if (!cellId) continue;
-    const arr = groups.get(cellId) ?? [];
-    arr.push(o);
-    groups.set(cellId, arr);
+    const rows = groups.get(cellId) ?? [];
+    rows.push(observation);
+    groups.set(cellId, rows);
   }
   return groups;
+}
+
+export interface HypothesisRequirementView {
+  featureKey: string;
+  dimensions: Record<string, unknown>;
+}
+
+export function parseHypothesisRequirements(value: unknown): HypothesisRequirementView[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): HypothesisRequirementView[] => {
+    if (typeof entry === 'string') return [{ featureKey: entry, dimensions: {} }];
+    if (!isRecord(entry)) return [];
+    const featureKey = asString(entry.feature_key);
+    if (!featureKey) return [];
+    return [{ featureKey, dimensions: isRecord(entry.dimensions) ? entry.dimensions : {} }];
+  });
+}
+
+export function requirementMatches(
+  requirement: HypothesisRequirementView,
+  featureKey: string,
+  dimensions: unknown,
+): boolean {
+  if (requirement.featureKey !== featureKey || !isRecord(dimensions)) {
+    return requirement.featureKey === featureKey && Object.keys(requirement.dimensions).length === 0;
+  }
+  return Object.entries(requirement.dimensions).every(([key, expected]) => {
+    const actual = dimensions[key];
+    if (key === 'option_type' && expected === 'put_or_call') return actual === 'put' || actual === 'call';
+    return actual === expected;
+  });
+}
+
+export function qualityReason(details: unknown): string {
+  if (!isRecord(details)) return '';
+  return asString(details.reason) || asString(details.missing_reason) || asString(details.error);
 }
 
 // Select the nearest earlier persisted session for prior comparison. Among
@@ -494,16 +547,26 @@ export interface CalibrationMetricsView {
   meanForwardReturn: number | null;
   medianForwardReturn: number | null;
   meanFavorableExcursion: number | null;
+  medianFavorableExcursion: number | null;
   meanAdverseExcursion: number | null;
+  medianAdverseExcursion: number | null;
   drawdownIncidence: number | null;
   meanRealizedVolChange: number | null;
   calibrationError: number | null;
+  confidenceBands: unknown;
   belowMinimumSampleSize: boolean;
 }
+
+export type CalibrationSegmentMap = Record<string, CalibrationMetricsView>;
 
 export interface CalibrationVersionView {
   hypothesisVersion: string;
   overall: CalibrationMetricsView;
+  byHorizon: CalibrationSegmentMap;
+  byAsset: CalibrationSegmentMap;
+  byYear: CalibrationSegmentMap;
+  byVolatilityRegime: CalibrationSegmentMap;
+  byEarningsWindow: CalibrationSegmentMap;
 }
 
 export interface HypothesisCalibrationReport {
@@ -521,6 +584,8 @@ export interface HypothesisCalibrationReport {
   warnings: string[];
   promotionAllowed: boolean;
   selectedVersion: CalibrationVersionView | null;
+  comparison: unknown;
+  walkForward: unknown[];
 }
 
 const EMPTY_REPORT: HypothesisCalibrationReport = {
@@ -538,6 +603,8 @@ const EMPTY_REPORT: HypothesisCalibrationReport = {
   warnings: [],
   promotionAllowed: false,
   selectedVersion: null,
+  comparison: null,
+  walkForward: [],
 };
 
 function parseCalibrationMetrics(record: unknown): CalibrationMetricsView {
@@ -545,8 +612,9 @@ function parseCalibrationMetrics(record: unknown): CalibrationMetricsView {
     return {
       evaluations: 0, eligibleStates: 0, triggers: 0, triggerRate: null, independentSamples: 0,
       maturedOutcomeSamples: 0, directionalHitRate: null, meanForwardReturn: null, medianForwardReturn: null,
-      meanFavorableExcursion: null, meanAdverseExcursion: null, drawdownIncidence: null,
-      meanRealizedVolChange: null, calibrationError: null, belowMinimumSampleSize: false,
+      meanFavorableExcursion: null, medianFavorableExcursion: null, meanAdverseExcursion: null,
+      medianAdverseExcursion: null, drawdownIncidence: null, meanRealizedVolChange: null,
+      calibrationError: null, confidenceBands: {}, belowMinimumSampleSize: false,
     };
   }
   return {
@@ -560,12 +628,20 @@ function parseCalibrationMetrics(record: unknown): CalibrationMetricsView {
     meanForwardReturn: asNullableNumber(record.mean_forward_return),
     medianForwardReturn: asNullableNumber(record.median_forward_return),
     meanFavorableExcursion: asNullableNumber(record.mean_favorable_excursion),
+    medianFavorableExcursion: asNullableNumber(record.median_favorable_excursion),
     meanAdverseExcursion: asNullableNumber(record.mean_adverse_excursion),
+    medianAdverseExcursion: asNullableNumber(record.median_adverse_excursion),
     drawdownIncidence: asNullableNumber(record.drawdown_incidence),
     meanRealizedVolChange: asNullableNumber(record.mean_realized_volatility_change),
     calibrationError: asNullableNumber(record.calibration_error),
+    confidenceBands: record.confidence_bands ?? {},
     belowMinimumSampleSize: asBool(record.below_minimum_sample_size),
   };
+}
+
+function parseCalibrationSegmentMap(value: unknown): CalibrationSegmentMap {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(Object.entries(value).map(([key, metrics]) => [key, parseCalibrationMetrics(metrics)]));
 }
 
 // Runtime-validate a calibration summary `parameters` payload against the
@@ -601,7 +677,7 @@ export function parseHypothesisCalibrationReport(
   }
   const versions = parameters.versions;
   const versionEntry = isRecord(versions) ? versions[selectedVersion] : undefined;
-  if (selectedVersion && !isRecord(versionEntry)) {
+  if (selectedVersion && (!isRecord(versionEntry) || !isRecord(versionEntry.overall))) {
     return {
       ...base, summaryVersion, hypothesisKey, hypothesisVersions,
       incompatibleReason: 'Calibration report is missing the selected version entry',
@@ -610,8 +686,13 @@ export function parseHypothesisCalibrationReport(
   const selectedView: CalibrationVersionView | null =
     selectedVersion && isRecord(versionEntry)
       ? {
-          hypothesisVersion: asString((versionEntry as Record<string, unknown>).hypothesis_version) || selectedVersion,
-          overall: parseCalibrationMetrics((versionEntry as Record<string, unknown>).overall),
+          hypothesisVersion: asString(versionEntry.hypothesis_version) || selectedVersion,
+          overall: parseCalibrationMetrics(versionEntry.overall),
+          byHorizon: parseCalibrationSegmentMap(versionEntry.by_horizon),
+          byAsset: parseCalibrationSegmentMap(versionEntry.by_asset),
+          byYear: parseCalibrationSegmentMap(versionEntry.by_year),
+          byVolatilityRegime: parseCalibrationSegmentMap(versionEntry.by_volatility_regime),
+          byEarningsWindow: parseCalibrationSegmentMap(versionEntry.by_earnings_window),
         }
       : null;
   return {
@@ -629,6 +710,8 @@ export function parseHypothesisCalibrationReport(
     warnings: asStringArray(parameters.warnings),
     promotionAllowed: asBool(parameters.promotion_allowed),
     selectedVersion: selectedView,
+    comparison: parameters.comparison ?? null,
+    walkForward: Array.isArray(parameters.walk_forward) ? parameters.walk_forward : [],
   };
 }
 

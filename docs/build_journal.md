@@ -7496,3 +7496,29 @@ Result:
 - G147 is proposed with a frontend-agent specification ready for implementation.
 - This change is documentation only; no frontend or backend runtime behavior, data, migration, or deployment was changed.
 - G148 remains out of scope until G147 is implemented and evaluated.
+
+
+## 2026-07-20 - G147 Market State Analyst Experience Implementation And Acceptance
+
+Summary:
+
+- Implemented the MarketOps-only `/marketops/state` workbench with URL-scoped asset/session/tab/hypothesis context, overview/prior comparison, canonical seven-cell surface, bounded multi-session transition timeline, and exact-version hypothesis detail.
+- Added persisted requirement status, lazy evidence, evaluation payload, rich calibration segments and warnings, source-aware proposal governance status, and audit identifiers without adding mutation authority.
+- Extended opportunity calibration to preserve nullable values and exact-version selection, and scoped append-only disposition refresh to the selected opportunity.
+- Corrected the persisted surface contract to explicit ATM feature keys and decimal `0.25` wing deltas; completeness ratio remains distinct from total and required feature counts.
+- Added a mobile return path between hypothesis detail and selector.
+
+Validation performed:
+
+- 393 frontend tests passed across 28 files.
+- TypeScript and Vite production build passed locally and inside the Docker web image.
+- The final web image rebuilt and deployed; `/marketops/state?symbol=AAPL` returned HTTP 200.
+- Deployed bundle inspection confirmed the persisted-surface and source-aware governance paths.
+- Authenticated browser traffic showed bounded state, definition, selected-lineage, and prior-lineage reads with no per-cell N+1 behavior.
+- Gateway `/healthz` returned HTTP 200 after deployment.
+
+Result:
+
+- G147 is implemented and accepted.
+- Sparse data remains truthful: unavailable cells, incomplete state, non-triggered evaluations, insufficient calibration, and absent proposals are not converted into zero or readiness.
+- G148 Graph, Ask, And Cohort Rollout is the recommended next gate, while empirical research effectiveness remains dependent on genuine prospective coverage.

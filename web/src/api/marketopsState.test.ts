@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
 
 const state = vi.hoisted(() => ({ token: 'jwt-abc' as string | null, authEnabled: true }));
 
@@ -16,7 +17,7 @@ vi.mock('../auth/config', () => ({
 vi.mock('../auth/session', () => ({ getAccessToken: () => state.token }));
 
 const { api } = await import('./client');
-const { queryKeys } = await import('./queries');
+const { queryKeys, applyOpportunityDispositionResult } = await import('./queries');
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -169,6 +170,13 @@ describe('MarketOps opportunity disposition API client (G146/G147)', () => {
 });
 
 describe('MarketOps state query keys (G147)', () => {
+  it('invalidates only the selected opportunity disposition ledger', () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    applyOpportunityDispositionResult(queryClient, 'mopp-1');
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['marketops-opportunity-dispositions', 'mopp-1'] });
+  });
+
   it('uses stable state/feature/transition/outcome/disposition keys', () => {
     expect(queryKeys.marketOpsStates({ tenant_id: 't', symbol: 'AAPL' })).toEqual(['marketops-states', { tenant_id: 't', symbol: 'AAPL' }]);
     expect(queryKeys.marketOpsState('ms-1')).toEqual(['marketops-state', 'ms-1']);

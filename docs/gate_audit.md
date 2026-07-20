@@ -8925,3 +8925,30 @@ Result:
 
 - The frontend agent can implement G147 without inventing backend authority or collapsing research, proposal, materialization, graph, and analyst-disposition controls.
 - Implementation and rendered validation remain required before G147 can be marked implemented or accepted.
+
+
+## 2026-07-20 - Gate G147 Market State Analyst Experience Implementation Acceptance
+
+Status: implemented and accepted
+
+Acceptance evidence:
+
+- The integrated Market State route is deployed with overview, persisted seven-cell surface, bounded transition timeline, and exact-version hypothesis/evidence/calibration/governance detail.
+- Live contract corrections map ATM by explicit feature key and wings by decimal delta `0.25`, separate completeness ratio from feature counts, and preserve nullable calibration values as unavailable.
+- Opportunity contribution calibration selects an exact matching report, retains warnings and `promotion_allowed=false`, and append-only disposition invalidation is scoped to one opportunity.
+- Narrow-screen hypothesis selection and detail have an explicit return path; tables retain responsive overflow and non-color labels.
+- 393 frontend tests and the production TypeScript/Vite build passed.
+- The Docker image rebuilt and deployed, the route returned HTTP 200, and gateway health remained HTTP 200.
+- Authenticated deployed traffic confirmed bounded aggregate reads rather than per-cell or per-row N+1 calls.
+
+Boundaries retained:
+
+- No provider acquisition, scheduling, state/evaluation construction, threshold relaxation, lifecycle promotion, proposal review mutation, hypothesis signal materialization, graph mutation, Ask, cohort rollout, trade, or portfolio action was added.
+- G145 calibration remains advisory and G146 hypothesis materialization remains unsupported and fail-closed.
+- Analyst disposition remains append-only and separate from computed opportunity lifecycle.
+
+Result:
+
+- G147 is accepted as an effective analyst-readability layer over the governed ledgers.
+- It improves inspection and triage effectiveness, but it does not establish empirical hypothesis effectiveness; genuine prospective evidence and adequate calibration samples are still required.
+- G148 is next.

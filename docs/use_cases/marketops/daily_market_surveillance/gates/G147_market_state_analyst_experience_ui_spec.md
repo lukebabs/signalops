@@ -1,8 +1,17 @@
 # G147 Market State Analyst Experience UI Specification
 
-Status: proposed - frontend-agent specification ready
+Status: implemented and accepted - deployed validation complete
 
 Date: 2026-07-20
+
+## Acceptance Evidence
+
+- Implemented and deployed the MarketOps-only `/marketops/state` route with overview, persisted seven-cell surface, bounded transition timeline, and exact-version hypothesis detail.
+- Extended opportunity calibration rendering without coercing nullable metrics and scoped disposition refresh to the selected opportunity ledger.
+- Corrected live surface identity to explicit ATM keys and decimal 0.25 wing deltas, and kept completeness ratio separate from feature counts.
+- Added source-aware proposal governance status, lazy evidence, evaluation payload, calibration segments/warnings, audit data, and mobile hypothesis navigation.
+- Passed 393 frontend tests and the TypeScript/Vite production build; rebuilt the Docker web image; deployed route and gateway health smokes returned HTTP 200.
+- Deployed authenticated traffic confirmed bounded query composition and truthful sparse AAPL/empty-symbol behavior.
 
 ## Purpose
 
@@ -45,7 +54,7 @@ Current evidence may legitimately produce incomplete states, no transitions, non
 
 ## Result
 
-The frontend agent can implement G147 without crossing the G145 advisory-calibration boundary or the G146 reviewed-proposal, fail-closed materialization, and append-only disposition boundaries.
+G147 is accepted. The implemented frontend preserves the G145 advisory-calibration boundary and the G146 reviewed-proposal, fail-closed materialization, and append-only disposition boundaries while making sparse persisted state legible.
 
 ## Links
 

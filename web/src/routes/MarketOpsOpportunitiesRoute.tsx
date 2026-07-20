@@ -46,6 +46,8 @@ import {
   parseHypothesisCalibrationReport,
   summarizeMarketOpsOpportunityDisposition,
   dispositionStyle,
+  formatNullableNumber,
+  formatNullablePercent,
 } from '../lib/marketopsState';
 import { useTenant } from '../auth/session';
 import type {
@@ -472,9 +474,13 @@ function ContributionCalibration({
     },
     open,
   );
-  const latest = calibQ.data?.calibration_summaries?.[0] ?? null;
-  const report = latest ? parseHypothesisCalibrationReport(latest.parameters, hypothesisKey, hypothesisVersion) : null;
-  const status = !latest || !report?.valid
+  const candidates = calibQ.data?.calibration_summaries ?? [];
+  const exact = candidates
+    .map((summary) => ({ summary, report: parseHypothesisCalibrationReport(summary.parameters, hypothesisKey, hypothesisVersion) }))
+    .find(({ report }) => report.valid) ?? null;
+  const latest = exact?.summary ?? candidates[0] ?? null;
+  const report = exact?.report ?? (latest ? parseHypothesisCalibrationReport(latest.parameters, hypothesisKey, hypothesisVersion) : null);
+  const status = !exact || !report?.valid
     ? 'Unavailable'
     : report.selectedVersion?.overall.belowMinimumSampleSize
       ? 'Below minimum sample'
@@ -493,10 +499,11 @@ function ContributionCalibration({
           <div className="flex flex-wrap gap-x-3">
             <span>samples {report.selectedVersion.overall.independentSamples}</span>
             <span>matured {report.selectedVersion.overall.maturedOutcomeSamples}</span>
-            <span>hit rate {(report.selectedVersion.overall.directionalHitRate ?? 0) >= 0 ? `${((report.selectedVersion.overall.directionalHitRate ?? 0) * 100).toFixed(1)}%` : '—'}</span>
-            <span>mean ret {(report.selectedVersion.overall.meanForwardReturn ?? 0).toFixed(4)}</span>
+            <span>hit rate {formatNullablePercent(report.selectedVersion.overall.directionalHitRate)}</span>
+            <span>mean ret {formatNullableNumber(report.selectedVersion.overall.meanForwardReturn, 4)}</span>
           </div>
           {!report.promotionAllowed ? <div className="text-gray-500">promotion not allowed</div> : null}
+          {report.warnings.length ? <div className="text-amber-700">{report.warnings.join(' · ')}</div> : null}
         </div>
       ) : open && !latest ? (
         <div className="border-t border-gray-100 px-2 pb-2 pt-1 text-[11px] text-gray-400">No exact-version calibration report.</div>

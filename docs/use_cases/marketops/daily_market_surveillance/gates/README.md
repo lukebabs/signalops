@@ -354,10 +354,12 @@ Recommended next gate:
 - The real validation run scanned 24 AAPL evaluations and correctly built zero proposals because no evaluation was eligible and triggered; all definitions remain research-only.
 - Specification: `G146_hypothesis_proposal_and_opportunity_governance.md`.
 
-## G147 Proposed
+## G147 Implemented
 
 - G147: one MarketOps-only asset/date state workbench with overview, seven-cell DTE/delta surface, material-transition timeline, and exact-version hypothesis evaluation/calibration views.
 - The existing opportunity detail gains calibration, persisted quality/evidence limits, and append-only analyst dispositions without changing computed lifecycle.
 - Provider acquisition, state construction, research evaluation, lifecycle promotion, proposal review, signal materialization, graph review, and opportunity disposition remain distinct controls.
 - Frontend-agent specification: `../../../../frontend/marketops_market_state_analyst_experience_spec.md`.
-- Gate handoff: `G147_market_state_analyst_experience_ui_spec.md`.
+- Gate record: `G147_market_state_analyst_experience_ui_spec.md`.
+- Validation: 393 frontend tests passed, the TypeScript/Vite production build passed locally and inside the Docker image, and the rebuilt route returned HTTP 200 with bounded authenticated state/lineage reads.
+- G148 graph, Ask, and controlled cohort rollout is the recommended next gate; genuine prospective coverage remains a prerequisite for empirical research claims.

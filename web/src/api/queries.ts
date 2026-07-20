@@ -600,9 +600,9 @@ export function useMarketOpsOpportunityDispositions(
   });
 }
 
-export function applyOpportunityDispositionResult(queryClient: QueryClient) {
+export function applyOpportunityDispositionResult(queryClient: QueryClient, opportunityId: string) {
   // Append-only ledger refresh; computed opportunity lifecycle is never touched.
-  queryClient.invalidateQueries({ queryKey: ['marketops-opportunity-dispositions'] });
+  queryClient.invalidateQueries({ queryKey: ['marketops-opportunity-dispositions', opportunityId] });
 }
 
 export function useCreateMarketOpsOpportunityDisposition() {
@@ -610,7 +610,7 @@ export function useCreateMarketOpsOpportunityDisposition() {
   return useMutation({
     mutationFn: (vars: { opportunityId: string; request: MarketOpsOpportunityDispositionRequest }) =>
       api.createMarketOpsOpportunityDisposition(vars.opportunityId, vars.request),
-    onSuccess: () => applyOpportunityDispositionResult(queryClient),
+    onSuccess: (_data, vars) => applyOpportunityDispositionResult(queryClient, vars.opportunityId),
   });
 }
 
