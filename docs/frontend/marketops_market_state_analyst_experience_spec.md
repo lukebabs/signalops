@@ -92,7 +92,7 @@ GET /v1/marketops/outcomes
 GET /v1/marketops/outcomes/{outcome_id}?tenant_id=...
 ```
 
-The hypothesis list supports `tenant_id`, exact key/version, domain, lifecycle status, and `limit`. Evaluation filters include exact key/version, `market_state_id`, asset/symbol, `eligible`, `triggered`, `invalidated`, session range, and `limit`. Outcome filters include exact source type/source ID, hypothesis key/version, symbol, direction, status, one of the supported 1/5/10/20-session horizons, origin-session range, and `limit`.
+The hypothesis list supports `tenant_id`, exact key/version, domain, lifecycle status, and `limit`. Evaluation filters include exact key/version, `market_state_id`, asset/symbol, `eligible`, `triggered`, `invalidated`, session range, and `limit`. Outcome filters include exact source type/source ID (`source_type`, `source_id`), hypothesis key/version, symbol, direction, `outcome_status` (pending/matured/missing_price), `horizon_sessions` (one of 1/5/10/20), origin-session range (`session_start`/`session_end`), and `limit`.
 
 All nullable score and outcome fields remain unavailable when absent. Pending or missing outcomes are not zero returns, misses, or negative evidence.
 

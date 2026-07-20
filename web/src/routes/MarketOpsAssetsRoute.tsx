@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import { CircleDollarSign, X } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { useMarketOpsAssets } from '../api/queries';
@@ -96,7 +97,17 @@ export function MarketOpsAssetsRoute() {
                       <div>
                         <div className="font-medium text-gray-900">{a.company || '—'}</div>
                         <div className="font-mono text-xs text-gray-500">{a.ticker}</div>
-                        <div className="text-xs text-gray-500">{a.asset_type}</div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span>{a.asset_type}</span>
+                          <Link
+                            to="/marketops/state"
+                            search={{ symbol: a.ticker }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-brand-700 underline hover:text-brand-800"
+                          >
+                            Open Market State
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   </td>

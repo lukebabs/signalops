@@ -54,6 +54,9 @@ const MarketOpsDsmRoute = lazy(() =>
 const MarketOpsOpportunitiesRoute = lazy(() =>
   import('./routes/MarketOpsOpportunitiesRoute').then((m) => ({ default: m.MarketOpsOpportunitiesRoute })),
 );
+const MarketOpsStateRoute = lazy(() =>
+  import('./routes/MarketOpsStateRoute').then((m) => ({ default: m.MarketOpsStateRoute })),
+);
 const MarketOpsBacktestsRoute = lazy(() =>
   import('./routes/MarketOpsBacktestsRoute').then((m) => ({ default: m.MarketOpsBacktestsRoute })),
 );
@@ -178,6 +181,26 @@ const marketopsReplayRoute = createRoute({ getParentRoute: () => rootRoute, path
 const marketopsPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/pipelines', component: PipelinesRoute });
 const marketopsHealthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/health', component: SystemRoute });
 const marketopsAssetsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assets', component: MarketOpsAssetsRoute });
+const marketopsStateRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/marketops/state',
+  // Persist analyst context (symbol/session_date/tab/hypothesis_key/version) so
+  // refresh/back/forward retains it. Unknown/invalid tab falls back to overview.
+  validateSearch: (search: Record<string, unknown>): {
+    symbol?: string;
+    session_date?: string;
+    tab?: string;
+    hypothesis_key?: string;
+    hypothesis_version?: string;
+  } => ({
+    symbol: typeof search.symbol === 'string' ? search.symbol : undefined,
+    session_date: typeof search.session_date === 'string' ? search.session_date : undefined,
+    tab: typeof search.tab === 'string' ? search.tab : undefined,
+    hypothesis_key: typeof search.hypothesis_key === 'string' ? search.hypothesis_key : undefined,
+    hypothesis_version: typeof search.hypothesis_version === 'string' ? search.hypothesis_version : undefined,
+  }),
+  component: MarketOpsStateRoute,
+});
 const marketopsDsmRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/dsm', component: MarketOpsDsmRoute });
 const marketopsOpportunitiesRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -237,6 +260,7 @@ const routeTree = rootRoute.addChildren([
   marketopsPipelinesRoute,
   marketopsHealthRoute,
   marketopsAssetsRoute,
+  marketopsStateRoute,
   marketopsDsmRoute,
   marketopsOpportunitiesRoute,
   marketopsBacktestsRoute,

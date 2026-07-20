@@ -29,6 +29,7 @@ export type AppRoutePath =
   | '/marketops/pipelines'
   | '/marketops/health'
   | '/marketops/assets'
+  | '/marketops/state'
   | '/marketops/dsm'
   | '/marketops/opportunities'
   | '/marketops/backtests'
@@ -86,6 +87,7 @@ const MARKETOPS_NAV: NavItem[] = [
   { module: 'dashboard', to: '/marketops/dashboard', label: 'Dashboard' },
   { module: 'providers', to: '/marketops/providers', label: 'Providers' },
   { module: 'symbols', to: '/marketops/assets', label: 'Assets' },
+  { module: 'market_state', to: '/marketops/state', label: 'Market State' },
   { module: 'raw_events', to: '/marketops/raw-events', label: 'Raw Events' },
   { module: 'normalized', to: '/marketops/normalized', label: 'Normalized' },
   { module: 'signals', to: '/marketops/signals', label: 'Signals' },

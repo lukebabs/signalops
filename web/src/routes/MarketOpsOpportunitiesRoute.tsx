@@ -20,6 +20,9 @@ import {
   useMarketOpsHypothesis,
   useMarketOpsEvidence,
   useMarketOpsMarketStateLineage,
+  useMarketOpsOpportunityDispositions,
+  useCreateMarketOpsOpportunityDisposition,
+  useMarketOpsBacktestCalibrationSummaries,
 } from '../api/queries';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
@@ -39,11 +42,17 @@ import {
   type MarketOpsOpportunityContribution,
   type MarketOpsHypothesisEvaluationView,
 } from '../lib/marketopsOpportunities';
+import {
+  parseHypothesisCalibrationReport,
+  summarizeMarketOpsOpportunityDisposition,
+  dispositionStyle,
+} from '../lib/marketopsState';
 import { useTenant } from '../auth/session';
 import type {
   MarketOpsOpportunityFilter,
   MarketOpsOpportunityLifecycle,
   MarketOpsOpportunityDirection,
+  MarketOpsOpportunityDispositionValue,
 } from '../types';
 
 // G139 MarketOps Opportunities workbench (read-only). Turns compatible hypothesis
@@ -404,8 +413,233 @@ function OpportunityDetail({ opportunityId, tenantId, onBack }: { opportunityId:
               <JsonViewer label="Opportunity payload JSON" value={view.opportunityPayload} />
             </div>
           </Section>
+
+          {/* G147 Historical calibration — per exact contribution version. */}
+          <Section title="Historical calibration">
+            {view.contributions.length ? (
+              <div className="space-y-1">
+                {view.contributions.map((c) => (
+                  <ContributionCalibration
+                    key={c.evaluationId || `${c.hypothesisKey}:${c.hypothesisVersion}`}
+                    tenantId={tenantId}
+                    hypothesisKey={c.hypothesisKey}
+                    hypothesisVersion={c.hypothesisVersion}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-gray-400">No contributions to calibrate.</p>
+            )}
+          </Section>
+
+          {/* G147 Quality and evidence limits — derived from persisted data only. */}
+          <Section title="Quality and evidence limits">
+            <QualityLimits view={view} evalsById={evalsById} />
+          </Section>
+
+          {/* G147 Analyst disposition — append-only; does not alter lifecycle. */}
+          <Section title="Analyst disposition">
+            <DispositionSection opportunityId={opportunityId} tenantId={tenantId} />
+          </Section>
         </div>
       )}
+    </div>
+  );
+}
+
+// Per-contribution G145 calibration status (lazy). Never labels an opportunity
+// "calibrated" merely because a summary exists — uses the parsed report.
+function ContributionCalibration({
+  tenantId,
+  hypothesisKey,
+  hypothesisVersion,
+}: {
+  tenantId: string;
+  hypothesisKey: string;
+  hypothesisVersion: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const calibQ = useMarketOpsBacktestCalibrationSummaries(
+    {
+      tenant_id: tenantId,
+      app_id: 'marketops',
+      domain: 'market_data',
+      use_case: 'daily_market_surveillance',
+      source_id: 'marketops.research_ledgers',
+      dataset: 'hypothesis_evaluations',
+      detector_id: `marketops.hypothesis.${hypothesisKey.toLowerCase()}`,
+      limit: 5,
+    },
+    open,
+  );
+  const latest = calibQ.data?.calibration_summaries?.[0] ?? null;
+  const report = latest ? parseHypothesisCalibrationReport(latest.parameters, hypothesisKey, hypothesisVersion) : null;
+  const status = !latest || !report?.valid
+    ? 'Unavailable'
+    : report.selectedVersion?.overall.belowMinimumSampleSize
+      ? 'Below minimum sample'
+      : 'Calibration available';
+  return (
+    <div className="rounded border border-gray-200 bg-white">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 p-2 text-left text-xs">
+        <span className="flex items-center gap-1">
+          {open ? <ChevronDown size={12} className="text-gray-400" /> : <ChevronRight size={12} className="text-gray-400" />}
+          <code className="text-gray-700">{hypothesisKey || '—'}<span className="text-gray-400"> v{hypothesisVersion || '—'}</span></code>
+        </span>
+        <span className={`text-[11px] ${status === 'Calibration available' ? 'text-emerald-700' : status === 'Below minimum sample' ? 'text-amber-700' : 'text-gray-500'}`}>{status}</span>
+      </button>
+      {open && latest && report?.valid && report.selectedVersion ? (
+        <div className="border-t border-gray-100 px-2 pb-2 pt-1 text-[11px] text-gray-600">
+          <div className="flex flex-wrap gap-x-3">
+            <span>samples {report.selectedVersion.overall.independentSamples}</span>
+            <span>matured {report.selectedVersion.overall.maturedOutcomeSamples}</span>
+            <span>hit rate {(report.selectedVersion.overall.directionalHitRate ?? 0) >= 0 ? `${((report.selectedVersion.overall.directionalHitRate ?? 0) * 100).toFixed(1)}%` : '—'}</span>
+            <span>mean ret {(report.selectedVersion.overall.meanForwardReturn ?? 0).toFixed(4)}</span>
+          </div>
+          {!report.promotionAllowed ? <div className="text-gray-500">promotion not allowed</div> : null}
+        </div>
+      ) : open && !latest ? (
+        <div className="border-t border-gray-100 px-2 pb-2 pt-1 text-[11px] text-gray-400">No exact-version calibration report.</div>
+      ) : null}
+      {open && latest && !report?.valid ? (
+        <div className="border-t border-gray-100 px-2 pb-2 pt-1 text-[11px] text-amber-700">{report?.incompatibleReason}</div>
+      ) : null}
+    </div>
+  );
+}
+
+// Derived-only quality limits. No manufactured warnings.
+function QualityLimits({
+  view,
+  evalsById,
+}: {
+  view: MarketOpsOpportunityView;
+  evalsById: Map<string, MarketOpsHypothesisEvaluationView>;
+}) {
+  const reasonCounts = new Map<string, number>();
+  for (const c of view.contributions) {
+    for (const r of evalsById.get(c.evaluationId)?.reasonCodes ?? []) {
+      reasonCounts.set(r, (reasonCounts.get(r) ?? 0) + 1);
+    }
+  }
+  const reasons = Array.from(reasonCounts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const items: { label: string; value: string; tone?: string }[] = [
+    { label: 'Conflict score', value: view.conflictScore > 0 ? view.conflictScore.toFixed(2) : '0', tone: view.conflictScore > 0 ? 'text-amber-700' : undefined },
+    { label: 'Opposing evaluations', value: String(view.conflictingEvaluationIds.length) },
+    { label: 'Invalidating evidence', value: String(view.invalidatingEvidenceIds.length), tone: view.invalidatingEvidenceIds.length ? 'text-red-700' : undefined },
+    { label: 'Overlap-suppressed', value: String(view.overlapSuppressedEvaluationIds.length) },
+  ];
+  return (
+    <div className="space-y-1 text-xs text-gray-700">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-600">
+        {items.map((it) => (
+          <span key={it.label}>{it.label} <strong className={it.tone ?? 'text-gray-800'}>{it.value}</strong></span>
+        ))}
+      </div>
+      {reasons.length ? (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-gray-400">evaluation reasons:</span>
+          {reasons.slice(0, 6).map(([r, n]) => (
+            <span key={r} className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[11px] text-gray-600" title={r}>{r} <strong>{n}</strong></span>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[11px] text-gray-400">No quality or evidence limits derived from persisted data.</p>
+      )}
+    </div>
+  );
+}
+
+// Append-only analyst disposition history + compact form. dismiss/resolved
+// require confirmation. On success only disposition queries refresh — lifecycle
+// is never mutated.
+function DispositionSection({ opportunityId, tenantId }: { opportunityId: string; tenantId: string }) {
+  const dispositionsQ = useMarketOpsOpportunityDispositions(opportunityId, { tenant_id: tenantId, limit: 50 });
+  const mutation = useCreateMarketOpsOpportunityDisposition();
+  const [disposition, setDisposition] = useState<MarketOpsOpportunityDispositionValue>('watch');
+  const [note, setNote] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const rows = (dispositionsQ.data?.opportunity_dispositions ?? []).map(summarizeMarketOpsOpportunityDisposition).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const needsConfirmation = disposition === 'dismiss' || disposition === 'resolved';
+  const errorMessage = mutation.isError ? (isApiError(mutation.error) ? mutation.error.message : 'Disposition failed.') : '';
+
+  function submit() {
+    if (mutation.isPending) return;
+    if (needsConfirmation && !confirming) {
+      setConfirming(true);
+      return;
+    }
+    mutation.mutate(
+      {
+        opportunityId,
+        request: {
+          tenant_id: tenantId,
+          disposition,
+          note: note.trim() || undefined,
+          metadata: {},
+        },
+      },
+      {
+        onSuccess: () => {
+          setNote('');
+          setConfirming(false);
+        },
+      },
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {dispositionsQ.isLoading ? <div className="text-[11px] text-gray-400">Loading dispositions...</div> : null}
+      {dispositionsQ.isError ? <div className="text-[11px] text-red-600">Disposition history unavailable.</div> : null}
+      {rows.length ? (
+        <div className="space-y-0.5">
+          {rows.map((d) => (
+            <div key={d.dispositionId} className="flex items-center justify-between gap-2 text-[11px]">
+              <span className={`inline-flex items-center rounded border px-1.5 py-0.5 font-medium ${dispositionStyle(d.disposition)}`}>{d.disposition}</span>
+              <span className="flex-1 break-all text-gray-600">{d.note || <span className="text-gray-400">no note</span>}</span>
+              <span className="shrink-0 text-gray-500">{d.actor || '—'} · {d.createdAt ? formatUtc(d.createdAt) : '—'}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        !dispositionsQ.isLoading && !dispositionsQ.isError ? <p className="text-[11px] text-gray-400">No analyst dispositions recorded.</p> : null
+      )}
+
+      <div className="rounded border border-gray-200 bg-gray-50 p-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={disposition}
+            onChange={(e) => { setDisposition(e.target.value as MarketOpsOpportunityDispositionValue); setConfirming(false); }}
+            className="rounded border border-gray-300 px-2 py-1 text-xs"
+            aria-label="Disposition"
+            disabled={mutation.isPending}
+          >
+            {(['watch', 'advance', 'needs_more_evidence', 'dismiss', 'resolved'] as const).map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="optional note"
+            className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs"
+            disabled={mutation.isPending}
+          />
+          <button
+            type="button"
+            onClick={submit}
+            disabled={mutation.isPending}
+            className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {needsConfirmation && !confirming ? `Confirm ${disposition}` : 'Record disposition'}
+          </button>
+        </div>
+        {confirming ? <p className="mt-1 text-[11px] text-amber-700">{disposition} records analyst judgment and does not alter computed lifecycle. Confirm to append.</p> : null}
+        {mutation.isPending ? <span className="mt-1 inline-block text-[11px] text-gray-400">Recording…</span> : null}
+        {errorMessage ? <span className="mt-1 inline-block text-[11px] text-red-700">{errorMessage}</span> : null}
+        <p className="mt-1 text-[11px] text-gray-400">Records analyst judgment only; does not change lifecycle, recompute the opportunity, or create a signal, alert, or proposal.</p>
+      </div>
     </div>
   );
 }

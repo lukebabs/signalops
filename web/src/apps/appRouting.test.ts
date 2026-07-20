@@ -106,6 +106,20 @@ describe('navForApp (G067)', () => {
     expect(navForApp('console').some((n) => n.to === '/marketops/dsm')).toBe(false);
   });
 
+  it('exposes the MarketOps market state route only under marketops (G147)', () => {
+    const state = navForApp('marketops').find((n) => n.module === 'market_state');
+    expect(state).toBeDefined();
+    expect(state?.to).toBe('/marketops/state');
+    expect(state?.label).toBe('Market State');
+    // It sits immediately after Assets.
+    const marketopsNav = navForApp('marketops');
+    const assetsIndex = marketopsNav.findIndex((n) => n.module === 'symbols');
+    const stateIndex = marketopsNav.findIndex((n) => n.module === 'market_state');
+    expect(stateIndex).toBe(assetsIndex + 1);
+    // Console parity: Market State does not leak into console nav.
+    expect(navForApp('console').some((n) => n.to === '/marketops/state')).toBe(false);
+  });
+
   it('exposes the MarketOps opportunities workbench route only under marketops (G139)', () => {
     const opportunities = navForApp('marketops').find((n) => n.module === 'opportunities');
     expect(opportunities).toBeDefined();

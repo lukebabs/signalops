@@ -15,6 +15,15 @@ import type {
   MarketOpsOptionsChainFilter,
   MarketOpsOpportunityFilter,
   MarketOpsHypothesisEvaluationFilter,
+  MarketOpsMarketStateFilter,
+  MarketOpsFeatureDefinitionFilter,
+  MarketOpsFeatureObservationFilter,
+  MarketOpsStateTransitionFilter,
+  MarketOpsEvidenceFilter,
+  MarketOpsHypothesisListFilter,
+  MarketOpsOutcomeFilter,
+  MarketOpsOpportunityDispositionRequest,
+  MarketOpsOpportunityDispositionFilter,
   MarketOpsOptionsDistributionFilter,
   MarketOpsDSMArtifactFilter,
   MarketOpsDSMGraphProposalFilter,
@@ -101,6 +110,22 @@ export const queryKeys = {
   marketOpsEvidence: (evidenceId: string) => ['marketops-evidence', evidenceId] as const,
   marketOpsMarketStateLineage: (marketStateId: string) =>
     ['marketops-market-state-lineage', marketStateId] as const,
+  marketOpsStates: (filter: MarketOpsMarketStateFilter) => ['marketops-states', filter] as const,
+  marketOpsState: (marketStateId: string) => ['marketops-state', marketStateId] as const,
+  marketOpsFeatureDefinitions: (filter: MarketOpsFeatureDefinitionFilter) =>
+    ['marketops-feature-definitions', filter] as const,
+  marketOpsFeatureObservations: (filter: MarketOpsFeatureObservationFilter) =>
+    ['marketops-feature-observations', filter] as const,
+  marketOpsStateTransitions: (filter: MarketOpsStateTransitionFilter) =>
+    ['marketops-state-transitions', filter] as const,
+  marketOpsEvidences: (filter: MarketOpsEvidenceFilter) => ['marketops-evidences', filter] as const,
+  marketOpsHypothesesList: (filter: MarketOpsHypothesisListFilter) =>
+    ['marketops-hypotheses-list', filter] as const,
+  marketOpsOutcomes: (filter: MarketOpsOutcomeFilter) => ['marketops-outcomes', filter] as const,
+  marketOpsOutcome: (outcomeId: string, tenantId: string) =>
+    ['marketops-outcome', outcomeId, tenantId] as const,
+  marketOpsOpportunityDispositions: (opportunityId: string, filter: MarketOpsOpportunityDispositionFilter) =>
+    ['marketops-opportunity-dispositions', opportunityId, filter] as const,
   marketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter) => ['marketops-dsm-artifacts', filter] as const,
   marketOpsDSMArtifact: (artifactId: string) => ['marketops-dsm-artifact', artifactId] as const,
   marketOpsDSMGraphProposals: (filter: MarketOpsDSMGraphProposalFilter) =>
@@ -480,6 +505,115 @@ export function useMarketOpsMarketStateLineage(marketStateId: string | null) {
   });
 }
 
+// G147 Market State reads. State list/detail + feature definitions/observations +
+// transitions + evidence/hypothesis lists + outcomes + opportunity dispositions.
+// Tab/detail reads are caller-enabled so the route only fetches what is visible.
+// Dispositions append-only mutation invalidates disposition queries only — never
+// computed opportunity lifecycle.
+export function useMarketOpsStates(filter: MarketOpsMarketStateFilter = { tenant_id: 'tenant-local' }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsStates(filter),
+    queryFn: () => api.listMarketOpsStates(filter),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsState(marketStateId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsState(marketStateId ?? ''),
+    queryFn: () => api.getMarketOpsState(marketStateId!),
+    enabled: !!marketStateId,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsFeatureDefinitions(filter: MarketOpsFeatureDefinitionFilter = { tenant_id: 'tenant-local' }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsFeatureDefinitions(filter),
+    queryFn: () => api.listMarketOpsFeatureDefinitions(filter),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useMarketOpsFeatureObservations(filter: MarketOpsFeatureObservationFilter = {}, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsFeatureObservations(filter),
+    queryFn: () => api.listMarketOpsFeatureObservations(filter),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsStateTransitions(filter: MarketOpsStateTransitionFilter = {}, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsStateTransitions(filter),
+    queryFn: () => api.listMarketOpsStateTransitions(filter),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsEvidences(filter: MarketOpsEvidenceFilter = {}, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsEvidences(filter),
+    queryFn: () => api.listMarketOpsEvidence(filter),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsHypothesesList(filter: MarketOpsHypothesisListFilter = { tenant_id: 'tenant-local' }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsHypothesesList(filter),
+    queryFn: () => api.listMarketOpsHypotheses(filter),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useMarketOpsOutcomes(filter: MarketOpsOutcomeFilter = {}, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsOutcomes(filter),
+    queryFn: () => api.listMarketOpsOutcomes(filter),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsOutcome(outcomeId: string | null, tenantId: string) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsOutcome(outcomeId ?? '', tenantId),
+    queryFn: () => api.getMarketOpsOutcome(outcomeId!, tenantId),
+    enabled: !!outcomeId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useMarketOpsOpportunityDispositions(
+  opportunityId: string | null,
+  filter: MarketOpsOpportunityDispositionFilter = { tenant_id: 'tenant-local' },
+) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsOpportunityDispositions(opportunityId ?? '', filter),
+    queryFn: () => api.listMarketOpsOpportunityDispositions(opportunityId!, filter),
+    enabled: !!opportunityId,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function applyOpportunityDispositionResult(queryClient: QueryClient) {
+  // Append-only ledger refresh; computed opportunity lifecycle is never touched.
+  queryClient.invalidateQueries({ queryKey: ['marketops-opportunity-dispositions'] });
+}
+
+export function useCreateMarketOpsOpportunityDisposition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { opportunityId: string; request: MarketOpsOpportunityDispositionRequest }) =>
+      api.createMarketOpsOpportunityDisposition(vars.opportunityId, vars.request),
+    onSuccess: () => applyOpportunityDispositionResult(queryClient),
+  });
+}
+
 // G078 first-class MarketOps DSM artifact ledger. Artifacts are materialized
 // from signal semantic evidence by the backend, so a short stale time keeps the
 // workbench responsive while avoiding unnecessary refetch churn.
@@ -596,10 +730,11 @@ export function useCreateMarketOpsBacktest() {
   });
 }
 
-export function useMarketOpsBacktestCalibrationSummaries(filter: MarketOpsBacktestCalibrationSummaryFilter = { tenant_id: 'tenant-local', limit: 25 }) {
+export function useMarketOpsBacktestCalibrationSummaries(filter: MarketOpsBacktestCalibrationSummaryFilter = { tenant_id: 'tenant-local', limit: 25 }, enabled = true) {
   return useQuery({
     queryKey: queryKeys.marketOpsBacktestCalibrationSummaries(filter),
     queryFn: () => api.listMarketOpsBacktestCalibrationSummaries(filter),
+    enabled,
   });
 }
 

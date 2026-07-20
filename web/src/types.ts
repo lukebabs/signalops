@@ -906,6 +906,312 @@ export interface MarketOpsMarketStateLineageResponse {
   lineage: MarketOpsMarketStateLineage;
 }
 
+// G147 Market State analyst experience. Read-only composition over the G136-G146
+// market-state ledgers. Market state + feature definitions/observations + state
+// transitions + signal outcomes + opportunity dispositions (G146 append-only).
+// lifecycle/quality/direction/outcome/disposition enums are permissive (| string)
+// so unknown future tokens render neutrally. state_payload / dimensions /
+// quality_details / quality_summary / *_payload / rule JSON arrive already parsed
+// (typed unknown; render via JsonViewer, never JSON.parse). Pointer/optional
+// numeric+boolean fields are genuinely nullable — absent vs zero vs false is
+// material and must render distinctly.
+export interface MarketOpsMarketState {
+  market_state_id: string;
+  tenant_id: string;
+  app_id: string;
+  asset_id: string;
+  symbol: string;
+  session_date: string;
+  as_of_time: string;
+  state_schema_version: string;
+  state_payload: unknown;
+  feature_observation_ids: string[];
+  feature_count: number;
+  required_feature_count: number;
+  completeness_ratio: number;
+  quality_state: string;
+  quality_score?: number;
+  quality_summary: unknown;
+  eligible_hypotheses: string[];
+  build_run_id: string;
+  deterministic_key: string;
+  created_at: string;
+}
+
+export interface MarketOpsMarketStatesResponse {
+  market_states: MarketOpsMarketState[];
+}
+
+export interface MarketOpsMarketStateResponse {
+  market_state: MarketOpsMarketState;
+}
+
+export interface MarketOpsMarketStateFilter {
+  tenant_id?: string;
+  app_id?: string;
+  asset_id?: string;
+  symbol?: string;
+  state_schema_version?: string;
+  quality_state?: string;
+  session_start?: string;
+  session_end?: string;
+  limit?: number;
+}
+
+export interface MarketOpsFeatureDefinition {
+  tenant_id: string;
+  feature_key: string;
+  feature_version: string;
+  domain: string;
+  title: string;
+  description: string;
+  value_type: string;
+  unit?: string;
+  calculation_spec: unknown;
+  required_inputs: unknown;
+  quality_policy: unknown;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsFeatureDefinitionsResponse {
+  feature_definitions: MarketOpsFeatureDefinition[];
+}
+
+export interface MarketOpsFeatureDefinitionFilter {
+  tenant_id?: string;
+  feature_key?: string;
+  feature_version?: string;
+  domain?: string;
+  status?: string;
+  limit?: number;
+}
+
+export interface MarketOpsFeatureObservation {
+  feature_observation_id: string;
+  tenant_id: string;
+  app_id: string;
+  asset_id: string;
+  symbol: string;
+  session_date: string;
+  as_of_time: string;
+  feature_key: string;
+  feature_version: string;
+  dimensions: unknown;
+  numeric_value?: number;
+  text_value?: string;
+  boolean_value?: boolean;
+  quality_state: string;
+  quality_score?: number;
+  quality_details: unknown;
+  source_event_ids: string[];
+  source_artifact_ids: string[];
+  calculation_run_id: string;
+  deterministic_key: string;
+  created_at: string;
+}
+
+export interface MarketOpsFeatureObservationsResponse {
+  feature_observations: MarketOpsFeatureObservation[];
+}
+
+export interface MarketOpsFeatureObservationFilter {
+  tenant_id?: string;
+  app_id?: string;
+  asset_id?: string;
+  symbol?: string;
+  feature_key?: string;
+  feature_version?: string;
+  domain?: string;
+  quality_state?: string;
+  dimensions?: string;
+  session_start?: string;
+  session_end?: string;
+  limit?: number;
+}
+
+export interface MarketOpsStateTransition {
+  transition_id: string;
+  tenant_id: string;
+  app_id: string;
+  asset_id: string;
+  symbol: string;
+  session_date: string;
+  as_of_time: string;
+  current_state_id: string;
+  baseline_state_id?: string;
+  feature_key: string;
+  feature_version: string;
+  dimensions: unknown;
+  transition_type: string;
+  lookback_sessions?: number;
+  current_value?: number;
+  baseline_value?: number;
+  transition_value?: number;
+  zscore?: number;
+  percentile?: number;
+  persistence_sessions?: number;
+  direction?: string;
+  quality_state: string;
+  transition_payload: unknown;
+  calculation_run_id: string;
+  deterministic_key: string;
+  created_at: string;
+}
+
+export interface MarketOpsStateTransitionsResponse {
+  transitions: MarketOpsStateTransition[];
+}
+
+export interface MarketOpsStateTransitionFilter {
+  tenant_id?: string;
+  app_id?: string;
+  asset_id?: string;
+  symbol?: string;
+  current_state_id?: string;
+  feature_key?: string;
+  feature_version?: string;
+  transition_type?: string;
+  quality_state?: string;
+  session_start?: string;
+  session_end?: string;
+  limit?: number;
+}
+
+export interface MarketOpsEvidencesResponse {
+  evidence: MarketOpsEvidence[];
+}
+
+export interface MarketOpsEvidenceFilter {
+  tenant_id?: string;
+  app_id?: string;
+  asset_id?: string;
+  symbol?: string;
+  evidence_type?: string;
+  evidence_version?: string;
+  domain?: string;
+  direction?: string;
+  session_start?: string;
+  session_end?: string;
+  limit?: number;
+}
+
+export interface MarketOpsHypothesesResponse {
+  hypotheses: MarketOpsHypothesisDefinition[];
+}
+
+export interface MarketOpsHypothesisListFilter {
+  tenant_id?: string;
+  hypothesis_key?: string;
+  hypothesis_version?: string;
+  domain?: string;
+  lifecycle_status?: string;
+  limit?: number;
+}
+
+export type MarketOpsOutcomeStatus = 'pending' | 'matured' | 'missing_price' | string;
+
+export interface MarketOpsOutcome {
+  outcome_id: string;
+  tenant_id: string;
+  app_id: string;
+  source_type: string;
+  source_id: string;
+  hypothesis_key?: string;
+  hypothesis_version?: string;
+  asset_id: string;
+  symbol: string;
+  direction: string;
+  origin_session_date: string;
+  horizon_sessions: number;
+  matured_session_date?: string;
+  outcome_status: MarketOpsOutcomeStatus;
+  forward_return?: number;
+  max_favorable_excursion?: number;
+  max_adverse_excursion?: number;
+  maximum_drawdown?: number;
+  realized_vol_change?: number;
+  directional_hit?: boolean;
+  threshold_hit?: boolean;
+  days_to_threshold?: number;
+  origin_event_id?: string;
+  outcome_event_ids: string[];
+  outcome_payload: unknown;
+  calculation_version: string;
+  calculation_run_id: string;
+  deterministic_key: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsOutcomesResponse {
+  outcomes: MarketOpsOutcome[];
+}
+
+export interface MarketOpsOutcomeResponse {
+  outcome: MarketOpsOutcome;
+}
+
+export interface MarketOpsOutcomeFilter {
+  tenant_id?: string;
+  app_id?: string;
+  source_type?: string;
+  source_id?: string;
+  hypothesis_key?: string;
+  hypothesis_version?: string;
+  symbol?: string;
+  direction?: string;
+  outcome_status?: MarketOpsOutcomeStatus | '';
+  horizon_sessions?: number;
+  session_start?: string;
+  session_end?: string;
+  limit?: number;
+}
+
+// G146 opportunity dispositions (append-only analyst judgment).
+export type MarketOpsOpportunityDispositionValue =
+  | 'watch'
+  | 'advance'
+  | 'needs_more_evidence'
+  | 'dismiss'
+  | 'resolved'
+  | string;
+
+export interface MarketOpsOpportunityDisposition {
+  disposition_id: string;
+  tenant_id: string;
+  opportunity_id: string;
+  disposition: MarketOpsOpportunityDispositionValue;
+  actor: string;
+  note: string;
+  metadata: unknown;
+  created_at: string;
+}
+
+export interface MarketOpsOpportunityDispositionsResponse {
+  opportunity_dispositions: MarketOpsOpportunityDisposition[];
+}
+
+export interface MarketOpsOpportunityDispositionResponse {
+  opportunity_disposition: MarketOpsOpportunityDisposition;
+}
+
+// POST body. The gateway derives the actor via replayActor (header -> body ->
+// operator-local); per the repo convention the client sends NO actor field.
+export interface MarketOpsOpportunityDispositionRequest {
+  tenant_id: string;
+  disposition: MarketOpsOpportunityDispositionValue;
+  note?: string;
+  metadata?: unknown;
+}
+
+export interface MarketOpsOpportunityDispositionFilter {
+  tenant_id?: string;
+  disposition?: string;
+  limit?: number;
+}
+
 
 // G078 MarketOps DSM artifacts. Served by
 // GET /v1/marketops/dsm/artifacts and /v1/marketops/dsm/artifacts/{artifact_id}.

@@ -46,6 +46,26 @@ import type {
   MarketOpsHypothesisResponse,
   MarketOpsEvidenceResponse,
   MarketOpsMarketStateLineageResponse,
+  MarketOpsMarketStatesResponse,
+  MarketOpsMarketStateResponse,
+  MarketOpsMarketStateFilter,
+  MarketOpsFeatureDefinitionsResponse,
+  MarketOpsFeatureDefinitionFilter,
+  MarketOpsFeatureObservationsResponse,
+  MarketOpsFeatureObservationFilter,
+  MarketOpsStateTransitionsResponse,
+  MarketOpsStateTransitionFilter,
+  MarketOpsEvidencesResponse,
+  MarketOpsEvidenceFilter,
+  MarketOpsHypothesesResponse,
+  MarketOpsHypothesisListFilter,
+  MarketOpsOutcomesResponse,
+  MarketOpsOutcomeResponse,
+  MarketOpsOutcomeFilter,
+  MarketOpsOpportunityDispositionsResponse,
+  MarketOpsOpportunityDispositionResponse,
+  MarketOpsOpportunityDispositionRequest,
+  MarketOpsOpportunityDispositionFilter,
   MarketOpsDSMArtifactsResponse,
   MarketOpsDSMArtifactResponse,
   MarketOpsDSMArtifactFilter,
@@ -426,6 +446,125 @@ export const api = {
   getMarketOpsMarketStateLineage: (marketStateId: string) =>
     get<MarketOpsMarketStateLineageResponse>(
       `/v1/marketops/states/${encodeURIComponent(marketStateId)}/lineage`,
+    ),
+  // G147 Market State analyst experience (read-only composition over G136-G146
+  // ledgers). States, feature definitions/observations, transitions, evidence +
+  // hypothesis lists, outcomes, and opportunity dispositions. Session_* are
+  // date-only; observation `dimensions` is a JSON string; nullable filters
+  // serialize as true/false only when set. No provider/state/evaluation/promotion
+  // mutation. The disposition POST sends no actor (the gateway derives it).
+  listMarketOpsStates: (filter: MarketOpsMarketStateFilter = {}) =>
+    get<MarketOpsMarketStatesResponse>('/v1/marketops/states', {
+      tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      asset_id: filter.asset_id,
+      symbol: filter.symbol || undefined,
+      state_schema_version: filter.state_schema_version || undefined,
+      quality_state: filter.quality_state || undefined,
+      session_start: filter.session_start || undefined,
+      session_end: filter.session_end || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getMarketOpsState: (marketStateId: string) =>
+    get<MarketOpsMarketStateResponse>(`/v1/marketops/states/${encodeURIComponent(marketStateId)}`),
+  listMarketOpsFeatureDefinitions: (filter: MarketOpsFeatureDefinitionFilter = {}) =>
+    get<MarketOpsFeatureDefinitionsResponse>('/v1/marketops/features/definitions', {
+      tenant_id: filter.tenant_id,
+      feature_key: filter.feature_key || undefined,
+      feature_version: filter.feature_version || undefined,
+      domain: filter.domain || undefined,
+      status: filter.status || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  listMarketOpsFeatureObservations: (filter: MarketOpsFeatureObservationFilter = {}) =>
+    get<MarketOpsFeatureObservationsResponse>('/v1/marketops/features/observations', {
+      tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      asset_id: filter.asset_id,
+      symbol: filter.symbol || undefined,
+      feature_key: filter.feature_key || undefined,
+      feature_version: filter.feature_version || undefined,
+      domain: filter.domain || undefined,
+      quality_state: filter.quality_state || undefined,
+      dimensions: filter.dimensions || undefined,
+      session_start: filter.session_start || undefined,
+      session_end: filter.session_end || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  listMarketOpsStateTransitions: (filter: MarketOpsStateTransitionFilter = {}) =>
+    get<MarketOpsStateTransitionsResponse>('/v1/marketops/transitions', {
+      tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      asset_id: filter.asset_id,
+      symbol: filter.symbol || undefined,
+      current_state_id: filter.current_state_id || undefined,
+      feature_key: filter.feature_key || undefined,
+      feature_version: filter.feature_version || undefined,
+      transition_type: filter.transition_type || undefined,
+      quality_state: filter.quality_state || undefined,
+      session_start: filter.session_start || undefined,
+      session_end: filter.session_end || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  listMarketOpsEvidence: (filter: MarketOpsEvidenceFilter = {}) =>
+    get<MarketOpsEvidencesResponse>('/v1/marketops/evidence', {
+      tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      asset_id: filter.asset_id,
+      symbol: filter.symbol || undefined,
+      evidence_type: filter.evidence_type || undefined,
+      evidence_version: filter.evidence_version || undefined,
+      domain: filter.domain || undefined,
+      direction: filter.direction || undefined,
+      session_start: filter.session_start || undefined,
+      session_end: filter.session_end || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  listMarketOpsHypotheses: (filter: MarketOpsHypothesisListFilter = {}) =>
+    get<MarketOpsHypothesesResponse>('/v1/marketops/hypotheses', {
+      tenant_id: filter.tenant_id,
+      hypothesis_key: filter.hypothesis_key || undefined,
+      hypothesis_version: filter.hypothesis_version || undefined,
+      domain: filter.domain || undefined,
+      lifecycle_status: filter.lifecycle_status || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  listMarketOpsOutcomes: (filter: MarketOpsOutcomeFilter = {}) =>
+    get<MarketOpsOutcomesResponse>('/v1/marketops/outcomes', {
+      tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      source_type: filter.source_type || undefined,
+      source_id: filter.source_id || undefined,
+      hypothesis_key: filter.hypothesis_key || undefined,
+      hypothesis_version: filter.hypothesis_version || undefined,
+      symbol: filter.symbol || undefined,
+      direction: filter.direction || undefined,
+      outcome_status: filter.outcome_status || undefined,
+      horizon_sessions: filter.horizon_sessions,
+      session_start: filter.session_start || undefined,
+      session_end: filter.session_end || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getMarketOpsOutcome: (outcomeId: string, tenantId: string) =>
+    get<MarketOpsOutcomeResponse>(`/v1/marketops/outcomes/${encodeURIComponent(outcomeId)}`, {
+      tenant_id: tenantId,
+    }),
+  listMarketOpsOpportunityDispositions: (opportunityId: string, filter: MarketOpsOpportunityDispositionFilter = {}) =>
+    get<MarketOpsOpportunityDispositionsResponse>(
+      `/v1/marketops/opportunities/${encodeURIComponent(opportunityId)}/dispositions`,
+      {
+        tenant_id: filter.tenant_id,
+        disposition: filter.disposition || undefined,
+        limit: filter.limit ?? 50,
+      },
+    ),
+  createMarketOpsOpportunityDisposition: (
+    opportunityId: string,
+    request: MarketOpsOpportunityDispositionRequest,
+  ) =>
+    post<MarketOpsOpportunityDispositionResponse>(
+      `/v1/marketops/opportunities/${encodeURIComponent(opportunityId)}/dispositions`,
+      request,
     ),
   listMarketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter = {}) =>
     get<MarketOpsDSMArtifactsResponse>('/v1/marketops/dsm/artifacts', {
