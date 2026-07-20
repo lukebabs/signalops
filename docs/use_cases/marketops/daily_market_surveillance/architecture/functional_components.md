@@ -46,7 +46,7 @@ MarketOps currently supports this end-to-end workflow:
 | Bounded options coverage expansion | Pull selected or capped Top 50 options snapshots without scheduling broad provider fanout. | `signalops-marketops-options-coverage-runner`, explicit `--symbols`/`--max-symbols`/`--limit`/`--max-pages`, quality-count reporting. |
 | Options quality gating | Prevent low-quality call/put OI ratio evidence from becoming reviewable proposals while retaining algorithm audit rows. | `open_interest_quality`, `call_put_oi_ratio_quality`, G131 proposal gate `g131.options_distribution_quality.v1`. |
 | Market state intelligence foundation | Persist reusable point-in-time feature, state, transition, and evidence abstractions above event-level signals. | `marketops_feature_definitions`, `marketops_feature_observations`, `marketops_market_states`, `marketops_state_transitions`, `marketops_evidence`, G136 read APIs. |
-| Bounded AAPL state materialization | Prove deterministic market-state construction and quality blocking over existing equity/options evidence. | `signalops-marketops-state-materializer`, 25 feature slots, canonical state schema, exact lineage, idempotent upserts. |
+| Bounded explicit-cohort state materialization | Build deterministic state-v2 records and quality-blocked longitudinal transitions over existing equity/options/event evidence. | `signalops-marketops-state-materializer`, 44 definitions, 69 slots/39 required, explicit cohorts capped at 10, exact lineage, idempotent upserts. |
 | Forward outcome evaluation | Measure realized behavior after triggered research sources without mutating source records. | `marketops_signal_outcomes`, `signalops-marketops-outcome-materializer`, 1/5/10/20-session outcomes, point-in-time status and event lineage. |
 | Historical research execution | Acquire bounded equity history, enforce analytics coverage, and coordinate state-to-outcome research without look-ahead. | `signalops-marketops-history-runner`, exact-symbol Massive date ranges, 60 equity and 20 analytics-ready option-session preflight, trailing transition statistics. |
 | Syncratic context and Ask integration | Provide bounded explainability context and generated interpretation without ingesting MarketOps data into Syncratic core. | Syncratic context windows, selective materialization, Ask enrichment, evidence purity checks, data-quality blocking. |
@@ -104,7 +104,7 @@ The options coverage runner exists to expand coverage deliberately. It can proce
 
 ### Market State Intelligence
 
-G136 provides first-class feature, state, transition, and evidence ledgers. G137 materializes one bounded AAPL path from persisted equity and options evidence. G138 adds the first versioned research hypothesis registry and deterministic evaluation ledger for H001, H004, H006, and H007. G139 groups compatible triggered evaluations into research-only opportunities with overlap suppression, conflict scoring, contribution/evidence lineage, and deterministic summaries. Missing history, unusable open interest, absent bid/ask, and uncovered IV cells remain explicit rejection reasons; current AAPL inputs therefore produce no opportunities.
+G136 provides first-class feature, state, transition, and evidence ledgers. G137/G143 establish the AAPL/provider-shaped hypothesis slice. G144 advances it to state v2 with realized volatility, normalized option changes, event context, multi-window transitions, and explicit cohorts capped at 10 while preserving selected-evidence bounds. G138 adds the first versioned research hypothesis registry and deterministic evaluation ledger for H001, H004, H006, and H007. G139 groups compatible triggered evaluations into research-only opportunities with overlap suppression, conflict scoring, contribution/evidence lineage, and deterministic summaries. Missing genuine history, unusable open interest, absent bid/ask, uncovered IV cells, and unknown event context remain explicit; current live inputs therefore produce no mature opportunities.
 
 ### Syncratic Reasoning Boundary
 
@@ -130,6 +130,7 @@ Recent validated gates include:
 - G139: research-only opportunity grouping with overlap control, conflict scoring, read APIs, and a deployed UX-first analyst workbench.
 - G140: immutable forward outcome ledger, deterministic AAPL materializer, maturity/missing-price semantics, and read APIs.
 - G141: 135-session live AAPL equity history, trailing-only transition statistics, and strict historical research orchestration with options-quality blocking.
+- G144: 44-definition/69-slot state v2, longitudinal and event features, multi-window/acceleration/regime transitions, H001 known-event invalidation, and explicit state cohorts capped at 10.
 
 The latest live AMZN closeout expanded usable options samples to 3 persisted usable rows across 8 AMZN trade days while leaving proposal materialization blocked until operator review.
 

@@ -336,7 +336,12 @@ Recommended next gate:
 - G143: seven-cell selected options evidence, quote/request/selection lineage, transient DTE/delta positioning buckets, quote-derived premium and surface features, dimensioned OI change, and provider-shaped G138 compatibility.
 - Specification: `G143_options_surface_evidence_v1.md`.
 
-## G144 Recommended Next
+## G144 Implemented
 
-- G144 should complete the remaining market feature and transition inputs while preserving G143 bounded selected-evidence semantics.
-- Scope remains governed by `../architecture/market_state_intelligence_evaluation.md`.
+- G144: state schema v2 with 44 definitions and 69 slots; realized volatility; normalized 1/5-session IV and premium changes; 5-session wing OI change; classified curve and point-in-time earnings context; multi-window, acceleration, and regime transitions; and explicit cohorts capped at 10 symbols.
+- The original 39 G137/G143 hypothesis-critical slots remain the required completeness denominator. New longitudinal/context inputs remain explicitly missing until genuine history or point-in-time event evidence exists.
+- Specification: `G144_market_feature_and_transition_completion.md`.
+
+## G145 Recommended Next
+
+- G145 should integrate hypothesis evaluations/outcomes with isolated comparison, walk-forward, event/regime segmentation, sample-size warnings, and versioned calibration summaries.

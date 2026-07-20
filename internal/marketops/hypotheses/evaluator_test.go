@@ -286,7 +286,7 @@ func TestEvaluateEligibleNonTrigger(t *testing.T) {
 
 func testState() storage.MarketOpsMarketStateRecord {
 	quality := 1.0
-	return storage.MarketOpsMarketStateRecord{MarketStateID: "mstate-test", TenantID: "tenant-local", AppID: "marketops", AssetID: "ticker:AAPL", Symbol: "AAPL", SessionDate: time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC), AsOfTime: time.Date(2026, 7, 19, 23, 59, 59, 0, time.UTC), StateSchemaVersion: "marketops.market_state.v1", QualityState: storage.MarketOpsQualityUsable, QualityScore: &quality}
+	return storage.MarketOpsMarketStateRecord{MarketStateID: "mstate-test", TenantID: "tenant-local", AppID: "marketops", AssetID: "ticker:AAPL", Symbol: "AAPL", SessionDate: time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC), AsOfTime: time.Date(2026, 7, 19, 23, 59, 59, 0, time.UTC), StateSchemaVersion: marketopsstate.StateSchemaVersion, QualityState: storage.MarketOpsQualityUsable, QualityScore: &quality}
 }
 
 func feature(key string, value float64, dimensions map[string]any) storage.MarketOpsFeatureObservationRecord {

@@ -36,6 +36,8 @@ type cliConfig struct {
 	AssetID     string
 	WindowStart time.Time
 	WindowEnd   time.Time
+	Symbols     []string
+	MaxSymbols  int
 	MaxSessions int
 	RunID       string
 	DryRun      bool
@@ -45,11 +47,16 @@ type metrics struct {
 	RunID               string         `json:"run_id"`
 	TenantID            string         `json:"tenant_id"`
 	Symbol              string         `json:"symbol"`
+	Symbols             []string       `json:"symbols,omitempty"`
+	SymbolsRequested    int            `json:"symbols_requested,omitempty"`
+	SymbolsProcessed    int            `json:"symbols_processed,omitempty"`
+	SymbolResults       []metrics      `json:"symbol_results,omitempty"`
 	WindowStart         string         `json:"window_start"`
 	WindowEnd           string         `json:"window_end"`
 	EquityEvents        int            `json:"equity_events"`
 	OptionDistributions int            `json:"option_distributions"`
 	OptionContracts     int            `json:"option_contracts"`
+	MarketEvents        int            `json:"market_events"`
 	Definitions         int            `json:"feature_definitions"`
 	Observations        int            `json:"feature_observations"`
 	States              int            `json:"market_states"`
@@ -84,14 +91,59 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer repo.Close()
-	result, err := materialize(ctx, repo, cfg)
+	result, err := materializeCohort(ctx, repo, cfg)
 	if err != nil {
 		return err
 	}
 	encoded, _ := json.MarshalIndent(result, "", "  ")
 	fmt.Println(string(encoded))
-	logger.Info("marketops state materializer completed", "run_id", result.RunID, "states", result.States, "evidence", result.Evidence, "dry_run", result.DryRun)
+	logger.Info("marketops state materializer completed", "run_id", result.RunID, "symbols_processed", result.SymbolsProcessed, "states", result.States, "evidence", result.Evidence, "dry_run", result.DryRun)
 	return nil
+}
+
+func materializeCohort(ctx context.Context, repo repository, cfg cliConfig) (metrics, error) {
+	cfg.Symbols = parseExplicitSymbols(strings.Join(cfg.Symbols, ","))
+	if err := cfg.validateCohort(); err != nil {
+		return metrics{}, err
+	}
+	startedAt := time.Now().UTC()
+	result := metrics{
+		RunID: cfg.RunID, TenantID: cfg.TenantID, Symbols: append([]string{}, cfg.Symbols...),
+		SymbolsRequested: len(cfg.Symbols), WindowStart: cfg.WindowStart.Format(time.RFC3339), WindowEnd: cfg.WindowEnd.Format(time.RFC3339),
+		StateQualityCounts: map[string]int{}, DryRun: cfg.DryRun, StartedAt: startedAt.Format(time.RFC3339Nano),
+	}
+	for _, symbol := range cfg.Symbols {
+		child := cfg
+		child.Symbols = nil
+		child.Symbol = symbol
+		child.AssetID = "ticker:" + symbol
+		if len(cfg.Symbols) == 1 && strings.TrimSpace(cfg.AssetID) != "" {
+			child.AssetID = strings.TrimSpace(cfg.AssetID)
+		}
+		child.RunID = cfg.RunID + "_" + strings.ToLower(symbol)
+		childResult, err := materialize(ctx, repo, child)
+		if err != nil {
+			return result, fmt.Errorf("materialize %s: %w", symbol, err)
+		}
+		result.SymbolResults = append(result.SymbolResults, childResult)
+		result.SymbolsProcessed++
+		result.EquityEvents += childResult.EquityEvents
+		result.OptionDistributions += childResult.OptionDistributions
+		result.OptionContracts += childResult.OptionContracts
+		result.MarketEvents += childResult.MarketEvents
+		if childResult.Definitions > result.Definitions {
+			result.Definitions = childResult.Definitions
+		}
+		result.Observations += childResult.Observations
+		result.States += childResult.States
+		result.Transitions += childResult.Transitions
+		result.Evidence += childResult.Evidence
+		for quality, count := range childResult.StateQualityCounts {
+			result.StateQualityCounts[quality] += count
+		}
+	}
+	result.CompletedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	return result, nil
 }
 
 func materialize(ctx context.Context, repo repository, cfg cliConfig) (metrics, error) {
@@ -109,6 +161,14 @@ func materialize(ctx context.Context, repo repository, cfg cliConfig) (metrics, 
 	if err != nil {
 		return result, err
 	}
+	eventEvents, err := repo.ListMarketOpsBacktestNormalizedEvents(ctx, storage.MarketOpsBacktestEventFilter{
+		TenantID: cfg.TenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance",
+		Dataset: "market_event_calendar", Symbols: []string{cfg.Symbol}, WindowStart: cfg.WindowStart.AddDate(-1, 0, 0), WindowEnd: cfg.WindowEnd.AddDate(0, 6, 0),
+		Limit: 1000,
+	})
+	if err != nil {
+		return result, err
+	}
 	distributions, err := repo.ListMarketOpsOptionsDistributions(ctx, storage.MarketOpsOptionsDistributionFilter{TenantID: cfg.TenantID, Symbol: cfg.Symbol, Limit: 1000})
 	if err != nil {
 		return result, err
@@ -118,8 +178,8 @@ func materialize(ctx context.Context, repo repository, cfg cliConfig) (metrics, 
 	if err != nil {
 		return result, err
 	}
-	result.EquityEvents, result.OptionDistributions, result.OptionContracts = len(events), len(distributions), len(chain)
-	built, err := marketopsstate.Build(marketopsstate.BuildConfig{TenantID: cfg.TenantID, Symbol: cfg.Symbol, AssetID: cfg.AssetID, RunID: cfg.RunID, SessionStart: cfg.WindowStart, SessionEnd: cfg.WindowEnd, MaxSessions: cfg.MaxSessions}, marketopsstate.BuildInput{EquityEvents: events, Distributions: distributions, OptionChain: chain})
+	result.EquityEvents, result.MarketEvents, result.OptionDistributions, result.OptionContracts = len(events), len(eventEvents), len(distributions), len(chain)
+	built, err := marketopsstate.Build(marketopsstate.BuildConfig{TenantID: cfg.TenantID, Symbol: cfg.Symbol, AssetID: cfg.AssetID, RunID: cfg.RunID, SessionStart: cfg.WindowStart, SessionEnd: cfg.WindowEnd, MaxSessions: cfg.MaxSessions}, marketopsstate.BuildInput{EquityEvents: events, EventEvents: eventEvents, Distributions: distributions, OptionChain: chain})
 	if err != nil {
 		return result, err
 	}
@@ -162,11 +222,13 @@ func loadConfig() (cliConfig, error) {
 	now := time.Now().UTC()
 	startDefault := now.AddDate(-1, 0, 0).Format("2006-01-02")
 	endDefault := now.AddDate(0, 0, 1).Format("2006-01-02")
-	var startValue, endValue string
+	var startValue, endValue, symbolsValue string
 	cfg := cliConfig{}
 	flag.StringVar(&cfg.TenantID, "tenant-id", "tenant-local", "tenant id")
-	flag.StringVar(&cfg.Symbol, "symbol", "AAPL", "asset symbol; G137 permits AAPL only")
-	flag.StringVar(&cfg.AssetID, "asset-id", "", "canonical asset id; defaults to ticker:<symbol>")
+	flag.StringVar(&cfg.Symbol, "symbol", "", "one explicit asset symbol; compatibility alias for --symbols")
+	flag.StringVar(&symbolsValue, "symbols", "", "comma-separated explicit asset symbols; defaults to AAPL")
+	flag.IntVar(&cfg.MaxSymbols, "max-symbols", 5, "hard cap for the explicit symbol cohort; maximum 10")
+	flag.StringVar(&cfg.AssetID, "asset-id", "", "canonical asset id; permitted only for a single-symbol cohort")
 	flag.StringVar(&startValue, "window-start", startDefault, "inclusive session start date")
 	flag.StringVar(&endValue, "window-end", endDefault, "exclusive session end date")
 	flag.IntVar(&cfg.MaxSessions, "max-sessions", 100, "maximum unioned equity/options sessions")
@@ -182,9 +244,16 @@ func loadConfig() (cliConfig, error) {
 	}
 	cfg.TenantID = strings.TrimSpace(cfg.TenantID)
 	cfg.Symbol = strings.ToUpper(strings.TrimSpace(cfg.Symbol))
+	cfg.Symbols = parseExplicitSymbols(symbolsValue)
+	if len(cfg.Symbols) == 0 && cfg.Symbol != "" {
+		cfg.Symbols = []string{cfg.Symbol}
+	}
+	if len(cfg.Symbols) == 0 {
+		cfg.Symbols = []string{"AAPL"}
+	}
 	cfg.AssetID = strings.TrimSpace(cfg.AssetID)
-	if cfg.AssetID == "" {
-		cfg.AssetID = "ticker:" + cfg.Symbol
+	if cfg.AssetID == "" && len(cfg.Symbols) == 1 {
+		cfg.AssetID = "ticker:" + cfg.Symbols[0]
 	}
 	if strings.TrimSpace(cfg.RunID) == "" {
 		cfg.RunID = "mstatebuild_" + randomHex(12)
@@ -192,12 +261,51 @@ func loadConfig() (cliConfig, error) {
 	return cfg, nil
 }
 
+func (cfg cliConfig) validateCohort() error {
+	if strings.TrimSpace(cfg.TenantID) == "" || strings.TrimSpace(cfg.RunID) == "" {
+		return errors.New("tenant-id and run-id are required")
+	}
+	if cfg.MaxSymbols <= 0 || cfg.MaxSymbols > 10 {
+		return errors.New("max-symbols must be between 1 and 10")
+	}
+	if len(cfg.Symbols) == 0 {
+		return errors.New("at least one explicit symbol is required")
+	}
+	if len(cfg.Symbols) > cfg.MaxSymbols {
+		return fmt.Errorf("explicit symbol cohort has %d symbols, exceeds max-symbols %d", len(cfg.Symbols), cfg.MaxSymbols)
+	}
+	if len(cfg.Symbols) > 1 && strings.TrimSpace(cfg.AssetID) != "" {
+		return errors.New("asset-id is only valid for a single-symbol cohort")
+	}
+	if cfg.WindowStart.IsZero() || cfg.WindowEnd.IsZero() || !cfg.WindowEnd.After(cfg.WindowStart) {
+		return errors.New("window-end must be after window-start")
+	}
+	if cfg.MaxSessions <= 0 || cfg.MaxSessions > 1000 {
+		return errors.New("max-sessions must be between 1 and 1000")
+	}
+	return nil
+}
+
+func parseExplicitSymbols(value string) []string {
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, item := range strings.Split(value, ",") {
+		symbol := strings.ToUpper(strings.TrimSpace(item))
+		if symbol == "" {
+			continue
+		}
+		if _, exists := seen[symbol]; exists {
+			continue
+		}
+		seen[symbol] = struct{}{}
+		out = append(out, symbol)
+	}
+	return out
+}
+
 func (cfg cliConfig) validate() error {
 	if cfg.TenantID == "" || cfg.Symbol == "" || cfg.AssetID == "" || cfg.RunID == "" {
 		return errors.New("tenant-id, symbol, asset-id, and run-id are required")
-	}
-	if cfg.Symbol != "AAPL" {
-		return errors.New("G137 is intentionally bounded to AAPL")
 	}
 	if cfg.WindowStart.IsZero() || cfg.WindowEnd.IsZero() || !cfg.WindowEnd.After(cfg.WindowStart) {
 		return errors.New("window-end must be after window-start")

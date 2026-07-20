@@ -81,3 +81,8 @@ G138 should introduce the bounded research hypothesis registry/evaluator for H00
 G143 supersedes the original five-cell/placeholder-premium feature contract while retaining the same deterministic state ledgers. The current materializer registers 29 definitions and emits 39 slots per state, including seven IV cells, quote-derived put/call premium and spread, 30/60-DTE risk reversals, term slopes, selection confidence, and dimensioned put/call OI change. Missing, crossed, and stale quote states remain explicit.
 
 The original live counts above are historical G137 validation and were not rewritten as G143 live evidence. The production-shaped G143 fixture now proves adapter-to-selector-to-materializer-to-H001/H004/H006/H007 eligibility without direct feature injection. See `G143_options_surface_evidence_v1.md`.
+## G144 State-v2 Extension
+
+G144 retains the 39 G137/G143 hypothesis-critical slots as the required completeness denominator and adds 30 longitudinal/context slots, for 44 definitions and 69 observations per `marketops.market_state.v2` state. It adds realized volatility, normalized IV/premium/OI changes, classified curve and point-in-time earnings context, and multi-window/acceleration/regime transitions.
+
+The state builder now accepts explicit symbols and the CLI accepts only operator-supplied cohorts capped at 10; it still performs no provider acquisition, universe fanout, or scheduling. See `G144_market_feature_and_transition_completion.md`.

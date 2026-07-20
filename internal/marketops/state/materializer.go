@@ -12,7 +12,7 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-const requiredFeatureSlots = 39
+const requiredFeatureSlots = 39 // G137/G143 hypothesis-critical slots; G144 longitudinal slots mature independently.
 
 type BuildConfig struct {
 	TenantID     string
@@ -26,6 +26,7 @@ type BuildConfig struct {
 
 type BuildInput struct {
 	EquityEvents  []storage.NormalizedEventLedgerRecord
+	EventEvents   []storage.NormalizedEventLedgerRecord
 	Distributions []storage.MarketOpsOptionsDistributionRecord
 	OptionChain   []storage.MarketOpsOptionsChainRecord
 }
@@ -92,15 +93,24 @@ func Build(config BuildConfig, input BuildInput) (BuildResult, error) {
 	observationsBySession := map[string][]storage.MarketOpsFeatureObservationRecord{}
 	for _, session := range sessions {
 		key := dateKey(session)
-		values := make([]featureValue, 0, requiredFeatureSlots)
+		values := make([]featureValue, 0, totalFeatureSlots)
 		if index, ok := equityIndex[key]; ok {
 			values = append(values, underlyingFeatures(equity, index)...)
 		} else {
 			values = append(values, missingUnderlyingFeatures()...)
 		}
+		// Preserve the original 39 slots first so required completeness remains stable.
 		values = append(values, optionFeatures(config, session, distributions[key], distributions, chain[key], chain)...)
-		if len(values) != requiredFeatureSlots {
-			return BuildResult{}, fmt.Errorf("G137 feature slot count for %s is %d, expected %d", key, len(values), requiredFeatureSlots)
+		if index, ok := equityIndex[key]; ok {
+			values = append(values, g144UnderlyingFeatures(equity, index)...)
+		} else {
+			values = append(values, missingG144UnderlyingFeatures("no_equity_event_for_session")...)
+		}
+		values = append(values, g144OptionFeatures(session, chain[key], chain)...)
+		values = append(values, crossDomainG144Features(values)...)
+		values = append(values, earningsContextFeatures(config, session, input.EventEvents)...)
+		if len(values) != totalFeatureSlots {
+			return BuildResult{}, fmt.Errorf("G144 feature slot count for %s is %d, expected %d", key, len(values), totalFeatureSlots)
 		}
 
 		observations := make([]storage.MarketOpsFeatureObservationRecord, 0, len(values))
@@ -124,6 +134,11 @@ func Build(config BuildConfig, input BuildInput) (BuildResult, error) {
 	if err != nil {
 		return BuildResult{}, err
 	}
+	g144Transitions, err := buildG144Transitions(config, result.States, observationsBySession)
+	if err != nil {
+		return BuildResult{}, err
+	}
+	transitions = append(transitions, g144Transitions...)
 	result.Transitions = transitions
 	evidence, err := buildEvidence(config, result.States, observationsBySession, transitions)
 	if err != nil {
@@ -155,13 +170,10 @@ func normalizeBuildConfig(config BuildConfig) BuildConfig {
 
 func validateBuildConfig(config BuildConfig) error {
 	if config.TenantID == "" || config.Symbol == "" || config.AssetID == "" || config.RunID == "" {
-		return errors.New("G137 tenant_id, symbol, asset_id, and run_id are required")
-	}
-	if config.Symbol != "AAPL" {
-		return errors.New("G137 is intentionally bounded to AAPL")
+		return errors.New("G144 tenant_id, symbol, asset_id, and run_id are required")
 	}
 	if (!config.SessionStart.IsZero() || !config.SessionEnd.IsZero()) && (config.SessionStart.IsZero() || config.SessionEnd.IsZero() || !config.SessionEnd.After(config.SessionStart)) {
-		return errors.New("G137 session_end must be after session_start")
+		return errors.New("G144 session_end must be after session_start")
 	}
 	return nil
 }
@@ -761,12 +773,15 @@ func marketStateRecord(config BuildConfig, session time.Time, observations []sto
 	ids := make([]string, 0, len(observations))
 	features := make([]map[string]any, 0, len(observations))
 	qualityCounts := map[string]int{}
-	usable := 0
-	for _, observation := range observations {
+	usable, requiredUsable := 0, 0
+	for index, observation := range observations {
 		ids = append(ids, observation.FeatureObservationID)
 		qualityCounts[observation.QualityState]++
 		if isUsable(observation.QualityState) {
 			usable++
+			if index < requiredFeatureSlots {
+				requiredUsable++
+			}
 		}
 		feature := map[string]any{"feature_observation_id": observation.FeatureObservationID, "feature_key": observation.FeatureKey, "feature_version": observation.FeatureVersion, "quality_state": observation.QualityState, "dimensions": json.RawMessage(observation.DimensionsJSON)}
 		if observation.NumericValue != nil {
@@ -777,9 +792,9 @@ func marketStateRecord(config BuildConfig, session time.Time, observations []sto
 		}
 		features = append(features, feature)
 	}
-	completeness := float64(usable) / float64(requiredFeatureSlots)
+	completeness := float64(requiredUsable) / float64(requiredFeatureSlots)
 	quality := storage.MarketOpsQualityMissing
-	if usable > 0 {
+	if requiredUsable > 0 {
 		quality = storage.MarketOpsQualityPartial
 	}
 	if completeness >= .6 {
@@ -789,7 +804,7 @@ func marketStateRecord(config BuildConfig, session time.Time, observations []sto
 		quality = storage.MarketOpsQualityUsable
 	}
 	payload, _ := json.Marshal(map[string]any{"schema_version": StateSchemaVersion, "subject": map[string]any{"asset_id": config.AssetID, "symbol": config.Symbol}, "session_date": dateKey(session), "features": features})
-	summary, _ := json.Marshal(map[string]any{"required_feature_slots": requiredFeatureSlots, "usable_feature_slots": usable, "quality_counts": qualityCounts, "blocked_feature_slots": requiredFeatureSlots - usable})
+	summary, _ := json.Marshal(map[string]any{"required_feature_slots": requiredFeatureSlots, "usable_required_feature_slots": requiredUsable, "blocked_required_feature_slots": requiredFeatureSlots - requiredUsable, "total_feature_slots": len(observations), "usable_total_feature_slots": usable, "quality_counts": qualityCounts})
 	return storage.MarketOpsMarketStateRecord{
 		MarketStateID: identity.ID, TenantID: config.TenantID, AppID: "marketops", AssetID: config.AssetID, Symbol: config.Symbol,
 		SessionDate: dayOnly(session), AsOfTime: sessionEnd(session), StateSchemaVersion: StateSchemaVersion, StatePayloadJSON: payload,

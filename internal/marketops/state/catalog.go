@@ -8,7 +8,7 @@ import (
 
 const (
 	FeatureVersion     = "v1"
-	StateSchemaVersion = "marketops.market_state.v1"
+	StateSchemaVersion = "marketops.market_state.v2"
 	EvidenceVersion    = "v1"
 )
 
@@ -55,9 +55,28 @@ var g137FeatureSpecs = []featureSpec{
 	{Key: "oi_quality_state", Domain: "option_liquidity", Title: "Open-interest quality state", RequiredInputs: []string{"options.distribution.metrics.open_interest_quality"}, Calculation: map[string]any{"operator": "source_quality_passthrough"}},
 }
 
+var g144FeatureSpecs = []featureSpec{
+	{Key: "rv_10d", Domain: "realized_volatility", Title: "10-session realized volatility", Unit: "decimal", RequiredInputs: []string{"equity.close"}, Calculation: map[string]any{"operator": "annualized_log_return_standard_deviation", "lookback_sessions": 10, "annualization_sessions": 252}},
+	{Key: "rv_20d", Domain: "realized_volatility", Title: "20-session realized volatility", Unit: "decimal", RequiredInputs: []string{"equity.close"}, Calculation: map[string]any{"operator": "annualized_log_return_standard_deviation", "lookback_sessions": 20, "annualization_sessions": 252}},
+	{Key: "rv_60d", Domain: "realized_volatility", Title: "60-session realized volatility", Unit: "decimal", RequiredInputs: []string{"equity.close"}, Calculation: map[string]any{"operator": "annualized_log_return_standard_deviation", "lookback_sessions": 60, "annualization_sessions": 252}},
+	{Key: "rv_acceleration_5d", Domain: "realized_volatility", Title: "5-session realized-volatility acceleration", Unit: "decimal", RequiredInputs: []string{"rv_20d"}, Calculation: map[string]any{"operator": "absolute_difference", "lookback_sessions": 5}},
+	{Key: "iv_change_1d", Domain: "implied_volatility", Title: "1-session normalized-cell IV change", Unit: "decimal", RequiredInputs: []string{"options.implied_volatility", "prior_options.implied_volatility"}, Calculation: map[string]any{"operator": "surface_cell_absolute_difference", "lookback_sessions": 1}},
+	{Key: "iv_change_5d", Domain: "implied_volatility", Title: "5-session normalized-cell IV change", Unit: "decimal", RequiredInputs: []string{"options.implied_volatility", "prior_options.implied_volatility"}, Calculation: map[string]any{"operator": "surface_cell_absolute_difference", "lookback_sessions": 5}},
+	{Key: "iv_minus_rv_20d", Domain: "implied_volatility", Title: "30-DTE ATM IV less 20-session realized volatility", Unit: "decimal", RequiredInputs: []string{"atm_iv_30d", "rv_20d"}, Calculation: map[string]any{"operator": "absolute_difference"}},
+	{Key: "iv_rv_ratio_20d", Domain: "implied_volatility", Title: "30-DTE ATM IV to 20-session realized-volatility ratio", Unit: "ratio", RequiredInputs: []string{"atm_iv_30d", "rv_20d"}, Calculation: map[string]any{"operator": "ratio"}},
+	{Key: "term_structure_state", Domain: "volatility_surface", Title: "30/60/90-DTE term-structure state", RequiredInputs: []string{"atm_iv_30d", "atm_iv_60d", "atm_iv_90d"}, Calculation: map[string]any{"operator": "classified_curve_state", "flat_tolerance": 0.0025}},
+	{Key: "premium_change_1d", Domain: "option_premium", Title: "1-session normalized-cell premium change", Unit: "currency", RequiredInputs: []string{"options.bid", "options.ask", "prior_options.bid", "prior_options.ask"}, Calculation: map[string]any{"operator": "surface_cell_midpoint_absolute_difference", "lookback_sessions": 1}},
+	{Key: "premium_change_5d", Domain: "option_premium", Title: "5-session normalized-cell premium change", Unit: "currency", RequiredInputs: []string{"options.bid", "options.ask", "prior_options.bid", "prior_options.ask"}, Calculation: map[string]any{"operator": "surface_cell_midpoint_absolute_difference", "lookback_sessions": 5}},
+	{Key: "oi_change_5d", Domain: "option_positioning", Title: "5-session normalized-cell open-interest change", Unit: "contracts", RequiredInputs: []string{"options.open_interest", "prior_options.open_interest"}, Calculation: map[string]any{"operator": "surface_cell_absolute_difference", "lookback_sessions": 5}, QualityPolicy: map[string]any{"missing_is_not_zero": true}},
+	{Key: "days_to_earnings", Domain: "market_event_context", Title: "Days to next known earnings event", Unit: "calendar_days", RequiredInputs: []string{"market_event_calendar.earnings_date", "market_event_calendar.known_at"}, Calculation: map[string]any{"operator": "calendar_days_to_next_point_in_time_known_event"}},
+	{Key: "days_since_earnings", Domain: "market_event_context", Title: "Days since latest known earnings event", Unit: "calendar_days", RequiredInputs: []string{"market_event_calendar.earnings_date", "market_event_calendar.known_at"}, Calculation: map[string]any{"operator": "calendar_days_since_latest_point_in_time_known_event"}},
+	{Key: "earnings_window_state", Domain: "market_event_context", Title: "Known earnings-window state", RequiredInputs: []string{"market_event_calendar.earnings_date", "market_event_calendar.known_at"}, Calculation: map[string]any{"operator": "classified_earnings_window", "pre_event_days": 5, "post_event_days": 2}},
+}
+
 func FeatureDefinitions(tenantID string) []storage.MarketOpsFeatureDefinitionRecord {
-	definitions := make([]storage.MarketOpsFeatureDefinitionRecord, 0, len(g137FeatureSpecs))
-	for _, spec := range g137FeatureSpecs {
+	specs := append(append([]featureSpec{}, g137FeatureSpecs...), g144FeatureSpecs...)
+	definitions := make([]storage.MarketOpsFeatureDefinitionRecord, 0, len(specs))
+	for _, spec := range specs {
 		calculation, _ := json.Marshal(spec.Calculation)
 		required, _ := json.Marshal(spec.RequiredInputs)
 		policy := spec.QualityPolicy
@@ -66,7 +85,7 @@ func FeatureDefinitions(tenantID string) []storage.MarketOpsFeatureDefinitionRec
 		}
 		quality, _ := json.Marshal(policy)
 		valueType := "numeric"
-		if spec.Key == "oi_quality_state" {
+		if spec.Key == "oi_quality_state" || spec.Key == "term_structure_state" || spec.Key == "earnings_window_state" {
 			valueType = "text"
 		}
 		definitions = append(definitions, storage.MarketOpsFeatureDefinitionRecord{

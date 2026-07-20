@@ -8804,3 +8804,34 @@ Boundaries retained:
 Result:
 
 - G143 is accepted. The original cross-layer contract blocker is resolved. G144 Market Feature And Transition Completion is the next architecture gate, while live calibration remains blocked until genuine analytics-ready sessions accumulate.
+
+## 2026-07-20T16:55:16Z - Gate G144 Market Feature And Transition Completion
+
+Status: implemented and accepted backend contract
+
+Scope:
+
+- Complete the initial H001/H004/H006/H007 longitudinal feature and transition inputs over G143 compact selected evidence.
+- Separate required state completeness from longer-maturity optional/context features.
+- Add point-in-time earnings invalidation semantics without treating unknown context as false or zero.
+- Generalize state materialization to operator-supplied bounded symbol cohorts without universe fanout or scheduling.
+
+Validation performed:
+
+- Full Go, Python, and JSON schema suites passed.
+- State tests prove 44 definitions, 69 state-v2 observations, stable identities, exact lineage, realized-volatility maturity, feature-eligible option lookbacks, multi-window and acceleration transitions, and curve-regime changes.
+- Event tests prove later-learned dates cannot leak backward, same-date revisions resolve deterministically, known earnings windows invalidate H001, and unavailable event context remains explicit.
+- CLI tests prove explicit non-AAPL execution, normalized/deduplicated symbol order, hard 1-10 symbol limits, isolated child run IDs, aggregate/per-symbol metrics, and dry-run no writes.
+- Existing provider-shaped compatibility still makes H001/H004/H006/H007 eligible from generated observations and transitions.
+
+Boundaries retained:
+
+- The original 39 G137/G143 slots remain the required state-quality denominator; 30 new slots do not manufacture completeness.
+- Option changes use persisted selected cells and skip feature-ineligible sessions; no full-chain persistence or provider call was added.
+- Event context is consumed only from point-in-time normalized records; no calendar provider or retrospective event synthesis was added.
+- No scheduler, Top 50 universe resolution, calibration promotion, proposal/materialization path, graph mutation, Syncratic expansion, or frontend scope was introduced.
+
+Result:
+
+- G144 is accepted. The bounded feature/transition contract is complete for the initial hypothesis pack, while live research remains coverage-blocked on genuine longitudinal sessions.
+- G145 Hypothesis Backtest And Calibration is next.

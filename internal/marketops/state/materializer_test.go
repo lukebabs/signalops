@@ -23,11 +23,11 @@ func TestBuildG137PositiveAAPLVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Definitions) != 29 || len(result.States) != 25 || len(result.Observations) != 25*requiredFeatureSlots {
+	if len(result.Definitions) != 44 || len(result.States) != 25 || len(result.Observations) != 25*totalFeatureSlots {
 		t.Fatalf("unexpected build counts: definitions=%d states=%d observations=%d", len(result.Definitions), len(result.States), len(result.Observations))
 	}
 	finalState := result.States[len(result.States)-1]
-	if len(finalState.FeatureObservationIDs) != requiredFeatureSlots || finalState.CompletenessRatio < .8 || finalState.QualityState != storage.MarketOpsQualityUsable {
+	if len(finalState.FeatureObservationIDs) != totalFeatureSlots || finalState.CompletenessRatio < .8 || finalState.QualityState != storage.MarketOpsQualityUsable || finalState.StateSchemaVersion != StateSchemaVersion {
 		t.Fatalf("unexpected final state quality: %+v", finalState)
 	}
 	final := observationsForSession(result.Observations, session)
@@ -114,7 +114,7 @@ func TestBuildBlocksUnusableOpenInterestEvidence(t *testing.T) {
 	if hasEvidenceType(result.Evidence, "put_call_oi_ratio_observed") {
 		t.Fatal("unusable OI produced analytical evidence")
 	}
-	if len(result.States) != 1 || len(result.States[0].FeatureObservationIDs) != requiredFeatureSlots {
+	if len(result.States) != 1 || len(result.States[0].FeatureObservationIDs) != totalFeatureSlots {
 		t.Fatalf("blocked state lost lineage: %+v", result.States)
 	}
 }
@@ -194,19 +194,27 @@ func TestBuildSupportsSixtyEligibleHistoricalSessions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.States) != 60 || len(result.Observations) != 60*requiredFeatureSlots {
+	if len(result.States) != 60 || len(result.Observations) != 60*totalFeatureSlots {
 		t.Fatalf("unexpected bounded replay counts: states=%d observations=%d", len(result.States), len(result.Observations))
 	}
 	for _, state := range result.States {
-		if len(state.FeatureObservationIDs) != requiredFeatureSlots {
+		if len(state.FeatureObservationIDs) != totalFeatureSlots {
 			t.Fatalf("state %s does not preserve full lineage", state.MarketStateID)
 		}
 	}
 }
 
-func TestBuildRejectsNonAAPL(t *testing.T) {
-	if _, err := Build(BuildConfig{TenantID: "tenant-local", Symbol: "MSFT", RunID: "run"}, BuildInput{}); err == nil {
-		t.Fatal("expected G137 symbol boundary error")
+func TestBuildSupportsExplicitNonAAPLSymbol(t *testing.T) {
+	events := equityFixtures(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), 2)
+	for index := range events {
+		payload := map[string]any{}
+		_ = json.Unmarshal(events[index].NormalizedPayload, &payload)
+		payload["symbol"] = "MSFT"
+		events[index].NormalizedPayload, _ = json.Marshal(payload)
+	}
+	result, err := Build(BuildConfig{TenantID: "tenant-local", Symbol: "msft", RunID: "g144-msft"}, BuildInput{EquityEvents: events})
+	if err != nil || len(result.States) != 2 || result.States[0].Symbol != "MSFT" || result.States[0].AssetID != "ticker:MSFT" {
+		t.Fatalf("explicit-symbol build failed: result=%+v err=%v", result, err)
 	}
 }
 

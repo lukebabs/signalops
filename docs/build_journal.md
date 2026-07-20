@@ -7388,3 +7388,30 @@ Validation performed:
 Result:
 
 - G143 closes the immediate provider-to-hypothesis contract mismatch while retaining compact selected evidence. No live history was synthesized, no full chain was persisted, and no scheduler, calibration promotion, production signal, graph, Syncratic, or frontend behavior was added. G144 is next; live research remains blocked on genuine longitudinal option sessions.
+
+## 2026-07-20T16:55:16Z - G144 Market Feature And Transition Completion
+
+Summary:
+
+- Advanced canonical states to `marketops.market_state.v2` with 44 definitions and 69 deterministic observations while retaining the original 39 hypothesis-critical slots as the required completeness denominator.
+- Added annualized 10/20/60-session realized volatility, 5-session 20-D realized-volatility change, and 30-DTE ATM IV/RV spread and ratio.
+- Added 1/5-eligible-session IV changes across all seven selected cells, 1/5-session 30-DTE wing midpoint-premium changes, and 5-session wing OI changes with exact current/prior artifact lineage.
+- Added classified 30/60/90-DTE term state and point-in-time days-to/since earnings plus earnings-window state from normalized event-calendar records.
+- Added 3/5/10/20-session absolute transitions, selected-feature second-difference acceleration, and classified curve-regime transitions while preserving existing one-session rarity and persistence behavior.
+- Made known pre/day/post earnings windows invalidate H001. Missing earnings context remains explicit and optional under the existing research definition.
+- Generalized state calculation beyond AAPL and added CLI `--symbols` execution with normalized/deduplicated order, isolated per-symbol run IDs, per-symbol/aggregate metrics, and a hard 1-10 symbol cap.
+- Preserved G143 selected-evidence/provider budgets and added no schema migration, provider acquisition, full-chain storage, history synthesis, universe fanout, or scheduling.
+
+Validation performed:
+
+- Full Dockerized Go suite passed after final eligible-session and deterministic event-revision refinements.
+- Python regression suite passed: 43 tests.
+- All six JSON event schemas validated.
+- Focused tests cover realized-volatility maturity, required-versus-total completeness, 1/5-session option changes, skipping ineligible intervening sessions, exact lineage, curve classification/regime changes, 3/5/10/20-session transitions, acceleration, point-in-time event knowledge, deterministic same-date event revisions, H001 event invalidation, explicit non-AAPL builds, cohort caps, per-symbol isolation, and dry-run no-write behavior.
+- The G143 Massive-shaped provider-to-H001/H004/H006/H007 acceptance remains green.
+
+Result:
+
+- G144 is complete for the initial research feature/transition contract and bounded explicit-symbol state execution.
+- Live calibration remains blocked on genuine analytics-ready option sessions; G144 does not manufacture history or lower thresholds.
+- G145 Hypothesis Backtest And Calibration is the next architecture gate.

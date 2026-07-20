@@ -79,7 +79,16 @@ func evaluateH001(in inputSet) evaluation {
 	t60 := requireTransition(&r, in, "iv", dims("put", 60, .25))
 	tp := requireTransition(&r, in, "extrinsic_premium", dims("put", 30, .25))
 	to := requireTransition(&r, in, "oi_change_1d", dims("put", 30, .25))
-	r.eligible = len(r.reasons) == 0
+	earningsWindow := optionalTextFeature(in, "earnings_window_state")
+	if earningsWindow.FeatureObservationID != "" && usable(earningsWindow.QualityState) && earningsWindow.TextValue != nil {
+		r.featureIDs = append(r.featureIDs, earningsWindow.FeatureObservationID)
+		switch *earningsWindow.TextValue {
+		case "pre_earnings", "earnings_day", "post_earnings":
+			r.invalidated = true
+			r.reasons = append(r.reasons, "known_earnings_window")
+		}
+	}
+	r.eligible = len(r.reasons) == 0 && !r.invalidated
 	if r.eligible {
 		r.triggered = value(rsi) >= 70 && value(coverage) >= .8 && change(t30) > .02 && change(t60) > .02 && change(tp) > 0 && value(oi) > 0 && change(to) > 0 && value(premium) >= 0 && value(put30) > 0 && value(put60) > 0
 		r.checks = map[string]any{"rsi_14": value(rsi), "surface_coverage_ratio": value(coverage), "put_iv_change_30d": change(t30), "put_iv_change_60d": change(t60), "premium_change": change(tp), "put_oi_change": value(oi)}
@@ -288,6 +297,15 @@ func sameNonZeroDirection(values ...float64) bool {
 	}
 	return true
 }
+func optionalTextFeature(in inputSet, key string) storage.MarketOpsFeatureObservationRecord {
+	for _, item := range in.observations {
+		if item.FeatureKey == key && dimensionsMatch(item.DimensionsJSON, nil) {
+			return item
+		}
+	}
+	return storage.MarketOpsFeatureObservationRecord{}
+}
+
 func thresholdReasons(checks map[string]bool) []string {
 	out := []string{}
 	for key, failed := range checks {

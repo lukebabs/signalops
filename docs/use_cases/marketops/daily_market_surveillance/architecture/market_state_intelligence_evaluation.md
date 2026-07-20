@@ -8,7 +8,7 @@ Canonical design: `docs/design/syncratic_marketops_market_state_intelligence_arc
 
 MarketOps has implemented the structural backbone of the Market State Intelligence architecture, but it has not completed the analytical system described by that architecture.
 
-The strongest completed areas are deterministic storage, lineage, quality blocking, research isolation, review boundaries, and bounded execution. The dominant gap is source-to-feature completeness: current live options evidence cannot yet support reliable premium, surface-change, delta-bucket open-interest, liquidity, and historical calibration logic. As a result, the state, hypothesis, opportunity, and outcome ledgers are operationally real but mostly sparse or quality-blocked in live use.
+The strongest completed areas are deterministic storage, lineage, quality blocking, research isolation, review boundaries, bounded execution, and the initial provider-to-longitudinal-feature contract. The dominant gap is genuine source history and calibration: live options evidence has not accumulated enough eligible sessions for reliable rarity, outcome, comparison, or walk-forward claims, and no point-in-time earnings-calendar producer exists. The state, hypothesis, opportunity, and outcome ledgers are operationally real but remain sparse or quality-blocked in live use.
 
 The architecture is now the governing design criterion. A gate is not considered complete merely because its schema, API, or UI exists; it must advance the functional path from bounded point-in-time evidence to calibrated, explainable analyst opportunities.
 
@@ -24,7 +24,7 @@ The current system provides:
 - Bounded Syncratic context and on-demand Ask integration without ingesting MarketOps data into Syncratic core.
 - Options chain, distribution, quality, feature, and capture ledgers.
 - First-class MarketOps feature definitions, feature observations, market states, transitions, evidence, hypothesis definitions/evaluations, opportunities, and outcomes.
-- A bounded AAPL coordinator for state, hypothesis, opportunity, and outcome processing.
+- A state-v2 materializer for explicit cohorts capped at 10 symbols, plus an AAPL-only coordinator for hypothesis, opportunity, and outcome processing.
 - A prospective options capture path with canonical same-session spot, provider-side DTE/moneyness bounds, a candidate cap, transient aggregation, and compact selected-contract evidence.
 
 ## Phase Reconciliation
@@ -32,19 +32,19 @@ The current system provides:
 | Architecture phase | Status | Evidence | Remaining work |
 | --- | --- | --- | --- |
 | Phase 1: foundation and schemas | Substantially complete | Migrations `000028`-`000031`, deterministic identities, versioned ledgers, shared quality states, and read APIs exist. | Mutation/job APIs, durable run status for all logical workers, immutable approved-definition enforcement, and broader integration coverage remain. |
-| Phase 2: AAPL vertical slice | Structurally complete, functionally partial | G137/G143 build 29 definitions, 39 slots, states, transitions, quote-derived surface evidence, and explicit quality; G138 evaluates H001/H004/H006/H007. | Historical options coverage is absent, live quote completeness is unproven, and several canonical feature domains remain incomplete. |
+| Phase 2: initial hypothesis slice | Structurally complete, functionally partial | G137/G143/G144 build 44 definitions, 69 state-v2 slots, longitudinal and event context, multi-window transitions, bounded explicit-symbol execution, quote-derived surface evidence, and explicit quality; G138 evaluates H001/H004/H006/H007. | Historical options coverage is absent, live quote/event completeness is unproven, and broader surface/concentration/migration domains remain incomplete. |
 | Phase 3: backtest integration | Partial | Generic G081-G105 back-test/calibration substrate and G140/G141 point-in-time outcomes/coordinator exist. | No hypothesis-specific back-test adapter, comparison/walk-forward modes, regime/event segmentation, calibration report, or hypothesis-version promotion evidence exists. |
 | Phase 4: proposal and opportunity integration | Partial | G139 opportunity grouping, overlap suppression, conflict scoring, read APIs, and analyst queue exist. | No hypothesis-evaluation-to-proposal adapter, lifecycle eligibility bridge, opportunity review/disposition, or calibrated ranking exists. |
 | Phase 5: graph and Ask | Foundation only | Existing graph proposals remain review-controlled; G088-G093 provide bounded Ask and evidence-purity controls. | State, transition, hypothesis, opportunity, and outcome graph mappings and Market State Ask bundles are absent. |
-| Phase 6: Top 50 bounded rollout | Acquisition controls partial | Asset cohorts, bounded ingestion, capped symbol execution, quality summaries, and G142 provider budgets exist. | State/hypothesis/outcome processing is AAPL-only; no staged cohort rollout, operational state dashboard, or per-symbol end-to-end readiness exists. |
+| Phase 6: Top 50 bounded rollout | Acquisition and state controls partial | Asset cohorts, bounded ingestion, G142 provider budgets, quality summaries, and G144 explicit state cohorts capped at 10 symbols exist. | Hypothesis/outcome coordination remains AAPL-only; no universe-resolved staged rollout, operational state dashboard, or per-symbol end-to-end readiness exists. |
 
 ## Component Conformance
 
 | Component | Current conformance | Critical gap |
 | --- | --- | --- |
-| Market Feature Pipeline | Partial | Deterministic observations and quality metadata exist, but the catalog lacks realized-volatility features, most IV/surface cells, quote-derived premium, delta/expiry OI migration, concentration, liquidity spreads, and event context. |
-| Market State Builder | Partial | One versioned state per AAPL session with exact feature lineage exists. Completeness is low in live data, and Top 50/general-symbol execution is not implemented. |
-| State Transition Engine | Partial | One-session differences plus trailing persistence, z-score, and percentile are persisted point-in-time. Multi-window acceleration, divergence, migration, concentration, curve, and regime operators are missing. |
+| Market Feature Pipeline | Partial | G144 adds realized volatility, IV/RV spread, normalized IV/premium/OI changes, curve state, and point-in-time earnings context. Broader surface cells, concentration/migration, weighted liquidity, event producers, and 252-session normalizations remain absent. |
+| Market State Builder | Partial | One state-v2 row per explicit asset/session has 69 exact feature references and required-versus-total completeness. CLI cohorts are capped at 10, but universe-resolved analytical rollout and durable jobs are absent. |
+| State Transition Engine | Partial | 1/3/5/10/20-session differences, point-in-time rarity/persistence, selected-feature acceleration, curve-slope change, and term-regime transitions persist. Explicit divergence, migration, concentration, curvature, and sign-consistency operators remain incomplete. |
 | Evidence Ledger | Partial | Reusable return, OI-ratio, and ATM-IV-change claims exist with lineage. Evidence coverage is too narrow for the target hypothesis pack. |
 | Hypothesis Registry | Partial | H001, H004, H006, and H007 v1 are versioned and research-only. H002, H003, and H005 are absent; no audited lifecycle mutation or approved immutability path exists. |
 | Hypothesis Evaluator | Partial | Deterministic trigger/non-trigger/rejection rows and reason codes exist. Live evaluations are blocked by sparse inputs, and no proposal bridge exists. |
@@ -67,16 +67,20 @@ Implemented or partially implemented:
 - Put/call OI ratio, aggregate one-session ratio change, dimensioned 30-DTE wing OI change, put/call volume ratio, and transient moneyness/expiry/DTE/delta OI-volume buckets.
 - Usable-contract, missing-IV, missing-Greeks, surface-coverage, and OI-quality observations.
 - Deterministic source-contract, quote, provider-request, selection-cell, policy-version, and score lineage for seven selected surface cells.
+- Annualized 10/20/60-session realized volatility, 5-session 20-D RV change, 30-DTE ATM IV-minus-RV, and IV/RV ratio.
+- One/five-eligible-option-session IV changes across all seven selected cells; one/five-session 30-DTE wing premium changes; and five-session wing OI changes.
+- Classified 30/60/90 term-structure state plus point-in-time days-to/since earnings and earnings-window state when a normalized event was known by session end.
+- One/three/five/ten/twenty-session transitions, selected-feature acceleration, and curve-regime changes; state execution accepts only explicit cohorts capped at 10.
 
 Missing or not yet analytically usable:
 
-- Realized volatility catalog (`rv_10d`, `rv_20d`, `rv_60d`, percentiles, acceleration).
+- Realized-volatility percentiles, 252-session normalization, and intraday-range percentiles; G144 implements 10/20/60-session levels and 5-session 20-D RV change.
 - The broader 21/30/45/60/90/180/365-DTE by 0.15/0.25/0.35/ATM delta surface.
-- IV daily/5-day changes, z-scores, percentiles, rank, IV-realized-volatility spread, broader skew/surface curvature/dispersion, and classified term-structure state beyond the initial G143 slopes and risk reversals.
-- Straddles, expected move, broader premium ratios, and multi-session premium changes.
-- Longitudinal bucket OI/volume changes, concentration, and migration beyond the current point-in-time transient distributions.
+- IV level z-scores, 252-session percentiles/rank, broader skew/surface curvature/dispersion, and 180-DTE slope; G144 implements 1/5-session selected-cell changes, IV/RV comparisons, and 30/60/90 term state.
+- Straddles, expected move, broader premium ratios, and premium acceleration beyond G144 30-DTE wing 1/5-session midpoint changes.
+- Broader delta/expiry OI-volume changes, concentration, and migration beyond G144 30-DTE wing 1/5-session OI changes and current transient distributions.
 - Spread-weighted liquidity and broader standard-contract enforcement; G143 records quote staleness, crossed/zero markets, eligibility reasons, and selection confidence.
-- Earnings, ex-dividend, corporate-action, and other point-in-time event context.
+- An event-calendar ingestion producer, ex-dividend, corporate-action, and broader point-in-time event context; G144 consumes earnings events when already normalized.
 
 ## Complete-v1 Acceptance Check
 
@@ -96,7 +100,7 @@ Missing or not yet analytically usable:
 | 12 | Backtests enforce point-in-time correctness | Partial: G141/G140 do; hypothesis back-test modes are incomplete |
 | 13 | Graph changes remain proposal-based | Pass |
 | 14 | Ask receives bounded evidence-pure context | Partial: generic context is bounded; state/opportunity context is absent |
-| 15 | Top 50 execution is explicitly bounded | Pass for acquisition; analytical execution remains AAPL-only |
+| 15 | Top 50 execution is explicitly bounded | Pass for acquisition and explicit analytical cohorts capped at 10; universe-resolved staged rollout remains absent |
 | 16 | Lineage can reproduce any signal proposal | Partial: algorithm proposals have lineage; hypothesis proposals do not exist |
 | 17 | Confidence is not presented as guaranteed performance | Pass |
 | 18 | Semantic definitions are versioned | Partial: ledgers are versioned; acquisition/selection and some scoring policies need explicit semantic versions |
@@ -132,7 +136,9 @@ Acceptance includes one end-to-end fixture that starts with Massive-shaped bound
 
 ### G144: Market Feature And Transition Completion
 
-Add the remaining inputs needed by the initial four hypotheses: realized volatility, IV/premium/OI changes, curve transitions, delta-bucket accumulation, persistence, divergence, and relevant event context. Generalize the materializer from AAPL to explicit bounded symbol cohorts without enabling scheduling.
+Status: implemented 2026-07-20.
+
+G144 adds 44 definitions and 69 state-v2 slots, retaining the original 39 slots as the required completeness denominator. Realized volatility, IV/RV comparisons, normalized 1/5-session IV and premium change, 5-session wing OI change, curve state, point-in-time earnings context, multi-window differences, selected-feature acceleration, and curve-regime transitions are persisted with explicit missingness and lineage. H006 retains its evaluator-level premium/price divergence classification, and H001 now invalidates known earnings windows. The materializer accepts only explicit cohorts capped at 10 and adds no scheduling, universe resolution, provider acquisition, or history synthesis.
 
 ### G145: Hypothesis Backtest And Calibration
 
@@ -163,9 +169,9 @@ Add review-controlled graph mappings and bounded Market State Ask bundles, then 
 
 ## Current Bottom Line
 
-MarketOps is beyond a prototype database: it has genuine deterministic state, hypothesis, opportunity, and outcome infrastructure with strong governance. It is not yet a useful complete market-state intelligence product because the live options feature plane and longitudinal calibration evidence are incomplete.
+MarketOps is beyond a prototype database: it has genuine deterministic state, longitudinal features, hypothesis, opportunity, and outcome infrastructure with strong governance. It is not yet a useful complete market-state intelligence product because genuine longitudinal options/event coverage and hypothesis calibration evidence remain incomplete.
 
-G143 has closed the immediate provider-to-hypothesis compatibility gap while retaining bounded selected evidence. The definitive next step is G144 Market Feature And Transition Completion; live research remains coverage-blocked until genuine prospective option sessions accumulate.
+G144 has completed the bounded feature/transition contract and explicit-symbol state execution without manufacturing live evidence. The definitive next step is G145 Hypothesis Backtest And Calibration; live research remains coverage-blocked until genuine prospective option sessions accumulate.
 
 ## References
 
@@ -179,5 +185,6 @@ G143 has closed the immediate provider-to-hypothesis compatibility gap while ret
 - G141 history coordinator: `../gates/G141_historical_coverage_and_outcome_population.md`
 - G142 prospective options capture: `../gates/G142_prospective_options_analytics_capture.md`
 - G143 options surface evidence: `../gates/G143_options_surface_evidence_v1.md`
+- G144 feature and transition completion: `../gates/G144_market_feature_and_transition_completion.md`
 - State feature materializer: `../../../../../internal/marketops/state/materializer.go`
 - Hypothesis feature contract: `../../../../../internal/marketops/hypotheses/registry.go`
