@@ -7582,3 +7582,23 @@ Result:
 - Authenticated AAPL context reruns produced the same `synctx_b895bd14ba9da67743cbef2c` ID and evidence digest. No Ask call was forced.
 - The corrected AAPL/MSFT all-stage dry-run reported AAPL blocked at 0.20 completeness and MSFT not observed. Cohort rows stayed 0; state/evaluation/opportunity/outcome/graph/signal counts remained 6/24/0/0/231/31.
 - Added the read-only frontend-agent readiness specification. Sparse fixtures demonstrate structural effectiveness only, not empirical hypothesis effectiveness.
+
+## 2026-07-20 - G148 Intelligence Readiness Frontend Acceptance
+
+Summary:
+
+- Implemented the read-only Intelligence readiness view under MarketOps Assets over the G148-C aggregate endpoint.
+- Added typed API/query contracts, bounded filters, aggregate and per-symbol summaries, independent dimension badges, explicit reasons, unobserved handling, and loading/empty/unauthorized/error/stale states.
+- Preserved the research-only boundary: one aggregate request serves the view, production readiness remains unsupported, and no provider, cohort, Ask, graph, promotion, materialization, trading, or portfolio control was added.
+
+Validation performed:
+
+- Focused API and readiness-helper suites passed: 12 tests across 2 files.
+- TypeScript compilation and the Vite production build passed.
+- Implementation is recorded in commit `6619269`.
+
+Result:
+
+- G148 frontend work is accepted and G148 is complete.
+- The live readiness ledger remains empty because acceptance used dry-run; a durable cohort run requires separate explicit write authorization.
+- Structural integration is proven, but empirical hypothesis effectiveness remains unclaimed pending genuine prospective coverage, matured outcomes, and exact-version calibration samples.

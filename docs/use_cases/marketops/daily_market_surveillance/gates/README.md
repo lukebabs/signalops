@@ -22,10 +22,10 @@ Closed gate notes:
 - G079: `G079_graph_proposal_acceptance.md`.
 - G080: `G080_operator_graph_proposal_review.md`.
 
-Recommended next gate:
+Current research phase:
 
-- G081 implemented: isolated back-test storage, CLI runner, deterministic policy evaluation, and read-only APIs.
-- G082 candidate: back-test operator ergonomics, run creation API, or expanded calibration metrics after smoke review.
+- G148 is implemented and accepted end to end, including the read-only Intelligence readiness UI.
+- The next work is bounded prospective evidence and matured outcome/calibration accumulation; no later numbered gate or production rollout is yet authorized.
 
 ## G083 Implemented Backend Slice
 
@@ -362,12 +362,21 @@ Recommended next gate:
 - Frontend-agent specification: `../../../../frontend/marketops_market_state_analyst_experience_spec.md`.
 - Gate record: `G147_market_state_analyst_experience_ui_spec.md`.
 - Validation: 393 frontend tests passed, the TypeScript/Vite production build passed locally and inside the Docker image, and the rebuilt route returned HTTP 200 with bounded authenticated state/lineage reads.
-- G148 graph, Ask, and controlled cohort rollout is the recommended next gate; genuine prospective coverage remains a prerequisite for empirical research claims.
+- G148 graph, Ask, controlled cohort rollout, and the read-only readiness UI are implemented and accepted; genuine prospective coverage remains a prerequisite for empirical research claims.
 
-## G148 Proposed
+## G148 Implemented
 
 - G148 is split into three ordered backend-first slices: source-aware market-intelligence graph proposals, bounded evidence-pure Market State Ask contexts, and explicit cohorts capped at 10 symbols with aggregate per-symbol readiness.
 - The existing graph decision ledger and Syncratic routes remain authoritative; G148 must generalize them rather than create parallel review or reasoning systems.
 - Cohort execution uses persisted inputs only and keeps provider acquisition, graph decisions, Ask, proposal review, lifecycle promotion, and unsupported hypothesis materialization as separate explicit controls.
 - Current live truth remains sparse: only AAPL has market states/evaluations, its six states average 14% completeness, and none of 24 evaluations are eligible or triggered.
+- The MarketOps Assets Intelligence readiness view consumes the aggregate endpoint with one request, preserves missing/blocked evidence, and never presents production readiness or execution controls.
+- Backend migrations, the full Go suite, bounded live dry-run, 12 focused frontend tests, and the TypeScript/Vite production build passed. Ask was not invoked because no budget was approved.
 - Backend specification: `G148_graph_ask_and_cohort_rollout.md`.
+- Frontend specification: `../../../../frontend/marketops_intelligence_readiness_ui_spec.md`.
+
+## Next Evidence Phase
+
+- Accumulate genuine prospective equity, options, event, and matured outcome evidence across a small explicit cohort using existing bounded operator controls.
+- Persist cohort readiness only through an explicitly authorized write-mode run; the G148 acceptance dry-run intentionally left the readiness ledger empty.
+- Define a later gate only after the collected sample can support a concrete prospective calibration/effectiveness question. Do not treat structural integration as production or empirical readiness.

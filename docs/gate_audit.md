@@ -9023,3 +9023,25 @@ Validation:
 - AAPL remained blocked by partial state quality and unavailable exact calibration; MSFT remained not observed.
 - Dry-run wrote no cohort, state, evaluation, opportunity, outcome, graph proposal, or signal rows.
 - Readiness never returns `production_ready`; provider acquisition, automatic Ask, graph decisions, lifecycle promotion, and signal materialization remain out of scope.
+
+## 2026-07-20 - Gate G148 Frontend Acceptance And Closeout
+
+Status: implemented and accepted
+
+Acceptance evidence:
+
+- Commit `6619269` implements the MarketOps Assets Intelligence readiness view over one aggregate G148-C request.
+- The view keeps coverage, evaluation, governance, calibration, outcome, and rollout states distinct; shows explicit reasons; and renders missing state as not observed rather than zero coverage.
+- Loading, empty, unauthorized, error, and stale-data states are explicit, and the UI states that production readiness is unsupported.
+- Twelve focused frontend tests passed and the TypeScript/Vite production build completed successfully.
+
+Boundaries retained:
+
+- No provider acquisition, cohort execution, Ask execution, graph decision, proposal review, lifecycle promotion, signal materialization, trade, order, or portfolio action is exposed.
+- The live readiness ledger remains empty because the accepted cohort validation was a no-write dry-run.
+- No empirical effectiveness or production-readiness claim is made from the sparse AAPL/MSFT fixtures.
+
+Result:
+
+- G148 is complete and accepted end to end.
+- The next phase is bounded prospective evidence and outcome accumulation under existing explicit controls; a later numbered gate should be defined only around a concrete evidence-backed calibration question.

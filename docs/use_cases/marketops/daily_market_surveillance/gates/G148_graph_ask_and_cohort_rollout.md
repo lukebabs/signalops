@@ -1,6 +1,6 @@
 # G148 Graph, Ask, And Cohort Rollout
 
-Status: G148-A, G148-B, and G148-C implemented; backend validation passed
+Status: implemented and accepted
 
 Date: 2026-07-20
 
@@ -482,4 +482,8 @@ Expected frontend work comes after backend contracts are validated:
 
 ## Gate Result
 
-G148-A, G148-B, and G148-C are implemented in sequence. Migrations 000036 and 000037 passed isolated apply, down, and re-apply validation; the full Go suite and packaged cohort runner build pass. A live authenticated AAPL market-state context was created, and an AAPL/MSFT all-stage dry-run truthfully reported AAPL blocked and MSFT not observed while cohort, state, evaluation, opportunity, outcome, graph-proposal, and signal counts remained unchanged. The read-only frontend-agent specification may now consume the validated aggregate readiness contract.
+G148-A, G148-B, and G148-C are implemented in sequence. Migrations 000036 and 000037 passed isolated apply, down, and re-apply validation; the full Go suite and packaged cohort runner build pass. A live authenticated AAPL market-state context was created, and an AAPL/MSFT all-stage dry-run truthfully reported AAPL blocked and MSFT not observed while cohort, state, evaluation, opportunity, outcome, graph-proposal, and signal counts remained unchanged.
+
+The read-only Intelligence readiness view is implemented under MarketOps Assets in commit `6619269`. It uses one aggregate request, preserves independent readiness dimensions and explicit reasons, renders unobserved data distinctly, and exposes no execution or production-readiness controls. Twelve focused frontend tests and the TypeScript/Vite production build pass.
+
+G148 is accepted as a structurally effective, fail-closed integration gate. It does not establish empirical hypothesis effectiveness. The next work is bounded prospective evidence collection and matured outcome/calibration accumulation under existing explicit controls; no production rollout or automatic acquisition is authorized by this result.

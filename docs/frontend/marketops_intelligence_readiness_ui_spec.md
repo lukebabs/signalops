@@ -1,12 +1,14 @@
 # MarketOps Intelligence Readiness Frontend-Agent Specification
 
-Status: ready for frontend implementation
+Status: implemented and locally validated
 
 Date: 2026-07-20
 
 ## Objective
 
 Add a read-only Intelligence readiness view to the existing MarketOps Assets experience using the validated G148-C aggregate endpoint. The view explains research rollout coverage per symbol; it must never imply production readiness or expose execution controls.
+
+Implementation commit: `6619269` (`Implement MarketOps intelligence readiness UI`). Focused API/helper tests and the TypeScript/Vite production build pass.
 
 ## Backend contract
 

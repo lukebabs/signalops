@@ -24,3 +24,4 @@ Current notes:
 - `../../../../frontend/syncratic_materialization_preview_ui_spec.md`: frontend-agent handoff for G092 budgeted materialization preview and confirmed write UI.
 - `../../../../frontend/marketops_asset_options_distribution_ui_spec.md`: frontend-agent handoff for G128 asset-level options coverage, distribution, and chain-row UI.
 - `../../../../frontend/marketops_options_quality_visibility_ui_spec.md`: frontend-agent handoff for G132 options ratio/open-interest quality visibility in asset options and algorithm proposal views.
+- `../../../../frontend/marketops_intelligence_readiness_ui_spec.md`: implemented G148 read-only aggregate intelligence readiness view under MarketOps Assets.
