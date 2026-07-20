@@ -51,6 +51,9 @@ const MarketOpsAssetsRoute = lazy(() =>
 const MarketOpsDsmRoute = lazy(() =>
   import('./routes/MarketOpsDsmRoute').then((m) => ({ default: m.MarketOpsDsmRoute })),
 );
+const MarketOpsOpportunitiesRoute = lazy(() =>
+  import('./routes/MarketOpsOpportunitiesRoute').then((m) => ({ default: m.MarketOpsOpportunitiesRoute })),
+);
 const MarketOpsBacktestsRoute = lazy(() =>
   import('./routes/MarketOpsBacktestsRoute').then((m) => ({ default: m.MarketOpsBacktestsRoute })),
 );
@@ -176,6 +179,16 @@ const marketopsPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, p
 const marketopsHealthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/health', component: SystemRoute });
 const marketopsAssetsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assets', component: MarketOpsAssetsRoute });
 const marketopsDsmRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/dsm', component: MarketOpsDsmRoute });
+const marketopsOpportunitiesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/marketops/opportunities',
+  // Persist the selected opportunity in ?opportunity_id= so refresh/back/forward
+  // retains analyst context (G139). Loose validation keeps the param optional.
+  validateSearch: (search: Record<string, unknown>): { opportunity_id?: string } => ({
+    opportunity_id: typeof search.opportunity_id === 'string' ? search.opportunity_id : undefined,
+  }),
+  component: MarketOpsOpportunitiesRoute,
+});
 const marketopsBacktestsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/backtests', component: MarketOpsBacktestsRoute });
 const marketopsSyncraticRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/syncratic', component: MarketOpsSyncraticRoute });
 const marketopsAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/algorithms', component: AlgorithmsRoute });
@@ -225,6 +238,7 @@ const routeTree = rootRoute.addChildren([
   marketopsHealthRoute,
   marketopsAssetsRoute,
   marketopsDsmRoute,
+  marketopsOpportunitiesRoute,
   marketopsBacktestsRoute,
   marketopsSyncraticRoute,
   marketopsAlgorithmsRoute,

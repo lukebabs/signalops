@@ -708,6 +708,204 @@ export interface MarketOpsOptionsDistributionFilter {
   limit?: number;
 }
 
+// G139 MarketOps Opportunities workbench (read-only). Served by
+// GET /v1/marketops/opportunities and /v1/marketops/opportunities/{opportunity_id},
+// plus supporting reads (hypothesis-evaluations, hypotheses, evidence, state
+// lineage). lifecycle/direction are permissive (| string) so unknown future
+// tokens render neutrally. opportunity_payload + the various JSON rule/payload
+// fields arrive already parsed (typed unknown; render via JsonViewer, never
+// JSON.parse). Hypothesis-evaluation and evidence scores are server-nullable
+// (omitempty pointers) — typed optional and rendered as unavailable when absent.
+export type MarketOpsOpportunityLifecycle =
+  | 'emerging'
+  | 'active'
+  | 'strengthening'
+  | 'weakening'
+  | 'invalidated'
+  | 'resolved'
+  | 'expired'
+  | string;
+
+export type MarketOpsOpportunityDirection = 'upside' | 'downside' | 'non_directional' | string;
+
+export interface MarketOpsOpportunity {
+  opportunity_id: string;
+  tenant_id: string;
+  app_id: string;
+  asset_id: string;
+  symbol: string;
+  opened_session_date: string;
+  last_evaluated_date: string;
+  direction: MarketOpsOpportunityDirection;
+  horizon: string;
+  lifecycle_status: MarketOpsOpportunityLifecycle;
+  opportunity_score: number;
+  confidence_score: number;
+  domain_diversity_score: number;
+  conflict_score: number;
+  hypothesis_evaluation_ids: string[];
+  conflicting_evaluation_ids: string[];
+  signal_ids: string[];
+  supporting_evidence_ids: string[];
+  invalidating_evidence_ids: string[];
+  summary: string;
+  opportunity_payload: unknown;
+  version: number;
+  research_only: boolean;
+  build_run_id: string;
+  deterministic_key: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsOpportunitiesResponse {
+  opportunities: MarketOpsOpportunity[];
+}
+
+export interface MarketOpsOpportunityResponse {
+  opportunity: MarketOpsOpportunity;
+}
+
+export interface MarketOpsOpportunityFilter {
+  tenant_id?: string;
+  app_id?: string;
+  opportunity_id?: string;
+  asset_id?: string;
+  symbol?: string;
+  direction?: MarketOpsOpportunityDirection | '';
+  horizon?: string;
+  lifecycle_status?: MarketOpsOpportunityLifecycle | '';
+  research_only?: boolean;
+  session_start?: string;
+  session_end?: string;
+  limit?: number;
+}
+
+// Hypothesis evaluations (G138) — linked detail + empty-queue diagnostics.
+export interface MarketOpsHypothesisEvaluation {
+  evaluation_id: string;
+  tenant_id: string;
+  app_id: string;
+  hypothesis_key: string;
+  hypothesis_version: string;
+  market_state_id: string;
+  asset_id: string;
+  symbol: string;
+  session_date: string;
+  as_of_time: string;
+  eligible: boolean;
+  triggered: boolean;
+  trigger_score?: number;
+  confidence_score?: number;
+  magnitude_score?: number;
+  rarity_score?: number;
+  persistence_score?: number;
+  corroboration_score?: number;
+  quality_score?: number;
+  invalidated: boolean;
+  evidence_ids: string[];
+  reason_codes: string[];
+  evaluation_payload: unknown;
+  evaluation_run_id: string;
+  deterministic_key: string;
+  created_at: string;
+}
+
+export interface MarketOpsHypothesisEvaluationsResponse {
+  hypothesis_evaluations: MarketOpsHypothesisEvaluation[];
+}
+
+export interface MarketOpsHypothesisEvaluationFilter {
+  tenant_id?: string;
+  app_id?: string;
+  hypothesis_key?: string;
+  hypothesis_version?: string;
+  market_state_id?: string;
+  asset_id?: string;
+  symbol?: string;
+  eligible?: boolean;
+  triggered?: boolean;
+  invalidated?: boolean;
+  session_start?: string;
+  session_end?: string;
+  limit?: number;
+}
+
+// Hypothesis definition (G138). Rule/config fields arrive already parsed.
+export interface MarketOpsHypothesisDefinition {
+  tenant_id: string;
+  hypothesis_key: string;
+  hypothesis_version: string;
+  title: string;
+  domain: string;
+  direction: string;
+  description: string;
+  rationale: unknown;
+  required_features: unknown;
+  required_transitions: unknown;
+  quality_policy: unknown;
+  eligibility_expression: unknown;
+  trigger_expression: unknown;
+  persistence_rule: unknown;
+  corroboration_rule: unknown;
+  invalidation_rule: unknown;
+  expected_outcomes: unknown;
+  scoring_config: unknown;
+  calibration_policy: unknown;
+  lifecycle_status: string;
+  owner: string;
+  approved_by: string;
+  approved_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsHypothesisResponse {
+  hypothesis: MarketOpsHypothesisDefinition;
+}
+
+// Evidence (G136/G137). Scores are server-nullable.
+export interface MarketOpsEvidence {
+  evidence_id: string;
+  tenant_id: string;
+  app_id: string;
+  asset_id: string;
+  symbol: string;
+  session_date: string;
+  as_of_time: string;
+  evidence_type: string;
+  evidence_version: string;
+  domain: string;
+  direction?: string;
+  magnitude?: number;
+  rarity_score?: number;
+  persistence_score?: number;
+  quality_score?: number;
+  statement: string;
+  evidence_payload: unknown;
+  source_feature_ids: string[];
+  source_transition_ids: string[];
+  deterministic_key: string;
+  created_at: string;
+}
+
+export interface MarketOpsEvidenceResponse {
+  evidence: MarketOpsEvidence;
+}
+
+// Market state lineage (G136/G137) — reachable from an evaluation's market_state_id.
+export interface MarketOpsMarketStateLineage {
+  market_state: unknown;
+  feature_observations: unknown[];
+  source_event_ids: string[];
+  source_artifact_ids: string[];
+  missing_feature_observation_ids: string[];
+}
+
+export interface MarketOpsMarketStateLineageResponse {
+  lineage: MarketOpsMarketStateLineage;
+}
+
 
 // G078 MarketOps DSM artifacts. Served by
 // GET /v1/marketops/dsm/artifacts and /v1/marketops/dsm/artifacts/{artifact_id}.

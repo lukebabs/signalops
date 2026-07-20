@@ -13,6 +13,8 @@ import type {
   ReplayJob,
   MarketOpsAssetFilter,
   MarketOpsOptionsChainFilter,
+  MarketOpsOpportunityFilter,
+  MarketOpsHypothesisEvaluationFilter,
   MarketOpsOptionsDistributionFilter,
   MarketOpsDSMArtifactFilter,
   MarketOpsDSMGraphProposalFilter,
@@ -89,6 +91,16 @@ export const queryKeys = {
     ['marketops-options-distributions', tenantId, symbol, filter] as const,
   marketOpsOptionsChain: (tenantId: string, symbol: string, filter: MarketOpsOptionsChainFilter) =>
     ['marketops-options-chain', tenantId, symbol, filter] as const,
+  marketOpsOpportunities: (filter: MarketOpsOpportunityFilter) => ['marketops-opportunities', filter] as const,
+  marketOpsOpportunity: (opportunityId: string, tenantId: string) =>
+    ['marketops-opportunity', opportunityId, tenantId] as const,
+  marketOpsHypothesisEvaluations: (filter: MarketOpsHypothesisEvaluationFilter) =>
+    ['marketops-hypothesis-evaluations', filter] as const,
+  marketOpsHypothesis: (key: string, version: string, tenantId: string) =>
+    ['marketops-hypothesis', key, version, tenantId] as const,
+  marketOpsEvidence: (evidenceId: string) => ['marketops-evidence', evidenceId] as const,
+  marketOpsMarketStateLineage: (marketStateId: string) =>
+    ['marketops-market-state-lineage', marketStateId] as const,
   marketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter) => ['marketops-dsm-artifacts', filter] as const,
   marketOpsDSMArtifact: (artifactId: string) => ['marketops-dsm-artifact', artifactId] as const,
   marketOpsDSMGraphProposals: (filter: MarketOpsDSMGraphProposalFilter) =>
@@ -405,6 +417,65 @@ export function useMarketOpsOptionsChain(
     queryKey: queryKeys.marketOpsOptionsChain(tenantId, symbol ?? '', filter),
     queryFn: () => api.listMarketOpsOptionsChain(tenantId, symbol!, filter),
     enabled: !!tenantId && !!symbol && !!filter.trade_date,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// G139 MarketOps Opportunities workbench (read-only). The list runs with the
+// active filters; detail + linked records are lazy (enabled only when an
+// opportunity / contribution / evidence row is opened). hypothesis-evaluations
+// powers both empty-queue diagnostics and contribution reason-code enrichment,
+// so its `enabled` flag is caller-controlled. Short stale time keeps the queue
+// responsive without refetch churn. No mutations.
+export function useMarketOpsOpportunities(filter: MarketOpsOpportunityFilter = { tenant_id: 'tenant-local' }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsOpportunities(filter),
+    queryFn: () => api.listMarketOpsOpportunities(filter),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsOpportunity(opportunityId: string | null, tenantId: string) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsOpportunity(opportunityId ?? '', tenantId),
+    queryFn: () => api.getMarketOpsOpportunity(opportunityId!, tenantId),
+    enabled: !!opportunityId,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsHypothesisEvaluations(filter: MarketOpsHypothesisEvaluationFilter = {}, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsHypothesisEvaluations(filter),
+    queryFn: () => api.listMarketOpsHypothesisEvaluations(filter),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useMarketOpsHypothesis(key: string | null, version: string | null, tenantId: string) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsHypothesis(key ?? '', version ?? '', tenantId),
+    queryFn: () => api.getMarketOpsHypothesis(key!, version!, tenantId),
+    enabled: !!key && !!version,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useMarketOpsEvidence(evidenceId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsEvidence(evidenceId ?? ''),
+    queryFn: () => api.getMarketOpsEvidence(evidenceId!),
+    enabled: !!evidenceId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useMarketOpsMarketStateLineage(marketStateId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsMarketStateLineage(marketStateId ?? ''),
+    queryFn: () => api.getMarketOpsMarketStateLineage(marketStateId!),
+    enabled: !!marketStateId,
     staleTime: 5 * 60 * 1000,
   });
 }

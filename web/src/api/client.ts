@@ -38,6 +38,14 @@ import type {
   MarketOpsOptionsChainResponse,
   MarketOpsOptionsChainFilter,
   MarketOpsOptionsDistributionFilter,
+  MarketOpsOpportunitiesResponse,
+  MarketOpsOpportunityResponse,
+  MarketOpsOpportunityFilter,
+  MarketOpsHypothesisEvaluationsResponse,
+  MarketOpsHypothesisEvaluationFilter,
+  MarketOpsHypothesisResponse,
+  MarketOpsEvidenceResponse,
+  MarketOpsMarketStateLineageResponse,
   MarketOpsDSMArtifactsResponse,
   MarketOpsDSMArtifactResponse,
   MarketOpsDSMArtifactFilter,
@@ -365,6 +373,59 @@ export const api = {
         contract_type: filter.contract_type || undefined,
         limit: filter.limit ?? 500,
       },
+    ),
+  // G139 MarketOps Opportunities workbench (read-only). Opportunity list/detail
+  // plus supporting linked-record reads (hypothesis-evaluations, hypotheses,
+  // evidence, market-state lineage). research_only / eligible / triggered /
+  // invalidated serialize as "true"/"false" only when set. session_* are
+  // date-only (YYYY-MM-DD). limit defaults to 50 (gateway max 200). This surface
+  // performs no review, trade, materialization, or build mutation.
+  listMarketOpsOpportunities: (filter: MarketOpsOpportunityFilter = {}) =>
+    get<MarketOpsOpportunitiesResponse>('/v1/marketops/opportunities', {
+      tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      opportunity_id: filter.opportunity_id,
+      asset_id: filter.asset_id,
+      symbol: filter.symbol,
+      direction: filter.direction || undefined,
+      horizon: filter.horizon || undefined,
+      lifecycle_status: filter.lifecycle_status || undefined,
+      research_only: typeof filter.research_only === 'boolean' ? (filter.research_only ? 'true' : 'false') : undefined,
+      session_start: filter.session_start || undefined,
+      session_end: filter.session_end || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getMarketOpsOpportunity: (opportunityId: string, tenantId: string) =>
+    get<MarketOpsOpportunityResponse>(
+      `/v1/marketops/opportunities/${encodeURIComponent(opportunityId)}`,
+      { tenant_id: tenantId },
+    ),
+  listMarketOpsHypothesisEvaluations: (filter: MarketOpsHypothesisEvaluationFilter = {}) =>
+    get<MarketOpsHypothesisEvaluationsResponse>('/v1/marketops/hypothesis-evaluations', {
+      tenant_id: filter.tenant_id,
+      app_id: filter.app_id,
+      hypothesis_key: filter.hypothesis_key || undefined,
+      hypothesis_version: filter.hypothesis_version || undefined,
+      market_state_id: filter.market_state_id || undefined,
+      asset_id: filter.asset_id || undefined,
+      symbol: filter.symbol || undefined,
+      eligible: typeof filter.eligible === 'boolean' ? (filter.eligible ? 'true' : 'false') : undefined,
+      triggered: typeof filter.triggered === 'boolean' ? (filter.triggered ? 'true' : 'false') : undefined,
+      invalidated: typeof filter.invalidated === 'boolean' ? (filter.invalidated ? 'true' : 'false') : undefined,
+      session_start: filter.session_start || undefined,
+      session_end: filter.session_end || undefined,
+      limit: filter.limit ?? 50,
+    }),
+  getMarketOpsHypothesis: (key: string, version: string, tenantId: string) =>
+    get<MarketOpsHypothesisResponse>(
+      `/v1/marketops/hypotheses/${encodeURIComponent(key)}/${encodeURIComponent(version)}`,
+      { tenant_id: tenantId },
+    ),
+  getMarketOpsEvidence: (evidenceId: string) =>
+    get<MarketOpsEvidenceResponse>(`/v1/marketops/evidence/${encodeURIComponent(evidenceId)}`),
+  getMarketOpsMarketStateLineage: (marketStateId: string) =>
+    get<MarketOpsMarketStateLineageResponse>(
+      `/v1/marketops/states/${encodeURIComponent(marketStateId)}/lineage`,
     ),
   listMarketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter = {}) =>
     get<MarketOpsDSMArtifactsResponse>('/v1/marketops/dsm/artifacts', {

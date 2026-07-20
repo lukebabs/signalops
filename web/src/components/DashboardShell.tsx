@@ -19,6 +19,7 @@ import {
   History,
   Network,
   Sparkles,
+  Telescope,
   type LucideIcon,
 } from 'lucide-react';
 import { HealthIndicator } from './HealthIndicator';
@@ -52,6 +53,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   health: Gauge,
   dsm: Network,
   syncratic: Sparkles,
+  opportunities: Telescope,
 };
 
 export function DashboardShell() {

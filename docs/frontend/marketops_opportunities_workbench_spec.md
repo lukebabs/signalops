@@ -37,7 +37,7 @@ Supported query parameters:
 - `research_only=true|false`
 - `session_start=YYYY-MM-DD`
 - `session_end=YYYY-MM-DD`
-- `limit` up to 200
+- `limit` (default 50, max 200)
 
 Response envelope:
 
@@ -86,6 +86,13 @@ Important fields:
 - version, build run, deterministic key, and timestamps.
 
 Treat array and payload fields defensively. Missing optional data must render as unavailable, not as zero evidence.
+
+Payload-sourced and nullable fields (authoritative):
+
+- `opportunity_payload` embeds the structured detail: `contributions` (per-contribution `evaluation_id`, `hypothesis_key`, `hypothesis_version`, `domain`, and `trigger_score` / `confidence_score` / `quality_score`), `overlap_suppressed_evaluation_ids`, `conflicting_evaluation_ids`, `hypothesis_families`, `scoring_version`, and `research_only`. Render Contributions and suppressed-overlap IDs from this payload; the top-level DTO also carries `conflicting_evaluation_ids`, `conflict_score`, and `invalidating_evidence_ids`.
+- Per-contribution `reason_codes` are NOT in the payload — they come from the linked hypothesis-evaluations supporting read (match by `evaluation_id`). Fetch that once (scoped, bounded) when the Contributions section is open.
+- Hypothesis-evaluation scores (`trigger_score`, `confidence_score`, `magnitude_score`, `rarity_score`, `persistence_score`, `corroboration_score`, `quality_score`) and evidence scores (`magnitude`, `rarity_score`, `persistence_score`, `quality_score`) are server-nullable (omitempty pointers) — render absent values as unavailable, not 0.
+- There is no separate `data_quality_warnings` field; do not render one.
 
 ## Navigation
 
@@ -146,8 +153,8 @@ The detail pane must prioritize action-oriented interpretation:
 
 1. **Decision snapshot**: symbol, direction, horizon, lifecycle, research-only status, opportunity score, and confidence.
 2. **Why now**: the deterministic `summary`, contribution count, domain diversity, and last evaluated date.
-3. **Contributions**: hypothesis evaluations ordered by trigger score, showing hypothesis key/version, domain, trigger/confidence/quality scores, and reason codes.
-4. **Conflicts and limits**: opposing evaluation IDs, conflict score, invalidating evidence, suppressed overlap IDs, and explicit data-quality warnings.
+3. **Contributions**: from `opportunity_payload.contributions`, ordered by trigger score, showing hypothesis key/version, domain, and trigger/confidence/quality scores. Per-contribution `reason_codes` are merged in from the linked hypothesis-evaluations supporting read (one bounded, scoped request when the section is open).
+4. **Conflicts and limits**: opposing evaluation IDs, conflict score, invalidating evidence, and suppressed overlap IDs (from `opportunity_payload.overlap_suppressed_evaluation_ids`). There is no separate data-quality-warnings field.
 5. **Evidence**: supporting evidence IDs with lazy detail expansion and source lineage actions.
 6. **Audit details**: opportunity version, build run ID, deterministic key, timestamps, and raw payload in a collapsed JSON viewer.
 

@@ -106,6 +106,21 @@ describe('navForApp (G067)', () => {
     expect(navForApp('console').some((n) => n.to === '/marketops/dsm')).toBe(false);
   });
 
+  it('exposes the MarketOps opportunities workbench route only under marketops (G139)', () => {
+    const opportunities = navForApp('marketops').find((n) => n.module === 'opportunities');
+    expect(opportunities).toBeDefined();
+    expect(opportunities?.to).toBe('/marketops/opportunities');
+    expect(opportunities?.label).toBe('Opportunities');
+    // It sits near Assets and DSM.
+    const marketopsNav = navForApp('marketops');
+    const dsmIndex = marketopsNav.findIndex((n) => n.module === 'dsm');
+    const opportunitiesIndex = marketopsNav.findIndex((n) => n.module === 'opportunities');
+    expect(opportunitiesIndex).toBeGreaterThan(-1);
+    expect(Math.abs(opportunitiesIndex - dsmIndex)).toBeLessThanOrEqual(1);
+    // Console parity: Opportunities does not leak into console nav.
+    expect(navForApp('console').some((n) => n.to === '/marketops/opportunities')).toBe(false);
+  });
+
   it('exposes the MarketOps back-tests route only under marketops (G081)', () => {
     const backtests = navForApp('marketops').find((n) => n.module === 'backtests');
     expect(backtests).toBeDefined();
