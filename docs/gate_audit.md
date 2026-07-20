@@ -8897,3 +8897,31 @@ Result:
 
 - G146 is accepted. The governance machinery is effective and fail-closed, but empirical proposal/disposition utility cannot be claimed until genuine triggered evidence and reviewed candidate/approved versions exist.
 - G147 Market State Analyst Experience is next.
+
+## 2026-07-20 - Gate G147 Market State Analyst Experience Frontend Specification
+
+Status: proposed - frontend-agent specification ready
+
+Scope:
+
+- Specify one integrated asset/date workbench for persisted market state, selected options surface, material transitions, and exact-version hypothesis evaluation/calibration.
+- Extend the existing opportunity detail with truthful calibration/quality limits and append-only analyst disposition.
+- Define route, URL state, type/client/query additions, layout, empty/error behavior, performance bounds, accessibility, tests, and implementation touch points.
+
+Contract review:
+
+- Uses current state/lineage, definition/observation, transition, evidence, hypothesis/evaluation, outcome, calibration-summary, opportunity, and disposition APIs.
+- Treats the G145 report as a runtime-validated `marketops.hypothesis_calibration.v1` payload and keeps `promotion_allowed=false` visible.
+- Treats G146 dispositions as an independent append-only audit ledger and never as computed lifecycle mutation.
+- Preserves explicit sparse-data states and prohibits N+1 surface, definition, evaluation, transition, contribution, and calibration reads.
+
+Boundaries retained:
+
+- No runtime frontend/backend implementation was made in this specification gate.
+- No provider, scheduler, history synthesis, state/evaluation builder, lifecycle promotion, proposal review, signal materialization, graph, Ask, cohort, trade, or portfolio action was added.
+- G146 hypothesis materialization remains unsupported and fail-closed.
+
+Result:
+
+- The frontend agent can implement G147 without inventing backend authority or collapsing research, proposal, materialization, graph, and analyst-disposition controls.
+- Implementation and rendered validation remain required before G147 can be marked implemented or accepted.

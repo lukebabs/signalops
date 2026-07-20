@@ -154,7 +154,11 @@ G146 adds exact-version candidate/approved hypothesis proposals to the existing 
 
 ### G147: Market State Analyst Experience
 
+Status: proposed; frontend-agent specification ready 2026-07-20.
+
 Build the specified asset/date state view, DTE-delta surface, transition timeline, hypothesis workbench, and calibrated opportunity detail. Keep provider acquisition, research calculation, proposal review, signal materialization, graph review, and opportunity disposition as distinct controls.
+
+Implementation handoff: `../gates/G147_market_state_analyst_experience_ui_spec.md` and `../../../../frontend/marketops_market_state_analyst_experience_spec.md`.
 
 ### G148: Graph, Ask, And Cohort Rollout
 

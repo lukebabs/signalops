@@ -7473,3 +7473,26 @@ Result:
 - Its proposal admission behavior is structurally proven, while real hypothesis proposal effectiveness remains unobserved until genuine evidence triggers and an operator promotes a calibrated version.
 - No lifecycle promotion, provider call, threshold relaxation, direct signal, opportunity lifecycle mutation, alert/insight synthesis, graph write, scheduling, or frontend behavior was added.
 - G147 Market State Analyst Experience is next.
+
+## 2026-07-20 - G147 Market State Analyst Experience Frontend Specification
+
+Summary:
+
+- Wrote an implementation-ready frontend-agent specification for one MarketOps-only `/marketops/state` asset/date workbench.
+- Defined overview, canonical seven-cell DTE/delta surface, material transition, and exact-version hypothesis evaluation/calibration workflows over the deployed G137-G146 read contracts.
+- Defined a bounded extension to the existing opportunity detail for exact-version calibration, persisted evidence-quality limits, and append-only G146 analyst dispositions.
+- Preserved URL context, explicit missingness, bounded/lazy query composition, responsive/accessibility requirements, and deterministic prior-session comparison.
+- Recorded backend absences as product boundaries: no hypothesis promotion mutation, browser calculation action, dedicated hypothesis-calibration endpoint, data-quality-warnings field, or supported hypothesis materialization adapter.
+
+Validation performed:
+
+- Cross-checked the specification against the canonical architecture sections 19.1-19.6.
+- Cross-checked state/lineage, feature, transition, definition/evaluation, evidence, outcome, calibration-summary, opportunity, and disposition API contracts in the deployed gateway code.
+- Cross-checked current MarketOps routing, navigation, TanStack Query conventions, and the implemented G139 opportunities workbench.
+- Documentation link and whitespace validation completed with the final specification diff.
+
+Result:
+
+- G147 is proposed with a frontend-agent specification ready for implementation.
+- This change is documentation only; no frontend or backend runtime behavior, data, migration, or deployment was changed.
+- G148 remains out of scope until G147 is implemented and evaluated.
