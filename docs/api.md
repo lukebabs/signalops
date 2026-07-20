@@ -871,6 +871,10 @@ Records an operator review decision for an algorithm signal proposal. Body field
 
 `signalops-marketops-outcome-materializer` is the bounded G140 AAPL CLI. It reads eligible triggered non-invalidated hypothesis evaluations, persisted opportunities, and normalized equity EOD events, then idempotently upserts separate 1/5/10/20-session forward outcomes with pending, matured, or missing-price status. It requires both SignalOps database URLs, explicit source-session and point-in-time bounds, a maximum-session cap, and supports `--dry-run`. It makes no provider calls and does not mutate source evaluations, opportunities, signals, or governance records. Materialized-signal source adaptation is deferred until an explicit hypothesis-to-signal link exists.
 
+`signalops-marketops-history-runner` is the bounded G141 AAPL coordinator. It preflights 60 equity sessions and 20 analytics-ready option sessions while reporting sparse distributions as hypothesis-specific warnings before coordinating the G137-G140 engines. It supports point-in-time date bounds, a 200-session cap, dry run, and explicit run lineage. Insufficient coverage blocks all writes; `--allow-insufficient-coverage` is valid only with `--dry-run`. The coordinator makes no provider calls.
+
+The Massive puller also accepts exact Top 50 `--symbols` and bounded `--start-date`/`--end-date` ranges with an explicit observation-day cap and global request/event budgets.
+
 `signalops-algorithm-proposal-generator` reads bounded `algorithm_results` and writes idempotent `algorithm_signal_proposals` review candidates. It requires `SIGNALOPS_DATABASE_URL`. G111 does not materialize proposals into production signals.
 
 ### Query Errors

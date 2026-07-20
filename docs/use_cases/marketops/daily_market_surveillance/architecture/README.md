@@ -28,3 +28,4 @@ Current notes:
 - `../gates/G138_research_hypothesis_evaluator.md`: implemented research-only H001/H004/H006/H007 registry and deterministic evaluation over bounded AAPL states.
 - `../gates/G139_opportunity_layer.md`: implemented research-only opportunity grouping, overlap control, conflict scoring, evidence lineage, and read APIs.
 - `../gates/G140_forward_outcome_evaluation.md`: implemented point-in-time forward outcome ledger, bounded materializer, and read APIs.
+- `../gates/G141_historical_coverage_and_outcome_population.md`: bounded historical acquisition, transition statistics, strict coverage preflight, and coordinated research execution.

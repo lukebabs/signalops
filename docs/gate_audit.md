@@ -8697,3 +8697,34 @@ Validation performed:
 Result:
 
 - G140 closes the first forward-outcome substrate without manufacturing observations from rejected sources. The next bounded work must improve historical coverage and produce real triggered research sources before calibration or policy decisions.
+
+
+## Gate G141: Historical Coverage And Outcome Population
+
+Timestamp: `2026-07-20T04:09:41Z`
+
+Status: `implemented - equity history live; strict population quality-blocked`
+
+Scope:
+
+- Add bounded exact-symbol historical equity acquisition through the existing Massive raw/normalized pipeline.
+- Add trailing-only persistence, z-score, and percentile transition statistics without look-ahead.
+- Coordinate G137-G140 behind strict AAPL historical coverage preflight.
+- Keep insufficient-coverage overrides dry-run-only and preserve all production governance boundaries.
+
+Validation performed:
+
+- Full Go suite and Docker build passed.
+- Positive deterministic fixture reached triggered hypothesis, opportunity, and matured outcome paths.
+- Live pull persisted 135 distinct AAPL EOD sessions from 135 published events within explicit budgets.
+- Strict run correctly blocked at 0 analytics-ready option sessions and performed zero writes.
+- Partial diagnostic produced 540 explainable rejected evaluations and no false trigger or outcome.
+- Persisted AAPL research ledgers remained unchanged at 6 states, 24 evaluations, 0 opportunities, and 0 outcomes.
+
+Residual boundary:
+
+- The current Massive reference-contract history is not historical IV, Greeks, open-interest, or quote history. Outcome population needs prospective daily snapshots or an approved point-in-time historical analytics dataset.
+
+Result:
+
+- G141 implementation is accepted. Calibration and promotion remain blocked until real option-history coverage yields triggered and matured live samples.

@@ -35,18 +35,18 @@ Implemented MarketOps capabilities include:
 - Syncratic bounded context windows and Ask integration without ingesting MarketOps data into Syncratic core.
 - Frontend views for assets, DSM workbench, algorithms, backtests, options quality, proposal review, materialization, and Syncratic reasoning.
 
-This baseline is a strong operational substrate. It preserves evidence, review boundaries, quality gates, and replayability. G136-G140 now add a bounded canonical state, research-hypothesis, opportunity, analyst-workbench, and point-in-time outcome path; the main limitation is that coverage remains sparse and current live inputs contain no triggered source eligible for an outcome.
+This baseline is a strong operational substrate. It preserves evidence, review boundaries, quality gates, and replayability. G136-G141 now add a bounded canonical state, research-hypothesis, opportunity, analyst-workbench, point-in-time outcome path, and historical execution coordinator. Live AAPL equity coverage is 135 sessions; historical option analytics remain insufficient and correctly block triggered sources and outcomes.
 
 ## Functional Outcome Evaluation
 
 | Outcome | Current state | Gap |
 | --- | --- | --- |
-| Daily canonical market state | G136 provides the ledger/API and G137 materializes a bounded AAPL state per source session with completeness, quality, and exact feature lineage. | Coverage is AAPL-only, historically sparse, and not yet exposed as the target analyst Market State view. |
-| State-transition observations | G136 provides the ledger/API and G137 persists one-session numeric transitions when both observations are usable. | Broader lookbacks, robust rarity/persistence, divergence, and migration semantics remain incomplete. |
+| Daily canonical market state | G136 provides the ledger/API, G137 materializes AAPL states, and G141 has 135 persisted equity sessions available for strict historical execution. | Historical options analytics remain sparse; the target analyst Market State view is absent. |
+| State-transition observations | G136/G137 persist one-session numeric transitions; G141 adds trailing-only persistence, z-score, and empirical percentile after 20 prior observations. | Multi-lookback divergence and migration semantics remain incomplete. |
 | Versioned hypothesis registry | G138 implements tenant-scoped H001/H004/H006/H007 v1 definitions in `research` status plus deterministic evaluation rows. | Promotion, broad historical calibration, and approved production materialization remain future gates. |
 | Evidence-first signal generation | G136/G137 provide a shared evidence ledger, G138 links eligible inputs/evidence to research evaluations, and G140 can measure triggered evaluations. | Opportunity-scoped Syncratic context and a governed hypothesis-to-signal proposal adapter remain absent. |
 | Opportunity ranking | G139 implements deterministic research-only grouping, overlap suppression, conflict scoring, contribution/evidence lineage, list/detail APIs, and the deployed analyst workbench. | Historical calibration remains absent; G140 can measure opportunity outcomes once valid opportunity rows exist. |
-| Closed-loop outcome evaluation | G140 adds deterministic 1/5/10/20-session outcome rows for triggered evaluations and opportunities using persisted EOD lineage. | Current live AAPL sources are all rejected, broader history is sparse, and materialized-signal adaptation awaits an explicit hypothesis-to-signal link. |
+| Closed-loop outcome evaluation | G140 adds deterministic 1/5/10/20-session outcomes; G141 supplies 135 live equity sessions and a strict coordinated execution path. | Zero analytics-ready option sessions produce zero live triggers/outcomes; materialized-signal adaptation still awaits an explicit hypothesis-to-signal link. |
 | Insight distinction from alert | Conceptually documented, not fully realized. | Insights can still appear too close to one persisted signal or incident; the design expects insights/opportunities to summarize multi-event state changes. |
 | Syncratic explainability | Implemented as bounded Ask over SignalOps context. | Once states, transitions, hypotheses, and opportunities exist, Syncratic context should shift from raw event summaries toward evidence-pure market-state bundles. |
 
@@ -60,6 +60,7 @@ Critical design gaps:
 - G138 now provides `marketops_hypothesis_definitions` and `marketops_hypothesis_evaluations`; current scope is bounded to research-only H001/H004/H006/H007 over AAPL G137 states.
 - G139 provides the `marketops_opportunities` research queue and deployed workbench; current AAPL quality produces zero eligible rows, which the UI explains through bounded rejection diagnostics.
 - G140 provides `marketops_signal_outcomes` and a bounded AAPL materializer; the current live ledger is empty because no evaluation is triggered and no opportunity exists.
+- G141 adds exact-symbol bounded equity-history acquisition, trailing point-in-time transition statistics, and strict coordinated G137-G140 execution. Live equity coverage is 135 sessions; options preflight blocks writes at zero analytics-ready sessions.
 - G136-G140 provide read APIs for features, states, transitions, evidence, hypotheses, evaluations, opportunities, and outcomes.
 - State, hypothesis, opportunity, and outcome calculation remain explicit bounded CLIs rather than a scheduled worker topology.
 - No frontend Market State view, Surface matrix, Transition timeline, Hypothesis workbench, or Outcome calibration view exists as defined by the architecture.
@@ -131,6 +132,10 @@ Implemented as a bounded AAPL point-in-time materializer for eligible triggered 
 
 This establishes the closed-loop storage and calculation contract. Broader historical coverage and actual triggered sources are required before outcome calibration can be trusted.
 
+### G141: Historical Coverage And Outcome Population
+
+Implemented as a strict AAPL historical coordinator plus bounded exact-symbol Massive equity acquisition. It computes persistence and rarity from prior transitions only, requires 60 equity sessions and 20 analytics-ready option sessions, and blocks all writes when coverage fails. The live equity requirement is satisfied at 135 sessions; historical IV-surface coverage remains the global blocker, while open-interest, premium, and distribution gaps continue to reject their dependent hypotheses.
+
 ## Risks And Controls
 
 - Provider fanout risk: keep all acquisition bounded by explicit symbols, maximum symbols, limits, and pages.
@@ -142,6 +147,4 @@ This establishes the closed-loop storage and calculation contract. Broader histo
 
 ## Bottom Line
 
-The current MarketOps system has the right control plane, evidence ledgers, algorithm substrate, options foundation, and explainability boundary. The major missing layer is the market-state intelligence model itself.
-
-The definitive path forward is not to add more isolated detectors or more raw options data first. The next workstream should create the state, transition, evidence, hypothesis, opportunity, and outcome layers that convert existing evidence into fewer, more meaningful, historically testable analyst decisions.
+MarketOps now has the state, transition, evidence, hypothesis, opportunity, and outcome substrate plus a bounded historical coordinator. The remaining critical path is source coverage: obtain point-in-time option analytics without synthetic reconstruction, produce real triggered evaluations, and only then add calibration summaries or promotion decisions.

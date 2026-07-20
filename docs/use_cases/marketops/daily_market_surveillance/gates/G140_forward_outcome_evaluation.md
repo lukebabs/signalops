@@ -80,7 +80,7 @@ G140 does not add:
 
 ## Next Gate
 
-The next bounded work should use broader point-in-time historical equity coverage and actual triggered research sources to populate matured outcomes before adding calibration summaries or promotion decisions. Materialized-signal outcomes should wait for an explicit governed hypothesis/proposal/materialization link.
+G141 now provides broader point-in-time equity coverage and strict historical orchestration. Live population remains blocked by historical option analytics and zero triggered sources; calibration and promotion decisions must wait for real matured samples. Materialized-signal outcomes still require an explicit governed hypothesis/proposal/materialization link.
 
 ## Links
 
@@ -89,4 +89,5 @@ The next bounded work should use broader point-in-time historical equity coverag
 - G138 evaluator: `G138_research_hypothesis_evaluator.md`
 - G139 opportunities: `G139_opportunity_layer.md`
 - Operations: `../operations/outcome_evaluation.md`
+- G141 historical pipeline: `G141_historical_coverage_and_outcome_population.md`
 - API contract: `../../../../api.md`

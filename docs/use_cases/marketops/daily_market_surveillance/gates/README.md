@@ -318,3 +318,10 @@ Recommended next gate:
 
 - G140: adds immutable point-in-time forward outcomes for eligible triggered evaluations and opportunities at 1, 5, 10, and 20 sessions, with exact EOD lineage, pending/matured/missing-price states, a bounded CLI, and read APIs.
 - Specification: `G140_forward_outcome_evaluation.md`.
+
+
+## G141 Implemented
+
+- G141: adds bounded exact-symbol Massive equity history acquisition, point-in-time transition persistence/rarity statistics, and a strict AAPL historical coordinator for G137-G140.
+- Live equity coverage is 135 sessions; strict outcome population remains blocked at zero analytics-ready option sessions and performs no writes.
+- Specification: `G141_historical_coverage_and_outcome_population.md`.

@@ -628,6 +628,9 @@ func marketStateRecord(config BuildConfig, session time.Time, observations []sto
 
 func buildTransitions(config BuildConfig, states []storage.MarketOpsMarketStateRecord, observations map[string][]storage.MarketOpsFeatureObservationRecord) ([]storage.MarketOpsStateTransitionRecord, error) {
 	out := []storage.MarketOpsStateTransitionRecord{}
+	history := map[string][]float64{}
+	directions := map[string][]string{}
+	lastTransitionState := map[string]string{}
 	for index := 1; index < len(states); index++ {
 		current, baseline := states[index], states[index-1]
 		baselineByKey := observationMap(observations[dateKey(baseline.SessionDate)])
@@ -646,19 +649,87 @@ func buildTransitions(config BuildConfig, states []storage.MarketOpsMarketStateR
 			}
 			change := round(*currentObservation.NumericValue-*prior.NumericValue, 8)
 			direction := directionFor(change)
+			historyKey := observationKey(currentObservation.FeatureKey, canonical)
+			priorChanges := history[historyKey]
+			zscore := trailingZScore(change, priorChanges)
+			percentile := trailingPercentile(change, priorChanges)
+			priorDirections := directions[historyKey]
+			if lastTransitionState[historyKey] != baseline.MarketStateID {
+				priorDirections = nil
+			}
+			persistence := trailingPersistence(direction, priorDirections)
 			lookback := 1
-			payload, _ := json.Marshal(map[string]any{"current_feature_observation_id": currentObservation.FeatureObservationID, "baseline_feature_observation_id": prior.FeatureObservationID, "baseline_session_date": dateKey(baseline.SessionDate), "operator": "absolute_difference"})
+			payload, _ := json.Marshal(map[string]any{"current_feature_observation_id": currentObservation.FeatureObservationID, "baseline_feature_observation_id": prior.FeatureObservationID, "baseline_session_date": dateKey(baseline.SessionDate), "operator": "absolute_difference", "trailing_sample_count": len(priorChanges), "point_in_time_statistics": true})
 			out = append(out, storage.MarketOpsStateTransitionRecord{
 				TransitionID: identity.ID, TenantID: config.TenantID, AppID: "marketops", AssetID: config.AssetID, Symbol: config.Symbol,
 				SessionDate: current.SessionDate, AsOfTime: current.AsOfTime, CurrentStateID: current.MarketStateID, BaselineStateID: baseline.MarketStateID,
 				FeatureKey: currentObservation.FeatureKey, FeatureVersion: FeatureVersion, DimensionsJSON: currentObservation.DimensionsJSON,
 				TransitionType: "absolute_difference", LookbackSessions: &lookback, CurrentValue: currentObservation.NumericValue, BaselineValue: prior.NumericValue,
-				TransitionValue: &change, Direction: direction, QualityState: storage.MarketOpsQualityUsable, TransitionPayloadJSON: payload,
+				TransitionValue: &change, ZScore: zscore, Percentile: percentile, PersistenceSessions: &persistence,
+				Direction: direction, QualityState: storage.MarketOpsQualityUsable, TransitionPayloadJSON: payload,
 				CalculationRunID: config.RunID, DeterministicKey: identity.DeterministicKey,
 			})
+			history[historyKey] = append(priorChanges, change)
+			directions[historyKey] = append(priorDirections, direction)
+			lastTransitionState[historyKey] = current.MarketStateID
 		}
 	}
 	return out, nil
+}
+
+func trailingZScore(current float64, prior []float64) *float64 {
+	if len(prior) < 20 {
+		return nil
+	}
+	window := prior
+	if len(window) > 60 {
+		window = window[len(window)-60:]
+	}
+	mean := 0.0
+	for _, value := range window {
+		mean += value
+	}
+	mean /= float64(len(window))
+	variance := 0.0
+	for _, value := range window {
+		delta := value - mean
+		variance += delta * delta
+	}
+	variance /= float64(len(window))
+	if variance <= 0 {
+		return nil
+	}
+	value := round((current-mean)/math.Sqrt(variance), 8)
+	return &value
+}
+
+func trailingPercentile(current float64, prior []float64) *float64 {
+	if len(prior) < 20 {
+		return nil
+	}
+	window := prior
+	if len(window) > 60 {
+		window = window[len(window)-60:]
+	}
+	lessOrEqual := 0
+	for _, value := range window {
+		if value <= current {
+			lessOrEqual++
+		}
+	}
+	value := round(float64(lessOrEqual)/float64(len(window)), 8)
+	return &value
+}
+
+func trailingPersistence(current string, prior []string) int {
+	if current == "flat" || current == "" {
+		return 1
+	}
+	count := 1
+	for index := len(prior) - 1; index >= 0 && prior[index] == current; index-- {
+		count++
+	}
+	return count
 }
 
 func buildEvidence(config BuildConfig, states []storage.MarketOpsMarketStateRecord, observations map[string][]storage.MarketOpsFeatureObservationRecord, transitions []storage.MarketOpsStateTransitionRecord) ([]storage.MarketOpsEvidenceRecord, error) {

@@ -43,3 +43,8 @@ Current recurring validations:
 ## Forward Outcome Evaluation
 
 - `outcome_evaluation.md`: bounded G140 AAPL dry-run/write, maturity, missing-price, point-in-time, lineage, and idempotency checks over triggered evaluations and opportunities.
+
+
+## Historical Research Pipeline
+
+- `historical_research_pipeline.md`: G141 bounded AAPL equity acquisition, strict coverage preflight, dry-run diagnostics, and historical options-data boundary.

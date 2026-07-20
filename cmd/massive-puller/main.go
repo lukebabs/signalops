@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -31,6 +32,10 @@ func main() {
 func run(logger *slog.Logger, args []string) error {
 	cfg := config.Load()
 	observationDate := envOrDefault("SIGNALOPS_MASSIVE_OBSERVATION_DATE", "")
+	startDate := ""
+	endDate := ""
+	symbols := ""
+	maxObservationDays := 1
 	datasets := envOrDefault("SIGNALOPS_MASSIVE_DATASETS", "equity,options")
 	maxCompanies := envIntOrDefault("SIGNALOPS_MASSIVE_MAX_COMPANIES", 50)
 	optionsLimit := envIntOrDefault("SIGNALOPS_MASSIVE_OPTIONS_LIMIT", 100)
@@ -46,7 +51,11 @@ func run(logger *slog.Logger, args []string) error {
 	sourceID := envOrDefault("SIGNALOPS_MASSIVE_SOURCE_ID", "src-massive")
 	flags := flag.NewFlagSet("massive-puller", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	flags.StringVar(&observationDate, "date", observationDate, "observation date in YYYY-MM-DD; defaults to previous UTC day")
+	flags.StringVar(&observationDate, "date", observationDate, "single observation date in YYYY-MM-DD; defaults to previous UTC day")
+	flags.StringVar(&startDate, "start-date", startDate, "inclusive historical observation start date")
+	flags.StringVar(&endDate, "end-date", endDate, "inclusive historical observation end date")
+	flags.StringVar(&symbols, "symbols", symbols, "comma-separated exact Top 50 symbols; empty uses seed order")
+	flags.IntVar(&maxObservationDays, "max-observation-days", maxObservationDays, "maximum weekdays in an explicit date range")
 	flags.StringVar(&datasets, "datasets", datasets, "comma-separated datasets: equity, options")
 	flags.IntVar(&maxCompanies, "max-companies", maxCompanies, "maximum megacap companies to process")
 	flags.IntVar(&optionsLimit, "options-limit", optionsLimit, "provider option contract listing limit per underlying")
@@ -68,13 +77,17 @@ func run(logger *slog.Logger, args []string) error {
 	if err != nil {
 		return err
 	}
-	day, err := parseObservationDate(observationDate)
+	days, err := parseObservationDates(observationDate, startDate, endDate, maxObservationDays)
 	if err != nil {
 		return err
 	}
 	companies, err := massive.TopMegacapCompanies()
 	if err != nil {
 		return fmt.Errorf("load megacap universe: %w", err)
+	}
+	companies, err = selectCompanies(companies, symbols)
+	if err != nil {
+		return err
 	}
 	if maxCompanies > 0 && maxCompanies < len(companies) {
 		companies = companies[:maxCompanies]
@@ -122,31 +135,140 @@ func run(logger *slog.Logger, args []string) error {
 		}()
 	}
 
-	report, err := massive.RunScheduledPull(ctx, massive.ScheduledPullConfig{
-		TenantID:            tenantID,
-		SourceID:            sourceID,
-		Environment:         cfg.Environment,
-		ObservationDate:     day,
-		Companies:           companies,
-		IncludeEquityEOD:    includeEquity,
-		IncludeOptions:      includeOptions,
-		OptionsLimit:        optionsLimit,
-		RequestDelay:        requestDelay,
-		MaxRetries:          maxRetries,
-		RetryBackoff:        retryBackoff,
-		MaxProviderRequests: maxProviderRequests,
-		MaxEventsBuilt:      maxEventsBuilt,
-		MaxEventsPublished:  maxEventsPublished,
-		DryRun:              dryRun,
-		ContinueOnError:     continueOnError,
-		PublishRepository:   publishRepo,
-	}, massiveClient, brokerClient)
+	reports := make([]massive.ScheduledPullReport, 0, len(days))
+	totalRequests, totalRetries, totalFailures, totalBuilt, totalPublished := 0, 0, 0, 0, 0
+	for _, day := range days {
+		remainingRequests, budgetErr := remainingBudget(maxProviderRequests, totalRequests, "provider request")
+		if budgetErr != nil {
+			return budgetErr
+		}
+		remainingBuilt, budgetErr := remainingBudget(maxEventsBuilt, totalBuilt, "built event")
+		if budgetErr != nil {
+			return budgetErr
+		}
+		remainingPublished, budgetErr := remainingBudget(maxEventsPublished, totalPublished, "published event")
+		if budgetErr != nil {
+			return budgetErr
+		}
+		report, pullErr := massive.RunScheduledPull(ctx, massive.ScheduledPullConfig{
+			TenantID:            tenantID,
+			SourceID:            sourceID,
+			Environment:         cfg.Environment,
+			ObservationDate:     day,
+			Companies:           companies,
+			IncludeEquityEOD:    includeEquity,
+			IncludeOptions:      includeOptions,
+			OptionsLimit:        optionsLimit,
+			RequestDelay:        requestDelay,
+			MaxRetries:          maxRetries,
+			RetryBackoff:        retryBackoff,
+			MaxProviderRequests: remainingRequests,
+			MaxEventsBuilt:      remainingBuilt,
+			MaxEventsPublished:  remainingPublished,
+			DryRun:              dryRun,
+			ContinueOnError:     continueOnError,
+			PublishRepository:   publishRepo,
+		}, massiveClient, brokerClient)
+		report.ObservationDate = day
+		reports = append(reports, report)
+		totalRequests += report.ProviderRequests
+		totalRetries += report.ProviderRetries
+		totalFailures += report.Failures
+		totalBuilt += report.EventsBuilt
+		totalPublished += report.EventsPublished
+		if pullErr != nil {
+			return pullErr
+		}
+	}
 
-	encoded, marshalErr := json.Marshal(report)
+	encoded, marshalErr := json.Marshal(map[string]any{"observation_days": len(days), "reports": reports, "provider_requests": totalRequests, "provider_retries": totalRetries, "failures": totalFailures, "events_built": totalBuilt, "events_published": totalPublished})
 	if marshalErr == nil {
 		logger.Info("signalops massive puller report", "report", string(encoded))
 	}
-	return err
+	return nil
+}
+
+func parseObservationDates(single, start, end string, maxDays int) ([]time.Time, error) {
+	start = strings.TrimSpace(start)
+	end = strings.TrimSpace(end)
+	if start == "" && end == "" {
+		day, err := parseObservationDate(single)
+		if err != nil {
+			return nil, err
+		}
+		return []time.Time{day}, nil
+	}
+	if start == "" || end == "" {
+		return nil, errors.New("start-date and end-date must be provided together")
+	}
+	if maxDays <= 0 || maxDays > 366 {
+		return nil, errors.New("max-observation-days must be between 1 and 366")
+	}
+	first, err := parseObservationDate(start)
+	if err != nil {
+		return nil, fmt.Errorf("start-date: %w", err)
+	}
+	last, err := parseObservationDate(end)
+	if err != nil {
+		return nil, fmt.Errorf("end-date: %w", err)
+	}
+	if last.Before(first) {
+		return nil, errors.New("end-date must not precede start-date")
+	}
+	days := []time.Time{}
+	for day := first; !day.After(last); day = day.AddDate(0, 0, 1) {
+		if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
+			continue
+		}
+		days = append(days, day)
+		if len(days) > maxDays {
+			return nil, fmt.Errorf("date range exceeds max-observation-days %d", maxDays)
+		}
+	}
+	if len(days) == 0 {
+		return nil, errors.New("date range contains no weekdays")
+	}
+	return days, nil
+}
+
+func selectCompanies(companies []massive.MegacapCompanySeed, value string) ([]massive.MegacapCompanySeed, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return companies, nil
+	}
+	bySymbol := map[string]massive.MegacapCompanySeed{}
+	for _, company := range companies {
+		bySymbol[strings.ToUpper(strings.TrimSpace(company.Ticker))] = company
+	}
+	selected := []massive.MegacapCompanySeed{}
+	seen := map[string]bool{}
+	for _, item := range strings.Split(value, ",") {
+		symbol := strings.ToUpper(strings.TrimSpace(item))
+		if symbol == "" || seen[symbol] {
+			continue
+		}
+		company, ok := bySymbol[symbol]
+		if !ok {
+			return nil, fmt.Errorf("symbol %s is not in the Top 50 seed", symbol)
+		}
+		selected = append(selected, company)
+		seen[symbol] = true
+	}
+	if len(selected) == 0 {
+		return nil, errors.New("symbols must contain at least one Top 50 ticker")
+	}
+	return selected, nil
+}
+
+func remainingBudget(configured, used int, name string) (int, error) {
+	if configured <= 0 {
+		return 0, nil
+	}
+	remaining := configured - used
+	if remaining <= 0 {
+		return 0, fmt.Errorf("%s budget exceeded: limit %d", name, configured)
+	}
+	return remaining, nil
 }
 
 func parseObservationDate(value string) (time.Time, error) {

@@ -7291,3 +7291,29 @@ Validation performed:
 Result:
 
 - MarketOps now has the closed-loop storage and calculation substrate for forward outcomes without converting rejected research into performance evidence. Broader historical price coverage and actual triggered sources are required before outcome calibration is meaningful.
+
+
+## 2026-07-20T04:09:41Z
+
+Summary:
+
+- Implemented G141 Historical Coverage And Outcome Population.
+- Extended the existing Massive puller with exact Top 50 symbols, bounded inclusive date ranges, weekday filtering, and global request/event budgets.
+- Added point-in-time transition persistence, z-score, and empirical percentile using 20-60 prior transitions only.
+- Added the strict AAPL signalops-marketops-history-runner coordinator and Docker target.
+- Enforced 60 equity sessions and 20 analytics-ready option sessions before writes; sparse distributions remain hypothesis-specific warnings; the insufficient-coverage override is dry-run-only.
+
+Validation performed:
+
+- Focused state-statistic, Massive CLI, history coordinator, and CLI tests passed.
+- Positive deterministic history fixture triggered H004, built an opportunity, produced matured outcomes, and verified all persistence counts.
+- Full go test ./... passed locally and in the Docker build stage.
+- Bounded AAPL equity acquisition covered 141 weekdays, used 147 provider requests, and published 135 canonical raw events; six exchange holidays returned no bars.
+- The normalizer persisted 135 distinct AAPL EOD sessions from 2026-01-02 through 2026-07-17.
+- Strict live preflight saw 2 option-chain sessions, 0 analytics-ready option sessions, and 2 distributions; it returned blocked_insufficient_coverage and wrote nothing.
+- Diagnostic dry run built 135 states, 1,102 transitions, 134 evidence rows, and 540 rejected evaluations with zero triggers, opportunities, or outcomes.
+- Strict validation left persisted AAPL research ledgers unchanged at 6 states, 24 evaluations, 0 opportunities, and 0 outcomes.
+
+Result:
+
+- The G141 execution substrate and equity-history requirement are complete. Live outcome population remains quality-blocked by historical option analytics; no synthetic IV, Greeks, open interest, or premium was introduced.
