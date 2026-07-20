@@ -1,154 +1,180 @@
-# Market State Intelligence Evaluation
+# Market State Intelligence Reconciliation
 
-Status: architecture evaluation
-Date: 2026-07-19
-Reviewed target: `docs/design/syncratic_marketops_market_state_intelligence_architecture_v1.md`
+Status: reconciled against canonical architecture
+Date: 2026-07-20
+Canonical design: `docs/design/syncratic_marketops_market_state_intelligence_architecture_v1.md`
 
-## Purpose
+## Executive Position
 
-This note evaluates the MarketOps project against the Market State Intelligence architecture from both functional-outcome and design perspectives.
+MarketOps has implemented the structural backbone of the Market State Intelligence architecture, but it has not completed the analytical system described by that architecture.
 
-The target design defines MarketOps as a hypothesis-driven market-state intelligence system. Its primary abstractions are:
+The strongest completed areas are deterministic storage, lineage, quality blocking, research isolation, review boundaries, and bounded execution. The dominant gap is source-to-feature completeness: current live options evidence cannot yet support reliable premium, surface-change, delta-bucket open-interest, liquidity, and historical calibration logic. As a result, the state, hypothesis, opportunity, and outcome ledgers are operationally real but mostly sparse or quality-blocked in live use.
 
-- `MarketState`: one canonical, versioned asset/session state.
-- `StateTransition`: a material change between current and prior states.
-- `Evidence`: reusable claims derived from features and transitions.
-- `Hypothesis`: a governed, versioned market thesis with explicit quality, trigger, calibration, and lifecycle rules.
-- `Opportunity`: the analyst-facing grouping of compatible hypothesis evaluations.
-- `Outcome`: the forward result used to evaluate historical performance.
+The architecture is now the governing design criterion. A gate is not considered complete merely because its schema, API, or UI exists; it must advance the functional path from bounded point-in-time evidence to calibrated, explainable analyst opportunities.
 
-The current implementation has many of the required operating controls, but it has not yet implemented those abstractions as first-class persisted objects.
+## Implemented Baseline
 
-## Current Functional Baseline
+The current system provides:
 
-Implemented MarketOps capabilities include:
+- Top 50 MarketOps asset metadata and explicit app/domain/use-case boundaries.
+- Massive ingestion paths, raw and normalized ledgers, replay, idempotency, and source lineage.
+- Deterministic DSM signals, alert/insight lifecycle records, artifacts, and review-controlled graph proposals.
+- Generic SignalOps algorithm definitions, execution requests, immutable results, review proposals, preflight, and controlled materialization.
+- Back-test runs, campaigns, baselines, comparisons, labels, evaluation scores, readiness snapshots, and promotion-planning records.
+- Bounded Syncratic context and on-demand Ask integration without ingesting MarketOps data into Syncratic core.
+- Options chain, distribution, quality, feature, and capture ledgers.
+- First-class MarketOps feature definitions, feature observations, market states, transitions, evidence, hypothesis definitions/evaluations, opportunities, and outcomes.
+- A bounded AAPL coordinator for state, hypothesis, opportunity, and outcome processing.
+- A prospective options capture path with canonical same-session spot, provider-side DTE/moneyness bounds, a candidate cap, transient aggregation, and compact selected-contract evidence.
 
-- Top 50 asset universe and MarketOps metadata boundary.
-- Massive ingestion, raw event ledger, normalized event ledger, replay, and idempotency.
-- Deterministic DSM detectors and persisted `signal.v1` records.
-- Derived alert and insight lifecycle ledgers.
-- DSM artifacts and review-controlled graph proposals.
-- Historical back-test substrate, baselines, evaluations, labels, readiness snapshots, and promotion candidates.
-- Generic SignalOps algorithm substrate and the v0 adapter pack.
-- Algorithm result persistence, proposal review, preflight, and materialization ledgers.
-- Options chain storage, options distribution storage, feature materialization, bounded coverage runner, and quality-aware proposal gating.
-- Syncratic bounded context windows and Ask integration without ingesting MarketOps data into Syncratic core.
-- Frontend views for assets, DSM workbench, algorithms, backtests, options quality, proposal review, materialization, and Syncratic reasoning.
+## Phase Reconciliation
 
-This baseline is a strong operational substrate. It preserves evidence, review boundaries, quality gates, and replayability. G136-G141 now add a bounded canonical state, research-hypothesis, opportunity, analyst-workbench, point-in-time outcome path, and historical execution coordinator. Live AAPL equity coverage is 135 sessions; historical option analytics remain insufficient and correctly block triggered sources and outcomes.
+| Architecture phase | Status | Evidence | Remaining work |
+| --- | --- | --- | --- |
+| Phase 1: foundation and schemas | Substantially complete | Migrations `000028`-`000031`, deterministic identities, versioned ledgers, shared quality states, and read APIs exist. | Mutation/job APIs, durable run status for all logical workers, immutable approved-definition enforcement, and broader integration coverage remain. |
+| Phase 2: AAPL vertical slice | Structurally complete, functionally partial | G137 builds 24 definitions, 25 slots, states, transitions, and evidence; G138 evaluates H001/H004/H006/H007; G142 captures selected surface evidence. | Live premium is always missing, historical options coverage is absent, only five surface cells are selected, and several canonical feature domains are incomplete. |
+| Phase 3: backtest integration | Partial | Generic G081-G105 back-test/calibration substrate and G140/G141 point-in-time outcomes/coordinator exist. | No hypothesis-specific back-test adapter, comparison/walk-forward modes, regime/event segmentation, calibration report, or hypothesis-version promotion evidence exists. |
+| Phase 4: proposal and opportunity integration | Partial | G139 opportunity grouping, overlap suppression, conflict scoring, read APIs, and analyst queue exist. | No hypothesis-evaluation-to-proposal adapter, lifecycle eligibility bridge, opportunity review/disposition, or calibrated ranking exists. |
+| Phase 5: graph and Ask | Foundation only | Existing graph proposals remain review-controlled; G088-G093 provide bounded Ask and evidence-purity controls. | State, transition, hypothesis, opportunity, and outcome graph mappings and Market State Ask bundles are absent. |
+| Phase 6: Top 50 bounded rollout | Acquisition controls partial | Asset cohorts, bounded ingestion, capped symbol execution, quality summaries, and G142 provider budgets exist. | State/hypothesis/outcome processing is AAPL-only; no staged cohort rollout, operational state dashboard, or per-symbol end-to-end readiness exists. |
 
-## Functional Outcome Evaluation
+## Component Conformance
 
-| Outcome | Current state | Gap |
+| Component | Current conformance | Critical gap |
 | --- | --- | --- |
-| Daily canonical market state | G136 provides the ledger/API, G137 materializes AAPL states, and G141 has 135 persisted equity sessions available for strict historical execution. | Historical options analytics remain sparse; the target analyst Market State view is absent. |
-| State-transition observations | G136/G137 persist one-session numeric transitions; G141 adds trailing-only persistence, z-score, and empirical percentile after 20 prior observations. | Multi-lookback divergence and migration semantics remain incomplete. |
-| Versioned hypothesis registry | G138 implements tenant-scoped H001/H004/H006/H007 v1 definitions in `research` status plus deterministic evaluation rows. | Promotion, broad historical calibration, and approved production materialization remain future gates. |
-| Evidence-first signal generation | G136/G137 provide a shared evidence ledger, G138 links eligible inputs/evidence to research evaluations, and G140 can measure triggered evaluations. | Opportunity-scoped Syncratic context and a governed hypothesis-to-signal proposal adapter remain absent. |
-| Opportunity ranking | G139 implements deterministic research-only grouping, overlap suppression, conflict scoring, contribution/evidence lineage, list/detail APIs, and the deployed analyst workbench. | Historical calibration remains absent; G140 can measure opportunity outcomes once valid opportunity rows exist. |
-| Closed-loop outcome evaluation | G140 adds deterministic 1/5/10/20-session outcomes; G141 supplies 135 live equity sessions and a strict coordinated execution path. | Zero analytics-ready option sessions produce zero live triggers/outcomes; materialized-signal adaptation still awaits an explicit hypothesis-to-signal link. |
-| Insight distinction from alert | Conceptually documented, not fully realized. | Insights can still appear too close to one persisted signal or incident; the design expects insights/opportunities to summarize multi-event state changes. |
-| Syncratic explainability | Implemented as bounded Ask over SignalOps context. | Once states, transitions, hypotheses, and opportunities exist, Syncratic context should shift from raw event summaries toward evidence-pure market-state bundles. |
+| Market Feature Pipeline | Partial | Deterministic observations and quality metadata exist, but the catalog lacks realized-volatility features, most IV/surface cells, quote-derived premium, delta/expiry OI migration, concentration, liquidity spreads, and event context. |
+| Market State Builder | Partial | One versioned state per AAPL session with exact feature lineage exists. Completeness is low in live data, and Top 50/general-symbol execution is not implemented. |
+| State Transition Engine | Partial | One-session differences plus trailing persistence, z-score, and percentile are persisted point-in-time. Multi-window acceleration, divergence, migration, concentration, curve, and regime operators are missing. |
+| Evidence Ledger | Partial | Reusable return, OI-ratio, and ATM-IV-change claims exist with lineage. Evidence coverage is too narrow for the target hypothesis pack. |
+| Hypothesis Registry | Partial | H001, H004, H006, and H007 v1 are versioned and research-only. H002, H003, and H005 are absent; no audited lifecycle mutation or approved immutability path exists. |
+| Hypothesis Evaluator | Partial | Deterministic trigger/non-trigger/rejection rows and reason codes exist. Live evaluations are blocked by sparse inputs, and no proposal bridge exists. |
+| Opportunity Engine | Partial | Grouping, domain overlap suppression, conflicts, scores, and research lifecycle exist. There is no review disposition, calibration contribution, or mature live opportunity population. |
+| Outcome Evaluator | Partial | Immutable 1/5/10/20-session outcomes with source lineage and maturity states exist. No live triggered sources currently populate them, and no calibration aggregation by regime/confidence is implemented. |
+| Data Acquisition | Partial | G142 is now analytically bounded and compact. Provider request IDs, pagination completeness, pages/calls, rate-limit metrics, standard-contract metadata, quotes, quote freshness, and spread eligibility are not captured. |
+| API surface | Read-heavy partial | Core list/detail reads exist. Feature/state build, transition calculation, hypothesis mutation/evaluation, opportunity build/review, outcome materialization, coverage, calibration, and durable job-request APIs are absent. |
+| Worker topology | CLI prototype | State materialization combines feature/state/transition/evidence stages; separate hypothesis, opportunity, outcome, and history CLIs exist. Durable job records, partial-failure ledgers, consistent version metrics, and approved scheduling are absent. |
+| Frontend | Partial | Asset/options, algorithms, backtests, proposal controls, Syncratic views, and the opportunity queue exist. The specified Market State, DTE-delta surface, transition timeline, hypothesis workbench, and outcome calibration views do not. |
+| Syncratic Ask | Partial | Bounded on-demand reasoning and evidence purity exist. Context is still signal/event oriented rather than a compact state/transition/hypothesis/opportunity bundle. |
+| Observability | Partial | CLIs emit run summaries and G142 records capture metrics. Stage-level durable metrics, latency, incompatible-version counts, proposal rejection rates, opportunity dispositions, and calibration drift are missing. |
+| Security and governance | Strong foundation | Existing auth, proposal review, graph review, and research/production separation are preserved. Audited hypothesis promotion and opportunity disposition controls remain absent. |
 
-## Design Gap Evaluation
+## Feature Catalog Reconciliation
 
-The target architecture is additive and aligns with existing SignalOps principles. It does not require replacing the raw ledger, normalized ledger, DSM detectors, proposal workflow, graph review, or Syncratic boundary.
+Implemented or partially implemented:
 
-Critical design gaps:
+- Underlying returns for 1/5/10/20 sessions, RSI 14, SMA-20 distance, volume ratio, gap, and ATR.
+- ATM IV at 30/60/90 DTE and 30-DTE 25-delta put/call IV.
+- Put/call OI ratio, one-session ratio change where prior usable data exists, and put/call volume ratio with warnings.
+- Usable-contract, missing-IV, missing-Greeks, surface-coverage, and OI-quality observations.
+- Deterministic source-contract lineage for the five currently selected surface cells.
 
-- G136 provides `marketops_feature_definitions`, typed feature observations, canonical market states, state transitions, and reusable evidence ledgers; G137 materialization is currently bounded to AAPL.
-- G138 now provides `marketops_hypothesis_definitions` and `marketops_hypothesis_evaluations`; current scope is bounded to research-only H001/H004/H006/H007 over AAPL G137 states.
-- G139 provides the `marketops_opportunities` research queue and deployed workbench; current AAPL quality produces zero eligible rows, which the UI explains through bounded rejection diagnostics.
-- G140 provides `marketops_signal_outcomes` and a bounded AAPL materializer; the current live ledger is empty because no evaluation is triggered and no opportunity exists.
-- G141 adds exact-symbol bounded equity-history acquisition, trailing point-in-time transition statistics, and strict coordinated G137-G140 execution. Live equity coverage is 135 sessions; options preflight blocks writes at zero analytics-ready sessions.
-- G136-G140 provide read APIs for features, states, transitions, evidence, hypotheses, evaluations, opportunities, and outcomes.
-- State, hypothesis, opportunity, and outcome calculation remain explicit bounded CLIs rather than a scheduled worker topology.
-- No frontend Market State view, Surface matrix, Transition timeline, Hypothesis workbench, or Outcome calibration view exists as defined by the architecture.
+Missing or not yet analytically usable:
 
-The design does not conflict with the implemented algorithm substrate. The algorithm layer should become one producer of feature observations or evidence, while hypothesis evaluation remains the governed path to market-state signal proposals.
+- Realized volatility catalog (`rv_10d`, `rv_20d`, `rv_60d`, percentiles, acceleration).
+- The broader 21/30/45/60/90/180/365-DTE by 0.15/0.25/0.35/ATM delta surface.
+- IV daily/5-day changes, z-scores, percentiles, rank, IV-realized-volatility spread, skew, risk reversal, slope, curvature, dispersion, and term-structure state.
+- Quote-derived midpoint, extrinsic premium, premium/spot, straddles, expected move, premium ratios, premium changes, and spread percentages.
+- Delta-, DTE-, expiry-, strike-, and moneyness-bucket OI/volume changes, concentration, and migration.
+- Quote staleness, crossed/zero markets, spread-weighted liquidity, standard-contract eligibility, and selection confidence.
+- Earnings, ex-dividend, corporate-action, and other point-in-time event context.
 
-## Algorithm And Options Assessment
+## Complete-v1 Acceptance Check
 
-The implemented algorithm pack is useful infrastructure, but it does not yet make insights materially more useful by itself. The algorithms currently score feature rows and generate quality-gated proposals. That is necessary but insufficient for market-state intelligence because:
+| # | Criterion | Status |
+| --- | --- | --- |
+| 1 | Existing MarketOps validations continue to pass | Pass |
+| 2 | AAPL normalized data to market state | Pass structurally; live options completeness remains blocked |
+| 3 | Deterministic, versioned, traceable feature observations | Pass |
+| 4 | DTE/delta cells retain selected-contract lineage | Pass for the five implemented cells only |
+| 5 | Transitions are persisted | Pass |
+| 6 | Quality failures block hypotheses without deleting audit evidence | Pass |
+| 7 | Four v1 hypotheses evaluate historically | Partial: evaluator and fixtures pass; live historical options evidence is insufficient |
+| 8 | Evaluations cannot directly write production signals | Pass |
+| 9 | Proposal review/materialization controls remain mandatory | Pass as a governance rule; hypothesis proposal bridge is absent |
+| 10 | Opportunities avoid correlated double counting | Pass in deterministic research logic |
+| 11 | Outcomes materialize without source mutation | Pass |
+| 12 | Backtests enforce point-in-time correctness | Partial: G141/G140 do; hypothesis back-test modes are incomplete |
+| 13 | Graph changes remain proposal-based | Pass |
+| 14 | Ask receives bounded evidence-pure context | Partial: generic context is bounded; state/opportunity context is absent |
+| 15 | Top 50 execution is explicitly bounded | Pass for acquisition; analytical execution remains AAPL-only |
+| 16 | Lineage can reproduce any signal proposal | Partial: algorithm proposals have lineage; hypothesis proposals do not exist |
+| 17 | Confidence is not presented as guaranteed performance | Pass |
+| 18 | Semantic definitions are versioned | Partial: ledgers are versioned; acquisition/selection and some scoring policies need explicit semantic versions |
 
-- an anomaly result is not the same as a market hypothesis;
-- a z-score on one options ratio does not explain whether a broader state transition exists;
-- proposal quality gating blocks bad evidence but does not rank good evidence into opportunities;
-- reviewed materialization proves governance, not predictive value;
-- the system needs forward outcomes and calibration by hypothesis version before confidence can imply historical reliability.
+Complete-v1 status: not complete.
 
-The current options work is well aligned with the target design. It establishes bounded provider usage, stored contract evidence, distribution snapshots, feature rows, and explicit quality states. The next design step is to normalize options evidence into stable DTE, delta, moneyness, premium, IV, OI, liquidity, and quality feature observations rather than relying only on raw contracts or aggregate ratio rows.
+## Primary Functional Blocker
 
-## Recommended Path Forward
+The immediate blocker is not another ledger or screen. It is an end-to-end, point-in-time options feature contract that can produce usable longitudinal evidence.
 
-### G136: Market State Foundation
+There is a confirmed cross-layer contract mismatch even before live coverage is considered. H001 expects 30- and 60-DTE 25-delta put IV, 30-DTE 25-delta put extrinsic premium, and dimensioned `oi_change_1d`; H007 also expects dimensioned `oi_change_1d`. G137 does not emit the 60-DTE put cell or dimensioned OI-change observation and instead emits aggregate `put_call_oi_change_1d`. Its premium slots are always missing because bid/ask is not persisted. The positive evaluator fixtures construct expected features directly, so they prove evaluator logic but not provider-to-feature-to-hypothesis compatibility.
 
-Add first-class schemas and read surfaces for:
+G142 now avoids bulk persistence, but the provider adapter and selected evidence do not yet capture bid/ask, quote timestamps, spread, standard-contract metadata, or enough normalized delta/DTE positioning observations. Without correcting both the feature contract and source evidence, H001/H006/H007 cannot become eligible through the production materializer. Without repeated eligible sessions, H004 cannot acquire meaningful term-structure history and no hypothesis can be calibrated.
 
-- feature definitions;
-- feature observations;
-- market states;
-- state transitions;
-- evidence records.
+## Reconciled Gate Sequence
 
-This gate should be storage/API focused and should not introduce automatic scheduling, production signal materialization, or broad Top 50 fanout.
+### G143: Options Surface Evidence v1
 
-### G137: AAPL Vertical Slice
+Implement the smallest evidence set required by H001, H004, H006, and H007:
 
-Build one narrow asset/session path from persisted equity and options evidence to:
+- parse provider bid, ask, quote timestamp, exercise style, shares per contract, and request lineage where available;
+- persist quote and eligibility fields only for deterministic selected source contracts;
+- produce versioned 30/60/90-DTE ATM and 30/60-DTE 25-delta put/call observations where justified by the four hypotheses;
+- aggregate delta/DTE/expiry positioning and quality from bounded transient candidates rather than storing the full chain;
+- calculate midpoint, extrinsic premium, spread, IV term slopes, risk reversal, bucket OI/volume, and selection confidence;
+- record request ID, pages, candidate completeness, eligibility counts, and rejection reasons;
+- reconcile G137 output keys/dimensions exactly with the G138 required-feature contract;
+- preserve point-in-time session and source lineage and keep provider calls outside analytical calculators.
 
-- underlying momentum features;
-- selected IV, premium, positioning, liquidity, and quality features;
-- one canonical market state;
-- state transitions;
-- reusable evidence.
+Acceptance should require one end-to-end fixture that starts with Massive-shaped bounded records, passes through selected evidence and G137 materialization, and makes each intended G138 hypothesis eligible without injecting feature observations directly. It must also require a bounded dry run, no bulk candidate persistence, stable reruns, and explicit missing/partial behavior. It must not widen to the full architecture surface without a registered hypothesis need.
 
-The vertical slice should prove lineage, idempotency, quality blocking, and deterministic rebuild behavior.
+### G144: Market Feature And Transition Completion
 
-### G138: Hypothesis Registry And Evaluator
+Add the remaining inputs needed by the initial four hypotheses: realized volatility, IV/premium/OI changes, curve transitions, delta-bucket accumulation, persistence, divergence, and relevant event context. Generalize the materializer from AAPL to explicit bounded symbol cohorts without enabling scheduling.
 
-Implement a small research-status hypothesis pack from the target architecture:
+### G145: Hypothesis Backtest And Calibration
 
-- H001: overbought downside-hedging expansion.
-- H004: volatility term-structure regime shift.
-- H006: premium-price divergence.
-- H007: delta-bucket unusual OI accumulation.
+Adapt hypothesis evaluations and outcomes into the existing isolated back-test substrate. Add comparison and walk-forward modes, sample-size warnings, regime/event segmentation, calibration summaries, and version isolation. Promotion remains advisory and operator-controlled.
 
-The evaluator should persist triggered and non-triggered results with reason codes and should feed the existing proposal workflow only where lifecycle status and quality policy permit.
+### G146: Hypothesis Proposal And Opportunity Governance
 
-### G139: Opportunity Layer
+Bridge only eligible lifecycle states into the existing proposal workflow, retain preflight/review/materialization controls, add opportunity analyst disposition, and keep alerts event-level while opportunities become the multi-evidence insight object.
 
-Introduce analyst-facing opportunities that group compatible hypothesis evaluations by asset, session, direction, and horizon.
+### G147: Market State Analyst Experience
 
-This is the likely point where insights become meaningfully different from alerts:
+Build the specified asset/date state view, DTE-delta surface, transition timeline, hypothesis workbench, and calibrated opportunity detail. Keep provider acquisition, research calculation, proposal review, signal materialization, graph review, and opportunity disposition as distinct controls.
 
-- alerts remain event-level records;
-- opportunities summarize corroborated market-state changes;
-- Syncratic explains the opportunity using bounded, evidence-pure context.
+### G148: Graph, Ask, And Cohort Rollout
 
-### G140: Outcome Evaluation
+Add review-controlled graph mappings and bounded Market State Ask bundles, then stage explicit Top 50 cohorts with per-symbol quality/readiness dashboards. Do not schedule broad collection until provider budget, ownership, and operational thresholds are approved.
 
-Implemented as a bounded AAPL point-in-time materializer for eligible triggered evaluations and opportunities at 1, 5, 10, and 20 sessions. The schema reserves materialized signals, but the v1 adapter does not infer a hypothesis relationship from unrelated signal rows.
+## Design Corrections Going Forward
 
-This establishes the closed-loop storage and calculation contract. Broader historical coverage and actual triggered sources are required before outcome calibration can be trusted.
+- Do not use contract count or page count as evidence quality.
+- Do not persist full chains by default for analytical state construction.
+- Do not add a feature without a registered hypothesis or analyst question.
+- Do not treat an algorithm anomaly as a production hypothesis or an insight.
+- Do not make alerts and insights duplicate one-event lifecycle rows; opportunities are the intended multi-evidence analyst insight.
+- Do not add UI ahead of usable state semantics and quality metadata.
+- Do not lower quality or historical-coverage thresholds to manufacture triggers.
+- Do not introduce hidden scheduling, automatic hypothesis promotion, direct signal writes, or direct graph mutation.
 
-### G141: Historical Coverage And Outcome Population
+## Current Bottom Line
 
-Implemented as a strict AAPL historical coordinator plus bounded exact-symbol Massive equity acquisition. It computes persistence and rarity from prior transitions only, requires 60 equity sessions and 20 analytics-ready option sessions, and blocks all writes when coverage fails. The live equity requirement is satisfied at 135 sessions; historical IV-surface coverage remains the global blocker, while open-interest, premium, and distribution gaps continue to reject their dependent hypotheses.
+MarketOps is beyond a prototype database: it has genuine deterministic state, hypothesis, opportunity, and outcome infrastructure with strong governance. It is not yet a useful complete market-state intelligence product because the live options feature plane and longitudinal calibration evidence are incomplete.
 
-## Risks And Controls
+The definitive next step is G143 Options Surface Evidence v1. That gate directly improves hypothesis eligibility and analyst usefulness while remaining bounded, hypothesis-driven, storage-efficient, and consistent with the canonical architecture.
 
-- Provider fanout risk: keep all acquisition bounded by explicit symbols, maximum symbols, limits, and pages.
-- Data-quality risk: preserve existing options quality states and map them into the shared quality model without treating zero or missing values as valid evidence.
-- Look-ahead risk: all features, states, transitions, hypotheses, and outcomes need point-in-time rules before they are used for calibration.
-- Analyst overload risk: do not surface every feature change as an alert; route state changes through hypotheses and opportunities.
-- Model overconfidence risk: confidence must mean the transition exists and satisfies the hypothesis, not certainty of future price movement.
-- Governance risk: hypothesis evaluations must not write production signals directly; existing proposal review, preflight, materialization, and graph review remain mandatory.
+## References
 
-## Bottom Line
-
-MarketOps now has the state, transition, evidence, hypothesis, opportunity, and outcome substrate plus a bounded historical coordinator. The remaining critical path is source coverage: obtain point-in-time option analytics without synthetic reconstruction, produce real triggered evaluations, and only then add calibration summaries or promotion decisions.
-
-### G142: Prospective Options Analytics Capture
-
-Implemented as a deterministic per-symbol/session capture ledger over the bounded G133 runner. G142 requires canonical same-session Massive equity close before options acquisition, applies provider-side DTE and moneyness bounds plus a candidate cap, builds positioning aggregates from transient candidates, and persists only deterministic five-cell surface evidence. It shares readiness policy with G141 and prevents partial or stale runs from satisfying coverage. Scheduling remains an explicit deployment decision rather than an automatically enabled Top 50 fanout.
+- Canonical architecture: `../../../../design/syncratic_marketops_market_state_intelligence_architecture_v1.md`
+- Functional component inventory: `functional_components.md`
+- G136 foundation: `../gates/G136_market_state_foundation.md`
+- G137 AAPL slice: `../gates/G137_aapl_market_state_vertical_slice.md`
+- G138 hypothesis evaluator: `../gates/G138_research_hypothesis_evaluator.md`
+- G139 opportunity layer: `../gates/G139_opportunity_layer.md`
+- G140 outcomes: `../gates/G140_forward_outcome_evaluation.md`
+- G141 history coordinator: `../gates/G141_historical_coverage_and_outcome_population.md`
+- G142 prospective options capture: `../gates/G142_prospective_options_analytics_capture.md`
+- State feature materializer: `../../../../../internal/marketops/state/materializer.go`
+- Hypothesis feature contract: `../../../../../internal/marketops/hypotheses/registry.go`

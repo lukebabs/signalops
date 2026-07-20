@@ -328,5 +328,10 @@ Recommended next gate:
 
 ## G142 Implemented
 
-- G142: adds a deterministic prospective options capture ledger, shared G141/G142 analytics-readiness policy, explicit provider-session purity, bounded retry/resume controls, and read-only capture APIs.
+- G142: adds a deterministic prospective options capture ledger, requires canonical same-session spot before provider acquisition, applies provider-side DTE/moneyness bounds and a hard candidate cap, aggregates candidates transiently, persists compact five-cell evidence, and exposes capture quality APIs.
 - Specification: `G142_prospective_options_analytics_capture.md`.
+
+## G143 Recommended Next
+
+- G143 should implement Options Surface Evidence v1 and first reconcile G137 feature outputs with G138 required keys/dimensions.
+- The bounded scope and acceptance criteria are defined in `../architecture/market_state_intelligence_evaluation.md`; a separate executable gate specification has not yet been approved.

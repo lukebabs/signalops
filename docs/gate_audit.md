@@ -8760,3 +8760,16 @@ Status: corrected and focused tests passed
 - Docker target `marketops-options-coverage-runner` built successfully and reran the full Go suite.
 - Regression tests verify no-equity/no-provider behavior, provider query bounds, deterministic selection, five-row persistence, and use of all bounded candidates in aggregate positioning.
 - No live provider request was made because canonical 2026-07-20 AAPL equity EOD evidence was unavailable.
+
+## 2026-07-20T13:38:26Z - Market State Intelligence Specification Reconciliation
+
+Status: documentation reconciled; complete v1 not achieved
+
+- Adopted `docs/design/syncratic_marketops_market_state_intelligence_architecture_v1.md` as the governing MarketOps design criterion.
+- Reconciled G136-G142 and the earlier algorithm, calibration, graph, Syncratic, options, and frontend substrates against architecture phases 1-6.
+- Marked deterministic ledgers, lineage, quality blocking, research isolation, bounded execution, and governance as the strongest implemented foundations.
+- Marked the live options feature plane and longitudinal calibration evidence as the primary functional gaps.
+- Confirmed G137/G138 key/dimension incompatibility for H001/H007, separate from sparse live source coverage.
+- Recorded a complete-v1 acceptance matrix: structural AAPL/state behavior passes, while historical hypothesis evaluation, state-aware Ask, Top 50 analytics, proposal reproducibility, and full semantic versioning remain partial.
+- Recommended G143-G148 sequencing, beginning with bounded Options Surface Evidence v1 and an end-to-end provider-to-hypothesis compatibility fixture.
+- No thresholds were lowered, no scheduler or provider call was added, and no gate was marked executable or complete by this documentation change.

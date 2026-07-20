@@ -6,6 +6,7 @@ Belongs here:
 
 - DSM domain model and taxonomy explanations.
 - Signal versus artifact persistence semantics.
+- Canonical Market State Intelligence design: `../../../../design/syncratic_marketops_market_state_intelligence_architecture_v1.md`. New gates must be reconciled against its functional outcomes, design principles, and complete-v1 acceptance criteria.
 - Graph proposal model and acceptance/storage direction.
 - Reconciliation between target MarketOps architecture and implemented gates.
 
@@ -22,7 +23,7 @@ Current notes:
 - `syncratic_user_api_boundary.md`: Syncratic user facade OpenAPI and environment/auth boundary.
 - `../gates/G090_syncratic_ask_enrichment.md`: proposed Ask-based LLM synthesis boundary over deterministic context windows.
 - `functional_components.md`: broad summary of implemented MarketOps functional components and technical component purposes.
-- `market_state_intelligence_evaluation.md`: evaluation of the Market State Intelligence target design against implemented MarketOps functional outcomes and design gaps.
+- `market_state_intelligence_evaluation.md`: current phase/component/feature/acceptance reconciliation, confirmed cross-layer blockers, and recommended G143-G148 sequence.
 - `../gates/G136_market_state_foundation.md`: implemented storage and read-API foundation for feature observations, market states, transitions, evidence, and exact lineage.
 - `../gates/G137_aapl_market_state_vertical_slice.md`: implemented bounded AAPL feature/state/transition/evidence materialization over persisted equity and options evidence.
 - `../gates/G138_research_hypothesis_evaluator.md`: implemented research-only H001/H004/H006/H007 registry and deterministic evaluation over bounded AAPL states.

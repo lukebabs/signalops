@@ -30,6 +30,7 @@ It does not mean the signal itself only just became persistent. Signals are pers
 
 ## Cross-References
 
+- Canonical Market State Intelligence architecture: `../../../design/syncratic_marketops_market_state_intelligence_architecture_v1.md`
 - Functional component map: `architecture/functional_components.md`
 - Market State Intelligence evaluation: `architecture/market_state_intelligence_evaluation.md`
 - G136 Market State Foundation: `gates/G136_market_state_foundation.md`

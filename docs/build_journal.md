@@ -7352,3 +7352,13 @@ Result:
 - Focused Dockerized Go tests passed for `./internal/adapters/marketdata/massive`, `./internal/marketops/options`, and `./cmd/marketops-options-coverage-runner`.
 - Docker target `marketops-options-coverage-runner` built successfully and reran the full Go suite.
 - No live request was attempted without canonical same-session AAPL equity evidence.
+
+## 2026-07-20T13:38:26Z - Market State Intelligence Architecture Reconciliation
+
+- Replaced the stale mixed-status architecture evaluation with a current reconciliation against the canonical Market State Intelligence specification.
+- Classified implementation by architecture phase, component, feature domain, and all 18 complete-v1 acceptance criteria.
+- Confirmed Phase 1 is substantially complete, Phase 2 is structurally complete but functionally partial, and Phases 3-6 remain partial.
+- Confirmed a cross-layer contract blocker: G138 H001/H007 require dimensioned options features that G137 does not emit, while positive evaluator fixtures inject those features directly.
+- Recorded missing quote/premium, surface, bucketed OI, realized-volatility, event-context, calibration, proposal, graph/Ask, observability, and frontend capabilities.
+- Established G143 Options Surface Evidence v1 as the recommended next gate, with an end-to-end provider-shaped fixture required before isolated evaluator tests can count as functional compatibility.
+- Updated MarketOps architecture, use-case, and gate indexes. No executable G143 gate specification or runtime behavior was added.
