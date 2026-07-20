@@ -7415,3 +7415,30 @@ Result:
 - G144 is complete for the initial research feature/transition contract and bounded explicit-symbol state execution.
 - Live calibration remains blocked on genuine analytics-ready option sessions; G144 does not manufacture history or lower thresholds.
 - G145 Hypothesis Backtest And Calibration is the next architecture gate.
+## 2026-07-20T17:39:58Z - G145 Hypothesis Backtest And Calibration
+
+Summary:
+
+- Added a deterministic hypothesis backtest/calibration adapter over persisted evaluations, forward outcomes, and point-in-time segment observations.
+- Reused existing isolated `marketops_backtest_runs` and `marketops_backtest_calibration_summaries`; no migration or parallel calibration ledger was added.
+- Added single-version, exact two-version comparison, and expanding chronological walk-forward modes.
+- Added horizon, asset, year, earnings-window, and volatility-term-regime segments plus confidence bands, Brier calibration error, return/excursion/drawdown/realized-volatility metrics, and sample warnings.
+- Added exact outcome calculation-version filtering to the shared outcome query contract.
+- Added a bounded explicit-symbol CLI and distroless Docker target. Reports always set `promotion_allowed=false`.
+
+Validation performed:
+
+- Focused hypothesis-backtest, PostgreSQL storage, and API tests passed.
+- Full Dockerized Go suite passed.
+- Python regression suite passed: 43 tests.
+- All six JSON event schemas validated.
+- The `marketops-hypothesis-backtest` Docker target built successfully and reran the full Go suite.
+- `git diff --check` passed after documentation formatting cleanup.
+- Tests prove no cross-version pooling, no later-maturing outcome leakage, point-in-time event revisions, non-overlapping walk-forward test folds, sample warnings, dry-run no writes, and existing-ledger persistence.
+
+Result:
+
+- G145 is complete as a bounded backend calibration adapter.
+- Live reports remain sparse until genuine analytics-ready option sessions produce triggered evaluations and matured outcomes.
+- No hypothesis lifecycle change, promotion candidate, production signal/proposal, provider call, graph mutation, or frontend behavior was added.
+- G146 Hypothesis Proposal And Opportunity Governance is next.

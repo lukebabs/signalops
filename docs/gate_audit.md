@@ -8835,3 +8835,31 @@ Result:
 
 - G144 is accepted. The bounded feature/transition contract is complete for the initial hypothesis pack, while live research remains coverage-blocked on genuine longitudinal sessions.
 - G145 Hypothesis Backtest And Calibration is next.
+## 2026-07-20T17:39:58Z - Gate G145 Hypothesis Backtest And Calibration
+
+Status: implemented and accepted backend adapter
+
+Scope:
+
+- Adapt exact hypothesis evaluation/outcome versions into existing isolated back-test runs and calibration summaries.
+- Support single, comparison, and chronological walk-forward modes with point-in-time event/regime segments and explicit sample warnings.
+- Keep all calibration conclusions advisory and operator-controlled.
+
+Validation performed:
+
+- Full Go, Python, and JSON schema suites passed.
+- Focused tests cover hypothesis and outcome version isolation, evaluation/outcome joins, as-of maturity, deterministic segment revisions, confidence calibration, comparison deltas, chronological folds, query bounds, dry-run isolation, and persistence mapping.
+- A new distroless `marketops-hypothesis-backtest` target built successfully and reran all Go tests.
+- Shared outcome queries now accept an exact `calculation_version` predicate; affected PostgreSQL and API regression tests pass.
+
+Boundaries retained:
+
+- Explicit cohorts are capped at 10; per-version/per-symbol reads fail at the declared 1,000-row hard limit rather than silently truncating.
+- Pending, missing-price, later-maturing, invalidated, ineligible, and non-triggered records never become zero or negative calibration samples.
+- No source evidence is synthesized and no G141 quality threshold is lowered.
+- Reports never mutate lifecycle, promotion, signal, proposal, graph, or deployment state.
+
+Result:
+
+- G145 is accepted. It closes the bounded hypothesis-specific backtest adapter gap while truthfully preserving sparse live sample warnings.
+- G146 reviewed proposal and opportunity governance is next.

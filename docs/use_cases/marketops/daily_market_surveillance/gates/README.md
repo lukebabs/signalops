@@ -342,6 +342,10 @@ Recommended next gate:
 - The original 39 G137/G143 hypothesis-critical slots remain the required completeness denominator. New longitudinal/context inputs remain explicitly missing until genuine history or point-in-time event evidence exists.
 - Specification: `G144_market_feature_and_transition_completion.md`.
 
-## G145 Recommended Next
+## G145 Implemented
 
-- G145 should integrate hypothesis evaluations/outcomes with isolated comparison, walk-forward, event/regime segmentation, sample-size warnings, and versioned calibration summaries.
+- G145: exact-version hypothesis/outcome adapter over existing isolated back-test runs and calibration summaries, with single/comparison/walk-forward modes, point-in-time event/regime segments, confidence/calibration metrics, and sample warnings.
+- Reports are permanently advisory and never mutate hypothesis lifecycle or promotion state.
+- Specification: `G145_hypothesis_backtest_and_calibration.md`.
+
+## G146 Recommended Next

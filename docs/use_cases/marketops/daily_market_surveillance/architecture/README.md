@@ -34,3 +34,4 @@ Current notes:
 - G142 prospective options analytics capture: `../gates/G142_prospective_options_analytics_capture.md`.
 - G143 options surface evidence v1: `../gates/G143_options_surface_evidence_v1.md`.
 - G144 market feature and transition completion: `../gates/G144_market_feature_and_transition_completion.md`.
+- G145 hypothesis backtest and calibration: `../gates/G145_hypothesis_backtest_and_calibration.md`.

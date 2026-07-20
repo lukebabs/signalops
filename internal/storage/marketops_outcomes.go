@@ -49,19 +49,20 @@ type MarketOpsSignalOutcomeRecord struct {
 }
 
 type MarketOpsSignalOutcomeFilter struct {
-	TenantID          string
-	AppID             string
-	SourceType        string
-	SourceID          string
-	HypothesisKey     string
-	HypothesisVersion string
-	Symbol            string
-	Direction         string
-	OutcomeStatus     string
-	HorizonSessions   int
-	OriginStart       time.Time
-	OriginEnd         time.Time
-	Limit             int
+	TenantID           string
+	AppID              string
+	SourceType         string
+	SourceID           string
+	HypothesisKey      string
+	HypothesisVersion  string
+	Symbol             string
+	Direction          string
+	OutcomeStatus      string
+	HorizonSessions    int
+	OriginStart        time.Time
+	OriginEnd          time.Time
+	CalculationVersion string
+	Limit              int
 }
 
 type MarketOpsOutcomeWriteRepository interface {

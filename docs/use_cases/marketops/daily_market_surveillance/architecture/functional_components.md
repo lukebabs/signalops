@@ -104,7 +104,7 @@ The options coverage runner exists to expand coverage deliberately. It can proce
 
 ### Market State Intelligence
 
-G136 provides first-class feature, state, transition, and evidence ledgers. G137/G143 establish the AAPL/provider-shaped hypothesis slice. G144 advances it to state v2 with realized volatility, normalized option changes, event context, multi-window transitions, and explicit cohorts capped at 10 while preserving selected-evidence bounds. G138 adds the first versioned research hypothesis registry and deterministic evaluation ledger for H001, H004, H006, and H007. G139 groups compatible triggered evaluations into research-only opportunities with overlap suppression, conflict scoring, contribution/evidence lineage, and deterministic summaries. Missing genuine history, unusable open interest, absent bid/ask, uncovered IV cells, and unknown event context remain explicit; current live inputs therefore produce no mature opportunities.
+G136 provides first-class feature, state, transition, and evidence ledgers. G137/G143 establish the AAPL/provider-shaped hypothesis slice. G144 advances it to state v2 with realized volatility, normalized option changes, event context, multi-window transitions, and explicit cohorts capped at 10 while preserving selected-evidence bounds. G138 adds the first versioned research hypothesis registry and deterministic evaluation ledger for H001, H004, H006, and H007. G139 groups compatible triggered evaluations into research-only opportunities with overlap suppression, conflict scoring, contribution/evidence lineage, and deterministic summaries. G145 adapts exact hypothesis/outcome versions into isolated single, comparison, and walk-forward back-test reports with point-in-time event/regime segmentation and sample warnings. Missing genuine history, unusable open interest, absent bid/ask, uncovered IV cells, and unknown event context remain explicit; current live inputs therefore do not support calibration-readiness claims.
 
 ### Syncratic Reasoning Boundary
 
@@ -131,6 +131,7 @@ Recent validated gates include:
 - G140: immutable forward outcome ledger, deterministic AAPL materializer, maturity/missing-price semantics, and read APIs.
 - G141: 135-session live AAPL equity history, trailing-only transition statistics, and strict historical research orchestration with options-quality blocking.
 - G144: 44-definition/69-slot state v2, longitudinal and event features, multi-window/acceleration/regime transitions, H001 known-event invalidation, and explicit state cohorts capped at 10.
+- G145: version-isolated hypothesis calibration adapter, chronological walk-forward reports, event/regime/horizon/asset/year segments, confidence calibration, and existing back-test summary persistence.
 
 The latest live AMZN closeout expanded usable options samples to 3 persisted usable rows across 8 AMZN trade days while leaving proposal materialization blocked until operator review.
 

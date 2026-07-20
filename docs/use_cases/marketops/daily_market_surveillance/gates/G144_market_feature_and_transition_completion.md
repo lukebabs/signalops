@@ -74,7 +74,9 @@ Live research remains blocked until genuine analytics-ready option sessions accu
 
 ## Next Gate
 
-G145 should adapt hypothesis evaluations and outcomes into the isolated back-test substrate with comparison and walk-forward modes, regime/event segmentation, sample-size warnings, calibration summaries, and strict hypothesis-version isolation. Promotion remains advisory and operator-controlled.
+G145 implemented the hypothesis evaluation/outcome adapter, comparison and walk-forward modes, regime/event segmentation, sample warnings, and versioned calibration summaries. See `G145_hypothesis_backtest_and_calibration.md`.
+
+G146 is now next: reviewed hypothesis proposal and opportunity governance without automatic promotion.
 
 ## Links
 

@@ -60,13 +60,15 @@ WHERE ($1='' OR tenant_id=$1) AND ($2='' OR app_id=$2)
  AND ($9='' OR outcome_status=$9) AND ($10=0 OR horizon_sessions=$10)
  AND ($11::timestamptz IS NULL OR origin_session_date >= $11::date)
  AND ($12::timestamptz IS NULL OR origin_session_date <= $12::date)
-ORDER BY origin_session_date DESC, source_type, source_id, horizon_sessions LIMIT $13`,
+ AND ($13='' OR calculation_version=$13)
+ORDER BY origin_session_date DESC, source_type, source_id, horizon_sessions LIMIT $14`,
 		strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID),
 		strings.TrimSpace(filter.SourceType), strings.TrimSpace(filter.SourceID),
 		strings.TrimSpace(filter.HypothesisKey), strings.TrimSpace(filter.HypothesisVersion),
 		strings.ToUpper(strings.TrimSpace(filter.Symbol)), strings.TrimSpace(filter.Direction),
 		strings.TrimSpace(filter.OutcomeStatus), filter.HorizonSessions,
-		nullTime(filter.OriginStart), nullTime(filter.OriginEnd), clampLimit(filter.Limit))
+		nullTime(filter.OriginStart), nullTime(filter.OriginEnd),
+		strings.TrimSpace(filter.CalculationVersion), clampLimit(filter.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list marketops signal outcomes: %w", err)
 	}

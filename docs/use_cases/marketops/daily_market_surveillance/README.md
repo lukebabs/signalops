@@ -46,6 +46,8 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - G142 Prospective Options Analytics Capture: `gates/G142_prospective_options_analytics_capture.md`
 - G143 Options Surface Evidence v1: `gates/G143_options_surface_evidence_v1.md`
 - G144 Market Feature And Transition Completion: `gates/G144_market_feature_and_transition_completion.md`
+- G145 Hypothesis Backtest And Calibration: `gates/G145_hypothesis_backtest_and_calibration.md`
+- Hypothesis backtest operations: `operations/hypothesis_backtesting.md`
 - Historical research operations: `operations/historical_research_pipeline.md`
 - Opportunities workbench implementation and contract: `../../../frontend/marketops_opportunities_workbench_spec.md`
 - Global API contract: `docs/api.md`
