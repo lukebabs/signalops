@@ -24,6 +24,7 @@ import type {
   MarketOpsOutcomeFilter,
   MarketOpsOpportunityDispositionRequest,
   MarketOpsOpportunityDispositionFilter,
+  MarketOpsIntelligenceReadinessFilter,
   MarketOpsOptionsDistributionFilter,
   MarketOpsDSMArtifactFilter,
   MarketOpsDSMGraphProposalFilter,
@@ -126,6 +127,8 @@ export const queryKeys = {
     ['marketops-outcome', outcomeId, tenantId] as const,
   marketOpsOpportunityDispositions: (opportunityId: string, filter: MarketOpsOpportunityDispositionFilter) =>
     ['marketops-opportunity-dispositions', opportunityId, filter] as const,
+  marketOpsIntelligenceReadiness: (filter: MarketOpsIntelligenceReadinessFilter) =>
+    ['marketops-intelligence-readiness', filter] as const,
   marketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter) => ['marketops-dsm-artifacts', filter] as const,
   marketOpsDSMArtifact: (artifactId: string) => ['marketops-dsm-artifact', artifactId] as const,
   marketOpsDSMGraphProposals: (filter: MarketOpsDSMGraphProposalFilter) =>
@@ -611,6 +614,16 @@ export function useCreateMarketOpsOpportunityDisposition() {
     mutationFn: (vars: { opportunityId: string; request: MarketOpsOpportunityDispositionRequest }) =>
       api.createMarketOpsOpportunityDisposition(vars.opportunityId, vars.request),
     onSuccess: (_data, vars) => applyOpportunityDispositionResult(queryClient, vars.opportunityId),
+  });
+}
+
+// G148-C intelligence readiness aggregate. One bounded request serves the whole
+// view; the filter carries every supported scope param. Read-only.
+export function useMarketOpsIntelligenceReadiness(filter: MarketOpsIntelligenceReadinessFilter = { tenant_id: 'tenant-local' }) {
+  return useQuery({
+    queryKey: queryKeys.marketOpsIntelligenceReadiness(filter),
+    queryFn: () => api.getMarketOpsIntelligenceReadiness(filter),
+    staleTime: 60 * 1000,
   });
 }
 

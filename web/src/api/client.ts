@@ -66,6 +66,8 @@ import type {
   MarketOpsOpportunityDispositionResponse,
   MarketOpsOpportunityDispositionRequest,
   MarketOpsOpportunityDispositionFilter,
+  MarketOpsIntelligenceReadinessFilter,
+  MarketOpsIntelligenceReadinessResponse,
   MarketOpsDSMArtifactsResponse,
   MarketOpsDSMArtifactResponse,
   MarketOpsDSMArtifactFilter,
@@ -566,6 +568,20 @@ export const api = {
       `/v1/marketops/opportunities/${encodeURIComponent(opportunityId)}/dispositions`,
       request,
     ),
+  // G148-C MarketOps intelligence readiness aggregate (read-only). ONE request
+  // serves the whole view; never fan out per-symbol. tenant_id is required by the
+  // gateway (defaults to tenant-local). symbols is a CSV string (the gateway
+  // uppercases + sorts); latest_session_date is date-only; limit defaults to 50
+  // (gateway max 200). No mutation/provider/Ask/graph/proposal controls.
+  getMarketOpsIntelligenceReadiness: (filter: MarketOpsIntelligenceReadinessFilter = {}) =>
+    get<MarketOpsIntelligenceReadinessResponse>('/v1/marketops/intelligence/readiness', {
+      tenant_id: filter.tenant_id ?? 'tenant-local',
+      universe_group: filter.universe_group || undefined,
+      symbols: filter.symbols || undefined,
+      latest_session_date: filter.latest_session_date || undefined,
+      rollout_status: filter.rollout_status || undefined,
+      limit: filter.limit ?? 50,
+    }),
   listMarketOpsDSMArtifacts: (filter: MarketOpsDSMArtifactFilter = {}) =>
     get<MarketOpsDSMArtifactsResponse>('/v1/marketops/dsm/artifacts', {
       tenant_id: filter.tenant_id,

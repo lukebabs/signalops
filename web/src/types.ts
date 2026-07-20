@@ -1212,6 +1212,95 @@ export interface MarketOpsOpportunityDispositionFilter {
   limit?: number;
 }
 
+// G148-C MarketOps intelligence readiness aggregate (read-only). Served by
+// GET /v1/marketops/intelligence/readiness. One request serves the whole view —
+// never issue per-symbol state/evaluation/opportunity/calibration calls. The
+// five readiness dimensions are the flat *_state string fields below. There is
+// intentionally no production_ready rollout value; production_ready_supported is
+// always false. stage_status/stage_errors/input_coverage/proposal_status_counts
+// arrive already parsed (typed unknown). A symbol with an empty
+// latest_market_state_id is unobserved.
+export type MarketOpsIntelligenceRolloutStatus =
+  | 'not_observed'
+  | 'inspection_ready'
+  | 'research_evaluation_ready'
+  | 'review_ready'
+  | 'blocked'
+  | string;
+
+export interface MarketOpsIntelligenceReadinessDimensionCounts {
+  coverage_state?: Record<string, number>;
+  evaluation_state?: Record<string, number>;
+  governance_state?: Record<string, number>;
+  calibration_state?: Record<string, number>;
+  outcome_state?: Record<string, number>;
+  rollout_status?: Record<string, number>;
+}
+
+export interface MarketOpsIntelligenceReadinessAggregate {
+  symbol_count: number;
+  dimension_counts: MarketOpsIntelligenceReadinessDimensionCounts;
+  production_ready_supported: boolean;
+  latest_session_date?: string;
+}
+
+export interface MarketOpsIntelligenceReadinessSymbol {
+  result_id: string;
+  run_id: string;
+  tenant_id: string;
+  universe_group: string;
+  symbol: string;
+  asset_id: string;
+  stage_status: unknown;
+  stage_errors: unknown;
+  input_coverage: unknown;
+  latest_market_state_id: string;
+  latest_state_date?: string;
+  latest_state_schema_version: string;
+  latest_state_quality: string;
+  latest_state_completeness: number;
+  required_feature_coverage: number;
+  surface_coverage: number;
+  evaluation_count: number;
+  eligible_count: number;
+  triggered_count: number;
+  evaluation_rejection_reasons: string[];
+  opportunity_count: number;
+  pending_outcome_count: number;
+  matured_outcome_count: number;
+  proposal_status_counts: unknown;
+  exact_calibration_count: number;
+  calibration_below_minimum: boolean;
+  coverage_state: string;
+  evaluation_state: string;
+  governance_state: string;
+  calibration_state: string;
+  outcome_state: string;
+  rollout_status: MarketOpsIntelligenceRolloutStatus;
+  readiness_reasons: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketOpsIntelligenceReadiness {
+  aggregate: MarketOpsIntelligenceReadinessAggregate;
+  symbols: MarketOpsIntelligenceReadinessSymbol[];
+}
+
+export interface MarketOpsIntelligenceReadinessResponse {
+  readiness: MarketOpsIntelligenceReadiness;
+}
+
+// symbols is a comma-separated CSV string; the gateway uppercases + sorts.
+export interface MarketOpsIntelligenceReadinessFilter {
+  tenant_id?: string;
+  universe_group?: string;
+  symbols?: string;
+  latest_session_date?: string;
+  rollout_status?: MarketOpsIntelligenceRolloutStatus | '';
+  limit?: number;
+}
+
 
 // G078 MarketOps DSM artifacts. Served by
 // GET /v1/marketops/dsm/artifacts and /v1/marketops/dsm/artifacts/{artifact_id}.

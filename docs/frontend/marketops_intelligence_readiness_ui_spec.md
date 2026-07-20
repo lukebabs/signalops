@@ -26,6 +26,8 @@ The response is:
 
 Allowed rollout statuses are `not_observed`, `inspection_ready`, `research_evaluation_ready`, `review_ready`, and `blocked`. There is no `production_ready`.
 
+Field notes (authoritative): the five readiness dimensions are the flat per-symbol string fields `coverage_state`, `evaluation_state`, `governance_state`, `calibration_state`, and `outcome_state` (not nested objects). `aggregate.dimension_counts` is grouped by those same dimension keys plus `rollout_status`, each a `string→int` count map. `latest_session_date` filters the persisted `latest_state_date`; the gateway clamps `limit` to a 200 maximum (the UI bounds its selector to 50). A symbol with an empty `latest_market_state_id` is unobserved — render its state columns as “Not observed,” never as zero coverage.
+
 ## UI placement
 
 Add an `Intelligence readiness` tab or section under MarketOps Assets.

@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { CircleDollarSign, X } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
 import { useMarketOpsAssets } from '../api/queries';
-import { useMarketOpsOptionsCoverage, useMarketOpsOptionsDistributions, useMarketOpsOptionsChain } from '../api/queries';
+import { useMarketOpsOptionsCoverage, useMarketOpsOptionsDistributions, useMarketOpsOptionsChain, useMarketOpsIntelligenceReadiness } from '../api/queries';
 import { isApiError } from '../api/client';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { StatusBadge } from '../components/StatusBadge';
@@ -12,6 +12,14 @@ import { JsonViewer } from '../components/JsonViewer';
 import { OptionsQualityBadge } from '../components/OptionsQualityBadge';
 import { formatUtc } from '../lib/format';
 import { formatZeroRate } from '../lib/optionsQuality';
+import {
+  summarizeMarketOpsIntelligenceReadinessSymbol,
+  summarizeMarketOpsIntelligenceReadinessAggregate,
+  rolloutStatusStyle,
+  dimensionStateStyle,
+  formatCoverageRatio,
+  type MarketOpsIntelligenceReadinessSymbolView,
+} from '../lib/marketopsReadiness';
 import {
   summarizeMarketOpsOptionsCoverage,
   summarizeMarketOpsOptionsDistribution,
@@ -32,6 +40,7 @@ const CHAIN_LIMITS = [100, 200, 500];
 export function MarketOpsAssetsRoute() {
   const TENANT_ID = useTenant();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [tab, setTab] = useState<'assets' | 'readiness'>('assets');
   const query = useMarketOpsAssets({
     tenant_id: TENANT_ID,
     universe_group: 'top50_megacap',
@@ -57,6 +66,23 @@ export function MarketOpsAssetsRoute() {
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-1 border-b border-gray-200">
+        {(['assets', 'readiness'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${tab === t ? 'border-brand-600 font-semibold text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          >
+            {t === 'assets' ? 'Assets' : 'Intelligence readiness'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'readiness' ? (
+        <IntelligenceReadinessPanel tenantId={TENANT_ID} />
+      ) : (
+        <>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         <MetricTile label="Universe Assets" value={data.length} />
         <MetricTile label="Active Assets" value={active} />
@@ -138,6 +164,8 @@ export function MarketOpsAssetsRoute() {
           <h2 className="mb-2 text-sm font-semibold">Asset Metadata</h2>
           <JsonViewer value={data.map((a) => ({ ticker: a.ticker, metadata: a.metadata }))} />
         </div>
+      )}
+        </>
       )}
     </div>
   );
@@ -499,4 +527,176 @@ function OptionsRatioChart({ rows }: { rows: MarketOpsOptionsDistributionView[] 
     ],
   };
   return <ReactECharts option={option} style={{ height: 200 }} />;
+}
+
+// G148-C intelligence readiness (read-only). One aggregate request serves the
+// whole view — never per-symbol fan-out. Cards (not a wide table) keep reasons
+// readable on narrow screens without horizontal-only interaction. Missing state
+// renders as "Not observed," never zero coverage. No execution controls.
+const ROLLOUT_STATUSES = ['', 'not_observed', 'inspection_ready', 'research_evaluation_ready', 'review_ready', 'blocked'];
+const READINESS_LIMITS = [10, 25, 50];
+const readinessInputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
+
+function IntelligenceReadinessPanel({ tenantId }: { tenantId: string }) {
+  const [universeGroup, setUniverseGroup] = useState('top50_megacap');
+  const [symbols, setSymbols] = useState('');
+  const [latestSession, setLatestSession] = useState('');
+  const [rolloutStatus, setRolloutStatus] = useState('');
+  const [limit, setLimit] = useState(50);
+
+  const readinessQ = useMarketOpsIntelligenceReadiness({
+    tenant_id: tenantId,
+    universe_group: universeGroup.trim() || undefined,
+    symbols: symbols.trim() || undefined,
+    latest_session_date: latestSession || undefined,
+    rollout_status: (rolloutStatus || undefined) as MarketOpsIntelligenceReadinessSymbolView['rolloutStatus'] | undefined,
+    limit,
+  });
+  const aggregate = readinessQ.data ? summarizeMarketOpsIntelligenceReadinessAggregate(readinessQ.data.readiness.aggregate) : null;
+  const rows = (readinessQ.data?.readiness.symbols ?? []).map(summarizeMarketOpsIntelligenceReadinessSymbol);
+  const unauthorized =
+    readinessQ.isError && isApiError(readinessQ.error) && (readinessQ.error.status === 401 || readinessQ.error.status === 403);
+  const stale = readinessQ.isFetching && !!readinessQ.data;
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700">
+        Research readiness only — production readiness is unsupported.
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input value={universeGroup} onChange={(e) => setUniverseGroup(e.target.value)} className={readinessInputCls} aria-label="Universe group" placeholder="universe group" />
+        <input value={symbols} onChange={(e) => setSymbols(e.target.value)} className={readinessInputCls} aria-label="Symbols (CSV)" placeholder="symbols (e.g. AAPL,MSFT)" />
+        <input type="date" value={latestSession} onChange={(e) => setLatestSession(e.target.value)} className={readinessInputCls} aria-label="Latest session date" />
+        <select value={rolloutStatus} onChange={(e) => setRolloutStatus(e.target.value)} className={readinessInputCls} aria-label="Rollout status">
+          {ROLLOUT_STATUSES.map((r) => (<option key={r || 'any'} value={r}>{r || 'any rollout'}</option>))}
+        </select>
+        <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} className={readinessInputCls} aria-label="Limit">
+          {READINESS_LIMITS.map((n) => (<option key={n} value={n}>{n}</option>))}
+        </select>
+      </div>
+
+      {readinessQ.isLoading && !readinessQ.data ? (
+        <LoadingState label="Loading intelligence readiness..." />
+      ) : unauthorized ? (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          Unauthorized — this view requires an authenticated MarketOps session.
+        </div>
+      ) : readinessQ.isError ? (
+        <ErrorState error={readinessQ.error} />
+      ) : !aggregate || rows.length === 0 ? (
+        <div className="rounded border border-gray-200 bg-white p-3">
+          <EmptyState message="No durable cohort readiness exists for this scope." />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {/* Aggregate-first summary. */}
+          <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-700">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span>Observed symbols <strong className="text-gray-800">{aggregate.symbolCount}</strong></span>
+              <span>Latest session <strong className="text-gray-800">{aggregate.latestSessionDate ?? '—'}</strong></span>
+              <span className="text-gray-500">production_ready_supported=<strong className="text-gray-800">false</strong></span>
+              {stale ? <span className="text-[11px] text-gray-400">refreshing…</span> : null}
+            </div>
+            {aggregate.rolloutStatus.length ? (
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span className="text-gray-500">Rollout:</span>
+                {aggregate.rolloutStatus.map((e) => (
+                  <span key={e.key} className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium ${rolloutStatusStyle(e.key)}`}>
+                    {e.key} <strong>{e.count}</strong>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {rows.map((s) => (
+            <ReadinessSymbolCard key={s.resultId || s.symbol} s={s} />
+          ))}
+          {rows.length >= limit ? (
+            <p className="text-[11px] text-gray-400">Showing the first {rows.length} symbols — narrow the scope or raise the limit to see more.</p>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReadinessDimensionBadge({ label, state }: { label: string; state: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="text-[10px] uppercase text-gray-400">{label}</span>
+      <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium ${dimensionStateStyle(state)}`}>{state || '—'}</span>
+    </span>
+  );
+}
+
+function ReadinessSymbolCard({ s }: { s: MarketOpsIntelligenceReadinessSymbolView }) {
+  const observed = s.observed;
+  return (
+    <div className="rounded border border-gray-200 bg-white p-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm font-semibold text-gray-900">{s.symbol || '—'}</span>
+          <span className="text-[11px] text-gray-500">{s.universeGroup || '—'}</span>
+        </div>
+        <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium ${rolloutStatusStyle(s.rolloutStatus)}`}>rollout: {s.rolloutStatus || '—'}</span>
+      </div>
+
+      <div className="mt-1 text-[11px] text-gray-600">
+        {observed ? (
+          <>
+            Latest {s.latestStateDate ? formatUtc(s.latestStateDate) : '—'} · schema <code>{s.latestStateSchemaVersion || '—'}</code> · quality {s.latestStateQuality || '—'}
+            {' · '}completeness {formatCoverageRatio(s.latestStateCompleteness, true)}
+            {' · '}required features {formatCoverageRatio(s.requiredFeatureCoverage, true)}
+            {' · '}surface {formatCoverageRatio(s.surfaceCoverage, true)}
+          </>
+        ) : (
+          <span className="text-gray-400">Not observed — no persisted market state.</span>
+        )}
+      </div>
+
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        <ReadinessDimensionBadge label="coverage" state={s.coverageState} />
+        <ReadinessDimensionBadge label="evaluation" state={s.evaluationState} />
+        <ReadinessDimensionBadge label="governance" state={s.governanceState} />
+        <ReadinessDimensionBadge label="calibration" state={s.calibrationState} />
+        <ReadinessDimensionBadge label="outcome" state={s.outcomeState} />
+        {s.calibrationBelowMinimum ? (
+          <span className="inline-flex items-center rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">calibration below minimum</span>
+        ) : null}
+      </div>
+
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-600">
+        <span>eval {s.triggeredCount}/{s.eligibleCount}/{s.evaluationCount}</span>
+        <span>opportunities {s.opportunityCount}</span>
+        <span>outcomes {s.maturedOutcomeCount} matured / {s.pendingOutcomeCount} pending</span>
+        <span>exact calibrations {s.exactCalibrationCount}</span>
+      </div>
+
+      {s.readinessReasons.length ? (
+        <div className="mt-1 text-[11px] text-gray-700">
+          <span className="text-gray-400">reasons: </span>{s.readinessReasons.join(' · ')}
+        </div>
+      ) : null}
+
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500">
+        <span>cohort run <code className="break-all">{s.runId || '—'}</code></span>
+        <div className="flex items-center gap-2">
+          <details className="text-gray-500">
+            <summary className="cursor-pointer">stage + inputs</summary>
+            <div className="mt-1 space-y-1">
+              <JsonViewer label="Stage status" value={s.stageStatus} />
+              <JsonViewer label="Stage errors" value={s.stageErrors} />
+              <JsonViewer label="Input coverage" value={s.inputCoverage} />
+              <JsonViewer label="Proposal status counts" value={s.proposalStatusCounts} />
+            </div>
+          </details>
+          {observed ? (
+            <Link to="/marketops/state" search={{ symbol: s.symbol }} className="text-brand-700 underline hover:text-brand-800">Open Market State</Link>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 }
