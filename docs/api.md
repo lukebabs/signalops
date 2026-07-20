@@ -861,7 +861,7 @@ Records an operator review decision for an algorithm signal proposal. Body field
 
 `signalops-marketops-options-distribution-backfill` reads persisted options-chain rows for one symbol and upserts one `10_trade_days` distribution snapshot per available trade date. It requires `SIGNALOPS_DATABASE_URL` and makes no provider calls. Use it before the feature materializer when a single provider snapshot has produced multiple chain trade dates but only the latest distribution exists.
 
-`signalops-marketops-options-coverage-runner` is the bounded G133 operator CLI for selected-symbol or capped Top 50 options coverage expansion. It resolves symbols from `--symbols` or `marketops_asset_universe`, fetches bounded Massive option-chain snapshots, upserts chain rows, derives distribution snapshots, materializes `options_distribution_daily` normalized feature rows, and reports per-symbol quality counts. It is explicit and capped; it does not install a scheduler or automatic Top 50 fanout.
+`signalops-marketops-options-coverage-runner` is the bounded G133 operator CLI for selected-symbol or capped Top 50 options coverage expansion. With G142 `--session-date`, it first requires canonical same-session equity close, sends provider-side DTE and strike bounds, enforces a separate candidate cap, aggregates the bounded candidate set in memory, and persists at most five deterministic contracts for the implemented IV surface. It derives one compact distribution and `options_distribution_daily` feature row while reporting candidate, selected, discarded, acquisition-bound, and quality metrics. It is explicit and capped; it does not install a scheduler or automatic Top 50 fanout.
 
 `signalops-marketops-state-materializer` is the bounded G137 AAPL CLI. It reads normalized equity EOD events from the temporal ledger and approved persisted option chain/distribution rows, then idempotently upserts versioned feature observations, canonical states, one-session transitions, and quality-gated evidence. It requires both SignalOps database URLs, supports inclusive/exclusive date bounds and `--dry-run`, makes no provider calls, and does not evaluate hypotheses or write production signals.
 
@@ -892,4 +892,4 @@ Lists G142 prospective point-in-time options capture quality. Date bounds are in
 
 `GET /v1/tenants/{tenant_id}/marketops/options/captures/{capture_id}`
 
-Returns one deterministic capture record with provider lineage, required surface-cell coverage, usable IV/Greeks/open-interest counts, quality reasons, attempts, metrics, and terminal error state.
+Returns one deterministic capture record with provider lineage, required surface-cell coverage, usable IV/Greeks/open-interest counts, quality reasons, attempts, metrics, and terminal error state. Metrics distinguish fetched transient candidates, selected evidence, discarded candidates, persisted rows, and the provider acquisition bounds.

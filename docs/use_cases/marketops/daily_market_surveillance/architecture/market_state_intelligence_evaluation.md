@@ -151,4 +151,4 @@ MarketOps now has the state, transition, evidence, hypothesis, opportunity, and 
 
 ### G142: Prospective Options Analytics Capture
 
-Implemented as a deterministic per-symbol/session capture ledger over the bounded G133 runner. G142 records real snapshot quality, shares the five-cell readiness policy with G141, resolves provider-omitted spot only from canonical same-session Massive equity evidence, and prevents partial or stale ingestion runs from satisfying G141. Scheduling remains an explicit deployment decision rather than an automatically enabled Top 50 fanout.
+Implemented as a deterministic per-symbol/session capture ledger over the bounded G133 runner. G142 requires canonical same-session Massive equity close before options acquisition, applies provider-side DTE and moneyness bounds plus a candidate cap, builds positioning aggregates from transient candidates, and persists only deterministic five-cell surface evidence. It shares readiness policy with G141 and prevents partial or stale runs from satisfying coverage. Scheduling remains an explicit deployment decision rather than an automatically enabled Top 50 fanout.

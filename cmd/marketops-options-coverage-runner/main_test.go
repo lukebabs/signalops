@@ -15,12 +15,14 @@ type fakeProvider struct {
 	calls           []string
 	limit           int
 	pages           int
+	filter          massive.OptionChainSnapshotFilter
 }
 
-func (f *fakeProvider) ListOptionChainSnapshot(_ context.Context, underlying string, limit int, maxPages int) ([]massive.OptionContractDailyRecord, error) {
+func (f *fakeProvider) ListOptionChainSnapshotFiltered(_ context.Context, underlying string, filter massive.OptionChainSnapshotFilter) ([]massive.OptionContractDailyRecord, error) {
 	f.calls = append(f.calls, underlying)
-	f.limit = limit
-	f.pages = maxPages
+	f.limit = filter.Limit
+	f.pages = filter.MaxPages
+	f.filter = filter
 	return f.recordsBySymbol[underlying], nil
 }
 
@@ -188,15 +190,22 @@ func TestRunCoveragePersistsAnalyticsReadyCapture(t *testing.T) {
 			surfaceProviderRecord("AAPL", "O:AAPL90ATM", "call", session, 90, .50),
 			surfaceProviderRecord("AAPL", "O:AAPL30P25", "put", session, 30, -.25),
 			surfaceProviderRecord("AAPL", "O:AAPL30C25", "call", session, 30, .25),
+			surfaceProviderRecord("AAPL", "O:AAPL30DEEP", "call", session, 30, .90),
 		},
 	}}
-	repo := &fakeRepo{}
+	repo := &fakeRepo{normalizedEvents: []storage.NormalizedEventLedgerRecord{equityEvent(session)}}
 	result, err := runCoverage(context.Background(), provider, repo, cliConfig{TenantID: "tenant-local", Symbols: []string{"AAPL"}, MaxSymbols: 1, Limit: 10, MaxPages: 1, SessionDate: session, RunID: "g142-test"})
 	if err != nil {
 		t.Fatalf("runCoverage: %v", err)
 	}
 	if result.AnalyticsReady != 1 || result.Partial != 0 || len(repo.captures) != 1 {
 		t.Fatalf("result=%+v captures=%+v", result, repo.captures)
+	}
+	if result.Fetched != 6 || result.SelectedEvidence != 5 || result.DiscardedCandidates != 1 || len(repo.chain) != 5 || result.Symbols[0].DistributionContractCount != 6 {
+		t.Fatalf("bounded result=%+v chain=%d", result, len(repo.chain))
+	}
+	if provider.filter.ExpirationDateGTE != session.AddDate(0, 0, 14) || provider.filter.ExpirationDateLTE != session.AddDate(0, 0, 120) || provider.filter.StrikePriceGTE == nil || *provider.filter.StrikePriceGTE != 70 || provider.filter.StrikePriceLTE == nil || *provider.filter.StrikePriceLTE != 130 {
+		t.Fatalf("provider filter = %+v", provider.filter)
 	}
 	capture := repo.captures[0]
 	if !capture.AnalyticsReady || capture.Status != storage.MarketOpsOptionsCaptureAnalyticsReady || capture.RequiredSurfaceCells != 5 || capture.CaptureID != optionsCaptureID("tenant-local", "src-massive", "AAPL", session) {
@@ -209,7 +218,7 @@ func TestRunCoverageRejectsProviderDateBeforeWritesAndRecordsFailure(t *testing.
 	provider := &fakeProvider{recordsBySymbol: map[string][]massive.OptionContractDailyRecord{
 		"AAPL": {surfaceProviderRecord("AAPL", "O:AAPL30ATM", "call", session.AddDate(0, 0, 1), 30, .50)},
 	}}
-	repo := &fakeRepo{}
+	repo := &fakeRepo{normalizedEvents: []storage.NormalizedEventLedgerRecord{equityEvent(session)}}
 	result, err := runCoverage(context.Background(), provider, repo, cliConfig{TenantID: "tenant-local", Symbols: []string{"AAPL"}, MaxSymbols: 1, SessionDate: session, RunID: "g142-test", ContinueOnError: true})
 	if err != nil {
 		t.Fatalf("runCoverage: %v", err)
@@ -231,6 +240,29 @@ func TestRunCoverageSkipsExistingAnalyticsReadyCapture(t *testing.T) {
 	if result.SkippedComplete != 1 || len(provider.calls) != 0 || len(repo.captures) != 1 {
 		t.Fatalf("result=%+v calls=%+v captures=%d", result, provider.calls, len(repo.captures))
 	}
+}
+
+func TestRunCoverageRequiresCanonicalCloseBeforeProviderAcquisition(t *testing.T) {
+	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	provider := &fakeProvider{recordsBySymbol: map[string][]massive.OptionContractDailyRecord{}}
+	repo := &fakeRepo{}
+	result, err := runCoverage(context.Background(), provider, repo, cliConfig{
+		TenantID: "tenant-local", Symbols: []string{"AAPL"}, MaxSymbols: 1,
+		SessionDate: session, RunID: "g142-missing-equity", ContinueOnError: true,
+	})
+	if err != nil {
+		t.Fatalf("runCoverage: %v", err)
+	}
+	if result.Failed != 1 || len(provider.calls) != 0 || len(repo.chain) != 0 || len(repo.captures) != 1 {
+		t.Fatalf("result=%+v provider_calls=%v chain=%d captures=%d", result, provider.calls, len(repo.chain), len(repo.captures))
+	}
+	if !strings.Contains(repo.captures[0].ErrorMessage, "canonical same-session underlying close is required") {
+		t.Fatalf("capture = %+v", repo.captures[0])
+	}
+}
+
+func equityEvent(session time.Time) storage.NormalizedEventLedgerRecord {
+	return storage.NormalizedEventLedgerRecord{EventID: "evt-aapl-equity", ObservationTime: session, NormalizedPayload: []byte(`{"symbol":"AAPL","close":100}`)}
 }
 
 func surfaceProviderRecord(symbol, ticker, contractType string, session time.Time, dte int, delta float64) massive.OptionContractDailyRecord {

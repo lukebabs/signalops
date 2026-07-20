@@ -93,6 +93,10 @@ func TestClientListOptionChainSnapshot(t *testing.T) {
 		assertQuery(t, r.URL.Query(), "apiKey", "test-key")
 		if calls == 1 {
 			assertQuery(t, r.URL.Query(), "limit", "2")
+			assertQuery(t, r.URL.Query(), "expiration_date.gte", "2026-07-20")
+			assertQuery(t, r.URL.Query(), "expiration_date.lte", "2026-11-17")
+			assertQuery(t, r.URL.Query(), "strike_price.gte", "70.00000000")
+			assertQuery(t, r.URL.Query(), "strike_price.lte", "130.00000000")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if calls == 1 {
@@ -126,7 +130,8 @@ func TestClientListOptionChainSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	records, err := client.ListOptionChainSnapshot(context.Background(), "nvda", 2, 2)
+	strikeMin, strikeMax := 70.0, 130.0
+	records, err := client.ListOptionChainSnapshotFiltered(context.Background(), "nvda", OptionChainSnapshotFilter{Limit: 2, MaxPages: 2, ExpirationDateGTE: time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), ExpirationDateLTE: time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC), StrikePriceGTE: &strikeMin, StrikePriceLTE: &strikeMax})
 	if err != nil {
 		t.Fatalf("list option chain snapshot: %v", err)
 	}

@@ -8743,3 +8743,20 @@ Status: implemented backend and operator capture substrate
 - Live AAPL validation remained honestly partial: 3,376 contracts, 3,093 usable IV/Greeks rows, complete OI presence, no provider spot, no same-session EOD bar, zero required cells, and zero writes.
 - A strict G141 rerun admitted zero pre-G142 option rows, retained 135 equity sessions, remained blocked, and wrote nothing.
 - No scheduler was enabled, no credential changed, no history synthesized, and no calibration or production materialization was added.
+
+## 2026-07-20T13:08:27Z - Gate G142 Bounded Acquisition Correction
+
+Status: corrected and focused tests passed
+
+- Reconciled the prospective capture path with the market-state architecture's hypothesis-before-data-expansion rule.
+- The earlier 3,376-contract AAPL diagnostic was a dry run with zero writes; its full-chain acquisition behavior is superseded.
+- Session capture now requires canonical same-session equity close before any options provider call.
+- Added Massive provider-side expiration and strike filters with configurable DTE/moneyness bounds.
+- Added an independent candidate cap: default 500 and hard maximum 1,000 per symbol/session, regardless of page budget.
+- The bounded candidate set now feeds the compact positioning distribution in memory; bulk candidate contracts are not persisted.
+- At most five deterministic source contracts are retained for the implemented 30/60/90-DTE ATM and 30-DTE put/call 25-delta cells.
+- Capture metrics distinguish fetched candidates, selected evidence, discarded candidates, persisted rows, and acquisition bounds.
+- Focused Go tests passed for the Massive adapter, MarketOps option selector, and coverage runner.
+- Docker target `marketops-options-coverage-runner` built successfully and reran the full Go suite.
+- Regression tests verify no-equity/no-provider behavior, provider query bounds, deterministic selection, five-row persistence, and use of all bounded candidates in aggregate positioning.
+- No live provider request was made because canonical 2026-07-20 AAPL equity EOD evidence was unavailable.

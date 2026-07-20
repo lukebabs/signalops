@@ -69,23 +69,56 @@ func (c *Client) ListOptionContracts(ctx context.Context, underlying string, asO
 }
 
 func (c *Client) ListOptionChainSnapshot(ctx context.Context, underlying string, limit int, maxPages int) ([]OptionContractDailyRecord, error) {
+	return c.ListOptionChainSnapshotFiltered(ctx, underlying, OptionChainSnapshotFilter{Limit: limit, MaxPages: maxPages})
+}
+
+// OptionChainSnapshotFilter bounds an option-chain request at the provider.
+// Zero-valued dates and nil strike bounds are omitted.
+type OptionChainSnapshotFilter struct {
+	Limit             int
+	MaxPages          int
+	ExpirationDateGTE time.Time
+	ExpirationDateLTE time.Time
+	StrikePriceGTE    *float64
+	StrikePriceLTE    *float64
+}
+
+func (c *Client) ListOptionChainSnapshotFiltered(ctx context.Context, underlying string, filter OptionChainSnapshotFilter) ([]OptionContractDailyRecord, error) {
 	underlying = normalizeSymbol(underlying)
 	if underlying == "" {
 		return nil, errors.New("underlying symbol is required")
 	}
-	if limit <= 0 || limit > 250 {
-		limit = 250
+	if filter.Limit <= 0 || filter.Limit > 250 {
+		filter.Limit = 250
 	}
-	if maxPages <= 0 || maxPages > 20 {
-		maxPages = 1
+	if filter.MaxPages <= 0 || filter.MaxPages > 20 {
+		filter.MaxPages = 1
+	}
+	if !filter.ExpirationDateGTE.IsZero() && !filter.ExpirationDateLTE.IsZero() && filter.ExpirationDateLTE.Before(filter.ExpirationDateGTE) {
+		return nil, errors.New("option-chain expiration upper bound must not precede lower bound")
+	}
+	if filter.StrikePriceGTE != nil && filter.StrikePriceLTE != nil && *filter.StrikePriceLTE < *filter.StrikePriceGTE {
+		return nil, errors.New("option-chain strike upper bound must not precede lower bound")
 	}
 	query := url.Values{}
-	query.Set("limit", fmt.Sprintf("%d", limit))
+	query.Set("limit", fmt.Sprintf("%d", filter.Limit))
+	if !filter.ExpirationDateGTE.IsZero() {
+		query.Set("expiration_date.gte", dateKey(filter.ExpirationDateGTE))
+	}
+	if !filter.ExpirationDateLTE.IsZero() {
+		query.Set("expiration_date.lte", dateKey(filter.ExpirationDateLTE))
+	}
+	if filter.StrikePriceGTE != nil {
+		query.Set("strike_price.gte", fmt.Sprintf("%.8f", *filter.StrikePriceGTE))
+	}
+	if filter.StrikePriceLTE != nil {
+		query.Set("strike_price.lte", fmt.Sprintf("%.8f", *filter.StrikePriceLTE))
+	}
 	path := fmt.Sprintf("/v3/snapshot/options/%s", url.PathEscape(underlying))
 	fallback := time.Now().UTC()
 	records := []OptionContractDailyRecord{}
 	nextURL := ""
-	for page := 0; page < maxPages; page++ {
+	for page := 0; page < filter.MaxPages; page++ {
 		var response optionChainSnapshotResponse
 		var err error
 		if page == 0 {

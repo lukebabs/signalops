@@ -23,7 +23,7 @@ import (
 )
 
 type snapshotProvider interface {
-	ListOptionChainSnapshot(ctx context.Context, underlying string, limit int, maxPages int) ([]massive.OptionContractDailyRecord, error)
+	ListOptionChainSnapshotFiltered(ctx context.Context, underlying string, filter massive.OptionChainSnapshotFilter) ([]massive.OptionContractDailyRecord, error)
 }
 
 type repository interface {
@@ -46,6 +46,11 @@ type cliConfig struct {
 	RunID             string
 	Limit             int
 	MaxPages          int
+	MaxCandidates     int
+	MinDTE            int
+	MaxDTE            int
+	MinMoneyness      float64
+	MaxMoneyness      float64
 	MaxSymbols        int
 	WindowDays        int
 	ChainScanLimit    int
@@ -73,6 +78,12 @@ type symbolMetrics struct {
 	Error                        string         `json:"error,omitempty"`
 	Attempts                     int            `json:"attempts"`
 	Fetched                      int            `json:"fetched"`
+	SelectedEvidence             int            `json:"selected_evidence"`
+	DiscardedCandidates          int            `json:"discarded_candidates"`
+	AcquisitionExpirationStart   string         `json:"acquisition_expiration_start,omitempty"`
+	AcquisitionExpirationEnd     string         `json:"acquisition_expiration_end,omitempty"`
+	AcquisitionStrikeMinimum     float64        `json:"acquisition_strike_minimum,omitempty"`
+	AcquisitionStrikeMaximum     float64        `json:"acquisition_strike_maximum,omitempty"`
 	Converted                    int            `json:"converted"`
 	Skipped                      int            `json:"skipped"`
 	ChainUpserted                int            `json:"chain_upserted"`
@@ -99,6 +110,11 @@ type metrics struct {
 	DryRun                bool            `json:"dry_run"`
 	Limit                 int             `json:"limit"`
 	MaxPages              int             `json:"max_pages"`
+	MaxCandidates         int             `json:"max_candidates"`
+	MinDTE                int             `json:"min_dte"`
+	MaxDTE                int             `json:"max_dte"`
+	MinMoneyness          float64         `json:"min_moneyness"`
+	MaxMoneyness          float64         `json:"max_moneyness"`
 	MaxSymbols            int             `json:"max_symbols"`
 	WindowDays            int             `json:"window_days"`
 	ChainScanLimit        int             `json:"chain_scan_limit"`
@@ -113,6 +129,8 @@ type metrics struct {
 	SymbolsRequested      int             `json:"symbols_requested"`
 	SymbolsProcessed      int             `json:"symbols_processed"`
 	Fetched               int             `json:"fetched"`
+	SelectedEvidence      int             `json:"selected_evidence"`
+	DiscardedCandidates   int             `json:"discarded_candidates"`
 	Converted             int             `json:"converted"`
 	Skipped               int             `json:"skipped"`
 	ChainUpserted         int             `json:"chain_upserted"`
@@ -168,7 +186,7 @@ func runCoverage(ctx context.Context, provider snapshotProvider, repo repository
 		return metrics{}, err
 	}
 	startedAt := time.Now().UTC()
-	out := metrics{RunID: cfg.RunID, TenantID: cfg.TenantID, UniverseGroup: cfg.UniverseGroup, SourceID: cfg.SourceID, DryRun: cfg.DryRun, Limit: cfg.Limit, MaxPages: cfg.MaxPages, MaxSymbols: cfg.MaxSymbols, WindowDays: cfg.WindowDays, ChainScanLimit: cfg.ChainScanLimit, DistributionLimit: cfg.DistributionLimit, QualityCounts: map[string]int{}, StartedAt: startedAt.Format(time.RFC3339Nano), CaptureEnabled: !cfg.SessionDate.IsZero()}
+	out := metrics{RunID: cfg.RunID, TenantID: cfg.TenantID, UniverseGroup: cfg.UniverseGroup, SourceID: cfg.SourceID, DryRun: cfg.DryRun, Limit: cfg.Limit, MaxPages: cfg.MaxPages, MaxCandidates: cfg.MaxCandidates, MinDTE: cfg.MinDTE, MaxDTE: cfg.MaxDTE, MinMoneyness: cfg.MinMoneyness, MaxMoneyness: cfg.MaxMoneyness, MaxSymbols: cfg.MaxSymbols, WindowDays: cfg.WindowDays, ChainScanLimit: cfg.ChainScanLimit, DistributionLimit: cfg.DistributionLimit, QualityCounts: map[string]int{}, StartedAt: startedAt.Format(time.RFC3339Nano), CaptureEnabled: !cfg.SessionDate.IsZero()}
 	if !cfg.SessionDate.IsZero() {
 		out.SessionDate = dayOnly(cfg.SessionDate).Format("2006-01-02")
 		if cfg.SessionDate.Weekday() == time.Saturday || cfg.SessionDate.Weekday() == time.Sunday {
@@ -226,6 +244,8 @@ func runCoverage(ctx context.Context, provider snapshotProvider, repo repository
 		out.Symbols = append(out.Symbols, item)
 		out.SymbolsProcessed++
 		out.Fetched += item.Fetched
+		out.SelectedEvidence += item.SelectedEvidence
+		out.DiscardedCandidates += item.DiscardedCandidates
 		out.Converted += item.Converted
 		out.Skipped += item.Skipped
 		out.ChainUpserted += item.ChainUpserted
@@ -263,9 +283,34 @@ func processSymbolWithRetry(ctx context.Context, provider snapshotProvider, repo
 }
 func processSymbol(ctx context.Context, provider snapshotProvider, repo repository, cfg cliConfig, symbol string) (symbolMetrics, error) {
 	item := symbolMetrics{Symbol: symbol, Attempts: 1, QualityCounts: map[string]int{}, OpenInterestQualityCounts: map[string]int{}}
-	providerRecords, err := provider.ListOptionChainSnapshot(ctx, symbol, cfg.Limit, cfg.MaxPages)
+	filter := massive.OptionChainSnapshotFilter{Limit: cfg.Limit, MaxPages: cfg.MaxPages}
+	canonicalClose := 0.0
+	if !cfg.SessionDate.IsZero() {
+		var err error
+		canonicalClose, item.UnderlyingPriceSourceEventID, err = resolveSameSessionUnderlyingPrice(ctx, repo, cfg, symbol)
+		if err != nil {
+			return item, err
+		}
+		if canonicalClose <= 0 {
+			return item, fmt.Errorf("canonical same-session underlying close is required before bounded options acquisition for %s", symbol)
+		}
+		strikeMinimum, strikeMaximum := canonicalClose*cfg.MinMoneyness, canonicalClose*cfg.MaxMoneyness
+		filter.ExpirationDateGTE = dayOnly(cfg.SessionDate).AddDate(0, 0, cfg.MinDTE)
+		filter.ExpirationDateLTE = dayOnly(cfg.SessionDate).AddDate(0, 0, cfg.MaxDTE)
+		filter.StrikePriceGTE, filter.StrikePriceLTE = &strikeMinimum, &strikeMaximum
+		filter.Limit = minInt(filter.Limit, cfg.MaxCandidates)
+		filter.MaxPages = minInt(filter.MaxPages, (cfg.MaxCandidates+filter.Limit-1)/filter.Limit)
+		item.AcquisitionExpirationStart = filter.ExpirationDateGTE.Format("2006-01-02")
+		item.AcquisitionExpirationEnd = filter.ExpirationDateLTE.Format("2006-01-02")
+		item.AcquisitionStrikeMinimum = strikeMinimum
+		item.AcquisitionStrikeMaximum = strikeMaximum
+	}
+	providerRecords, err := provider.ListOptionChainSnapshotFiltered(ctx, symbol, filter)
 	if err != nil {
 		return item, fmt.Errorf("fetch option chain for %s: %w", symbol, err)
+	}
+	if !cfg.SessionDate.IsZero() && len(providerRecords) > cfg.MaxCandidates {
+		providerRecords = providerRecords[:cfg.MaxCandidates]
 	}
 	item.Fetched = len(providerRecords)
 	chainRecords := []storage.MarketOpsOptionsChainRecord{}
@@ -279,6 +324,8 @@ func processSymbol(ctx context.Context, provider snapshotProvider, repo reposito
 				sawRequestedSessionActivity = true
 			}
 			providerRecord.ObservationDate = dayOnly(cfg.SessionDate)
+			value := canonicalClose
+			providerRecord.UnderlyingClose = &value
 		}
 		chainRecord, err := marketopsoptions.ChainRecordFromMassiveSnapshot(cfg.TenantID, cfg.SourceID, cfg.RunID, providerRecord)
 		if err != nil {
@@ -291,11 +338,7 @@ func processSymbol(ctx context.Context, provider snapshotProvider, repo reposito
 	if len(providerRecords) > 0 && !sawRequestedSessionActivity {
 		return item, fmt.Errorf("provider snapshot has no contract activity on requested capture session %s", dayOnly(cfg.SessionDate).Format("2006-01-02"))
 	}
-	chainRecords, item.UnderlyingPriceSourceEventID, err = enrichUnderlyingPrice(ctx, repo, cfg, symbol, chainRecords)
-	if err != nil {
-		return item, err
-	}
-	if !cfg.SessionDate.IsZero() && len(chainRecords) > 0 {
+	if !cfg.SessionDate.IsZero() {
 		for _, record := range chainRecords {
 			if !dayOnly(record.TradeDate).Equal(dayOnly(cfg.SessionDate)) {
 				return item, fmt.Errorf("provider session %s does not match requested session-date %s", dayOnly(record.TradeDate).Format("2006-01-02"), dayOnly(cfg.SessionDate).Format("2006-01-02"))
@@ -306,7 +349,13 @@ func processSymbol(ctx context.Context, provider snapshotProvider, repo reposito
 	if readinessSession.IsZero() && len(chainRecords) > 0 {
 		readinessSession = chainRecords[0].TradeDate
 	}
-	readiness := marketopsoptions.AssessAnalyticsReadiness(readinessSession, chainRecords)
+	retainedEvidence := chainRecords
+	if !cfg.SessionDate.IsZero() {
+		retainedEvidence = marketopsoptions.SelectRequiredSurfaceEvidence(readinessSession, chainRecords)
+	}
+	item.SelectedEvidence = len(retainedEvidence)
+	item.DiscardedCandidates = len(chainRecords) - len(retainedEvidence)
+	readiness := marketopsoptions.AssessAnalyticsReadiness(readinessSession, retainedEvidence)
 	item.AnalyticsReady = readiness.Ready
 	item.RequiredSurfaceCells = readiness.RequiredSurfaceCells
 	item.UsableIVCount = readiness.UsableIVCount
@@ -315,19 +364,22 @@ func processSymbol(ctx context.Context, provider snapshotProvider, repo reposito
 	item.UnderlyingPriceCount = readiness.UnderlyingPriceCount
 	item.QualityReasons = readiness.QualityReasons
 	if !cfg.DryRun {
-		for _, chainRecord := range chainRecords {
+		for _, chainRecord := range retainedEvidence {
 			if err := repo.UpsertMarketOpsOptionsChain(ctx, chainRecord); err != nil {
 				return item, err
 			}
 			item.ChainUpserted++
 		}
 	}
-	rows, err := repo.ListMarketOpsOptionsChain(ctx, storage.MarketOpsOptionsChainFilter{TenantID: cfg.TenantID, Symbol: symbol, Limit: cfg.ChainScanLimit})
-	if err != nil {
-		return item, err
-	}
-	if cfg.DryRun {
-		rows = append(rows, chainRecords...)
+	rows := chainRecords
+	if cfg.SessionDate.IsZero() {
+		rows, err = repo.ListMarketOpsOptionsChain(ctx, storage.MarketOpsOptionsChainFilter{TenantID: cfg.TenantID, Symbol: symbol, Limit: cfg.ChainScanLimit})
+		if err != nil {
+			return item, err
+		}
+		if cfg.DryRun {
+			rows = append(rows, chainRecords...)
+		}
 	}
 	item.ChainRowsScanned = len(rows)
 	dates := tradeDates(rows)
@@ -388,27 +440,15 @@ func processSymbol(ctx context.Context, provider snapshotProvider, repo reposito
 	}
 	return item, nil
 }
-func enrichUnderlyingPrice(ctx context.Context, repo repository, cfg cliConfig, symbol string, records []storage.MarketOpsOptionsChainRecord) ([]storage.MarketOpsOptionsChainRecord, string, error) {
-	if cfg.SessionDate.IsZero() || len(records) == 0 {
-		return records, "", nil
-	}
-	needsPrice := false
-	for _, record := range records {
-		if record.UnderlyingClose == nil || *record.UnderlyingClose <= 0 {
-			needsPrice = true
-			break
-		}
-	}
-	if !needsPrice {
-		return records, "", nil
-	}
+
+func resolveSameSessionUnderlyingPrice(ctx context.Context, repo repository, cfg cliConfig, symbol string) (float64, string, error) {
 	events, err := repo.ListMarketOpsBacktestNormalizedEvents(ctx, storage.MarketOpsBacktestEventFilter{
 		TenantID: cfg.TenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance",
 		SourceAdapter: "market_data.massive", Dataset: "equity_eod_prices", Symbols: []string{symbol},
 		WindowStart: dayOnly(cfg.SessionDate), WindowEnd: dayOnly(cfg.SessionDate).AddDate(0, 0, 1), Limit: 10,
 	})
 	if err != nil {
-		return nil, "", fmt.Errorf("resolve same-session underlying price for %s: %w", symbol, err)
+		return 0, "", fmt.Errorf("resolve same-session underlying price for %s: %w", symbol, err)
 	}
 	var closeValue float64
 	eventID := ""
@@ -423,18 +463,7 @@ func enrichUnderlyingPrice(ctx context.Context, repo repository, cfg cliConfig, 
 			eventID = event.EventID
 		}
 	}
-	if closeValue <= 0 {
-		return records, "", nil
-	}
-	for index := range records {
-		if records[index].UnderlyingClose == nil || *records[index].UnderlyingClose <= 0 {
-			value := closeValue
-			records[index].UnderlyingClose = &value
-			moneyness := records[index].StrikePrice / closeValue
-			records[index].Moneyness = &moneyness
-		}
-	}
-	return records, eventID, nil
+	return closeValue, eventID, nil
 }
 
 func persistCapture(ctx context.Context, repo repository, cfg cliConfig, item symbolMetrics, startedAt time.Time) error {
@@ -507,6 +536,11 @@ func loadConfig() (cliConfig, error) {
 	flag.StringVar(&cfg.RunID, "run-id", "", "coverage run id")
 	flag.IntVar(&cfg.Limit, "limit", 250, "Massive option-chain page size per symbol")
 	flag.IntVar(&cfg.MaxPages, "max-pages", 1, "maximum Massive option-chain pages to fetch per symbol")
+	flag.IntVar(&cfg.MaxCandidates, "max-candidates", 500, "hard maximum provider candidates per session and symbol")
+	flag.IntVar(&cfg.MinDTE, "min-dte", 14, "minimum expiration DTE for session acquisition")
+	flag.IntVar(&cfg.MaxDTE, "max-dte", 120, "maximum expiration DTE for session acquisition")
+	flag.Float64Var(&cfg.MinMoneyness, "min-moneyness", 0.70, "minimum strike to canonical-close ratio for session acquisition")
+	flag.Float64Var(&cfg.MaxMoneyness, "max-moneyness", 1.30, "maximum strike to canonical-close ratio for session acquisition")
 	flag.IntVar(&cfg.MaxSymbols, "max-symbols", 3, "maximum symbols to process")
 	flag.IntVar(&cfg.WindowDays, "window-days", 10, "calendar-day lookback used for distribution snapshots")
 	flag.IntVar(&cfg.ChainScanLimit, "chain-scan-limit", 5000, "maximum persisted chain rows to scan per symbol")
@@ -545,6 +579,21 @@ func (cfg cliConfig) withDefaults() cliConfig {
 	if cfg.MaxPages <= 0 || cfg.MaxPages > 20 {
 		cfg.MaxPages = 1
 	}
+	if cfg.MaxCandidates <= 0 || cfg.MaxCandidates > 1000 {
+		cfg.MaxCandidates = 500
+	}
+	if cfg.MinDTE <= 0 {
+		cfg.MinDTE = 14
+	}
+	if cfg.MaxDTE <= 0 {
+		cfg.MaxDTE = 120
+	}
+	if cfg.MinMoneyness <= 0 {
+		cfg.MinMoneyness = 0.70
+	}
+	if cfg.MaxMoneyness <= 0 {
+		cfg.MaxMoneyness = 1.30
+	}
 	if cfg.MaxSymbols <= 0 || cfg.MaxSymbols > 50 {
 		cfg.MaxSymbols = 3
 	}
@@ -575,6 +624,12 @@ func (cfg cliConfig) validate() error {
 	}
 	if cfg.MaxSymbols <= 0 {
 		return errors.New("max-symbols must be positive")
+	}
+	if cfg.MinDTE < 7 || cfg.MaxDTE > 180 || cfg.MinDTE >= cfg.MaxDTE {
+		return errors.New("session DTE bounds must satisfy 7 <= min-dte < max-dte <= 180")
+	}
+	if cfg.MinMoneyness <= 0 || cfg.MinMoneyness >= cfg.MaxMoneyness {
+		return errors.New("session moneyness bounds must be positive and increasing")
 	}
 	return nil
 }
@@ -652,6 +707,13 @@ func qualityFromMetrics(raw []byte) (string, string) {
 		openInterestQuality = "unknown"
 	}
 	return ratioQuality, openInterestQuality
+}
+
+func minInt(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
 }
 
 func dayOnly(value time.Time) time.Time {

@@ -13,15 +13,15 @@ The gate does not reconstruct unavailable history. It creates an auditable daily
 ## Implemented Scope
 
 - Added `marketops_options_capture_sessions` with deterministic symbol/session identities, terminal quality status, attempt count, provider lineage, capture metrics, and timestamps.
-- Extended `signalops-marketops-options-coverage-runner` with explicit `--session-date`, `--skip-complete`, `--continue-on-error`, `--max-retries`, and `--retry-backoff` controls.
-- The explicit capture session stamps the point-in-time snapshot; a contract activity timestamp after that session or a snapshot with no activity on that session is rejected before any chain row is written.
+- Extended `signalops-marketops-options-coverage-runner` with explicit session, retry/resume, DTE, moneyness, and candidate-budget controls.
+- A canonical same-session Massive equity close is now required before any session options request. It defines point-in-time moneyness bounds and its event ID is retained in capture metrics.
+- Massive acquisition is provider-filtered to the configured expiration and strike ranges. Defaults are 14-120 DTE, 70%-130% moneyness, and at most 500 transient candidates per symbol/session.
+- The bounded candidate set is aggregated in memory into the daily positioning distribution; candidates are not bulk-written to the contract ledger.
+- At most five deterministic contracts are retained as exact evidence for the implemented 30/60/90-DTE ATM and 30-DTE put/call 25-delta surface cells.
+- The explicit capture session stamps point-in-time evidence; future activity or a snapshot with no activity on that session is rejected before any options write.
 - Existing analytics-ready captures can be skipped without a provider call. Partial, no-data, and failed captures remain eligible for a bounded rerun.
-- Readiness requires five actual surface cells: 30/60/90-DTE ATM and 30-DTE put/call 25-delta, with usable IV, delta, and underlying price.
-- When Massive omits underlying spot, G142 may fill it only from the canonical same-session Massive equity normalized event and records that event id in capture metrics.
-- G141 and G142 now share one readiness implementation.
-- G141 accepts option-chain rows only when their session has an analytics-ready capture and their ingestion run matches that capture exactly.
+- G141 and G142 share one readiness implementation and G141 accepts only evidence rows from an analytics-ready capture's exact ingestion run.
 - Added tenant-scoped capture list and detail APIs.
-- Retained existing chain, distribution, and normalized-feature writes from G133.
 
 ## Status Semantics
 
@@ -34,13 +34,17 @@ Missing fields remain missing. Contract count is never used as a proxy for surfa
 
 ## Bounded Execution
 
-One invocation processes an explicit symbol list or one capped slice of `top50_megacap`. It is not one background job per asset. The existing hard bounds remain in force:
+One invocation processes an explicit symbol list or one capped slice of `top50_megacap`; it is not one background job per asset. For the prospective session path, bounds are analytical rather than only pagination-based:
 
-- maximum 50 symbols, default 3;
-- maximum 250 records per provider page;
-- maximum 20 pages per symbol, default 1;
-- maximum 5 retries, default 1;
-- bounded persisted-chain and distribution scans.
+- canonical equity evidence is resolved before provider acquisition;
+- configurable DTE range, constrained to 7-180 and defaulting to 14-120;
+- configurable strike/spot range, defaulting to 70%-130%;
+- hard candidate budget of at most 1,000 and default 500 per symbol/session;
+- maximum 250 records per provider page and only enough pages to satisfy the lower of the page and candidate budgets;
+- up to five selected surface contracts persisted per symbol/session;
+- one compact positioning distribution and normalized feature event built from the transient candidate set.
+
+The capture ledger retains fetched candidate count, selected/discarded counts, acquisition bounds, usable-field counts, and quality results. Contract count is an acquisition metric, not a promise that every candidate was stored.
 
 ## Safety Boundary
 
@@ -57,20 +61,19 @@ The code path can now accumulate and audit genuine prospective options analytics
 - G141: `G141_historical_coverage_and_outcome_population.md`
 - G133: `G133_bounded_top50_options_coverage_expansion.md`
 
+## Validation And Superseded Diagnostic
 
-## Live Validation
+The initial 2026-07-20 AAPL dry run fetched 3,376 contracts because the first implementation reused the legacy full-chain G133 pagination path. It performed zero writes, but the acquisition behavior did not satisfy the market-state architecture's hypothesis-before-expansion principle and has been superseded.
 
-A bounded AAPL dry run requested the 2026-07-20 capture session and exhausted the provider chain within the 20-page hard limit:
+The corrected prospective path:
 
-- 3,376 contracts fetched and converted;
-- 3,093 contracts with usable IV and complete Greeks;
-- 3,376 contracts with open interest;
-- zero provider underlying-price values;
-- zero of five required surface cells after applying the full readiness policy;
-- status `partial` and zero writes.
+- stops before a provider call when canonical same-session equity close is unavailable;
+- sends Massive expiration and strike bounds derived from the current surface hypothesis inputs;
+- caps transient candidates independently of page count;
+- aggregates bounded positioning evidence in memory;
+- persists no more than five deterministic source contracts for the implemented surface cells;
+- reports candidate, selected, discarded, and acquisition-bound metrics separately.
 
-The canonical AAPL equity EOD pull for 2026-07-20 returned no bar at validation time, so G142 correctly did not enrich the missing spot value or claim an analytics-ready session. Deterministic tests prove that a same-session canonical equity event supplies the missing spot with event lineage and makes an otherwise complete surface ready.
+Focused tests pass for provider-filter query construction, the no-equity/no-provider guard, deterministic five-cell selection, compact persistence, and candidate-set distribution aggregation. The canonical AAPL equity EOD pull for 2026-07-20 still had no bar at validation time, so no corrected live provider request or persisted capture was attempted for that session.
 
-Migration `000032` applied locally, passed isolated-schema up/down validation, and passed PostgreSQL upsert, attempt-increment, list, and detail integration.
-
-A strict G141 rerun admitted zero option rows because no analytics-ready capture exists, retained all 135 equity sessions, returned `blocked_insufficient_coverage`, and wrote nothing.
+Migration `000032` remains applied and previously passed isolated-schema up/down validation plus PostgreSQL upsert, attempt-increment, list, and detail integration. A strict G141 rerun still admits zero options rows until genuine analytics-ready prospective sessions exist.

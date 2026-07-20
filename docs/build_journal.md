@@ -7340,3 +7340,15 @@ Validation performed:
 Result:
 
 - MarketOps can now accumulate auditable prospective options analytics without 50 independent jobs or fake history. G141 remains blocked until 20 genuine AAPL sessions reach analytics-ready status.
+
+## 2026-07-20T13:08:27Z - G142 Bounded Acquisition Correction
+
+- Corrected G142 after the 3,376-contract dry-run diagnostic exposed reuse of the legacy full-chain path.
+- Required canonical same-session equity close before options acquisition and use it for point-in-time strike/moneyness bounds.
+- Added Massive `expiration_date.gte/lte` and `strike_price.gte/lte` request filters.
+- Added configurable 14-120 DTE and 70%-130% moneyness defaults plus a 500-candidate default/1,000 hard cap.
+- Aggregate positioning now uses the transient bounded candidate set; only up to five deterministic surface source contracts are persisted.
+- Added candidate/selection/acquisition metrics and updated the gate, operations, architecture, and API documentation.
+- Focused Dockerized Go tests passed for `./internal/adapters/marketdata/massive`, `./internal/marketops/options`, and `./cmd/marketops-options-coverage-runner`.
+- Docker target `marketops-options-coverage-runner` built successfully and reran the full Go suite.
+- No live request was attempted without canonical same-session AAPL equity evidence.

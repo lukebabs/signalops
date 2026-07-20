@@ -86,8 +86,38 @@ func AssessAnalyticsReadiness(session time.Time, records []storage.MarketOpsOpti
 	return report
 }
 
+// SelectRequiredSurfaceEvidence retains at most one deterministic source contract
+// per currently implemented analytical surface cell.
+func SelectRequiredSurfaceEvidence(session time.Time, records []storage.MarketOpsOptionsChainRecord) []storage.MarketOpsOptionsChainRecord {
+	selected := make([]storage.MarketOpsOptionsChainRecord, 0, RequiredSurfaceCellCount)
+	used := map[string]struct{}{}
+	for _, cell := range requiredSurfaceCells {
+		record, ok := bestSurfaceCell(session, records, cell, used)
+		if !ok {
+			continue
+		}
+		selected = append(selected, record)
+		used[record.OptionTicker] = struct{}{}
+	}
+	sort.Slice(selected, func(i, j int) bool { return selected[i].OptionTicker < selected[j].OptionTicker })
+	return selected
+}
+
 func surfaceCellPresent(session time.Time, records []storage.MarketOpsOptionsChainRecord, cell surfaceCell) bool {
+	_, ok := bestSurfaceCell(session, records, cell, nil)
+	return ok
+}
+
+func bestSurfaceCell(session time.Time, records []storage.MarketOpsOptionsChainRecord, cell surfaceCell, excluded map[string]struct{}) (storage.MarketOpsOptionsChainRecord, bool) {
+	bestScore := math.MaxFloat64
+	bestOpenInterest := int64(-1)
+	bestVolume := int64(-1)
+	var best storage.MarketOpsOptionsChainRecord
+	found := false
 	for _, record := range records {
+		if _, skip := excluded[record.OptionTicker]; skip {
+			continue
+		}
 		if cell.optionType != "" && strings.ToLower(record.ContractType) != cell.optionType {
 			continue
 		}
@@ -102,11 +132,26 @@ func surfaceCellPresent(session time.Time, records []storage.MarketOpsOptionsCha
 		if cell.dte >= 90 {
 			tolerance = 30
 		}
-		if dte >= 7 && dte <= 180 && absInt(dte-cell.dte) <= tolerance && math.Abs(math.Abs(*record.Delta)-cell.delta) <= .15 {
-			return true
+		dteDistance := absInt(dte - cell.dte)
+		deltaDistance := math.Abs(math.Abs(*record.Delta) - cell.delta)
+		if dte < 7 || dte > 180 || dteDistance > tolerance || deltaDistance > .15 {
+			continue
+		}
+		score := float64(dteDistance)/float64(tolerance) + deltaDistance/.15
+		oi := int64(-1)
+		if record.OpenInterest != nil {
+			oi = *record.OpenInterest
+		}
+		volume := int64(-1)
+		if record.Volume != nil {
+			volume = *record.Volume
+		}
+		if !found || score < bestScore || (score == bestScore && (oi > bestOpenInterest || (oi == bestOpenInterest && (volume > bestVolume || (volume == bestVolume && record.OptionTicker < best.OptionTicker))))) {
+			best, found = record, true
+			bestScore, bestOpenInterest, bestVolume = score, oi, volume
 		}
 	}
-	return false
+	return best, found
 }
 
 func absInt(value int) int {
