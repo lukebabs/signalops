@@ -8952,3 +8952,32 @@ Result:
 - G147 is accepted as an effective analyst-readability layer over the governed ledgers.
 - It improves inspection and triage effectiveness, but it does not establish empirical hypothesis effectiveness; genuine prospective evidence and adequate calibration samples are still required.
 - G148 is next.
+
+## 2026-07-20 - Gate G148 Graph, Ask, And Cohort Rollout Specification
+
+Status: proposed - backend implementation specification ready
+
+Decision:
+
+- Sequence G148 as source-aware graph proposals, bounded Market State context/Ask, then capped cohort execution/readiness.
+- Reuse and generalize the existing graph decision and Syncratic context/Ask controls rather than creating parallel ledgers or direct external-facade frontend calls.
+- Keep graph decisions, Ask, provider acquisition, analytical execution, proposal review, lifecycle promotion, and analyst disposition as separate authorities.
+
+Evidence reviewed:
+
+- The current graph schema requires a DSM artifact and production signal, so non-signal state records cannot be mapped without schema evolution or fabricated lineage.
+- The current Ask prompt is bounded and evidence-pure but fetches signal details rather than Market State records.
+- State materialization supports explicit cohorts capped at 10; evaluator, opportunity, outcome, and hypothesis-proposal CLIs remain AAPL-only.
+- Live storage has 120 legacy graph proposals, nine signal-cluster Syncratic contexts, six sparse AAPL states, 24 non-eligible/non-triggered AAPL evaluations, and no opportunities.
+
+Boundaries retained:
+
+- No runtime, migration, provider, graph, Ask, cohort, signal, lifecycle, or frontend mutation was performed by this specification gate.
+- G148 cannot claim production or empirical readiness from structural integration.
+- Automatic Top 50 scheduling, batch Ask, graph writeback, threshold relaxation, promotion, and unsupported hypothesis materialization remain prohibited.
+
+Result:
+
+- The backend agent can implement G148-A without inventing graph authority or false signal lineage.
+- G148-B and G148-C remain ordered follow-ons inside the same gate.
+- A frontend handoff will follow only after the new backend contracts are live-validated.

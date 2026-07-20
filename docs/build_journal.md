@@ -7522,3 +7522,27 @@ Result:
 - G147 is implemented and accepted.
 - Sparse data remains truthful: unavailable cells, incomplete state, non-triggered evaluations, insufficient calibration, and absent proposals are not converted into zero or readiness.
 - G148 Graph, Ask, And Cohort Rollout is the recommended next gate, while empirical research effectiveness remains dependent on genuine prospective coverage.
+
+## 2026-07-20 - G148 Graph, Ask, And Cohort Rollout Specification
+
+Summary:
+
+- Reconciled the complete-v1 graph, Ask, and bounded-rollout requirements against the deployed G088-G093 Syncratic substrate, graph proposal ledger, G137-G147 Market State ledgers, and current analytical CLIs.
+- Defined G148 as three ordered backend-first slices: source-aware graph proposals, Market State context/Ask v2, and explicit cohort execution/readiness.
+- Required generalization of the existing graph decision ledger rather than a parallel graph authority.
+- Required exact tenant/asset/session/schema/version purity, bounded record counts, prompt caps, category-labeled claims, and data-quality blocking for Market State Ask.
+- Required persisted-input-only cohorts capped at 10 symbols, partial-failure isolation, durable per-symbol stage results, and aggregate readiness without a `production_ready` state.
+
+Current-truth validation:
+
+- The graph ledger contains 120 signal-artifact proposals: 7 accepted and 113 proposed.
+- Nine Syncratic contexts exist, all using `symbol_signal_cluster_5d`; current Ask detail is signal-focused.
+- Only AAPL has Market State records: 6 states averaging 0.140 completeness, all partial or missing.
+- AAPL has 24 evaluations with zero eligible and zero triggered, and no persisted opportunities.
+- State materialization already supports explicit cohorts capped at 10, while evaluator, opportunity, outcome, and hypothesis-proposal CLIs remain AAPL-only.
+
+Result:
+
+- G148 is proposed with an implementation-ready backend specification.
+- G148-A source-aware graph proposals is the required first implementation slice.
+- Frontend specification is deferred until the graph, state-context, and aggregate-readiness response contracts are implemented and live-validated.

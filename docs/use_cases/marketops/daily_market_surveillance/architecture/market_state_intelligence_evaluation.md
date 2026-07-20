@@ -162,7 +162,11 @@ Implementation record: `../gates/G147_market_state_analyst_experience_ui_spec.md
 
 ### G148: Graph, Ask, And Cohort Rollout
 
-Add review-controlled graph mappings and bounded Market State Ask bundles, then stage explicit Top 50 cohorts with per-symbol quality/readiness dashboards. Do not schedule broad collection until provider budget, ownership, and operational thresholds are approved.
+Status: proposed; backend implementation specification ready 2026-07-20.
+
+Implement three ordered slices: generalize the existing graph review ledger for non-signal Market State records; extend existing Syncratic contexts and Ask with exact state/session/version evidence purity; then stage explicit cohorts capped at 10 symbols with durable aggregate readiness. Provider acquisition, graph decisions, Ask, proposal review, lifecycle promotion, and unsupported hypothesis materialization remain separate controls.
+
+Implementation handoff: `../gates/G148_graph_ask_and_cohort_rollout.md`.
 
 ## Design Corrections Going Forward
 

@@ -363,3 +363,11 @@ Recommended next gate:
 - Gate record: `G147_market_state_analyst_experience_ui_spec.md`.
 - Validation: 393 frontend tests passed, the TypeScript/Vite production build passed locally and inside the Docker image, and the rebuilt route returned HTTP 200 with bounded authenticated state/lineage reads.
 - G148 graph, Ask, and controlled cohort rollout is the recommended next gate; genuine prospective coverage remains a prerequisite for empirical research claims.
+
+## G148 Proposed
+
+- G148 is split into three ordered backend-first slices: source-aware market-intelligence graph proposals, bounded evidence-pure Market State Ask contexts, and explicit cohorts capped at 10 symbols with aggregate per-symbol readiness.
+- The existing graph decision ledger and Syncratic routes remain authoritative; G148 must generalize them rather than create parallel review or reasoning systems.
+- Cohort execution uses persisted inputs only and keeps provider acquisition, graph decisions, Ask, proposal review, lifecycle promotion, and unsupported hypothesis materialization as separate explicit controls.
+- Current live truth remains sparse: only AAPL has market states/evaluations, its six states average 14% completeness, and none of 24 evaluations are eligible or triggered.
+- Backend specification: `G148_graph_ask_and_cohort_rollout.md`.
