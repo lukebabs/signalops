@@ -11,8 +11,12 @@ func TestChainRecordFromMassiveSnapshot(t *testing.T) {
 	underlying := 200.0
 	oi := int64(1000)
 	iv := 0.42
+	bid, ask := 4.8, 5.2
+	quoteTimestamp := time.Date(2026, 7, 17, 19, 59, 0, 0, time.UTC)
+	shares := int64(100)
 	record, err := ChainRecordFromMassiveSnapshot("tenant-local", "src-massive", "run-1", massive.OptionContractDailyRecord{
 		ProviderContractID: "O:NVDA260116C00100000",
+		ProviderRequestID:  "req-options-1",
 		OptionTicker:       "O:NVDA260116C00100000",
 		UnderlyingSymbol:   "nvda",
 		ContractType:       "CALL",
@@ -22,6 +26,11 @@ func TestChainRecordFromMassiveSnapshot(t *testing.T) {
 		UnderlyingClose:    &underlying,
 		OpenInterest:       &oi,
 		ImpliedVolatility:  &iv,
+		Bid:                &bid,
+		Ask:                &ask,
+		QuoteTimestamp:     &quoteTimestamp,
+		ExerciseStyle:      "AMERICAN",
+		SharesPerContract:  &shares,
 		Raw:                map[string]any{"provider": "massive"},
 	})
 	if err != nil {
@@ -36,7 +45,7 @@ func TestChainRecordFromMassiveSnapshot(t *testing.T) {
 	if record.Moneyness == nil || *record.Moneyness != 0.5 {
 		t.Fatalf("moneyness = %v", record.Moneyness)
 	}
-	if record.OpenInterest == nil || *record.OpenInterest != 1000 || record.ImpliedVolatility == nil || *record.ImpliedVolatility != 0.42 {
+	if record.OpenInterest == nil || *record.OpenInterest != 1000 || record.ImpliedVolatility == nil || *record.ImpliedVolatility != 0.42 || record.ProviderRequestID != "req-options-1" || record.Bid == nil || record.Ask == nil || record.QuoteTimestamp == nil || record.ExerciseStyle != "american" || record.SharesPerContract == nil || *record.SharesPerContract != 100 {
 		t.Fatalf("oi/iv = %v/%v", record.OpenInterest, record.ImpliedVolatility)
 	}
 	if record.PayloadHash == "" || string(record.RawPayloadJSON) == "{}" {

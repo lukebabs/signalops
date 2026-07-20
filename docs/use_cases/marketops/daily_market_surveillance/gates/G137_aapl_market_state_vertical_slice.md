@@ -11,14 +11,14 @@ G137 implements the first bounded Market State Intelligence calculation path ove
 ## Implemented Scope
 
 - Added `signalops-marketops-state-materializer` with explicit tenant, AAPL symbol, date-window, maximum-session, run-id, and dry-run controls.
-- Registered 24 versioned feature definitions covering selected underlying momentum, implied-volatility surface, premium, positioning, liquidity, and quality domains.
-- Materializes 25 feature slots per available session. The `iv` definition has separate 30-DTE 25-delta put and call dimensions.
+- Registered 29 versioned feature definitions covering selected underlying momentum, implied-volatility surface, premium, positioning, liquidity, and quality domains.
+- Materializes 39 feature slots per available session. The `iv` definition has separate 30-DTE 25-delta put and call dimensions.
 - Calculates point-in-time underlying returns, Wilder RSI/ATR, SMA distance, trailing volume ratio, and opening gap when sufficient normalized equity history exists. The CLI reads a bounded pre-window warm-up while materializing only sessions inside the requested window.
-- Selects deterministic 30/60/90-DTE ATM IV and 30-DTE 25-delta put/call IV cells from eligible persisted contracts.
-- Persists premium cells as `missing` with `bid_ask_not_persisted`; the implementation does not substitute daily close for a bid/ask midpoint.
+- Selects deterministic 30/60/90-DTE ATM IV and 30/60-DTE 25-delta put/call IV cells from eligible persisted contracts.
+- Calculates quote-derived 30-DTE 25-delta put/call premium and spread when positive point-in-time bid/ask exists; missing, crossed, and stale quote states remain explicit.
 - Calculates put/call OI and volume ratios only under their declared source-quality rules. Unusable OI does not receive a numeric value.
 - Persists chain quality and surface coverage, including valid numeric zero coverage where a chain exists but no eligible surface cell exists.
-- Builds one canonical versioned state for every unioned equity/options session and links all 25 feature-observation IDs.
+- Builds one canonical versioned state for every unioned equity/options session and links all 39 feature-observation IDs.
 - Builds deterministic one-eligible-state-session absolute-difference transitions for numeric observations that are usable on both sides.
 - Emits reusable return, usable OI ratio, and material ATM-IV-change evidence only after quality gates pass.
 - Adds a first-class Docker image target named `marketops-state-materializer`.
@@ -58,7 +58,7 @@ The persisted ledger remained at those exact counts after repeated runs. Every s
 
 Live AAPL state quality is currently one `missing` state and five `partial` states. All three available AAPL OI-ratio observations are explicitly `invalid` because their persisted source quality is `denominator_zero` or `all_zero`; they have no numeric value and generated zero OI evidence. The two emitted evidence rows are valid one-session underlying-return observations.
 
-The positive unit fixture uses 25 equity sessions and an eligible five-cell IV surface. It verifies a usable state, deterministic ATM/25-delta selection, usable put/call OI evidence, premium blocking, transitions, exact lineage, and stable IDs across different run IDs. A separate 65-session fixture verifies the bounded 60-session replay acceptance path and full lineage for every state.
+The positive unit fixture uses 25 equity sessions and an eligible seven-cell IV surface. It verifies a usable state, deterministic ATM/25-delta selection, usable put/call OI evidence, quote-derived premium, transitions, exact lineage, and stable IDs across different run IDs. A separate 65-session fixture verifies the bounded 60-session replay acceptance path and full lineage for every state.
 
 ## Safety Boundary
 
@@ -74,3 +74,10 @@ G137 does not add:
 ## Next Gate
 
 G138 should introduce the bounded research hypothesis registry/evaluator for H001, H004, H006, and H007 over these first-class states and evidence. It must persist trigger and non-trigger reason codes and must remain research-only until historical source coverage is materially broader.
+
+
+## G143 Feature Contract Extension
+
+G143 supersedes the original five-cell/placeholder-premium feature contract while retaining the same deterministic state ledgers. The current materializer registers 29 definitions and emits 39 slots per state, including seven IV cells, quote-derived put/call premium and spread, 30/60-DTE risk reversals, term slopes, selection confidence, and dimensioned put/call OI change. Missing, crossed, and stale quote states remain explicit.
+
+The original live counts above are historical G137 validation and were not rewritten as G143 live evidence. The production-shaped G143 fixture now proves adapter-to-selector-to-materializer-to-H001/H004/H006/H007 eligibility without direct feature injection. See `G143_options_surface_evidence_v1.md`.

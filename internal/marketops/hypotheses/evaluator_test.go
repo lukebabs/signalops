@@ -1,11 +1,18 @@
 package hypotheses
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/lukebabs/signalops/internal/adapters/marketdata/massive"
+	marketopsoptions "github.com/lukebabs/signalops/internal/marketops/options"
+	marketopsstate "github.com/lukebabs/signalops/internal/marketops/state"
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
@@ -20,6 +27,151 @@ func TestResearchDefinitionsAreBoundedAndResearchOnly(t *testing.T) {
 			t.Fatalf("definition=%+v", definition)
 		}
 	}
+}
+
+func TestG143ProviderShapedEvidenceMakesResearchHypothesesEligible(t *testing.T) {
+	start := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	optionSessions := []time.Time{start.AddDate(0, 0, 22), start.AddDate(0, 0, 23), start.AddDate(0, 0, 24)}
+	requestIndex := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v3/snapshot/options/AAPL" || requestIndex >= len(optionSessions) {
+			http.Error(w, "unexpected request", http.StatusBadRequest)
+			return
+		}
+		session := optionSessions[requestIndex]
+		spot := 100 + float64(22+requestIndex)*1.25
+		results := g143MassiveSurface(session, requestIndex, spot)
+		_ = json.NewEncoder(w).Encode(map[string]any{"request_id": fmt.Sprintf("req-g143-%d", requestIndex), "results": results})
+		requestIndex++
+	}))
+	defer server.Close()
+	client, err := massive.NewClient(massive.ClientConfig{BaseURL: server.URL, APIKey: "test-key", HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := []storage.MarketOpsOptionsChainRecord{}
+	for _, session := range optionSessions {
+		batch, err := client.ListOptionChainSnapshotFilteredWithMetadata(context.Background(), "AAPL", massive.OptionChainSnapshotFilter{Limit: 50, MaxPages: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		converted := make([]storage.MarketOpsOptionsChainRecord, 0, len(batch.Records))
+		for _, providerRecord := range batch.Records {
+			record, err := marketopsoptions.ChainRecordFromMassiveSnapshot("tenant-local", "src-massive", "g143-provider", providerRecord)
+			if err != nil {
+				t.Fatal(err)
+			}
+			converted = append(converted, record)
+		}
+		selected := marketopsoptions.SelectRequiredSurfaceEvidence(session, converted)
+		if len(selected) != marketopsoptions.RequiredSurfaceCellCount || !marketopsoptions.AssessAnalyticsReadiness(session, selected).Ready {
+			t.Fatalf("provider surface was not analytics ready: %+v", selected)
+		}
+		chain = append(chain, selected...)
+	}
+	equity := make([]storage.NormalizedEventLedgerRecord, 0, 25)
+	for index := 0; index < 25; index++ {
+		session := start.AddDate(0, 0, index)
+		closeValue := 100 + float64(index)*1.25
+		payload, _ := json.Marshal(map[string]any{"symbol": "AAPL", "open": closeValue - .5, "high": closeValue + 1, "low": closeValue - 1, "close": closeValue, "volume": 1000000 + index*1000})
+		equity = append(equity, storage.NormalizedEventLedgerRecord{EventID: fmt.Sprintf("evt-g143-%02d", index), TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Dataset: "equity_eod_prices", ObservationTime: session, ProcessingTime: session.Add(time.Hour), NormalizedPayload: payload})
+	}
+	built, err := marketopsstate.Build(marketopsstate.BuildConfig{TenantID: "tenant-local", Symbol: "AAPL", AssetID: "asset-aapl", RunID: "g143-build"}, marketopsstate.BuildInput{EquityEvents: equity, OptionChain: chain})
+	if err != nil {
+		t.Fatal(err)
+	}
+	finalSession := optionSessions[len(optionSessions)-1]
+	finalState := built.States[len(built.States)-1]
+	observations := g143ObservationsForSession(built.Observations, finalSession)
+	transitions := g143TransitionsForSession(built.Transitions, finalSession)
+	evidence := g143EvidenceForSession(built.Evidence, finalSession)
+	for _, definition := range ResearchDefinitions("tenant-local") {
+		result, err := Evaluate("g143-evaluate", definition, finalState, observations, transitions, evidence)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.Eligible {
+			t.Fatalf("%s remained ineligible from provider-shaped evidence: %v", definition.HypothesisKey, result.ReasonCodes)
+		}
+	}
+}
+
+func g143MassiveSurface(session time.Time, index int, spot float64) []map[string]any {
+	cells := []struct {
+		suffix, optionType string
+		dte                int
+		delta, iv          float64
+	}{
+		{"ATM30", "call", 30, .50, .30}, {"ATM60", "call", 60, .50, .32}, {"ATM90", "call", 90, .50, .34},
+		{"P30D25", "put", 30, -.25, .36}, {"C30D25", "call", 30, .25, .28},
+		{"P60D25", "put", 60, -.25, .38}, {"C60D25", "call", 60, .25, .30},
+	}
+	results := make([]map[string]any, 0, len(cells))
+	for _, cell := range cells {
+		strike := spot
+		if cell.optionType == "put" && mathAbs(cell.delta) < .4 {
+			strike = spot - 10
+		}
+		if cell.optionType == "call" && mathAbs(cell.delta) < .4 {
+			strike = spot + 10
+		}
+		oi := 100 + index*25
+		if cell.suffix == "P30D25" {
+			oi = []int{100, 200, 450}[index]
+		}
+		if cell.suffix == "C30D25" {
+			oi = []int{100, 150, 225}[index]
+		}
+		bid := 2.0 + float64(index)
+		lastUpdated := session.Add(20 * time.Hour).UnixNano()
+		results = append(results, map[string]any{
+			"day":                map[string]any{"close": bid + .1, "volume": 100 + index*10, "last_updated": lastUpdated},
+			"details":            map[string]any{"ticker": fmt.Sprintf("O:AAPL%s%s", session.Format("060102"), cell.suffix), "contract_type": cell.optionType, "expiration_date": session.AddDate(0, 0, cell.dte).Format("2006-01-02"), "strike_price": strike, "exercise_style": "american", "shares_per_contract": 100},
+			"last_quote":         map[string]any{"bid": bid, "ask": bid + .2, "last_updated": lastUpdated},
+			"greeks":             map[string]any{"delta": cell.delta, "gamma": .02, "theta": -.01, "vega": .10},
+			"implied_volatility": cell.iv + float64(index)*.03,
+			"open_interest":      oi,
+			"underlying_asset":   map[string]any{"ticker": "AAPL", "price": spot},
+		})
+	}
+	return results
+}
+
+func g143ObservationsForSession(records []storage.MarketOpsFeatureObservationRecord, session time.Time) []storage.MarketOpsFeatureObservationRecord {
+	out := []storage.MarketOpsFeatureObservationRecord{}
+	for _, record := range records {
+		if record.SessionDate.Equal(session) {
+			out = append(out, record)
+		}
+	}
+	return out
+}
+
+func g143TransitionsForSession(records []storage.MarketOpsStateTransitionRecord, session time.Time) []storage.MarketOpsStateTransitionRecord {
+	out := []storage.MarketOpsStateTransitionRecord{}
+	for _, record := range records {
+		if record.SessionDate.Equal(session) {
+			out = append(out, record)
+		}
+	}
+	return out
+}
+
+func g143EvidenceForSession(records []storage.MarketOpsEvidenceRecord, session time.Time) []storage.MarketOpsEvidenceRecord {
+	out := []storage.MarketOpsEvidenceRecord{}
+	for _, record := range records {
+		if record.SessionDate.Equal(session) {
+			out = append(out, record)
+		}
+	}
+	return out
+}
+
+func mathAbs(value float64) float64 {
+	if value < 0 {
+		return -value
+	}
+	return value
 }
 
 func TestEvaluatePersistsMissingInputReasonsAndStableIdentity(t *testing.T) {

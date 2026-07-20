@@ -17,6 +17,7 @@ type optionChainSnapshotResult struct {
 	Day               optionSnapshotDay        `json:"day"`
 	Details           optionSnapshotDetails    `json:"details"`
 	Greeks            optionSnapshotGreeks     `json:"greeks"`
+	LastQuote         optionSnapshotQuote      `json:"last_quote"`
 	ImpliedVolatility *float64                 `json:"implied_volatility"`
 	OpenInterest      *float64                 `json:"open_interest"`
 	UnderlyingAsset   optionSnapshotUnderlying `json:"underlying_asset"`
@@ -49,10 +50,18 @@ type optionSnapshotDay struct {
 }
 
 type optionSnapshotDetails struct {
-	Ticker         string          `json:"ticker"`
-	ContractType   string          `json:"contract_type"`
-	ExpirationDate string          `json:"expiration_date"`
-	StrikePrice    json.RawMessage `json:"strike_price"`
+	Ticker            string          `json:"ticker"`
+	ContractType      string          `json:"contract_type"`
+	ExpirationDate    string          `json:"expiration_date"`
+	StrikePrice       json.RawMessage `json:"strike_price"`
+	ExerciseStyle     string          `json:"exercise_style"`
+	SharesPerContract *float64        `json:"shares_per_contract"`
+}
+
+type optionSnapshotQuote struct {
+	Bid         *float64 `json:"bid"`
+	Ask         *float64 `json:"ask"`
+	LastUpdated *int64   `json:"last_updated"`
 }
 
 type optionSnapshotGreeks struct {
@@ -87,6 +96,7 @@ func (r optionChainSnapshotResponse) records(underlying string, fallbackDate tim
 		observation := snapshotObservationDate(result.Day.LastUpdated, fallbackDate)
 		records = append(records, OptionContractDailyRecord{
 			ProviderContractID: optionTicker,
+			ProviderRequestID:  strings.TrimSpace(r.RequestID),
 			OptionTicker:       optionTicker,
 			UnderlyingSymbol:   underlyingSymbol,
 			ContractType:       contractType,
@@ -100,16 +110,29 @@ func (r optionChainSnapshotResponse) records(underlying string, fallbackDate tim
 			Volume:             intFromFloatPtr(result.Day.Volume),
 			OpenInterest:       intFromFloatPtr(result.OpenInterest),
 			VWAP:               result.Day.VWAP,
+			Bid:                result.LastQuote.Bid,
+			Ask:                result.LastQuote.Ask,
+			QuoteTimestamp:     snapshotTimestamp(result.LastQuote.LastUpdated),
 			UnderlyingClose:    result.UnderlyingAsset.Price,
 			ImpliedVolatility:  result.ImpliedVolatility,
 			Delta:              result.Greeks.Delta,
 			Gamma:              result.Greeks.Gamma,
 			Theta:              result.Greeks.Theta,
 			Vega:               result.Greeks.Vega,
+			ExerciseStyle:      strings.ToLower(strings.TrimSpace(result.Details.ExerciseStyle)),
+			SharesPerContract:  intFromFloatPtr(result.Details.SharesPerContract),
 			Raw:                result.Raw,
 		})
 	}
 	return records
+}
+
+func snapshotTimestamp(timestamp *int64) *time.Time {
+	if timestamp == nil || *timestamp <= 0 {
+		return nil
+	}
+	value := time.Unix(0, *timestamp).UTC()
+	return &value
 }
 
 func snapshotObservationDate(timestamp *int64, fallback time.Time) time.Time {

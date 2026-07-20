@@ -20,7 +20,7 @@ G141 does not lower the quality policy merely to produce triggers. A run with en
 - The runner reads only persisted Massive normalized equity events and persisted option chain/distribution rows.
 - It coordinates existing state, hypothesis, opportunity, and outcome engines in memory, then persists in dependency order with existing deterministic identities.
 - Strict preflight requires at least 60 AAPL equity source sessions and 20 analytics-ready option sessions. Distribution coverage is reported as a hypothesis-specific warning rather than a global blocker.
-- An analytics-ready option session has all five required 30/60/90-DTE ATM and 30-DTE 25-delta put/call cells with usable IV, delta, and underlying price.
+- An analytics-ready option session has all seven required 30/60/90-DTE ATM and 30/60-DTE 25-delta put/call cells with usable IV, delta, and underlying price.
 - The insufficient-coverage override is restricted to dry runs.
 - Maximum scope remains AAPL and 200 source sessions.
 - The coordinator makes no provider calls and creates no production signals, proposals, alerts, insights, graph writes, trades, promotions, or policies.

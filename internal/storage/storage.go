@@ -750,35 +750,43 @@ type MarketOpsAssetRecord struct {
 }
 
 type MarketOpsOptionsChainRecord struct {
-	TenantID          string
-	Symbol            string
-	TradeDate         time.Time
-	OptionTicker      string
-	Provider          string
-	SourceID          string
-	IngestionRunID    string
-	ContractType      string
-	ExpirationDate    time.Time
-	StrikePrice       float64
-	UnderlyingClose   *float64
-	Moneyness         *float64
-	Open              *float64
-	High              *float64
-	Low               *float64
-	Close             *float64
-	VWAP              *float64
-	Volume            *int64
-	OpenInterest      *int64
-	ImpliedVolatility *float64
-	Delta             *float64
-	Gamma             *float64
-	Theta             *float64
-	Vega              *float64
-	ProviderRequestID string
-	PayloadHash       string
-	RawPayloadJSON    []byte
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	TenantID               string
+	Symbol                 string
+	TradeDate              time.Time
+	OptionTicker           string
+	Provider               string
+	SourceID               string
+	IngestionRunID         string
+	ContractType           string
+	ExpirationDate         time.Time
+	StrikePrice            float64
+	UnderlyingClose        *float64
+	Moneyness              *float64
+	Open                   *float64
+	High                   *float64
+	Low                    *float64
+	Close                  *float64
+	VWAP                   *float64
+	Bid                    *float64
+	Ask                    *float64
+	QuoteTimestamp         *time.Time
+	Volume                 *int64
+	OpenInterest           *int64
+	ImpliedVolatility      *float64
+	Delta                  *float64
+	Gamma                  *float64
+	Theta                  *float64
+	Vega                   *float64
+	ExerciseStyle          string
+	SharesPerContract      *int64
+	ProviderRequestID      string
+	SelectionCell          string
+	SelectionPolicyVersion string
+	SelectionScore         *float64
+	PayloadHash            string
+	RawPayloadJSON         []byte
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 type MarketOpsOptionsChainFilter struct {

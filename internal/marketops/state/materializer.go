@@ -12,7 +12,7 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-const requiredFeatureSlots = 25
+const requiredFeatureSlots = 39
 
 type BuildConfig struct {
 	TenantID     string
@@ -98,7 +98,7 @@ func Build(config BuildConfig, input BuildInput) (BuildResult, error) {
 		} else {
 			values = append(values, missingUnderlyingFeatures()...)
 		}
-		values = append(values, optionFeatures(config, session, distributions[key], distributions, chain[key])...)
+		values = append(values, optionFeatures(config, session, distributions[key], distributions, chain[key], chain)...)
 		if len(values) != requiredFeatureSlots {
 			return BuildResult{}, fmt.Errorf("G137 feature slot count for %s is %d, expected %d", key, len(values), requiredFeatureSlots)
 		}
@@ -394,28 +394,31 @@ func atrFeature(history []equityPoint, index, period int) featureValue {
 	return usableNumeric("atr_14_pct", round(atr/history[index].Close*100, 6), eventIDs(history, 0, index), nil, map[string]any{"lookback_sessions": period, "method": "wilder"})
 }
 
-func optionFeatures(config BuildConfig, session time.Time, distribution *storage.MarketOpsOptionsDistributionRecord, distributions map[string]*storage.MarketOpsOptionsDistributionRecord, chain []storage.MarketOpsOptionsChainRecord) []featureValue {
+func optionFeatures(config BuildConfig, session time.Time, distribution *storage.MarketOpsOptionsDistributionRecord, distributions map[string]*storage.MarketOpsOptionsDistributionRecord, chain []storage.MarketOpsOptionsChainRecord, allChain map[string][]storage.MarketOpsOptionsChainRecord) []featureValue {
 	chainRefs := chainArtifactIDs(config, session, chain)
 	atm30 := ivCell("atm_iv_30d", session, chain, 30, 0.50, "", nil, chainRefs)
 	atm60 := ivCell("atm_iv_60d", session, chain, 60, 0.50, "", nil, chainRefs)
 	atm90 := ivCell("atm_iv_90d", session, chain, 90, 0.50, "", nil, chainRefs)
-	put25Dims := map[string]any{"option_type": "put", "target_dte": 30, "target_delta": 0.25}
-	call25Dims := map[string]any{"option_type": "call", "target_dte": 30, "target_delta": 0.25}
-	put25 := ivCell("iv", session, chain, 30, 0.25, "put", put25Dims, chainRefs)
-	call25 := ivCell("iv", session, chain, 30, 0.25, "call", call25Dims, chainRefs)
-	premiumDims := map[string]any{"option_type": "call", "target_dte": 30, "target_delta": 0.50}
-	premiumDetails := map[string]any{"reason": "bid_ask_not_persisted", "quality_gate": "positive_bid_and_ask_required"}
-	premium := []featureValue{
-		{Key: "mid_premium", Dimensions: premiumDims, Quality: storage.MarketOpsQualityMissing, Details: premiumDetails, ArtifactIDs: chainRefs},
-		{Key: "extrinsic_premium", Dimensions: premiumDims, Quality: storage.MarketOpsQualityMissing, Details: premiumDetails, ArtifactIDs: chainRefs},
-		{Key: "premium_pct_spot", Dimensions: premiumDims, Quality: storage.MarketOpsQualityMissing, Details: premiumDetails, ArtifactIDs: chainRefs},
-	}
-	positioning := positioningFeatures(config, session, distribution, distributions)
-	quality := optionQualityFeatures(chain, []featureValue{atm30, atm60, atm90, put25, call25}, chainRefs)
-	values := []featureValue{atm30, atm60, atm90, put25, call25}
-	values = append(values, premium...)
-	values = append(values, positioning...)
-	values = append(values, quality...)
+	put30Dims := optionDimensions("put", 30, .25)
+	call30Dims := optionDimensions("call", 30, .25)
+	put60Dims := optionDimensions("put", 60, .25)
+	call60Dims := optionDimensions("call", 60, .25)
+	put30 := ivCell("iv", session, chain, 30, .25, "put", put30Dims, chainRefs)
+	call30 := ivCell("iv", session, chain, 30, .25, "call", call30Dims, chainRefs)
+	put60 := ivCell("iv", session, chain, 60, .25, "put", put60Dims, chainRefs)
+	call60 := ivCell("iv", session, chain, 60, .25, "call", call60Dims, chainRefs)
+
+	cells := []featureValue{atm30, atm60, atm90, put30, call30, put60, call60}
+	values := append([]featureValue{}, cells...)
+	values = append(values, surfaceShapeFeatures(session, chain, cells, chainRefs)...)
+	values = append(values, premiumFeatures(session, chain, 30, .25, "put", put30Dims, chainRefs)...)
+	values = append(values, premiumFeatures(session, chain, 30, .25, "call", call30Dims, chainRefs)...)
+	values = append(values,
+		oiChangeCell(session, chain, allChain, 30, .25, "put", put30Dims, chainRefs),
+		oiChangeCell(session, chain, allChain, 30, .25, "call", call30Dims, chainRefs),
+	)
+	values = append(values, positioningFeatures(config, session, distribution, distributions)...)
+	values = append(values, optionQualityFeatures(chain, cells, chainRefs)...)
 	return values
 }
 
@@ -427,7 +430,7 @@ func ivCell(key string, session time.Time, chain []storage.MarketOpsOptionsChain
 	if !ok {
 		return missingFeatureWithDimensions(key, dimensions, "no_eligible_surface_contract", map[string]any{"target_dte": targetDTE, "target_abs_delta": targetDelta, "option_type": optionType, "eligible_dte_min": 7, "eligible_dte_max": 180}, nil, allRefs)
 	}
-	details := map[string]any{"selected_option_ticker": selected.Record.OptionTicker, "actual_dte": selected.DTE, "actual_delta": *selected.Record.Delta, "target_dte": targetDTE, "target_abs_delta": targetDelta, "selection_score": round(selected.Score, 6)}
+	details := selectedOptionDetails(selected, targetDTE, targetDelta)
 	ref := optionArtifactID(selected.Record)
 	return featureValue{Key: key, Dimensions: dimensions, Numeric: floatPtr(round(*selected.Record.ImpliedVolatility, 8)), Quality: storage.MarketOpsQualityUsable, QualityScore: 1, Details: details, ArtifactIDs: []string{ref}}
 }
@@ -459,6 +462,176 @@ func selectContract(session time.Time, chain []storage.MarketOpsOptionsChainReco
 		}
 	}
 	return best, found
+}
+
+func surfaceShapeFeatures(session time.Time, chain []storage.MarketOpsOptionsChainRecord, cells []featureValue, refs []string) []featureValue {
+	derivedDifference := func(key string, left, right featureValue, dimensions map[string]any, formula string) featureValue {
+		artifacts := uniqueStrings(append(append([]string{}, left.ArtifactIDs...), right.ArtifactIDs...))
+		if left.Numeric == nil || right.Numeric == nil || !isUsable(left.Quality) || !isUsable(right.Quality) {
+			return missingFeatureWithDimensions(key, dimensions, "missing_usable_surface_inputs", map[string]any{"formula": formula}, nil, artifacts)
+		}
+		value := usableNumeric(key, round(*left.Numeric-*right.Numeric, 8), nil, artifacts, map[string]any{"formula": formula, "left_feature": left.Key, "right_feature": right.Key})
+		value.Dimensions = dimensions
+		return value
+	}
+	shape := []featureValue{
+		derivedDifference("iv_term_slope", cells[1], cells[0], map[string]any{"near_dte": 30, "far_dte": 60}, "far_iv_minus_near_iv"),
+		derivedDifference("iv_term_slope", cells[2], cells[1], map[string]any{"near_dte": 60, "far_dte": 90}, "far_iv_minus_near_iv"),
+		derivedDifference("risk_reversal", cells[4], cells[3], map[string]any{"target_dte": 30, "target_delta": .25}, "call_iv_minus_put_iv"),
+		derivedDifference("risk_reversal", cells[6], cells[5], map[string]any{"target_dte": 60, "target_delta": .25}, "call_iv_minus_put_iv"),
+	}
+	targets := []struct {
+		dte        int
+		delta      float64
+		optionType string
+	}{{30, .50, ""}, {60, .50, ""}, {90, .50, ""}, {30, .25, "put"}, {30, .25, "call"}, {60, .25, "put"}, {60, .25, "call"}}
+	total, selectedCount, versionedCount := 0.0, 0, 0
+	for _, target := range targets {
+		selected, ok := selectContract(session, chain, target.dte, target.delta, target.optionType)
+		if !ok {
+			continue
+		}
+		score := selected.Score
+		if selected.Record.SelectionScore != nil {
+			score = *selected.Record.SelectionScore
+		}
+		total += 1 - math.Min(math.Max(score, 0), 1)
+		selectedCount++
+		if selected.Record.SelectionPolicyVersion != "" {
+			versionedCount++
+		}
+	}
+	confidence := missingFeature("surface_selection_confidence", "incomplete_surface_selection", map[string]any{"selected_cells": selectedCount, "required_cells": len(targets)}, nil)
+	confidence.ArtifactIDs = refs
+	if selectedCount == len(targets) {
+		quality, score := storage.MarketOpsQualityUsable, 1.0
+		if versionedCount != len(targets) {
+			quality, score = storage.MarketOpsQualityUsableWithWarning, .75
+		}
+		value := round(total/float64(selectedCount), 8)
+		confidence = featureValue{Key: "surface_selection_confidence", Numeric: &value, Quality: quality, QualityScore: score, Details: map[string]any{"selected_cells": selectedCount, "versioned_selection_cells": versionedCount, "policy_version": "marketops.options.surface_selection.v1"}, ArtifactIDs: refs}
+	}
+	return append(shape, confidence)
+}
+
+func optionDimensions(optionType string, targetDTE int, targetDelta float64) map[string]any {
+	return map[string]any{"option_type": optionType, "target_dte": targetDTE, "target_delta": targetDelta}
+}
+
+func premiumFeatures(session time.Time, chain []storage.MarketOpsOptionsChainRecord, targetDTE int, targetDelta float64, optionType string, dimensions map[string]any, allRefs []string) []featureValue {
+	keys := []string{"mid_premium", "extrinsic_premium", "premium_pct_spot", "spread_pct"}
+	missing := func(reason string, details map[string]any, refs []string) []featureValue {
+		out := make([]featureValue, 0, len(keys))
+		for _, key := range keys {
+			out = append(out, missingFeatureWithDimensions(key, dimensions, reason, details, nil, refs))
+		}
+		return out
+	}
+	selected, ok := selectContract(session, chain, targetDTE, targetDelta, optionType)
+	if !ok {
+		return missing("no_eligible_surface_contract", map[string]any{"target_dte": targetDTE, "target_abs_delta": targetDelta, "option_type": optionType}, allRefs)
+	}
+	ref := optionArtifactID(selected.Record)
+	details := selectedOptionDetails(selected, targetDTE, targetDelta)
+	if selected.Record.Bid == nil || selected.Record.Ask == nil {
+		return missing("missing_bid_or_ask", details, []string{ref})
+	}
+	bid, ask := *selected.Record.Bid, *selected.Record.Ask
+	if bid <= 0 || ask <= 0 || ask < bid {
+		out := make([]featureValue, 0, len(keys))
+		details["bid"], details["ask"] = bid, ask
+		for _, key := range keys {
+			out = append(out, featureValue{Key: key, Dimensions: dimensions, Quality: storage.MarketOpsQualityInvalid, Details: details, ArtifactIDs: []string{ref}})
+		}
+		return out
+	}
+	mid := (bid + ask) / 2
+	if selected.Record.UnderlyingClose == nil || *selected.Record.UnderlyingClose <= 0 {
+		return missing("missing_underlying_close", details, []string{ref})
+	}
+	spot := *selected.Record.UnderlyingClose
+	intrinsic := math.Max(spot-selected.Record.StrikePrice, 0)
+	if optionType == "put" {
+		intrinsic = math.Max(selected.Record.StrikePrice-spot, 0)
+	}
+	extrinsic := math.Max(mid-intrinsic, 0)
+	quality, qualityScore := storage.MarketOpsQualityUsable, 1.0
+	if selected.Record.QuoteTimestamp == nil {
+		quality, qualityScore = storage.MarketOpsQualityUsableWithWarning, .75
+		details["quality_warning"] = "missing_quote_timestamp"
+	} else {
+		details["quote_timestamp"] = selected.Record.QuoteTimestamp.UTC().Format(time.RFC3339Nano)
+		if !dayOnly(*selected.Record.QuoteTimestamp).Equal(dayOnly(session)) {
+			quality, qualityScore = storage.MarketOpsQualityStale, 0
+			details["reason"] = "quote_not_from_session"
+		}
+	}
+	details["bid"], details["ask"], details["midpoint"], details["intrinsic"] = bid, ask, mid, intrinsic
+	value := func(key string, numeric float64) featureValue {
+		return featureValue{Key: key, Dimensions: dimensions, Numeric: floatPtr(round(numeric, 8)), Quality: quality, QualityScore: qualityScore, Details: details, ArtifactIDs: []string{ref}}
+	}
+	return []featureValue{
+		value("mid_premium", mid),
+		value("extrinsic_premium", extrinsic),
+		value("premium_pct_spot", mid/spot*100),
+		value("spread_pct", (ask-bid)/mid*100),
+	}
+}
+
+func oiChangeCell(session time.Time, chain []storage.MarketOpsOptionsChainRecord, allChain map[string][]storage.MarketOpsOptionsChainRecord, targetDTE int, targetDelta float64, optionType string, dimensions map[string]any, allRefs []string) featureValue {
+	current, ok := selectContract(session, chain, targetDTE, targetDelta, optionType)
+	if !ok {
+		return missingFeatureWithDimensions("oi_change_1d", dimensions, "no_eligible_surface_contract", nil, nil, allRefs)
+	}
+	currentRef := optionArtifactID(current.Record)
+	if current.Record.OpenInterest == nil {
+		return missingFeatureWithDimensions("oi_change_1d", dimensions, "missing_current_open_interest", selectedOptionDetails(current, targetDTE, targetDelta), nil, []string{currentRef})
+	}
+	priorSession, priorChain, ok := previousOptionChain(session, allChain)
+	if !ok {
+		return missingFeatureWithDimensions("oi_change_1d", dimensions, "no_prior_option_session", nil, nil, []string{currentRef})
+	}
+	prior, ok := selectContract(priorSession, priorChain, targetDTE, targetDelta, optionType)
+	if !ok || prior.Record.OpenInterest == nil {
+		return missingFeatureWithDimensions("oi_change_1d", dimensions, "no_prior_usable_surface_open_interest", map[string]any{"prior_session": dateKey(priorSession)}, nil, []string{currentRef})
+	}
+	priorRef := optionArtifactID(prior.Record)
+	change := float64(*current.Record.OpenInterest - *prior.Record.OpenInterest)
+	details := selectedOptionDetails(current, targetDTE, targetDelta)
+	details["current_open_interest"] = *current.Record.OpenInterest
+	details["prior_open_interest"] = *prior.Record.OpenInterest
+	details["prior_session"] = dateKey(priorSession)
+	details["prior_option_ticker"] = prior.Record.OptionTicker
+	value := usableNumeric("oi_change_1d", round(change, 8), nil, []string{currentRef, priorRef}, details)
+	value.Dimensions = dimensions
+	return value
+}
+
+func previousOptionChain(session time.Time, allChain map[string][]storage.MarketOpsOptionsChainRecord) (time.Time, []storage.MarketOpsOptionsChainRecord, bool) {
+	var latest time.Time
+	var records []storage.MarketOpsOptionsChainRecord
+	for key, candidate := range allChain {
+		date, err := time.Parse("2006-01-02", key)
+		if err != nil || !date.Before(dayOnly(session)) || !date.After(latest) {
+			continue
+		}
+		latest, records = date, candidate
+	}
+	return latest, records, !latest.IsZero()
+}
+
+func selectedOptionDetails(selected selectedContract, targetDTE int, targetDelta float64) map[string]any {
+	return map[string]any{
+		"selected_option_ticker":   selected.Record.OptionTicker,
+		"actual_dte":               selected.DTE,
+		"actual_delta":             *selected.Record.Delta,
+		"target_dte":               targetDTE,
+		"target_abs_delta":         targetDelta,
+		"selection_score":          round(selected.Score, 6),
+		"selection_cell":           selected.Record.SelectionCell,
+		"selection_policy_version": selected.Record.SelectionPolicyVersion,
+		"provider_request_id":      selected.Record.ProviderRequestID,
+	}
 }
 
 func positioningFeatures(config BuildConfig, session time.Time, distribution *storage.MarketOpsOptionsDistributionRecord, distributions map[string]*storage.MarketOpsOptionsDistributionRecord) []featureValue {
@@ -545,7 +718,7 @@ func optionQualityFeatures(chain []storage.MarketOpsOptionsChainRecord, cells []
 		usableNumeric("usable_contract_ratio", round(float64(usable)/float64(len(chain)), 8), nil, refs, map[string]any{"contract_count": len(chain), "usable_contract_count": usable}),
 		usableNumeric("missing_iv_ratio", round(float64(missingIV)/float64(len(chain)), 8), nil, refs, map[string]any{"contract_count": len(chain), "missing_count": missingIV}),
 		usableNumeric("missing_greeks_ratio", round(float64(missingDelta)/float64(len(chain)), 8), nil, refs, map[string]any{"contract_count": len(chain), "missing_count": missingDelta, "greek": "delta"}),
-		usableNumeric("surface_coverage_ratio", round(float64(covered)/5.0, 8), nil, refs, map[string]any{"required_cells": 5, "covered_cells": covered}),
+		usableNumeric("surface_coverage_ratio", round(float64(covered)/7.0, 8), nil, refs, map[string]any{"required_cells": 7, "covered_cells": covered}),
 		{Key: "oi_quality_state", Text: &qualityText, Quality: storage.MarketOpsQualityUsable, QualityScore: 1, Details: map[string]any{"positive_open_interest_contract_count": positiveOI, "contract_count": len(chain)}, ArtifactIDs: refs},
 	}
 }

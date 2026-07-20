@@ -17,7 +17,7 @@ The gate does not reconstruct unavailable history. It creates an auditable daily
 - A canonical same-session Massive equity close is now required before any session options request. It defines point-in-time moneyness bounds and its event ID is retained in capture metrics.
 - Massive acquisition is provider-filtered to the configured expiration and strike ranges. Defaults are 14-120 DTE, 70%-130% moneyness, and at most 500 transient candidates per symbol/session.
 - The bounded candidate set is aggregated in memory into the daily positioning distribution; candidates are not bulk-written to the contract ledger.
-- At most five deterministic contracts are retained as exact evidence for the implemented 30/60/90-DTE ATM and 30-DTE put/call 25-delta surface cells.
+- At most seven deterministic contracts are retained as exact evidence for the implemented 30/60/90-DTE ATM and 30/60-DTE put/call 25-delta surface cells.
 - The explicit capture session stamps point-in-time evidence; future activity or a snapshot with no activity on that session is rejected before any options write.
 - Existing analytics-ready captures can be skipped without a provider call. Partial, no-data, and failed captures remain eligible for a bounded rerun.
 - G141 and G142 share one readiness implementation and G141 accepts only evidence rows from an analytics-ready capture's exact ingestion run.
@@ -25,7 +25,7 @@ The gate does not reconstruct unavailable history. It creates an auditable daily
 
 ## Status Semantics
 
-- `analytics_ready`: all five required surface cells exist.
+- `analytics_ready`: all seven required surface cells exist.
 - `partial`: contracts were captured but the required surface is incomplete.
 - `no_data`: the provider returned no usable contracts for the requested session.
 - `failed`: provider, date-purity, conversion, or persistence processing failed.
@@ -41,7 +41,7 @@ One invocation processes an explicit symbol list or one capped slice of `top50_m
 - configurable strike/spot range, defaulting to 70%-130%;
 - hard candidate budget of at most 1,000 and default 500 per symbol/session;
 - maximum 250 records per provider page and only enough pages to satisfy the lower of the page and candidate budgets;
-- up to five selected surface contracts persisted per symbol/session;
+- up to seven selected surface contracts persisted per symbol/session;
 - one compact positioning distribution and normalized feature event built from the transient candidate set.
 
 The capture ledger retains fetched candidate count, selected/discarded counts, acquisition bounds, usable-field counts, and quality results. Contract count is an acquisition metric, not a promise that every candidate was stored.
@@ -71,9 +71,16 @@ The corrected prospective path:
 - sends Massive expiration and strike bounds derived from the current surface hypothesis inputs;
 - caps transient candidates independently of page count;
 - aggregates bounded positioning evidence in memory;
-- persists no more than five deterministic source contracts for the implemented surface cells;
+- persists no more than seven deterministic source contracts for the implemented surface cells;
 - reports candidate, selected, discarded, and acquisition-bound metrics separately.
 
-Focused tests pass for provider-filter query construction, the no-equity/no-provider guard, deterministic five-cell selection, compact persistence, and candidate-set distribution aggregation. The canonical AAPL equity EOD pull for 2026-07-20 still had no bar at validation time, so no corrected live provider request or persisted capture was attempted for that session.
+Focused tests pass for provider-filter query construction, the no-equity/no-provider guard, deterministic seven-cell selection, compact persistence, and candidate-set distribution aggregation. The canonical AAPL equity EOD pull for 2026-07-20 still had no bar at validation time, so no corrected live provider request or persisted capture was attempted for that session.
 
 Migration `000032` remains applied and previously passed isolated-schema up/down validation plus PostgreSQL upsert, attempt-increment, list, and detail integration. A strict G141 rerun still admits zero options rows until genuine analytics-ready prospective sessions exist.
+
+
+## G143 Extension
+
+G143 extends the bounded selector from five to seven cells by adding 60-DTE 25-delta put/call evidence. Selected rows now retain bid/ask, quote timestamp, exercise style, shares per contract, provider request ID, selection cell, policy version, and score. The provider and candidate limits above are unchanged, and non-selected candidates remain transient.
+
+See `G143_options_surface_evidence_v1.md` for the generated premium, surface-shape, dimensioned OI-change, quality, and G138 compatibility contract.

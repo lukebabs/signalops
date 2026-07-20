@@ -32,3 +32,4 @@ Current notes:
 - `../gates/G141_historical_coverage_and_outcome_population.md`: bounded historical acquisition, transition statistics, strict coverage preflight, and coordinated research execution.
 
 - G142 prospective options analytics capture: `../gates/G142_prospective_options_analytics_capture.md`.
+- G143 options surface evidence v1: `../gates/G143_options_surface_evidence_v1.md`.

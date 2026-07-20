@@ -7,7 +7,7 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-func TestAssessAnalyticsReadinessRequiresFiveActualCells(t *testing.T) {
+func TestAssessAnalyticsReadinessRequiresSevenActualCells(t *testing.T) {
 	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
 	records := []storage.MarketOpsOptionsChainRecord{
 		readinessRecord(session, 30, .50, "call"),
@@ -15,9 +15,11 @@ func TestAssessAnalyticsReadinessRequiresFiveActualCells(t *testing.T) {
 		readinessRecord(session, 90, .50, "call"),
 		readinessRecord(session, 30, -.25, "put"),
 		readinessRecord(session, 30, .25, "call"),
+		readinessRecord(session, 60, -.25, "put"),
+		readinessRecord(session, 60, .25, "call"),
 	}
 	report := AssessAnalyticsReadiness(session, records)
-	if !report.Ready || report.RequiredSurfaceCells != 5 || report.UsableIVCount != 5 || report.UsableGreeksCount != 5 || report.OpenInterestCount != 5 || report.UnderlyingPriceCount != 5 {
+	if !report.Ready || report.RequiredSurfaceCells != 7 || report.UsableIVCount != 7 || report.UsableGreeksCount != 7 || report.OpenInterestCount != 7 || report.UnderlyingPriceCount != 7 {
 		t.Fatalf("report = %+v", report)
 	}
 }
@@ -48,6 +50,8 @@ func TestSelectRequiredSurfaceEvidenceRetainsOnlyDeterministicCells(t *testing.T
 		readinessRecord(session, 90, .50, "call"),
 		readinessRecord(session, 30, -.25, "put"),
 		readinessRecord(session, 30, .25, "call"),
+		readinessRecord(session, 60, -.25, "put"),
+		readinessRecord(session, 60, .25, "call"),
 		readinessRecord(session, 30, .90, "call"),
 	}
 	for index := range records {
@@ -61,7 +65,10 @@ func TestSelectRequiredSurfaceEvidenceRetainsOnlyDeterministicCells(t *testing.T
 		t.Fatalf("selected surface is not ready: %+v", selected)
 	}
 	for _, record := range selected {
-		if record.OptionTicker == "F" {
+		if record.SelectionCell == "" || record.SelectionPolicyVersion != SurfaceSelectionPolicyVersion || record.SelectionScore == nil {
+			t.Fatalf("selection lineage missing: %+v", record)
+		}
+		if record.OptionTicker == "H" {
 			t.Fatalf("irrelevant deep-delta contract was retained: %+v", selected)
 		}
 	}

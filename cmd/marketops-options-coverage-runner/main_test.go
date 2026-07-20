@@ -18,12 +18,12 @@ type fakeProvider struct {
 	filter          massive.OptionChainSnapshotFilter
 }
 
-func (f *fakeProvider) ListOptionChainSnapshotFiltered(_ context.Context, underlying string, filter massive.OptionChainSnapshotFilter) ([]massive.OptionContractDailyRecord, error) {
+func (f *fakeProvider) ListOptionChainSnapshotFilteredWithMetadata(_ context.Context, underlying string, filter massive.OptionChainSnapshotFilter) (massive.OptionChainSnapshotBatch, error) {
 	f.calls = append(f.calls, underlying)
 	f.limit = filter.Limit
 	f.pages = filter.MaxPages
 	f.filter = filter
-	return f.recordsBySymbol[underlying], nil
+	return massive.OptionChainSnapshotBatch{Records: f.recordsBySymbol[underlying], ProviderRequestIDs: []string{"req-test"}, PagesFetched: 1, PaginationComplete: true}, nil
 }
 
 type fakeRepo struct {
@@ -190,6 +190,8 @@ func TestRunCoveragePersistsAnalyticsReadyCapture(t *testing.T) {
 			surfaceProviderRecord("AAPL", "O:AAPL90ATM", "call", session, 90, .50),
 			surfaceProviderRecord("AAPL", "O:AAPL30P25", "put", session, 30, -.25),
 			surfaceProviderRecord("AAPL", "O:AAPL30C25", "call", session, 30, .25),
+			surfaceProviderRecord("AAPL", "O:AAPL60P25", "put", session, 60, -.25),
+			surfaceProviderRecord("AAPL", "O:AAPL60C25", "call", session, 60, .25),
 			surfaceProviderRecord("AAPL", "O:AAPL30DEEP", "call", session, 30, .90),
 		},
 	}}
@@ -201,14 +203,14 @@ func TestRunCoveragePersistsAnalyticsReadyCapture(t *testing.T) {
 	if result.AnalyticsReady != 1 || result.Partial != 0 || len(repo.captures) != 1 {
 		t.Fatalf("result=%+v captures=%+v", result, repo.captures)
 	}
-	if result.Fetched != 6 || result.SelectedEvidence != 5 || result.DiscardedCandidates != 1 || len(repo.chain) != 5 || result.Symbols[0].DistributionContractCount != 6 {
+	if result.Fetched != 8 || result.SelectedEvidence != 7 || result.DiscardedCandidates != 1 || len(repo.chain) != 7 || result.Symbols[0].DistributionContractCount != 8 {
 		t.Fatalf("bounded result=%+v chain=%d", result, len(repo.chain))
 	}
 	if provider.filter.ExpirationDateGTE != session.AddDate(0, 0, 14) || provider.filter.ExpirationDateLTE != session.AddDate(0, 0, 120) || provider.filter.StrikePriceGTE == nil || *provider.filter.StrikePriceGTE != 70 || provider.filter.StrikePriceLTE == nil || *provider.filter.StrikePriceLTE != 130 {
 		t.Fatalf("provider filter = %+v", provider.filter)
 	}
 	capture := repo.captures[0]
-	if !capture.AnalyticsReady || capture.Status != storage.MarketOpsOptionsCaptureAnalyticsReady || capture.RequiredSurfaceCells != 5 || capture.CaptureID != optionsCaptureID("tenant-local", "src-massive", "AAPL", session) {
+	if !capture.AnalyticsReady || capture.Status != storage.MarketOpsOptionsCaptureAnalyticsReady || capture.RequiredSurfaceCells != 7 || capture.CaptureID != optionsCaptureID("tenant-local", "src-massive", "AAPL", session) {
 		t.Fatalf("capture = %+v", capture)
 	}
 }
@@ -286,6 +288,8 @@ func TestRunCoverageEnrichesMissingUnderlyingFromCanonicalEquityEvent(t *testing
 		surfaceProviderRecord("AAPL", "O:AAPL90ATM", "call", session, 90, .50),
 		surfaceProviderRecord("AAPL", "O:AAPL30P25", "put", session, 30, -.25),
 		surfaceProviderRecord("AAPL", "O:AAPL30C25", "call", session, 30, .25),
+		surfaceProviderRecord("AAPL", "O:AAPL60P25", "put", session, 60, -.25),
+		surfaceProviderRecord("AAPL", "O:AAPL60C25", "call", session, 60, .25),
 	}
 	for index := range records {
 		records[index].UnderlyingClose = nil

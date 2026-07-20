@@ -1744,8 +1744,10 @@ func TestGetMarketOpsOptionsDistribution(t *testing.T) {
 func TestGetMarketOpsOptionsChain(t *testing.T) {
 	tradeDate := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)
 	oi := int64(2500)
-	delta := 0.42
-	repo := &fakeQueryRepository{marketOpsOptionsChain: []storage.MarketOpsOptionsChainRecord{{TenantID: "tenant-1", Symbol: "NVDA", TradeDate: tradeDate, OptionTicker: "O:NVDA260717C00170000", Provider: "massive", ContractType: "call", ExpirationDate: tradeDate.AddDate(0, 0, 1), StrikePrice: 170, OpenInterest: &oi, Delta: &delta, RawPayloadJSON: []byte(`{"provider":"massive"}`), CreatedAt: tradeDate, UpdatedAt: tradeDate}}}
+	delta, bid, ask, selectionScore := 0.42, 4.8, 5.2, .9
+	quoteTimestamp := tradeDate.Add(20 * time.Hour)
+	shares := int64(100)
+	repo := &fakeQueryRepository{marketOpsOptionsChain: []storage.MarketOpsOptionsChainRecord{{TenantID: "tenant-1", Symbol: "NVDA", TradeDate: tradeDate, OptionTicker: "O:NVDA260717C00170000", Provider: "massive", ContractType: "call", ExpirationDate: tradeDate.AddDate(0, 0, 1), StrikePrice: 170, OpenInterest: &oi, Delta: &delta, Bid: &bid, Ask: &ask, QuoteTimestamp: &quoteTimestamp, ExerciseStyle: "american", SharesPerContract: &shares, ProviderRequestID: "req-1", SelectionCell: "call_25d_30d", SelectionPolicyVersion: "marketops.options.surface_selection.v1", SelectionScore: &selectionScore, RawPayloadJSON: []byte(`{"provider":"massive"}`), CreatedAt: tradeDate, UpdatedAt: tradeDate}}}
 	router := NewRouter(RouterConfig{QueryRepository: repo})
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/marketops/assets/nvda/options/chain?trade_date=2026-07-16&contract_type=call&limit=25", nil)
@@ -1763,7 +1765,7 @@ func TestGetMarketOpsOptionsChain(t *testing.T) {
 		t.Fatalf("response JSON error = %v", err)
 	}
 	rows := response["options_chain"]
-	if len(rows) != 1 || rows[0]["option_ticker"] != "O:NVDA260717C00170000" || rows[0]["open_interest"].(float64) != 2500 {
+	if len(rows) != 1 || rows[0]["option_ticker"] != "O:NVDA260717C00170000" || rows[0]["open_interest"].(float64) != 2500 || rows[0]["bid"].(float64) != 4.8 || rows[0]["ask"].(float64) != 5.2 || rows[0]["selection_cell"] != "call_25d_30d" || rows[0]["provider_request_id"] != "req-1" {
 		t.Fatalf("chain = %+v", rows)
 	}
 }

@@ -7362,3 +7362,29 @@ Result:
 - Recorded missing quote/premium, surface, bucketed OI, realized-volatility, event-context, calibration, proposal, graph/Ask, observability, and frontend capabilities.
 - Established G143 Options Surface Evidence v1 as the recommended next gate, with an end-to-end provider-shaped fixture required before isolated evaluator tests can count as functional compatibility.
 - Updated MarketOps architecture, use-case, and gate indexes. No executable G143 gate specification or runtime behavior was added.
+
+
+## 2026-07-20T16:13:27Z - G143 Options Surface Evidence v1
+
+Summary:
+
+- Extended the bounded G142 evidence selector from five to seven versioned cells: 30/60/90-DTE ATM and 30/60-DTE 25-delta put/call.
+- Parsed and persisted selected bid/ask, quote timestamp, exercise style, shares per contract, provider request ID, selection cell, policy version, and score through migration `000033` and the existing options API.
+- Preserved request IDs, page count, and pagination completeness in capture metrics; incomplete bounded pagination now has an explicit quality reason.
+- Added transient-candidate DTE/delta OI-volume distributions, candidate eligibility count, and rejection reasons without bulk contract persistence.
+- Extended market states to 29 feature definitions and 39 slots, including quote-derived premium/spread, IV term slopes, risk reversal, selection confidence, and dimensioned wing OI change.
+- Reconciled G137 output dimensions with H001/H004/H006/H007.
+
+Validation performed:
+
+- Full Dockerized Go suite passed after updating all affected seven-cell and 39-slot fixtures.
+- Python regression suite passed: 43 tests.
+- All six JSON event schemas validated.
+- Focused quote quality tests cover usable, missing, crossed, and stale markets.
+- Massive-shaped HTTP acceptance passed through adapter, conversion, bounded selector, G137 materialization, generated transitions, and G138 evaluation; all four research hypotheses were eligible without direct feature injection.
+- Migration `000033` passed disposable PostgreSQL apply/down validation with eight columns present after up and absent after down, then applied to local PostgreSQL.
+- Coverage-runner and gateway Docker targets built successfully; the gateway was rebuilt and `/healthz` returned HTTP `200`.
+
+Result:
+
+- G143 closes the immediate provider-to-hypothesis contract mismatch while retaining compact selected evidence. No live history was synthesized, no full chain was persisted, and no scheduler, calibration promotion, production signal, graph, Syncratic, or frontend behavior was added. G144 is next; live research remains blocked on genuine longitudinal option sessions.

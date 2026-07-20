@@ -15,11 +15,12 @@ func TestBuildDistributionUsesLatestDayOpenInterestAndBuckets(t *testing.T) {
 	putOI := int64(100)
 	callVolume := int64(30)
 	putVolume := int64(10)
+	callIV, putIV, callDelta, putDelta := .30, .40, .50, -.25
 	rows := []storage.MarketOpsOptionsChainRecord{
 		row("call", tradeDate.AddDate(0, 0, -1), 105, underlying, 200, 100, 20, 10),
 		row("put", tradeDate.AddDate(0, 0, -1), 95, underlying, 100, 100, 10, 10),
-		{TenantID: "tenant-local", Symbol: "NVDA", TradeDate: tradeDate, ContractType: "call", StrikePrice: 105, ExpirationDate: tradeDate.AddDate(0, 0, 14), UnderlyingClose: &underlying, OpenInterest: &callOI, Volume: &callVolume},
-		{TenantID: "tenant-local", Symbol: "NVDA", TradeDate: tradeDate, ContractType: "put", StrikePrice: 95, ExpirationDate: tradeDate.AddDate(0, 0, 3), UnderlyingClose: &underlying, OpenInterest: &putOI, Volume: &putVolume},
+		{TenantID: "tenant-local", Symbol: "NVDA", TradeDate: tradeDate, ContractType: "call", StrikePrice: 105, ExpirationDate: tradeDate.AddDate(0, 0, 14), UnderlyingClose: &underlying, OpenInterest: &callOI, Volume: &callVolume, ImpliedVolatility: &callIV, Delta: &callDelta},
+		{TenantID: "tenant-local", Symbol: "NVDA", TradeDate: tradeDate, ContractType: "put", StrikePrice: 95, ExpirationDate: tradeDate.AddDate(0, 0, 3), UnderlyingClose: &underlying, OpenInterest: &putOI, Volume: &putVolume, ImpliedVolatility: &putIV, Delta: &putDelta},
 	}
 
 	got := BuildDistribution("tenant-local", "nvda", tradeDate, rows)
@@ -51,8 +52,14 @@ func TestBuildDistributionUsesLatestDayOpenInterestAndBuckets(t *testing.T) {
 	if err := json.Unmarshal(got.MetricsJSON, &metrics); err != nil {
 		t.Fatalf("metrics JSON error = %v", err)
 	}
-	if metrics["open_interest_quality"] != "usable" || metrics["open_interest_zero_rate"].(float64) != 0 {
+	if metrics["open_interest_quality"] != "usable" || metrics["open_interest_zero_rate"].(float64) != 0 || metrics["eligible_candidate_count"].(float64) != 1 {
 		t.Fatalf("metrics = %+v", metrics)
+	}
+	deltaBuckets := metrics["delta_distribution"].(map[string]any)
+	dteBuckets := metrics["dte_distribution"].(map[string]any)
+	rejections := metrics["candidate_rejection_reasons"].(map[string]any)
+	if deltaBuckets["0.40-0.60"] == nil || deltaBuckets["0.20-0.30"] == nil || dteBuckets["7-21d"] == nil || rejections["outside_surface_dte"].(float64) != 1 {
+		t.Fatalf("bounded bucket metrics = %+v", metrics)
 	}
 }
 

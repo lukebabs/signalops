@@ -23,7 +23,7 @@ func TestBuildG137PositiveAAPLVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Definitions) != 24 || len(result.States) != 25 || len(result.Observations) != 25*requiredFeatureSlots {
+	if len(result.Definitions) != 29 || len(result.States) != 25 || len(result.Observations) != 25*requiredFeatureSlots {
 		t.Fatalf("unexpected build counts: definitions=%d states=%d observations=%d", len(result.Definitions), len(result.States), len(result.Observations))
 	}
 	finalState := result.States[len(result.States)-1]
@@ -37,13 +37,64 @@ func TestBuildG137PositiveAAPLVerticalSlice(t *testing.T) {
 	assertNumericFeature(t, final, "iv", `{"option_type":"put","target_delta":0.25,"target_dte":30}`, .38, storage.MarketOpsQualityUsable)
 	assertNumericFeature(t, final, "put_call_oi_ratio", `{}`, 1.25, storage.MarketOpsQualityUsable)
 	assertNumericFeature(t, final, "surface_coverage_ratio", `{}`, 1, storage.MarketOpsQualityUsable)
-	assertQualityFeature(t, final, "mid_premium", storage.MarketOpsQualityMissing)
+	assertNumericFeature(t, final, "iv_term_slope", `{"far_dte":60,"near_dte":30}`, .02, storage.MarketOpsQualityUsable)
+	assertNumericFeature(t, final, "risk_reversal", `{"target_delta":0.25,"target_dte":30}`, -.10, storage.MarketOpsQualityUsable)
+	assertQualityFeature(t, final, "surface_selection_confidence", storage.MarketOpsQualityUsableWithWarning)
+	assertNumericFeature(t, final, "iv", `{"option_type":"put","target_delta":0.25,"target_dte":60}`, .36, storage.MarketOpsQualityUsable)
+	assertNumericFeature(t, final, "mid_premium", `{"option_type":"put","target_delta":0.25,"target_dte":30}`, 2.1, storage.MarketOpsQualityUsable)
 	if !hasEvidenceType(result.Evidence, "put_call_oi_ratio_observed") || !hasEvidenceType(result.Evidence, "underlying_return_observed") {
 		t.Fatalf("expected quality-gated evidence, got %+v", result.Evidence)
 	}
 	if len(result.Transitions) == 0 {
 		t.Fatal("expected one-session transitions")
 	}
+}
+
+func TestPremiumFeaturesPreserveMissingInvalidAndStaleQuality(t *testing.T) {
+	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	record := usableSurfaceFixtures(session)[3]
+	dimensions := optionDimensions("put", 30, .25)
+	record.Ask = nil
+	missing := premiumFeatures(session, []storage.MarketOpsOptionsChainRecord{record}, 30, .25, "put", dimensions, nil)
+	if missing[0].Quality != storage.MarketOpsQualityMissing {
+		t.Fatalf("missing quote quality = %+v", missing)
+	}
+	bid, ask := 3.0, 2.0
+	record.Bid, record.Ask = &bid, &ask
+	invalid := premiumFeatures(session, []storage.MarketOpsOptionsChainRecord{record}, 30, .25, "put", dimensions, nil)
+	if invalid[0].Quality != storage.MarketOpsQualityInvalid || invalid[0].Numeric != nil {
+		t.Fatalf("crossed quote quality = %+v", invalid)
+	}
+	bid, ask = 2.0, 2.2
+	staleTimestamp := session.AddDate(0, 0, -1)
+	record.Bid, record.Ask, record.QuoteTimestamp = &bid, &ask, &staleTimestamp
+	stale := premiumFeatures(session, []storage.MarketOpsOptionsChainRecord{record}, 30, .25, "put", dimensions, nil)
+	if stale[0].Quality != storage.MarketOpsQualityStale || stale[0].Numeric == nil {
+		t.Fatalf("stale quote quality = %+v", stale)
+	}
+}
+
+func TestBuildEmitsDimensionedSurfaceOIChange(t *testing.T) {
+	firstSession := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	secondSession := firstSession.AddDate(0, 0, 1)
+	first, second := usableSurfaceFixtures(firstSession), usableSurfaceFixtures(secondSession)
+	for index := range first {
+		if first[index].OptionTicker == "O:AAPL-PUT25" {
+			value := int64(100)
+			first[index].OpenInterest = &value
+		}
+	}
+	for index := range second {
+		if second[index].OptionTicker == "O:AAPL-PUT25" {
+			value := int64(275)
+			second[index].OpenInterest = &value
+		}
+	}
+	result, err := Build(BuildConfig{TenantID: "tenant-local", Symbol: "AAPL", RunID: "g143-oi"}, BuildInput{OptionChain: append(first, second...)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertNumericFeature(t, observationsForSession(result.Observations, secondSession), "oi_change_1d", `{"option_type":"put","target_delta":0.25,"target_dte":30}`, 175, storage.MarketOpsQualityUsable)
 }
 
 func TestBuildBlocksUnusableOpenInterestEvidence(t *testing.T) {
@@ -179,11 +230,14 @@ func usableSurfaceFixtures(session time.Time) []storage.MarketOpsOptionsChainRec
 		{"O:AAPL-ATM30C", "call", 30, .50, .30}, {"O:AAPL-ATM60C", "call", 60, .50, .32},
 		{"O:AAPL-ATM90P", "put", 90, -.50, .35}, {"O:AAPL-PUT25", "put", 30, -.25, .38},
 		{"O:AAPL-CALL25", "call", 30, .25, .28},
+		{"O:AAPL-PUT25-60", "put", 60, -.25, .36}, {"O:AAPL-CALL25-60", "call", 60, .25, .29},
 	}
 	out := make([]storage.MarketOpsOptionsChainRecord, 0, len(values))
 	for _, value := range values {
 		openInterest := int64(20)
-		out = append(out, storage.MarketOpsOptionsChainRecord{TenantID: "tenant-local", Symbol: "AAPL", TradeDate: session, OptionTicker: value.ticker, ContractType: value.optionType, ExpirationDate: session.AddDate(0, 0, value.dte), OpenInterest: &openInterest, ImpliedVolatility: floatPtr(value.iv), Delta: floatPtr(value.delta)})
+		underlying, bid, ask := 130.0, 2.0, 2.2
+		quoteTimestamp := session.Add(20 * time.Hour)
+		out = append(out, storage.MarketOpsOptionsChainRecord{TenantID: "tenant-local", Symbol: "AAPL", TradeDate: session, OptionTicker: value.ticker, ContractType: value.optionType, ExpirationDate: session.AddDate(0, 0, value.dte), StrikePrice: 130, UnderlyingClose: &underlying, OpenInterest: &openInterest, ImpliedVolatility: floatPtr(value.iv), Delta: floatPtr(value.delta), Bid: &bid, Ask: &ask, QuoteTimestamp: &quoteTimestamp})
 	}
 	return out
 }

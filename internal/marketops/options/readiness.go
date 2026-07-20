@@ -10,7 +10,10 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-const RequiredSurfaceCellCount = 5
+const (
+	RequiredSurfaceCellCount      = 7
+	SurfaceSelectionPolicyVersion = "marketops.options.surface_selection.v1"
+)
 
 type AnalyticsReadiness struct {
 	Ready                bool     `json:"ready"`
@@ -37,6 +40,8 @@ var requiredSurfaceCells = []surfaceCell{
 	{name: "atm_90d", dte: 90, delta: .50},
 	{name: "put_25d_30d", dte: 30, delta: .25, optionType: "put"},
 	{name: "call_25d_30d", dte: 30, delta: .25, optionType: "call"},
+	{name: "put_25d_60d", dte: 60, delta: .25, optionType: "put"},
+	{name: "call_25d_60d", dte: 60, delta: .25, optionType: "call"},
 }
 
 // AssessAnalyticsReadiness applies the same point-in-time surface policy used by G141.
@@ -96,6 +101,9 @@ func SelectRequiredSurfaceEvidence(session time.Time, records []storage.MarketOp
 		if !ok {
 			continue
 		}
+		score := surfaceSelectionScore(session, record, cell)
+		record.SelectionCell, record.SelectionPolicyVersion = cell.name, SurfaceSelectionPolicyVersion
+		record.SelectionScore = &score
 		selected = append(selected, record)
 		used[record.OptionTicker] = struct{}{}
 	}
@@ -152,6 +160,22 @@ func bestSurfaceCell(session time.Time, records []storage.MarketOpsOptionsChainR
 		}
 	}
 	return best, found
+}
+
+func surfaceSelectionScore(session time.Time, record storage.MarketOpsOptionsChainRecord, cell surfaceCell) float64 {
+	dte := int(dayOnly(record.ExpirationDate).Sub(dayOnly(session)).Hours() / 24)
+	tolerance := 15
+	if cell.dte >= 60 {
+		tolerance = 20
+	}
+	if cell.dte >= 90 {
+		tolerance = 30
+	}
+	deltaDistance := 0.0
+	if record.Delta != nil {
+		deltaDistance = math.Abs(math.Abs(*record.Delta) - cell.delta)
+	}
+	return float64(absInt(dte-cell.dte))/float64(tolerance) + deltaDistance/.15
 }
 
 func absInt(value int) int {

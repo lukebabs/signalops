@@ -8773,3 +8773,34 @@ Status: documentation reconciled; complete v1 not achieved
 - Recorded a complete-v1 acceptance matrix: structural AAPL/state behavior passes, while historical hypothesis evaluation, state-aware Ask, Top 50 analytics, proposal reproducibility, and full semantic versioning remain partial.
 - Recommended G143-G148 sequencing, beginning with bounded Options Surface Evidence v1 and an end-to-end provider-to-hypothesis compatibility fixture.
 - No thresholds were lowered, no scheduler or provider call was added, and no gate was marked executable or complete by this documentation change.
+
+
+## 2026-07-20T16:13:27Z - Gate G143 Options Surface Evidence v1
+
+Status: implemented backend contract; deployed gateway schema/API
+
+Scope:
+
+- Add selected quote, standard-contract, provider-request, and versioned selection lineage to the existing compact option evidence ledger.
+- Extend deterministic readiness to seven hypothesis-required surface cells without expanding full-chain storage.
+- Produce the exact premium, IV, and dimensioned OI observations required by H001/H004/H006/H007.
+- Add bounded transient-candidate DTE/delta positioning distributions and explicit candidate rejection metrics.
+- Prove provider-to-G137-to-G138 compatibility without direct feature fixtures.
+
+Validation performed:
+
+- Full Go, Python, and JSON schema suites passed.
+- Migration `000033` passed isolated up/down validation and is applied locally.
+- Provider parsing, incomplete pagination, ingestion, seven-cell selection, quote quality, distribution buckets, state lineage/idempotency, and API response fields have focused tests.
+- Massive-shaped end-to-end acceptance makes all four research hypotheses eligible from generated observations and transitions.
+- Docker coverage-runner and gateway targets built; rebuilt gateway health returned `200`.
+
+Boundaries retained:
+
+- Provider acquisition remains DTE/moneyness/candidate/page/symbol bounded.
+- At most seven contracts are persisted per prospective symbol/session; aggregate positioning uses transient candidates.
+- No fake historical options, threshold relaxation, scheduling, production promotion/materialization, graph mutation, Syncratic expansion, or frontend scope was introduced.
+
+Result:
+
+- G143 is accepted. The original cross-layer contract blocker is resolved. G144 Market Feature And Transition Completion is the next architecture gate, while live calibration remains blocked until genuine analytics-ready sessions accumulate.

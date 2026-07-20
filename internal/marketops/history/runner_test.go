@@ -217,6 +217,8 @@ func optionSurface(session time.Time, index int) []storage.MarketOpsOptionsChain
 		contract(session, "C90ATM", "call", 90, .50, value90),
 		contract(session, "P30D25", "put", 30, -.25, value30+.03),
 		contract(session, "C30D25", "call", 30, .25, value30-.03),
+		contract(session, "P60D25", "put", 60, -.25, value60+.03),
+		contract(session, "C60D25", "call", 60, .25, value60-.03),
 	}
 }
 
@@ -248,7 +250,7 @@ func TestFilterChainByCapturesRequiresExactReadyRun(t *testing.T) {
 		Status: storage.MarketOpsOptionsCaptureAnalyticsReady, AnalyticsReady: true,
 	}}
 	filtered := filterChainByCaptures(records, captures)
-	if len(filtered) != 5 {
+	if len(filtered) != 7 {
 		t.Fatalf("filtered rows = %d", len(filtered))
 	}
 	captures[0].Status = storage.MarketOpsOptionsCapturePartial

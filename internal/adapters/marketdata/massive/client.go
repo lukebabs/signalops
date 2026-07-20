@@ -83,10 +83,24 @@ type OptionChainSnapshotFilter struct {
 	StrikePriceLTE    *float64
 }
 
+// OptionChainSnapshotBatch preserves provider pagination lineage without
+// requiring callers to retain every transient candidate.
+type OptionChainSnapshotBatch struct {
+	Records            []OptionContractDailyRecord
+	ProviderRequestIDs []string
+	PagesFetched       int
+	PaginationComplete bool
+}
+
 func (c *Client) ListOptionChainSnapshotFiltered(ctx context.Context, underlying string, filter OptionChainSnapshotFilter) ([]OptionContractDailyRecord, error) {
+	batch, err := c.ListOptionChainSnapshotFilteredWithMetadata(ctx, underlying, filter)
+	return batch.Records, err
+}
+
+func (c *Client) ListOptionChainSnapshotFilteredWithMetadata(ctx context.Context, underlying string, filter OptionChainSnapshotFilter) (OptionChainSnapshotBatch, error) {
 	underlying = normalizeSymbol(underlying)
 	if underlying == "" {
-		return nil, errors.New("underlying symbol is required")
+		return OptionChainSnapshotBatch{}, errors.New("underlying symbol is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > 250 {
 		filter.Limit = 250
@@ -95,10 +109,10 @@ func (c *Client) ListOptionChainSnapshotFiltered(ctx context.Context, underlying
 		filter.MaxPages = 1
 	}
 	if !filter.ExpirationDateGTE.IsZero() && !filter.ExpirationDateLTE.IsZero() && filter.ExpirationDateLTE.Before(filter.ExpirationDateGTE) {
-		return nil, errors.New("option-chain expiration upper bound must not precede lower bound")
+		return OptionChainSnapshotBatch{}, errors.New("option-chain expiration upper bound must not precede lower bound")
 	}
 	if filter.StrikePriceGTE != nil && filter.StrikePriceLTE != nil && *filter.StrikePriceLTE < *filter.StrikePriceGTE {
-		return nil, errors.New("option-chain strike upper bound must not precede lower bound")
+		return OptionChainSnapshotBatch{}, errors.New("option-chain strike upper bound must not precede lower bound")
 	}
 	query := url.Values{}
 	query.Set("limit", fmt.Sprintf("%d", filter.Limit))
@@ -116,7 +130,7 @@ func (c *Client) ListOptionChainSnapshotFiltered(ctx context.Context, underlying
 	}
 	path := fmt.Sprintf("/v3/snapshot/options/%s", url.PathEscape(underlying))
 	fallback := time.Now().UTC()
-	records := []OptionContractDailyRecord{}
+	batch := OptionChainSnapshotBatch{Records: []OptionContractDailyRecord{}}
 	nextURL := ""
 	for page := 0; page < filter.MaxPages; page++ {
 		var response optionChainSnapshotResponse
@@ -127,15 +141,20 @@ func (c *Client) ListOptionChainSnapshotFiltered(ctx context.Context, underlying
 			err = c.getJSONURL(ctx, nextURL, &response)
 		}
 		if err != nil {
-			return nil, err
+			return OptionChainSnapshotBatch{}, err
 		}
-		records = append(records, response.records(underlying, fallback)...)
+		batch.PagesFetched++
+		batch.Records = append(batch.Records, response.records(underlying, fallback)...)
+		if requestID := strings.TrimSpace(response.RequestID); requestID != "" {
+			batch.ProviderRequestIDs = append(batch.ProviderRequestIDs, requestID)
+		}
 		nextURL = strings.TrimSpace(response.NextURL)
 		if nextURL == "" {
+			batch.PaginationComplete = true
 			break
 		}
 	}
-	return records, nil
+	return batch, nil
 }
 
 func (c *Client) GetEquityDailyBar(ctx context.Context, symbol string, date time.Time) (EquityEODPriceRecord, error) {

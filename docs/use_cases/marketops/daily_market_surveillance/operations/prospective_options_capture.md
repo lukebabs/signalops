@@ -61,7 +61,7 @@ GET /v1/tenants/tenant-local/marketops/options/captures?analytics_ready=true&ses
 GET /v1/tenants/tenant-local/marketops/options/captures/{capture_id}
 ```
 
-Review `required_surface_cells`, usable-field counts, quality reasons, acquisition bounds, `fetched`, `selected_evidence`, `discarded_candidates`, provider session, attempts, and error message. For the current surface policy, at most five selected contracts should be persisted.
+Review `required_surface_cells`, usable-field counts, quality reasons, acquisition bounds, `fetched`, `selected_evidence`, `discarded_candidates`, provider session, attempts, and error message. For the current surface policy, at most seven selected contracts should be persisted.
 
 ## Scheduling Policy
 

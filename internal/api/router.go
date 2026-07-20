@@ -2946,35 +2946,43 @@ type marketOpsOptionsCaptureDTO struct {
 }
 
 type marketOpsOptionsChainDTO struct {
-	TenantID          string          `json:"tenant_id"`
-	Symbol            string          `json:"symbol"`
-	TradeDate         time.Time       `json:"trade_date"`
-	OptionTicker      string          `json:"option_ticker"`
-	Provider          string          `json:"provider"`
-	SourceID          string          `json:"source_id"`
-	IngestionRunID    string          `json:"ingestion_run_id"`
-	ContractType      string          `json:"contract_type"`
-	ExpirationDate    time.Time       `json:"expiration_date"`
-	StrikePrice       float64         `json:"strike_price"`
-	UnderlyingClose   *float64        `json:"underlying_close,omitempty"`
-	Moneyness         *float64        `json:"moneyness,omitempty"`
-	Open              *float64        `json:"open,omitempty"`
-	High              *float64        `json:"high,omitempty"`
-	Low               *float64        `json:"low,omitempty"`
-	Close             *float64        `json:"close,omitempty"`
-	VWAP              *float64        `json:"vwap,omitempty"`
-	Volume            *int64          `json:"volume,omitempty"`
-	OpenInterest      *int64          `json:"open_interest,omitempty"`
-	ImpliedVolatility *float64        `json:"implied_volatility,omitempty"`
-	Delta             *float64        `json:"delta,omitempty"`
-	Gamma             *float64        `json:"gamma,omitempty"`
-	Theta             *float64        `json:"theta,omitempty"`
-	Vega              *float64        `json:"vega,omitempty"`
-	ProviderRequestID string          `json:"provider_request_id"`
-	PayloadHash       string          `json:"payload_hash"`
-	RawPayload        json.RawMessage `json:"raw_payload"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
+	TenantID               string          `json:"tenant_id"`
+	Symbol                 string          `json:"symbol"`
+	TradeDate              time.Time       `json:"trade_date"`
+	OptionTicker           string          `json:"option_ticker"`
+	Provider               string          `json:"provider"`
+	SourceID               string          `json:"source_id"`
+	IngestionRunID         string          `json:"ingestion_run_id"`
+	ContractType           string          `json:"contract_type"`
+	ExpirationDate         time.Time       `json:"expiration_date"`
+	StrikePrice            float64         `json:"strike_price"`
+	UnderlyingClose        *float64        `json:"underlying_close,omitempty"`
+	Moneyness              *float64        `json:"moneyness,omitempty"`
+	Open                   *float64        `json:"open,omitempty"`
+	High                   *float64        `json:"high,omitempty"`
+	Low                    *float64        `json:"low,omitempty"`
+	Close                  *float64        `json:"close,omitempty"`
+	VWAP                   *float64        `json:"vwap,omitempty"`
+	Bid                    *float64        `json:"bid,omitempty"`
+	Ask                    *float64        `json:"ask,omitempty"`
+	QuoteTimestamp         *time.Time      `json:"quote_timestamp,omitempty"`
+	Volume                 *int64          `json:"volume,omitempty"`
+	OpenInterest           *int64          `json:"open_interest,omitempty"`
+	ImpliedVolatility      *float64        `json:"implied_volatility,omitempty"`
+	Delta                  *float64        `json:"delta,omitempty"`
+	Gamma                  *float64        `json:"gamma,omitempty"`
+	Theta                  *float64        `json:"theta,omitempty"`
+	Vega                   *float64        `json:"vega,omitempty"`
+	ExerciseStyle          string          `json:"exercise_style,omitempty"`
+	SharesPerContract      *int64          `json:"shares_per_contract,omitempty"`
+	ProviderRequestID      string          `json:"provider_request_id"`
+	SelectionCell          string          `json:"selection_cell,omitempty"`
+	SelectionPolicyVersion string          `json:"selection_policy_version,omitempty"`
+	SelectionScore         *float64        `json:"selection_score,omitempty"`
+	PayloadHash            string          `json:"payload_hash"`
+	RawPayload             json.RawMessage `json:"raw_payload"`
+	CreatedAt              time.Time       `json:"created_at"`
+	UpdatedAt              time.Time       `json:"updated_at"`
 }
 
 type marketOpsOptionsDistributionDTO struct {
@@ -3739,7 +3747,7 @@ func marketOpsOptionsCaptureResponse(record storage.MarketOpsOptionsCaptureRecor
 func marketOpsOptionsChainResponses(records []storage.MarketOpsOptionsChainRecord) []marketOpsOptionsChainDTO {
 	items := make([]marketOpsOptionsChainDTO, 0, len(records))
 	for _, record := range records {
-		items = append(items, marketOpsOptionsChainDTO{TenantID: record.TenantID, Symbol: record.Symbol, TradeDate: record.TradeDate, OptionTicker: record.OptionTicker, Provider: record.Provider, SourceID: record.SourceID, IngestionRunID: record.IngestionRunID, ContractType: record.ContractType, ExpirationDate: record.ExpirationDate, StrikePrice: record.StrikePrice, UnderlyingClose: record.UnderlyingClose, Moneyness: record.Moneyness, Open: record.Open, High: record.High, Low: record.Low, Close: record.Close, VWAP: record.VWAP, Volume: record.Volume, OpenInterest: record.OpenInterest, ImpliedVolatility: record.ImpliedVolatility, Delta: record.Delta, Gamma: record.Gamma, Theta: record.Theta, Vega: record.Vega, ProviderRequestID: record.ProviderRequestID, PayloadHash: record.PayloadHash, RawPayload: jsonRawOrEmptyObject(record.RawPayloadJSON), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt})
+		items = append(items, marketOpsOptionsChainDTO{TenantID: record.TenantID, Symbol: record.Symbol, TradeDate: record.TradeDate, OptionTicker: record.OptionTicker, Provider: record.Provider, SourceID: record.SourceID, IngestionRunID: record.IngestionRunID, ContractType: record.ContractType, ExpirationDate: record.ExpirationDate, StrikePrice: record.StrikePrice, UnderlyingClose: record.UnderlyingClose, Moneyness: record.Moneyness, Open: record.Open, High: record.High, Low: record.Low, Close: record.Close, VWAP: record.VWAP, Bid: record.Bid, Ask: record.Ask, QuoteTimestamp: record.QuoteTimestamp, Volume: record.Volume, OpenInterest: record.OpenInterest, ImpliedVolatility: record.ImpliedVolatility, Delta: record.Delta, Gamma: record.Gamma, Theta: record.Theta, Vega: record.Vega, ExerciseStyle: record.ExerciseStyle, SharesPerContract: record.SharesPerContract, ProviderRequestID: record.ProviderRequestID, SelectionCell: record.SelectionCell, SelectionPolicyVersion: record.SelectionPolicyVersion, SelectionScore: record.SelectionScore, PayloadHash: record.PayloadHash, RawPayload: jsonRawOrEmptyObject(record.RawPayloadJSON), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt})
 	}
 	return items
 }

@@ -32,7 +32,7 @@ The current system provides:
 | Architecture phase | Status | Evidence | Remaining work |
 | --- | --- | --- | --- |
 | Phase 1: foundation and schemas | Substantially complete | Migrations `000028`-`000031`, deterministic identities, versioned ledgers, shared quality states, and read APIs exist. | Mutation/job APIs, durable run status for all logical workers, immutable approved-definition enforcement, and broader integration coverage remain. |
-| Phase 2: AAPL vertical slice | Structurally complete, functionally partial | G137 builds 24 definitions, 25 slots, states, transitions, and evidence; G138 evaluates H001/H004/H006/H007; G142 captures selected surface evidence. | Live premium is always missing, historical options coverage is absent, only five surface cells are selected, and several canonical feature domains are incomplete. |
+| Phase 2: AAPL vertical slice | Structurally complete, functionally partial | G137/G143 build 29 definitions, 39 slots, states, transitions, quote-derived surface evidence, and explicit quality; G138 evaluates H001/H004/H006/H007. | Historical options coverage is absent, live quote completeness is unproven, and several canonical feature domains remain incomplete. |
 | Phase 3: backtest integration | Partial | Generic G081-G105 back-test/calibration substrate and G140/G141 point-in-time outcomes/coordinator exist. | No hypothesis-specific back-test adapter, comparison/walk-forward modes, regime/event segmentation, calibration report, or hypothesis-version promotion evidence exists. |
 | Phase 4: proposal and opportunity integration | Partial | G139 opportunity grouping, overlap suppression, conflict scoring, read APIs, and analyst queue exist. | No hypothesis-evaluation-to-proposal adapter, lifecycle eligibility bridge, opportunity review/disposition, or calibrated ranking exists. |
 | Phase 5: graph and Ask | Foundation only | Existing graph proposals remain review-controlled; G088-G093 provide bounded Ask and evidence-purity controls. | State, transition, hypothesis, opportunity, and outcome graph mappings and Market State Ask bundles are absent. |
@@ -50,7 +50,7 @@ The current system provides:
 | Hypothesis Evaluator | Partial | Deterministic trigger/non-trigger/rejection rows and reason codes exist. Live evaluations are blocked by sparse inputs, and no proposal bridge exists. |
 | Opportunity Engine | Partial | Grouping, domain overlap suppression, conflicts, scores, and research lifecycle exist. There is no review disposition, calibration contribution, or mature live opportunity population. |
 | Outcome Evaluator | Partial | Immutable 1/5/10/20-session outcomes with source lineage and maturity states exist. No live triggered sources currently populate them, and no calibration aggregation by regime/confidence is implemented. |
-| Data Acquisition | Partial | G142 is now analytically bounded and compact. Provider request IDs, pagination completeness, pages/calls, rate-limit metrics, standard-contract metadata, quotes, quote freshness, and spread eligibility are not captured. |
+| Data Acquisition | Partial | G142/G143 are analytically bounded and compact. Request IDs, page completeness, selected quotes/contract metadata, quote freshness, selection lineage, and candidate rejection metrics are captured; rate-limit telemetry and durable scheduling are absent. |
 | API surface | Read-heavy partial | Core list/detail reads exist. Feature/state build, transition calculation, hypothesis mutation/evaluation, opportunity build/review, outcome materialization, coverage, calibration, and durable job-request APIs are absent. |
 | Worker topology | CLI prototype | State materialization combines feature/state/transition/evidence stages; separate hypothesis, opportunity, outcome, and history CLIs exist. Durable job records, partial-failure ledgers, consistent version metrics, and approved scheduling are absent. |
 | Frontend | Partial | Asset/options, algorithms, backtests, proposal controls, Syncratic views, and the opportunity queue exist. The specified Market State, DTE-delta surface, transition timeline, hypothesis workbench, and outcome calibration views do not. |
@@ -63,19 +63,19 @@ The current system provides:
 Implemented or partially implemented:
 
 - Underlying returns for 1/5/10/20 sessions, RSI 14, SMA-20 distance, volume ratio, gap, and ATR.
-- ATM IV at 30/60/90 DTE and 30-DTE 25-delta put/call IV.
-- Put/call OI ratio, one-session ratio change where prior usable data exists, and put/call volume ratio with warnings.
+- ATM IV at 30/60/90 DTE and 30/60-DTE 25-delta put/call IV, quote-derived 30-DTE wing premium/spread, IV term slopes, 30/60-DTE risk reversal, and selection confidence.
+- Put/call OI ratio, aggregate one-session ratio change, dimensioned 30-DTE wing OI change, put/call volume ratio, and transient moneyness/expiry/DTE/delta OI-volume buckets.
 - Usable-contract, missing-IV, missing-Greeks, surface-coverage, and OI-quality observations.
-- Deterministic source-contract lineage for the five currently selected surface cells.
+- Deterministic source-contract, quote, provider-request, selection-cell, policy-version, and score lineage for seven selected surface cells.
 
 Missing or not yet analytically usable:
 
 - Realized volatility catalog (`rv_10d`, `rv_20d`, `rv_60d`, percentiles, acceleration).
 - The broader 21/30/45/60/90/180/365-DTE by 0.15/0.25/0.35/ATM delta surface.
-- IV daily/5-day changes, z-scores, percentiles, rank, IV-realized-volatility spread, skew, risk reversal, slope, curvature, dispersion, and term-structure state.
-- Quote-derived midpoint, extrinsic premium, premium/spot, straddles, expected move, premium ratios, premium changes, and spread percentages.
-- Delta-, DTE-, expiry-, strike-, and moneyness-bucket OI/volume changes, concentration, and migration.
-- Quote staleness, crossed/zero markets, spread-weighted liquidity, standard-contract eligibility, and selection confidence.
+- IV daily/5-day changes, z-scores, percentiles, rank, IV-realized-volatility spread, broader skew/surface curvature/dispersion, and classified term-structure state beyond the initial G143 slopes and risk reversals.
+- Straddles, expected move, broader premium ratios, and multi-session premium changes.
+- Longitudinal bucket OI/volume changes, concentration, and migration beyond the current point-in-time transient distributions.
+- Spread-weighted liquidity and broader standard-contract enforcement; G143 records quote staleness, crossed/zero markets, eligibility reasons, and selection confidence.
 - Earnings, ex-dividend, corporate-action, and other point-in-time event context.
 
 ## Complete-v1 Acceptance Check
@@ -85,10 +85,10 @@ Missing or not yet analytically usable:
 | 1 | Existing MarketOps validations continue to pass | Pass |
 | 2 | AAPL normalized data to market state | Pass structurally; live options completeness remains blocked |
 | 3 | Deterministic, versioned, traceable feature observations | Pass |
-| 4 | DTE/delta cells retain selected-contract lineage | Pass for the five implemented cells only |
+| 4 | DTE/delta cells retain selected-contract lineage | Pass for seven G143 cells |
 | 5 | Transitions are persisted | Pass |
 | 6 | Quality failures block hypotheses without deleting audit evidence | Pass |
-| 7 | Four v1 hypotheses evaluate historically | Partial: evaluator and fixtures pass; live historical options evidence is insufficient |
+| 7 | Four v1 hypotheses evaluate historically | Partial: provider-shaped G143 path makes all four eligible; live historical options evidence is insufficient |
 | 8 | Evaluations cannot directly write production signals | Pass |
 | 9 | Proposal review/materialization controls remain mandatory | Pass as a governance rule; hypothesis proposal bridge is absent |
 | 10 | Opportunities avoid correlated double counting | Pass in deterministic research logic |
@@ -103,19 +103,21 @@ Missing or not yet analytically usable:
 
 Complete-v1 status: not complete.
 
-## Primary Functional Blocker
+## G143 Resolved Cross-Layer Blocker
 
-The immediate blocker is not another ledger or screen. It is an end-to-end, point-in-time options feature contract that can produce usable longitudinal evidence.
+G143 resolves the immediate G137/G138 key-and-dimension incompatibility. The provider adapter, selected evidence ledger, and state materializer now produce 30/60-DTE 25-delta put/call IV, quote-derived 30-DTE premium/spread, and dimensioned 30-DTE OI change. Request, pagination, quote, contract, selection-policy, and selected-contract lineage are explicit.
 
-There is a confirmed cross-layer contract mismatch even before live coverage is considered. H001 expects 30- and 60-DTE 25-delta put IV, 30-DTE 25-delta put extrinsic premium, and dimensioned `oi_change_1d`; H007 also expects dimensioned `oi_change_1d`. G137 does not emit the 60-DTE put cell or dimensioned OI-change observation and instead emits aggregate `put_call_oi_change_1d`. Its premium slots are always missing because bid/ask is not persisted. The positive evaluator fixtures construct expected features directly, so they prove evaluator logic but not provider-to-feature-to-hypothesis compatibility.
+The production-shaped acceptance test starts with Massive HTTP payloads and makes H001, H004, H006, and H007 eligible through generated G137 observations and transitions. The isolated G138 positive fixtures are no longer the only compatibility proof.
 
-G142 now avoids bulk persistence, but the provider adapter and selected evidence do not yet capture bid/ask, quote timestamps, spread, standard-contract metadata, or enough normalized delta/DTE positioning observations. Without correcting both the feature contract and source evidence, H001/H006/H007 cannot become eligible through the production materializer. Without repeated eligible sessions, H004 cannot acquire meaningful term-structure history and no hypothesis can be calibrated.
+The remaining blocker is longitudinal source coverage, not the feature-contract seam. G141 still needs at least 20 genuine analytics-ready option sessions before live calibration/outcome claims are meaningful. G143 does not manufacture that history or lower the threshold.
 
 ## Reconciled Gate Sequence
 
 ### G143: Options Surface Evidence v1
 
-Implement the smallest evidence set required by H001, H004, H006, and H007:
+Status: implemented 2026-07-20.
+
+Implemented the smallest evidence set required by H001, H004, H006, and H007:
 
 - parse provider bid, ask, quote timestamp, exercise style, shares per contract, and request lineage where available;
 - persist quote and eligibility fields only for deterministic selected source contracts;
@@ -126,7 +128,7 @@ Implement the smallest evidence set required by H001, H004, H006, and H007:
 - reconcile G137 output keys/dimensions exactly with the G138 required-feature contract;
 - preserve point-in-time session and source lineage and keep provider calls outside analytical calculators.
 
-Acceptance should require one end-to-end fixture that starts with Massive-shaped bounded records, passes through selected evidence and G137 materialization, and makes each intended G138 hypothesis eligible without injecting feature observations directly. It must also require a bounded dry run, no bulk candidate persistence, stable reruns, and explicit missing/partial behavior. It must not widen to the full architecture surface without a registered hypothesis need.
+Acceptance includes one end-to-end fixture that starts with Massive-shaped bounded records, passes through selected evidence and G137 materialization, and makes each intended G138 hypothesis eligible without injecting feature observations directly. Validation also verifies bounded dry-run behavior, no bulk candidate persistence, stable reruns, and explicit missing/partial behavior. The gate does not widen to the full architecture surface without a registered hypothesis need.
 
 ### G144: Market Feature And Transition Completion
 
@@ -163,7 +165,7 @@ Add review-controlled graph mappings and bounded Market State Ask bundles, then 
 
 MarketOps is beyond a prototype database: it has genuine deterministic state, hypothesis, opportunity, and outcome infrastructure with strong governance. It is not yet a useful complete market-state intelligence product because the live options feature plane and longitudinal calibration evidence are incomplete.
 
-The definitive next step is G143 Options Surface Evidence v1. That gate directly improves hypothesis eligibility and analyst usefulness while remaining bounded, hypothesis-driven, storage-efficient, and consistent with the canonical architecture.
+G143 has closed the immediate provider-to-hypothesis compatibility gap while retaining bounded selected evidence. The definitive next step is G144 Market Feature And Transition Completion; live research remains coverage-blocked until genuine prospective option sessions accumulate.
 
 ## References
 
@@ -176,5 +178,6 @@ The definitive next step is G143 Options Surface Evidence v1. That gate directly
 - G140 outcomes: `../gates/G140_forward_outcome_evaluation.md`
 - G141 history coordinator: `../gates/G141_historical_coverage_and_outcome_population.md`
 - G142 prospective options capture: `../gates/G142_prospective_options_analytics_capture.md`
+- G143 options surface evidence: `../gates/G143_options_surface_evidence_v1.md`
 - State feature materializer: `../../../../../internal/marketops/state/materializer.go`
 - Hypothesis feature contract: `../../../../../internal/marketops/hypotheses/registry.go`

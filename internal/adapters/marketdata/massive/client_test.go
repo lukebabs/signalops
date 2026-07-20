@@ -105,7 +105,8 @@ func TestClientListOptionChainSnapshot(t *testing.T) {
 				"next_url":"` + server.URL + `/v3/snapshot/options/NVDA?cursor=next",
 				"results":[{
 					"day":{"open":10.1,"high":11.2,"low":9.9,"close":10.8,"volume":123,"vwap":10.6,"last_updated":1783814400000000000},
-					"details":{"ticker":"O:NVDA260116C00100000","contract_type":"call","expiration_date":"2026-01-16","strike_price":100},
+					"details":{"ticker":"O:NVDA260116C00100000","contract_type":"call","expiration_date":"2026-01-16","strike_price":100,"exercise_style":"american","shares_per_contract":100},
+					"last_quote":{"bid":10.4,"ask":10.8,"last_updated":1783814400000000000},
 					"greeks":{"delta":0.51,"gamma":0.02,"theta":-0.01,"vega":0.2},
 					"implied_volatility":0.45,
 					"open_interest":1543,
@@ -131,19 +132,23 @@ func TestClientListOptionChainSnapshot(t *testing.T) {
 		t.Fatalf("new client: %v", err)
 	}
 	strikeMin, strikeMax := 70.0, 130.0
-	records, err := client.ListOptionChainSnapshotFiltered(context.Background(), "nvda", OptionChainSnapshotFilter{Limit: 2, MaxPages: 2, ExpirationDateGTE: time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), ExpirationDateLTE: time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC), StrikePriceGTE: &strikeMin, StrikePriceLTE: &strikeMax})
+	batch, err := client.ListOptionChainSnapshotFilteredWithMetadata(context.Background(), "nvda", OptionChainSnapshotFilter{Limit: 2, MaxPages: 2, ExpirationDateGTE: time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), ExpirationDateLTE: time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC), StrikePriceGTE: &strikeMin, StrikePriceLTE: &strikeMax})
 	if err != nil {
 		t.Fatalf("list option chain snapshot: %v", err)
 	}
-	if len(records) != 2 || calls != 2 {
+	records := batch.Records
+	if len(records) != 2 || calls != 2 || batch.PagesFetched != 2 || !batch.PaginationComplete || len(batch.ProviderRequestIDs) != 2 {
 		t.Fatalf("records/calls = %d/%d", len(records), calls)
 	}
 	call := records[0]
 	if call.OptionTicker != "O:NVDA260116C00100000" || call.ContractType != "call" || call.StrikePrice != 100 {
 		t.Fatalf("call record = %+v", call)
 	}
-	if call.OpenInterest == nil || *call.OpenInterest != 1543 {
+	if call.OpenInterest == nil || *call.OpenInterest != 1543 || call.ProviderRequestID != "req-1" {
 		t.Fatalf("open interest = %v", call.OpenInterest)
+	}
+	if call.Bid == nil || *call.Bid != 10.4 || call.Ask == nil || *call.Ask != 10.8 || call.QuoteTimestamp == nil || call.ExerciseStyle != "american" || call.SharesPerContract == nil || *call.SharesPerContract != 100 {
+		t.Fatalf("quote metadata = %+v", call)
 	}
 	if call.UnderlyingClose == nil || *call.UnderlyingClose != 172.5 {
 		t.Fatalf("underlying close = %v", call.UnderlyingClose)
@@ -154,6 +159,24 @@ func TestClientListOptionChainSnapshot(t *testing.T) {
 	put := records[1]
 	if put.ContractType != "put" || put.StrikePrice != 100 || put.OpenInterest == nil || *put.OpenInterest != 900 {
 		t.Fatalf("put record = %+v", put)
+	}
+}
+
+func TestClientReportsIncompleteBoundedPagination(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"request_id": "req-bounded", "next_url": "https://api.massive.test/next", "results": []any{}})
+	}))
+	defer server.Close()
+	client, err := NewClient(ClientConfig{BaseURL: server.URL, APIKey: "test-key", HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := client.ListOptionChainSnapshotFilteredWithMetadata(context.Background(), "AAPL", OptionChainSnapshotFilter{Limit: 10, MaxPages: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if batch.PagesFetched != 1 || batch.PaginationComplete || len(batch.ProviderRequestIDs) != 1 {
+		t.Fatalf("bounded pagination metadata = %+v", batch)
 	}
 }
 

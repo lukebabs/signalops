@@ -23,7 +23,7 @@ import (
 )
 
 type snapshotProvider interface {
-	ListOptionChainSnapshotFiltered(ctx context.Context, underlying string, filter massive.OptionChainSnapshotFilter) ([]massive.OptionContractDailyRecord, error)
+	ListOptionChainSnapshotFilteredWithMetadata(ctx context.Context, underlying string, filter massive.OptionChainSnapshotFilter) (massive.OptionChainSnapshotBatch, error)
 }
 
 type repository interface {
@@ -78,6 +78,9 @@ type symbolMetrics struct {
 	Error                        string         `json:"error,omitempty"`
 	Attempts                     int            `json:"attempts"`
 	Fetched                      int            `json:"fetched"`
+	ProviderRequestIDs           []string       `json:"provider_request_ids,omitempty"`
+	ProviderPagesFetched         int            `json:"provider_pages_fetched"`
+	ProviderPaginationComplete   bool           `json:"provider_pagination_complete"`
 	SelectedEvidence             int            `json:"selected_evidence"`
 	DiscardedCandidates          int            `json:"discarded_candidates"`
 	AcquisitionExpirationStart   string         `json:"acquisition_expiration_start,omitempty"`
@@ -305,10 +308,14 @@ func processSymbol(ctx context.Context, provider snapshotProvider, repo reposito
 		item.AcquisitionStrikeMinimum = strikeMinimum
 		item.AcquisitionStrikeMaximum = strikeMaximum
 	}
-	providerRecords, err := provider.ListOptionChainSnapshotFiltered(ctx, symbol, filter)
+	providerBatch, err := provider.ListOptionChainSnapshotFilteredWithMetadata(ctx, symbol, filter)
 	if err != nil {
 		return item, fmt.Errorf("fetch option chain for %s: %w", symbol, err)
 	}
+	providerRecords := providerBatch.Records
+	item.ProviderRequestIDs = providerBatch.ProviderRequestIDs
+	item.ProviderPagesFetched = providerBatch.PagesFetched
+	item.ProviderPaginationComplete = providerBatch.PaginationComplete
 	if !cfg.SessionDate.IsZero() && len(providerRecords) > cfg.MaxCandidates {
 		providerRecords = providerRecords[:cfg.MaxCandidates]
 	}
@@ -362,7 +369,11 @@ func processSymbol(ctx context.Context, provider snapshotProvider, repo reposito
 	item.UsableGreeksCount = readiness.UsableGreeksCount
 	item.OpenInterestCount = readiness.OpenInterestCount
 	item.UnderlyingPriceCount = readiness.UnderlyingPriceCount
-	item.QualityReasons = readiness.QualityReasons
+	item.QualityReasons = append([]string{}, readiness.QualityReasons...)
+	if !providerBatch.PaginationComplete {
+		item.QualityReasons = append(item.QualityReasons, "provider_candidate_window_incomplete")
+		sort.Strings(item.QualityReasons)
+	}
 	if !cfg.DryRun {
 		for _, chainRecord := range retainedEvidence {
 			if err := repo.UpsertMarketOpsOptionsChain(ctx, chainRecord); err != nil {

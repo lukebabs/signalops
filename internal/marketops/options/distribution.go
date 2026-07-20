@@ -36,6 +36,10 @@ func BuildDistribution(tenantID string, symbol string, tradeDate time.Time, rows
 	record := storage.MarketOpsOptionsDistributionRecord{TenantID: strings.TrimSpace(tenantID), Symbol: strings.ToUpper(strings.TrimSpace(symbol)), TradeDate: tradeDate, WindowName: DefaultWindowName, Provider: "massive", TradeDays: len(sourceDates), SourceTradeDates: sourceDates}
 	moneyness := map[string]*bucketTotals{}
 	expiration := map[string]*bucketTotals{}
+	deltaDistribution := map[string]*bucketTotals{}
+	dteDistribution := map[string]*bucketTotals{}
+	eligibleCandidateCount := 0
+	rejectionReasons := map[string]int{}
 	for _, row := range latestRows {
 		record.ContractCount++
 		if record.SourceID == "" {
@@ -70,6 +74,15 @@ func BuildDistribution(tenantID string, symbol string, tradeDate time.Time, rows
 		}
 		addBucket(moneyness, moneynessBucket(row), call, put, openInterest, volume)
 		addBucket(expiration, expirationBucket(row, tradeDate), call, put, openInterest, volume)
+		addBucket(deltaDistribution, deltaBucket(row), call, put, openInterest, volume)
+		addBucket(dteDistribution, dteBucket(row, tradeDate), call, put, openInterest, volume)
+		reasons := candidateRejectionReasons(row, tradeDate)
+		if len(reasons) == 0 {
+			eligibleCandidateCount++
+		}
+		for _, reason := range reasons {
+			rejectionReasons[reason]++
+		}
 	}
 	record.CallPutOpenInterestRatio = roundRatio(float64(record.TotalCallOpenInterest) / float64(maxInt64(record.TotalPutOpenInterest, 1)))
 	record.CallPutVolumeRatio = roundRatio(float64(record.TotalCallVolume) / float64(maxInt64(record.TotalPutVolume, 1)))
@@ -103,6 +116,10 @@ func BuildDistribution(tenantID string, symbol string, tradeDate time.Time, rows
 	record.MetricsJSON, _ = json.Marshal(map[string]any{
 		"primary_metric":                  "open_interest",
 		"secondary_metric":                "volume",
+		"delta_distribution":              materializeBuckets(deltaDistribution),
+		"dte_distribution":                materializeBuckets(dteDistribution),
+		"eligible_candidate_count":        eligibleCandidateCount,
+		"candidate_rejection_reasons":     rejectionReasons,
 		"window_name":                     DefaultWindowName,
 		"open_interest_zero_count":        zeroOpenInterestCount,
 		"open_interest_positive_count":    positiveOpenInterestCount,
@@ -213,6 +230,68 @@ func moneynessBucket(row storage.MarketOpsOptionsChainRecord) string {
 	default:
 		return ">110%"
 	}
+}
+
+func deltaBucket(row storage.MarketOpsOptionsChainRecord) string {
+	if row.Delta == nil {
+		return "unknown"
+	}
+	value := math.Abs(*row.Delta)
+	switch {
+	case value <= .20:
+		return "0.00-0.20"
+	case value <= .30:
+		return "0.20-0.30"
+	case value <= .40:
+		return "0.30-0.40"
+	case value <= .60:
+		return "0.40-0.60"
+	default:
+		return "0.60-1.00"
+	}
+}
+
+func dteBucket(row storage.MarketOpsOptionsChainRecord, tradeDate time.Time) string {
+	days := int(dayOnly(row.ExpirationDate).Sub(dayOnly(tradeDate)).Hours() / 24)
+	switch {
+	case days < 7:
+		return "lt_7d"
+	case days <= 21:
+		return "7-21d"
+	case days <= 45:
+		return "22-45d"
+	case days <= 75:
+		return "46-75d"
+	case days <= 120:
+		return "76-120d"
+	default:
+		return "gt_120d"
+	}
+}
+
+func candidateRejectionReasons(row storage.MarketOpsOptionsChainRecord, tradeDate time.Time) []string {
+	reasons := []string{}
+	if row.ImpliedVolatility == nil || *row.ImpliedVolatility <= 0 {
+		reasons = append(reasons, "missing_usable_iv")
+	}
+	if row.Delta == nil {
+		reasons = append(reasons, "missing_delta")
+	}
+	if row.UnderlyingClose == nil || *row.UnderlyingClose <= 0 {
+		reasons = append(reasons, "missing_underlying_close")
+	}
+	dte := int(dayOnly(row.ExpirationDate).Sub(dayOnly(tradeDate)).Hours() / 24)
+	if dte < 7 || dte > 180 {
+		reasons = append(reasons, "outside_surface_dte")
+	}
+	if row.SharesPerContract != nil && *row.SharesPerContract != 100 {
+		reasons = append(reasons, "nonstandard_contract_size")
+	}
+	if row.ExerciseStyle != "" && !strings.EqualFold(row.ExerciseStyle, "american") {
+		reasons = append(reasons, "nonstandard_exercise_style")
+	}
+	sort.Strings(reasons)
+	return reasons
 }
 
 func expirationBucket(row storage.MarketOpsOptionsChainRecord, tradeDate time.Time) string {

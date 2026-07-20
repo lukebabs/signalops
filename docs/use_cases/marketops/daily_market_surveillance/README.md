@@ -43,6 +43,8 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - G140 Forward Outcome Evaluation: `gates/G140_forward_outcome_evaluation.md`
 - Forward outcome operations: `operations/outcome_evaluation.md`
 - G141 Historical Coverage And Outcome Population: `gates/G141_historical_coverage_and_outcome_population.md`
+- G142 Prospective Options Analytics Capture: `gates/G142_prospective_options_analytics_capture.md`
+- G143 Options Surface Evidence v1: `gates/G143_options_surface_evidence_v1.md`
 - Historical research operations: `operations/historical_research_pipeline.md`
 - Opportunities workbench implementation and contract: `../../../frontend/marketops_opportunities_workbench_spec.md`
 - Global API contract: `docs/api.md`
@@ -58,7 +60,3 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - Back-test substrate operations: `operations/backtest_substrate.md`
 - G094 calibration readiness gate brief: `gates/G094_backtest_calibration_readiness.md`
 - Syncratic user API boundary: `architecture/syncratic_user_api_boundary.md`
-
-## G142
-
-- Prospective options analytics capture: `gates/G142_prospective_options_analytics_capture.md`.
