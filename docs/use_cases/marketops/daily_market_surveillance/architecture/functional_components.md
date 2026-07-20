@@ -141,3 +141,7 @@ The latest live AMZN closeout expanded usable options samples to 3 persisted usa
 - Materialization requires reviewed proposals and preflight success.
 - Syncratic receives bounded context for reasoning; MarketOps data is not ingested into Syncratic core.
 - Broader algorithm usefulness and runtime policy deployment remain the next separate workstream.
+
+## Prospective Options Capture
+
+G142 extends the bounded options coverage runner with a deterministic capture-quality ledger. It separates contract activity time from snapshot session time, evaluates the exact IV-surface coverage required by G141, and permits same-session underlying-price enrichment only from canonical Massive equity normalized evidence. G141 consumes only rows from the exact analytics-ready capture run.

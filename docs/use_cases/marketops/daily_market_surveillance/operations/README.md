@@ -48,3 +48,7 @@ Current recurring validations:
 ## Historical Research Pipeline
 
 - `historical_research_pipeline.md`: G141 bounded AAPL equity acquisition, strict coverage preflight, dry-run diagnostics, and historical options-data boundary.
+
+## Prospective Options Capture
+
+- `prospective_options_capture.md`: G142 bounded per-session Massive snapshot capture, readiness inspection, retry/resume, and scheduling policy.

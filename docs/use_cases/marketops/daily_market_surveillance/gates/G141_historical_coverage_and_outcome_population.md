@@ -24,6 +24,7 @@ G141 does not lower the quality policy merely to produce triggers. A run with en
 - The insufficient-coverage override is restricted to dry runs.
 - Maximum scope remains AAPL and 200 source sessions.
 - The coordinator makes no provider calls and creates no production signals, proposals, alerts, insights, graph writes, trades, promotions, or policies.
+- After G142, only chain rows from an analytics-ready capture's exact ingestion run are eligible for G141 coverage and state construction; pre-G142 and partial captures cannot satisfy the gate.
 
 ## Point-In-Time Rules
 

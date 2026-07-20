@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	marketopsoptions "github.com/lukebabs/signalops/internal/marketops/options"
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
@@ -14,6 +15,7 @@ type fakeRepository struct {
 	events        []storage.NormalizedEventLedgerRecord
 	distributions []storage.MarketOpsOptionsDistributionRecord
 	chain         []storage.MarketOpsOptionsChainRecord
+	captures      []storage.MarketOpsOptionsCaptureRecord
 	writes        int
 }
 
@@ -25,6 +27,9 @@ func (f *fakeRepository) ListMarketOpsOptionsDistributions(context.Context, stor
 }
 func (f *fakeRepository) ListMarketOpsOptionsChain(context.Context, storage.MarketOpsOptionsChainFilter) ([]storage.MarketOpsOptionsChainRecord, error) {
 	return f.chain, nil
+}
+func (f *fakeRepository) ListMarketOpsOptionsCaptures(context.Context, storage.MarketOpsOptionsCaptureFilter) ([]storage.MarketOpsOptionsCaptureRecord, error) {
+	return f.captures, nil
 }
 func (f *fakeRepository) UpsertMarketOpsFeatureDefinition(context.Context, storage.MarketOpsFeatureDefinitionRecord) error {
 	f.writes++
@@ -154,12 +159,12 @@ func TestValidateRejectsUnboundedOrWrongSymbol(t *testing.T) {
 func TestHasRequiredSurfaceChecksCellsNotOnlyContractCount(t *testing.T) {
 	session := testDay(0)
 	complete := optionSurface(session, 0)
-	if !hasRequiredSurface(session, complete) {
+	if !marketopsoptions.AssessAnalyticsReadiness(session, complete).Ready {
 		t.Fatal("expected complete required surface")
 	}
 	incomplete := append([]storage.MarketOpsOptionsChainRecord{}, complete[:4]...)
 	incomplete = append(incomplete, complete[0])
-	if hasRequiredSurface(session, incomplete) {
+	if marketopsoptions.AssessAnalyticsReadiness(session, incomplete).Ready {
 		t.Fatal("contract count must not replace the missing call 25-delta cell")
 	}
 }
@@ -168,6 +173,11 @@ func positiveRepository() *fakeRepository {
 	repo := &fakeRepository{events: equityEvents(31)}
 	for index := 0; index < 5; index++ {
 		session := testDay(index)
+		runID := "capture-" + session.Format("20060102")
+		repo.captures = append(repo.captures, storage.MarketOpsOptionsCaptureRecord{
+			CaptureID: "optcap-" + session.Format("20060102"), TenantID: "tenant-local", Symbol: "AAPL",
+			SessionDate: session, RunID: runID, Status: storage.MarketOpsOptionsCaptureAnalyticsReady, AnalyticsReady: true,
+		})
 		repo.chain = append(repo.chain, optionSurface(session, index)...)
 		metrics, _ := json.Marshal(map[string]any{"call_put_oi_ratio_quality": "usable", "open_interest_quality": "complete"})
 		repo.distributions = append(repo.distributions, storage.MarketOpsOptionsDistributionRecord{
@@ -215,12 +225,35 @@ func contract(session time.Time, suffix, optionType string, dte int, deltaValue,
 	openInterest := int64(1000)
 	return storage.MarketOpsOptionsChainRecord{
 		TenantID: "tenant-local", Symbol: "AAPL", TradeDate: session,
-		OptionTicker: fmt.Sprintf("O:AAPL%s%s", session.Format("060102"), suffix),
-		ContractType: optionType, ExpirationDate: session.AddDate(0, 0, dte), StrikePrice: 100,
+		IngestionRunID: "capture-" + session.Format("20060102"),
+		OptionTicker:   fmt.Sprintf("O:AAPL%s%s", session.Format("060102"), suffix),
+		ContractType:   optionType, ExpirationDate: session.AddDate(0, 0, dte), StrikePrice: 100,
 		UnderlyingClose: &underlying, OpenInterest: &openInterest, ImpliedVolatility: &ivValue, Delta: &deltaValue,
 	}
 }
 
 func testDay(offset int) time.Time {
 	return time.Date(2026, 1, 2+offset, 0, 0, 0, 0, time.UTC)
+}
+
+func TestFilterChainByCapturesRequiresExactReadyRun(t *testing.T) {
+	session := testDay(0)
+	records := optionSurface(session, 0)
+	stale := records[0]
+	stale.OptionTicker += "-stale"
+	stale.IngestionRunID = "capture-old"
+	records = append(records, stale)
+	captures := []storage.MarketOpsOptionsCaptureRecord{{
+		TenantID: "tenant-local", Symbol: "AAPL", SessionDate: session, RunID: "capture-" + session.Format("20060102"),
+		Status: storage.MarketOpsOptionsCaptureAnalyticsReady, AnalyticsReady: true,
+	}}
+	filtered := filterChainByCaptures(records, captures)
+	if len(filtered) != 5 {
+		t.Fatalf("filtered rows = %d", len(filtered))
+	}
+	captures[0].Status = storage.MarketOpsOptionsCapturePartial
+	captures[0].AnalyticsReady = false
+	if got := filterChainByCaptures(records, captures); len(got) != 0 {
+		t.Fatalf("partial capture rows = %d", len(got))
+	}
 }

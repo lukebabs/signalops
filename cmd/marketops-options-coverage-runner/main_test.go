@@ -29,6 +29,8 @@ type fakeRepo struct {
 	chain            []storage.MarketOpsOptionsChainRecord
 	distributions    []storage.MarketOpsOptionsDistributionRecord
 	events           []storage.NormalizedEventLedgerRecord
+	normalizedEvents []storage.NormalizedEventLedgerRecord
+	captures         []storage.MarketOpsOptionsCaptureRecord
 	assetLimit       int
 	assetUniverse    string
 	assetActiveOnly  bool
@@ -85,6 +87,24 @@ func (f *fakeRepo) ListMarketOpsOptionsDistributions(_ context.Context, filter s
 func (f *fakeRepo) UpsertNormalizedEventLedger(_ context.Context, record storage.NormalizedEventLedgerRecord) error {
 	f.events = append(f.events, record)
 	return nil
+}
+
+func (f *fakeRepo) ListMarketOpsBacktestNormalizedEvents(_ context.Context, _ storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error) {
+	return f.normalizedEvents, nil
+}
+
+func (f *fakeRepo) UpsertMarketOpsOptionsCapture(_ context.Context, record storage.MarketOpsOptionsCaptureRecord) error {
+	f.captures = append(f.captures, record)
+	return nil
+}
+
+func (f *fakeRepo) GetMarketOpsOptionsCapture(_ context.Context, tenantID string, captureID string) (storage.MarketOpsOptionsCaptureRecord, error) {
+	for _, record := range f.captures {
+		if record.TenantID == tenantID && record.CaptureID == captureID {
+			return record, nil
+		}
+	}
+	return storage.MarketOpsOptionsCaptureRecord{}, storage.ErrNotFound
 }
 
 func TestRunCoverageProcessesExplicitBoundedSymbols(t *testing.T) {
@@ -156,5 +176,95 @@ func providerRecord(symbol string, ticker string, contractType string, oi int64)
 		OpenInterest:       &oi,
 		UnderlyingClose:    &underlying,
 		Raw:                map[string]any{"ticker": ticker},
+	}
+}
+
+func TestRunCoveragePersistsAnalyticsReadyCapture(t *testing.T) {
+	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	provider := &fakeProvider{recordsBySymbol: map[string][]massive.OptionContractDailyRecord{
+		"AAPL": {
+			surfaceProviderRecord("AAPL", "O:AAPL30ATM", "call", session, 30, .50),
+			surfaceProviderRecord("AAPL", "O:AAPL60ATM", "put", session, 60, -.50),
+			surfaceProviderRecord("AAPL", "O:AAPL90ATM", "call", session, 90, .50),
+			surfaceProviderRecord("AAPL", "O:AAPL30P25", "put", session, 30, -.25),
+			surfaceProviderRecord("AAPL", "O:AAPL30C25", "call", session, 30, .25),
+		},
+	}}
+	repo := &fakeRepo{}
+	result, err := runCoverage(context.Background(), provider, repo, cliConfig{TenantID: "tenant-local", Symbols: []string{"AAPL"}, MaxSymbols: 1, Limit: 10, MaxPages: 1, SessionDate: session, RunID: "g142-test"})
+	if err != nil {
+		t.Fatalf("runCoverage: %v", err)
+	}
+	if result.AnalyticsReady != 1 || result.Partial != 0 || len(repo.captures) != 1 {
+		t.Fatalf("result=%+v captures=%+v", result, repo.captures)
+	}
+	capture := repo.captures[0]
+	if !capture.AnalyticsReady || capture.Status != storage.MarketOpsOptionsCaptureAnalyticsReady || capture.RequiredSurfaceCells != 5 || capture.CaptureID != optionsCaptureID("tenant-local", "src-massive", "AAPL", session) {
+		t.Fatalf("capture = %+v", capture)
+	}
+}
+
+func TestRunCoverageRejectsProviderDateBeforeWritesAndRecordsFailure(t *testing.T) {
+	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	provider := &fakeProvider{recordsBySymbol: map[string][]massive.OptionContractDailyRecord{
+		"AAPL": {surfaceProviderRecord("AAPL", "O:AAPL30ATM", "call", session.AddDate(0, 0, 1), 30, .50)},
+	}}
+	repo := &fakeRepo{}
+	result, err := runCoverage(context.Background(), provider, repo, cliConfig{TenantID: "tenant-local", Symbols: []string{"AAPL"}, MaxSymbols: 1, SessionDate: session, RunID: "g142-test", ContinueOnError: true})
+	if err != nil {
+		t.Fatalf("runCoverage: %v", err)
+	}
+	if result.Failed != 1 || len(repo.chain) != 0 || len(repo.captures) != 1 || repo.captures[0].Status != storage.MarketOpsOptionsCaptureFailed {
+		t.Fatalf("result=%+v chain=%d captures=%+v", result, len(repo.chain), repo.captures)
+	}
+}
+
+func TestRunCoverageSkipsExistingAnalyticsReadyCapture(t *testing.T) {
+	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	captureID := optionsCaptureID("tenant-local", "src-massive", "AAPL", session)
+	repo := &fakeRepo{captures: []storage.MarketOpsOptionsCaptureRecord{{CaptureID: captureID, TenantID: "tenant-local", AnalyticsReady: true}}}
+	provider := &fakeProvider{recordsBySymbol: map[string][]massive.OptionContractDailyRecord{}}
+	result, err := runCoverage(context.Background(), provider, repo, cliConfig{TenantID: "tenant-local", Symbols: []string{"AAPL"}, MaxSymbols: 1, SessionDate: session, SkipComplete: true, RunID: "g142-test"})
+	if err != nil {
+		t.Fatalf("runCoverage: %v", err)
+	}
+	if result.SkippedComplete != 1 || len(provider.calls) != 0 || len(repo.captures) != 1 {
+		t.Fatalf("result=%+v calls=%+v captures=%d", result, provider.calls, len(repo.captures))
+	}
+}
+
+func surfaceProviderRecord(symbol, ticker, contractType string, session time.Time, dte int, delta float64) massive.OptionContractDailyRecord {
+	record := providerRecord(symbol, ticker, contractType, 100)
+	iv, gamma, theta, vega := .30, .02, -.01, .10
+	record.ObservationDate = session
+	record.ExpirationDate = session.AddDate(0, 0, dte)
+	record.ImpliedVolatility = &iv
+	record.Delta = &delta
+	record.Gamma = &gamma
+	record.Theta = &theta
+	record.Vega = &vega
+	return record
+}
+
+func TestRunCoverageEnrichesMissingUnderlyingFromCanonicalEquityEvent(t *testing.T) {
+	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	records := []massive.OptionContractDailyRecord{
+		surfaceProviderRecord("AAPL", "O:AAPL30ATM", "call", session, 30, .50),
+		surfaceProviderRecord("AAPL", "O:AAPL60ATM", "put", session, 60, -.50),
+		surfaceProviderRecord("AAPL", "O:AAPL90ATM", "call", session, 90, .50),
+		surfaceProviderRecord("AAPL", "O:AAPL30P25", "put", session, 30, -.25),
+		surfaceProviderRecord("AAPL", "O:AAPL30C25", "call", session, 30, .25),
+	}
+	for index := range records {
+		records[index].UnderlyingClose = nil
+	}
+	provider := &fakeProvider{recordsBySymbol: map[string][]massive.OptionContractDailyRecord{"AAPL": records}}
+	repo := &fakeRepo{normalizedEvents: []storage.NormalizedEventLedgerRecord{{EventID: "evt-aapl-equity", ObservationTime: session, NormalizedPayload: []byte(`{"symbol":"AAPL","close":225.5}`)}}}
+	result, err := runCoverage(context.Background(), provider, repo, cliConfig{TenantID: "tenant-local", Symbols: []string{"AAPL"}, MaxSymbols: 1, SessionDate: session, RunID: "g142-test", DryRun: true})
+	if err != nil {
+		t.Fatalf("runCoverage: %v", err)
+	}
+	if result.AnalyticsReady != 1 || len(result.Symbols) != 1 || result.Symbols[0].UnderlyingPriceSourceEventID != "evt-aapl-equity" {
+		t.Fatalf("result = %+v", result)
 	}
 }

@@ -325,3 +325,8 @@ Recommended next gate:
 - G141: adds bounded exact-symbol Massive equity history acquisition, point-in-time transition persistence/rarity statistics, and a strict AAPL historical coordinator for G137-G140.
 - Live equity coverage is 135 sessions; strict outcome population remains blocked at zero analytics-ready option sessions and performs no writes.
 - Specification: `G141_historical_coverage_and_outcome_population.md`.
+
+## G142 Implemented
+
+- G142: adds a deterministic prospective options capture ledger, shared G141/G142 analytics-readiness policy, explicit provider-session purity, bounded retry/resume controls, and read-only capture APIs.
+- Specification: `G142_prospective_options_analytics_capture.md`.

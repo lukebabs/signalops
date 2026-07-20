@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/lukebabs/signalops/internal/marketops/hypotheses"
 	"github.com/lukebabs/signalops/internal/marketops/opportunities"
+	marketopsoptions "github.com/lukebabs/signalops/internal/marketops/options"
 	"github.com/lukebabs/signalops/internal/marketops/outcomes"
 	marketopsstate "github.com/lukebabs/signalops/internal/marketops/state"
 	"github.com/lukebabs/signalops/internal/storage"
@@ -26,6 +26,7 @@ type Repository interface {
 	ListMarketOpsBacktestNormalizedEvents(context.Context, storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error)
 	ListMarketOpsOptionsDistributions(context.Context, storage.MarketOpsOptionsDistributionFilter) ([]storage.MarketOpsOptionsDistributionRecord, error)
 	ListMarketOpsOptionsChain(context.Context, storage.MarketOpsOptionsChainFilter) ([]storage.MarketOpsOptionsChainRecord, error)
+	ListMarketOpsOptionsCaptures(context.Context, storage.MarketOpsOptionsCaptureFilter) ([]storage.MarketOpsOptionsCaptureRecord, error)
 	UpsertMarketOpsFeatureDefinition(context.Context, storage.MarketOpsFeatureDefinitionRecord) error
 	UpsertMarketOpsFeatureObservation(context.Context, storage.MarketOpsFeatureObservationRecord) error
 	UpsertMarketOpsMarketState(context.Context, storage.MarketOpsMarketStateRecord) error
@@ -137,6 +138,14 @@ func Run(ctx context.Context, repo Repository, cfg Config) (Metrics, error) {
 	if err != nil {
 		return result, err
 	}
+	ready := true
+	captures, err := repo.ListMarketOpsOptionsCaptures(ctx, storage.MarketOpsOptionsCaptureFilter{
+		TenantID: cfg.TenantID, Symbol: cfg.Symbol, SessionStart: cfg.SessionStart, SessionEnd: cfg.SessionEnd, Ready: &ready, Limit: 200,
+	})
+	if err != nil {
+		return result, err
+	}
+	chain = filterChainByCaptures(chain, captures)
 
 	result.Coverage = assessCoverage(cfg, events, distributions, chain)
 	if !cfg.AllowInsufficientCoverage && !result.Coverage.Ready {
@@ -367,7 +376,7 @@ func assessCoverage(cfg Config, events []storage.NormalizedEventLedgerRecord, di
 	analyticsDays := 0
 	for key, records := range contractsBySession {
 		session, _ := time.Parse("2006-01-02", key)
-		if hasRequiredSurface(session, records) {
+		if marketopsoptions.AssessAnalyticsReadiness(session, records).Ready {
 			analyticsDays++
 		}
 	}
@@ -402,48 +411,21 @@ func assessCoverage(cfg Config, events []storage.NormalizedEventLedgerRecord, di
 	return report
 }
 
-func hasRequiredSurface(session time.Time, records []storage.MarketOpsOptionsChainRecord) bool {
-	required := []struct {
-		dte        int
-		delta      float64
-		optionType string
-	}{
-		{30, .50, ""}, {60, .50, ""}, {90, .50, ""}, {30, .25, "put"}, {30, .25, "call"},
-	}
-	for _, cell := range required {
-		found := false
-		for _, record := range records {
-			if cell.optionType != "" && strings.ToLower(record.ContractType) != cell.optionType {
-				continue
-			}
-			if record.ImpliedVolatility == nil || *record.ImpliedVolatility <= 0 || record.Delta == nil || record.UnderlyingClose == nil || *record.UnderlyingClose <= 0 {
-				continue
-			}
-			dte := int(day(record.ExpirationDate).Sub(day(session)).Hours() / 24)
-			tolerance := 15
-			if cell.dte >= 60 {
-				tolerance = 20
-			}
-			if cell.dte >= 90 {
-				tolerance = 30
-			}
-			if dte >= 7 && dte <= 180 && absInt(dte-cell.dte) <= tolerance && math.Abs(math.Abs(*record.Delta)-cell.delta) <= .15 {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
+func filterChainByCaptures(records []storage.MarketOpsOptionsChainRecord, captures []storage.MarketOpsOptionsCaptureRecord) []storage.MarketOpsOptionsChainRecord {
+	runBySession := map[string]string{}
+	for _, capture := range captures {
+		if capture.AnalyticsReady && capture.Status == storage.MarketOpsOptionsCaptureAnalyticsReady {
+			runBySession[dateKey(capture.SessionDate)] = strings.TrimSpace(capture.RunID)
 		}
 	}
-	return true
-}
-
-func absInt(value int) int {
-	if value < 0 {
-		return -value
+	out := make([]storage.MarketOpsOptionsChainRecord, 0, len(records))
+	for _, record := range records {
+		runID, ok := runBySession[dateKey(record.TradeDate)]
+		if ok && runID != "" && strings.TrimSpace(record.IngestionRunID) == runID {
+			out = append(out, record)
+		}
 	}
-	return value
+	return out
 }
 
 func filterDistributions(records []storage.MarketOpsOptionsDistributionRecord, start, end time.Time) []storage.MarketOpsOptionsDistributionRecord {

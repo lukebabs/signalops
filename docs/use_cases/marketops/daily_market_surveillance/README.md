@@ -57,3 +57,7 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - Back-test substrate operations: `operations/backtest_substrate.md`
 - G094 calibration readiness gate brief: `gates/G094_backtest_calibration_readiness.md`
 - Syncratic user API boundary: `architecture/syncratic_user_api_boundary.md`
+
+## G142
+
+- Prospective options analytics capture: `gates/G142_prospective_options_analytics_capture.md`.

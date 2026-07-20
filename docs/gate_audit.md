@@ -8728,3 +8728,18 @@ Residual boundary:
 Result:
 
 - G141 implementation is accepted. Calibration and promotion remain blocked until real option-history coverage yields triggered and matured live samples.
+
+## 2026-07-20T06:06:53Z - Gate G142 Prospective Options Analytics Capture
+
+Status: implemented backend and operator capture substrate
+
+- Added migration `000032_marketops_options_capture_sessions` with deterministic symbol/session identity, terminal quality state, attempts, lineage, metrics, and timestamps.
+- Extended the bounded options coverage runner with explicit session, retry, continue, and analytics-ready resume controls.
+- Shared the exact five-cell readiness policy with G141 and required G141 to consume only the capture's exact ingestion run.
+- Preserved per-contract activity time as provider evidence while stamping only an explicit prospective snapshot session; future activity and stale-session-only snapshots fail before writes.
+- Provider-omitted spot may be enriched only from a canonical same-session Massive equity normalized event with event-id lineage.
+- Added read-only tenant-scoped capture list/detail APIs and tests.
+- Migration apply/down, PostgreSQL integration, focused tests, and bounded live dry-run validation passed.
+- Live AAPL validation remained honestly partial: 3,376 contracts, 3,093 usable IV/Greeks rows, complete OI presence, no provider spot, no same-session EOD bar, zero required cells, and zero writes.
+- A strict G141 rerun admitted zero pre-G142 option rows, retained 135 equity sessions, remained blocked, and wrote nothing.
+- No scheduler was enabled, no credential changed, no history synthesized, and no calibration or production materialization was added.

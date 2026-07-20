@@ -801,6 +801,48 @@ type MarketOpsOptionsCoverageRecord struct {
 	LastUpdatedAt  time.Time
 }
 
+type MarketOpsOptionsCaptureRecord struct {
+	CaptureID            string
+	TenantID             string
+	Symbol               string
+	SessionDate          time.Time
+	Provider             string
+	SourceID             string
+	RunID                string
+	Status               string
+	AnalyticsReady       bool
+	ContractCount        int
+	UsableIVCount        int
+	UsableGreeksCount    int
+	OpenInterestCount    int
+	RequiredSurfaceCells int
+	QualityReasonsJSON   []byte
+	MetricsJSON          []byte
+	ErrorMessage         string
+	AttemptCount         int
+	StartedAt            time.Time
+	CompletedAt          time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+type MarketOpsOptionsCaptureFilter struct {
+	TenantID     string
+	Symbol       string
+	SessionStart time.Time
+	SessionEnd   time.Time
+	Status       string
+	Ready        *bool
+	Limit        int
+}
+
+const (
+	MarketOpsOptionsCaptureAnalyticsReady = "analytics_ready"
+	MarketOpsOptionsCapturePartial        = "partial"
+	MarketOpsOptionsCaptureNoData         = "no_data"
+	MarketOpsOptionsCaptureFailed         = "failed"
+)
+
 type MarketOpsOptionsDistributionRecord struct {
 	TenantID                   string
 	Symbol                     string
@@ -1877,4 +1919,12 @@ type QueryRepository interface {
 	ListMarketOpsOptionsChain(ctx context.Context, filter MarketOpsOptionsChainFilter) ([]MarketOpsOptionsChainRecord, error)
 	GetMarketOpsOptionsCoverage(ctx context.Context, tenantID string, symbol string) (MarketOpsOptionsCoverageRecord, error)
 	ListMarketOpsOptionsDistributions(ctx context.Context, filter MarketOpsOptionsDistributionFilter) ([]MarketOpsOptionsDistributionRecord, error)
+	ListMarketOpsOptionsCaptures(ctx context.Context, filter MarketOpsOptionsCaptureFilter) ([]MarketOpsOptionsCaptureRecord, error)
+	GetMarketOpsOptionsCapture(ctx context.Context, tenantID string, captureID string) (MarketOpsOptionsCaptureRecord, error)
+}
+
+type MarketOpsOptionsCaptureRepository interface {
+	UpsertMarketOpsOptionsCapture(ctx context.Context, record MarketOpsOptionsCaptureRecord) error
+	ListMarketOpsOptionsCaptures(ctx context.Context, filter MarketOpsOptionsCaptureFilter) ([]MarketOpsOptionsCaptureRecord, error)
+	GetMarketOpsOptionsCapture(ctx context.Context, tenantID string, captureID string) (MarketOpsOptionsCaptureRecord, error)
 }

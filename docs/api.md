@@ -883,3 +883,13 @@ The Massive puller also accepts exact Top 50 `--symbols` and bounded `--start-da
 - `404 *_not_found`: requested run, raw event, or idempotency record was not found.
 - `500 query_failed`: storage query failed.
 - `503 storage_unavailable`: gateway was not configured with query storage.
+
+### MarketOps Prospective Options Captures
+
+`GET /v1/tenants/{tenant_id}/marketops/options/captures?symbol=AAPL&analytics_ready=true&session_start=YYYY-MM-DD&session_end=YYYY-MM-DD&limit=100`
+
+Lists G142 prospective point-in-time options capture quality. Date bounds are inclusive/exclusive. Optional status and analytics-ready filters expose partial, no-data, failed, and complete sessions without provider calls.
+
+`GET /v1/tenants/{tenant_id}/marketops/options/captures/{capture_id}`
+
+Returns one deterministic capture record with provider lineage, required surface-cell coverage, usable IV/Greeks/open-interest counts, quality reasons, attempts, metrics, and terminal error state.

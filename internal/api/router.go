@@ -2169,6 +2169,66 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"options_chain": marketOpsOptionsChainResponses(records)})
 	})
 
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/options/captures", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+			return
+		}
+		sessionStart, err := queryDate(r, "session_start")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_session_start", "session_start must be YYYY-MM-DD")
+			return
+		}
+		sessionEnd, err := queryDate(r, "session_end")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_session_end", "session_end must be YYYY-MM-DD")
+			return
+		}
+		var ready *bool
+		if value := strings.TrimSpace(r.URL.Query().Get("analytics_ready")); value != "" {
+			parsed, parseErr := strconv.ParseBool(value)
+			if parseErr != nil {
+				writeError(w, http.StatusBadRequest, "invalid_analytics_ready", "analytics_ready must be true or false")
+				return
+			}
+			ready = &parsed
+		}
+		records, err := repo.ListMarketOpsOptionsCaptures(r.Context(), storage.MarketOpsOptionsCaptureFilter{
+			TenantID: tenantID, Symbol: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("symbol"))),
+			SessionStart: sessionStart, SessionEnd: sessionEnd, Status: strings.TrimSpace(r.URL.Query().Get("status")),
+			Ready: ready, Limit: queryLimit(r, 100),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps options captures")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"options_captures": marketOpsOptionsCaptureResponses(records)})
+	})
+
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/options/captures/{capture_id}", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		captureID := strings.TrimSpace(r.PathValue("capture_id"))
+		if tenantID == "" || captureID == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id and capture_id are required")
+			return
+		}
+		record, err := repo.GetMarketOpsOptionsCapture(r.Context(), tenantID, captureID)
+		if err != nil {
+			writeQueryError(w, err, "options_capture_not_found", "MarketOps options capture not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"options_capture": marketOpsOptionsCaptureResponse(record)})
+	})
+
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/live-preview", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "live_preview_not_configured", "Massive live options preview is not configured in this gateway")
 	})
@@ -2858,6 +2918,31 @@ type marketOpsOptionsCoverageDTO struct {
 	FirstTradeDate time.Time `json:"first_trade_date"`
 	LastTradeDate  time.Time `json:"last_trade_date"`
 	LastUpdatedAt  time.Time `json:"last_updated_at"`
+}
+
+type marketOpsOptionsCaptureDTO struct {
+	CaptureID            string          `json:"capture_id"`
+	TenantID             string          `json:"tenant_id"`
+	Symbol               string          `json:"symbol"`
+	SessionDate          time.Time       `json:"session_date"`
+	Provider             string          `json:"provider"`
+	SourceID             string          `json:"source_id"`
+	RunID                string          `json:"run_id"`
+	Status               string          `json:"status"`
+	AnalyticsReady       bool            `json:"analytics_ready"`
+	ContractCount        int             `json:"contract_count"`
+	UsableIVCount        int             `json:"usable_iv_count"`
+	UsableGreeksCount    int             `json:"usable_greeks_count"`
+	OpenInterestCount    int             `json:"open_interest_count"`
+	RequiredSurfaceCells int             `json:"required_surface_cells"`
+	QualityReasons       json.RawMessage `json:"quality_reasons"`
+	Metrics              json.RawMessage `json:"metrics"`
+	ErrorMessage         string          `json:"error_message,omitempty"`
+	AttemptCount         int             `json:"attempt_count"`
+	StartedAt            time.Time       `json:"started_at"`
+	CompletedAt          time.Time       `json:"completed_at"`
+	CreatedAt            time.Time       `json:"created_at"`
+	UpdatedAt            time.Time       `json:"updated_at"`
 }
 
 type marketOpsOptionsChainDTO struct {
@@ -3629,6 +3714,26 @@ func marketOpsAssetResponses(records []storage.MarketOpsAssetRecord) []marketOps
 
 func marketOpsOptionsCoverageResponse(record storage.MarketOpsOptionsCoverageRecord) marketOpsOptionsCoverageDTO {
 	return marketOpsOptionsCoverageDTO{TenantID: record.TenantID, Symbol: record.Symbol, TradeDayCount: record.TradeDayCount, ContractCount: record.ContractCount, FirstTradeDate: record.FirstTradeDate, LastTradeDate: record.LastTradeDate, LastUpdatedAt: record.LastUpdatedAt}
+}
+
+func marketOpsOptionsCaptureResponses(records []storage.MarketOpsOptionsCaptureRecord) []marketOpsOptionsCaptureDTO {
+	items := make([]marketOpsOptionsCaptureDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, marketOpsOptionsCaptureResponse(record))
+	}
+	return items
+}
+
+func marketOpsOptionsCaptureResponse(record storage.MarketOpsOptionsCaptureRecord) marketOpsOptionsCaptureDTO {
+	return marketOpsOptionsCaptureDTO{
+		CaptureID: record.CaptureID, TenantID: record.TenantID, Symbol: record.Symbol, SessionDate: record.SessionDate,
+		Provider: record.Provider, SourceID: record.SourceID, RunID: record.RunID, Status: record.Status,
+		AnalyticsReady: record.AnalyticsReady, ContractCount: record.ContractCount, UsableIVCount: record.UsableIVCount,
+		UsableGreeksCount: record.UsableGreeksCount, OpenInterestCount: record.OpenInterestCount,
+		RequiredSurfaceCells: record.RequiredSurfaceCells, QualityReasons: jsonRawOrEmptyArray(record.QualityReasonsJSON),
+		Metrics: jsonRawOrEmptyObject(record.MetricsJSON), ErrorMessage: record.ErrorMessage, AttemptCount: record.AttemptCount,
+		StartedAt: record.StartedAt, CompletedAt: record.CompletedAt, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
+	}
 }
 
 func marketOpsOptionsChainResponses(records []storage.MarketOpsOptionsChainRecord) []marketOpsOptionsChainDTO {

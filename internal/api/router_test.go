@@ -87,6 +87,7 @@ type fakeQueryRepository struct {
 	marketOpsOptionsChain              []storage.MarketOpsOptionsChainRecord
 	marketOpsOptionsCoverage           storage.MarketOpsOptionsCoverageRecord
 	marketOpsOptionsDistributions      []storage.MarketOpsOptionsDistributionRecord
+	marketOpsOptionsCaptures           []storage.MarketOpsOptionsCaptureRecord
 	marketOpsFeatureDefinitions        []storage.MarketOpsFeatureDefinitionRecord
 	marketOpsFeatureObservations       []storage.MarketOpsFeatureObservationRecord
 	marketOpsMarketStates              []storage.MarketOpsMarketStateRecord
@@ -148,6 +149,7 @@ type fakeQueryRepository struct {
 	lastActiveOnly                     bool
 	lastOptionsChainFilter             storage.MarketOpsOptionsChainFilter
 	lastOptionsDistributionFilter      storage.MarketOpsOptionsDistributionFilter
+	lastOptionsCaptureFilter           storage.MarketOpsOptionsCaptureFilter
 	lastFeatureDefinitionFilter        storage.MarketOpsFeatureDefinitionFilter
 	lastFeatureObservationFilter       storage.MarketOpsFeatureObservationFilter
 	lastMarketStateFilter              storage.MarketOpsMarketStateFilter
@@ -1282,6 +1284,36 @@ func (q *fakeQueryRepository) ListMarketOpsOptionsDistributions(_ context.Contex
 		out = append(out, record)
 	}
 	return out, nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsOptionsCaptures(_ context.Context, filter storage.MarketOpsOptionsCaptureFilter) ([]storage.MarketOpsOptionsCaptureRecord, error) {
+	q.lastOptionsCaptureFilter = filter
+	out := []storage.MarketOpsOptionsCaptureRecord{}
+	for _, record := range q.marketOpsOptionsCaptures {
+		if filter.TenantID != "" && record.TenantID != filter.TenantID {
+			continue
+		}
+		if filter.Symbol != "" && record.Symbol != filter.Symbol {
+			continue
+		}
+		if filter.Status != "" && record.Status != filter.Status {
+			continue
+		}
+		if filter.Ready != nil && record.AnalyticsReady != *filter.Ready {
+			continue
+		}
+		out = append(out, record)
+	}
+	return out, nil
+}
+
+func (q *fakeQueryRepository) GetMarketOpsOptionsCapture(_ context.Context, tenantID string, captureID string) (storage.MarketOpsOptionsCaptureRecord, error) {
+	for _, record := range q.marketOpsOptionsCaptures {
+		if record.TenantID == tenantID && record.CaptureID == captureID {
+			return record, nil
+		}
+	}
+	return storage.MarketOpsOptionsCaptureRecord{}, storage.ErrNotFound
 }
 
 func sameTestDay(a time.Time, b time.Time) bool {
@@ -4045,5 +4077,50 @@ func TestAlgorithmSignalProposalDecisionRejectsInvalidStatus(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestListMarketOpsOptionsCaptures(t *testing.T) {
+	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	ready := true
+	repo := &fakeQueryRepository{marketOpsOptionsCaptures: []storage.MarketOpsOptionsCaptureRecord{{
+		CaptureID: "optcap_test", TenantID: "tenant-1", Symbol: "AAPL", SessionDate: session,
+		Provider: "massive", SourceID: "src-massive", RunID: "g142-test",
+		Status: storage.MarketOpsOptionsCaptureAnalyticsReady, AnalyticsReady: true, ContractCount: 500,
+		UsableIVCount: 480, UsableGreeksCount: 470, OpenInterestCount: 500, RequiredSurfaceCells: 5,
+		QualityReasonsJSON: []byte(`[]`), MetricsJSON: []byte(`{"fetched":500}`),
+		AttemptCount: 1, StartedAt: session, CompletedAt: session.Add(time.Minute),
+	}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/marketops/options/captures?symbol=AAPL&analytics_ready=true&session_start=2026-07-01&session_end=2026-08-01&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"capture_id":"optcap_test"`) || !strings.Contains(rec.Body.String(), `"required_surface_cells":5`) {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if repo.lastOptionsCaptureFilter.Symbol != "AAPL" || repo.lastOptionsCaptureFilter.Ready == nil || *repo.lastOptionsCaptureFilter.Ready != ready || repo.lastOptionsCaptureFilter.Limit != 10 {
+		t.Fatalf("filter = %+v", repo.lastOptionsCaptureFilter)
+	}
+}
+
+func TestGetMarketOpsOptionsCaptureAndInvalidReadyFilter(t *testing.T) {
+	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{marketOpsOptionsCaptures: []storage.MarketOpsOptionsCaptureRecord{{
+		CaptureID: "optcap_test", TenantID: "tenant-1", Symbol: "AAPL", SessionDate: session,
+		Status: storage.MarketOpsOptionsCapturePartial, QualityReasonsJSON: []byte(`["missing_required_surface_cells:atm_90d"]`), MetricsJSON: []byte(`{}`),
+	}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/marketops/options/captures/optcap_test", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"partial"`) {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/marketops/options/captures?analytics_ready=maybe", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }

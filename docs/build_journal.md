@@ -7317,3 +7317,26 @@ Validation performed:
 Result:
 
 - The G141 execution substrate and equity-history requirement are complete. Live outcome population remains quality-blocked by historical option analytics; no synthetic IV, Greeks, open interest, or premium was introduced.
+
+## 2026-07-20T06:06:53Z
+
+Summary:
+
+- Implemented G142 Prospective Options Analytics Capture over the existing bounded G133 runner.
+- Added a deterministic per-symbol/session capture ledger, shared G141/G142 five-cell readiness policy, retry/resume controls, provider session freshness checks, and read-only capture APIs.
+- Corrected snapshot semantics so per-contract activity timestamps are not mislabeled as historical chain sessions.
+- Added optional same-session canonical Massive equity enrichment for provider-omitted underlying spot, with normalized-event lineage in capture metrics.
+- Restricted G141 to analytics-ready capture rows from the exact recorded ingestion run.
+
+Validation performed:
+
+- Focused runner, readiness, G141, PostgreSQL, and API tests passed.
+- Migration `000032` applied locally and passed isolated-schema apply/down validation.
+- PostgreSQL integration verified idempotent capture upsert, attempt increment, list, and detail behavior.
+- A bounded live AAPL dry run fetched 3,376 contracts: 3,093 had IV/Greeks and all had open interest, but provider spot was absent and the same-session EOD equity bar was not yet available.
+- The live run remained partial with zero required cells and zero writes; no synthetic spot or historical options data was introduced.
+- The post-G142 strict G141 check retained 135 equity sessions but admitted zero option rows because no analytics-ready capture exists; it remained blocked and wrote nothing.
+
+Result:
+
+- MarketOps can now accumulate auditable prospective options analytics without 50 independent jobs or fake history. G141 remains blocked until 20 genuine AAPL sessions reach analytics-ready status.

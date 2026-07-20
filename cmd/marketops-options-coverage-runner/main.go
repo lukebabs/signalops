@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -32,6 +33,9 @@ type repository interface {
 	UpsertMarketOpsOptionsDistribution(context.Context, storage.MarketOpsOptionsDistributionRecord) error
 	ListMarketOpsOptionsDistributions(context.Context, storage.MarketOpsOptionsDistributionFilter) ([]storage.MarketOpsOptionsDistributionRecord, error)
 	UpsertNormalizedEventLedger(context.Context, storage.NormalizedEventLedgerRecord) error
+	UpsertMarketOpsOptionsCapture(context.Context, storage.MarketOpsOptionsCaptureRecord) error
+	GetMarketOpsOptionsCapture(context.Context, string, string) (storage.MarketOpsOptionsCaptureRecord, error)
+	ListMarketOpsBacktestNormalizedEvents(context.Context, storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error)
 }
 
 type cliConfig struct {
@@ -46,28 +50,45 @@ type cliConfig struct {
 	WindowDays        int
 	ChainScanLimit    int
 	DistributionLimit int
+	SessionDate       time.Time
+	SkipComplete      bool
+	ContinueOnError   bool
+	MaxRetries        int
+	RetryBackoff      time.Duration
 	DryRun            bool
 }
 
 type symbolMetrics struct {
-	Symbol                      string         `json:"symbol"`
-	Fetched                     int            `json:"fetched"`
-	Converted                   int            `json:"converted"`
-	Skipped                     int            `json:"skipped"`
-	ChainUpserted               int            `json:"chain_upserted"`
-	ChainRowsScanned            int            `json:"chain_rows_scanned"`
-	TradeDatesScanned           int            `json:"trade_dates_scanned"`
-	DistributionsBuilt          int            `json:"distributions_built"`
-	DistributionsUpserted       int            `json:"distributions_upserted"`
-	FeatureRowsScanned          int            `json:"feature_rows_scanned"`
-	FeatureRowsUpserted         int            `json:"feature_rows_upserted"`
-	FirstTradeDate              string         `json:"first_trade_date,omitempty"`
-	LastTradeDate               string         `json:"last_trade_date,omitempty"`
-	LatestTradeDate             string         `json:"latest_trade_date,omitempty"`
-	QualityCounts               map[string]int `json:"quality_counts"`
-	OpenInterestQualityCounts   map[string]int `json:"open_interest_quality_counts"`
-	DistributionContractCount   int            `json:"distribution_contract_count"`
-	DistributionSourceTradeDays int            `json:"distribution_source_trade_days"`
+	Symbol                       string         `json:"symbol"`
+	CaptureID                    string         `json:"capture_id,omitempty"`
+	CaptureStatus                string         `json:"capture_status,omitempty"`
+	AnalyticsReady               bool           `json:"analytics_ready"`
+	RequiredSurfaceCells         int            `json:"required_surface_cells"`
+	UsableIVCount                int            `json:"usable_iv_count"`
+	UsableGreeksCount            int            `json:"usable_greeks_count"`
+	OpenInterestCount            int            `json:"open_interest_count"`
+	UnderlyingPriceCount         int            `json:"underlying_price_count"`
+	UnderlyingPriceSourceEventID string         `json:"underlying_price_source_event_id,omitempty"`
+	QualityReasons               []string       `json:"quality_reasons,omitempty"`
+	Error                        string         `json:"error,omitempty"`
+	Attempts                     int            `json:"attempts"`
+	Fetched                      int            `json:"fetched"`
+	Converted                    int            `json:"converted"`
+	Skipped                      int            `json:"skipped"`
+	ChainUpserted                int            `json:"chain_upserted"`
+	ChainRowsScanned             int            `json:"chain_rows_scanned"`
+	TradeDatesScanned            int            `json:"trade_dates_scanned"`
+	DistributionsBuilt           int            `json:"distributions_built"`
+	DistributionsUpserted        int            `json:"distributions_upserted"`
+	FeatureRowsScanned           int            `json:"feature_rows_scanned"`
+	FeatureRowsUpserted          int            `json:"feature_rows_upserted"`
+	FirstTradeDate               string         `json:"first_trade_date,omitempty"`
+	LastTradeDate                string         `json:"last_trade_date,omitempty"`
+	LatestTradeDate              string         `json:"latest_trade_date,omitempty"`
+	QualityCounts                map[string]int `json:"quality_counts"`
+	OpenInterestQualityCounts    map[string]int `json:"open_interest_quality_counts"`
+	DistributionContractCount    int            `json:"distribution_contract_count"`
+	DistributionSourceTradeDays  int            `json:"distribution_source_trade_days"`
 }
 
 type metrics struct {
@@ -82,6 +103,13 @@ type metrics struct {
 	WindowDays            int             `json:"window_days"`
 	ChainScanLimit        int             `json:"chain_scan_limit"`
 	DistributionLimit     int             `json:"distribution_limit"`
+	SessionDate           string          `json:"session_date,omitempty"`
+	CaptureEnabled        bool            `json:"capture_enabled"`
+	SkippedComplete       int             `json:"skipped_complete"`
+	Failed                int             `json:"failed"`
+	AnalyticsReady        int             `json:"analytics_ready"`
+	Partial               int             `json:"partial"`
+	NoData                int             `json:"no_data"`
 	SymbolsRequested      int             `json:"symbols_requested"`
 	SymbolsProcessed      int             `json:"symbols_processed"`
 	Fetched               int             `json:"fetched"`
@@ -140,15 +168,59 @@ func runCoverage(ctx context.Context, provider snapshotProvider, repo repository
 		return metrics{}, err
 	}
 	startedAt := time.Now().UTC()
-	out := metrics{RunID: cfg.RunID, TenantID: cfg.TenantID, UniverseGroup: cfg.UniverseGroup, SourceID: cfg.SourceID, DryRun: cfg.DryRun, Limit: cfg.Limit, MaxPages: cfg.MaxPages, MaxSymbols: cfg.MaxSymbols, WindowDays: cfg.WindowDays, ChainScanLimit: cfg.ChainScanLimit, DistributionLimit: cfg.DistributionLimit, QualityCounts: map[string]int{}, StartedAt: startedAt.Format(time.RFC3339Nano)}
+	out := metrics{RunID: cfg.RunID, TenantID: cfg.TenantID, UniverseGroup: cfg.UniverseGroup, SourceID: cfg.SourceID, DryRun: cfg.DryRun, Limit: cfg.Limit, MaxPages: cfg.MaxPages, MaxSymbols: cfg.MaxSymbols, WindowDays: cfg.WindowDays, ChainScanLimit: cfg.ChainScanLimit, DistributionLimit: cfg.DistributionLimit, QualityCounts: map[string]int{}, StartedAt: startedAt.Format(time.RFC3339Nano), CaptureEnabled: !cfg.SessionDate.IsZero()}
+	if !cfg.SessionDate.IsZero() {
+		out.SessionDate = dayOnly(cfg.SessionDate).Format("2006-01-02")
+		if cfg.SessionDate.Weekday() == time.Saturday || cfg.SessionDate.Weekday() == time.Sunday {
+			return out, errors.New("session-date must be a weekday")
+		}
+	}
 	symbols, err := resolveSymbols(ctx, repo, cfg)
 	if err != nil {
 		return out, err
 	}
 	out.SymbolsRequested = len(symbols)
 	for _, symbol := range symbols {
-		item, err := processSymbol(ctx, provider, repo, cfg, symbol)
+		captureID := ""
+		if !cfg.SessionDate.IsZero() {
+			captureID = optionsCaptureID(cfg.TenantID, cfg.SourceID, symbol, cfg.SessionDate)
+			if cfg.SkipComplete {
+				existing, getErr := repo.GetMarketOpsOptionsCapture(ctx, cfg.TenantID, captureID)
+				if getErr == nil && existing.AnalyticsReady {
+					out.SkippedComplete++
+					continue
+				}
+				if getErr != nil && !errors.Is(getErr, storage.ErrNotFound) {
+					return out, getErr
+				}
+			}
+		}
+		item, err := processSymbolWithRetry(ctx, provider, repo, cfg, symbol)
+		item.CaptureID = captureID
 		if err != nil {
+			item.CaptureStatus = storage.MarketOpsOptionsCaptureFailed
+			item.Error = err.Error()
+			out.Failed++
+			if persistErr := persistCapture(ctx, repo, cfg, item, startedAt); persistErr != nil {
+				return out, persistErr
+			}
+			out.Symbols = append(out.Symbols, item)
+			if cfg.ContinueOnError {
+				continue
+			}
+			return out, err
+		}
+		if item.Fetched == 0 {
+			item.CaptureStatus = storage.MarketOpsOptionsCaptureNoData
+			out.NoData++
+		} else if item.AnalyticsReady {
+			item.CaptureStatus = storage.MarketOpsOptionsCaptureAnalyticsReady
+			out.AnalyticsReady++
+		} else {
+			item.CaptureStatus = storage.MarketOpsOptionsCapturePartial
+			out.Partial++
+		}
+		if err := persistCapture(ctx, repo, cfg, item, startedAt); err != nil {
 			return out, err
 		}
 		out.Symbols = append(out.Symbols, item)
@@ -168,15 +240,46 @@ func runCoverage(ctx context.Context, provider snapshotProvider, repo repository
 	return out, nil
 }
 
+func processSymbolWithRetry(ctx context.Context, provider snapshotProvider, repo repository, cfg cliConfig, symbol string) (symbolMetrics, error) {
+	var item symbolMetrics
+	var err error
+	for attempt := 1; attempt <= cfg.MaxRetries+1; attempt++ {
+		item, err = processSymbol(ctx, provider, repo, cfg, symbol)
+		item.Attempts = attempt
+		if err == nil {
+			return item, nil
+		}
+		if attempt <= cfg.MaxRetries {
+			timer := time.NewTimer(cfg.RetryBackoff * time.Duration(attempt))
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return item, ctx.Err()
+			case <-timer.C:
+			}
+		}
+	}
+	return item, err
+}
 func processSymbol(ctx context.Context, provider snapshotProvider, repo repository, cfg cliConfig, symbol string) (symbolMetrics, error) {
-	item := symbolMetrics{Symbol: symbol, QualityCounts: map[string]int{}, OpenInterestQualityCounts: map[string]int{}}
+	item := symbolMetrics{Symbol: symbol, Attempts: 1, QualityCounts: map[string]int{}, OpenInterestQualityCounts: map[string]int{}}
 	providerRecords, err := provider.ListOptionChainSnapshot(ctx, symbol, cfg.Limit, cfg.MaxPages)
 	if err != nil {
 		return item, fmt.Errorf("fetch option chain for %s: %w", symbol, err)
 	}
 	item.Fetched = len(providerRecords)
 	chainRecords := []storage.MarketOpsOptionsChainRecord{}
+	sawRequestedSessionActivity := cfg.SessionDate.IsZero()
 	for _, providerRecord := range providerRecords {
+		if !cfg.SessionDate.IsZero() {
+			if dayOnly(providerRecord.ObservationDate).After(dayOnly(cfg.SessionDate)) {
+				return item, fmt.Errorf("provider contract activity date %s is after requested capture session %s", dayOnly(providerRecord.ObservationDate).Format("2006-01-02"), dayOnly(cfg.SessionDate).Format("2006-01-02"))
+			}
+			if dayOnly(providerRecord.ObservationDate).Equal(dayOnly(cfg.SessionDate)) {
+				sawRequestedSessionActivity = true
+			}
+			providerRecord.ObservationDate = dayOnly(cfg.SessionDate)
+		}
 		chainRecord, err := marketopsoptions.ChainRecordFromMassiveSnapshot(cfg.TenantID, cfg.SourceID, cfg.RunID, providerRecord)
 		if err != nil {
 			item.Skipped++
@@ -184,13 +287,40 @@ func processSymbol(ctx context.Context, provider snapshotProvider, repo reposito
 		}
 		chainRecords = append(chainRecords, chainRecord)
 		item.Converted++
-		if cfg.DryRun {
-			continue
+	}
+	if len(providerRecords) > 0 && !sawRequestedSessionActivity {
+		return item, fmt.Errorf("provider snapshot has no contract activity on requested capture session %s", dayOnly(cfg.SessionDate).Format("2006-01-02"))
+	}
+	chainRecords, item.UnderlyingPriceSourceEventID, err = enrichUnderlyingPrice(ctx, repo, cfg, symbol, chainRecords)
+	if err != nil {
+		return item, err
+	}
+	if !cfg.SessionDate.IsZero() && len(chainRecords) > 0 {
+		for _, record := range chainRecords {
+			if !dayOnly(record.TradeDate).Equal(dayOnly(cfg.SessionDate)) {
+				return item, fmt.Errorf("provider session %s does not match requested session-date %s", dayOnly(record.TradeDate).Format("2006-01-02"), dayOnly(cfg.SessionDate).Format("2006-01-02"))
+			}
 		}
-		if err := repo.UpsertMarketOpsOptionsChain(ctx, chainRecord); err != nil {
-			return item, err
+	}
+	readinessSession := cfg.SessionDate
+	if readinessSession.IsZero() && len(chainRecords) > 0 {
+		readinessSession = chainRecords[0].TradeDate
+	}
+	readiness := marketopsoptions.AssessAnalyticsReadiness(readinessSession, chainRecords)
+	item.AnalyticsReady = readiness.Ready
+	item.RequiredSurfaceCells = readiness.RequiredSurfaceCells
+	item.UsableIVCount = readiness.UsableIVCount
+	item.UsableGreeksCount = readiness.UsableGreeksCount
+	item.OpenInterestCount = readiness.OpenInterestCount
+	item.UnderlyingPriceCount = readiness.UnderlyingPriceCount
+	item.QualityReasons = readiness.QualityReasons
+	if !cfg.DryRun {
+		for _, chainRecord := range chainRecords {
+			if err := repo.UpsertMarketOpsOptionsChain(ctx, chainRecord); err != nil {
+				return item, err
+			}
+			item.ChainUpserted++
 		}
-		item.ChainUpserted++
 	}
 	rows, err := repo.ListMarketOpsOptionsChain(ctx, storage.MarketOpsOptionsChainFilter{TenantID: cfg.TenantID, Symbol: symbol, Limit: cfg.ChainScanLimit})
 	if err != nil {
@@ -258,6 +388,95 @@ func processSymbol(ctx context.Context, provider snapshotProvider, repo reposito
 	}
 	return item, nil
 }
+func enrichUnderlyingPrice(ctx context.Context, repo repository, cfg cliConfig, symbol string, records []storage.MarketOpsOptionsChainRecord) ([]storage.MarketOpsOptionsChainRecord, string, error) {
+	if cfg.SessionDate.IsZero() || len(records) == 0 {
+		return records, "", nil
+	}
+	needsPrice := false
+	for _, record := range records {
+		if record.UnderlyingClose == nil || *record.UnderlyingClose <= 0 {
+			needsPrice = true
+			break
+		}
+	}
+	if !needsPrice {
+		return records, "", nil
+	}
+	events, err := repo.ListMarketOpsBacktestNormalizedEvents(ctx, storage.MarketOpsBacktestEventFilter{
+		TenantID: cfg.TenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance",
+		SourceAdapter: "market_data.massive", Dataset: "equity_eod_prices", Symbols: []string{symbol},
+		WindowStart: dayOnly(cfg.SessionDate), WindowEnd: dayOnly(cfg.SessionDate).AddDate(0, 0, 1), Limit: 10,
+	})
+	if err != nil {
+		return nil, "", fmt.Errorf("resolve same-session underlying price for %s: %w", symbol, err)
+	}
+	var closeValue float64
+	eventID := ""
+	for _, event := range events {
+		payload := map[string]any{}
+		if json.Unmarshal(event.NormalizedPayload, &payload) != nil {
+			continue
+		}
+		value, ok := payload["close"].(float64)
+		if ok && value > 0 {
+			closeValue = value
+			eventID = event.EventID
+		}
+	}
+	if closeValue <= 0 {
+		return records, "", nil
+	}
+	for index := range records {
+		if records[index].UnderlyingClose == nil || *records[index].UnderlyingClose <= 0 {
+			value := closeValue
+			records[index].UnderlyingClose = &value
+			moneyness := records[index].StrikePrice / closeValue
+			records[index].Moneyness = &moneyness
+		}
+	}
+	return records, eventID, nil
+}
+
+func persistCapture(ctx context.Context, repo repository, cfg cliConfig, item symbolMetrics, startedAt time.Time) error {
+	if cfg.SessionDate.IsZero() || cfg.DryRun {
+		return nil
+	}
+	reasonsJSON, _ := json.Marshal(item.QualityReasons)
+	metricsJSON, _ := json.Marshal(item)
+	return repo.UpsertMarketOpsOptionsCapture(ctx, storage.MarketOpsOptionsCaptureRecord{
+		CaptureID:            item.CaptureID,
+		TenantID:             cfg.TenantID,
+		Symbol:               item.Symbol,
+		SessionDate:          dayOnly(cfg.SessionDate),
+		Provider:             "massive",
+		SourceID:             cfg.SourceID,
+		RunID:                cfg.RunID,
+		Status:               item.CaptureStatus,
+		AnalyticsReady:       item.AnalyticsReady,
+		ContractCount:        item.Converted,
+		UsableIVCount:        item.UsableIVCount,
+		UsableGreeksCount:    item.UsableGreeksCount,
+		OpenInterestCount:    item.OpenInterestCount,
+		RequiredSurfaceCells: item.RequiredSurfaceCells,
+		QualityReasonsJSON:   reasonsJSON,
+		MetricsJSON:          metricsJSON,
+		ErrorMessage:         item.Error,
+		AttemptCount:         1,
+		StartedAt:            startedAt,
+		CompletedAt:          time.Now().UTC(),
+	})
+}
+
+func optionsCaptureID(tenantID, sourceID, symbol string, sessionDate time.Time) string {
+	identity := strings.Join([]string{
+		strings.TrimSpace(tenantID),
+		strings.TrimSpace(sourceID),
+		strings.ToUpper(strings.TrimSpace(symbol)),
+		dayOnly(sessionDate).Format("2006-01-02"),
+	}, "|")
+	sum := sha256.Sum256([]byte(identity))
+	return "optcap_" + hex.EncodeToString(sum[:12])
+}
 
 func resolveSymbols(ctx context.Context, repo repository, cfg cliConfig) ([]string, error) {
 	if len(cfg.Symbols) > 0 {
@@ -280,6 +499,7 @@ func resolveSymbols(ctx context.Context, repo repository, cfg cliConfig) ([]stri
 func loadConfig() (cliConfig, error) {
 	cfg := cliConfig{}
 	symbols := ""
+	sessionDate := ""
 	flag.StringVar(&cfg.TenantID, "tenant-id", "tenant-local", "tenant id")
 	flag.StringVar(&symbols, "symbols", "", "comma-separated symbols; when empty, resolve from the asset universe")
 	flag.StringVar(&cfg.UniverseGroup, "universe-group", "top50_megacap", "asset universe group used when symbols are omitted")
@@ -291,12 +511,23 @@ func loadConfig() (cliConfig, error) {
 	flag.IntVar(&cfg.WindowDays, "window-days", 10, "calendar-day lookback used for distribution snapshots")
 	flag.IntVar(&cfg.ChainScanLimit, "chain-scan-limit", 5000, "maximum persisted chain rows to scan per symbol")
 	flag.IntVar(&cfg.DistributionLimit, "distribution-limit", 100, "maximum distribution snapshots to materialize per symbol")
+	flag.StringVar(&sessionDate, "session-date", "", "expected provider session date in YYYY-MM-DD; enables the G142 capture ledger")
+	flag.BoolVar(&cfg.SkipComplete, "skip-complete", true, "skip an existing analytics-ready capture for the same symbol and session")
+	flag.BoolVar(&cfg.ContinueOnError, "continue-on-error", true, "continue with remaining symbols after a failed capture")
+	flag.IntVar(&cfg.MaxRetries, "max-retries", 1, "maximum retries per failed symbol")
+	flag.DurationVar(&cfg.RetryBackoff, "retry-backoff", time.Second, "base retry backoff")
 	flag.BoolVar(&cfg.DryRun, "dry-run", false, "fetch and derive without writing storage")
 	flag.Parse()
 	cfg.Symbols = parseSymbols(symbols)
+	if strings.TrimSpace(sessionDate) != "" {
+		parsed, err := time.Parse("2006-01-02", strings.TrimSpace(sessionDate))
+		if err != nil {
+			return cliConfig{}, fmt.Errorf("invalid session-date: %w", err)
+		}
+		cfg.SessionDate = parsed.UTC()
+	}
 	return cfg, nil
 }
-
 func (cfg cliConfig) withDefaults() cliConfig {
 	cfg.TenantID = strings.TrimSpace(cfg.TenantID)
 	cfg.UniverseGroup = strings.TrimSpace(cfg.UniverseGroup)
@@ -325,6 +556,12 @@ func (cfg cliConfig) withDefaults() cliConfig {
 	}
 	if cfg.DistributionLimit <= 0 || cfg.DistributionLimit > 1000 {
 		cfg.DistributionLimit = 100
+	}
+	if cfg.MaxRetries < 0 || cfg.MaxRetries > 5 {
+		cfg.MaxRetries = 1
+	}
+	if cfg.RetryBackoff <= 0 || cfg.RetryBackoff > time.Minute {
+		cfg.RetryBackoff = time.Second
 	}
 	if strings.TrimSpace(cfg.RunID) == "" {
 		cfg.RunID = "optcov_" + randomHex(12)

@@ -65,3 +65,7 @@ Current notes:
 - `backtest_evaluation_label_api.md`: G084 graph-proposal decision label sync API boundary.
 - `backtest_label_aware_evaluation_api.md`: G085 label-aware back-test scoring API boundary.
 - `backtest_calibration_readiness_api.md`: G094 calibration readiness snapshot API boundary.
+
+## G142 Options Capture
+
+- `options_capture_api.md`: read-only prospective option analytics capture list and detail API.

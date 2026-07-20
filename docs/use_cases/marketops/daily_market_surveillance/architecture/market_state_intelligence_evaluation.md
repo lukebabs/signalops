@@ -148,3 +148,7 @@ Implemented as a strict AAPL historical coordinator plus bounded exact-symbol Ma
 ## Bottom Line
 
 MarketOps now has the state, transition, evidence, hypothesis, opportunity, and outcome substrate plus a bounded historical coordinator. The remaining critical path is source coverage: obtain point-in-time option analytics without synthetic reconstruction, produce real triggered evaluations, and only then add calibration summaries or promotion decisions.
+
+### G142: Prospective Options Analytics Capture
+
+Implemented as a deterministic per-symbol/session capture ledger over the bounded G133 runner. G142 records real snapshot quality, shares the five-cell readiness policy with G141, resolves provider-omitted spot only from canonical same-session Massive equity evidence, and prevents partial or stale ingestion runs from satisfying G141. Scheduling remains an explicit deployment decision rather than an automatically enabled Top 50 fanout.

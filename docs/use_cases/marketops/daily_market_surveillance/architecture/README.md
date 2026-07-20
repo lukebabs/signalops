@@ -29,3 +29,5 @@ Current notes:
 - `../gates/G139_opportunity_layer.md`: implemented research-only opportunity grouping, overlap control, conflict scoring, evidence lineage, and read APIs.
 - `../gates/G140_forward_outcome_evaluation.md`: implemented point-in-time forward outcome ledger, bounded materializer, and read APIs.
 - `../gates/G141_historical_coverage_and_outcome_population.md`: bounded historical acquisition, transition statistics, strict coverage preflight, and coordinated research execution.
+
+- G142 prospective options analytics capture: `../gates/G142_prospective_options_analytics_capture.md`.
