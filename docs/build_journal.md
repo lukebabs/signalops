@@ -7627,3 +7627,28 @@ Result:
 - All 12 new evaluations are non-eligible and non-triggered; no opportunity, pending outcome, or matured outcome was manufactured.
 - No Ask, graph decision, lifecycle promotion, threshold change, direct signal materialization, trade, order, or portfolio action occurred.
 - This is evidence-session one, not G149; continue bounded prospective capture until samples and matured outcomes support a concrete calibration question.
+
+## 2026-07-21 - Governed Daily Post-Close Pipeline
+
+Summary:
+
+- Added one fail-closed post-close workflow that acquires the 50-asset equity universe, waits for normalized same-session coverage, captures options for the 45 currently supported symbols, and runs six intelligence stages in cohorts capped at 10.
+- Added deterministic session/run identities, persistent missed-run date selection, an overlap lock, explicit write acknowledgement, provider/request caps, normalization and capture barriers, and truthful partial-failure exits.
+- Added dedicated Compose runners, an America/New_York systemd user timer, an installer, environment defaults, and an operator runbook.
+- Corrected the legacy Massive scheduler so an implicit observation date is recomputed on every interval rather than becoming stale after startup.
+
+Validation performed:
+
+- Shell syntax, ShellCheck, Compose configuration, systemd unit verification, calendar evaluation, plan-mode command generation, weekend rejection, and unacknowledged-write rejection passed.
+- Focused scheduler/adapter tests and the full Dockerized Go suite passed.
+- Massive puller, options coverage runner, and intelligence cohort runner images built successfully.
+- The installed timer is enabled and waiting for 2026-07-21 18:01:55 America/New_York (22:01:55 UTC); user lingering is enabled.
+- The write service is inactive before the trigger and no early provider or database mutation occurred during activation.
+
+Result:
+
+- Daily collection is operational for weekday post-close execution and persistent recovery after a missed trigger.
+- Equity acquisition remains bounded to 50 symbols and requires at least 45 normalized same-session symbols before downstream work.
+- Options and cohorts currently target the 45 provider-supported symbols; 2222.SR, 005930.KS, 000660.KS, 601939.SS, and RO.SW remain explicit provider/data gaps.
+- The workflow does not run Ask, decide graph proposals, promote lifecycle state, materialize direct production signals, trade, order, or change portfolios.
+- Empirical effectiveness remains dependent on prospective sessions, triggered evaluations, and matured outcomes.

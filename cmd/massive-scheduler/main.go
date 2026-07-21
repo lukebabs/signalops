@@ -77,9 +77,11 @@ func run(logger *slog.Logger, args []string) error {
 	if err != nil {
 		return err
 	}
-	day, err := parseObservationDate(observationDate)
-	if err != nil {
-		return err
+	explicitObservationDate := strings.TrimSpace(observationDate)
+	if explicitObservationDate != "" {
+		if _, err := parseObservationDate(explicitObservationDate); err != nil {
+			return err
+		}
 	}
 	companies, err := massive.TopMegacapCompanies()
 	if err != nil {
@@ -137,7 +139,7 @@ func run(logger *slog.Logger, args []string) error {
 		TenantID:            tenantID,
 		SourceID:            sourceID,
 		Environment:         cfg.Environment,
-		ObservationDate:     day,
+		ObservationDate:     time.Time{},
 		Companies:           companies,
 		IncludeEquityEOD:    includeEquity,
 		IncludeOptions:      includeOptions,
@@ -160,7 +162,13 @@ func run(logger *slog.Logger, args []string) error {
 		ContinueOnRunError: continueOnRunError,
 	}, func(runCtx context.Context) (massive.ScheduledPullReport, error) {
 		startedAt := time.Now().UTC()
-		report, runErr := massive.RunScheduledPull(runCtx, pullCfg, massiveClient, brokerClient)
+		runPullCfg := pullCfg
+		runDay, dateErr := resolveObservationDate(explicitObservationDate, startedAt)
+		if dateErr != nil {
+			return massive.ScheduledPullReport{}, dateErr
+		}
+		runPullCfg.ObservationDate = runDay
+		report, runErr := massive.RunScheduledPull(runCtx, runPullCfg, massiveClient, brokerClient)
 		completedAt := time.Now().UTC()
 		encoded, marshalErr := json.Marshal(report)
 		if marshalErr == nil {
@@ -171,7 +179,7 @@ func run(logger *slog.Logger, args []string) error {
 				TenantID:         tenantID,
 				SourceID:         sourceID,
 				Datasets:         selectedDatasetNames(includeEquity, includeOptions),
-				PullConfig:       pullCfg,
+				PullConfig:       runPullCfg,
 				Report:           report,
 				RunErr:           runErr,
 				StartedAt:        startedAt,
@@ -196,10 +204,14 @@ func run(logger *slog.Logger, args []string) error {
 }
 
 func parseObservationDate(value string) (time.Time, error) {
+	return resolveObservationDate(value, time.Now().UTC())
+}
+
+func resolveObservationDate(value string, now time.Time) (time.Time, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		now := time.Now().UTC().AddDate(0, 0, -1)
-		return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC), nil
+		previous := now.UTC().AddDate(0, 0, -1)
+		return time.Date(previous.Year(), previous.Month(), previous.Day(), 0, 0, 0, 0, time.UTC), nil
 	}
 	parsed, err := time.Parse("2006-01-02", value)
 	if err != nil {

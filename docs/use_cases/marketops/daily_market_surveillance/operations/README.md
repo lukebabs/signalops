@@ -52,3 +52,4 @@ Current recurring validations:
 ## Prospective Options Capture
 
 - `prospective_options_capture.md`: G142 bounded per-session Massive snapshot capture, readiness inspection, retry/resume, and scheduling policy.
+- `daily_postclose_pipeline.md`: exchange-aware bounded equity, normalization, prospective options, and ten-symbol cohort orchestration with a user-systemd timer.

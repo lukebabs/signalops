@@ -264,6 +264,40 @@ services:
       SIGNALOPS_MASSIVE_SCHEDULE_RUN_IMMEDIATELY: "true"
       SIGNALOPS_MASSIVE_SCHEDULE_CONTINUE_ON_ERROR: "true"
 
+  marketops-options-coverage-runner:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-options-coverage-runner
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+
+  marketops-intelligence-cohort-runner:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-intelligence-cohort-runner
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_ACTOR: ${MARKETOPS_DAILY_ACTOR:-systemd-postclose}
+
   raw-worker:
     build:
       context: .

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run SignalOps MarketOps workflow after the U.S. market close
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 18:00:00 America/New_York
+Persistent=true
+RandomizedDelaySec=2m
+Unit=signalops-marketops-daily.service
+
+[Install]
+WantedBy=timers.target

@@ -9069,3 +9069,28 @@ Result:
 
 - AAPL is research-evaluation-ready; MSFT and NVDA remain blocked by partial state quality, and exact-version calibration is unavailable for all three.
 - Continue the same bounded prospective collection and outcome maturation before defining a new numbered gate.
+
+## 2026-07-21 - Governed Daily Post-Close Pipeline Activation
+
+Status: implemented, validated, and activated
+
+Acceptance evidence:
+
+- The workflow plans exactly 50 bounded equity requests, then blocks downstream processing unless at least 45 symbols have normalized same-session equity data.
+- Options capture and six-stage intelligence processing cover the 45 currently supported symbols in deterministic cohorts of 10/10/10/10/5.
+- Same-session writes are prohibited before 18:00 America/New_York; future dates, weekends, missing write acknowledgement, incomplete normalization, and incomplete option capture fail closed.
+- Full Go tests passed, all three runner images built, and shell, Compose, systemd, calendar, and plan-mode validations passed.
+- The systemd user timer is enabled and active with its next trigger at 2026-07-21 18:01:55 America/New_York; Persistent=true covers missed triggers.
+- User lingering is enabled, and the write service remained inactive during installation.
+
+Boundaries retained:
+
+- The five known provider/data gaps remain explicit: 2222.SR, 005930.KS, 000660.KS, 601939.SS, and RO.SW.
+- No early live write was used to validate activation.
+- The scheduler does not execute Ask, graph decisions, lifecycle promotion, direct production signal materialization, trading, orders, or portfolio actions.
+
+Result:
+
+- Governed weekday post-close evidence collection is now operational.
+- Operational scheduling does not itself establish hypothesis effectiveness or production readiness.
+- The next evidence checkpoint follows completed scheduled sessions and matured outcomes, not an invented numbered gate.

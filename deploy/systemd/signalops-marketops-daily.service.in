@@ -1,0 +1,12 @@
+[Unit]
+Description=SignalOps governed MarketOps post-close workflow
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+Environment=MARKETOPS_DAILY_ACKNOWLEDGE_WRITES=true
+Environment=MARKETOPS_DAILY_ACTOR=systemd-postclose
+ExecStart=@WORKDIR@/scripts/marketops_daily_postclose.sh --write
+TimeoutStartSec=3h
+Nice=10
