@@ -16,6 +16,14 @@ const (
 )
 
 const (
+	EquityReconciliationStatusQueued                = "queued"
+	EquityReconciliationStatusRunning               = "running"
+	EquityReconciliationStatusAwaitingNormalization = "awaiting_normalization"
+	EquityReconciliationStatusSucceeded             = "succeeded"
+	EquityReconciliationStatusFailed                = "failed"
+)
+
+const (
 	ReplayJobStatusQueued    = "queued"
 	ReplayJobStatusRunning   = "running"
 	ReplayJobStatusSucceeded = "succeeded"
@@ -184,6 +192,29 @@ type SchedulerRunRecord struct {
 	ErrorMessage     string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+}
+
+type EquityReconciliationTaskRecord struct {
+	TaskID              string
+	TenantID            string
+	SourceID            string
+	UniverseGroup       string
+	Dataset             string
+	ObservationDate     time.Time
+	Symbol              string
+	UniverseRank        int
+	Status              string
+	ProviderAttempts    int
+	MaxProviderAttempts int
+	ReplayCount         int
+	NextAttemptAt       time.Time
+	LeaseExpiresAt      *time.Time
+	RawEventID          string
+	IdempotencyKey      string
+	LastError           string
+	CompletedAt         *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // ReplayJobRecord is control-plane state for replaying temporal ledgers.
@@ -1485,6 +1516,16 @@ type MarketOpsBacktestCalibrationComparisonRecord struct {
 type SchedulerRunRepository interface {
 	UpsertSchedulerRun(ctx context.Context, record SchedulerRunRecord) error
 	InsertProviderUsage(ctx context.Context, record ProviderUsageRecord) error
+}
+
+type EquityReconciliationRepository interface {
+	EnqueueEquityReconciliationTask(ctx context.Context, record EquityReconciliationTaskRecord) (EquityReconciliationTaskRecord, error)
+	ListEquityReconciliationTasks(ctx context.Context, tenantID string, sourceID string, universeGroup string, observationDate time.Time) ([]EquityReconciliationTaskRecord, error)
+	ClaimNextEquityReconciliationTask(ctx context.Context, tenantID string, sourceID string, universeGroup string, observationDate time.Time, claimedAt time.Time, leaseDuration time.Duration) (EquityReconciliationTaskRecord, error)
+	UpdateEquityReconciliationTask(ctx context.Context, record EquityReconciliationTaskRecord) error
+	RequeueFailedEquityReconciliationTasks(ctx context.Context, tenantID string, sourceID string, universeGroup string, observationDate time.Time, nextAttemptAt time.Time) (int, error)
+	HasNormalizedEquity(ctx context.Context, tenantID string, sourceID string, symbol string, observationDate time.Time) (bool, error)
+	FindRawEquityEvent(ctx context.Context, tenantID string, sourceID string, symbol string, observationDate time.Time) (RawEventLedgerRecord, error)
 }
 
 type ReplayJobRepository interface {

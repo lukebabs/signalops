@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS marketops_equity_reconciliation_tasks;

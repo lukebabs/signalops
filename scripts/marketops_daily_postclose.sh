@@ -59,6 +59,10 @@ timezone="${MARKETOPS_DAILY_TIMEZONE:-America/New_York}"
 minimum_equity_symbols="${MARKETOPS_DAILY_MIN_EQUITY_SYMBOLS:-50}"
 normalization_timeout="${MARKETOPS_DAILY_NORMALIZATION_TIMEOUT_SECONDS:-300}"
 normalization_poll="${MARKETOPS_DAILY_NORMALIZATION_POLL_SECONDS:-10}"
+reconciliation_deadline="${MARKETOPS_DAILY_RECONCILIATION_DEADLINE:-15m}"
+reconciliation_backoffs="${MARKETOPS_DAILY_RECONCILIATION_BACKOFFS:-30s,2m}"
+reconciliation_attempts="${MARKETOPS_DAILY_RECONCILIATION_MAX_ATTEMPTS:-2}"
+reconciliation_poll="${MARKETOPS_DAILY_RECONCILIATION_POLL:-5s}"
 skip_complete_equity="${MARKETOPS_DAILY_SKIP_COMPLETE_EQUITY:-true}"
 actor="${MARKETOPS_DAILY_ACTOR:-systemd-postclose}"
 option_symbols="${MARKETOPS_DAILY_OPTION_SYMBOLS:-NVDA,AAPL,GOOGL,MSFT,AMZN,TSM,SPCX,AVGO,TSLA,META,MU,BRK.B,LLY,JPM,AMD,WMT,ASML,V,JNJ,INTC,XOM,TCEHY,MA,AMAT,ABBV,CSCO,CAT,LRCX,BAC,COST,ORCL,GE,UNH,KO,MS,HD,PG,ARM,HSBC,CVX,NFLX,PLTR,MRK,GS,GEV,PM,RY,BABA,NVS,PANW}"
@@ -144,6 +148,18 @@ equity_command=(docker compose --profile massive-pull run --rm massive-puller
   --continue-on-error=true
   --dry-run="$dry_run")
 
+reconciliation_command=(docker compose --profile massive-pull run --rm massive-puller
+  --mode reconcile-equity
+  --date "$session_date"
+  --universe-group top50_megacap
+  --max-provider-requests 100
+  --max-attempts "$reconciliation_attempts"
+  --deadline "$reconciliation_deadline"
+  --retry-backoffs "$reconciliation_backoffs"
+  --normalization-poll "$reconciliation_poll"
+  --dry-run="$dry_run")
+$write_mode && reconciliation_command+=(--acknowledge-writes)
+
 options_command=(docker compose --profile marketops-daily run --rm marketops-options-coverage-runner
   --tenant-id tenant-local
   --symbols "$option_symbols"
@@ -171,6 +187,7 @@ print_command() {
 if $plan_mode; then
   log "plan session=$session_date timezone=$timezone write=$write_mode equity_threshold=$minimum_equity_symbols option_symbols=${#symbols[@]}"
   print_command "${equity_command[@]}"
+  print_command "${reconciliation_command[@]}"
   print_command "${options_command[@]}"
   for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=10, batch++)); do
     batch_symbols=("${symbols[@]:offset:10}")
@@ -203,8 +220,12 @@ for service in redpanda postgres timescaledb normalizer; do
 done
 
 coverage_count() {
+  local active_symbols
+  active_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+    "SELECT string_agg(ticker, ',' ORDER BY rank) FROM marketops_asset_universe WHERE tenant_id='tenant-local' AND universe_group='top50_megacap' AND is_active;")"
+  [[ -n "$active_symbols" ]] || { printf 'active equity universe is empty\n' >&2; return 1; }
   docker compose exec -T timescaledb psql -U signalops -d signalops_temporal -Atc \
-    "SELECT count(DISTINCT normalized_payload->>'symbol') FROM normalized_event_ledger WHERE tenant_id='tenant-local' AND dataset='equity_eod_prices' AND normalized_payload->>'observation_date' = '$session_date';" | tr -d '[:space:]'
+    "SELECT count(DISTINCT normalized_payload->>'symbol') FROM normalized_event_ledger WHERE tenant_id='tenant-local' AND source_id='src-massive' AND dataset='equity_eod_prices' AND normalized_payload->>'observation_date' = '$session_date' AND normalized_payload->>'symbol' = ANY(string_to_array('$active_symbols', ','));" | tr -d '[:space:]'
 }
 
 log "start session=$session_date timezone=$timezone write=$write_mode option_symbols=${#symbols[@]}"
@@ -217,6 +238,14 @@ if $write_mode && is_true "$skip_complete_equity" && (( current_coverage >= mini
 else
   log "equity stage started dry_run=$dry_run"
   "${equity_command[@]}"
+fi
+
+current_coverage="$(coverage_count)"
+if (( current_coverage < minimum_equity_symbols )); then
+  log "equity reconciliation started coverage=$current_coverage threshold=$minimum_equity_symbols dry_run=$dry_run"
+  "${reconciliation_command[@]}"
+else
+  log "equity reconciliation skipped coverage=$current_coverage threshold=$minimum_equity_symbols"
 fi
 
 deadline=$((SECONDS + normalization_timeout))

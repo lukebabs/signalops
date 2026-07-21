@@ -31,7 +31,15 @@ func main() {
 
 func run(logger *slog.Logger, args []string) error {
 	cfg := config.Load()
+	mode := envOrDefault("SIGNALOPS_MASSIVE_MODE", "pull")
 	observationDate := envOrDefault("SIGNALOPS_MASSIVE_OBSERVATION_DATE", "")
+	universeGroup := envOrDefault("SIGNALOPS_MASSIVE_UNIVERSE_GROUP", "top50_megacap")
+	reconciliationDeadline := envDurationOrDefault("SIGNALOPS_MASSIVE_RECONCILIATION_DEADLINE", 15*time.Minute)
+	reconciliationBackoffs := envOrDefault("SIGNALOPS_MASSIVE_RETRY_BACKOFFS", "30s,2m")
+	normalizationPoll := envDurationOrDefault("SIGNALOPS_MASSIVE_NORMALIZATION_POLL", 5*time.Second)
+	maxReconciliationAttempts := envIntOrDefault("SIGNALOPS_MASSIVE_RECONCILIATION_MAX_ATTEMPTS", 2)
+	requeueFailed := false
+	acknowledgeWrites := false
 	startDate := ""
 	endDate := ""
 	symbols := ""
@@ -51,7 +59,15 @@ func run(logger *slog.Logger, args []string) error {
 	sourceID := envOrDefault("SIGNALOPS_MASSIVE_SOURCE_ID", "src-massive")
 	flags := flag.NewFlagSet("massive-puller", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
+	flags.StringVar(&mode, "mode", mode, "operation mode: pull or reconcile-equity")
 	flags.StringVar(&observationDate, "date", observationDate, "single observation date in YYYY-MM-DD; defaults to previous UTC day")
+	flags.StringVar(&universeGroup, "universe-group", universeGroup, "active MarketOps universe group to reconcile")
+	flags.DurationVar(&reconciliationDeadline, "deadline", reconciliationDeadline, "global reconciliation deadline")
+	flags.StringVar(&reconciliationBackoffs, "retry-backoffs", reconciliationBackoffs, "comma-separated reconciliation retry backoffs")
+	flags.DurationVar(&normalizationPoll, "normalization-poll", normalizationPoll, "normalized-ledger polling interval")
+	flags.IntVar(&maxReconciliationAttempts, "max-attempts", maxReconciliationAttempts, "maximum provider calls per queued symbol")
+	flags.BoolVar(&requeueFailed, "requeue-failed", requeueFailed, "explicitly reset exhausted failed tasks")
+	flags.BoolVar(&acknowledgeWrites, "acknowledge-writes", acknowledgeWrites, "acknowledge reconciliation queue, broker, and ledger writes")
 	flags.StringVar(&startDate, "start-date", startDate, "inclusive historical observation start date")
 	flags.StringVar(&endDate, "end-date", endDate, "inclusive historical observation end date")
 	flags.StringVar(&symbols, "symbols", symbols, "comma-separated exact Top 50 symbols; empty uses seed order")
@@ -73,43 +89,67 @@ func run(logger *slog.Logger, args []string) error {
 		return err
 	}
 
-	includeEquity, includeOptions, err := parseDatasets(datasets)
-	if err != nil {
-		return err
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode != "pull" && mode != "reconcile-equity" {
+		return fmt.Errorf("unsupported mode %q", mode)
 	}
 	days, err := parseObservationDates(observationDate, startDate, endDate, maxObservationDays)
 	if err != nil {
 		return err
 	}
-	companies, err := massive.TopMegacapCompanies()
-	if err != nil {
-		return fmt.Errorf("load megacap universe: %w", err)
-	}
-	companies, err = selectCompanies(companies, symbols)
-	if err != nil {
-		return err
-	}
-	if maxCompanies > 0 && maxCompanies < len(companies) {
-		companies = companies[:maxCompanies]
+	var includeEquity, includeOptions bool
+	var companies []massive.MegacapCompanySeed
+	var backoffs []time.Duration
+	if mode == "pull" {
+		includeEquity, includeOptions, err = parseDatasets(datasets)
+		if err != nil {
+			return err
+		}
+		companies, err = massive.TopMegacapCompanies()
+		if err != nil {
+			return fmt.Errorf("load megacap universe: %w", err)
+		}
+		companies, err = selectCompanies(companies, symbols)
+		if err != nil {
+			return err
+		}
+		if maxCompanies > 0 && maxCompanies < len(companies) {
+			companies = companies[:maxCompanies]
+		}
+	} else {
+		if strings.TrimSpace(startDate) != "" || strings.TrimSpace(endDate) != "" || len(days) != 1 {
+			return errors.New("reconcile-equity requires one --date and does not accept a date range")
+		}
+		if maxReconciliationAttempts < 1 || maxReconciliationAttempts > 3 {
+			return errors.New("max-attempts must be between 1 and 3")
+		}
+		backoffs, err = parseRetryBackoffs(reconciliationBackoffs)
+		if err != nil {
+			return err
+		}
 	}
 
-	massiveClient, err := massive.NewClient(massive.LoadClientConfigFromEnv())
-	if err != nil {
-		return err
+	var massiveClient massive.ScheduledPullClient
+	if mode == "pull" || !dryRun {
+		massiveClient, err = massive.NewClient(massive.LoadClientConfigFromEnv())
+		if err != nil {
+			return err
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	var publishRepo storage.PublishRepository
+	var repository *postgresstorage.Repository
 	var repoCloser interface{ Close() error }
 	if strings.TrimSpace(cfg.DatabaseURL) != "" {
-		repo, err := postgresstorage.OpenWithTemporal(ctx, cfg.DatabaseURL, cfg.TemporalDatabaseURL)
+		repository, err = postgresstorage.OpenWithTemporal(ctx, cfg.DatabaseURL, cfg.TemporalDatabaseURL)
 		if err != nil {
 			return err
 		}
-		publishRepo = repo
-		repoCloser = repo
+		publishRepo = repository
+		repoCloser = repository
 		defer func() {
 			if closeErr := repoCloser.Close(); closeErr != nil {
 				logger.Error("signalops massive puller storage shutdown failed", "error", closeErr)
@@ -136,6 +176,35 @@ func run(logger *slog.Logger, args []string) error {
 	}
 
 	reports := make([]massive.ScheduledPullReport, 0, len(days))
+	if mode == "reconcile-equity" {
+		if repository == nil {
+			return errors.New("reconcile-equity requires SIGNALOPS_DATABASE_URL")
+		}
+		report, reconcileErr := runEquityReconciliation(ctx, equityReconciliationConfig{
+			TenantID:            tenantID,
+			SourceID:            sourceID,
+			UniverseGroup:       universeGroup,
+			Environment:         cfg.Environment,
+			ObservationDate:     days[0],
+			DryRun:              dryRun,
+			AcknowledgeWrites:   acknowledgeWrites,
+			MaxProviderAttempts: maxReconciliationAttempts,
+			MaxProviderRequests: maxProviderRequests,
+			Deadline:            reconciliationDeadline,
+			RetryBackoffs:       backoffs,
+			NormalizationPoll:   normalizationPoll,
+			RequeueFailed:       requeueFailed,
+		}, repository, massiveClient, brokerClient)
+		encoded, marshalErr := json.Marshal(report)
+		if marshalErr == nil {
+			logger.Info("signalops equity reconciliation report", "report", string(encoded))
+		}
+		if reconcileErr != nil {
+			return reconcileErr
+		}
+		return nil
+	}
+
 	totalRequests, totalRetries, totalFailures, totalBuilt, totalPublished := 0, 0, 0, 0, 0
 	for _, day := range days {
 		remainingRequests, budgetErr := remainingBudget(maxProviderRequests, totalRequests, "provider request")
