@@ -7649,6 +7649,30 @@ Result:
 
 - Daily collection is operational for weekday post-close execution and persistent recovery after a missed trigger.
 - Equity acquisition remains bounded to 50 symbols and requires at least 45 normalized same-session symbols before downstream work.
-- Options and cohorts currently target the 45 provider-supported symbols; 2222.SR, 005930.KS, 000660.KS, 601939.SS, and RO.SW remain explicit provider/data gaps.
+- Initial activation targeted 45 provider-supported symbols while 2222.SR, 005930.KS, 000660.KS, 601939.SS, and RO.SW remained explicit provider/data gaps.
 - The workflow does not run Ask, decide graph proposals, promote lifecycle state, materialize direct production signals, trade, order, or change portfolios.
 - Empirical effectiveness remains dependent on prospective sessions, triggered evaluations, and matured outcomes.
+
+## 2026-07-21 - Exact Weekday Schedule And Supported Top 50 Revision
+
+Summary:
+
+- Replaced the five unsupported exchange listings with PM, RY, BABA, NVS, and PANW, the next provider-supported megacaps not already retained in the universe.
+- Re-ranked the canonical embedded and database universes to 50 active assets and raised the equity normalization, options capture, and cohort scope from 45 to 50.
+- Added reversible migration 000039 and a regression invariant requiring the normalized CSV to match the parsed canonical seed exactly.
+- Changed the user timer to Monday-Friday at exactly 18:01:55 America/New_York with one-second accuracy and zero randomized delay.
+
+Validation performed:
+
+- Each replacement returned one 2026-07-20 Massive equity aggregate and a non-empty Massive option snapshot.
+- A 50-request equity dry-run built 50 events with zero failures, zero retries, and no publications.
+- The options runner preserved its same-session close prerequisite and performed no write during replacement validation.
+- Migration 000039 passed transactional apply/down validation, applied through the normal migration ledger, and now exposes 50 active ranks with PM/RY/BABA/NVS/PANW at ranks 46-50.
+- Focused and full Dockerized Go tests passed; the runner images rebuilt; systemd reports 18:01:55 ET, AccuracyUSec=1s, and RandomizedDelayUSec=0.
+
+Result:
+
+- Tonight's scheduled run will require complete 50/50 normalized equity coverage before options and five ten-symbol cohorts can proceed.
+- The installed service remains inactive before its trigger, so activation caused no early write.
+- The replaced listings are no longer part of the active acquisition or analytical universe.
+- Prospective evidence and matured outcomes remain necessary before empirical effectiveness can be claimed.

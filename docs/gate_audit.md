@@ -9094,3 +9094,27 @@ Result:
 - Governed weekday post-close evidence collection is now operational.
 - Operational scheduling does not itself establish hypothesis effectiveness or production readiness.
 - The next evidence checkpoint follows completed scheduled sessions and matured outcomes, not an invented numbered gate.
+
+## 2026-07-21 - Exact Schedule And Provider-Supported Top 50 Revision
+
+Status: implemented, validated, and activated
+
+Acceptance evidence:
+
+- The active Top 50 now replaces 2222.SR, 005930.KS, 000660.KS, 601939.SS, and RO.SW with PM, RY, BABA, NVS, and PANW.
+- All five replacements returned real 2026-07-20 equity aggregates and current non-empty option snapshots from Massive.
+- The rebuilt puller completed a 50-request dry-run with 50 events built, zero failures, zero retries, and zero publications.
+- Migration 000039 passed apply/down validation and is recorded in the live schema ledger; the live active universe contains exactly ranks 1-50.
+- The installed timer is active for Monday-Friday 18:01:55 America/New_York with one-second accuracy and no randomized delay.
+- Full Dockerized Go tests passed, the three workflow images rebuilt, and the service remained inactive before the scheduled trigger.
+
+Boundaries retained:
+
+- All 50 normalized same-session equity records are now required before downstream acquisition proceeds.
+- Replacement validation performed no provider publication, options persistence, cohort write, Ask, graph decision, promotion, signal materialization, trade, order, or portfolio action.
+- A provider failure for any symbol fails the 50/50 normalization barrier rather than silently shrinking the universe.
+
+Result:
+
+- The revised 50-asset weekday post-close workflow is operational for its first exact trigger at 2026-07-21 18:01:55 ET.
+- A successful first scheduled run and subsequent prospective evidence remain required; schedule activation is not an empirical-effectiveness claim.

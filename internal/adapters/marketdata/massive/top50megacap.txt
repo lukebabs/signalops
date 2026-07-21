@@ -7,14 +7,11 @@ Amazon (AMZN) – $2.63 Trillion | Consumer Discretionary / Retail
 TSMC (TSM) – $2.34 Trillion | Technology / Semiconductors
 SpaceX (SPCX) – $2.11 Trillion | Aerospace & Defense
 Broadcom (AVGO) – $1.78 Trillion | Technology / Semiconductors
-Saudi Aramco (2222.SR) – $1.69 Trillion | Energy / Oil & Gas
 Tesla (TSLA) – $1.58 Trillion | Automotive / Clean Energy
 Meta Platforms (META) – $1.52 Trillion | Interactive Media / Software
-Samsung Electronics (005930.KS) – $1.29 Trillion | Technology Hardware
 Micron Technology (MU) – $1.11 Trillion | Technology / Semiconductors
 Berkshire Hathaway (BRK.B) – $1.09 Trillion | Financial Services
 Eli Lilly (LLY) – $1.07 Trillion | Healthcare / Pharmaceuticals
-SK Hynix (000660.KS) – $1.06 Trillion | Technology / Semiconductors
 JPMorgan Chase (JPM) – $904.9 Billion | Financials / Banking
 AMD (AMD) – $900.2 Billion | Technology / Semiconductors
 Walmart (WMT) – $880.6 Billion | Consumer Staples / Retail
@@ -35,7 +32,6 @@ Costco (COST) – $421.4 Billion | Consumer Staples / Retail
 Oracle (ORCL) – $414.1 Billion | Technology / Software
 General Electric (GE) – $395.7 Billion | Industrials / Aerospace
 UnitedHealth Group (UNH) – $379.6 Billion | Healthcare Plans
-China Construction Bank (601939.SS) – $372.8 Billion | Financials / Banking
 Coca-Cola (KO) – $356.9 Billion | Consumer Staples / Beverages
 Morgan Stanley (MS) – $350.3 Billion | Financial Services
 Home Depot (HD) – $349.6 Billion | Consumer Discretionary / Retail
@@ -43,9 +39,13 @@ Procter & Gamble (PG) – $347.7 Billion | Consumer Staples
 Arm Holdings (ARM) – $344.2 Billion | Technology / Semiconductor IP
 HSBC (HSBC) – $338.6 Billion | Financials / Banking
 Chevron (CVX) – Energy
-Roche (RO.SW) – Healthcare
 Netflix (NFLX) – Communication Services
 Palantir (PLTR) – Technology
 Merck & Co. (MRK) – Healthcare
 Goldman Sachs (GS) – Financials
 GE Vernova (GEV) – Energy / Industrials
+Philip Morris International (PM) – $300.36 Billion | Consumer Staples / Tobacco
+Royal Bank of Canada (RY) – $292.34 Billion | Financials / Banking
+Alibaba (BABA) – $288.43 Billion | Consumer Discretionary / E-Commerce
+Novartis (NVS) – $285.37 Billion | Healthcare / Pharmaceuticals
+Palo Alto Networks (PANW) – $284.15 Billion | Technology / Cybersecurity
