@@ -127,6 +127,20 @@ func (r optionChainSnapshotResponse) records(underlying string, fallbackDate tim
 	return records
 }
 
+func (r optionChainSnapshotResponse) latestObservationDate(fallback time.Time) time.Time {
+	latest := fallback
+	for _, result := range r.Results {
+		if result.Day.LastUpdated == nil || *result.Day.LastUpdated <= 0 {
+			continue
+		}
+		observed := time.Unix(0, *result.Day.LastUpdated).UTC()
+		if latest.IsZero() || observed.After(latest) {
+			latest = observed
+		}
+	}
+	return latest
+}
+
 func snapshotTimestamp(timestamp *int64) *time.Time {
 	if timestamp == nil || *timestamp <= 0 {
 		return nil
@@ -137,6 +151,9 @@ func snapshotTimestamp(timestamp *int64) *time.Time {
 
 func snapshotObservationDate(timestamp *int64, fallback time.Time) time.Time {
 	if timestamp == nil || *timestamp <= 0 {
+		if fallback.IsZero() {
+			return time.Time{}
+		}
 		day, _ := dayUTC(fallback, "fallback_date")
 		return day
 	}

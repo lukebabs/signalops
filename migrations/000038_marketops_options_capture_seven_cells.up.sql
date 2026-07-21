@@ -1,0 +1,6 @@
+ALTER TABLE marketops_options_capture_sessions
+  DROP CONSTRAINT IF EXISTS marketops_options_capture_sessions_required_surface_cells_check;
+
+ALTER TABLE marketops_options_capture_sessions
+  ADD CONSTRAINT marketops_options_capture_sessions_required_surface_cells_check
+  CHECK (required_surface_cells BETWEEN 0 AND 7);

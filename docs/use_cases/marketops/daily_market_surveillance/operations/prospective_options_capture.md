@@ -2,9 +2,11 @@
 
 G142 uses one bounded coverage-runner invocation per market session. Run it after canonical equity EOD and provider options data have settled. The session path resolves canonical spot before acquisition, requests only the configured analytical DTE/moneyness slice, aggregates transient candidates, and persists only selected surface evidence. It rejects future-dated or stale-session activity before any options write.
 
+Provider `day.last_updated` is the authoritative activity timestamp. When a bounded snapshot record omits it, the adapter may inherit only the latest real provider daily-bar timestamp observed in the same paginated batch; it never substitutes wall-clock time. A batch with no provider daily timestamp remains unknown and fails the requested-session activity check.
+
 ## Prerequisites
 
-- Migration `000032_marketops_options_capture_sessions` is applied.
+- Migrations `000032_marketops_options_capture_sessions` and `000038_marketops_options_capture_seven_cells` are applied.
 - Existing Massive credentials are configured. Do not replace a valid key.
 - PostgreSQL and TimescaleDB URLs are configured.
 - The canonical same-session Massive equity normalized event is available before the options capture starts; it is required for point-in-time moneyness bounds.

@@ -9045,3 +9045,27 @@ Result:
 
 - G148 is complete and accepted end to end.
 - The next phase is bounded prospective evidence and outcome accumulation under existing explicit controls; a later numbered gate should be defined only around a concrete evidence-backed calibration question.
+
+## 2026-07-21 - First Bounded Prospective Evidence Session
+
+Status: completed — durable research evidence and readiness persisted
+
+Evidence:
+
+- Three canonical 2026-07-20 equity EOD events were published and normalized for AAPL, MSFT, and NVDA under exact request/event caps.
+- Missing option daily timestamps no longer use wall-clock fallback; regression tests preserve provider-derived provenance and fail closed when no provider timestamp exists.
+- Migration 000038 and repository validation now support the implemented seven-cell surface; apply/down/reapply and the full Go suite passed.
+- The bounded options write retained 19 selected contracts from 1,376 transient candidates, plus three distributions and three capture rows; MSFT remained truthfully partial.
+- Cohort `prospective-evidence-20260720-cohort` succeeded across all six stages and persisted three readiness rows.
+- Live counts moved from 6 to 9 states and 24 to 36 evaluations; opportunities and outcomes remain zero, while graph proposals and signals remained 231 and 31.
+
+Boundaries retained:
+
+- No Ask, graph decision, lifecycle promotion, provider scheduling, direct signal materialization, trading, order, or portfolio action occurred.
+- No threshold or acquisition bounds were relaxed to force readiness.
+- One session with zero triggers and zero outcomes does not support empirical effectiveness or production-readiness claims.
+
+Result:
+
+- AAPL is research-evaluation-ready; MSFT and NVDA remain blocked by partial state quality, and exact-version calibration is unavailable for all three.
+- Continue the same bounded prospective collection and outcome maturation before defining a new numbered gate.

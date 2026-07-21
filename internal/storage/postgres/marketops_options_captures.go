@@ -105,7 +105,7 @@ func validateMarketOpsOptionsCapture(record storage.MarketOpsOptionsCaptureRecor
 	if record.AnalyticsReady != (record.Status == storage.MarketOpsOptionsCaptureAnalyticsReady) {
 		return fmt.Errorf("marketops options capture readiness and status must agree")
 	}
-	if record.ContractCount < 0 || record.UsableIVCount < 0 || record.UsableGreeksCount < 0 || record.OpenInterestCount < 0 || record.RequiredSurfaceCells < 0 || record.RequiredSurfaceCells > 5 {
+	if record.ContractCount < 0 || record.UsableIVCount < 0 || record.UsableGreeksCount < 0 || record.OpenInterestCount < 0 || record.RequiredSurfaceCells < 0 || record.RequiredSurfaceCells > 7 {
 		return fmt.Errorf("marketops options capture counts are invalid")
 	}
 	if record.StartedAt.IsZero() || record.CompletedAt.IsZero() || record.CompletedAt.Before(record.StartedAt) {

@@ -129,7 +129,7 @@ func (c *Client) ListOptionChainSnapshotFilteredWithMetadata(ctx context.Context
 		query.Set("strike_price.lte", fmt.Sprintf("%.8f", *filter.StrikePriceLTE))
 	}
 	path := fmt.Sprintf("/v3/snapshot/options/%s", url.PathEscape(underlying))
-	fallback := time.Now().UTC()
+	var fallback time.Time
 	batch := OptionChainSnapshotBatch{Records: []OptionContractDailyRecord{}}
 	nextURL := ""
 	for page := 0; page < filter.MaxPages; page++ {
@@ -144,6 +144,7 @@ func (c *Client) ListOptionChainSnapshotFilteredWithMetadata(ctx context.Context
 			return OptionChainSnapshotBatch{}, err
 		}
 		batch.PagesFetched++
+		fallback = response.latestObservationDate(fallback)
 		batch.Records = append(batch.Records, response.records(underlying, fallback)...)
 		if requestID := strings.TrimSpace(response.RequestID); requestID != "" {
 			batch.ProviderRequestIDs = append(batch.ProviderRequestIDs, requestID)

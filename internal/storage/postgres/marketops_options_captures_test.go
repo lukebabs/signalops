@@ -14,7 +14,7 @@ func TestValidateMarketOpsOptionsCapture(t *testing.T) {
 	record := storage.MarketOpsOptionsCaptureRecord{
 		CaptureID: "optcap_test", TenantID: "tenant-local", Symbol: "AAPL", SessionDate: now,
 		RunID: "g142-test", Status: storage.MarketOpsOptionsCaptureAnalyticsReady, AnalyticsReady: true,
-		RequiredSurfaceCells: 5, StartedAt: now, CompletedAt: now.Add(time.Minute),
+		RequiredSurfaceCells: 7, StartedAt: now, CompletedAt: now.Add(time.Minute),
 	}
 	if err := validateMarketOpsOptionsCapture(record); err != nil {
 		t.Fatalf("validate capture: %v", err)
@@ -24,7 +24,7 @@ func TestValidateMarketOpsOptionsCapture(t *testing.T) {
 		t.Fatal("expected readiness/status mismatch")
 	}
 	record.Status = storage.MarketOpsOptionsCapturePartial
-	record.RequiredSurfaceCells = 6
+	record.RequiredSurfaceCells = 8
 	if err := validateMarketOpsOptionsCapture(record); err == nil {
 		t.Fatal("expected invalid surface count")
 	}

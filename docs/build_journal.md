@@ -7602,3 +7602,28 @@ Result:
 - G148 frontend work is accepted and G148 is complete.
 - The live readiness ledger remains empty because acceptance used dry-run; a durable cohort run requires separate explicit write authorization.
 - Structural integration is proven, but empirical hypothesis effectiveness remains unclaimed pending genuine prospective coverage, matured outcomes, and exact-version calibration samples.
+
+## 2026-07-21 - First Bounded Prospective Evidence Session
+
+Summary:
+
+- Passed the Massive AAPL credential/data preflight, then published exactly three capped 2026-07-20 equity EOD events for AAPL, MSFT, and NVDA through the canonical raw/normalized path.
+- Corrected option snapshot date provenance: missing provider `day.last_updated` values inherit only a real provider timestamp from the bounded batch, never wall-clock time; all-missing batches remain fail-closed.
+- Added migration `000038_marketops_options_capture_seven_cells` and raised repository validation from five to the implemented seven-cell surface, with a guarded downgrade.
+- Persisted 19 selected option contracts, three distributions, 35 derived feature rows, and three capture records from at most 500 transient candidates per symbol. AAPL/NVDA are 7/7 analytics-ready; MSFT is partial at 5/7.
+- Executed durable cohort `prospective-evidence-20260720-cohort` for all six stages across AAPL, MSFT, and NVDA with explicit write acknowledgement and no stage errors.
+
+Validation performed:
+
+- One-page and documented two-page options dry-runs completed before writes; the cohort also completed a no-write all-stage dry-run first.
+- Focused adapter, options-runner, and repository tests passed; the rebuilt image's full `go test ./...` passed.
+- Migration 000038 passed transactional apply/down/reapply with rollback, then applied through the normal migration service.
+- Live reconciliation returned 19 chain rows, 3 distributions, 3 captures, 9 states, 36 evaluations, 1 cohort run, and 3 readiness rows.
+- Gateway health remained HTTP 200; graph proposals stayed 231 and signals stayed 31.
+
+Result:
+
+- AAPL is `research_evaluation_ready` at 0.6923 completeness and 1.0 surface coverage; MSFT and NVDA remain blocked by partial state quality.
+- All 12 new evaluations are non-eligible and non-triggered; no opportunity, pending outcome, or matured outcome was manufactured.
+- No Ask, graph decision, lifecycle promotion, threshold change, direct signal materialization, trade, order, or portfolio action occurred.
+- This is evidence-session one, not G149; continue bounded prospective capture until samples and matured outcomes support a concrete calibration question.

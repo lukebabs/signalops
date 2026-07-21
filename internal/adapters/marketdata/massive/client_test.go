@@ -118,7 +118,7 @@ func TestClientListOptionChainSnapshot(t *testing.T) {
 		_, _ = w.Write([]byte(`{
 			"request_id":"req-2",
 			"results":[{
-				"day":{"close":8.4,"volume":50,"last_updated":1783814400000000000},
+				"day":{"close":8.4,"volume":50},
 				"details":{"ticker":"O:NVDA260116P00100000","contract_type":"put","expiration_date":"2026-01-16","strike_price":"100"},
 				"open_interest":900,
 				"underlying_asset":{"ticker":"NVDA","price":172.5}
@@ -159,6 +159,12 @@ func TestClientListOptionChainSnapshot(t *testing.T) {
 	put := records[1]
 	if put.ContractType != "put" || put.StrikePrice != 100 || put.OpenInterest == nil || *put.OpenInterest != 900 {
 		t.Fatalf("put record = %+v", put)
+	}
+	if put.ObservationDate.IsZero() || !put.ObservationDate.Equal(call.ObservationDate) {
+		t.Fatalf("missing page timestamp did not inherit provider observation date: call=%s put=%s", call.ObservationDate, put.ObservationDate)
+	}
+	if got := snapshotObservationDate(nil, time.Time{}); !got.IsZero() {
+		t.Fatalf("missing provider timestamp used a wall-clock fallback: %s", got)
 	}
 }
 

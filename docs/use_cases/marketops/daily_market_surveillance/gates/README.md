@@ -369,7 +369,7 @@ Current research phase:
 - G148 is split into three ordered backend-first slices: source-aware market-intelligence graph proposals, bounded evidence-pure Market State Ask contexts, and explicit cohorts capped at 10 symbols with aggregate per-symbol readiness.
 - The existing graph decision ledger and Syncratic routes remain authoritative; G148 must generalize them rather than create parallel review or reasoning systems.
 - Cohort execution uses persisted inputs only and keeps provider acquisition, graph decisions, Ask, proposal review, lifecycle promotion, and unsupported hypothesis materialization as separate explicit controls.
-- Current live truth remains sparse: only AAPL has market states/evaluations, its six states average 14% completeness, and none of 24 evaluations are eligible or triggered.
+- Current live truth remains sparse but now spans AAPL, MSFT, and NVDA: nine states and 36 evaluations exist; the 12 new exact-session evaluations are all non-eligible and non-triggered.
 - The MarketOps Assets Intelligence readiness view consumes the aggregate endpoint with one request, preserves missing/blocked evidence, and never presents production readiness or execution controls.
 - Backend migrations, the full Go suite, bounded live dry-run, 12 focused frontend tests, and the TypeScript/Vite production build passed. Ask was not invoked because no budget was approved.
 - Backend specification: `G148_graph_ask_and_cohort_rollout.md`.
@@ -377,6 +377,7 @@ Current research phase:
 
 ## Next Evidence Phase
 
-- Accumulate genuine prospective equity, options, event, and matured outcome evidence across a small explicit cohort using existing bounded operator controls.
-- Persist cohort readiness only through an explicitly authorized write-mode run; the G148 acceptance dry-run intentionally left the readiness ledger empty.
+- The first authorized durable session completed for 2026-07-20. AAPL and NVDA options captures are 7/7 analytics-ready; MSFT is partial at 5/7. The cohort persisted one run and three readiness rows.
+- AAPL is `research_evaluation_ready`; MSFT and NVDA remain blocked by partial state quality. All three lack exact-version calibration, triggers, opportunities, and matured outcomes.
+- Continue the same bounded prospective collection until at least 20 analytics-ready AAPL sessions exist and forward outcomes have had time to mature; do not widen bounds merely to force green status.
 - Define a later gate only after the collected sample can support a concrete prospective calibration/effectiveness question. Do not treat structural integration as production or empirical readiness.
