@@ -2632,4 +2632,9 @@ export interface MarketOpsAlgorithmAdjudicationsResponse { algorithm_adjudicatio
 export interface MarketOpsQuantitativeSeriesPoint { trade_date:string; eod_close?:number; daily_move_pct?:number; call_put_open_interest_ratio?:number; call_put_volume_ratio?:number; ratio_quality?:string; markers:Array<{algorithm_result_id:string;algorithm_id:string;severity:string;score:number;confidence:number;direction?:string;adjudications?:Array<{verdict:string;hypothesis_key:string}>}>; }
 export interface MarketOpsQuantitativeSeriesResponse { symbol:string; window:string; points:MarketOpsQuantitativeSeriesPoint[]; }
 export interface MarketOpsEODZScore { trade_date:string; algorithm_result:AlgorithmResult | null; status:'selected' | 'no_usable_zscore'; reason?:string; }
-export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; }
+export type MarketOpsRiskRewardDirection = "bullish" | "bearish" | "neutral";
+export type MarketOpsRiskRewardFactor = { key:string; direction:MarketOpsRiskRewardDirection; weight:number; value:number; detail:string; };
+export type MarketOpsRiskRewardCorroboration = { direction:MarketOpsRiskRewardDirection | "unavailable"; agreement:"aligned" | "bullish" | "bearish" | "neutral"; put_call_volume_ratio?:number; deviation_pct?:number; };
+export type MarketOpsRiskRewardPoint = { algorithm_result_id:string; trade_date:string; score:number; direction:MarketOpsRiskRewardDirection; risk_level:"low" | "medium" | "high" | "unavailable"; confidence:number; severity:"info" | "low" | "medium" | "high"; technical_factors:MarketOpsRiskRewardFactor[]; speculative_corroboration:MarketOpsRiskRewardCorroboration; research_only:true; };
+export type MarketOpsRiskRewardResponse = { latest?:MarketOpsRiskRewardPoint; history:MarketOpsRiskRewardPoint[]; };
+export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; risk_reward?:MarketOpsRiskRewardResponse; }
