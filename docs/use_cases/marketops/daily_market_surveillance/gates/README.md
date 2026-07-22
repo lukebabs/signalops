@@ -381,3 +381,11 @@ Current research phase:
 - AAPL is `research_evaluation_ready`; MSFT and NVDA remain blocked by partial state quality. All three lack exact-version calibration, triggers, opportunities, and matured outcomes.
 - Continue the same bounded prospective collection until at least 20 analytics-ready AAPL sessions exist and forward outcomes have had time to mature; do not widen bounds merely to force green status.
 - Define a later gate only after the collected sample can support a concrete prospective calibration/effectiveness question. Do not treat structural integration as production or empirical readiness.
+
+
+## G149 Implemented
+
+- G149 adds read-only asset-specific hypothesis context to Market State. The shared hypothesis catalog remains authoritative, while every evaluated card renders its ticker, current evaluation state, and compact persisted checks from that asset evaluation payload.
+- G149 does not alter hypothesis definitions, evaluator thresholds, governance, calibration, promotion, provider acquisition, signal materialization, or trading behavior.
+- G149 now also presents active conditions as analyst-facing evidence cards. Selecting Gap up, RSI, volume, volatility, positioning, or OI conditions shows the persisted source feature/transition, observed value and display threshold, a condition-specific interpretation, and a focused next analytical question.
+- The Assets view complements this research context with read-only delayed intraday/EOD quote fallback, 52-week position explanation, and quote-aware refresh/EOD timestamps; these display controls do not affect research inputs or acquisition.

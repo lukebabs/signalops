@@ -697,6 +697,24 @@ Returns one stored promotion candidate.
 
 Records an operator review decision on a promotion candidate. Allowed decision statuses are `approved_for_promotion`, `rejected`, `deferred`, and `superseded`. This endpoint only mutates the candidate audit row; it does not deploy runtime policy, edit detector thresholds, or write graph state.
 
+### MarketOps Asset Intelligence Reads
+
+`GET /v1/tenants/{tenant_id}/marketops/assets/quotes?universe_group=top50_megacap`
+
+Returns database-cached current quotes for the active universe. The endpoint never calls Massive. Records carry regular, extended, or end-of-day state plus cached refresh time; the monitor is the only writer and runs on the weekday 15-minute session schedule.
+
+`GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/intraday-conditions?universe_group=top50_megacap`
+
+Returns persisted, asset-specific 15-minute price-action condition snapshots. These are descriptive intraday context and remain separate from EOD Market State hypotheses.
+
+`GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/quantitative-series?window=10_trade_days`
+
+Returns EOD close, call/put OI, stored call/put volume, and medium-or-higher algorithm markers for `10_trade_days`, `30_trade_days`, or `60_trade_days`. The Assets UI derives its displayed put/call volume sentiment ratio by inverting the stored call/put volume value; no persisted value is rewritten.
+
+`GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/algorithm-observations`
+
+Returns `eod_zscores` and `other_outputs` for one asset. `eod_zscores` has at most one strongest usable `zscore_anomaly_v1` result for each of the latest three payload observation dates. `partial_zero`, `all_zero`, and `denominator_zero` options-ratio results cannot be selected. `other_outputs` preserves raw non-selected platform outputs for advanced read-only analysis.
+
 ### MarketOps Options
 
 `GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/coverage`

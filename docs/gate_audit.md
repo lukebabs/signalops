@@ -9118,3 +9118,56 @@ Result:
 
 - The revised 50-asset weekday post-close workflow is operational for its first exact trigger at 2026-07-21 18:01:55 ET.
 - A successful first scheduled run and subsequent prospective evidence remain required; schedule activation is not an empirical-effectiveness claim.
+
+
+## 2026-07-21 - Gate G149 Asset-Specific Hypothesis Context
+
+Status: implemented — Market State hypotheses now expose persisted per-asset evaluation context
+
+Evidence:
+
+- The shared research hypothesis definition remains stable across the universe; no evaluator thresholds, lifecycle policy, promotion, or materialization authority changed.
+- Each Market State hypothesis card now identifies the evaluated asset and status, then renders up to three persisted checks from that asset evaluation payload.
+- The detail view continues to expose linked evidence, reason codes, scores, required features, transitions, and the full contribution/check payload.
+- The TypeScript/Vite production build passed and the updated web container was deployed.
+
+Result:
+
+- Operators can distinguish a reusable hypothesis definition from the ticker-specific feature values and threshold results that produced its current evaluation.
+- This is read-only research context; it does not establish effectiveness, readiness, trading advice, or automatic signal materialization.
+
+## 2026-07-22 - G149 Analyst Evidence Detail and Quote Context Extension
+
+Status: implemented and deployed
+
+Evidence:
+
+- Active Market State conditions are no longer explained by a repeated generic message. Each selectable condition now renders the exact observed condition, its persisted feature or transition source, a condition-specific interpretation, and a concrete analyst follow-up question.
+- Gap up/down explicitly identifies `gap_pct` against the prior completed close; momentum, trend extension, range, implied-volatility, term-structure, positioning, volume, and unusual-OI conditions each identify their corresponding persisted evidence and analytical context.
+- The Assets quote view now falls back from unavailable current-session minute aggregates to the latest completed daily close, labels that state EOD, reports quote-view refresh timestamps for intraday values, and provides hover explanations for data timing, change, and 52-week range position.
+- TypeScript/Vite production builds passed and the web service was rebuilt and deployed. The gateway build ran the full Go test suite successfully for the EOD fallback change.
+
+Boundaries retained:
+
+- All explanations are read-only presentations of persisted Market State evidence or delayed/EOD display data.
+- No hypothesis definition, threshold, evaluation result, calibration, acquisition rule, governance decision, signal materialization, trade, order, or portfolio action changed.
+
+Result:
+
+- Every selected active condition is now meaningful to an analyst: it states what was observed, where it came from, what it can indicate, and what to investigate next without overstating a research condition as advice or a prediction.
+
+## 2026-07-22 - Post-G149 Asset Intelligence Presentation And Outstanding Evidence
+
+Status: implemented and deployed — read-only analyst presentation refinement
+
+Evidence:
+
+- The Assets quote endpoint serves the persisted quote cache only; 50 active-universe cache rows exist and no browser quote read invokes Massive.
+- The selected-asset chart presents put/call volume sentiment consistently: values below 1.0 indicate calls elevated/bullish context, values above 1.0 indicate puts elevated/bearish context, and 1.0 is neutral. The legacy stored call/put distribution value is inverted only in presentation.
+- Quantitative corroboration remains limited to the strongest usable z-score for each of the three latest payload observation dates. Advanced Algorithm Evidence retains immutable raw observations, uses the same ratio semantics, and is capped to five newest events.
+- Current evidence remains insufficient for empirical claims: 106 Market States, 36 usable or usable-with-warning states, 424 hypothesis evaluations with zero triggers, and zero matured outcomes.
+
+Boundaries retained:
+
+- No thresholds, algorithm execution, provider acquisition, persistence, evaluation result, proposal, calibration, lifecycle, signal, trade, order, or portfolio behavior changed.
+- A useful analyst presentation is not evidence of hypothesis effectiveness. Continue prospective collection and wait for genuine triggers plus 1/5/10/20-session outcome maturity before defining a calibration or promotion gate.

@@ -252,9 +252,9 @@ The Massive adapter has two optional Compose profiles:
 - `massive-pull`: one-shot puller for manual dry-run or publish validation.
 - `massive-schedule`: repeatable scheduler around the same pull runner.
 
-Both profiles default to dry-run mode. The scheduler defaults to running once at
-startup and then every `24h` until stopped. Use `SIGNALOPS_MASSIVE_SCHEDULE_MAX_RUNS`
-or the `--max-runs` flag for bounded validation runs.
+Both profiles default to dry-run mode. Production weekday collection is driven by the installed user timer at **18:01:55 America/New_York** and invokes `scripts/marketops_daily_postclose.sh`. That workflow uses the durable `marketops_equity_reconciliation_tasks` queue, claims missing symbols sequentially, and retries provider failures before downstream processing. A run fails closed unless all 50 active-universe symbols normalize for the session. Configure bounded recovery with `MARKETOPS_DAILY_RECONCILIATION_DEADLINE`, `MARKETOPS_DAILY_RECONCILIATION_MAX_ATTEMPTS`, and `MARKETOPS_DAILY_RECONCILIATION_BACKOFFS`; write mode additionally requires `--write` and reconciliation acknowledgement. The scheduler profile remains useful for isolated validation and defaults to dry-run.
+
+The MarketOps Assets view reads the persisted `marketops_asset_quote_cache`, so the first screen render never waits on Massive. The 15-minute intraday monitor overwrites each active asset’s cached quote during the regular (09:30–16:00 ET) and extended (16:00–20:00 ET) sessions. The browser refetches the cache every 15 minutes while retaining its last response during a refetch. Outside those sessions the monitor exits before requesting Massive, and the API returns the most recent completed value labelled EOD. The Updated column distinguishes EOD, regular, and extended-session context. Native hover help explains the displayed change, entitlement delay, and the asset’s 52-week range position. Stocks Starter provides 15-minute-delayed aggregates; it does not authorize real-time trade, quote, or snapshot endpoints. Display data is read-only and does not enter EOD evidence, reconciliation, or signal pipelines.
 
 Example one-run scheduler dry-run:
 
@@ -369,3 +369,18 @@ Role enforcement:
 - explicit `tenant_id` query values or `/v1/tenants/{tenant_id}/...` paths must match the token `tenant_id` claim.
 
 Keep `SIGNALOPS_AUTH_ENABLED=false` until the frontend login/token attachment gate is deployed, otherwise the current browser UI will receive `401` responses for protected `/v1/*` calls.
+### Intraday asset conditions
+
+Assets now show a persisted, asset-specific intraday condition stream. `marketops-intraday-monitor` records one snapshot per active universe asset; it derives session movement and 52-week-range conditions from entitled stock aggregates, while end-of-day Market State hypotheses remain authoritative research records. The installed `signalops-marketops-intraday.timer` runs weekdays at 09:30, 09:45, then every 15 minutes through 20:00 ET. The worker independently rejects all times outside regular and extended sessions, preventing late persistent timer catch-up from calling Massive. Use `scripts/marketops_intraday_monitor.sh` for an on-demand run and `scripts/install_marketops_intraday_user_timer.sh` to install the user timer.
+
+### Post-close algorithm corroboration
+
+The governed post-close workflow now materializes the latest `options_distribution_daily` feature for each active asset, then runs bounded cross-sectional z-score observations for `daily_return_pct` and usable `call_put_open_interest_ratio`. Results are immutable research corroboration records, displayed beside asset evidence; they never alter Market State hypothesis eligibility, triggering, confidence, or lifecycle. Failures are logged and do not block canonical state processing.
+
+### Quantitative asset series
+
+The expanded MarketOps Asset view reads `GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/quantitative-series`. The read-only chart aligns persisted EOD closes with call/put open interest and a presentation-derived put/call volume ratio, preserving missing observations as gaps. The stored distribution field is call/put, so the view inverts it solely for display. Put/call volume below 1.0 is labelled bullish (calls elevated); above 1.0 is labelled bearish (puts elevated); exactly 1.0 is neutral. Its `10_trade_days`, `30_trade_days`, and `60_trade_days` views draw the neutral baseline and mark only medium-or-higher platform observations; marker color reflects persisted independent adjudication where available. Ratios are descriptive positioning/flow evidence, not trading recommendations.
+
+### Focused quantitative corroboration
+
+The selected-asset view reads `GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/algorithm-observations`. Its primary corroboration panel shows at most one usable `zscore_anomaly_v1` observation for each of the latest three payload observation dates. Options-ratio z-scores with `partial_zero`, `all_zero`, or `denominator_zero` quality cannot be selected. Raw platform results remain preserved and are available in the read-only **Algorithm Evidence** tab, grouped by observation date and capped to the five newest events. Its put/call volume entries use the same below-1 bullish and above-1 bearish interpretation as the chart. This curation never changes algorithm execution, persisted evidence, hypotheses, recommendations, or lifecycle state.

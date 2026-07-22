@@ -15,6 +15,9 @@ import type {
   MarketOpsOptionsChainFilter,
   MarketOpsOpportunityFilter,
   MarketOpsHypothesisEvaluationFilter,
+  MarketOpsAlgorithmAdjudicationFilter,
+  MarketOpsQuantitativeSeriesResponse,
+  MarketOpsAssetAlgorithmObservationsResponse,
   MarketOpsMarketStateFilter,
   MarketOpsFeatureDefinitionFilter,
   MarketOpsFeatureObservationFilter,
@@ -95,6 +98,10 @@ export const queryKeys = {
   replayStatus: (tenantId: string, limit?: number) => ['replay-status', tenantId, limit] as const,
   appProfiles: ['app-profiles'] as const,
   marketOpsAssets: (filter: MarketOpsAssetFilter) => ['marketops-assets', filter] as const,
+  marketOpsAssetQuotes: (tenantId: string, group: string) => ['marketops-asset-quotes', tenantId, group] as const,
+  marketOpsIntradayConditions: (tenantId: string, group: string, symbol = "") => ["marketops-intraday-conditions", tenantId, group, symbol] as const,
+  marketOpsQuantitativeSeries: (tenantId: string, symbol: string, window: string) => ["marketops-quantitative-series", tenantId, symbol, window] as const,
+  marketOpsAssetAlgorithmObservations: (tenantId: string, symbol: string) => ["marketops-asset-algorithm-observations", tenantId, symbol] as const,
   marketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
     ['marketops-options-coverage', tenantId, symbol] as const,
   marketOpsOptionsDistributions: (tenantId: string, symbol: string, filter: MarketOpsOptionsDistributionFilter) =>
@@ -106,6 +113,7 @@ export const queryKeys = {
     ['marketops-opportunity', opportunityId, tenantId] as const,
   marketOpsHypothesisEvaluations: (filter: MarketOpsHypothesisEvaluationFilter) =>
     ['marketops-hypothesis-evaluations', filter] as const,
+  marketOpsAlgorithmAdjudications: (filter: MarketOpsAlgorithmAdjudicationFilter) => ["marketops-algorithm-adjudications", filter] as const,
   marketOpsHypothesis: (key: string, version: string, tenantId: string) =>
     ['marketops-hypothesis', key, version, tenantId] as const,
   marketOpsEvidence: (evidenceId: string) => ['marketops-evidence', evidenceId] as const,
@@ -400,6 +408,14 @@ export function useAppProfiles() {
 }
 
 // G071 MarketOps asset universe (read-only). The seed changes slowly; cache 5 min.
+export function useMarketOpsAssetQuotes(tenantId: string, universeGroup = "top50_megacap") {
+  return useQuery({ queryKey: queryKeys.marketOpsAssetQuotes(tenantId, universeGroup), queryFn: () => api.getMarketOpsAssetQuotes(tenantId, universeGroup), refetchInterval: 15 * 60 * 1000, staleTime: 15 * 60 * 1000, placeholderData: (previousData) => previousData });
+}
+
+export function useMarketOpsIntradayConditions(tenantId: string, universeGroup = "top50_megacap", symbol?: string) {
+  return useQuery({ queryKey: queryKeys.marketOpsIntradayConditions(tenantId, universeGroup, symbol ?? ""), queryFn: () => api.getMarketOpsIntradayConditions(tenantId, universeGroup, symbol), enabled: !!tenantId, refetchInterval: 15 * 60 * 1000, staleTime: 60 * 1000 });
+}
+
 export function useMarketOpsAssets(
   filter: MarketOpsAssetFilter = { tenant_id: 'tenant-local', universe_group: 'top50_megacap', active_only: true, limit: 50 },
 ) {
@@ -414,6 +430,9 @@ export function useMarketOpsAssets(
 // run only while an asset is selected (tenant + symbol). The chain query also
 // waits for a selected trade date. Not polled; short stale time mirrors the
 // other MarketOps reads. Performs no ingestion and never calls live-preview.
+export function useMarketOpsQuantitativeSeries(tenantId: string, symbol: string | null, window: string) { return useQuery({ queryKey: queryKeys.marketOpsQuantitativeSeries(tenantId, symbol ?? "", window), queryFn: () => api.getMarketOpsQuantitativeSeries(tenantId, symbol!, window), enabled: !!symbol, staleTime: 60 * 1000 }); }
+export function useMarketOpsAssetAlgorithmObservations(tenantId: string, symbol: string | null) { return useQuery({ queryKey: queryKeys.marketOpsAssetAlgorithmObservations(tenantId, symbol ?? ""), queryFn: () => api.getMarketOpsAssetAlgorithmObservations(tenantId, symbol!), enabled: !!symbol, staleTime: 60 * 1000 }); }
+
 export function useMarketOpsOptionsCoverage(tenantId: string, symbol: string | null) {
   return useQuery({
     queryKey: queryKeys.marketOpsOptionsCoverage(tenantId, symbol ?? ''),
@@ -479,6 +498,10 @@ export function useMarketOpsHypothesisEvaluations(filter: MarketOpsHypothesisEva
     enabled,
     staleTime: 60 * 1000,
   });
+}
+
+export function useMarketOpsAlgorithmAdjudications(filter: MarketOpsAlgorithmAdjudicationFilter = {}) {
+  return useQuery({ queryKey: queryKeys.marketOpsAlgorithmAdjudications(filter), queryFn: () => api.listMarketOpsAlgorithmAdjudications(filter), staleTime: 60 * 1000 });
 }
 
 export function useMarketOpsHypothesis(key: string | null, version: string | null, tenantId: string) {

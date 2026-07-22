@@ -93,9 +93,9 @@ local_clock="$(TZ="$timezone" date '+%H%M%S')"
 if [[ -z "$session_date" ]]; then
   session_date="$now_session_date"
   if [[ "$local_clock" -lt 180000 ]]; then
-    session_date="$(date -u -d "$now_session_date -1 day" '+%F')"
-    while (( $(date -u -d "$session_date" '+%u') > 5 )); do
-      session_date="$(date -u -d "$session_date -1 day" '+%F')"
+    session_date="$(TZ="$timezone" date -d "$now_session_date -1 day" '+%F')"
+    while (( $(TZ="$timezone" date -d "$session_date" '+%u') > 5 )); do
+      session_date="$(TZ="$timezone" date -d "$session_date -1 day" '+%F')"
     done
   fi
 fi
@@ -157,6 +157,7 @@ reconciliation_command=(docker compose --profile massive-pull run --rm massive-p
   --deadline "$reconciliation_deadline"
   --retry-backoffs "$reconciliation_backoffs"
   --normalization-poll "$reconciliation_poll"
+  --requeue-failed
   --dry-run="$dry_run")
 $write_mode && reconciliation_command+=(--acknowledge-writes)
 
@@ -218,6 +219,42 @@ running_services="$(docker compose ps --status running --services)"
 for service in redpanda postgres timescaledb normalizer; do
   grep -qx "$service" <<< "$running_services" || { printf 'required service is not running: %s\n' "$service" >&2; exit 4; }
 done
+# The database universe is authoritative at execution time. This prevents a
+# stale environment variable from omitting a newly listed asset from options
+# capture or its downstream intelligence cohort.
+active_universe_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+  "SELECT string_agg(ticker, ',' ORDER BY rank) FROM marketops_asset_universe WHERE tenant_id='tenant-local' AND universe_group='top50_megacap' AND is_active;")"
+[[ -n "$active_universe_symbols" ]] || { printf 'active equity universe is empty\n' >&2; exit 4; }
+IFS=',' read -r -a active_universe_array <<< "$active_universe_symbols"
+(( ${#active_universe_array[@]} == minimum_equity_symbols )) || {
+  printf 'active equity universe contains %d assets; expected %d\n' "${#active_universe_array[@]}" "$minimum_equity_symbols" >&2
+  exit 4
+}
+for symbol in "${active_universe_array[@]}"; do
+  [[ "$symbol" =~ ^[A-Z0-9.]+$ ]] || { printf 'invalid active universe symbol: %s\n' "$symbol" >&2; exit 4; }
+done
+
+# Keep equity reconciliation, options polling, and ten-symbol cohorts aligned
+# with the same active-universe snapshot for this scheduled run.
+option_symbols="$active_universe_symbols"
+symbols=("${active_universe_array[@]}")
+options_command=(docker compose --profile marketops-daily run --rm marketops-options-coverage-runner
+  --tenant-id tenant-local
+  --symbols "$option_symbols"
+  --max-symbols "${#symbols[@]}"
+  --session-date "$session_date"
+  --run-id "${run_prefix}-options"
+  --limit 250
+  --max-pages 2
+  --max-candidates 500
+  --min-dte 14
+  --max-dte 120
+  --min-moneyness 0.70
+  --max-moneyness 1.30
+  --skip-complete=true
+  --continue-on-error=true
+  --max-retries 0
+  --dry-run="$dry_run")
 
 coverage_count() {
   local active_symbols
@@ -279,6 +316,14 @@ if $write_mode; then
   log "options capture barrier passed captures=$capture_count"
 fi
 
+if $write_mode; then
+  if ! ./scripts/marketops_algorithm_corroboration.sh --date "$session_date"; then
+    log "algorithm corroboration completed with failures; canonical research workflow will continue"
+  fi
+else
+  log "algorithm corroboration skipped dry_run=true (algorithm runner has no non-mutating mode)"
+fi
+
 for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=10, batch++)); do
   batch_symbols=("${symbols[@]:offset:10}")
   batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
@@ -314,7 +359,7 @@ done
 
 if $write_mode; then
   summary="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
-    "SELECT 'captures=' || count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' UNION ALL SELECT 'cohort_results=' || count(*) FROM marketops_intelligence_cohort_symbol_results WHERE tenant_id='tenant-local' AND run_id LIKE '${run_prefix}-cohort-%';")"
+    "SELECT 'captures=' || count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' UNION ALL SELECT 'cohort_results=' || count(*) FROM marketops_intelligence_cohort_symbol_results WHERE tenant_id='tenant-local' AND run_id LIKE '${run_prefix}-cohort-%' UNION ALL SELECT 'algorithm_results=' || count(*) FROM algorithm_results WHERE tenant_id='tenant-local' AND correlation_id='$run_prefix';")"
   log "completed session=$session_date ${summary//$'\n'/ }"
 else
   log "completed dry-run session=$session_date"

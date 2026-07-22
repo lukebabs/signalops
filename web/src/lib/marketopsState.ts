@@ -398,6 +398,59 @@ export function summarizeMarketOpsHypothesisEvaluation(e: unknown): MarketOpsHyp
   };
 }
 
+// A reusable hypothesis definition is not itself an asset condition. This
+// deliberately returns only conditions currently observed for the selected
+// asset/state, plus composite hypotheses that actually triggered.
+export interface MarketOpsActiveIndicator {
+  id: string;
+  kind: 'indicator' | 'hypothesis';
+  title: string;
+  summary: string;
+  tone: 'positive' | 'negative' | 'neutral';
+  hypothesisKey?: string;
+  hypothesisVersion?: string;
+}
+
+function usableIndicatorObservation(observation: MarketOpsFeatureObservationView): boolean {
+  return observation.qualityState === 'usable' || observation.qualityState === 'usable_with_warning';
+}
+
+export function activeMarketOpsIndicators(
+  observations: MarketOpsFeatureObservationView[],
+  evaluations: MarketOpsHypothesisEvaluationStateView[],
+): MarketOpsActiveIndicator[] {
+  const active: MarketOpsActiveIndicator[] = [];
+  const value = (key: string): number | null => {
+    const observation = observations.find((item) => item.featureKey === key && item.numericValue !== null && usableIndicatorObservation(item));
+    return observation?.numericValue ?? null;
+  };
+  const rsi = value('rsi_14');
+  if (rsi !== null) {
+    if (rsi >= 70) active.push({ id: 'rsi:overbought', kind: 'indicator', title: 'Overbought', summary: `RSI 14 ${rsi.toFixed(1)} ≥ 70`, tone: 'negative' });
+    else if (rsi <= 30) active.push({ id: 'rsi:oversold', kind: 'indicator', title: 'Oversold', summary: `RSI 14 ${rsi.toFixed(1)} ≤ 30`, tone: 'positive' });
+  }
+  const smaDistance = value('distance_sma_20_pct');
+  if (smaDistance !== null && Math.abs(smaDistance) >= 5) active.push({ id: 'sma-distance', kind: 'indicator', title: smaDistance > 0 ? 'Extended above 20-day SMA' : 'Extended below 20-day SMA', summary: `Price ${smaDistance >= 0 ? '+' : ''}${smaDistance.toFixed(1)}% from 20-day SMA`, tone: smaDistance > 0 ? 'negative' : 'positive' });
+  const volumeRatio = value('volume_ratio_20d');
+  if (volumeRatio !== null && volumeRatio >= 1.5) active.push({ id: 'volume-ratio', kind: 'indicator', title: 'Elevated volume', summary: `Volume ${volumeRatio.toFixed(2)}× 20-day average (≥ 1.50×)`, tone: 'neutral' });
+  const gap = value('gap_pct');
+  if (gap !== null && Math.abs(gap) >= 1) active.push({ id: 'gap', kind: 'indicator', title: gap > 0 ? 'Gap up' : 'Gap down', summary: `Open ${gap >= 0 ? '+' : ''}${gap.toFixed(1)}% versus prior close`, tone: gap > 0 ? 'positive' : 'negative' });
+  const atr = value('atr_14_pct');
+  if (atr !== null && atr >= 3) active.push({ id: 'atr', kind: 'indicator', title: 'Elevated volatility', summary: `14-day ATR ${atr.toFixed(1)}% of close (≥ 3.0%)`, tone: 'neutral' });
+  const ivRv = value('iv_rv_ratio_20d');
+  if (ivRv !== null && ivRv >= 1.25) active.push({ id: 'iv-rv', kind: 'indicator', title: 'Implied volatility premium', summary: `30-DTE IV / 20-day RV ${ivRv.toFixed(2)}× (≥ 1.25×)`, tone: 'neutral' });
+  for (const evaluation of evaluations) {
+    if (!evaluation.triggered || evaluation.invalidated) continue;
+    active.push({ id: `hypothesis:${evaluation.hypothesisKey}:${evaluation.hypothesisVersion}`, kind: 'hypothesis', title: evaluation.hypothesisKey, summary: hypothesisIndicatorSummary(evaluation.evaluationPayload) || 'Composite research hypothesis triggered', tone: 'neutral', hypothesisKey: evaluation.hypothesisKey, hypothesisVersion: evaluation.hypothesisVersion });
+  }
+  return active;
+}
+
+function hypothesisIndicatorSummary(payload: unknown): string {
+  if (!isRecord(payload) || !isRecord(payload.checks)) return '';
+  return Object.entries(payload.checks).slice(0, 3).map(([key, item]) => `${key.split('_').join(' ')} ${typeof item === 'number' ? item.toFixed(2) : typeof item === 'boolean' ? (item ? 'yes' : 'no') : String(item)}`).join(' · ');
+}
+
 // Canonical seven-cell surface. Core ATM observations use explicit feature keys
 // with {} dimensions; normalized ATM changes use surface_cell=atm, delta=.50;
 // wing observations use option_type + target_delta=.25 + target_dte.

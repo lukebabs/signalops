@@ -10,6 +10,12 @@ Canonical metadata:
 
 This use case covers daily surveillance over Massive normalized equity EOD and option contract daily data, deterministic DSM taxonomy signals, derived alert/insight lifecycle records, first-class DSM artifact materialization, and the MarketOps DSM Workbench.
 
+## Current Operating State
+
+- The active universe contains 50 assets. The weekday post-close workflow is the authoritative evidence-collection path; it is fail-closed on incomplete same-session equity normalization.
+- The selected-asset view is read-only: cached regular/extended/EOD quotes, intraday conditions, put/call volume sentiment, curated three-day EOD z-score corroboration, and a five-event advanced algorithm-evidence view all explain persisted evidence without mutating research state.
+- Empirical effectiveness remains outstanding: current ledgers contain 106 Market States (36 usable or usable-with-warning), 424 hypothesis evaluations with no triggers, and no forward outcomes. Prospective completeness, genuine triggers, and 1/5/10/20-session outcome maturity are required before calibration or promotion claims.
+
 ## Current Folder Layout
 
 - `architecture/`: DSM model, signal/artifact persistence semantics, graph proposal direction.

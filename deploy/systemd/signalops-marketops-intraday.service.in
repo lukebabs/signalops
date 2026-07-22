@@ -1,0 +1,10 @@
+[Unit]
+Description=SignalOps MarketOps 15-minute intraday condition monitor
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+ExecStart=@WORKDIR@/scripts/marketops_intraday_monitor.sh
+TimeoutStartSec=20m
+Nice=10

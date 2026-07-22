@@ -32,6 +32,8 @@ import type {
   ReplayOperationsStatusResponse,
   AppProfilesResponse,
   MarketOpsAssetsResponse,
+  MarketOpsAssetQuotesResponse,
+  MarketOpsIntradayConditionsResponse,
   MarketOpsAssetFilter,
   MarketOpsOptionsCoverageResponse,
   MarketOpsOptionsDistributionsResponse,
@@ -43,6 +45,10 @@ import type {
   MarketOpsOpportunityFilter,
   MarketOpsHypothesisEvaluationsResponse,
   MarketOpsHypothesisEvaluationFilter,
+  MarketOpsAlgorithmAdjudicationFilter,
+  MarketOpsAlgorithmAdjudicationsResponse,
+  MarketOpsQuantitativeSeriesResponse,
+  MarketOpsAssetAlgorithmObservationsResponse,
   MarketOpsHypothesisResponse,
   MarketOpsEvidenceResponse,
   MarketOpsMarketStateLineageResponse,
@@ -361,20 +367,19 @@ export const api = {
   // G071 MarketOps asset universe (read-only). tenant_id is a path segment;
   // active_only is serialized as the string the backend parses ("false" disables it).
   listMarketOpsAssets: (filter: MarketOpsAssetFilter = {}) =>
-    get<MarketOpsAssetsResponse>(
-      `/v1/tenants/${encodeURIComponent(filter.tenant_id ?? 'tenant-local')}/marketops/assets`,
-      {
-        universe_group: filter.universe_group || 'top50_megacap',
-        active_only: filter.active_only === false ? 'false' : 'true',
-        limit: filter.limit ?? 50,
-      },
-    ),
+    get<MarketOpsAssetsResponse>(`/v1/tenants/${encodeURIComponent(filter.tenant_id ?? "tenant-local")}/marketops/assets`, { universe_group: filter.universe_group || "top50_megacap", active_only: filter.active_only === false ? "false" : "true", limit: filter.limit ?? 50 }),
+  getMarketOpsAssetQuotes: (tenantId: string, universeGroup = "top50_megacap") =>
+    get<MarketOpsAssetQuotesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/quotes`, { universe_group: universeGroup }),
+  getMarketOpsIntradayConditions: (tenantId: string, universeGroup = "top50_megacap", symbol?: string) =>
+    get<MarketOpsIntradayConditionsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/assets/" + (symbol ? encodeURIComponent(symbol) + "/" : "") + "intraday-conditions", { universe_group: universeGroup }),
   // G128 MarketOps asset options intelligence (read-only). Persisted coverage,
   // derived distribution snapshots, and chain rows for one asset. tenant_id and
   // symbol are path segments (the gateway upper-cases symbol). window defaults to
   // 10_trade_days and distribution limit to 10; chain limit defaults to 500
   // (gateway clamps to 200). trade_date is date-only (YYYY-MM-DD). This surface
   // performs no ingestion and never calls live-preview (which stays 501).
+  getMarketOpsQuantitativeSeries: (tenantId: string, symbol: string, window: string) => get<MarketOpsQuantitativeSeriesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/quantitative-series`, { window }),
+  getMarketOpsAssetAlgorithmObservations: (tenantId: string, symbol: string) => get<MarketOpsAssetAlgorithmObservationsResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/algorithm-observations`),
   getMarketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
     get<MarketOpsOptionsCoverageResponse>(
       `/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/options/coverage`,
@@ -438,6 +443,8 @@ export const api = {
       session_end: filter.session_end || undefined,
       limit: filter.limit ?? 50,
     }),
+  listMarketOpsAlgorithmAdjudications: (filter: MarketOpsAlgorithmAdjudicationFilter = {}) =>
+    get<MarketOpsAlgorithmAdjudicationsResponse>("/v1/marketops/algorithm-adjudications", { tenant_id: filter.tenant_id, symbol: filter.symbol, hypothesis_evaluation_id: filter.hypothesis_evaluation_id, correlation_id: filter.correlation_id, limit: filter.limit ?? 50 }),
   getMarketOpsHypothesis: (key: string, version: string, tenantId: string) =>
     get<MarketOpsHypothesisResponse>(
       `/v1/marketops/hypotheses/${encodeURIComponent(key)}/${encodeURIComponent(version)}`,

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lukebabs/signalops/internal/adapters/marketdata/massive"
 	"github.com/lukebabs/signalops/internal/appmeta"
 	marketopsbacktest "github.com/lukebabs/signalops/internal/marketops/backtest"
 	"github.com/lukebabs/signalops/internal/storage"
@@ -47,6 +48,9 @@ type RouterConfig struct {
 	QueryRepository         storage.QueryRepository
 	PublishRepository       storage.PublishRepository
 	SyncraticAskClient      syncraticAskClient
+	MarketQuoteClient       interface {
+		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
+	}
 }
 
 // NewRouter creates the HTTP routes owned by the SignalOps gateway.
@@ -2205,6 +2209,85 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"assets": marketOpsAssetResponses(assets)})
 	})
 
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/quotes", func(w http.ResponseWriter, r *http.Request) {
+		reader, ok := any(cfg.QueryRepository).(interface {
+			ListMarketOpsAssetQuotes(context.Context, storage.MarketOpsAssetQuoteFilter) ([]storage.MarketOpsAssetQuoteRecord, error)
+		})
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "quotes_unavailable", "persisted quote cache is unavailable")
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+			return
+		}
+		records, err := reader.ListMarketOpsAssetQuotes(r.Context(), storage.MarketOpsAssetQuoteFilter{TenantID: tenantID, UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Limit: 100})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list persisted quotes")
+			return
+		}
+		quotes := make([]any, 0, len(records))
+		refreshed := time.Time{}
+		for _, q := range records {
+			if q.RefreshedAt.After(refreshed) {
+				refreshed = q.RefreshedAt
+			}
+			quotes = append(quotes, map[string]any{"ticker": q.Ticker, "price": q.Price, "timestamp": q.QuoteTimestamp, "market_status": q.MarketStatus, "stale": q.Stale || time.Since(q.RefreshedAt) > 20*time.Minute, "previous_close": q.PreviousClose, "change": q.Change, "change_percent": q.ChangePercent, "week52_low": q.Week52Low, "week52_high": q.Week52High, "refreshed_at": q.RefreshedAt, "provider": q.Provider})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"quotes": quotes, "refreshed_at": refreshed, "cache_backed": true})
+	})
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/intraday-conditions", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+			return
+		}
+		records, err := repo.ListMarketOpsIntradayConditionSnapshots(r.Context(), storage.MarketOpsIntradayConditionSnapshotFilter{TenantID: tenantID, UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Limit: 1000})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list intraday conditions")
+			return
+		}
+		latest := map[string]storage.MarketOpsIntradayConditionSnapshotRecord{}
+		for _, record := range records {
+			if _, exists := latest[record.Symbol]; !exists {
+				latest[record.Symbol] = record
+			}
+		}
+		snapshots := make([]any, 0, len(latest))
+		for _, record := range latest {
+			snapshots = append(snapshots, marketOpsIntradayConditionSnapshotResponse(record))
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"snapshots": snapshots})
+	})
+
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/intraday-conditions", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		symbol := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
+		if tenantID == "" || symbol == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id and symbol are required")
+			return
+		}
+		records, err := repo.ListMarketOpsIntradayConditionSnapshots(r.Context(), storage.MarketOpsIntradayConditionSnapshotFilter{TenantID: tenantID, Symbol: symbol, Limit: queryLimit(r, 64)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list intraday conditions")
+			return
+		}
+		snapshots := make([]any, 0, len(records))
+		for _, record := range records {
+			snapshots = append(snapshots, marketOpsIntradayConditionSnapshotResponse(record))
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"snapshots": snapshots})
+	})
+
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/coverage", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -2407,6 +2490,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	registerMarketOpsMarketStateRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsHypothesisRoutes(mux, cfg.QueryRepository)
+	registerMarketOpsAlgorithmAdjudicationRoutes(mux, cfg.QueryRepository)
+	registerMarketOpsQuantitativeSeriesRoutes(mux, cfg.QueryRepository)
+	registerMarketOpsAssetAlgorithmObservationRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsOpportunityRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsOutcomeRoutes(mux, cfg.QueryRepository)
 
@@ -3787,6 +3873,14 @@ func insightResponse(record storage.InsightLedgerRecord) insightDTO {
 		Recommendation: recommendation, CorrelationID: record.CorrelationID, ObservedAt: record.ObservedAt,
 		ReviewedAt: record.ReviewedAt, ReviewedBy: record.ReviewedBy, Metadata: jsonRawOrEmptyObject(record.MetadataJSON),
 		CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
+}
+
+func marketOpsIntradayConditionSnapshotResponse(record storage.MarketOpsIntradayConditionSnapshotRecord) map[string]any {
+	conditions := any([]any{})
+	_ = json.Unmarshal(record.ConditionsJSON, &conditions)
+	source := any(map[string]any{})
+	_ = json.Unmarshal(record.SourcePayloadJSON, &source)
+	return map[string]any{"snapshot_id": record.SnapshotID, "ticker": record.Symbol, "as_of_time": record.AsOfTime, "market_status": record.MarketStatus, "stale": record.Stale || time.Since(record.AsOfTime) > 30*time.Minute, "conditions": conditions, "source": source, "created_at": record.CreatedAt}
 }
 
 func marketOpsAssetResponses(records []storage.MarketOpsAssetRecord) []marketOpsAssetDTO {

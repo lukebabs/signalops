@@ -645,6 +645,31 @@ type AlgorithmResultRecord struct {
 	CreatedAt          time.Time
 }
 
+type MarketOpsAlgorithmAdjudicationRecord struct {
+	AdjudicationID         string
+	TenantID               string
+	HypothesisEvaluationID string
+	AlgorithmResultID      string
+	HypothesisKey          string
+	HypothesisVersion      string
+	Symbol                 string
+	SessionDate            time.Time
+	Verdict                string
+	Confidence             float64
+	ExplanationJSON        []byte
+	CorrelationID          string
+	AdjudicatorVersion     string
+	CreatedAt              time.Time
+}
+
+type MarketOpsAlgorithmAdjudicationFilter struct {
+	TenantID               string
+	Symbol                 string
+	HypothesisEvaluationID string
+	CorrelationID          string
+	Limit                  int
+}
+
 type AlgorithmSignalProposalRecord struct {
 	ProposalID              string
 	TenantID                string
@@ -809,6 +834,52 @@ type MarketOpsAssetRecord struct {
 	MetadataJSON  []byte
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+// MarketOpsIntradayConditionSnapshotRecord is a point-in-time price-action observation.
+// It remains separate from the authoritative end-of-day Market State research record.
+type MarketOpsIntradayConditionSnapshotRecord struct {
+	SnapshotID        string
+	TenantID          string
+	UniverseGroup     string
+	Symbol            string
+	AsOfTime          time.Time
+	MarketStatus      string
+	Stale             bool
+	ConditionsJSON    []byte
+	SourcePayloadJSON []byte
+	CreatedAt         time.Time
+}
+
+type MarketOpsIntradayConditionSnapshotFilter struct {
+	TenantID      string
+	UniverseGroup string
+	Symbol        string
+	Since         time.Time
+	Limit         int
+}
+
+type MarketOpsAssetQuoteRecord struct {
+	TenantID       string
+	UniverseGroup  string
+	Ticker         string
+	Price          float64
+	QuoteTimestamp time.Time
+	MarketStatus   string
+	Stale          bool
+	PreviousClose  *float64
+	Change         *float64
+	ChangePercent  *float64
+	Week52Low      *float64
+	Week52High     *float64
+	RefreshedAt    time.Time
+	Provider       string
+}
+type MarketOpsAssetQuoteFilter struct {
+	TenantID      string
+	UniverseGroup string
+	Symbols       []string
+	Limit         int
 }
 
 type MarketOpsOptionsChainRecord struct {
@@ -1580,6 +1651,13 @@ type SyncraticRepository interface {
 	GetSyncraticInsight(ctx context.Context, syncraticInsightID string) (SyncraticInsightRecord, error)
 }
 
+type MarketOpsIntradayConditionWriteRepository interface {
+	UpsertMarketOpsIntradayConditionSnapshot(ctx context.Context, record MarketOpsIntradayConditionSnapshotRecord) error
+}
+
+type MarketOpsIntradayConditionRepository interface {
+	ListMarketOpsIntradayConditionSnapshots(ctx context.Context, filter MarketOpsIntradayConditionSnapshotFilter) ([]MarketOpsIntradayConditionSnapshotRecord, error)
+}
 type MarketOpsMarketStateWriteRepository interface {
 	UpsertMarketOpsFeatureDefinition(ctx context.Context, record MarketOpsFeatureDefinitionRecord) error
 	UpsertMarketOpsFeatureObservation(ctx context.Context, record MarketOpsFeatureObservationRecord) error
@@ -1973,6 +2051,7 @@ type QueryRepository interface {
 	SyncraticRepository
 	AlgorithmRepository
 	MarketOpsMarketStateQueryRepository
+	MarketOpsIntradayConditionRepository
 	MarketOpsHypothesisQueryRepository
 	MarketOpsOpportunityQueryRepository
 	MarketOpsOutcomeQueryRepository

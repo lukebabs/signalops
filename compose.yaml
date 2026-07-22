@@ -71,6 +71,10 @@ services:
     environment:
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      API_KEY: ${API_KEY:-}
     working_dir: /workspace
     entrypoint: ["/bin/sh", "/workspace/scripts/backfill_temporal_ledgers.sh"]
     volumes:
@@ -150,6 +154,10 @@ services:
       SIGNALOPS_ENV: local
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      API_KEY: ${API_KEY:-}
       SIGNALOPS_AUTH_ENABLED: ${SIGNALOPS_AUTH_ENABLED:-false}
       SIGNALOPS_AUTH_ISSUER: ${SIGNALOPS_AUTH_ISSUER:-https://auth.syncratic.co/realms/syncratic}
       SIGNALOPS_AUTH_REALM: ${SIGNALOPS_AUTH_REALM:-syncratic}
@@ -183,6 +191,21 @@ services:
         condition: service_started
     ports:
       - "15173:8080"
+
+  marketops-intraday-monitor:
+    profiles: ["marketops-intraday"]
+    build:
+      context: .
+      target: marketops-intraday-monitor
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      API_KEY: ${API_KEY:-}
 
   massive-puller:
     profiles: ["massive-pull"]
@@ -264,6 +287,51 @@ services:
       SIGNALOPS_MASSIVE_SCHEDULE_RUN_IMMEDIATELY: "true"
       SIGNALOPS_MASSIVE_SCHEDULE_CONTINUE_ON_ERROR: "true"
 
+  marketops-algorithm-adjudicator:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-algorithm-adjudicator
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+
+  marketops-options-feature-materializer:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-options-feature-materializer
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+
+  algorithm-runner:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: algorithm-runner
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+
+
   marketops-options-coverage-runner:
     profiles: ["marketops-daily"]
     build:
@@ -281,6 +349,7 @@ services:
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
       MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      API_KEY: ${API_KEY:-}
 
   marketops-intelligence-cohort-runner:
     profiles: ["marketops-daily"]
@@ -296,6 +365,10 @@ services:
       SIGNALOPS_ENV: local
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      API_KEY: ${API_KEY:-}
       SIGNALOPS_ACTOR: ${MARKETOPS_DAILY_ACTOR:-systemd-postclose}
 
   raw-worker:
@@ -362,6 +435,10 @@ services:
       SIGNALOPS_ENV: local
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      API_KEY: ${API_KEY:-}
 
 
   signal-persister:
@@ -382,6 +459,10 @@ services:
       SIGNALOPS_ENV: local
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      API_KEY: ${API_KEY:-}
 
   replay-worker:
     build:
@@ -401,6 +482,10 @@ services:
       SIGNALOPS_ENV: local
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
+      API_KEY: ${API_KEY:-}
       SIGNALOPS_REPLAY_WORKER_ID: signalops-replay-worker
       SIGNALOPS_REPLAY_ONESHOT: "false"
       SIGNALOPS_REPLAY_MAX_RECORDS: "50"

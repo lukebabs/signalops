@@ -1,0 +1,15 @@
+[Unit]
+Description=Run SignalOps intraday monitor every 15 minutes during US regular and extended sessions
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 09:30:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 09:45:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 10..15:00/15:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 16..19:00/15:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 20:00:00 America/New_York
+Persistent=true
+AccuracySec=1s
+Unit=signalops-marketops-intraday.service
+
+[Install]
+WantedBy=timers.target

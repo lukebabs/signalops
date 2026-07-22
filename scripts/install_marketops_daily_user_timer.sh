@@ -11,7 +11,7 @@ for command in docker systemctl sed install; do
 done
 
 docker compose --profile massive-pull --profile marketops-daily build \
-  massive-puller marketops-options-coverage-runner marketops-intelligence-cohort-runner
+  massive-puller marketops-options-coverage-runner marketops-options-feature-materializer algorithm-runner marketops-intelligence-cohort-runner
 
 mkdir -p "$unit_dir"
 sed "s|@WORKDIR@|$ROOT_DIR|g" "$template_dir/signalops-marketops-daily.service.in" > "$unit_dir/signalops-marketops-daily.service"

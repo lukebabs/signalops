@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/lukebabs/signalops/internal/api"
+	"github.com/lukebabs/signalops/internal/adapters/marketdata/massive"
 	kafkabroker "github.com/lukebabs/signalops/internal/broker/kafka"
 	"github.com/lukebabs/signalops/internal/config"
 	postgresstorage "github.com/lukebabs/signalops/internal/storage/postgres"
@@ -51,6 +52,9 @@ func main() {
 			JWKSURL:  cfg.AuthJWKSURL,
 			Audience: cfg.AuthAudience,
 		},
+	}
+	if key := strings.TrimSpace(os.Getenv("SIGNALOPS_MASSIVE_API_KEY")); key != "" {
+		if client, clientErr := massive.NewClient(massive.LoadClientConfigFromEnv()); clientErr == nil { routerConfig.MarketQuoteClient = client } else { logger.Warn("massive quote client disabled", "error", clientErr) }
 	}
 	if queryRepo != nil {
 		routerConfig.QueryRepository = queryRepo
@@ -99,6 +103,9 @@ func main() {
 	if err := brokerClient.Close(shutdownCtx); err != nil {
 		logger.Error("signalops gateway broker shutdown failed", "error", err)
 		os.Exit(1)
+	}
+	if key := strings.TrimSpace(os.Getenv("SIGNALOPS_MASSIVE_API_KEY")); key != "" {
+		if client, clientErr := massive.NewClient(massive.LoadClientConfigFromEnv()); clientErr == nil { routerConfig.MarketQuoteClient = client } else { logger.Warn("massive quote client disabled", "error", clientErr) }
 	}
 	if queryRepo != nil {
 		if err := queryRepo.Close(); err != nil {

@@ -84,6 +84,7 @@ type fakeQueryRepository struct {
 	pipelines                          []storage.CatalogPipelineRecord
 	rules                              []storage.CatalogRuleRecord
 	marketOpsAssets                    []storage.MarketOpsAssetRecord
+	marketOpsIntradayConditions []storage.MarketOpsIntradayConditionSnapshotRecord
 	marketOpsOptionsChain              []storage.MarketOpsOptionsChainRecord
 	marketOpsOptionsCoverage           storage.MarketOpsOptionsCoverageRecord
 	marketOpsOptionsDistributions      []storage.MarketOpsOptionsDistributionRecord
@@ -1238,6 +1239,12 @@ func (q *fakeQueryRepository) ListMarketOpsAssets(_ context.Context, tenantID st
 	_ = tenantID
 	_ = limit
 	return q.marketOpsAssets, nil
+}
+
+func (q *fakeQueryRepository) ListMarketOpsIntradayConditionSnapshots(_ context.Context, filter storage.MarketOpsIntradayConditionSnapshotFilter) ([]storage.MarketOpsIntradayConditionSnapshotRecord, error) {
+	items := []storage.MarketOpsIntradayConditionSnapshotRecord{}
+	for _, item := range q.marketOpsIntradayConditions { if (filter.TenantID == "" || item.TenantID == filter.TenantID) && (filter.Symbol == "" || item.Symbol == filter.Symbol) { items = append(items, item) } }
+	return items, nil
 }
 
 func (q *fakeQueryRepository) ListMarketOpsOptionsChain(_ context.Context, filter storage.MarketOpsOptionsChainFilter) ([]storage.MarketOpsOptionsChainRecord, error) {

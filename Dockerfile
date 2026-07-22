@@ -28,7 +28,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-h
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-opportunity-builder ./cmd/marketops-opportunity-builder
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-outcome-materializer ./cmd/marketops-outcome-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-history-runner ./cmd/marketops-history-runner
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-intraday-monitor ./cmd/marketops-intraday-monitor
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-runner ./cmd/algorithm-runner
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-adjudicator ./cmd/marketops-algorithm-adjudicator
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-proposal-generator ./cmd/algorithm-proposal-generator
 
 FROM python:3.12-slim AS gateway
@@ -88,11 +90,19 @@ ENV PYTHONPATH=/app/python
 
 ENTRYPOINT ["signalops-marketops-backtest"]
 
-FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-runner
+FROM python:3.12-slim AS algorithm-runner
 
-COPY --from=build /out/signalops-algorithm-runner /signalops-algorithm-runner
+WORKDIR /app
+COPY python/requirements-worker.txt ./python/requirements-worker.txt
+RUN pip install --no-cache-dir -r ./python/requirements-worker.txt
+COPY --from=build /out/signalops-algorithm-runner /usr/local/bin/signalops-algorithm-runner
+COPY python ./python
+ENV PYTHONPATH=/app/python SIGNALOPS_PYTHON_ALGORITHM_RUNTIME=true
+ENTRYPOINT ["signalops-algorithm-runner"]
 
-ENTRYPOINT ["/signalops-algorithm-runner"]
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-algorithm-adjudicator
+COPY --from=build /out/signalops-marketops-algorithm-adjudicator /signalops-marketops-algorithm-adjudicator
+ENTRYPOINT ["/signalops-marketops-algorithm-adjudicator"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS marketops-options-feature-materializer
 
@@ -165,6 +175,12 @@ FROM gcr.io/distroless/static-debian12:nonroot AS marketops-history-runner
 COPY --from=build /out/signalops-marketops-history-runner /signalops-marketops-history-runner
 
 ENTRYPOINT ["/signalops-marketops-history-runner"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-intraday-monitor
+
+COPY --from=build /out/signalops-marketops-intraday-monitor /signalops-marketops-intraday-monitor
+
+ENTRYPOINT ["/signalops-marketops-intraday-monitor"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-proposal-generator
 

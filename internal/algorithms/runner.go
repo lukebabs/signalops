@@ -8,12 +8,69 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/lukebabs/signalops/internal/storage"
 )
+
+func usesPythonPlatformRuntime(algorithmID string) bool {
+	return algorithmID == RiverAnomalyAlgorithmID || algorithmID == RupturesChangePointAlgorithmID || algorithmID == StatsmodelsForecastAlgorithmID
+}
+
+type pythonRuntimeResponse struct {
+	Results []struct {
+		SourceEventID string         `json:"source_event_id"`
+		ResultType    string         `json:"result_type"`
+		Score         float64        `json:"score"`
+		Confidence    float64        `json:"confidence"`
+		Severity      string         `json:"severity"`
+		Payload       map[string]any `json:"payload"`
+	} `json:"results"`
+}
+
+func scorePythonPlatform(ctx context.Context, cfg Config, samples []sample) ([]scoredSample, error) {
+	points := make([]map[string]any, 0, len(samples))
+	byEventID := make(map[string]sample, len(samples))
+	for _, item := range samples {
+		points = append(points, map[string]any{"event_id": item.event.EventID, "symbol": item.symbol, "value": item.value, "observation_time": item.event.ObservationTime.UTC().Format(time.RFC3339Nano)})
+		byEventID[item.event.EventID] = item
+	}
+	request, err := json.Marshal(map[string]any{"schema_version": "signalops.platform_algorithm_execution.v1", "algorithm_id": cfg.AlgorithmID, "algorithm_version": cfg.AlgorithmVersion, "dataset": cfg.Dataset, "feature": cfg.Feature, "window_start": cfg.WindowStart.UTC().Format(time.RFC3339Nano), "window_end": cfg.WindowEnd.UTC().Format(time.RFC3339Nano), "config": map[string]any{"score_threshold": cfg.ZThreshold, "min_samples": cfg.MinSamples}, "points": points})
+	if err != nil {
+		return nil, err
+	}
+	command := exec.CommandContext(ctx, "python", "-m", "signalops_algorithms.runner")
+	command.Stdin = strings.NewReader(string(request))
+	output, err := command.Output()
+	if err != nil {
+		return nil, fmt.Errorf("run python platform algorithm %s: %w", cfg.AlgorithmID, err)
+	}
+	var response pythonRuntimeResponse
+	if err := json.Unmarshal(output, &response); err != nil {
+		return nil, fmt.Errorf("decode python platform algorithm response: %w", err)
+	}
+	out := make([]scoredSample, 0, len(response.Results))
+	for _, item := range response.Results {
+		source, ok := byEventID[item.SourceEventID]
+		if !ok {
+			return nil, fmt.Errorf("python platform algorithm returned unknown source event %q", item.SourceEventID)
+		}
+		if item.Payload == nil {
+			item.Payload = map[string]any{}
+		}
+		for key, value := range eventQualityMetadata(source.event) {
+			if _, exists := item.Payload[key]; !exists {
+				item.Payload[key] = value
+			}
+		}
+		out = append(out, scoredSample{sample: source, resultType: item.ResultType, score: item.Score, confidence: item.Confidence, severity: item.Severity, payload: item.Payload})
+	}
+	return out, nil
+}
 
 const (
 	ZScoreAnomalyAlgorithmID       = "signalops.algorithms.zscore_anomaly_v1"
@@ -160,21 +217,28 @@ func executeAlgorithm(ctx context.Context, repo Repository, cfg Config, metrics 
 	metrics.Stddev = round(stddev, 6)
 
 	var scored []scoredSample
-	switch cfg.AlgorithmID {
-	case ZScoreAnomalyAlgorithmID:
-		scored = scoreZScore(cfg, samples, mean, stddev)
-	case RiverAnomalyAlgorithmID:
-		scored = scoreRiverAnomaly(cfg, samples)
-	case RupturesChangePointAlgorithmID:
-		scored = scoreChangePoints(cfg, samples, stddev)
-	case StatsmodelsForecastAlgorithmID:
-		scored = scoreForecastResiduals(cfg, samples)
-	case SklearnClassifierAlgorithmID:
-		scored = scoreClassifier(cfg, samples, mean, stddev)
-	case SklearnIsolationForestID:
-		scored = scoreIsolation(cfg, samples)
-	default:
-		return fmt.Errorf("unsupported algorithm_id %q", cfg.AlgorithmID)
+	if usesPythonPlatformRuntime(cfg.AlgorithmID) && strings.EqualFold(strings.TrimSpace(os.Getenv("SIGNALOPS_PYTHON_ALGORITHM_RUNTIME")), "true") {
+		scored, err = scorePythonPlatform(ctx, cfg, samples)
+		if err != nil {
+			return err
+		}
+	} else {
+		switch cfg.AlgorithmID {
+		case ZScoreAnomalyAlgorithmID:
+			scored = scoreZScore(cfg, samples, mean, stddev)
+		case RiverAnomalyAlgorithmID:
+			scored = scoreRiverAnomaly(cfg, samples)
+		case RupturesChangePointAlgorithmID:
+			scored = scoreChangePoints(cfg, samples, stddev)
+		case StatsmodelsForecastAlgorithmID:
+			scored = scoreForecastResiduals(cfg, samples)
+		case SklearnClassifierAlgorithmID:
+			scored = scoreClassifier(cfg, samples, mean, stddev)
+		case SklearnIsolationForestID:
+			scored = scoreIsolation(cfg, samples)
+		default:
+			return fmt.Errorf("unsupported algorithm_id %q", cfg.AlgorithmID)
+		}
 	}
 	for _, item := range scored {
 		record, err := algorithmResult(cfg, item)

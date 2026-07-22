@@ -7676,3 +7676,48 @@ Result:
 - The installed service remains inactive before its trigger, so activation caused no early write.
 - The replaced listings are no longer part of the active acquisition or analytical universe.
 - Prospective evidence and matured outcomes remain necessary before empirical effectiveness can be claimed.
+
+## 2026-07-22 - Analyst Evidence Detail and Market Quote Context
+
+Summary:
+
+- Replaced the repeated generic active-indicator explanation in Market State with condition-specific analyst detail. Each selected condition now shows observed evidence, persisted source feature/transition, interpretation, and a focused next analytical question.
+- Added explicit context for gap, RSI, moving-average extension, volume, ATR, implied-versus-realized volatility, term structure, put/call positioning, and unusual OI conditions.
+- Added delayed-intraday to completed-EOD quote fallback, EOD labeling, quote-aware Updated timestamps, and hover help for market-data timing, daily move, and 52-week range position.
+
+Validation performed:
+
+- Gateway Docker build completed with the full Go test suite passing.
+- TypeScript compilation and Vite production builds passed.
+- Gateway and web services were rebuilt and deployed.
+
+Result:
+
+- Market State and Assets interactions are more interpretable while remaining read-only. The UI explains persisted evidence and delayed/EOD display data without changing evaluators, thresholds, acquisition, governance, signals, or trading behavior.
+
+- G149 intraday conditions: added persisted 15-minute per-asset snapshots, a Massive-backed monitor, bulk/per-asset read APIs, Assets-table condition summaries and evidence timelines. Deployed the migration, seeded 50 active assets, and enabled the weekday user timer (09:45, 10:00–15:45, 16:00–20:45 ET).
+
+- Added post-close quantitative corroboration: bounded equity-return and quality-gated options-position z-score executions persist immutable algorithm results after options capture; failures remain isolated from canonical Market State. Assets now show the latest per-symbol quantitative observations as a separate research-only panel.
+
+- Added the persisted quantitative asset-series endpoint and dual-axis Asset chart: EOD close on the left axis, call/put OI and volume ratios on the right, explicit 1.0 baseline, 10/30/60 trading-day windows, and severity/adjudication-colored platform markers. The chart is read-only, leaves sparse evidence as gaps, and does not alter deterministic hypotheses or recommendations.
+
+## 2026-07-22 - Persisted Market Quote Cache
+
+- Added `marketops_asset_quote_cache` and seeded it from the latest persisted intraday values for all active assets, enabling immediate quote display including after-hours EOD context.
+- The intraday monitor atomically overwrites cache rows with each successful Massive-derived quote and records regular or extended session state.
+- The Assets quote endpoint is database-backed only; it never invokes Massive. TanStack Query keeps the last cache response visible and refetches every 15 minutes.
+- The session-bounded timer runs through 20:00 ET and the worker independently exits outside regular/extended weekday hours, so overnight refreshes make no provider call.
+
+## 2026-07-22 - Focused EOD Quantitative Corroboration
+
+- Replaced the Asset view’s uncurated latest-result list with an asset-scoped, read-only EOD summary: one strongest usable z-score per each of the latest three observed trading dates.
+- The selection uses payload observation date (not batch creation time), rejects partial/all/denominator-zero options-ratio inputs, and ranks usable candidates deterministically by confidence, severity, score, then creation time.
+- All raw platform observations remain immutable. A dedicated Asset Algorithm Evidence tab exposes non-selected z-scores and river, ruptures, and forecast outputs without overloading the analyst’s primary view.
+
+## 2026-07-22 - Asset Intelligence Presentation And Evidence-Maturity Status
+
+- The Assets quote path is cache-only at read time: all 50 active symbols have persisted quote-cache rows, and the intraday monitor is the sole scheduled writer during regular and extended sessions.
+- Reordered the selected-asset analysis flow to place the Overview/Algorithm Evidence controls and Price, sentiment & corroboration chart before Quantitative Corroboration.
+- The chart now presents the analyst-facing put/call volume ratio by inverting the legacy stored call/put distribution value. Below 1.0 is rendered and explained as bullish (calls elevated); above 1.0 as bearish (puts elevated); 1.0 as neutral. No stored options evidence changes.
+- Algorithm Evidence uses the identical put/call interpretation and displays only the five newest non-selected raw platform observations, grouped by payload observation date.
+- Live maturity remains the project constraint: 50 active assets and 50 quote-cache rows exist; 106 Market States include 36 usable/usable-with-warning records; 424 hypothesis evaluations have zero triggers; and no forward outcomes have matured. Continued prospective sessions, genuine triggered evaluations, and 1/5/10/20-session outcome windows are required before effectiveness or promotion claims.

@@ -43,6 +43,7 @@ import {
   type MarketOpsHypothesisEvaluationStateView,
 } from '../lib/marketopsState';
 import { useTenant } from '../auth/session';
+import { activeMarketOpsIndicators, type MarketOpsActiveIndicator } from '../lib/marketopsActiveIndicators';
 import type { MarketOpsHypothesisDefinition } from '../types';
 
 // G147 Market State analyst experience (read-only composition over G136-G146).
@@ -508,7 +509,7 @@ function TransitionRow({ transition }: { transition: MarketOpsStateTransitionVie
   );
 }
 
-// Hypotheses: one bounded definition/evaluation/lineage/transition composition.
+// Hypotheses: a bounded, asset-specific composition over persisted state evidence.
 function HypothesesTab({
   tenantId,
   selectedState,
@@ -522,6 +523,7 @@ function HypothesesTab({
   hypothesisVersion: string;
   onSelectHypothesis: (key: string, version: string) => void;
 }) {
+  const [selectedIndicatorKey, setSelectedIndicatorKey] = useState('');
   const defsQ = useMarketOpsHypothesesList({ tenant_id: tenantId, limit: 200 });
   const evalsQ = useMarketOpsHypothesisEvaluations(
     { tenant_id: tenantId, market_state_id: selectedState.marketStateId, limit: 200 },
@@ -537,9 +539,30 @@ function HypothesesTab({
   const observations = (lineageQ.data?.lineage.feature_observations ?? []).map(summarizeMarketOpsFeatureObservation);
   const transitions = (transitionsQ.data?.transitions ?? []).map(summarizeMarketOpsStateTransition);
   const evalByKey = new Map(evals.map((evaluation) => [`${evaluation.hypothesisKey}:${evaluation.hypothesisVersion}`, evaluation]));
+  const activeIndicators = activeMarketOpsIndicators(observations, transitions);
+  const triggeredDefinitions = defs.filter((definition) => {
+    const evaluation = evalByKey.get(`${definition.hypothesis_key}:${definition.hypothesis_version}`);
+    return !!evaluation && evaluation.triggered && !evaluation.invalidated;
+  });
   const selected = hypothesisKey
     ? defs.find((definition) => definition.hypothesis_key === hypothesisKey && definition.hypothesis_version === hypothesisVersion) ?? null
     : null;
+  const selectedIndicator = selectedIndicatorKey
+    ? activeIndicators.find((indicator) => indicator.key === selectedIndicatorKey) ?? null
+    : null;
+  const hasSelection = selected !== null || selectedIndicator !== null;
+  const clearSelection = () => {
+    setSelectedIndicatorKey('');
+    onSelectHypothesis('', '');
+  };
+  const selectIndicator = (indicator: MarketOpsActiveIndicator) => {
+    setSelectedIndicatorKey(indicator.key);
+    onSelectHypothesis('', '');
+  };
+  const selectHypothesis = (definition: MarketOpsHypothesisDefinition) => {
+    setSelectedIndicatorKey('');
+    onSelectHypothesis(definition.hypothesis_key, definition.hypothesis_version);
+  };
 
   if (defsQ.isLoading || evalsQ.isLoading || lineageQ.isLoading || transitionsQ.isLoading) {
     return <LoadingState label="Loading hypothesis workbench..." />;
@@ -551,48 +574,92 @@ function HypothesesTab({
 
   return (
     <div className="flex flex-col gap-3 lg:flex-row">
-      <div className={`${selected ? 'hidden lg:block' : ''} lg:w-2/5 lg:min-w-[360px]`}>
-        <div className="space-y-1">
-          {defs.length === 0 ? (
-            <EmptyState message="No hypothesis definitions." />
-          ) : (
-            defs.map((definition) => {
-              const evaluation = evalByKey.get(`${definition.hypothesis_key}:${definition.hypothesis_version}`);
-              const isSelected = selected?.hypothesis_key === definition.hypothesis_key && selected?.hypothesis_version === definition.hypothesis_version;
-              return (
-                <button
-                  key={`${definition.hypothesis_key}:${definition.hypothesis_version}`}
-                  type="button"
-                  onClick={() => onSelectHypothesis(definition.hypothesis_key, definition.hypothesis_version)}
-                  className={`w-full rounded border p-2 text-left ${isSelected ? 'border-brand-400 bg-brand-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium text-gray-800">{definition.title || definition.hypothesis_key}</span>
-                    {evaluation ? <Badge tone={qualityStateStyle(evaluation.invalidated ? 'unusable' : evaluation.triggered ? 'usable' : 'degraded')}>{evaluation.invalidated ? 'invalidated' : evaluation.triggered ? 'triggered' : evaluation.eligible ? 'eligible' : 'ineligible'}</Badge> : <span className="text-[11px] text-gray-400">not evaluated</span>}
-                  </div>
-                  <div className="text-[11px] text-gray-500">{definition.hypothesis_key} v{definition.hypothesis_version} · {definition.domain || '—'} · {definition.lifecycle_status || '—'}</div>
-                </button>
-              );
-            })
-          )}
+      <div className={`${hasSelection ? 'hidden lg:block' : ''} lg:w-2/5 lg:min-w-[360px]`}>
+        <div className="mb-2">
+          <div className="text-xs font-semibold text-gray-700">Active indicators</div>
+          <div className="text-[11px] text-gray-500">Current conditions for {selectedState.symbol || 'this asset'} only. Select a card for its evidence.</div>
         </div>
+        <div className="space-y-1">
+          {!activeIndicators.length ? <EmptyState message="No active indicators for this asset/session." /> : activeIndicators.map((indicator) => (
+            <button
+              key={indicator.key}
+              type="button"
+              onClick={() => selectIndicator(indicator)}
+              className={`w-full rounded border p-2 text-left ${selectedIndicator?.key === indicator.key ? 'border-brand-400 bg-brand-50' : 'border-gray-200 bg-white'} hover:bg-gray-50`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-gray-800">{indicator.title}</span>
+                <Badge tone={indicator.tone === 'positive' ? qualityStateStyle('usable') : indicator.tone === 'negative' ? qualityStateStyle('unusable') : qualityStateStyle('degraded')}>active</Badge>
+              </div>
+              <div className="mt-1 text-[11px] text-gray-600">{indicator.detail}</div>
+            </button>
+          ))}
+        </div>
+        {triggeredDefinitions.length ? (
+          <div className="mt-4">
+            <div className="mb-2 text-xs font-semibold text-gray-700">Triggered research hypotheses</div>
+            <div className="space-y-1">{triggeredDefinitions.map((definition) => (
+              <button key={`${definition.hypothesis_key}:${definition.hypothesis_version}`} type="button" onClick={() => selectHypothesis(definition)} className={`w-full rounded border p-2 text-left ${selected?.hypothesis_key === definition.hypothesis_key && selected?.hypothesis_version === definition.hypothesis_version ? 'border-brand-400 bg-brand-50' : 'border-gray-200 bg-white'} hover:bg-gray-50`}>
+                <div className="flex items-center justify-between gap-2"><span className="text-xs font-medium text-gray-800">{definition.title || definition.hypothesis_key}</span><Badge tone={qualityStateStyle('usable')}>triggered</Badge></div>
+                <div className="mt-1 text-[11px] text-gray-600">{definition.description || 'Research hypothesis with its required evidence satisfied.'}</div>
+              </button>
+            ))}</div>
+          </div>
+        ) : null}
       </div>
-      <div className={`${selected ? '' : 'hidden lg:block'} flex-1`}>
+      <div className={`${hasSelection ? '' : 'hidden lg:block'} flex-1`}>
         {selected ? (
           <div className="space-y-2">
-            <button type="button" onClick={() => onSelectHypothesis('', '')} className={`${inputCls} bg-white lg:hidden`}>Back to hypotheses</button>
-            <HypothesisDetail
-              tenantId={tenantId}
-              definition={selected}
-              evaluation={evalByKey.get(`${selected.hypothesis_key}:${selected.hypothesis_version}`) ?? null}
-              observations={observations}
-              transitions={transitions}
-            />
+            <button type="button" onClick={clearSelection} className={`${inputCls} bg-white lg:hidden`}>Back to hypotheses</button>
+            <HypothesisDetail tenantId={tenantId} definition={selected} evaluation={evalByKey.get(`${selected.hypothesis_key}:${selected.hypothesis_version}`) ?? null} observations={observations} transitions={transitions} />
           </div>
+        ) : selectedIndicator ? (
+          <ActiveIndicatorDetail indicator={selectedIndicator} onBack={clearSelection} />
         ) : (
-          <div className="rounded border border-gray-200 bg-white p-3"><EmptyState message="Select a hypothesis to inspect." /></div>
+          <div className="rounded border border-gray-200 bg-white p-3"><EmptyState message="Select an active indicator to inspect." /></div>
         )}
       </div>
+    </div>
+  );
+}
+
+type ActiveIndicatorInsight = {
+  evidence: string;
+  source: string;
+  interpretation: string;
+  analystQuestion: string;
+};
+
+function activeIndicatorInsight(indicator: MarketOpsActiveIndicator): ActiveIndicatorInsight {
+  const base = { evidence: indicator.detail, source: 'Persisted usable Market State evidence', interpretation: '', analystQuestion: '' };
+  switch (indicator.key) {
+    case 'gap_up': return { ...base, source: 'Feature: gap_pct · opening price versus prior completed close', interpretation: 'The asset opened materially above its prior close, indicating an overnight repricing rather than an ordinary intraday drift.', analystQuestion: 'Check whether the gap holds through the session and whether volume confirms participation.' };
+    case 'gap_down': return { ...base, source: 'Feature: gap_pct · opening price versus prior completed close', interpretation: 'The asset opened materially below its prior close, a downside overnight repricing that warrants follow-through analysis.', analystQuestion: 'Check whether the gap stabilizes, fills, or expands with volume.' };
+    case 'overbought': return { ...base, source: 'Feature: rsi_14 · 14-session relative-strength calculation', interpretation: 'Momentum has reached the upper display threshold; this is a condition to inspect, not a prediction of reversal.', analystQuestion: 'Compare price extension, volume, and catalyst evidence before treating momentum as exhausted.' };
+    case 'oversold': return { ...base, source: 'Feature: rsi_14 · 14-session relative-strength calculation', interpretation: 'Momentum has reached the lower display threshold; this is a condition to inspect, not a prediction of rebound.', analystQuestion: 'Check whether selling pressure is decelerating and whether price is holding a meaningful level.' };
+    case 'extended_above_sma': return { ...base, source: 'Feature: distance_sma_20_pct · close relative to 20-session SMA', interpretation: 'Price is materially extended above its recent trend reference.', analystQuestion: 'Assess whether the extension is supported by volume and a durable catalyst.' };
+    case 'extended_below_sma': return { ...base, source: 'Feature: distance_sma_20_pct · close relative to 20-session SMA', interpretation: 'Price is materially extended below its recent trend reference.', analystQuestion: 'Assess whether the decline is trend continuation or a potentially exhausted dislocation.' };
+    case 'unusual_volume': return { ...base, source: 'Feature: volume_ratio_20d · session volume versus 20-session average', interpretation: 'Participation is above its recent baseline, making the accompanying price move more analytically relevant.', analystQuestion: 'Identify the catalyst and whether volume is concentrated in directional moves.' };
+    case 'elevated_range': return { ...base, source: 'Feature: atr_14_pct · 14-session average true range as a percent of close', interpretation: 'Typical daily movement is elevated relative to price, increasing uncertainty and the importance of range management.', analystQuestion: 'Check whether the wider range is event-driven, persistent, or reverting.' };
+    case 'iv_premium': return { ...base, source: 'Feature: iv_rv_ratio_20d · 30-day ATM implied volatility versus 20-day realized volatility', interpretation: 'Options are pricing volatility above the asset’s recent realized movement.', analystQuestion: 'Look for upcoming catalysts, skew, and whether realized volatility is beginning to catch up.' };
+    case 'iv_backwardation': return { ...base, source: 'Feature: term_structure_state · near-term versus longer-dated ATM implied volatility', interpretation: 'Near-term options imply more volatility than longer-dated options, often concentrating attention on a nearer catalyst or uncertainty.', analystQuestion: 'Identify the dated event or risk the near-term curve is pricing.' };
+    case 'put_oi_skew': return { ...base, source: 'Feature: put_call_oi_ratio · aggregate put versus call open interest', interpretation: 'Put open interest is elevated relative to calls; positioning context is asymmetric but not directional proof.', analystQuestion: 'Inspect expiry concentration and whether the skew is new or longstanding.' };
+    case 'call_oi_skew': return { ...base, source: 'Feature: put_call_oi_ratio · aggregate put versus call open interest', interpretation: 'Call open interest is elevated relative to puts; positioning context is asymmetric but not directional proof.', analystQuestion: 'Inspect expiry concentration and whether the skew is new or longstanding.' };
+    case 'put_volume_skew': return { ...base, source: 'Feature: put_call_volume_ratio · session put versus call volume', interpretation: 'Put trading activity is elevated relative to calls for this session.', analystQuestion: 'Determine whether activity appears protective, speculative, or part of a spread.' };
+    case 'call_volume_skew': return { ...base, source: 'Feature: put_call_volume_ratio · session put versus call volume', interpretation: 'Call trading activity is elevated relative to puts for this session.', analystQuestion: 'Determine whether activity appears directional, covered, or part of a spread.' };
+    default: return { ...base, source: 'Transition: oi_change_1d · persisted change with rarity statistics', interpretation: 'Open interest changed by an amount that is statistically unusual for this asset’s recorded transition history.', analystQuestion: 'Locate the expiry and strike concentration before assigning directional meaning.' };
+  }
+}
+
+function ActiveIndicatorDetail({ indicator, onBack }: { indicator: MarketOpsActiveIndicator; onBack: () => void }) {
+  const insight = activeIndicatorInsight(indicator);
+  return (
+    <div className="space-y-3 rounded border border-gray-200 bg-white p-3">
+      <button type="button" onClick={onBack} className={`${inputCls} bg-white lg:hidden`}>Back to hypotheses</button>
+      <div><div className="text-xs font-semibold text-gray-700">{indicator.title}</div><div className="mt-1 text-xs text-gray-700">{insight.evidence}</div></div>
+      <Section title="Observed evidence"><div className="space-y-1 text-xs text-gray-700"><div><span className="font-medium">Observed:</span> {insight.evidence}</div><div><span className="font-medium">Source:</span> {insight.source}</div></div></Section>
+      <Section title="What this means"><p className="text-xs text-gray-700">{insight.interpretation}</p></Section>
+      <Section title="Analyst next question"><p className="text-xs text-gray-700">{insight.analystQuestion}</p></Section>
     </div>
   );
 }

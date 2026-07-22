@@ -584,6 +584,33 @@ export interface MarketOpsAssetsResponse {
   assets: MarketOpsAsset[];
 }
 
+export interface MarketOpsAssetQuote {
+  ticker: string;
+  price?: number | null;
+  previous_close?: number | null;
+  change?: number | null;
+  change_percent?: number | null;
+  week52_low?: number | null;
+  week52_high?: number | null;
+  timestamp?: string | null;
+  market_status?: string | null;
+  stale?: boolean;
+  error?: string | null;
+}
+
+export interface MarketOpsAssetQuotesResponse {
+  quotes: MarketOpsAssetQuote[];
+  refreshed_at?: string | null;
+}
+
+export interface MarketOpsIntradayCondition {
+  key: string; title: string; tone: "positive" | "negative" | "neutral" | string; score: number; evidence: string; interpretation: string; analyst_question: string;
+}
+export interface MarketOpsIntradayConditionSnapshot {
+  snapshot_id: string; ticker: string; as_of_time: string; market_status: string; stale: boolean; conditions: MarketOpsIntradayCondition[]; source: Record<string, unknown>; created_at: string;
+}
+export interface MarketOpsIntradayConditionsResponse { snapshots: MarketOpsIntradayConditionSnapshot[]; }
+
 export interface MarketOpsAssetFilter {
   tenant_id?: string;
   universe_group?: string;
@@ -2597,3 +2624,12 @@ export interface AlgorithmSignalMaterializationFilter {
   signal_id?: string;
   limit?: number;
 }
+
+export interface MarketOpsAlgorithmAdjudication { adjudication_id:string; tenant_id:string; hypothesis_evaluation_id:string; algorithm_result_id:string; hypothesis_key:string; hypothesis_version:string; symbol:string; session_date:string; verdict:'confirmed'|'contradicted'|'inconclusive'; confidence:number; explanation:unknown; correlation_id:string; adjudicator_version:string; created_at:string; }
+export interface MarketOpsAlgorithmAdjudicationFilter { tenant_id?:string; symbol?:string; hypothesis_evaluation_id?:string; correlation_id?:string; limit?:number; }
+export interface MarketOpsAlgorithmAdjudicationsResponse { algorithm_adjudications:MarketOpsAlgorithmAdjudication[]; }
+
+export interface MarketOpsQuantitativeSeriesPoint { trade_date:string; eod_close?:number; daily_move_pct?:number; call_put_open_interest_ratio?:number; call_put_volume_ratio?:number; ratio_quality?:string; markers:Array<{algorithm_result_id:string;algorithm_id:string;severity:string;score:number;confidence:number;direction?:string;adjudications?:Array<{verdict:string;hypothesis_key:string}>}>; }
+export interface MarketOpsQuantitativeSeriesResponse { symbol:string; window:string; points:MarketOpsQuantitativeSeriesPoint[]; }
+export interface MarketOpsEODZScore { trade_date:string; algorithm_result:AlgorithmResult | null; status:'selected' | 'no_usable_zscore'; reason?:string; }
+export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; }
