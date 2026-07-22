@@ -4,7 +4,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
 import { DashboardStreamBridge } from './components/DashboardStreamBridge';
 import { AuthProvider, useAuth } from './auth/session';
-import { AuthCallbackProcessor, LoginScreen } from './auth/LoginScreen';
+import { AuthCallbackProcessor, LoginScreen, SilentRenewProcessor } from './auth/LoginScreen';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,6 +14,10 @@ const queryClient = new QueryClient({
 
 function isCallbackRoute(): boolean {
   return typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/callback');
+}
+
+function isSilentRenewRoute(): boolean {
+  return typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/silent-renew');
 }
 
 // App-level auth gate. When auth is enabled, no protected route — and therefore no protected
@@ -40,6 +44,9 @@ function RootGate() {
   }
   if (isCallbackRoute()) {
     return <AuthCallbackProcessor />;
+  }
+  if (isSilentRenewRoute()) {
+    return <SilentRenewProcessor />;
   }
   if (session.loading) {
     return <LoginScreen loading />;

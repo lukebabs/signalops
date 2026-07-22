@@ -12,11 +12,12 @@ export function createUserManager(): UserManager {
     client_id: authConfig.clientId,
     redirect_uri: `${currentOrigin()}/auth/callback`,
     post_logout_redirect_uri: currentOrigin(),
+    silent_redirect_uri: `${currentOrigin()}/auth/silent-renew`,
     response_type: 'code',
     scope: 'openid profile email',
     // Keycloak: request the signalops-api audience in the issued access token.
     extraQueryParams: { resource: authConfig.audience },
-    automaticSilentRenew: true,
+    automaticSilentRenew: false,
     loadUserInfo: true,
   });
 }

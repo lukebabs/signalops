@@ -59,6 +59,9 @@ OIDC settings:
 - Direct Access Grants disabled.
 - Implicit Flow disabled.
 - Service Accounts disabled.
+- Register both `https://signalops.syncratic.io/auth/callback` and
+  `https://signalops.syncratic.io/auth/silent-renew` as valid redirect URIs
+  (use the corresponding exact public origin for each environment).
 
 Token claims expected:
 
@@ -312,6 +315,33 @@ Add an SPA route for callback handling:
 ```text
 /auth/callback
 ```
+
+Also add a silent-renew callback route:
+
+```text
+/auth/silent-renew
+```
+
+It is loaded in a hidden iframe only when the IdP does not issue a refresh token.
+It must complete `signinSilentCallback()` and must remain an allowed redirect URI.
+
+### Session inactivity and renewal
+
+A signed-in session remains valid while the operator is active. Pointer, keyboard,
+scroll, touch, and window-focus activity reset the inactivity clock. The frontend
+renews a near-expiry access token while that clock is active, but renewal does not
+reset the clock. At the configured idle threshold it removes the local user and
+requires a new sign-in.
+
+Build-time settings:
+
+```text
+VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES=30
+VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS=300
+```
+
+The IdP session idle/max settings remain authoritative and must allow at least the
+chosen inactivity duration.
 
 Callback route requirements:
 

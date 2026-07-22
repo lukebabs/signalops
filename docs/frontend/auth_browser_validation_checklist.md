@@ -67,6 +67,12 @@ Record the result (pass/fail + notes) for the audit.
       alarm.
 - [ ] **Sign out** redirects through the IdP logout flow, clears the session and
       query cache, and returns to the Sign in screen.
+- [ ] Leave the app idle longer than `VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES`; the
+      next activity requires a new sign-in and no background renewal extends that
+      idle period.
+- [ ] Keep the app active across an access-token expiry; it continues without a
+      login interruption (verify the IdP allows `/auth/silent-renew` when a
+      refresh token is unavailable).
 - [ ] After sign out, `/healthz`/`/readyz` remain reachable and no protected
       `/v1/*` request fires before the next sign in.
 

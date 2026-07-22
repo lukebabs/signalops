@@ -4,6 +4,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -48,6 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(authConfig.authEnabled);
   const [error, setError] = useState<string | null>(null);
+  const userRef = useRef<User | null>(null);
+  const renewingRef = useRef(false);
+  const lastActivityRef = useRef(Date.now());
 
   useEffect(() => {
     if (!authConfig.authEnabled) {
@@ -55,33 +59,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     const manager = getUserManager();
+    const idleTimeoutMs = authConfig.idleTimeoutMinutes * 60_000;
     let cancelled = false;
-    void (async () => {
-      try {
-        const u = await manager.getUser();
-        if (cancelled) return;
-        setUser(u);
-        currentAccessToken = u?.access_token ?? null;
-      } catch (e) {
-        if (!cancelled) setError(errMsg(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    const onLoaded = (u: User) => {
+    const applyUser = (u: User) => {
+      userRef.current = u;
       setUser(u);
       currentAccessToken = u.access_token;
     };
+    // Loading a renewed token must not itself count as user activity. Otherwise
+    // a background renewal would keep an unattended session alive forever.
+    const onLoaded = (u: User) => applyUser(u);
     const onUnloaded = () => {
+      userRef.current = null;
       setUser(null);
       currentAccessToken = null;
     };
+    const renew = async () => {
+      if (renewingRef.current) return;
+      renewingRef.current = true;
+      try {
+        const renewed = await manager.signinSilent();
+        if (renewed) applyUser(renewed);
+      } catch (e) {
+        if (!cancelled) setError(`Session renewal failed: ${errMsg(e)}`);
+      } finally {
+        renewingRef.current = false;
+      }
+    };
+    const maintainSession = () => {
+      const active = userRef.current;
+      if (!active) return;
+      if (Date.now() - lastActivityRef.current >= idleTimeoutMs) {
+        void manager.removeUser();
+        return;
+      }
+      if (active.expires_in == null || active.expires_in <= authConfig.renewBeforeExpirySeconds) void renew();
+    };
+    const recordActivity = () => {
+      lastActivityRef.current = Date.now();
+      maintainSession();
+    };
+    void (async () => {
+      try {
+        const u = await manager.getUser();
+        if (!cancelled) {
+          if (u) {
+            // Restoring the application is an active visit; subsequent token
+            // renewals retain this timestamp until the user interacts again.
+            lastActivityRef.current = Date.now();
+            applyUser(u);
+          }
+          setLoading(false);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(errMsg(e));
+          setLoading(false);
+        }
+      }
+    })();
     const onSilentError = (e: Error) => setError(e.message);
     manager.events.addUserLoaded(onLoaded);
     manager.events.addUserUnloaded(onUnloaded);
     manager.events.addSilentRenewError(onSilentError);
+    const activityEvents: Array<keyof DocumentEventMap> = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+    activityEvents.forEach((event) => document.addEventListener(event, recordActivity, { passive: true }));
+    window.addEventListener('focus', recordActivity);
+    const sessionTimer = window.setInterval(maintainSession, 15_000);
     return () => {
       cancelled = true;
+      window.clearInterval(sessionTimer);
+      window.removeEventListener('focus', recordActivity);
+      activityEvents.forEach((event) => document.removeEventListener(event, recordActivity));
       manager.events.removeUserLoaded(onLoaded);
       manager.events.removeUserUnloaded(onUnloaded);
       manager.events.removeSilentRenewError(onSilentError);
@@ -108,6 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // (AuthCallbackProcessor) can surface the IdP/PKCE error.
   const finishCallback = useCallback(async () => {
     const u = await getUserManager().signinRedirectCallback();
+    userRef.current = u;
+    lastActivityRef.current = Date.now();
     setUser(u);
     currentAccessToken = u?.access_token ?? null;
     return consumeRedirectPath();

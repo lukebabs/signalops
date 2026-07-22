@@ -9,6 +9,8 @@ describe('auth config', () => {
     expect(c.clientId).toBe('signalops-web');
     expect(c.audience).toBe('signalops-api');
     expect(c.realm).toBe('syncratic');
+    expect(c.idleTimeoutMinutes).toBe(30);
+    expect(c.renewBeforeExpirySeconds).toBe(300);
   });
 
   it('enables auth only for the literal "true" (case-insensitive)', () => {
@@ -26,6 +28,8 @@ describe('auth config', () => {
       VITE_SIGNALOPS_AUTH_CLIENT_ID: 'cid',
       VITE_SIGNALOPS_AUTH_AUDIENCE: 'aud',
       VITE_SIGNALOPS_AUTH_REALM: 'x',
+      VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES: '45',
+      VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS: '120',
     });
     expect(c).toEqual({
       authEnabled: true,
@@ -33,6 +37,8 @@ describe('auth config', () => {
       clientId: 'cid',
       audience: 'aud',
       realm: 'x',
+      idleTimeoutMinutes: 45,
+      renewBeforeExpirySeconds: 120,
     });
   });
 });

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Activity, LogIn } from 'lucide-react';
 import { LoadingState, ErrorState } from '../components/States';
 import { useAuth } from './session';
+import { getUserManager } from './oidc';
 
 // Compact sign-in screen reusing the shell visual language. One primary action (redirect to IdP).
 export function LoginScreen({
@@ -74,4 +75,13 @@ export function AuthCallbackProcessor() {
       onSignIn={error ? () => window.location.assign('/') : undefined}
     />
   );
+}
+
+// Used only inside oidc-client-ts's hidden iframe when the IdP does not issue
+// a refresh token. The callback returns the authorization response to its parent.
+export function SilentRenewProcessor() {
+  useEffect(() => {
+    void getUserManager().signinSilentCallback();
+  }, []);
+  return <div aria-live="polite" className="sr-only">Refreshing session…</div>;
 }

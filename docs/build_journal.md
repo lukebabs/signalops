@@ -7721,3 +7721,9 @@ Result:
 - The chart now presents the analyst-facing put/call volume ratio by inverting the legacy stored call/put distribution value. Below 1.0 is rendered and explained as bullish (calls elevated); above 1.0 as bearish (puts elevated); 1.0 as neutral. No stored options evidence changes.
 - Algorithm Evidence uses the identical put/call interpretation and displays only the five newest non-selected raw platform observations, grouped by payload observation date.
 - Live maturity remains the project constraint: 50 active assets and 50 quote-cache rows exist; 106 Market States include 36 usable/usable-with-warning records; 424 hypothesis evaluations have zero triggers; and no forward outcomes have matured. Continued prospective sessions, genuine triggered evaluations, and 1/5/10/20-session outcome windows are required before effectiveness or promotion claims.
+
+## 2026-07-22 - Activity-Based Browser Session Renewal
+
+- Replaced fixed-lifetime browser behavior with an activity-aware local session policy. The default local idle timeout is 30 minutes and is configurable through `VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES`.
+- Active sessions renew access tokens within the configurable five-minute pre-expiry window; renewal uses a refresh token when granted and otherwise the new silent OIDC callback route at `/auth/silent-renew`.
+- Inactivity clears only the local SPA user/token after the configured period. Provider-side Keycloak maximum session and idle policies remain the final authority and must allow the registered silent callback URI.
