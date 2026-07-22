@@ -77,6 +77,7 @@ const (
 	RiverAnomalyAlgorithmID        = "signalops.algorithms.river_anomaly_v1"
 	RupturesChangePointAlgorithmID = "signalops.algorithms.ruptures_change_point_v1"
 	StatsmodelsForecastAlgorithmID = "signalops.algorithms.statsmodels_forecast_v1"
+	RiskRewardTemporalAlgorithmID = "signalops.algorithms.risk_reward_temporal_v1"
 	SklearnClassifierAlgorithmID   = "signalops.algorithms.sklearn_classifier_v1"
 	SklearnIsolationForestID       = "signalops.algorithms.sklearn_isolation_forest_v1"
 	DefaultAlgorithmVersion        = "v1"
@@ -86,6 +87,7 @@ const (
 type Repository interface {
 	storage.AlgorithmRepository
 	ListMarketOpsBacktestNormalizedEvents(ctx context.Context, filter storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error)
+	ListMarketOpsFeatureObservations(ctx context.Context, filter storage.MarketOpsFeatureObservationFilter) ([]storage.MarketOpsFeatureObservationRecord, error)
 }
 
 type Config struct {
@@ -195,6 +197,9 @@ func executeAlgorithm(ctx context.Context, repo Repository, cfg Config, metrics 
 	if !supportedAlgorithm(cfg.AlgorithmID) {
 		return fmt.Errorf("unsupported algorithm_id %q", cfg.AlgorithmID)
 	}
+	if cfg.AlgorithmID == RiskRewardTemporalAlgorithmID {
+		return executeRiskReward(ctx, repo, cfg, metrics)
+	}
 	events, err := scanEvents(ctx, repo, cfg)
 	if err != nil {
 		return err
@@ -249,6 +254,29 @@ func executeAlgorithm(ctx context.Context, repo Repository, cfg Config, metrics 
 			return err
 		}
 		metrics.Results++
+	}
+	return nil
+}
+
+func executeRiskReward(ctx context.Context, repo Repository, cfg Config, metrics *Metrics) error {
+	if len(cfg.Symbols) == 0 { return errors.New("risk/reward algorithm requires explicit symbols") }
+	for _, symbol := range cfg.Symbols {
+		observations, err := repo.ListMarketOpsFeatureObservations(ctx, storage.MarketOpsFeatureObservationFilter{TenantID: cfg.TenantID, AppID: "marketops", Symbol: symbol, SessionStart: cfg.WindowStart, SessionEnd: cfg.WindowEnd, Limit: 1000})
+		if err != nil { return err }
+		bySession := map[string][]storage.MarketOpsFeatureObservationRecord{}
+		for _, observation := range observations { bySession[observation.SessionDate.UTC().Format("2006-01-02")] = append(bySession[observation.SessionDate.UTC().Format("2006-01-02")], observation) }
+		dates := make([]string, 0, len(bySession)); for day := range bySession { dates = append(dates, day) }; sort.Strings(dates)
+		points := make([]map[string]any, 0, len(dates)); byID := map[string]sample{}
+		for _, day := range dates {
+			rows := bySession[day]; values := map[string]any{}; ids, refs := []string{}, []string{}; var at time.Time
+			for _, row := range rows { if row.NumericValue != nil && (row.QualityState == storage.MarketOpsQualityUsable || row.QualityState == storage.MarketOpsQualityUsableWithWarning) { values[row.FeatureKey] = *row.NumericValue; ids = append(ids, row.FeatureObservationID); refs = append(refs, row.SourceEventIDs...) }; if row.AsOfTime.After(at) { at = row.AsOfTime } }
+			if len(rows) == 0 { continue }; eventID := rows[0].FeatureObservationID; if eventID == "" { eventID = rows[0].FeatureObservationID }; event := storage.NormalizedEventLedgerRecord{EventID: eventID, TenantID: cfg.TenantID, AppID: "marketops", Dataset: "marketops_feature_vectors_daily", ObservationTime: at}; byID[eventID] = sample{event: event, symbol: symbol}; points = append(points, map[string]any{"event_id": eventID, "symbol": symbol, "observation_time": at.UTC().Format(time.RFC3339Nano), "features": values, "feature_value_ids": ids, "evidence_refs": refs})
+		}
+		metrics.Scanned += len(points); metrics.UsableSamples += len(points); if len(points) == 0 { continue }
+		request, _ := json.Marshal(map[string]any{"schema_version": "signalops.platform_algorithm_execution.v2", "algorithm_id": cfg.AlgorithmID, "algorithm_version": cfg.AlgorithmVersion, "config": map[string]any{}, "points": points})
+		command := exec.CommandContext(ctx, "python", "-m", "signalops_algorithms.runner"); command.Stdin = strings.NewReader(string(request)); output, err := command.Output(); if err != nil { return fmt.Errorf("run python risk/reward algorithm: %w", err) }
+		var response pythonRuntimeResponse; if err := json.Unmarshal(output, &response); err != nil { return err }
+		for _, item := range response.Results { source, ok := byID[item.SourceEventID]; if !ok { return fmt.Errorf("risk/reward returned unknown source %s", item.SourceEventID) }; rec, err := algorithmResult(cfg, scoredSample{sample: source, resultType: item.ResultType, score: item.Score, confidence: item.Confidence, severity: item.Severity, payload: item.Payload}); if err != nil { return err }; if err := repo.InsertAlgorithmResult(ctx, rec); err != nil { return err }; metrics.Results++ }
 	}
 	return nil
 }
@@ -357,7 +385,7 @@ func scoreIsolation(cfg Config, samples []sample) []scoredSample {
 
 func supportedAlgorithm(algorithmID string) bool {
 	switch algorithmID {
-	case ZScoreAnomalyAlgorithmID, RiverAnomalyAlgorithmID, RupturesChangePointAlgorithmID, StatsmodelsForecastAlgorithmID, SklearnClassifierAlgorithmID, SklearnIsolationForestID:
+	case ZScoreAnomalyAlgorithmID, RiverAnomalyAlgorithmID, RupturesChangePointAlgorithmID, StatsmodelsForecastAlgorithmID, SklearnClassifierAlgorithmID, SklearnIsolationForestID, RiskRewardTemporalAlgorithmID:
 		return true
 	default:
 		return false

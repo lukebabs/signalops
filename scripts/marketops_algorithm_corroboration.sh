@@ -45,6 +45,14 @@ for platform_algorithm in signalops.algorithms.river_anomaly_v1 signalops.algori
   done
 done
 
+# Research-only multi-feature technical posture; put/call is corroboration only.
+risk_reward_start="$(date -u -d "${session_date} - 400 days" '+%Y-%m-%d')T00:00:00Z"
+for symbol in "${symbol_list[@]}"; do
+  if ! docker compose --profile marketops-daily run --rm algorithm-runner --execution-request-id "${run_prefix}-risk-reward-${symbol}" --tenant-id tenant-local --algorithm-id signalops.algorithms.risk_reward_temporal_v1 --correlation-id "$run_prefix" --dataset marketops_feature_vectors_daily --feature risk_reward_technical_score --symbols "$symbol" --window-start "$risk_reward_start" --window-end "$window_end" --max-records 500 --batch-size 500 --min-samples 2 --z-threshold 3.0; then
+    printf 'risk/reward execution failed: %s\n' "$symbol" >&2
+    failures=$((failures + 1))
+  fi
+done
 if ! docker compose --profile marketops-daily run --rm marketops-algorithm-adjudicator --tenant-id tenant-local --correlation-id "$run_prefix"; then
   printf 'algorithm adjudication failed: %s\n' "$run_prefix" >&2
   failures=$((failures + 1))

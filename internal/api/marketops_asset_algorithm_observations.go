@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -12,12 +13,14 @@ import (
 )
 
 const zscoreAlgorithmID = "signalops.algorithms.zscore_anomaly_v1"
+const riskRewardAlgorithmID = "signalops.algorithms.risk_reward_temporal_v1"
 
 var marketOpsPlatformAlgorithmIDs = map[string]struct{}{
 	zscoreAlgorithmID:                               {},
 	"signalops.algorithms.river_anomaly_v1":         {},
 	"signalops.algorithms.ruptures_change_point_v1": {},
 	"signalops.algorithms.statsmodels_forecast_v1":  {},
+	riskRewardAlgorithmID: {},
 }
 
 type marketOpsAssetAlgorithmObservationReader interface {
@@ -49,10 +52,12 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo s
 			return
 		}
 		eod, other := curateAssetAlgorithmObservations(results, symbol)
+		riskReward := curateRiskRewardObservations(results, symbol)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"symbol":        symbol,
 			"eod_zscores":   eod,
 			"other_outputs": algorithmResultResponses(other),
+			"risk_reward": riskReward,
 		})
 	})
 }
@@ -124,6 +129,21 @@ func curateAssetAlgorithmObservations(results []storage.AlgorithmResultRecord, s
 		return other[i].CreatedAt.After(other[j].CreatedAt)
 	})
 	return eod, other
+}
+
+func curateRiskRewardObservations(results []storage.AlgorithmResultRecord, symbol string) map[string]any {
+	history := make([]map[string]any, 0, 60)
+	for _, result := range results {
+		if result.AlgorithmID != riskRewardAlgorithmID { continue }
+		payload := map[string]any{}; if json.Unmarshal(result.ResultPayloadJSON, &payload) != nil || strings.ToUpper(stringAny(payload["symbol"])) != symbol { continue }
+		if stringAny(payload["observation_time"]) == "" { continue }
+		history = append(history, map[string]any{"algorithm_result_id": result.AlgorithmResultID, "trade_date": observationDate(payload), "score": payload["technical_score"], "direction": payload["technical_direction"], "risk_level": payload["risk_level"], "confidence": result.Confidence, "severity": result.Severity, "technical_factors": payload["technical_factors"], "speculative_corroboration": payload["speculative_corroboration"], "research_only": true})
+	}
+	sort.SliceStable(history, func(i, j int) bool { return fmt.Sprint(history[i]["trade_date"]) > fmt.Sprint(history[j]["trade_date"]) })
+	if len(history) > 60 { history = history[:60] }
+	out := map[string]any{"history": history}
+	if len(history) > 0 { out["latest"] = history[0] }
+	return out
 }
 
 func usableEODZScore(payload map[string]any) bool {

@@ -281,11 +281,12 @@ func underlyingFeatures(history []equityPoint, index int) []featureValue {
 	return []featureValue{
 		returnFeature(history, index, 1), returnFeature(history, index, 5), returnFeature(history, index, 10), returnFeature(history, index, 20),
 		rsiFeature(history, index, 14), smaDistanceFeature(history, index, 20), volumeRatioFeature(history, index, 20), gapFeature(history, index), atrFeature(history, index, 14),
+		rangePositionFeature(history, index, 252), volumeRatioFeature(history, index, 10), smaDistanceFeature(history, index, 50), smaDistanceFeature(history, index, 200), smaSlopeFeature(history, index, 50, 20),
 	}
 }
 
 func missingUnderlyingFeatures() []featureValue {
-	keys := []string{"return_1d", "return_5d", "return_10d", "return_20d", "rsi_14", "distance_sma_20_pct", "volume_ratio_20d", "gap_pct", "atr_14_pct"}
+	keys := []string{"return_1d", "return_5d", "return_10d", "return_20d", "rsi_14", "distance_sma_20_pct", "volume_ratio_20d", "gap_pct", "atr_14_pct", "range_position_252d", "volume_ratio_10d", "distance_sma_50_pct", "distance_sma_200_pct", "sma_50_slope_20d_pct"}
 	out := make([]featureValue, 0, len(keys))
 	for _, key := range keys {
 		out = append(out, missingFeature(key, "no_equity_event_for_session", nil, nil))
@@ -350,8 +351,9 @@ func rsiFeature(history []equityPoint, index, period int) featureValue {
 }
 
 func smaDistanceFeature(history []equityPoint, index, period int) featureValue {
+	key := fmt.Sprintf("distance_sma_%d_pct", period)
 	if index+1 < period {
-		return missingFeature("distance_sma_20_pct", "insufficient_equity_history", map[string]any{"available_sessions": index + 1, "required_sessions": period}, eventIDs(history, 0, index))
+		return missingFeature(key, "insufficient_equity_history", map[string]any{"available_sessions": index + 1, "required_sessions": period}, eventIDs(history, 0, index))
 	}
 	sum := 0.0
 	for i := index - period + 1; i <= index; i++ {
@@ -359,12 +361,37 @@ func smaDistanceFeature(history []equityPoint, index, period int) featureValue {
 	}
 	mean := sum / float64(period)
 	value := (history[index].Close/mean - 1) * 100
-	return usableNumeric("distance_sma_20_pct", round(value, 6), eventIDs(history, index-period+1, index), nil, map[string]any{"lookback_sessions": period})
+	return usableNumeric(key, round(value, 6), eventIDs(history, index-period+1, index), nil, map[string]any{"lookback_sessions": period})
+}
+
+func rangePositionFeature(history []equityPoint, index, period int) featureValue {
+	if index+1 < period {
+		return missingFeature("range_position_252d", "insufficient_equity_history", map[string]any{"available_sessions": index + 1, "required_sessions": period}, eventIDs(history, 0, index))
+	}
+	low, high := history[index-period+1].Low, history[index-period+1].High
+	for i := index - period + 1; i <= index; i++ {
+		if !history[i].Valid { return invalidFeature("range_position_252d", "invalid_equity_history", eventIDs(history, index-period+1, index), nil) }
+		low, high = math.Min(low, history[i].Low), math.Max(high, history[i].High)
+	}
+	if high <= low { return invalidFeature("range_position_252d", "invalid_252_session_range", eventIDs(history, index-period+1, index), nil) }
+	return usableNumeric("range_position_252d", round((history[index].Close-low)/(high-low)*100, 6), eventIDs(history, index-period+1, index), nil, map[string]any{"lookback_sessions": period, "range_low": low, "range_high": high})
+}
+
+func smaSlopeFeature(history []equityPoint, index, period, slopeLookback int) featureValue {
+	key := fmt.Sprintf("sma_%d_slope_%dd_pct", period, slopeLookback)
+	if index+1 < period+slopeLookback {
+		return missingFeature(key, "insufficient_equity_history", map[string]any{"available_sessions": index + 1, "required_sessions": period + slopeLookback}, eventIDs(history, 0, index))
+	}
+	mean := func(end int) float64 { sum := 0.0; for i := end-period+1; i <= end; i++ { sum += history[i].Close }; return sum / float64(period) }
+	prior, current := mean(index-slopeLookback), mean(index)
+	if prior <= 0 { return invalidFeature(key, "non_positive_prior_sma", eventIDs(history, index-period-slopeLookback+1, index), nil) }
+	return usableNumeric(key, round((current/prior-1)*100, 6), eventIDs(history, index-period-slopeLookback+1, index), nil, map[string]any{"sma_sessions": period, "slope_lookback_sessions": slopeLookback})
 }
 
 func volumeRatioFeature(history []equityPoint, index, period int) featureValue {
+	key := fmt.Sprintf("volume_ratio_%dd", period)
 	if index < period {
-		return missingFeature("volume_ratio_20d", "insufficient_equity_history", map[string]any{"available_prior_sessions": index, "required_prior_sessions": period}, eventIDs(history, 0, index))
+		return missingFeature(key, "insufficient_equity_history", map[string]any{"available_prior_sessions": index, "required_prior_sessions": period}, eventIDs(history, 0, index))
 	}
 	sum := 0.0
 	for i := index - period; i < index; i++ {
@@ -372,9 +399,9 @@ func volumeRatioFeature(history []equityPoint, index, period int) featureValue {
 	}
 	mean := sum / float64(period)
 	if mean <= 0 {
-		return invalidFeature("volume_ratio_20d", "non_positive_trailing_volume", eventIDs(history, index-period, index), nil)
+		return invalidFeature(key, "non_positive_trailing_volume", eventIDs(history, index-period, index), nil)
 	}
-	return usableNumeric("volume_ratio_20d", round(history[index].Volume/mean, 6), eventIDs(history, index-period, index), nil, map[string]any{"lookback_sessions": period, "excludes_current_session": true})
+	return usableNumeric(key, round(history[index].Volume/mean, 6), eventIDs(history, index-period, index), nil, map[string]any{"lookback_sessions": period, "excludes_current_session": true})
 }
 
 func gapFeature(history []equityPoint, index int) featureValue {
@@ -652,6 +679,7 @@ func positioningFeatures(config BuildConfig, session time.Time, distribution *st
 			missingFeature("put_call_oi_ratio", "no_options_distribution_for_session", nil, nil),
 			missingFeature("put_call_oi_change_1d", "no_options_distribution_for_session", nil, nil),
 			missingFeature("put_call_volume_ratio", "no_options_distribution_for_session", nil, nil),
+			missingFeature("put_call_volume_ratio_10d_deviation_pct", "no_options_distribution_for_session", nil, nil),
 		}
 	}
 	ref := distributionArtifactID(config, *distribution)
@@ -678,7 +706,22 @@ func positioningFeatures(config BuildConfig, session time.Time, distribution *st
 		volumeRatio.Numeric, volumeRatio.Quality, volumeRatio.QualityScore = floatPtr(round(value, 8)), storage.MarketOpsQualityUsableWithWarning, .75
 		volumeRatio.Details = map[string]any{"quality_warning": "distribution_volume_is_not_open_interest", "put_volume": distribution.TotalPutVolume, "call_volume": distribution.TotalCallVolume}
 	}
-	return []featureValue{oiRatio, oiChange, volumeRatio}
+	deviation := putCallVolumeDeviationFeature(config, session, distributions, volumeRatio)
+	return []featureValue{oiRatio, oiChange, volumeRatio, deviation}
+}
+
+func putCallVolumeDeviationFeature(config BuildConfig, session time.Time, distributions map[string]*storage.MarketOpsOptionsDistributionRecord, current featureValue) featureValue {
+	const key = "put_call_volume_ratio_10d_deviation_pct"
+	if current.Numeric == nil || !isUsable(current.Quality) { return missingFeature(key, "current_put_call_volume_ratio_unusable", nil, current.ArtifactIDs) }
+	values, refs := []float64{}, append([]string{}, current.ArtifactIDs...)
+	dates := make([]time.Time, 0, len(distributions))
+	for date := range distributions { if parsed, err := time.Parse("2006-01-02", date); err == nil && parsed.Before(dayOnly(session)) { dates = append(dates, parsed) } }
+	sort.Slice(dates, func(i, j int) bool { return dates[i].After(dates[j]) })
+	for _, date := range dates { record := distributions[dateKey(date)]; if record == nil || record.TotalCallVolume <= 0 { continue }; values = append(values, float64(record.TotalPutVolume)/float64(record.TotalCallVolume)); refs = append(refs, distributionArtifactID(config, *record)); if len(values) == 10 { break } }
+	if len(values) < 10 { return missingFeature(key, "insufficient_prior_usable_put_call_volume_sessions", map[string]any{"available_sessions": len(values), "required_sessions": 10}, refs) }
+	mean := 0.0; for _, value := range values { mean += value }; mean /= float64(len(values))
+	if mean <= 0 { return invalidFeature(key, "non_positive_put_call_volume_baseline", nil, refs) }
+	return usableNumeric(key, round((*current.Numeric/mean-1)*100, 6), nil, refs, map[string]any{"lookback_sessions": 10, "trailing_mean": round(mean, 8), "canonical_ratio": "put_call_volume"})
 }
 
 func optionQualityFeatures(chain []storage.MarketOpsOptionsChainRecord, cells []featureValue, refs []string) []featureValue {

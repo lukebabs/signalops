@@ -11,6 +11,7 @@ import (
 
 type fakeAlgorithmRepository struct {
 	events            []storage.NormalizedEventLedgerRecord
+	observations      []storage.MarketOpsFeatureObservationRecord
 	requests          []storage.AlgorithmExecutionRequestRecord
 	results           []storage.AlgorithmResultRecord
 	lastEventFilter   storage.MarketOpsBacktestEventFilter
@@ -93,6 +94,12 @@ func (f *fakeAlgorithmRepository) ListAlgorithmSignalMaterializations(context.Co
 func (f *fakeAlgorithmRepository) GetAlgorithmSignalMaterialization(context.Context, string, string) (storage.AlgorithmSignalMaterializationRecord, error) {
 	return storage.AlgorithmSignalMaterializationRecord{}, storage.ErrNotFound
 }
+func (f *fakeAlgorithmRepository) ListMarketOpsFeatureObservations(_ context.Context, filter storage.MarketOpsFeatureObservationFilter) ([]storage.MarketOpsFeatureObservationRecord, error) {
+	out := []storage.MarketOpsFeatureObservationRecord{}
+	for _, row := range f.observations { if (filter.Symbol == "" || row.Symbol == filter.Symbol) && (filter.SessionStart.IsZero() || !row.SessionDate.Before(filter.SessionStart)) && (filter.SessionEnd.IsZero() || !row.SessionDate.After(filter.SessionEnd)) { out = append(out, row) } }
+	return out, nil
+}
+
 func (f *fakeAlgorithmRepository) ListMarketOpsBacktestNormalizedEvents(_ context.Context, filter storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error) {
 	f.lastEventFilter = filter
 	start := filter.Offset

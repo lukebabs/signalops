@@ -10,7 +10,7 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-const totalFeatureSlots = 69
+const totalFeatureSlots = 75
 
 func g144UnderlyingFeatures(history []equityPoint, index int) []featureValue {
 	return []featureValue{

@@ -23,7 +23,7 @@ func TestBuildG137PositiveAAPLVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Definitions) != 44 || len(result.States) != 25 || len(result.Observations) != 25*totalFeatureSlots {
+	if len(result.Definitions) != 50 || len(result.States) != 25 || len(result.Observations) != 25*totalFeatureSlots {
 		t.Fatalf("unexpected build counts: definitions=%d states=%d observations=%d", len(result.Definitions), len(result.States), len(result.Observations))
 	}
 	finalState := result.States[len(result.States)-1]

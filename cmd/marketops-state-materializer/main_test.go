@@ -58,7 +58,7 @@ func TestMaterializeDryRunDoesNotWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.States != 1 || result.Observations != 69 || repo.definitions+repo.observations+repo.states+repo.transitions+repo.evidence != 0 {
+	if result.States != 1 || result.Observations != 75 || repo.definitions+repo.observations+repo.states+repo.transitions+repo.evidence != 0 {
 		t.Fatalf("unexpected dry-run result: result=%+v repo=%+v", result, repo)
 	}
 }

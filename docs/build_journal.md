@@ -7393,7 +7393,7 @@ Result:
 
 Summary:
 
-- Advanced canonical states to `marketops.market_state.v2` with 44 definitions and 69 deterministic observations while retaining the original 39 hypothesis-critical slots as the required completeness denominator.
+- Advanced canonical states to `marketops.market_state.v2` with 50 definitions and 75 deterministic observations while retaining the original 39 hypothesis-critical slots as the required completeness denominator.
 - Added annualized 10/20/60-session realized volatility, 5-session 20-D realized-volatility change, and 30-DTE ATM IV/RV spread and ratio.
 - Added 1/5-eligible-session IV changes across all seven selected cells, 1/5-session 30-DTE wing midpoint-premium changes, and 5-session wing OI changes with exact current/prior artifact lineage.
 - Added classified 30/60/90-DTE term state and point-in-time days-to/since earnings plus earnings-window state from normalized event-calendar records.
@@ -7727,3 +7727,10 @@ Result:
 - Replaced fixed-lifetime browser behavior with an activity-aware local session policy. The default local idle timeout is 30 minutes and is configurable through `VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES`.
 - Active sessions renew access tokens within the configurable five-minute pre-expiry window; renewal uses a refresh token when granted and otherwise the new silent OIDC callback route at `/auth/silent-renew`.
 - Inactivity clears only the local SPA user/token after the configured period. Provider-side Keycloak maximum session and idle policies remain the final authority and must allow the registered silent callback URI.
+
+## Risk/Reward temporal algorithm
+
+- Added `signalops.algorithms.risk_reward_temporal_v1`, a research-only Python multi-feature temporal algorithm using the versioned platform v2 vector contract.
+- Market State now persists 50 feature definitions and 75 observations per state, adding 252-session range position, 10-session volume, 50/200-session trend inputs, 50-session slope, and put/call-volume deviation from its 10-session mean.
+- The post-close algorithm workflow runs the signal per active asset; put/call remains canonical as puts divided by calls and is speculative corroboration only.
+- Added selected-asset `risk_reward` API fields and dedicated MarketOps algorithm documentation plus frontend-agent handoff.

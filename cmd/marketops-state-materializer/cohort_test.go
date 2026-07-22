@@ -19,7 +19,7 @@ func TestMaterializeCohortProcessesOnlyExplicitBoundedSymbols(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.SymbolsRequested != 2 || result.SymbolsProcessed != 2 || len(result.SymbolResults) != 2 || result.Definitions != 44 || result.States != 1 {
+	if result.SymbolsRequested != 2 || result.SymbolsProcessed != 2 || len(result.SymbolResults) != 2 || result.Definitions != 50 || result.States != 1 {
 		t.Fatalf("unexpected cohort metrics: %+v", result)
 	}
 	if result.SymbolResults[0].Symbol != "AAPL" || result.SymbolResults[0].RunID != cfg.RunID+"_aapl" || result.SymbolResults[1].Symbol != "MSFT" {
