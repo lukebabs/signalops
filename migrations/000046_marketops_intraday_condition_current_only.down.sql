@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS marketops_intraday_condition_snapshots_current_idx;

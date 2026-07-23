@@ -2,11 +2,10 @@ import { Fragment, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { CircleDollarSign, X, ArrowDown, ArrowUp } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
-import { useMarketOpsAssets, useMarketOpsAssetQuotes, useMarketOpsIntradayConditions, useMarketOpsAssetAlgorithmObservations, useMarketOpsHypothesisEvaluations, useMarketOpsAlgorithmAdjudications, useMarketOpsQuantitativeSeries } from '../api/queries';
+import { useMarketOpsAssets, useMarketOpsAssetQuotes, useMarketOpsIntradayConditions, useMarketOpsAssetAlgorithmObservations, useMarketOpsHypothesisEvaluations, useMarketOpsAlgorithmAdjudications, useMarketOpsQuantitativeSeries, useMarketOpsRiskRewardSummaries } from '../api/queries';
 import { useMarketOpsOptionsCoverage, useMarketOpsOptionsDistributions, useMarketOpsOptionsChain, useMarketOpsIntelligenceReadiness } from '../api/queries';
-import { isApiError } from '../api/client';
+import { api, isApiError } from '../api/client';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
-import { StatusBadge } from '../components/StatusBadge';
 import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
 import { OptionsQualityBadge } from '../components/OptionsQualityBadge';
@@ -30,7 +29,7 @@ import {
   type MarketOpsOptionsBucketEntry,
 } from '../lib/marketopsOptions';
 import { useTenant } from '../auth/session';
-import type { AlgorithmResult, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOpsIntradayConditionSnapshot } from "../types";
+import type { AlgorithmResult, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOpsIntradayConditionSnapshot, MarketOpsRiskRewardSummary } from "../types";
 
 // Read-only MarketOps asset universe (G071 frontend) + G128 per-asset options
 // intelligence panel. The universe table is backend data only; selecting a row
@@ -52,21 +51,27 @@ export function MarketOpsAssetsRoute() {
 
   // Sort defensively by rank so the displayed order is stable regardless of
   // backend ordering; slice() avoids mutating the cached response.
-  const data = (query.data?.assets ?? []).slice().sort((a, b) => a.rank - b.rank);
+  const watchlistQ = useMarketOpsAssets({ tenant_id: TENANT_ID, universe_group: "analyst_watchlist", active_only: true, limit: 50 });
+  const data = [...(query.data?.assets ?? []), ...(watchlistQ.data?.assets ?? [])].slice().sort((a, b) => a.universe_group === b.universe_group ? a.rank - b.rank : a.universe_group === "top50_megacap" ? -1 : 1);
   const active = data.filter((a) => a.is_active).length;
   const sectors = new Set(data.map((a) => a.sector_key || a.sector).filter(Boolean)).size;
   const industries = new Set(data.map((a) => a.industry_key || a.industry).filter(Boolean)).size;
   const quotesQ = useMarketOpsAssetQuotes(TENANT_ID, "top50_megacap");
-  const quoteMap = new Map((quotesQ.data?.quotes ?? []).map((q) => [q.ticker.toUpperCase(), q]));
+  const watchlistQuotesQ = useMarketOpsAssetQuotes(TENANT_ID, "analyst_watchlist");
+  const quoteMap = new Map([...(quotesQ.data?.quotes ?? []), ...(watchlistQuotesQ.data?.quotes ?? [])].map((q) => [q.ticker.toUpperCase(), q]));
   const conditionsQ = useMarketOpsIntradayConditions(TENANT_ID, "top50_megacap");
-  const conditionMap = new Map((conditionsQ.data?.snapshots ?? []).map((snapshot) => [snapshot.ticker.toUpperCase(), snapshot]));
+  const watchlistConditionsQ = useMarketOpsIntradayConditions(TENANT_ID, "analyst_watchlist");
+  const conditionMap = new Map([...(conditionsQ.data?.snapshots ?? []), ...(watchlistConditionsQ.data?.snapshots ?? [])].map((snapshot) => [snapshot.ticker.toUpperCase(), snapshot]));
+  const riskRewardQ = useMarketOpsRiskRewardSummaries(TENANT_ID, "top50_megacap");
+  const watchlistRiskRewardQ = useMarketOpsRiskRewardSummaries(TENANT_ID, "analyst_watchlist");
+  const riskRewardMap = new Map([...(riskRewardQ.data?.summaries ?? []), ...(watchlistRiskRewardQ.data?.summaries ?? [])].map((summary) => [summary.ticker.toUpperCase(), summary]));
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Assets</h1>
-          <p className="text-xs text-gray-500">Tenant {TENANT_ID} · top50_megacap</p>
+          <p className="text-xs text-gray-500">Tenant {TENANT_ID} · combined market universe</p>
         </div>
       </div>
 
@@ -87,6 +92,8 @@ export function MarketOpsAssetsRoute() {
         <IntelligenceReadinessPanel tenantId={TENANT_ID} />
       ) : (
         <>
+      <WatchlistControls tenantId={TENANT_ID} onChanged={() => { void query.refetch(); void watchlistQ.refetch(); }} />
+
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         <MetricTile label="Universe Assets" value={data.length} />
         <MetricTile label="Active Assets" value={active} />
@@ -100,15 +107,22 @@ export function MarketOpsAssetsRoute() {
       ) : query.isError ? (
         <ErrorState error={query.error} />
       ) : data.length ? (
-        <div className="overflow-hidden rounded border border-gray-200 bg-white">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+        <div className="space-y-1">
+          <p className="px-1 text-xs text-gray-500 md:hidden">Swipe horizontally to view all asset columns.</p>
+          <div
+            className="max-w-full overflow-x-auto rounded border border-gray-200 bg-white overscroll-x-contain"
+            role="region"
+            aria-label="Scrollable asset table"
+            tabIndex={0}
+          >
+          <table className="w-full min-w-[960px] divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-3 py-2">Rank</th>
                 <th className="px-3 py-2">Asset</th>
                 <th className="px-3 py-2" title="Latest delayed intraday price while the market is open; latest completed EOD close otherwise. Hover a value for its change and range context.">Current Market Data ⓘ</th>
                 <th className="px-3 py-2" title="Asset-specific conditions captured by the 15-minute monitor. They are not end-of-day research hypotheses.">Intraday Conditions ⓘ</th>
-                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2" title="Latest persisted post-close technical Risk/Reward posture. It is research-only and does not represent a recommendation.">Risk/Reward ⓘ</th>
                 <th className="px-3 py-2">Updated</th>
               </tr>
             </thead>
@@ -141,8 +155,8 @@ export function MarketOpsAssetsRoute() {
                     </div>
                   </td>
                   <MarketDataCell quote={quoteMap.get(a.ticker.toUpperCase())} />
-                  <IntradayConditionsCell snapshot={conditionMap.get(a.ticker.toUpperCase())} />
-                  <td className="px-3 py-2"><StatusBadge status={a.is_active ? 'active' : 'inactive'} /></td>
+                  <IntradayConditionsCell snapshot={conditionMap.get(a.ticker.toUpperCase())} loading={conditionsQ.isLoading} error={conditionsQ.isError} />
+                  <RiskRewardCell summary={riskRewardMap.get(a.ticker.toUpperCase())} loading={riskRewardQ.isLoading} error={riskRewardQ.isError} />
                   <MarketDataUpdatedCell quote={quoteMap.get(a.ticker.toUpperCase())} refreshedAt={quotesQ.data?.refreshed_at ?? null} />
                 </tr>
                 {selectedTicker === a.ticker ? (
@@ -156,6 +170,7 @@ export function MarketOpsAssetsRoute() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ) : (
         <EmptyState message="No MarketOps assets found for this tenant." />
@@ -198,7 +213,21 @@ function AlgorithmEvidencePanel({ results, loading, error }: { results: Algorith
   return <div className="rounded border border-violet-100 bg-violet-50 p-2"><div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-violet-700">Algorithm evidence</div><p className="mb-2 text-[11px] text-violet-700">The five most recent raw platform observations, retained for deeper analysis. The selected EOD z-score is intentionally excluded.</p>{loading ? <div className="text-xs text-gray-500">Loading algorithm evidence…</div> : error ? <div className="text-xs text-red-700">Algorithm evidence is unavailable.</div> : dates.length ? <div className="space-y-3">{dates.map((date) => <div key={date}><div className="text-[10px] font-semibold text-violet-700">{date}</div><div className="space-y-2">{grouped[date].map((result) => <AlgorithmResultLine key={result.algorithm_result_id} result={result} />)}</div></div>)}</div> : <div className="text-xs text-gray-500">No additional platform outputs are available for this asset.</div>}</div>;
 }
 
-function IntradayConditionsCell({ snapshot }: { snapshot?: MarketOpsIntradayConditionSnapshot }) {
+function RiskRewardCell({ summary, loading, error }: { summary?: MarketOpsRiskRewardSummary; loading: boolean; error: boolean }) {
+  if (error && !summary) return <td className="px-3 py-2 text-xs text-red-700" title="The persisted post-close Risk/Reward summary could not be loaded. This does not indicate an asset-level signal.">Risk/Reward unavailable</td>;
+  if (loading && !summary) return <td className="px-3 py-2 text-xs text-gray-500" title="Loading the latest persisted post-close technical Risk/Reward analysis.">Loading EOD analysis…</td>;
+  if (!summary) return <td className="px-3 py-2 text-xs text-gray-500" title="No persisted post-close Risk/Reward analysis is available yet. The scheduled EOD algorithm will populate this after its first completed run.">Awaiting EOD analysis</td>;
+  const direction = summary.direction === "bullish" ? "Bullish" : summary.direction === "bearish" ? "Bearish" : "Neutral";
+  const score = `${summary.score > 0 ? "+" : ""}${summary.score.toFixed(0)}`;
+  const tone = summary.direction === "bullish" ? "text-green-700" : summary.direction === "bearish" ? "text-red-700" : "text-gray-700";
+  const confidence = `${Math.round(summary.confidence * 100)}%`;
+  const title = `Post-close ${summary.trade_date} · ${direction} technical posture · score ${score}/100 · confidence ${confidence} · ATR risk ${summary.risk_level}. Research-only; not a recommendation.`;
+  return <td className="px-3 py-2 text-xs" title={title}><div className={`font-medium ${tone}`}>{direction} · {score}</div><div className="text-[10px] text-gray-500">EOD · research-only</div></td>;
+}
+
+function IntradayConditionsCell({ snapshot, loading, error }: { snapshot?: MarketOpsIntradayConditionSnapshot; loading: boolean; error: boolean }) {
+  if (error && !snapshot) return <td className="px-3 py-2 text-xs text-red-700" title="The persisted intraday-condition request failed; this does not mean monitoring has not run.">Monitor data unavailable</td>;
+  if (loading && !snapshot) return <td className="px-3 py-2 text-xs text-gray-500" title="Loading the latest persisted 15-minute condition snapshot.">Loading monitor…</td>;
   if (!snapshot) return <td className="px-3 py-2 text-xs text-gray-500" title="No persisted 15-minute condition snapshot is available yet.">Awaiting monitor</td>;
   if (!snapshot.conditions.length) return <td className="px-3 py-2 text-xs text-gray-500" title="The latest monitor snapshot found no price-action condition above its thresholds.">No active condition</td>;
   const top = snapshot.conditions.slice().sort((a, b) => b.score - a.score).slice(0, 2);
@@ -315,7 +344,7 @@ function AssetOptionsPanel({
         <RiskRewardPanel data={corroborationQ.data?.risk_reward} loading={corroborationQ.isLoading} error={corroborationQ.isError} />
         <QuantitativeCorroborationPanel eod={corroborationQ.data?.eod_zscores ?? []} loading={corroborationQ.isLoading} error={corroborationQ.isError} />
         {adjudicationsQ.data?.algorithm_adjudications.length ? <div className="rounded border border-violet-200 bg-white p-2 text-[11px] text-violet-800"><div className="font-semibold uppercase">Independent adjudication</div>{adjudicationsQ.data.algorithm_adjudications.slice(0,4).map((item) => <div key={item.adjudication_id} className="mt-1"><span className={item.verdict === "confirmed" ? "font-medium text-green-700" : item.verdict === "contradicted" ? "font-medium text-red-700" : "font-medium text-gray-600"}>{item.verdict}</span> · {item.hypothesis_key} · confidence {(item.confidence * 100).toFixed(0)}%</div>)}</div> : hypothesisQ.data?.hypothesis_evaluations.length ? <div className="rounded border border-violet-100 bg-white p-2 text-[11px] text-violet-800">Triggered hypotheses await independent platform adjudication.</div> : null}
-        <div className="rounded border border-blue-100 bg-blue-50 p-2"><div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">Intraday condition evolution</div><p className="mb-2 text-[11px] text-blue-700">15-minute price-action monitor; separate from end-of-day Market State hypotheses.</p>{intradayQ.isLoading ? <div className="text-xs text-gray-500">Loading intraday snapshots…</div> : intradayQ.isError ? <div className="text-xs text-red-700">Intraday snapshots are unavailable.</div> : intradayQ.data?.snapshots.length ? <div className="space-y-2">{intradayQ.data.snapshots.slice(0, 8).map((snapshot) => <div key={snapshot.snapshot_id} className="border-t border-blue-100 pt-1 first:border-t-0 first:pt-0"><div className="text-[10px] text-gray-500">{formatUtc(snapshot.as_of_time)} · {snapshot.market_status}</div>{snapshot.conditions.length ? snapshot.conditions.map((item) => <div key={item.key} className="mt-1 text-xs"><span className={item.tone === "positive" ? "font-medium text-green-700" : item.tone === "negative" ? "font-medium text-red-700" : "font-medium text-gray-700"}>{item.title}</span><div className="text-gray-600">{item.evidence}</div><div className="text-gray-500">{item.interpretation}</div></div>) : <div className="text-xs text-gray-500">No condition exceeded the monitor threshold.</div>}</div>)}</div> : <div className="text-xs text-gray-500">No persisted intraday snapshot yet.</div>}</div>
+        <div className="rounded border border-blue-100 bg-blue-50 p-2"><div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">Latest intraday condition</div><p className="mb-2 text-[11px] text-blue-700">Latest 15-minute price-action monitor result; separate from end-of-day Market State hypotheses.</p>{intradayQ.isLoading ? <div className="text-xs text-gray-500">Loading intraday snapshots…</div> : intradayQ.isError ? <div className="text-xs text-red-700">Intraday snapshots are unavailable.</div> : intradayQ.data?.snapshots.length ? <div className="space-y-2">{intradayQ.data.snapshots.slice(0, 1).map((snapshot) => <div key={snapshot.snapshot_id} className="border-t border-blue-100 pt-1 first:border-t-0 first:pt-0"><div className="text-[10px] text-gray-500">{formatUtc(snapshot.as_of_time)} · {snapshot.market_status}</div>{snapshot.conditions.length ? snapshot.conditions.map((item) => <div key={item.key} className="mt-1 text-xs"><span className={item.tone === "positive" ? "font-medium text-green-700" : item.tone === "negative" ? "font-medium text-red-700" : "font-medium text-gray-700"}>{item.title}</span><div className="text-gray-600">{item.evidence}</div><div className="text-gray-500">{item.interpretation}</div></div>) : <div className="text-xs text-gray-500">No condition exceeded the monitor threshold.</div>}</div>)}</div> : <div className="text-xs text-gray-500">No persisted intraday snapshot yet.</div>}</div>
       </>}
 
       {/* Coverage strip */}
@@ -803,4 +832,56 @@ function ReadinessSymbolCard({ s }: { s: MarketOpsIntelligenceReadinessSymbolVie
       </div>
     </div>
   );
+}
+
+
+
+function WatchlistControls({ tenantId, onChanged }: { tenantId: string; onChanged: () => void }) {
+  const [ticker, setTicker] = useState("");
+  const [validation, setValidation] = useState<import("../types").MarketOpsTickerValidation | null>(null);
+  const [backfill, setBackfill] = useState(true);
+  const [startDate, setStartDate] = useState(defaultBackfillStart());
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function validate(event: React.FormEvent) {
+    event.preventDefault(); setBusy(true); setMessage(null); setValidation(null);
+    try { const result = await api.validateMarketOpsWatchlistTicker(tenantId, ticker); setValidation(result.validation); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Ticker validation failed."); }
+    finally { setBusy(false); }
+  }
+
+  async function onboard() {
+    if (!validation) return;
+    setBusy(true); setMessage(null);
+    try {
+      const result = await api.onboardMarketOpsWatchlistAsset(tenantId, { ticker: validation.ticker, backfill_equity_history: backfill, ...(backfill ? { start_date: startDate, end_date: endDate } : {}) });
+      setMessage(result.backfill_job ? result.asset.ticker + " added; equity backfill queued." : result.asset.ticker + " added to the analyst watchlist.");
+      setTicker(""); setValidation(null); onChanged();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to add asset."); }
+    finally { setBusy(false); }
+  }
+
+  return <div className="rounded border border-brand-100 bg-brand-50 p-3">
+    <form onSubmit={validate} className="flex flex-wrap items-end gap-2">
+      <label className="text-xs font-medium text-gray-700">Add analyst asset<input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="Ticker" className="mt-1 block w-28 rounded border border-gray-300 px-2 py-1 font-mono text-sm" required /></label>
+      <button type="submit" disabled={busy} className="rounded bg-brand-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">Validate ticker</button>
+    </form>
+    {validation ? <div className="mt-3 space-y-2 border-t border-brand-200 pt-3 text-xs">
+      <div><span className="font-semibold">{validation.ticker}</span> � {validation.company} � {validation.exchange || "exchange unavailable"}</div>
+      <div className="text-gray-600">Sector: {validation.sector || "Not supplied"} � Industry: {validation.industry || "Not supplied"}</div>
+      <label className="flex items-center gap-2 text-gray-700"><input type="checkbox" checked={backfill} onChange={(event) => setBackfill(event.target.checked)} /> Backfill 50 trading days of equity history</label>
+      {backfill ? <div className="flex flex-wrap gap-2"><label>Start<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5" /></label><label>End<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5" /></label></div> : null}
+      <button type="button" disabled={busy} onClick={() => void onboard()} className="rounded border border-brand-700 px-3 py-1.5 text-xs font-medium text-brand-700 disabled:opacity-50">Add validated asset</button>
+      <div className="text-[11px] text-gray-600">Provider metadata is authoritative. Historical options analytics are not backfilled.</div>
+    </div> : null}
+    {message ? <div className="mt-2 text-xs text-brand-800">{message}</div> : null}
+  </div>;
+}
+
+function defaultBackfillStart(): string {
+  const cursor = new Date(); let sessions = 0;
+  while (sessions < 50) { cursor.setUTCDate(cursor.getUTCDate() - 1); const day = cursor.getUTCDay(); if (day !== 0 && day !== 6) sessions++; }
+  return cursor.toISOString().slice(0, 10);
 }

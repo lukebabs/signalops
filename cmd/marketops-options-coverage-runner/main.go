@@ -605,7 +605,7 @@ func (cfg cliConfig) withDefaults() cliConfig {
 	if cfg.MaxMoneyness <= 0 {
 		cfg.MaxMoneyness = 1.30
 	}
-	if cfg.MaxSymbols <= 0 || cfg.MaxSymbols > 50 {
+	if cfg.MaxSymbols <= 0 || cfg.MaxSymbols > 100 {
 		cfg.MaxSymbols = 3
 	}
 	if cfg.WindowDays <= 0 || cfg.WindowDays > 60 {

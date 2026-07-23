@@ -18,6 +18,7 @@ import type {
   MarketOpsAlgorithmAdjudicationFilter,
   MarketOpsQuantitativeSeriesResponse,
   MarketOpsAssetAlgorithmObservationsResponse,
+  MarketOpsRiskRewardSummariesResponse,
   MarketOpsMarketStateFilter,
   MarketOpsFeatureDefinitionFilter,
   MarketOpsFeatureObservationFilter,
@@ -102,6 +103,7 @@ export const queryKeys = {
   marketOpsIntradayConditions: (tenantId: string, group: string, symbol = "") => ["marketops-intraday-conditions", tenantId, group, symbol] as const,
   marketOpsQuantitativeSeries: (tenantId: string, symbol: string, window: string) => ["marketops-quantitative-series", tenantId, symbol, window] as const,
   marketOpsAssetAlgorithmObservations: (tenantId: string, symbol: string) => ["marketops-asset-algorithm-observations", tenantId, symbol] as const,
+  marketOpsRiskRewardSummaries: (tenantId: string, group: string) => ["marketops-risk-reward-summaries", tenantId, group] as const,
   marketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
     ['marketops-options-coverage', tenantId, symbol] as const,
   marketOpsOptionsDistributions: (tenantId: string, symbol: string, filter: MarketOpsOptionsDistributionFilter) =>
@@ -278,7 +280,7 @@ export function useCatalogSources(tenantId = 'tenant-local', limit = 50) {
   });
 }
 
-export function useCatalogPipelines(tenantId = 'tenant-local', limit = 50) {
+export function useCatalogPipelines(tenantId = 'tenant-local', limit = 200) {
   return useQuery({
     queryKey: queryKeys.catalogPipelines(tenantId, limit),
     queryFn: () => api.listCatalogPipelines(tenantId, limit),
@@ -413,7 +415,18 @@ export function useMarketOpsAssetQuotes(tenantId: string, universeGroup = "top50
 }
 
 export function useMarketOpsIntradayConditions(tenantId: string, universeGroup = "top50_megacap", symbol?: string) {
-  return useQuery({ queryKey: queryKeys.marketOpsIntradayConditions(tenantId, universeGroup, symbol ?? ""), queryFn: () => api.getMarketOpsIntradayConditions(tenantId, universeGroup, symbol), enabled: !!tenantId, refetchInterval: 15 * 60 * 1000, staleTime: 60 * 1000 });
+  return useQuery({
+    queryKey: queryKeys.marketOpsIntradayConditions(tenantId, universeGroup, symbol ?? ""),
+    queryFn: () => api.getMarketOpsIntradayConditions(tenantId, universeGroup, symbol),
+    enabled: !!tenantId,
+    refetchInterval: 15 * 60 * 1000,
+    staleTime: 60 * 1000,
+    // The monitor refreshes every 15 minutes. Always reconcile its persisted
+    // snapshots when the Assets view mounts or regains focus, rather than
+    // presenting a prior tab's incomplete cache as an absent monitor result.
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+  });
 }
 
 export function useMarketOpsAssets(
@@ -432,6 +445,7 @@ export function useMarketOpsAssets(
 // other MarketOps reads. Performs no ingestion and never calls live-preview.
 export function useMarketOpsQuantitativeSeries(tenantId: string, symbol: string | null, window: string) { return useQuery({ queryKey: queryKeys.marketOpsQuantitativeSeries(tenantId, symbol ?? "", window), queryFn: () => api.getMarketOpsQuantitativeSeries(tenantId, symbol!, window), enabled: !!symbol, staleTime: 60 * 1000 }); }
 export function useMarketOpsAssetAlgorithmObservations(tenantId: string, symbol: string | null) { return useQuery({ queryKey: queryKeys.marketOpsAssetAlgorithmObservations(tenantId, symbol ?? ""), queryFn: () => api.getMarketOpsAssetAlgorithmObservations(tenantId, symbol!), enabled: !!symbol, staleTime: 60 * 1000 }); }
+export function useMarketOpsRiskRewardSummaries(tenantId: string, universeGroup: string) { return useQuery<MarketOpsRiskRewardSummariesResponse>({ queryKey: queryKeys.marketOpsRiskRewardSummaries(tenantId, universeGroup), queryFn: () => api.getMarketOpsRiskRewardSummaries(tenantId, universeGroup), staleTime: 5 * 60 * 1000, refetchInterval: 15 * 60 * 1000, refetchOnMount: "always" }); }
 
 export function useMarketOpsOptionsCoverage(tenantId: string, symbol: string | null) {
   return useQuery({

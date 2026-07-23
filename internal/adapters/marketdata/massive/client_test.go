@@ -12,16 +12,14 @@ import (
 	"time"
 )
 
-func TestLoadClientConfigFromEnvUsesFallbacks(t *testing.T) {
-	t.Setenv("SIGNALOPS_MASSIVE_API_KEY", "")
-	t.Setenv("MASSIVE_API_KEY", "")
-	t.Setenv("API_KEY", "local-key")
+func TestLoadClientConfigFromEnvUsesCanonicalKey(t *testing.T) {
+	t.Setenv("SIGNALOPS_MASSIVE_API_KEY", "local-key")
 	t.Setenv("SIGNALOPS_MASSIVE_BASE_URL", "https://example.test")
 
 	cfg := LoadClientConfigFromEnv()
 
 	if cfg.APIKey != "local-key" {
-		t.Fatalf("api key fallback not loaded")
+		t.Fatalf("api key not loaded")
 	}
 	if cfg.BaseURL != "https://example.test" {
 		t.Fatalf("base url = %q", cfg.BaseURL)
@@ -248,8 +246,6 @@ func TestDefaultBaseURLIsParseable(t *testing.T) {
 
 func TestLoadClientConfigPrefersSpecificEnv(t *testing.T) {
 	clearAPIEnv(t)
-	t.Setenv("API_KEY", "generic-key")
-	t.Setenv("MASSIVE_API_KEY", "massive-key")
 	t.Setenv("SIGNALOPS_MASSIVE_API_KEY", "specific-key")
 
 	cfg := LoadClientConfigFromEnv()
@@ -260,7 +256,7 @@ func TestLoadClientConfigPrefersSpecificEnv(t *testing.T) {
 
 func clearAPIEnv(t *testing.T) {
 	t.Helper()
-	for _, key := range []string{"SIGNALOPS_MASSIVE_API_KEY", "MASSIVE_API_KEY", "API_KEY"} {
+	for _, key := range []string{"SIGNALOPS_MASSIVE_API_KEY"} {
 		if err := os.Unsetenv(key); err != nil {
 			t.Fatalf("unset %s: %v", key, err)
 		}

@@ -1,0 +1,1 @@
+-- Catalog inventory is reference data; rollback intentionally leaves historical registration intact.

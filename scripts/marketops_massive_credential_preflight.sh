@@ -11,12 +11,11 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-api_key="${SIGNALOPS_MASSIVE_API_KEY:-${MASSIVE_API_KEY:-}}"
+api_key="${SIGNALOPS_MASSIVE_API_KEY:-}"
 if [[ -z "$api_key" ]]; then
   cat >&2 <<'MSG'
-Missing explicit Massive API key. Set one of these in .env or the shell environment:
+Missing explicit Massive API key. Set this in .env or the shell environment:
   SIGNALOPS_MASSIVE_API_KEY
-  MASSIVE_API_KEY
 
 The generic API_KEY variable is intentionally ignored by this preflight to avoid accidental use of unrelated credentials.
 MSG

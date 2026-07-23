@@ -13,7 +13,7 @@ while (($# > 0)); do
 done
 [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { printf 'valid --date is required\n' >&2; exit 2; }
 
-symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT string_agg(ticker, ',' ORDER BY rank) FROM marketops_asset_universe WHERE tenant_id='tenant-local' AND universe_group='top50_megacap' AND is_active;")"
+symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active;")"
 [[ -n "$symbols" ]] || { printf 'active universe is empty\n' >&2; exit 3; }
 IFS=',' read -r -a symbol_list <<< "$symbols"
 run_prefix="daily-evidence-${session_date//-/}"
@@ -38,7 +38,7 @@ history_start="$(date -u -d "${session_date} -45 days" '+%Y-%m-%d')T00:00:00Z"
 for platform_algorithm in signalops.algorithms.river_anomaly_v1 signalops.algorithms.ruptures_change_point_v1 signalops.algorithms.statsmodels_forecast_v1; do
   algorithm_suffix="${platform_algorithm#signalops.algorithms.}"
   for symbol in "${symbol_list[@]}"; do
-    if ! docker compose --profile marketops-daily run --rm algorithm-runner --execution-request-id "${run_prefix}-platform-${algorithm_suffix}-${symbol}" --tenant-id tenant-local --algorithm-id "$platform_algorithm" --correlation-id "$run_prefix" --dataset equity_eod_prices --feature open_close_move_pct --symbols "" --window-start "" --window-end "$window_end" --max-records 60 --batch-size 60 --min-samples 6 --z-threshold 3.0; then
+    if ! docker compose --profile marketops-daily run --rm algorithm-runner --execution-request-id "${run_prefix}-platform-${algorithm_suffix}-${symbol}" --tenant-id tenant-local --algorithm-id "$platform_algorithm" --correlation-id "$run_prefix" --dataset equity_eod_prices --feature open_close_move_pct --symbols "$symbol" --window-start "$history_start" --window-end "$window_end" --max-records 60 --batch-size 60 --min-samples 6 --z-threshold 3.0; then
       printf 'platform algorithm execution failed: %s %s\n' "$platform_algorithm" "$symbol" >&2
       failures=$((failures + 1))
     fi

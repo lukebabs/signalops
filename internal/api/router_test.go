@@ -84,7 +84,7 @@ type fakeQueryRepository struct {
 	pipelines                          []storage.CatalogPipelineRecord
 	rules                              []storage.CatalogRuleRecord
 	marketOpsAssets                    []storage.MarketOpsAssetRecord
-	marketOpsIntradayConditions []storage.MarketOpsIntradayConditionSnapshotRecord
+	marketOpsIntradayConditions        []storage.MarketOpsIntradayConditionSnapshotRecord
 	marketOpsOptionsChain              []storage.MarketOpsOptionsChainRecord
 	marketOpsOptionsCoverage           storage.MarketOpsOptionsCoverageRecord
 	marketOpsOptionsDistributions      []storage.MarketOpsOptionsDistributionRecord
@@ -1243,7 +1243,11 @@ func (q *fakeQueryRepository) ListMarketOpsAssets(_ context.Context, tenantID st
 
 func (q *fakeQueryRepository) ListMarketOpsIntradayConditionSnapshots(_ context.Context, filter storage.MarketOpsIntradayConditionSnapshotFilter) ([]storage.MarketOpsIntradayConditionSnapshotRecord, error) {
 	items := []storage.MarketOpsIntradayConditionSnapshotRecord{}
-	for _, item := range q.marketOpsIntradayConditions { if (filter.TenantID == "" || item.TenantID == filter.TenantID) && (filter.Symbol == "" || item.Symbol == filter.Symbol) { items = append(items, item) } }
+	for _, item := range q.marketOpsIntradayConditions {
+		if (filter.TenantID == "" || item.TenantID == filter.TenantID) && (filter.Symbol == "" || item.Symbol == filter.Symbol) {
+			items = append(items, item)
+		}
+	}
 	return items, nil
 }
 
@@ -1675,6 +1679,43 @@ func TestGetRawEventsUsesFilters(t *testing.T) {
 	}
 	if response["raw_events"][0]["payload"].(map[string]any)["event_id"] != "event-1" {
 		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestGetMarketOpsRiskRewardSummaries(t *testing.T) {
+	repo := &fakeQueryRepository{
+		marketOpsAssets: []storage.MarketOpsAssetRecord{
+			{TenantID: "tenant-1", Ticker: "NVDA", IsActive: true},
+			{TenantID: "tenant-1", Ticker: "INACTIVE", IsActive: false},
+		},
+		algorithmResults: []storage.AlgorithmResultRecord{
+			{AlgorithmResultID: "old", TenantID: "tenant-1", AlgorithmID: riskRewardAlgorithmID, Confidence: 0.42, ResultPayloadJSON: []byte(`{"symbol":"NVDA","observation_time":"2026-07-18T20:00:00Z","technical_direction":"neutral","technical_score":2,"risk_level":"low"}`)},
+			{AlgorithmResultID: "latest", TenantID: "tenant-1", AlgorithmID: riskRewardAlgorithmID, Confidence: 0.87, ResultPayloadJSON: []byte(`{"symbol":"NVDA","observation_time":"2026-07-21T20:00:00Z","technical_direction":"bearish","technical_score":-48,"risk_level":"high"}`)},
+			{AlgorithmResultID: "inactive", TenantID: "tenant-1", AlgorithmID: riskRewardAlgorithmID, Confidence: 0.91, ResultPayloadJSON: []byte(`{"symbol":"INACTIVE","observation_time":"2026-07-21T20:00:00Z","technical_direction":"bullish","technical_score":56,"risk_level":"medium"}`)},
+			{AlgorithmResultID: "other", TenantID: "tenant-1", AlgorithmID: zscoreAlgorithmID, Confidence: 0.99, ResultPayloadJSON: []byte(`{"symbol":"NVDA","observation_time":"2026-07-21T20:00:00Z"}`)},
+		},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/marketops/assets/risk-reward?universe_group=top50_megacap", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastAlgorithmResultFilter.AlgorithmID != riskRewardAlgorithmID || repo.lastAlgorithmResultFilter.Limit != 200 {
+		t.Fatalf("algorithm filter = %+v", repo.lastAlgorithmResultFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if len(response["summaries"]) != 1 {
+		t.Fatalf("summaries = %+v", response)
+	}
+	summary := response["summaries"][0]
+	if summary["ticker"] != "NVDA" || summary["trade_date"] != "2026-07-21" || summary["direction"] != "bearish" || summary["score"] != -48.0 {
+		t.Fatalf("summary = %+v", summary)
 	}
 }
 

@@ -20,11 +20,12 @@ var marketOpsPlatformAlgorithmIDs = map[string]struct{}{
 	"signalops.algorithms.river_anomaly_v1":         {},
 	"signalops.algorithms.ruptures_change_point_v1": {},
 	"signalops.algorithms.statsmodels_forecast_v1":  {},
-	riskRewardAlgorithmID: {},
+	riskRewardAlgorithmID:                           {},
 }
 
 type marketOpsAssetAlgorithmObservationReader interface {
 	ListAlgorithmResults(context.Context, storage.AlgorithmResultFilter) ([]storage.AlgorithmResultRecord, error)
+	ListMarketOpsAssets(context.Context, string, string, bool, int) ([]storage.MarketOpsAssetRecord, error)
 }
 
 type marketOpsEODZScoreDTO struct {
@@ -35,6 +36,39 @@ type marketOpsEODZScoreDTO struct {
 }
 
 func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo storage.QueryRepository) {
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/risk-reward", func(w http.ResponseWriter, r *http.Request) {
+		reader, ok := any(repo).(marketOpsAssetAlgorithmObservationReader)
+		if !ok {
+			writeError(w, http.StatusNotImplemented, "risk_reward_unavailable", "risk/reward summaries are unavailable")
+			return
+		}
+		tenant := strings.TrimSpace(r.PathValue("tenant_id"))
+		if tenant == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+			return
+		}
+		universeGroup := strings.TrimSpace(r.URL.Query().Get("universe_group"))
+		if universeGroup == "" {
+			universeGroup = "top50_megacap"
+		}
+		assets, err := reader.ListMarketOpsAssets(r.Context(), tenant, universeGroup, true, 50)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list marketops assets")
+			return
+		}
+		activeSymbols := make(map[string]struct{}, len(assets))
+		for _, asset := range assets {
+			if asset.IsActive {
+				activeSymbols[strings.ToUpper(asset.Ticker)] = struct{}{}
+			}
+		}
+		results, err := reader.ListAlgorithmResults(r.Context(), storage.AlgorithmResultFilter{TenantID: tenant, AlgorithmID: riskRewardAlgorithmID, Limit: 200})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list risk/reward results")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"summaries": curateRiskRewardSummaries(results, activeSymbols)})
+	})
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/algorithm-observations", func(w http.ResponseWriter, r *http.Request) {
 		reader, ok := any(repo).(marketOpsAssetAlgorithmObservationReader)
 		if !ok {
@@ -57,7 +91,7 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo s
 			"symbol":        symbol,
 			"eod_zscores":   eod,
 			"other_outputs": algorithmResultResponses(other),
-			"risk_reward": riskReward,
+			"risk_reward":   riskReward,
 		})
 	})
 }
@@ -131,18 +165,70 @@ func curateAssetAlgorithmObservations(results []storage.AlgorithmResultRecord, s
 	return eod, other
 }
 
+func curateRiskRewardSummaries(results []storage.AlgorithmResultRecord, activeSymbols map[string]struct{}) []map[string]any {
+	bySymbol := map[string]map[string]any{}
+	for _, result := range results {
+		if result.AlgorithmID != riskRewardAlgorithmID {
+			continue
+		}
+		payload := map[string]any{}
+		if json.Unmarshal(result.ResultPayloadJSON, &payload) != nil {
+			continue
+		}
+		symbol := strings.ToUpper(stringAny(payload["symbol"]))
+		if _, active := activeSymbols[symbol]; !active || stringAny(payload["observation_time"]) == "" {
+			continue
+		}
+		candidate := map[string]any{
+			"ticker":        symbol,
+			"trade_date":    observationDate(payload),
+			"_observed_at":  stringAny(payload["observation_time"]),
+			"direction":     payload["technical_direction"],
+			"score":         payload["technical_score"],
+			"confidence":    result.Confidence,
+			"risk_level":    payload["risk_level"],
+			"research_only": true,
+		}
+		if current, exists := bySymbol[symbol]; !exists || fmt.Sprint(candidate["_observed_at"]) > fmt.Sprint(current["_observed_at"]) {
+			bySymbol[symbol] = candidate
+		}
+	}
+	items := make([]map[string]any, 0, len(bySymbol))
+	for _, item := range bySymbol {
+		delete(item, "_observed_at")
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return fmt.Sprint(items[i]["ticker"]) < fmt.Sprint(items[j]["ticker"])
+	})
+	return items
+}
+
 func curateRiskRewardObservations(results []storage.AlgorithmResultRecord, symbol string) map[string]any {
 	history := make([]map[string]any, 0, 60)
 	for _, result := range results {
-		if result.AlgorithmID != riskRewardAlgorithmID { continue }
-		payload := map[string]any{}; if json.Unmarshal(result.ResultPayloadJSON, &payload) != nil || strings.ToUpper(stringAny(payload["symbol"])) != symbol { continue }
-		if stringAny(payload["observation_time"]) == "" { continue }
+		if result.AlgorithmID != riskRewardAlgorithmID {
+			continue
+		}
+		payload := map[string]any{}
+		if json.Unmarshal(result.ResultPayloadJSON, &payload) != nil || strings.ToUpper(stringAny(payload["symbol"])) != symbol {
+			continue
+		}
+		if stringAny(payload["observation_time"]) == "" {
+			continue
+		}
 		history = append(history, map[string]any{"algorithm_result_id": result.AlgorithmResultID, "trade_date": observationDate(payload), "score": payload["technical_score"], "direction": payload["technical_direction"], "risk_level": payload["risk_level"], "confidence": result.Confidence, "severity": result.Severity, "technical_factors": payload["technical_factors"], "speculative_corroboration": payload["speculative_corroboration"], "research_only": true})
 	}
-	sort.SliceStable(history, func(i, j int) bool { return fmt.Sprint(history[i]["trade_date"]) > fmt.Sprint(history[j]["trade_date"]) })
-	if len(history) > 60 { history = history[:60] }
+	sort.SliceStable(history, func(i, j int) bool {
+		return fmt.Sprint(history[i]["trade_date"]) > fmt.Sprint(history[j]["trade_date"])
+	})
+	if len(history) > 60 {
+		history = history[:60]
+	}
 	out := map[string]any{"history": history}
-	if len(history) > 0 { out["latest"] = history[0] }
+	if len(history) > 0 {
+		out["latest"] = history[0]
+	}
 	return out
 }
 

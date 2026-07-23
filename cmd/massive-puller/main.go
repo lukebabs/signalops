@@ -40,6 +40,7 @@ func run(logger *slog.Logger, args []string) error {
 	maxReconciliationAttempts := envIntOrDefault("SIGNALOPS_MASSIVE_RECONCILIATION_MAX_ATTEMPTS", 2)
 	requeueFailed := false
 	acknowledgeWrites := false
+	allowUnseededSymbols := envBoolOrDefault("SIGNALOPS_MASSIVE_ALLOW_UNSEEDED_SYMBOLS", false)
 	startDate := ""
 	endDate := ""
 	symbols := ""
@@ -68,9 +69,10 @@ func run(logger *slog.Logger, args []string) error {
 	flags.IntVar(&maxReconciliationAttempts, "max-attempts", maxReconciliationAttempts, "maximum provider calls per queued symbol")
 	flags.BoolVar(&requeueFailed, "requeue-failed", requeueFailed, "explicitly reset exhausted failed tasks")
 	flags.BoolVar(&acknowledgeWrites, "acknowledge-writes", acknowledgeWrites, "acknowledge reconciliation queue, broker, and ledger writes")
+	flags.BoolVar(&allowUnseededSymbols, "allow-unseeded-symbols", allowUnseededSymbols, "allow explicitly supplied provider-validated symbols outside the static Top 50 seed")
 	flags.StringVar(&startDate, "start-date", startDate, "inclusive historical observation start date")
 	flags.StringVar(&endDate, "end-date", endDate, "inclusive historical observation end date")
-	flags.StringVar(&symbols, "symbols", symbols, "comma-separated exact Top 50 symbols; empty uses seed order")
+	flags.StringVar(&symbols, "symbols", symbols, "comma-separated symbols; empty uses the seeded Top 50 order")
 	flags.IntVar(&maxObservationDays, "max-observation-days", maxObservationDays, "maximum weekdays in an explicit date range")
 	flags.StringVar(&datasets, "datasets", datasets, "comma-separated datasets: equity, options")
 	flags.IntVar(&maxCompanies, "max-companies", maxCompanies, "maximum megacap companies to process")
@@ -109,7 +111,7 @@ func run(logger *slog.Logger, args []string) error {
 		if err != nil {
 			return fmt.Errorf("load megacap universe: %w", err)
 		}
-		companies, err = selectCompanies(companies, symbols)
+		companies, err = selectCompaniesWithExternal(companies, symbols, allowUnseededSymbols)
 		if err != nil {
 			return err
 		}
@@ -301,6 +303,10 @@ func parseObservationDates(single, start, end string, maxDays int) ([]time.Time,
 }
 
 func selectCompanies(companies []massive.MegacapCompanySeed, value string) ([]massive.MegacapCompanySeed, error) {
+	return selectCompaniesWithExternal(companies, value, false)
+}
+
+func selectCompaniesWithExternal(companies []massive.MegacapCompanySeed, value string, allowExternal bool) ([]massive.MegacapCompanySeed, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return companies, nil
@@ -318,7 +324,10 @@ func selectCompanies(companies []massive.MegacapCompanySeed, value string) ([]ma
 		}
 		company, ok := bySymbol[symbol]
 		if !ok {
-			return nil, fmt.Errorf("symbol %s is not in the Top 50 seed", symbol)
+			if !allowExternal {
+				return nil, fmt.Errorf("symbol %s is not in the Top 50 seed", symbol)
+			}
+			company = massive.MegacapCompanySeed{Ticker: symbol, Company: symbol}
 		}
 		selected = append(selected, company)
 		seen[symbol] = true

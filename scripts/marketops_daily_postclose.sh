@@ -223,21 +223,49 @@ done
 # stale environment variable from omitting a newly listed asset from options
 # capture or its downstream intelligence cohort.
 active_universe_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
-  "SELECT string_agg(ticker, ',' ORDER BY rank) FROM marketops_asset_universe WHERE tenant_id='tenant-local' AND universe_group='top50_megacap' AND is_active;")"
+  "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active;")"
 [[ -n "$active_universe_symbols" ]] || { printf 'active equity universe is empty\n' >&2; exit 4; }
 IFS=',' read -r -a active_universe_array <<< "$active_universe_symbols"
-(( ${#active_universe_array[@]} == minimum_equity_symbols )) || {
-  printf 'active equity universe contains %d assets; expected %d\n' "${#active_universe_array[@]}" "$minimum_equity_symbols" >&2
+(( ${#active_universe_array[@]} >= minimum_equity_symbols )) || {
+  printf 'active equity universe contains %d assets; expected at least %d\n' "${#active_universe_array[@]}" "$minimum_equity_symbols" >&2
   exit 4
 }
 for symbol in "${active_universe_array[@]}"; do
   [[ "$symbol" =~ ^[A-Z0-9.]+$ ]] || { printf 'invalid active universe symbol: %s\n' "$symbol" >&2; exit 4; }
 done
 
-# Keep equity reconciliation, options polling, and ten-symbol cohorts aligned
+minimum_equity_symbols="${#active_universe_array[@]}"
+# Keep equity pulling, reconciliation, options polling, and ten-symbol cohorts aligned
 # with the same active-universe snapshot for this scheduled run.
 option_symbols="$active_universe_symbols"
 symbols=("${active_universe_array[@]}")
+watchlist_reconciliation_command=(docker compose --profile massive-pull run --rm massive-puller
+  --mode reconcile-equity
+  --date "$session_date"
+  --universe-group analyst_watchlist
+  --max-provider-requests 100
+  --max-attempts "$reconciliation_attempts"
+  --deadline "$reconciliation_deadline"
+  --retry-backoffs "$reconciliation_backoffs"
+  --normalization-poll "$reconciliation_poll"
+  --requeue-failed
+  --dry-run="$dry_run")
+$write_mode && watchlist_reconciliation_command+=(--acknowledge-writes)
+# Pull the same combined universe that later stages consume. Explicit symbols
+# include provider-validated analyst-watchlist assets beyond the static seed.
+equity_command=(docker compose --profile massive-pull run --rm massive-puller
+  --datasets equity
+  --date "$session_date"
+  --symbols "$active_universe_symbols"
+  --allow-unseeded-symbols
+  --max-companies "${#active_universe_array[@]}"
+  --max-provider-requests "${#active_universe_array[@]}"
+  --max-events-built "${#active_universe_array[@]}"
+  --max-events-published "${#active_universe_array[@]}"
+  --request-delay 250ms
+  --max-retries 0
+  --continue-on-error=true
+  --dry-run="$dry_run")
 options_command=(docker compose --profile marketops-daily run --rm marketops-options-coverage-runner
   --tenant-id tenant-local
   --symbols "$option_symbols"
@@ -259,7 +287,7 @@ options_command=(docker compose --profile marketops-daily run --rm marketops-opt
 coverage_count() {
   local active_symbols
   active_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
-    "SELECT string_agg(ticker, ',' ORDER BY rank) FROM marketops_asset_universe WHERE tenant_id='tenant-local' AND universe_group='top50_megacap' AND is_active;")"
+    "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active;")"
   [[ -n "$active_symbols" ]] || { printf 'active equity universe is empty\n' >&2; return 1; }
   docker compose exec -T timescaledb psql -U signalops -d signalops_temporal -Atc \
     "SELECT count(DISTINCT normalized_payload->>'symbol') FROM normalized_event_ledger WHERE tenant_id='tenant-local' AND source_id='src-massive' AND dataset='equity_eod_prices' AND normalized_payload->>'observation_date' = '$session_date' AND normalized_payload->>'symbol' = ANY(string_to_array('$active_symbols', ','));" | tr -d '[:space:]'
@@ -281,6 +309,7 @@ current_coverage="$(coverage_count)"
 if (( current_coverage < minimum_equity_symbols )); then
   log "equity reconciliation started coverage=$current_coverage threshold=$minimum_equity_symbols dry_run=$dry_run"
   "${reconciliation_command[@]}"
+  "${watchlist_reconciliation_command[@]}"
 else
   log "equity reconciliation skipped coverage=$current_coverage threshold=$minimum_equity_symbols"
 fi
@@ -317,9 +346,7 @@ if $write_mode; then
 fi
 
 if $write_mode; then
-  if ! ./scripts/marketops_algorithm_corroboration.sh --date "$session_date"; then
-    log "algorithm corroboration completed with failures; canonical research workflow will continue"
-  fi
+  log "algorithm corroboration deferred until current-session cohorts have materialized features"
 else
   log "algorithm corroboration skipped dry_run=true (algorithm runner has no non-mutating mode)"
 fi
@@ -358,6 +385,10 @@ for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=10, batch++)); do
 done
 
 if $write_mode; then
+  if ! ./scripts/marketops_algorithm_corroboration.sh --date "$session_date"; then
+    printf "algorithm corroboration reported failures; universal completion gate will enforce required coverage\n" >&2
+  fi
+  ./scripts/marketops_universal_completion_gate.sh "$session_date" "$active_universe_symbols" "${#symbols[@]}" || exit 8
   summary="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
     "SELECT 'captures=' || count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' UNION ALL SELECT 'cohort_results=' || count(*) FROM marketops_intelligence_cohort_symbol_results WHERE tenant_id='tenant-local' AND run_id LIKE '${run_prefix}-cohort-%' UNION ALL SELECT 'algorithm_results=' || count(*) FROM algorithm_results WHERE tenant_id='tenant-local' AND correlation_id='$run_prefix';")"
   log "completed session=$session_date ${summary//$'\n'/ }"

@@ -32,6 +32,13 @@ import type {
   ReplayOperationsStatusResponse,
   AppProfilesResponse,
   MarketOpsAssetsResponse,
+  MarketOpsAsset,
+  MarketOpsAssetBackfillJob,
+  MarketOpsAssetCreateRequest,
+  MarketOpsTickerValidation,
+  MarketOpsAssetOnboardRequest,
+  MarketOpsAssetBackfillJobsResponse,
+  MarketOpsAssetBackfillCreateRequest,
   MarketOpsAssetQuotesResponse,
   MarketOpsIntradayConditionsResponse,
   MarketOpsAssetFilter,
@@ -49,6 +56,7 @@ import type {
   MarketOpsAlgorithmAdjudicationsResponse,
   MarketOpsQuantitativeSeriesResponse,
   MarketOpsAssetAlgorithmObservationsResponse,
+  MarketOpsRiskRewardSummariesResponse,
   MarketOpsHypothesisResponse,
   MarketOpsEvidenceResponse,
   MarketOpsMarketStateLineageResponse,
@@ -189,11 +197,11 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function get<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+async function get<T>(path: string, params?: Record<string, string | number | undefined>, cache: RequestCache = 'default'): Promise<T> {
   const endpoint = buildUrl(path, params);
   let res: Response;
   try {
-    res = await fetch(endpoint, { headers: { Accept: 'application/json', ...authHeaders() } });
+    res = await fetch(endpoint, { cache, headers: { Accept: 'application/json', ...authHeaders() } });
   } catch {
     throw new ApiError(0, 'network_error', 'Gateway unreachable', endpoint);
   }
@@ -271,7 +279,7 @@ export const api = {
     }),
   listCatalogSources: (tenantId = 'tenant-local', limit = 50) =>
     get<CatalogSourcesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/sources`, { limit }),
-  listCatalogPipelines: (tenantId = 'tenant-local', limit = 50) =>
+  listCatalogPipelines: (tenantId = 'tenant-local', limit = 200) =>
     get<CatalogPipelinesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/pipelines`, { limit }),
   listCatalogRules: (tenantId = 'tenant-local', limit = 50) =>
     get<CatalogRulesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/catalog/rules`, { limit }),
@@ -368,10 +376,13 @@ export const api = {
   // active_only is serialized as the string the backend parses ("false" disables it).
   listMarketOpsAssets: (filter: MarketOpsAssetFilter = {}) =>
     get<MarketOpsAssetsResponse>(`/v1/tenants/${encodeURIComponent(filter.tenant_id ?? "tenant-local")}/marketops/assets`, { universe_group: filter.universe_group || "top50_megacap", active_only: filter.active_only === false ? "false" : "true", limit: filter.limit ?? 50 }),
+  validateMarketOpsWatchlistTicker: (tenantId: string, ticker: string) => get<{validation: MarketOpsTickerValidation}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/validate`, { ticker }, "no-store"),
+  onboardMarketOpsWatchlistAsset: (tenantId: string, body: MarketOpsAssetOnboardRequest) => post<{asset: MarketOpsAsset; backfill_job?: MarketOpsAssetBackfillJob}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/onboard`, body),  listMarketOpsAssetBackfillJobs: (tenantId: string, symbol?: string) => get<MarketOpsAssetBackfillJobsResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/backfill-jobs`, symbol ? { symbol } : {}),
+  createMarketOpsAssetBackfillJob: (tenantId: string, symbol: string, body: MarketOpsAssetBackfillCreateRequest) => post<{backfill_job: MarketOpsAssetBackfillJob}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/backfill-jobs`, body),
   getMarketOpsAssetQuotes: (tenantId: string, universeGroup = "top50_megacap") =>
     get<MarketOpsAssetQuotesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/quotes`, { universe_group: universeGroup }),
   getMarketOpsIntradayConditions: (tenantId: string, universeGroup = "top50_megacap", symbol?: string) =>
-    get<MarketOpsIntradayConditionsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/assets/" + (symbol ? encodeURIComponent(symbol) + "/" : "") + "intraday-conditions", { universe_group: universeGroup }),
+    get<MarketOpsIntradayConditionsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/assets/" + (symbol ? encodeURIComponent(symbol) + "/" : "") + "intraday-conditions", { universe_group: universeGroup }, 'no-store'),
   // G128 MarketOps asset options intelligence (read-only). Persisted coverage,
   // derived distribution snapshots, and chain rows for one asset. tenant_id and
   // symbol are path segments (the gateway upper-cases symbol). window defaults to
@@ -380,6 +391,7 @@ export const api = {
   // performs no ingestion and never calls live-preview (which stays 501).
   getMarketOpsQuantitativeSeries: (tenantId: string, symbol: string, window: string) => get<MarketOpsQuantitativeSeriesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/quantitative-series`, { window }),
   getMarketOpsAssetAlgorithmObservations: (tenantId: string, symbol: string) => get<MarketOpsAssetAlgorithmObservationsResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/algorithm-observations`),
+  getMarketOpsRiskRewardSummaries: (tenantId: string, universeGroup = "top50_megacap") => get<MarketOpsRiskRewardSummariesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/risk-reward`, { universe_group: universeGroup }, "no-store"),
   getMarketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
     get<MarketOpsOptionsCoverageResponse>(
       `/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/options/coverage`,

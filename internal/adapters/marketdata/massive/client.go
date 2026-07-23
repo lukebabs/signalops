@@ -30,7 +30,7 @@ type Client struct {
 func LoadClientConfigFromEnv() ClientConfig {
 	return ClientConfig{
 		BaseURL: strings.TrimSpace(os.Getenv("SIGNALOPS_MASSIVE_BASE_URL")),
-		APIKey:  firstNonEmptyEnv("SIGNALOPS_MASSIVE_API_KEY", "MASSIVE_API_KEY", "API_KEY"),
+		APIKey:  strings.TrimSpace(os.Getenv("SIGNALOPS_MASSIVE_API_KEY")),
 	}
 }
 

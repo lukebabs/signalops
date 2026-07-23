@@ -79,11 +79,9 @@ provider payloads and pass normalized provider records into these builders.
 The Massive client is configured from environment without logging or committing
 secrets.
 
-Supported API key variables, in precedence order:
+Required API key variable:
 
 - `SIGNALOPS_MASSIVE_API_KEY`
-- `MASSIVE_API_KEY`
-- `API_KEY`
 
 Optional base URL override:
 

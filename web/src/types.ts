@@ -583,6 +583,12 @@ export interface MarketOpsAsset {
 export interface MarketOpsAssetsResponse {
   assets: MarketOpsAsset[];
 }
+export interface MarketOpsAssetCreateRequest { ticker:string; company?:string; sector?:string; industry?:string; }
+export interface MarketOpsTickerValidation { ticker:string; company:string; exchange:string; sector:string; industry:string; }
+export interface MarketOpsAssetOnboardRequest { ticker:string; backfill_equity_history:boolean; start_date?:string; end_date?:string; }
+export interface MarketOpsAssetBackfillJob { backfill_job_id:string; tenant_id:string; symbol:string; universe_group:string; start_date:string; end_date:string; status:string; requested_by:string; requested_sessions:number; completed_sessions:number; failed_sessions:number; provider_requests:number; error_message?:string; result:unknown; started_at?:string; completed_at?:string; created_at:string; updated_at:string; }
+export interface MarketOpsAssetBackfillJobsResponse { backfill_jobs:MarketOpsAssetBackfillJob[]; }
+export interface MarketOpsAssetBackfillCreateRequest { start_date:string; end_date:string; requested_by?:string; }
 
 export interface MarketOpsAssetQuote {
   ticker: string;
@@ -2637,4 +2643,6 @@ export type MarketOpsRiskRewardFactor = { key:string; direction:MarketOpsRiskRew
 export type MarketOpsRiskRewardCorroboration = { direction:MarketOpsRiskRewardDirection | "unavailable"; agreement:"aligned" | "bullish" | "bearish" | "neutral"; put_call_volume_ratio?:number; deviation_pct?:number; };
 export type MarketOpsRiskRewardPoint = { algorithm_result_id:string; trade_date:string; score:number; direction:MarketOpsRiskRewardDirection; risk_level:"low" | "medium" | "high" | "unavailable"; confidence:number; severity:"info" | "low" | "medium" | "high"; technical_factors:MarketOpsRiskRewardFactor[]; speculative_corroboration:MarketOpsRiskRewardCorroboration; research_only:true; };
 export type MarketOpsRiskRewardResponse = { latest?:MarketOpsRiskRewardPoint; history:MarketOpsRiskRewardPoint[]; };
+export type MarketOpsRiskRewardSummary = { ticker:string; trade_date:string; direction:MarketOpsRiskRewardDirection; score:number; confidence:number; risk_level:"low" | "medium" | "high" | "unavailable"; research_only:true; };
+export interface MarketOpsRiskRewardSummariesResponse { summaries:MarketOpsRiskRewardSummary[]; }
 export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; risk_reward?:MarketOpsRiskRewardResponse; }

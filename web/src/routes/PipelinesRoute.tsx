@@ -9,7 +9,7 @@ import { useTenant } from '../auth/session';
 
 export function PipelinesRoute() {
   const TENANT_ID = useTenant();
-  const pipelines = useCatalogPipelines(TENANT_ID, 50);
+  const pipelines = useCatalogPipelines(TENANT_ID, 200);
   const data = pipelines.data?.pipelines ?? [];
   const active = data.filter((pipeline) => pipeline.status === 'active').length;
   const stages = new Set(data.flatMap((pipeline) => pipeline.stages));

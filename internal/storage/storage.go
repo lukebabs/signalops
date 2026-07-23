@@ -836,8 +836,48 @@ type MarketOpsAssetRecord struct {
 	UpdatedAt     time.Time
 }
 
+type MarketOpsAssetBackfillJobRecord struct {
+	BackfillJobID     string
+	TenantID          string
+	Symbol            string
+	UniverseGroup     string
+	StartDate         time.Time
+	EndDate           time.Time
+	Status            string
+	RequestedBy       string
+	RequestedSessions int
+	CompletedSessions int
+	FailedSessions    int
+	ProviderRequests  int
+	ErrorMessage      string
+	ResultJSON        []byte
+	StartedAt         *time.Time
+	CompletedAt       *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type MarketOpsAssetBackfillJobFilter struct {
+	TenantID string
+	Symbol   string
+	Status   string
+	Limit    int
+}
+
 // MarketOpsIntradayConditionSnapshotRecord is a point-in-time price-action observation.
 // It remains separate from the authoritative end-of-day Market State research record.
+type MarketOpsAssetManagementRepository interface {
+	UpsertMarketOpsAsset(ctx context.Context, record MarketOpsAssetRecord) (MarketOpsAssetRecord, error)
+}
+
+type MarketOpsAssetBackfillRepository interface {
+	CreateMarketOpsAssetBackfillJob(ctx context.Context, record MarketOpsAssetBackfillJobRecord) (MarketOpsAssetBackfillJobRecord, error)
+	ListMarketOpsAssetBackfillJobs(ctx context.Context, filter MarketOpsAssetBackfillJobFilter) ([]MarketOpsAssetBackfillJobRecord, error)
+	GetMarketOpsAssetBackfillJob(ctx context.Context, tenantID string, jobID string) (MarketOpsAssetBackfillJobRecord, error)
+	ClaimNextMarketOpsAssetBackfillJob(ctx context.Context, workerID string, claimedAt time.Time) (MarketOpsAssetBackfillJobRecord, error)
+	UpdateMarketOpsAssetBackfillJob(ctx context.Context, record MarketOpsAssetBackfillJobRecord) error
+}
+
 type MarketOpsIntradayConditionSnapshotRecord struct {
 	SnapshotID        string
 	TenantID          string

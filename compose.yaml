@@ -73,8 +73,6 @@ services:
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
-      API_KEY: ${API_KEY:-}
     working_dir: /workspace
     entrypoint: ["/bin/sh", "/workspace/scripts/backfill_temporal_ledgers.sh"]
     volumes:
@@ -156,8 +154,6 @@ services:
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
-      API_KEY: ${API_KEY:-}
       SIGNALOPS_AUTH_ENABLED: ${SIGNALOPS_AUTH_ENABLED:-false}
       SIGNALOPS_AUTH_ISSUER: ${SIGNALOPS_AUTH_ISSUER:-https://auth.syncratic.co/realms/syncratic}
       SIGNALOPS_AUTH_REALM: ${SIGNALOPS_AUTH_REALM:-syncratic}
@@ -206,8 +202,6 @@ services:
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
-      API_KEY: ${API_KEY:-}
 
   massive-puller:
     profiles: ["massive-pull"]
@@ -231,8 +225,6 @@ services:
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
-      API_KEY: ${API_KEY:-}
       SIGNALOPS_MASSIVE_TENANT_ID: tenant-local
       SIGNALOPS_MASSIVE_SOURCE_ID: src-massive
       SIGNALOPS_MASSIVE_DATASETS: equity,options
@@ -269,8 +261,6 @@ services:
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
-      API_KEY: ${API_KEY:-}
       SIGNALOPS_MASSIVE_TENANT_ID: tenant-local
       SIGNALOPS_MASSIVE_SOURCE_ID: src-massive
       SIGNALOPS_MASSIVE_DATASETS: equity,options
@@ -288,6 +278,28 @@ services:
       SIGNALOPS_MASSIVE_SCHEDULE_MAX_RUNS: "0"
       SIGNALOPS_MASSIVE_SCHEDULE_RUN_IMMEDIATELY: "true"
       SIGNALOPS_MASSIVE_SCHEDULE_CONTINUE_ON_ERROR: "true"
+
+  marketops-asset-backfill-worker:
+    profiles: ["marketops-backfill"]
+    build:
+      context: .
+      target: marketops-asset-backfill-worker
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_BROKER_PROVIDER: redpanda
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
 
   marketops-algorithm-adjudicator:
     profiles: ["marketops-daily"]
@@ -350,8 +362,6 @@ services:
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
-      API_KEY: ${API_KEY:-}
 
   marketops-intelligence-cohort-runner:
     profiles: ["marketops-daily"]
@@ -369,8 +379,6 @@ services:
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
-      API_KEY: ${API_KEY:-}
       SIGNALOPS_ACTOR: ${MARKETOPS_DAILY_ACTOR:-systemd-postclose}
 
   raw-worker:
@@ -439,8 +447,6 @@ services:
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
-      API_KEY: ${API_KEY:-}
 
 
   signal-persister:
@@ -463,8 +469,6 @@ services:
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
-      API_KEY: ${API_KEY:-}
 
   replay-worker:
     build:
@@ -486,8 +490,6 @@ services:
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY:-}
-      API_KEY: ${API_KEY:-}
       SIGNALOPS_REPLAY_WORKER_ID: signalops-replay-worker
       SIGNALOPS_REPLAY_ONESHOT: "false"
       SIGNALOPS_REPLAY_MAX_RECORDS: "50"

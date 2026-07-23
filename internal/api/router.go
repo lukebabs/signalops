@@ -2163,7 +2163,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
 			return
 		}
-		pipelines, err := repo.ListCatalogPipelines(r.Context(), tenantID, queryLimit(r, 50))
+		pipelines, err := repo.ListCatalogPipelines(r.Context(), tenantID, queryLimit(r, 200))
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list catalog pipelines")
 			return
@@ -2493,6 +2493,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerMarketOpsAlgorithmAdjudicationRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsQuantitativeSeriesRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsAssetAlgorithmObservationRoutes(mux, cfg.QueryRepository)
+	registerMarketOpsAssetManagementRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsOpportunityRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsOutcomeRoutes(mux, cfg.QueryRepository)
 

@@ -31,6 +31,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-h
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-intraday-monitor ./cmd/marketops-intraday-monitor
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-runner ./cmd/algorithm-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-adjudicator ./cmd/marketops-algorithm-adjudicator
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-asset-backfill-worker ./cmd/marketops-asset-backfill-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-proposal-generator ./cmd/algorithm-proposal-generator
 
 FROM python:3.12-slim AS gateway
@@ -115,6 +116,12 @@ FROM gcr.io/distroless/static-debian12:nonroot AS marketops-options-chain-ingest
 COPY --from=build /out/signalops-marketops-options-chain-ingestor /signalops-marketops-options-chain-ingestor
 
 ENTRYPOINT ["/signalops-marketops-options-chain-ingestor"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-asset-backfill-worker
+WORKDIR /app
+COPY --from=build /out/signalops-marketops-asset-backfill-worker /signalops-marketops-asset-backfill-worker
+USER nonroot
+ENTRYPOINT ["/signalops-marketops-asset-backfill-worker"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS marketops-options-distribution-backfill
 
