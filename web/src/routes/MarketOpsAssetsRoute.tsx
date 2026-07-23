@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { CircleDollarSign, X, ArrowDown, ArrowUp } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
@@ -38,10 +38,48 @@ import type { AlgorithmResult, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOp
 
 const CHAIN_LIMITS = [100, 200, 500];
 
+type AssetSortKey = 'default' | 'rank' | 'asset' | 'market' | 'intraday' | 'riskReward' | 'updated';
+type AssetColumnKey = Exclude<AssetSortKey, 'default'>;
+
+const ASSET_COLUMN_WIDTHS_KEY = 'signalops.marketops.assets.column-widths.v1';
+const DEFAULT_ASSET_COLUMN_WIDTHS: Record<AssetColumnKey, number> = { rank: 70, asset: 290, market: 220, intraday: 230, riskReward: 170, updated: 205 };
+
+function assetRowKey(asset: { universe_group: string; ticker: string }): string {
+  return asset.universe_group + ":" + asset.ticker;
+}
+
+function assetSectorLabel(asset: { display_sector?: string; sector?: string }): string {
+  return (asset.display_sector || asset.sector || "unclassified").toLocaleLowerCase().replace(/[-_]+/g, " · ").replace(/\s+/g, " ").trim();
+}
+
 export function MarketOpsAssetsRoute() {
   const TENANT_ID = useTenant();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [tab, setTab] = useState<'assets' | 'readiness'>('assets');
+  const [editingAssetKey, setEditingAssetKey] = useState<string | null>(null);
+  const [displayNameInput, setDisplayNameInput] = useState('');
+  const [displayNameBusy, setDisplayNameBusy] = useState(false);
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  const [assetSort, setAssetSort] = useState<{ key: AssetSortKey; direction: 'asc' | 'desc' }>({ key: 'default', direction: 'asc' });
+  const [editingSectorKey, setEditingSectorKey] = useState<string | null>(null);
+  const [displaySectorInput, setDisplaySectorInput] = useState('');
+  const [displaySectorBusy, setDisplaySectorBusy] = useState(false);
+  const [displaySectorError, setDisplaySectorError] = useState<string | null>(null);
+  const [columnWidths, setColumnWidths] = useState<Record<AssetColumnKey, number>>(() => {
+    if (typeof window === 'undefined') return DEFAULT_ASSET_COLUMN_WIDTHS;
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(ASSET_COLUMN_WIDTHS_KEY) || '{}') as Partial<Record<AssetColumnKey, unknown>>;
+      return (Object.keys(DEFAULT_ASSET_COLUMN_WIDTHS) as AssetColumnKey[]).reduce((widths, key) => {
+        const value = stored[key];
+        widths[key] = typeof value === 'number' && Number.isFinite(value) ? Math.max(64, Math.min(560, value)) : DEFAULT_ASSET_COLUMN_WIDTHS[key];
+        return widths;
+      }, {} as Record<AssetColumnKey, number>);
+    } catch {
+      return DEFAULT_ASSET_COLUMN_WIDTHS;
+    }
+  });
+  const columnWidthsRef = useRef(columnWidths);
+  columnWidthsRef.current = columnWidths;
   const query = useMarketOpsAssets({
     tenant_id: TENANT_ID,
     universe_group: 'top50_megacap',
@@ -65,6 +103,117 @@ export function MarketOpsAssetsRoute() {
   const riskRewardQ = useMarketOpsRiskRewardSummaries(TENANT_ID, "top50_megacap");
   const watchlistRiskRewardQ = useMarketOpsRiskRewardSummaries(TENANT_ID, "analyst_watchlist");
   const riskRewardMap = new Map([...(riskRewardQ.data?.summaries ?? []), ...(watchlistRiskRewardQ.data?.summaries ?? [])].map((summary) => [summary.ticker.toUpperCase(), summary]));
+
+  function startDisplayNameEdit(asset: { ticker: string; universe_group: string; display_name?: string; company: string }) {
+    setSelectedTicker(null);
+    setDisplayNameError(null);
+    setDisplayNameInput(asset.display_name || asset.company);
+    setEditingAssetKey(assetRowKey(asset));
+  }
+
+  async function saveDisplayName(event: React.FormEvent, asset: { ticker: string; universe_group: string }) {
+    event.preventDefault();
+    const displayName = displayNameInput.trim();
+    if (!displayName) {
+      setDisplayNameError("A display name is required.");
+      return;
+    }
+    setDisplayNameBusy(true);
+    setDisplayNameError(null);
+    try {
+      await api.updateMarketOpsAssetDisplayName(TENANT_ID, asset.ticker, { universe_group: asset.universe_group, display_name: displayName });
+      await Promise.all([query.refetch(), watchlistQ.refetch()]);
+      setEditingAssetKey(null);
+    } catch (error) {
+      setDisplayNameError(error instanceof Error ? error.message : "Display name could not be updated.");
+    } finally {
+      setDisplayNameBusy(false);
+    }
+  }
+
+  function startDisplaySectorEdit(asset: { ticker: string; universe_group: string; display_sector?: string; sector?: string }) {
+    setSelectedTicker(null);
+    setDisplaySectorError(null);
+    setDisplaySectorInput(asset.display_sector || asset.sector || "");
+    setEditingSectorKey(assetRowKey(asset));
+  }
+
+  async function saveDisplaySector(event: React.FormEvent, asset: { ticker: string; universe_group: string }) {
+    event.preventDefault();
+    const displaySector = displaySectorInput.trim();
+    if (!displaySector) {
+      setDisplaySectorError("A sector label is required.");
+      return;
+    }
+    setDisplaySectorBusy(true);
+    setDisplaySectorError(null);
+    try {
+      await api.updateMarketOpsAssetDisplaySector(TENANT_ID, asset.ticker, { universe_group: asset.universe_group, display_sector: displaySector });
+      await Promise.all([query.refetch(), watchlistQ.refetch()]);
+      setEditingSectorKey(null);
+    } catch (error) {
+      setDisplaySectorError(error instanceof Error ? error.message : "Sector label could not be updated.");
+    } finally {
+      setDisplaySectorBusy(false);
+    }
+  }
+
+  const sortedData = useMemo(() => {
+    if (assetSort.key === 'default') return data;
+    const valueFor = (asset: typeof data[number]): string | number | null => {
+      const quote = quoteMap.get(asset.ticker.toUpperCase());
+      const condition = conditionMap.get(asset.ticker.toUpperCase());
+      const riskReward = riskRewardMap.get(asset.ticker.toUpperCase());
+      switch (assetSort.key) {
+        case 'rank': return asset.rank;
+        case 'asset': return (asset.display_name || asset.company || asset.ticker).toLocaleLowerCase();
+        case 'market': return quote?.change_percent ?? null;
+        case 'intraday': return condition?.conditions.reduce((score, item) => Math.max(score, item.score), Number.NEGATIVE_INFINITY) ?? null;
+        case 'riskReward': return riskReward?.score ?? null;
+        case 'updated': return quote?.timestamp ? Date.parse(quote.timestamp) : null;
+        default: return null;
+      }
+    };
+    return data.slice().sort((left, right) => {
+      const leftValue = valueFor(left);
+      const rightValue = valueFor(right);
+      if (leftValue == null && rightValue == null) return left.ticker.localeCompare(right.ticker);
+      if (leftValue == null) return 1;
+      if (rightValue == null) return -1;
+      const comparison = typeof leftValue === 'string' && typeof rightValue === 'string' ? leftValue.localeCompare(rightValue) : Number(leftValue) - Number(rightValue);
+      return comparison === 0 ? left.ticker.localeCompare(right.ticker) : comparison * (assetSort.direction === 'asc' ? 1 : -1);
+    });
+  }, [assetSort, conditionMap, data, quoteMap, riskRewardMap]);
+
+  function toggleAssetSort(key: Exclude<AssetSortKey, 'default'>) {
+    setAssetSort((current) => current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: key === 'asset' || key === 'rank' ? 'asc' : 'desc' });
+  }
+
+  function beginColumnResize(event: React.PointerEvent<HTMLButtonElement>, key: AssetColumnKey) {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = columnWidthsRef.current[key];
+    const onMove = (moveEvent: PointerEvent) => {
+      const nextWidth = Math.max(64, Math.min(560, startWidth + moveEvent.clientX - startX));
+      setColumnWidths((current) => ({ ...current, [key]: nextWidth }));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.localStorage.setItem(ASSET_COLUMN_WIDTHS_KEY, JSON.stringify(columnWidthsRef.current));
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  function resetColumnWidths() {
+    setColumnWidths(DEFAULT_ASSET_COLUMN_WIDTHS);
+    window.localStorage.removeItem(ASSET_COLUMN_WIDTHS_KEY);
+  }
+
+  const totalColumnWidth = (Object.values(columnWidths) as number[]).reduce((total, width) => total + width, 0);
+
 
   return (
     <div className="space-y-3">
@@ -108,26 +257,30 @@ export function MarketOpsAssetsRoute() {
         <ErrorState error={query.error} />
       ) : data.length ? (
         <div className="space-y-1">
-          <p className="px-1 text-xs text-gray-500 md:hidden">Swipe horizontally to view all asset columns.</p>
+          <div className="flex items-center justify-between px-1">
+            <p className="text-xs text-gray-500 md:hidden">Swipe horizontally to view all asset columns.</p>
+            <button type="button" onClick={resetColumnWidths} className="ml-auto text-xs text-brand-700 underline hover:text-brand-800">Reset column widths</button>
+          </div>
           <div
             className="max-w-full overflow-x-auto rounded border border-gray-200 bg-white overscroll-x-contain"
             role="region"
             aria-label="Scrollable asset table"
             tabIndex={0}
           >
-          <table className="w-full min-w-[960px] divide-y divide-gray-200 text-sm">
+          <table className="table-fixed divide-y divide-gray-200 text-sm" style={{ width: totalColumnWidth }}>
+            <colgroup>{(Object.keys(DEFAULT_ASSET_COLUMN_WIDTHS) as AssetColumnKey[]).map((key) => <col key={key} style={{ width: columnWidths[key] }} />)}</colgroup>
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
-                <th className="px-3 py-2">Rank</th>
-                <th className="px-3 py-2">Asset</th>
-                <th className="px-3 py-2" title="Latest delayed intraday price while the market is open; latest completed EOD close otherwise. Hover a value for its change and range context.">Current Market Data ⓘ</th>
-                <th className="px-3 py-2" title="Asset-specific conditions captured by the 15-minute monitor. They are not end-of-day research hypotheses.">Intraday Conditions ⓘ</th>
-                <th className="px-3 py-2" title="Latest persisted post-close technical Risk/Reward posture. It is research-only and does not represent a recommendation.">Risk/Reward ⓘ</th>
-                <th className="px-3 py-2">Updated</th>
+                <SortableAssetHeader label="Rank" sortKey="rank" activeSort={assetSort} onSort={toggleAssetSort} width={columnWidths.rank} onResize={beginColumnResize} />
+                <SortableAssetHeader label="Asset" sortKey="asset" activeSort={assetSort} onSort={toggleAssetSort} width={columnWidths.asset} onResize={beginColumnResize} />
+                <SortableAssetHeader label="Current Market Data ⓘ" sortKey="market" activeSort={assetSort} onSort={toggleAssetSort} width={columnWidths.market} onResize={beginColumnResize} title="Latest delayed intraday price while the market is open; latest completed EOD close otherwise. Sorts by displayed percentage move." />
+                <SortableAssetHeader label="Intraday Conditions ⓘ" sortKey="intraday" activeSort={assetSort} onSort={toggleAssetSort} width={columnWidths.intraday} onResize={beginColumnResize} title="Sorts by the strongest current 15-minute condition score for each asset." />
+                <SortableAssetHeader label="Risk/Reward ⓘ" sortKey="riskReward" activeSort={assetSort} onSort={toggleAssetSort} width={columnWidths.riskReward} onResize={beginColumnResize} title="Sorts by the latest persisted post-close technical Risk/Reward score." />
+                <SortableAssetHeader label="Updated" sortKey="updated" activeSort={assetSort} onSort={toggleAssetSort} width={columnWidths.updated} onResize={beginColumnResize} title="Sorts by the timestamp of the displayed quote." />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {data.map((a) => (
+              {sortedData.map((a) => (
                 <Fragment key={a.ticker}>
                 <tr
                   onClick={() => setSelectedTicker((current) => current === a.ticker ? null : a.ticker)}
@@ -138,8 +291,29 @@ export function MarketOpsAssetsRoute() {
                     <div className="flex items-start gap-2">
                       <CircleDollarSign size={16} className="mt-0.5 text-brand-700" />
                       <div>
-                        <div className="font-medium text-gray-900">{a.company || '—'}</div>
-                        <div className="flex items-center gap-1 font-mono text-xs text-gray-500"><span>{a.ticker}</span>{a.sector ? <span className="rounded bg-slate-100 px-1.5 py-0.5 font-sans text-[10px] text-slate-600">{a.sector}</span> : null}</div>
+                        {editingAssetKey === assetRowKey(a) ? (
+                          <form onSubmit={(event) => void saveDisplayName(event, a)} onClick={(event) => event.stopPropagation()} className="flex items-center gap-1">
+                            <input aria-label={"Display name for " + a.ticker} value={displayNameInput} onChange={(event) => setDisplayNameInput(event.target.value)} maxLength={120} autoFocus className="w-44 rounded border border-gray-300 px-1.5 py-0.5 text-sm text-gray-900" />
+                            <button type="submit" disabled={displayNameBusy} className="rounded bg-brand-700 px-1.5 py-0.5 text-[10px] font-medium text-white disabled:opacity-50">Save</button>
+                            <button type="button" disabled={displayNameBusy} onClick={() => { setEditingAssetKey(null); setDisplayNameError(null); }} className="text-[10px] text-gray-600 underline">Cancel</button>
+                          </form>
+                        ) : (
+                          <div className="flex items-center gap-1 font-medium text-gray-900">
+                            <span>{a.display_name || a.company || "—"}</span>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); startDisplayNameEdit(a); }} className="text-[10px] font-normal text-brand-700 underline hover:text-brand-800" title="Edit analyst display name">Edit</button>
+                          </div>
+                        )}
+                        {editingAssetKey === assetRowKey(a) && displayNameError ? <div className="mt-1 text-[10px] text-red-700">{displayNameError}</div> : null}
+                        <div className="flex items-center gap-1 font-mono text-xs text-gray-500"><span>{a.ticker}</span>{editingSectorKey === assetRowKey(a) ? (
+                          <form onSubmit={(event) => void saveDisplaySector(event, a)} onClick={(event) => event.stopPropagation()} className="flex items-center gap-1 font-sans">
+                            <input aria-label={"Sector label for " + a.ticker} value={displaySectorInput} onChange={(event) => setDisplaySectorInput(event.target.value)} maxLength={48} autoFocus className="w-28 rounded border border-gray-300 px-1 py-0.5 text-[10px] text-gray-900" />
+                            <button type="submit" disabled={displaySectorBusy} className="rounded bg-brand-700 px-1 py-0.5 text-[9px] font-medium text-white disabled:opacity-50">Save</button>
+                            <button type="button" disabled={displaySectorBusy} onClick={() => { setEditingSectorKey(null); setDisplaySectorError(null); }} className="text-[9px] text-gray-600 underline">Cancel</button>
+                          </form>
+                        ) : (
+                          <span className="inline-flex max-w-40 items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 font-sans text-[10px] text-slate-600" title={a.display_sector || a.sector || "Unclassified sector"}><span className="truncate">{assetSectorLabel(a)}</span><button type="button" onClick={(event) => { event.stopPropagation(); startDisplaySectorEdit(a); }} className="shrink-0 text-[9px] text-brand-700 underline hover:text-brand-800" title="Edit analyst sector label">Edit</button></span>
+                        )}</div>
+                        {editingSectorKey === assetRowKey(a) && displaySectorError ? <div className="mt-1 text-[10px] text-red-700">{displaySectorError}</div> : null}
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span>{a.asset_type}</span>
                           <Link
@@ -186,6 +360,11 @@ export function MarketOpsAssetsRoute() {
     </div>
   );
 }
+function SortableAssetHeader({ label, sortKey, activeSort, onSort, width, onResize, title }: { label: string; sortKey: AssetColumnKey; activeSort: { key: AssetSortKey; direction: 'asc' | 'desc' }; onSort: (key: AssetColumnKey) => void; width: number; onResize: (event: React.PointerEvent<HTMLButtonElement>, key: AssetColumnKey) => void; title?: string }) {
+  const active = activeSort.key === sortKey;
+  return <th className="relative px-3 py-2" style={{ width }} aria-sort={active ? (activeSort.direction === "asc" ? "ascending" : "descending") : "none"} title={title}><button type="button" onClick={() => onSort(sortKey)} className="inline-flex max-w-full items-center gap-1 pr-1 hover:text-gray-800">{label}<span aria-hidden="true" className={active ? "text-brand-700" : "text-gray-300"}>{active ? (activeSort.direction === "asc" ? "↑" : "↓") : "↕"}</span></button><button type="button" aria-label={"Resize " + label + " column"} onPointerDown={(event) => onResize(event, sortKey)} className="absolute right-0 top-0 h-full w-2 cursor-col-resize touch-none border-r border-transparent hover:border-brand-500" /></th>;
+}
+
 function AlgorithmResultLine({ result }: { result: AlgorithmResult }) {
   const payload = result.result_payload && typeof result.result_payload === "object" ? result.result_payload as Record<string, unknown> : {};
   const featureKey = typeof payload.feature === "string" ? payload.feature : "";

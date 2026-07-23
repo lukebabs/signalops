@@ -824,6 +824,8 @@ type MarketOpsAssetRecord struct {
 	TickerKey     string
 	Company       string
 	CompanyKey    string
+	DisplayName   string
+	DisplaySector string
 	AssetType     string
 	Exchange      string
 	Sector        string
@@ -868,6 +870,8 @@ type MarketOpsAssetBackfillJobFilter struct {
 // It remains separate from the authoritative end-of-day Market State research record.
 type MarketOpsAssetManagementRepository interface {
 	UpsertMarketOpsAsset(ctx context.Context, record MarketOpsAssetRecord) (MarketOpsAssetRecord, error)
+	UpdateMarketOpsAssetDisplayName(ctx context.Context, tenantID, universeGroup, ticker, displayName string) (MarketOpsAssetRecord, error)
+	UpdateMarketOpsAssetDisplaySector(ctx context.Context, tenantID, universeGroup, ticker, displaySector string) (MarketOpsAssetRecord, error)
 }
 
 type MarketOpsAssetBackfillRepository interface {

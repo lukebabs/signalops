@@ -72,8 +72,26 @@ func (r *Repository) UpsertMarketOpsAsset(ctx context.Context, record storage.Ma
 			return storage.MarketOpsAssetRecord{}, fmt.Errorf("allocate asset rank: %w", err)
 		}
 	}
-	row := r.db.QueryRowContext(ctx, `INSERT INTO marketops_asset_universe (tenant_id,app_id,domain,use_case,source_id,universe_group,rank,ticker,ticker_key,company,company_key,asset_type,exchange,sector,sector_key,industry,industry_key,is_active,metadata) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,true,$18) ON CONFLICT (tenant_id,universe_group,ticker) DO UPDATE SET company=EXCLUDED.company, company_key=EXCLUDED.company_key, sector=EXCLUDED.sector, sector_key=EXCLUDED.sector_key, industry=EXCLUDED.industry, industry_key=EXCLUDED.industry_key, exchange=EXCLUDED.exchange, is_active=true, metadata=EXCLUDED.metadata, updated_at=now() RETURNING tenant_id,app_id,domain,use_case,source_id,universe_group,rank,ticker,ticker_key,company,company_key,asset_type,exchange,sector,sector_key,industry,industry_key,is_active,metadata,created_at,updated_at`, record.TenantID, record.AppID, record.Domain, record.UseCase, record.SourceID, record.UniverseGroup, record.Rank, record.Ticker, record.TickerKey, record.Company, record.CompanyKey, record.AssetType, record.Exchange, record.Sector, record.SectorKey, record.Industry, record.IndustryKey, record.MetadataJSON)
+	row := r.db.QueryRowContext(ctx, `INSERT INTO marketops_asset_universe (tenant_id,app_id,domain,use_case,source_id,universe_group,rank,ticker,ticker_key,company,company_key,display_name,display_sector,asset_type,exchange,sector,sector_key,industry,industry_key,is_active,metadata) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'','',$12,$13,$14,$15,$16,$17,true,$18) ON CONFLICT (tenant_id,universe_group,ticker) DO UPDATE SET company=EXCLUDED.company, company_key=EXCLUDED.company_key, sector=EXCLUDED.sector, sector_key=EXCLUDED.sector_key, industry=EXCLUDED.industry, industry_key=EXCLUDED.industry_key, exchange=EXCLUDED.exchange, is_active=true, metadata=EXCLUDED.metadata, updated_at=now() RETURNING tenant_id,app_id,domain,use_case,source_id,universe_group,rank,ticker,ticker_key,company,company_key,display_name,display_sector,asset_type,exchange,sector,sector_key,industry,industry_key,is_active,metadata,created_at,updated_at`, record.TenantID, record.AppID, record.Domain, record.UseCase, record.SourceID, record.UniverseGroup, record.Rank, record.Ticker, record.TickerKey, record.Company, record.CompanyKey, record.AssetType, record.Exchange, record.Sector, record.SectorKey, record.Industry, record.IndustryKey, record.MetadataJSON)
 	return scanMarketOpsAsset(row)
+}
+
+func (r *Repository) UpdateMarketOpsAssetDisplayName(ctx context.Context, tenantID, universeGroup, ticker, displayName string) (storage.MarketOpsAssetRecord, error) {
+	row := r.db.QueryRowContext(ctx, `UPDATE marketops_asset_universe SET display_name=$4, updated_at=now() WHERE tenant_id=$1 AND universe_group=$2 AND ticker=$3 RETURNING tenant_id,app_id,domain,use_case,source_id,universe_group,rank,ticker,ticker_key,company,company_key,display_name,display_sector,asset_type,exchange,sector,sector_key,industry,industry_key,is_active,metadata,created_at,updated_at`, strings.TrimSpace(tenantID), strings.TrimSpace(universeGroup), strings.ToUpper(strings.TrimSpace(ticker)), strings.TrimSpace(displayName))
+	record, err := scanMarketOpsAsset(row)
+	if err == sql.ErrNoRows {
+		return storage.MarketOpsAssetRecord{}, storage.ErrNotFound
+	}
+	return record, err
+}
+
+func (r *Repository) UpdateMarketOpsAssetDisplaySector(ctx context.Context, tenantID, universeGroup, ticker, displaySector string) (storage.MarketOpsAssetRecord, error) {
+	row := r.db.QueryRowContext(ctx, `UPDATE marketops_asset_universe SET display_sector=$4, updated_at=now() WHERE tenant_id=$1 AND universe_group=$2 AND ticker=$3 RETURNING tenant_id,app_id,domain,use_case,source_id,universe_group,rank,ticker,ticker_key,company,company_key,display_name,display_sector,asset_type,exchange,sector,sector_key,industry,industry_key,is_active,metadata,created_at,updated_at`, strings.TrimSpace(tenantID), strings.TrimSpace(universeGroup), strings.ToUpper(strings.TrimSpace(ticker)), strings.TrimSpace(displaySector))
+	record, err := scanMarketOpsAsset(row)
+	if err == sql.ErrNoRows {
+		return storage.MarketOpsAssetRecord{}, storage.ErrNotFound
+	}
+	return record, err
 }
 
 const assetBackfillColumns = `backfill_job_id,tenant_id,symbol,universe_group,start_date,end_date,status,requested_by,requested_sessions,completed_sessions,failed_sessions,provider_requests,COALESCE(error_message,''),result,started_at,completed_at,created_at,updated_at`

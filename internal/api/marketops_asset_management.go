@@ -37,7 +37,75 @@ type marketOpsAssetBackfillCreateRequest struct {
 	RequestedBy string `json:"requested_by"`
 }
 
+type marketOpsAssetDisplayNameRequest struct {
+	UniverseGroup string `json:"universe_group"`
+	DisplayName   string `json:"display_name"`
+}
+
+type marketOpsAssetDisplaySectorRequest struct {
+	UniverseGroup string `json:"universe_group"`
+	DisplaySector string `json:"display_sector"`
+}
+
 func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
+	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/marketops/assets/{symbol}/display-sector", func(w http.ResponseWriter, r *http.Request) {
+		writer, ok := repo.(storage.MarketOpsAssetManagementRepository)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "asset_management_unavailable", "asset sector editing is unavailable")
+			return
+		}
+		var req marketOpsAssetDisplaySectorRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", "invalid display-sector request")
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		ticker := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
+		displaySector := strings.TrimSpace(req.DisplaySector)
+		if tenantID == "" || !analystTickerPattern.MatchString(ticker) || (req.UniverseGroup != "top50_megacap" && req.UniverseGroup != analystWatchlistGroup) || displaySector == "" || len([]rune(displaySector)) > 48 {
+			writeError(w, http.StatusBadRequest, "invalid_display_sector", "valid tenant, ticker, universe group, and a sector label of at most 48 characters are required")
+			return
+		}
+		asset, err := writer.UpdateMarketOpsAssetDisplaySector(r.Context(), tenantID, req.UniverseGroup, ticker, displaySector)
+		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "asset_not_found", "asset was not found in the selected universe")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "asset_write_failed", "asset sector could not be updated")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"asset": marketOpsAssetResponses([]storage.MarketOpsAssetRecord{asset})[0]})
+	})
+	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/marketops/assets/{symbol}/display-name", func(w http.ResponseWriter, r *http.Request) {
+		writer, ok := repo.(storage.MarketOpsAssetManagementRepository)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "asset_management_unavailable", "asset display-name editing is unavailable")
+			return
+		}
+		var req marketOpsAssetDisplayNameRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", "invalid display-name request")
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		ticker := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
+		displayName := strings.TrimSpace(req.DisplayName)
+		if tenantID == "" || !analystTickerPattern.MatchString(ticker) || (req.UniverseGroup != "top50_megacap" && req.UniverseGroup != analystWatchlistGroup) || len([]rune(displayName)) > 120 {
+			writeError(w, http.StatusBadRequest, "invalid_display_name", "valid tenant, ticker, universe group, and a display name of at most 120 characters are required")
+			return
+		}
+		asset, err := writer.UpdateMarketOpsAssetDisplayName(r.Context(), tenantID, req.UniverseGroup, ticker, displayName)
+		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "asset_not_found", "asset was not found in the selected universe")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "asset_write_failed", "asset display name could not be updated")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"asset": marketOpsAssetResponses([]storage.MarketOpsAssetRecord{asset})[0]})
+	})
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/validate", func(w http.ResponseWriter, r *http.Request) {
 		validated, err := validateWatchlistTicker(r.Context(), r.URL.Query().Get("ticker"))
 		if err != nil {

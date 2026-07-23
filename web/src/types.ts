@@ -121,6 +121,7 @@ export interface CatalogSource {
   source_domain: string;
   source_adapter: string;
   display_name: string;
+  display_sector: string;
   description: string;
   status: string;
   ingestion_modes: string[];
@@ -567,6 +568,8 @@ export interface MarketOpsAsset {
   ticker: string;
   ticker_key: string;
   company: string;
+  display_name: string;
+  display_sector: string;
   company_key: string;
   asset_type: string;
   exchange: string;
@@ -584,6 +587,8 @@ export interface MarketOpsAssetsResponse {
   assets: MarketOpsAsset[];
 }
 export interface MarketOpsAssetCreateRequest { ticker:string; company?:string; sector?:string; industry?:string; }
+export interface MarketOpsAssetDisplayNameRequest { universe_group: string; display_name: string; }
+export interface MarketOpsAssetDisplaySectorRequest { universe_group: string; display_sector: string; }
 export interface MarketOpsTickerValidation { ticker:string; company:string; exchange:string; sector:string; industry:string; }
 export interface MarketOpsAssetOnboardRequest { ticker:string; backfill_equity_history:boolean; start_date?:string; end_date?:string; }
 export interface MarketOpsAssetBackfillJob { backfill_job_id:string; tenant_id:string; symbol:string; universe_group:string; start_date:string; end_date:string; status:string; requested_by:string; requested_sessions:number; completed_sessions:number; failed_sessions:number; provider_requests:number; error_message?:string; result:unknown; started_at?:string; completed_at?:string; created_at:string; updated_at:string; }

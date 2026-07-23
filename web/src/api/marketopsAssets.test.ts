@@ -105,6 +105,29 @@ describe('MarketOps assets API client (G071)', () => {
     expect(data.assets).toHaveLength(1);
     expect(data.assets[0].ticker).toBe('NVDA');
   });
+
+  it('updates a ticker-scoped display-name override', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ asset: { ticker: 'NET', display_name: 'Cloudflare' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.updateMarketOpsAssetDisplayName('tenant-local', 'NET', { universe_group: 'top50_megacap', display_name: 'Cloudflare' });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/tenants/tenant-local/marketops/assets/NET/display-name');
+    expect(fetchMock.mock.calls[0][1].method).toBe('PATCH');
+    expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ universe_group: 'top50_megacap', display_name: 'Cloudflare' }));
+  });
+
+  it('updates a ticker-scoped display-sector override', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ asset: { ticker: 'NET', display_sector: 'Software' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.updateMarketOpsAssetDisplaySector('tenant-local', 'NET', { universe_group: 'top50_megacap', display_sector: 'Software' });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/v1/tenants/tenant-local/marketops/assets/NET/display-sector');
+    expect(fetchMock.mock.calls[0][1].method).toBe('PATCH');
+  });
 });
 
 describe('MarketOps assets query key (G071)', () => {

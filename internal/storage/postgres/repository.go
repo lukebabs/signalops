@@ -1496,7 +1496,7 @@ func (r *Repository) ListMarketOpsAssets(ctx context.Context, tenantID string, u
 	}
 	rows, err := r.db.QueryContext(ctx, `
 SELECT tenant_id, app_id, domain, use_case, source_id, universe_group, rank, ticker, ticker_key,
-  company, company_key, asset_type, exchange, sector, sector_key, industry, industry_key,
+  company, company_key, display_name, display_sector, asset_type, exchange, sector, sector_key, industry, industry_key,
   is_active, metadata, created_at, updated_at
 FROM marketops_asset_universe
 WHERE tenant_id = $1
@@ -1924,6 +1924,8 @@ func scanMarketOpsAsset(scanner marketOpsAssetScanner) (storage.MarketOpsAssetRe
 		&record.TickerKey,
 		&record.Company,
 		&record.CompanyKey,
+		&record.DisplayName,
+		&record.DisplaySector,
 		&record.AssetType,
 		&record.Exchange,
 		&record.Sector,

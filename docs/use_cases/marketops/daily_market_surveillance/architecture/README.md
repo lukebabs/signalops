@@ -16,6 +16,7 @@ Current key rule:
 
 Current notes:
 
+- `../../../../design/signalops_architecture_data_flow.md`: platform-level ingestion, normalization, feature, algorithm, reliability, and MarketOps end-to-end data-flow reference.
 - `signal_artifact_persistence.md`: canonical signal/artifact/lifecycle relationship and DSM Workbench Ledger semantics.
 - `graph_proposal_acceptance.md`: proposed G079 boundary for first-class graph proposal review/storage.
 - `backtest_substrate.md`: implemented G081 back-test substrate boundary, isolated storage model, CLI/API surfaces, and replay distinction.

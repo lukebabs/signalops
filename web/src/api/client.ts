@@ -35,6 +35,8 @@ import type {
   MarketOpsAsset,
   MarketOpsAssetBackfillJob,
   MarketOpsAssetCreateRequest,
+  MarketOpsAssetDisplayNameRequest,
+  MarketOpsAssetDisplaySectorRequest,
   MarketOpsTickerValidation,
   MarketOpsAssetOnboardRequest,
   MarketOpsAssetBackfillJobsResponse,
@@ -251,6 +253,33 @@ async function post<T>(
   return (await res.json()) as T;
 }
 
+async function patch<T>(path: string, body?: unknown): Promise<T> {
+  const endpoint = buildUrl(path);
+  let res: Response;
+  try {
+    res = await fetch(endpoint, {
+      method: 'PATCH',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...authHeaders() },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, 'network_error', 'Gateway unreachable', endpoint);
+  }
+  if (!res.ok) {
+    let code = 'http_error';
+    let message = res.statusText || `HTTP ${res.status}`;
+    try {
+      const errBody = await res.json();
+      if (errBody && typeof errBody.error === 'string') code = errBody.error;
+      if (errBody && typeof errBody.message === 'string') message = errBody.message;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, code, message, endpoint);
+  }
+  return (await res.json()) as T;
+}
+
 export const api = {
   healthz: () => get<HealthResponse>('/healthz'),
   readyz: () => get<HealthResponse>('/readyz'),
@@ -377,7 +406,10 @@ export const api = {
   listMarketOpsAssets: (filter: MarketOpsAssetFilter = {}) =>
     get<MarketOpsAssetsResponse>(`/v1/tenants/${encodeURIComponent(filter.tenant_id ?? "tenant-local")}/marketops/assets`, { universe_group: filter.universe_group || "top50_megacap", active_only: filter.active_only === false ? "false" : "true", limit: filter.limit ?? 50 }),
   validateMarketOpsWatchlistTicker: (tenantId: string, ticker: string) => get<{validation: MarketOpsTickerValidation}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/validate`, { ticker }, "no-store"),
-  onboardMarketOpsWatchlistAsset: (tenantId: string, body: MarketOpsAssetOnboardRequest) => post<{asset: MarketOpsAsset; backfill_job?: MarketOpsAssetBackfillJob}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/onboard`, body),  listMarketOpsAssetBackfillJobs: (tenantId: string, symbol?: string) => get<MarketOpsAssetBackfillJobsResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/backfill-jobs`, symbol ? { symbol } : {}),
+  onboardMarketOpsWatchlistAsset: (tenantId: string, body: MarketOpsAssetOnboardRequest) => post<{asset: MarketOpsAsset; backfill_job?: MarketOpsAssetBackfillJob}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/onboard`, body),
+  updateMarketOpsAssetDisplayName: (tenantId: string, ticker: string, body: MarketOpsAssetDisplayNameRequest) => patch<{asset: MarketOpsAsset}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(ticker)}/display-name`, body),
+  updateMarketOpsAssetDisplaySector: (tenantId: string, ticker: string, body: MarketOpsAssetDisplaySectorRequest) => patch<{asset: MarketOpsAsset}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(ticker)}/display-sector`, body),
+  listMarketOpsAssetBackfillJobs: (tenantId: string, symbol?: string) => get<MarketOpsAssetBackfillJobsResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/backfill-jobs`, symbol ? { symbol } : {}),
   createMarketOpsAssetBackfillJob: (tenantId: string, symbol: string, body: MarketOpsAssetBackfillCreateRequest) => post<{backfill_job: MarketOpsAssetBackfillJob}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/backfill-jobs`, body),
   getMarketOpsAssetQuotes: (tenantId: string, universeGroup = "top50_megacap") =>
     get<MarketOpsAssetQuotesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/quotes`, { universe_group: universeGroup }),

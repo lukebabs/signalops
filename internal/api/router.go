@@ -3084,6 +3084,8 @@ type marketOpsAssetDTO struct {
 	TickerKey     string          `json:"ticker_key"`
 	Company       string          `json:"company"`
 	CompanyKey    string          `json:"company_key"`
+	DisplayName   string          `json:"display_name"`
+	DisplaySector string          `json:"display_sector"`
 	AssetType     string          `json:"asset_type"`
 	Exchange      string          `json:"exchange"`
 	Sector        string          `json:"sector"`
@@ -3899,6 +3901,8 @@ func marketOpsAssetResponses(records []storage.MarketOpsAssetRecord) []marketOps
 			TickerKey:     record.TickerKey,
 			Company:       record.Company,
 			CompanyKey:    record.CompanyKey,
+			DisplayName:   record.DisplayName,
+			DisplaySector: record.DisplaySector,
 			AssetType:     record.AssetType,
 			Exchange:      record.Exchange,
 			Sector:        record.Sector,
