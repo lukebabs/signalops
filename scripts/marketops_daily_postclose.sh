@@ -389,6 +389,7 @@ if $write_mode; then
     printf "algorithm corroboration reported failures; universal completion gate will enforce required coverage\n" >&2
   fi
   ./scripts/marketops_universal_completion_gate.sh "$session_date" "$active_universe_symbols" "${#symbols[@]}" || exit 8
+  docker compose --profile marketops-daily run --rm marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
   summary="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
     "SELECT 'captures=' || count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' UNION ALL SELECT 'cohort_results=' || count(*) FROM marketops_intelligence_cohort_symbol_results WHERE tenant_id='tenant-local' AND run_id LIKE '${run_prefix}-cohort-%' UNION ALL SELECT 'algorithm_results=' || count(*) FROM algorithm_results WHERE tenant_id='tenant-local' AND correlation_id='$run_prefix';")"
   log "completed session=$session_date ${summary//$'\n'/ }"

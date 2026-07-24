@@ -1251,6 +1251,10 @@ func (q *fakeQueryRepository) ListMarketOpsIntradayConditionSnapshots(_ context.
 	return items, nil
 }
 
+func (q *fakeQueryRepository) ListMarketOpsSignalOverviewInputs(_ context.Context, _ storage.MarketOpsSignalOverviewFilter) (storage.MarketOpsSignalOverviewInputs, error) {
+	return storage.MarketOpsSignalOverviewInputs{Assets: q.marketOpsAssets, AlgorithmResults: q.algorithmResults, HypothesisDefinitions: q.marketOpsHypothesisDefinitions, HypothesisEvaluations: q.marketOpsHypothesisEvaluations, IntradayConditionSnaps: q.marketOpsIntradayConditions}, nil
+}
+
 func (q *fakeQueryRepository) ListMarketOpsOptionsChain(_ context.Context, filter storage.MarketOpsOptionsChainFilter) ([]storage.MarketOpsOptionsChainRecord, error) {
 	q.lastOptionsChainFilter = filter
 	out := []storage.MarketOpsOptionsChainRecord{}
@@ -1716,6 +1720,43 @@ func TestGetMarketOpsRiskRewardSummaries(t *testing.T) {
 	summary := response["summaries"][0]
 	if summary["ticker"] != "NVDA" || summary["trade_date"] != "2026-07-21" || summary["direction"] != "bearish" || summary["score"] != -48.0 {
 		t.Fatalf("summary = %+v", summary)
+	}
+	if summary["previous_trade_date"] != "2026-07-18" || summary["previous_score"] != 2.0 || summary["score_change"] != -50.0 {
+		t.Fatalf("day-over-day evolution = %+v", summary)
+	}
+}
+
+func TestGetMarketOpsSignalOverview(t *testing.T) {
+	score := 42.0
+	now := time.Date(2026, 7, 23, 20, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{
+		marketOpsAssets:                []storage.MarketOpsAssetRecord{{TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "AAPL", IsActive: true}, {TenantID: "tenant-1", UniverseGroup: "top50_megacap", Ticker: "MSFT", IsActive: true}},
+		algorithmResults:               []storage.AlgorithmResultRecord{{AlgorithmResultID: "rr-aapl", TenantID: "tenant-1", AlgorithmID: riskRewardAlgorithmID, CreatedAt: now, ResultPayloadJSON: []byte(`{"symbol":"AAPL","observation_time":"2026-07-23T20:00:00Z","technical_direction":"bullish","technical_score":42}`)}},
+		marketOpsHypothesisDefinitions: []storage.MarketOpsHypothesisDefinitionRecord{{TenantID: "tenant-1", HypothesisKey: "H001", HypothesisVersion: "v1", Title: "Momentum extension", Direction: "bearish"}},
+		marketOpsHypothesisEvaluations: []storage.MarketOpsHypothesisEvaluationRecord{{TenantID: "tenant-1", Symbol: "MSFT", HypothesisKey: "H001", HypothesisVersion: "v1", SessionDate: now, Triggered: true, TriggerScore: &score}},
+		marketOpsIntradayConditions:    []storage.MarketOpsIntradayConditionSnapshotRecord{{TenantID: "tenant-1", UniverseGroup: "top50_megacap", Symbol: "AAPL", AsOfTime: now, ConditionsJSON: []byte(`[{"title":"Near 52-week high","tone":"positive","score":0.8}]`)}},
+	}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/marketops/assets/signal-overview?window=10_trade_days", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["asset_count"] != float64(2) || body["window"] != "10_trade_days" {
+		t.Fatalf("overview = %#v", body)
+	}
+	risk := body["risk_reward"].(map[string]any)["points"].([]any)
+	if len(risk) != 1 {
+		t.Fatalf("risk points = %#v", risk)
+	}
+	intraday := body["intraday"].(map[string]any)["categories"].([]any)
+	if len(intraday) != 5 {
+		t.Fatalf("intraday = %#v", intraday)
 	}
 }
 

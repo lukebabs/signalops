@@ -59,6 +59,7 @@ import type {
   MarketOpsQuantitativeSeriesResponse,
   MarketOpsAssetAlgorithmObservationsResponse,
   MarketOpsRiskRewardSummariesResponse,
+  MarketOpsSignalOverviewResponse,
   MarketOpsHypothesisResponse,
   MarketOpsEvidenceResponse,
   MarketOpsMarketStateLineageResponse,
@@ -424,6 +425,7 @@ export const api = {
   getMarketOpsQuantitativeSeries: (tenantId: string, symbol: string, window: string) => get<MarketOpsQuantitativeSeriesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/quantitative-series`, { window }),
   getMarketOpsAssetAlgorithmObservations: (tenantId: string, symbol: string) => get<MarketOpsAssetAlgorithmObservationsResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/algorithm-observations`),
   getMarketOpsRiskRewardSummaries: (tenantId: string, universeGroup = "top50_megacap") => get<MarketOpsRiskRewardSummariesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/risk-reward`, { universe_group: universeGroup }, "no-store"),
+  getMarketOpsSignalOverview: (tenantId: string, universeGroup = "all_active", window: import("../types").MarketOpsSignalOverviewWindow = "60_trade_days") => get<MarketOpsSignalOverviewResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/signal-overview`, { universe_group: universeGroup, window }, "no-store"),
   getMarketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
     get<MarketOpsOptionsCoverageResponse>(
       `/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/options/coverage`,

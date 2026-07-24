@@ -166,7 +166,10 @@ func curateAssetAlgorithmObservations(results []storage.AlgorithmResultRecord, s
 }
 
 func curateRiskRewardSummaries(results []storage.AlgorithmResultRecord, activeSymbols map[string]struct{}) []map[string]any {
-	bySymbol := map[string]map[string]any{}
+	// A scheduled runner can be retried, so select one immutable result for each
+	// symbol/session before deriving the day-over-day evolution.  The comparison is
+	// intentionally between adjacent persisted trading sessions, not calendar days.
+	bySymbol := map[string]map[string]map[string]any{}
 	for _, result := range results {
 		if result.AlgorithmID != riskRewardAlgorithmID {
 			continue
@@ -179,9 +182,13 @@ func curateRiskRewardSummaries(results []storage.AlgorithmResultRecord, activeSy
 		if _, active := activeSymbols[symbol]; !active || stringAny(payload["observation_time"]) == "" {
 			continue
 		}
+		tradeDate := observationDate(payload)
+		if tradeDate == "" {
+			continue
+		}
 		candidate := map[string]any{
 			"ticker":        symbol,
-			"trade_date":    observationDate(payload),
+			"trade_date":    tradeDate,
 			"_observed_at":  stringAny(payload["observation_time"]),
 			"direction":     payload["technical_direction"],
 			"score":         payload["technical_score"],
@@ -189,14 +196,33 @@ func curateRiskRewardSummaries(results []storage.AlgorithmResultRecord, activeSy
 			"risk_level":    payload["risk_level"],
 			"research_only": true,
 		}
-		if current, exists := bySymbol[symbol]; !exists || fmt.Sprint(candidate["_observed_at"]) > fmt.Sprint(current["_observed_at"]) {
-			bySymbol[symbol] = candidate
+		if bySymbol[symbol] == nil {
+			bySymbol[symbol] = map[string]map[string]any{}
+		}
+		if current, exists := bySymbol[symbol][tradeDate]; !exists || fmt.Sprint(candidate["_observed_at"]) > fmt.Sprint(current["_observed_at"]) {
+			bySymbol[symbol][tradeDate] = candidate
 		}
 	}
 	items := make([]map[string]any, 0, len(bySymbol))
-	for _, item := range bySymbol {
-		delete(item, "_observed_at")
-		items = append(items, item)
+	for _, byDate := range bySymbol {
+		dates := make([]string, 0, len(byDate))
+		for date := range byDate {
+			dates = append(dates, date)
+		}
+		sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+		latest := byDate[dates[0]]
+		delete(latest, "_observed_at")
+		if len(dates) > 1 {
+			previous := byDate[dates[1]]
+			latest["previous_trade_date"] = dates[1]
+			latest["previous_score"] = previous["score"]
+			if currentScore, ok := numberAny(latest["score"]); ok {
+				if previousScore, ok := numberAny(previous["score"]); ok {
+					latest["score_change"] = currentScore - previousScore
+				}
+			}
+		}
+		items = append(items, latest)
 	}
 	sort.Slice(items, func(i, j int) bool {
 		return fmt.Sprint(items[i]["ticker"]) < fmt.Sprint(items[j]["ticker"])
@@ -205,7 +231,7 @@ func curateRiskRewardSummaries(results []storage.AlgorithmResultRecord, activeSy
 }
 
 func curateRiskRewardObservations(results []storage.AlgorithmResultRecord, symbol string) map[string]any {
-	history := make([]map[string]any, 0, 60)
+	byTradeDate := map[string]map[string]any{}
 	for _, result := range results {
 		if result.AlgorithmID != riskRewardAlgorithmID {
 			continue
@@ -217,7 +243,19 @@ func curateRiskRewardObservations(results []storage.AlgorithmResultRecord, symbo
 		if stringAny(payload["observation_time"]) == "" {
 			continue
 		}
-		history = append(history, map[string]any{"algorithm_result_id": result.AlgorithmResultID, "trade_date": observationDate(payload), "score": payload["technical_score"], "direction": payload["technical_direction"], "risk_level": payload["risk_level"], "confidence": result.Confidence, "severity": result.Severity, "technical_factors": payload["technical_factors"], "speculative_corroboration": payload["speculative_corroboration"], "research_only": true})
+		tradeDate := observationDate(payload)
+		if tradeDate == "" {
+			continue
+		}
+		candidate := map[string]any{"algorithm_result_id": result.AlgorithmResultID, "trade_date": tradeDate, "score": payload["technical_score"], "direction": payload["technical_direction"], "risk_level": payload["risk_level"], "confidence": result.Confidence, "severity": result.Severity, "technical_factors": payload["technical_factors"], "speculative_corroboration": payload["speculative_corroboration"], "research_only": true, "_observed_at": stringAny(payload["observation_time"])}
+		if current, exists := byTradeDate[tradeDate]; !exists || fmt.Sprint(candidate["_observed_at"]) > fmt.Sprint(current["_observed_at"]) {
+			byTradeDate[tradeDate] = candidate
+		}
+	}
+	history := make([]map[string]any, 0, len(byTradeDate))
+	for _, point := range byTradeDate {
+		delete(point, "_observed_at")
+		history = append(history, point)
 	}
 	sort.SliceStable(history, func(i, j int) bool {
 		return fmt.Sprint(history[i]["trade_date"]) > fmt.Sprint(history[j]["trade_date"])
@@ -279,4 +317,22 @@ func observationDate(payload map[string]any) string {
 		return ""
 	}
 	return at.UTC().Format("2006-01-02")
+}
+
+func numberAny(value any) (float64, bool) {
+	switch number := value.(type) {
+	case float64:
+		return number, true
+	case float32:
+		return float64(number), true
+	case int:
+		return float64(number), true
+	case int64:
+		return float64(number), true
+	case json.Number:
+		parsed, err := number.Float64()
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
 }

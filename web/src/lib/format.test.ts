@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { duration, formatUtc, formatPercent, orDash, truncate, toRfc3339Utc, toDatetimeLocal } from './format';
 
 describe('format helpers', () => {
-  it('formats UTC timestamps and preserves invalid values', () => {
-    expect(formatUtc('2026-07-08T03:46:26.123Z')).toBe('2026-07-08 03:46:26Z');
+  it('formats instants in the Eastern Time operating timezone and preserves date-only values', () => {
+    expect(formatUtc('2026-07-08T03:46:26.123Z')).toBe('2026-07-07 23:46:26 ET');
+    expect(formatUtc('2026-01-08T03:46:26.123Z')).toBe('2026-01-07 22:46:26 ET');
+    expect(formatUtc('2026-07-08')).toBe('2026-07-08');
     expect(formatUtc('not-a-date')).toBe('not-a-date');
     expect(formatUtc()).toBe('—');
   });

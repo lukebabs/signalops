@@ -2,7 +2,7 @@ import { Fragment, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { CircleDollarSign, X, ArrowDown, ArrowUp } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
-import { useMarketOpsAssets, useMarketOpsAssetQuotes, useMarketOpsIntradayConditions, useMarketOpsAssetAlgorithmObservations, useMarketOpsHypothesisEvaluations, useMarketOpsAlgorithmAdjudications, useMarketOpsQuantitativeSeries, useMarketOpsRiskRewardSummaries } from '../api/queries';
+import { useMarketOpsAssets, useMarketOpsAssetQuotes, useMarketOpsIntradayConditions, useMarketOpsAssetAlgorithmObservations, useMarketOpsHypothesisEvaluations, useMarketOpsAlgorithmAdjudications, useMarketOpsQuantitativeSeries, useMarketOpsRiskRewardSummaries, useMarketOpsSignalOverview } from '../api/queries';
 import { useMarketOpsOptionsCoverage, useMarketOpsOptionsDistributions, useMarketOpsOptionsChain, useMarketOpsIntelligenceReadiness } from '../api/queries';
 import { api, isApiError } from '../api/client';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
@@ -10,6 +10,7 @@ import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
 import { OptionsQualityBadge } from '../components/OptionsQualityBadge';
 import { RiskRewardPanel } from '../components/RiskRewardPanel';
+import { SignalOverviewCoverageChart, TechnicalScoreDistributionChart } from '../components/SignalOverviewAggregateCharts';
 import { formatUtc } from '../lib/format';
 import { formatZeroRate } from '../lib/optionsQuality';
 import {
@@ -42,6 +43,7 @@ type AssetSortKey = 'default' | 'rank' | 'asset' | 'market' | 'intraday' | 'risk
 type AssetColumnKey = Exclude<AssetSortKey, 'default'>;
 
 const ASSET_COLUMN_WIDTHS_KEY = 'signalops.marketops.assets.column-widths.v1';
+const ASSET_SELECTION_COLUMN_WIDTH = 44;
 const DEFAULT_ASSET_COLUMN_WIDTHS: Record<AssetColumnKey, number> = { rank: 70, asset: 290, market: 220, intraday: 230, riskReward: 170, updated: 205 };
 
 function assetRowKey(asset: { universe_group: string; ticker: string }): string {
@@ -55,13 +57,11 @@ function assetSectorLabel(asset: { display_sector?: string; sector?: string }): 
 export function MarketOpsAssetsRoute() {
   const TENANT_ID = useTenant();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
-  const [tab, setTab] = useState<'assets' | 'readiness'>('assets');
-  const [editingAssetKey, setEditingAssetKey] = useState<string | null>(null);
+  const [editSelectedAssetKey, setEditSelectedAssetKey] = useState<string | null>(null);
   const [displayNameInput, setDisplayNameInput] = useState('');
   const [displayNameBusy, setDisplayNameBusy] = useState(false);
   const [displayNameError, setDisplayNameError] = useState<string | null>(null);
   const [assetSort, setAssetSort] = useState<{ key: AssetSortKey; direction: 'asc' | 'desc' }>({ key: 'default', direction: 'asc' });
-  const [editingSectorKey, setEditingSectorKey] = useState<string | null>(null);
   const [displaySectorInput, setDisplaySectorInput] = useState('');
   const [displaySectorBusy, setDisplaySectorBusy] = useState(false);
   const [displaySectorError, setDisplaySectorError] = useState<string | null>(null);
@@ -104,11 +104,29 @@ export function MarketOpsAssetsRoute() {
   const watchlistRiskRewardQ = useMarketOpsRiskRewardSummaries(TENANT_ID, "analyst_watchlist");
   const riskRewardMap = new Map([...(riskRewardQ.data?.summaries ?? []), ...(watchlistRiskRewardQ.data?.summaries ?? [])].map((summary) => [summary.ticker.toUpperCase(), summary]));
 
-  function startDisplayNameEdit(asset: { ticker: string; universe_group: string; display_name?: string; company: string }) {
-    setSelectedTicker(null);
+  function toggleAssetEditSelection(asset: { ticker: string; universe_group: string; display_name?: string; company: string; display_sector?: string; sector?: string }) {
+    const key = assetRowKey(asset);
+    if (editSelectedAssetKey === key) {
+      setEditSelectedAssetKey(null);
+      setDisplayNameError(null);
+      setDisplaySectorError(null);
+      return;
+    }
+    setEditSelectedAssetKey(key);
     setDisplayNameError(null);
+    setDisplaySectorError(null);
     setDisplayNameInput(asset.display_name || asset.company);
-    setEditingAssetKey(assetRowKey(asset));
+    setDisplaySectorInput(asset.display_sector || asset.sector || "");
+  }
+
+  function cancelDisplayNameEdit(asset: { display_name?: string; company: string }) {
+    setDisplayNameInput(asset.display_name || asset.company);
+    setDisplayNameError(null);
+  }
+
+  function cancelDisplaySectorEdit(asset: { display_sector?: string; sector?: string }) {
+    setDisplaySectorInput(asset.display_sector || asset.sector || "");
+    setDisplaySectorError(null);
   }
 
   async function saveDisplayName(event: React.FormEvent, asset: { ticker: string; universe_group: string }) {
@@ -123,19 +141,12 @@ export function MarketOpsAssetsRoute() {
     try {
       await api.updateMarketOpsAssetDisplayName(TENANT_ID, asset.ticker, { universe_group: asset.universe_group, display_name: displayName });
       await Promise.all([query.refetch(), watchlistQ.refetch()]);
-      setEditingAssetKey(null);
+
     } catch (error) {
       setDisplayNameError(error instanceof Error ? error.message : "Display name could not be updated.");
     } finally {
       setDisplayNameBusy(false);
     }
-  }
-
-  function startDisplaySectorEdit(asset: { ticker: string; universe_group: string; display_sector?: string; sector?: string }) {
-    setSelectedTicker(null);
-    setDisplaySectorError(null);
-    setDisplaySectorInput(asset.display_sector || asset.sector || "");
-    setEditingSectorKey(assetRowKey(asset));
   }
 
   async function saveDisplaySector(event: React.FormEvent, asset: { ticker: string; universe_group: string }) {
@@ -150,7 +161,7 @@ export function MarketOpsAssetsRoute() {
     try {
       await api.updateMarketOpsAssetDisplaySector(TENANT_ID, asset.ticker, { universe_group: asset.universe_group, display_sector: displaySector });
       await Promise.all([query.refetch(), watchlistQ.refetch()]);
-      setEditingSectorKey(null);
+
     } catch (error) {
       setDisplaySectorError(error instanceof Error ? error.message : "Sector label could not be updated.");
     } finally {
@@ -212,7 +223,7 @@ export function MarketOpsAssetsRoute() {
     window.localStorage.removeItem(ASSET_COLUMN_WIDTHS_KEY);
   }
 
-  const totalColumnWidth = (Object.values(columnWidths) as number[]).reduce((total, width) => total + width, 0);
+  const totalColumnWidth = ASSET_SELECTION_COLUMN_WIDTH + (Object.values(columnWidths) as number[]).reduce((total, width) => total + width, 0);
 
 
   return (
@@ -224,23 +235,6 @@ export function MarketOpsAssetsRoute() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-gray-200">
-        {(['assets', 'readiness'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${tab === t ? 'border-brand-600 font-semibold text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-          >
-            {t === 'assets' ? 'Assets' : 'Intelligence readiness'}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'readiness' ? (
-        <IntelligenceReadinessPanel tenantId={TENANT_ID} />
-      ) : (
-        <>
       <WatchlistControls tenantId={TENANT_ID} onChanged={() => { void query.refetch(); void watchlistQ.refetch(); }} />
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
@@ -268,9 +262,10 @@ export function MarketOpsAssetsRoute() {
             tabIndex={0}
           >
           <table className="table-fixed divide-y divide-gray-200 text-sm" style={{ width: totalColumnWidth }}>
-            <colgroup>{(Object.keys(DEFAULT_ASSET_COLUMN_WIDTHS) as AssetColumnKey[]).map((key) => <col key={key} style={{ width: columnWidths[key] }} />)}</colgroup>
+            <colgroup><col style={{ width: ASSET_SELECTION_COLUMN_WIDTH }} />{(Object.keys(DEFAULT_ASSET_COLUMN_WIDTHS) as AssetColumnKey[]).map((key) => <col key={key} style={{ width: columnWidths[key] }} />)}</colgroup>
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
+                <th className="w-11 px-2 py-2 text-center"><span className="sr-only">Edit selection</span></th>
                 <SortableAssetHeader label="Rank" sortKey="rank" activeSort={assetSort} onSort={toggleAssetSort} width={columnWidths.rank} onResize={beginColumnResize} />
                 <SortableAssetHeader label="Asset" sortKey="asset" activeSort={assetSort} onSort={toggleAssetSort} width={columnWidths.asset} onResize={beginColumnResize} />
                 <SortableAssetHeader label="Current Market Data ⓘ" sortKey="market" activeSort={assetSort} onSort={toggleAssetSort} width={columnWidths.market} onResize={beginColumnResize} title="Latest delayed intraday price while the market is open; latest completed EOD close otherwise. Sorts by displayed percentage move." />
@@ -286,44 +281,31 @@ export function MarketOpsAssetsRoute() {
                   onClick={() => setSelectedTicker((current) => current === a.ticker ? null : a.ticker)}
                   className={`cursor-pointer align-top hover:bg-gray-50 ${selectedTicker === a.ticker ? 'bg-brand-50' : ''}`}
                 >
+                  <td className="px-2 py-2 text-center"><input type="checkbox" checked={editSelectedAssetKey === assetRowKey(a)} onClick={(event) => event.stopPropagation()} onChange={() => toggleAssetEditSelection(a)} aria-label={"Select " + a.ticker + " for display-name and sector editing"} title="Select this asset to edit its display name and sector" className="h-4 w-4 rounded border-gray-300 text-brand-700 focus:ring-brand-600" /></td>
                   <td className="px-3 py-2 text-xs text-gray-500">{a.rank}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-start gap-2">
                       <CircleDollarSign size={16} className="mt-0.5 text-brand-700" />
                       <div>
-                        {editingAssetKey === assetRowKey(a) ? (
+                        {editSelectedAssetKey === assetRowKey(a) ? (
                           <form onSubmit={(event) => void saveDisplayName(event, a)} onClick={(event) => event.stopPropagation()} className="flex items-center gap-1">
                             <input aria-label={"Display name for " + a.ticker} value={displayNameInput} onChange={(event) => setDisplayNameInput(event.target.value)} maxLength={120} autoFocus className="w-44 rounded border border-gray-300 px-1.5 py-0.5 text-sm text-gray-900" />
                             <button type="submit" disabled={displayNameBusy} className="rounded bg-brand-700 px-1.5 py-0.5 text-[10px] font-medium text-white disabled:opacity-50">Save</button>
-                            <button type="button" disabled={displayNameBusy} onClick={() => { setEditingAssetKey(null); setDisplayNameError(null); }} className="text-[10px] text-gray-600 underline">Cancel</button>
+                            <button type="button" disabled={displayNameBusy} onClick={() => cancelDisplayNameEdit(a)} className="text-[10px] text-gray-600 underline">Cancel</button>
                           </form>
-                        ) : (
-                          <div className="flex items-center gap-1 font-medium text-gray-900">
-                            <span>{a.display_name || a.company || "—"}</span>
-                            <button type="button" onClick={(event) => { event.stopPropagation(); startDisplayNameEdit(a); }} className="text-[10px] font-normal text-brand-700 underline hover:text-brand-800" title="Edit analyst display name">Edit</button>
-                          </div>
-                        )}
-                        {editingAssetKey === assetRowKey(a) && displayNameError ? <div className="mt-1 text-[10px] text-red-700">{displayNameError}</div> : null}
-                        <div className="flex items-center gap-1 font-mono text-xs text-gray-500"><span>{a.ticker}</span>{editingSectorKey === assetRowKey(a) ? (
+                        ) : <div className="font-medium text-gray-900">{a.display_name || a.company || "—"}</div>}
+                        {editSelectedAssetKey === assetRowKey(a) && displayNameError ? <div className="mt-1 text-[10px] text-red-700">{displayNameError}</div> : null}
+                        <div className="flex items-center gap-1 font-mono text-xs text-gray-500"><span>{a.ticker}</span>{editSelectedAssetKey === assetRowKey(a) ? (
                           <form onSubmit={(event) => void saveDisplaySector(event, a)} onClick={(event) => event.stopPropagation()} className="flex items-center gap-1 font-sans">
-                            <input aria-label={"Sector label for " + a.ticker} value={displaySectorInput} onChange={(event) => setDisplaySectorInput(event.target.value)} maxLength={48} autoFocus className="w-28 rounded border border-gray-300 px-1 py-0.5 text-[10px] text-gray-900" />
+                            <input aria-label={"Sector label for " + a.ticker} value={displaySectorInput} onChange={(event) => setDisplaySectorInput(event.target.value)} maxLength={48} className="w-28 rounded border border-gray-300 px-1 py-0.5 text-[10px] text-gray-900" />
                             <button type="submit" disabled={displaySectorBusy} className="rounded bg-brand-700 px-1 py-0.5 text-[9px] font-medium text-white disabled:opacity-50">Save</button>
-                            <button type="button" disabled={displaySectorBusy} onClick={() => { setEditingSectorKey(null); setDisplaySectorError(null); }} className="text-[9px] text-gray-600 underline">Cancel</button>
+                            <button type="button" disabled={displaySectorBusy} onClick={() => cancelDisplaySectorEdit(a)} className="text-[9px] text-gray-600 underline">Cancel</button>
                           </form>
-                        ) : (
-                          <span className="inline-flex max-w-40 items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 font-sans text-[10px] text-slate-600" title={a.display_sector || a.sector || "Unclassified sector"}><span className="truncate">{assetSectorLabel(a)}</span><button type="button" onClick={(event) => { event.stopPropagation(); startDisplaySectorEdit(a); }} className="shrink-0 text-[9px] text-brand-700 underline hover:text-brand-800" title="Edit analyst sector label">Edit</button></span>
-                        )}</div>
-                        {editingSectorKey === assetRowKey(a) && displaySectorError ? <div className="mt-1 text-[10px] text-red-700">{displaySectorError}</div> : null}
+                        ) : <span className="inline-flex max-w-40 rounded bg-slate-100 px-1.5 py-0.5 font-sans text-[10px] text-slate-600" title={a.display_sector || a.sector || "Unclassified sector"}><span className="truncate">{assetSectorLabel(a)}</span></span>}</div>
+                        {editSelectedAssetKey === assetRowKey(a) && displaySectorError ? <div className="mt-1 text-[10px] text-red-700">{displaySectorError}</div> : null}
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span>{a.asset_type}</span>
-                          <Link
-                            to="/marketops/state"
-                            search={{ symbol: a.ticker }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-brand-700 underline hover:text-brand-800"
-                          >
-                            Open Market State
-                          </Link>
+                          <Link to="/marketops/state" search={{ symbol: a.ticker }} onClick={(e) => e.stopPropagation()} className="text-brand-700 underline hover:text-brand-800">Open Market State</Link>
                         </div>
                       </div>
                     </div>
@@ -335,7 +317,7 @@ export function MarketOpsAssetsRoute() {
                 </tr>
                 {selectedTicker === a.ticker ? (
                   <tr className="bg-brand-50">
-                    <td colSpan={6} className="p-3">
+                    <td colSpan={7} className="p-3">
                       <AssetOptionsPanel tenantId={TENANT_ID} symbol={selectedTicker} onClose={() => setSelectedTicker(null)} />
                     </td>
                   </tr>
@@ -355,8 +337,6 @@ export function MarketOpsAssetsRoute() {
           <EmptyState message="Select an asset to expand its intraday evolution and persisted options intelligence." />
         </div>
       ) : null}
-        </>
-      )}
     </div>
   );
 }
@@ -400,8 +380,11 @@ function RiskRewardCell({ summary, loading, error }: { summary?: MarketOpsRiskRe
   const score = `${summary.score > 0 ? "+" : ""}${summary.score.toFixed(0)}`;
   const tone = summary.direction === "bullish" ? "text-green-700" : summary.direction === "bearish" ? "text-red-700" : "text-gray-700";
   const confidence = `${Math.round(summary.confidence * 100)}%`;
-  const title = `Post-close ${summary.trade_date} · ${direction} technical posture · score ${score}/100 · confidence ${confidence} · ATR risk ${summary.risk_level}. Research-only; not a recommendation.`;
-  return <td className="px-3 py-2 text-xs" title={title}><div className={`font-medium ${tone}`}>{direction} · {score}</div><div className="text-[10px] text-gray-500">EOD · research-only</div></td>;
+  const scoreChange = summary.score_change;
+  const evolution = scoreChange == null ? "Awaiting prior EOD" : scoreChange > 0 ? `↑ Improving · +${scoreChange.toFixed(0)}` : scoreChange < 0 ? `↓ Regressing · ${scoreChange.toFixed(0)}` : "→ Unchanged · 0";
+  const evolutionTone = scoreChange == null || scoreChange === 0 ? "text-gray-500" : scoreChange > 0 ? "text-green-700" : "text-red-700";
+  const title = `Post-close ${summary.trade_date} · ${direction} technical posture · score ${score}/100 · confidence ${confidence} · ATR risk ${summary.risk_level}.${scoreChange == null ? " No prior persisted trading-session score is available." : ` ${evolution} versus ${summary.previous_trade_date ?? "the prior persisted session"}.`} Research-only; not a recommendation.`;
+  return <td className="px-3 py-2 text-xs" title={title}><div className={`font-medium ${tone}`}>{direction} · {score}</div><div className={`text-[10px] ${evolutionTone}`}>{evolution}</div></td>;
 }
 
 function IntradayConditionsCell({ snapshot, loading, error }: { snapshot?: MarketOpsIntradayConditionSnapshot; loading: boolean; error: boolean }) {
@@ -520,7 +503,7 @@ function AssetOptionsPanel({
       </div>
       {analysisTab === "algorithm_evidence" ? <><AlgorithmEvidencePanel results={corroborationQ.data?.other_outputs ?? []} loading={corroborationQ.isLoading} error={corroborationQ.isError} /><QuantitativeCorroborationPanel eod={corroborationQ.data?.eod_zscores ?? []} loading={corroborationQ.isLoading} error={corroborationQ.isError} /></> : <>
         <QuantitativeSeriesChart points={seriesQ.data?.points ?? []} window={seriesWindow} onWindowChange={setSeriesWindow} loading={seriesQ.isLoading} error={seriesQ.isError} />
-        <RiskRewardPanel data={corroborationQ.data?.risk_reward} loading={corroborationQ.isLoading} error={corroborationQ.isError} />
+
         <QuantitativeCorroborationPanel eod={corroborationQ.data?.eod_zscores ?? []} loading={corroborationQ.isLoading} error={corroborationQ.isError} />
         {adjudicationsQ.data?.algorithm_adjudications.length ? <div className="rounded border border-violet-200 bg-white p-2 text-[11px] text-violet-800"><div className="font-semibold uppercase">Independent adjudication</div>{adjudicationsQ.data.algorithm_adjudications.slice(0,4).map((item) => <div key={item.adjudication_id} className="mt-1"><span className={item.verdict === "confirmed" ? "font-medium text-green-700" : item.verdict === "contradicted" ? "font-medium text-red-700" : "font-medium text-gray-600"}>{item.verdict}</span> · {item.hypothesis_key} · confidence {(item.confidence * 100).toFixed(0)}%</div>)}</div> : hypothesisQ.data?.hypothesis_evaluations.length ? <div className="rounded border border-violet-100 bg-white p-2 text-[11px] text-violet-800">Triggered hypotheses await independent platform adjudication.</div> : null}
         <div className="rounded border border-blue-100 bg-blue-50 p-2"><div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">Latest intraday condition</div><p className="mb-2 text-[11px] text-blue-700">Latest 15-minute price-action monitor result; separate from end-of-day Market State hypotheses.</p>{intradayQ.isLoading ? <div className="text-xs text-gray-500">Loading intraday snapshots…</div> : intradayQ.isError ? <div className="text-xs text-red-700">Intraday snapshots are unavailable.</div> : intradayQ.data?.snapshots.length ? <div className="space-y-2">{intradayQ.data.snapshots.slice(0, 1).map((snapshot) => <div key={snapshot.snapshot_id} className="border-t border-blue-100 pt-1 first:border-t-0 first:pt-0"><div className="text-[10px] text-gray-500">{formatUtc(snapshot.as_of_time)} · {snapshot.market_status}</div>{snapshot.conditions.length ? snapshot.conditions.map((item) => <div key={item.key} className="mt-1 text-xs"><span className={item.tone === "positive" ? "font-medium text-green-700" : item.tone === "negative" ? "font-medium text-red-700" : "font-medium text-gray-700"}>{item.title}</span><div className="text-gray-600">{item.evidence}</div><div className="text-gray-500">{item.interpretation}</div></div>) : <div className="text-xs text-gray-500">No condition exceeded the monitor threshold.</div>}</div>)}</div> : <div className="text-xs text-gray-500">No persisted intraday snapshot yet.</div>}</div>
@@ -839,6 +822,38 @@ function OptionsRatioChart({ rows }: { rows: MarketOpsOptionsDistributionView[] 
     ],
   };
   return <ReactECharts option={option} style={{ height: 200 }} />;
+}
+
+// Aggregate analyst view. All timeline membership is delivered by one bounded
+// server response; clicking a segment only changes local drill-down state.
+const SIGNAL_OVERVIEW_WINDOWS = ["10_trade_days", "30_trade_days", "60_trade_days"] as const;
+const SIGNAL_OVERVIEW_GROUPS = [["all_active", "All active"], ["top50_megacap", "Megacap"], ["analyst_watchlist", "Watchlist"]] as const;
+const signalLabel = (value: string) => ({ bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", positive: "Positive", negative: "Negative", no_active_condition: "No active condition", unavailable: "Unavailable / stale" }[value] ?? value.replace(/_/g, " "));
+const signalColor = (value: string) => value === "bullish" || value === "positive" ? "#15803d" : value === "bearish" || value === "negative" ? "#dc2626" : value === "neutral" ? "#6b7280" : value === "no_active_condition" ? "#94a3b8" : "#d97706";
+
+function SignalOverviewPanel({ tenantId, onOpenAsset }: { tenantId: string; onOpenAsset: (symbol: string) => void }) {
+  const [universeGroup, setUniverseGroup] = useState("all_active");
+  const [window, setWindow] = useState<import("../types").MarketOpsSignalOverviewWindow>("60_trade_days");
+  const [drilldown, setDrilldown] = useState<{ title: string; members: import("../types").MarketOpsSignalOverviewMember[] } | null>(null);
+  const overviewQ = useMarketOpsSignalOverview(tenantId, universeGroup, window);
+  const data = overviewQ.data;
+  return <div className="space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-semibold">Signal overview</h2><p className="text-xs text-gray-500">Persisted research breadth across the selected active universe. Evidence, not a recommendation.</p></div><div className="flex gap-2"><select aria-label="Signal overview universe" value={universeGroup} onChange={(event) => { setUniverseGroup(event.target.value); setDrilldown(null); }} className="rounded border border-gray-300 px-2 py-1 text-xs">{SIGNAL_OVERVIEW_GROUPS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select aria-label="Signal overview window" value={window} onChange={(event) => { setWindow(event.target.value as import("../types").MarketOpsSignalOverviewWindow); setDrilldown(null); }} className="rounded border border-gray-300 px-2 py-1 text-xs">{SIGNAL_OVERVIEW_WINDOWS.map((value) => <option key={value} value={value}>{value.replace("_trade_days", " days")}</option>)}</select></div></div>
+    {overviewQ.isLoading && !data ? <LoadingState label="Loading signal overview..." /> : overviewQ.isError ? <ErrorState error={overviewQ.error} /> : !data ? <EmptyState message="No persisted signal overview is available for this scope." /> : <><div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">Active assets <strong className="text-gray-900">{data.asset_count}</strong> · generated {formatUtc(data.generated_at)} · select any chart segment to inspect its represented assets.</div><div className="grid gap-3 xl:grid-cols-2"><SignalTimelineChart title="Risk/Reward breadth" subtitle="Distinct assets by persisted EOD technical posture." points={data.risk_reward.points} onDrilldown={setDrilldown} /><SignalOverviewCoverageChart data={data} /><TechnicalScoreDistributionChart data={data} onDrilldown={setDrilldown} /><SignalTimelineChart title="Triggered-hypothesis breadth" subtitle="Distinct triggered research hypotheses by direction; one asset may appear in more than one direction." points={data.hypotheses.points} onDrilldown={setDrilldown} /><IntradayBreadthChart data={data.intraday} onDrilldown={setDrilldown} /></div>{drilldown ? <div className="rounded border border-violet-200 bg-violet-50 p-3"><div className="flex items-center justify-between gap-2"><div><div className="text-xs font-semibold text-violet-800">{drilldown.title}</div><p className="text-[11px] text-violet-700">{drilldown.members.length} represented asset{drilldown.members.length === 1 ? "" : "s"} · select a ticker to open its analysis.</p></div><button type="button" onClick={() => setDrilldown(null)} className="text-xs text-violet-700 underline">Close</button></div><div className="mt-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-3">{drilldown.members.map((member, index) => <button key={`${member.ticker}-${member.label}-${index}`} type="button" onClick={() => onOpenAsset(member.ticker)} className="rounded border border-violet-100 bg-white px-2 py-1 text-left text-xs hover:border-violet-400"><span className="font-mono font-semibold text-violet-800">{member.ticker}</span><span className="ml-1 text-gray-600">{member.label}</span>{member.score != null ? <span className="ml-1 text-gray-500">· {member.score.toFixed(0)}</span> : null}</button>)}</div></div> : null}</>}
+  </div>;
+}
+
+function SignalTimelineChart({ title, subtitle, points, onDrilldown }: { title: string; subtitle: string; points: import("../types").MarketOpsSignalOverviewPoint[]; onDrilldown: (value: { title: string; members: import("../types").MarketOpsSignalOverviewMember[] }) => void }) {
+  const categories = ["bullish", "neutral", "bearish"];
+  const option = { grid: { left: 38, right: 12, top: 42, bottom: 40 }, tooltip: { trigger: "axis" }, legend: { data: categories.map(signalLabel), top: 0 }, xAxis: { type: "category", data: points.map((point) => point.trade_date), axisLabel: { fontSize: 9 } }, yAxis: { type: "value", minInterval: 1, name: "assets", nameTextStyle: { fontSize: 9 } }, series: categories.map((key) => ({ name: signalLabel(key), type: "bar", stack: "breadth", data: points.map((point) => point.categories.find((category) => category.key === key)?.count ?? 0), itemStyle: { color: signalColor(key) } })) };
+  const events = { click: (event: { seriesName?: string; dataIndex?: number }) => { const point = points[event.dataIndex ?? -1]; const key = categories.find((category) => signalLabel(category) === event.seriesName); const members = key ? point?.categories.find((category) => category.key === key)?.members ?? [] : []; if (point && key && members.length) onDrilldown({ title: `${title} · ${point.trade_date} · ${signalLabel(key)}`, members }); } };
+  return <div className="rounded border border-gray-200 bg-white p-3"><div className="mb-1"><div className="text-xs font-semibold text-gray-800">{title}</div><p className="text-[11px] text-gray-500">{subtitle}</p></div>{points.length ? <ReactECharts option={option} onEvents={events} style={{ height: 260 }} /> : <div className="py-12 text-xs text-gray-500">No persisted observations in this window.</div>}</div>;
+}
+
+function IntradayBreadthChart({ data, onDrilldown }: { data: import("../types").MarketOpsSignalOverviewResponse["intraday"]; onDrilldown: (value: { title: string; members: import("../types").MarketOpsSignalOverviewMember[] }) => void }) {
+  const option = { tooltip: { trigger: "item" }, legend: { bottom: 0, textStyle: { fontSize: 9 } }, series: [{ type: "pie", radius: ["36%", "68%"], label: { formatter: "{b}: {c}", fontSize: 10 }, data: data.categories.map((category) => ({ name: signalLabel(category.key), value: category.count, itemStyle: { color: signalColor(category.key) } })) }] };
+  const events = { click: (event: { name?: string }) => { const category = data.categories.find((item) => signalLabel(item.key) === event.name); if (category?.members.length) onDrilldown({ title: `Current intraday breadth · ${signalLabel(category.key)}`, members: category.members }); } };
+  return <div className="rounded border border-gray-200 bg-white p-3 xl:col-span-2"><div className="mb-1"><div className="text-xs font-semibold text-gray-800">Current intraday breadth</div><p className="text-[11px] text-gray-500">Latest persisted 15-minute monitor state; this is a current snapshot, not a historical trend. {data.as_of_time ? `As of ${formatUtc(data.as_of_time)}.` : ""}</p></div><ReactECharts option={option} onEvents={events} style={{ height: 250 }} /></div>;
 }
 
 // G148-C intelligence readiness (read-only). One aggregate request serves the

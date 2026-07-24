@@ -264,7 +264,7 @@ The quote cache, current price percentage, 52-week range visualization, and intr
 
 The MarketOps UI reads persisted APIs for Assets, Market State, options coverage/distributions/chain rows, algorithms, DSM artifacts, back-tests, and intelligence readiness. Asset display names and sector tags can be overridden by an analyst without changing the ticker, provider metadata, asset universe membership, or scheduled pipeline scope.
 
-Syncratic is an explainability boundary. SignalOps constructs bounded context windows from its own persisted MarketOps evidence and can request Ask-based interpretation when explicitly authorized. MarketOps records are not bulk-ingested into Syncratic core; evidence purity, prompt bounds, quality, and governance remain enforced by SignalOps.
+Syncratic is an EOD explainability boundary. Only after corroboration and universal deterministic completion does SignalOps create one official `marketops.syncratic.eod_overview.v1` per asset/session from persisted market state, state transitions, evidence, signals, alerts, DSM artifacts, graph proposals, labels, and promotion references. A durable job ledger delivers the natural-language overview asynchronously with leased retries. Quality blockers are reported as EOD limitations, never inferred as market signals. Ask Syncratic AI is separately persisted exploratory analysis and cannot overwrite the official overview. MarketOps records are not bulk-ingested into Syncratic core; evidence purity, prompt bounds, quality, and governance remain enforced by SignalOps.
 
 ## MarketOps operational checkpoints
 

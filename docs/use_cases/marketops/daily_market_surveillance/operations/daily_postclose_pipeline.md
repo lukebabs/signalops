@@ -12,7 +12,9 @@ Use `scripts/marketops_daily_postclose.sh` for one governed MarketOps session. T
 - Reconciliation makes at most two additional provider calls per queued symbol, uses 30-second then two-minute bounded backoffs, caps the run at 100 provider requests and 15 minutes, and replays an existing raw event once before calling the provider. Exhausted tasks remain failed until an operator uses `--requeue-failed`.
 - The normalization barrier requires all 50 active same-session equity symbols from `src-massive` before options acquisition.
 - Options acquisition uses the same explicit 50-symbol supported list, at most two 250-record pages and 500 transient candidates per symbol, no automatic retries, and at most seven persisted evidence contracts per symbol.
-- Intelligence runs in five explicit batches of at most ten symbols. Graph decisions, Syncratic Ask, hypothesis promotion, and trading remain outside the workflow.
+- Intelligence runs in five explicit batches of at most ten symbols. Syncratic runs only after algorithm corroboration and the universal completion gate succeed: it materializes one official EOD overview per active asset, keyed by final deterministic evidence digest, with leased retries. The official overview is read-only natural-language presentation of the completed EOD record; it never changes deterministic hypotheses, opportunities, or recommendations.
+- Ask Syncratic AI remains a separately persisted exploratory analyst drill-down and cannot overwrite the official EOD overview.
+- Hypothesis promotion and trading remain outside the workflow.
 - Existing complete equity coverage and successful deterministic cohort batches are skipped. A non-success cohort rerun requires operator inspection.
 - Provider no-data, partial options surfaces, missing features, zero triggers, and zero outcomes remain explicit.
 
@@ -83,7 +85,7 @@ journalctl --user -u signalops-marketops-daily.service
 
 ## Failure Handling
 
-The service exits non-zero when dependencies are down, the credential preflight fails, normalization does not reach the explicit threshold, capture rows are incomplete, a non-success deterministic cohort run already exists, or a child stage exits unsuccessfully. Inspect the provider report and persisted capture/cohort ledgers before manually rerunning the same session.
+The service exits non-zero when dependencies are down, the credential preflight fails, normalization does not reach the explicit threshold, capture rows are incomplete, a non-success deterministic cohort run already exists, the Syncratic context/queue stage fails, or a child stage exits unsuccessfully. Syncratic Ask delivery itself is asynchronous: retryable failures remain durable queue records and do not invalidate the deterministic post-close session. Inspect the provider report and persisted capture/cohort ledgers before manually rerunning the same session.
 
 Reconciliation reports are bounded JSON in the service journal. Inspect `marketops_equity_reconciliation_tasks` for per-symbol attempts, replay count, last error, lease, and terminal status. Failed tasks are intentionally not reset by an ordinary direct rerun; use `--requeue-failed` only after inspecting the provider or normalization failure.
 

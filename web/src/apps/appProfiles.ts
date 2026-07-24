@@ -6,8 +6,8 @@ import type { AppProfile } from '../types';
 // index, not the backend's "/dashboard" label.
 export const CONSOLE_PROFILE: AppProfile = {
   app_id: 'console',
-  label: 'SignalOps Console',
-  default_route: '/',
+  label: 'Administration',
+  default_route: '/admin/dashboard',
   domains: ['market_data', 'crm', 'security', 'operations', 'iot', 'procurement', 'custom'],
   enabled_modules: [
     'dashboard',

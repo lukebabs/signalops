@@ -68,6 +68,12 @@ func main() {
 		}
 		routerConfig.SyncraticAskClient = synClient
 	}
+	workerCtx, stopSyncraticWorker := context.WithCancel(context.Background())
+	defer stopSyncraticWorker()
+	if queryRepo != nil && routerConfig.SyncraticAskClient != nil {
+		api.StartSyncraticIntelligenceWorker(workerCtx, queryRepo, routerConfig.SyncraticAskClient)
+		logger.Info("syncratic intelligence worker enabled")
+	}
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           api.NewRouter(routerConfig),

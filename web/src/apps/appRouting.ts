@@ -5,6 +5,20 @@ import type { AppProfile } from '../types';
 // routes registered in router.tsx so TanStack Router's typed <Link to=... />
 // accepts them.
 export type AppRoutePath =
+  | '/admin/dashboard'
+  | '/admin/runs'
+  | '/admin/raw-events'
+  | '/admin/normalized-events'
+  | '/admin/idempotency'
+  | '/admin/sources'
+  | '/admin/pipelines'
+  | '/admin/rules'
+  | '/admin/replay'
+  | '/admin/signals'
+  | '/admin/alerts'
+  | '/admin/insights'
+  | '/admin/algorithms'
+  | '/admin/system'
   | '/'
   | '/runs'
   | '/raw-events'
@@ -68,39 +82,20 @@ export function defaultRouteForApp(profile: AppProfile): AppRoutePath {
 }
 
 const CONSOLE_NAV: NavItem[] = [
-  { module: 'dashboard', to: '/', label: 'Dashboard' },
-  { module: 'runs', to: '/runs', label: 'Runs' },
-  { module: 'raw_events', to: '/raw-events', label: 'Raw Events' },
-  { module: 'normalized', to: '/normalized-events', label: 'Normalized' },
-  { module: 'idempotency', to: '/idempotency', label: 'Idempotency' },
-  { module: 'sources', to: '/sources', label: 'Sources' },
-  { module: 'pipelines', to: '/pipelines', label: 'Pipelines' },
-  { module: 'rules', to: '/rules', label: 'Rules' },
-  { module: 'replay', to: '/replay', label: 'Replay' },
-  { module: 'signals', to: '/signals', label: 'Signals' },
-  { module: 'alerts', to: '/alerts', label: 'Alerts' },
-  { module: 'insights', to: '/insights', label: 'Insights' },
-  { module: 'health', to: '/system', label: 'System' },
+  { module: 'dashboard', to: '/admin/dashboard', label: 'Dashboard' }, { module: 'runs', to: '/admin/runs', label: 'Runs' }, { module: 'raw_events', to: '/admin/raw-events', label: 'Raw Events' }, { module: 'normalized', to: '/admin/normalized-events', label: 'Normalized' }, { module: 'idempotency', to: '/admin/idempotency', label: 'Idempotency' }, { module: 'sources', to: '/admin/sources', label: 'Sources' }, { module: 'pipelines', to: '/admin/pipelines', label: 'Pipelines' }, { module: 'rules', to: '/admin/rules', label: 'Rules' }, { module: 'replay', to: '/admin/replay', label: 'Replay' }, { module: 'signals', to: '/admin/signals', label: 'Signals' }, { module: 'alerts', to: '/admin/alerts', label: 'Alerts' }, { module: 'insights', to: '/admin/insights', label: 'Insights' }, { module: 'algorithms', to: '/admin/algorithms', label: 'Algorithms' }, { module: 'health', to: '/admin/system', label: 'System' },
 ];
 
 const MARKETOPS_NAV: NavItem[] = [
   { module: 'dashboard', to: '/marketops/dashboard', label: 'Dashboard' },
-  { module: 'providers', to: '/marketops/providers', label: 'Providers' },
   { module: 'symbols', to: '/marketops/assets', label: 'Assets' },
   { module: 'market_state', to: '/marketops/state', label: 'Market State' },
-  { module: 'raw_events', to: '/marketops/raw-events', label: 'Raw Events' },
-  { module: 'normalized', to: '/marketops/normalized', label: 'Normalized' },
   { module: 'signals', to: '/marketops/signals', label: 'Signals' },
   { module: 'dsm', to: '/marketops/dsm', label: 'DSM' },
   { module: 'opportunities', to: '/marketops/opportunities', label: 'Opportunities' },
   { module: 'backtests', to: '/marketops/backtests', label: 'Back-Tests' },
   { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Insights' },
-  { module: 'algorithms', to: '/marketops/algorithms', label: 'Algorithms' },
   { module: 'alerts', to: '/marketops/alerts', label: 'Alerts' },
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },
-  { module: 'replay', to: '/marketops/replay', label: 'Replay' },
-  { module: 'pipelines', to: '/marketops/pipelines', label: 'Pipelines' },
-  { module: 'health', to: '/marketops/health', label: 'Health' },
 ];
 
 // Nav is an explicit per-app route set matching the G067 Required Outcome +

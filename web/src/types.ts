@@ -2648,6 +2648,11 @@ export type MarketOpsRiskRewardFactor = { key:string; direction:MarketOpsRiskRew
 export type MarketOpsRiskRewardCorroboration = { direction:MarketOpsRiskRewardDirection | "unavailable"; agreement:"aligned" | "bullish" | "bearish" | "neutral"; put_call_volume_ratio?:number; deviation_pct?:number; };
 export type MarketOpsRiskRewardPoint = { algorithm_result_id:string; trade_date:string; score:number; direction:MarketOpsRiskRewardDirection; risk_level:"low" | "medium" | "high" | "unavailable"; confidence:number; severity:"info" | "low" | "medium" | "high"; technical_factors:MarketOpsRiskRewardFactor[]; speculative_corroboration:MarketOpsRiskRewardCorroboration; research_only:true; };
 export type MarketOpsRiskRewardResponse = { latest?:MarketOpsRiskRewardPoint; history:MarketOpsRiskRewardPoint[]; };
-export type MarketOpsRiskRewardSummary = { ticker:string; trade_date:string; direction:MarketOpsRiskRewardDirection; score:number; confidence:number; risk_level:"low" | "medium" | "high" | "unavailable"; research_only:true; };
+export type MarketOpsRiskRewardSummary = { ticker:string; trade_date:string; direction:MarketOpsRiskRewardDirection; score:number; confidence:number; risk_level:"low" | "medium" | "high" | "unavailable"; previous_trade_date?:string; previous_score?:number; score_change?:number; research_only:true; };
 export interface MarketOpsRiskRewardSummariesResponse { summaries:MarketOpsRiskRewardSummary[]; }
+export type MarketOpsSignalOverviewWindow = "10_trade_days" | "30_trade_days" | "60_trade_days";
+export interface MarketOpsSignalOverviewMember { ticker:string; label:string; score?:number; as_of:string; }
+export interface MarketOpsSignalOverviewCategory { key:string; count:number; members:MarketOpsSignalOverviewMember[]; }
+export interface MarketOpsSignalOverviewPoint { trade_date:string; categories:MarketOpsSignalOverviewCategory[]; }
+export interface MarketOpsSignalOverviewResponse { generated_at:string; universe_group:string; window:MarketOpsSignalOverviewWindow; asset_count:number; risk_reward:{points:MarketOpsSignalOverviewPoint[]}; hypotheses:{points:MarketOpsSignalOverviewPoint[]}; intraday:{as_of_time?:string;categories:MarketOpsSignalOverviewCategory[]}; }
 export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; risk_reward?:MarketOpsRiskRewardResponse; }

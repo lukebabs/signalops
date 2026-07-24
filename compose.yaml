@@ -381,6 +381,21 @@ services:
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
       SIGNALOPS_ACTOR: ${MARKETOPS_DAILY_ACTOR:-systemd-postclose}
 
+  marketops-syncratic-intelligence-runner:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-syncratic-intelligence-runner
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops_temporal?sslmode=disable
+
   raw-worker:
     build:
       context: .

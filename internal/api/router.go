@@ -2493,6 +2493,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerMarketOpsAlgorithmAdjudicationRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsQuantitativeSeriesRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsAssetAlgorithmObservationRoutes(mux, cfg.QueryRepository)
+	registerMarketOpsSignalOverviewRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsAssetManagementRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsOpportunityRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsOutcomeRoutes(mux, cfg.QueryRepository)

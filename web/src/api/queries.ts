@@ -19,6 +19,8 @@ import type {
   MarketOpsQuantitativeSeriesResponse,
   MarketOpsAssetAlgorithmObservationsResponse,
   MarketOpsRiskRewardSummariesResponse,
+  MarketOpsSignalOverviewResponse,
+  MarketOpsSignalOverviewWindow,
   MarketOpsMarketStateFilter,
   MarketOpsFeatureDefinitionFilter,
   MarketOpsFeatureObservationFilter,
@@ -104,6 +106,7 @@ export const queryKeys = {
   marketOpsQuantitativeSeries: (tenantId: string, symbol: string, window: string) => ["marketops-quantitative-series", tenantId, symbol, window] as const,
   marketOpsAssetAlgorithmObservations: (tenantId: string, symbol: string) => ["marketops-asset-algorithm-observations", tenantId, symbol] as const,
   marketOpsRiskRewardSummaries: (tenantId: string, group: string) => ["marketops-risk-reward-summaries", tenantId, group] as const,
+  marketOpsSignalOverview: (tenantId: string, group: string, window: MarketOpsSignalOverviewWindow) => ["marketops-signal-overview", tenantId, group, window] as const,
   marketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
     ['marketops-options-coverage', tenantId, symbol] as const,
   marketOpsOptionsDistributions: (tenantId: string, symbol: string, filter: MarketOpsOptionsDistributionFilter) =>
@@ -455,6 +458,8 @@ export function useMarketOpsOptionsCoverage(tenantId: string, symbol: string | n
     staleTime: 5 * 60 * 1000,
   });
 }
+
+export function useMarketOpsSignalOverview(tenantId: string, universeGroup = "all_active", window: MarketOpsSignalOverviewWindow = "60_trade_days") { return useQuery<MarketOpsSignalOverviewResponse>({ queryKey: queryKeys.marketOpsSignalOverview(tenantId, universeGroup, window), queryFn: () => api.getMarketOpsSignalOverview(tenantId, universeGroup, window), staleTime: 60 * 1000, refetchInterval: 5 * 60 * 1000, refetchOnMount: "always" }); }
 
 export function useMarketOpsOptionsDistributions(
   tenantId: string,

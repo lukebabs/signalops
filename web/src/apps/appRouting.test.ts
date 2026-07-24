@@ -66,13 +66,12 @@ describe('navForApp (G067)', () => {
     expect(labels).not.toContain('Health');
   });
 
-  it('uses market-facing labels for marketops (Providers, Health) and marketops routes', () => {
+  it('keeps MarketOps navigation focused on analyst workbenches', () => {
     const nav = navForApp('marketops');
     const labels = nav.map((n) => n.label);
-    expect(labels).toContain('Providers');
-    expect(labels).toContain('Health');
-    expect(labels).not.toContain('Sources');
-    expect(labels).not.toContain('System');
+    expect(labels).not.toContain('Providers');
+    expect(labels).not.toContain('Health');
+    expect(labels).not.toContain('Algorithms');
     // Every marketops nav entry targets a /marketops/* route.
     expect(nav.every((n) => n.to.startsWith('/marketops/'))).toBe(true);
   });
@@ -151,19 +150,9 @@ describe('navForApp (G067)', () => {
     expect(navForApp('console').map((n) => n.label)).not.toContain('Back-Tests');
   });
 
-  it('exposes the MarketOps algorithms route only under marketops (G109)', () => {
-    const algorithms = navForApp('marketops').find((n) => n.module === 'algorithms');
-    expect(algorithms).toBeDefined();
-    expect(algorithms?.to).toBe('/marketops/algorithms');
-    expect(algorithms?.label).toBe('Algorithms');
-    // Sits in the operator/evidence area alongside Syncratic.
-    const marketopsNav = navForApp('marketops');
-    const syncraticIndex = marketopsNav.findIndex((n) => n.module === 'syncratic');
-    const algorithmsIndex = marketopsNav.findIndex((n) => n.module === 'algorithms');
-    expect(syncraticIndex).toBeGreaterThanOrEqual(0);
-    expect(algorithmsIndex).toBeGreaterThan(syncraticIndex);
-    // Console parity: algorithms never appear in console nav.
-    expect(navForApp('console').some((n) => n.to === '/marketops/algorithms')).toBe(false);
-    expect(navForApp('console').map((n) => n.label)).not.toContain('Algorithms');
+  it('exposes algorithm management only in Administration', () => {
+    expect(navForApp('marketops').some((n) => n.module === 'algorithms')).toBe(false);
+    const algorithms = navForApp('console').find((n) => n.module === 'algorithms');
+    expect(algorithms?.to).toBe('/admin/algorithms');
   });
 });

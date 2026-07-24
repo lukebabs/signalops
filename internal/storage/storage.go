@@ -538,6 +538,38 @@ type SyncraticInsightRecord struct {
 	UpdatedAt               time.Time
 }
 
+// SyncraticIntelligenceJobRecord is the durable, idempotent work item for an
+// automatically generated MarketOps evidence brief. A job is deliberately
+// separate from an insight so Ask latency or a transient dependency failure
+// cannot make a deterministic context disappear.
+type SyncraticIntelligenceJobRecord struct {
+	JobID                string
+	TenantID             string
+	AppID                string
+	UseCase              string
+	SubjectSymbol        string
+	SessionDate          time.Time
+	ContextWindowID      string
+	EvidenceDigest       string
+	Status               string
+	Attempts             int
+	MaxAttempts          int
+	LeaseExpiresAt       time.Time
+	AskQueryID           string
+	SyncraticInsightID   string
+	ErrorCode            string
+	ErrorMessage         string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	CompletedAt          time.Time
+}
+
+type SyncraticIntelligenceJobFilter struct {
+	TenantID string
+	Status   string
+	Limit    int
+}
+
 type CatalogSourceRecord struct {
 	TenantID       string
 	SourceID       string
@@ -1695,12 +1727,43 @@ type SyncraticRepository interface {
 	GetSyncraticInsight(ctx context.Context, syncraticInsightID string) (SyncraticInsightRecord, error)
 }
 
+// SyncraticIntelligenceJobRepository is intentionally optional for legacy
+// query repositories while the asynchronous intelligence schema rolls out.
+type SyncraticIntelligenceJobRepository interface {
+	UpsertSyncraticIntelligenceJob(ctx context.Context, record SyncraticIntelligenceJobRecord) error
+	ListSyncraticIntelligenceJobs(ctx context.Context, filter SyncraticIntelligenceJobFilter) ([]SyncraticIntelligenceJobRecord, error)
+	ClaimSyncraticIntelligenceJob(ctx context.Context, now time.Time, lease time.Duration) (SyncraticIntelligenceJobRecord, error)
+	CompleteSyncraticIntelligenceJob(ctx context.Context, jobID, insightID, askQueryID string, completedAt time.Time) error
+	FailSyncraticIntelligenceJob(ctx context.Context, jobID, errorCode, errorMessage string, failedAt time.Time) error
+}
+
 type MarketOpsIntradayConditionWriteRepository interface {
 	UpsertMarketOpsIntradayConditionSnapshot(ctx context.Context, record MarketOpsIntradayConditionSnapshotRecord) error
 }
 
 type MarketOpsIntradayConditionRepository interface {
 	ListMarketOpsIntradayConditionSnapshots(ctx context.Context, filter MarketOpsIntradayConditionSnapshotFilter) ([]MarketOpsIntradayConditionSnapshotRecord, error)
+}
+
+// MarketOpsSignalOverviewRepository supplies a bounded, server-side aggregate
+// input set for the analyst overview. It avoids browser fan-out and does not
+// mutate any research, signal, or market-data record.
+type MarketOpsSignalOverviewInputs struct {
+	Assets                 []MarketOpsAssetRecord
+	AlgorithmResults       []AlgorithmResultRecord
+	HypothesisDefinitions  []MarketOpsHypothesisDefinitionRecord
+	HypothesisEvaluations  []MarketOpsHypothesisEvaluationRecord
+	IntradayConditionSnaps []MarketOpsIntradayConditionSnapshotRecord
+}
+
+type MarketOpsSignalOverviewFilter struct {
+	TenantID      string
+	UniverseGroup string
+	SessionStart  time.Time
+}
+
+type MarketOpsSignalOverviewRepository interface {
+	ListMarketOpsSignalOverviewInputs(ctx context.Context, filter MarketOpsSignalOverviewFilter) (MarketOpsSignalOverviewInputs, error)
 }
 type MarketOpsMarketStateWriteRepository interface {
 	UpsertMarketOpsFeatureDefinition(ctx context.Context, record MarketOpsFeatureDefinitionRecord) error

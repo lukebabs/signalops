@@ -43,12 +43,15 @@ type RiskRewardResponse = {
 
 Treat absent `latest` and empty `history` as **No persisted risk/reward analysis yet**. Do not derive a score client-side, substitute zeros, or infer unavailable factors.
 
+The asset-list risk/reward summary additionally exposes optional `previous_trade_date`, `previous_score`, and `score_change` fields. They compare the latest score with the preceding persisted trading session (not the previous calendar day). A positive change is an improving technical posture; a negative change is regressing. When no prior persisted session exists, show an unavailable/awaiting state rather than a zero change.
+
 ## Visual and interaction specification
 
 1. Header: `Risk/Reward` with subtext: `Persisted EOD technical posture · research-only, not a trading recommendation.`
 2. Current-summary row, when `latest` exists:
    - Direction badge: bullish green/up, bearish red/down, neutral gray.
    - Signed technical score, for example `−60 / 100` or `+45 / 100`.
+   - One-session evolution: `↑ Improving · +12`, `↓ Regressing · −12`, or `→ Unchanged · 0`, compared with the prior persisted trading session. Do not present it as a forecast or recommendation.
    - Confidence as a whole percent.
    - Risk badge: low neutral, medium amber, high red; `unavailable` gray.
    - EOD date, never a live/intraday timestamp.

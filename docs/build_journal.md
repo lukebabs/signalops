@@ -7734,3 +7734,18 @@ Result:
 - Market State now persists 50 feature definitions and 75 observations per state, adding 252-session range position, 10-session volume, 50/200-session trend inputs, 50-session slope, and put/call-volume deviation from its 10-session mean.
 - The post-close algorithm workflow runs the signal per active asset; put/call remains canonical as puts divided by calls and is speculative corroboration only.
 - Added selected-asset `risk_reward` API fields and dedicated MarketOps algorithm documentation plus frontend-agent handoff.
+
+
+## 2026-07-24 — Syncratic post-close intelligence
+
+- Added the all-asset `market_state_session_v2` materialization stage after deterministic cohorts.
+- Added durable leased Syncratic brief jobs with bounded retries; the gateway worker creates cited Ask explanations asynchronously and never alters deterministic evidence or recommendations.
+- Added a dedicated post-close runner and compose target so the daily workflow queues every active asset without coupling model latency to the analyst UI.
+
+
+## 2026-07-24 — EOD Syncratic overview boundary
+
+- Moved official Syncratic queueing behind algorithm corroboration and the universal EOD completion gate.
+- Added an official `marketops.syncratic.eod_overview.v1` record type and separated it from exploratory Ask Syncratic AI drill-down records, preventing manual analysis from overwriting the daily overview.
+- Enriched EOD context with persisted market-state and deterministic-evidence detail; zero-evidence contexts remain deterministic coverage statuses.
+- Live META and MSFT 2026-07-23 state-session validation completed with official EOD records. Both reported real persisted evidence-lineage/symbol-quality blockers rather than a generic no-data narrative.

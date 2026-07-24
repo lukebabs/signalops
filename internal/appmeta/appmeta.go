@@ -28,8 +28,8 @@ type Profile struct {
 var Profiles = []Profile{
 	{
 		AppID:        AppConsole,
-		Label:        "SignalOps Console",
-		DefaultRoute: "/dashboard",
+		Label:        "Administration",
+		DefaultRoute: "/admin/dashboard",
 		Domains:      []string{"market_data", "crm", "security", "operations", "iot", "procurement", "custom"},
 		EnabledModules: []string{
 			"dashboard", "event_explorer", "timeline", "correlation", "insights",

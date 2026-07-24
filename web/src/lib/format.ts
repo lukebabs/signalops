@@ -1,11 +1,24 @@
-// Timestamps are displayed as UTC, consistently. Absent optional fields render as —.
+// SignalOps stores and transports instants as UTC, but operator-facing timestamps
+// use the MarketOps operating timezone so scheduled runs and market sessions are
+// legible without a manual conversion. Date-only values are trading-session dates,
+// not instants, and deliberately remain unchanged.
+export const OPERATING_TIME_ZONE = 'America/New_York';
+export const OPERATING_TIME_ZONE_LABEL = 'ET';
 
 export function formatUtc(iso?: string): string {
   if (!iso) return '—';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  // YYYY-MM-DD HH:MM:SSZ
-  return d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z');
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: OPERATING_TIME_ZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d).reduce<Record<string, string>>((values, part) => {
+    values[part.type] = part.value;
+    return values;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${OPERATING_TIME_ZONE_LABEL}`;
 }
 
 export function duration(startedAt?: string, completedAt?: string): string {

@@ -478,10 +478,10 @@ function SyncraticAskControls({
   return (
     <div className="rounded border border-gray-200 bg-white p-2">
       <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-gray-700">
-        <Sparkles size={12} /> Syncratic Ask
+        <Sparkles size={12} /> Ask Syncratic AI
       </div>
       <p className="mb-2 text-[11px] text-gray-500">
-        Operator-triggered enrichment over the bounded context window — never runs automatically.
+        Exploratory analyst drill-down over the official EOD context. It never changes the official daily overview.
         Ask sends force=false; Regenerate sends force=true.
       </p>
       <div className="flex flex-wrap gap-2">
@@ -491,7 +491,7 @@ function SyncraticAskControls({
           disabled={disabled}
           className="inline-flex items-center gap-1 rounded bg-brand-500 px-2.5 py-1 text-xs text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Sparkles size={12} /> {disabled ? 'Asking…' : 'Ask Syncratic'}
+          <Sparkles size={12} /> {disabled ? 'Asking…' : 'Ask Syncratic AI'}
         </button>
         <button
           type="button"

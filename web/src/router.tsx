@@ -48,6 +48,9 @@ const ReplayJobsRoute = lazy(() =>
 const MarketOpsAssetsRoute = lazy(() =>
   import('./routes/MarketOpsAssetsRoute').then((m) => ({ default: m.MarketOpsAssetsRoute })),
 );
+const MarketOpsDashboardRoute = lazy(() =>
+  import('./routes/MarketOpsDashboardRoute').then((m) => ({ default: m.MarketOpsDashboardRoute })),
+);
 const MarketOpsDsmRoute = lazy(() =>
   import('./routes/MarketOpsDsmRoute').then((m) => ({ default: m.MarketOpsDsmRoute })),
 );
@@ -80,40 +83,61 @@ function AppRoot() {
 
 const rootRoute = createRootRoute({ component: AppRoot });
 
+function LegacyRedirect({ to }: { to: string }) {
+  const navigate = useNavigate();
+  useEffect(() => { void navigate({ to: to as never, replace: true }); }, [navigate, to]);
+  return <LoadingState label="Redirecting…" />;
+}
+
+const adminDashboardRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/dashboard', component: DashboardRoute });
+const adminRunsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/runs', component: RunsRoute });
+const adminRawEventsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/raw-events', component: RawEventsRoute });
+const adminNormalizedRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/normalized-events', component: NormalizedEventsRoute });
+const adminIdempotencyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/idempotency', component: IdempotencyRoute });
+const adminSourcesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/sources', component: SourcesRoute });
+const adminPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/pipelines', component: PipelinesRoute });
+const adminRulesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/rules', component: RulesRoute });
+const adminReplayRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/replay', component: ReplayJobsRoute });
+const adminSignalsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/signals', component: SignalsRoute });
+const adminAlertsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/alerts', component: AlertsRoute });
+const adminInsightsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/insights', component: InsightsRoute });
+const adminAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/algorithms', component: AlgorithmsRoute });
+const adminSystemRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/system', component: SystemRoute });
+
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: DashboardRoute,
+  component: () => <LegacyRedirect to="/admin/dashboard" />,
 });
 
 const runsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/runs',
-  component: RunsRoute,
+  component: () => <LegacyRedirect to="/admin/runs" />,
 });
 
 const rawEventsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/raw-events',
-  component: RawEventsRoute,
+  component: () => <LegacyRedirect to="/admin/raw-events" />,
 });
 
 const idempotencyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/idempotency',
-  component: IdempotencyRoute,
+  component: () => <LegacyRedirect to="/admin/idempotency" />,
 });
 
 const systemRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/system',
-  component: SystemRoute,
+  component: () => <LegacyRedirect to="/admin/system" />,
 });
 
 const sourcesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/sources',
-  component: SourcesRoute,
+  component: () => <LegacyRedirect to="/admin/sources" />,
 });
 
 const pipelinesRoute = createRoute({
@@ -170,16 +194,16 @@ function MarketOpsIndexRouteComponent() {
 // App context (AppProfileProvider) scopes their data via metadataFilter; no
 // business logic is duplicated.
 const marketopsIndexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops', component: MarketOpsIndexRouteComponent });
-const marketopsDashboardRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/dashboard', component: DashboardRoute });
-const marketopsProvidersRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/providers', component: SourcesRoute });
-const marketopsRawEventsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/raw-events', component: RawEventsRoute });
-const marketopsNormalizedRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/normalized', component: NormalizedEventsRoute });
+const marketopsDashboardRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/dashboard', component: MarketOpsDashboardRoute });
+const marketopsProvidersRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/providers', component: () => <LegacyRedirect to="/admin/sources" /> });
+const marketopsRawEventsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/raw-events', component: () => <LegacyRedirect to="/admin/raw-events" /> });
+const marketopsNormalizedRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/normalized', component: () => <LegacyRedirect to="/admin/normalized-events" /> });
 const marketopsSignalsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/signals', component: SignalsRoute });
 const marketopsAlertsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/alerts', component: AlertsRoute });
 const marketopsInsightsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/insights', component: InsightsRoute });
-const marketopsReplayRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/replay', component: ReplayJobsRoute });
-const marketopsPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/pipelines', component: PipelinesRoute });
-const marketopsHealthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/health', component: SystemRoute });
+const marketopsReplayRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/replay', component: () => <LegacyRedirect to="/admin/replay" /> });
+const marketopsPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/pipelines', component: () => <LegacyRedirect to="/admin/pipelines" /> });
+const marketopsHealthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/health', component: () => <LegacyRedirect to="/admin/system" /> });
 const marketopsAssetsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assets', component: MarketOpsAssetsRoute });
 const marketopsStateRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -214,7 +238,7 @@ const marketopsOpportunitiesRoute = createRoute({
 });
 const marketopsBacktestsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/backtests', component: MarketOpsBacktestsRoute });
 const marketopsSyncraticRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/syncratic', component: MarketOpsSyncraticRoute });
-const marketopsAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/algorithms', component: AlgorithmsRoute });
+const marketopsAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/algorithms', component: () => <LegacyRedirect to="/admin/algorithms" /> });
 
 // /auth/callback is primarily handled by the auth gate in App.tsx (the router must not mount
 // before authentication); this route is a fallback that returns the user to the dashboard.
@@ -233,6 +257,7 @@ const authCallbackRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
+  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminSystemRoute,
   indexRoute,
   runsRoute,
   rawEventsRoute,

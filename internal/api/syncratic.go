@@ -18,6 +18,8 @@ import (
 const (
 	defaultSyncraticBuilderVersion   = "syncratic.context_builder.v1"
 	defaultSyncraticInsightType      = "marketops.syncratic.multi_event_context"
+	defaultSyncraticEODInsightType   = "marketops.syncratic.eod_overview.v1"
+	defaultSyncraticAskDrilldownType = "marketops.syncratic.ask_drilldown.v1"
 	defaultSyncraticAskPromptVersion = "marketops.syncratic.ask_prompt.v1"
 	defaultSyncraticAskScope         = "tenant"
 )
@@ -58,6 +60,10 @@ type syncraticMaterializeRequest struct {
 	MaxInsights           int    `json:"max_insights"`
 	SignalLimit           int    `json:"signal_limit"`
 	AlertLimit            int    `json:"alert_limit"`
+	IncludeAllAssets      bool   `json:"include_all_assets"`
+	EnqueueBriefs         bool   `json:"enqueue_briefs"`
+	SessionDate           string `json:"session_date"`
+	InsightType           string `json:"insight_type"`
 	DryRun                bool   `json:"dry_run"`
 }
 
@@ -67,6 +73,7 @@ type syncraticAskRequest struct {
 	MaxPromptBytes       int    `json:"max_prompt_bytes"`
 	IncludeRecordDetails bool   `json:"include_record_details"`
 	Force                bool   `json:"force"`
+	InsightType          string `json:"insight_type"`
 }
 
 type syncraticAskResult struct {
@@ -97,6 +104,7 @@ type syncraticMaterializeResponse struct {
 	SkippedBudgetCap           int                            `json:"skipped_budget_cap"`
 	ContextWindowIDs           []string                       `json:"context_window_ids"`
 	SyncraticInsightIDs        []string                       `json:"syncratic_insight_ids"`
+	QueuedJobIDs               []string                       `json:"queued_job_ids"`
 	Decisions                  []syncraticMaterializeDecision `json:"decisions"`
 }
 
@@ -325,12 +333,19 @@ func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryReposito
 		return storage.SyncraticContextWindowRecord{}, err
 	}
 	promotions, err := repo.ListMarketOpsBacktestPromotionCandidates(ctx, storage.MarketOpsBacktestPromotionCandidateFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Limit: 100})
+	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
+	states, err := repo.ListMarketOpsMarketStates(ctx, storage.MarketOpsMarketStateFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: 1})
+	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
+	transitions, err := repo.ListMarketOpsStateTransitions(ctx, storage.MarketOpsStateTransitionFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: 100})
+	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
+	evidence, err := repo.ListMarketOpsEvidence(ctx, storage.MarketOpsEvidenceFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: 100})
+	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
 	if err != nil {
 		return storage.SyncraticContextWindowRecord{}, err
 	}
 
 	allowedTypes := stringSet(signalTypes)
-	record := storage.SyncraticContextWindowRecord{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: subjectSymbol, SubjectSymbol: subjectSymbol, WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), ContextStrategy: strategy, ContextBuilderVersion: builderVersion, Status: "active"}
+	record := storage.SyncraticContextWindowRecord{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: subjectSymbol, SubjectSymbol: subjectSymbol, WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), ContextStrategy: strategy, ContextBuilderVersion: builderVersion, Status: "active", ContextPayloadVersion: "signalops.syncratic.market_state_session.v2"}
 	detectors := map[string]struct{}{}
 	signalTypeSet := map[string]struct{}{}
 	for _, signal := range signals {
@@ -398,13 +413,27 @@ func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryReposito
 	record.ArtifactIDs = uniqueSorted(record.ArtifactIDs)
 	record.GraphProposalIDs = uniqueSorted(record.GraphProposalIDs)
 	record.LabelIDs = uniqueSorted(record.LabelIDs)
+	for _, state := range states {
+		record.MarketStateIDs = append(record.MarketStateIDs, state.MarketStateID)
+		if state.QualityState != "" && state.QualityState != "complete" { record.QualityWarningsJSON = mustJSON([]map[string]string{{"kind": "market_state_quality", "value": state.QualityState}}) }
+	}
+	for _, transition := range transitions { record.StateTransitionIDs = append(record.StateTransitionIDs, transition.TransitionID) }
+	for _, item := range evidence { record.MarketOpsEvidenceIDs = append(record.MarketOpsEvidenceIDs, item.EvidenceID) }
+	record.MarketStateIDs = uniqueSorted(record.MarketStateIDs)
+	record.StateTransitionIDs = uniqueSorted(record.StateTransitionIDs)
+	record.MarketOpsEvidenceIDs = uniqueSorted(record.MarketOpsEvidenceIDs)
+	stateSummary := make([]map[string]any, 0, len(states))
+	for _, state := range states { stateSummary = append(stateSummary, map[string]any{"market_state_id": state.MarketStateID, "quality_state": state.QualityState, "completeness_ratio": state.CompletenessRatio, "eligible_hypotheses": state.EligibleHypotheses, "state_payload": json.RawMessage(jsonOrDefault(state.StatePayloadJSON, `{}`))}) }
+	eodEvidence := make([]map[string]any, 0, len(evidence))
+	for _, item := range evidence { eodEvidence = append(eodEvidence, map[string]any{"evidence_id": item.EvidenceID, "type": item.EvidenceType, "domain": item.Domain, "direction": item.Direction, "statement": item.Statement, "magnitude": item.Magnitude, "quality_score": item.QualityScore, "payload": json.RawMessage(jsonOrDefault(item.EvidencePayloadJSON, `{}`))}) }
 	record.SignalTypes = setKeys(signalTypeSet)
 	record.DetectorIDs = setKeys(detectors)
-	metrics := map[string]any{"signal_count": len(record.SignalIDs), "alert_count": len(record.AlertIDs), "event_count": len(record.EventIDs), "artifact_count": len(record.ArtifactIDs), "graph_proposal_count": len(record.GraphProposalIDs), "label_count": len(record.LabelIDs), "subject_symbol": subjectSymbol, "context_strategy": strategy}
+	metrics := map[string]any{"signal_count": len(record.SignalIDs), "alert_count": len(record.AlertIDs), "event_count": len(record.EventIDs), "artifact_count": len(record.ArtifactIDs), "graph_proposal_count": len(record.GraphProposalIDs), "label_count": len(record.LabelIDs), "market_state": stateSummary, "market_evidence": eodEvidence, "subject_symbol": subjectSymbol, "context_strategy": strategy}
 	record.SummaryMetricsJSON = mustJSON(metrics)
 	record.BaselineRefsJSON = []byte(`[]`)
 	record.EvaluationRefsJSON = []byte(`[]`)
 	record.PromotionCandidateRefsJSON = mustJSON(promotionRefs)
+	if len(record.QualityWarningsJSON) == 0 { record.QualityWarningsJSON = []byte(`[]`) }
 	record.IdempotencyKey = syncraticMaterializationKey(tenantID, record.UseCase, strategy, subjectSymbol, record.WindowStart, record.WindowEnd, builderVersion)
 	record.EvidenceDigest = syncraticEvidenceDigest(record)
 	record.ContextWindowID = stableSyncraticID("synctx", record.IdempotencyKey)
@@ -453,7 +482,9 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 	if err != nil {
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
 	}
-	insight, err := syncraticInsightForContext(ctx, repo, contextWindow)
+	insightType := strings.TrimSpace(req.InsightType)
+	if insightType == "" && contextWindow.ContextStrategy == "market_state_session_v2" { insightType = defaultSyncraticAskDrilldownType }
+	insight, err := syncraticInsightForContextType(ctx, repo, contextWindow, insightType)
 	if err != nil {
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
 	}
@@ -731,7 +762,7 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 		},
 		"context_metadata":    map[string]any{"tenant_id": contextWindow.TenantID, "app_id": contextWindow.AppID, "domain": contextWindow.Domain, "use_case": contextWindow.UseCase, "context_window_id": contextWindow.ContextWindowID, "subject_symbol": contextWindow.SubjectSymbol, "subject_type": contextWindow.SubjectType, "subject_id": contextWindow.SubjectID, "window_start": contextWindow.WindowStart.UTC().Format(time.RFC3339), "window_end": contextWindow.WindowEnd.UTC().Format(time.RFC3339), "context_strategy": contextWindow.ContextStrategy, "context_builder_version": contextWindow.ContextBuilderVersion, "evidence_digest": contextWindow.EvidenceDigest},
 		"evidence_summary":    map[string]any{"signal_types": contextWindow.SignalTypes, "detector_ids": contextWindow.DetectorIDs, "summary_metrics": json.RawMessage(jsonOrDefault(contextWindow.SummaryMetricsJSON, `{}`)), "baseline_refs": json.RawMessage(jsonOrDefault(contextWindow.BaselineRefsJSON, `[]`)), "evaluation_refs": json.RawMessage(jsonOrDefault(contextWindow.EvaluationRefsJSON, `[]`)), "promotion_candidate_refs": json.RawMessage(jsonOrDefault(contextWindow.PromotionCandidateRefsJSON, `[]`))},
-		"evidence_ids":        map[string]any{"alerts": limitStrings(contextWindow.AlertIDs, caps["max_alert_ids"]), "signals": limitStrings(contextWindow.SignalIDs, caps["max_signal_ids"]), "events": limitStrings(contextWindow.EventIDs, caps["max_event_ids"]), "artifacts": limitStrings(contextWindow.ArtifactIDs, caps["max_artifact_ids"]), "graph_proposals": limitStrings(contextWindow.GraphProposalIDs, caps["max_graph_proposal_ids"]), "labels": limitStrings(contextWindow.LabelIDs, caps["max_label_ids"])},
+		"evidence_ids":        map[string]any{"market_states": limitStrings(contextWindow.MarketStateIDs, 5), "state_transitions": limitStrings(contextWindow.StateTransitionIDs, 20), "market_evidence": limitStrings(contextWindow.MarketOpsEvidenceIDs, 20), "alerts": limitStrings(contextWindow.AlertIDs, caps["max_alert_ids"]), "signals": limitStrings(contextWindow.SignalIDs, caps["max_signal_ids"]), "events": limitStrings(contextWindow.EventIDs, caps["max_event_ids"]), "artifacts": limitStrings(contextWindow.ArtifactIDs, caps["max_artifact_ids"]), "graph_proposals": limitStrings(contextWindow.GraphProposalIDs, caps["max_graph_proposal_ids"]), "labels": limitStrings(contextWindow.LabelIDs, caps["max_label_ids"])},
 		"evidence_details":    map[string]any{"signals": signalDetails, "missing_signal_detail_ids": missingSignalDetails, "omitted_signal_detail_count": max(0, len(contextWindow.SignalIDs)-caps["max_signal_details"])},
 		"data_quality_checks": syncraticAskDataQualityChecks(signalDetails, missingSignalDetails),
 		"output_contract": []string{
@@ -758,14 +789,19 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 }
 
 func syncraticInsightForContext(ctx context.Context, repo storage.QueryRepository, contextWindow storage.SyncraticContextWindowRecord) (storage.SyncraticInsightRecord, error) {
-	records, err := repo.ListSyncraticInsights(ctx, storage.SyncraticInsightFilter{TenantID: contextWindow.TenantID, ContextWindowID: contextWindow.ContextWindowID, InsightType: defaultSyncraticInsightType, Limit: 10})
+	return syncraticInsightForContextType(ctx, repo, contextWindow, defaultSyncraticInsightType)
+}
+
+func syncraticInsightForContextType(ctx context.Context, repo storage.QueryRepository, contextWindow storage.SyncraticContextWindowRecord, insightType string) (storage.SyncraticInsightRecord, error) {
+	insightType = firstNonEmpty(strings.TrimSpace(insightType), defaultSyncraticInsightType)
+	records, err := repo.ListSyncraticInsights(ctx, storage.SyncraticInsightFilter{TenantID: contextWindow.TenantID, ContextWindowID: contextWindow.ContextWindowID, InsightType: insightType, Limit: 10})
 	if err != nil {
 		return storage.SyncraticInsightRecord{}, err
 	}
 	if len(records) > 0 {
 		return records[0], nil
 	}
-	insight := buildSyncraticInsight(contextWindow, defaultSyncraticInsightType, contextWindow.ContextBuilderVersion)
+	insight := buildSyncraticInsight(contextWindow, insightType, contextWindow.ContextBuilderVersion)
 	if err := repo.UpsertSyncraticInsight(ctx, insight); err != nil {
 		return storage.SyncraticInsightRecord{}, err
 	}
@@ -872,6 +908,21 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 	maxCandidates := bounded(req.MaxCandidateWindows, 50)
 	maxContexts := bounded(req.MaxContextWindows, 10)
 	maxInsights := bounded(req.MaxInsights, 10)
+	if req.IncludeAllAssets {
+		maxContexts, maxInsights, maxCandidates, minEvidence = maxAssets, maxAssets, maxAssets, 0
+	}
+	var jobs storage.SyncraticIntelligenceJobRepository
+	if req.EnqueueBriefs && !req.DryRun {
+		var ok bool
+		jobs, ok = repo.(storage.SyncraticIntelligenceJobRepository)
+		if !ok { return syncraticMaterializeResponse{}, fmt.Errorf("syncratic intelligence queue is unavailable") }
+	}
+	sessionDate := windowEnd.UTC()
+	if strings.TrimSpace(req.SessionDate) != "" {
+		parsed, err := time.Parse("2006-01-02", strings.TrimSpace(req.SessionDate))
+		if err != nil { return syncraticMaterializeResponse{}, fmt.Errorf("session_date must be YYYY-MM-DD") }
+		sessionDate = parsed
+	}
 	assets, err := repo.ListMarketOpsAssets(ctx, tenantID, universeGroup, true, maxAssets)
 	if err != nil {
 		return syncraticMaterializeResponse{}, err
@@ -913,7 +964,7 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 			}
 		}
 		decision.RelatedEvidence = len(contextWindow.GraphProposalIDs) > 0 || len(contextWindow.LabelIDs) > 0
-		if decision.EvidenceCount < minEvidence && !decision.CriticalAlert && !decision.RelatedEvidence {
+		if !req.IncludeAllAssets && decision.EvidenceCount < minEvidence && !decision.CriticalAlert && !decision.RelatedEvidence {
 			decision.Action = "skipped"
 			decision.Reason = "below_threshold"
 			resp.SkippedBelowThreshold++
@@ -957,9 +1008,14 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 		if err := repo.UpsertSyncraticContextWindow(ctx, contextWindow); err != nil {
 			return resp, err
 		}
-		insight := buildSyncraticInsight(contextWindow, defaultSyncraticInsightType, builderVersion)
+		insight := buildSyncraticInsight(contextWindow, firstNonEmpty(req.InsightType, defaultSyncraticInsightType), builderVersion)
 		if err := repo.UpsertSyncraticInsight(ctx, insight); err != nil {
 			return resp, err
+		}
+		if jobs != nil {
+			job := storage.SyncraticIntelligenceJobRecord{JobID: stableSyncraticID("synjob", tenantID, contextWindow.ContextWindowID, contextWindow.EvidenceDigest), TenantID: tenantID, AppID: "marketops", UseCase: "daily_market_surveillance", SubjectSymbol: contextWindow.SubjectSymbol, SessionDate: sessionDate, ContextWindowID: contextWindow.ContextWindowID, EvidenceDigest: contextWindow.EvidenceDigest, MaxAttempts: 3}
+			if err := jobs.UpsertSyncraticIntelligenceJob(ctx, job); err != nil { return resp, err }
+			resp.QueuedJobIDs = append(resp.QueuedJobIDs, job.JobID)
 		}
 		plannedContextWindows++
 		plannedInsights++

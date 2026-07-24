@@ -393,4 +393,12 @@ The browser session is inactivity-based, not a fixed access-token lifetime. `VIT
 
 ### Risk/Reward temporal research signal
 
-`signalops.algorithms.risk_reward_temporal_v1` runs after Market State materialization in the post-close corroboration workflow. It evaluates persisted technical inputs over a bounded historical window and writes immutable research-only algorithm results. Put/call volume is normalized as puts divided by calls and shown solely as speculative corroboration; it cannot determine technical direction. The selected-asset algorithm-observations response exposes the latest result and up to 60 historical points under `risk_reward`.
+`signalops.algorithms.risk_reward_temporal_v1` runs after Market State materialization in the post-close corroboration workflow. It evaluates persisted technical inputs over a bounded historical window and writes immutable research-only algorithm results. Put/call volume is normalized as puts divided by calls and shown solely as speculative corroboration; it cannot determine technical direction. The selected-asset algorithm-observations response exposes the latest result and up to 60 historical points under `risk_reward`. The asset-list summary also carries the prior persisted trading-session score and signed change, allowing the UI to show whether the technical posture improved, regressed, or remained unchanged without treating it as a recommendation.
+
+### Operating timezone
+
+MarketOps schedules run in `America/New_York` (ET), including the weekday post-close workflow at 18:01:55 ET. The SignalOps web interface renders operational timestamps in ET so polling, refresh, run, and market-session times use the same operator-facing clock. Canonical timestamps in storage and API payloads remain RFC3339 UTC for ordering and interoperability; date-only trading-session fields remain dates and are not timezone-shifted. Explicit replay and backtest window inputs continue to identify UTC because they are API-bound query controls.
+
+### Signal overview
+
+The Assets view exposes a read-only Signal overview for the combined active universe, Megacap universe, or analyst watchlist. It aggregates persisted Risk/Reward technical posture and triggered-hypothesis breadth over 10, 30, or 60 trading sessions, plus the latest intraday-condition breadth. Selecting a chart segment reveals the contributing tickers and opens the existing asset analysis; it does not create signals, alter hypotheses, or make recommendations. The overview uses one bounded server-side request rather than per-asset browser fan-out. Intraday conditions are intentionally latest-state only and are presented as a current snapshot rather than a historical timeline.
