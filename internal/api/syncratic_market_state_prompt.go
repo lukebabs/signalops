@@ -28,7 +28,7 @@ func buildMarketStateAskPrompt(contextWindow storage.SyncraticContextWindowRecor
 	if maxPromptBytes > 12000 {
 		maxPromptBytes = 12000
 	}
-	promptContext, promptTruncation := compactMarketStatePromptContext(contextWindow.LineageRefsJSON)
+	promptContext, promptTruncation := compactMarketStatePromptContextForBudget(contextWindow.LineageRefsJSON, maxPromptBytes)
 	caps := map[string]int{"max_market_states": 1, "max_features": 25, "max_state_transitions": 50, "max_hypothesis_evaluations": 8, "max_marketops_evidence": 20, "max_opportunities": 10, "max_outcomes": 20, "max_calibration_summaries": 8, "max_prompt_bytes": maxPromptBytes, "prompt_features": 8, "prompt_transitions": 12, "prompt_evidence": 8, "prompt_opportunities": 5, "prompt_outcomes": 8}
 	payload := map[string]any{
 		"prompt_builder_version": version,

@@ -5,11 +5,18 @@ import (
 )
 
 func compactMarketStatePromptContext(raw []byte) (json.RawMessage, map[string]any) {
+	return compactMarketStatePromptContextForBudget(raw, 12000)
+}
+
+func compactMarketStatePromptContextForBudget(raw []byte, maxPromptBytes int) (json.RawMessage, map[string]any) {
 	var source map[string]any
 	if json.Unmarshal(raw, &source) != nil {
 		return json.RawMessage(`{}`), map[string]any{"invalid_lineage_json": true}
 	}
 	limits := map[string]int{"features": 8, "state_transitions": 12, "hypothesis_evaluations": 8, "marketops_evidence": 8, "opportunities": 5, "outcomes": 8, "calibration_summaries": 8}
+	if maxPromptBytes <= 4800 {
+		limits = map[string]int{"features": 4, "state_transitions": 4, "hypothesis_evaluations": 4, "marketops_evidence": 4, "opportunities": 2, "outcomes": 3, "calibration_summaries": 3}
+	}
 	meta := map[string]any{}
 	for key, limit := range limits {
 		items, ok := source[key].([]any)

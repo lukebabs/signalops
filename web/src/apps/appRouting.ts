@@ -88,7 +88,6 @@ const CONSOLE_NAV: NavItem[] = [
 const MARKETOPS_NAV: NavItem[] = [
   { module: 'dashboard', to: '/marketops/dashboard', label: 'Dashboard' },
   { module: 'symbols', to: '/marketops/assets', label: 'Assets' },
-  { module: 'market_state', to: '/marketops/state', label: 'Market State' },
   { module: 'signals', to: '/marketops/signals', label: 'Signals' },
   { module: 'dsm', to: '/marketops/dsm', label: 'DSM' },
   { module: 'opportunities', to: '/marketops/opportunities', label: 'Opportunities' },

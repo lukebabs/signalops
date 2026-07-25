@@ -7749,3 +7749,9 @@ Result:
 - Added an official `marketops.syncratic.eod_overview.v1` record type and separated it from exploratory Ask Syncratic AI drill-down records, preventing manual analysis from overwriting the daily overview.
 - Enriched EOD context with persisted market-state and deterministic-evidence detail; zero-evidence contexts remain deterministic coverage statuses.
 - Live META and MSFT 2026-07-23 state-session validation completed with official EOD records. Both reported real persisted evidence-lineage/symbol-quality blockers rather than a generic no-data narrative.
+
+## 2026-07-25 — Ask Syncratic context budget balance
+
+- Reduced the interactive MarketOps Ask Syncratic request budget from 12,000 to 4,800 bytes, aligning the input context more closely with the concise response target.
+- Applied budget-aware Market State prompt compaction. At the interactive budget it includes at most four features, transitions, hypothesis evaluations, and evidence records, plus two opportunities and three outcomes/calibration summaries.
+- The response remains evidence-pure and cited; this change only bounds duplicated context carried into the external explanation request.

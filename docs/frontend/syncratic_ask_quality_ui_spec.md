@@ -64,7 +64,7 @@ Ask metadata is under:
       "direct_reasoning": true,
       "graph_enabled": false,
       "kee_enabled": false,
-      "prompt_bytes": 9709,
+      "prompt_bytes": 4200,
       "caps": {},
       "response": {
         "confidence": 0,
@@ -89,7 +89,7 @@ Request:
 ```json
 {
   "tenant_id": "tenant-local",
-  "max_prompt_bytes": 12000,
+  "max_prompt_bytes": 4800,
   "force": false
 }
 ```
