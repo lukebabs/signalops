@@ -1,0 +1,3 @@
+DROP TRIGGER IF EXISTS platform_primitive_definitions_audit_mutation ON platform_primitive_definitions;
+DROP FUNCTION IF EXISTS audit_platform_primitive_definition_mutation();
+DROP TABLE IF EXISTS platform_primitive_definition_audit_events;

@@ -5,7 +5,7 @@ import {
   defaultRouteForApp,
   navForApp,
 } from './appRouting';
-import { CONSOLE_PROFILE, MARKETOPS_PROFILE } from './appProfiles';
+import { CONSOLE_PROFILE, CYBEROPS_PROFILE, MARKETOPS_PROFILE } from './appProfiles';
 
 describe('appIdFromPathname (G067)', () => {
   it('treats the index and all existing console routes as console', () => {
@@ -22,6 +22,13 @@ describe('appIdFromPathname (G067)', () => {
     expect(appIdFromPathname('/marketops/dashboard')).toBe('marketops');
     expect(appIdFromPathname('/marketops/signals')).toBe('marketops');
     expect(appIdFromPathname('/marketops/dsm')).toBe('marketops');
+  });
+
+  it('treats /cyberops and /cyberops/* as cyberops', () => {
+    expect(appIdFromPathname('/cyberops')).toBe('cyberops');
+    expect(appIdFromPathname('/cyberops/')).toBe('cyberops');
+    expect(appIdFromPathname('/cyberops/signals')).toBe('cyberops');
+    expect(appIdFromPathname('/cyberops/alerts')).toBe('cyberops');
   });
 
   it('defaults an empty path to console', () => {
@@ -44,6 +51,11 @@ describe('metadataFilterForApp (G067)', () => {
   it('never injects use_case globally for marketops', () => {
     expect(metadataFilterForApp('marketops')).not.toHaveProperty('use_case');
   });
+
+  it('scopes cyberops to its security signals without forcing use_case', () => {
+    expect(metadataFilterForApp('cyberops')).toEqual({ app_id: 'cyberops', domain: 'security' });
+    expect(metadataFilterForApp('cyberops')).not.toHaveProperty('use_case');
+  });
 });
 
 describe('defaultRouteForApp (G067)', () => {
@@ -54,6 +66,10 @@ describe('defaultRouteForApp (G067)', () => {
   it('uses the profile default_route for non-console apps', () => {
     expect(defaultRouteForApp(MARKETOPS_PROFILE)).toBe(MARKETOPS_PROFILE.default_route);
     expect(defaultRouteForApp(MARKETOPS_PROFILE)).toBe('/marketops/dashboard');
+  });
+
+  it('opens CyberOps directly on its scoped signals workflow', () => {
+    expect(defaultRouteForApp(CYBEROPS_PROFILE)).toBe('/cyberops/signals');
   });
 });
 
@@ -81,6 +97,12 @@ describe('navForApp (G067)', () => {
     expect(labels).not.toContain('Idempotency');
     expect(labels).not.toContain('Runs');
     expect(labels).not.toContain('Rules');
+  });
+
+  it('keeps CyberOps focused on its signal triage workflow', () => {
+    const nav = navForApp('cyberops');
+    expect(nav.map((item) => item.label)).toEqual(['Signals', 'Alerts', 'Insights']);
+    expect(nav.every((item) => item.to.startsWith('/cyberops/'))).toBe(true);
   });
 
   it('exposes the MarketOps asset universe route only under marketops (G071)', () => {

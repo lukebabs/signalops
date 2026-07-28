@@ -3,6 +3,33 @@
 This journal is the ongoing record of SignalOps build progress. Entries are
 append-only unless correcting factual errors. All timestamps are UTC.
 
+## 2026-07-28T11:05:54Z
+
+Summary:
+
+- Implemented the CyberOps Connect ingress persistence, accepted-raw outbox, and tenant-scoped event API foundation.
+
+Files changed:
+
+- `internal/cyberops/connect/`
+- `internal/storage/postgres/cyberops_connect.go`
+- `migrations/000058_cyberops_connect_ingress.*.sql`
+- `cmd/cyberops-connect-*` and `cmd/cyberops-normalizer`
+- `internal/api/cyberops_connect.go`
+
+Rationale:
+
+- Connect-originated CyberOps events must be validated and durably persisted before they can enter normal SignalOps derivation.
+
+Verification performed:
+
+- Ran Dockerized focused Go tests for CyberOps, API, storage, broker, gateway, and normalizer packages.
+
+Next step:
+
+- Apply migration 000058 and run the documented Compose/Redpanda acceptance fixture before enabling parser-derived alerts.
+
+
 ## 2026-07-28T03:58:50Z
 
 Summary:

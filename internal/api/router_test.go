@@ -83,6 +83,11 @@ type fakeQueryRepository struct {
 	sources                            []storage.CatalogSourceRecord
 	pipelines                          []storage.CatalogPipelineRecord
 	rules                              []storage.CatalogRuleRecord
+	primitiveDefinitions               []storage.PlatformPrimitiveDefinitionRecord
+	lastPrimitiveDefinitionFilter      storage.PlatformPrimitiveDefinitionFilter
+	lastPrimitiveDefinitionUpsert      storage.PlatformPrimitiveDefinitionRecord
+	lastPrimitiveDefinitionAuditActor  string
+	primitiveDefinitionUpsertErr       error
 	marketOpsAssets                    []storage.MarketOpsAssetRecord
 	marketOpsIntradayConditions        []storage.MarketOpsIntradayConditionSnapshotRecord
 	marketOpsOptionsChain              []storage.MarketOpsOptionsChainRecord
@@ -1231,6 +1236,22 @@ func (q *fakeQueryRepository) GetAlgorithmSignalMaterialization(_ context.Contex
 		}
 	}
 	return storage.AlgorithmSignalMaterializationRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListPlatformPrimitiveDefinitions(_ context.Context, filter storage.PlatformPrimitiveDefinitionFilter) ([]storage.PlatformPrimitiveDefinitionRecord, error) {
+	q.lastPrimitiveDefinitionFilter = filter
+	return q.primitiveDefinitions, nil
+}
+
+func (q *fakeQueryRepository) UpsertPlatformPrimitiveDefinition(_ context.Context, record storage.PlatformPrimitiveDefinitionRecord) error {
+	q.lastPrimitiveDefinitionUpsert = record
+	return q.primitiveDefinitionUpsertErr
+}
+
+func (q *fakeQueryRepository) UpsertPlatformPrimitiveDefinitionWithAudit(_ context.Context, record storage.PlatformPrimitiveDefinitionRecord, actor string) error {
+	q.lastPrimitiveDefinitionUpsert = record
+	q.lastPrimitiveDefinitionAuditActor = actor
+	return q.primitiveDefinitionUpsertErr
 }
 
 func (q *fakeQueryRepository) ListMarketOpsAssets(_ context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]storage.MarketOpsAssetRecord, error) {
@@ -2639,6 +2660,76 @@ func TestPostMarketOpsDSMGraphProposalDecisionRejectsInvalidStatus(t *testing.T)
 	}
 }
 
+func TestGetPlatformPrimitiveDefinitionsUsesFilters(t *testing.T) {
+	repo := &fakeQueryRepository{primitiveDefinitions: []storage.PlatformPrimitiveDefinitionRecord{validPlatformPrimitiveDefinitionRecord()}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-1/platform/primitive-definitions?primitive_type=dataset&definition_key=market.equity.daily_bar&version=1.0.0&app_id=marketops&domain=markets&status=active&limit=7", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastPrimitiveDefinitionFilter.TenantID != "tenant-1" || repo.lastPrimitiveDefinitionFilter.PrimitiveType != "dataset" || repo.lastPrimitiveDefinitionFilter.DefinitionKey != "market.equity.daily_bar" || repo.lastPrimitiveDefinitionFilter.Version != "1.0.0" || repo.lastPrimitiveDefinitionFilter.AppID != "marketops" || repo.lastPrimitiveDefinitionFilter.Domain != "markets" || repo.lastPrimitiveDefinitionFilter.Status != "active" || repo.lastPrimitiveDefinitionFilter.Limit != 7 {
+		t.Fatalf("filter = %+v", repo.lastPrimitiveDefinitionFilter)
+	}
+	var response map[string][]map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response JSON error = %v", err)
+	}
+	if len(response["primitive_definitions"]) != 1 || response["primitive_definitions"][0]["definition_key"] != "market.equity.daily_bar" {
+		t.Fatalf("response = %+v", response)
+	}
+	if response["primitive_definitions"][0]["primitive_type"] != "dataset" {
+		t.Fatalf("primitive definition = %+v", response["primitive_definitions"][0])
+	}
+}
+
+func TestUpsertPlatformPrimitiveDefinition(t *testing.T) {
+	repo := &fakeQueryRepository{}
+	router := NewRouter(RouterConfig{PlatformDefinitionRepository: repo})
+	record := validPlatformPrimitiveDefinitionRecord()
+	body, err := json.Marshal(map[string]any{
+		"primitive_type":         record.PrimitiveType,
+		"definition_id":          record.DefinitionID,
+		"definition_key":         record.DefinitionKey,
+		"version":                record.Version,
+		"app_id":                 record.AppID,
+		"domain":                 record.Domain,
+		"use_case":               record.UseCase,
+		"status":                 record.Status,
+		"point_in_time_required": record.PointInTimeRequired,
+		"contract":               json.RawMessage(record.ContractJSON),
+		"metadata":               json.RawMessage(record.MetadataJSON),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-1/platform/primitive-definitions", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastPrimitiveDefinitionUpsert.TenantID != "tenant-1" || repo.lastPrimitiveDefinitionUpsert.DefinitionID != record.DefinitionID {
+		t.Fatalf("upsert = %+v", repo.lastPrimitiveDefinitionUpsert)
+	}
+	if repo.lastPrimitiveDefinitionAuditActor != "operator-local" {
+		t.Fatalf("audit actor = %q", repo.lastPrimitiveDefinitionAuditActor)
+	}
+}
+
+func TestUpsertPlatformPrimitiveDefinitionRejectsTenantMismatch(t *testing.T) {
+	router := NewRouter(RouterConfig{PlatformDefinitionRepository: &fakeQueryRepository{}})
+	req := httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-1/platform/primitive-definitions", strings.NewReader(`{"tenant_id":"tenant-2"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestGetCatalogSources(t *testing.T) {
 	repo := &fakeQueryRepository{sources: []storage.CatalogSourceRecord{validCatalogSourceRecord()}}
 	router := NewRouter(RouterConfig{QueryRepository: repo})
@@ -2943,6 +3034,19 @@ func validMarketOpsAssetRecord() storage.MarketOpsAssetRecord {
 		MetadataJSON:  []byte(`{"seed":"top50megacap.normalized.csv"}`),
 		CreatedAt:     time.Date(2026, 7, 10, 0, 0, 0, 0, time.UTC),
 		UpdatedAt:     time.Date(2026, 7, 10, 0, 0, 1, 0, time.UTC),
+	}
+}
+
+func validPlatformPrimitiveDefinitionRecord() storage.PlatformPrimitiveDefinitionRecord {
+	return storage.PlatformPrimitiveDefinitionRecord{
+		TenantID: "tenant-1", PrimitiveType: "dataset", DefinitionID: "dset-market-equity-daily-bar-v1",
+		DefinitionKey: "market.equity.daily_bar", Version: "1.0.0", AppID: "marketops", Domain: "markets",
+		UseCase: "daily_market_surveillance", Status: storage.PlatformDefinitionStatusActive,
+		SchemaRef: "contracts/events/normalized_signal_event.v1.schema.json", ImplementationRef: "normalizers/market/equity_eod_prices:v1",
+		QualityPolicyID: "policy_marketops_eod_quality_v1", RetentionPolicyID: "policy_marketops_temporal_retention_v1",
+		LineagePolicyID: "policy_signalops_lineage_v1", PointInTimeRequired: true,
+		ContractJSON: []byte(`{"record_type":"observation"}`), MetadataJSON: []byte(`{"legacy_dataset":"equity_eod_prices"}`),
+		CreatedAt: time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 7, 24, 0, 0, 1, 0, time.UTC),
 	}
 }
 

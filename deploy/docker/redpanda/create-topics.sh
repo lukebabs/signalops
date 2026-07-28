@@ -15,6 +15,8 @@ signalops.${ENVIRONMENT}.graph_mutation.v1
 signalops.${ENVIRONMENT}.insight_candidate.v1
 signalops.${ENVIRONMENT}.retry.algorithm.v1
 signalops.${ENVIRONMENT}.dlq.algorithm.v1
+signalops.${ENVIRONMENT}.connect-accepted-raw.v1
+signalops.${ENVIRONMENT}.cyberops-port-scan-state.v1
 "
 
 for topic in $topics; do
@@ -24,5 +26,8 @@ for topic in $topics; do
     --replicas "$REPLICAS" \
     --if-not-exists
 done
+
+state_topic="signalops.${ENVIRONMENT}.cyberops-port-scan-state.v1"
+rpk topic alter-config "$state_topic" --brokers "$BROKERS" --set cleanup.policy=compact
 
 rpk topic list --brokers "$BROKERS"

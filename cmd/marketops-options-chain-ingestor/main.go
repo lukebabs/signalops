@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/lukebabs/signalops/internal/adapters/marketdata/massive"
 	"github.com/lukebabs/signalops/internal/config"
 	marketopsoptions "github.com/lukebabs/signalops/internal/marketops/options"
+	"github.com/lukebabs/signalops/internal/platformregistry"
 	"github.com/lukebabs/signalops/internal/storage"
 	postgresstorage "github.com/lukebabs/signalops/internal/storage/postgres"
 )
@@ -31,14 +33,15 @@ type repository interface {
 }
 
 type cliConfig struct {
-	TenantID   string
-	Symbol     string
-	SourceID   string
-	RunID      string
-	Limit      int
-	MaxPages   int
-	WindowDays int
-	DryRun     bool
+	TenantID            string
+	Symbol              string
+	SourceID            string
+	RunID               string
+	Limit               int
+	MaxPages            int
+	WindowDays          int
+	DryRun              bool
+	RegistryEnforcement bool
 }
 
 type metrics struct {
@@ -111,6 +114,18 @@ func ingest(ctx context.Context, provider snapshotProvider, repo repository, cfg
 		return result, err
 	}
 	result.Fetched = len(providerRecords)
+	provenanceJSON := []byte(`{}`)
+	if cfg.RegistryEnforcement {
+		lister, ok := repo.(platformregistry.DefinitionLister)
+		if !ok {
+			return result, errors.New("platform primitive definition repository is required")
+		}
+		versions, err := platformregistry.ResolveMassiveScheduledPull(ctx, lister, cfg.TenantID, cfg.SourceID, false, true)
+		if err != nil {
+			return result, fmt.Errorf("resolve options platform definitions: %w", err)
+		}
+		provenanceJSON, _ = json.Marshal(map[string]any{"platform_definition_versions": map[string]string{"source": versions["source"], "pipeline": versions["pipeline"], "dataset": versions[massive.DatasetOptionsContractsDaily]}, "quality": map[string]string{"quality_state": versions["normalized_event_quality_default_state"], "quality_policy_id": versions["normalized_event_quality_policy_id"], "quality_policy_version": versions["normalized_event_quality_policy_version"]}})
+	}
 	chainRecords := []storage.MarketOpsOptionsChainRecord{}
 	for _, providerRecord := range providerRecords {
 		chainRecord, err := marketopsoptions.ChainRecordFromMassiveSnapshot(cfg.TenantID, cfg.SourceID, cfg.RunID, providerRecord)
@@ -118,6 +133,7 @@ func ingest(ctx context.Context, provider snapshotProvider, repo repository, cfg
 			result.Skipped++
 			continue
 		}
+		chainRecord.ProvenanceJSON = provenanceJSON
 		chainRecords = append(chainRecords, chainRecord)
 		result.Converted++
 		if cfg.DryRun {
@@ -189,6 +205,7 @@ func (cfg cliConfig) withDefaults() cliConfig {
 	if strings.TrimSpace(cfg.RunID) == "" {
 		cfg.RunID = "optchain_" + randomHex(12)
 	}
+	cfg.RegistryEnforcement = envBoolOrDefault("SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT", false)
 	return cfg
 }
 
@@ -200,6 +217,18 @@ func (cfg cliConfig) validate() error {
 		return errors.New("symbol is required")
 	}
 	return nil
+}
+
+func envBoolOrDefault(key string, fallback bool) bool {
+	value, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func randomHex(n int) string {

@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useLocation } from '@tanstack/react-router';
 import { useAppProfiles } from '../api/queries';
-import { CONSOLE_PROFILE, MARKETOPS_PROFILE } from './appProfiles';
+import { CONSOLE_PROFILE, CYBEROPS_PROFILE, MARKETOPS_PROFILE } from './appProfiles';
 import {
   appIdFromPathname,
   metadataFilterForApp,
@@ -25,12 +25,18 @@ export function AppProfileProvider({ children }: { children: ReactNode }) {
   const { data, isError } = useAppProfiles();
   const location = useLocation();
 
-  // Fall back to both static profiles if the request fails or is empty. The
-  // console profile is the must-have fallback (keeps the default UI usable);
-  // including marketops too means /marketops/* routes scope correctly before the
-  // request resolves, instead of flashing unscoped data.
+  // Static profiles keep their entry points visible while the app-profile
+  // request resolves or a gateway rollout is serving an older profile list.
+  // Backend values override these defaults and can add future apps.
   const profiles = useMemo<AppProfile[]>(
-    () => (!isError && data?.app_profiles?.length ? data.app_profiles : [CONSOLE_PROFILE, MARKETOPS_PROFILE]),
+    () => {
+      const defaults = [CONSOLE_PROFILE, MARKETOPS_PROFILE, CYBEROPS_PROFILE];
+      const received = !isError ? data?.app_profiles ?? [] : [];
+      return [
+        ...defaults.map((profile) => received.find((candidate) => candidate.app_id === profile.app_id) ?? profile),
+        ...received.filter((profile) => !defaults.some((fallback) => fallback.app_id === profile.app_id)),
+      ];
+    },
     [data, isError],
   );
 

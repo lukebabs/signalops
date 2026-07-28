@@ -165,6 +165,17 @@ For latest snapshot details, add a small disclosure named `Quality details` that
 - denominator-zero flag;
 - provider/source metadata already displayed by G128.
 
+### 1a. Moneyness Bucket Explanation
+
+The moneyness distribution in /marketops/assets must expose a hover and keyboard-focus explanation for each moneyness row. This is a deterministic positioning aid, not a sentiment forecast or trading recommendation.
+
+- Interpret moneyness as strike divided by underlying price. Explain the corresponding call/put payoff context for <90%, 90-95%, 95-100%, 100-105%, 105-110%, >110%, and unknown.
+- Show call OI, put OI, total OI, and the bucket share of all displayed moneyness OI.
+- With call_put_oi_ratio_quality=usable, state call dominance when calls are at least 60% of bucket OI, put dominance when puts are at least 60%, and balanced OI otherwise. A zero-OI bucket must state that no recorded open interest exists.
+- With any other ratio-quality state, preserve the raw counts but suppress the directional conclusion and state that positioning interpretation is unavailable because of that quality state.
+- Show call/put volume only as participation context. Always state that OI does not reveal whether contracts were bought or sold and is not a price forecast.
+- Apply this behavior only to moneyness buckets; expiration buckets retain their existing compact bars.
+
 ### 2. Algorithm Results View
 
 In `/marketops/algorithms`, when result payloads include `dataset=options_distribution_daily` and `feature=call_put_open_interest_ratio`:

@@ -231,6 +231,29 @@ func validMarketOpsDSMArtifactRecord() storage.MarketOpsDSMArtifactRecord {
 	}
 }
 
+func TestValidatePlatformPrimitiveDefinition(t *testing.T) {
+	record := validPlatformPrimitiveDefinitionRecord()
+	if err := validatePlatformPrimitiveDefinition(record); err != nil {
+		t.Fatalf("validate platform primitive definition: %v", err)
+	}
+	for name, mutate := range map[string]func(*storage.PlatformPrimitiveDefinitionRecord){
+		"missing definition key":   func(record *storage.PlatformPrimitiveDefinitionRecord) { record.DefinitionKey = "" },
+		"invalid primitive type":   func(record *storage.PlatformPrimitiveDefinitionRecord) { record.PrimitiveType = "unknown" },
+		"invalid status":           func(record *storage.PlatformPrimitiveDefinitionRecord) { record.Status = "unknown" },
+		"invalid semantic version": func(record *storage.PlatformPrimitiveDefinitionRecord) { record.Version = "v1" },
+		"non-object contract":      func(record *storage.PlatformPrimitiveDefinitionRecord) { record.ContractJSON = []byte(`[]`) },
+		"invalid metadata":         func(record *storage.PlatformPrimitiveDefinitionRecord) { record.MetadataJSON = []byte(`{`) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			invalid := validPlatformPrimitiveDefinitionRecord()
+			mutate(&invalid)
+			if err := validatePlatformPrimitiveDefinition(invalid); err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
 func TestValidateCatalogSource(t *testing.T) {
 	record := validCatalogSourceRecord()
 	if err := validateCatalogSource(record); err != nil {
@@ -440,6 +463,18 @@ func TestRepositoryAgainstPostgres(t *testing.T) {
 	}
 	if _, err := repo.GetSchedulerRun(ctx, "missing-g029-run"); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("missing scheduler run error = %v", err)
+	}
+}
+
+func validPlatformPrimitiveDefinitionRecord() storage.PlatformPrimitiveDefinitionRecord {
+	return storage.PlatformPrimitiveDefinitionRecord{
+		TenantID: "tenant-1", PrimitiveType: "dataset", DefinitionID: "dset-market-equity-daily-bar-v1",
+		DefinitionKey: "market.equity.daily_bar", Version: "1.0.0", AppID: "marketops", Domain: "markets",
+		UseCase: "daily_market_surveillance", Status: storage.PlatformDefinitionStatusActive,
+		SchemaRef: "contracts/events/normalized_signal_event.v1.schema.json", ImplementationRef: "normalizers/market/equity_eod_prices:v1",
+		QualityPolicyID: "policy_marketops_eod_quality_v1", RetentionPolicyID: "policy_marketops_temporal_retention_v1",
+		LineagePolicyID: "policy_signalops_lineage_v1", PointInTimeRequired: true,
+		ContractJSON: []byte(`{"record_type":"observation"}`), MetadataJSON: []byte(`{"legacy_dataset":"equity_eod_prices"}`),
 	}
 }
 

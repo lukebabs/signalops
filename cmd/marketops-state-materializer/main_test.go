@@ -10,14 +10,29 @@ import (
 )
 
 type fakeRepository struct {
-	events        []storage.NormalizedEventLedgerRecord
-	distributions []storage.MarketOpsOptionsDistributionRecord
-	chain         []storage.MarketOpsOptionsChainRecord
-	definitions   int
-	observations  int
-	states        int
-	transitions   int
-	evidence      int
+	events               []storage.NormalizedEventLedgerRecord
+	distributions        []storage.MarketOpsOptionsDistributionRecord
+	chain                []storage.MarketOpsOptionsChainRecord
+	primitiveDefinitions []storage.PlatformPrimitiveDefinitionRecord
+	definitions          int
+	observations         int
+	states               int
+	transitions          int
+	evidence             int
+}
+
+func (f *fakeRepository) ListPlatformPrimitiveDefinitions(_ context.Context, filter storage.PlatformPrimitiveDefinitionFilter) ([]storage.PlatformPrimitiveDefinitionRecord, error) {
+	result := []storage.PlatformPrimitiveDefinitionRecord{}
+	for _, record := range f.primitiveDefinitions {
+		if record.TenantID != filter.TenantID || record.PrimitiveType != filter.PrimitiveType || record.Status != filter.Status {
+			continue
+		}
+		if filter.DefinitionKey != "" && record.DefinitionKey != filter.DefinitionKey {
+			continue
+		}
+		result = append(result, record)
+	}
+	return result, nil
 }
 
 func (f *fakeRepository) ListMarketOpsBacktestNormalizedEvents(context.Context, storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error) {
@@ -71,6 +86,18 @@ func TestMaterializeWritesBuiltRecords(t *testing.T) {
 	}
 	if repo.definitions != result.Definitions || repo.observations != result.Observations || repo.states != result.States || repo.transitions != result.Transitions || repo.evidence != result.Evidence {
 		t.Fatalf("write counts do not match metrics: result=%+v repo=%+v", result, repo)
+	}
+}
+
+func TestMaterializeEnforcementRejectsUnregisteredMassiveLedgerEvent(t *testing.T) {
+	event := equityEvent()
+	event.SourceID = "src-massive"
+	event.SourceAdapter = "market_data.massive"
+	event.MetadataJSON = []byte(`{"platform_definition_versions":{"source":"1.0.0","pipeline":"1.0.0","dataset":"1.0.0"},"quality":{"quality_state":"usable","quality_policy_id":"policy_signalops_normalized_event_quality_v1","quality_policy_version":"1.0.0"}}`)
+	cfg := validConfig()
+	cfg.RegistryEnforcement = true
+	if _, err := materialize(context.Background(), &fakeRepository{events: []storage.NormalizedEventLedgerRecord{event}}, cfg); err == nil {
+		t.Fatal("expected enforcement failure for an unregistered Massive event")
 	}
 }
 

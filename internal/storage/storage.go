@@ -70,6 +70,14 @@ const (
 )
 
 const (
+	PlatformDefinitionStatusDraft      = "draft"
+	PlatformDefinitionStatusValidating = "validating"
+	PlatformDefinitionStatusActive     = "active"
+	PlatformDefinitionStatusDeprecated = "deprecated"
+	PlatformDefinitionStatusRetired    = "retired"
+)
+
+const (
 	AlgorithmDefinitionStatusDraft      = "draft"
 	AlgorithmDefinitionStatusActive     = "active"
 	AlgorithmDefinitionStatusDisabled   = "disabled"
@@ -543,25 +551,25 @@ type SyncraticInsightRecord struct {
 // separate from an insight so Ask latency or a transient dependency failure
 // cannot make a deterministic context disappear.
 type SyncraticIntelligenceJobRecord struct {
-	JobID                string
-	TenantID             string
-	AppID                string
-	UseCase              string
-	SubjectSymbol        string
-	SessionDate          time.Time
-	ContextWindowID      string
-	EvidenceDigest       string
-	Status               string
-	Attempts             int
-	MaxAttempts          int
-	LeaseExpiresAt       time.Time
-	AskQueryID           string
-	SyncraticInsightID   string
-	ErrorCode            string
-	ErrorMessage         string
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	CompletedAt          time.Time
+	JobID              string
+	TenantID           string
+	AppID              string
+	UseCase            string
+	SubjectSymbol      string
+	SessionDate        time.Time
+	ContextWindowID    string
+	EvidenceDigest     string
+	Status             string
+	Attempts           int
+	MaxAttempts        int
+	LeaseExpiresAt     time.Time
+	AskQueryID         string
+	SyncraticInsightID string
+	ErrorCode          string
+	ErrorMessage       string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	CompletedAt        time.Time
 }
 
 type SyncraticIntelligenceJobFilter struct {
@@ -619,6 +627,39 @@ type CatalogRuleRecord struct {
 	MetadataJSON   []byte
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+type PlatformPrimitiveDefinitionRecord struct {
+	TenantID            string
+	PrimitiveType       string
+	DefinitionID        string
+	DefinitionKey       string
+	Version             string
+	AppID               string
+	Domain              string
+	UseCase             string
+	Status              string
+	SchemaRef           string
+	ImplementationRef   string
+	QualityPolicyID     string
+	RetentionPolicyID   string
+	LineagePolicyID     string
+	PointInTimeRequired bool
+	ContractJSON        []byte
+	MetadataJSON        []byte
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type PlatformPrimitiveDefinitionFilter struct {
+	TenantID      string
+	PrimitiveType string
+	DefinitionKey string
+	Version       string
+	AppID         string
+	Domain        string
+	Status        string
+	Limit         int
 }
 
 type AlgorithmDefinitionRecord struct {
@@ -994,6 +1035,7 @@ type MarketOpsOptionsChainRecord struct {
 	SelectionScore         *float64
 	PayloadHash            string
 	RawPayloadJSON         []byte
+	ProvenanceJSON         []byte
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
 }
@@ -1086,6 +1128,7 @@ type MarketOpsOptionsDistributionRecord struct {
 	MoneynessDistributionJSON  []byte
 	ExpirationDistributionJSON []byte
 	MetricsJSON                []byte
+	ProvenanceJSON             []byte
 	SourceTradeDates           []time.Time
 	CreatedAt                  time.Time
 	UpdatedAt                  time.Time
@@ -1837,10 +1880,16 @@ type MarketOpsBacktestRepository interface {
 	GetMarketOpsBacktestCalibrationComparison(ctx context.Context, comparisonID string) (MarketOpsBacktestCalibrationComparisonRecord, error)
 }
 
+type PlatformPrimitiveDefinitionRepository interface {
+	UpsertPlatformPrimitiveDefinition(ctx context.Context, record PlatformPrimitiveDefinitionRecord) error
+	UpsertPlatformPrimitiveDefinitionWithAudit(ctx context.Context, record PlatformPrimitiveDefinitionRecord, actor string) error
+}
+
 type CatalogRepository interface {
 	UpsertCatalogSource(ctx context.Context, record CatalogSourceRecord) error
 	UpsertCatalogPipeline(ctx context.Context, record CatalogPipelineRecord) error
 	UpsertCatalogRule(ctx context.Context, record CatalogRuleRecord) error
+	PlatformPrimitiveDefinitionRepository
 }
 
 type AlgorithmRepository interface {
@@ -2195,6 +2244,7 @@ type QueryRepository interface {
 	ListCatalogSources(ctx context.Context, tenantID string, limit int) ([]CatalogSourceRecord, error)
 	ListCatalogPipelines(ctx context.Context, tenantID string, limit int) ([]CatalogPipelineRecord, error)
 	ListCatalogRules(ctx context.Context, tenantID string, limit int) ([]CatalogRuleRecord, error)
+	ListPlatformPrimitiveDefinitions(ctx context.Context, filter PlatformPrimitiveDefinitionFilter) ([]PlatformPrimitiveDefinitionRecord, error)
 	ListMarketOpsAssets(ctx context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]MarketOpsAssetRecord, error)
 	ListMarketOpsOptionsChain(ctx context.Context, filter MarketOpsOptionsChainFilter) ([]MarketOpsOptionsChainRecord, error)
 	GetMarketOpsOptionsCoverage(ctx context.Context, tenantID string, symbol string) (MarketOpsOptionsCoverageRecord, error)
@@ -2207,4 +2257,84 @@ type MarketOpsOptionsCaptureRepository interface {
 	UpsertMarketOpsOptionsCapture(ctx context.Context, record MarketOpsOptionsCaptureRecord) error
 	ListMarketOpsOptionsCaptures(ctx context.Context, filter MarketOpsOptionsCaptureFilter) ([]MarketOpsOptionsCaptureRecord, error)
 	GetMarketOpsOptionsCapture(ctx context.Context, tenantID string, captureID string) (MarketOpsOptionsCaptureRecord, error)
+}
+
+type CyberOpsConnectRawRecord struct {
+	TenantID              string
+	ConnectIngressEventID string
+	EventID               string
+	SourceID              string
+	EventType             string
+	OccurredAt            time.Time
+	IngestedAt            time.Time
+	Hostname              string
+	Application           string
+	Severity              *int
+	Facility              *int
+	Message               string
+	RawEventJSON          []byte
+	ConnectMetadataJSON   []byte
+	PayloadHash           string
+	CreatedAt             time.Time
+}
+
+type CyberOpsConnectRawFilter struct {
+	TenantID    string
+	From        time.Time
+	To          time.Time
+	Hostname    string
+	Application string
+	Severity    *int
+	Facility    *int
+	ProducerID  string
+	ConnectorID string
+	EventType   string
+	Search      string
+	Limit       int
+	Before      time.Time
+}
+
+type CyberOpsIntegrityFailureRecord struct {
+	FailureID             string
+	TenantID              string
+	ConnectIngressEventID string
+	ExistingEventID       string
+	ExistingPayloadHash   string
+	IncomingPayloadHash   string
+	ExistingLineageJSON   []byte
+	IncomingLineageJSON   []byte
+	ReceivedEventJSON     []byte
+	FirstSeenAt           time.Time
+	LastSeenAt            time.Time
+	OccurrenceCount       int
+	ResolutionStatus      string
+}
+
+type CyberOpsOutboxRecord struct {
+	OutboxID      string
+	TenantID      string
+	Topic         string
+	MessageKey    string
+	MessageValue  []byte
+	HeadersJSON   []byte
+	CorrelationID string
+	CausationID   string
+	TraceID       string
+	CreatedAt     time.Time
+	PublishedAt   *time.Time
+	Attempts      int
+}
+
+type CyberOpsPersistResult struct {
+	Duplicate        bool
+	IntegrityFailure bool
+}
+
+type CyberOpsConnectRepository interface {
+	PersistCyberOpsConnectRaw(ctx context.Context, raw CyberOpsConnectRawRecord, outbox CyberOpsOutboxRecord, lineage []byte) (CyberOpsPersistResult, error)
+	ListCyberOpsConnectRaw(ctx context.Context, filter CyberOpsConnectRawFilter) ([]CyberOpsConnectRawRecord, error)
+	GetCyberOpsConnectRaw(ctx context.Context, tenantID, ingressEventID string) (CyberOpsConnectRawRecord, error)
+	ListPendingCyberOpsOutbox(ctx context.Context, limit int) ([]CyberOpsOutboxRecord, error)
+	MarkCyberOpsOutboxPublished(ctx context.Context, outboxID string, publishedAt time.Time) error
+	MarkCyberOpsOutboxAttempt(ctx context.Context, outboxID string) error
 }

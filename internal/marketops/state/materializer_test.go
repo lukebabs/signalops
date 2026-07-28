@@ -50,6 +50,43 @@ func TestBuildG137PositiveAAPLVerticalSlice(t *testing.T) {
 	}
 }
 
+func TestBuildPropagatesNormalizedEventProvenance(t *testing.T) {
+	start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	events := equityFixtures(start, 2)
+	for index := range events {
+		events[index].MetadataJSON = []byte(`{"platform_definition_versions":{"source":"1.0.0","pipeline":"1.0.0","dataset":"2.0.0"},"quality":{"quality_state":"usable","quality_policy_id":"policy_signalops_normalized_event_quality_v1","quality_policy_version":"1.0.0"}}`)
+	}
+	result, err := Build(BuildConfig{TenantID: "tenant-local", Symbol: "AAPL", RunID: "provenance"}, BuildInput{EquityEvents: events})
+	if err != nil {
+		t.Fatal(err)
+	}
+	observations := observationsForSession(result.Observations, start.AddDate(0, 0, 1))
+	for _, observation := range observations {
+		if observation.FeatureKey != "return_1d" {
+			continue
+		}
+		details := map[string]any{}
+		if err := json.Unmarshal(observation.QualityDetailsJSON, &details); err != nil {
+			t.Fatal(err)
+		}
+		provenance, ok := details["input_provenance"].([]any)
+		if !ok || len(provenance) != 2 {
+			t.Fatalf("feature provenance = %#v", details["input_provenance"])
+		}
+		break
+	}
+	if len(result.States) != 2 {
+		t.Fatalf("states = %d", len(result.States))
+	}
+	summary := map[string]any{}
+	if err := json.Unmarshal(result.States[1].QualitySummaryJSON, &summary); err != nil {
+		t.Fatal(err)
+	}
+	if provenance, ok := summary["input_provenance"].([]any); !ok || len(provenance) != 2 {
+		t.Fatalf("state provenance = %#v", summary["input_provenance"])
+	}
+}
+
 func TestPremiumFeaturesPreserveMissingInvalidAndStaleQuality(t *testing.T) {
 	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
 	record := usableSurfaceFixtures(session)[3]

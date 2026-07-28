@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lukebabs/signalops/internal/platformregistry"
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
@@ -77,7 +78,7 @@ const (
 	RiverAnomalyAlgorithmID        = "signalops.algorithms.river_anomaly_v1"
 	RupturesChangePointAlgorithmID = "signalops.algorithms.ruptures_change_point_v1"
 	StatsmodelsForecastAlgorithmID = "signalops.algorithms.statsmodels_forecast_v1"
-	RiskRewardTemporalAlgorithmID = "signalops.algorithms.risk_reward_temporal_v1"
+	RiskRewardTemporalAlgorithmID  = "signalops.algorithms.risk_reward_temporal_v1"
 	SklearnClassifierAlgorithmID   = "signalops.algorithms.sklearn_classifier_v1"
 	SklearnIsolationForestID       = "signalops.algorithms.sklearn_isolation_forest_v1"
 	DefaultAlgorithmVersion        = "v1"
@@ -86,31 +87,33 @@ const (
 
 type Repository interface {
 	storage.AlgorithmRepository
+	platformregistry.DefinitionLister
 	ListMarketOpsBacktestNormalizedEvents(ctx context.Context, filter storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error)
 	ListMarketOpsFeatureObservations(ctx context.Context, filter storage.MarketOpsFeatureObservationFilter) ([]storage.MarketOpsFeatureObservationRecord, error)
 }
 
 type Config struct {
-	ExecutionRequestID string
-	TenantID           string
-	AlgorithmID        string
-	AlgorithmVersion   string
-	RequestedBy        string
-	CorrelationID      string
-	AppID              string
-	Domain             string
-	UseCase            string
-	SourceID           string
-	SourceAdapter      string
-	Dataset            string
-	Symbols            []string
-	WindowStart        time.Time
-	WindowEnd          time.Time
-	MaxRecords         int
-	BatchSize          int
-	Feature            string
-	ZThreshold         float64
-	MinSamples         int
+	ExecutionRequestID  string
+	TenantID            string
+	AlgorithmID         string
+	AlgorithmVersion    string
+	RequestedBy         string
+	CorrelationID       string
+	AppID               string
+	Domain              string
+	UseCase             string
+	SourceID            string
+	SourceAdapter       string
+	Dataset             string
+	Symbols             []string
+	WindowStart         time.Time
+	WindowEnd           time.Time
+	MaxRecords          int
+	BatchSize           int
+	Feature             string
+	ZThreshold          float64
+	MinSamples          int
+	RegistryEnforcement bool
 }
 
 type Metrics struct {
@@ -204,6 +207,14 @@ func executeAlgorithm(ctx context.Context, repo Repository, cfg Config, metrics 
 	if err != nil {
 		return err
 	}
+	if cfg.RegistryEnforcement {
+		validator := platformregistry.MassiveNormalizedEventDefinitionValidator{Lister: repo}
+		for _, event := range events {
+			if err := validator.ValidateNormalizedEvent(ctx, event); err != nil {
+				return fmt.Errorf("validate normalized event %s platform definitions: %w", event.EventID, err)
+			}
+		}
+	}
 	metrics.Scanned = len(events)
 	samples := make([]sample, 0, len(events))
 	for _, event := range events {
@@ -259,24 +270,108 @@ func executeAlgorithm(ctx context.Context, repo Repository, cfg Config, metrics 
 }
 
 func executeRiskReward(ctx context.Context, repo Repository, cfg Config, metrics *Metrics) error {
-	if len(cfg.Symbols) == 0 { return errors.New("risk/reward algorithm requires explicit symbols") }
+	if len(cfg.Symbols) == 0 {
+		return errors.New("risk/reward algorithm requires explicit symbols")
+	}
 	for _, symbol := range cfg.Symbols {
 		observations, err := repo.ListMarketOpsFeatureObservations(ctx, storage.MarketOpsFeatureObservationFilter{TenantID: cfg.TenantID, AppID: "marketops", Symbol: symbol, SessionStart: cfg.WindowStart, SessionEnd: cfg.WindowEnd, Limit: 1000})
-		if err != nil { return err }
-		bySession := map[string][]storage.MarketOpsFeatureObservationRecord{}
-		for _, observation := range observations { bySession[observation.SessionDate.UTC().Format("2006-01-02")] = append(bySession[observation.SessionDate.UTC().Format("2006-01-02")], observation) }
-		dates := make([]string, 0, len(bySession)); for day := range bySession { dates = append(dates, day) }; sort.Strings(dates)
-		points := make([]map[string]any, 0, len(dates)); byID := map[string]sample{}
-		for _, day := range dates {
-			rows := bySession[day]; values := map[string]any{}; ids, refs := []string{}, []string{}; var at time.Time
-			for _, row := range rows { if row.NumericValue != nil && (row.QualityState == storage.MarketOpsQualityUsable || row.QualityState == storage.MarketOpsQualityUsableWithWarning) { values[row.FeatureKey] = *row.NumericValue; ids = append(ids, row.FeatureObservationID); refs = append(refs, row.SourceEventIDs...) }; if row.AsOfTime.After(at) { at = row.AsOfTime } }
-			if len(rows) == 0 { continue }; eventID := rows[0].FeatureObservationID; if eventID == "" { eventID = rows[0].FeatureObservationID }; event := storage.NormalizedEventLedgerRecord{EventID: eventID, TenantID: cfg.TenantID, AppID: "marketops", Dataset: "marketops_feature_vectors_daily", ObservationTime: at}; byID[eventID] = sample{event: event, symbol: symbol}; points = append(points, map[string]any{"event_id": eventID, "symbol": symbol, "observation_time": at.UTC().Format(time.RFC3339Nano), "features": values, "feature_value_ids": ids, "evidence_refs": refs})
+		if err != nil {
+			return err
 		}
-		metrics.Scanned += len(points); metrics.UsableSamples += len(points); if len(points) == 0 { continue }
+		if cfg.RegistryEnforcement {
+			if err := validateFeatureObservationProvenance(observations); err != nil {
+				return err
+			}
+		}
+		bySession := map[string][]storage.MarketOpsFeatureObservationRecord{}
+		for _, observation := range observations {
+			bySession[observation.SessionDate.UTC().Format("2006-01-02")] = append(bySession[observation.SessionDate.UTC().Format("2006-01-02")], observation)
+		}
+		dates := make([]string, 0, len(bySession))
+		for day := range bySession {
+			dates = append(dates, day)
+		}
+		sort.Strings(dates)
+		points := make([]map[string]any, 0, len(dates))
+		byID := map[string]sample{}
+		provenanceByID := map[string][]map[string]any{}
+		optionsArtifactProvenanceByID := map[string][]map[string]any{}
+		for _, day := range dates {
+			rows := bySession[day]
+			values := map[string]any{}
+			ids, refs := []string{}, []string{}
+			var at time.Time
+			for _, row := range rows {
+				if row.NumericValue != nil && (row.QualityState == storage.MarketOpsQualityUsable || row.QualityState == storage.MarketOpsQualityUsableWithWarning) {
+					values[row.FeatureKey] = *row.NumericValue
+					ids = append(ids, row.FeatureObservationID)
+					refs = append(refs, row.SourceEventIDs...)
+				}
+				if row.AsOfTime.After(at) {
+					at = row.AsOfTime
+				}
+			}
+			if len(rows) == 0 {
+				continue
+			}
+			eventID := rows[0].FeatureObservationID
+			if eventID == "" {
+				eventID = rows[0].FeatureObservationID
+			}
+			provenance := featureObservationInputProvenance(rows)
+			optionsArtifactProvenance := featureObservationOptionsArtifactProvenance(rows)
+			event := storage.NormalizedEventLedgerRecord{EventID: eventID, TenantID: cfg.TenantID, AppID: "marketops", Dataset: "marketops_feature_vectors_daily", ObservationTime: at}
+			byID[eventID] = sample{event: event, symbol: symbol}
+			provenanceByID[eventID] = provenance
+			optionsArtifactProvenanceByID[eventID] = optionsArtifactProvenance
+			point := map[string]any{"event_id": eventID, "symbol": symbol, "observation_time": at.UTC().Format(time.RFC3339Nano), "features": values, "feature_value_ids": ids, "evidence_refs": refs}
+			if len(provenance) > 0 {
+				point["input_provenance"] = provenance
+			}
+			if len(optionsArtifactProvenance) > 0 {
+				point["options_artifact_provenance"] = optionsArtifactProvenance
+			}
+			points = append(points, point)
+		}
+		metrics.Scanned += len(points)
+		metrics.UsableSamples += len(points)
+		if len(points) == 0 {
+			continue
+		}
 		request, _ := json.Marshal(map[string]any{"schema_version": "signalops.platform_algorithm_execution.v2", "algorithm_id": cfg.AlgorithmID, "algorithm_version": cfg.AlgorithmVersion, "config": map[string]any{}, "points": points})
-		command := exec.CommandContext(ctx, "python", "-m", "signalops_algorithms.runner"); command.Stdin = strings.NewReader(string(request)); output, err := command.Output(); if err != nil { return fmt.Errorf("run python risk/reward algorithm: %w", err) }
-		var response pythonRuntimeResponse; if err := json.Unmarshal(output, &response); err != nil { return err }
-		for _, item := range response.Results { source, ok := byID[item.SourceEventID]; if !ok { return fmt.Errorf("risk/reward returned unknown source %s", item.SourceEventID) }; rec, err := algorithmResult(cfg, scoredSample{sample: source, resultType: item.ResultType, score: item.Score, confidence: item.Confidence, severity: item.Severity, payload: item.Payload}); if err != nil { return err }; if err := repo.InsertAlgorithmResult(ctx, rec); err != nil { return err }; metrics.Results++ }
+		command := exec.CommandContext(ctx, "python", "-m", "signalops_algorithms.runner")
+		command.Stdin = strings.NewReader(string(request))
+		output, err := command.Output()
+		if err != nil {
+			return fmt.Errorf("run python risk/reward algorithm: %w", err)
+		}
+		var response pythonRuntimeResponse
+		if err := json.Unmarshal(output, &response); err != nil {
+			return err
+		}
+		for _, item := range response.Results {
+			source, ok := byID[item.SourceEventID]
+			if !ok {
+				return fmt.Errorf("risk/reward returned unknown source %s", item.SourceEventID)
+			}
+			if item.Payload == nil {
+				item.Payload = map[string]any{}
+			}
+			if provenance := provenanceByID[item.SourceEventID]; len(provenance) > 0 {
+				item.Payload["input_provenance"] = provenance
+			}
+			if provenance := optionsArtifactProvenanceByID[item.SourceEventID]; len(provenance) > 0 {
+				item.Payload["options_artifact_provenance"] = provenance
+			}
+			rec, err := algorithmResult(cfg, scoredSample{sample: source, resultType: item.ResultType, score: item.Score, confidence: item.Confidence, severity: item.Severity, payload: item.Payload})
+			if err != nil {
+				return err
+			}
+			if err := repo.InsertAlgorithmResult(ctx, rec); err != nil {
+				return err
+			}
+			metrics.Results++
+		}
 	}
 	return nil
 }
@@ -521,6 +616,9 @@ func basePayload(cfg Config, item sample, extra map[string]any) map[string]any {
 
 func eventQualityMetadata(event storage.NormalizedEventLedgerRecord) map[string]any {
 	payload := map[string]any{}
+	if provenance := eventInputProvenance(event); len(provenance) > 0 {
+		payload["input_provenance"] = provenance
+	}
 	if len(event.NormalizedPayload) == 0 {
 		return payload
 	}
@@ -536,8 +634,90 @@ func eventQualityMetadata(event storage.NormalizedEventLedgerRecord) map[string]
 	return payload
 }
 
+func validateFeatureObservationProvenance(observations []storage.MarketOpsFeatureObservationRecord) error {
+	for _, observation := range observations {
+		if observation.NumericValue == nil || (observation.QualityState != storage.MarketOpsQualityUsable && observation.QualityState != storage.MarketOpsQualityUsableWithWarning) {
+			continue
+		}
+		details := map[string]any{}
+		if err := json.Unmarshal(observation.QualityDetailsJSON, &details); err != nil {
+			return fmt.Errorf("decode feature observation %s provenance: %w", observation.FeatureObservationID, err)
+		}
+		if len(observation.SourceEventIDs) > 0 {
+			if values, ok := details["input_provenance"].([]any); !ok || len(values) == 0 {
+				return fmt.Errorf("feature observation %s is missing normalized-event provenance", observation.FeatureObservationID)
+			}
+		}
+		if len(observation.SourceArtifactIDs) > 0 {
+			if values, ok := details["options_artifact_provenance"].([]any); !ok || len(values) == 0 {
+				return fmt.Errorf("feature observation %s is missing options artifact provenance", observation.FeatureObservationID)
+			}
+		}
+	}
+	return nil
+}
+
+func featureObservationInputProvenance(observations []storage.MarketOpsFeatureObservationRecord) []map[string]any {
+	return featureObservationProvenance(observations, "input_provenance")
+}
+
+func featureObservationOptionsArtifactProvenance(observations []storage.MarketOpsFeatureObservationRecord) []map[string]any {
+	return featureObservationProvenance(observations, "options_artifact_provenance")
+}
+
+func featureObservationProvenance(observations []storage.MarketOpsFeatureObservationRecord, provenanceKey string) []map[string]any {
+	entries := map[string]map[string]any{}
+	for _, observation := range observations {
+		details := map[string]any{}
+		if err := json.Unmarshal(observation.QualityDetailsJSON, &details); err != nil {
+			continue
+		}
+		provenance, ok := details[provenanceKey].([]any)
+		if !ok {
+			continue
+		}
+		for _, item := range provenance {
+			entry, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			encoded, err := json.Marshal(entry)
+			if err == nil {
+				entries[string(encoded)] = entry
+			}
+		}
+	}
+	keys := make([]string, 0, len(entries))
+	for key := range entries {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, entries[key])
+	}
+	return result
+}
+
+func eventInputProvenance(event storage.NormalizedEventLedgerRecord) map[string]any {
+	if len(event.MetadataJSON) == 0 {
+		return nil
+	}
+	metadata := map[string]any{}
+	if err := json.Unmarshal(event.MetadataJSON, &metadata); err != nil {
+		return nil
+	}
+	provenance := map[string]any{}
+	for _, key := range []string{"platform_definition_versions", "quality"} {
+		if value, ok := metadata[key].(map[string]any); ok && len(value) > 0 {
+			provenance[key] = value
+		}
+	}
+	return provenance
+}
+
 func (cfg Config) executionRequest(status string, resultJSON []byte, errorMessage string) storage.AlgorithmExecutionRequestRecord {
-	configJSON, _ := json.Marshal(map[string]any{"feature": cfg.Feature, "z_threshold": cfg.ZThreshold, "min_samples": cfg.MinSamples, "max_records": cfg.MaxRecords, "batch_size": cfg.BatchSize, "symbols": cfg.Symbols, "window_start": cfg.WindowStart.Format(time.RFC3339Nano), "window_end": cfg.WindowEnd.Format(time.RFC3339Nano), "app_id": cfg.AppID, "domain": cfg.Domain, "use_case": cfg.UseCase, "source_id": cfg.SourceID, "source_adapter": cfg.SourceAdapter, "dataset": cfg.Dataset})
+	configJSON, _ := json.Marshal(map[string]any{"feature": cfg.Feature, "z_threshold": cfg.ZThreshold, "min_samples": cfg.MinSamples, "max_records": cfg.MaxRecords, "batch_size": cfg.BatchSize, "symbols": cfg.Symbols, "window_start": cfg.WindowStart.Format(time.RFC3339Nano), "window_end": cfg.WindowEnd.Format(time.RFC3339Nano), "app_id": cfg.AppID, "domain": cfg.Domain, "use_case": cfg.UseCase, "source_id": cfg.SourceID, "source_adapter": cfg.SourceAdapter, "dataset": cfg.Dataset, "registry_enforcement": cfg.RegistryEnforcement})
 	if len(resultJSON) == 0 {
 		resultJSON = []byte(`{}`)
 	}

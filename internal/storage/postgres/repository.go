@@ -808,6 +808,79 @@ ON CONFLICT (tenant_id, rule_id) DO UPDATE SET
 	return nil
 }
 
+func (r *Repository) UpsertPlatformPrimitiveDefinition(ctx context.Context, record storage.PlatformPrimitiveDefinitionRecord) error {
+	if err := validatePlatformPrimitiveDefinition(record); err != nil {
+		return err
+	}
+	return upsertPlatformPrimitiveDefinition(ctx, r.db, record)
+}
+
+func (r *Repository) UpsertPlatformPrimitiveDefinitionWithAudit(ctx context.Context, record storage.PlatformPrimitiveDefinitionRecord, actor string) error {
+	if err := validatePlatformPrimitiveDefinition(record); err != nil {
+		return err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin platform primitive definition audit transaction: %w", err)
+	}
+	defer tx.Rollback()
+	actor = strings.TrimSpace(actor)
+	if actor == "" {
+		actor = "system"
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('signalops.audit_actor', $1, true)`, actor); err != nil {
+		return fmt.Errorf("set platform primitive audit actor: %w", err)
+	}
+	if err := upsertPlatformPrimitiveDefinition(ctx, tx, record); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit platform primitive definition audit transaction: %w", err)
+	}
+	return nil
+}
+
+type platformPrimitiveDefinitionExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func upsertPlatformPrimitiveDefinition(ctx context.Context, executor platformPrimitiveDefinitionExecutor, record storage.PlatformPrimitiveDefinitionRecord) error {
+	_, err := executor.ExecContext(ctx, `
+INSERT INTO platform_primitive_definitions (
+  tenant_id, primitive_type, definition_id, definition_key, version, app_id, domain, use_case,
+  status, schema_ref, implementation_ref, quality_policy_id, retention_policy_id,
+  lineage_policy_id, point_in_time_required, contract, metadata, updated_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8,
+  $9, $10, $11, $12, $13,
+  $14, $15, $16, $17, now()
+)
+ON CONFLICT (tenant_id, primitive_type, definition_key, version) DO UPDATE SET
+  definition_id = EXCLUDED.definition_id,
+  app_id = EXCLUDED.app_id,
+  domain = EXCLUDED.domain,
+  use_case = EXCLUDED.use_case,
+  status = EXCLUDED.status,
+  schema_ref = EXCLUDED.schema_ref,
+  implementation_ref = EXCLUDED.implementation_ref,
+  quality_policy_id = EXCLUDED.quality_policy_id,
+  retention_policy_id = EXCLUDED.retention_policy_id,
+  lineage_policy_id = EXCLUDED.lineage_policy_id,
+  point_in_time_required = EXCLUDED.point_in_time_required,
+  contract = EXCLUDED.contract,
+  metadata = EXCLUDED.metadata,
+  updated_at = now()`,
+		record.TenantID, record.PrimitiveType, record.DefinitionID, record.DefinitionKey, record.Version,
+		record.AppID, record.Domain, record.UseCase, record.Status, record.SchemaRef, record.ImplementationRef,
+		record.QualityPolicyID, record.RetentionPolicyID, record.LineagePolicyID, record.PointInTimeRequired,
+		jsonOrEmpty(record.ContractJSON), jsonOrEmpty(record.MetadataJSON),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert platform primitive definition: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) ListSchedulerRuns(ctx context.Context, limit int) ([]storage.SchedulerRunRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT run_id, tenant_id, source_id, source_adapter, COALESCE(array_to_json(datasets), '[]'::json)::text,
@@ -1489,6 +1562,39 @@ LIMIT $2`, strings.TrimSpace(tenantID), clampLimit(limit))
 	return records, nil
 }
 
+func (r *Repository) ListPlatformPrimitiveDefinitions(ctx context.Context, filter storage.PlatformPrimitiveDefinitionFilter) ([]storage.PlatformPrimitiveDefinitionRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT tenant_id, primitive_type, definition_id, definition_key, version, app_id, domain, use_case,
+  status, schema_ref, implementation_ref, quality_policy_id, retention_policy_id, lineage_policy_id,
+  point_in_time_required, contract, metadata, created_at, updated_at
+FROM platform_primitive_definitions
+WHERE tenant_id = $1
+  AND ($2 = '' OR primitive_type = $2)
+  AND ($3 = '' OR definition_key = $3)
+  AND ($4 = '' OR version = $4)
+  AND ($5 = '' OR app_id = $5)
+  AND ($6 = '' OR domain = $6)
+  AND ($7 = '' OR status = $7)
+ORDER BY primitive_type ASC, definition_key ASC, version ASC
+LIMIT $8`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.PrimitiveType), strings.TrimSpace(filter.DefinitionKey), strings.TrimSpace(filter.Version), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.Status), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list platform primitive definitions: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.PlatformPrimitiveDefinitionRecord{}
+	for rows.Next() {
+		record, err := scanPlatformPrimitiveDefinition(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list platform primitive definitions rows: %w", err)
+	}
+	return records, nil
+}
+
 func (r *Repository) ListMarketOpsAssets(ctx context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]storage.MarketOpsAssetRecord, error) {
 	universeGroup = strings.TrimSpace(universeGroup)
 	if universeGroup == "" {
@@ -1768,6 +1874,10 @@ type catalogRuleScanner interface {
 	Scan(dest ...any) error
 }
 
+type platformPrimitiveDefinitionScanner interface {
+	Scan(dest ...any) error
+}
+
 type marketOpsAssetScanner interface {
 	Scan(dest ...any) error
 }
@@ -1906,6 +2016,34 @@ func scanCatalogPipeline(scanner catalogPipelineScanner) (storage.CatalogPipelin
 	}
 	if err := json.Unmarshal([]byte(outputTopicsJSON), &record.OutputTopics); err != nil {
 		return storage.CatalogPipelineRecord{}, fmt.Errorf("scan catalog pipeline output topics: %w", err)
+	}
+	return record, nil
+}
+
+func scanPlatformPrimitiveDefinition(scanner platformPrimitiveDefinitionScanner) (storage.PlatformPrimitiveDefinitionRecord, error) {
+	var record storage.PlatformPrimitiveDefinitionRecord
+	if err := scanner.Scan(
+		&record.TenantID,
+		&record.PrimitiveType,
+		&record.DefinitionID,
+		&record.DefinitionKey,
+		&record.Version,
+		&record.AppID,
+		&record.Domain,
+		&record.UseCase,
+		&record.Status,
+		&record.SchemaRef,
+		&record.ImplementationRef,
+		&record.QualityPolicyID,
+		&record.RetentionPolicyID,
+		&record.LineagePolicyID,
+		&record.PointInTimeRequired,
+		&record.ContractJSON,
+		&record.MetadataJSON,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return storage.PlatformPrimitiveDefinitionRecord{}, mapScanError("scan platform primitive definition", err)
 	}
 	return record, nil
 }
@@ -2134,6 +2272,67 @@ func validateIdempotencyRecord(record storage.IdempotencyRecord) error {
 		return errors.New("idempotency status is required")
 	}
 	return nil
+}
+
+func validatePlatformPrimitiveDefinition(record storage.PlatformPrimitiveDefinitionRecord) error {
+	if strings.TrimSpace(record.TenantID) == "" {
+		return errors.New("platform primitive tenant id is required")
+	}
+	if !isPlatformPrimitiveType(record.PrimitiveType) {
+		return errors.New("platform primitive type is invalid")
+	}
+	if strings.TrimSpace(record.DefinitionID) == "" {
+		return errors.New("platform primitive definition id is required")
+	}
+	if strings.TrimSpace(record.DefinitionKey) == "" {
+		return errors.New("platform primitive definition key is required")
+	}
+	if !isSemanticVersion(record.Version) {
+		return errors.New("platform primitive version must be semantic")
+	}
+	if !isPlatformDefinitionStatus(record.Status) {
+		return errors.New("platform primitive status is invalid")
+	}
+	if err := validateJSONObject("platform primitive contract", jsonOrEmpty(record.ContractJSON)); err != nil {
+		return err
+	}
+	return validateJSONObject("platform primitive metadata", jsonOrEmpty(record.MetadataJSON))
+}
+
+func isPlatformPrimitiveType(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "source", "dataset", "schema", "pipeline", "feature", "state_model", "detector", "algorithm", "signal_definition", "policy", "artifact_type", "proposal_type", "insight_type", "outcome_definition":
+		return true
+	default:
+		return false
+	}
+}
+
+func isPlatformDefinitionStatus(value string) bool {
+	switch strings.TrimSpace(value) {
+	case storage.PlatformDefinitionStatusDraft, storage.PlatformDefinitionStatusValidating, storage.PlatformDefinitionStatusActive, storage.PlatformDefinitionStatusDeprecated, storage.PlatformDefinitionStatusRetired:
+		return true
+	default:
+		return false
+	}
+}
+
+func isSemanticVersion(value string) bool {
+	parts := strings.Split(strings.TrimSpace(value), ".")
+	if len(parts) != 3 {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" {
+			return false
+		}
+		for _, char := range part {
+			if char < '0' || char > '9' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func validateRawEventLedger(record storage.RawEventLedgerRecord) error {

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -95,12 +96,25 @@ func loadCLIConfig() (algorithms.Config, error) {
 	if !cfg.WindowEnd.After(cfg.WindowStart) {
 		return algorithms.Config{}, errors.New("window-end must be after window-start")
 	}
+	cfg.RegistryEnforcement = envBoolOrDefault("SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT", false)
 	for _, symbol := range strings.Split(symbols, ",") {
 		if strings.TrimSpace(symbol) != "" {
 			cfg.Symbols = append(cfg.Symbols, strings.ToUpper(strings.TrimSpace(symbol)))
 		}
 	}
 	return cfg, nil
+}
+
+func envBoolOrDefault(key string, fallback bool) bool {
+	value, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func randomHex(n int) string {

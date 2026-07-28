@@ -10,12 +10,27 @@ import (
 )
 
 type fakeAlgorithmRepository struct {
-	events            []storage.NormalizedEventLedgerRecord
-	observations      []storage.MarketOpsFeatureObservationRecord
-	requests          []storage.AlgorithmExecutionRequestRecord
-	results           []storage.AlgorithmResultRecord
-	lastEventFilter   storage.MarketOpsBacktestEventFilter
-	insertResultCalls int
+	events               []storage.NormalizedEventLedgerRecord
+	observations         []storage.MarketOpsFeatureObservationRecord
+	requests             []storage.AlgorithmExecutionRequestRecord
+	results              []storage.AlgorithmResultRecord
+	primitiveDefinitions []storage.PlatformPrimitiveDefinitionRecord
+	lastEventFilter      storage.MarketOpsBacktestEventFilter
+	insertResultCalls    int
+}
+
+func (f *fakeAlgorithmRepository) ListPlatformPrimitiveDefinitions(_ context.Context, filter storage.PlatformPrimitiveDefinitionFilter) ([]storage.PlatformPrimitiveDefinitionRecord, error) {
+	result := []storage.PlatformPrimitiveDefinitionRecord{}
+	for _, record := range f.primitiveDefinitions {
+		if record.TenantID != filter.TenantID || record.PrimitiveType != filter.PrimitiveType || record.Status != filter.Status {
+			continue
+		}
+		if filter.DefinitionKey != "" && record.DefinitionKey != filter.DefinitionKey {
+			continue
+		}
+		result = append(result, record)
+	}
+	return result, nil
 }
 
 func (f *fakeAlgorithmRepository) UpsertAlgorithmDefinition(context.Context, storage.AlgorithmDefinitionRecord) error {
@@ -96,7 +111,11 @@ func (f *fakeAlgorithmRepository) GetAlgorithmSignalMaterialization(context.Cont
 }
 func (f *fakeAlgorithmRepository) ListMarketOpsFeatureObservations(_ context.Context, filter storage.MarketOpsFeatureObservationFilter) ([]storage.MarketOpsFeatureObservationRecord, error) {
 	out := []storage.MarketOpsFeatureObservationRecord{}
-	for _, row := range f.observations { if (filter.Symbol == "" || row.Symbol == filter.Symbol) && (filter.SessionStart.IsZero() || !row.SessionDate.Before(filter.SessionStart)) && (filter.SessionEnd.IsZero() || !row.SessionDate.After(filter.SessionEnd)) { out = append(out, row) } }
+	for _, row := range f.observations {
+		if (filter.Symbol == "" || row.Symbol == filter.Symbol) && (filter.SessionStart.IsZero() || !row.SessionDate.Before(filter.SessionStart)) && (filter.SessionEnd.IsZero() || !row.SessionDate.After(filter.SessionEnd)) {
+			out = append(out, row)
+		}
+	}
 	return out, nil
 }
 
@@ -153,6 +172,37 @@ func TestRunZScoreWritesDeterministicResults(t *testing.T) {
 	}
 	if len(repo.results) != 3 || repo.results[0].AlgorithmResultID != firstID || repo.insertResultCalls != 6 {
 		t.Fatalf("idempotent results len=%d first=%s calls=%d", len(repo.results), repo.results[0].AlgorithmResultID, repo.insertResultCalls)
+	}
+}
+
+func TestRunEnforcementRejectsUnregisteredMassiveLedgerEvent(t *testing.T) {
+	now := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	event := normalizedEvent("evt-1", "AAPL", 1, now)
+	event.MetadataJSON = platformMetadata()
+	repo := &fakeAlgorithmRepository{events: []storage.NormalizedEventLedgerRecord{event}}
+	_, err := Run(context.Background(), repo, Config{ExecutionRequestID: "algexec-registry", TenantID: "tenant-local", WindowStart: now.Add(-time.Hour), WindowEnd: now.Add(time.Hour), MinSamples: 2, RegistryEnforcement: true})
+	if err == nil || len(repo.results) != 0 || len(repo.requests) != 1 || repo.requests[0].Status != storage.AlgorithmExecutionStatusFailed {
+		t.Fatalf("expected failed enforcement request, err=%v requests=%+v results=%+v", err, repo.requests, repo.results)
+	}
+}
+
+func TestRunResultCopiesNormalizedEventProvenance(t *testing.T) {
+	now := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	events := []storage.NormalizedEventLedgerRecord{normalizedEvent("evt-1", "AAPL", 1, now), normalizedEvent("evt-2", "AAPL", 2, now.Add(time.Hour))}
+	for index := range events {
+		events[index].MetadataJSON = platformMetadata()
+	}
+	repo := &fakeAlgorithmRepository{events: events}
+	if _, err := Run(context.Background(), repo, Config{ExecutionRequestID: "algexec-provenance", TenantID: "tenant-local", WindowStart: now.Add(-time.Hour), WindowEnd: now.Add(2 * time.Hour), MinSamples: 2}); err != nil {
+		t.Fatal(err)
+	}
+	payload := map[string]any{}
+	if err := json.Unmarshal(repo.results[0].ResultPayloadJSON, &payload); err != nil {
+		t.Fatal(err)
+	}
+	provenance, ok := payload["input_provenance"].(map[string]any)
+	if !ok || provenance["quality"] == nil || provenance["platform_definition_versions"] == nil {
+		t.Fatalf("result provenance = %#v", payload["input_provenance"])
 	}
 }
 
@@ -258,4 +308,28 @@ func normalizedOptionsDistributionEvent(eventID string, symbol string, ratio flo
 func normalizedFeatureEvent(eventID string, symbol string, feature string, value float64, observationTime time.Time) storage.NormalizedEventLedgerRecord {
 	payload, _ := json.Marshal(map[string]any{"symbol": symbol, "features": map[string]any{feature: value}})
 	return storage.NormalizedEventLedgerRecord{EventID: eventID, TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SourceID: "src-massive", SourceAdapter: "market_data.massive", Dataset: "equity_eod_prices", ObservationTime: observationTime, NormalizedPayload: payload}
+}
+
+func platformMetadata() []byte {
+	value, _ := json.Marshal(map[string]any{
+		"platform_definition_versions": map[string]string{"source": "1.0.0", "pipeline": "1.0.0", "dataset": "1.0.0"},
+		"quality":                      map[string]string{"quality_state": "usable", "quality_policy_id": "policy_signalops_normalized_event_quality_v1", "quality_policy_version": "1.0.0"},
+	})
+	return value
+}
+
+func TestFeatureObservationInputProvenanceDeduplicatesEntries(t *testing.T) {
+	details := []byte(`{"input_provenance":[{"event_id":"evt-2","quality":{"quality_state":"usable"}},{"event_id":"evt-1","quality":{"quality_state":"usable"}}]}`)
+	provenance := featureObservationInputProvenance([]storage.MarketOpsFeatureObservationRecord{{QualityDetailsJSON: details}, {QualityDetailsJSON: details}})
+	if len(provenance) != 2 || provenance[0]["event_id"] != "evt-1" || provenance[1]["event_id"] != "evt-2" {
+		t.Fatalf("provenance = %#v", provenance)
+	}
+}
+
+func TestFeatureObservationOptionsArtifactProvenanceDeduplicatesEntries(t *testing.T) {
+	details := []byte(`{"options_artifact_provenance":[{"artifact_id":"dist-2","quality":{"quality_state":"usable"}},{"artifact_id":"dist-1","quality":{"quality_state":"usable"}}]}`)
+	provenance := featureObservationOptionsArtifactProvenance([]storage.MarketOpsFeatureObservationRecord{{QualityDetailsJSON: details}, {QualityDetailsJSON: details}})
+	if len(provenance) != 2 || provenance[0]["artifact_id"] != "dist-1" || provenance[1]["artifact_id"] != "dist-2" {
+		t.Fatalf("provenance = %#v", provenance)
+	}
 }

@@ -1,0 +1,224 @@
+openapi: 3.0.3
+info:
+  title: SignalOps Platform Registry API
+  version: "1.0.0"
+  description: Tenant-scoped registry for versioned foundational SignalOps primitives.
+paths:
+  /v1/tenants/{tenant_id}/platform/primitive-definitions:
+    get:
+      operationId: listPlatformPrimitiveDefinitions
+      summary: List platform primitive definitions
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+        - $ref: "#/components/parameters/PrimitiveType"
+        - $ref: "#/components/parameters/DefinitionKey"
+        - $ref: "#/components/parameters/Version"
+        - $ref: "#/components/parameters/AppID"
+        - $ref: "#/components/parameters/Domain"
+        - $ref: "#/components/parameters/DefinitionStatus"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Matching definitions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [primitive_definitions]
+                properties:
+                  primitive_definitions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlatformPrimitiveDefinition"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/StorageUnavailable"
+    post:
+      operationId: upsertPlatformPrimitiveDefinition
+      summary: Create or update an unpublished platform primitive definition
+      description: Requires the signalops:admin role. Semantic fields are immutable once a definition is active, deprecated, or retired. Each successful mutation commits a durable audit event with actor and before/after state.
+      parameters:
+        - $ref: "#/components/parameters/TenantID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformPrimitiveDefinitionWriteRequest"
+      responses:
+        "200":
+          description: Definition accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [definition_id, definition_key, version, status]
+                properties:
+                  definition_id:
+                    type: string
+                  definition_key:
+                    type: string
+                  version:
+                    type: string
+                    example: 1.0.0
+                  status:
+                    $ref: "#/components/schemas/PlatformDefinitionStatus"
+        "400":
+          description: Invalid definition, invalid lifecycle update, or unresolved policy reference.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/StorageUnavailable"
+components:
+  parameters:
+    TenantID:
+      name: tenant_id
+      in: path
+      required: true
+      schema:
+        type: string
+    PrimitiveType:
+      name: primitive_type
+      in: query
+      schema:
+        $ref: "#/components/schemas/PlatformPrimitiveType"
+    DefinitionKey:
+      name: definition_key
+      in: query
+      schema:
+        type: string
+    Version:
+      name: version
+      in: query
+      schema:
+        type: string
+        pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+    AppID:
+      name: app_id
+      in: query
+      schema:
+        type: string
+    Domain:
+      name: domain
+      in: query
+      schema:
+        type: string
+    DefinitionStatus:
+      name: status
+      in: query
+      schema:
+        $ref: "#/components/schemas/PlatformDefinitionStatus"
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 200
+  schemas:
+    PlatformPrimitiveType:
+      type: string
+      enum: [source, dataset, schema, pipeline, feature, state_model, detector, algorithm, signal_definition, policy, artifact_type, proposal_type, insight_type, outcome_definition]
+    PlatformDefinitionStatus:
+      type: string
+      enum: [draft, validating, active, deprecated, retired]
+    PlatformPrimitiveDefinition:
+      type: object
+      required: [tenant_id, primitive_type, definition_id, definition_key, version, status, point_in_time_required, contract, metadata, created_at, updated_at]
+      properties:
+        tenant_id:
+          type: string
+        primitive_type:
+          $ref: "#/components/schemas/PlatformPrimitiveType"
+        definition_id:
+          type: string
+        definition_key:
+          type: string
+        version:
+          type: string
+          pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+        app_id:
+          type: string
+        domain:
+          type: string
+        use_case:
+          type: string
+        status:
+          $ref: "#/components/schemas/PlatformDefinitionStatus"
+        schema_ref:
+          type: string
+        implementation_ref:
+          type: string
+        quality_policy_id:
+          type: string
+        retention_policy_id:
+          type: string
+        lineage_policy_id:
+          type: string
+        point_in_time_required:
+          type: boolean
+        contract:
+          type: object
+          description: Versioned semantic contract. Policy definitions may declare executable policy_kind, scope, allowed states, defaults, and failure behavior.
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    PlatformPrimitiveDefinitionWriteRequest:
+      type: object
+      required: [primitive_type, definition_id, definition_key, version, status, contract, metadata]
+      properties:
+        tenant_id:
+          type: string
+          description: Optional and must match the tenant_id path parameter when provided.
+        primitive_type:
+          $ref: "#/components/schemas/PlatformPrimitiveType"
+        definition_id:
+          type: string
+        definition_key:
+          type: string
+        version:
+          type: string
+          pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+        app_id:
+          type: string
+        domain:
+          type: string
+        use_case:
+          type: string
+        status:
+          $ref: "#/components/schemas/PlatformDefinitionStatus"
+        schema_ref:
+          type: string
+        implementation_ref:
+          type: string
+        quality_policy_id:
+          type: string
+        retention_policy_id:
+          type: string
+        lineage_policy_id:
+          type: string
+        point_in_time_required:
+          type: boolean
+        contract:
+          type: object
+          description: Versioned semantic contract. Policy definitions may declare executable policy_kind, scope, allowed states, defaults, and failure behavior.
+        metadata:
+          type: object
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token.
+    Forbidden:
+      description: Tenant claim mismatch or insufficient SignalOps role.
+    StorageUnavailable:
+      description: Platform registry storage is not configured.

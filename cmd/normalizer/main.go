@@ -12,7 +12,9 @@ import (
 
 	kafkabroker "github.com/lukebabs/signalops/internal/broker/kafka"
 	"github.com/lukebabs/signalops/internal/config"
+	connect "github.com/lukebabs/signalops/internal/cyberops/connect"
 	"github.com/lukebabs/signalops/internal/normalization"
+	"github.com/lukebabs/signalops/internal/platformregistry"
 	postgresstorage "github.com/lukebabs/signalops/internal/storage/postgres"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
@@ -51,6 +53,10 @@ func run(logger *slog.Logger) error {
 	}
 	defer repository.Close()
 	processor := normalization.Processor{Publisher: client, Repository: repository, OutputTopic: outputTopic}
+	if envBoolOrDefault("SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT", false) {
+		processor.DefinitionValidator = platformregistry.MassiveRawEventDefinitionValidator{Lister: repository}
+		logger.Info("platform registry enforcement enabled for Massive scheduled-pull events")
+	}
 	logger.Info("signalops normalizer started", "input_topic", inputTopic, "output_topic", outputTopic)
 	for {
 		message, err := consumer.Consume(ctx)
@@ -59,6 +65,13 @@ func run(logger *slog.Logger) error {
 				return nil
 			}
 			return err
+		}
+		if connect.IsCandidate(message.Value, message.Headers) {
+			if err := consumer.Commit(ctx, message); err != nil {
+				return err
+			}
+			logger.Info("connect candidate reserved for cyberops accepted-raw path", "topic", message.Topic, "partition", message.Partition, "offset", message.Offset)
+			continue
 		}
 		record, err := processor.Process(ctx, message)
 		if err != nil {
@@ -100,5 +113,20 @@ func closeConsumer(logger *slog.Logger, consumer broker.Consumer) {
 	defer cancel()
 	if err := consumer.Close(ctx); err != nil {
 		logger.Error("close normalizer consumer", "error", err)
+	}
+}
+
+func envBoolOrDefault(key string, fallback bool) bool {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	switch strings.ToLower(value) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
 	}
 }

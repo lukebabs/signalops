@@ -293,6 +293,50 @@ These endpoints expose tenant-scoped catalog metadata for registered SignalOps
 sources. They require gateway storage wiring through `SIGNALOPS_DATABASE_URL`;
 when storage is not configured they return `503 storage_unavailable`.
 
+### Platform Primitive Definitions
+
+`GET /v1/tenants/{tenant_id}/platform/primitive-definitions?primitive_type=dataset&definition_key=market.equity.daily_bar&version=1.0.0&app_id=marketops&domain=markets&status=active&limit=200`
+
+Returns versioned foundational platform primitive definitions for a tenant. Filters are optional. `definition_key` and `version` allow an exact definition-version lookup. The endpoint exposes the shared registry/control-plane layer used by domain applications such as MarketOps.
+
+`POST /v1/tenants/{tenant_id}/platform/primitive-definitions`
+
+Creates a draft/validating definition or performs an allowed lifecycle transition. It requires the `signalops:admin` role when gateway authentication is enabled. Published semantic content is immutable: active, deprecated, and retired definitions may only move forward through their lifecycle. Policy references must resolve to policy definitions in the same tenant. Each successful mutation writes a durable audit event with authenticated actor, prior state, and resulting state in the same database transaction.
+
+Supported `primitive_type` values are `source`, `dataset`, `schema`, `pipeline`, `feature`, `state_model`, `detector`, `algorithm`, `signal_definition`, `policy`, `artifact_type`, `proposal_type`, `insight_type`, and `outcome_definition`. Lifecycle values are `draft`, `validating`, `active`, `deprecated`, and `retired`.
+
+Policy contracts are versioned registry content. The active `signalops.normalized_event_quality` policy defines the allowed normalized-event quality states, default state, fail-closed behavior, and DLQ failure action. When `SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT=true`, the Massive puller records that policy identity/version, the normalizer validates the resulting quality envelope before publishing a normalized event, the MarketOps state materializer validates the retained Massive normalized-ledger and options-artifact provenance before producing derived records, and direct normalized-event algorithm runs validate it before scoring. A forward-only state-materialization cutover may use `--fresh-window` with an explicit bounded date window; it omits historical warmup and therefore emits an expected `partial` state until new history accumulates.
+
+Response shape:
+
+```json
+{
+  "primitive_definitions": [
+    {
+      "tenant_id": "tenant-local",
+      "primitive_type": "dataset",
+      "definition_id": "dset-market-equity-daily-bar-v1",
+      "definition_key": "market.equity.daily_bar",
+      "version": "1.0.0",
+      "app_id": "marketops",
+      "domain": "markets",
+      "use_case": "daily_market_surveillance",
+      "status": "active",
+      "schema_ref": "contracts/events/normalized_signal_event.v1.schema.json",
+      "implementation_ref": "normalizers/market/equity_eod_prices:v1",
+      "quality_policy_id": "policy_marketops_eod_quality_v1",
+      "retention_policy_id": "policy_marketops_temporal_retention_v1",
+      "lineage_policy_id": "policy_signalops_lineage_v1",
+      "point_in_time_required": true,
+      "contract": {"record_type":"observation"},
+      "metadata": {},
+      "created_at": "2026-07-24T00:00:00Z",
+      "updated_at": "2026-07-24T00:00:00Z"
+    }
+  ]
+}
+```
+
 ### Sources
 
 `GET /v1/tenants/{tenant_id}/catalog/sources?limit=50`
@@ -465,7 +509,6 @@ Returns recent scheduler run audit rows ordered by `started_at DESC`.
 
 Returns one scheduler run, including datasets, counters, config JSON, report JSON,
 status, timestamps, and optional error message.
-
 
 ### Replay Jobs
 
@@ -871,9 +914,11 @@ Returns one algorithm signal proposal.
 
 Records an operator review decision for an algorithm signal proposal. Body fields are `status`, `note`, optional `tenant_id`, optional `actor`, and optional `metadata`. Valid statuses are `proposed`, `reviewed`, `rejected`, and `superseded`. This updates proposal review metadata only; it does not write production signals, alerts, insights, graph proposals, or policy changes.
 
-`signalops-algorithm-runner` executes the seeded algorithm ids from the command line, including z-score, online anomaly, change-point, forecast residual, threshold classifier, and isolation-style scoring adapters. It requires `SIGNALOPS_DATABASE_URL` and `SIGNALOPS_TEMPORAL_DATABASE_URL`, reads bounded normalized events, updates `algorithm_execution_requests`, and writes immutable `algorithm_results`. G107-G110 do not add an API trigger endpoint for execution.
+`signalops-algorithm-runner` executes the seeded algorithm ids from the command line, including z-score, online anomaly, change-point, forecast residual, threshold classifier, and isolation-style scoring adapters. It requires `SIGNALOPS_DATABASE_URL` and `SIGNALOPS_TEMPORAL_DATABASE_URL`, reads bounded normalized events, updates `algorithm_execution_requests`, and writes immutable `algorithm_results`. With `SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT=true`, direct mapped Massive normalized-event inputs must match the active registry and quality-policy envelope before scoring; each resulting payload includes its input provenance. The feature-observation-based `risk_reward_temporal_v1` path fails closed when a usable observation with source events or options artifacts lacks its corresponding provenance, and its immutable result carries both normalized-event and options-artifact envelopes. G107-G110 do not add an API trigger endpoint for execution.
 
 `signalops-marketops-options-feature-materializer` reads persisted `marketops_options_distribution_daily` snapshots and upserts canonical `options_distribution_daily` rows into `normalized_event_ledger`. When `SIGNALOPS_TEMPORAL_DATABASE_URL` is configured, the row is written to the temporal store read by the algorithm runner. Those rows expose call/put open-interest and divergence features to the existing algorithm runner.
+
+`signalops-marketops-algorithm-evaluator` writes isolated evaluation runs, scored observations, and 1/5/10/20-session outcomes for the seeded algorithm set. It supports explicit `retrospective` and point-in-time `walk_forward` modes, does not write production algorithm, signal, proposal, or policy ledgers, and reports metrics with confidence intervals as research evidence only. The read-only routes are `GET /v1/marketops/algorithm-evaluations`, `GET /v1/marketops/algorithm-evaluations/{run_id}`, `GET /v1/marketops/algorithm-evaluations/{run_id}/results`, and `GET /v1/marketops/algorithm-evaluations/{run_id}/outcomes`; detail, result, and outcome reads require `tenant_id`. `GET /v1/marketops/algorithm-evaluation-backfills` and its detail route expose bounded equity-backfill campaign manifests. The backfill command invokes the canonical Massive raw-to-normalized path only with explicit write acknowledgement; it never treats historical options contract metadata as historical analytics snapshots.
 
 `signalops-marketops-options-chain-ingestor` fetches bounded Massive option-chain snapshots for one symbol, upserts `marketops_options_chain_daily` rows, and writes a rolling `marketops_options_distribution_daily` snapshot. It requires `SIGNALOPS_DATABASE_URL` and Massive API credentials; `SIGNALOPS_TEMPORAL_DATABASE_URL` should also be provided in split-store deployments. G127 keeps provider calls explicit and does not add a scheduler or Top 50 batch job.
 
@@ -881,7 +926,7 @@ Records an operator review decision for an algorithm signal proposal. Body field
 
 `signalops-marketops-options-coverage-runner` is the bounded G133 operator CLI for selected-symbol or capped Top 50 options coverage expansion. With G142 `--session-date`, it first requires canonical same-session equity close, sends provider-side DTE and strike bounds, enforces a separate candidate cap, aggregates the bounded candidate set in memory, and persists at most five deterministic contracts for the implemented IV surface. It derives one compact distribution and `options_distribution_daily` feature row while reporting candidate, selected, discarded, acquisition-bound, and quality metrics. It is explicit and capped; it does not install a scheduler or automatic Top 50 fanout.
 
-`signalops-marketops-state-materializer` is the bounded G137 AAPL CLI. It reads normalized equity EOD events from the temporal ledger and approved persisted option chain/distribution rows, then idempotently upserts versioned feature observations, canonical states, one-session transitions, and quality-gated evidence. It requires both SignalOps database URLs, supports inclusive/exclusive date bounds and `--dry-run`, makes no provider calls, and does not evaluate hypotheses or write production signals.
+`signalops-marketops-state-materializer` is the bounded G137 AAPL CLI. It reads normalized equity EOD events from the temporal ledger and approved persisted option chain/distribution rows, then idempotently upserts versioned feature observations, canonical states, one-session transitions, and quality-gated evidence. It requires both SignalOps database URLs, supports inclusive/exclusive date bounds and `--dry-run`, makes no provider calls, and does not evaluate hypotheses or write production signals. With `SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT=true`, mapped Massive normalized events must carry active source/pipeline/dataset versions and the active normalized-event quality policy envelope; derived feature `quality_details` and state `quality_summary` record that input provenance. Keep the flag disabled for legacy replay windows until their ledger provenance has been verified or backfilled.
 
 `signalops-marketops-hypothesis-evaluator` is the bounded G138 AAPL CLI. It reads existing G137 states, feature observations, transitions, and evidence, registers research-only H001/H004/H006/H007 v1 definitions, and idempotently persists both trigger and non-trigger evaluations with reason codes. It requires `SIGNALOPS_DATABASE_URL`, supports inclusive session dates, a maximum-session cap, explicit run lineage, and `--dry-run`. It makes no provider calls and writes no proposals, opportunities, or production signals.
 

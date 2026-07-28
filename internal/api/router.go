@@ -40,15 +40,17 @@ var supportedDashboardStreamChannels = map[string]struct{}{
 
 // RouterConfig contains process-local API wiring options.
 type RouterConfig struct {
-	ServiceName             string
-	MarketOpsBacktestRunner func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
-	Auth                    AuthConfig
-	Publisher               broker.Publisher
-	RawTopic                string
-	QueryRepository         storage.QueryRepository
-	PublishRepository       storage.PublishRepository
-	SyncraticAskClient      syncraticAskClient
-	MarketQuoteClient       interface {
+	ServiceName                  string
+	MarketOpsBacktestRunner      func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
+	Auth                         AuthConfig
+	Publisher                    broker.Publisher
+	RawTopic                     string
+	QueryRepository              storage.QueryRepository
+	CyberOpsConnectRepository    storage.CyberOpsConnectRepository
+	PlatformDefinitionRepository storage.PlatformPrimitiveDefinitionRepository
+	PublishRepository            storage.PublishRepository
+	SyncraticAskClient           syncraticAskClient
+	MarketQuoteClient            interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}
 }
@@ -2189,6 +2191,60 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"rules": catalogRuleResponses(rules)})
 	})
 
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/platform/primitive-definitions", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+			return
+		}
+		definitions, err := repo.ListPlatformPrimitiveDefinitions(r.Context(), storage.PlatformPrimitiveDefinitionFilter{
+			TenantID:      tenantID,
+			PrimitiveType: strings.TrimSpace(r.URL.Query().Get("primitive_type")),
+			DefinitionKey: strings.TrimSpace(r.URL.Query().Get("definition_key")),
+			Version:       strings.TrimSpace(r.URL.Query().Get("version")),
+			AppID:         strings.TrimSpace(r.URL.Query().Get("app_id")),
+			Domain:        strings.TrimSpace(r.URL.Query().Get("domain")),
+			Status:        strings.TrimSpace(r.URL.Query().Get("status")),
+			Limit:         queryLimit(r, 200),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list platform primitive definitions")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"primitive_definitions": platformPrimitiveDefinitionResponses(definitions)})
+	})
+
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/platform/primitive-definitions", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requirePlatformDefinitionRepository(w, cfg.PlatformDefinitionRepository)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+			return
+		}
+		record, err := readPlatformPrimitiveDefinitionRequest(w, r, tenantID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_platform_primitive_definition", err.Error())
+			return
+		}
+		if err := repo.UpsertPlatformPrimitiveDefinitionWithAudit(r.Context(), record, lifecycleActor(r, "")); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_platform_primitive_definition", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{
+			"definition_id":  record.DefinitionID,
+			"definition_key": record.DefinitionKey,
+			"version":        record.Version,
+			"status":         record.Status,
+		})
+	})
+
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {
@@ -2497,7 +2553,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerMarketOpsAssetManagementRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsOpportunityRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsOutcomeRoutes(mux, cfg.QueryRepository)
+	registerMarketOpsAlgorithmEvaluationRoutes(mux, cfg.QueryRepository)
 
+	registerCyberOpsConnectRoutes(mux, cfg)
 	return authMiddleware(mux, cfg.Auth)
 }
 
@@ -3203,6 +3261,48 @@ type marketOpsOptionsDistributionDTO struct {
 	SourceTradeDates         []time.Time     `json:"source_trade_dates"`
 	CreatedAt                time.Time       `json:"created_at"`
 	UpdatedAt                time.Time       `json:"updated_at"`
+}
+
+type platformPrimitiveDefinitionRequest struct {
+	TenantID            string          `json:"tenant_id"`
+	PrimitiveType       string          `json:"primitive_type"`
+	DefinitionID        string          `json:"definition_id"`
+	DefinitionKey       string          `json:"definition_key"`
+	Version             string          `json:"version"`
+	AppID               string          `json:"app_id"`
+	Domain              string          `json:"domain"`
+	UseCase             string          `json:"use_case"`
+	Status              string          `json:"status"`
+	SchemaRef           string          `json:"schema_ref"`
+	ImplementationRef   string          `json:"implementation_ref"`
+	QualityPolicyID     string          `json:"quality_policy_id"`
+	RetentionPolicyID   string          `json:"retention_policy_id"`
+	LineagePolicyID     string          `json:"lineage_policy_id"`
+	PointInTimeRequired bool            `json:"point_in_time_required"`
+	Contract            json.RawMessage `json:"contract"`
+	Metadata            json.RawMessage `json:"metadata"`
+}
+
+type platformPrimitiveDefinitionDTO struct {
+	TenantID            string          `json:"tenant_id"`
+	PrimitiveType       string          `json:"primitive_type"`
+	DefinitionID        string          `json:"definition_id"`
+	DefinitionKey       string          `json:"definition_key"`
+	Version             string          `json:"version"`
+	AppID               string          `json:"app_id"`
+	Domain              string          `json:"domain"`
+	UseCase             string          `json:"use_case"`
+	Status              string          `json:"status"`
+	SchemaRef           string          `json:"schema_ref"`
+	ImplementationRef   string          `json:"implementation_ref"`
+	QualityPolicyID     string          `json:"quality_policy_id"`
+	RetentionPolicyID   string          `json:"retention_policy_id"`
+	LineagePolicyID     string          `json:"lineage_policy_id"`
+	PointInTimeRequired bool            `json:"point_in_time_required"`
+	Contract            json.RawMessage `json:"contract"`
+	Metadata            json.RawMessage `json:"metadata"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
 }
 
 type catalogSourceDTO struct {
@@ -3959,6 +4059,21 @@ func marketOpsOptionsDistributionResponses(records []storage.MarketOpsOptionsDis
 	return items
 }
 
+func platformPrimitiveDefinitionResponses(records []storage.PlatformPrimitiveDefinitionRecord) []platformPrimitiveDefinitionDTO {
+	items := make([]platformPrimitiveDefinitionDTO, 0, len(records))
+	for _, record := range records {
+		items = append(items, platformPrimitiveDefinitionDTO{
+			TenantID: record.TenantID, PrimitiveType: record.PrimitiveType, DefinitionID: record.DefinitionID,
+			DefinitionKey: record.DefinitionKey, Version: record.Version, AppID: record.AppID, Domain: record.Domain,
+			UseCase: record.UseCase, Status: record.Status, SchemaRef: record.SchemaRef, ImplementationRef: record.ImplementationRef,
+			QualityPolicyID: record.QualityPolicyID, RetentionPolicyID: record.RetentionPolicyID, LineagePolicyID: record.LineagePolicyID,
+			PointInTimeRequired: record.PointInTimeRequired, Contract: jsonRawOrEmptyObject(record.ContractJSON),
+			Metadata: jsonRawOrEmptyObject(record.MetadataJSON), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
+		})
+	}
+	return items
+}
+
 func catalogSourceResponses(records []storage.CatalogSourceRecord) []catalogSourceDTO {
 	items := make([]catalogSourceDTO, 0, len(records))
 	for _, record := range records {
@@ -4064,6 +4179,14 @@ func jsonRawOrEmptyArray(value []byte) json.RawMessage {
 func requireQueryRepository(w http.ResponseWriter, repo storage.QueryRepository) (storage.QueryRepository, bool) {
 	if repo == nil {
 		writeError(w, http.StatusServiceUnavailable, "storage_unavailable", "query storage is not configured")
+		return nil, false
+	}
+	return repo, true
+}
+
+func requirePlatformDefinitionRepository(w http.ResponseWriter, repo storage.PlatformPrimitiveDefinitionRepository) (storage.PlatformPrimitiveDefinitionRepository, bool) {
+	if repo == nil {
+		writeError(w, http.StatusServiceUnavailable, "storage_unavailable", "platform definition storage is not configured")
 		return nil, false
 	}
 	return repo, true
@@ -4178,6 +4301,29 @@ func lifecycleMetadata(action string, actor string, req lifecycleMutationRequest
 		entry["reason"] = reason
 	}
 	return json.Marshal(map[string]any{"lifecycle": entry})
+}
+
+func readPlatformPrimitiveDefinitionRequest(w http.ResponseWriter, r *http.Request, tenantID string) (storage.PlatformPrimitiveDefinitionRecord, error) {
+	body, _, err := readJSONObject(w, r, defaultMaxRawEventBytes)
+	if err != nil {
+		return storage.PlatformPrimitiveDefinitionRecord{}, err
+	}
+	var request platformPrimitiveDefinitionRequest
+	if err := json.Unmarshal(body, &request); err != nil {
+		return storage.PlatformPrimitiveDefinitionRecord{}, errors.New("request body must be a valid platform primitive definition")
+	}
+	if request.TenantID != "" && strings.TrimSpace(request.TenantID) != tenantID {
+		return storage.PlatformPrimitiveDefinitionRecord{}, errors.New("tenant_id must match the request path")
+	}
+	return storage.PlatformPrimitiveDefinitionRecord{
+		TenantID: tenantID, PrimitiveType: strings.TrimSpace(request.PrimitiveType), DefinitionID: strings.TrimSpace(request.DefinitionID),
+		DefinitionKey: strings.TrimSpace(request.DefinitionKey), Version: strings.TrimSpace(request.Version), AppID: strings.TrimSpace(request.AppID),
+		Domain: strings.TrimSpace(request.Domain), UseCase: strings.TrimSpace(request.UseCase), Status: strings.TrimSpace(request.Status),
+		SchemaRef: strings.TrimSpace(request.SchemaRef), ImplementationRef: strings.TrimSpace(request.ImplementationRef),
+		QualityPolicyID: strings.TrimSpace(request.QualityPolicyID), RetentionPolicyID: strings.TrimSpace(request.RetentionPolicyID),
+		LineagePolicyID: strings.TrimSpace(request.LineagePolicyID), PointInTimeRequired: request.PointInTimeRequired,
+		ContractJSON: request.Contract, MetadataJSON: request.Metadata,
+	}, nil
 }
 
 func readJSONObject(w http.ResponseWriter, r *http.Request, maxBytes int64) ([]byte, map[string]json.RawMessage, error) {

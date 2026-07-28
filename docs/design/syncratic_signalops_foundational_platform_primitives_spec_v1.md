@@ -2102,6 +2102,64 @@ The code agent MUST:
 19. Update OpenAPI and event schemas alongside implementation.
 20. Produce a migration and rollout note for every phase.
 
+### 52.1 Executed v1 Platform Registry Slice
+
+The initial implementation slice creates a generic `platform_primitive_definitions` registry and tenant-scoped read API rather than one table per registry type. This is the first durable execution of the registry architecture in Section 7 and preserves the spec requirement that MarketOps consumes shared primitives instead of owning them.
+
+Implemented in this slice:
+
+- migration `000052_platform_primitive_definitions` with lifecycle, primitive type, tenant, version, scope, policy, lineage, point-in-time, contract, and metadata fields;
+- seeded `tenant-local` MarketOps definitions for all required registry categories;
+- storage contracts and Postgres repository methods for upsert and filtered list access;
+- read API `GET /v1/tenants/{tenant_id}/platform/primitive-definitions`;
+- focused API and repository validation tests.
+
+This slice does not move existing MarketOps ledgers or algorithms into new tables. Existing raw, normalized, algorithm, feature, state, proposal, insight, and outcome ledgers remain authoritative while the platform registry becomes the shared definition/control-plane layer for future migrations.
+
+### 52.2 Registry Integrity Completion
+
+Migration `000053_platform_primitive_definition_integrity` completes the registry safety boundary for the initial slice. It backfills every referenced policy as a policy definition, makes `definition_id` globally unique, constrains policy references to same-tenant policy definitions, and prevents semantic mutation of active, deprecated, or retired versions. The API now supports exact `definition_key` and `version` filters plus an admin-only definition write route. The OpenAPI fragment is `docs/signalops_platform_registry_api_v1.yaml`.
+
+Migration `000054_platform_primitive_definition_audit` adds a durable before/after audit event for every registry mutation. The API records the authenticated actor in the same transaction as the definition change, so a mutation cannot commit without its audit history.
+
+### 52.3 Massive Ingestion Registry Enforcement
+
+`massive-puller` can now resolve the active Massive source, raw-ingest pipeline, and selected dataset definitions before it runs. It rejects missing or ambiguous active definitions and writes the selected `source`, `pipeline`, and `dataset` versions into raw-event metadata. Normalization preserves that metadata in the normalized-event ledger, giving downstream consumers immutable definition-version provenance without changing existing ledger schemas.
+
+When the same flag is enabled in `normalizer`, Massive scheduled-pull messages must declare those versions and they must match the active registry definitions. Invalid or mismatched declaration metadata is routed through the existing normalization DLQ. A registry query failure is treated as operational: the source offset remains uncommitted and the worker retries rather than DLQing an event because of a transient database failure. Both the puller and normalizer also require every non-empty quality, retention, and lineage policy reference on the selected source, pipeline, and dataset definitions to resolve to one active policy definition.
+
+This guard is deliberately opt-in during the compatibility rollout. Set `SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT=true` only after the tenant has exactly one active `src-massive` source definition, `marketops.massive.raw_ingest` pipeline definition, and each selected dataset definition. Enabled non-dry-run pulls require `SIGNALOPS_DATABASE_URL`. The default remains disabled so existing deployments cannot be halted before their registry inventory is verified.
+
+### 52.4 Executable Normalized-Event Quality Policy
+
+Migration `000055_normalized_event_quality_policy` adds the immutable active policy `signalops.normalized_event_quality` (`1.0.0`). Its contract is a `quality_state_gate` for the normalized-event scope: it enumerates the standard states, defaults successfully normalized Massive events to `usable`, fails closed, and specifies `dlq` as the invalid-envelope action.
+
+With `SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT=true`, `massive-puller` resolves that policy and writes `metadata.quality` containing `quality_state`, `quality_policy_id`, and `quality_policy_version`. `normalizer` resolves the same active policy and rejects a missing, mismatched, or disallowed envelope through the existing DLQ path. The normalized-event ledger persists the envelope through its existing metadata column. Registry query failures remain retryable and do not DLQ source data.
+
+Rollout order: apply `000052`, `000053`, `000054`, then `000055`; rebuild the gateway, puller, and normalizer images; verify all policy references resolve, attempt no direct published-definition updates, and confirm every definition mutation has an audit event. Verify active Massive definitions, enable the puller flag in one environment, and confirm `platform_definition_versions` and `quality` metadata appear in raw and normalized event metadata. Existing domain ledgers are unchanged by this rollout.
+
+### 52.5 MarketOps State Materialization Provenance
+
+`signalops-marketops-state-materializer` is the first downstream consumer enrolled in the registry rollout. When `SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT=true`, it validates Massive normalized-ledger records for mapped datasets against the active source, raw-ingest pipeline, dataset, referenced policies, and `signalops.normalized_event_quality` policy before building features or states. A missing or mismatched declaration stops the bounded materialization run; a registry lookup failure is operational and stops the run for retry. The default remains disabled for compatibility with existing historical ledger rows.
+
+The builder copies source-event `platform_definition_versions` and `quality` envelopes into the existing `quality_details.input_provenance` field of feature observations that use those events, and aggregates them in `quality_summary.input_provenance` on each resulting market state. Persisted options-chain and options-distribution inputs carry their own provenance, which is copied into `quality_details.options_artifact_provenance` and `quality_summary.options_artifact_provenance`. Provenance is metadata only: feature and state identities, schemas, and tables are unchanged. Detector, hypothesis, and signal consumers remain outside this rollout boundary.
+
+The local active Massive source has `definition_id=src-massive` and `definition_key=massive-market-data-prod`; deployments must set `SIGNALOPS_MASSIVE_SOURCE_ID` to the active registry `definition_id` before enabling enforcement. Enable the state-materializer guard only after its temporal input window has been backfilled by the enforcing puller/normalizer path, or after the operator has separately verified every selected Massive ledger row contains the active provenance envelope. This avoids converting legacy replay history into a partial migration failure. For a deliberately forward-only cutover, invoke the materializer with an explicit bounded window and `--fresh-window`; it excludes the normal 90-day warmup and produces an expected `partial` state quality until enough new history accumulates.
+
+### 52.6 Direct Algorithm Input Provenance
+
+`signalops-algorithm-runner` now applies the same opt-in validation to direct normalized-event algorithms. With `SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT=true`, mapped Massive normalized ledger rows are checked before feature extraction and scoring. A mismatch fails the execution request before any algorithm result is written; an unavailable registry is an operational failure recorded on the request. The execution request persists whether enforcement was enabled, and each direct-input algorithm result carries `input_provenance` from the source event metadata in its result payload.
+
+`risk_reward_temporal_v1` preserves deduplicated normalized-event and options-artifact provenance from feature observations in both its Python point payloads and immutable algorithm result payloads. Under enforcement it fails closed when a usable feature observation declares source events or options artifacts but lacks its corresponding persisted provenance. Active-version comparison remains protected upstream by the puller, normalizer, and options ingestor gates. Detector, hypothesis, proposal, and signal consumers remain outside this rollout boundary.
+
+### 52.8 Isolated Algorithm Outcome Evaluation
+
+Migration `000057_marketops_algorithm_evaluations` adds an isolated evaluation namespace for algorithm runs, scored observations, forward outcomes, and bounded equity-backfill manifests. It never mutates production `algorithm_execution_requests`, `algorithm_results`, signals, proposals, policies, or model definitions. Walk-forward evaluation scores each session using only prior persisted inputs and records 1, 5, 10, and 20-session realized outcomes with exact event lineage. Retrospective mode is retained only as a labeled diagnostic comparison. Directional, event-study, forecast, and classifier profiles report only the metrics their output contracts support; confidence intervals communicate uncertainty and do not authorize promotion. The active Top 50 equity backfill uses the canonical enforcing puller/normalizer path in 10-symbol, 20-calendar-day chunks. Historical options contract metadata remains ineligible as historical IV/Greeks/open-interest evidence; risk/reward historical results therefore mark options corroboration unavailable until prospective analytics-ready captures accumulate.
+
+### 52.7 Options Artifact Provenance Storage
+
+Migration `000056_marketops_options_provenance` adds additive JSON provenance columns to the persisted options-chain and options-distribution artifacts. Distribution construction deterministically deduplicates the provenance of the current trade-day chain rows. Existing artifact identities and quality metrics are unchanged. With `SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT=true`, the options-chain ingestor resolves the active Massive source, pipeline, options-contract dataset, and quality policy before fetching, then stores that envelope on each chain row. Distribution construction carries the envelope forward. Legacy rows retain an empty envelope until replayed or backfilled; `risk_reward_temporal_v1` now fails closed under the same flag when a usable feature observation declares source events or options artifacts but lacks its corresponding persisted provenance. Active-version comparison remains protected upstream by the producer/normalizer/ingestor gates; historical windows must be replayed or backfilled before enabling this guard.
+
 ---
 
 ## 53. Final Architectural Position

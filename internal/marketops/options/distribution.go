@@ -113,6 +113,7 @@ func BuildDistribution(tenantID string, symbol string, tradeDate time.Time, rows
 	}
 	record.MoneynessDistributionJSON, _ = json.Marshal(materializeBuckets(moneyness))
 	record.ExpirationDistributionJSON, _ = json.Marshal(materializeBuckets(expiration))
+	record.ProvenanceJSON, _ = json.Marshal(aggregateProvenance(latestRows))
 	record.MetricsJSON, _ = json.Marshal(map[string]any{
 		"primary_metric":                  "open_interest",
 		"secondary_metric":                "volume",
@@ -394,4 +395,28 @@ func maxInt64(a int64, b int64) int64 {
 
 func roundRatio(value float64) float64 {
 	return math.Round(value*1000000) / 1000000
+}
+
+func aggregateProvenance(rows []storage.MarketOpsOptionsChainRecord) []any {
+	seen := map[string]any{}
+	for _, row := range rows {
+		if len(row.ProvenanceJSON) == 0 || string(row.ProvenanceJSON) == "{}" {
+			continue
+		}
+		var value any
+		if json.Unmarshal(row.ProvenanceJSON, &value) == nil {
+			encoded, _ := json.Marshal(value)
+			seen[string(encoded)] = value
+		}
+	}
+	keys := make([]string, 0, len(seen))
+	for key := range seen {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]any, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, seen[key])
+	}
+	return result
 }

@@ -54,7 +54,7 @@ Authorization: Bearer <access_token>
 Chain rows:
 
 ```http
-GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/chain?trade_date=YYYY-MM-DD&contract_type=call&limit=500
+GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/chain?trade_date=YYYY-MM-DD&contract_type=call&limit=20
 Authorization: Bearer <access_token>
 ```
 
@@ -154,7 +154,7 @@ Nullable and extra fields (authoritative vs the abbreviated examples above):
 - Chain numeric columns are server-nullable (`*float64` / `*int64`, omitempty): `underlying_close`, `moneyness`, `open`, `high`, `low`, `close`, `vwap`, `volume`, `open_interest`, `implied_volatility`, `delta`, `gamma`, `theta`, `vega`. The UI must render missing values as `—` (not `0`) — this especially affects `open_interest` / `volume`, which directly weakens call/put ratio interpretation.
 - The chain row also carries `provider`, `source_id`, `ingestion_run_id`, `provider_request_id`, `raw_payload`, and `created_at`; the distribution snapshot also carries `source_id`, `provider`, `metrics`, and `created_at`. Render the trust-relevant ones (provider, source id, ingestion run id) and keep `raw_payload` / `metrics` behind a disclosure.
 - `trade_date` / `expiration_date` / `source_trade_dates` arrive as RFC3339 timestamps; the chain `trade_date` query param must be `YYYY-MM-DD` (pass the date-only portion).
-- `limit` defaults to 500 on chain but the gateway clamps to a 200 maximum.
+- `limit` defaults to 500 for direct API consumers and the repository clamps values above 5000. The asset UI requests 20 rows by default and offers only 10 or 20 rows for scanability; this does not change persisted chain evidence or derived distributions.
 - Known bucket keys (render in this order, unknown future keys appended after): moneyness `<90%`, `90-95%`, `95-100%`, `100-105%`, `105-110%`, `>110%`, `unknown`; expiration `0-7d`, `8-30d`, `31-60d`, `61d+`.
 
 ## Required Implementation
@@ -232,7 +232,7 @@ Update the asset detail area for `/marketops/assets`. When an asset row/card is 
 - Fetch coverage.
 - Fetch distributions with `window=10_trade_days&limit=10`.
 - Select the latest distribution by `trade_date` as the default chain trade date.
-- Fetch chain rows for that date with default `limit=500`.
+- Fetch at most 20 chain rows for that date by default; the analyst may reduce this to 10 but cannot increase UI visibility above 20.
 
 Do not create a new top-level route unless the existing asset page already uses nested detail routes.
 
@@ -245,7 +245,7 @@ Add an `Options` panel or tab in the selected asset detail. Recommended layout:
 - Rolling ratio view: compact line or bar chart over returned distribution snapshots.
 - Bucket views: side-by-side moneyness and expiration buckets, each showing call vs put open interest and volume.
 - Chain table: option ticker, type, expiration, strike, moneyness, open interest, volume, IV, delta, updated time.
-- Controls: trade-date selector, segmented call/put/all filter, row limit selector.
+- Controls: trade-date selector, segmented call/put/all filter, and a 10/20 row-limit selector.
 
 Use existing charting/table primitives if present. If no chart library exists, use accessible HTML/CSS bars rather than adding a dependency. Keep the view dense and analytical; avoid marketing-style cards.
 

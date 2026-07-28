@@ -25,15 +25,34 @@ type InvalidEventError struct{ Err error }
 func (e InvalidEventError) Error() string { return e.Err.Error() }
 func (e InvalidEventError) Unwrap() error { return e.Err }
 
+type RawEventDefinitionValidator interface {
+	ValidateRawEvent(context.Context, []byte) error
+}
+
+type invalidRawEventError interface {
+	error
+	InvalidRawEvent()
+}
+
 type Processor struct {
-	Publisher   broker.Publisher
-	Repository  storage.NormalizedEventLedgerRepository
-	OutputTopic string
+	Publisher           broker.Publisher
+	Repository          storage.NormalizedEventLedgerRepository
+	DefinitionValidator RawEventDefinitionValidator
+	OutputTopic         string
 }
 
 func (p Processor) Process(ctx context.Context, message broker.ConsumedMessage) (storage.NormalizedEventLedgerRecord, error) {
 	if p.Publisher == nil || p.Repository == nil || strings.TrimSpace(p.OutputTopic) == "" {
 		return storage.NormalizedEventLedgerRecord{}, errors.New("normalizer is not fully configured")
+	}
+	if p.DefinitionValidator != nil {
+		if err := p.DefinitionValidator.ValidateRawEvent(ctx, message.Value); err != nil {
+			var invalid invalidRawEventError
+			if errors.As(err, &invalid) {
+				return storage.NormalizedEventLedgerRecord{}, InvalidEventError{Err: err}
+			}
+			return storage.NormalizedEventLedgerRecord{}, fmt.Errorf("validate raw event platform definitions: %w", err)
+		}
 	}
 	event, err := BuildEvent(message, time.Now().UTC())
 	if err != nil {

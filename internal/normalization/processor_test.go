@@ -3,6 +3,7 @@ package normalization
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -23,6 +24,15 @@ func (*fakePublisher) Close(context.Context) error { return nil }
 type fakeRepository struct {
 	record storage.NormalizedEventLedgerRecord
 }
+
+type fakeDefinitionValidator struct{ err error }
+
+func (v fakeDefinitionValidator) ValidateRawEvent(context.Context, []byte) error { return v.err }
+
+type invalidDefinitionError struct{ err error }
+
+func (e invalidDefinitionError) Error() string  { return e.err.Error() }
+func (invalidDefinitionError) InvalidRawEvent() {}
 
 func (r *fakeRepository) UpsertNormalizedEventLedger(_ context.Context, record storage.NormalizedEventLedgerRecord) error {
 	r.record = record
@@ -102,6 +112,14 @@ func TestBuildEventNormalizesMassiveOptionContractDaily(t *testing.T) {
 	normalization, _ := event.Metadata["normalization"].(map[string]any)
 	if normalization["strategy"] != "marketops_massive_option_contract_daily_v1" {
 		t.Fatalf("normalization metadata = %+v", normalization)
+	}
+	versions, _ := event.Metadata["platform_definition_versions"].(map[string]any)
+	if versions["source"] != "1.0.0" || versions["pipeline"] != "1.0.0" || versions["dataset"] != "1.0.0" {
+		t.Fatalf("platform definition versions = %+v", versions)
+	}
+	quality, _ := event.Metadata["quality"].(map[string]any)
+	if quality["quality_state"] != "usable" || quality["quality_policy_id"] != "policy_signalops_normalized_event_quality_v1" || quality["quality_policy_version"] != "1.0.0" {
+		t.Fatalf("quality metadata = %+v", quality)
 	}
 }
 
@@ -183,6 +201,28 @@ func TestProcessorPublishesAndPersistsBrokerLineage(t *testing.T) {
 	}
 }
 
+func TestProcessorClassifiesInvalidDefinitionMetadata(t *testing.T) {
+	publisher := &fakePublisher{}
+	processor := Processor{Publisher: publisher, Repository: &fakeRepository{}, OutputTopic: "signalops.test.normalized.v1", DefinitionValidator: fakeDefinitionValidator{err: invalidDefinitionError{err: errors.New("definition version mismatch")}}}
+	_, err := processor.Process(context.Background(), validMessage())
+	var invalid InvalidEventError
+	if !errors.As(err, &invalid) {
+		t.Fatalf("expected invalid event error, got %v", err)
+	}
+	if publisher.message.Topic != "" {
+		t.Fatalf("unexpected publish: %+v", publisher.message)
+	}
+}
+
+func TestProcessorRetainsOperationalDefinitionValidationFailures(t *testing.T) {
+	processor := Processor{Publisher: &fakePublisher{}, Repository: &fakeRepository{}, OutputTopic: "signalops.test.normalized.v1", DefinitionValidator: fakeDefinitionValidator{err: errors.New("database unavailable")}}
+	_, err := processor.Process(context.Background(), validMessage())
+	var invalid InvalidEventError
+	if err == nil || errors.As(err, &invalid) {
+		t.Fatalf("expected retriable validation error, got %v", err)
+	}
+}
+
 func validMessage() broker.ConsumedMessage {
 	return broker.ConsumedMessage{
 		Message: broker.Message{
@@ -221,7 +261,7 @@ func massiveOptionMessage() broker.ConsumedMessage {
 					"raw":{"source_field":"value"}
 				},
 				"entity_hints":[{"type":"option_contract","external_id":"O:SPY260116C00600000"},{"type":"ticker","external_id":"SPY"}],
-				"metadata":{},"correlation_id":"corr-option-1"
+				"metadata":{"platform_definition_versions":{"source":"1.0.0","pipeline":"1.0.0","dataset":"1.0.0"},"quality":{"quality_state":"usable","quality_policy_id":"policy_signalops_normalized_event_quality_v1","quality_policy_version":"1.0.0"}},"correlation_id":"corr-option-1"
 			}`),
 		},
 		Partition: 2, Offset: 9,

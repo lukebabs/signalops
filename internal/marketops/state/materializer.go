@@ -74,6 +74,7 @@ func Build(config BuildConfig, input BuildInput) (BuildResult, error) {
 		return BuildResult{}, err
 	}
 
+	provenanceByEventID := normalizedEventProvenanceByID(input.EquityEvents, input.EventEvents)
 	equity, err := equityHistory(config, input.EquityEvents)
 	if err != nil {
 		return BuildResult{}, err
@@ -115,7 +116,7 @@ func Build(config BuildConfig, input BuildInput) (BuildResult, error) {
 
 		observations := make([]storage.MarketOpsFeatureObservationRecord, 0, len(values))
 		for _, value := range values {
-			observation, err := observationRecord(config, session, value)
+			observation, err := observationRecord(config, session, value, provenanceByEventID)
 			if err != nil {
 				return BuildResult{}, err
 			}
@@ -123,7 +124,7 @@ func Build(config BuildConfig, input BuildInput) (BuildResult, error) {
 		}
 		observationsBySession[key] = observations
 		result.Observations = append(result.Observations, observations...)
-		stateRecord, err := marketStateRecord(config, session, observations)
+		stateRecord, err := marketStateRecord(config, session, observations, provenanceByEventID)
 		if err != nil {
 			return BuildResult{}, err
 		}
@@ -778,7 +779,7 @@ func optionQualityFeatures(chain []storage.MarketOpsOptionsChainRecord, cells []
 	}
 }
 
-func observationRecord(config BuildConfig, session time.Time, value featureValue) (storage.MarketOpsFeatureObservationRecord, error) {
+func observationRecord(config BuildConfig, session time.Time, value featureValue, provenanceByEventID map[string]map[string]any) (storage.MarketOpsFeatureObservationRecord, error) {
 	if value.Dimensions == nil {
 		value.Dimensions = map[string]any{}
 	}
@@ -794,7 +795,11 @@ func observationRecord(config BuildConfig, session time.Time, value featureValue
 	if err != nil {
 		return storage.MarketOpsFeatureObservationRecord{}, err
 	}
-	details, _ := json.Marshal(value.Details)
+	details := copyMap(value.Details)
+	if provenance := sourceEventProvenance(value.EventIDs, provenanceByEventID); len(provenance) > 0 {
+		details["input_provenance"] = provenance
+	}
+	detailsJSON, _ := json.Marshal(details)
 	var score *float64
 	if value.QualityScore > 0 || isUsable(value.Quality) {
 		score = floatPtr(value.QualityScore)
@@ -803,22 +808,24 @@ func observationRecord(config BuildConfig, session time.Time, value featureValue
 		FeatureObservationID: identity.ID, TenantID: config.TenantID, AppID: "marketops", AssetID: config.AssetID, Symbol: config.Symbol,
 		SessionDate: dayOnly(session), AsOfTime: sessionEnd(session), FeatureKey: value.Key, FeatureVersion: FeatureVersion,
 		DimensionsJSON: []byte(canonical), NumericValue: value.Numeric, TextValue: value.Text, QualityState: value.Quality, QualityScore: score,
-		QualityDetailsJSON: jsonOrObject(details), SourceEventIDs: uniqueStrings(value.EventIDs), SourceArtifactIDs: uniqueStrings(value.ArtifactIDs),
+		QualityDetailsJSON: jsonOrObject(detailsJSON), SourceEventIDs: uniqueStrings(value.EventIDs), SourceArtifactIDs: uniqueStrings(value.ArtifactIDs),
 		CalculationRunID: config.RunID, DeterministicKey: identity.DeterministicKey,
 	}, nil
 }
 
-func marketStateRecord(config BuildConfig, session time.Time, observations []storage.MarketOpsFeatureObservationRecord) (storage.MarketOpsMarketStateRecord, error) {
+func marketStateRecord(config BuildConfig, session time.Time, observations []storage.MarketOpsFeatureObservationRecord, provenanceByEventID map[string]map[string]any) (storage.MarketOpsMarketStateRecord, error) {
 	identity, err := NewIdentity(IdentityMarketState, config.TenantID, config.AssetID, dateKey(session), StateSchemaVersion)
 	if err != nil {
 		return storage.MarketOpsMarketStateRecord{}, err
 	}
 	ids := make([]string, 0, len(observations))
+	sourceEventIDs := []string{}
 	features := make([]map[string]any, 0, len(observations))
 	qualityCounts := map[string]int{}
 	usable, requiredUsable := 0, 0
 	for index, observation := range observations {
 		ids = append(ids, observation.FeatureObservationID)
+		sourceEventIDs = append(sourceEventIDs, observation.SourceEventIDs...)
 		qualityCounts[observation.QualityState]++
 		if isUsable(observation.QualityState) {
 			usable++
@@ -847,7 +854,11 @@ func marketStateRecord(config BuildConfig, session time.Time, observations []sto
 		quality = storage.MarketOpsQualityUsable
 	}
 	payload, _ := json.Marshal(map[string]any{"schema_version": StateSchemaVersion, "subject": map[string]any{"asset_id": config.AssetID, "symbol": config.Symbol}, "session_date": dateKey(session), "features": features})
-	summary, _ := json.Marshal(map[string]any{"required_feature_slots": requiredFeatureSlots, "usable_required_feature_slots": requiredUsable, "blocked_required_feature_slots": requiredFeatureSlots - requiredUsable, "total_feature_slots": len(observations), "usable_total_feature_slots": usable, "quality_counts": qualityCounts})
+	summaryFields := map[string]any{"required_feature_slots": requiredFeatureSlots, "usable_required_feature_slots": requiredUsable, "blocked_required_feature_slots": requiredFeatureSlots - requiredUsable, "total_feature_slots": len(observations), "usable_total_feature_slots": usable, "quality_counts": qualityCounts}
+	if provenance := sourceEventProvenance(sourceEventIDs, provenanceByEventID); len(provenance) > 0 {
+		summaryFields["input_provenance"] = provenance
+	}
+	summary, _ := json.Marshal(summaryFields)
 	return storage.MarketOpsMarketStateRecord{
 		MarketStateID: identity.ID, TenantID: config.TenantID, AppID: "marketops", AssetID: config.AssetID, Symbol: config.Symbol,
 		SessionDate: dayOnly(session), AsOfTime: sessionEnd(session), StateSchemaVersion: StateSchemaVersion, StatePayloadJSON: payload,
@@ -1104,6 +1115,70 @@ func optionArtifactID(record storage.MarketOpsOptionsChainRecord) string {
 
 func distributionArtifactID(config BuildConfig, record storage.MarketOpsOptionsDistributionRecord) string {
 	return strings.Join([]string{"marketops_options_distribution_daily", config.TenantID, config.Symbol, dateKey(record.TradeDate), record.WindowName}, ":")
+}
+
+func normalizedEventProvenanceByID(groups ...[]storage.NormalizedEventLedgerRecord) map[string]map[string]any {
+	result := map[string]map[string]any{}
+	for _, events := range groups {
+		for _, event := range events {
+			if strings.TrimSpace(event.EventID) == "" || len(event.MetadataJSON) == 0 {
+				continue
+			}
+			metadata := map[string]any{}
+			if json.Unmarshal(event.MetadataJSON, &metadata) != nil {
+				continue
+			}
+			provenance := map[string]any{}
+			if versions, ok := stringMap(metadata["platform_definition_versions"]); ok {
+				provenance["platform_definition_versions"] = versions
+			}
+			if quality, ok := stringMap(metadata["quality"]); ok {
+				provenance["quality"] = quality
+			}
+			if len(provenance) > 0 {
+				result[event.EventID] = provenance
+			}
+		}
+	}
+	return result
+}
+
+func sourceEventProvenance(eventIDs []string, provenanceByEventID map[string]map[string]any) []map[string]any {
+	result := []map[string]any{}
+	for _, eventID := range uniqueStrings(eventIDs) {
+		provenance, ok := provenanceByEventID[eventID]
+		if !ok {
+			continue
+		}
+		entry := copyMap(provenance)
+		entry["event_id"] = eventID
+		result = append(result, entry)
+	}
+	return result
+}
+
+func stringMap(value any) (map[string]string, bool) {
+	fields, ok := value.(map[string]any)
+	if !ok || len(fields) == 0 {
+		return nil, false
+	}
+	result := map[string]string{}
+	for key, value := range fields {
+		text, ok := value.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, false
+		}
+		result[key] = strings.TrimSpace(text)
+	}
+	return result, true
+}
+
+func copyMap(value map[string]any) map[string]any {
+	result := map[string]any{}
+	for key, item := range value {
+		result[key] = item
+	}
+	return result
 }
 
 func uniqueStrings(values []string) []string {

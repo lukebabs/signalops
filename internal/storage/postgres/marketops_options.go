@@ -16,14 +16,14 @@ SELECT tenant_id, symbol, trade_date, option_ticker, provider, source_id, ingest
  contract_type, expiration_date, strike_price, underlying_close, moneyness, open, high, low, close, vwap,
  bid, ask, quote_timestamp, volume, open_interest, implied_volatility, delta, gamma, theta, vega, exercise_style,
  shares_per_contract, provider_request_id, selection_cell, selection_policy_version, selection_score, payload_hash,
- raw_payload, created_at, updated_at FROM marketops_options_chain_daily`
+ raw_payload, provenance, created_at, updated_at FROM marketops_options_chain_daily`
 
 const marketOpsOptionsDistributionSelect = `
 SELECT tenant_id, symbol, trade_date, window_name, source_id, provider, trade_days, contract_count,
  call_contract_count, put_contract_count, total_call_open_interest, total_put_open_interest,
  total_call_volume, total_put_volume, missing_open_interest_count, call_put_open_interest_ratio,
  call_put_volume_ratio, ratio_delta, ratio_change_pct, ratio_zscore, change_point_score, confidence,
- moneyness_distribution, expiration_distribution, metrics, COALESCE(array_to_json(source_trade_dates), '[]'::json)::text,
+ moneyness_distribution, expiration_distribution, metrics, provenance, COALESCE(array_to_json(source_trade_dates), '[]'::json)::text,
  created_at, updated_at FROM marketops_options_distribution_daily`
 
 func (r *Repository) UpsertMarketOpsOptionsChain(ctx context.Context, record storage.MarketOpsOptionsChainRecord) error {
@@ -35,8 +35,8 @@ INSERT INTO marketops_options_chain_daily (
  tenant_id, symbol, trade_date, option_ticker, provider, source_id, ingestion_run_id, contract_type,
  expiration_date, strike_price, underlying_close, moneyness, open, high, low, close, vwap, bid, ask, quote_timestamp, volume,
  open_interest, implied_volatility, delta, gamma, theta, vega, exercise_style, shares_per_contract, provider_request_id,
- selection_cell, selection_policy_version, selection_score, payload_hash, raw_payload, updated_at
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,now())
+ selection_cell, selection_policy_version, selection_score, payload_hash, raw_payload, provenance, updated_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,now())
 ON CONFLICT (tenant_id, symbol, trade_date, option_ticker) DO UPDATE SET
  provider=EXCLUDED.provider, source_id=EXCLUDED.source_id, ingestion_run_id=EXCLUDED.ingestion_run_id,
  contract_type=EXCLUDED.contract_type, expiration_date=EXCLUDED.expiration_date, strike_price=EXCLUDED.strike_price,
@@ -47,13 +47,13 @@ ON CONFLICT (tenant_id, symbol, trade_date, option_ticker) DO UPDATE SET
  vega=EXCLUDED.vega, exercise_style=EXCLUDED.exercise_style, shares_per_contract=EXCLUDED.shares_per_contract,
  provider_request_id=EXCLUDED.provider_request_id, selection_cell=EXCLUDED.selection_cell,
  selection_policy_version=EXCLUDED.selection_policy_version, selection_score=EXCLUDED.selection_score, payload_hash=EXCLUDED.payload_hash,
- raw_payload=EXCLUDED.raw_payload, updated_at=now()`,
+ raw_payload=EXCLUDED.raw_payload, provenance=EXCLUDED.provenance, updated_at=now()`,
 		record.TenantID, strings.ToUpper(strings.TrimSpace(record.Symbol)), dayOnly(record.TradeDate), strings.TrimSpace(record.OptionTicker),
 		firstNonEmptyString(record.Provider, "massive"), record.SourceID, record.IngestionRunID, strings.ToLower(strings.TrimSpace(record.ContractType)),
 		dayOnly(record.ExpirationDate), record.StrikePrice, record.UnderlyingClose, record.Moneyness, record.Open, record.High, record.Low,
 		record.Close, record.VWAP, record.Bid, record.Ask, record.QuoteTimestamp, record.Volume, record.OpenInterest, record.ImpliedVolatility,
 		record.Delta, record.Gamma, record.Theta, record.Vega, record.ExerciseStyle, record.SharesPerContract, record.ProviderRequestID,
-		record.SelectionCell, record.SelectionPolicyVersion, record.SelectionScore, record.PayloadHash, jsonOrEmpty(record.RawPayloadJSON))
+		record.SelectionCell, record.SelectionPolicyVersion, record.SelectionScore, record.PayloadHash, jsonOrEmpty(record.RawPayloadJSON), jsonOrEmpty(record.ProvenanceJSON))
 	if err != nil {
 		return fmt.Errorf("upsert marketops options chain: %w", err)
 	}
@@ -113,8 +113,8 @@ INSERT INTO marketops_options_distribution_daily (
  call_contract_count, put_contract_count, total_call_open_interest, total_put_open_interest,
  total_call_volume, total_put_volume, missing_open_interest_count, call_put_open_interest_ratio,
  call_put_volume_ratio, ratio_delta, ratio_change_pct, ratio_zscore, change_point_score, confidence,
- moneyness_distribution, expiration_distribution, metrics, source_trade_dates, updated_at
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::date[],now())
+ moneyness_distribution, expiration_distribution, metrics, provenance, source_trade_dates, updated_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27::date[],now())
 ON CONFLICT (tenant_id, symbol, trade_date, window_name) DO UPDATE SET
  source_id=EXCLUDED.source_id, provider=EXCLUDED.provider, trade_days=EXCLUDED.trade_days, contract_count=EXCLUDED.contract_count,
  call_contract_count=EXCLUDED.call_contract_count, put_contract_count=EXCLUDED.put_contract_count,
@@ -124,13 +124,13 @@ ON CONFLICT (tenant_id, symbol, trade_date, window_name) DO UPDATE SET
  call_put_volume_ratio=EXCLUDED.call_put_volume_ratio, ratio_delta=EXCLUDED.ratio_delta, ratio_change_pct=EXCLUDED.ratio_change_pct,
  ratio_zscore=EXCLUDED.ratio_zscore, change_point_score=EXCLUDED.change_point_score, confidence=EXCLUDED.confidence,
  moneyness_distribution=EXCLUDED.moneyness_distribution, expiration_distribution=EXCLUDED.expiration_distribution,
- metrics=EXCLUDED.metrics, source_trade_dates=EXCLUDED.source_trade_dates, updated_at=now()`,
+ metrics=EXCLUDED.metrics, provenance=EXCLUDED.provenance, source_trade_dates=EXCLUDED.source_trade_dates, updated_at=now()`,
 		record.TenantID, strings.ToUpper(strings.TrimSpace(record.Symbol)), dayOnly(record.TradeDate), firstNonEmptyString(record.WindowName, "10_trade_days"),
 		record.SourceID, firstNonEmptyString(record.Provider, "massive"), record.TradeDays, record.ContractCount, record.CallContractCount,
 		record.PutContractCount, record.TotalCallOpenInterest, record.TotalPutOpenInterest, record.TotalCallVolume, record.TotalPutVolume,
 		record.MissingOpenInterestCount, record.CallPutOpenInterestRatio, record.CallPutVolumeRatio, record.RatioDelta, record.RatioChangePct,
 		record.RatioZScore, record.ChangePointScore, record.Confidence, jsonOrEmpty(record.MoneynessDistributionJSON),
-		jsonOrEmpty(record.ExpirationDistributionJSON), jsonOrEmpty(record.MetricsJSON), dateArray(record.SourceTradeDates))
+		jsonOrEmpty(record.ExpirationDistributionJSON), jsonOrEmpty(record.MetricsJSON), jsonOrEmpty(record.ProvenanceJSON), dateArray(record.SourceTradeDates))
 	if err != nil {
 		return fmt.Errorf("upsert marketops options distribution: %w", err)
 	}
@@ -174,7 +174,7 @@ func scanMarketOpsOptionsChain(scanner interface{ Scan(...any) error }) (storage
 	var underlyingClose, moneyness, open, high, low, closeValue, vwap, bid, ask, impliedVolatility, delta, gamma, theta, vega, selectionScore sql.NullFloat64
 	var volume, openInterest, sharesPerContract sql.NullInt64
 	var quoteTimestamp sql.NullTime
-	if err := scanner.Scan(&record.TenantID, &record.Symbol, &record.TradeDate, &record.OptionTicker, &record.Provider, &record.SourceID, &record.IngestionRunID, &record.ContractType, &record.ExpirationDate, &record.StrikePrice, &underlyingClose, &moneyness, &open, &high, &low, &closeValue, &vwap, &bid, &ask, &quoteTimestamp, &volume, &openInterest, &impliedVolatility, &delta, &gamma, &theta, &vega, &record.ExerciseStyle, &sharesPerContract, &record.ProviderRequestID, &record.SelectionCell, &record.SelectionPolicyVersion, &selectionScore, &record.PayloadHash, &record.RawPayloadJSON, &record.CreatedAt, &record.UpdatedAt); err != nil {
+	if err := scanner.Scan(&record.TenantID, &record.Symbol, &record.TradeDate, &record.OptionTicker, &record.Provider, &record.SourceID, &record.IngestionRunID, &record.ContractType, &record.ExpirationDate, &record.StrikePrice, &underlyingClose, &moneyness, &open, &high, &low, &closeValue, &vwap, &bid, &ask, &quoteTimestamp, &volume, &openInterest, &impliedVolatility, &delta, &gamma, &theta, &vega, &record.ExerciseStyle, &sharesPerContract, &record.ProviderRequestID, &record.SelectionCell, &record.SelectionPolicyVersion, &selectionScore, &record.PayloadHash, &record.RawPayloadJSON, &record.ProvenanceJSON, &record.CreatedAt, &record.UpdatedAt); err != nil {
 		return storage.MarketOpsOptionsChainRecord{}, mapScanError("scan marketops options chain", err)
 	}
 	record.UnderlyingClose = nullableFloatPtr(underlyingClose)
@@ -205,7 +205,7 @@ func scanMarketOpsOptionsChain(scanner interface{ Scan(...any) error }) (storage
 func scanMarketOpsOptionsDistribution(scanner interface{ Scan(...any) error }) (storage.MarketOpsOptionsDistributionRecord, error) {
 	var record storage.MarketOpsOptionsDistributionRecord
 	var tradeDatesJSON string
-	if err := scanner.Scan(&record.TenantID, &record.Symbol, &record.TradeDate, &record.WindowName, &record.SourceID, &record.Provider, &record.TradeDays, &record.ContractCount, &record.CallContractCount, &record.PutContractCount, &record.TotalCallOpenInterest, &record.TotalPutOpenInterest, &record.TotalCallVolume, &record.TotalPutVolume, &record.MissingOpenInterestCount, &record.CallPutOpenInterestRatio, &record.CallPutVolumeRatio, &record.RatioDelta, &record.RatioChangePct, &record.RatioZScore, &record.ChangePointScore, &record.Confidence, &record.MoneynessDistributionJSON, &record.ExpirationDistributionJSON, &record.MetricsJSON, &tradeDatesJSON, &record.CreatedAt, &record.UpdatedAt); err != nil {
+	if err := scanner.Scan(&record.TenantID, &record.Symbol, &record.TradeDate, &record.WindowName, &record.SourceID, &record.Provider, &record.TradeDays, &record.ContractCount, &record.CallContractCount, &record.PutContractCount, &record.TotalCallOpenInterest, &record.TotalPutOpenInterest, &record.TotalCallVolume, &record.TotalPutVolume, &record.MissingOpenInterestCount, &record.CallPutOpenInterestRatio, &record.CallPutVolumeRatio, &record.RatioDelta, &record.RatioChangePct, &record.RatioZScore, &record.ChangePointScore, &record.Confidence, &record.MoneynessDistributionJSON, &record.ExpirationDistributionJSON, &record.MetricsJSON, &record.ProvenanceJSON, &tradeDatesJSON, &record.CreatedAt, &record.UpdatedAt); err != nil {
 		return storage.MarketOpsOptionsDistributionRecord{}, mapScanError("scan marketops options distribution", err)
 	}
 	record.SourceTradeDates = parseDateJSONList(tradeDatesJSON)

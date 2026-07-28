@@ -8,14 +8,15 @@ import (
 const (
 	DefaultEnvironment = "local"
 
-	RawTopic              = "raw"
-	NormalizedTopic       = "normalized"
-	SignalTopic           = "signal"
-	ArtifactTopic         = "artifact"
-	GraphMutationTopic    = "graph_mutation"
-	InsightCandidateTopic = "insight_candidate"
-	RetryAlgorithmTopic   = "retry.algorithm"
-	DLQAlgorithmTopic     = "dlq.algorithm"
+	RawTopic                = "raw"
+	NormalizedTopic         = "normalized"
+	SignalTopic             = "signal"
+	ArtifactTopic           = "artifact"
+	GraphMutationTopic      = "graph_mutation"
+	InsightCandidateTopic   = "insight_candidate"
+	RetryAlgorithmTopic     = "retry.algorithm"
+	DLQAlgorithmTopic       = "dlq.algorithm"
+	ConnectAcceptedRawTopic = "connect-accepted-raw"
 )
 
 var durableTopicNames = []string{
@@ -27,6 +28,7 @@ var durableTopicNames = []string{
 	InsightCandidateTopic,
 	RetryAlgorithmTopic,
 	DLQAlgorithmTopic,
+	ConnectAcceptedRawTopic,
 }
 
 // TopicName returns the durable SignalOps topic name for an environment.

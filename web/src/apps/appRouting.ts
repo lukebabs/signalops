@@ -48,7 +48,11 @@ export type AppRoutePath =
   | '/marketops/opportunities'
   | '/marketops/backtests'
   | '/marketops/syncratic'
-  | '/marketops/algorithms';
+  | '/marketops/algorithms'
+  | '/cyberops'
+  | '/cyberops/signals'
+  | '/cyberops/alerts'
+  | '/cyberops/insights';
 
 export type MetadataFilter = { app_id?: string; domain?: string; use_case?: string };
 
@@ -58,19 +62,21 @@ export interface NavItem {
   label: string;
 }
 
-// Detect the active app from the route prefix. /marketops and /marketops/* -> marketops;
-// every other path (including "/" and all existing console routes) -> console.
+// Detect the active app from its route prefix. Every other path (including "/"
+// and all existing console routes) is the administration console.
 export function appIdFromPathname(pathname: string): string {
   const p = pathname || '/';
   if (p === '/marketops' || p.startsWith('/marketops/')) return 'marketops';
+  if (p === '/cyberops' || p.startsWith('/cyberops/')) return 'cyberops';
   return 'console';
 }
 
 // Metadata filter applied to G066-aware list APIs (raw/normalized/signals/
-// alerts/insights). Console is unscoped; MarketOps is scoped to
-// app_id=marketops, domain=market_data. use_case is not forced globally.
+// alerts/insights). Console is unscoped; use-case-specific apps are scoped by
+// app_id and domain. use_case is not forced globally.
 export function metadataFilterForApp(appId: string): MetadataFilter {
   if (appId === 'marketops') return { app_id: 'marketops', domain: 'market_data' };
+  if (appId === 'cyberops') return { app_id: 'cyberops', domain: 'security' };
   return {};
 }
 
@@ -97,6 +103,12 @@ const MARKETOPS_NAV: NavItem[] = [
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },
 ];
 
+const CYBEROPS_NAV: NavItem[] = [
+  { module: "signals", to: "/cyberops/signals", label: "Signals" },
+  { module: "alerts", to: "/cyberops/alerts", label: "Alerts" },
+  { module: "insights", to: "/cyberops/insights", label: "Insights" },
+];
+
 // Nav is an explicit per-app route set matching the G067 Required Outcome +
 // Routing Work. The backend profile's enabled_modules is consumed for the app
 // selector/labels but does not fully cover the desired nav (it omits several
@@ -104,5 +116,7 @@ const MARKETOPS_NAV: NavItem[] = [
 // renaming existing console routes is a non-goal — so nav is not gated by
 // enabled_modules.
 export function navForApp(appId: string): NavItem[] {
-  return appId === 'marketops' ? MARKETOPS_NAV : CONSOLE_NAV;
+  if (appId === 'marketops') return MARKETOPS_NAV;
+  if (appId === 'cyberops') return CYBEROPS_NAV;
+  return CONSOLE_NAV;
 }

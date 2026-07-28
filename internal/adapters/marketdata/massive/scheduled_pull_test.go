@@ -225,6 +225,35 @@ func TestRunScheduledPullPublishesRawEvents(t *testing.T) {
 	}
 }
 
+func TestRunScheduledPullIncludesPlatformDefinitionVersions(t *testing.T) {
+	publisher := &fakePublisher{}
+	_, err := RunScheduledPull(context.Background(), ScheduledPullConfig{
+		TenantID: "tenant-1", SourceID: "src-massive", Environment: "test", ObservationDate: testObservationDate(),
+		Companies: []MegacapCompanySeed{{Ticker: "NVDA"}}, IncludeEquityEOD: true, DryRun: false,
+		PlatformDefinitionVersions: map[string]string{"source": "1.0.0", "pipeline": "1.0.0", DatasetEquityEODPrices: "2.0.0", "normalized_event_quality_policy_id": "policy-quality", "normalized_event_quality_policy_version": "1.0.0", "normalized_event_quality_default_state": "usable"},
+	}, fakeScheduledClient{equityRecords: map[string]EquityEODPriceRecord{"NVDA": {ProviderEventID: "nvda-2026-07-06", Symbol: "NVDA", ObservationDate: testObservationDate()}}}, publisher)
+	if err != nil {
+		t.Fatalf("run scheduled pull: %v", err)
+	}
+	var decoded struct {
+		Metadata map[string]any `json:"metadata"`
+	}
+	if err := json.Unmarshal(publisher.messages[0].Value, &decoded); err != nil {
+		t.Fatalf("decode raw event: %v", err)
+	}
+	versions, ok := decoded.Metadata["platform_definition_versions"].(map[string]any)
+	if !ok {
+		t.Fatalf("definition versions = %#v", decoded.Metadata["platform_definition_versions"])
+	}
+	if versions["source"] != "1.0.0" || versions["pipeline"] != "1.0.0" || versions["dataset"] != "2.0.0" {
+		t.Fatalf("definition versions = %#v", versions)
+	}
+	quality, ok := decoded.Metadata["quality"].(map[string]any)
+	if !ok || quality["quality_state"] != "usable" || quality["quality_policy_id"] != "policy-quality" || quality["quality_policy_version"] != "1.0.0" {
+		t.Fatalf("quality metadata = %#v", decoded.Metadata["quality"])
+	}
+}
+
 func TestRunScheduledPullRequiresPublisherWhenPublishing(t *testing.T) {
 	_, err := RunScheduledPull(context.Background(), ScheduledPullConfig{
 		TenantID:         "tenant-1",

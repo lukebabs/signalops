@@ -8,6 +8,7 @@ const (
 
 	AppConsole   = "console"
 	AppMarketOps = "marketops"
+	AppCyberOps  = "cyberops"
 )
 
 type Metadata struct {
@@ -44,6 +45,14 @@ var Profiles = []Profile{
 		Domains:          []string{"market_data"},
 		EnabledModules:   []string{"dashboard", "symbols", "option_contracts", "signals", "alerts", "replay", "providers", "pipelines", "health"},
 		DashboardProfile: "marketdata.default",
+	},
+	{
+		AppID:            AppCyberOps,
+		Label:            "CyberOps",
+		DefaultRoute:     "/cyberops/signals",
+		Domains:          []string{"security"},
+		EnabledModules:   []string{"signals", "alerts", "insights"},
+		DashboardProfile: "security.default",
 	},
 }
 

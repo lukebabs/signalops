@@ -5,6 +5,7 @@ import {
   summarizeMarketOpsOptionsChainRow,
   optionsBucketEntries,
   marketOpsOptionsDateOnly,
+  moneynessBucketNarrative,
   MONEYNESS_BUCKET_ORDER,
   EXPIRATION_BUCKET_ORDER,
 } from './marketopsOptions';
@@ -66,6 +67,46 @@ describe('optionsBucketEntries (G128)', () => {
     expect(optionsBucketEntries('nope', MONEYNESS_BUCKET_ORDER)).toEqual([]);
     const entries = optionsBucketEntries({ '0-7d': {} }, EXPIRATION_BUCKET_ORDER);
     expect(entries[0].callOpenInterest).toBe(0);
+  });
+});
+
+describe('moneynessBucketNarrative', () => {
+  const entries = [
+    { key: '<90%', callOpenInterest: 60, putOpenInterest: 40, callVolume: 5, putVolume: 2, contractCount: 2 },
+    { key: '100-105%', callOpenInterest: 10, putOpenInterest: 90, callVolume: 0, putVolume: 0, contractCount: 2 },
+  ];
+
+  it.each([
+    ['<90%', 'calls are deeply in the money'],
+    ['90-95%', 'calls are in the money'],
+    ['95-100%', 'calls are near in the money'],
+    ['100-105%', 'calls are near out of the money'],
+    ['105-110%', 'calls are out of the money'],
+    ['>110%', 'calls are deeply out of the money'],
+    ['unknown', 'Moneyness was unavailable'],
+  ])('describes the deterministic payoff context for %s', (key, context) => {
+    const narrative = moneynessBucketNarrative({ ...entries[0], key }, entries, 'usable');
+    expect(narrative.bucketContext).toContain(context);
+  });
+
+  it('reports bucket share and call dominance at the 60 percent threshold', () => {
+    const narrative = moneynessBucketNarrative(entries[0], entries, 'usable');
+    expect(narrative.openInterest).toContain('50.0% of displayed moneyness OI');
+    expect(narrative.positioning).toBe('Call OI exceeds put OI (60.0% of bucket OI).');
+    expect(narrative.volume).toContain('Volume: calls 5; puts 2.');
+    expect(narrative.interpretationAllowed).toBe(true);
+  });
+
+  it('reports put dominance, balanced OI, and absent OI deterministically', () => {
+    expect(moneynessBucketNarrative(entries[1], entries, 'usable').positioning).toBe('Put OI exceeds call OI (90.0% of bucket OI).');
+    expect(moneynessBucketNarrative({ ...entries[0], callOpenInterest: 50, putOpenInterest: 50 }, entries, 'usable').positioning).toContain('balanced');
+    expect(moneynessBucketNarrative({ ...entries[0], callOpenInterest: 0, putOpenInterest: 0 }, entries, 'usable').positioning).toBe('No recorded open interest in this bucket.');
+  });
+
+  it.each(['partial_zero', 'denominator_zero'])('suppresses directional positioning when ratio quality is %s', (ratioQuality) => {
+    const narrative = moneynessBucketNarrative(entries[0], entries, ratioQuality);
+    expect(narrative.positioning).toBe('Positioning interpretation is unavailable because call/put OI ratio quality is ' + ratioQuality + '.');
+    expect(narrative.interpretationAllowed).toBe(false);
   });
 });
 

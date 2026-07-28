@@ -128,6 +128,9 @@ func tenantFromPath(path string) string {
 }
 
 func authorizedForRequest(r *http.Request, principal Principal) bool {
+	if isPlatformRegistryMutationRoute(r) {
+		return hasAnyRole(principal, roleAdmin)
+	}
 	if isLifecycleMutationRoute(r) {
 		return hasAnyRole(principal, roleOperator, roleAdmin)
 	}
@@ -135,6 +138,14 @@ func authorizedForRequest(r *http.Request, principal Principal) bool {
 		return hasAnyRole(principal, roleViewer, roleOperator, roleAdmin)
 	}
 	return true
+}
+
+func isPlatformRegistryMutationRoute(r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		return false
+	}
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	return len(parts) == 5 && parts[0] == "v1" && parts[1] == "tenants" && parts[3] == "platform" && parts[4] == "primitive-definitions"
 }
 
 func isLifecycleMutationRoute(r *http.Request) bool {

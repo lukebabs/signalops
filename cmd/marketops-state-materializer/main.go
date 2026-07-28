@@ -10,16 +10,19 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/lukebabs/signalops/internal/config"
 	marketopsstate "github.com/lukebabs/signalops/internal/marketops/state"
+	"github.com/lukebabs/signalops/internal/platformregistry"
 	"github.com/lukebabs/signalops/internal/storage"
 	postgresstorage "github.com/lukebabs/signalops/internal/storage/postgres"
 )
 
 type repository interface {
+	platformregistry.DefinitionLister
 	ListMarketOpsBacktestNormalizedEvents(context.Context, storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error)
 	ListMarketOpsOptionsDistributions(context.Context, storage.MarketOpsOptionsDistributionFilter) ([]storage.MarketOpsOptionsDistributionRecord, error)
 	ListMarketOpsOptionsChain(context.Context, storage.MarketOpsOptionsChainFilter) ([]storage.MarketOpsOptionsChainRecord, error)
@@ -31,16 +34,18 @@ type repository interface {
 }
 
 type cliConfig struct {
-	TenantID    string
-	Symbol      string
-	AssetID     string
-	WindowStart time.Time
-	WindowEnd   time.Time
-	Symbols     []string
-	MaxSymbols  int
-	MaxSessions int
-	RunID       string
-	DryRun      bool
+	TenantID            string
+	Symbol              string
+	AssetID             string
+	WindowStart         time.Time
+	WindowEnd           time.Time
+	Symbols             []string
+	MaxSymbols          int
+	MaxSessions         int
+	RunID               string
+	DryRun              bool
+	RegistryEnforcement bool
+	FreshWindow         bool
 }
 
 type metrics struct {
@@ -152,6 +157,9 @@ func materialize(ctx context.Context, repo repository, cfg cliConfig) (metrics, 
 	}
 	startedAt := time.Now().UTC()
 	warmupStart := cfg.WindowStart.AddDate(0, 0, -90)
+	if cfg.FreshWindow {
+		warmupStart = cfg.WindowStart
+	}
 	result := metrics{RunID: cfg.RunID, TenantID: cfg.TenantID, Symbol: cfg.Symbol, WindowStart: cfg.WindowStart.Format(time.RFC3339), WindowEnd: cfg.WindowEnd.Format(time.RFC3339), StateQualityCounts: map[string]int{}, DryRun: cfg.DryRun, StartedAt: startedAt.Format(time.RFC3339Nano)}
 	events, err := repo.ListMarketOpsBacktestNormalizedEvents(ctx, storage.MarketOpsBacktestEventFilter{
 		TenantID: cfg.TenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance",
@@ -169,6 +177,14 @@ func materialize(ctx context.Context, repo repository, cfg cliConfig) (metrics, 
 	if err != nil {
 		return result, err
 	}
+	if cfg.RegistryEnforcement {
+		validator := platformregistry.MassiveNormalizedEventDefinitionValidator{Lister: repo}
+		for _, event := range append(append([]storage.NormalizedEventLedgerRecord{}, events...), eventEvents...) {
+			if err := validator.ValidateNormalizedEvent(ctx, event); err != nil {
+				return result, fmt.Errorf("validate normalized event %s platform definitions: %w", event.EventID, err)
+			}
+		}
+	}
 	distributions, err := repo.ListMarketOpsOptionsDistributions(ctx, storage.MarketOpsOptionsDistributionFilter{TenantID: cfg.TenantID, Symbol: cfg.Symbol, Limit: 1000})
 	if err != nil {
 		return result, err
@@ -183,6 +199,7 @@ func materialize(ctx context.Context, repo repository, cfg cliConfig) (metrics, 
 	if err != nil {
 		return result, err
 	}
+	propagateOptionsArtifactProvenance(&built, distributions, chain)
 	result.Definitions, result.Observations, result.States, result.Transitions, result.Evidence = len(built.Definitions), len(built.Observations), len(built.States), len(built.Transitions), len(built.Evidence)
 	for _, state := range built.States {
 		result.StateQualityCounts[state.QualityState]++
@@ -234,6 +251,7 @@ func loadConfig() (cliConfig, error) {
 	flag.IntVar(&cfg.MaxSessions, "max-sessions", 100, "maximum unioned equity/options sessions")
 	flag.StringVar(&cfg.RunID, "run-id", "", "materialization run id")
 	flag.BoolVar(&cfg.DryRun, "dry-run", false, "build without ledger writes")
+	flag.BoolVar(&cfg.FreshWindow, "fresh-window", false, "omit historical warmup inputs for a forward-only provenance-valid window")
 	flag.Parse()
 	var err error
 	if cfg.WindowStart, err = parseDate(startValue); err != nil {
@@ -258,6 +276,7 @@ func loadConfig() (cliConfig, error) {
 	if strings.TrimSpace(cfg.RunID) == "" {
 		cfg.RunID = "mstatebuild_" + randomHex(12)
 	}
+	cfg.RegistryEnforcement = envBoolOrDefault("SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT", false)
 	return cfg, nil
 }
 
@@ -316,6 +335,68 @@ func (cfg cliConfig) validate() error {
 	return nil
 }
 
+func propagateOptionsArtifactProvenance(built *marketopsstate.BuildResult, distributions []storage.MarketOpsOptionsDistributionRecord, chain []storage.MarketOpsOptionsChainRecord) {
+	byArtifact := map[string]any{}
+	for _, row := range distributions {
+		if len(row.ProvenanceJSON) > 0 && string(row.ProvenanceJSON) != "{}" {
+			var value any
+			if json.Unmarshal(row.ProvenanceJSON, &value) == nil {
+				byArtifact["marketops_options_distribution_daily:"+row.TenantID+":"+strings.ToUpper(row.Symbol)+":"+row.TradeDate.UTC().Format("2006-01-02")+":"+row.WindowName] = value
+			}
+		}
+	}
+	for _, row := range chain {
+		if len(row.ProvenanceJSON) > 0 && string(row.ProvenanceJSON) != "{}" {
+			var value any
+			if json.Unmarshal(row.ProvenanceJSON, &value) == nil {
+				byArtifact["marketops_options_chain_daily:"+row.TenantID+":"+strings.ToUpper(row.Symbol)+":"+row.TradeDate.UTC().Format("2006-01-02")+":"+row.OptionTicker] = value
+			}
+		}
+	}
+	if len(byArtifact) == 0 {
+		return
+	}
+	byObservation := map[string][]any{}
+	for index := range built.Observations {
+		row := &built.Observations[index]
+		entries := []any{}
+		for _, artifactID := range row.SourceArtifactIDs {
+			if value, ok := byArtifact[artifactID]; ok {
+				entries = append(entries, map[string]any{"artifact_id": artifactID, "provenance": value})
+			}
+		}
+		if len(entries) == 0 {
+			continue
+		}
+		details := map[string]any{}
+		_ = json.Unmarshal(row.QualityDetailsJSON, &details)
+		details["options_artifact_provenance"] = entries
+		row.QualityDetailsJSON, _ = json.Marshal(details)
+		byObservation[row.FeatureObservationID] = entries
+	}
+	for index := range built.States {
+		row := &built.States[index]
+		entries := []any{}
+		seen := map[string]bool{}
+		for _, id := range row.FeatureObservationIDs {
+			for _, entry := range byObservation[id] {
+				encoded, _ := json.Marshal(entry)
+				if !seen[string(encoded)] {
+					seen[string(encoded)] = true
+					entries = append(entries, entry)
+				}
+			}
+		}
+		if len(entries) == 0 {
+			continue
+		}
+		summary := map[string]any{}
+		_ = json.Unmarshal(row.QualitySummaryJSON, &summary)
+		summary["options_artifact_provenance"] = entries
+		row.QualitySummaryJSON, _ = json.Marshal(summary)
+	}
+}
+
 func filterDistributions(records []storage.MarketOpsOptionsDistributionRecord, start, end time.Time) []storage.MarketOpsOptionsDistributionRecord {
 	out := make([]storage.MarketOpsOptionsDistributionRecord, 0, len(records))
 	for _, record := range records {
@@ -329,6 +410,18 @@ func filterDistributions(records []storage.MarketOpsOptionsDistributionRecord, s
 func parseDate(value string) (time.Time, error) {
 	return time.Parse("2006-01-02", strings.TrimSpace(value))
 }
+func envBoolOrDefault(key string, fallback bool) bool {
+	value, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
 func randomHex(size int) string {
 	value := make([]byte, size)
 	_, _ = rand.Read(value)

@@ -168,6 +168,29 @@ func TestAuthEnabledRejectsViewerLifecycleMutation(t *testing.T) {
 	}
 }
 
+func TestAuthEnabledRequiresAdminForPlatformDefinitionWrite(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &fakeQueryRepository{}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, PlatformDefinitionRepository: repo})
+	body := strings.NewReader(`{"primitive_type":"dataset","definition_id":"dset-test-v1","definition_key":"test.dataset","version":"1.0.0","status":"draft","contract":{},"metadata":{}}`)
+	viewer := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleViewer}}})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, withBearer(httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-local/platform/primitive-definitions", body), viewer))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("viewer status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	admin := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleAdmin}}})
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, withBearer(httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-local/platform/primitive-definitions", strings.NewReader(`{"primitive_type":"dataset","definition_id":"dset-test-v1","definition_key":"test.dataset","version":"1.0.0","status":"draft","contract":{},"metadata":{}}`)), admin))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if repo.lastPrimitiveDefinitionAuditActor != "operator-auth" {
+		t.Fatalf("audit actor = %q", repo.lastPrimitiveDefinitionAuditActor)
+	}
+}
+
 func TestAuthEnabledUsesTokenActorForLifecycleMutation(t *testing.T) {
 	fixture := newTestAuthFixture(t)
 	repo := &fakeQueryRepository{alerts: []storage.AlertLedgerRecord{validAlertRecord()}}

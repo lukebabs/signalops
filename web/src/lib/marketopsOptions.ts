@@ -54,6 +54,61 @@ export interface MarketOpsOptionsBucketEntry {
   contractCount: number;
 }
 
+export interface MoneynessBucketNarrative {
+  bucketContext: string;
+  openInterest: string;
+  positioning: string;
+  volume: string | null;
+  caveat: string;
+  interpretationAllowed: boolean;
+}
+
+const MONEYNESS_BUCKET_CONTEXT: Record<string, string> = {
+  '<90%': 'Strike is below 90% of the underlying price: calls are deeply in the money and puts are deeply out of the money.',
+  '90-95%': 'Strike is 90-95% of the underlying price: calls are in the money and puts are out of the money.',
+  '95-100%': 'Strike is 95-100% of the underlying price: calls are near in the money and puts are near out of the money.',
+  '100-105%': 'Strike is 100-105% of the underlying price: calls are near out of the money and puts are near in the money.',
+  '105-110%': 'Strike is 105-110% of the underlying price: calls are out of the money and puts are in the money.',
+  '>110%': 'Strike is above 110% of the underlying price: calls are deeply out of the money and puts are deeply in the money.',
+  unknown: 'Moneyness was unavailable for these contracts, so no strike-versus-underlying payoff context is shown.',
+};
+
+function nonNegativeNumber(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+export function moneynessBucketNarrative(
+  entry: MarketOpsOptionsBucketEntry,
+  entries: readonly MarketOpsOptionsBucketEntry[],
+  ratioQuality: MarketOpsOptionsRatioQuality,
+): MoneynessBucketNarrative {
+  const callOpenInterest = nonNegativeNumber(entry.callOpenInterest);
+  const putOpenInterest = nonNegativeNumber(entry.putOpenInterest);
+  const totalOpenInterest = callOpenInterest + putOpenInterest;
+  const allOpenInterest = entries.reduce((total, bucket) => total + nonNegativeNumber(bucket.callOpenInterest) + nonNegativeNumber(bucket.putOpenInterest), 0);
+  const bucketShare = allOpenInterest > 0 ? (totalOpenInterest / allOpenInterest) * 100 : 0;
+  const callShare = totalOpenInterest > 0 ? (callOpenInterest / totalOpenInterest) * 100 : 0;
+  const putShare = totalOpenInterest > 0 ? (putOpenInterest / totalOpenInterest) * 100 : 0;
+  const usable = ratioQuality === 'usable';
+  const combinedVolume = nonNegativeNumber(entry.callVolume) + nonNegativeNumber(entry.putVolume);
+
+  let positioning: string;
+  if (totalOpenInterest === 0) positioning = 'No recorded open interest in this bucket.';
+  else if (!usable) positioning = 'Positioning interpretation is unavailable because call/put OI ratio quality is ' + (ratioQuality || 'unknown') + '.';
+  else if (callShare >= 60) positioning = 'Call OI exceeds put OI (' + callShare.toFixed(1) + '% of bucket OI).';
+  else if (putShare >= 60) positioning = 'Put OI exceeds call OI (' + putShare.toFixed(1) + '% of bucket OI).';
+  else positioning = 'Call and put OI are balanced (calls ' + callShare.toFixed(1) + '%, puts ' + putShare.toFixed(1) + '%).';
+
+  return {
+    bucketContext: MONEYNESS_BUCKET_CONTEXT[entry.key] ?? 'This is an unrecognized moneyness bucket; no strike-versus-underlying payoff context is shown.',
+    openInterest: 'Open interest: calls ' + callOpenInterest + '; puts ' + putOpenInterest + '; ' + totalOpenInterest + ' total (' + bucketShare.toFixed(1) + '% of displayed moneyness OI).',
+    positioning,
+    volume: combinedVolume > 0 ? 'Volume: calls ' + nonNegativeNumber(entry.callVolume) + '; puts ' + nonNegativeNumber(entry.putVolume) + '. Volume is participation context only.' : null,
+    caveat: 'Open interest does not identify whether contracts were bought or sold and is not a price forecast.',
+    interpretationAllowed: usable && totalOpenInterest > 0,
+  };
+}
+
 function bucketNumber(bucket: unknown, field: string): number {
   if (!isRecord(bucket)) return 0;
   return asNumber(bucket[field]);

@@ -49,3 +49,15 @@ export const MARKETOPS_PROFILE: AppProfile = {
   ],
   dashboard_profile: 'marketdata.default',
 };
+
+// CyberOps reuses the generic SignalOps investigation workflow. Keeping this
+// profile locally means the app selector can expose CyberOps while a gateway
+// rollout is still serving an older /v1/app-profiles response.
+export const CYBEROPS_PROFILE: AppProfile = {
+  app_id: "cyberops",
+  label: "CyberOps",
+  default_route: "/cyberops/signals",
+  domains: ["security"],
+  enabled_modules: ["signals", "alerts", "insights"],
+  dashboard_profile: "security.default",
+};

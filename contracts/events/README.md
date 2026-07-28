@@ -28,6 +28,12 @@ Python processing workers. They include source-domain, adapter, ingestion-mode,
 dataset, time, correlation, and idempotency fields required for replayable
 multi-domain signal processing.
 
+Raw and normalized event metadata may include the shared `quality` envelope. When
+present it requires `quality_state`, `quality_policy_id`, and semantic
+`quality_policy_version`. The state is one of the platform standard quality
+states. The Massive opt-in registry enforcement path uses this envelope for the
+active `signalops.normalized_event_quality` policy.
+
 `DLQEvent` captures failed durable processing attempts with source topic,
 partition, offset, headers, and base64-encoded original payload so failures can
 be audited and replayed without losing the original broker value.

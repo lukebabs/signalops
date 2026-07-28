@@ -17,6 +17,7 @@ import (
 	"github.com/lukebabs/signalops/internal/adapters/marketdata/massive"
 	kafkabroker "github.com/lukebabs/signalops/internal/broker/kafka"
 	"github.com/lukebabs/signalops/internal/config"
+	"github.com/lukebabs/signalops/internal/platformregistry"
 	"github.com/lukebabs/signalops/internal/storage"
 	postgresstorage "github.com/lukebabs/signalops/internal/storage/postgres"
 )
@@ -159,6 +160,20 @@ func run(logger *slog.Logger, args []string) error {
 		}()
 	}
 
+	definitionVersions := map[string]string(nil)
+	if envBoolOrDefault("SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT", false) {
+		if repository == nil {
+			return errors.New("SIGNALOPS_DATABASE_URL is required when platform registry enforcement is enabled")
+		}
+		if mode == "pull" {
+			definitionVersions, err = platformregistry.ResolveMassiveScheduledPull(ctx, repository, tenantID, sourceID, includeEquity, includeOptions)
+			if err != nil {
+				return fmt.Errorf("resolve active platform definitions: %w", err)
+			}
+			logger.Info("resolved active platform definitions", "versions", definitionVersions)
+		}
+	}
+
 	var brokerClient *kafkabroker.Client
 	if !dryRun {
 		brokerClient, err = kafkabroker.NewClient(kafkabroker.Config{
@@ -222,23 +237,24 @@ func run(logger *slog.Logger, args []string) error {
 			return budgetErr
 		}
 		report, pullErr := massive.RunScheduledPull(ctx, massive.ScheduledPullConfig{
-			TenantID:            tenantID,
-			SourceID:            sourceID,
-			Environment:         cfg.Environment,
-			ObservationDate:     day,
-			Companies:           companies,
-			IncludeEquityEOD:    includeEquity,
-			IncludeOptions:      includeOptions,
-			OptionsLimit:        optionsLimit,
-			RequestDelay:        requestDelay,
-			MaxRetries:          maxRetries,
-			RetryBackoff:        retryBackoff,
-			MaxProviderRequests: remainingRequests,
-			MaxEventsBuilt:      remainingBuilt,
-			MaxEventsPublished:  remainingPublished,
-			DryRun:              dryRun,
-			ContinueOnError:     continueOnError,
-			PublishRepository:   publishRepo,
+			TenantID:                   tenantID,
+			SourceID:                   sourceID,
+			Environment:                cfg.Environment,
+			ObservationDate:            day,
+			Companies:                  companies,
+			IncludeEquityEOD:           includeEquity,
+			IncludeOptions:             includeOptions,
+			OptionsLimit:               optionsLimit,
+			RequestDelay:               requestDelay,
+			MaxRetries:                 maxRetries,
+			RetryBackoff:               retryBackoff,
+			MaxProviderRequests:        remainingRequests,
+			MaxEventsBuilt:             remainingBuilt,
+			MaxEventsPublished:         remainingPublished,
+			DryRun:                     dryRun,
+			ContinueOnError:            continueOnError,
+			PublishRepository:          publishRepo,
+			PlatformDefinitionVersions: definitionVersions,
 		}, massiveClient, brokerClient)
 		report.ObservationDate = day
 		reports = append(reports, report)

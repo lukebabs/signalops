@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lukebabs/signalops/internal/api"
 	"github.com/lukebabs/signalops/internal/adapters/marketdata/massive"
+	"github.com/lukebabs/signalops/internal/api"
 	kafkabroker "github.com/lukebabs/signalops/internal/broker/kafka"
 	"github.com/lukebabs/signalops/internal/config"
 	postgresstorage "github.com/lukebabs/signalops/internal/storage/postgres"
@@ -54,10 +54,16 @@ func main() {
 		},
 	}
 	if key := strings.TrimSpace(os.Getenv("SIGNALOPS_MASSIVE_API_KEY")); key != "" {
-		if client, clientErr := massive.NewClient(massive.LoadClientConfigFromEnv()); clientErr == nil { routerConfig.MarketQuoteClient = client } else { logger.Warn("massive quote client disabled", "error", clientErr) }
+		if client, clientErr := massive.NewClient(massive.LoadClientConfigFromEnv()); clientErr == nil {
+			routerConfig.MarketQuoteClient = client
+		} else {
+			logger.Warn("massive quote client disabled", "error", clientErr)
+		}
 	}
 	if queryRepo != nil {
 		routerConfig.QueryRepository = queryRepo
+		routerConfig.CyberOpsConnectRepository = queryRepo
+		routerConfig.PlatformDefinitionRepository = queryRepo
 		routerConfig.PublishRepository = queryRepo
 	}
 	if strings.TrimSpace(os.Getenv("SYNCRATIC_API_BASE_URL")) != "" {
@@ -111,7 +117,11 @@ func main() {
 		os.Exit(1)
 	}
 	if key := strings.TrimSpace(os.Getenv("SIGNALOPS_MASSIVE_API_KEY")); key != "" {
-		if client, clientErr := massive.NewClient(massive.LoadClientConfigFromEnv()); clientErr == nil { routerConfig.MarketQuoteClient = client } else { logger.Warn("massive quote client disabled", "error", clientErr) }
+		if client, clientErr := massive.NewClient(massive.LoadClientConfigFromEnv()); clientErr == nil {
+			routerConfig.MarketQuoteClient = client
+		} else {
+			logger.Warn("massive quote client disabled", "error", clientErr)
+		}
 	}
 	if queryRepo != nil {
 		if err := queryRepo.Close(); err != nil {

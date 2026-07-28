@@ -226,7 +226,7 @@ services:
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
       SIGNALOPS_MASSIVE_TENANT_ID: tenant-local
-      SIGNALOPS_MASSIVE_SOURCE_ID: src-massive
+      SIGNALOPS_MASSIVE_SOURCE_ID: ${SIGNALOPS_MASSIVE_SOURCE_ID:-src-massive}
       SIGNALOPS_MASSIVE_DATASETS: equity,options
       SIGNALOPS_MASSIVE_MAX_COMPANIES: "50"
       SIGNALOPS_MASSIVE_OPTIONS_LIMIT: "100"
@@ -237,6 +237,7 @@ services:
       SIGNALOPS_MASSIVE_MAX_EVENTS_BUILT: "0"
       SIGNALOPS_MASSIVE_MAX_EVENTS_PUBLISHED: "0"
       SIGNALOPS_MASSIVE_DRY_RUN: "true"
+      SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT: ${SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT:-false}
       SIGNALOPS_MASSIVE_CONTINUE_ON_ERROR: "true"
 
   massive-scheduler:
@@ -394,7 +395,7 @@ services:
     environment:
       SIGNALOPS_ENV: local
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
-      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
 
   raw-worker:
     build:
@@ -512,6 +513,74 @@ services:
       SIGNALOPS_REPLAY_PUBLISH_MAX_ATTEMPTS: "3"
       SIGNALOPS_REPLAY_POLL_INTERVAL: "5s"
 
+
+  cyberops-connect-persister:
+    profiles: ["cyberops"]
+    build:
+      context: .
+      target: cyberops-connect-persister
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+
+  cyberops-connect-outbox:
+    profiles: ["cyberops"]
+    build:
+      context: .
+      target: cyberops-connect-outbox
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+
+  cyberops-normalizer:
+    profiles: ["cyberops"]
+    build:
+      context: .
+      target: cyberops-normalizer
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+
+  cyberops-detector:
+    profiles: ["cyberops"]
+    build:
+      context: .
+      target: cyberops-detector
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
 
 volumes:
   redpanda-data:

@@ -26,6 +26,7 @@ import {
   summarizeMarketOpsOptionsDistribution,
   summarizeMarketOpsOptionsChainRow,
   marketOpsOptionsDateOnly,
+  moneynessBucketNarrative,
   type MarketOpsOptionsDistributionView,
   type MarketOpsOptionsBucketEntry,
 } from '../lib/marketopsOptions';
@@ -37,7 +38,7 @@ import type { AlgorithmResult, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOp
 // opens a read-only options panel (coverage / distribution / chain) that
 // performs no ingestion and never calls live-preview (which stays 501).
 
-const CHAIN_LIMITS = [100, 200, 500];
+const CHAIN_LIMITS = [10, 20];
 
 type AssetSortKey = 'default' | 'rank' | 'asset' | 'market' | 'intraday' | 'riskReward' | 'updated';
 type AssetColumnKey = Exclude<AssetSortKey, 'default'>;
@@ -469,7 +470,7 @@ function AssetOptionsPanel({
   const distDates = Array.from(new Set(distRows.map((r) => marketOpsOptionsDateOnly(r.tradeDate)))).sort().reverse();
   const [tradeDate, setTradeDate] = useState('');
   const [contractType, setContractType] = useState<'' | 'call' | 'put'>('');
-  const [chainLimit, setChainLimit] = useState(500);
+  const [chainLimit, setChainLimit] = useState(20);
   const effectiveTradeDate = tradeDate || distDates[0] || '';
   const chainQ = useMarketOpsOptionsChain(tenantId, symbol, {
     trade_date: effectiveTradeDate || undefined,
@@ -608,7 +609,7 @@ function AssetOptionsPanel({
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
                 <div className="mb-1 text-[11px] font-medium text-gray-600">Moneyness (call vs put OI)</div>
-                <BucketBars entries={latest.moneynessBuckets} />
+                <BucketBars entries={latest.moneynessBuckets} kind="moneyness" ratioQuality={latest.ratioQuality} />
               </div>
               <div>
                 <div className="mb-1 text-[11px] font-medium text-gray-600">Expiration (call vs put OI)</div>
@@ -765,35 +766,35 @@ function ContractTypeBadge({ type }: { type: string }) {
 }
 
 // Compact call-vs-put open-interest bars per bucket, with volume readout.
-// Scaled to the largest single OI across buckets; empty buckets render as `None`.
-function BucketBars({ entries }: { entries: MarketOpsOptionsBucketEntry[] }) {
+// Moneyness rows add a deterministic, quality-aware explanation on hover/focus.
+function BucketBars({
+  entries,
+  kind = 'expiration',
+  ratioQuality = 'unknown',
+}: {
+  entries: MarketOpsOptionsBucketEntry[];
+  kind?: 'moneyness' | 'expiration';
+  ratioQuality?: MarketOpsOptionsDistributionView['ratioQuality'];
+}) {
   if (!entries.length) return <span className="text-[11px] text-gray-400">None</span>;
   const maxOi = Math.max(1, ...entries.map((e) => Math.max(e.callOpenInterest, e.putOpenInterest)));
   return (
     <div className="space-y-1">
-      {entries.map((e) => (
-        <div key={e.key} className="flex items-center gap-2 text-[11px]">
-          <div className="w-20 shrink-0 text-gray-600">{e.key}</div>
-          <div className="flex-1 space-y-0.5">
-            <div className="flex items-center gap-1">
-              <span className="w-3 text-blue-700">C</span>
-              <div className="h-2 flex-1 overflow-hidden rounded bg-gray-100">
-                <div className="h-2 rounded bg-blue-400" style={{ width: `${(e.callOpenInterest / maxOi) * 100}%` }} />
-              </div>
+      {entries.map((e, index) => {
+        const narrative = kind === 'moneyness' ? moneynessBucketNarrative(e, entries, ratioQuality) : null;
+        const tooltipId = 'moneyness-bucket-' + index;
+        return (
+          <div key={e.key} className={narrative ? 'group relative flex items-center gap-2 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1' : 'flex items-center gap-2 text-[11px]'} tabIndex={narrative ? 0 : undefined} aria-describedby={narrative ? tooltipId : undefined}>
+            <div className="w-20 shrink-0 text-gray-600">{e.key}</div>
+            <div className="flex-1 space-y-0.5">
+              <div className="flex items-center gap-1"><span className="w-3 text-blue-700">C</span><div className="h-2 flex-1 overflow-hidden rounded bg-gray-100"><div className="h-2 rounded bg-blue-400" style={{ width: String((e.callOpenInterest / maxOi) * 100) + '%' }} /></div></div>
+              <div className="flex items-center gap-1"><span className="w-3 text-orange-700">P</span><div className="h-2 flex-1 overflow-hidden rounded bg-gray-100"><div className="h-2 rounded bg-orange-400" style={{ width: String((e.putOpenInterest / maxOi) * 100) + '%' }} /></div></div>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="w-3 text-orange-700">P</span>
-              <div className="h-2 flex-1 overflow-hidden rounded bg-gray-100">
-                <div className="h-2 rounded bg-orange-400" style={{ width: `${(e.putOpenInterest / maxOi) * 100}%` }} />
-              </div>
-            </div>
+            <div className="w-28 shrink-0 text-right text-gray-500">OI <strong className="text-gray-700">{e.callOpenInterest}</strong>/<strong className="text-gray-700">{e.putOpenInterest}</strong><br />vol {e.callVolume}/{e.putVolume}</div>
+            {narrative ? <div id={tooltipId} role="tooltip" className="pointer-events-none invisible absolute left-0 top-full z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded border border-gray-300 bg-white p-2 text-left text-[11px] leading-4 text-gray-700 shadow-lg group-hover:visible group-focus:visible"><p>{narrative.bucketContext}</p><p className="mt-1">{narrative.openInterest}</p><p className="mt-1 font-medium text-gray-800">{narrative.positioning}</p>{narrative.volume ? <p className="mt-1">{narrative.volume}</p> : null}<p className="mt-1 text-gray-500">{narrative.caveat}</p></div> : null}
           </div>
-          <div className="w-28 shrink-0 text-right text-gray-500">
-            OI <strong className="text-gray-700">{e.callOpenInterest}</strong>/<strong className="text-gray-700">{e.putOpenInterest}</strong>
-            <br />vol {e.callVolume}/{e.putVolume}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -240,6 +240,21 @@ const marketopsBacktestsRoute = createRoute({ getParentRoute: () => rootRoute, p
 const marketopsSyncraticRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/syncratic', component: MarketOpsSyncraticRoute });
 const marketopsAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/algorithms', component: () => <LegacyRedirect to="/admin/algorithms" /> });
 
+function CyberOpsIndexRouteComponent() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate({ to: '/cyberops/signals', replace: true });
+  }, [navigate]);
+  return <LoadingState label="Opening CyberOps..." />;
+}
+
+// CyberOps uses the same operator-facing SignalOps primitives as the console,
+// scoped by AppProfileProvider to app_id=cyberops and domain=security.
+const cyberopsIndexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cyberops', component: CyberOpsIndexRouteComponent });
+const cyberopsSignalsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cyberops/signals', component: SignalsRoute });
+const cyberopsAlertsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cyberops/alerts', component: AlertsRoute });
+const cyberopsInsightsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cyberops/insights', component: InsightsRoute });
+
 // /auth/callback is primarily handled by the auth gate in App.tsx (the router must not mount
 // before authentication); this route is a fallback that returns the user to the dashboard.
 function AuthCallbackRouteComponent() {
@@ -291,6 +306,10 @@ const routeTree = rootRoute.addChildren([
   marketopsBacktestsRoute,
   marketopsSyncraticRoute,
   marketopsAlgorithmsRoute,
+  cyberopsIndexRoute,
+  cyberopsSignalsRoute,
+  cyberopsAlertsRoute,
+  cyberopsInsightsRoute,
 ]);
 
 export const router = createRouter({ routeTree });

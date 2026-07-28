@@ -12,6 +12,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-gateway ./c
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-puller ./cmd/massive-puller
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-scheduler ./cmd/massive-scheduler
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-normalizer ./cmd/normalizer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-connect-persister ./cmd/cyberops-connect-persister
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-connect-outbox ./cmd/cyberops-connect-outbox
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-normalizer ./cmd/cyberops-normalizer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-detector ./cmd/cyberops-detector
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-persister ./cmd/signal-persister
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
@@ -29,6 +33,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-h
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-opportunity-builder ./cmd/marketops-opportunity-builder
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-outcome-materializer ./cmd/marketops-outcome-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-history-runner ./cmd/marketops-history-runner
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-evaluator ./cmd/marketops-algorithm-evaluator
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-evaluation-backfill ./cmd/marketops-algorithm-evaluation-backfill
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-intraday-monitor ./cmd/marketops-intraday-monitor
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-runner ./cmd/algorithm-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-adjudicator ./cmd/marketops-algorithm-adjudicator
@@ -67,6 +73,30 @@ FROM gcr.io/distroless/static-debian12:nonroot AS normalizer
 COPY --from=build /out/signalops-normalizer /signalops-normalizer
 
 ENTRYPOINT ["/signalops-normalizer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-connect-persister
+
+COPY --from=build /out/signalops-cyberops-connect-persister /signalops-cyberops-connect-persister
+
+ENTRYPOINT ["/signalops-cyberops-connect-persister"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-connect-outbox
+
+COPY --from=build /out/signalops-cyberops-connect-outbox /signalops-cyberops-connect-outbox
+
+ENTRYPOINT ["/signalops-cyberops-connect-outbox"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-normalizer
+
+COPY --from=build /out/signalops-cyberops-normalizer /signalops-cyberops-normalizer
+
+ENTRYPOINT ["/signalops-cyberops-normalizer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-detector
+
+COPY --from=build /out/signalops-cyberops-detector /signalops-cyberops-detector
+
+ENTRYPOINT ["/signalops-cyberops-detector"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS signal-persister
 
@@ -183,6 +213,20 @@ FROM gcr.io/distroless/static-debian12:nonroot AS marketops-history-runner
 COPY --from=build /out/signalops-marketops-history-runner /signalops-marketops-history-runner
 
 ENTRYPOINT ["/signalops-marketops-history-runner"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-algorithm-evaluator
+
+COPY --from=build /out/signalops-marketops-algorithm-evaluator /signalops-marketops-algorithm-evaluator
+
+ENTRYPOINT ["/signalops-marketops-algorithm-evaluator"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-algorithm-evaluation-backfill
+
+COPY --from=build /out/signalops-marketops-algorithm-evaluation-backfill /signalops-marketops-algorithm-evaluation-backfill
+COPY --from=build /out/signalops-massive-puller /usr/local/bin/signalops-massive-puller
+ENV SIGNALOPS_MASSIVE_PULLER_BIN=/usr/local/bin/signalops-massive-puller
+
+ENTRYPOINT ["/signalops-marketops-algorithm-evaluation-backfill"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS marketops-intraday-monitor
 

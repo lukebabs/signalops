@@ -28,28 +28,29 @@ type ScheduledPullClient interface {
 }
 
 type ScheduledPullConfig struct {
-	TenantID            string
-	SourceID            string
-	Environment         string
-	RawTopic            string
-	ObservationDate     time.Time
-	ProcessingAt        time.Time
-	Companies           []MegacapCompanySeed
-	IncludeEquityEOD    bool
-	IncludeOptions      bool
-	OptionsLimit        int
-	DryRun              bool
-	ContinueOnError     bool
-	PublishTimeout      time.Duration
-	RequestDelay        time.Duration
-	MaxRetries          int
-	RetryBackoff        time.Duration
-	MaxProviderRequests int
-	MaxEventsBuilt      int
-	MaxEventsPublished  int
-	CorrelationPrefix   string
-	TraceID             string
-	PublishRepository   storage.PublishRepository
+	TenantID                   string
+	SourceID                   string
+	Environment                string
+	RawTopic                   string
+	ObservationDate            time.Time
+	ProcessingAt               time.Time
+	Companies                  []MegacapCompanySeed
+	IncludeEquityEOD           bool
+	IncludeOptions             bool
+	OptionsLimit               int
+	DryRun                     bool
+	ContinueOnError            bool
+	PublishTimeout             time.Duration
+	RequestDelay               time.Duration
+	MaxRetries                 int
+	RetryBackoff               time.Duration
+	MaxProviderRequests        int
+	MaxEventsBuilt             int
+	MaxEventsPublished         int
+	CorrelationPrefix          string
+	TraceID                    string
+	PlatformDefinitionVersions map[string]string
+	PublishRepository          storage.PublishRepository
 }
 
 type ScheduledPullReport struct {
@@ -254,6 +255,18 @@ func buildAndMaybePublish(ctx context.Context, cfg ScheduledPullConfig, publishe
 	if err != nil {
 		return err
 	}
+	if versions := definitionVersionsForDataset(cfg.PlatformDefinitionVersions, dataset); len(versions) > 0 {
+		if event.Metadata == nil {
+			event.Metadata = map[string]any{}
+		}
+		event.Metadata["platform_definition_versions"] = versions
+	}
+	if quality := normalizedEventQualityMetadata(cfg.PlatformDefinitionVersions); len(quality) > 0 {
+		if event.Metadata == nil {
+			event.Metadata = map[string]any{}
+		}
+		event.Metadata["quality"] = quality
+	}
 	if err := ensureBuiltEventBudget(cfg, report); err != nil {
 		return err
 	}
@@ -296,6 +309,37 @@ func buildAndMaybePublish(ctx context.Context, cfg ScheduledPullConfig, publishe
 		}
 	}
 	return nil
+}
+
+func definitionVersionsForDataset(versions map[string]string, dataset string) map[string]string {
+	if len(versions) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for _, key := range []string{"source", "pipeline", dataset} {
+		if value := strings.TrimSpace(versions[key]); value != "" {
+			if key == dataset {
+				out["dataset"] = value
+			} else {
+				out[key] = value
+			}
+		}
+	}
+	return out
+}
+
+func normalizedEventQualityMetadata(versions map[string]string) map[string]string {
+	policyID := strings.TrimSpace(versions["normalized_event_quality_policy_id"])
+	policyVersion := strings.TrimSpace(versions["normalized_event_quality_policy_version"])
+	state := strings.TrimSpace(versions["normalized_event_quality_default_state"])
+	if policyID == "" || policyVersion == "" || state == "" {
+		return nil
+	}
+	return map[string]string{
+		"quality_state":          state,
+		"quality_policy_id":      policyID,
+		"quality_policy_version": policyVersion,
+	}
 }
 
 func persistPublishedRawEvent(ctx context.Context, repo storage.PublishRepository, event contracts.RawSignalEvent, value []byte, result broker.PublishResult, publishedAt time.Time) error {

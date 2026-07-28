@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS marketops_algorithm_evaluation_backfill_campaigns;
+DROP TABLE IF EXISTS marketops_algorithm_evaluation_outcomes;
+DROP TABLE IF EXISTS marketops_algorithm_evaluation_results;
+DROP TABLE IF EXISTS marketops_algorithm_evaluation_runs;
