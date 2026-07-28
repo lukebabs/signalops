@@ -3,6 +3,36 @@
 This journal is the ongoing record of SignalOps build progress. Entries are
 append-only unless correcting factual errors. All timestamps are UTC.
 
+## 2026-07-28T03:58:50Z
+
+Summary:
+
+- Documented the planned CyberOps app profile and its tenant-scoping rules.
+
+Files changed:
+
+- `docs/use_cases/README.md`
+- `docs/use_cases/cyberops/README.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- CyberOps is an application/use-case profile, while `tenant_id` remains the
+  organization-level authorization and data-isolation boundary.
+- Local CyberOps development therefore uses `tenant-local`, and production
+  deployments use the tenant of the organization being served.
+
+Verification performed:
+
+- Reviewed the new use-case documentation against the foundational primitive
+  scope model.
+- Captured the UTC timestamp with `date -u +%Y-%m-%dT%H:%M:%SZ`.
+
+Next step:
+
+- Define the first concrete CyberOps domain and use case before adding
+  adapters, normalization mappings, or feature/state definitions.
+
 ## 2026-07-06T20:02:13Z
 
 Summary:

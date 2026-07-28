@@ -7,6 +7,13 @@ Current active use-case folders:
 - `console/general/`: default Console behavior where `app_id=console` and `use_case=general`.
 - `marketops/daily_market_surveillance/`: MarketOps market-data surveillance where `app_id=marketops`, `domain=market_data`, and `use_case=daily_market_surveillance`.
 
+Planned app profiles:
+
+- `cyberops/`: CyberOps is the next app profile. In local development it uses
+  `tenant_id=tenant-local` and `app_id=cyberops`. A production CyberOps
+  deployment uses the tenant ID of the organization it serves; adding an app
+  profile does not create a new tenant boundary.
+
 Core platform contracts that apply across use cases remain in top-level docs such as `docs/api.md`, `docs/deployment.md`, and `docs/python_worker.md`. Gate-by-gate evidence remains in `docs/build_journal.md` and `docs/gate_audit.md`.
 
 ## Folder Pattern
