@@ -48,7 +48,7 @@ copy_table \
 
 copy_table \
   normalized_event_ledger \
-  "event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, schema_id, schema_version, observation_time, processing_time, confidence, raw_topic, raw_partition, raw_offset, normalized_topic, normalized_partition, normalized_offset, normalized_payload, entities, evidence, metadata, event, created_at, updated_at" \
+  "event_id, tenant_id, source_id, source_adapter, dataset, idempotency_key, schema_id, schema_version, observation_time, processing_time, confidence, raw_topic, raw_partition, raw_offset, normalized_topic, normalized_partition, normalized_offset, normalized_payload, entities, evidence, metadata, event, created_at, updated_at, app_id, domain, use_case" \
   "event_id, observation_time" \
   "  tenant_id = EXCLUDED.tenant_id,
   source_id = EXCLUDED.source_id,
@@ -71,7 +71,10 @@ copy_table \
   metadata = EXCLUDED.metadata,
   event = EXCLUDED.event,
   created_at = EXCLUDED.created_at,
-  updated_at = EXCLUDED.updated_at" \
+  updated_at = EXCLUDED.updated_at,
+  app_id = EXCLUDED.app_id,
+  domain = EXCLUDED.domain,
+  use_case = EXCLUDED.use_case" \
   "observation_time, event_id"
 
 copy_table \

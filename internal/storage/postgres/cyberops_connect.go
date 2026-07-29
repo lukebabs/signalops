@@ -258,7 +258,7 @@ func limit(value int) int {
 func marshalHeaders(value map[string]string) []byte { data, _ := json.Marshal(value); return data }
 
 func (r *Repository) ListCyberOpsTrafficInputs(ctx context.Context, tenantID string, from, to time.Time) ([]storage.CyberOpsTrafficInput, error) {
-	rows, err := r.temporal().QueryContext(ctx, `
+	rows, err := r.db.QueryContext(ctx, `
 SELECT event_id, COALESCE(normalized_payload->>'message',''), observation_time
 FROM normalized_event_ledger
 WHERE tenant_id=$1 AND app_id='cyberops' AND dataset='cyberops.syslog.raw'
