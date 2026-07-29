@@ -170,6 +170,9 @@ func isLifecycleMutationRoute(r *http.Request) bool {
 			}
 		}
 	}
+	if len(parts) == 5 && parts[1] == "cyberops" && parts[2] == "integrity-failures" && parts[4] == "resolve" {
+		return true
+	}
 	if len(parts) == 5 && parts[1] == "algorithms" && parts[2] == "signal-proposals" {
 		switch parts[4] {
 		case "decision", "materializations":

@@ -168,6 +168,18 @@ func TestAuthEnabledRejectsViewerLifecycleMutation(t *testing.T) {
 	}
 }
 
+func TestAuthEnabledRejectsViewerCyberOpsIntegrityResolution(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, CyberOpsConnectRepository: &fakeCyberOpsConnectRepository{}})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleViewer}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/cyberops/integrity-failures/cyberint-1/resolve", bytes.NewBufferString(`{"resolution_status":"resolved_false_positive","reason":"validated duplicate"}`))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestAuthEnabledRequiresAdminForPlatformDefinitionWrite(t *testing.T) {
 	fixture := newTestAuthFixture(t)
 	repo := &fakeQueryRepository{}

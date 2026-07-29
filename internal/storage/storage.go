@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-var ErrNotFound = errors.New("storage record not found")
+var (
+	ErrNotFound = errors.New("storage record not found")
+	ErrConflict = errors.New("storage record conflict")
+)
 
 const (
 	RunStatusStarted   = "started"
@@ -2308,6 +2311,15 @@ type CyberOpsIntegrityFailureRecord struct {
 	LastSeenAt            time.Time
 	OccurrenceCount       int
 	ResolutionStatus      string
+	ResolvedAt            *time.Time
+	ResolutionActor       string
+	ResolutionReason      string
+}
+
+type CyberOpsIntegrityFailureFilter struct {
+	TenantID         string
+	ResolutionStatus string
+	Limit            int
 }
 
 type CyberOpsOutboxRecord struct {
@@ -2325,6 +2337,15 @@ type CyberOpsOutboxRecord struct {
 	Attempts      int
 }
 
+type CyberOpsTrafficInput struct {
+	Message    string
+	ObservedAt time.Time
+}
+
+type CyberOpsTrafficRepository interface {
+	ListCyberOpsTrafficInputs(ctx context.Context, tenantID string, from, to time.Time) ([]CyberOpsTrafficInput, error)
+}
+
 type CyberOpsPersistResult struct {
 	Duplicate        bool
 	IntegrityFailure bool
@@ -2334,6 +2355,8 @@ type CyberOpsConnectRepository interface {
 	PersistCyberOpsConnectRaw(ctx context.Context, raw CyberOpsConnectRawRecord, outbox CyberOpsOutboxRecord, lineage []byte) (CyberOpsPersistResult, error)
 	ListCyberOpsConnectRaw(ctx context.Context, filter CyberOpsConnectRawFilter) ([]CyberOpsConnectRawRecord, error)
 	GetCyberOpsConnectRaw(ctx context.Context, tenantID, ingressEventID string) (CyberOpsConnectRawRecord, error)
+	ListCyberOpsIntegrityFailures(ctx context.Context, filter CyberOpsIntegrityFailureFilter) ([]CyberOpsIntegrityFailureRecord, error)
+	ResolveCyberOpsIntegrityFailure(ctx context.Context, tenantID, failureID, resolutionStatus, actor, reason string, resolvedAt time.Time) (CyberOpsIntegrityFailureRecord, error)
 	ListPendingCyberOpsOutbox(ctx context.Context, limit int) ([]CyberOpsOutboxRecord, error)
 	MarkCyberOpsOutboxPublished(ctx context.Context, outboxID string, publishedAt time.Time) error
 	MarkCyberOpsOutboxAttempt(ctx context.Context, outboxID string) error

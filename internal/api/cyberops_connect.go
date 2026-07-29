@@ -71,6 +71,7 @@ func registerCyberOpsConnectRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"event": cyberOpsEventResponse(record, true), "derived_artifact_count": 0})
 	})
+	registerCyberOpsIntegrityRoutes(mux, cfg, repository)
 }
 func cyberOpsTenant(r *http.Request, authEnabled bool) (string, bool) {
 	if principal, ok := principalFromContext(r.Context()); ok && strings.TrimSpace(principal.TenantID) != "" {

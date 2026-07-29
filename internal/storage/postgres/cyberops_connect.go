@@ -110,6 +110,60 @@ func (r *Repository) GetCyberOpsConnectRaw(ctx context.Context, tenantID, ingres
 	return record, err
 }
 
+const cyberOpsIntegrityFailureColumns = `failure_id,tenant_id,connect_ingress_event_id,existing_event_id,existing_payload_hash,incoming_payload_hash,existing_lineage,incoming_lineage,received_event,first_seen_at,last_seen_at,occurrence_count,resolution_status,resolved_at,COALESCE(resolution_actor,''),COALESCE(resolution_reason,'')`
+
+func (r *Repository) ListCyberOpsIntegrityFailures(ctx context.Context, filter storage.CyberOpsIntegrityFailureFilter) ([]storage.CyberOpsIntegrityFailureRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT `+cyberOpsIntegrityFailureColumns+` FROM cyberops_connect_integrity_failures WHERE tenant_id=$1 AND ($2='' OR resolution_status=$2) ORDER BY last_seen_at DESC, failure_id DESC LIMIT $3`, filter.TenantID, filter.ResolutionStatus, limit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list cyberops integrity failures: %w", err)
+	}
+	defer rows.Close()
+	items := []storage.CyberOpsIntegrityFailureRecord{}
+	for rows.Next() {
+		item, err := scanCyberOpsIntegrityFailure(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *Repository) ResolveCyberOpsIntegrityFailure(ctx context.Context, tenantID, failureID, resolutionStatus, actor, reason string, resolvedAt time.Time) (storage.CyberOpsIntegrityFailureRecord, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return storage.CyberOpsIntegrityFailureRecord{}, fmt.Errorf("begin cyberops integrity resolution: %w", err)
+	}
+	defer tx.Rollback()
+	item, err := scanCyberOpsIntegrityFailure(tx.QueryRowContext(ctx, `SELECT `+cyberOpsIntegrityFailureColumns+` FROM cyberops_connect_integrity_failures WHERE tenant_id=$1 AND failure_id=$2 FOR UPDATE`, tenantID, failureID))
+	if err == sql.ErrNoRows {
+		return storage.CyberOpsIntegrityFailureRecord{}, storage.ErrNotFound
+	}
+	if err != nil {
+		return storage.CyberOpsIntegrityFailureRecord{}, fmt.Errorf("load cyberops integrity failure: %w", err)
+	}
+	if item.ResolutionStatus != "open" {
+		if item.ResolutionStatus == resolutionStatus {
+			if err := tx.Commit(); err != nil {
+				return storage.CyberOpsIntegrityFailureRecord{}, fmt.Errorf("commit idempotent cyberops integrity resolution: %w", err)
+			}
+			return item, nil
+		}
+		return storage.CyberOpsIntegrityFailureRecord{}, fmt.Errorf("%w: integrity failure is already %s", storage.ErrConflict, item.ResolutionStatus)
+	}
+	item, err = scanCyberOpsIntegrityFailure(tx.QueryRowContext(ctx, `UPDATE cyberops_connect_integrity_failures SET resolution_status=$3,resolved_at=$4,resolution_actor=$5,resolution_reason=$6 WHERE tenant_id=$1 AND failure_id=$2 RETURNING `+cyberOpsIntegrityFailureColumns, tenantID, failureID, resolutionStatus, resolvedAt.UTC(), actor, reason))
+	if err != nil {
+		return storage.CyberOpsIntegrityFailureRecord{}, fmt.Errorf("resolve cyberops integrity failure: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO cyberops_connect_integrity_resolution_audit (tenant_id,failure_id,previous_status,resolution_status,actor,reason,occurred_at) VALUES ($1,$2,'open',$3,$4,$5,$6)`, tenantID, failureID, resolutionStatus, actor, reason, resolvedAt.UTC()); err != nil {
+		return storage.CyberOpsIntegrityFailureRecord{}, fmt.Errorf("audit cyberops integrity resolution: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return storage.CyberOpsIntegrityFailureRecord{}, fmt.Errorf("commit cyberops integrity resolution: %w", err)
+	}
+	return item, nil
+}
+
 func (r *Repository) ListPendingCyberOpsOutbox(ctx context.Context, max int) ([]storage.CyberOpsOutboxRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT outbox_id,tenant_id,topic,message_key,message_value,headers,correlation_id,causation_id,trace_id,created_at,published_at,attempts FROM cyberops_connect_outbox WHERE published_at IS NULL ORDER BY created_at LIMIT $1`, limit(max))
 	if err != nil {
@@ -145,6 +199,15 @@ func scanCyberOpsConnectRaw(s cyberOpsRawScanner) (storage.CyberOpsConnectRawRec
 	}
 	return item, nil
 }
+
+func scanCyberOpsIntegrityFailure(s cyberOpsRawScanner) (storage.CyberOpsIntegrityFailureRecord, error) {
+	var item storage.CyberOpsIntegrityFailureRecord
+	if err := s.Scan(&item.FailureID, &item.TenantID, &item.ConnectIngressEventID, &item.ExistingEventID, &item.ExistingPayloadHash, &item.IncomingPayloadHash, &item.ExistingLineageJSON, &item.IncomingLineageJSON, &item.ReceivedEventJSON, &item.FirstSeenAt, &item.LastSeenAt, &item.OccurrenceCount, &item.ResolutionStatus, &item.ResolvedAt, &item.ResolutionActor, &item.ResolutionReason); err != nil {
+		return item, err
+	}
+	return item, nil
+}
+
 func sameImmutableLineage(existingMetadata, incomingLineage []byte) bool {
 	existing, err := canonicalImmutableLineage(existingMetadata)
 	if err != nil {
@@ -193,3 +256,28 @@ func limit(value int) int {
 	return value
 }
 func marshalHeaders(value map[string]string) []byte { data, _ := json.Marshal(value); return data }
+
+func (r *Repository) ListCyberOpsTrafficInputs(ctx context.Context, tenantID string, from, to time.Time) ([]storage.CyberOpsTrafficInput, error) {
+	rows, err := r.temporal().QueryContext(ctx, `
+SELECT COALESCE(normalized_payload->>'message',''), observation_time
+FROM normalized_event_ledger
+WHERE tenant_id=$1 AND app_id='cyberops' AND dataset='cyberops.syslog.raw'
+  AND created_at >= $2 AND created_at < $3
+ORDER BY created_at ASC`, strings.TrimSpace(tenantID), from, to)
+	if err != nil {
+		return nil, fmt.Errorf("list cyberops traffic inputs: %w", err)
+	}
+	defer rows.Close()
+	out := []storage.CyberOpsTrafficInput{}
+	for rows.Next() {
+		var item storage.CyberOpsTrafficInput
+		if err := rows.Scan(&item.Message, &item.ObservedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
