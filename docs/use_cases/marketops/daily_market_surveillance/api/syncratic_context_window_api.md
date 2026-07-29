@@ -19,8 +19,8 @@ Request fields:
 - `tenant_id` required.
 - `universe_group` defaults to `top50_megacap`.
 - `context_strategy` defaults to `symbol_signal_cluster_5d`.
-- `context_builder_version` defaults to `syncratic.context_builder.v1`.
-- `window_start` and `window_end` are RFC3339 timestamps.
+- `context_builder_version` defaults to `syncratic.context_builder.v3`.
+- `window_start` and `window_end` are RFC3339 timestamps; the UI defaults to the prior five calendar days.
 - `min_evidence_count` defaults to `2`.
 - `max_assets`, `max_candidate_windows`, `max_context_windows`, and `max_insights` cap work per request.
 - `dry_run` defaults to `false`; when `true`, the API returns a preview and does not write context windows or insights.
@@ -42,6 +42,8 @@ The response includes scan/materialization counters:
 Each `decisions[]` item explains one scanned asset with `subject_symbol`, `action`, `reason`, evidence counts, related-evidence flags, and candidate `context_window_id`/`evidence_digest` when available. Actions are `would_materialize`, `materialized`, or `skipped`. Reasons include `eligible`, `below_threshold`, `unchanged_evidence_digest`, `candidate_budget_cap`, and `materialization_budget_cap`.
 
 A rerun with the same evidence digest should increment `skipped_unchanged` and create no duplicate rows.
+
+Context construction loads the window-bounded signal and alert ledger once per materialization request, then reuses it for every scanned asset. Each persisted context retains at most 12 ranked subject-pure signals, 12 alerts, 12 references of each related evidence type, and 50 event IDs. `summary_metrics.evidence_retention` reports available, included, and omitted signal/alert counts.
 
 ## Context Windows
 

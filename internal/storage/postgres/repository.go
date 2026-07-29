@@ -1334,8 +1334,9 @@ func (r *Repository) ListSignalLedger(ctx context.Context, filter storage.Signal
 WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR app_id = $2) AND ($3 = '' OR domain = $3) AND ($4 = '' OR use_case = $4)
  AND ($5 = '' OR source_id = $5) AND ($6 = '' OR dataset = $6)
  AND ($7 = '' OR detector_id = $7) AND ($8 = '' OR severity = $8)
-ORDER BY signal_time DESC LIMIT $9`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID),
-		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.DetectorID), strings.TrimSpace(filter.Severity), clampLimit(filter.Limit))
+ AND ($9::timestamptz IS NULL OR signal_time >= $9) AND ($10::timestamptz IS NULL OR signal_time < $10)
+ORDER BY signal_time DESC LIMIT $11`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID),
+		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.DetectorID), strings.TrimSpace(filter.Severity), nullTime(filter.WindowStart), nullTime(filter.WindowEnd), clampLimit(filter.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list signal ledger: %w", err)
 	}
@@ -1367,8 +1368,9 @@ func (r *Repository) ListAlertLedger(ctx context.Context, filter storage.AlertLe
 WHERE ($1 = '' OR tenant_id = $1) AND ($2 = '' OR app_id = $2) AND ($3 = '' OR domain = $3) AND ($4 = '' OR use_case = $4)
  AND ($5 = '' OR source_id = $5) AND ($6 = '' OR dataset = $6)
  AND ($7 = '' OR severity = $7) AND ($8 = '' OR status = $8)
-ORDER BY last_observed_at DESC LIMIT $9`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID),
-		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.Severity), strings.TrimSpace(filter.Status), clampLimit(filter.Limit))
+ AND ($9::timestamptz IS NULL OR last_observed_at >= $9) AND ($10::timestamptz IS NULL OR last_observed_at < $10)
+ORDER BY last_observed_at DESC LIMIT $11`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SourceID),
+		strings.TrimSpace(filter.Dataset), strings.TrimSpace(filter.Severity), strings.TrimSpace(filter.Status), nullTime(filter.WindowStart), nullTime(filter.WindowEnd), clampLimit(filter.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list alert ledger: %w", err)
 	}

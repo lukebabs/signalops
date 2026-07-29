@@ -7812,3 +7812,11 @@ Result:
 - Reduced the interactive MarketOps Ask Syncratic request budget from 12,000 to 4,800 bytes, aligning the input context more closely with the concise response target.
 - Applied budget-aware Market State prompt compaction. At the interactive budget it includes at most four features, transitions, hypothesis evaluations, and evidence records, plus two opportunities and three outcomes/calibration summaries.
 - The response remains evidence-pure and cited; this change only bounds duplicated context carried into the external explanation request.
+
+
+## 2026-07-29 — Subject-Pure Compact Syncratic Contexts
+
+- Hardened MarketOps context purity so known ticker mentions use structured fields or complete ticker tokens; short symbols such as `V` and `MA` no longer match ordinary words such as volatility, gamma, or JSON keys. Artifact-linked signals now require the same purity pass before entering a context.
+- Added compact `syncratic.context_builder.v3` contexts: a materialization request loads its bounded signal and alert ledgers once, retains no more than 12 ranked signals and alerts per subject, caps related references at 12 and event IDs at 50, and records available/included/omitted signal and alert counts in `summary_metrics.evidence_retention`.
+- The Syncratic UI now defaults to a five-day range, displays compact evidence counts, and requests builder v3. Migration `000061_syncratic_alert_window_index` adds the supporting alert-ledger time-window index.
+- Dockerized API/storage tests and the frontend production build passed. Deployment and operator rematerialization are still required to create v3 contexts; prior v1/v2 contexts remain historical snapshots.

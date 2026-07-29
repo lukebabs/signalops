@@ -51,7 +51,7 @@ const LIMITS = [25, 50, 100, 200];
 // Fixed materialize defaults — the bounded form does not expose these.
 const MATERIALIZE_UNIVERSE_GROUP = 'top50_megacap';
 const MATERIALIZE_STRATEGY = 'symbol_signal_cluster_5d';
-const MATERIALIZE_BUILDER_VERSION = 'syncratic.context_builder.v1';
+const MATERIALIZE_BUILDER_VERSION = 'syncratic.context_builder.v3';
 const MATERIALIZE_MAX_CANDIDATE_WINDOWS = 50;
 
 function SeverityLabel({ severity }: { severity: string }) {
@@ -544,6 +544,22 @@ function AskResultBanner({
   );
 }
 
+function compactContextRetention(metrics: unknown): { signals: string; alerts: string } | null {
+  if (!metrics || typeof metrics !== "object") return null;
+  const retention = (metrics as Record<string, unknown>).evidence_retention;
+  if (!retention || typeof retention !== "object") return null;
+  const format = (value: unknown) => {
+    if (!value || typeof value !== "object") return "";
+    const item = value as Record<string, unknown>;
+    const included = typeof item.included === "number" ? item.included : 0;
+    const available = typeof item.available === "number" ? item.available : included;
+    return String(included) + " of " + String(available);
+  };
+  const signals = format((retention as Record<string, unknown>).signals);
+  const alerts = format((retention as Record<string, unknown>).alerts);
+  return signals || alerts ? { signals, alerts } : null;
+}
+
 function ContextWindowBody({
   cw,
   summary,
@@ -551,6 +567,7 @@ function ContextWindowBody({
   cw: SyncraticContextWindow;
   summary: ReturnType<typeof summarizeSyncraticContextWindow>;
 }) {
+  const retention = compactContextRetention(cw.summary_metrics);
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2 text-sm">
@@ -569,6 +586,11 @@ function ContextWindowBody({
           <code className="break-all text-xs text-gray-700">{summary.idempotencyKey || '—'}</code>
         </div>
       </div>
+      {retention && (
+        <div className="rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] text-sky-800">
+          Compact evidence: signals {retention.signals}; alerts {retention.alerts}.
+        </div>
+      )}
       <div className="flex flex-wrap gap-1">
         {[['Signals', summary.signalCount], ['Alerts', summary.alertCount], ['Events', summary.eventCount], ['Artifacts', summary.artifactCount], ['Graph', summary.graphProposalCount], ['Labels', summary.labelCount]].map(
           ([label, n]) => (
@@ -608,10 +630,10 @@ function SyncraticEvidenceList({ label, ids }: { label: string; ids: string[] })
 // load. Caps are shown before submit; skip counters render as normal outcomes.
 function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
   const materialize = useMaterializeSyncraticContexts();
-  // Default window: last ~13 days, UTC wall-clock.
+  // Default window: last five days, UTC wall-clock.
   const [windowStart, setWindowStart] = useState(() => {
     const d = new Date();
-    d.setUTCDate(d.getUTCDate() - 13);
+    d.setUTCDate(d.getUTCDate() - 5);
     return toDatetimeLocal(d.toISOString());
   });
   const [windowEnd, setWindowEnd] = useState(() => toDatetimeLocal(new Date().toISOString()));

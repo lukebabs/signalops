@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	defaultSyncraticBuilderVersion   = "syncratic.context_builder.v1"
+	defaultSyncraticBuilderVersion   = "syncratic.context_builder.v3"
 	defaultSyncraticInsightType      = "marketops.syncratic.multi_event_context"
 	defaultSyncraticEODInsightType   = "marketops.syncratic.eod_overview.v1"
 	defaultSyncraticAskDrilldownType = "marketops.syncratic.ask_drilldown.v1"
@@ -305,6 +305,17 @@ func syncraticInsightCurrentnessAfter(a storage.SyncraticInsightRecord, aCtx sto
 }
 
 func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryRepository, tenantID, subjectSymbol, strategy string, windowStart, windowEnd time.Time, builderVersion string, signalTypes []string, signalLimit, alertLimit int) (storage.SyncraticContextWindowRecord, error) {
+	if strings.TrimSpace(tenantID) == "" || strings.TrimSpace(subjectSymbol) == "" || windowStart.IsZero() || windowEnd.IsZero() || !windowEnd.After(windowStart) {
+		return storage.SyncraticContextWindowRecord{}, fmt.Errorf("tenant_id, subject_symbol, valid window_start, and valid window_end are required")
+	}
+	ledger, err := loadSyncraticContextLedger(ctx, repo, strings.TrimSpace(tenantID), windowStart, windowEnd, signalLimit, alertLimit)
+	if err != nil {
+		return storage.SyncraticContextWindowRecord{}, err
+	}
+	return buildSyncraticContextWindowWithLedger(ctx, repo, tenantID, subjectSymbol, strategy, windowStart, windowEnd, builderVersion, signalTypes, ledger)
+}
+
+func buildSyncraticContextWindowWithLedger(ctx context.Context, repo storage.QueryRepository, tenantID, subjectSymbol, strategy string, windowStart, windowEnd time.Time, builderVersion string, signalTypes []string, ledger syncraticContextLedger) (storage.SyncraticContextWindowRecord, error) {
 	tenantID = strings.TrimSpace(tenantID)
 	subjectSymbol = strings.ToUpper(strings.TrimSpace(subjectSymbol))
 	strategy = firstNonEmpty(strings.TrimSpace(strategy), "symbol_signal_cluster_5d")
@@ -312,42 +323,37 @@ func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryReposito
 	if tenantID == "" || subjectSymbol == "" || windowStart.IsZero() || windowEnd.IsZero() || !windowEnd.After(windowStart) {
 		return storage.SyncraticContextWindowRecord{}, fmt.Errorf("tenant_id, subject_symbol, valid window_start, and valid window_end are required")
 	}
-	signals, err := repo.ListSignalLedger(ctx, storage.SignalLedgerFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Limit: signalLimitOrDefault(signalLimit)})
+	artifacts, err := repo.ListMarketOpsDSMArtifacts(ctx, storage.MarketOpsDSMArtifactFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectSymbol: subjectSymbol, Limit: maxSyncraticArtifacts})
 	if err != nil {
 		return storage.SyncraticContextWindowRecord{}, err
 	}
-	alerts, err := repo.ListAlertLedger(ctx, storage.AlertLedgerFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Limit: alertLimitOrDefault(alertLimit)})
+	proposals, err := repo.ListMarketOpsDSMGraphProposals(ctx, storage.MarketOpsDSMGraphProposalFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectSymbol: subjectSymbol, Limit: maxSyncraticProposals})
 	if err != nil {
 		return storage.SyncraticContextWindowRecord{}, err
 	}
-	artifacts, err := repo.ListMarketOpsDSMArtifacts(ctx, storage.MarketOpsDSMArtifactFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectSymbol: subjectSymbol, Limit: 500})
+	labels, err := repo.ListMarketOpsBacktestEvaluationLabels(ctx, storage.MarketOpsBacktestEvaluationLabelFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectSymbol: subjectSymbol, Limit: maxSyncraticLabels})
 	if err != nil {
 		return storage.SyncraticContextWindowRecord{}, err
 	}
-	proposals, err := repo.ListMarketOpsDSMGraphProposals(ctx, storage.MarketOpsDSMGraphProposalFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectSymbol: subjectSymbol, Limit: 500})
-	if err != nil {
-		return storage.SyncraticContextWindowRecord{}, err
-	}
-	labels, err := repo.ListMarketOpsBacktestEvaluationLabels(ctx, storage.MarketOpsBacktestEvaluationLabelFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectSymbol: subjectSymbol, Limit: 200})
-	if err != nil {
-		return storage.SyncraticContextWindowRecord{}, err
-	}
-	promotions, err := repo.ListMarketOpsBacktestPromotionCandidates(ctx, storage.MarketOpsBacktestPromotionCandidateFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Limit: 100})
+	promotions, err := repo.ListMarketOpsBacktestPromotionCandidates(ctx, storage.MarketOpsBacktestPromotionCandidateFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Limit: maxSyncraticArtifacts})
 	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
 	states, err := repo.ListMarketOpsMarketStates(ctx, storage.MarketOpsMarketStateFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: 1})
 	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
-	transitions, err := repo.ListMarketOpsStateTransitions(ctx, storage.MarketOpsStateTransitionFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: 100})
+	transitions, err := repo.ListMarketOpsStateTransitions(ctx, storage.MarketOpsStateTransitionFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: maxSyncraticTransitions})
 	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
-	evidence, err := repo.ListMarketOpsEvidence(ctx, storage.MarketOpsEvidenceFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: 100})
+	evidence, err := repo.ListMarketOpsEvidence(ctx, storage.MarketOpsEvidenceFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: maxSyncraticMarketEvidence})
 	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
 	if err != nil {
 		return storage.SyncraticContextWindowRecord{}, err
 	}
 
 	allowedTypes := stringSet(signalTypes)
-	record := storage.SyncraticContextWindowRecord{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: subjectSymbol, SubjectSymbol: subjectSymbol, WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), ContextStrategy: strategy, ContextBuilderVersion: builderVersion, Status: "active", ContextPayloadVersion: "signalops.syncratic.market_state_session.v2"}
+	signals, availableSignals := compactSyncraticSignals(subjectSymbol, ledger.Signals, windowStart, windowEnd, allowedTypes)
+	alerts, availableAlerts := compactSyncraticAlerts(subjectSymbol, ledger.Alerts, windowStart, windowEnd)
+	record := storage.SyncraticContextWindowRecord{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: subjectSymbol, SubjectSymbol: subjectSymbol, WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), ContextStrategy: strategy, ContextBuilderVersion: builderVersion, Status: "active", ContextPayloadVersion: "signalops.syncratic.market_state_session.v3"}
 	detectors := map[string]struct{}{}
 	signalTypeSet := map[string]struct{}{}
+	eligibleSignalIDs := map[string]struct{}{}
 	for _, signal := range signals {
 		if !timeInWindow(signal.SignalTime, windowStart, windowEnd) || !recordEvidenceMatchesSymbol(subjectSymbol, signal.EntitiesJSON, signal.EventJSON, signal.SemanticEvidenceJSON, signal.EvidenceJSON) {
 			continue
@@ -358,6 +364,7 @@ func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryReposito
 			}
 		}
 		record.SignalIDs = append(record.SignalIDs, signal.SignalID)
+		eligibleSignalIDs[signal.SignalID] = struct{}{}
 		record.EventIDs = append(record.EventIDs, signal.EventIDs...)
 		signalTypeSet[signal.SignalType] = struct{}{}
 		if strings.TrimSpace(signal.DetectorID) != "" {
@@ -380,7 +387,7 @@ func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryReposito
 		}
 		record.ArtifactIDs = append(record.ArtifactIDs, artifact.ArtifactID)
 		record.EventIDs = append(record.EventIDs, artifact.EventIDs...)
-		if strings.TrimSpace(artifact.SignalID) != "" {
+		if _, ok := eligibleSignalIDs[artifact.SignalID]; ok {
 			record.SignalIDs = append(record.SignalIDs, artifact.SignalID)
 		}
 		if strings.TrimSpace(artifact.SignalType) != "" {
@@ -409,7 +416,7 @@ func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryReposito
 	}
 	record.SignalIDs = uniqueSorted(record.SignalIDs)
 	record.AlertIDs = uniqueSorted(record.AlertIDs)
-	record.EventIDs = uniqueSorted(record.EventIDs)
+	record.EventIDs = limitStrings(record.EventIDs, maxSyncraticEventIDs)
 	record.ArtifactIDs = uniqueSorted(record.ArtifactIDs)
 	record.GraphProposalIDs = uniqueSorted(record.GraphProposalIDs)
 	record.LabelIDs = uniqueSorted(record.LabelIDs)
@@ -428,7 +435,7 @@ func buildSyncraticContextWindow(ctx context.Context, repo storage.QueryReposito
 	for _, item := range evidence { eodEvidence = append(eodEvidence, map[string]any{"evidence_id": item.EvidenceID, "type": item.EvidenceType, "domain": item.Domain, "direction": item.Direction, "statement": item.Statement, "magnitude": item.Magnitude, "quality_score": item.QualityScore, "payload": json.RawMessage(jsonOrDefault(item.EvidencePayloadJSON, `{}`))}) }
 	record.SignalTypes = setKeys(signalTypeSet)
 	record.DetectorIDs = setKeys(detectors)
-	metrics := map[string]any{"signal_count": len(record.SignalIDs), "alert_count": len(record.AlertIDs), "event_count": len(record.EventIDs), "artifact_count": len(record.ArtifactIDs), "graph_proposal_count": len(record.GraphProposalIDs), "label_count": len(record.LabelIDs), "market_state": stateSummary, "market_evidence": eodEvidence, "subject_symbol": subjectSymbol, "context_strategy": strategy}
+	metrics := map[string]any{"signal_count": len(record.SignalIDs), "alert_count": len(record.AlertIDs), "evidence_retention": map[string]any{"signals": map[string]int{"available": availableSignals, "included": len(record.SignalIDs), "omitted": max(0, availableSignals-len(record.SignalIDs))}, "alerts": map[string]int{"available": availableAlerts, "included": len(record.AlertIDs), "omitted": max(0, availableAlerts-len(record.AlertIDs))}}, "event_count": len(record.EventIDs), "artifact_count": len(record.ArtifactIDs), "graph_proposal_count": len(record.GraphProposalIDs), "label_count": len(record.LabelIDs), "market_state": stateSummary, "market_evidence": eodEvidence, "subject_symbol": subjectSymbol, "context_strategy": strategy}
 	record.SummaryMetricsJSON = mustJSON(metrics)
 	record.BaselineRefsJSON = []byte(`[]`)
 	record.EvaluationRefsJSON = []byte(`[]`)
@@ -698,8 +705,7 @@ func jsonTextMentionsSymbol(raw []byte, symbol string) bool {
 	if len(raw) == 0 || symbol == "" {
 		return false
 	}
-	text := strings.ToUpper(string(raw))
-	return strings.Contains(text, strings.ToUpper(symbol))
+	return textContainsSymbolToken(string(raw), symbol)
 }
 
 func collectJSONSymbols(raw []byte, out map[string]struct{}) {
@@ -923,15 +929,16 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 		if err != nil { return syncraticMaterializeResponse{}, fmt.Errorf("session_date must be YYYY-MM-DD") }
 		sessionDate = parsed
 	}
+	ledger, err := loadSyncraticContextLedger(ctx, repo, tenantID, windowStart, windowEnd, req.SignalLimit, req.AlertLimit)
+	if err != nil {
+		return syncraticMaterializeResponse{}, err
+	}
 	assets, err := repo.ListMarketOpsAssets(ctx, tenantID, universeGroup, true, maxAssets)
 	if err != nil {
 		return syncraticMaterializeResponse{}, err
 	}
 	resp := syncraticMaterializeResponse{TenantID: tenantID, UniverseGroup: universeGroup, ContextStrategy: strategy, ContextBuilderVersion: builderVersion, WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), DryRun: req.DryRun}
-	criticalAlerts, err := repo.ListAlertLedger(ctx, storage.AlertLedgerFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Severity: "critical", Limit: alertLimitOrDefault(req.AlertLimit)})
-	if err != nil {
-		return resp, err
-	}
+	criticalAlerts := ledger.Alerts
 	plannedContextWindows := 0
 	plannedInsights := 0
 	for _, asset := range assets {
@@ -944,7 +951,7 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 			resp.Decisions = append(resp.Decisions, decision)
 			continue
 		}
-		contextWindow, err := buildSyncraticContextWindow(ctx, repo, tenantID, asset.Ticker, strategy, windowStart, windowEnd, builderVersion, nil, req.SignalLimit, req.AlertLimit)
+		contextWindow, err := buildSyncraticContextWindowWithLedger(ctx, repo, tenantID, asset.Ticker, strategy, windowStart, windowEnd, builderVersion, nil, ledger)
 		if err != nil {
 			return resp, err
 		}
@@ -1144,13 +1151,41 @@ func extractKnownSymbols(raw []byte) map[string]struct{} {
 			collectSymbols(value, out)
 		}
 	}
-	upper := strings.ToUpper(string(raw))
 	for _, candidate := range knownMarketOpsSymbols() {
-		if strings.Contains(upper, candidate) {
+		if textContainsSymbolToken(string(raw), candidate) {
 			out[candidate] = struct{}{}
 		}
 	}
 	return out
+}
+
+// textContainsSymbolToken only recognizes a symbol as a complete token. This
+// prevents short symbols such as V and MA from being inferred from ordinary
+// words (for example, "volatility", "gamma", or the JSON key "summary").
+// Structured symbol fields are still handled by collectSymbols.
+func textContainsSymbolToken(text, symbol string) bool {
+	symbol = strings.ToUpper(strings.TrimSpace(symbol))
+	if text == "" || symbol == "" {
+		return false
+	}
+	upper := strings.ToUpper(text)
+	for start := 0; start < len(upper); {
+		index := strings.Index(upper[start:], symbol)
+		if index < 0 {
+			return false
+		}
+		index += start
+		end := index + len(symbol)
+		if (index == 0 || !isSymbolTokenCharacter(upper[index-1])) && (end == len(upper) || !isSymbolTokenCharacter(upper[end])) {
+			return true
+		}
+		start = index + 1
+	}
+	return false
+}
+
+func isSymbolTokenCharacter(value byte) bool {
+	return (value >= 'A' && value <= 'Z') || (value >= '0' && value <= '9')
 }
 
 func knownMarketOpsSymbols() []string {

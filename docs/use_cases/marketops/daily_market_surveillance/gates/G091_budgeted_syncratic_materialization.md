@@ -27,7 +27,7 @@ Default selection remains conservative:
 
 - `universe_group`: `top50_megacap`
 - `context_strategy`: `symbol_signal_cluster_5d`
-- `context_builder_version`: `syncratic.context_builder.v1`
+- `context_builder_version`: `syncratic.context_builder.v3`
 - `min_evidence_count`: `2`
 - candidate budgets and materialization budgets are enforced per request.
 

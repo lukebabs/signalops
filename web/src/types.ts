@@ -2209,8 +2209,8 @@ export interface SyncraticContextWindowFilter {
   limit?: number;
 }
 
-// signal_limit/alert_limit exist on the backend (default 1000) but are omitted —
-// the bounded materialize form does not expose them and defaults are safe.
+// signal_limit/alert_limit exist on the backend (bounded and loaded once per materialization) but are omitted —
+// the bounded materialize form does not expose them.
 // dry_run (G091/G092) selects preview mode: dry_run=true returns a 200 preview
 // with decisions[] and writes nothing; dry_run=false creates/updates rows (201).
 export interface SyncraticMaterializeRequest {

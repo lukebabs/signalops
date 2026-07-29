@@ -165,6 +165,10 @@ type fakeQueryRepository struct {
 	lastMarketStateFilter              storage.MarketOpsMarketStateFilter
 	lastStateTransitionFilter          storage.MarketOpsStateTransitionFilter
 	lastEvidenceFilter                 storage.MarketOpsEvidenceFilter
+	lastSignalLedgerFilter             storage.SignalLedgerFilter
+	lastAlertLedgerFilter              storage.AlertLedgerFilter
+	signalLedgerQueries                int
+	alertLedgerQueries                 int
 	signals                            []storage.SignalLedgerRecord
 	alerts                             []storage.AlertLedgerRecord
 	insights                           []storage.InsightLedgerRecord
@@ -314,7 +318,9 @@ func (q *fakeQueryRepository) ListCyberOpsTrafficInputs(context.Context, string,
 	return q.cyberOpsTraffic, nil
 }
 
-func (q *fakeQueryRepository) ListSignalLedger(context.Context, storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
+func (q *fakeQueryRepository) ListSignalLedger(_ context.Context, filter storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
+	q.signalLedgerQueries++
+	q.lastSignalLedgerFilter = filter
 	return q.signals, nil
 }
 func (q *fakeQueryRepository) GetSignalLedger(_ context.Context, signalID string) (storage.SignalLedgerRecord, error) {
@@ -918,7 +924,9 @@ func (q *fakeQueryRepository) MutateMarketOpsDSMGraphProposal(_ context.Context,
 	return storage.MarketOpsDSMGraphProposalRecord{}, storage.ErrNotFound
 }
 
-func (q *fakeQueryRepository) ListAlertLedger(context.Context, storage.AlertLedgerFilter) ([]storage.AlertLedgerRecord, error) {
+func (q *fakeQueryRepository) ListAlertLedger(_ context.Context, filter storage.AlertLedgerFilter) ([]storage.AlertLedgerRecord, error) {
+	q.alertLedgerQueries++
+	q.lastAlertLedgerFilter = filter
 	return q.alerts, nil
 }
 
@@ -3569,6 +3577,46 @@ func TestPostSyncraticContextWindowCreatesFromPersistedEvidence(t *testing.T) {
 	}
 	if len(repo.syncraticContextWindows) != 1 || len(repo.syncraticContextWindows[0].SignalIDs) != 1 || len(repo.syncraticContextWindows[0].AlertIDs) != 1 {
 		t.Fatalf("stored context = %+v", repo.syncraticContextWindows)
+	}
+}
+
+func TestSyncraticSymbolRecognitionDoesNotTreatOrdinaryWordsAsShortTickers(t *testing.T) {
+	record := storage.SignalLedgerRecord{
+		EntitiesJSON: []byte(`[{"symbol":"NVS"}]`),
+		EvidenceJSON: []byte(`[{"summary":"volatility expansion with gamma adjustment for NVS"}]`),
+	}
+	if !recordEvidenceMatchesSymbol("NVS", record.EntitiesJSON, record.EvidenceJSON) {
+		t.Fatal("NVS evidence containing ordinary words should be accepted")
+	}
+	if hints := signalSubjectMismatchHints("NVS", record); len(hints) != 0 {
+		t.Fatalf("ordinary words must not create ticker mismatch hints: %v", hints)
+	}
+	if recordEvidenceMatchesSymbol("NVS", record.EntitiesJSON, []byte(`[{"summary":"volatility expansion for MA"}]`)) {
+		t.Fatal("explicit MA evidence must be rejected for NVS")
+	}
+}
+
+func TestSyncraticContextWindowDoesNotIncludeArtifactLinkedTaintedSignal(t *testing.T) {
+	now := time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
+	repo := &fakeQueryRepository{
+		signals: []storage.SignalLedgerRecord{{
+			SignalID: "sig-nvs-tainted", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance",
+			SignalTime: now.Add(-time.Hour), EntitiesJSON: []byte(`[{"symbol":"NVS"}]`), EvidenceJSON: []byte(`[{"summary":"volatility expansion for MA"}]`),
+		}},
+		dsmArtifacts: []storage.MarketOpsDSMArtifactRecord{{
+			ArtifactID: "artifact-nvs", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance",
+			SubjectSymbol: "NVS", SignalID: "sig-nvs-tainted", UpdatedAt: now.Add(-time.Hour),
+		}},
+	}
+	contextWindow, err := buildSyncraticContextWindow(context.Background(), repo, "tenant-1", "NVS", "symbol_signal_cluster_5d", now.Add(-24*time.Hour), now.Add(24*time.Hour), "", nil, 100, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contextWindow.ArtifactIDs) != 1 {
+		t.Fatalf("NVS artifact should remain in the context: %v", contextWindow.ArtifactIDs)
+	}
+	if len(contextWindow.SignalIDs) != 0 {
+		t.Fatalf("artifact-linked tainted signal must not bypass purity checks: %v", contextWindow.SignalIDs)
 	}
 }
 

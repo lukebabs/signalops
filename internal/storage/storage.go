@@ -1932,27 +1932,31 @@ type RawEventLedgerFilter struct {
 }
 
 type SignalLedgerFilter struct {
-	TenantID   string
-	AppID      string
-	Domain     string
-	UseCase    string
-	SourceID   string
-	Dataset    string
-	DetectorID string
-	Severity   string
-	Limit      int
+	TenantID    string
+	AppID       string
+	Domain      string
+	UseCase     string
+	SourceID    string
+	Dataset     string
+	DetectorID  string
+	Severity    string
+	WindowStart time.Time
+	WindowEnd   time.Time
+	Limit       int
 }
 
 type AlertLedgerFilter struct {
-	TenantID string
-	AppID    string
-	Domain   string
-	UseCase  string
-	SourceID string
-	Dataset  string
-	Severity string
-	Status   string
-	Limit    int
+	TenantID    string
+	AppID       string
+	Domain      string
+	UseCase     string
+	SourceID    string
+	Dataset     string
+	Severity    string
+	Status      string
+	WindowStart time.Time
+	WindowEnd   time.Time
+	Limit       int
 }
 
 type InsightLedgerFilter struct {

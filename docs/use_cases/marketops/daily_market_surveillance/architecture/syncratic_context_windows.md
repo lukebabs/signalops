@@ -67,3 +67,17 @@ The deterministic materialization key should be based on tenant, use case, conte
 ## Evidence Purity
 
 Subject-scoped context windows must not include evidence for another ticker unless a later cross-asset context strategy explicitly allows that behavior. For the current `symbol_signal_cluster_5d` strategy, signal and alert inclusion requires an exact entity-symbol match for the context subject, and supporting evidence must not mention a different known ticker. Evidence that fails this check is excluded before the context window and Syncratic Ask prompt are built.
+
+
+## Compact Context Policy
+
+`syncratic.context_builder.v3` is the compact context builder for `symbol_signal_cluster_5d`. The analyst UI defaults to a five-calendar-day materialization range.
+
+- Materialization loads the time-bounded signal and alert ledgers once, then applies subject-purity and deterministic ranking per scanned asset.
+- A persisted context retains at most 12 signals, 12 alerts, 12 entries for each related reference category, and 50 event IDs.
+- Signal ranking is severity, confidence, recency, then stable ID; alert ranking is severity, recency, then stable ID.
+- `summary_metrics.evidence_retention` exposes available, included, and omitted signal/alert counts. The UI renders those values as intentional compactness, not as a data-quality warning.
+
+Known ticker text detection uses complete ticker tokens, with structured `symbol`/`ticker` fields preferred. Raw substring matching is forbidden because short tickers such as `V` and `MA` appear within ordinary evidence text. Artifact-linked signal IDs are included only when their source signal has independently passed the same subject-purity check.
+
+Builder v3 has a new deterministic context identity. Existing v1/v2 windows remain historical records; deployment must apply the alert-window index migration and operators must rematerialize to create v3 contexts.
