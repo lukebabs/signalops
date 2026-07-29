@@ -644,7 +644,9 @@ Verification performed:
 - `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace golang:1.22-bookworm go test ./...`
 - `docker run --rm -v /home/adminalien/docker/syncratic-core/subsystems/signalops:/workspace -w /workspace python:3.12-slim python scripts/validate_json_schemas.py`
 - `docker compose up -d raw-worker`
-- `docker compose exec -T redpanda sh -lc "printf '%s\n' '{"payload":{"bad":true}}' | rpk topic produce signalops.local.raw.v1 -k g011-invalid-live -H correlation_id:g011-correlation-live --output-format 'partition=%p offset=%o\n'"`
+- `docker compose exec -T redpanda sh -lc "printf '%s
+' '{"payload":{"bad":true}}' | rpk topic produce signalops.local.raw.v1 -k g011-invalid-live -H correlation_id:g011-correlation-live --output-format 'partition=%p offset=%o
+'"`
 - `docker compose logs --tail=120 raw-worker`
 - `docker compose exec redpanda rpk topic consume signalops.local.dlq.algorithm.v1 -o start -n 1`
 - `docker compose exec redpanda rpk group describe signalops.raw-worker.v1`
@@ -3742,7 +3744,9 @@ Verification performed:
 - `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/healthz`
 - `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/`
 - Traefik log review for `signalops@docker` routing.
-- Public validation: `curl -sS -o /tmp/signalops-http-final.txt -w "%{http_code} %{redirect_url}\n" http://signalops.syncratic.io/healthz` returned `301 https://signalops.syncratic.io/healthz`; `curl -sS -o /tmp/signalops-https-final.txt -w "%{http_code} %{remote_ip} %{ssl_verify_result}\n" https://signalops.syncratic.io/healthz` returned `200 45.60.31.46 0`.
+- Public validation: `curl -sS -o /tmp/signalops-http-final.txt -w "%{http_code} %{redirect_url}
+" http://signalops.syncratic.io/healthz` returned `301 https://signalops.syncratic.io/healthz`; `curl -sS -o /tmp/signalops-https-final.txt -w "%{http_code} %{remote_ip} %{ssl_verify_result}
+" https://signalops.syncratic.io/healthz` returned `200 45.60.31.46 0`.
 
 Live verification result:
 
@@ -4043,7 +4047,8 @@ Verification performed:
 - `curl -fsS http://localhost:15173/healthz` - passed.
 - `curl -fsS http://localhost:15173/readyz` - passed.
 - `curl -fsS 'http://localhost:15173/v1/alerts?tenant_id=tenant-local&limit=1'` - passed with backend auth disabled.
-- `curl -fsS -o /tmp/g053-auth-callback.html -w '%{http_code} %{content_type}\n' http://localhost:15173/auth/callback` - returned `200 text/html`.
+- `curl -fsS -o /tmp/g053-auth-callback.html -w '%{http_code} %{content_type}
+' http://localhost:15173/auth/callback` - returned `200 text/html`.
 - Build-only auth-enabled image path passed; default auth-disabled image was rebuilt and redeployed afterward.
 
 Issue noted:
@@ -9171,3 +9176,21 @@ Boundaries retained:
 
 - No thresholds, algorithm execution, provider acquisition, persistence, evaluation result, proposal, calibration, lifecycle, signal, trade, order, or portfolio behavior changed.
 - A useful analyst presentation is not evidence of hypothesis effectiveness. Continue prospective collection and wait for genuine triggers plus 1/5/10/20-session outcome maturity before defining a calibration or promotion gate.
+
+
+## 2026-07-29 - G150 CyberOps Lifecycle Noise Control and Live Traffic Recovery
+
+Status: implemented and deployed in tenant-local shadow mode
+
+Evidence:
+
+- Migration `000062_cyberops_lifecycle_noise_control` created tenant-scoped lifecycle policies, episodes, immutable decisions, approved-service records, and approval audit records; the three CyberOps defaults are seeded as `shadow`.
+- Parsed public firewall allows and denies are durable Signals. The detector owns evidence emission only; the transactional lifecycle owns disposition and preserves no more than 100 signal IDs per episode.
+- The approved-service Settings workflow is admin-only for mutations and its API contract is snake_case.
+- The live dashboard was corrected to read the primary normalized ledger, verified with current CyberOps observations. The temporal backfill preserves app metadata for historical parity.
+- Gateway, web, detector, and signal persister were rebuilt and deployed. Full Go tests and the frontend production build passed.
+
+Boundaries retained:
+
+- `tenant-local` remains shadow-only. No policy-driven Insights or Alerts are enforced without explicit operator approval.
+- Signals, policy decisions, and historical work items remain immutable evidence; no historical cleanup or rewrite was performed.

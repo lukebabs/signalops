@@ -6,6 +6,12 @@ Migration `000062_cyberops_lifecycle_noise_control` seeds the three `cyberops-li
 
 The seed covers external firewall denies (record only), public-service exposure (approved service: record only; unapproved service: projected low Insight), and a public-source port scan threshold of ten distinct denied ports in five minutes (projected high Alert).
 
+## Deployed status
+
+Migration `000062` is applied in the local environment and the gateway, web UI, CyberOps detector, and signal persister are deployed. The approved-services response uses snake_case fields (`destination_ip`, `protocol`, `destination_port`) consumed by the Settings UI.
+
+The live firewall chart reads the primary normalized ledger because it receives the active CyberOps stream. Temporal replication/backfill is retained for historical support; its backfill preserves `app_id`, `domain`, and `use_case` metadata. The chart reserves separate legend and rotated x-axis label space to remain readable at the rolling one-minute cadence.
+
 ## Operations
 
 - Use `GET /v1/tenants/{tenant_id}/cyberops/lifecycle/decisions` and `/episodes` to review shadow outcomes.

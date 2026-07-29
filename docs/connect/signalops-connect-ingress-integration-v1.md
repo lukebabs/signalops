@@ -249,12 +249,8 @@ A candidate that cannot be decoded, fails RawSignalEvent schema validation, or f
 
 Acceptance must prove that an invalid or conflicting CyberOps candidate never appears on `connect-accepted-raw`, never reaches normalizer CyberOps processing, and has durable invalid-message or integrity evidence. It must also prove that two distinct ingress IDs with identical RFC5424 bytes persist as distinct raw events without a ledger uniqueness conflict.
 
-## Allowed-traffic exposure detection
+## Firewall evidence and lifecycle
 
-The initial CyberOps detector consumes normalized `cyberops.syslog.raw` OPNsense
-filterlog records. It accepts explicit `pass` or `allow` actions, ignores
-`block` and `deny`, and considers only public-source traffic. The first observed
-`(tenant_id, destination IP, protocol, destination port)` is emitted as a
-low-severity service-exposure signal and becomes a reviewable Insight; it does
-not open an Alert. The detector persists this first-seen baseline in a compacted
-allowed-service state topic.
+The CyberOps detector consumes normalized `cyberops.syslog.raw` OPNsense filterlog records. It accepts explicit `pass`/`allow` and `block`/`deny` actions for public-source traffic, emitting a durable allowed-service-exposure or external-deny Signal for each parsed observation. It does not create Insights or Alerts directly.
+
+Lifecycle policy evaluation owns work-item disposition. For `tenant-local`, `cyberops-lifecycle-v1` is deployed in shadow mode: it records decisions and episodes while creating no policy-driven Insight or Alert. Service approval is an explicit tenant-scoped destination IP, protocol, and port allow-list maintained through CyberOps Settings; approval mutations are admin-only and audited. See `docs/use_cases/cyberops/lifecycle-noise-control-runbook-v1.md`.

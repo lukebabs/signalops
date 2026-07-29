@@ -3082,7 +3082,9 @@ Validation performed:
 - `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/healthz`
 - `curl -k --resolve signalops.syncratic.io:443:127.0.0.1 -fsS https://signalops.syncratic.io/`
 - Checked Traefik access logs for `signalops@docker` routing to the web container.
-- Public validation: `curl -sS -o /tmp/signalops-http-final.txt -w "%{http_code} %{redirect_url}\n" http://signalops.syncratic.io/healthz` returned `301 https://signalops.syncratic.io/healthz`; `curl -sS -o /tmp/signalops-https-final.txt -w "%{http_code} %{remote_ip} %{ssl_verify_result}\n" https://signalops.syncratic.io/healthz` returned `200 45.60.31.46 0`.
+- Public validation: `curl -sS -o /tmp/signalops-http-final.txt -w "%{http_code} %{redirect_url}
+" http://signalops.syncratic.io/healthz` returned `301 https://signalops.syncratic.io/healthz`; `curl -sS -o /tmp/signalops-https-final.txt -w "%{http_code} %{remote_ip} %{ssl_verify_result}
+" https://signalops.syncratic.io/healthz` returned `200 45.60.31.46 0`.
 
 Live verification result:
 
@@ -3327,7 +3329,8 @@ Validation performed:
 - `curl -fsS http://localhost:15173/healthz` - passed.
 - `curl -fsS http://localhost:15173/readyz` - passed.
 - `curl -fsS 'http://localhost:15173/v1/alerts?tenant_id=tenant-local&limit=1'` - passed with auth disabled.
-- `curl -fsS -o /tmp/g053-auth-callback.html -w '%{http_code} %{content_type}\n' http://localhost:15173/auth/callback` - returned `200 text/html`.
+- `curl -fsS -o /tmp/g053-auth-callback.html -w '%{http_code} %{content_type}
+' http://localhost:15173/auth/callback` - returned `200 text/html`.
 - Build-only auth-enabled path: `VITE_SIGNALOPS_AUTH_ENABLED=true ... docker compose -f compose.yaml -f compose.traefik.yaml build web` - passed; default auth-disabled image was rebuilt and redeployed afterward.
 
 Live verification result:
@@ -7820,3 +7823,13 @@ Result:
 - Added compact `syncratic.context_builder.v3` contexts: a materialization request loads its bounded signal and alert ledgers once, retains no more than 12 ranked signals and alerts per subject, caps related references at 12 and event IDs at 50, and records available/included/omitted signal and alert counts in `summary_metrics.evidence_retention`.
 - The Syncratic UI now defaults to a five-day range, displays compact evidence counts, and requests builder v3. Migration `000061_syncratic_alert_window_index` adds the supporting alert-ledger time-window index.
 - Dockerized API/storage tests and the frontend production build passed. Deployment and operator rematerialization are still required to create v3 contexts; prior v1/v2 contexts remain historical snapshots.
+
+
+## 2026-07-29 — CyberOps lifecycle, live traffic, and Settings stabilization
+
+- Implemented `cyberops-lifecycle-v1` with migration `000062`: tenant-local shadow policies retain external-deny evidence, project unapproved public-service Insights, and project ten-port/five-minute scan Alerts without enabling policy-driven work-item enforcement. Decisions, episodes, bounded 100-signal evidence, service approvals, and approval audit entries are durable.
+- Added tenant-scoped lifecycle read APIs plus an admin-only approved-service Settings workflow. The API now serializes approved-service fields as `destination_ip`, `protocol`, and `destination_port`, matching the web contract.
+- Diagnosed and repaired live CyberOps traffic freshness: active normalizer output lands in primary Postgres, so the live dashboard now reads that ledger rather than the stale temporal replica. Temporal backfill now preserves app/use-case metadata.
+- Applied migration 000062, rebuilt/deployed gateway, web, CyberOps detector, and signal persister, and removed Compose orphan containers. Fresh firewall telemetry and shadow lifecycle decisions were verified.
+- Adjusted the rolling live chart: explicit legend space, a larger grid, rotated/hide-overlap x-axis labels, and increased chart height prevent legend/time-label overlap.
+- Full Dockerized Go tests and the web production build passed for the implementation and follow-up fixes.

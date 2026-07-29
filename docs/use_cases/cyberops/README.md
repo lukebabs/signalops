@@ -1,6 +1,6 @@
 # CyberOps Use Cases
 
-CyberOps is a planned SignalOps app profile for evidence-driven security
+CyberOps is an implemented SignalOps app profile for evidence-driven security
 operations. It consumes the shared SignalOps primitive contracts; it does not
 own or fork the platform's ingestion, evidence, lineage, quality, replay, or
 governed-materialization capabilities.
@@ -19,18 +19,11 @@ the name of a SignalOps application or use case. CyberOps therefore shares an
 organization's tenant with its other SignalOps applications unless a separate
 organization or isolation boundary requires a different tenant.
 
-The initial implemented workflow is `domain=security`, `use_case=cyberops`:
-it turns explicit firewall allow decisions for public inbound traffic into
-reviewable service-exposure insights. A finding is created once per tenant,
-destination IP, protocol, and destination port when a public source is first
-observed reaching that service. It is an exposure-discovery insight, not a
-claim about maliciousness, traffic volume, reputation, or geography.
+The implemented workflow is `domain=security`, `use_case=cyberops`. Every parsed public-source firewall allow or deny is retained as durable evidence. The policy lifecycle is seeded for `tenant-local` in shadow mode: it records immutable decisions and grouped episodes without creating new policy-driven Insight or Alert work items.
 
-Denied traffic and denial-derived port-scan signals are intentionally out of
-scope for this workflow. CyberOps records the first-seen baseline from detector
-deployment onward and preserves it in compacted state. Each discovery is low
-severity and produces an Insight without opening an Alert; the operator should
-review whether the externally reachable service is intended.
+The policy contract retains external denies as evidence, treats an approved destination IP/protocol/port service as evidence only, projects an unapproved public service as a low-severity Insight, and projects a high-severity port-scan Alert after ten distinct denied destination ports from one public source to one destination in five minutes. An approved service is explicit tenant-owned configuration; absence means unapproved.
+
+The dashboard presents allowed-traffic trends and live ingestion quality. Its live stream reads the primary normalized ledger, which is the current CyberOps source of truth; temporal ledger replication remains historical/backfill support rather than the live display dependency.
 
 ## Platform Expectations
 
