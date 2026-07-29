@@ -2383,13 +2383,13 @@ type CyberOpsLifecyclePolicy struct {
 }
 
 type CyberOpsApprovedService struct {
-	TenantID        string
-	DestinationIP   string
-	Protocol        string
-	DestinationPort int
-	ApprovedBy      string
-	Reason          string
-	CreatedAt       time.Time
+	TenantID        string    `json:"tenant_id"`
+	DestinationIP   string    `json:"destination_ip"`
+	Protocol        string    `json:"protocol"`
+	DestinationPort int       `json:"destination_port"`
+	ApprovedBy      string    `json:"approved_by"`
+	Reason          string    `json:"reason"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type CyberOpsLifecycleEpisode struct {
