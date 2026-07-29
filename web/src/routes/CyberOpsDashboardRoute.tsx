@@ -86,9 +86,9 @@ function LiveTrafficPanel({ live }: { live: LiveTrafficState }) {
   const option = {
     animationDurationUpdate: 250,
     tooltip: { trigger: "axis" },
-    legend: { data: ["Received logs", "Allowed traffic", "Unparsed logs"], textStyle: { fontSize: 10 } },
-    grid: { left: 42, right: 16, top: 34, bottom: 44 },
-    xAxis: { type: "category", data: points.map((point) => formatLiveTime(point.time)), axisLabel: { fontSize: 9, interval: 4 } },
+    legend: { data: ["Received logs", "Allowed traffic", "Unparsed logs"], top: 0, textStyle: { fontSize: 10 } },
+    grid: { left: 42, right: 16, top: 48, bottom: 58, containLabel: true },
+    xAxis: { type: "category", data: points.map((point) => formatLiveTime(point.time)), axisLabel: { fontSize: 9, interval: 4, rotate: 35, margin: 12, hideOverlap: true } },
     yAxis: { type: "value", minInterval: 1, axisLabel: { fontSize: 9 } },
     series: [
       { name: "Received logs", type: "line", showSymbol: false, smooth: true, data: points.map((point) => point.received_logs), lineStyle: { width: 2, color: "#2563eb" }, areaStyle: { color: "#dbeafe" } },
@@ -111,7 +111,7 @@ function LiveTrafficPanel({ live }: { live: LiveTrafficState }) {
       <Metric label="Latest allowed" value={latest?.allowed_events ?? "—"} />
       <Metric label="Last observed" value={live.snapshot?.last_observed_at ? formatUtc(live.snapshot.last_observed_at) : "No logs yet"} />
     </div>
-    {points.length ? <ReactECharts option={option} notMerge lazyUpdate style={{ height: 250 }} /> : <div className="py-12 text-xs text-gray-500">Connecting to the live firewall stream…</div>}
+    {points.length ? <ReactECharts option={option} notMerge lazyUpdate style={{ height: 280 }} /> : <div className="py-12 text-xs text-gray-500">Connecting to the live firewall stream…</div>}
     {!hasLogs && points.length ? <p className="mt-1 text-[11px] text-gray-500">No CyberOps firewall logs were observed in this rolling window.</p> : null}
     {unparsed > 0 ? <p className="mt-1 text-[11px] text-amber-700">{unparsed} unparsed log observation{unparsed === 1 ? "" : "s"} in this window. Review firewall parser compatibility; these are not detections.</p> : null}
     {live.error ? <p className="mt-1 text-[11px] text-amber-700">The live stream will retry automatically. {live.error.message}</p> : null}
