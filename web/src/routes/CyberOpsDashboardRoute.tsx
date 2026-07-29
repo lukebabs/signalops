@@ -5,7 +5,7 @@ import { useCyberOpsTrafficOverview } from "../api/queries";
 import { subscribeCyberOpsLiveTraffic, type CyberOpsLiveTrafficStatus } from "../api/stream";
 import { CyberOpsIoTPanel } from "./CyberOpsIoTPanel";
 import { EmptyState, ErrorState, LoadingState } from "../components/States";
-import { formatUtc } from "../lib/format";
+import { formatUtc, OPERATING_TIME_ZONE } from "../lib/format";
 import type { CyberOpsLiveTrafficSnapshot, CyberOpsTrafficCount, CyberOpsTrafficFlow, CyberOpsTrafficWindow } from "../types";
 
 const windows: CyberOpsTrafficWindow[] = ["1h", "24h", "7d"];
@@ -82,6 +82,7 @@ function LiveTrafficPanel({ live }: { live: LiveTrafficState }) {
   const latest = points[points.length - 1];
   const hasLogs = points.some((point) => point.received_logs > 0);
   const unparsed = points.reduce((total, point) => total + point.unparsed_logs, 0);
+  const historicalWindow = live.snapshot?.last_observed_at ? Date.now() - new Date(live.snapshot.last_observed_at).getTime() > 30 * 60 * 1000 : false;
   const option = {
     animationDurationUpdate: 250,
     tooltip: { trigger: "axis" },
@@ -101,7 +102,7 @@ function LiveTrafficPanel({ live }: { live: LiveTrafficState }) {
     <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
       <div>
         <div className="text-xs font-semibold text-gray-800">Live firewall inflow</div>
-        <p className="text-[11px] text-gray-500">Rolling 30 minutes, delivered as a secure live stream and grouped into one-minute buckets.</p>
+        <p className="text-[11px] text-gray-500">{historicalWindow ? "No current traffic is available; showing the latest observed 30-minute event window." : "Rolling 30 minutes, delivered as a secure live stream and grouped into one-minute buckets."}</p>
       </div>
       <div className={"text-xs font-medium " + statusTone}>{status}</div>
     </div>
@@ -147,5 +148,5 @@ function FlowTable({ flows, filtered, onClose }: { flows: CyberOpsTrafficFlow[];
 
 function formatLiveTime(value: string): string {
   const date = new Date(value);
-  return date.toLocaleTimeString("en-GB", { timeZone: "UTC", hour: "2-digit", minute: "2-digit" }) + " UTC";
+  return date.toLocaleTimeString("en-GB", { timeZone: OPERATING_TIME_ZONE, hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
 }

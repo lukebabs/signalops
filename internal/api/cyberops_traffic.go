@@ -31,6 +31,7 @@ type cyberOpsTrafficPoint struct {
 
 const (
 	cyberOpsLiveTrafficWindow   = 30 * time.Minute
+	cyberOpsLiveTrafficLookback = 7 * 24 * time.Hour
 	cyberOpsLiveTrafficBucket   = time.Minute
 	cyberOpsLiveTrafficInterval = 5 * time.Second
 )
@@ -115,6 +116,7 @@ func streamCyberOpsLiveTraffic(w http.ResponseWriter, r *http.Request, reader st
 		flusher.Flush()
 		return true
 	}
+	var fallback *cyberOpsLiveTrafficSnapshot
 	emitSnapshot := func(event string) bool {
 		now := time.Now().UTC()
 		inputs, err := reader.ListCyberOpsTrafficInputs(r.Context(), tenant, now.Add(-cyberOpsLiveTrafficWindow), now)
@@ -122,6 +124,19 @@ func streamCyberOpsLiveTraffic(w http.ResponseWriter, r *http.Request, reader st
 			_ = emit(sseEvent{Event: "error", Data: map[string]string{"error": "query_failed", "message": "failed to load live CyberOps traffic"}})
 			return false
 		}
+		if len(inputs) == 0 {
+			if fallback == nil {
+				history, historyErr := reader.ListCyberOpsTrafficInputs(r.Context(), tenant, now.Add(-cyberOpsLiveTrafficLookback), now)
+				if historyErr != nil {
+					_ = emit(sseEvent{Event: "error", Data: map[string]string{"error": "query_failed", "message": "failed to load recent CyberOps traffic"}})
+					return false
+				}
+				snapshot := buildCyberOpsLiveTrafficSnapshot(history, now)
+				fallback = &snapshot
+			}
+			return emit(sseEvent{Event: event, Data: *fallback})
+		}
+		fallback = nil
 		return emit(sseEvent{Event: event, Data: buildCyberOpsLiveTrafficSnapshot(inputs, now)})
 	}
 	if !emitSnapshot("snapshot") {
@@ -143,6 +158,15 @@ func streamCyberOpsLiveTraffic(w http.ResponseWriter, r *http.Request, reader st
 
 func buildCyberOpsLiveTrafficSnapshot(inputs []storage.CyberOpsTrafficInput, generated time.Time) cyberOpsLiveTrafficSnapshot {
 	end := generated.UTC().Truncate(cyberOpsLiveTrafficBucket)
+	latest := time.Time{}
+	for _, input := range inputs {
+		if observed := input.ObservedAt.UTC(); observed.After(latest) {
+			latest = observed
+		}
+	}
+	if !latest.IsZero() && latest.Before(end.Add(-cyberOpsLiveTrafficWindow)) {
+		end = latest.Truncate(cyberOpsLiveTrafficBucket)
+	}
 	start := end.Add(-cyberOpsLiveTrafficWindow).Add(cyberOpsLiveTrafficBucket)
 	points := make(map[time.Time]*cyberOpsLiveTrafficPoint, int(cyberOpsLiveTrafficWindow/cyberOpsLiveTrafficBucket))
 	ordered := make([]cyberOpsLiveTrafficPoint, 0, int(cyberOpsLiveTrafficWindow/cyberOpsLiveTrafficBucket))
