@@ -20,7 +20,7 @@ func ParseOPNsenseFilterlog(message string) (FirewallEvent, bool) {
 	action := ""
 	for i, value := range parts {
 		value = strings.ToLower(strings.TrimSpace(value))
-		if value == "pass" || value == "allow" {
+		if value == "pass" || value == "allow" || value == "block" || value == "deny" {
 			actionIndex = i
 			action = value
 			break

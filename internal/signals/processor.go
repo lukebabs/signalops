@@ -41,6 +41,15 @@ func (p Processor) Process(ctx context.Context, message broker.ConsumedMessage) 
 	if err != nil {
 		return storage.SignalLedgerRecord{}, InvalidEventError{Err: err}
 	}
+	if policyRepository, ok := p.Repository.(storage.PolicySignalLifecycleRepository); ok {
+		handled, err := policyRepository.PersistPolicySignalLifecycle(ctx, record, alerts, insights)
+		if err != nil {
+			return storage.SignalLedgerRecord{}, err
+		}
+		if handled {
+			return record, nil
+		}
+	}
 	if err := p.Repository.PersistSignalLifecycle(ctx, record, alerts, insights); err != nil {
 		return storage.SignalLedgerRecord{}, err
 	}

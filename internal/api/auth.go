@@ -128,7 +128,7 @@ func tenantFromPath(path string) string {
 }
 
 func authorizedForRequest(r *http.Request, principal Principal) bool {
-	if isPlatformRegistryMutationRoute(r) {
+	if isPlatformRegistryMutationRoute(r) || isCyberOpsLifecycleAdminMutationRoute(r) {
 		return hasAnyRole(principal, roleAdmin)
 	}
 	if isLifecycleMutationRoute(r) {
@@ -146,6 +146,13 @@ func isPlatformRegistryMutationRoute(r *http.Request) bool {
 	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	return len(parts) == 5 && parts[0] == "v1" && parts[1] == "tenants" && parts[3] == "platform" && parts[4] == "primitive-definitions"
+}
+
+func isCyberOpsLifecycleAdminMutationRoute(r *http.Request) bool {
+	if r.Method != http.MethodPut && r.Method != http.MethodDelete {
+		return false
+	}
+	return strings.Contains(r.URL.Path, "/cyberops/lifecycle/approved-services")
 }
 
 func isLifecycleMutationRoute(r *http.Request) bool {

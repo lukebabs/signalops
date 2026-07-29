@@ -25,6 +25,8 @@ import type {
   CyberOpsTrafficWindow,
   CyberOpsIoTNetworkConfigResponse,
   CyberOpsIoTBehaviourResponse,
+  CyberOpsApprovedServicesResponse,
+  CyberOpsApprovedServiceRequest,
   MarketOpsMarketStateFilter,
   MarketOpsFeatureDefinitionFilter,
   MarketOpsFeatureObservationFilter,
@@ -113,6 +115,7 @@ export const queryKeys = {
   cyberOpsTrafficOverview: (tenantId: string, window: CyberOpsTrafficWindow) => ["cyberops-traffic-overview", tenantId, window] as const,
   cyberOpsIoTConfig: (tenantId: string) => ["cyberops-iot-config", tenantId] as const,
   cyberOpsIoTBehaviour: (tenantId: string) => ["cyberops-iot-behaviour", tenantId] as const,
+  cyberOpsApprovedServices: (tenantId: string) => ["cyberops-approved-services", tenantId] as const,
   marketOpsSignalOverview: (tenantId: string, group: string, window: MarketOpsSignalOverviewWindow) => ["marketops-signal-overview", tenantId, group, window] as const,
   marketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
     ['marketops-options-coverage', tenantId, symbol] as const,
@@ -1338,3 +1341,6 @@ export function useMaterializeAlgorithmSignalProposal() {
 export function useCyberOpsIoTNetworkConfig(tenantId: string) { return useQuery<CyberOpsIoTNetworkConfigResponse>({ queryKey: queryKeys.cyberOpsIoTConfig(tenantId), queryFn: () => api.getCyberOpsIoTNetworkConfig(tenantId), enabled: !!tenantId }); }
 export function useCyberOpsIoTBehaviour(tenantId: string) { return useQuery<CyberOpsIoTBehaviourResponse>({ queryKey: queryKeys.cyberOpsIoTBehaviour(tenantId), queryFn: () => api.getCyberOpsIoTBehaviour(tenantId), enabled: !!tenantId, refetchInterval: 30000 }); }
 export function useUpdateCyberOpsIoTNetworkConfig(tenantId: string) { const client=useQueryClient(); return useMutation({ mutationFn: (internalCIDRs:string[]) => api.updateCyberOpsIoTNetworkConfig(tenantId, internalCIDRs), onSuccess: () => { client.invalidateQueries({queryKey:queryKeys.cyberOpsIoTConfig(tenantId)}); client.invalidateQueries({queryKey:queryKeys.cyberOpsIoTBehaviour(tenantId)}); } }); }
+export function useCyberOpsApprovedServices(tenantId: string) { return useQuery<CyberOpsApprovedServicesResponse>({ queryKey: queryKeys.cyberOpsApprovedServices(tenantId), queryFn: () => api.getCyberOpsApprovedServices(tenantId), enabled: !!tenantId }); }
+export function useApproveCyberOpsService(tenantId: string) { const client=useQueryClient(); return useMutation({ mutationFn: (service:CyberOpsApprovedServiceRequest) => api.approveCyberOpsService(tenantId, service), onSuccess:()=>client.invalidateQueries({queryKey:queryKeys.cyberOpsApprovedServices(tenantId)}) }); }
+export function useRemoveCyberOpsService(tenantId: string) { const client=useQueryClient(); return useMutation({ mutationFn: (service:CyberOpsApprovedServiceRequest) => api.removeCyberOpsService(tenantId, service), onSuccess:()=>client.invalidateQueries({queryKey:queryKeys.cyberOpsApprovedServices(tenantId)}) }); }

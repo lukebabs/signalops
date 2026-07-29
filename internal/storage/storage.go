@@ -1764,6 +1764,13 @@ type SignalLifecycleRepository interface {
 	PersistSignalLifecycle(ctx context.Context, signal SignalLedgerRecord, alerts []AlertLedgerRecord, insights []InsightLedgerRecord) error
 }
 
+// PolicySignalLifecycleRepository lets a persistence implementation replace the
+// legacy one-signal/one-insight lifecycle with a transactional, policy-driven
+// lifecycle. Implementations return handled=false to retain the legacy path.
+type PolicySignalLifecycleRepository interface {
+	PersistPolicySignalLifecycle(ctx context.Context, signal SignalLedgerRecord, alerts []AlertLedgerRecord, insights []InsightLedgerRecord) (handled bool, err error)
+}
+
 type SyncraticRepository interface {
 	UpsertSyncraticContextWindow(ctx context.Context, record SyncraticContextWindowRecord) error
 	ListSyncraticContextWindows(ctx context.Context, filter SyncraticContextWindowFilter) ([]SyncraticContextWindowRecord, error)
@@ -2361,6 +2368,67 @@ type CyberOpsIoTRepository interface {
 	GetCyberOpsIoTNetworkConfig(ctx context.Context, tenantID string) (CyberOpsIoTNetworkConfig, error)
 	UpsertCyberOpsIoTNetworkConfig(ctx context.Context, config CyberOpsIoTNetworkConfig) error
 	ListCyberOpsIoTNetworkConfigs(ctx context.Context) ([]CyberOpsIoTNetworkConfig, error)
+}
+
+// CyberOpsLifecyclePolicy is deliberately small for v1: policy definitions are
+// seeded and auditable, rather than being a general purpose rule editor.
+type CyberOpsLifecyclePolicy struct {
+	TenantID      string
+	PolicyID      string
+	PolicyVersion string
+	Mode          string
+	SelectorJSON  []byte
+	PolicyHash    string
+	UpdatedAt     time.Time
+}
+
+type CyberOpsApprovedService struct {
+	TenantID        string
+	DestinationIP   string
+	Protocol        string
+	DestinationPort int
+	ApprovedBy      string
+	Reason          string
+	CreatedAt       time.Time
+}
+
+type CyberOpsLifecycleEpisode struct {
+	EpisodeID        string
+	TenantID         string
+	PolicyID         string
+	Fingerprint      string
+	Disposition      string
+	FirstObservedAt  time.Time
+	LastObservedAt   time.Time
+	ObservationCount int
+	SignalIDs        []string
+	InsightID        string
+	AlertID          string
+}
+
+type CyberOpsLifecycleDecision struct {
+	DecisionID    string
+	TenantID      string
+	SignalID      string
+	PolicyID      string
+	PolicyVersion string
+	Mode          string
+	Disposition   string
+	Reason        string
+	Fingerprint   string
+	EpisodeID     string
+	InsightID     string
+	AlertID       string
+	CreatedAt     time.Time
+}
+
+type CyberOpsLifecycleRepository interface {
+	ListCyberOpsLifecyclePolicies(ctx context.Context, tenantID string) ([]CyberOpsLifecyclePolicy, error)
+	ListCyberOpsApprovedServices(ctx context.Context, tenantID string) ([]CyberOpsApprovedService, error)
+	UpsertCyberOpsApprovedService(ctx context.Context, service CyberOpsApprovedService, actor string) error
+	DeleteCyberOpsApprovedService(ctx context.Context, tenantID, destinationIP, protocol string, destinationPort int, actor string) error
+	ListCyberOpsLifecycleEpisodes(ctx context.Context, tenantID string, limit int) ([]CyberOpsLifecycleEpisode, error)
+	ListCyberOpsLifecycleDecisions(ctx context.Context, tenantID string, limit int) ([]CyberOpsLifecycleDecision, error)
 }
 
 type CyberOpsPersistResult struct {

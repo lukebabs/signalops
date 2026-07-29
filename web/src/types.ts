@@ -2666,6 +2666,10 @@ export interface CyberOpsTrafficOverviewResponse { generated_at:string; window:C
 export interface CyberOpsLiveTrafficPoint { time:string; received_logs:number; allowed_events:number; unparsed_logs:number; }
 export interface CyberOpsLiveTrafficSnapshot { generated_at:string; last_observed_at?:string; points:CyberOpsLiveTrafficPoint[]; }
 
+export interface CyberOpsApprovedService { tenant_id:string; destination_ip:string; protocol:"tcp"|"udp"; destination_port:number; approved_by:string; reason:string; created_at?:string; }
+export interface CyberOpsApprovedServicesResponse { approved_services:CyberOpsApprovedService[]; }
+export interface CyberOpsApprovedServiceRequest { destination_ip:string; protocol:"tcp"|"udp"; destination_port:number; reason:string; }
+
 export interface CyberOpsIoTNetworkConfig { tenant_id:string; internal_cidrs:string[]; updated_at?:string; }
 export interface CyberOpsIoTNetworkConfigResponse { network_config:CyberOpsIoTNetworkConfig; }
 export interface CyberOpsIoTFlow { device_ip:string; peer_ip:string; direction:"egress"|"ingress"|"lateral"|string; protocol:string; destination_port:number; count:number; first_seen:string; last_seen:string; }

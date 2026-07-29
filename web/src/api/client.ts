@@ -63,6 +63,8 @@ import type {
   CyberOpsTrafficOverviewResponse,
   CyberOpsIoTNetworkConfigResponse,
   CyberOpsIoTBehaviourResponse,
+  CyberOpsApprovedServicesResponse,
+  CyberOpsApprovedServiceRequest,
   MarketOpsHypothesisResponse,
   MarketOpsEvidenceResponse,
   MarketOpsMarketStateLineageResponse,
@@ -263,6 +265,8 @@ async function put<T>(path: string, body?: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function del(path: string): Promise<void> { const endpoint=buildUrl(path); const res=await fetch(endpoint,{method:"DELETE",headers:{Accept:"application/json",...authHeaders()}}); if(!res.ok){throw new ApiError(res.status,"http_error",res.statusText,endpoint);} }
+
 async function patch<T>(path: string, body?: unknown): Promise<T> {
   const endpoint = buildUrl(path);
   let res: Response;
@@ -438,6 +442,9 @@ export const api = {
   getCyberOpsIoTNetworkConfig: (tenantId: string) => get<CyberOpsIoTNetworkConfigResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/iot/network-config", undefined, "no-store"),
   updateCyberOpsIoTNetworkConfig: (tenantId: string, internal_cidrs: string[]) => put<CyberOpsIoTNetworkConfigResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/iot/network-config", { internal_cidrs }),
   getCyberOpsIoTBehaviour: (tenantId: string) => get<CyberOpsIoTBehaviourResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/iot/behaviour", undefined, "no-store"),
+  getCyberOpsApprovedServices: (tenantId: string) => get<CyberOpsApprovedServicesResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/lifecycle/approved-services", undefined, "no-store"),
+  approveCyberOpsService: (tenantId: string, body: CyberOpsApprovedServiceRequest) => put<{approved_service: CyberOpsApprovedServiceRequest}>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/lifecycle/approved-services", body),
+  removeCyberOpsService: (tenantId: string, service: CyberOpsApprovedServiceRequest) => del("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/lifecycle/approved-services/" + encodeURIComponent(service.destination_ip) + "/" + encodeURIComponent(service.protocol) + "/" + service.destination_port),
   getMarketOpsSignalOverview: (tenantId: string, universeGroup = "all_active", window: import("../types").MarketOpsSignalOverviewWindow = "60_trade_days") => get<MarketOpsSignalOverviewResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/signal-overview`, { universe_group: universeGroup, window }, "no-store"),
   getMarketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
     get<MarketOpsOptionsCoverageResponse>(

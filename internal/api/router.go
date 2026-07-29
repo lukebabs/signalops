@@ -2558,6 +2558,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerCyberOpsConnectRoutes(mux, cfg)
 	registerCyberOpsTrafficRoutes(mux, cfg.QueryRepository)
 	registerCyberOpsIoTRoutes(mux, cfg.QueryRepository)
+	registerCyberOpsLifecycleRoutes(mux, cfg.QueryRepository)
 	return authMiddleware(mux, cfg.Auth)
 }
 

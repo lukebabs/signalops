@@ -31,12 +31,12 @@ func TestParseOPNsenseFilterlogAcceptsExplicitAllowActions(t *testing.T) {
 	}
 }
 
-func TestParseOPNsenseFilterlogRejectsDeniedTraffic(t *testing.T) {
-	if _, ok := ParseOPNsenseFilterlog(filterlogMessage("block", "8.8.8.8", "443")); ok {
-		t.Fatal("block traffic must not be parsed as an allowed connection")
-	}
-	if _, ok := ParseOPNsenseFilterlog(filterlogMessage("deny", "8.8.8.8", "443")); ok {
-		t.Fatal("deny traffic must not be parsed as an allowed connection")
+func TestParseOPNsenseFilterlogAcceptsDeniedTraffic(t *testing.T) {
+	for _, action := range []string{"block", "deny"} {
+		event, ok := ParseOPNsenseFilterlog(filterlogMessage(action, "8.8.8.8", "443"))
+		if !ok || event.Action != action {
+			t.Fatalf("%s was not parsed: %+v", action, event)
+		}
 	}
 }
 
@@ -50,7 +50,7 @@ func TestProcessorEmitsOneInsightSignalPerAllowedService(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(publisher.messages) != 2 {
-		t.Fatalf("published messages = %d, want signal plus state", len(publisher.messages))
+		t.Fatalf("published messages = %d, want one durable signal per allowed event", len(publisher.messages))
 	}
 	var event signals.Event
 	if err := json.Unmarshal(publisher.messages[0].Value, &event); err != nil {
@@ -62,12 +62,13 @@ func TestProcessorEmitsOneInsightSignalPerAllowedService(t *testing.T) {
 	if event.InsightTitle != "New public service exposure: TCP/443" || event.InsightSummary == "" {
 		t.Fatalf("presentation = %+v", event)
 	}
-	if publisher.messages[1].Topic != "state" {
-		t.Fatalf("state topic = %q", publisher.messages[1].Topic)
+	var second signals.Event
+	if err := json.Unmarshal(publisher.messages[1].Value, &second); err != nil || second.SignalID == event.SignalID {
+		t.Fatalf("second durable signal = %+v, err=%v", second, err)
 	}
 }
 
-func TestProcessorRestoredExposureDoesNotEmitAgain(t *testing.T) {
+func TestProcessorRestoredExposureStillEmitsDurableEvidence(t *testing.T) {
 	publisher := &fakePublisher{}
 	processor := &Processor{Publisher: publisher, SignalTopic: "signals", StateTopic: "state"}
 	firewall, ok := ParseOPNsenseFilterlog(filterlogMessage("pass", "8.8.8.8", "443"))
@@ -84,12 +85,12 @@ func TestProcessorRestoredExposureDoesNotEmitAgain(t *testing.T) {
 	if err := processor.Process(context.Background(), normalizedMessage(t, "event-1", filterlogMessage("pass", "8.8.8.8", "443"))); err != nil {
 		t.Fatal(err)
 	}
-	if len(publisher.messages) != 0 {
+	if len(publisher.messages) != 1 {
 		t.Fatalf("published messages = %+v", publisher.messages)
 	}
 }
 
-func TestProcessorIgnoresPrivateAndDeniedSources(t *testing.T) {
+func TestProcessorIgnoresPrivateSourcesAndRetainsExternalDenies(t *testing.T) {
 	publisher := &fakePublisher{}
 	processor := &Processor{Publisher: publisher, SignalTopic: "signals", StateTopic: "state"}
 	for _, value := range []string{filterlogMessage("pass", "10.1.2.3", "443"), filterlogMessage("block", "8.8.8.8", "443")} {
@@ -97,7 +98,7 @@ func TestProcessorIgnoresPrivateAndDeniedSources(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(publisher.messages) != 0 {
+	if len(publisher.messages) != 1 {
 		t.Fatalf("published messages = %+v", publisher.messages)
 	}
 }

@@ -66,41 +66,13 @@ func (p *Processor) Process(ctx context.Context, message broker.ConsumedMessage)
 	if !IsPublicRoutable(firewall.SourceIP) {
 		return nil
 	}
-	key := exposureKey(event.TenantID, firewall)
-	p.mu.Lock()
-	if p.states == nil {
-		p.states = map[string]exposureState{}
+	observed := event.OccurredAt.UTC()
+	if firewall.Action == "pass" || firewall.Action == "allow" {
+		recommendation := map[string]any{"action": "review_public_service_exposure", "destination_ip": firewall.DestinationIP, "protocol": firewall.Protocol, "destination_port": firewall.DestinationPort, "first_observed_at": observed.Format(time.RFC3339)}
+		return p.publish(ctx, signal(event, firewall, AllowedServiceExposureDetector, "cyberops.firewall.new_public_service_exposure", "low", []string{event.EventID}, observed, observed, recommendation))
 	}
-	state, seen := p.states[key]
-	p.mu.Unlock()
-	if seen && state.SignalEmitted {
-		return nil
-	}
-
-	firstObserved := event.OccurredAt.UTC()
-	if seen && !state.FirstObserved.IsZero() {
-		firstObserved = state.FirstObserved
-	}
-	recommendation := map[string]any{
-		"action": "review_public_service_exposure", "destination_ip": firewall.DestinationIP,
-		"protocol": firewall.Protocol, "destination_port": firewall.DestinationPort,
-		"first_observed_at": firstObserved.Format(time.RFC3339),
-	}
-	if err := p.publish(ctx, signal(event, firewall, AllowedServiceExposureDetector, "cyberops.firewall.new_public_service_exposure", "low", []string{event.EventID}, firstObserved, firstObserved, recommendation)); err != nil {
-		return err
-	}
-	state = exposureState{FirstObserved: firstObserved, SignalEmitted: true}
-	if p.StateTopic != "" {
-		value, _ := json.Marshal(state)
-		_, err := p.Publisher.Publish(ctx, broker.Message{Topic: p.StateTopic, Key: key, Value: value, CorrelationID: event.CorrelationID, CausationID: event.EventID, TraceID: event.TraceID, PublishedAt: time.Now().UTC()})
-		if err != nil {
-			return err
-		}
-	}
-	p.mu.Lock()
-	p.states[key] = state
-	p.mu.Unlock()
-	return nil
+	recommendation := map[string]any{"action": "retain_external_deny_evidence", "destination_ip": firewall.DestinationIP, "protocol": firewall.Protocol, "destination_port": firewall.DestinationPort}
+	return p.publish(ctx, signal(event, firewall, "cyberops.firewall.external_deny.v1", "cyberops.firewall.external_deny", "info", []string{event.EventID}, observed, observed, recommendation))
 }
 
 func (p *Processor) publish(ctx context.Context, event signals.Event) error {
@@ -113,7 +85,7 @@ func (p *Processor) publish(ctx context.Context, event signals.Event) error {
 }
 
 func signal(event normalization.Event, firewall FirewallEvent, detector, kind, severity string, eventIDs []string, start, end time.Time, recommendation map[string]any) signals.Event {
-	id := stable(detector + "|" + exposureKey(event.TenantID, firewall))
+	id := stable(detector + "|" + kind + "|" + event.TenantID + "|" + event.EventID)
 	title := fmt.Sprintf("New public service exposure: %s/%d", strings.ToUpper(firewall.Protocol), firewall.DestinationPort)
 	summary := fmt.Sprintf("First observed allowed connection from public source %s to %s:%d over %s.", firewall.SourceIP, firewall.DestinationIP, firewall.DestinationPort, strings.ToUpper(firewall.Protocol))
 	return signals.Event{SignalID: id, TenantID: event.TenantID, SourceID: event.SourceID, AppID: "cyberops", Domain: "security", UseCase: "cyberops", SourceDomain: "security", SourceAdapter: event.SourceAdapter, IngestionMode: event.IngestionMode, Dataset: event.Dataset, EventIDs: eventIDs, ArtifactIDs: []string{}, SignalType: kind, DetectorID: detector, DetectorVersion: "1.0.0", ModelVersion: "deterministic-v1", Timestamp: end, ObservationTime: event.ObservationTime, EffectiveTime: event.EffectiveTime, ProcessingTime: time.Now().UTC(), WindowStart: start, WindowEnd: end, Confidence: 0.9, Severity: severity, InsightTitle: title, InsightSummary: summary, Entities: []map[string]any{{"type": "ip", "value": firewall.SourceIP, "role": "source"}, {"type": "ip", "value": firewall.DestinationIP, "role": "destination"}}, SupportingMetrics: recommendation, GraphTargets: []map[string]any{}, SemanticEvidence: []map[string]any{{"parser": "opnsense.filterlog.v1", "action": firewall.Action, "protocol": firewall.Protocol, "destination_port": firewall.DestinationPort}}, Evidence: []map[string]any{{"type": "normalized_event", "ref": event.EventID}}, Recommendation: mustJSON(recommendation), CorrelationID: event.CorrelationID, TraceID: event.TraceID, CausationID: event.EventID}
