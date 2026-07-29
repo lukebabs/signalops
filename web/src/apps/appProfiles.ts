@@ -56,8 +56,8 @@ export const MARKETOPS_PROFILE: AppProfile = {
 export const CYBEROPS_PROFILE: AppProfile = {
   app_id: "cyberops",
   label: "CyberOps",
-  default_route: "/cyberops/signals",
+  default_route: "/cyberops/dashboard",
   domains: ["security"],
-  enabled_modules: ["signals", "alerts", "insights"],
+  enabled_modules: ["dashboard", "anomalies", "signals", "alerts", "insights", "settings"],
   dashboard_profile: "security.default",
 };

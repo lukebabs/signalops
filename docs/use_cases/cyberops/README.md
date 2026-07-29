@@ -19,9 +19,18 @@ the name of a SignalOps application or use case. CyberOps therefore shares an
 organization's tenant with its other SignalOps applications unless a separate
 organization or isolation boundary requires a different tenant.
 
-The concrete CyberOps `domain` and `use_case` values will be defined with the
-first implemented security workflow. That workflow should receive its own
-folder at `docs/use_cases/cyberops/{use_case}/`.
+The initial implemented workflow is `domain=security`, `use_case=cyberops`:
+it turns explicit firewall allow decisions for public inbound traffic into
+reviewable service-exposure insights. A finding is created once per tenant,
+destination IP, protocol, and destination port when a public source is first
+observed reaching that service. It is an exposure-discovery insight, not a
+claim about maliciousness, traffic volume, reputation, or geography.
+
+Denied traffic and denial-derived port-scan signals are intentionally out of
+scope for this workflow. CyberOps records the first-seen baseline from detector
+deployment onward and preserves it in compacted state. Each discovery is low
+severity and produces an Insight without opening an Alert; the operator should
+review whether the externally reachable service is intended.
 
 ## Platform Expectations
 

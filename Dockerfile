@@ -16,6 +16,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-co
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-connect-outbox ./cmd/cyberops-connect-outbox
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-normalizer ./cmd/cyberops-normalizer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-detector ./cmd/cyberops-detector
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-iot-anomaly ./cmd/cyberops-iot-anomaly
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-persister ./cmd/signal-persister
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
@@ -97,6 +98,12 @@ FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-detector
 COPY --from=build /out/signalops-cyberops-detector /signalops-cyberops-detector
 
 ENTRYPOINT ["/signalops-cyberops-detector"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-iot-anomaly
+
+COPY --from=build /out/signalops-cyberops-iot-anomaly /signalops-cyberops-iot-anomaly
+
+ENTRYPOINT ["/signalops-cyberops-iot-anomaly"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS signal-persister
 

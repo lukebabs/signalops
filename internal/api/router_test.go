@@ -79,6 +79,7 @@ type fakeQueryRepository struct {
 	lastReplayFilter                   storage.ReplayJobFilter
 	usage                              []storage.ProviderUsageRecord
 	rawEvents                          []storage.RawEventLedgerRecord
+	cyberOpsTraffic                    []storage.CyberOpsTrafficInput
 	idem                               storage.IdempotencyRecord
 	sources                            []storage.CatalogSourceRecord
 	pipelines                          []storage.CatalogPipelineRecord
@@ -307,6 +308,10 @@ func (q *fakeQueryRepository) ListNormalizedEventLedger(context.Context, storage
 }
 func (q *fakeQueryRepository) GetNormalizedEventLedger(context.Context, string) (storage.NormalizedEventLedgerRecord, error) {
 	return storage.NormalizedEventLedgerRecord{}, storage.ErrNotFound
+}
+
+func (q *fakeQueryRepository) ListCyberOpsTrafficInputs(context.Context, string, time.Time, time.Time) ([]storage.CyberOpsTrafficInput, error) {
+	return q.cyberOpsTraffic, nil
 }
 
 func (q *fakeQueryRepository) ListSignalLedger(context.Context, storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
@@ -4388,5 +4393,60 @@ func TestGetMarketOpsOptionsCaptureAndInvalidReadyFilter(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestBuildCyberOpsLiveTrafficSnapshotBucketsAllowedAndUnparsedLogs(t *testing.T) {
+	now := time.Date(2026, 7, 29, 12, 0, 45, 0, time.UTC)
+	snapshot := buildCyberOpsLiveTrafficSnapshot([]storage.CyberOpsTrafficInput{
+		{EventID: "allowed", ObservedAt: time.Date(2026, 7, 29, 11, 59, 10, 0, time.UTC), Message: "x,x,pass,x,x,x,x,x,x,tcp,x,198.51.100.20,10.0.0.1,40000,443"},
+		{EventID: "unparsed", ObservedAt: time.Date(2026, 7, 29, 11, 59, 20, 0, time.UTC), Message: "unrecognized firewall record"},
+		{EventID: "outside", ObservedAt: time.Date(2026, 7, 29, 11, 20, 0, 0, time.UTC), Message: "x,x,pass,x,x,x,x,x,x,tcp,x,198.51.100.20,10.0.0.1,40000,443"},
+	}, now)
+	if len(snapshot.Points) != 30 {
+		t.Fatalf("point count = %d", len(snapshot.Points))
+	}
+	point := snapshot.Points[len(snapshot.Points)-2]
+	if point.Time != time.Date(2026, 7, 29, 11, 59, 0, 0, time.UTC) {
+		t.Fatalf("bucket time = %s", point.Time)
+	}
+	if point.ReceivedLogs != 2 || point.AllowedLogs != 1 || point.UnparsedLogs != 1 {
+		t.Fatalf("bucket = %+v", point)
+	}
+	if snapshot.LastObservedAt == nil || !snapshot.LastObservedAt.Equal(time.Date(2026, 7, 29, 11, 59, 20, 0, time.UTC)) {
+		t.Fatalf("last observed = %v", snapshot.LastObservedAt)
+	}
+}
+
+func TestCyberOpsLiveTrafficRouteStreamsInitialSnapshot(t *testing.T) {
+	repo := &fakeQueryRepository{cyberOpsTraffic: []storage.CyberOpsTrafficInput{{EventID: "allowed", ObservedAt: time.Now().UTC(), Message: "x,x,pass,x,x,x,x,x,x,tcp,x,198.51.100.20,10.0.0.1,40000,443"}}}
+	router := NewRouter(RouterConfig{QueryRepository: repo})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-local/cyberops/live-traffic", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() { router.ServeHTTP(rec, req); close(done) }()
+	deadline := time.After(500 * time.Millisecond)
+	for !strings.Contains(rec.Body.String(), "event: snapshot") {
+		select {
+		case <-deadline:
+			cancel()
+			<-done
+			t.Fatalf("stream body = %q", rec.Body.String())
+		default:
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	cancel()
+	<-done
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Type"); got != "text/event-stream" {
+		t.Fatalf("content type = %q", got)
+	}
+	if !strings.Contains(rec.Body.String(), "\"received_logs\":1") {
+		t.Fatalf("stream body = %s", rec.Body.String())
 	}
 }

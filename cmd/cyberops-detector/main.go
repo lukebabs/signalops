@@ -13,6 +13,7 @@ import (
 	kafkabroker "github.com/lukebabs/signalops/internal/broker/kafka"
 	"github.com/lukebabs/signalops/internal/config"
 	"github.com/lukebabs/signalops/internal/cyberops/detection"
+	"github.com/lukebabs/signalops/internal/storage/postgres"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
 
@@ -32,15 +33,23 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer client.Close(context.Background())
+	repo, err := postgres.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer repo.Close()
 	input := broker.TopicName(cfg.Environment, broker.NormalizedTopic)
 	signals := broker.TopicName(cfg.Environment, broker.SignalTopic)
-	state := broker.TopicName(cfg.Environment, "cyberops-port-scan-state")
-	consumer, err := client.NewConsumer("signalops."+cfg.Environment+".cyberops-detector.v1", []string{input, state})
+	state := broker.TopicName(cfg.Environment, "cyberops-allowed-service-state")
+	consumer, err := client.NewConsumer("signalops."+cfg.Environment+".cyberops-detector.v2", []string{input, state})
 	if err != nil {
 		return err
 	}
 	defer consumer.Close(context.Background())
-	processor := &detection.Processor{Publisher: client, SignalTopic: signals, StateTopic: state}
+	processor := &detection.Processor{Publisher: client, SignalTopic: signals, StateTopic: state, IoTCIDRs: func(ctx context.Context, tenantID string) ([]string, error) {
+		item, err := repo.GetCyberOpsIoTNetworkConfig(ctx, tenantID)
+		return item.InternalCIDRs, err
+	}}
 	for {
 		message, err := consumer.Consume(ctx)
 		if err != nil {

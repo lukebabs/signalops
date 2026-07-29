@@ -50,6 +50,9 @@ export type AppRoutePath =
   | '/marketops/syncratic'
   | '/marketops/algorithms'
   | '/cyberops'
+  | '/cyberops/dashboard'
+  | '/cyberops/anomalies'
+  | '/cyberops/settings'
   | '/cyberops/signals'
   | '/cyberops/alerts'
   | '/cyberops/insights';
@@ -104,9 +107,12 @@ const MARKETOPS_NAV: NavItem[] = [
 ];
 
 const CYBEROPS_NAV: NavItem[] = [
+  { module: "dashboard", to: "/cyberops/dashboard", label: "Dashboard" },
+  { module: "anomalies", to: "/cyberops/anomalies", label: "Anomalies" },
+  { module: "insights", to: "/cyberops/insights", label: "Insights" },
   { module: "signals", to: "/cyberops/signals", label: "Signals" },
   { module: "alerts", to: "/cyberops/alerts", label: "Alerts" },
-  { module: "insights", to: "/cyberops/insights", label: "Insights" },
+  { module: "settings", to: "/cyberops/settings", label: "Settings" },
 ];
 
 // Nav is an explicit per-app route set matching the G067 Required Outcome +

@@ -2338,12 +2338,25 @@ type CyberOpsOutboxRecord struct {
 }
 
 type CyberOpsTrafficInput struct {
+	EventID    string
 	Message    string
 	ObservedAt time.Time
 }
 
 type CyberOpsTrafficRepository interface {
 	ListCyberOpsTrafficInputs(ctx context.Context, tenantID string, from, to time.Time) ([]CyberOpsTrafficInput, error)
+}
+
+type CyberOpsIoTNetworkConfig struct {
+	TenantID      string
+	InternalCIDRs []string
+	UpdatedAt     time.Time
+}
+
+type CyberOpsIoTRepository interface {
+	GetCyberOpsIoTNetworkConfig(ctx context.Context, tenantID string) (CyberOpsIoTNetworkConfig, error)
+	UpsertCyberOpsIoTNetworkConfig(ctx context.Context, config CyberOpsIoTNetworkConfig) error
+	ListCyberOpsIoTNetworkConfigs(ctx context.Context) ([]CyberOpsIoTNetworkConfig, error)
 }
 
 type CyberOpsPersistResult struct {

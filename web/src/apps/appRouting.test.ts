@@ -68,8 +68,8 @@ describe('defaultRouteForApp (G067)', () => {
     expect(defaultRouteForApp(MARKETOPS_PROFILE)).toBe('/marketops/dashboard');
   });
 
-  it('opens CyberOps directly on its scoped signals workflow', () => {
-    expect(defaultRouteForApp(CYBEROPS_PROFILE)).toBe('/cyberops/signals');
+  it('opens CyberOps directly on its traffic dashboard', () => {
+    expect(defaultRouteForApp(CYBEROPS_PROFILE)).toBe('/cyberops/dashboard');
   });
 });
 
@@ -99,9 +99,9 @@ describe('navForApp (G067)', () => {
     expect(labels).not.toContain('Rules');
   });
 
-  it('keeps CyberOps focused on its signal triage workflow', () => {
+  it('keeps CyberOps focused on allowed-traffic analysis', () => {
     const nav = navForApp('cyberops');
-    expect(nav.map((item) => item.label)).toEqual(['Signals', 'Alerts', 'Insights']);
+    expect(nav.map((item) => item.label)).toEqual(['Dashboard', 'Anomalies', 'Insights', 'Signals', 'Alerts', 'Settings']);
     expect(nav.every((item) => item.to.startsWith('/cyberops/'))).toBe(true);
   });
 

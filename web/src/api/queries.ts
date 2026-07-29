@@ -21,6 +21,10 @@ import type {
   MarketOpsRiskRewardSummariesResponse,
   MarketOpsSignalOverviewResponse,
   MarketOpsSignalOverviewWindow,
+  CyberOpsTrafficOverviewResponse,
+  CyberOpsTrafficWindow,
+  CyberOpsIoTNetworkConfigResponse,
+  CyberOpsIoTBehaviourResponse,
   MarketOpsMarketStateFilter,
   MarketOpsFeatureDefinitionFilter,
   MarketOpsFeatureObservationFilter,
@@ -106,6 +110,9 @@ export const queryKeys = {
   marketOpsQuantitativeSeries: (tenantId: string, symbol: string, window: string) => ["marketops-quantitative-series", tenantId, symbol, window] as const,
   marketOpsAssetAlgorithmObservations: (tenantId: string, symbol: string) => ["marketops-asset-algorithm-observations", tenantId, symbol] as const,
   marketOpsRiskRewardSummaries: (tenantId: string, group: string) => ["marketops-risk-reward-summaries", tenantId, group] as const,
+  cyberOpsTrafficOverview: (tenantId: string, window: CyberOpsTrafficWindow) => ["cyberops-traffic-overview", tenantId, window] as const,
+  cyberOpsIoTConfig: (tenantId: string) => ["cyberops-iot-config", tenantId] as const,
+  cyberOpsIoTBehaviour: (tenantId: string) => ["cyberops-iot-behaviour", tenantId] as const,
   marketOpsSignalOverview: (tenantId: string, group: string, window: MarketOpsSignalOverviewWindow) => ["marketops-signal-overview", tenantId, group, window] as const,
   marketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
     ['marketops-options-coverage', tenantId, symbol] as const,
@@ -458,6 +465,8 @@ export function useMarketOpsOptionsCoverage(tenantId: string, symbol: string | n
     staleTime: 5 * 60 * 1000,
   });
 }
+
+export function useCyberOpsTrafficOverview(tenantId: string, window: CyberOpsTrafficWindow = "24h") { return useQuery<CyberOpsTrafficOverviewResponse>({ queryKey: queryKeys.cyberOpsTrafficOverview(tenantId, window), queryFn: () => api.getCyberOpsTrafficOverview(tenantId, window), staleTime: 30 * 1000, refetchInterval: 30 * 1000 }); }
 
 export function useMarketOpsSignalOverview(tenantId: string, universeGroup = "all_active", window: MarketOpsSignalOverviewWindow = "60_trade_days") { return useQuery<MarketOpsSignalOverviewResponse>({ queryKey: queryKeys.marketOpsSignalOverview(tenantId, universeGroup, window), queryFn: () => api.getMarketOpsSignalOverview(tenantId, universeGroup, window), staleTime: 60 * 1000, refetchInterval: 5 * 60 * 1000, refetchOnMount: "always" }); }
 
@@ -1325,3 +1334,7 @@ export function useMaterializeAlgorithmSignalProposal() {
     onSuccess: () => applyMaterializeAlgorithmSignalProposalResult(queryClient),
   });
 }
+
+export function useCyberOpsIoTNetworkConfig(tenantId: string) { return useQuery<CyberOpsIoTNetworkConfigResponse>({ queryKey: queryKeys.cyberOpsIoTConfig(tenantId), queryFn: () => api.getCyberOpsIoTNetworkConfig(tenantId), enabled: !!tenantId }); }
+export function useCyberOpsIoTBehaviour(tenantId: string) { return useQuery<CyberOpsIoTBehaviourResponse>({ queryKey: queryKeys.cyberOpsIoTBehaviour(tenantId), queryFn: () => api.getCyberOpsIoTBehaviour(tenantId), enabled: !!tenantId, refetchInterval: 30000 }); }
+export function useUpdateCyberOpsIoTNetworkConfig(tenantId: string) { const client=useQueryClient(); return useMutation({ mutationFn: (internalCIDRs:string[]) => api.updateCyberOpsIoTNetworkConfig(tenantId, internalCIDRs), onSuccess: () => { client.invalidateQueries({queryKey:queryKeys.cyberOpsIoTConfig(tenantId)}); client.invalidateQueries({queryKey:queryKeys.cyberOpsIoTBehaviour(tenantId)}); } }); }

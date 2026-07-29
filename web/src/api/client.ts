@@ -60,6 +60,9 @@ import type {
   MarketOpsAssetAlgorithmObservationsResponse,
   MarketOpsRiskRewardSummariesResponse,
   MarketOpsSignalOverviewResponse,
+  CyberOpsTrafficOverviewResponse,
+  CyberOpsIoTNetworkConfigResponse,
+  CyberOpsIoTBehaviourResponse,
   MarketOpsHypothesisResponse,
   MarketOpsEvidenceResponse,
   MarketOpsMarketStateLineageResponse,
@@ -254,6 +257,12 @@ async function post<T>(
   return (await res.json()) as T;
 }
 
+async function put<T>(path: string, body?: unknown): Promise<T> {
+  const endpoint = buildUrl(path); const res = await fetch(endpoint, { method: "PUT", headers: { Accept: "application/json", "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(body) });
+  if (!res.ok) { let message=res.statusText; try { const value=await res.json(); message=value.message ?? message; } catch {} throw new ApiError(res.status, "http_error", message, endpoint); }
+  return (await res.json()) as T;
+}
+
 async function patch<T>(path: string, body?: unknown): Promise<T> {
   const endpoint = buildUrl(path);
   let res: Response;
@@ -425,6 +434,10 @@ export const api = {
   getMarketOpsQuantitativeSeries: (tenantId: string, symbol: string, window: string) => get<MarketOpsQuantitativeSeriesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/quantitative-series`, { window }),
   getMarketOpsAssetAlgorithmObservations: (tenantId: string, symbol: string) => get<MarketOpsAssetAlgorithmObservationsResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/algorithm-observations`),
   getMarketOpsRiskRewardSummaries: (tenantId: string, universeGroup = "top50_megacap") => get<MarketOpsRiskRewardSummariesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/risk-reward`, { universe_group: universeGroup }, "no-store"),
+  getCyberOpsTrafficOverview: (tenantId: string, window: import("../types").CyberOpsTrafficWindow = "24h") => get<CyberOpsTrafficOverviewResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/traffic-overview", { window }, "no-store"),
+  getCyberOpsIoTNetworkConfig: (tenantId: string) => get<CyberOpsIoTNetworkConfigResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/iot/network-config", undefined, "no-store"),
+  updateCyberOpsIoTNetworkConfig: (tenantId: string, internal_cidrs: string[]) => put<CyberOpsIoTNetworkConfigResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/iot/network-config", { internal_cidrs }),
+  getCyberOpsIoTBehaviour: (tenantId: string) => get<CyberOpsIoTBehaviourResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/iot/behaviour", undefined, "no-store"),
   getMarketOpsSignalOverview: (tenantId: string, universeGroup = "all_active", window: import("../types").MarketOpsSignalOverviewWindow = "60_trade_days") => get<MarketOpsSignalOverviewResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/signal-overview`, { universe_group: universeGroup, window }, "no-store"),
   getMarketOpsOptionsCoverage: (tenantId: string, symbol: string) =>
     get<MarketOpsOptionsCoverageResponse>(

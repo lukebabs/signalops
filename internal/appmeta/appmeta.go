@@ -49,9 +49,9 @@ var Profiles = []Profile{
 	{
 		AppID:            AppCyberOps,
 		Label:            "CyberOps",
-		DefaultRoute:     "/cyberops/signals",
+		DefaultRoute:     "/cyberops/dashboard",
 		Domains:          []string{"security"},
-		EnabledModules:   []string{"signals", "alerts", "insights"},
+		EnabledModules:   []string{"dashboard", "anomalies", "signals", "alerts", "insights", "settings"},
 		DashboardProfile: "security.default",
 	},
 }

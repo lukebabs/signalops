@@ -88,6 +88,8 @@ type Event struct {
 	Severity          string           `json:"severity"`
 	Entities          []map[string]any `json:"entities"`
 	SupportingMetrics map[string]any   `json:"supporting_metrics"`
+	InsightTitle      string           `json:"insight_title,omitempty"`
+	InsightSummary    string           `json:"insight_summary,omitempty"`
 	GraphTargets      []map[string]any `json:"graph_targets"`
 	SemanticEvidence  []map[string]any `json:"semantic_evidence"`
 	Evidence          []map[string]any `json:"evidence"`
@@ -166,7 +168,7 @@ func ledgerRecord(event Event, message broker.ConsumedMessage) (storage.SignalLe
 	if err != nil {
 		return storage.SignalLedgerRecord{}, err
 	}
-	metrics, err := json.Marshal(event.SupportingMetrics)
+	metrics, err := json.Marshal(withInsightPresentation(event.SupportingMetrics, event.InsightTitle, event.InsightSummary))
 	if err != nil {
 		return storage.SignalLedgerRecord{}, err
 	}
@@ -209,13 +211,21 @@ func lifecycleRecords(record storage.SignalLedgerRecord) ([]storage.AlertLedgerR
 	if err != nil {
 		return nil, nil, err
 	}
+	title := fmt.Sprintf("%s signal from %s", record.Severity, record.DetectorID)
+	summary := fmt.Sprintf("Detector %s emitted a %s %s signal for %s.", record.DetectorID, record.Severity, record.SignalType, record.Dataset)
+	if presentation := insightPresentation(record.SupportingMetrics); presentation.Title != "" {
+		title = presentation.Title
+		if presentation.Summary != "" {
+			summary = presentation.Summary
+		}
+	}
 	insight := storage.InsightLedgerRecord{
 		InsightID: fmt.Sprintf("insight:%s", record.SignalID), TenantID: record.TenantID,
 		SourceID: record.SourceID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SourceDomain: record.SourceDomain, SourceAdapter: record.SourceAdapter,
 		Dataset: record.Dataset, SignalID: record.SignalID, DetectorID: record.DetectorID,
 		InsightType: record.SignalType, Status: storage.InsightStatusActive,
-		Title:      fmt.Sprintf("%s signal from %s", record.Severity, record.DetectorID),
-		Summary:    fmt.Sprintf("Detector %s emitted a %s %s signal for %s.", record.DetectorID, record.Severity, record.SignalType, record.Dataset),
+		Title:      title,
+		Summary:    summary,
 		Confidence: record.Confidence, Severity: record.Severity, EventIDs: append([]string(nil), record.EventIDs...),
 		EntitiesJSON: append([]byte(nil), record.EntitiesJSON...), SupportingMetrics: append([]byte(nil), record.SupportingMetrics...),
 		SemanticEvidenceJSON: append([]byte(nil), record.SemanticEvidenceJSON...), RecommendationJSON: append([]byte(nil), record.RecommendationJSON...),
@@ -237,6 +247,35 @@ func lifecycleRecords(record storage.SignalLedgerRecord) ([]storage.AlertLedgerR
 		})
 	}
 	return alerts, []storage.InsightLedgerRecord{insight}, nil
+}
+
+type presentation struct {
+	Title   string `json:"title"`
+	Summary string `json:"summary"`
+}
+
+func withInsightPresentation(metrics map[string]any, title, summary string) map[string]any {
+	if strings.TrimSpace(title) == "" && strings.TrimSpace(summary) == "" {
+		return metrics
+	}
+	copy := make(map[string]any, len(metrics)+1)
+	for key, value := range metrics {
+		copy[key] = value
+	}
+	copy["signalops_presentation"] = presentation{Title: strings.TrimSpace(title), Summary: strings.TrimSpace(summary)}
+	return copy
+}
+
+func insightPresentation(metrics []byte) presentation {
+	var value map[string]json.RawMessage
+	if json.Unmarshal(metrics, &value) != nil {
+		return presentation{}
+	}
+	var result presentation
+	if raw, ok := value["signalops_presentation"]; ok {
+		_ = json.Unmarshal(raw, &result)
+	}
+	return result
 }
 
 func alertSeverity(severity string) bool {

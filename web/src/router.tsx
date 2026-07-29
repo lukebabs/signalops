@@ -48,6 +48,15 @@ const ReplayJobsRoute = lazy(() =>
 const MarketOpsAssetsRoute = lazy(() =>
   import('./routes/MarketOpsAssetsRoute').then((m) => ({ default: m.MarketOpsAssetsRoute })),
 );
+const CyberOpsDashboardRoute = lazy(() =>
+  import("./routes/CyberOpsDashboardRoute").then((m) => ({ default: m.CyberOpsDashboardRoute })),
+);
+const CyberOpsAnomaliesRoute = lazy(() =>
+  import("./routes/CyberOpsAnomaliesRoute").then((m) => ({ default: m.CyberOpsAnomaliesRoute })),
+);
+const CyberOpsSettingsRoute = lazy(() =>
+  import("./routes/CyberOpsSettingsRoute").then((m) => ({ default: m.CyberOpsSettingsRoute })),
+);
 const MarketOpsDashboardRoute = lazy(() =>
   import('./routes/MarketOpsDashboardRoute').then((m) => ({ default: m.MarketOpsDashboardRoute })),
 );
@@ -243,7 +252,7 @@ const marketopsAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, 
 function CyberOpsIndexRouteComponent() {
   const navigate = useNavigate();
   useEffect(() => {
-    navigate({ to: '/cyberops/signals', replace: true });
+    navigate({ to: '/cyberops/dashboard', replace: true });
   }, [navigate]);
   return <LoadingState label="Opening CyberOps..." />;
 }
@@ -251,6 +260,9 @@ function CyberOpsIndexRouteComponent() {
 // CyberOps uses the same operator-facing SignalOps primitives as the console,
 // scoped by AppProfileProvider to app_id=cyberops and domain=security.
 const cyberopsIndexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cyberops', component: CyberOpsIndexRouteComponent });
+const cyberopsDashboardRoute = createRoute({ getParentRoute: () => rootRoute, path: "/cyberops/dashboard", component: CyberOpsDashboardRoute });
+const cyberopsAnomaliesRoute = createRoute({ getParentRoute: () => rootRoute, path: "/cyberops/anomalies", component: CyberOpsAnomaliesRoute });
+const cyberopsSettingsRoute = createRoute({ getParentRoute: () => rootRoute, path: "/cyberops/settings", component: CyberOpsSettingsRoute });
 const cyberopsSignalsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cyberops/signals', component: SignalsRoute });
 const cyberopsAlertsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cyberops/alerts', component: AlertsRoute });
 const cyberopsInsightsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/cyberops/insights', component: InsightsRoute });
@@ -307,6 +319,9 @@ const routeTree = rootRoute.addChildren([
   marketopsSyncraticRoute,
   marketopsAlgorithmsRoute,
   cyberopsIndexRoute,
+  cyberopsDashboardRoute,
+  cyberopsAnomaliesRoute,
+  cyberopsSettingsRoute,
   cyberopsSignalsRoute,
   cyberopsAlertsRoute,
   cyberopsInsightsRoute,

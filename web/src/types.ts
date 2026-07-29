@@ -2656,3 +2656,17 @@ export interface MarketOpsSignalOverviewCategory { key:string; count:number; mem
 export interface MarketOpsSignalOverviewPoint { trade_date:string; categories:MarketOpsSignalOverviewCategory[]; }
 export interface MarketOpsSignalOverviewResponse { generated_at:string; universe_group:string; window:MarketOpsSignalOverviewWindow; asset_count:number; risk_reward:{points:MarketOpsSignalOverviewPoint[]}; hypotheses:{points:MarketOpsSignalOverviewPoint[]}; intraday:{as_of_time?:string;categories:MarketOpsSignalOverviewCategory[]}; }
 export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; risk_reward?:MarketOpsRiskRewardResponse; }
+
+
+export type CyberOpsTrafficWindow = "1h" | "24h" | "7d";
+export interface CyberOpsTrafficCount { key:string; count:number; }
+export interface CyberOpsTrafficPoint { time:string; count:number; }
+export interface CyberOpsTrafficFlow { source_ip:string; destination_ip:string; protocol:string; destination_port:number; count:number; first_seen:string; last_seen:string; }
+export interface CyberOpsTrafficOverviewResponse { generated_at:string; window:CyberOpsTrafficWindow; total_logs:number; allowed_events:number; unparsed_logs:number; unique_sources:number; unique_destinations:number; unique_services:number; timeline:CyberOpsTrafficPoint[]; top_sources:CyberOpsTrafficCount[]; top_destinations:CyberOpsTrafficCount[]; protocols:CyberOpsTrafficCount[]; destination_ports:CyberOpsTrafficCount[]; flows:CyberOpsTrafficFlow[]; }
+export interface CyberOpsLiveTrafficPoint { time:string; received_logs:number; allowed_events:number; unparsed_logs:number; }
+export interface CyberOpsLiveTrafficSnapshot { generated_at:string; last_observed_at?:string; points:CyberOpsLiveTrafficPoint[]; }
+
+export interface CyberOpsIoTNetworkConfig { tenant_id:string; internal_cidrs:string[]; updated_at?:string; }
+export interface CyberOpsIoTNetworkConfigResponse { network_config:CyberOpsIoTNetworkConfig; }
+export interface CyberOpsIoTFlow { device_ip:string; peer_ip:string; direction:"egress"|"ingress"|"lateral"|string; protocol:string; destination_port:number; count:number; first_seen:string; last_seen:string; }
+export interface CyberOpsIoTBehaviourResponse { generated_at:string; internal_cidrs:string[]; baseline_days:number; learning:boolean; device_count:number; flows:CyberOpsIoTFlow[]; }

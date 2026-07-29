@@ -1,5 +1,7 @@
 import { buildUrl } from './client';
 import { authConfig } from '../auth/config';
+import { getAccessToken } from '../auth/session';
+import type { CyberOpsLiveTrafficSnapshot } from '../types';
 
 export type DashboardStreamChannel =
   | 'health'
@@ -109,6 +111,129 @@ export function subscribeDashboardStream({
   bind('error');
 
   return { close: () => source.close() };
+}
+
+export type CyberOpsLiveTrafficStatus = "connecting" | "open" | "reconnecting" | "closed";
+
+export interface CyberOpsLiveTrafficSubscription {
+  close: () => void;
+}
+
+interface CyberOpsLiveTrafficSubscribeOptions {
+  tenantId: string;
+  onSnapshot: (snapshot: CyberOpsLiveTrafficSnapshot) => void;
+  onStatus?: (status: CyberOpsLiveTrafficStatus) => void;
+  onError?: (error: Error) => void;
+}
+
+// Unlike EventSource, fetch streaming carries the bearer token in an Authorization
+// header. This keeps credentials out of the URL while preserving true SSE delivery.
+export function subscribeCyberOpsLiveTraffic({ tenantId, onSnapshot, onStatus, onError }: CyberOpsLiveTrafficSubscribeOptions): CyberOpsLiveTrafficSubscription {
+  const controller = new AbortController();
+  let closed = false;
+  let retryMs = 1_000;
+
+  const run = async () => {
+    let firstAttempt = true;
+    while (!closed) {
+      onStatus?.(firstAttempt ? "connecting" : "reconnecting");
+      firstAttempt = false;
+      try {
+        const token = authConfig.authEnabled ? getAccessToken() : null;
+        const response = await fetch(buildUrl("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/live-traffic"), {
+          cache: "no-store",
+          headers: { Accept: "text/event-stream", ...(token ? { Authorization: "Bearer " + token } : {}) },
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error("Live CyberOps traffic stream failed (" + response.status + ")");
+        }
+        if (!response.body) {
+          throw new Error("Live CyberOps traffic stream has no response body");
+        }
+        onStatus?.("open");
+        retryMs = 1_000;
+        await consumeCyberOpsLiveTrafficStream(response.body, onSnapshot);
+        if (!closed) {
+          throw new Error("Live CyberOps traffic stream closed");
+        }
+      } catch (error) {
+        if (closed || controller.signal.aborted) {
+          break;
+        }
+        onError?.(error instanceof Error ? error : new Error("Live CyberOps traffic stream failed"));
+        await sleep(retryMs, controller.signal);
+        retryMs = Math.min(retryMs * 2, 10_000);
+      }
+    }
+    onStatus?.("closed");
+  };
+  void run();
+  return { close: () => { closed = true; controller.abort(); } };
+}
+
+export async function consumeCyberOpsLiveTrafficStream(stream: ReadableStream<Uint8Array>, onSnapshot: (snapshot: CyberOpsLiveTrafficSnapshot) => void): Promise<void> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const result = await reader.read();
+      if (result.done) {
+        break;
+      }
+      buffer += decoder.decode(result.value, { stream: true });
+      buffer = consumeCyberOpsLiveTrafficFrames(buffer, onSnapshot);
+    }
+    buffer += decoder.decode();
+    consumeCyberOpsLiveTrafficFrames(buffer + "\n\n", onSnapshot);
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export function consumeCyberOpsLiveTrafficFrames(buffer: string, onSnapshot: (snapshot: CyberOpsLiveTrafficSnapshot) => void): string {
+  const frames = buffer.split(/\r?\n\r?\n/);
+  const remaining = frames.pop() ?? "";
+  for (const frame of frames) {
+    const event = parseCyberOpsLiveTrafficFrame(frame);
+    if (event) {
+      onSnapshot(event);
+    }
+  }
+  return remaining;
+}
+
+function parseCyberOpsLiveTrafficFrame(frame: string): CyberOpsLiveTrafficSnapshot | null {
+  const lines = frame.split(/\r?\n/);
+  let event = "message";
+  const data: string[] = [];
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      event = line.slice("event:".length).trim();
+    } else if (line.startsWith("data:")) {
+      data.push(line.slice("data:".length).trimStart());
+    }
+  }
+  if ((event !== "snapshot" && event !== "traffic") || data.length === 0) {
+    return null;
+  }
+  try {
+    const value = JSON.parse(data.join("\n")) as CyberOpsLiveTrafficSnapshot;
+    if (!Array.isArray(value.points) || typeof value.generated_at !== "string") {
+      return null;
+    }
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function sleep(duration: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(resolve, duration);
+    signal.addEventListener("abort", () => { window.clearTimeout(timer); resolve(); }, { once: true });
+  });
 }
 
 export function parseDashboardStreamData(data: string): unknown {

@@ -115,3 +115,15 @@ func validSignalJSON() []byte {
 		"trace_id":"trace-g045","causation_id":"event-g045","replay_job_id":""
 	}`)
 }
+
+func TestProcessorUsesCustomInsightPresentation(t *testing.T) {
+	repository := &fakeRepository{}
+	value := strings.Replace(string(validSignalJSON()), `"entities":`, `"insight_title":"Useful title","insight_summary":"Useful summary","entities":`, 1)
+	message := broker.ConsumedMessage{Message: broker.Message{Topic: "signalops.test.signal.v1", Key: "signal-g045", Value: []byte(value)}}
+	if _, err := (Processor{Repository: repository}).Process(context.Background(), message); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.insights) != 1 || repository.insights[0].Title != "Useful title" || repository.insights[0].Summary != "Useful summary" {
+		t.Fatalf("insights = %+v", repository.insights)
+	}
+}

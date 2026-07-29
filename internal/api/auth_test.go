@@ -228,3 +228,17 @@ func TestAuthEnabledUsesTokenActorForLifecycleMutation(t *testing.T) {
 		t.Fatalf("metadata = %s", string(body.Alert.Metadata))
 	}
 }
+
+func TestAuthEnabledRejectsCyberOpsLiveTrafficTenantMismatch(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: &fakeQueryRepository{}})
+	token := fixture.token(t, nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, withBearer(httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-other/cyberops/live-traffic", nil), token))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "tenant_mismatch") {
+		t.Fatalf("body = %s", rec.Body.String())
+	}
+}

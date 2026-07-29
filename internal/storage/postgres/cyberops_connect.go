@@ -259,7 +259,7 @@ func marshalHeaders(value map[string]string) []byte { data, _ := json.Marshal(va
 
 func (r *Repository) ListCyberOpsTrafficInputs(ctx context.Context, tenantID string, from, to time.Time) ([]storage.CyberOpsTrafficInput, error) {
 	rows, err := r.temporal().QueryContext(ctx, `
-SELECT COALESCE(normalized_payload->>'message',''), observation_time
+SELECT event_id, COALESCE(normalized_payload->>'message',''), observation_time
 FROM normalized_event_ledger
 WHERE tenant_id=$1 AND app_id='cyberops' AND dataset='cyberops.syslog.raw'
   AND created_at >= $2 AND created_at < $3
@@ -271,7 +271,7 @@ ORDER BY created_at ASC`, strings.TrimSpace(tenantID), from, to)
 	out := []storage.CyberOpsTrafficInput{}
 	for rows.Next() {
 		var item storage.CyberOpsTrafficInput
-		if err := rows.Scan(&item.Message, &item.ObservedAt); err != nil {
+		if err := rows.Scan(&item.EventID, &item.Message, &item.ObservedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, item)
@@ -280,4 +280,50 @@ ORDER BY created_at ASC`, strings.TrimSpace(tenantID), from, to)
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *Repository) GetCyberOpsIoTNetworkConfig(ctx context.Context, tenantID string) (storage.CyberOpsIoTNetworkConfig, error) {
+	var item storage.CyberOpsIoTNetworkConfig
+	var cidrs []byte
+	err := r.db.QueryRowContext(ctx, `SELECT tenant_id, internal_cidrs, updated_at FROM cyberops_iot_network_configs WHERE tenant_id=$1`, strings.TrimSpace(tenantID)).Scan(&item.TenantID, &cidrs, &item.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return storage.CyberOpsIoTNetworkConfig{TenantID: strings.TrimSpace(tenantID), InternalCIDRs: []string{}}, nil
+	}
+	if err != nil {
+		return item, fmt.Errorf("get cyberops iot network config: %w", err)
+	}
+	if err := json.Unmarshal(cidrs, &item.InternalCIDRs); err != nil {
+		return item, err
+	}
+	return item, nil
+}
+
+func (r *Repository) UpsertCyberOpsIoTNetworkConfig(ctx context.Context, item storage.CyberOpsIoTNetworkConfig) error {
+	raw, err := json.Marshal(item.InternalCIDRs)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `INSERT INTO cyberops_iot_network_configs (tenant_id,internal_cidrs,updated_at) VALUES ($1,$2,now()) ON CONFLICT (tenant_id) DO UPDATE SET internal_cidrs=EXCLUDED.internal_cidrs,updated_at=now()`, strings.TrimSpace(item.TenantID), raw)
+	return err
+}
+
+func (r *Repository) ListCyberOpsIoTNetworkConfigs(ctx context.Context) ([]storage.CyberOpsIoTNetworkConfig, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT tenant_id,internal_cidrs,updated_at FROM cyberops_iot_network_configs ORDER BY tenant_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []storage.CyberOpsIoTNetworkConfig{}
+	for rows.Next() {
+		var item storage.CyberOpsIoTNetworkConfig
+		var raw []byte
+		if err := rows.Scan(&item.TenantID, &raw, &item.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(raw, &item.InternalCIDRs); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
 }

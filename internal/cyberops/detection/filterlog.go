@@ -17,10 +17,12 @@ type FirewallEvent struct {
 func ParseOPNsenseFilterlog(message string) (FirewallEvent, bool) {
 	parts := strings.Split(message, ",")
 	actionIndex := -1
+	action := ""
 	for i, value := range parts {
 		value = strings.ToLower(strings.TrimSpace(value))
-		if value == "block" || value == "deny" {
+		if value == "pass" || value == "allow" {
 			actionIndex = i
+			action = value
 			break
 		}
 	}
@@ -50,7 +52,7 @@ func ParseOPNsenseFilterlog(message string) (FirewallEvent, bool) {
 	if _, err := netip.ParseAddr(destination); err != nil {
 		return FirewallEvent{}, false
 	}
-	return FirewallEvent{Action: "deny", Protocol: strings.ToLower(strings.TrimSpace(parts[protocolIndex])), SourceIP: source, DestinationIP: destination, DestinationPort: port}, true
+	return FirewallEvent{Action: action, Protocol: strings.ToLower(strings.TrimSpace(parts[protocolIndex])), SourceIP: source, DestinationIP: destination, DestinationPort: port}, true
 }
 
 func IsPublicRoutable(value string) bool {
