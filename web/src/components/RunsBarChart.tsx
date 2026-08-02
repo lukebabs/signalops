@@ -1,4 +1,4 @@
-import ReactECharts from 'echarts-for-react';
+import { ThemedEChart as ReactECharts } from './ThemedEChart';
 import type { SchedulerRun } from '../types';
 
 // Minimal, real ECharts usage: provider requests across the loaded recent runs.

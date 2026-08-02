@@ -2,6 +2,7 @@ import type {
   HealthResponse,
   SchedulerRunsResponse,
   SchedulerRunResponse,
+  ScheduledJobsResponse,
   ProviderUsageResponse,
   RawEventsResponse,
   RawEventResponse,
@@ -42,6 +43,9 @@ import type {
   MarketOpsAssetBackfillJobsResponse,
   MarketOpsAssetBackfillCreateRequest,
   MarketOpsAssetQuotesResponse,
+  MarketOpsValuationResponse,
+  MarketOpsEROCResponse,
+  MarketOpsEROCOverviewResponse,
   MarketOpsIntradayConditionsResponse,
   MarketOpsAssetFilter,
   MarketOpsOptionsCoverageResponse,
@@ -298,6 +302,7 @@ export const api = {
   healthz: () => get<HealthResponse>('/healthz'),
   readyz: () => get<HealthResponse>('/readyz'),
   listRuns: (limit = 50) => get<SchedulerRunsResponse>('/v1/scheduler/runs', { limit }),
+  listScheduledJobs: () => get<ScheduledJobsResponse>('/v1/administration/scheduled-jobs'),
   getRun: (runId: string) =>
     get<SchedulerRunResponse>(`/v1/scheduler/runs/${encodeURIComponent(runId)}`),
   listProviderUsage: (runId?: string, limit = 50) =>
@@ -427,6 +432,10 @@ export const api = {
   createMarketOpsAssetBackfillJob: (tenantId: string, symbol: string, body: MarketOpsAssetBackfillCreateRequest) => post<{backfill_job: MarketOpsAssetBackfillJob}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/backfill-jobs`, body),
   getMarketOpsAssetQuotes: (tenantId: string, universeGroup = "top50_megacap") =>
     get<MarketOpsAssetQuotesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/quotes`, { universe_group: universeGroup }),
+  getMarketOpsValuation: (tenantId: string, eligibleOnly = true) =>
+    get<MarketOpsValuationResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/valuation`, { eligible_only: String(eligibleOnly) }, "no-store"),
+  getMarketOpsEROC: (tenantId: string) => get<MarketOpsEROCResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/eroc", {}, "no-store"),
+  getMarketOpsEROCOverview: (tenantId: string, window = "30_trade_days") => get<MarketOpsEROCOverviewResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/eroc/overview", { window }, "no-store"),
   getMarketOpsIntradayConditions: (tenantId: string, universeGroup = "top50_megacap", symbol?: string) =>
     get<MarketOpsIntradayConditionsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/assets/" + (symbol ? encodeURIComponent(symbol) + "/" : "") + "intraday-conditions", { universe_group: universeGroup }, 'no-store'),
   // G128 MarketOps asset options intelligence (read-only). Persisted coverage,

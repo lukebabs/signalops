@@ -46,6 +46,7 @@ It does not mean the signal itself only just became persistent. Signals are pers
 - Research hypothesis evaluation operations: `operations/hypothesis_evaluation.md`
 - G139 Opportunity Layer: `gates/G139_opportunity_layer.md`
 - Opportunity-building operations: `operations/opportunity_building.md`
+- Implemented algorithm logic, expected outcomes, limits, schedule, and UI surfaces: `algorithms/marketops_algorithm_catalog_v1.md`
 - G140 Forward Outcome Evaluation: `gates/G140_forward_outcome_evaluation.md`
 - Forward outcome operations: `operations/outcome_evaluation.md`
 - G141 Historical Coverage And Outcome Population: `gates/G141_historical_coverage_and_outcome_population.md`

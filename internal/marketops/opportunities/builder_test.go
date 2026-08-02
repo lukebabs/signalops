@@ -97,3 +97,36 @@ func contains(values []string, target string) bool {
 	}
 	return false
 }
+
+func TestBuildConvergenceRequiresIndependentAlignedSources(t *testing.T) {
+	session := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	result, err := BuildConvergence("convergence-run", []ConvergenceContribution{
+		{TenantID: "tenant-local", AssetID: "ticker:NVDA", Symbol: "NVDA", Source: "risk_reward", Direction: "upside", SessionDate: session, Strength: .7, EvidenceIDs: []string{"rr-1"}},
+		{TenantID: "tenant-local", AssetID: "ticker:NVDA", Symbol: "NVDA", Source: "options_flow", Direction: "upside", SessionDate: session, Strength: .8, EvidenceIDs: []string{"options-1"}},
+		{TenantID: "tenant-local", AssetID: "ticker:NVDA", Symbol: "NVDA", Source: "exhaustive_reversal", Direction: "downside", SessionDate: session, Strength: .6, EvidenceIDs: []string{"eroc-1"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Opportunities) != 2 {
+		t.Fatalf("opportunities=%+v skipped=%+v", result.Opportunities, result.SkippedReasons)
+	}
+	record := findDirection(result.Opportunities, "upside")
+	if record.Version != ConvergenceVersion || record.LifecycleStatus != storage.MarketOpsOpportunityActive || record.Direction != "upside" || record.ConflictScore <= 0 {
+		t.Fatalf("record=%+v", record)
+	}
+	if !contains(record.SupportingEvidenceIDs, "rr-1") || !contains(record.SupportingEvidenceIDs, "options-1") || contains(record.SupportingEvidenceIDs, "eroc-1") {
+		t.Fatalf("evidence=%v", record.SupportingEvidenceIDs)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(record.OpportunityPayloadJSON, &payload); err != nil || payload["scoring_version"] != "marketops.convergence_opportunity.v2" {
+		t.Fatalf("payload=%s err=%v", record.OpportunityPayloadJSON, err)
+	}
+	mixed := findDirection(result.Opportunities, "non_directional")
+	if mixed.OpportunityID == "" || mixed.ConflictScore != 1 || mixed.ConfidenceScore != 0 {
+		t.Fatalf("mixed=%+v", mixed)
+	}
+	if result.SkippedReasons["insufficient_independent_sources"] != 1 {
+		t.Fatalf("skipped=%+v", result.SkippedReasons)
+	}
+}

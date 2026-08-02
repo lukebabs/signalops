@@ -84,6 +84,7 @@ export const queryKeys = {
   healthz: ['healthz'] as const,
   readyz: ['readyz'] as const,
   runs: (limit: number) => ['runs', limit] as const,
+  scheduledJobs: ['scheduled-jobs'] as const,
   run: (runId: string) => ['run', runId] as const,
   providerUsage: (runId: string | undefined, limit: number) =>
     ['provider-usage', runId, limit] as const,
@@ -230,6 +231,8 @@ export function useReadyz() {
 export function useRuns(limit: number) {
   return useQuery({ queryKey: queryKeys.runs(limit), queryFn: () => api.listRuns(limit) });
 }
+
+export function useScheduledJobs() { return useQuery({ queryKey: queryKeys.scheduledJobs, queryFn: api.listScheduledJobs, refetchInterval: 15000 }); }
 
 export function useRun(runId: string | null) {
   return useQuery({
@@ -471,7 +474,9 @@ export function useMarketOpsOptionsCoverage(tenantId: string, symbol: string | n
 
 export function useCyberOpsTrafficOverview(tenantId: string, window: CyberOpsTrafficWindow = "24h") { return useQuery<CyberOpsTrafficOverviewResponse>({ queryKey: queryKeys.cyberOpsTrafficOverview(tenantId, window), queryFn: () => api.getCyberOpsTrafficOverview(tenantId, window), staleTime: 30 * 1000, refetchInterval: 30 * 1000 }); }
 
-export function useMarketOpsSignalOverview(tenantId: string, universeGroup = "all_active", window: MarketOpsSignalOverviewWindow = "60_trade_days") { return useQuery<MarketOpsSignalOverviewResponse>({ queryKey: queryKeys.marketOpsSignalOverview(tenantId, universeGroup, window), queryFn: () => api.getMarketOpsSignalOverview(tenantId, universeGroup, window), staleTime: 60 * 1000, refetchInterval: 5 * 60 * 1000, refetchOnMount: "always" }); }
+// This is the primary MarketOps dashboard state. Keep the view aligned with completed
+// intraday/EOD jobs even when the authenticated SSE bridge is unavailable.
+export function useMarketOpsSignalOverview(tenantId: string, universeGroup = "all_active", window: MarketOpsSignalOverviewWindow = "60_trade_days") { return useQuery<MarketOpsSignalOverviewResponse>({ queryKey: queryKeys.marketOpsSignalOverview(tenantId, universeGroup, window), queryFn: () => api.getMarketOpsSignalOverview(tenantId, universeGroup, window), staleTime: 15 * 1000, refetchInterval: 15 * 1000, refetchOnMount: "always" }); }
 
 export function useMarketOpsOptionsDistributions(
   tenantId: string,

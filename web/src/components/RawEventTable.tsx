@@ -5,6 +5,7 @@ import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import type { RawEvent } from '../types';
 import { formatUtc, orDash, truncate } from '../lib/format';
+import { useTheme } from '../theme/theme';
 
 export function RawEventTable({
   events,
@@ -13,6 +14,7 @@ export function RawEventTable({
   events: RawEvent[];
   onSelect: (id: string) => void;
 }) {
+  const { resolvedTheme } = useTheme();
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
@@ -65,7 +67,7 @@ export function RawEventTable({
   );
 
   return (
-    <div className="ag-theme-quartz h-[560px] w-full">
+    <div className={`${resolvedTheme === 'dark' ? 'ag-theme-quartz-dark' : 'ag-theme-quartz'} h-[560px] w-full`}>
       <AgGridReact
         rowData={events}
         columnDefs={columnDefs}

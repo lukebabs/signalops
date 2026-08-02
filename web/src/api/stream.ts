@@ -51,6 +51,7 @@ export const REST_FALLBACK_PREFIXES = [
   'signals',
   'alerts',
   'insights',
+  'marketops-signal-overview',
 ] as const;
 
 // Modest interval to keep dashboard summaries fresh under auth without noisy backend load.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/lukebabs/signalops/internal/storage"
 )
@@ -44,6 +45,15 @@ ON CONFLICT (tenant_id, deterministic_key, version) DO UPDATE SET
 		return fmt.Errorf("upsert marketops opportunity: %w", err)
 	}
 	return nil
+}
+
+func (r *Repository) ExpireMarketOpsConvergenceOpportunities(ctx context.Context, tenantID, symbol string, asOf time.Time) (int, error) {
+	result, err := r.db.ExecContext(ctx, `UPDATE marketops_opportunities SET lifecycle_status=$4, updated_at=now() WHERE tenant_id=$1 AND symbol=$2 AND version >= 2 AND lifecycle_status=$3 AND last_evaluated_date < $5::date`, strings.TrimSpace(tenantID), strings.ToUpper(strings.TrimSpace(symbol)), storage.MarketOpsOpportunityActive, storage.MarketOpsOpportunityExpired, asOf.UTC())
+	if err != nil {
+		return 0, fmt.Errorf("expire marketops convergence opportunities: %w", err)
+	}
+	count, err := result.RowsAffected()
+	return int(count), err
 }
 
 func (r *Repository) ListMarketOpsOpportunities(ctx context.Context, filter storage.MarketOpsOpportunityFilter) ([]storage.MarketOpsOpportunityRecord, error) {
@@ -139,8 +149,8 @@ func validateMarketOpsOpportunity(record storage.MarketOpsOpportunityRecord) err
 		storage.MarketOpsOpportunityInvalidated, storage.MarketOpsOpportunityResolved, storage.MarketOpsOpportunityExpired) {
 		return fmt.Errorf("marketops opportunity lifecycle_status is invalid")
 	}
-	if record.Version <= 0 || len(record.HypothesisEvaluationIDs) == 0 {
-		return fmt.Errorf("marketops opportunity version and hypothesis evaluations are required")
+	if record.Version <= 0 || (record.Version < 2 && len(record.HypothesisEvaluationIDs) == 0) || (record.Version >= 2 && len(record.HypothesisEvaluationIDs) == 0 && len(record.SupportingEvidenceIDs) == 0) {
+		return fmt.Errorf("marketops opportunity version and supporting lineage are required")
 	}
 	for name, value := range map[string]float64{
 		"opportunity_score": record.OpportunityScore, "confidence_score": record.ConfidenceScore,

@@ -26,6 +26,9 @@ func (f *fakeRepository) UpsertMarketOpsOpportunity(_ context.Context, record st
 	f.opportunities = append(f.opportunities, record)
 	return nil
 }
+func (f *fakeRepository) ExpireMarketOpsConvergenceOpportunities(context.Context, string, string, time.Time) (int, error) {
+	return 0, nil
+}
 
 func TestBuildDryRunAndWrite(t *testing.T) {
 	score := .8
@@ -53,10 +56,10 @@ func TestBuildDryRunAndWrite(t *testing.T) {
 	}
 }
 
-func TestConfigBoundary(t *testing.T) {
+func TestConfigAllowsUniverseSymbols(t *testing.T) {
 	now := time.Now().UTC()
 	cfg := cliConfig{TenantID: "tenant-local", Symbol: "MSFT", RunID: "run", SessionStart: now, SessionEnd: now, MaxSessions: 1}
-	if cfg.validate() == nil {
-		t.Fatal("expected AAPL boundary")
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("expected universe symbol to be valid: %v", err)
 	}
 }

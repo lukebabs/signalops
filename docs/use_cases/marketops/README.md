@@ -6,4 +6,6 @@ Current use cases:
 
 - `daily_market_surveillance/`: deterministic market-data surveillance using Massive equity EOD and option contract daily data.
 
+The implemented algorithm catalog, including VC/DOSM, daily tactical posture, Exhaustive Reversal, Risk/Reward, and convergent review semantics, is maintained at `daily_market_surveillance/algorithms/marketops_algorithm_catalog_v1.md`.
+
 Historical and target-architecture source documents still exist under `docs/marketops/`. New operational documentation should prefer the concrete use-case folder unless it applies to all MarketOps use cases.

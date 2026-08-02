@@ -5,6 +5,7 @@ import { router } from './router';
 import { DashboardStreamBridge } from './components/DashboardStreamBridge';
 import { AuthProvider, useAuth } from './auth/session';
 import { AuthCallbackProcessor, LoginScreen, SilentRenewProcessor } from './auth/LoginScreen';
+import { ThemeProvider } from './theme/theme';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,9 +66,11 @@ function RootGate() {
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RootGate />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <RootGate />
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

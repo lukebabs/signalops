@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS idx_marketops_valuation_snapshots_financial;
+ALTER TABLE marketops_valuation_snapshots DROP COLUMN IF EXISTS financial_snapshot_id;

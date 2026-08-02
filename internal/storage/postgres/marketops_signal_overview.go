@@ -41,6 +41,19 @@ LIMIT 200`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.Univers
 		return inputs, nil
 	}
 
+	distributionRows, err := r.db.QueryContext(ctx, marketOpsOptionsDistributionSelect+`
+WHERE tenant_id=$1 AND upper(symbol) = ANY($2) AND window_name='10_trade_days'
+  AND trade_date >= $3::date
+ORDER BY trade_date DESC, symbol ASC`, strings.TrimSpace(filter.TenantID), pqArray(symbols), filter.SessionStart.UTC())
+	if err != nil { return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview options distributions: %w", err) }
+	defer distributionRows.Close()
+	for distributionRows.Next() {
+		record, scanErr := scanMarketOpsOptionsDistribution(distributionRows)
+		if scanErr != nil { return storage.MarketOpsSignalOverviewInputs{}, scanErr }
+		inputs.OptionsDistributions = append(inputs.OptionsDistributions, record)
+	}
+	if err := distributionRows.Err(); err != nil { return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview options distribution rows: %w", err) }
+
 	resultRows, err := r.db.QueryContext(ctx, algorithmResultSelect+`
 WHERE tenant_id=$1 AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1'
   AND upper(COALESCE(result_payload->>'symbol','')) = ANY($2)

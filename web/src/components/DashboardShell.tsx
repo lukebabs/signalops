@@ -19,6 +19,7 @@ import {
   History,
   Network,
   Sparkles,
+  Monitor,
   Telescope,
   LineChart,
   type LucideIcon,
@@ -26,6 +27,7 @@ import {
 import { HealthIndicator } from './HealthIndicator';
 import { useAuth } from '../auth/session';
 import { displayIdentity } from '../auth/claims';
+import { useTheme, type ThemePreference } from '../theme/theme';
 import { useAppProfile } from '../apps/AppProfileContext';
 import { defaultRouteForApp } from '../apps/appRouting';
 import type { AppProfile } from '../types';
@@ -53,6 +55,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   insights: Lightbulb,
   health: Gauge,
   dsm: Network,
+  valuation: LineChart,
   syncratic: Sparkles,
   opportunities: Telescope,
   market_state: LineChart,
@@ -60,6 +63,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
 
 export function DashboardShell() {
   const { authEnabled, claims, signOut } = useAuth();
+  const { preference, setPreference } = useTheme();
   const identity = authEnabled ? displayIdentity(claims) : undefined;
   const { profiles, currentApp, currentAppId, nav } = useAppProfile();
   const navigate = useNavigate();
@@ -93,6 +97,20 @@ export function DashboardShell() {
               </option>
             ))}
           </select>
+          <label className="inline-flex items-center gap-1" title="Color theme">
+            <Monitor size={14} className="text-gray-500" aria-hidden="true" />
+            <span className="sr-only">Color theme</span>
+            <select
+              value={preference}
+              onChange={(event) => setPreference(event.target.value as ThemePreference)}
+              aria-label="Color theme"
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+            >
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
           <HealthIndicator />
           {identity && (
             <div className="flex items-center gap-2">

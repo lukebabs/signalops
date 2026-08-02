@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearch } from '@tanstack/react-router';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Telescope,
@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   AlertTriangle,
+  ExternalLink,
 } from 'lucide-react';
 import {
   useMarketOpsOpportunities,
@@ -23,6 +24,7 @@ import {
   useMarketOpsOpportunityDispositions,
   useCreateMarketOpsOpportunityDisposition,
   useMarketOpsBacktestCalibrationSummaries,
+  useMarketOpsOutcomes,
 } from '../api/queries';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
@@ -54,6 +56,7 @@ import type {
   MarketOpsOpportunityFilter,
   MarketOpsOpportunityLifecycle,
   MarketOpsOpportunityDirection,
+  MarketOpsOutcome,
   MarketOpsOpportunityDispositionValue,
 } from '../types';
 
@@ -104,6 +107,8 @@ export function MarketOpsOpportunitiesRoute() {
     .slice()
     .sort((a, b) => b.opportunityScore - a.opportunityScore || b.lastEvaluatedDate.localeCompare(a.lastEvaluatedDate));
   const listEmpty = !listQ.isLoading && !listQ.isError && opportunities.length === 0;
+  const latestOpportunityDate = opportunities.reduce((latest, opportunity) => opportunity.lastEvaluatedDate > latest ? opportunity.lastEvaluatedDate : latest, "");
+  const outcomesQ = useMarketOpsOutcomes({ tenant_id: TENANT_ID, source_type: "opportunity", limit: 500 });
 
   // Empty-queue diagnostics: one bounded hypothesis-evaluations read using the
   // same symbol/date scope. Enabled only when the queue is empty.
@@ -186,6 +191,7 @@ export function MarketOpsOpportunitiesRoute() {
         </select>
       </div>
 
+      <OutcomePerformance outcomes={outcomesQ.data?.outcomes ?? []} loading={outcomesQ.isLoading} />
       <div className="flex flex-col gap-3 lg:flex-row">
         {/* Queue pane (hidden on mobile once a detail is open). */}
         <div className={`${selectedId ? 'hidden lg:block' : ''} lg:w-2/5 lg:min-w-[360px]`}>
@@ -201,7 +207,7 @@ export function MarketOpsOpportunitiesRoute() {
               </div>
             ) : opportunities.length ? (
               opportunities.map((o) => (
-                <OpportunityQueueRow key={o.opportunityId} opportunity={o} selected={selectedId === o.opportunityId} onSelect={() => selectOpportunity(o.opportunityId)} />
+                <OpportunityQueueRow key={o.opportunityId} opportunity={o} latestDate={latestOpportunityDate} selected={selectedId === o.opportunityId} onSelect={() => selectOpportunity(o.opportunityId)} />
               ))
             ) : (
               <EmptyQueueDiagnostics
@@ -230,6 +236,19 @@ export function MarketOpsOpportunitiesRoute() {
   );
 }
 
+function OutcomePerformance({ outcomes, loading }: { outcomes: MarketOpsOutcome[]; loading: boolean }) {
+  const tracked = outcomes.filter((outcome) => [1, 5, 10].includes(outcome.horizon_sessions));
+  const pending = tracked.filter((outcome) => outcome.outcome_status === 'pending').length;
+  const matured = tracked.filter((outcome) => outcome.outcome_status === 'matured');
+  const byHorizon = [1, 5, 10].map((horizon) => {
+    const rows = matured.filter((outcome) => outcome.horizon_sessions === horizon);
+    const hits = rows.filter((outcome) => outcome.directional_hit === true).length;
+    const returns = rows.map((outcome) => outcome.forward_return).filter((value): value is number => typeof value === 'number');
+    return { horizon, count: rows.length, hits, average: returns.length ? returns.reduce((sum, value) => sum + value, 0) / returns.length : null };
+  });
+  return <section className="rounded border border-gray-200 bg-white p-3"><div className="flex flex-wrap items-baseline justify-between gap-2"><div><div className="text-xs font-semibold text-gray-800">Opportunity outcome performance</div><p className="text-[11px] text-gray-500">Research-only forward outcomes from the deterministic ledger; no conclusion is shown before results mature.</p></div><div className="text-xs text-gray-600">{loading ? 'Loading…' : <><strong>{matured.length}</strong> matured · <strong>{pending}</strong> pending</>}</div></div>{!loading && !tracked.length ? <p className="mt-2 text-xs text-gray-500">No opportunity outcomes yet. The post-close maturity sweep will create pending rows, then mature them after later EOD closes.</p> : <div className="mt-2 grid gap-2 md:grid-cols-3">{byHorizon.map((item) => <div key={item.horizon} className="rounded border border-gray-200 bg-gray-50 p-2 text-xs"><div className="font-semibold text-gray-700">{item.horizon}-session</div>{item.count ? <><div className="mt-1">Hit rate <strong>{((item.hits / item.count) * 100).toFixed(0)}%</strong> · {item.hits}/{item.count}</div><div className="text-gray-600">Mean return <strong>{item.average == null ? '—' : `${(item.average * 100).toFixed(2)}%`}</strong></div></> : <div className="mt-1 text-gray-500">No matured outcomes</div>}</div>)}</div>}</section>;
+}
+
 function QueueSkeleton() {
   return (
     <>
@@ -238,6 +257,12 @@ function QueueSkeleton() {
       ))}
     </>
   );
+}
+
+function opportunityFreshness(opportunity: MarketOpsOpportunityView, latestDate: string): string {
+  if (opportunity.lifecycleStatus === "expired") return "Expired";
+  if (opportunity.lastEvaluatedDate && opportunity.lastEvaluatedDate === latestDate) return "Latest completed session";
+  return "Prior session";
 }
 
 function LifecycleBadge({ status }: { status: string }) {
@@ -259,13 +284,16 @@ function DirectionBadge({ direction }: { direction: string }) {
 
 function OpportunityQueueRow({
   opportunity: o,
+  latestDate,
   selected,
   onSelect,
 }: {
   opportunity: MarketOpsOpportunityView;
+  latestDate: string;
   selected: boolean;
   onSelect: () => void;
 }) {
+  const sources = Array.from(new Set(o.contributions.map((contribution) => contribution.source).filter(Boolean)));
   return (
     <button
       type="button"
@@ -288,11 +316,11 @@ function OpportunityQueueRow({
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-500">
         <span>Score <strong className="text-gray-800">{formatScore(o.opportunityScore)}</strong></span>
         <span>Conf <strong className="text-gray-800">{formatScore(o.confidenceScore)}</strong></span>
-        <span>{o.hypothesisEvaluationIds.length} hyp · {o.hypothesisFamilies.length} domain</span>
+        {sources.length ? <span className="font-medium text-brand-700">{sources.slice(0, 3).map((source) => source.replace(/_/g, " ")).join(" + ")}</span> : <span>{o.hypothesisEvaluationIds.length} hyp · {o.hypothesisFamilies.length} domain</span>}
         {o.conflictScore > 0 ? (
           <span className="inline-flex items-center gap-0.5 font-medium text-amber-700"><AlertTriangle size={11} /> conflict {formatScore(o.conflictScore)}</span>
         ) : null}
-        <span>{o.lastEvaluatedDate ? formatUtc(o.lastEvaluatedDate) : '—'}</span>
+        <span title={o.lastEvaluatedDate ? formatUtc(o.lastEvaluatedDate) : undefined}>{opportunityFreshness(o, latestDate)}</span>
         <span>{o.horizon || '—'}</span>
       </div>
     </button>
@@ -690,13 +718,11 @@ function ContributionRow({
       <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 p-2 text-left">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {open ? <ChevronDown size={12} className="text-gray-400" /> : <ChevronRight size={12} className="text-gray-400" />}
-          <code className="text-gray-800">{c.hypothesisKey || '—'}<span className="text-gray-400"> v{c.hypothesisVersion || '—'}</span></code>
+          {c.source ? <span className="rounded border border-brand-200 bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-700">{c.source.replace(/_/g, " ")}</span> : <code className="text-gray-800">{c.hypothesisKey || "—"}<span className="text-gray-400"> v{c.hypothesisVersion || "—"}</span></code>}
           {c.domain ? <span className="rounded border border-gray-200 px-1.5 text-[11px] text-gray-600">{c.domain}</span> : null}
         </div>
         <div className="flex items-center gap-2 text-[11px] text-gray-500">
-          <span>trigger <strong className="text-gray-800">{formatScore(c.triggerScore)}</strong></span>
-          <span>conf <strong className="text-gray-800">{formatScore(c.confidenceScore)}</strong></span>
-          <span>quality <strong className="text-gray-800">{formatScore(c.qualityScore)}</strong></span>
+          {c.source ? <><span>alignment <strong className="text-gray-800">{formatScore(c.strength)}</strong></span><span>{c.direction || "—"}</span></> : <><span>trigger <strong className="text-gray-800">{formatScore(c.triggerScore)}</strong></span><span>conf <strong className="text-gray-800">{formatScore(c.confidenceScore)}</strong></span><span>quality <strong className="text-gray-800">{formatScore(c.qualityScore)}</strong></span></>}
         </div>
       </button>
       {(reasonCodes.length || open) && (
@@ -709,7 +735,7 @@ function ContributionRow({
               ))}
             </div>
           ) : null}
-          {open ? <ContributionDetail hypothesisKey={c.hypothesisKey} hypothesisVersion={c.hypothesisVersion} tenantId={tenantId} marketStateId={marketStateId} /> : null}
+          {open ? (c.source ? <div className="text-gray-500">Source alignment is derived from persisted {c.source.replace(/_/g, " ")} evidence. {c.evidenceIds.length ? `Evidence: ` : ""}</div> : <ContributionDetail hypothesisKey={c.hypothesisKey} hypothesisVersion={c.hypothesisVersion} tenantId={tenantId} marketStateId={marketStateId} />) : null}
         </div>
       )}
     </div>

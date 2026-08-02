@@ -1,0 +1,10 @@
+[Unit]
+Description=SignalOps MarketOps FMP continuation
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh marketops-fmp-continuation "Daily 04:00" America/New_York @WORKDIR@/scripts/marketops_fmp_continuation.sh
+TimeoutStartSec=2h
+Nice=10

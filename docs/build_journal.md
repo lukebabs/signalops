@@ -7833,3 +7833,54 @@ Result:
 - Applied migration 000062, rebuilt/deployed gateway, web, CyberOps detector, and signal persister, and removed Compose orphan containers. Fresh firewall telemetry and shadow lifecycle decisions were verified.
 - Adjusted the rolling live chart: explicit legend space, a larger grid, rotated/hide-overlap x-axis labels, and increased chart height prevent legend/time-label overlap.
 - Full Dockerized Go tests and the web production build passed for the implementation and follow-up fixes.
+
+
+## 2026-07-31T00:00:00Z
+
+Summary:
+
+- Adopted a four-quarter TTM-only VC/DOSM operating profile after FMP quarterly requests above four rows were rejected by the available plan.
+- Explicitly deferred three-year revenue CAGR and the high-valuation/low-growth penalty to the VC/DOSM roadmap.
+
+Rationale:
+
+- Four quarters support auditable trailing-twelve-month derivation, but not a valid three-year CAGR.
+- Treating missing CAGR as zero or substituting a proxy would create a false growth conclusion. TTM-only results therefore withhold the growth score and related valuation penalty, reweight the five available DOSM fundamental dimensions, and disclose the scope to the analyst.
+
+Files changed:
+
+- docs/marketops/SignalOps_MarketOps_VC_DOSM_TTM_Operational_Profile_v1.md
+- docs/marketops/VC_DOSM_Roadmap.md
+- VC/DOSM canonical and engineering specifications
+
+Next step:
+
+- NVDA pilot completed for 2026-07-30: three FMP calls, eligible TTM-only VC and DOSM results, confidence 70, and persisted TTM trace. Next: retain weekly research operation while the 16-quarter/CAGR provider path remains deferred.
+
+## 2026-07-31T20:00:00Z
+
+Summary:
+
+- Added durable FMP daily-call reservations and per-symbol polling state for the VC/DOSM financial refresh workflow.
+- The runner reserves three calls atomically for a complete TTM statement unit, defers assets when capacity is exhausted, prioritizes deferred assets on the next run, and reuses fresh persisted valuation inputs before polling.
+
+Rationale:
+
+- A 58-asset TTM run normally requires 174 FMP calls, below the 240-call safety ceiling. Durable state prevents partial refresh work and allows automatic continuation if future universe growth or retries consume the daily budget.
+
+Verification performed:
+
+- Applied migration 000067_marketops_fmp_polling.
+- Ran focused Go tests for the valuation runner, PostgreSQL storage, API, and valuation package.
+
+## 2026-08-02T08:10:00Z — MarketOps algorithm catalog and Workbench registry
+
+Summary:
+
+- Registered `signalops.algorithms.eroc_v6` (Exhaustive Reversal v6.1) and `signalops.algorithms.tactical_market_posture_v1` in the active algorithm registry through migration `000069_marketops_daily_algorithm_registry`.
+- Added the canonical MarketOps algorithm catalog covering VC, DOSM, Risk/Reward, Tactical Market Posture, Exhaustive Reversal, options-flow extremes, convergence opportunities, and outcome maturity.
+
+Rationale and expected outcome:
+
+- The Admin Workbench is registry-driven; the new entries now show their purpose, inputs, output contract, version, and research-only schedule semantics beside VC/DOSM and Risk/Reward.
+- Strategic financial valuation, daily tactical condition, and cross-signal review remain explicitly separate. The post-close workflow is documented from persisted market data to tactical review and matured outcome measurement: 21 EOD observations for EROC readiness; 80%/four-close persistence plus 3× extension for price qualification; flow/volume regime evidence; and two same-session independent sources for a convergence item.

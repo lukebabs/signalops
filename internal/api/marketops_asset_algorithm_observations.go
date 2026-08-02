@@ -190,6 +190,7 @@ func curateRiskRewardSummaries(results []storage.AlgorithmResultRecord, activeSy
 			"ticker":        symbol,
 			"trade_date":    tradeDate,
 			"_observed_at":  stringAny(payload["observation_time"]),
+			"_created_at":   result.CreatedAt.UTC().Format(time.RFC3339Nano),
 			"direction":     payload["technical_direction"],
 			"score":         payload["technical_score"],
 			"confidence":    result.Confidence,
@@ -199,7 +200,7 @@ func curateRiskRewardSummaries(results []storage.AlgorithmResultRecord, activeSy
 		if bySymbol[symbol] == nil {
 			bySymbol[symbol] = map[string]map[string]any{}
 		}
-		if current, exists := bySymbol[symbol][tradeDate]; !exists || fmt.Sprint(candidate["_observed_at"]) > fmt.Sprint(current["_observed_at"]) {
+		if current, exists := bySymbol[symbol][tradeDate]; !exists || betterRiskRewardPayload(candidate, current) {
 			bySymbol[symbol][tradeDate] = candidate
 		}
 	}
@@ -212,6 +213,7 @@ func curateRiskRewardSummaries(results []storage.AlgorithmResultRecord, activeSy
 		sort.Sort(sort.Reverse(sort.StringSlice(dates)))
 		latest := byDate[dates[0]]
 		delete(latest, "_observed_at")
+		delete(latest, "_created_at")
 		if len(dates) > 1 {
 			previous := byDate[dates[1]]
 			latest["previous_trade_date"] = dates[1]
@@ -247,14 +249,15 @@ func curateRiskRewardObservations(results []storage.AlgorithmResultRecord, symbo
 		if tradeDate == "" {
 			continue
 		}
-		candidate := map[string]any{"algorithm_result_id": result.AlgorithmResultID, "trade_date": tradeDate, "score": payload["technical_score"], "direction": payload["technical_direction"], "risk_level": payload["risk_level"], "confidence": result.Confidence, "severity": result.Severity, "technical_factors": payload["technical_factors"], "speculative_corroboration": payload["speculative_corroboration"], "research_only": true, "_observed_at": stringAny(payload["observation_time"])}
-		if current, exists := byTradeDate[tradeDate]; !exists || fmt.Sprint(candidate["_observed_at"]) > fmt.Sprint(current["_observed_at"]) {
+		candidate := map[string]any{"algorithm_result_id": result.AlgorithmResultID, "trade_date": tradeDate, "score": payload["technical_score"], "direction": payload["technical_direction"], "risk_level": payload["risk_level"], "confidence": result.Confidence, "severity": result.Severity, "technical_factors": payload["technical_factors"], "speculative_corroboration": payload["speculative_corroboration"], "research_only": true, "_observed_at": stringAny(payload["observation_time"]), "_created_at": result.CreatedAt.UTC().Format(time.RFC3339Nano)}
+		if current, exists := byTradeDate[tradeDate]; !exists || betterRiskRewardPayload(candidate, current) {
 			byTradeDate[tradeDate] = candidate
 		}
 	}
 	history := make([]map[string]any, 0, len(byTradeDate))
 	for _, point := range byTradeDate {
 		delete(point, "_observed_at")
+		delete(point, "_created_at")
 		history = append(history, point)
 	}
 	sort.SliceStable(history, func(i, j int) bool {

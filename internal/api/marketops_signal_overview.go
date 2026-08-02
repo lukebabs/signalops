@@ -45,7 +45,15 @@ func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, repo storage.Quer
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to build signal overview")
 			return
 		}
-		writeJSON(w, http.StatusOK, buildMarketOpsSignalOverview(inputs, group, window, days))
+		var snapshots []storage.MarketOpsRiskRewardSnapshotRecord
+		if snapshotReader, ok := any(repo).(storage.MarketOpsRiskRewardSnapshotRepository); ok {
+			snapshots, err = snapshotReader.ListMarketOpsRiskRewardSnapshots(r.Context(), storage.MarketOpsRiskRewardSnapshotFilter{TenantID: tenant, SessionStart: time.Now().UTC().AddDate(0, 0, -days*3), Limit: 20000})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to load risk/reward history")
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, buildMarketOpsSignalOverview(inputs, group, window, days, snapshots))
 	})
 }
 
@@ -62,20 +70,53 @@ func signalOverviewWindow(value string) (string, int) {
 	}
 }
 
-func buildMarketOpsSignalOverview(inputs storage.MarketOpsSignalOverviewInputs, group, window string, days int) map[string]any {
+func buildMarketOpsSignalOverview(inputs storage.MarketOpsSignalOverviewInputs, group, window string, days int, snapshots ...[]storage.MarketOpsRiskRewardSnapshotRecord) map[string]any {
 	active := map[string]struct{}{}
 	for _, asset := range inputs.Assets {
 		if asset.IsActive {
 			active[strings.ToUpper(asset.Ticker)] = struct{}{}
 		}
 	}
-	risk := signalOverviewRiskReward(inputs.AlgorithmResults, active, days)
+	risk := signalOverviewRiskRewardBest(inputs.AlgorithmResults, active, days)
+	if len(snapshots) > 0 && len(snapshots[0]) > 0 {
+		risk = signalOverviewRiskRewardSnapshots(snapshots[0], active, days)
+	}
 	hypotheses := signalOverviewHypotheses(inputs.HypothesisEvaluations, inputs.HypothesisDefinitions, active, days)
 	intraday := signalOverviewIntraday(inputs.IntradayConditionSnaps, active)
+	flowExtremes := signalOverviewOptionsFlowExtremes(inputs.OptionsDistributions, active)
 	if group == "" {
 		group = signalOverviewAllActive
 	}
-	return map[string]any{"generated_at": time.Now().UTC(), "universe_group": group, "window": window, "asset_count": len(active), "risk_reward": map[string]any{"points": risk}, "hypotheses": map[string]any{"points": hypotheses}, "intraday": intraday}
+	return map[string]any{"generated_at": time.Now().UTC(), "universe_group": group, "window": window, "asset_count": len(active), "risk_reward": map[string]any{"points": risk}, "hypotheses": map[string]any{"points": hypotheses}, "options_flow_extremes": flowExtremes, "intraday": intraday}
+}
+
+func signalOverviewOptionsFlowExtremes(records []storage.MarketOpsOptionsDistributionRecord, active map[string]struct{}) map[string]any {
+	latestDate := ""
+	for _, record := range records {
+		symbol := strings.ToUpper(record.Symbol)
+		if _, ok := active[symbol]; !ok { continue }
+		date := record.TradeDate.UTC().Format("2006-01-02")
+		if date > latestDate { latestDate = date }
+	}
+	categories := map[string][]signalOverviewMember{"call_volume_extreme": {}, "put_volume_extreme": {}}
+	coverage := map[string]int{"eligible": 0, "insufficient_activity": 0, "unusable_ratio": 0, "missing_or_stale": len(active)}
+	if latestDate == "" { return map[string]any{"as_of": "", "categories": []map[string]any{{"key": "call_volume_extreme", "count": 0, "members": categories["call_volume_extreme"]}, {"key": "put_volume_extreme", "count": 0, "members": categories["put_volume_extreme"]}}, "coverage": coverage} }
+	seen := map[string]bool{}
+	for _, record := range records {
+		symbol := strings.ToUpper(record.Symbol)
+		if _, ok := active[symbol]; !ok || record.TradeDate.UTC().Format("2006-01-02") != latestDate || seen[symbol] { continue }
+		seen[symbol] = true
+		coverage["missing_or_stale"]--
+		total := record.TotalCallVolume + record.TotalPutVolume
+		if record.TotalCallVolume <= 0 { coverage["unusable_ratio"]++; continue }
+		if total < 1000 { coverage["insufficient_activity"]++; continue }
+		coverage["eligible"]++
+		ratio := float64(record.TotalPutVolume) / float64(record.TotalCallVolume)
+		key, label := "", ""
+		if ratio < .30 { key, label = "call_volume_extreme", "Call-volume extreme" } else if ratio > 1.20 { key, label = "put_volume_extreme", "Put-volume extreme" }
+		if key != "" { categories[key] = append(categories[key], signalOverviewMember{Ticker: symbol, Label: label, Score: &ratio, AsOf: latestDate}) }
+	}
+	return map[string]any{"as_of": latestDate, "categories": []map[string]any{{"key": "call_volume_extreme", "count": len(categories["call_volume_extreme"]), "members": categories["call_volume_extreme"]}, {"key": "put_volume_extreme", "count": len(categories["put_volume_extreme"]), "members": categories["put_volume_extreme"]}}, "coverage": coverage}
 }
 
 func signalOverviewRiskReward(results []storage.AlgorithmResultRecord, active map[string]struct{}, days int) []map[string]any {

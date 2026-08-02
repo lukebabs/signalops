@@ -45,6 +45,9 @@ export interface SchedulerRunResponse {
   run: SchedulerRun;
 }
 
+export interface ScheduledJob { job_id:string; label:string; schedule:string; timezone:string; status:"pending"|"running"|"succeeded"|"failed"|string; started_at?:string; completed_at?:string; exit_code?:number; }
+export interface ScheduledJobsResponse { jobs: ScheduledJob[]; }
+
 export interface ProviderUsage {
   usage_id: string;
   run_id: string;
@@ -613,6 +616,11 @@ export interface MarketOpsAssetQuotesResponse {
   quotes: MarketOpsAssetQuote[];
   refreshed_at?: string | null;
 }
+
+export type MarketOpsValuationOutput = { score:number; fair_value:number; classification:string; algorithm_id:string; trace:{ raw_metrics?:Record<string,number>; component_scores?:Record<string,number>; confidence?:number; confidence_label?:string; confidence_reasons?:string[]; data_profile?:string; growth_status?:string; } };
+export type MarketOpsTacticalPosture = { posture:'constructive'|'neutral'|'caution'|string; overlay:number; algorithm_id:string; session_date:string; technical_components?:Record<string,number>; feature_observation_ids?:string[]; };
+export type MarketOpsValuationRow = { ticker:string; trade_date:string; eligible:boolean; evaluation_status:string; confidence:number; confidence_label:string; model_version:string; data_profile?:string; growth_status?:string; vc?:MarketOpsValuationOutput; dosm?:MarketOpsValuationOutput; tactical?:MarketOpsTacticalPosture; tactical_vc?:MarketOpsValuationOutput; tactical_dosm?:MarketOpsValuationOutput; };
+export interface MarketOpsValuationResponse { results:MarketOpsValuationRow[]; research_only:true; }
 
 export interface MarketOpsIntradayCondition {
   key: string; title: string; tone: "positive" | "negative" | "neutral" | string; score: number; evidence: string; interpretation: string; analyst_question: string;
@@ -2653,8 +2661,9 @@ export interface MarketOpsRiskRewardSummariesResponse { summaries:MarketOpsRiskR
 export type MarketOpsSignalOverviewWindow = "10_trade_days" | "30_trade_days" | "60_trade_days";
 export interface MarketOpsSignalOverviewMember { ticker:string; label:string; score?:number; as_of:string; }
 export interface MarketOpsSignalOverviewCategory { key:string; count:number; members:MarketOpsSignalOverviewMember[]; }
-export interface MarketOpsSignalOverviewPoint { trade_date:string; categories:MarketOpsSignalOverviewCategory[]; }
-export interface MarketOpsSignalOverviewResponse { generated_at:string; universe_group:string; window:MarketOpsSignalOverviewWindow; asset_count:number; risk_reward:{points:MarketOpsSignalOverviewPoint[]}; hypotheses:{points:MarketOpsSignalOverviewPoint[]}; intraday:{as_of_time?:string;categories:MarketOpsSignalOverviewCategory[]}; }
+export interface MarketOpsSignalOverviewCoverage { eligible:number; insufficient_inputs:number; unprocessed:number; }
+export interface MarketOpsSignalOverviewPoint { trade_date:string; categories:MarketOpsSignalOverviewCategory[]; coverage?:MarketOpsSignalOverviewCoverage; }
+export interface MarketOpsSignalOverviewResponse { generated_at:string; universe_group:string; window:MarketOpsSignalOverviewWindow; asset_count:number; risk_reward:{points:MarketOpsSignalOverviewPoint[]}; hypotheses:{points:MarketOpsSignalOverviewPoint[]}; options_flow_extremes:{as_of:string;categories:MarketOpsSignalOverviewCategory[];coverage:{eligible:number;insufficient_activity:number;unusable_ratio:number;missing_or_stale:number}}; intraday:{as_of_time?:string;categories:MarketOpsSignalOverviewCategory[]}; }
 export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; risk_reward?:MarketOpsRiskRewardResponse; }
 
 
@@ -2674,3 +2683,9 @@ export interface CyberOpsIoTNetworkConfig { tenant_id:string; internal_cidrs:str
 export interface CyberOpsIoTNetworkConfigResponse { network_config:CyberOpsIoTNetworkConfig; }
 export interface CyberOpsIoTFlow { device_ip:string; peer_ip:string; direction:"egress"|"ingress"|"lateral"|string; protocol:string; destination_port:number; count:number; first_seen:string; last_seen:string; }
 export interface CyberOpsIoTBehaviourResponse { generated_at:string; internal_cidrs:string[]; baseline_days:number; learning:boolean; device_count:number; flows:CyberOpsIoTFlow[]; }
+
+export type MarketOpsEROCTrace = { direction: string; price_eligible: boolean; flow_eligible: boolean; volume_eligible: boolean; consecutive_directional_closes: number; directional_flow_ratio?: number; volume_ratio?: number; reasons?: string[] };
+export type MarketOpsEROCRow = { ticker: string; trade_date: string; score: number; state: string; confirmed: boolean; model_version: string; trace: MarketOpsEROCTrace };
+export type MarketOpsEROCResponse = { results: MarketOpsEROCRow[]; research_only: true };
+export type MarketOpsEROCOverviewPoint = { trade_date:string; series: Record<string,{average:number;p75:number;members:MarketOpsEROCRow[]}> };
+export type MarketOpsEROCOverviewResponse = { points:MarketOpsEROCOverviewPoint[]; research_only:true };

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import ReactECharts from "echarts-for-react";
+import { ThemedEChart as ReactECharts } from '../components/ThemedEChart';
 import { useTenant } from "../auth/session";
 import { useCyberOpsTrafficOverview } from "../api/queries";
 import { subscribeCyberOpsLiveTraffic, type CyberOpsLiveTrafficStatus } from "../api/stream";

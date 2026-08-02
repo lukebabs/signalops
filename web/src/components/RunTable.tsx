@@ -6,6 +6,7 @@ import 'ag-grid-community/styles/ag-theme-quartz.css';
 import type { SchedulerRun } from '../types';
 import { StatusBadge, DryRunBadge } from './StatusBadge';
 import { formatUtc, duration, truncate } from '../lib/format';
+import { useTheme } from '../theme/theme';
 
 export function RunTable({
   runs,
@@ -14,6 +15,7 @@ export function RunTable({
   runs: SchedulerRun[];
   onSelect: (id: string) => void;
 }) {
+  const { resolvedTheme } = useTheme();
   const columnDefs = useMemo<ColDef[]>(
     () => [
       {
@@ -63,7 +65,7 @@ export function RunTable({
   );
 
   return (
-    <div className="ag-theme-quartz h-[560px] w-full">
+    <div className={`${resolvedTheme === 'dark' ? 'ag-theme-quartz-dark' : 'ag-theme-quartz'} h-[560px] w-full`}>
       <AgGridReact
         rowData={runs}
         columnDefs={columnDefs}

@@ -37,6 +37,7 @@ export type AppRoutePath =
   | '/marketops/raw-events'
   | '/marketops/normalized'
   | '/marketops/signals'
+  | '/marketops/review'
   | '/marketops/alerts'
   | '/marketops/insights'
   | '/marketops/replay'
@@ -45,6 +46,8 @@ export type AppRoutePath =
   | '/marketops/assets'
   | '/marketops/state'
   | '/marketops/dsm'
+  | '/marketops/valuation'
+  | '/marketops/eroc'
   | '/marketops/opportunities'
   | '/marketops/backtests'
   | '/marketops/syncratic'
@@ -97,12 +100,13 @@ const CONSOLE_NAV: NavItem[] = [
 const MARKETOPS_NAV: NavItem[] = [
   { module: 'dashboard', to: '/marketops/dashboard', label: 'Dashboard' },
   { module: 'symbols', to: '/marketops/assets', label: 'Assets' },
-  { module: 'signals', to: '/marketops/signals', label: 'Signals' },
-  { module: 'dsm', to: '/marketops/dsm', label: 'DSM' },
+  { module: 'state', to: '/marketops/state', label: 'Market State' },
+  { module: 'review', to: '/marketops/review', label: 'Review Queue' },
+  { module: 'valuation', to: '/marketops/valuation', label: 'Valuation & DOSM' },
+  { module: 'eroc', to: '/marketops/eroc', label: 'Exhaustive Reversal' },
   { module: 'opportunities', to: '/marketops/opportunities', label: 'Opportunities' },
   { module: 'backtests', to: '/marketops/backtests', label: 'Back-Tests' },
   { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Insights' },
-  { module: 'alerts', to: '/marketops/alerts', label: 'Alerts' },
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },
 ];
 

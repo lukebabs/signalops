@@ -63,6 +63,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		serviceName = "signalops"
 	}
 	rawTopic := cfg.RawTopic
+	registerMarketOpsValuationRoutes(mux, cfg)
+	registerMarketOpsEROCRoutes(mux, cfg)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{
@@ -79,6 +81,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			"time":    time.Now().UTC().Format(time.RFC3339),
 		})
 	})
+
+	mux.HandleFunc("GET /v1/administration/scheduled-jobs", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, map[string]any{"jobs": scheduledJobStatuses()}) })
 
 	mux.HandleFunc("GET /v1/scheduler/runs", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)

@@ -1,4 +1,4 @@
-import ReactECharts from 'echarts-for-react';
+import { ThemedEChart as ReactECharts } from './ThemedEChart';
 import type { MarketOpsRiskRewardResponse } from '../types';
 
 const tone = (value: string) => value === 'bullish' ? 'text-green-700' : value === 'bearish' ? 'text-red-700' : 'text-gray-600';

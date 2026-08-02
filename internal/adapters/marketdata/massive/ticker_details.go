@@ -9,25 +9,31 @@ import (
 )
 
 type TickerDetails struct {
-	Ticker   string
-	Name     string
-	Exchange string
-	Market   string
-	Type     string
-	Active   bool
-	Sector   string
-	Industry string
+	Ticker                      string
+	Name                        string
+	Exchange                    string
+	Market                      string
+	Type                        string
+	Active                      bool
+	Sector                      string
+	Industry                    string
+	MarketCap                   float64
+	ShareClassSharesOutstanding float64
+	WeightedSharesOutstanding   float64
 }
 
 type tickerDetailsResponse struct {
 	Results struct {
-		Ticker          string `json:"ticker"`
-		Name            string `json:"name"`
-		PrimaryExchange string `json:"primary_exchange"`
-		Market          string `json:"market"`
-		Type            string `json:"type"`
-		Active          bool   `json:"active"`
-		SICDescription  string `json:"sic_description"`
+		Ticker                      string  `json:"ticker"`
+		Name                        string  `json:"name"`
+		PrimaryExchange             string  `json:"primary_exchange"`
+		Market                      string  `json:"market"`
+		Type                        string  `json:"type"`
+		Active                      bool    `json:"active"`
+		SICDescription              string  `json:"sic_description"`
+		MarketCap                   float64 `json:"market_cap"`
+		ShareClassSharesOutstanding float64 `json:"share_class_shares_outstanding"`
+		WeightedSharesOutstanding   float64 `json:"weighted_shares_outstanding"`
 	} `json:"results"`
 }
 
@@ -40,7 +46,7 @@ func (c *Client) GetTickerDetails(ctx context.Context, ticker string) (TickerDet
 	if err := c.getJSON(ctx, "/v3/reference/tickers/"+url.PathEscape(ticker), nil, &response); err != nil {
 		return TickerDetails{}, err
 	}
-	out := TickerDetails{Ticker: normalizeSymbol(response.Results.Ticker), Name: strings.TrimSpace(response.Results.Name), Exchange: strings.TrimSpace(response.Results.PrimaryExchange), Market: strings.ToLower(strings.TrimSpace(response.Results.Market)), Type: strings.ToLower(strings.TrimSpace(response.Results.Type)), Active: response.Results.Active, Industry: strings.TrimSpace(response.Results.SICDescription)}
+	out := TickerDetails{Ticker: normalizeSymbol(response.Results.Ticker), Name: strings.TrimSpace(response.Results.Name), Exchange: strings.TrimSpace(response.Results.PrimaryExchange), Market: strings.ToLower(strings.TrimSpace(response.Results.Market)), Type: strings.ToLower(strings.TrimSpace(response.Results.Type)), Active: response.Results.Active, Industry: strings.TrimSpace(response.Results.SICDescription), MarketCap: response.Results.MarketCap, ShareClassSharesOutstanding: response.Results.ShareClassSharesOutstanding, WeightedSharesOutstanding: response.Results.WeightedSharesOutstanding}
 	if out.Ticker == "" || out.Name == "" {
 		return TickerDetails{}, fmt.Errorf("massive ticker reference response is incomplete")
 	}

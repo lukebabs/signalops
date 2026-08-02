@@ -1,4 +1,4 @@
-import { useHealthz, useReadyz, useRuns, useReplayStatus } from '../api/queries';
+import { useHealthz, useReadyz, useRuns, useReplayStatus, useScheduledJobs } from '../api/queries';
 import { useUi } from '../store/ui';
 import { MetricTile } from '../components/MetricTile';
 import { RefreshButton } from '../components/RefreshButton';
@@ -28,6 +28,7 @@ export function SystemRoute() {
 
   const TENANT_ID = useTenant();
   const replayStatus = useReplayStatus({ tenant_id: TENANT_ID, limit: 10 });
+  const scheduledJobs = useScheduledJobs();
 
   const storageAvailable = probe.isSuccess;
   const storageUnavailable =
@@ -43,6 +44,7 @@ export function SystemRoute() {
     readyz.refetch();
     probe.refetch();
     replayStatus.refetch();
+    scheduledJobs.refetch();
     setLastRefresh(new Date().toISOString());
   }
 
@@ -93,7 +95,7 @@ export function SystemRoute() {
         <MetricTile label="Last Stream Event" value={formatUtc(lastStreamEventAt ?? undefined)} />
       </div>
 
-      <h2 className="text-sm font-semibold text-gray-900">Replay Operations</h2>
+      <h2 className="text-sm font-semibold text-gray-900">Scheduled Jobs</h2><div className="overflow-x-auto rounded border border-gray-200 bg-white"><table className="min-w-full divide-y divide-gray-200 text-xs"><thead className="bg-gray-50 text-left text-gray-500"><tr><th className="px-2 py-1">Job</th><th className="px-2 py-1">Schedule</th><th className="px-2 py-1">Status</th><th className="px-2 py-1">Started</th><th className="px-2 py-1">Completed</th><th className="px-2 py-1">Exit</th></tr></thead><tbody className="divide-y divide-gray-100">{scheduledJobs.data?.jobs.map(job => <tr key={job.job_id}><td className="px-2 py-1 font-medium">{job.label}</td><td className="px-2 py-1 text-gray-600">{job.schedule} · {job.timezone}</td><td className="px-2 py-1"><StatusBadge status={job.status} /></td><td className="px-2 py-1 text-gray-600">{formatUtc(job.started_at)}</td><td className="px-2 py-1 text-gray-600">{formatUtc(job.completed_at)}</td><td className="px-2 py-1">{job.exit_code ?? "—"}</td></tr>)}</tbody></table></div>{scheduledJobs.isError ? <ErrorState error={scheduledJobs.error} /> : null}<h2 className="text-sm font-semibold text-gray-900">Replay Operations</h2>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
         <MetricTile
           label="Replay Worker"

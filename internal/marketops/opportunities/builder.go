@@ -334,3 +334,133 @@ func unique(values []string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// ConvergenceVersion identifies opportunities built from persisted active
+// algorithms rather than the legacy hypothesis-trigger pilot.
+const ConvergenceVersion = 2
+
+type ConvergenceContribution struct {
+	TenantID, AssetID, Symbol, Source, Direction string
+	SessionDate                                  time.Time
+	Strength                                     float64
+	EvidenceIDs                                  []string
+}
+
+// BuildConvergence emits one research-only opportunity when at least two
+// independent persisted sources agree on a direction for a completed session.
+// Score is axiomatic: 50% agreement (two sources), plus up to 50% average
+// source strength. Opposing sources are represented as a conflict penalty.
+func BuildConvergence(runID string, inputs []ConvergenceContribution) (BuildResult, error) {
+	if strings.TrimSpace(runID) == "" {
+		return BuildResult{}, fmt.Errorf("opportunity build run id is required")
+	}
+	result := BuildResult{SkippedReasons: map[string]int{}}
+	groups := map[groupKey][]ConvergenceContribution{}
+	for _, input := range inputs {
+		input.Symbol = strings.ToUpper(strings.TrimSpace(input.Symbol))
+		input.Direction = strings.TrimSpace(input.Direction)
+		input.Source = strings.TrimSpace(input.Source)
+		if input.Symbol == "" || input.Source == "" || input.SessionDate.IsZero() || !validDirection(input.Direction) {
+			result.SkippedReasons["invalid_convergence_contribution"]++
+			continue
+		}
+		if input.AssetID == "" {
+			input.AssetID = "ticker:" + input.Symbol
+		}
+		key := groupKey{input.TenantID, input.AssetID, input.Symbol, input.SessionDate.UTC().Format("2006-01-02"), input.Direction, DefaultHorizon}
+		groups[key] = append(groups[key], input)
+	}
+	for key, values := range groups {
+		bySource := map[string]ConvergenceContribution{}
+		for _, value := range values {
+			if current, ok := bySource[value.Source]; !ok || value.Strength > current.Strength {
+				bySource[value.Source] = value
+			}
+		}
+		if len(bySource) < 2 {
+			result.SkippedReasons["insufficient_independent_sources"]++
+			continue
+		}
+		members := make([]ConvergenceContribution, 0, len(bySource))
+		for _, value := range bySource {
+			members = append(members, value)
+		}
+		sort.Slice(members, func(i, j int) bool { return members[i].Source < members[j].Source })
+		strength, evidence, contributions := 0.0, []string{}, []map[string]any{}
+		for _, value := range members {
+			strength += clamp(value.Strength)
+			evidence = append(evidence, value.EvidenceIDs...)
+			contributions = append(contributions, map[string]any{"source": value.Source, "direction": value.Direction, "strength": clamp(value.Strength), "evidence_ids": unique(value.EvidenceIDs)})
+		}
+		conflictCount := 0
+		for other, opposing := range groups {
+			if other.tenantID == key.tenantID && other.assetID == key.assetID && other.session == key.session && opposite(key.direction, other.direction) {
+				seen := map[string]bool{}
+				for _, value := range opposing {
+					seen[value.Source] = true
+				}
+				conflictCount += len(seen)
+			}
+		}
+		average := strength / float64(len(members))
+		conflict := clamp(float64(conflictCount) / float64(len(members)+conflictCount))
+		score := clamp(.5 + .5*average - .25*conflict)
+		identity, err := marketopsstate.NewIdentity(marketopsstate.IdentityOpportunity, key.tenantID, key.assetID, key.session, key.direction, key.horizon, fmt.Sprint(ConvergenceVersion))
+		if err != nil {
+			return result, err
+		}
+		payload, _ := json.Marshal(map[string]any{"scoring_version": "marketops.convergence_opportunity.v2", "contributions": contributions, "agreement_sources": len(members), "conflict_sources": conflictCount, "score_formula": "0.50 agreement + 0.50 average_strength - 0.25 conflict_ratio", "research_only": true})
+		result.Opportunities = append(result.Opportunities, storage.MarketOpsOpportunityRecord{OpportunityID: identity.ID, TenantID: key.tenantID, AppID: "marketops", AssetID: key.assetID, Symbol: key.symbol, OpenedSessionDate: members[0].SessionDate, LastEvaluatedDate: members[0].SessionDate, Direction: key.direction, Horizon: key.horizon, LifecycleStatus: storage.MarketOpsOpportunityActive, OpportunityScore: score, ConfidenceScore: clamp(average * (1 - conflict)), DomainDiversityScore: clamp(float64(len(members)) / 4), ConflictScore: conflict, SupportingEvidenceIDs: unique(evidence), Summary: fmt.Sprintf("%s %s convergence: %d independent sources agree; %d opposing sources.", key.symbol, key.direction, len(members), conflictCount), OpportunityPayloadJSON: payload, Version: ConvergenceVersion, ResearchOnly: true, BuildRunID: runID, DeterministicKey: identity.DeterministicKey})
+	}
+	// Mixed conviction is an analyst-review condition: material, independent
+	// sources disagree in the same completed session. It is non-directional.
+	mixedGroups := map[groupKey][]ConvergenceContribution{}
+	for key, values := range groups {
+		if key.direction != "upside" && key.direction != "downside" {
+			continue
+		}
+		mixedKey := key
+		mixedKey.direction = "non_directional"
+		for _, value := range values {
+			if clamp(value.Strength) >= .20 {
+				mixedGroups[mixedKey] = append(mixedGroups[mixedKey], value)
+			}
+		}
+	}
+	for key, values := range mixedGroups {
+		byDirection := map[string]map[string]ConvergenceContribution{"upside": {}, "downside": {}}
+		for _, value := range values {
+			current, exists := byDirection[value.Direction][value.Source]
+			if !exists || value.Strength > current.Strength {
+				byDirection[value.Direction][value.Source] = value
+			}
+		}
+		if len(byDirection["upside"]) == 0 || len(byDirection["downside"]) == 0 {
+			continue
+		}
+		members, evidence, contributions := []ConvergenceContribution{}, []string{}, []map[string]any{}
+		for _, direction := range []string{"upside", "downside"} {
+			for _, value := range byDirection[direction] {
+				members = append(members, value)
+			}
+		}
+		sort.Slice(members, func(i, j int) bool { return members[i].Source < members[j].Source })
+		strength := 0.0
+		for _, value := range members {
+			strength += clamp(value.Strength)
+			evidence = append(evidence, value.EvidenceIDs...)
+			contributions = append(contributions, map[string]any{"source": value.Source, "direction": value.Direction, "strength": clamp(value.Strength), "evidence_ids": unique(value.EvidenceIDs)})
+		}
+		average := strength / float64(len(members))
+		identity, err := marketopsstate.NewIdentity(marketopsstate.IdentityOpportunity, key.tenantID, key.assetID, key.session, key.direction, key.horizon, fmt.Sprint(ConvergenceVersion))
+		if err != nil {
+			return result, err
+		}
+		payload, _ := json.Marshal(map[string]any{"scoring_version": "marketops.convergence_opportunity.v2", "mixed_conviction": true, "contributions": contributions, "agreement_sources": 0, "conflict_sources": len(members), "score_formula": "average material opposing source strength", "research_only": true})
+		result.Opportunities = append(result.Opportunities, storage.MarketOpsOpportunityRecord{OpportunityID: identity.ID, TenantID: key.tenantID, AppID: "marketops", AssetID: key.assetID, Symbol: key.symbol, OpenedSessionDate: members[0].SessionDate, LastEvaluatedDate: members[0].SessionDate, Direction: key.direction, Horizon: key.horizon, LifecycleStatus: storage.MarketOpsOpportunityActive, OpportunityScore: average, ConfidenceScore: 0, DomainDiversityScore: clamp(float64(len(members)) / 4), ConflictScore: 1, SupportingEvidenceIDs: unique(evidence), Summary: fmt.Sprintf("%s mixed-conviction review: %d material sources disagree on direction.", key.symbol, len(members)), OpportunityPayloadJSON: payload, Version: ConvergenceVersion, ResearchOnly: true, BuildRunID: runID, DeterministicKey: identity.DeterministicKey})
+	}
+	sort.Slice(result.Opportunities, func(i, j int) bool {
+		return result.Opportunities[i].OpportunityScore > result.Opportunities[j].OpportunityScore
+	})
+	return result, nil
+}

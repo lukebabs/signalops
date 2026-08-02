@@ -1608,7 +1608,7 @@ SELECT tenant_id, app_id, domain, use_case, source_id, universe_group, rank, tic
   is_active, metadata, created_at, updated_at
 FROM marketops_asset_universe
 WHERE tenant_id = $1
-  AND universe_group = $2
+  AND ($2 = 'all_active' OR universe_group = $2)
   AND ($3 = false OR is_active = true)
 ORDER BY rank ASC
 LIMIT $4`, strings.TrimSpace(tenantID), universeGroup, activeOnly, clampLimit(limit))
@@ -2632,6 +2632,38 @@ func pqArray(values []string) stringArray {
 }
 
 type stringArray []string
+
+type stringArrayScanTarget struct{ target *[]string }
+
+func pqArrayScan(target *[]string) stringArrayScanTarget {
+	return stringArrayScanTarget{target: target}
+}
+func (s stringArrayScanTarget) Scan(src any) error {
+	if src == nil {
+		*s.target = nil
+		return nil
+	}
+	var value string
+	switch x := src.(type) {
+	case string:
+		value = x
+	case []byte:
+		value = string(x)
+	default:
+		return fmt.Errorf("unsupported postgres array type %T", src)
+	}
+	value = strings.TrimSuffix(strings.TrimPrefix(value, "{"), "}")
+	if value == "" {
+		*s.target = []string{}
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	for i := range parts {
+		parts[i] = strings.Trim(parts[i], `"`)
+	}
+	*s.target = parts
+	return nil
+}
 
 func (a stringArray) Value() (driver.Value, error) {
 	if len(a) == 0 {

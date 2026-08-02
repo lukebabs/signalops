@@ -1806,6 +1806,7 @@ type MarketOpsSignalOverviewInputs struct {
 	AlgorithmResults       []AlgorithmResultRecord
 	HypothesisDefinitions  []MarketOpsHypothesisDefinitionRecord
 	HypothesisEvaluations  []MarketOpsHypothesisEvaluationRecord
+	OptionsDistributions   []MarketOpsOptionsDistributionRecord
 	IntradayConditionSnaps []MarketOpsIntradayConditionSnapshotRecord
 }
 

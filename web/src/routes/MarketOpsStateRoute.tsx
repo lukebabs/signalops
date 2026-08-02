@@ -12,6 +12,8 @@ import {
   useMarketOpsBacktestCalibrationSummaries,
   useMarketOpsEvidence,
   useAlgorithmSignalProposals,
+  useMarketOpsAssetQuotes,
+  useMarketOpsAssets,
 } from '../api/queries';
 import { isApiError } from '../api/client';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
@@ -43,8 +45,9 @@ import {
   type MarketOpsHypothesisEvaluationStateView,
 } from '../lib/marketopsState';
 import { useTenant } from '../auth/session';
+import { AssetOptionsPanel } from './MarketOpsAssetsRoute';
 import { activeMarketOpsIndicators, type MarketOpsActiveIndicator } from '../lib/marketopsActiveIndicators';
-import type { MarketOpsHypothesisDefinition } from '../types';
+import type { MarketOpsAsset, MarketOpsAssetQuote, MarketOpsHypothesisDefinition } from '../types';
 
 // G147 Market State analyst experience (read-only composition over G136-G146).
 // Scope bar + four tabs (Overview / Surface / Transitions / Hypotheses). All
@@ -52,7 +55,7 @@ import type { MarketOpsHypothesisDefinition } from '../types';
 // promotion, proposal review, materialization) are intentionally absent. Analyst
 // context persists in URL search params.
 
-const TABS = ['overview', 'surface', 'transitions', 'hypotheses'] as const;
+const TABS = ['overview', 'quant', 'surface', 'transitions', 'hypotheses'] as const;
 type Tab = (typeof TABS)[number];
 const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
 const DOMAIN_BUCKETS = ['underlying', 'volatility', 'positioning', 'premium', 'liquidity_quality', 'event', 'other'] as const;
@@ -87,6 +90,19 @@ export function MarketOpsStateRoute() {
 
   // State window for the selected symbol.
   const statesQ = useMarketOpsStates({ tenant_id: TENANT_ID, symbol: symbol || undefined, limit: 50 });
+  // Quotes are kept per persisted asset universe, so Market State can show a
+  // current value whether the selected symbol is megacap or on the watchlist.
+  const megacapQuotesQ = useMarketOpsAssetQuotes(TENANT_ID, 'top50_megacap');
+  const watchlistQuotesQ = useMarketOpsAssetQuotes(TENANT_ID, 'analyst_watchlist');
+  const quoteByTicker = new Map(
+    [...(megacapQuotesQ.data?.quotes ?? []), ...(watchlistQuotesQ.data?.quotes ?? [])]
+      .map((quote) => [quote.ticker.toUpperCase(), quote]),
+  );
+  const selectedQuote = symbol ? quoteByTicker.get(symbol) : undefined;
+  const megacapAssetsQ = useMarketOpsAssets({ tenant_id: TENANT_ID, universe_group: 'top50_megacap', active_only: true, limit: 100 });
+  const watchlistAssetsQ = useMarketOpsAssets({ tenant_id: TENANT_ID, universe_group: 'analyst_watchlist', active_only: true, limit: 100 });
+  const onboardedAssets = [...(megacapAssetsQ.data?.assets ?? []), ...(watchlistAssetsQ.data?.assets ?? [])]
+    .sort((a, b) => a.ticker.localeCompare(b.ticker));
   const states = (statesQ.data?.market_states ?? []).map(summarizeMarketOpsState);
   // Newest revision per session; overall newest first by session then as_of.
   const sessionStates = dedupeNewestRevision(states);
@@ -105,8 +121,8 @@ export function MarketOpsStateRoute() {
         <Header onRefresh={() => queryClient.invalidateQueries({ queryKey: ['marketops-states'] })} refreshing={statesQ.isFetching} />
         <div className="rounded border border-gray-200 bg-white p-3">
           <EmptyState message="Choose an asset to inspect market state" />
-          <div className="mt-1 text-xs text-gray-500">
-            <Link to="/marketops/assets" className="text-brand-700 underline">Browse Assets</Link> to select a symbol.
+          <div className="mx-auto mt-3 max-w-md">
+            <AssetSelector assets={onboardedAssets} onSelect={(ticker) => setSearch({ symbol: ticker, session_date: undefined, hypothesis_key: undefined, hypothesis_version: undefined })} />
           </div>
         </div>
       </div>
@@ -121,9 +137,11 @@ export function MarketOpsStateRoute() {
         sessionDates={sessionDates}
         selectedSession={selectedSession}
         onSession={(d) => setSearch({ session_date: d, hypothesis_key: undefined, hypothesis_version: undefined })}
-        onSymbol={() => setSearch({ symbol: undefined, session_date: undefined, hypothesis_key: undefined, hypothesis_version: undefined })}
+        assets={onboardedAssets}
+        onSelectAsset={(ticker) => setSearch({ symbol: ticker, session_date: undefined, hypothesis_key: undefined, hypothesis_version: undefined })}
         statesQ={statesQ}
         selectedState={selectedState}
+        quote={selectedQuote}
       />
 
       <div className="flex flex-wrap gap-1 border-b border-gray-200">
@@ -139,11 +157,13 @@ export function MarketOpsStateRoute() {
         ))}
       </div>
 
-      {!selectedState ? (
+      {tab === 'overview' ? (
+        <AssetOptionsPanel tenantId={TENANT_ID} symbol={symbol} onClose={() => setSearch({ tab: 'quant' })} />
+      ) : !selectedState ? (
         <div className="rounded border border-gray-200 bg-white p-3">
           {statesQ.isLoading ? <LoadingState label="Loading market state..." /> : <EmptyState message="No persisted market state for this scope" />}
         </div>
-      ) : tab === 'overview' ? (
+      ) : tab === 'quant' ? (
         <OverviewTab tenantId={TENANT_ID} selectedState={selectedState} priorStateId={priorState?.marketStateId ?? null} priorLabel={priorState ? dateOnly(priorState.sessionDate) : null} />
       ) : tab === 'surface' ? (
         <SurfaceTab tenantId={TENANT_ID} selectedState={selectedState} />
@@ -175,33 +195,100 @@ function Header({ onRefresh, refreshing }: { onRefresh: () => void; refreshing: 
   );
 }
 
+function AssetSelector({
+  assets,
+  selectedSymbol = '',
+  onSelect,
+  compact = false,
+}: {
+  assets: MarketOpsAsset[];
+  selectedSymbol?: string;
+  onSelect: (ticker: string) => void;
+  compact?: boolean;
+}) {
+  const [term, setTerm] = useState(selectedSymbol);
+  const [error, setError] = useState('');
+  const selectTicker = () => {
+    const ticker = term.trim().toUpperCase();
+    if (assets.some((asset) => asset.ticker.toUpperCase() === ticker)) {
+      setError('');
+      onSelect(ticker);
+      return;
+    }
+    setError('Choose an onboarded ticker from the suggestions.');
+  };
+
+  return (
+    <form className="flex flex-wrap items-center gap-1.5" onSubmit={(event) => { event.preventDefault(); selectTicker(); }}>
+      <label className="sr-only" htmlFor="market-state-asset-search">Asset</label>
+      <input
+        id="market-state-asset-search"
+        list="market-state-onboarded-assets"
+        value={term}
+        onChange={(event) => {
+          const value = event.target.value;
+          setTerm(value);
+          const ticker = value.trim().toUpperCase();
+          if (assets.some((asset) => asset.ticker.toUpperCase() === ticker)) {
+            setError('');
+            onSelect(ticker);
+            return;
+          }
+          setError('');
+        }}
+        placeholder="Search onboarded asset"
+        className={`${inputCls} ${compact ? 'w-44' : 'w-full'}`}
+        aria-describedby={error ? 'market-state-asset-search-error' : undefined}
+      />
+      <datalist id="market-state-onboarded-assets">
+        {assets.map((asset) => <option key={`${asset.universe_group}:${asset.ticker}`} value={asset.ticker} label={asset.company || asset.display_name || asset.ticker} />)}
+      </datalist>
+      {error ? <span id="market-state-asset-search-error" className="w-full text-[11px] text-red-600">{error}</span> : null}
+      {!assets.length ? <span className="w-full text-[11px] text-gray-500">Loading onboarded assets…</span> : null}
+    </form>
+  );
+}
+
 function ScopeBar({
   symbol,
   sessionDates,
   selectedSession,
+  assets,
+  onSelectAsset,
   onSession,
-  onSymbol,
   statesQ,
   selectedState,
+  quote,
 }: {
   symbol: string;
   sessionDates: string[];
   selectedSession: string;
+  assets: MarketOpsAsset[];
+  onSelectAsset: (ticker: string) => void;
   onSession: (d: string) => void;
-  onSymbol: () => void;
   statesQ: ReturnType<typeof useMarketOpsStates>;
   selectedState: MarketOpsMarketStateView | null;
+  quote?: MarketOpsAssetQuote;
 }) {
+  const quoteStatus = quote?.market_status === 'regular' ? 'Regular' : quote?.market_status === 'extended' ? 'Extended' : 'EOD';
+  const quoteTimestamp = quote?.timestamp ? formatUtc(quote.timestamp) : null;
+  const quoteChange = quote?.change_percent;
   return (
     <div className="flex flex-wrap items-center gap-2 rounded border border-gray-200 bg-white p-2">
-      <button type="button" onClick={onSymbol} className={`${inputCls} font-mono bg-white`} title="Change symbol">{symbol}</button>
+      <AssetSelector assets={assets} selectedSymbol={symbol} onSelect={onSelectAsset} compact />
+      {quote?.price != null ? (
+        <span className={quoteChange != null && quoteChange > 0 ? 'text-xs font-medium text-green-700' : quoteChange != null && quoteChange < 0 ? 'text-xs font-medium text-red-700' : 'text-xs font-medium text-gray-700'} title="Latest persisted market price">
+          Last price <strong>USD {quote.price.toFixed(2)}</strong> <span className="text-[10px] font-normal text-gray-500">{quoteStatus}{quoteTimestamp ? ' as of ' : ''}{quoteTimestamp}</span>
+        </span>
+      ) : (
+        <span className="text-xs text-gray-500" title="No persisted delayed intraday aggregate or completed daily close is currently available.">Last price unavailable</span>
+      )}
       <select value={selectedSession} onChange={(e) => onSession(e.target.value)} className={inputCls} aria-label="Session date" disabled={!sessionDates.length}>
         {sessionDates.length === 0 ? <option value="">no sessions</option> : sessionDates.map((d) => <option key={d} value={d}>{d}</option>)}
       </select>
       {selectedState ? (
         <>
           <Badge tone={qualityStateStyle(selectedState.qualityState)}>{selectedState.qualityState || '—'}</Badge>
-          <span className="text-xs text-gray-600">schema <code>{selectedState.stateSchemaVersion || '—'}</code></span>
           <span className="text-xs text-gray-600">
             completeness <strong>{formatNullablePercent(selectedState.completenessRatio)}</strong>
             {' · '}{selectedState.featureCount} total features · {selectedState.requiredFeatureCount} required

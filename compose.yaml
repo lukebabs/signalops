@@ -160,6 +160,7 @@ services:
       SIGNALOPS_AUTH_JWKS_URL: ${SIGNALOPS_AUTH_JWKS_URL:-https://auth.syncratic.co/realms/syncratic/protocol/openid-connect/certs}
       SIGNALOPS_AUTH_AUDIENCE: ${SIGNALOPS_AUTH_AUDIENCE:-signalops-api}
       SIGNALOPS_AUTH_CLIENT_ID: ${SIGNALOPS_AUTH_CLIENT_ID:-signalops-web}
+      SIGNALOPS_SCHEDULE_STATUS_DIR: /var/lib/signalops/scheduled-jobs
       SYNCRATIC_API_BASE_URL: ${SYNCRATIC_API_BASE_URL:-}
       SYNCRATIC_AUTH_MODE: ${SYNCRATIC_AUTH_MODE:-api_key}
       SYNCRATIC_TOKEN_URL: ${SYNCRATIC_TOKEN_URL:-}
@@ -171,6 +172,8 @@ services:
       SYNCRATIC_PASSWORD: ${SYNCRATIC_PASSWORD:-}
     ports:
       - "18000:8080"
+    volumes:
+      - ./runtime/scheduled-jobs:/var/lib/signalops/scheduled-jobs:ro
 
   web:
     build:
@@ -202,6 +205,46 @@ services:
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+
+  marketops-valuation-runner:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-valuation-runner
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+      SIGNALOPS_FMP_BASE_URL: ${SIGNALOPS_FMP_BASE_URL:-}
+      SIGNALOPS_FMP_API_KEY: ${SIGNALOPS_FMP_API_KEY:-${fmp_apikey:-}}
+
+  marketops-tactical-valuation-runner:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-tactical-valuation-runner
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+
+  marketops-eroc-runner:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-eroc-runner
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
 
   massive-puller:
     profiles: ["massive-pull"]

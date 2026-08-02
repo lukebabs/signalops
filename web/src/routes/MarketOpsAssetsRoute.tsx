@@ -1,12 +1,11 @@
 import { Fragment, useMemo, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { CircleDollarSign, X, ArrowDown, ArrowUp } from 'lucide-react';
-import ReactECharts from 'echarts-for-react';
+import { ThemedEChart as ReactECharts } from '../components/ThemedEChart';
 import { useMarketOpsAssets, useMarketOpsAssetQuotes, useMarketOpsIntradayConditions, useMarketOpsAssetAlgorithmObservations, useMarketOpsHypothesisEvaluations, useMarketOpsAlgorithmAdjudications, useMarketOpsQuantitativeSeries, useMarketOpsRiskRewardSummaries, useMarketOpsSignalOverview } from '../api/queries';
 import { useMarketOpsOptionsCoverage, useMarketOpsOptionsDistributions, useMarketOpsOptionsChain, useMarketOpsIntelligenceReadiness } from '../api/queries';
 import { api, isApiError } from '../api/client';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
-import { MetricTile } from '../components/MetricTile';
 import { JsonViewer } from '../components/JsonViewer';
 import { OptionsQualityBadge } from '../components/OptionsQualityBadge';
 import { RiskRewardPanel } from '../components/RiskRewardPanel';
@@ -32,6 +31,7 @@ import {
 } from '../lib/marketopsOptions';
 import { useTenant } from '../auth/session';
 import type { AlgorithmResult, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOpsIntradayConditionSnapshot, MarketOpsRiskRewardSummary } from "../types";
+import { MARKETOPS_ASSET_QUICK_FILTERS, matchesAllMarketOpsAssetQuickFilters, matchesMarketOpsAssetQuickFilter, toggleMarketOpsAssetQuickFilter, type MarketOpsAssetQuickFilter } from '../lib/marketopsAssetQuickFilters';
 
 // Read-only MarketOps asset universe (G071 frontend) + G128 per-asset options
 // intelligence panel. The universe table is backend data only; selecting a row
@@ -63,6 +63,7 @@ export function MarketOpsAssetsRoute() {
   const [displayNameBusy, setDisplayNameBusy] = useState(false);
   const [displayNameError, setDisplayNameError] = useState<string | null>(null);
   const [assetSort, setAssetSort] = useState<{ key: AssetSortKey; direction: 'asc' | 'desc' }>({ key: 'default', direction: 'asc' });
+  const [quickFilters, setQuickFilters] = useState<MarketOpsAssetQuickFilter[]>([]);
   const [displaySectorInput, setDisplaySectorInput] = useState('');
   const [displaySectorBusy, setDisplaySectorBusy] = useState(false);
   const [displaySectorError, setDisplaySectorError] = useState<string | null>(null);
@@ -92,9 +93,6 @@ export function MarketOpsAssetsRoute() {
   // backend ordering; slice() avoids mutating the cached response.
   const watchlistQ = useMarketOpsAssets({ tenant_id: TENANT_ID, universe_group: "analyst_watchlist", active_only: true, limit: 50 });
   const data = [...(query.data?.assets ?? []), ...(watchlistQ.data?.assets ?? [])].slice().sort((a, b) => a.universe_group === b.universe_group ? a.rank - b.rank : a.universe_group === "top50_megacap" ? -1 : 1);
-  const active = data.filter((a) => a.is_active).length;
-  const sectors = new Set(data.map((a) => a.sector_key || a.sector).filter(Boolean)).size;
-  const industries = new Set(data.map((a) => a.industry_key || a.industry).filter(Boolean)).size;
   const quotesQ = useMarketOpsAssetQuotes(TENANT_ID, "top50_megacap");
   const watchlistQuotesQ = useMarketOpsAssetQuotes(TENANT_ID, "analyst_watchlist");
   const quoteMap = new Map([...(quotesQ.data?.quotes ?? []), ...(watchlistQuotesQ.data?.quotes ?? [])].map((q) => [q.ticker.toUpperCase(), q]));
@@ -104,6 +102,12 @@ export function MarketOpsAssetsRoute() {
   const riskRewardQ = useMarketOpsRiskRewardSummaries(TENANT_ID, "top50_megacap");
   const watchlistRiskRewardQ = useMarketOpsRiskRewardSummaries(TENANT_ID, "analyst_watchlist");
   const riskRewardMap = new Map([...(riskRewardQ.data?.summaries ?? []), ...(watchlistRiskRewardQ.data?.summaries ?? [])].map((summary) => [summary.ticker.toUpperCase(), summary]));
+  const optionsFlowOverviewQ = useMarketOpsSignalOverview(TENANT_ID, "all_active", "10_trade_days");
+  const optionsFlowMap = new Map((optionsFlowOverviewQ.data?.options_flow_extremes.categories ?? []).flatMap((category) => category.members.map((member) => [member.ticker.toUpperCase(), category.key] as const)));
+
+  const assetQuickFilterInput = (asset: typeof data[number]) => ({ ticker: asset.ticker, quote: quoteMap.get(asset.ticker.toUpperCase()), intraday: conditionMap.get(asset.ticker.toUpperCase()), riskReward: riskRewardMap.get(asset.ticker.toUpperCase()), optionsFlowExtreme: optionsFlowMap.get(asset.ticker.toUpperCase()) as "call_volume_extreme" | "put_volume_extreme" | undefined });
+  const quickFilterCounts = Object.fromEntries(MARKETOPS_ASSET_QUICK_FILTERS.map((filter) => [filter.key, data.filter((asset) => matchesMarketOpsAssetQuickFilter(assetQuickFilterInput(asset), filter.key)).length])) as Record<MarketOpsAssetQuickFilter, number>;
+  const filteredData = data.filter((asset) => matchesAllMarketOpsAssetQuickFilters(assetQuickFilterInput(asset), quickFilters));
 
   function toggleAssetEditSelection(asset: { ticker: string; universe_group: string; display_name?: string; company: string; display_sector?: string; sector?: string }) {
     const key = assetRowKey(asset);
@@ -171,7 +175,7 @@ export function MarketOpsAssetsRoute() {
   }
 
   const sortedData = useMemo(() => {
-    if (assetSort.key === 'default') return data;
+    if (assetSort.key === 'default') return filteredData;
     const valueFor = (asset: typeof data[number]): string | number | null => {
       const quote = quoteMap.get(asset.ticker.toUpperCase());
       const condition = conditionMap.get(asset.ticker.toUpperCase());
@@ -186,7 +190,7 @@ export function MarketOpsAssetsRoute() {
         default: return null;
       }
     };
-    return data.slice().sort((left, right) => {
+    return filteredData.slice().sort((left, right) => {
       const leftValue = valueFor(left);
       const rightValue = valueFor(right);
       if (leftValue == null && rightValue == null) return left.ticker.localeCompare(right.ticker);
@@ -195,7 +199,7 @@ export function MarketOpsAssetsRoute() {
       const comparison = typeof leftValue === 'string' && typeof rightValue === 'string' ? leftValue.localeCompare(rightValue) : Number(leftValue) - Number(rightValue);
       return comparison === 0 ? left.ticker.localeCompare(right.ticker) : comparison * (assetSort.direction === 'asc' ? 1 : -1);
     });
-  }, [assetSort, conditionMap, data, quoteMap, riskRewardMap]);
+  }, [assetSort, conditionMap, filteredData, quoteMap, riskRewardMap]);
 
   function toggleAssetSort(key: Exclude<AssetSortKey, 'default'>) {
     setAssetSort((current) => current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: key === 'asset' || key === 'rank' ? 'asc' : 'desc' });
@@ -238,13 +242,18 @@ export function MarketOpsAssetsRoute() {
 
       <WatchlistControls tenantId={TENANT_ID} onChanged={() => { void query.refetch(); void watchlistQ.refetch(); }} />
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-        <MetricTile label="Universe Assets" value={data.length} />
-        <MetricTile label="Active Assets" value={active} />
-        <MetricTile label="Sectors" value={sectors} />
-        <MetricTile label="Industries" value={industries} />
-        <MetricTile label="Market Quotes" value={quoteMap.size} />
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" aria-label="Asset quick filters">
+        {MARKETOPS_ASSET_QUICK_FILTERS.map((filter) => {
+          const selected = quickFilters.includes(filter.key);
+          return <button key={filter.key} type="button" aria-pressed={selected} onClick={() => setQuickFilters((current) => toggleMarketOpsAssetQuickFilter(current, filter.key))} className={selected ? "border-brand-500 bg-brand-50 p-3 text-left text-brand-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" : "border-gray-200 bg-white p-3 text-left text-gray-900 transition hover:border-brand-300 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"}>
+            <div className="text-xs uppercase tracking-wide text-gray-500">{filter.label}</div>
+            <div className="mt-1 text-base font-semibold">{quickFilterCounts[filter.key]}</div>
+            <div className="mt-0.5 text-xs text-gray-500">{filter.hint}</div>
+          </button>;
+        })}
       </div>
+
+      {quickFilters.length ? <div className="flex flex-wrap items-center gap-2 rounded border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-900" aria-label="Active asset filters"><span className="font-medium">Filters</span>{quickFilters.map((key) => { const filter = MARKETOPS_ASSET_QUICK_FILTERS.find((item) => item.key === key)!; return <button key={key} type="button" onClick={() => setQuickFilters((current) => toggleMarketOpsAssetQuickFilter(current, key))} className="inline-flex items-center gap-1 rounded border border-brand-300 bg-white px-2 py-1 hover:bg-brand-100">{filter.label}<X size={12} aria-hidden="true" /></button>; })}<button type="button" onClick={() => setQuickFilters([])} className="ml-auto underline hover:text-brand-700">Clear filters</button><span className="text-brand-700">{sortedData.length} shown</span></div> : null}
 
       {query.isLoading ? (
         <LoadingState />
@@ -276,20 +285,20 @@ export function MarketOpsAssetsRoute() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedData.map((a) => (
+              {sortedData.length ? sortedData.map((a) => (
                 <Fragment key={a.ticker}>
                 <tr
                   onClick={() => setSelectedTicker((current) => current === a.ticker ? null : a.ticker)}
                   className={`cursor-pointer align-top hover:bg-gray-50 ${selectedTicker === a.ticker ? 'bg-brand-50' : ''}`}
                 >
-                  <td className="px-2 py-2 text-center"><input type="checkbox" checked={editSelectedAssetKey === assetRowKey(a)} onClick={(event) => event.stopPropagation()} onChange={() => toggleAssetEditSelection(a)} aria-label={"Select " + a.ticker + " for display-name and sector editing"} title="Select this asset to edit its display name and sector" className="h-4 w-4 rounded border-gray-300 text-brand-700 focus:ring-brand-600" /></td>
+                  <td className="px-2 py-2 text-center"><input type="checkbox" checked={editSelectedAssetKey === assetRowKey(a)} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} onChange={() => toggleAssetEditSelection(a)} aria-label={"Select " + a.ticker + " for display-name and sector editing"} title="Select this asset to edit its display name and sector" className="h-4 w-4 rounded border-gray-300 text-brand-700 focus:ring-brand-600" /></td>
                   <td className="px-3 py-2 text-xs text-gray-500">{a.rank}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-start gap-2">
                       <CircleDollarSign size={16} className="mt-0.5 text-brand-700" />
                       <div>
                         {editSelectedAssetKey === assetRowKey(a) ? (
-                          <form onSubmit={(event) => void saveDisplayName(event, a)} onClick={(event) => event.stopPropagation()} className="flex items-center gap-1">
+                          <form onSubmit={(event) => void saveDisplayName(event, a)} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} className="flex items-center gap-1">
                             <input aria-label={"Display name for " + a.ticker} value={displayNameInput} onChange={(event) => setDisplayNameInput(event.target.value)} maxLength={120} autoFocus className="w-44 rounded border border-gray-300 px-1.5 py-0.5 text-sm text-gray-900" />
                             <button type="submit" disabled={displayNameBusy} className="rounded bg-brand-700 px-1.5 py-0.5 text-[10px] font-medium text-white disabled:opacity-50">Save</button>
                             <button type="button" disabled={displayNameBusy} onClick={() => cancelDisplayNameEdit(a)} className="text-[10px] text-gray-600 underline">Cancel</button>
@@ -297,7 +306,7 @@ export function MarketOpsAssetsRoute() {
                         ) : <div className="font-medium text-gray-900">{a.display_name || a.company || "—"}</div>}
                         {editSelectedAssetKey === assetRowKey(a) && displayNameError ? <div className="mt-1 text-[10px] text-red-700">{displayNameError}</div> : null}
                         <div className="flex items-center gap-1 font-mono text-xs text-gray-500"><span>{a.ticker}</span>{editSelectedAssetKey === assetRowKey(a) ? (
-                          <form onSubmit={(event) => void saveDisplaySector(event, a)} onClick={(event) => event.stopPropagation()} className="flex items-center gap-1 font-sans">
+                          <form onSubmit={(event) => void saveDisplaySector(event, a)} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} className="flex items-center gap-1 font-sans">
                             <input aria-label={"Sector label for " + a.ticker} value={displaySectorInput} onChange={(event) => setDisplaySectorInput(event.target.value)} maxLength={48} className="w-28 rounded border border-gray-300 px-1 py-0.5 text-[10px] text-gray-900" />
                             <button type="submit" disabled={displaySectorBusy} className="rounded bg-brand-700 px-1 py-0.5 text-[9px] font-medium text-white disabled:opacity-50">Save</button>
                             <button type="button" disabled={displaySectorBusy} onClick={() => cancelDisplaySectorEdit(a)} className="text-[9px] text-gray-600 underline">Cancel</button>
@@ -306,7 +315,7 @@ export function MarketOpsAssetsRoute() {
                         {editSelectedAssetKey === assetRowKey(a) && displaySectorError ? <div className="mt-1 text-[10px] text-red-700">{displaySectorError}</div> : null}
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span>{a.asset_type}</span>
-                          <Link to="/marketops/state" search={{ symbol: a.ticker }} onClick={(e) => e.stopPropagation()} className="text-brand-700 underline hover:text-brand-800">Open Market State</Link>
+                          <Link to="/marketops/state" search={{ symbol: a.ticker }} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} className="text-brand-700 underline hover:text-brand-800">Open Market State</Link>
                         </div>
                       </div>
                     </div>
@@ -324,7 +333,7 @@ export function MarketOpsAssetsRoute() {
                   </tr>
                 ) : null}
                 </Fragment>
-              ))}
+              )) : <tr><td colSpan={7} className="px-3 py-8 text-center text-xs text-gray-500">No assets match the selected filters. <button type="button" onClick={() => setQuickFilters([])} className="text-brand-700 underline hover:text-brand-800">Clear filters</button></td></tr>}
             </tbody>
           </table>
           </div>
@@ -443,14 +452,14 @@ function MarketDataUpdatedCell({ quote, refreshedAt }: { quote?: MarketOpsAssetQ
 // latest distribution summary + rolling ratio chart + moneyness/expiration
 // buckets, and a filterable chain table. Loading/error/empty are scoped per
 // section and never block asset browsing. No ingestion or live-preview controls.
-function AssetOptionsPanel({
+export function AssetOptionsPanel({
   tenantId,
   symbol,
   onClose,
 }: {
   tenantId: string;
   symbol: string;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const [seriesWindow, setSeriesWindow] = useState("10_trade_days");
   const seriesQ = useMarketOpsQuantitativeSeries(tenantId, symbol, seriesWindow);
@@ -808,6 +817,12 @@ function QuantitativeSeriesChart({ points, window, onWindowChange, loading, erro
   const markers = rows.flatMap((row, index) => row.markers.map((marker) => ({ value: [index, row.eod_close ?? 0], marker, date: row.trade_date })));
   const option = { grid: { left: 48, right: 48, top: 42, bottom: 42 }, tooltip: { trigger: "axis", formatter: (items: any[]) => { const index = items?.[0]?.dataIndex ?? 0; const row = rows[index]; if (!row) return ""; const putCall = putCallVolumeRatio(row.call_put_volume_ratio); const lines = [`<b>${row.trade_date}</b>`, row.eod_close == null ? "EOD close: unavailable" : `EOD close: ${row.eod_close.toFixed(2)}${row.daily_move_pct == null ? "" : ` (${row.daily_move_pct >= 0 ? "+" : ""}${row.daily_move_pct.toFixed(2)}%)`}`, row.call_put_open_interest_ratio == null ? "Call/put OI: unavailable" : `Call/put OI: ${row.call_put_open_interest_ratio.toFixed(2)}`, putCall == null ? "Put/call volume: unavailable" : `Put/call volume: ${putCall.toFixed(2)} · ${sentiment(putCall)}`]; row.markers.forEach((m) => lines.push(`${m.algorithm_id.replace("signalops.algorithms.", "")}: ${m.severity} · ${m.adjudications?.[0]?.verdict ?? "unadjudicated"}`)); return lines.join("<br/>"); } }, legend: { data: ["EOD close", "Call/put OI", "Put/call volume sentiment"], top: 0 }, xAxis: { type: "category", data: rows.map((r) => r.trade_date) }, yAxis: [{ type: "value", name: "EOD close", scale: true }, { type: "value", name: "Ratio", scale: true }], series: [{ name: "EOD close", type: "line", yAxisIndex: 0, connectNulls: false, data: rows.map((r) => r.eod_close ?? null), itemStyle: { color: "#2563eb" }, markPoint: { symbol: "diamond", symbolSize: 12, data: markers.map((m) => ({ coord: m.value, itemStyle: { color: m.marker.adjudications?.[0]?.verdict === "confirmed" ? "#15803d" : m.marker.adjudications?.[0]?.verdict === "contradicted" ? "#dc2626" : "#d97706" }, label: { show: false } })) } }, { name: "Call/put OI", type: "line", yAxisIndex: 1, connectNulls: false, data: rows.map((r) => r.call_put_open_interest_ratio ?? null), itemStyle: { color: "#1f7a6b" } }, { name: "Put/call volume sentiment", type: "line", yAxisIndex: 1, connectNulls: false, data: rows.map((r) => putCallVolumeRatio(r.call_put_volume_ratio)), lineStyle: { color: "#6b7280" }, itemStyle: { color: (params: { value: number }) => params.value < 1 ? "#15803d" : params.value > 1 ? "#dc2626" : "#6b7280" }, markLine: { silent: true, data: [{ yAxis: 1 }], lineStyle: { type: "dashed", color: "#6b7280" }, label: { formatter: "neutral 1.0" } } }] };
   return <div className="rounded border border-violet-100 bg-white p-2"><div className="mb-1 flex items-center justify-between gap-2"><div><div className="text-[11px] font-semibold uppercase tracking-wide text-violet-700">Price, sentiment & corroboration</div><p className="text-[11px] text-gray-500">Put/call volume below 1.0 is bullish (calls elevated); above 1.0 is bearish (puts elevated). Sentiment context, not a recommendation.</p></div><select value={window} onChange={(e) => onWindowChange(e.target.value)} className="rounded border border-gray-300 px-1 py-1 text-xs">{["10_trade_days","30_trade_days","60_trade_days"].map((v) => <option key={v} value={v}>{v.replace("_trade_days"," days")}</option>)}</select></div>{loading ? <div className="text-xs text-gray-500">Loading time series…</div> : error ? <div className="text-xs text-red-700">Quantitative time series is unavailable.</div> : rows.length ? <ReactECharts option={option} style={{ height: 260 }} /> : <div className="text-xs text-gray-500">No persisted price or sentiment series is available yet.</div>}</div>;
+}
+
+export function MarketOpsPriceSentimentChart({ tenantId, symbol }: { tenantId: string; symbol: string }) {
+  const [window, setWindow] = useState("10_trade_days");
+  const seriesQ = useMarketOpsQuantitativeSeries(tenantId, symbol, window);
+  return <QuantitativeSeriesChart points={seriesQ.data?.points ?? []} window={window} onWindowChange={setWindow} loading={seriesQ.isLoading} error={seriesQ.isError} />;
 }
 
 function OptionsRatioChart({ rows }: { rows: MarketOpsOptionsDistributionView[] }) {

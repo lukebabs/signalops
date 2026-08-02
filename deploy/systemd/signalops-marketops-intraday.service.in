@@ -5,6 +5,6 @@ After=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=@WORKDIR@
-ExecStart=@WORKDIR@/scripts/marketops_intraday_monitor.sh
+ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh marketops-intraday "Weekdays every 15 minutes, 09:30-20:00" America/New_York @WORKDIR@/scripts/marketops_intraday_monitor.sh
 TimeoutStartSec=20m
 Nice=10

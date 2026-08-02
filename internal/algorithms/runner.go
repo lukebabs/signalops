@@ -296,12 +296,19 @@ func executeRiskReward(ctx context.Context, repo Repository, cfg Config, metrics
 		byID := map[string]sample{}
 		provenanceByID := map[string][]map[string]any{}
 		optionsArtifactProvenanceByID := map[string][]map[string]any{}
+		inputSnapshotsByID := map[string]map[string]any{}
 		for _, day := range dates {
 			rows := bySession[day]
 			values := map[string]any{}
+			inputValues := map[string]any{}
 			ids, refs := []string{}, []string{}
 			var at time.Time
 			for _, row := range rows {
+				input := map[string]any{"quality_state": row.QualityState, "as_of_time": row.AsOfTime.UTC().Format(time.RFC3339Nano), "feature_observation_id": row.FeatureObservationID, "source_event_ids": row.SourceEventIDs}
+				if row.NumericValue != nil {
+					input["value"] = *row.NumericValue
+				}
+				inputValues[row.FeatureKey] = input
 				if row.NumericValue != nil && (row.QualityState == storage.MarketOpsQualityUsable || row.QualityState == storage.MarketOpsQualityUsableWithWarning) {
 					values[row.FeatureKey] = *row.NumericValue
 					ids = append(ids, row.FeatureObservationID)
@@ -324,6 +331,7 @@ func executeRiskReward(ctx context.Context, repo Repository, cfg Config, metrics
 			byID[eventID] = sample{event: event, symbol: symbol}
 			provenanceByID[eventID] = provenance
 			optionsArtifactProvenanceByID[eventID] = optionsArtifactProvenance
+			inputSnapshotsByID[eventID] = map[string]any{"features": inputValues, "feature_observation_ids": ids, "source_event_ids": refs}
 			point := map[string]any{"event_id": eventID, "symbol": symbol, "observation_time": at.UTC().Format(time.RFC3339Nano), "features": values, "feature_value_ids": ids, "evidence_refs": refs}
 			if len(provenance) > 0 {
 				point["input_provenance"] = provenance
@@ -369,6 +377,15 @@ func executeRiskReward(ctx context.Context, repo Repository, cfg Config, metrics
 			}
 			if err := repo.InsertAlgorithmResult(ctx, rec); err != nil {
 				return err
+			}
+			if snapshotRepo, ok := repo.(storage.MarketOpsRiskRewardSnapshotRepository); ok {
+				snapshot, err := riskRewardSnapshotRecord(cfg, rec, item, source.event.ObservationTime, inputSnapshotsByID[item.SourceEventID])
+				if err != nil {
+					return err
+				}
+				if err := snapshotRepo.UpsertMarketOpsRiskRewardSnapshot(ctx, snapshot); err != nil {
+					return err
+				}
 			}
 			metrics.Results++
 		}

@@ -42,6 +42,10 @@ function asNullableNumber(v: unknown): number | null {
 }
 
 export interface MarketOpsOpportunityContribution {
+  source: string;
+  direction: string;
+  strength: number | null;
+  evidenceIds: string[];
   evaluationId: string;
   hypothesisKey: string;
   hypothesisVersion: string;
@@ -59,6 +63,10 @@ export function parseOpportunityContributions(payload: unknown): MarketOpsOpport
   return payload.contributions
     .filter(isRecord)
     .map((c) => ({
+      source: asString(c.source),
+      direction: asString(c.direction),
+      strength: asNullableNumber(c.strength),
+      evidenceIds: asStringArray(c.evidence_ids),
       evaluationId: asString(c.evaluation_id),
       hypothesisKey: asString(c.hypothesis_key),
       hypothesisVersion: asString(c.hypothesis_version),
@@ -67,7 +75,7 @@ export function parseOpportunityContributions(payload: unknown): MarketOpsOpport
       confidenceScore: asNullableNumber(c.confidence_score),
       qualityScore: asNullableNumber(c.quality_score),
     }))
-    .sort((a, b) => (b.triggerScore ?? -Infinity) - (a.triggerScore ?? -Infinity));
+    .sort((a, b) => (b.strength ?? b.triggerScore ?? -Infinity) - (a.strength ?? a.triggerScore ?? -Infinity));
 }
 
 export function parseOverlapSuppressedIds(payload: unknown): string[] {

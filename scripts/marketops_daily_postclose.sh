@@ -208,6 +208,18 @@ if $plan_mode; then
     $write_mode && cohort+=(--acknowledge-writes)
     print_command "${cohort[@]}"
   done
+  outcome_start="$(TZ="$timezone" date -d "$session_date - ${MARKETOPS_OUTCOME_LOOKBACK_DAYS:-45} days" '+%F')"
+  log "plan includes final convergence refresh and outcome maturity window=$outcome_start..$session_date"
+  for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=10, batch++)); do
+    batch_symbols=("${symbols[@]:offset:10}")
+    batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
+    refresh=(docker compose --profile marketops-daily run --rm -e "SIGNALOPS_ACTOR=$actor" marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$batch_csv" --max-symbols "${#batch_symbols[@]}" --session-start "$session_date" --session-end "$session_date" --stages "opportunity_build" --continue-on-error=true --run-id "$(printf '%s-convergence-%02d' "$run_prefix" "$batch")" --dry-run="$dry_run")
+    outcome_sweep=(docker compose --profile marketops-daily run --rm -e "SIGNALOPS_ACTOR=$actor" marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$batch_csv" --max-symbols "${#batch_symbols[@]}" --session-start "$outcome_start" --session-end "$session_date" --stages "outcome_materialization" --continue-on-error=true --run-id "$(printf '%s-outcomes-%02d' "$run_prefix" "$batch")" --dry-run="$dry_run")
+    $write_mode && refresh+=(--acknowledge-writes)
+    $write_mode && outcome_sweep+=(--acknowledge-writes)
+    print_command "${refresh[@]}"
+    print_command "${outcome_sweep[@]}"
+  done
   exit 0
 fi
 
@@ -388,7 +400,64 @@ if $write_mode; then
   if ! ./scripts/marketops_algorithm_corroboration.sh --date "$session_date"; then
     printf "algorithm corroboration reported failures; universal completion gate will enforce required coverage\n" >&2
   fi
-  ./scripts/marketops_universal_completion_gate.sh "$session_date" "$active_universe_symbols" "${#symbols[@]}" || exit 8
+  # Retention scripts are shell source, so invoke them through Bash rather than
+  # relying on a repository executable bit surviving checkout or packaging.
+  bash ./scripts/marketops_risk_reward_retention.sh
+  bash ./scripts/marketops_financial_retention.sh
+  if [[ "$weekday" == "${MARKETOPS_VALUATION_WEEKDAY:-5}" ]]; then
+    docker compose --profile marketops-daily run --rm marketops-valuation-runner --tenant-id tenant-local --session-date "$session_date" --fmp-max-requests "${MARKETOPS_VALUATION_FMP_MAX_REQUESTS:-240}"
+  else
+    log "skipping weekly valuation; session weekday=$weekday"
+  fi
+  docker compose --profile marketops-daily run --rm marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"
+  docker compose --profile marketops-daily run --rm marketops-eroc-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"
+  # EROC and tactical posture are intentionally evaluated after the state cohorts.
+  # Refresh the research-only opportunity queue afterward so its exact-session
+  # convergence contract can use those final daily algorithm results as well.
+  log "convergence opportunity refresh started"
+  for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=10, batch++)); do
+    batch_symbols=("${symbols[@]:offset:10}")
+    batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
+    refresh=(docker compose --profile marketops-daily run --rm
+      -e "SIGNALOPS_ACTOR=$actor"
+      marketops-intelligence-cohort-runner
+      --tenant-id tenant-local
+      --symbols "$batch_csv"
+      --max-symbols "${#batch_symbols[@]}"
+      --session-start "$session_date"
+      --session-end "$session_date"
+      --stages "opportunity_build"
+      --continue-on-error=true
+      --run-id "$(printf '%s-convergence-%02d' "$run_prefix" "$batch")"
+      --dry-run=false
+      --acknowledge-writes)
+    log "convergence refresh batch=$batch symbols=$batch_csv"
+    "${refresh[@]}"
+  done
+  # Recalculate outcomes for the rolling opportunity history. This updates the
+  # same deterministic rows from pending to matured as later prices arrive.
+  outcome_start="$(TZ="$timezone" date -d "$session_date - ${MARKETOPS_OUTCOME_LOOKBACK_DAYS:-45} days" '+%F')"
+  log "opportunity outcome maturity sweep started window=$outcome_start..$session_date"
+  for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=10, batch++)); do
+    batch_symbols=("${symbols[@]:offset:10}")
+    batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
+    outcome_sweep=(docker compose --profile marketops-daily run --rm
+      -e "SIGNALOPS_ACTOR=$actor"
+      marketops-intelligence-cohort-runner
+      --tenant-id tenant-local
+      --symbols "$batch_csv"
+      --max-symbols "${#batch_symbols[@]}"
+      --session-start "$outcome_start"
+      --session-end "$session_date"
+      --stages "outcome_materialization"
+      --continue-on-error=true
+      --run-id "$(printf '%s-outcomes-%02d' "$run_prefix" "$batch")"
+      --dry-run=false
+      --acknowledge-writes)
+    log "outcome maturity batch=$batch symbols=$batch_csv"
+    "${outcome_sweep[@]}"
+  done
+  bash ./scripts/marketops_universal_completion_gate.sh "$session_date" "$active_universe_symbols" "${#symbols[@]}" || exit 8
   docker compose --profile marketops-daily run --rm marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
   summary="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
     "SELECT 'captures=' || count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' UNION ALL SELECT 'cohort_results=' || count(*) FROM marketops_intelligence_cohort_symbol_results WHERE tenant_id='tenant-local' AND run_id LIKE '${run_prefix}-cohort-%' UNION ALL SELECT 'algorithm_results=' || count(*) FROM algorithm_results WHERE tenant_id='tenant-local' AND correlation_id='$run_prefix';")"

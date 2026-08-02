@@ -1,4 +1,4 @@
-import ReactECharts from "echarts-for-react";
+import { ThemedEChart as ReactECharts } from './ThemedEChart';
 
 import type { MarketOpsSignalOverviewMember, MarketOpsSignalOverviewPoint, MarketOpsSignalOverviewResponse } from "../types";
 
@@ -10,6 +10,7 @@ export type RiskRewardRegimePoint = {
   lowerQuartile: number;
   upperQuartile: number;
   members: MarketOpsSignalOverviewMember[];
+  coverage?: { eligible:number; insufficient_inputs:number; unprocessed:number };
 };
 
 function uniqueMembers(members: MarketOpsSignalOverviewMember[]) {
@@ -36,6 +37,7 @@ export function riskRewardRegimePoints(points: MarketOpsSignalOverviewPoint[]): 
       lowerQuartile: percentile(scores, 0.25),
       upperQuartile: percentile(scores, 0.75),
       members,
+      coverage: point.coverage,
     }];
   });
 }
@@ -50,7 +52,7 @@ export function RiskRewardRegimeChart({ data, onDrilldown }: { data: MarketOpsSi
       formatter: (values: Array<{ dataIndex?: number }>) => {
         const point = regime[values[0]?.dataIndex ?? -1];
         if (!point) return "";
-        return point.tradeDate + "<br/>Median: " + point.median.toFixed(1) + "<br/>25th–75th: " + point.lowerQuartile.toFixed(1) + " to " + point.upperQuartile.toFixed(1) + "<br/>Scored assets: " + point.members.length;
+        return point.tradeDate + "<br/>Median: " + point.median.toFixed(1) + "<br/>25th–75th: " + point.lowerQuartile.toFixed(1) + " to " + point.upperQuartile.toFixed(1) + "<br/>Scored assets: " + point.members.length + (point.coverage ? "<br/>Coverage: " + point.coverage.eligible + " eligible · " + point.coverage.insufficient_inputs + " insufficient · " + point.coverage.unprocessed + " unprocessed" : "");
       },
     },
     legend: { data: ["Median score", "25th–75th range"], top: 0 },

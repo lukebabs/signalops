@@ -75,10 +75,16 @@ func run(ctx context.Context, logger *slog.Logger) error {
 			logger.Warn("quote unavailable", "symbol", asset.Ticker, "error", err)
 			continue
 		}
-		q.MarketStatus = status
-		q.Stale = false
+		// Preserve a provider fallback to the completed EOD close. The monitor
+		// may run during extended hours when no minute aggregate is available;
+		// relabeling that close as "extended" makes a durable EOD observation
+		// look like an expired live quote.
+		if q.MarketStatus == "intraday" {
+			q.MarketStatus = status
+			q.Stale = false
+		}
 		if !*dry {
-			if err := repo.UpsertMarketOpsAssetQuote(ctx, storage.MarketOpsAssetQuoteRecord{TenantID: *tenant, UniverseGroup: *group, Ticker: q.Symbol, Price: q.Price, QuoteTimestamp: q.Timestamp, MarketStatus: status, Stale: false, PreviousClose: q.PreviousClose, Change: q.Change, ChangePercent: q.ChangePercent, Week52Low: q.Week52Low, Week52High: q.Week52High, RefreshedAt: now, Provider: "massive"}); err != nil {
+			if err := repo.UpsertMarketOpsAssetQuote(ctx, storage.MarketOpsAssetQuoteRecord{TenantID: *tenant, UniverseGroup: *group, Ticker: q.Symbol, Price: q.Price, QuoteTimestamp: q.Timestamp, MarketStatus: q.MarketStatus, Stale: q.Stale, PreviousClose: q.PreviousClose, Change: q.Change, ChangePercent: q.ChangePercent, Week52Low: q.Week52Low, Week52High: q.Week52High, RefreshedAt: now, Provider: "massive"}); err != nil {
 				return err
 			}
 		}

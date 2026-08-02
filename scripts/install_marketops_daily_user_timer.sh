@@ -1,27 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 template_dir="$ROOT_DIR/deploy/systemd"
 config_base="${XDG_CONFIG_HOME:-${HOME}/.config}"
 unit_dir="$config_base/systemd/user"
-
-for command in docker systemctl sed install; do
-  command -v "$command" >/dev/null || { printf 'required command not found: %s\n' "$command" >&2; exit 2; }
-done
-
-docker compose --profile massive-pull --profile marketops-daily build \
-  massive-puller marketops-options-coverage-runner marketops-options-feature-materializer algorithm-runner marketops-intelligence-cohort-runner
-
-mkdir -p "$unit_dir"
-sed "s|@WORKDIR@|$ROOT_DIR|g" "$template_dir/signalops-marketops-daily.service.in" > "$unit_dir/signalops-marketops-daily.service"
-install -m 0644 "$template_dir/signalops-marketops-daily.timer" "$unit_dir/signalops-marketops-daily.timer"
-
+for command in docker systemctl sed install; do command -v "$command" >/dev/null || { printf 'required command not found: %s\n' "$command" >&2; exit 2; }; done
+docker compose --profile massive-pull --profile marketops-daily build massive-puller marketops-options-coverage-runner marketops-options-feature-materializer algorithm-runner marketops-intelligence-cohort-runner marketops-valuation-runner
+mkdir -p "$unit_dir" "$ROOT_DIR/runtime/scheduled-jobs"
+for service in signalops-marketops-daily signalops-marketops-intraday signalops-marketops-fmp-continuation; do sed "s|@WORKDIR@|$ROOT_DIR|g" "$template_dir/$service.service.in" > "$unit_dir/$service.service"; install -m 0644 "$template_dir/$service.timer" "$unit_dir/$service.timer"; done
 systemctl --user daemon-reload
-systemctl --user enable --now signalops-marketops-daily.timer
-systemctl --user list-timers signalops-marketops-daily.timer --no-pager
-
-printf '%s\n' \
-  "Installed user timer in $unit_dir." \
-  'For unattended execution after logout, an administrator must run:' \
-  "  loginctl enable-linger $(id -un)"
+systemctl --user enable --now signalops-marketops-daily.timer signalops-marketops-intraday.timer signalops-marketops-fmp-continuation.timer
+systemctl --user list-timers 'signalops-marketops-*' --no-pager
+printf '%s\n' "Installed user timers in $unit_dir." 'For unattended execution after logout, an administrator must run:' "  loginctl enable-linger $(id -un)"

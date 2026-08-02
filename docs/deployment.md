@@ -395,6 +395,10 @@ The browser session is inactivity-based, not a fixed access-token lifetime. `VIT
 
 `signalops.algorithms.risk_reward_temporal_v1` runs after Market State materialization in the post-close corroboration workflow. It evaluates persisted technical inputs over a bounded historical window and writes immutable research-only algorithm results. Put/call volume is normalized as puts divided by calls and shown solely as speculative corroboration; it cannot determine technical direction. The selected-asset algorithm-observations response exposes the latest result and up to 60 historical points under `risk_reward`. The asset-list summary also carries the prior persisted trading-session score and signed change, allowing the UI to show whether the technical posture improved, regressed, or remained unchanged without treating it as a recommendation.
 
+### MarketOps strategic and tactical algorithm sequence
+
+Weekly FMP-backed VC/DOSM snapshots provide strategic context; daily Tactical Market Posture and Exhaustive Reversal provide post-close technical context. The daily sequence completes Risk/Reward, retention, tactical posture, Exhaustive Reversal, same-session convergence refresh, and a rolling 45-calendar-day outcome-maturity sweep before the universal completion gate. All outputs are research-only and deterministic. The authoritative logic, score meaning, expected analyst outcomes, limits, registry IDs, and UI surfaces are documented in `docs/use_cases/marketops/daily_market_surveillance/algorithms/marketops_algorithm_catalog_v1.md`.
+
 ### Operating timezone
 
 MarketOps schedules run in `America/New_York` (ET), including the weekday post-close workflow at 18:01:55 ET. The SignalOps web interface renders operational timestamps in ET so polling, refresh, run, and market-session times use the same operator-facing clock. Canonical timestamps in storage and API payloads remain RFC3339 UTC for ordering and interoperability; date-only trading-session fields remain dates and are not timezone-shifted. Explicit replay and backtest window inputs continue to identify UTC because they are API-bound query controls.

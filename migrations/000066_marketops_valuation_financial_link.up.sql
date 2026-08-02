@@ -1,0 +1,2 @@
+ALTER TABLE marketops_valuation_snapshots ADD COLUMN IF NOT EXISTS financial_snapshot_id text REFERENCES marketops_financial_snapshots(financial_snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_marketops_valuation_snapshots_financial ON marketops_valuation_snapshots (financial_snapshot_id);
