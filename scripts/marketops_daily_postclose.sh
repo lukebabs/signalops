@@ -405,7 +405,7 @@ if $write_mode; then
   bash ./scripts/marketops_risk_reward_retention.sh
   bash ./scripts/marketops_financial_retention.sh
   if [[ "$weekday" == "${MARKETOPS_VALUATION_WEEKDAY:-5}" ]]; then
-    docker compose --profile marketops-daily run --rm marketops-valuation-runner --tenant-id tenant-local --session-date "$session_date" --fmp-max-requests "${MARKETOPS_VALUATION_FMP_MAX_REQUESTS:-240}"
+    docker compose --profile marketops-daily run --rm marketops-valuation-runner --tenant-id tenant-local --session-date "$session_date" --fmp-max-requests "${MARKETOPS_VALUATION_FMP_MAX_REQUESTS:-240}" --refresh-financials
   else
     log "skipping weekly valuation; session weekday=$weekday"
   fi

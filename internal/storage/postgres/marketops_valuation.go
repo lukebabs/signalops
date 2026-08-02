@@ -21,7 +21,11 @@ func (r *Repository) UpsertMarketOpsValuationSnapshot(ctx context.Context, x sto
 	if strings.TrimSpace(x.SnapshotID) == "" || strings.TrimSpace(x.TenantID) == "" || strings.TrimSpace(x.Symbol) == "" || x.SessionDate.IsZero() || x.AvailableAt.IsZero() {
 		return fmt.Errorf("invalid valuation snapshot")
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO marketops_valuation_snapshots (snapshot_id,financial_snapshot_id,tenant_id,symbol,session_date,available_at,sector,industry,provider,provider_request_ids,input_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (tenant_id,symbol,session_date,available_at) DO NOTHING`, x.SnapshotID, nullString(x.FinancialSnapshotID), strings.TrimSpace(x.TenantID), strings.ToUpper(strings.TrimSpace(x.Symbol)), x.SessionDate.UTC(), x.AvailableAt.UTC(), strings.TrimSpace(x.Sector), strings.TrimSpace(x.Industry), strings.TrimSpace(x.Provider), pqArray(x.ProviderRequestIDs), jsonOrEmpty(x.InputJSON))
+	var financialSnapshotID any
+	if strings.TrimSpace(x.FinancialSnapshotID) != "" {
+		financialSnapshotID = strings.TrimSpace(x.FinancialSnapshotID)
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO marketops_valuation_snapshots (snapshot_id,financial_snapshot_id,tenant_id,symbol,session_date,available_at,sector,industry,provider,provider_request_ids,input_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (tenant_id,symbol,session_date,available_at) DO UPDATE SET financial_snapshot_id=EXCLUDED.financial_snapshot_id, sector=EXCLUDED.sector, industry=EXCLUDED.industry, provider=EXCLUDED.provider, provider_request_ids=EXCLUDED.provider_request_ids, input_json=EXCLUDED.input_json`, x.SnapshotID, financialSnapshotID, strings.TrimSpace(x.TenantID), strings.ToUpper(strings.TrimSpace(x.Symbol)), x.SessionDate.UTC(), x.AvailableAt.UTC(), strings.TrimSpace(x.Sector), strings.TrimSpace(x.Industry), strings.TrimSpace(x.Provider), pqArray(x.ProviderRequestIDs), jsonOrEmpty(x.InputJSON))
 	if err != nil {
 		return fmt.Errorf("upsert valuation snapshot: %w", err)
 	}
@@ -32,7 +36,7 @@ func (r *Repository) UpsertMarketOpsValuationResult(ctx context.Context, x stora
 	if strings.TrimSpace(x.ResultID) == "" || strings.TrimSpace(x.SnapshotID) == "" || strings.TrimSpace(x.TenantID) == "" || strings.TrimSpace(x.Symbol) == "" || strings.TrimSpace(x.AlgorithmID) == "" || x.SessionDate.IsZero() {
 		return fmt.Errorf("invalid valuation result")
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO marketops_valuation_results (result_id,snapshot_id,tenant_id,symbol,session_date,algorithm_id,model_version,score,fair_value,classification,confidence,confidence_label,evaluation_status,eligible,result_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (snapshot_id,algorithm_id) DO NOTHING`, x.ResultID, x.SnapshotID, strings.TrimSpace(x.TenantID), strings.ToUpper(strings.TrimSpace(x.Symbol)), x.SessionDate.UTC(), strings.TrimSpace(x.AlgorithmID), strings.TrimSpace(x.ModelVersion), x.Score, x.FairValue, strings.TrimSpace(x.Classification), x.Confidence, strings.TrimSpace(x.ConfidenceLabel), strings.TrimSpace(x.EvaluationStatus), x.Eligible, jsonOrEmpty(x.ResultJSON))
+	_, err := r.db.ExecContext(ctx, `INSERT INTO marketops_valuation_results (result_id,snapshot_id,tenant_id,symbol,session_date,algorithm_id,model_version,score,fair_value,classification,confidence,confidence_label,evaluation_status,eligible,result_json) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (snapshot_id,algorithm_id) DO UPDATE SET model_version=EXCLUDED.model_version, score=EXCLUDED.score, fair_value=EXCLUDED.fair_value, classification=EXCLUDED.classification, confidence=EXCLUDED.confidence, confidence_label=EXCLUDED.confidence_label, evaluation_status=EXCLUDED.evaluation_status, eligible=EXCLUDED.eligible, result_json=EXCLUDED.result_json`, x.ResultID, x.SnapshotID, strings.TrimSpace(x.TenantID), strings.ToUpper(strings.TrimSpace(x.Symbol)), x.SessionDate.UTC(), strings.TrimSpace(x.AlgorithmID), strings.TrimSpace(x.ModelVersion), x.Score, x.FairValue, strings.TrimSpace(x.Classification), x.Confidence, strings.TrimSpace(x.ConfidenceLabel), strings.TrimSpace(x.EvaluationStatus), x.Eligible, jsonOrEmpty(x.ResultJSON))
 	if err != nil {
 		return fmt.Errorf("upsert valuation result: %w", err)
 	}

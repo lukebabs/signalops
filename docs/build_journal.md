@@ -7884,3 +7884,5 @@ Rationale and expected outcome:
 
 - The Admin Workbench is registry-driven; the new entries now show their purpose, inputs, output contract, version, and research-only schedule semantics beside VC/DOSM and Risk/Reward.
 - Strategic financial valuation, daily tactical condition, and cross-signal review remain explicitly separate. The post-close workflow is documented from persisted market data to tactical review and matured outcome measurement: 21 EOD observations for EROC readiness; 80%/four-close persistence plus 3× extension for price qualification; flow/volume regime evidence; and two same-session independent sources for a convergence item.
+
+- 2026-08-02: Decoupled MarketOps FMP financial polling from routine VC/DOSM and Tactical Market Posture recalculation. FMP is now opt-in via `--refresh-financials` for the weekly post-close and 02:00 ET continuation jobs; cached financial snapshots are reused otherwise. Massive is the persisted completed-session provider for RSI-14, SMA-50, and SMA-200.

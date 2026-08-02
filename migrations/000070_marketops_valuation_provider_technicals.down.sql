@@ -1,0 +1,1 @@
+-- Registry descriptions are metadata only; rollback leaves active algorithm rows intact.

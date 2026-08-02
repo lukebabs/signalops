@@ -9,7 +9,7 @@ MarketOps separates **strategic** financial context, refreshed weekly, from **ta
 
 | Layer | Algorithms | Refresh | Analyst question |
 | --- | --- | --- | --- |
-| Strategic | Valuation Composite (VC), DOSM | Weekly FMP refresh; persisted snapshots reused daily | Is the available financial evidence relatively attractive, weak, or incomplete? |
+| Strategic | Valuation Composite (VC), DOSM | Cached financial snapshots are reused; FMP refresh is explicit and weekly | Is the available financial evidence relatively attractive, weak, or incomplete? |
 | Tactical | Risk/Reward Temporal, Tactical Market Posture, Exhaustive Reversal | Daily post-close | What is the current price/technical condition and does it merit monitoring or review? |
 | Cross-signal | Options-flow extremes, convergence opportunity builder | Daily post-close | Do at least two independent sources agree strongly enough for research review? |
 
@@ -22,6 +22,7 @@ All inputs are persisted before calculation. Results are deterministic for ident
 - **Registry ID:** `signalops.algorithms.valuation_composite_v3`
 - **Purpose:** relative valuation from canonical price/market capitalization and normalized GAAP financial inputs.
 - **Logic:** P/S contributes 40%, GAAP P/E 30%, and EV/EBITDA 30%; a peer adjustment applies once. Score is clamped to 0–10. The explainable fair-value anchor is `price × exp(0.1 × (VC − 5))`, not a target price.
+- **Technical inputs:** RSI-14, SMA-50, and SMA-200 are read from Massive for the completed session and persisted with `technical_provenance`; they supplement DOSM only and do not cause an FMP request.
 - **Profile:** FMP Income Statement, Balance Sheet, and Cash Flow are retained as four-quarter TTM data. Three-year revenue CAGR and its high-valuation/low-growth penalty are withheld until the 16-quarter point-in-time gate is met.
 - **Expected outcome:** a valuation-quality research context with raw metrics, component scores, confidence, and withheld-data reasons. It is not a timing signal.
 
@@ -86,4 +87,4 @@ The weekday post-close run starts **18:01:55 ET**: collection/normalization, Mar
 - `/marketops/opportunities` and `/marketops/review`: convergent review items and pivots.
 - `/admin/algorithms`: registry definitions for VC, DOSM, Risk/Reward, Tactical Posture, and EROC.
 
-FMP is rate-limited and strategic/weekly. EROC/options flow use aggregate volume and cannot infer intent. Technical results can change after each completed session. Threshold changes require replay/calibration evidence, not a small live sample.
+FMP is rate-limited and strategic/weekly. Routine valuation and tactical refreshes reuse retained financial snapshots and never poll FMP unless invoked with `--refresh-financials`; the weekly post-close and FMP continuation jobs are the only scheduled callers authorized to pass that flag. EROC/options flow use aggregate volume and cannot infer intent. Technical results can change after each completed session. Threshold changes require replay/calibration evidence, not a small live sample.

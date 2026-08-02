@@ -18,6 +18,8 @@ Both outputs are research artifacts. Fair-value anchors are mathematical transla
 - Massive is authoritative for completed-session adjusted close, market capitalization, and shares outstanding. Massive remains the source for options and market data.
 - FMP is used only for quarterly income statement, balance sheet, and cash-flow statement rows.
 - The current FMP entitlement returns four current quarterly rows per statement. The runner makes three FMP calls per newly refreshed symbol and is capped at 240 daily calls.
+- FMP polling is **explicit**: only the weekly post-close financial-refresh job and the 02:00 ET continuation pass `--refresh-financials`. Routine valuation/tactical recalculation reuses retained financial snapshots, including stale-but-provenanced snapshots, and must never consume FMP quota.
+- RSI-14, SMA-50, and SMA-200 are Massive provider indicators for the same completed session. They are persisted as `technical_provenance`; local EOD history is not used to reconstruct them for VC/DOSM or Tactical Market Posture.
 - The job is weekly, post-close. A result is persisted with source statement IDs, accepted filing times, derived values, score trace, model version, and data profile.
 - Raw and normalized statements plus derived snapshots are retained for seven years. This supports audit of what was actually calculated; it does not yet create a complete point-in-time historical universe.
 
@@ -89,7 +91,8 @@ The remaining five DOSM fundamental dimensions are reweighted equally. The UI mu
 |---|---|---|
 | FMP access is limited to four current quarters | TTM uses exactly four rows | CAGR and growth penalty unavailable |
 | No historical pagination/backfill | accepted-at selection on retained rows | not a complete historical replay capability |
-| Technical snapshot integration is incomplete | zero adjustment plus confidence deduction | score is less complete, not falsely precise |
+| Provider technical input unavailable | no adjustment plus confidence deduction | score is less complete, not falsely precise |
+| Routine rerun could exhaust FMP allowance | FMP polling requires `--refresh-financials`; cached financial snapshots are default | technical and tactical refreshes stay within the FMP allowance |
 | Small peer groups | no peer adjustment below three peers | confidence deduction |
 | Market cap and statements may have different update timing | provider IDs and timestamps are persisted | analyst must inspect trace for freshness |
 | Research scores are unvalidated | no signal, alert, ranking, or execution promotion | no automated action |
@@ -98,7 +101,7 @@ A result with insufficient required TTM inputs is insufficient_data and ineligib
 
 ## 7. Operations and validation
 
-Before a weekly run, ensure a completed regular session exists. Run only after market close and retain the session date. The runner should not exceed three FMP calls per fresh ticker or the configured daily ceiling.
+Before a weekly financial refresh, ensure a completed regular session exists. Run only after market close and retain the session date. The runner should not exceed three FMP calls per fresh ticker or the configured daily ceiling. Do not pass `--refresh-financials` for a technical-only or tactical rerun.
 
 For each pilot, verify:
 

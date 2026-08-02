@@ -28,11 +28,12 @@ const (
 )
 
 type candidate struct {
-	asset        storage.MarketOpsAssetRecord
-	fundamentals fmp.FundamentalSnapshot
-	price        float64
-	input        valuation.Input
-	provider     string
+	asset               storage.MarketOpsAssetRecord
+	fundamentals        fmp.FundamentalSnapshot
+	price               float64
+	input               valuation.Input
+	provider            string
+	technicalProvenance map[string]any
 }
 
 func main() {
@@ -50,6 +51,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	dateValue := flag.String("session-date", "", "completed YYYY-MM-DD session")
 	dry := flag.Bool("dry-run", false, "calculate only")
 	fmpBudget := flag.Int("fmp-max-requests", 240, "maximum FMP requests per daily allowance")
+	refreshFinancials := flag.Bool("refresh-financials", false, "permit FMP polling for missing or stale financials")
 	flag.Parse()
 	if app.DatabaseURL == "" {
 		return fmt.Errorf("SIGNALOPS_DATABASE_URL is required")
@@ -113,7 +115,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 			continue
 		}
 		provider := "fmp"
-		if cached, ok, _ := cachedFundamentals(ctx, repo, *tenant, asset.Ticker); ok {
+		if cached, ok, _ := cachedFundamentals(ctx, repo, *tenant, asset.Ticker, !*refreshFinancials); ok {
 			cacheHits++
 			candidates = append(candidates, candidate{asset: asset, fundamentals: cached, price: *bar.Close, input: valuation.Input{Ticker: asset.Ticker, Price: *bar.Close, MarketCap: cached.MarketCap, EnterpriseValue: cached.EnterpriseValue, RevenueTTM: cached.RevenueTTM, Revenue3YAgo: cached.Revenue3YAgo, NetIncomeGAAPTTM: cached.NetIncomeTTM, EBITDAProviderTTM: cached.EBITDATTM, OperatingIncomeTTM: cached.OperatingIncomeTTM, OperatingCashFlowTTM: cached.OperatingCashFlowTTM, CapitalExpendituresTTM: cached.CapitalExpendituresTTM, TotalDebt: cached.TotalDebt, CashAndEquivalents: cached.Cash, ShareholdersEquity: cached.Equity, InvestedCapital: cached.InvestedCapital, FinancialAgeDays: int(session.Sub(cached.FilingDate).Hours() / 24), EffectiveTaxRate: taxRatePtr(cached.EffectiveTaxRate)}, provider: "fmp_cache"})
 			continue
@@ -158,6 +160,11 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		candidates = append(candidates, candidate{asset: asset, fundamentals: f, price: *bar.Close, input: in, provider: provider})
 	}
 	for i := range candidates {
+		technical := providerTechnical(ctx, priceClient, candidates[i].asset.Ticker, session)
+		technical.apply(&candidates[i].input)
+		candidates[i].technicalProvenance = technical.provenance
+	}
+	for i := range candidates {
 		applyPeers(candidates, i)
 		result := valuation.Evaluate(candidates[i].input)
 		payload, _ := json.Marshal(result)
@@ -166,7 +173,10 @@ func run(ctx context.Context, logger *slog.Logger) error {
 			available = time.Now().UTC()
 		}
 		snapshotID := stable("valsnap", *tenant, candidates[i].asset.Ticker, session.Format("2006-01-02"), available.Format(time.RFC3339Nano))
-		inputJSON, _ := json.Marshal(candidates[i].input)
+		inputJSON, _ := json.Marshal(struct {
+			valuation.Input
+			TechnicalProvenance map[string]any `json:"technical_provenance"`
+		}{Input: candidates[i].input, TechnicalProvenance: candidates[i].technicalProvenance})
 		if !*dry {
 			if err := repo.UpsertMarketOpsValuationSnapshot(ctx, storage.MarketOpsValuationSnapshotRecord{SnapshotID: snapshotID, FinancialSnapshotID: financialLinkID(candidates[i].provider, *tenant, candidates[i].asset.Ticker, session, available), TenantID: *tenant, Symbol: candidates[i].asset.Ticker, SessionDate: session, AvailableAt: available, Sector: first(candidates[i].asset.SectorKey, candidates[i].asset.Sector), Industry: first(candidates[i].asset.IndustryKey, candidates[i].asset.Industry), Provider: candidates[i].provider, ProviderRequestIDs: candidates[i].fundamentals.ProviderRequestIDs, InputJSON: inputJSON}); err != nil {
 				return err
@@ -186,12 +196,12 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	logger.Info("valuation runner complete", "assets", len(assets), "evaluated", len(candidates), "fmp_calls", fundamentalsClient.Calls(), "fmp_budget", *fmpBudget, "cache_hits", cacheHits, "refreshed", refreshed, "deferred", deferred, "fmp_failures", fmpFailures, "dry_run", *dry)
 	return nil
 }
-func cachedFundamentals(ctx context.Context, repo storage.MarketOpsValuationRepository, tenant, ticker string) (fmp.FundamentalSnapshot, bool, error) {
+func cachedFundamentals(ctx context.Context, repo storage.MarketOpsValuationRepository, tenant, ticker string, allowStale bool) (fmp.FundamentalSnapshot, bool, error) {
 	snapshot, err := repo.LatestMarketOpsValuationSnapshot(ctx, tenant, ticker, "fmp")
 	if err != nil {
 		return fmp.FundamentalSnapshot{}, false, nil
 	}
-	if snapshot.CreatedAt.Before(time.Now().UTC().AddDate(0, 0, -7)) {
+	if !allowStale && snapshot.CreatedAt.Before(time.Now().UTC().AddDate(0, 0, -7)) {
 		return fmp.FundamentalSnapshot{}, false, nil
 	}
 	var in valuation.Input
@@ -201,6 +211,35 @@ func cachedFundamentals(ctx context.Context, repo storage.MarketOpsValuationRepo
 	return fmp.FundamentalSnapshot{Ticker: ticker, FilingDate: snapshot.AvailableAt, RevenueTTM: in.RevenueTTM, Revenue3YAgo: in.Revenue3YAgo, NetIncomeTTM: in.NetIncomeGAAPTTM, EBITDATTM: in.EBITDAProviderTTM, OperatingIncomeTTM: in.OperatingIncomeTTM, OperatingCashFlowTTM: in.OperatingCashFlowTTM, CapitalExpendituresTTM: in.CapitalExpendituresTTM, TotalDebt: in.TotalDebt, Cash: in.CashAndEquivalents, Equity: in.ShareholdersEquity, InvestedCapital: in.InvestedCapital, MarketCap: in.MarketCap, EnterpriseValue: in.EnterpriseValue, ProviderRequestIDs: snapshot.ProviderRequestIDs}, true, nil
 }
 
+type providerTechnicalValues struct {
+	rsi14, sma50, sma200 *float64
+	provenance           map[string]any
+}
+
+func providerTechnical(ctx context.Context, client *massive.Client, symbol string, session time.Time) providerTechnicalValues {
+	result := providerTechnicalValues{provenance: map[string]any{"provider": "massive", "profile": "daily_adjusted_sma_rsi_v1", "session_date": session.Format("2006-01-02")}}
+	rsi, rsiErr := client.ListRelativeStrengthIndex(ctx, symbol, 14, 1)
+	sma50, sma50Err := client.ListSimpleMovingAverage(ctx, symbol, 50, 1)
+	sma200, sma200Err := client.ListSimpleMovingAverage(ctx, symbol, 200, 1)
+	if rsiErr != nil || sma50Err != nil || sma200Err != nil || !indicatorForSession(rsi, session) || !indicatorForSession(sma50, session) || !indicatorForSession(sma200, session) {
+		result.provenance["status"] = "unavailable"
+		return result
+	}
+	result.rsi14, result.sma50, result.sma200 = floatPtr(rsi[0].Value), floatPtr(sma50[0].Value), floatPtr(sma200[0].Value)
+	result.provenance["status"] = "complete"
+	result.provenance["rsi_14"] = rsi[0].Value
+	result.provenance["sma_50"] = sma50[0].Value
+	result.provenance["sma_200"] = sma200[0].Value
+	return result
+}
+
+func (v providerTechnicalValues) apply(input *valuation.Input) {
+	input.RSI14, input.SMA50, input.SMA200 = v.rsi14, v.sma50, v.sma200
+}
+func indicatorForSession(values []massive.IndicatorValue, session time.Time) bool {
+	return len(values) > 0 && values[0].Value > 0 && values[0].Timestamp.Format("2006-01-02") == session.Format("2006-01-02")
+}
+func floatPtr(value float64) *float64 { return &value }
 func financialLinkID(provider, tenant, symbol string, session, available time.Time) string {
 	if provider != "fmp" {
 		return ""
