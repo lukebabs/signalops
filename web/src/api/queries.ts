@@ -107,6 +107,7 @@ export const queryKeys = {
   replayJob: (replayJobId: string) => ['replay-job', replayJobId] as const,
   replayStatus: (tenantId: string, limit?: number) => ['replay-status', tenantId, limit] as const,
   appProfiles: ['app-profiles'] as const,
+  sessionExperience: ['session-experience'] as const,
   marketOpsAssets: (filter: MarketOpsAssetFilter) => ['marketops-assets', filter] as const,
   marketOpsAssetQuotes: (tenantId: string, group: string) => ['marketops-asset-quotes', tenantId, group] as const,
   marketOpsIntradayConditions: (tenantId: string, group: string, symbol = "") => ["marketops-intraday-conditions", tenantId, group, symbol] as const,
@@ -425,12 +426,20 @@ export function useAppProfiles() {
   });
 }
 
+export function useSessionExperience() {
+  return useQuery({
+    queryKey: queryKeys.sessionExperience,
+    queryFn: api.getSessionExperience,
+    staleTime: 60_000,
+  });
+}
+
 // G071 MarketOps asset universe (read-only). The seed changes slowly; cache 5 min.
-export function useMarketOpsAssetQuotes(tenantId: string, universeGroup = "top50_megacap") {
+export function useMarketOpsAssetQuotes(tenantId: string, universeGroup = "all_active") {
   return useQuery({ queryKey: queryKeys.marketOpsAssetQuotes(tenantId, universeGroup), queryFn: () => api.getMarketOpsAssetQuotes(tenantId, universeGroup), refetchInterval: 15 * 60 * 1000, staleTime: 15 * 60 * 1000, placeholderData: (previousData) => previousData });
 }
 
-export function useMarketOpsIntradayConditions(tenantId: string, universeGroup = "top50_megacap", symbol?: string) {
+export function useMarketOpsIntradayConditions(tenantId: string, universeGroup = "all_active", symbol?: string) {
   return useQuery({
     queryKey: queryKeys.marketOpsIntradayConditions(tenantId, universeGroup, symbol ?? ""),
     queryFn: () => api.getMarketOpsIntradayConditions(tenantId, universeGroup, symbol),
@@ -446,12 +455,14 @@ export function useMarketOpsIntradayConditions(tenantId: string, universeGroup =
 }
 
 export function useMarketOpsAssets(
-  filter: MarketOpsAssetFilter = { tenant_id: 'tenant-local', universe_group: 'top50_megacap', active_only: true, limit: 50 },
+  filter: MarketOpsAssetFilter = { tenant_id: 'tenant-local', universe_group: 'all_active', active_only: true, limit: 50 },
 ) {
   return useQuery({
     queryKey: queryKeys.marketOpsAssets(filter),
     queryFn: () => api.listMarketOpsAssets(filter),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
   });
 }
 

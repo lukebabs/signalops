@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Activity, LogIn } from 'lucide-react';
+import { LogIn } from 'lucide-react';
+import syncraticPortalLogo from '../assets/syncratic-portal-logo.svg';
 import { LoadingState, ErrorState } from '../components/States';
 import { useAuth } from './session';
 import { getUserManager } from './oidc';
@@ -18,7 +19,7 @@ export function LoginScreen({
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-sm space-y-4 rounded border border-gray-200 bg-white p-6">
         <div className="flex items-center gap-2">
-          <Activity size={20} className="text-brand-700" />
+          <img src={syncraticPortalLogo} alt="Syncratic" className="h-8 w-auto" />
           <span className="text-base font-semibold">SignalOps</span>
         </div>
         {loading ? (

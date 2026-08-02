@@ -25,6 +25,8 @@ export const CONSOLE_PROFILE: AppProfile = {
     'health',
   ],
   dashboard_profile: 'console.default',
+  landing_summary: 'Platform administration and governed operations.',
+  route_prefix: '/admin',
 };
 
 // MarketOps fallback mirrors the backend's marketops profile. Pairs with
@@ -48,6 +50,8 @@ export const MARKETOPS_PROFILE: AppProfile = {
     'health',
   ],
   dashboard_profile: 'marketdata.default',
+  landing_summary: 'Strategic financial context and daily market evidence for disciplined analyst review.',
+  route_prefix: '/marketops',
 };
 
 // CyberOps reuses the generic SignalOps investigation workflow. Keeping this
@@ -60,4 +64,6 @@ export const CYBEROPS_PROFILE: AppProfile = {
   domains: ["security"],
   enabled_modules: ["dashboard", "anomalies", "signals", "alerts", "insights", "settings"],
   dashboard_profile: "security.default",
+  landing_summary: "Firewall evidence, deterministic detections, and focused security investigation.",
+  route_prefix: "/cyberops",
 };

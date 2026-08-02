@@ -13,9 +13,9 @@ func (r *Repository) ListMarketOpsSignalOverviewInputs(ctx context.Context, filt
 SELECT tenant_id, app_id, domain, use_case, source_id, universe_group, rank, ticker, ticker_key,
   company, company_key, display_name, display_sector, asset_type, exchange, sector, sector_key, industry, industry_key,
   is_active, metadata, created_at, updated_at
-FROM marketops_asset_universe
-WHERE tenant_id=$1 AND is_active=true AND ($2='' OR universe_group=$2)
-ORDER BY universe_group ASC, rank ASC
+FROM marketops_universal_assets
+WHERE tenant_id=$1 AND is_active=true AND ($2='' OR $2='all_active' OR universe_group=$2)
+ORDER BY rank ASC
 LIMIT 200`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.UniverseGroup))
 	if err != nil {
 		return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview assets: %w", err)
@@ -45,14 +45,20 @@ LIMIT 200`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.Univers
 WHERE tenant_id=$1 AND upper(symbol) = ANY($2) AND window_name='10_trade_days'
   AND trade_date >= $3::date
 ORDER BY trade_date DESC, symbol ASC`, strings.TrimSpace(filter.TenantID), pqArray(symbols), filter.SessionStart.UTC())
-	if err != nil { return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview options distributions: %w", err) }
+	if err != nil {
+		return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview options distributions: %w", err)
+	}
 	defer distributionRows.Close()
 	for distributionRows.Next() {
 		record, scanErr := scanMarketOpsOptionsDistribution(distributionRows)
-		if scanErr != nil { return storage.MarketOpsSignalOverviewInputs{}, scanErr }
+		if scanErr != nil {
+			return storage.MarketOpsSignalOverviewInputs{}, scanErr
+		}
 		inputs.OptionsDistributions = append(inputs.OptionsDistributions, record)
 	}
-	if err := distributionRows.Err(); err != nil { return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview options distribution rows: %w", err) }
+	if err := distributionRows.Err(); err != nil {
+		return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview options distribution rows: %w", err)
+	}
 
 	resultRows, err := r.db.QueryContext(ctx, algorithmResultSelect+`
 WHERE tenant_id=$1 AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1'

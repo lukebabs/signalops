@@ -42,8 +42,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		return errors.New("SIGNALOPS_DATABASE_URL is required")
 	}
 	tenant := flag.String("tenant-id", "tenant-local", "tenant id")
-	group := flag.String("universe-group", "top50_megacap", "asset universe")
-	max := flag.Int("max-symbols", 50, "maximum active assets")
+	group := flag.String("universe-group", "all_active", "asset universe")
+	max := flag.Int("max-symbols", 200, "maximum active assets")
+	allowOutsideSession := flag.Bool("allow-outside-session", false, "persist the provider latest completed close outside regular and extended sessions")
 	dry := flag.Bool("dry-run", false, "calculate without persisting")
 	flag.Parse()
 	repo, err := postgresstorage.Open(ctx, app.DatabaseURL)
@@ -61,9 +62,12 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	now := time.Now().UTC()
 	status, active := marketSession(now)
-	if !active {
+	if !active && !*allowOutsideSession {
 		logger.Info("intraday monitor skipped outside regular and extended sessions", "time", now)
 		return nil
+	}
+	if !active {
+		status = "end_of_day"
 	}
 	asOf := now.Truncate(15 * time.Minute)
 	persisted := 0
@@ -83,6 +87,15 @@ func run(ctx context.Context, logger *slog.Logger) error {
 			q.MarketStatus = status
 			q.Stale = false
 		}
+		// A reconciliation outside a trading session is based on Massive's
+		// completed-close quote. Preserve that quote's timestamp as the
+		// observation time rather than stamping the job-run time; otherwise a
+		// weekend or backfill run makes the dashboard appear to have market data
+		// beyond the latest EOD session.
+		snapshotAsOf := asOf
+		if q.MarketStatus == "end_of_day" && !q.Timestamp.IsZero() {
+			snapshotAsOf = q.Timestamp.UTC()
+		}
 		if !*dry {
 			if err := repo.UpsertMarketOpsAssetQuote(ctx, storage.MarketOpsAssetQuoteRecord{TenantID: *tenant, UniverseGroup: *group, Ticker: q.Symbol, Price: q.Price, QuoteTimestamp: q.Timestamp, MarketStatus: q.MarketStatus, Stale: q.Stale, PreviousClose: q.PreviousClose, Change: q.Change, ChangePercent: q.ChangePercent, Week52Low: q.Week52Low, Week52High: q.Week52High, RefreshedAt: now, Provider: "massive"}); err != nil {
 				return err
@@ -91,9 +104,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		conditions := derive(q)
 		body, _ := json.Marshal(conditions)
 		source, _ := json.Marshal(map[string]any{"price": q.Price, "previous_close": q.PreviousClose, "change_percent": q.ChangePercent, "week52_low": q.Week52Low, "week52_high": q.Week52High, "quote_timestamp": q.Timestamp, "provider": "massive"})
-		key := fmt.Sprintf("%s|%s|%s|%s", *tenant, *group, q.Symbol, asOf.Format(time.RFC3339))
+		key := fmt.Sprintf("%s|%s|%s|%s", *tenant, *group, q.Symbol, snapshotAsOf.Format(time.RFC3339))
 		sum := sha256.Sum256([]byte(key))
-		record := storage.MarketOpsIntradayConditionSnapshotRecord{SnapshotID: hex.EncodeToString(sum[:]), TenantID: *tenant, UniverseGroup: *group, Symbol: q.Symbol, AsOfTime: asOf, MarketStatus: q.MarketStatus, Stale: q.Stale, ConditionsJSON: body, SourcePayloadJSON: source}
+		record := storage.MarketOpsIntradayConditionSnapshotRecord{SnapshotID: hex.EncodeToString(sum[:]), TenantID: *tenant, UniverseGroup: *group, Symbol: q.Symbol, AsOfTime: snapshotAsOf, MarketStatus: q.MarketStatus, Stale: q.Stale, ConditionsJSON: body, SourcePayloadJSON: source}
 		if !*dry {
 			if err := repo.UpsertMarketOpsIntradayConditionSnapshot(ctx, record); err != nil {
 				return err

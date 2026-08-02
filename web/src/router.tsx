@@ -6,6 +6,7 @@ import { LoadingState } from './components/States';
 
 // Route-level code splitting: AG Grid / ECharts only load when the Runs or
 // Raw Events views are visited.
+const LandingRoute = lazy(() => import('./routes/LandingRoute').then((m) => ({ default: m.LandingRoute })));
 const DashboardRoute = lazy(() =>
   import('./routes/DashboardRoute').then((m) => ({ default: m.DashboardRoute })),
 );
@@ -45,6 +46,7 @@ const InsightsRoute = lazy(() =>
 const ReplayJobsRoute = lazy(() =>
   import('./routes/ReplayJobsRoute').then((m) => ({ default: m.ReplayJobsRoute })),
 );
+const MarketOpsSettingsRoute = lazy(() => import('./routes/MarketOpsSettingsRoute').then((m) => ({ default: m.MarketOpsSettingsRoute })));
 const MarketOpsAssetsRoute = lazy(() =>
   import('./routes/MarketOpsAssetsRoute').then((m) => ({ default: m.MarketOpsAssetsRoute })),
 );
@@ -82,6 +84,7 @@ const MarketOpsBacktestsRoute = lazy(() =>
 const MarketOpsSyncraticRoute = lazy(() =>
   import('./routes/MarketOpsSyncraticRoute').then((m) => ({ default: m.MarketOpsSyncraticRoute })),
 );
+const AccessManagementRoute = lazy(() => import('./routes/AccessManagementRoute').then((m) => ({ default: m.AccessManagementRoute })));
 const AlgorithmsRoute = lazy(() =>
   import('./routes/AlgorithmsRoute').then((m) => ({ default: m.AlgorithmsRoute })),
 );
@@ -118,12 +121,13 @@ const adminSignalsRoute = createRoute({ getParentRoute: () => rootRoute, path: '
 const adminAlertsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/alerts', component: AlertsRoute });
 const adminInsightsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/insights', component: InsightsRoute });
 const adminAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/algorithms', component: AlgorithmsRoute });
+const adminAccessRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/access', component: AccessManagementRoute });
 const adminSystemRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/system', component: SystemRoute });
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: () => <LegacyRedirect to="/admin/dashboard" />,
+  component: LandingRoute,
 });
 
 const runsRoute = createRoute({
@@ -221,6 +225,7 @@ const marketopsInsightsRoute = createRoute({ getParentRoute: () => rootRoute, pa
 const marketopsReplayRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/replay', component: () => <LegacyRedirect to="/admin/replay" /> });
 const marketopsPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/pipelines', component: () => <LegacyRedirect to="/admin/pipelines" /> });
 const marketopsHealthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/health', component: () => <LegacyRedirect to="/admin/system" /> });
+const marketOpsSettingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/settings', component: MarketOpsSettingsRoute });
 const marketopsAssetsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assets', component: MarketOpsAssetsRoute });
 const marketopsStateRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -294,7 +299,7 @@ const authCallbackRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
-  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminSystemRoute,
+  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminAccessRoute, adminSystemRoute,
   indexRoute,
   runsRoute,
   rawEventsRoute,
@@ -322,6 +327,7 @@ const routeTree = rootRoute.addChildren([
   marketopsReplayRoute,
   marketopsPipelinesRoute,
   marketopsHealthRoute,
+  marketOpsSettingsRoute,
   marketopsAssetsRoute,
   marketopsStateRoute,
   marketopsDsmRoute,

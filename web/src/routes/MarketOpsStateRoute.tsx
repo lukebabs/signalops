@@ -90,19 +90,12 @@ export function MarketOpsStateRoute() {
 
   // State window for the selected symbol.
   const statesQ = useMarketOpsStates({ tenant_id: TENANT_ID, symbol: symbol || undefined, limit: 50 });
-  // Quotes are kept per persisted asset universe, so Market State can show a
-  // current value whether the selected symbol is megacap or on the watchlist.
-  const megacapQuotesQ = useMarketOpsAssetQuotes(TENANT_ID, 'top50_megacap');
-  const watchlistQuotesQ = useMarketOpsAssetQuotes(TENANT_ID, 'analyst_watchlist');
-  const quoteByTicker = new Map(
-    [...(megacapQuotesQ.data?.quotes ?? []), ...(watchlistQuotesQ.data?.quotes ?? [])]
-      .map((quote) => [quote.ticker.toUpperCase(), quote]),
-  );
+  // Market State resolves prices and autocomplete from the same universal registry.
+  const quotesQ = useMarketOpsAssetQuotes(TENANT_ID, 'all_active');
+  const quoteByTicker = new Map((quotesQ.data?.quotes ?? []).map((quote) => [quote.ticker.toUpperCase(), quote]));
   const selectedQuote = symbol ? quoteByTicker.get(symbol) : undefined;
-  const megacapAssetsQ = useMarketOpsAssets({ tenant_id: TENANT_ID, universe_group: 'top50_megacap', active_only: true, limit: 100 });
-  const watchlistAssetsQ = useMarketOpsAssets({ tenant_id: TENANT_ID, universe_group: 'analyst_watchlist', active_only: true, limit: 100 });
-  const onboardedAssets = [...(megacapAssetsQ.data?.assets ?? []), ...(watchlistAssetsQ.data?.assets ?? [])]
-    .sort((a, b) => a.ticker.localeCompare(b.ticker));
+  const assetsQ = useMarketOpsAssets({ tenant_id: TENANT_ID, universe_group: 'all_active', active_only: true, limit: 200 });
+  const onboardedAssets = (assetsQ.data?.assets ?? []).slice().sort((a, b) => a.ticker.localeCompare(b.ticker));
   const states = (statesQ.data?.market_states ?? []).map(summarizeMarketOpsState);
   // Newest revision per session; overall newest first by session then as_of.
   const sessionStates = dedupeNewestRevision(states);
@@ -185,9 +178,12 @@ export function MarketOpsStateRoute() {
 function Header({ onRefresh, refreshing }: { onRefresh: () => void; refreshing: boolean }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <h1 className="flex items-center gap-1 text-lg font-semibold">
-        <LineChart size={18} className="text-brand-700" /> Market State
-      </h1>
+      <div>
+        <h1 className="flex items-center gap-1 text-lg font-semibold">
+          <LineChart size={18} className="text-brand-700" /> Market State
+        </h1>
+        <p className="mt-0.5 text-xs text-gray-500">Coverage is primarily the S&amp;P 100, with selected Megacap and analyst-watchlist assets where onboarded.</p>
+      </div>
       <button type="button" onClick={onRefresh} title="Refresh" aria-label="Refresh market state" className={`${inputCls} inline-flex items-center gap-1 bg-white`}>
         <RotateCw size={14} className={refreshing ? 'animate-spin' : ''} />
       </button>

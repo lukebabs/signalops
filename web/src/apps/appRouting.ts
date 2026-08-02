@@ -18,6 +18,7 @@ export type AppRoutePath =
   | '/admin/alerts'
   | '/admin/insights'
   | '/admin/algorithms'
+  | '/admin/access'
   | '/admin/system'
   | '/'
   | '/runs'
@@ -52,6 +53,7 @@ export type AppRoutePath =
   | '/marketops/backtests'
   | '/marketops/syncratic'
   | '/marketops/algorithms'
+  | '/marketops/settings'
   | '/cyberops'
   | '/cyberops/dashboard'
   | '/cyberops/anomalies'
@@ -94,7 +96,7 @@ export function defaultRouteForApp(profile: AppProfile): AppRoutePath {
 }
 
 const CONSOLE_NAV: NavItem[] = [
-  { module: 'dashboard', to: '/admin/dashboard', label: 'Dashboard' }, { module: 'runs', to: '/admin/runs', label: 'Runs' }, { module: 'raw_events', to: '/admin/raw-events', label: 'Raw Events' }, { module: 'normalized', to: '/admin/normalized-events', label: 'Normalized' }, { module: 'idempotency', to: '/admin/idempotency', label: 'Idempotency' }, { module: 'sources', to: '/admin/sources', label: 'Sources' }, { module: 'pipelines', to: '/admin/pipelines', label: 'Pipelines' }, { module: 'rules', to: '/admin/rules', label: 'Rules' }, { module: 'replay', to: '/admin/replay', label: 'Replay' }, { module: 'signals', to: '/admin/signals', label: 'Signals' }, { module: 'alerts', to: '/admin/alerts', label: 'Alerts' }, { module: 'insights', to: '/admin/insights', label: 'Insights' }, { module: 'algorithms', to: '/admin/algorithms', label: 'Algorithms' }, { module: 'health', to: '/admin/system', label: 'System' },
+  { module: 'dashboard', to: '/admin/dashboard', label: 'Dashboard' }, { module: 'runs', to: '/admin/runs', label: 'Runs' }, { module: 'raw_events', to: '/admin/raw-events', label: 'Raw Events' }, { module: 'normalized', to: '/admin/normalized-events', label: 'Normalized' }, { module: 'idempotency', to: '/admin/idempotency', label: 'Idempotency' }, { module: 'sources', to: '/admin/sources', label: 'Sources' }, { module: 'pipelines', to: '/admin/pipelines', label: 'Pipelines' }, { module: 'rules', to: '/admin/rules', label: 'Rules' }, { module: 'replay', to: '/admin/replay', label: 'Replay' }, { module: 'signals', to: '/admin/signals', label: 'Signals' }, { module: 'alerts', to: '/admin/alerts', label: 'Alerts' }, { module: 'insights', to: '/admin/insights', label: 'Insights' }, { module: 'algorithms', to: '/admin/algorithms', label: 'Algorithms' }, { module: 'access', to: '/admin/access', label: 'Access' }, { module: 'health', to: '/admin/system', label: 'System' },
 ];
 
 const MARKETOPS_NAV: NavItem[] = [
@@ -105,9 +107,9 @@ const MARKETOPS_NAV: NavItem[] = [
   { module: 'valuation', to: '/marketops/valuation', label: 'Valuation & DOSM' },
   { module: 'eroc', to: '/marketops/eroc', label: 'Exhaustive Reversal' },
   { module: 'opportunities', to: '/marketops/opportunities', label: 'Opportunities' },
-  { module: 'backtests', to: '/marketops/backtests', label: 'Back-Tests' },
   { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Insights' },
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },
+  { module: 'settings', to: '/marketops/settings', label: 'Settings' },
 ];
 
 const CYBEROPS_NAV: NavItem[] = [

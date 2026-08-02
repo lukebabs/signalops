@@ -14,6 +14,7 @@ import (
 )
 
 const analystWatchlistGroup = "analyst_watchlist"
+const sp100Group = "sp100"
 
 var analystTickerPattern = regexp.MustCompile(`^[A-Z][A-Z0-9.-]{0,14}$`)
 
@@ -62,7 +63,7 @@ func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
 		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
 		ticker := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
 		displaySector := strings.TrimSpace(req.DisplaySector)
-		if tenantID == "" || !analystTickerPattern.MatchString(ticker) || (req.UniverseGroup != "top50_megacap" && req.UniverseGroup != analystWatchlistGroup) || displaySector == "" || len([]rune(displaySector)) > 48 {
+		if tenantID == "" || !analystTickerPattern.MatchString(ticker) || (req.UniverseGroup != "top50_megacap" && req.UniverseGroup != analystWatchlistGroup && req.UniverseGroup != sp100Group) || displaySector == "" || len([]rune(displaySector)) > 48 {
 			writeError(w, http.StatusBadRequest, "invalid_display_sector", "valid tenant, ticker, universe group, and a sector label of at most 48 characters are required")
 			return
 		}
@@ -91,7 +92,7 @@ func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
 		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
 		ticker := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
 		displayName := strings.TrimSpace(req.DisplayName)
-		if tenantID == "" || !analystTickerPattern.MatchString(ticker) || (req.UniverseGroup != "top50_megacap" && req.UniverseGroup != analystWatchlistGroup) || len([]rune(displayName)) > 120 {
+		if tenantID == "" || !analystTickerPattern.MatchString(ticker) || (req.UniverseGroup != "top50_megacap" && req.UniverseGroup != analystWatchlistGroup && req.UniverseGroup != sp100Group) || len([]rune(displayName)) > 120 {
 			writeError(w, http.StatusBadRequest, "invalid_display_name", "valid tenant, ticker, universe group, and a display name of at most 120 characters are required")
 			return
 		}

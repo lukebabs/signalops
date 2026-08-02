@@ -32,6 +32,7 @@ import type {
   ReplayJobCancelRequest,
   ReplayOperationsStatusResponse,
   AppProfilesResponse,
+  SessionExperienceResponse,
   MarketOpsAssetsResponse,
   MarketOpsAsset,
   MarketOpsAssetBackfillJob,
@@ -420,23 +421,24 @@ export const api = {
     }),
   // G066 static app profiles (console + marketops). Same authenticated path.
   getAppProfiles: () => get<AppProfilesResponse>('/v1/app-profiles'),
+  getSessionExperience: () => get<SessionExperienceResponse>('/v1/session/experience'),
   // G071 MarketOps asset universe (read-only). tenant_id is a path segment;
   // active_only is serialized as the string the backend parses ("false" disables it).
   listMarketOpsAssets: (filter: MarketOpsAssetFilter = {}) =>
-    get<MarketOpsAssetsResponse>(`/v1/tenants/${encodeURIComponent(filter.tenant_id ?? "tenant-local")}/marketops/assets`, { universe_group: filter.universe_group || "top50_megacap", active_only: filter.active_only === false ? "false" : "true", limit: filter.limit ?? 50 }),
+    get<MarketOpsAssetsResponse>(`/v1/tenants/${encodeURIComponent(filter.tenant_id ?? "tenant-local")}/marketops/assets`, { universe_group: filter.universe_group || "all_active", active_only: filter.active_only === false ? "false" : "true", limit: filter.limit ?? 50 }, "no-store"),
   validateMarketOpsWatchlistTicker: (tenantId: string, ticker: string) => get<{validation: MarketOpsTickerValidation}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/validate`, { ticker }, "no-store"),
   onboardMarketOpsWatchlistAsset: (tenantId: string, body: MarketOpsAssetOnboardRequest) => post<{asset: MarketOpsAsset; backfill_job?: MarketOpsAssetBackfillJob}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/onboard`, body),
   updateMarketOpsAssetDisplayName: (tenantId: string, ticker: string, body: MarketOpsAssetDisplayNameRequest) => patch<{asset: MarketOpsAsset}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(ticker)}/display-name`, body),
   updateMarketOpsAssetDisplaySector: (tenantId: string, ticker: string, body: MarketOpsAssetDisplaySectorRequest) => patch<{asset: MarketOpsAsset}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(ticker)}/display-sector`, body),
   listMarketOpsAssetBackfillJobs: (tenantId: string, symbol?: string) => get<MarketOpsAssetBackfillJobsResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/backfill-jobs`, symbol ? { symbol } : {}),
   createMarketOpsAssetBackfillJob: (tenantId: string, symbol: string, body: MarketOpsAssetBackfillCreateRequest) => post<{backfill_job: MarketOpsAssetBackfillJob}>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/backfill-jobs`, body),
-  getMarketOpsAssetQuotes: (tenantId: string, universeGroup = "top50_megacap") =>
+  getMarketOpsAssetQuotes: (tenantId: string, universeGroup = "all_active") =>
     get<MarketOpsAssetQuotesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/quotes`, { universe_group: universeGroup }),
   getMarketOpsValuation: (tenantId: string, eligibleOnly = true) =>
     get<MarketOpsValuationResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/valuation`, { eligible_only: String(eligibleOnly) }, "no-store"),
   getMarketOpsEROC: (tenantId: string) => get<MarketOpsEROCResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/eroc", {}, "no-store"),
   getMarketOpsEROCOverview: (tenantId: string, window = "30_trade_days") => get<MarketOpsEROCOverviewResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/eroc/overview", { window }, "no-store"),
-  getMarketOpsIntradayConditions: (tenantId: string, universeGroup = "top50_megacap", symbol?: string) =>
+  getMarketOpsIntradayConditions: (tenantId: string, universeGroup = "all_active", symbol?: string) =>
     get<MarketOpsIntradayConditionsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/assets/" + (symbol ? encodeURIComponent(symbol) + "/" : "") + "intraday-conditions", { universe_group: universeGroup }, 'no-store'),
   // G128 MarketOps asset options intelligence (read-only). Persisted coverage,
   // derived distribution snapshots, and chain rows for one asset. tenant_id and
@@ -446,7 +448,7 @@ export const api = {
   // performs no ingestion and never calls live-preview (which stays 501).
   getMarketOpsQuantitativeSeries: (tenantId: string, symbol: string, window: string) => get<MarketOpsQuantitativeSeriesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/quantitative-series`, { window }),
   getMarketOpsAssetAlgorithmObservations: (tenantId: string, symbol: string) => get<MarketOpsAssetAlgorithmObservationsResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/${encodeURIComponent(symbol)}/algorithm-observations`),
-  getMarketOpsRiskRewardSummaries: (tenantId: string, universeGroup = "top50_megacap") => get<MarketOpsRiskRewardSummariesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/risk-reward`, { universe_group: universeGroup }, "no-store"),
+  getMarketOpsRiskRewardSummaries: (tenantId: string, universeGroup = "all_active") => get<MarketOpsRiskRewardSummariesResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/assets/risk-reward`, { universe_group: universeGroup }, "no-store"),
   getCyberOpsTrafficOverview: (tenantId: string, window: import("../types").CyberOpsTrafficWindow = "24h") => get<CyberOpsTrafficOverviewResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/traffic-overview", { window }, "no-store"),
   getCyberOpsIoTNetworkConfig: (tenantId: string) => get<CyberOpsIoTNetworkConfigResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/iot/network-config", undefined, "no-store"),
   updateCyberOpsIoTNetworkConfig: (tenantId: string, internal_cidrs: string[]) => put<CyberOpsIoTNetworkConfigResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/cyberops/iot/network-config", { internal_cidrs }),

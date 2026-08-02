@@ -31,7 +31,7 @@ func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, repo storage.Quer
 		if group == "" || group == signalOverviewAllActive {
 			group = ""
 		}
-		if tenant == "" || (group != "" && group != "top50_megacap" && group != analystWatchlistGroup) {
+		if tenant == "" || (group != "" && group != "top50_megacap" && group != analystWatchlistGroup && group != sp100Group && group != "all_active") {
 			writeError(w, http.StatusBadRequest, "invalid_signal_overview_filter", "a valid tenant and universe group are required")
 			return
 		}
@@ -94,27 +94,47 @@ func signalOverviewOptionsFlowExtremes(records []storage.MarketOpsOptionsDistrib
 	latestDate := ""
 	for _, record := range records {
 		symbol := strings.ToUpper(record.Symbol)
-		if _, ok := active[symbol]; !ok { continue }
+		if _, ok := active[symbol]; !ok {
+			continue
+		}
 		date := record.TradeDate.UTC().Format("2006-01-02")
-		if date > latestDate { latestDate = date }
+		if date > latestDate {
+			latestDate = date
+		}
 	}
 	categories := map[string][]signalOverviewMember{"call_volume_extreme": {}, "put_volume_extreme": {}}
 	coverage := map[string]int{"eligible": 0, "insufficient_activity": 0, "unusable_ratio": 0, "missing_or_stale": len(active)}
-	if latestDate == "" { return map[string]any{"as_of": "", "categories": []map[string]any{{"key": "call_volume_extreme", "count": 0, "members": categories["call_volume_extreme"]}, {"key": "put_volume_extreme", "count": 0, "members": categories["put_volume_extreme"]}}, "coverage": coverage} }
+	if latestDate == "" {
+		return map[string]any{"as_of": "", "categories": []map[string]any{{"key": "call_volume_extreme", "count": 0, "members": categories["call_volume_extreme"]}, {"key": "put_volume_extreme", "count": 0, "members": categories["put_volume_extreme"]}}, "coverage": coverage}
+	}
 	seen := map[string]bool{}
 	for _, record := range records {
 		symbol := strings.ToUpper(record.Symbol)
-		if _, ok := active[symbol]; !ok || record.TradeDate.UTC().Format("2006-01-02") != latestDate || seen[symbol] { continue }
+		if _, ok := active[symbol]; !ok || record.TradeDate.UTC().Format("2006-01-02") != latestDate || seen[symbol] {
+			continue
+		}
 		seen[symbol] = true
 		coverage["missing_or_stale"]--
 		total := record.TotalCallVolume + record.TotalPutVolume
-		if record.TotalCallVolume <= 0 { coverage["unusable_ratio"]++; continue }
-		if total < 1000 { coverage["insufficient_activity"]++; continue }
+		if record.TotalCallVolume <= 0 {
+			coverage["unusable_ratio"]++
+			continue
+		}
+		if total < 1000 {
+			coverage["insufficient_activity"]++
+			continue
+		}
 		coverage["eligible"]++
 		ratio := float64(record.TotalPutVolume) / float64(record.TotalCallVolume)
 		key, label := "", ""
-		if ratio < .30 { key, label = "call_volume_extreme", "Call-volume extreme" } else if ratio > 1.20 { key, label = "put_volume_extreme", "Put-volume extreme" }
-		if key != "" { categories[key] = append(categories[key], signalOverviewMember{Ticker: symbol, Label: label, Score: &ratio, AsOf: latestDate}) }
+		if ratio < .30 {
+			key, label = "call_volume_extreme", "Call-volume extreme"
+		} else if ratio > 1.20 {
+			key, label = "put_volume_extreme", "Put-volume extreme"
+		}
+		if key != "" {
+			categories[key] = append(categories[key], signalOverviewMember{Ticker: symbol, Label: label, Score: &ratio, AsOf: latestDate})
+		}
 	}
 	return map[string]any{"as_of": latestDate, "categories": []map[string]any{{"key": "call_volume_extreme", "count": len(categories["call_volume_extreme"]), "members": categories["call_volume_extreme"]}, {"key": "put_volume_extreme", "count": len(categories["put_volume_extreme"]), "members": categories["put_volume_extreme"]}}, "coverage": coverage}
 }
@@ -233,6 +253,9 @@ func signalOverviewIntraday(records []storage.MarketOpsIntradayConditionSnapshot
 	latest := map[string]storage.MarketOpsIntradayConditionSnapshotRecord{}
 	for _, record := range records {
 		symbol := strings.ToUpper(record.Symbol)
+		if existing, ok := latest[symbol]; ok && existing.AsOfTime.After(record.AsOfTime) {
+			continue
+		}
 		if _, ok := active[symbol]; ok {
 			latest[symbol] = record
 		}

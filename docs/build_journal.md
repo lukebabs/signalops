@@ -7886,3 +7886,18 @@ Rationale and expected outcome:
 - Strategic financial valuation, daily tactical condition, and cross-signal review remain explicitly separate. The post-close workflow is documented from persisted market data to tactical review and matured outcome measurement: 21 EOD observations for EROC readiness; 80%/four-close persistence plus 3× extension for price qualification; flow/volume regime evidence; and two same-session independent sources for a convergence item.
 
 - 2026-08-02: Decoupled MarketOps FMP financial polling from routine VC/DOSM and Tactical Market Posture recalculation. FMP is now opt-in via `--refresh-financials` for the weekly post-close and 02:00 ET continuation jobs; cached financial snapshots are reused otherwise. Massive is the persisted completed-session provider for RSI-14, SMA-50, and SMA-200.
+
+- 2026-08-02: Added tenant-scoped per-use-case RBAC foundation. Keycloak `signalops:admin` is the tenant bootstrap super-admin; persisted `read`/`write` grants control MarketOps and CyberOps API access, with audited grant changes and Administration API management endpoints.
+
+- 2026-08-02: Added the RBAC-aware SignalOps landing experience. Authenticated users receive a server-resolved set of permitted profiles; one-domain users enter that workspace directly, multi-domain users choose from concise deterministic/evidence-first widgets, and Platform Administration remains a super-admin utility. Profile metadata now supplies landing summaries and registered route prefixes so future backend domains appear without a frontend-specific landing change.
+
+- 2026-08-02: Applied migration `000073_registered_use_case_profiles` and deployed the landing/RBAC release. The database now enforces grants through a registered-profile foreign key, seeded with MarketOps and CyberOps, so future domains must be explicitly registered before they can be assigned or displayed.
+
+- 2026-08-02: Added the `sp100` MarketOps universe through migration `000074_marketops_sp100_universe`. It contains the 101 current S&P 100 listed holdings (including both Alphabet share classes), captured from the public S&P 100 reference with source provenance stored on every row. The universal projection now deduplicates by ticker across Megacap, Watchlist, and S&P 100; scheduled workflows retain their existing explicit universe settings until deliberately expanded.
+
+- 2026-08-02: Expanded the MarketOps operational universe to the deduplicated `marketops_universal_assets` projection (115 active symbols). The daily post-close reconciliation, EOD/options/cohort algorithm paths, intraday monitor, and FMP continuation now resolve `all_active` against that projection. Migration `000075_marketops_sp100_backfill_queue` permits durable S&P 100 backfill jobs; 55 newly introduced symbols were queued for the prior 60 completed trading sessions, with the existing throttled worker consuming them serially.
+
+
+- 2026-08-02: Corrected MarketOps intraday-breadth timestamp semantics. Explicit off-session reconciliation retains Massive's completed-EOD quote timestamp in the durable condition snapshot instead of the job time, so the dashboard cannot appear to extend past the last completed session. All 115 `all_active` snapshots were reconciled to the 2026-07-31 EOD record and verified against their persisted quote timestamps.
+
+- 2026-08-02: Hardened frontend deployment behavior for Vite route chunks. The app shell is not cached, hashed assets are immutable only when present, missing historical chunks return a true 404 rather than SPA HTML, and the browser performs one guarded reload on a Vite dynamic-import/preload mismatch. This prevents stale open tabs from repeatedly rendering `Failed to fetch dynamically imported module` after a deployment.

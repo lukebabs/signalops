@@ -15,7 +15,7 @@ func (r *Repository) UpsertMarketOpsAssetQuote(ctx context.Context, x storage.Ma
 	return nil
 }
 func (r *Repository) ListMarketOpsAssetQuotes(ctx context.Context, f storage.MarketOpsAssetQuoteFilter) ([]storage.MarketOpsAssetQuoteRecord, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT tenant_id,universe_group,ticker,price,quote_timestamp,market_status,stale,previous_close,change_value,change_percent,week52_low,week52_high,refreshed_at,provider FROM marketops_asset_quote_cache WHERE tenant_id=$1 AND ($2='' OR universe_group=$2) ORDER BY ticker LIMIT $3`, f.TenantID, f.UniverseGroup, clampLimit(f.Limit))
+	rows, err := r.db.QueryContext(ctx, `WITH universal AS (SELECT ticker FROM marketops_universal_assets WHERE tenant_id=$1 AND is_active=true) SELECT DISTINCT ON (q.ticker) q.tenant_id,q.universe_group,q.ticker,q.price,q.quote_timestamp,q.market_status,q.stale,q.previous_close,q.change_value,q.change_percent,q.week52_low,q.week52_high,q.refreshed_at,q.provider FROM marketops_asset_quote_cache q JOIN universal u ON u.ticker=q.ticker WHERE q.tenant_id=$1 AND ($2='' OR $2='all_active' OR q.universe_group=$2) ORDER BY q.ticker, q.refreshed_at DESC LIMIT $3`, f.TenantID, f.UniverseGroup, clampLimit(f.Limit))
 	if err != nil {
 		return nil, err
 	}

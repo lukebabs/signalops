@@ -551,10 +551,18 @@ export interface AppProfile {
   domains: string[];
   enabled_modules: string[];
   dashboard_profile: string;
+  landing_summary: string;
+  route_prefix: string;
 }
 
 export interface AppProfilesResponse {
   app_profiles: AppProfile[];
+}
+
+export interface SessionExperienceResponse {
+  tenant_id: string;
+  super_admin: boolean;
+  app_profiles: Array<AppProfile & { permission: "read" | "write" | string }>;
 }
 
 // G071 MarketOps asset universe (read-only). Served by

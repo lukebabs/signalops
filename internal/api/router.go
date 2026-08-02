@@ -46,6 +46,7 @@ type RouterConfig struct {
 	Publisher                    broker.Publisher
 	RawTopic                     string
 	QueryRepository              storage.QueryRepository
+	AccessRepository             storage.TenantUserAccessRepository
 	CyberOpsConnectRepository    storage.CyberOpsConnectRepository
 	PlatformDefinitionRepository storage.PlatformPrimitiveDefinitionRepository
 	PublishRepository            storage.PublishRepository
@@ -57,12 +58,17 @@ type RouterConfig struct {
 
 // NewRouter creates the HTTP routes owned by the SignalOps gateway.
 func NewRouter(cfg RouterConfig) http.Handler {
+	if cfg.AccessRepository != nil {
+		cfg.Auth.AccessResolver = cfg.AccessRepository
+	}
 	mux := http.NewServeMux()
 	serviceName := cfg.ServiceName
 	if serviceName == "" {
 		serviceName = "signalops"
 	}
 	rawTopic := cfg.RawTopic
+	registerAccessManagementRoutes(mux, cfg)
+	registerSessionExperienceRoute(mux, cfg)
 	registerMarketOpsValuationRoutes(mux, cfg)
 	registerMarketOpsEROCRoutes(mux, cfg)
 
@@ -82,7 +88,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		})
 	})
 
-	mux.HandleFunc("GET /v1/administration/scheduled-jobs", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, map[string]any{"jobs": scheduledJobStatuses()}) })
+	mux.HandleFunc("GET /v1/administration/scheduled-jobs", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"jobs": scheduledJobStatuses()})
+	})
 
 	mux.HandleFunc("GET /v1/scheduler/runs", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
@@ -2282,7 +2290,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
 			return
 		}
-		records, err := reader.ListMarketOpsAssetQuotes(r.Context(), storage.MarketOpsAssetQuoteFilter{TenantID: tenantID, UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Limit: 100})
+		records, err := reader.ListMarketOpsAssetQuotes(r.Context(), storage.MarketOpsAssetQuoteFilter{TenantID: tenantID, UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Limit: 200})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list persisted quotes")
 			return

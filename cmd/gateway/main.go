@@ -62,6 +62,7 @@ func main() {
 	}
 	if queryRepo != nil {
 		routerConfig.QueryRepository = queryRepo
+		routerConfig.AccessRepository = queryRepo
 		routerConfig.CyberOpsConnectRepository = queryRepo
 		routerConfig.PlatformDefinitionRepository = queryRepo
 		routerConfig.PublishRepository = queryRepo

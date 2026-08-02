@@ -13,33 +13,46 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lukebabs/signalops/internal/appmeta"
+	"github.com/lukebabs/signalops/internal/storage"
 )
 
 const (
 	roleViewer   = "signalops:viewer"
 	roleOperator = "signalops:operator"
-	roleAdmin    = "signalops:admin"
+	// rolePlatformSuperAdmin is the Keycloak realm role used for platform administration.
+	// roleAdmin remains accepted while existing SignalOps role mappings migrate.
+	rolePlatformSuperAdmin = "super_admin"
+	roleAdmin              = "signalops:admin"
 )
 
 type authContextKey struct{}
 
 // AuthConfig controls optional OIDC/JWT enforcement for gateway routes.
+type accessResolver interface {
+	ListTenantUserAccessForSubject(context.Context, string, string) ([]storage.TenantUserAccessRecord, error)
+}
+
 type AuthConfig struct {
-	Enabled      bool
-	Issuer       string
-	JWKSURL      string
-	Audience     string
-	HTTPClient   *http.Client
-	Now          func() time.Time
-	JWKSCacheTTL time.Duration
+	Enabled        bool
+	Issuer         string
+	JWKSURL        string
+	Audience       string
+	HTTPClient     *http.Client
+	Now            func() time.Time
+	JWKSCacheTTL   time.Duration
+	AccessResolver accessResolver
 }
 
 // Principal is the authenticated SignalOps operator context derived from a JWT.
 type Principal struct {
-	Subject  string
-	Actor    string
-	TenantID string
-	Roles    map[string]struct{}
+	Subject    string
+	Actor      string
+	TenantID   string
+	Roles      map[string]struct{}
+	Access     map[string]string
+	SuperAdmin bool
 }
 
 func principalFromContext(ctx context.Context) (Principal, bool) {
@@ -92,12 +105,28 @@ func authMiddleware(next http.Handler, cfg AuthConfig) http.Handler {
 			writeError(w, http.StatusForbidden, "tenant_mismatch", "request tenant does not match token tenant")
 			return
 		}
+		principal.SuperAdmin = isSuperAdmin(principal)
+		if cfg.AccessResolver != nil {
+			grants, grantErr := cfg.AccessResolver.ListTenantUserAccessForSubject(r.Context(), principal.TenantID, principal.Subject)
+			if grantErr != nil {
+				writeError(w, http.StatusInternalServerError, "access_resolution_failed", "failed to resolve user access")
+				return
+			}
+			principal.Access = map[string]string{}
+			for _, grant := range grants {
+				principal.Access[grant.AppID] = grant.Permission
+			}
+		}
 		if !authorizedForRequest(r, principal) {
 			writeError(w, http.StatusForbidden, "insufficient_role", "token does not include the required SignalOps role")
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authContextKey{}, principal)))
 	})
+}
+
+func isSuperAdmin(principal Principal) bool {
+	return hasAnyRole(principal, rolePlatformSuperAdmin, roleAdmin)
 }
 
 func isPublicRoute(r *http.Request) bool {
@@ -128,16 +157,41 @@ func tenantFromPath(path string) string {
 }
 
 func authorizedForRequest(r *http.Request, principal Principal) bool {
+	if isExperienceRequest(r) {
+		return true
+	}
+	if principal.SuperAdmin {
+		return true
+	}
+	if principal.Access != nil {
+		app := appScopeForRequest(r)
+		permission := principal.Access[app]
+		if permission == "" {
+			return false
+		}
+		return r.Method == http.MethodGet || permission == "write"
+	}
 	if isPlatformRegistryMutationRoute(r) || isCyberOpsLifecycleAdminMutationRoute(r) {
 		return hasAnyRole(principal, roleAdmin)
 	}
 	if isLifecycleMutationRoute(r) {
 		return hasAnyRole(principal, roleOperator, roleAdmin)
 	}
-	if strings.HasPrefix(r.URL.Path, "/v1/") {
-		return hasAnyRole(principal, roleViewer, roleOperator, roleAdmin)
+	return hasAnyRole(principal, roleViewer, roleOperator, roleAdmin)
+}
+
+func appScopeForRequest(r *http.Request) string {
+	if profile, ok := appmeta.UseCaseProfileForPath(r.URL.Path); ok {
+		return profile.AppID
 	}
-	return true
+	if profile, ok := appmeta.ProfileByID(r.URL.Query().Get("app_id")); ok && profile.AppID != appmeta.AppConsole {
+		return profile.AppID
+	}
+	return "platform"
+}
+
+func isExperienceRequest(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/v1/session/experience"
 }
 
 func isPlatformRegistryMutationRoute(r *http.Request) bool {

@@ -4,6 +4,8 @@ import {
   canReadSignalOps,
   displayIdentity,
   hasRole,
+  hasPlatformAdmin,
+  mergeSessionClaims,
   rolesFromClaims,
   tenantFromClaims,
   type AuthClaims,
@@ -36,18 +38,28 @@ describe('auth claims', () => {
     ]);
   });
 
+  it('uses access-token realm roles for UI authorization', () => {
+    const token = ['header', btoa(JSON.stringify({ realm_access: { roles: ['super_admin'] } })), 'signature'].join('.');
+    expect(hasPlatformAdmin(mergeSessionClaims(claims({ preferred_username: 'lukeb' }), token))).toBe(true);
+  });
+
   it('viewers can read but cannot mutate; operators/admins can mutate', () => {
     const viewer = claims({ realm_access: { roles: ['signalops:viewer'] } });
     const operator = claims({
       resource_access: { 'signalops-api': { roles: ['signalops:operator'] } },
     });
     const admin = claims({ realm_access: { roles: ['signalops:admin'] } });
+    const superAdmin = claims({ realm_access: { roles: ['super_admin'] } });
 
     expect(canReadSignalOps(viewer)).toBe(true);
     expect(canMutateLifecycle(viewer)).toBe(false);
     expect(canMutateLifecycle(operator)).toBe(true);
     expect(canMutateLifecycle(admin)).toBe(true);
     expect(hasRole(admin, 'signalops:admin')).toBe(true);
+    expect(hasPlatformAdmin(admin)).toBe(true);
+    expect(hasPlatformAdmin(superAdmin)).toBe(true);
+    expect(canReadSignalOps(superAdmin)).toBe(true);
+    expect(canMutateLifecycle(superAdmin)).toBe(true);
     // A principal with no SignalOps role can neither read nor mutate.
     expect(canReadSignalOps(claims({ realm_access: { roles: ['unrelated'] } }))).toBe(false);
   });

@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Link, Outlet, useNavigate } from '@tanstack/react-router';
+import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Activity,
   CircleDollarSign,
@@ -30,6 +30,7 @@ import { displayIdentity } from '../auth/claims';
 import { useTheme, type ThemePreference } from '../theme/theme';
 import { useAppProfile } from '../apps/AppProfileContext';
 import { defaultRouteForApp } from '../apps/appRouting';
+import syncraticPortalLogo from '../assets/syncratic-portal-logo.svg';
 import type { AppProfile } from '../types';
 
 const navItem =
@@ -59,13 +60,17 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   syncratic: Sparkles,
   opportunities: Telescope,
   market_state: LineChart,
+  access: ShieldCheck,
+  settings: ShieldCheck,
 };
 
 export function DashboardShell() {
   const { authEnabled, claims, signOut } = useAuth();
   const { preference, setPreference } = useTheme();
   const identity = authEnabled ? displayIdentity(claims) : undefined;
-  const { profiles, currentApp, currentAppId, nav } = useAppProfile();
+  const { profiles, currentApp, currentAppId, nav, superAdmin } = useAppProfile();
+  const location = useLocation();
+  const isLanding = location.pathname === "/";
   const navigate = useNavigate();
 
   function selectApp(appId: string) {
@@ -77,14 +82,14 @@ export function DashboardShell() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-2">
-        <div className="flex items-center gap-2">
-          <Activity size={18} className="text-brand-700" />
+        <Link to="/" className="signalops-home-link flex items-center gap-2 rounded px-1 py-0.5 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-label="SignalOps home">
+          <img src={syncraticPortalLogo} alt="" className="h-7 w-auto" />
           <span className="text-sm font-semibold">SignalOps</span>
-        </div>
+        </Link>
         <div className="flex flex-wrap items-center gap-3">
           {/* Active app label + selector. The select both displays the active app
               label and switches apps by navigating to the profile default route. */}
-          <select
+          {!isLanding && profiles.length > 0 ? <select
             value={currentAppId}
             onChange={(e) => selectApp(e.target.value)}
             aria-label="Active app"
@@ -96,7 +101,7 @@ export function DashboardShell() {
                 {p.label}
               </option>
             ))}
-          </select>
+          </select> : null}
           <label className="inline-flex items-center gap-1" title="Color theme">
             <Monitor size={14} className="text-gray-500" aria-hidden="true" />
             <span className="sr-only">Color theme</span>
@@ -112,6 +117,7 @@ export function DashboardShell() {
             </select>
           </label>
           <HealthIndicator />
+          {superAdmin && <Link to="/admin/dashboard" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Administration</Link>}
           {identity && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-600">{identity}</span>
@@ -128,7 +134,7 @@ export function DashboardShell() {
           )}
         </div>
       </header>
-      <nav className="flex flex-wrap gap-1 border-b border-gray-200 bg-white px-2">
+      {!isLanding && <nav className="flex flex-wrap gap-1 border-b border-gray-200 bg-white px-2">
         {nav.map((item) => {
           const Icon = MODULE_ICONS[item.module] ?? Activity;
           return (
@@ -137,7 +143,7 @@ export function DashboardShell() {
             </Link>
           );
         })}
-      </nav>
+      </nav>}
       <main className="p-4">
         <Suspense
           fallback={<div className="p-4 text-sm text-gray-500">Loading view…</div>}

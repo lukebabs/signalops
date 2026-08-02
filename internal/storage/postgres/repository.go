@@ -1600,13 +1600,13 @@ LIMIT $8`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.Primitiv
 func (r *Repository) ListMarketOpsAssets(ctx context.Context, tenantID string, universeGroup string, activeOnly bool, limit int) ([]storage.MarketOpsAssetRecord, error) {
 	universeGroup = strings.TrimSpace(universeGroup)
 	if universeGroup == "" {
-		universeGroup = "top50_megacap"
+		universeGroup = "all_active"
 	}
 	rows, err := r.db.QueryContext(ctx, `
-SELECT tenant_id, app_id, domain, use_case, source_id, universe_group, rank, ticker, ticker_key,
+SELECT tenant_id, app_id, domain, use_case, source_id, universe_group, CASE WHEN $2 = 'all_active' THEN row_number() OVER (ORDER BY rank ASC, ticker ASC)::int ELSE rank END AS rank, ticker, ticker_key,
   company, company_key, display_name, display_sector, asset_type, exchange, sector, sector_key, industry, industry_key,
   is_active, metadata, created_at, updated_at
-FROM marketops_asset_universe
+FROM marketops_universal_assets
 WHERE tenant_id = $1
   AND ($2 = 'all_active' OR universe_group = $2)
   AND ($3 = false OR is_active = true)

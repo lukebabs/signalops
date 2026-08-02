@@ -84,24 +84,19 @@ export function MarketOpsAssetsRoute() {
   columnWidthsRef.current = columnWidths;
   const query = useMarketOpsAssets({
     tenant_id: TENANT_ID,
-    universe_group: 'top50_megacap',
+    universe_group: 'all_active',
     active_only: true,
-    limit: 50,
+    limit: 200,
   });
 
-  // Sort defensively by rank so the displayed order is stable regardless of
-  // backend ordering; slice() avoids mutating the cached response.
-  const watchlistQ = useMarketOpsAssets({ tenant_id: TENANT_ID, universe_group: "analyst_watchlist", active_only: true, limit: 50 });
-  const data = [...(query.data?.assets ?? []), ...(watchlistQ.data?.assets ?? [])].slice().sort((a, b) => a.universe_group === b.universe_group ? a.rank - b.rank : a.universe_group === "top50_megacap" ? -1 : 1);
-  const quotesQ = useMarketOpsAssetQuotes(TENANT_ID, "top50_megacap");
-  const watchlistQuotesQ = useMarketOpsAssetQuotes(TENANT_ID, "analyst_watchlist");
-  const quoteMap = new Map([...(quotesQ.data?.quotes ?? []), ...(watchlistQuotesQ.data?.quotes ?? [])].map((q) => [q.ticker.toUpperCase(), q]));
-  const conditionsQ = useMarketOpsIntradayConditions(TENANT_ID, "top50_megacap");
-  const watchlistConditionsQ = useMarketOpsIntradayConditions(TENANT_ID, "analyst_watchlist");
-  const conditionMap = new Map([...(conditionsQ.data?.snapshots ?? []), ...(watchlistConditionsQ.data?.snapshots ?? [])].map((snapshot) => [snapshot.ticker.toUpperCase(), snapshot]));
-  const riskRewardQ = useMarketOpsRiskRewardSummaries(TENANT_ID, "top50_megacap");
-  const watchlistRiskRewardQ = useMarketOpsRiskRewardSummaries(TENANT_ID, "analyst_watchlist");
-  const riskRewardMap = new Map([...(riskRewardQ.data?.summaries ?? []), ...(watchlistRiskRewardQ.data?.summaries ?? [])].map((summary) => [summary.ticker.toUpperCase(), summary]));
+  // The API is canonical and already deduplicated by the universal registry.
+  const data = query.data?.assets ?? [];
+  const quotesQ = useMarketOpsAssetQuotes(TENANT_ID, "all_active");
+  const quoteMap = new Map((quotesQ.data?.quotes ?? []).map((q) => [q.ticker.toUpperCase(), q]));
+  const conditionsQ = useMarketOpsIntradayConditions(TENANT_ID, "all_active");
+  const conditionMap = new Map((conditionsQ.data?.snapshots ?? []).map((snapshot) => [snapshot.ticker.toUpperCase(), snapshot]));
+  const riskRewardQ = useMarketOpsRiskRewardSummaries(TENANT_ID, "all_active");
+  const riskRewardMap = new Map((riskRewardQ.data?.summaries ?? []).map((summary) => [summary.ticker.toUpperCase(), summary]));
   const optionsFlowOverviewQ = useMarketOpsSignalOverview(TENANT_ID, "all_active", "10_trade_days");
   const optionsFlowMap = new Map((optionsFlowOverviewQ.data?.options_flow_extremes.categories ?? []).flatMap((category) => category.members.map((member) => [member.ticker.toUpperCase(), category.key] as const)));
 
@@ -145,7 +140,7 @@ export function MarketOpsAssetsRoute() {
     setDisplayNameError(null);
     try {
       await api.updateMarketOpsAssetDisplayName(TENANT_ID, asset.ticker, { universe_group: asset.universe_group, display_name: displayName });
-      await Promise.all([query.refetch(), watchlistQ.refetch()]);
+      await query.refetch();
 
     } catch (error) {
       setDisplayNameError(error instanceof Error ? error.message : "Display name could not be updated.");
@@ -165,7 +160,7 @@ export function MarketOpsAssetsRoute() {
     setDisplaySectorError(null);
     try {
       await api.updateMarketOpsAssetDisplaySector(TENANT_ID, asset.ticker, { universe_group: asset.universe_group, display_sector: displaySector });
-      await Promise.all([query.refetch(), watchlistQ.refetch()]);
+      await query.refetch();
 
     } catch (error) {
       setDisplaySectorError(error instanceof Error ? error.message : "Sector label could not be updated.");
@@ -236,11 +231,9 @@ export function MarketOpsAssetsRoute() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Assets</h1>
-          <p className="text-xs text-gray-500">Tenant {TENANT_ID} · combined market universe</p>
+          <p className="text-xs text-gray-500">Tenant {TENANT_ID} · universal market universe · {data.length} assets</p>
         </div>
       </div>
-
-      <WatchlistControls tenantId={TENANT_ID} onChanged={() => { void query.refetch(); void watchlistQ.refetch(); }} />
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" aria-label="Asset quick filters">
         {MARKETOPS_ASSET_QUICK_FILTERS.map((filter) => {
@@ -465,7 +458,7 @@ export function AssetOptionsPanel({
   const seriesQ = useMarketOpsQuantitativeSeries(tenantId, symbol, seriesWindow);
   const coverageQ = useMarketOpsOptionsCoverage(tenantId, symbol);
   const distQ = useMarketOpsOptionsDistributions(tenantId, symbol, { window: '10_trade_days', limit: 10 });
-  const intradayQ = useMarketOpsIntradayConditions(tenantId, "top50_megacap", symbol);
+  const intradayQ = useMarketOpsIntradayConditions(tenantId, "all_active", symbol);
   const corroborationQ = useMarketOpsAssetAlgorithmObservations(tenantId, symbol);
   const [analysisTab, setAnalysisTab] = useState<"overview" | "algorithm_evidence">("overview");
   const hypothesisQ = useMarketOpsHypothesisEvaluations({ tenant_id: tenantId, symbol, triggered: true, limit: 12 });
@@ -843,7 +836,7 @@ function OptionsRatioChart({ rows }: { rows: MarketOpsOptionsDistributionView[] 
 // Aggregate analyst view. All timeline membership is delivered by one bounded
 // server response; clicking a segment only changes local drill-down state.
 const SIGNAL_OVERVIEW_WINDOWS = ["10_trade_days", "30_trade_days", "60_trade_days"] as const;
-const SIGNAL_OVERVIEW_GROUPS = [["all_active", "All active"], ["top50_megacap", "Megacap"], ["analyst_watchlist", "Watchlist"]] as const;
+const SIGNAL_OVERVIEW_GROUPS = [["all_active", "All active"], ["top50_megacap", "Megacap"], ["sp100", "S&P 100"], ["analyst_watchlist", "Watchlist"]] as const;
 const signalLabel = (value: string) => ({ bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", positive: "Positive", negative: "Negative", no_active_condition: "No active condition", unavailable: "Unavailable / stale" }[value] ?? value.replace(/_/g, " "));
 const signalColor = (value: string) => value === "bullish" || value === "positive" ? "#15803d" : value === "bearish" || value === "negative" ? "#dc2626" : value === "neutral" ? "#6b7280" : value === "no_active_condition" ? "#94a3b8" : "#d97706";
 
@@ -1046,7 +1039,7 @@ function ReadinessSymbolCard({ s }: { s: MarketOpsIntelligenceReadinessSymbolVie
 
 
 
-function WatchlistControls({ tenantId, onChanged }: { tenantId: string; onChanged: () => void }) {
+export function WatchlistControls({ tenantId, onChanged }: { tenantId: string; onChanged: () => void }) {
   const [ticker, setTicker] = useState("");
   const [validation, setValidation] = useState<import("../types").MarketOpsTickerValidation | null>(null);
   const [backfill, setBackfill] = useState(true);

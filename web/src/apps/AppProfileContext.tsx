@@ -1,7 +1,8 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useLocation } from '@tanstack/react-router';
-import { useAppProfiles } from '../api/queries';
+import { useSessionExperience } from '../api/queries';
 import { CONSOLE_PROFILE, CYBEROPS_PROFILE, MARKETOPS_PROFILE } from './appProfiles';
+import { useAuth } from '../auth/session';
 import {
   appIdFromPathname,
   metadataFilterForApp,
@@ -12,47 +13,40 @@ import {
 import type { AppProfile } from '../types';
 
 interface AppProfileContextValue {
-  profiles: AppProfile[];
+  profiles: Array<AppProfile & { permission?: string }>;
   currentApp: AppProfile;
   currentAppId: string;
   metadataFilter: MetadataFilter;
   nav: NavItem[];
+  loading: boolean;
+  superAdmin: boolean;
 }
 
 const AppProfileContext = createContext<AppProfileContextValue | null>(null);
 
 export function AppProfileProvider({ children }: { children: ReactNode }) {
-  const { data, isError } = useAppProfiles();
+  const experience = useSessionExperience();
+  const { authEnabled } = useAuth();
   const location = useLocation();
-
-  // Static profiles keep their entry points visible while the app-profile
-  // request resolves or a gateway rollout is serving an older profile list.
-  // Backend values override these defaults and can add future apps.
-  const profiles = useMemo<AppProfile[]>(
-    () => {
-      const defaults = [CONSOLE_PROFILE, MARKETOPS_PROFILE, CYBEROPS_PROFILE];
-      const received = !isError ? data?.app_profiles ?? [] : [];
-      return [
-        ...defaults.map((profile) => received.find((candidate) => candidate.app_id === profile.app_id) ?? profile),
-        ...received.filter((profile) => !defaults.some((fallback) => fallback.app_id === profile.app_id)),
-      ];
-    },
-    [data, isError],
-  );
-
+  const profiles = useMemo<Array<AppProfile & { permission?: string }>>(() => {
+    if (!authEnabled) return [CONSOLE_PROFILE, MARKETOPS_PROFILE, CYBEROPS_PROFILE];
+    return experience.data?.app_profiles ?? [];
+  }, [authEnabled, experience.data]);
   const appId = appIdFromPathname(location.pathname);
-
+  const superAdmin = !authEnabled || Boolean(experience.data?.super_admin);
   const value = useMemo<AppProfileContextValue>(() => {
-    const currentApp = profiles.find((p) => p.app_id === appId) ?? profiles[0] ?? CONSOLE_PROFILE;
+    const isAllowed = appId === 'console' ? superAdmin : profiles.some((profile) => profile.app_id === appId);
+    const currentApp = profiles.find((profile) => profile.app_id === appId) ?? CONSOLE_PROFILE;
     return {
       profiles,
       currentApp,
-      currentAppId: currentApp.app_id,
-      metadataFilter: metadataFilterForApp(currentApp.app_id),
-      nav: navForApp(currentApp.app_id),
+      currentAppId: appId,
+      metadataFilter: metadataFilterForApp(appId),
+      nav: isAllowed ? navForApp(appId) : [],
+      loading: authEnabled && experience.isLoading,
+      superAdmin,
     };
-  }, [profiles, appId]);
-
+  }, [profiles, appId, superAdmin, authEnabled, experience.isLoading]);
   return <AppProfileContext.Provider value={value}>{children}</AppProfileContext.Provider>;
 }
 

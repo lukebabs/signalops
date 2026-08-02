@@ -151,8 +151,8 @@ equity_command=(docker compose --profile massive-pull run --rm massive-puller
 reconciliation_command=(docker compose --profile massive-pull run --rm massive-puller
   --mode reconcile-equity
   --date "$session_date"
-  --universe-group top50_megacap
-  --max-provider-requests 100
+  --universe-group all_active
+  --max-provider-requests 150
   --max-attempts "$reconciliation_attempts"
   --deadline "$reconciliation_deadline"
   --retry-backoffs "$reconciliation_backoffs"
@@ -251,18 +251,6 @@ minimum_equity_symbols="${#active_universe_array[@]}"
 # with the same active-universe snapshot for this scheduled run.
 option_symbols="$active_universe_symbols"
 symbols=("${active_universe_array[@]}")
-watchlist_reconciliation_command=(docker compose --profile massive-pull run --rm massive-puller
-  --mode reconcile-equity
-  --date "$session_date"
-  --universe-group analyst_watchlist
-  --max-provider-requests 100
-  --max-attempts "$reconciliation_attempts"
-  --deadline "$reconciliation_deadline"
-  --retry-backoffs "$reconciliation_backoffs"
-  --normalization-poll "$reconciliation_poll"
-  --requeue-failed
-  --dry-run="$dry_run")
-$write_mode && watchlist_reconciliation_command+=(--acknowledge-writes)
 # Pull the same combined universe that later stages consume. Explicit symbols
 # include provider-validated analyst-watchlist assets beyond the static seed.
 equity_command=(docker compose --profile massive-pull run --rm massive-puller
@@ -321,7 +309,6 @@ current_coverage="$(coverage_count)"
 if (( current_coverage < minimum_equity_symbols )); then
   log "equity reconciliation started coverage=$current_coverage threshold=$minimum_equity_symbols dry_run=$dry_run"
   "${reconciliation_command[@]}"
-  "${watchlist_reconciliation_command[@]}"
 else
   log "equity reconciliation skipped coverage=$current_coverage threshold=$minimum_equity_symbols"
 fi
@@ -457,6 +444,8 @@ if $write_mode; then
     log "outcome maturity batch=$batch symbols=$batch_csv"
     "${outcome_sweep[@]}"
   done
+  log "universal completed-close refresh started symbols=${#symbols[@]}"
+  docker compose --profile marketops-intraday run --rm marketops-intraday-monitor --tenant-id tenant-local --universe-group all_active --max-symbols 200 --allow-outside-session
   bash ./scripts/marketops_universal_completion_gate.sh "$session_date" "$active_universe_symbols" "${#symbols[@]}" || exit 8
   docker compose --profile marketops-daily run --rm marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
   summary="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \

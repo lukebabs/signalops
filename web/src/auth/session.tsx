@@ -12,7 +12,7 @@ import type { User } from 'oidc-client-ts';
 import { authConfig } from './config';
 import { consumeRedirectPath, getUserManager, rememberRedirectPath } from './oidc';
 import type { AuthClaims } from './claims';
-import { displayIdentity } from './claims';
+import { displayIdentity, hasPlatformAdmin, mergeSessionClaims } from './claims';
 
 export interface SessionState {
   authEnabled: boolean;
@@ -179,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       authenticated: !!user && !user.expired,
       user,
-      claims: (user?.profile as AuthClaims | undefined) ?? null,
+      claims: mergeSessionClaims((user?.profile as AuthClaims | undefined) ?? null, user?.access_token),
       error,
       signIn,
       finishCallback,
@@ -223,5 +223,5 @@ export function useCanMutateLifecycle(): boolean {
     ...(claims.realm_access?.roles ?? []),
     ...(claims.resource_access?.['signalops-api']?.roles ?? []),
   ];
-  return roles.includes('signalops:operator') || roles.includes('signalops:admin');
+  return roles.includes('signalops:operator') || hasPlatformAdmin(claims);
 }
