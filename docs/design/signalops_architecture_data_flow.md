@@ -3,6 +3,8 @@
 Status: implemented-platform flow with MarketOps-specific detail
 Audience: platform engineers, algorithm engineers, operators, and analysts
 
+> **Cross-platform architecture:** For the current Connect-to-SignalOps handoff, CyberOps domain path, Syncratic EOD explainability boundary, and the explicitly blocked WebSocket migration, see [SignalOps, Connect, Domain, and Syncratic Architecture](signalops-connect-domain-syncratic-architecture-v1.md). This document remains the detailed shared-primitives and MarketOps operating-flow reference.
+
 ## Purpose
 
 SignalOps is a multi-use-case evidence platform. It accepts source data, preserves its immutable origin, normalizes it into stable domain contracts, derives features and signals through deterministic and algorithmic paths, and exposes reviewable outputs to operators. MarketOps Daily Market Surveillance is the first specialized use case; it uses the shared platform without becoming a separate platform.
