@@ -22,6 +22,9 @@ const IdempotencyRoute = lazy(() =>
 const SystemRoute = lazy(() =>
   import('./routes/SystemRoute').then((m) => ({ default: m.SystemRoute })),
 );
+const StorageRoute = lazy(() =>
+  import('./routes/StorageRoute').then((m) => ({ default: m.StorageRoute })),
+);
 const SourcesRoute = lazy(() =>
   import('./routes/SourcesRoute').then((m) => ({ default: m.SourcesRoute })),
 );
@@ -123,6 +126,7 @@ const adminInsightsRoute = createRoute({ getParentRoute: () => rootRoute, path: 
 const adminAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/algorithms', component: AlgorithmsRoute });
 const adminAccessRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/access', component: AccessManagementRoute });
 const adminSystemRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/system', component: SystemRoute });
+const adminStorageRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/storage', component: StorageRoute });
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -299,7 +303,7 @@ const authCallbackRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
-  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminAccessRoute, adminSystemRoute,
+  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminAccessRoute, adminSystemRoute, adminStorageRoute,
   indexRoute,
   runsRoute,
   rawEventsRoute,

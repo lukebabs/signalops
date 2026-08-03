@@ -655,6 +655,28 @@ services:
       SIGNALOPS_ENV: local
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
 
+  retention-governor:
+    profiles: ["retention-governance"]
+    build:
+      context: .
+      target: retention-governor
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+
+  cyberops-daily-feature-materializer:
+    profiles: ["retention-governance"]
+    build:
+      context: .
+      target: cyberops-daily-feature-materializer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+
   storage-monitor:
     profiles: ["storage-monitoring"]
     user: "0:0"
@@ -664,8 +686,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      timescaledb:
+        condition: service_healthy
     environment:
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
     volumes:
       - postgres-data:/storage/postgres:ro
       - timescaledb-data:/storage/timescaledb:ro
@@ -674,3 +699,6 @@ volumes:
   redpanda-data:
   postgres-data:
   timescaledb-data:
+
+# Retention governance is scheduled in dry-run mode. No policy deletes unless its
+# persisted mode is changed to enforced and the command is invoked with --execute.

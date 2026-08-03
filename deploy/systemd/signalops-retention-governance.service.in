@@ -1,0 +1,10 @@
+[Unit]
+Description=SignalOps retention governance dry run
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+Environment=SIGNALOPS_SCHEDULE_STATUS_DIR=@WORKDIR@/runtime/scheduled-jobs
+ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh signalops-retention-governance "Daily 02:30" "America/New_York" docker compose --profile retention-governance run --rm cyberops-daily-feature-materializer
+ExecStartPost=@WORKDIR@/scripts/marketops_scheduled_job.sh signalops-retention-governance "Daily 02:30" "America/New_York" docker compose --profile retention-governance run --rm retention-governor

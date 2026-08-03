@@ -1,0 +1,10 @@
+[Unit]
+Description=Run SignalOps retention governance daily
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 America/New_York
+Persistent=true
+Unit=signalops-retention-governance.service
+
+[Install]
+WantedBy=timers.target

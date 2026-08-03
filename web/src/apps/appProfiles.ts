@@ -23,6 +23,7 @@ export const CONSOLE_PROFILE: AppProfile = {
     'alerts',
     'insights',
     'health',
+    'storage',
   ],
   dashboard_profile: 'console.default',
   landing_summary: 'Platform administration and governed operations.',

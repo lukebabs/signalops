@@ -4,6 +4,8 @@ import type {
   SchedulerRunResponse,
   ScheduledJobsResponse,
   StorageOverviewResponse,
+  StorageAnalysisResponse,
+  RetentionGovernanceResponse,
   ProviderUsageResponse,
   RawEventsResponse,
   RawEventResponse,
@@ -306,6 +308,8 @@ export const api = {
   listRuns: (limit = 50) => get<SchedulerRunsResponse>('/v1/scheduler/runs', { limit }),
   listScheduledJobs: () => get<ScheduledJobsResponse>('/v1/administration/scheduled-jobs'),
   getStorageOverview: () => get<StorageOverviewResponse>("/v1/administration/storage/overview"),
+  getStorageAnalysis: (window = "90d") => get<StorageAnalysisResponse>("/v1/administration/storage/analysis", { window }),
+  getRetentionGovernance: () => get<RetentionGovernanceResponse>("/v1/administration/storage/governance"),
   getRun: (runId: string) =>
     get<SchedulerRunResponse>(`/v1/scheduler/runs/${encodeURIComponent(runId)}`),
   listProviderUsage: (runId?: string, limit = 50) =>

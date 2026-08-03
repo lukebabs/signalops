@@ -49,6 +49,13 @@ export interface ScheduledJob { job_id:string; label:string; schedule:string; ti
 export interface ScheduledJobsResponse { jobs: ScheduledJob[]; }
 export interface StorageStore { store_id:string; observed_at?:string; used_bytes?:number; capacity_bytes?:number; free_bytes?:number; usage_percent?:number; status:string; detail?:unknown; message?:string; }
 export interface StorageOverviewResponse { stores:StorageStore[]; }
+export interface StorageComponent { store_id:string; component_kind:string; component_name:string; app_id:string; domain:string; attribution_method:"exact"|"estimated"|"shared"|"unattributed"; physical_bytes:number; attributed_bytes:number; observed_at:string; metadata?:unknown; }
+export interface StorageOwnershipTotal { app_id:string; domain:string; attributed_bytes:number; }
+export interface StorageHistoryPoint { date:string; app_id:string; domain:string; attributed_bytes:number; }
+export interface StorageAnalysisResponse { components:StorageComponent[]; ownership_totals:StorageOwnershipTotal[]; history:StorageHistoryPoint[]; attribution_note:string; }
+export interface RetentionRun { run_id:string; policy_id:string; mode:string; status:string; candidate_rows:number; affected_rows:number; oldest_candidate_at?:string; newest_candidate_at?:string; started_at:string; completed_at?:string; detail?:unknown; }
+export interface RetentionPolicy { policy_id:string; app_id:string; domain:string; data_class:string; retention_days:number; mode:string; preservation_rule:string; description:string; updated_at:string; last_run?:RetentionRun; }
+export interface RetentionGovernanceResponse { generated_at:string; policies:RetentionPolicy[]; runs:RetentionRun[]; }
 
 export interface ProviderUsage {
   usage_id: string;

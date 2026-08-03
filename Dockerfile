@@ -19,6 +19,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-no
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-detector ./cmd/cyberops-detector
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-iot-anomaly ./cmd/cyberops-iot-anomaly
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-hourly-feature-materializer ./cmd/cyberops-hourly-feature-materializer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-daily-feature-materializer ./cmd/cyberops-daily-feature-materializer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-retention-governor ./cmd/retention-governor
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-persister ./cmd/signal-persister
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
@@ -292,3 +294,11 @@ ENTRYPOINT ["/usr/local/bin/signalops-marketops-intelligence-cohort-runner"]
 FROM gcr.io/distroless/static-debian12:nonroot AS storage-monitor
 COPY --from=build /out/signalops-storage-monitor /signalops-storage-monitor
 ENTRYPOINT ["/signalops-storage-monitor"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-daily-feature-materializer
+COPY --from=build /out/signalops-cyberops-daily-feature-materializer /signalops-cyberops-daily-feature-materializer
+ENTRYPOINT ["/signalops-cyberops-daily-feature-materializer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS retention-governor
+COPY --from=build /out/signalops-retention-governor /signalops-retention-governor
+ENTRYPOINT ["/signalops-retention-governor"]

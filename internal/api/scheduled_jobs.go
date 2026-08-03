@@ -14,6 +14,7 @@ func scheduledJobStatuses() []map[string]any {
 		{"marketops-intraday", "MarketOps intraday monitor", "Weekdays every 15 minutes, 09:30–20:00", "America/New_York"},
 		{"marketops-fmp-continuation", "FMP continuation", "Saturday 02:00", "America/New_York"},
 		{"signalops-storage-monitor", "Persistent storage monitor", "Every 15 minutes", "America/New_York"},
+		{"signalops-retention-governance", "Retention governance (dry run)", "Daily 02:30", "America/New_York"},
 	}
 	dir := os.Getenv("SIGNALOPS_SCHEDULE_STATUS_DIR")
 	if dir == "" {
