@@ -1,0 +1,9 @@
+[Unit]
+Description=SignalOps persistent storage monitor
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+Environment=SIGNALOPS_SCHEDULE_STATUS_DIR=@WORKDIR@/runtime/scheduled-jobs
+ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh signalops-storage-monitor "*:0/15" "America/New_York" docker compose --profile storage-monitoring run --rm storage-monitor

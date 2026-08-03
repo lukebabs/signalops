@@ -9,6 +9,7 @@ COPY pkg ./pkg
 
 RUN go test ./...
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-gateway ./cmd/gateway
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-storage-monitor ./cmd/storage-monitor
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-puller ./cmd/massive-puller
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-scheduler ./cmd/massive-scheduler
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-normalizer ./cmd/normalizer
@@ -17,6 +18,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-co
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-normalizer ./cmd/cyberops-normalizer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-detector ./cmd/cyberops-detector
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-iot-anomaly ./cmd/cyberops-iot-anomaly
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-hourly-feature-materializer ./cmd/cyberops-hourly-feature-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-persister ./cmd/signal-persister
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
@@ -107,6 +109,12 @@ FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-iot-anomaly
 COPY --from=build /out/signalops-cyberops-iot-anomaly /signalops-cyberops-iot-anomaly
 
 ENTRYPOINT ["/signalops-cyberops-iot-anomaly"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-hourly-feature-materializer
+
+COPY --from=build /out/signalops-cyberops-hourly-feature-materializer /signalops-cyberops-hourly-feature-materializer
+
+ENTRYPOINT ["/signalops-cyberops-hourly-feature-materializer"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS signal-persister
 
@@ -280,3 +288,7 @@ COPY --from=build /out/signalops-marketops-outcome-materializer /usr/local/bin/s
 COPY --from=build /out/signalops-marketops-hypothesis-proposal-generator /usr/local/bin/signalops-marketops-hypothesis-proposal-generator
 
 ENTRYPOINT ["/usr/local/bin/signalops-marketops-intelligence-cohort-runner"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS storage-monitor
+COPY --from=build /out/signalops-storage-monitor /signalops-storage-monitor
+ENTRYPOINT ["/signalops-storage-monitor"]

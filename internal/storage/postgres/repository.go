@@ -2677,3 +2677,6 @@ func (a stringArray) Value() (driver.Value, error) {
 	}
 	return `{` + strings.Join(escaped, ",") + `}`, nil
 }
+
+// DB exposes the repository connection for bounded internal materializers.
+func (r *Repository) DB() *sql.DB { return r.db }

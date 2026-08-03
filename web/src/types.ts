@@ -47,6 +47,8 @@ export interface SchedulerRunResponse {
 
 export interface ScheduledJob { job_id:string; label:string; schedule:string; timezone:string; status:"pending"|"running"|"succeeded"|"failed"|string; started_at?:string; completed_at?:string; exit_code?:number; }
 export interface ScheduledJobsResponse { jobs: ScheduledJob[]; }
+export interface StorageStore { store_id:string; observed_at?:string; used_bytes?:number; capacity_bytes?:number; free_bytes?:number; usage_percent?:number; status:string; detail?:unknown; message?:string; }
+export interface StorageOverviewResponse { stores:StorageStore[]; }
 
 export interface ProviderUsage {
   usage_id: string;
@@ -2690,7 +2692,9 @@ export interface CyberOpsApprovedServiceRequest { destination_ip:string; protoco
 export interface CyberOpsIoTNetworkConfig { tenant_id:string; internal_cidrs:string[]; updated_at?:string; }
 export interface CyberOpsIoTNetworkConfigResponse { network_config:CyberOpsIoTNetworkConfig; }
 export interface CyberOpsIoTFlow { device_ip:string; peer_ip:string; direction:"egress"|"ingress"|"lateral"|string; protocol:string; destination_port:number; count:number; first_seen:string; last_seen:string; }
-export interface CyberOpsIoTBehaviourResponse { generated_at:string; internal_cidrs:string[]; baseline_days:number; learning:boolean; device_count:number; flows:CyberOpsIoTFlow[]; }
+export interface CyberOpsIoTLearningDevice { device_ip:string; baseline_active_hours:number; required_active_hours:number; baseline_progress:number; current_hour:string; observed:number; metric:string; baseline_mean:number; baseline_stddev:number; z_score?:number; threshold:number; status:"learning"|"waiting_for_completed_hour"|"baseline_ready"|"threshold_met"|string; withheld_reason?:string; }
+export interface CyberOpsIoTNovelService { device_ip:string; peer_ip:string; protocol:string; destination_port:number; count:number; first_seen:string; last_seen:string; status:string; }
+export interface CyberOpsIoTBehaviourResponse { generated_at:string; internal_cidrs:string[]; baseline_days:number; learning:boolean; device_count:number; flows:CyberOpsIoTFlow[]; learning_devices:CyberOpsIoTLearningDevice[]; novel_services:CyberOpsIoTNovelService[]; }
 
 export type MarketOpsEROCTrace = { direction: string; price_eligible: boolean; flow_eligible: boolean; volume_eligible: boolean; consecutive_directional_closes: number; directional_flow_ratio?: number; volume_ratio?: number; reasons?: string[] };
 export type MarketOpsEROCRow = { ticker: string; trade_date: string; score: number; state: string; confirmed: boolean; model_version: string; trace: MarketOpsEROCTrace };

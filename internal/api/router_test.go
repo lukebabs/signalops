@@ -4498,3 +4498,19 @@ func TestCyberOpsLiveTrafficRouteStreamsInitialSnapshot(t *testing.T) {
 		t.Fatalf("stream body = %s", rec.Body.String())
 	}
 }
+
+func TestBuildIoTBehaviourExposesLearningProgress(t *testing.T) {
+	now := time.Date(2026, 8, 3, 12, 15, 0, 0, time.UTC)
+	result := buildIoTBehaviour([]storage.CyberOpsTrafficInput{{EventID: "learning", ObservedAt: now.Add(-time.Hour), Message: "x,x,pass,x,x,x,x,x,x,tcp,x,10.0.0.8,198.51.100.20,40000,443"}}, []string{"10.0.0.0/24"}, now)
+	devices, ok := result["learning_devices"].([]iotLearningDevice)
+	if !ok || len(devices) != 1 {
+		t.Fatalf("learning_devices = %#v", result["learning_devices"])
+	}
+	device := devices[0]
+	if device.DeviceIP != "10.0.0.8" || device.Status != "learning" || device.BaselineActiveHours != 0 || device.RequiredActiveHours != 24 {
+		t.Fatalf("device = %+v", device)
+	}
+	if device.WithheldReason == "" {
+		t.Fatalf("expected learning explanation")
+	}
+}

@@ -14,7 +14,7 @@ export function resolveTheme(preference: ThemePreference, systemPrefersDark: boo
 }
 
 export function readThemePreference(value: string | null | undefined): ThemePreference {
-  return isThemePreference(value) ? value : 'system';
+  return isThemePreference(value) ? value : 'dark';
 }
 
 type ThemeContextValue = {

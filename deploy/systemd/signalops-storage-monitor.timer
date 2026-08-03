@@ -1,0 +1,10 @@
+[Unit]
+Description=Run SignalOps storage monitor every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+Unit=signalops-storage-monitor.service
+
+[Install]
+WantedBy=timers.target

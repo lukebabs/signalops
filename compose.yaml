@@ -643,6 +643,33 @@ services:
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
 
+  cyberops-hourly-feature-materializer:
+    profiles: ["cyberops-materialization"]
+    build:
+      context: .
+      target: cyberops-hourly-feature-materializer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+
+  storage-monitor:
+    profiles: ["storage-monitoring"]
+    user: "0:0"
+    build:
+      context: .
+      target: storage-monitor
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+    volumes:
+      - postgres-data:/storage/postgres:ro
+      - timescaledb-data:/storage/timescaledb:ro
+      - redpanda-data:/storage/redpanda:ro
 volumes:
   redpanda-data:
   postgres-data:

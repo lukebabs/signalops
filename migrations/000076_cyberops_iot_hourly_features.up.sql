@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS cyberops_iot_hourly_features (tenant_id text NOT NULL, hour timestamptz NOT NULL, device_ip inet NOT NULL, peer_ip inet NOT NULL, protocol text NOT NULL, destination_port integer NOT NULL, allowed_log_count integer NOT NULL, first_seen timestamptz NOT NULL, last_seen timestamptz NOT NULL, PRIMARY KEY (tenant_id,hour,device_ip,peer_ip,protocol,destination_port));
+CREATE INDEX IF NOT EXISTS idx_cyberops_iot_hourly_features_device_hour ON cyberops_iot_hourly_features (tenant_id,device_ip,hour DESC);

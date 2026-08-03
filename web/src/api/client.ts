@@ -3,6 +3,7 @@ import type {
   SchedulerRunsResponse,
   SchedulerRunResponse,
   ScheduledJobsResponse,
+  StorageOverviewResponse,
   ProviderUsageResponse,
   RawEventsResponse,
   RawEventResponse,
@@ -304,6 +305,7 @@ export const api = {
   readyz: () => get<HealthResponse>('/readyz'),
   listRuns: (limit = 50) => get<SchedulerRunsResponse>('/v1/scheduler/runs', { limit }),
   listScheduledJobs: () => get<ScheduledJobsResponse>('/v1/administration/scheduled-jobs'),
+  getStorageOverview: () => get<StorageOverviewResponse>("/v1/administration/storage/overview"),
   getRun: (runId: string) =>
     get<SchedulerRunResponse>(`/v1/scheduler/runs/${encodeURIComponent(runId)}`),
   listProviderUsage: (runId?: string, limit = 50) =>

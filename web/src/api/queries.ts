@@ -85,6 +85,7 @@ export const queryKeys = {
   readyz: ['readyz'] as const,
   runs: (limit: number) => ['runs', limit] as const,
   scheduledJobs: ['scheduled-jobs'] as const,
+  storageOverview: ["storage-overview"] as const,
   run: (runId: string) => ['run', runId] as const,
   providerUsage: (runId: string | undefined, limit: number) =>
     ['provider-usage', runId, limit] as const,
@@ -234,6 +235,7 @@ export function useRuns(limit: number) {
 }
 
 export function useScheduledJobs() { return useQuery({ queryKey: queryKeys.scheduledJobs, queryFn: api.listScheduledJobs, refetchInterval: 15000 }); }
+export function useStorageOverview() { return useQuery({ queryKey: queryKeys.storageOverview, queryFn: api.getStorageOverview, refetchInterval: 15 * 60 * 1000 }); }
 
 export function useRun(runId: string | null) {
   return useQuery({

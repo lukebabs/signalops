@@ -71,6 +71,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerSessionExperienceRoute(mux, cfg)
 	registerMarketOpsValuationRoutes(mux, cfg)
 	registerMarketOpsEROCRoutes(mux, cfg)
+	registerStorageMonitorRoutes(mux, cfg.QueryRepository)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{

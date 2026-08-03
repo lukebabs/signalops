@@ -1,4 +1,4 @@
-import { useHealthz, useReadyz, useRuns, useReplayStatus, useScheduledJobs } from '../api/queries';
+import { useHealthz, useReadyz, useRuns, useReplayStatus, useScheduledJobs, useStorageOverview } from '../api/queries';
 import { useUi } from '../store/ui';
 import { MetricTile } from '../components/MetricTile';
 import { RefreshButton } from '../components/RefreshButton';
@@ -29,6 +29,7 @@ export function SystemRoute() {
   const TENANT_ID = useTenant();
   const replayStatus = useReplayStatus({ tenant_id: TENANT_ID, limit: 10 });
   const scheduledJobs = useScheduledJobs();
+  const storage = useStorageOverview();
 
   const storageAvailable = probe.isSuccess;
   const storageUnavailable =
@@ -45,6 +46,7 @@ export function SystemRoute() {
     probe.refetch();
     replayStatus.refetch();
     scheduledJobs.refetch();
+    storage.refetch();
     setLastRefresh(new Date().toISOString());
   }
 
@@ -95,6 +97,7 @@ export function SystemRoute() {
         <MetricTile label="Last Stream Event" value={formatUtc(lastStreamEventAt ?? undefined)} />
       </div>
 
+      <StorageMonitoring stores={storage.data?.stores ?? []} loading={storage.isLoading} error={storage.isError ? storage.error : null} />
       <h2 className="text-sm font-semibold text-gray-900">Scheduled Jobs</h2><div className="overflow-x-auto rounded border border-gray-200 bg-white"><table className="min-w-full divide-y divide-gray-200 text-xs"><thead className="bg-gray-50 text-left text-gray-500"><tr><th className="px-2 py-1">Job</th><th className="px-2 py-1">Schedule</th><th className="px-2 py-1">Status</th><th className="px-2 py-1">Started</th><th className="px-2 py-1">Completed</th><th className="px-2 py-1">Exit</th></tr></thead><tbody className="divide-y divide-gray-100">{scheduledJobs.data?.jobs.map(job => <tr key={job.job_id}><td className="px-2 py-1 font-medium">{job.label}</td><td className="px-2 py-1 text-gray-600">{job.schedule} · {job.timezone}</td><td className="px-2 py-1"><StatusBadge status={job.status} /></td><td className="px-2 py-1 text-gray-600">{formatUtc(job.started_at)}</td><td className="px-2 py-1 text-gray-600">{formatUtc(job.completed_at)}</td><td className="px-2 py-1">{job.exit_code ?? "—"}</td></tr>)}</tbody></table></div>{scheduledJobs.isError ? <ErrorState error={scheduledJobs.error} /> : null}<h2 className="text-sm font-semibold text-gray-900">Replay Operations</h2>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
         <MetricTile
@@ -176,3 +179,6 @@ export function SystemRoute() {
     </div>
   );
 }
+
+function bytes(value?: number) { if (value == null) return '—'; const units=['B','KB','MB','GB','TB']; let n=value,i=0; while(n>=1024&&i<units.length-1){n/=1024;i++} return `${n.toFixed(i ? 1 : 0)} ${units[i]}`; }
+function StorageMonitoring({stores,loading,error}:{stores:any[];loading:boolean;error:unknown}) { return <section className="space-y-2"><div><h2 className="text-sm font-semibold text-gray-900">Persistent Storage</h2><p className="text-xs text-gray-500">SignalOps-owned PostgreSQL, TimescaleDB, and Redpanda volumes. Docker images, container layers, and host logs are excluded.</p></div>{loading?<div className="text-xs text-gray-500">Collecting storage snapshots…</div>:error?<ErrorState error={error}/>:<div className="grid gap-2 md:grid-cols-3">{stores.map((s:any)=><div key={s.store_id} className="rounded border border-gray-200 bg-white p-3"><div className="flex justify-between gap-2"><strong className="text-sm capitalize">{s.store_id}</strong><StatusBadge status={s.status}/></div>{s.used_bytes != null?<><div className="mt-2 text-lg font-semibold">{bytes(s.used_bytes)}</div><div className="text-xs text-gray-500">of {bytes(s.capacity_bytes)} · {Number(s.usage_percent ?? 0).toFixed(1)}% used</div><div className="mt-2 h-2 overflow-hidden rounded bg-gray-100"><div className={s.status==='critical'?'h-full bg-red-500':s.status==='warning'?'h-full bg-amber-400':'h-full bg-brand-600'} style={{width:`${Math.min(100,Number(s.usage_percent ?? 0))}%`}} /></div><div className="mt-2 text-[11px] text-gray-500">Free {bytes(s.free_bytes)} · {formatUtc(s.observed_at)}</div></>:<div className="mt-2 text-xs text-gray-500">{s.message ?? 'No snapshot recorded yet.'}</div>}</div>)}</div>}</section> }
