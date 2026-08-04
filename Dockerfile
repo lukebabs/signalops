@@ -10,6 +10,7 @@ COPY pkg ./pkg
 RUN go test ./...
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-gateway ./cmd/gateway
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-storage-monitor ./cmd/storage-monitor
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-administration-notification-recorder ./cmd/administration-notification-recorder
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-puller ./cmd/massive-puller
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-massive-scheduler ./cmd/massive-scheduler
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-normalizer ./cmd/normalizer
@@ -302,3 +303,7 @@ ENTRYPOINT ["/signalops-cyberops-daily-feature-materializer"]
 FROM gcr.io/distroless/static-debian12:nonroot AS retention-governor
 COPY --from=build /out/signalops-retention-governor /signalops-retention-governor
 ENTRYPOINT ["/signalops-retention-governor"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS administration-notification-recorder
+COPY --from=build /out/signalops-administration-notification-recorder /signalops-administration-notification-recorder
+ENTRYPOINT ["/signalops-administration-notification-recorder"]

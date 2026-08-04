@@ -51,6 +51,7 @@ type RouterConfig struct {
 	PlatformDefinitionRepository storage.PlatformPrimitiveDefinitionRepository
 	PublishRepository            storage.PublishRepository
 	SyncraticAskClient           syncraticAskClient
+	NotificationEncryptionKey    string
 	MarketQuoteClient            interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}
@@ -73,6 +74,8 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerMarketOpsEROCRoutes(mux, cfg)
 	registerStorageMonitorRoutes(mux, cfg.QueryRepository)
 	registerRetentionGovernanceRoutes(mux, cfg.QueryRepository)
+	registerAdministrationNotificationRoutes(mux, cfg)
+	registerAdministrationSMTPRoutes(mux, cfg)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{

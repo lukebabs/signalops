@@ -50,6 +50,34 @@ func TestBuildG137PositiveAAPLVerticalSlice(t *testing.T) {
 	}
 }
 
+func TestBuildEmitsLargeCompletedSessionMoveAtThreshold(t *testing.T) {
+	events := equityFixtures(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), 2)
+	payload := map[string]any{}
+	if err := json.Unmarshal(events[1].NormalizedPayload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	payload["open"], payload["high"], payload["low"], payload["close"] = 102.5, 104.0, 102.0, 103.0
+	events[1].NormalizedPayload, _ = json.Marshal(payload)
+	result, err := Build(BuildConfig{TenantID: "tenant-local", Symbol: "AAPL", RunID: "large-move"}, BuildInput{EquityEvents: events})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var move *storage.MarketOpsEvidenceRecord
+	for index := range result.Evidence {
+		if result.Evidence[index].EvidenceType == "large_completed_session_move" {
+			move = &result.Evidence[index]
+			break
+		}
+	}
+	if move == nil || move.Direction != "up" || move.Magnitude == nil || *move.Magnitude != 3 {
+		t.Fatalf("large completed-session move=%+v", move)
+	}
+	details := map[string]any{}
+	if err := json.Unmarshal(move.EvidencePayloadJSON, &details); err != nil || details["basis"] != "completed_close_to_close" || details["threshold_pct"] != 3.0 {
+		t.Fatalf("payload=%s err=%v", move.EvidencePayloadJSON, err)
+	}
+}
+
 func TestBuildPropagatesNormalizedEventProvenance(t *testing.T) {
 	start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
 	events := equityFixtures(start, 2)

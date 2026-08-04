@@ -109,6 +109,19 @@ func (f *fakeRepo) GetMarketOpsOptionsCapture(_ context.Context, tenantID string
 	return storage.MarketOpsOptionsCaptureRecord{}, storage.ErrNotFound
 }
 
+func TestCoverageConfigPreservesUniversalAssetCount(t *testing.T) {
+	cfg := (cliConfig{TenantID: "tenant-local", MaxSymbols: 115}).withDefaults()
+	if cfg.MaxSymbols != 115 {
+		t.Fatalf("max symbols was rewritten to %d", cfg.MaxSymbols)
+	}
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("universal asset count rejected: %v", err)
+	}
+	if err := (cliConfig{TenantID: "tenant-local", MaxSymbols: maxCoverageSymbols + 1}).validate(); err == nil {
+		t.Fatal("expected configured maximum to be rejected")
+	}
+}
+
 func TestRunCoverageProcessesExplicitBoundedSymbols(t *testing.T) {
 	provider := &fakeProvider{recordsBySymbol: map[string][]massive.OptionContractDailyRecord{
 		"NVDA": {providerRecord("NVDA", "O:NVDA260116C00100000", "call", 200), providerRecord("NVDA", "O:NVDA260116P00100000", "put", 100)},

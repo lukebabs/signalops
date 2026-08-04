@@ -63,6 +63,26 @@ func TestBuildSkipsRejectedNonTriggeredAndUnresolved(t *testing.T) {
 	}
 }
 
+func TestBuildConvergenceRequiresCorroborationForLargeCompletedSessionMove(t *testing.T) {
+	session := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	move := ConvergenceContribution{TenantID: "tenant-local", AssetID: "ticker:NVDA", Symbol: "NVDA", Source: "large_session_move", Direction: "upside", SessionDate: session, Strength: .3, EvidenceIDs: []string{"move-1"}}
+	alone, err := BuildConvergence("move-alone", []ConvergenceContribution{move})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(alone.Opportunities) != 0 || alone.SkippedReasons["insufficient_independent_sources"] != 1 {
+		t.Fatalf("standalone move result=%+v", alone)
+	}
+	result, err := BuildConvergence("move-corroborated", []ConvergenceContribution{move, {TenantID: "tenant-local", AssetID: "ticker:NVDA", Symbol: "NVDA", Source: "risk_reward", Direction: "upside", SessionDate: session, Strength: .7, EvidenceIDs: []string{"rr-1"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	upside := findDirection(result.Opportunities, "upside")
+	if upside.OpportunityID == "" || !contains(upside.SupportingEvidenceIDs, "move-1") || !contains(upside.SupportingEvidenceIDs, "rr-1") {
+		t.Fatalf("corroborated move=%+v", upside)
+	}
+}
+
 func definition(key, domain, direction, status string) storage.MarketOpsHypothesisDefinitionRecord {
 	return storage.MarketOpsHypothesisDefinitionRecord{TenantID: "tenant-local", HypothesisKey: key, HypothesisVersion: "v1", Domain: domain, Direction: direction, LifecycleStatus: status}
 }

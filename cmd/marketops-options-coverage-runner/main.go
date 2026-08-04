@@ -38,6 +38,8 @@ type repository interface {
 	ListMarketOpsBacktestNormalizedEvents(context.Context, storage.MarketOpsBacktestEventFilter) ([]storage.NormalizedEventLedgerRecord, error)
 }
 
+const maxCoverageSymbols = 200
+
 type cliConfig struct {
 	TenantID          string
 	Symbols           []string
@@ -605,7 +607,7 @@ func (cfg cliConfig) withDefaults() cliConfig {
 	if cfg.MaxMoneyness <= 0 {
 		cfg.MaxMoneyness = 1.30
 	}
-	if cfg.MaxSymbols <= 0 || cfg.MaxSymbols > 100 {
+	if cfg.MaxSymbols <= 0 {
 		cfg.MaxSymbols = 3
 	}
 	if cfg.WindowDays <= 0 || cfg.WindowDays > 60 {
@@ -633,8 +635,8 @@ func (cfg cliConfig) validate() error {
 	if cfg.TenantID == "" {
 		return errors.New("tenant-id is required")
 	}
-	if cfg.MaxSymbols <= 0 {
-		return errors.New("max-symbols must be positive")
+	if cfg.MaxSymbols <= 0 || cfg.MaxSymbols > maxCoverageSymbols {
+		return fmt.Errorf("max-symbols must be between 1 and %d", maxCoverageSymbols)
 	}
 	if cfg.MinDTE < 7 || cfg.MaxDTE > 180 || cfg.MinDTE >= cfg.MaxDTE {
 		return errors.New("session DTE bounds must satisfy 7 <= min-dte < max-dte <= 180")

@@ -85,6 +85,8 @@ export const queryKeys = {
   readyz: ['readyz'] as const,
   runs: (limit: number) => ['runs', limit] as const,
   scheduledJobs: ['scheduled-jobs'] as const,
+  administrationNotifications: (tenantId: string) => ['administration-notifications', tenantId] as const,
+  administrationSMTPSettings: (tenantId: string) => ["administration-smtp-settings", tenantId] as const,
   storageOverview: ["storage-overview"] as const,
   storageAnalysis: (window: string) => ["storage-analysis", window] as const,
   retentionGovernance: ["retention-governance"] as const,
@@ -235,6 +237,13 @@ export function useReadyz() {
 export function useRuns(limit: number) {
   return useQuery({ queryKey: queryKeys.runs(limit), queryFn: () => api.listRuns(limit) });
 }
+
+export function useAdministrationNotifications(tenantId: string) { return useQuery({ queryKey: queryKeys.administrationNotifications(tenantId), queryFn: () => api.listAdministrationNotifications(tenantId), refetchInterval: 15000 }); }
+
+export function useAdministrationSMTPSettings(tenantId: string) { return useQuery({ queryKey: queryKeys.administrationSMTPSettings(tenantId), queryFn: () => api.getAdministrationSMTPSettings(tenantId) }); }
+export function useMutateAdministrationSMTPSettings(tenantId: string) { const client = useQueryClient(); return useMutation({ mutationFn: api.saveAdministrationSMTPSettings, onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.administrationSMTPSettings(tenantId) }) }); }
+
+export function useMutateAdministrationNotificationState(tenantId: string) { const client = useQueryClient(); return useMutation({ mutationFn: ({ id, read, archived }: { id: string; read: boolean; archived: boolean }) => api.setAdministrationNotificationState(id, { tenant_id: tenantId, read, archived }), onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.administrationNotifications(tenantId) }) }); }
 
 export function useScheduledJobs() { return useQuery({ queryKey: queryKeys.scheduledJobs, queryFn: api.listScheduledJobs, refetchInterval: 15000 }); }
 export function useStorageOverview() { return useQuery({ queryKey: queryKeys.storageOverview, queryFn: api.getStorageOverview, refetchInterval: 15 * 60 * 1000 }); }

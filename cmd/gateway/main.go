@@ -52,6 +52,7 @@ func main() {
 			JWKSURL:  cfg.AuthJWKSURL,
 			Audience: cfg.AuthAudience,
 		},
+		NotificationEncryptionKey: cfg.NotificationEncryptionKey,
 	}
 	if key := strings.TrimSpace(os.Getenv("SIGNALOPS_MASSIVE_API_KEY")); key != "" {
 		if client, clientErr := massive.NewClient(massive.LoadClientConfigFromEnv()); clientErr == nil {

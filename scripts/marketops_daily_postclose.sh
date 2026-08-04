@@ -65,6 +65,8 @@ reconciliation_attempts="${MARKETOPS_DAILY_RECONCILIATION_MAX_ATTEMPTS:-2}"
 reconciliation_poll="${MARKETOPS_DAILY_RECONCILIATION_POLL:-5s}"
 skip_complete_equity="${MARKETOPS_DAILY_SKIP_COMPLETE_EQUITY:-true}"
 actor="${MARKETOPS_DAILY_ACTOR:-systemd-postclose}"
+# Keep this capacity aligned with maxCoverageSymbols in the options coverage runner.
+options_runner_max_symbols=200
 option_symbols="${MARKETOPS_DAILY_OPTION_SYMBOLS:-NVDA,AAPL,GOOGL,MSFT,AMZN,TSM,SPCX,AVGO,TSLA,META,MU,BRK.B,LLY,JPM,AMD,WMT,ASML,V,JNJ,INTC,XOM,TCEHY,MA,AMAT,ABBV,CSCO,CAT,LRCX,BAC,COST,ORCL,GE,UNH,KO,MS,HD,PG,ARM,HSBC,CVX,NFLX,PLTR,MRK,GS,GEV,PM,RY,BABA,NVS,PANW}"
 lock_file="${MARKETOPS_DAILY_LOCK_FILE:-/tmp/signalops-marketops-daily.lock}"
 
@@ -242,6 +244,11 @@ IFS=',' read -r -a active_universe_array <<< "$active_universe_symbols"
   printf 'active equity universe contains %d assets; expected at least %d\n' "${#active_universe_array[@]}" "$minimum_equity_symbols" >&2
   exit 4
 }
+(( ${#active_universe_array[@]} <= options_runner_max_symbols )) || {
+  printf 'active equity universe contains %d assets; options runner supports at most %d; aborting before provider work\n' "${#active_universe_array[@]}" "$options_runner_max_symbols" >&2
+  exit 4
+}
+
 for symbol in "${active_universe_array[@]}"; do
   [[ "$symbol" =~ ^[A-Z0-9.]+$ ]] || { printf 'invalid active universe symbol: %s\n' "$symbol" >&2; exit 4; }
 done

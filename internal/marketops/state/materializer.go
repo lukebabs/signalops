@@ -991,6 +991,15 @@ func buildEvidence(config BuildConfig, states []storage.MarketOpsMarketStateReco
 			}
 			out = append(out, record)
 		}
+		if observation, ok := byKey[observationKey("return_1d", "{}")]; ok && observation.NumericValue != nil && isUsable(observation.QualityState) && math.Abs(*observation.NumericValue) >= 3 {
+			value := *observation.NumericValue
+			statement := fmt.Sprintf("%s completed the session %s %.2f%% close-to-close, exceeding the 3.00%% review threshold.", config.Symbol, directionVerb(value), math.Abs(value))
+			record, err := evidenceRecord(config, marketState, "large_completed_session_move", "underlying_momentum", directionFor(value), value, statement, []string{observation.FeatureObservationID}, nil, map[string]any{"return_1d_pct": value, "absolute_return_pct": math.Abs(value), "threshold_pct": 3.0, "basis": "completed_close_to_close"})
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, record)
+		}
 		if observation, ok := byKey[observationKey("put_call_oi_ratio", "{}")]; ok && observation.NumericValue != nil && isUsable(observation.QualityState) {
 			value := *observation.NumericValue
 			statement := fmt.Sprintf("%s usable put/call open-interest ratio was %.3f.", config.Symbol, value)

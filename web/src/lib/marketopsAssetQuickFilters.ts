@@ -5,8 +5,8 @@ export type MarketOpsAssetQuickFilter = 'large_gainers' | 'large_decliners' | 'a
 type QuickFilterGroup = 'mover' | 'intraday' | 'posture' | 'risk' | 'options_flow';
 
 export const MARKETOPS_ASSET_QUICK_FILTERS: Array<{ key: MarketOpsAssetQuickFilter; group: QuickFilterGroup; label: string; hint: string }> = [
-  { key: 'large_gainers', group: 'mover', label: 'Large gainers', hint: 'Latest session ≥ +2.0%' },
-  { key: 'large_decliners', group: 'mover', label: 'Large decliners', hint: 'Latest session ≤ −2.0%' },
+  { key: 'large_gainers', group: 'mover', label: 'Large completed-session gainers', hint: 'EOD close-to-close ≥ +3.0%' },
+  { key: 'large_decliners', group: 'mover', label: 'Large completed-session decliners', hint: 'EOD close-to-close ≤ −3.0%' },
   { key: 'active_intraday_conditions', group: 'intraday', label: 'Active intraday conditions', hint: 'Current 15-minute monitor' },
   { key: 'bullish_risk_reward', group: 'posture', label: 'Bullish Risk/Reward', hint: 'Eligible post-close posture' },
   { key: 'bearish_risk_reward', group: 'posture', label: 'Bearish Risk/Reward', hint: 'Eligible post-close posture' },
@@ -29,13 +29,13 @@ const eligibleRiskReward = (riskReward?: MarketOpsRiskRewardSummary) => (riskRew
 // tells the UI whether a live update is expected; it does not invalidate the
 // latest completed-session observation used for analyst triage.
 const usableMarketMove = (quote?: MarketOpsAssetQuote) => Boolean(
-  quote && Number.isFinite(quote.change_percent),
+  quote && quote.market_status === 'end_of_day' && Number.isFinite(quote.change_percent),
 );
 
 export function matchesMarketOpsAssetQuickFilter(asset: MarketOpsAssetQuickFilterInput, filter: MarketOpsAssetQuickFilter): boolean {
   switch (filter) {
-    case 'large_gainers': return usableMarketMove(asset.quote) && (asset.quote?.change_percent ?? Number.NEGATIVE_INFINITY) >= 2;
-    case 'large_decliners': return usableMarketMove(asset.quote) && (asset.quote?.change_percent ?? Number.POSITIVE_INFINITY) <= -2;
+    case 'large_gainers': return usableMarketMove(asset.quote) && (asset.quote?.change_percent ?? Number.NEGATIVE_INFINITY) >= 3;
+    case 'large_decliners': return usableMarketMove(asset.quote) && (asset.quote?.change_percent ?? Number.POSITIVE_INFINITY) <= -3;
     case 'active_intraday_conditions': return Boolean(asset.intraday && !asset.intraday.stale && asset.intraday.conditions.length);
     case 'bullish_risk_reward': return eligibleRiskReward(asset.riskReward) && asset.riskReward?.direction === 'bullish';
     case 'bearish_risk_reward': return eligibleRiskReward(asset.riskReward) && asset.riskReward?.direction === 'bearish';

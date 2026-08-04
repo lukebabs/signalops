@@ -2708,3 +2708,40 @@ export type MarketOpsEROCRow = { ticker: string; trade_date: string; score: numb
 export type MarketOpsEROCResponse = { results: MarketOpsEROCRow[]; research_only: true };
 export type MarketOpsEROCOverviewPoint = { trade_date:string; series: Record<string,{average:number;p75:number;members:MarketOpsEROCRow[]}> };
 export type MarketOpsEROCOverviewResponse = { points:MarketOpsEROCOverviewPoint[]; research_only:true };
+
+export interface AdministrationNotification {
+  notification_id: string;
+  tenant_id: string;
+  source: string;
+  category: string;
+  severity: "info" | "warning" | "critical";
+  title: string;
+  summary: string;
+  dedupe_key: string;
+  state: "active" | "resolved";
+  occurrence_count: number;
+  first_occurred_at: string;
+  last_occurred_at: string;
+  resolved_at?: string | null;
+  evidence?: unknown;
+  read_at?: string | null;
+  archived_at?: string | null;
+}
+export interface AdministrationNotificationsResponse { notifications: AdministrationNotification[]; unread_count:number; }
+
+export interface AdministrationSMTPSettings {
+  tenant_id: string;
+  host: string;
+  port: number;
+  username: string;
+  has_password: boolean;
+  use_starttls: boolean;
+  use_ssl: boolean;
+  from_email: string;
+  from_name: string;
+  reply_to: string;
+  updated_by: string;
+  updated_at: string;
+}
+export interface AdministrationSMTPSettingsResponse { configured: boolean; settings?: AdministrationSMTPSettings; }
+export interface AdministrationSMTPSettingsRequest { tenant_id: string; host: string; port: number; username: string; password?: string; use_starttls: boolean; use_ssl: boolean; from_email: string; from_name: string; reply_to: string; }

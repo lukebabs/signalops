@@ -62,6 +62,14 @@ Normative formulas and TTM restrictions: [deterministic specification](../../../
 - **Score:** `25% persistence + 30% extension + 25% regime volume + 20% reversal-flow proximity`. A candidate is `CONFIRMED` only when reversal-direction flow is ≥1.20; otherwise it remains an observed, incomplete review.
 - **Expected outcome:** a prioritized queue for fading/climactic extensions, not a prediction. Both signed directions are review opportunities, not required positions.
 
+### Large completed-session move evidence
+
+- **Evidence type:** `large_completed_session_move`
+- **Inputs:** persisted canonical `return_1d`, calculated from the latest completed close versus the prior eligible completed close.
+- **Gate:** absolute close-to-close move `≥ 3.00%`; the boundary is inclusive. Positive moves are `up` evidence and negative moves are `down` evidence. Intraday quotes, after-hours ticks, and cache freshness do not alter this evidence.
+- **Expected outcome:** the completed-session Market State records an explicit, explainable move with the signed return, absolute return, threshold, basis, feature lineage, and deterministic identity. It is a material observation—not a forecast or a standalone recommendation.
+- **Convergence use:** it maps to `large_session_move` and can support upside or downside research only when an independent same-session source agrees. It can also participate in existing mixed-conviction handling when material sources disagree.
+
 ## Cross-signal review and outcome measurement
 
 ### Options-flow extremes
@@ -70,7 +78,7 @@ An extreme requires aggregate options volume ≥1,000. Put/call `<0.30` is call-
 
 ### Convergence opportunity queue
 
-V2 requires two independent sources—Risk/Reward, EROC, Tactical Market Posture, or options-flow extreme—to agree on asset, direction, and completed session. A material opposing pair (each strength ≥0.20) becomes non-directional mixed-conviction review rather than a false directional conclusion. Active v2 rows expire on a symbol rebuild; history and outcome lineage remain.
+V2 requires two independent sources—Risk/Reward, EROC, Tactical Market Posture, options-flow extreme, or large completed-session move evidence—to agree on asset, direction, and completed session. A material opposing pair (each strength ≥0.20) becomes non-directional mixed-conviction review rather than a false directional conclusion. Active v2 rows expire on a symbol rebuild; history and outcome lineage remain.
 
 **Expected outcome:** a selective, explainable research queue. An empty queue is healthy when no sources agree. Membership creates no alert, recommendation, or trade.
 

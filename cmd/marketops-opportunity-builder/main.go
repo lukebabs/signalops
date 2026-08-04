@@ -198,6 +198,7 @@ type activeConvergenceReader interface {
 	ListMarketOpsRiskRewardSnapshots(context.Context, storage.MarketOpsRiskRewardSnapshotFilter) ([]storage.MarketOpsRiskRewardSnapshotRecord, error)
 	ListMarketOpsValuationResults(context.Context, storage.MarketOpsValuationFilter) ([]storage.MarketOpsValuationResultRecord, error)
 	ListMarketOpsOptionsDistributions(context.Context, storage.MarketOpsOptionsDistributionFilter) ([]storage.MarketOpsOptionsDistributionRecord, error)
+	ListMarketOpsEvidence(context.Context, storage.MarketOpsEvidenceFilter) ([]storage.MarketOpsEvidenceRecord, error)
 }
 
 func activeContributions(ctx context.Context, repo activeConvergenceReader, cfg cliConfig) ([]opportunities.ConvergenceContribution, error) {
@@ -269,6 +270,25 @@ func activeContributions(ctx context.Context, repo activeConvergenceReader, cfg 
 		if item.CallPutVolumeRatio > 1.20 {
 			out = append(out, opportunities.ConvergenceContribution{TenantID: item.TenantID, AssetID: "ticker:" + item.Symbol, Symbol: item.Symbol, Source: "options_flow", Direction: "downside", SessionDate: item.TradeDate, Strength: clamp01((item.CallPutVolumeRatio - 1.20) / 1.20), EvidenceIDs: []string{item.SourceID}})
 		}
+	}
+	evidence, err := repo.ListMarketOpsEvidence(ctx, storage.MarketOpsEvidenceFilter{TenantID: cfg.TenantID, AppID: "marketops", Symbol: cfg.Symbol, EvidenceType: "large_completed_session_move", SessionStart: cfg.SessionStart, SessionEnd: cfg.SessionEnd, Limit: 100})
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range evidence {
+		if item.Magnitude == nil {
+			continue
+		}
+		direction := ""
+		if item.Direction == "up" {
+			direction = "upside"
+		} else if item.Direction == "down" {
+			direction = "downside"
+		}
+		if direction == "" {
+			continue
+		}
+		out = append(out, opportunities.ConvergenceContribution{TenantID: item.TenantID, AssetID: item.AssetID, Symbol: item.Symbol, Source: "large_session_move", Direction: direction, SessionDate: item.SessionDate, Strength: clamp01(abs(*item.Magnitude) / 10), EvidenceIDs: []string{item.EvidenceID}})
 	}
 	return out, nil
 }

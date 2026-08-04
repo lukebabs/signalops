@@ -51,7 +51,7 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo s
 		if universeGroup == "" {
 			universeGroup = "top50_megacap"
 		}
-		assets, err := reader.ListMarketOpsAssets(r.Context(), tenant, universeGroup, true, 50)
+		assets, err := reader.ListMarketOpsAssets(r.Context(), tenant, universeGroup, true, 500)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list marketops assets")
 			return
