@@ -126,7 +126,7 @@ func calculate(ctx context.Context, repo *postgres.Repository, tenant, symbol st
 	if importance != nil {
 		material = clamp50(*importance * 10)
 	}
-	return eeom.Evaluate(eeom.Input{DaysToEarnings: days, Technical: technical, RiskReward: rr, VC: vc, DOSM: dosm, Materiality: eeom.Component{Score: material, Available: true}, Sector: eeom.Component{Score: 50, Available: true, Reason: "sector breadth unavailable; neutral context withheld from posture"}}), nil
+	return eeom.Evaluate(eeom.Input{DaysToEarnings: days, Technical: technical, RiskReward: rr, VC: vc, DOSM: dosm, Materiality: eeom.Component{Score: material, Available: true}, Sector: eeom.Component{Reason: "sector breadth is not yet materialized"}}), nil
 }
 func direction(x string) string {
 	x = strings.ToLower(x)

@@ -405,7 +405,7 @@ if $write_mode; then
   fi
   docker compose --profile marketops-daily run --rm marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"
   docker compose --profile marketops-daily run --rm marketops-eroc-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"
-  docker compose --profile marketops-daily run --rm marketops-eeom-runner --tenant-id tenant-local --session-date ""
+  docker compose --profile marketops-daily run --rm marketops-eeom-runner --tenant-id tenant-local --session-date "$session_date"
   # EROC and tactical posture are intentionally evaluated after the state cohorts.
   # Refresh the research-only opportunity queue afterward so its exact-session
   # convergence contract can use those final daily algorithm results as well.
