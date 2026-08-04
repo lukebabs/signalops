@@ -1,0 +1,159 @@
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"github.com/lukebabs/signalops/internal/config"
+	"github.com/lukebabs/signalops/internal/marketops/eeom"
+	"github.com/lukebabs/signalops/internal/storage"
+	postgres "github.com/lukebabs/signalops/internal/storage/postgres"
+	"os"
+	"strings"
+	"time"
+)
+
+const eeomAlgorithmID = "signalops.algorithms.earnings_event_opportunity_v1"
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+func run(ctx context.Context) error {
+	app := config.Load()
+	tenant := flag.String("tenant-id", "tenant-local", "tenant")
+	session := flag.String("session-date", "", "completed date")
+	days := flag.Int("window-days", 30, "maximum earnings horizon")
+	dry := flag.Bool("dry-run", false, "calculate only")
+	flag.Parse()
+	if app.DatabaseURL == "" || app.TemporalDatabaseURL == "" {
+		return fmt.Errorf("both database URLs are required")
+	}
+	repo, err := postgres.OpenWithTemporal(ctx, app.DatabaseURL, app.TemporalDatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer repo.Close()
+	asof := time.Now().UTC()
+	if *session != "" {
+		asof, err = time.Parse("2006-01-02", *session)
+		if err != nil {
+			return err
+		}
+	}
+	events, err := repo.ListNormalizedEventLedger(ctx, storage.RawEventLedgerFilter{TenantID: *tenant, AppID: "marketops", Dataset: "market_event_calendar", Limit: 1000})
+	if err != nil {
+		return err
+	}
+	written := 0
+	for _, event := range events {
+		var p struct {
+			Symbol     string   `json:"symbol"`
+			EventType  string   `json:"event_type"`
+			EventDate  string   `json:"event_date"`
+			KnownAt    string   `json:"known_at"`
+			Importance *float64 `json:"importance"`
+		}
+		if json.Unmarshal(event.NormalizedPayload, &p) != nil || strings.ToLower(p.EventType) != "earnings" || p.Symbol == "" {
+			continue
+		}
+		date, err := time.Parse("2006-01-02", p.EventDate)
+		if err != nil {
+			continue
+		}
+		known := event.ObservationTime
+		if p.KnownAt != "" {
+			if x, e := time.Parse(time.RFC3339, p.KnownAt); e == nil {
+				known = x
+			}
+		}
+		if known.After(asof.Add(24 * time.Hour)) {
+			continue
+		}
+		d := int(date.Sub(asof.Truncate(24*time.Hour)).Hours() / 24)
+		if d < 0 || d > *days {
+			continue
+		}
+		result, err := calculate(ctx, repo, *tenant, strings.ToUpper(p.Symbol), asof, date, d, p.Importance)
+		if err != nil {
+			return err
+		}
+		payload, _ := json.Marshal(map[string]any{"algorithm_id": eeomAlgorithmID, "event_id": event.EventID, "event_known_at": known.Format(time.RFC3339), "event_time": event.ObservationTime.Format(time.RFC3339), "result": result})
+		if !*dry {
+			id := stable(*tenant, p.Symbol, event.EventID, asof.Format("2006-01-02"), eeom.ModelVersion)
+			if err := repo.UpsertMarketOpsEEOMResult(ctx, storage.MarketOpsEEOMResultRecord{ResultID: "eeom_" + id, TenantID: *tenant, Symbol: p.Symbol, EarningsEventID: event.EventID, EarningsDate: date, SessionDate: asof, ModelVersion: eeom.ModelVersion, Score: result.Score, Posture: result.Posture, Classification: result.Classification, EvidenceQuality: result.EvidenceQuality, Eligible: result.Eligible, ResultJSON: payload}); err != nil {
+				return err
+			}
+		}
+		written++
+	}
+	fmt.Printf("eeom completed results=%d dry_run=%t\n", written, *dry)
+	return nil
+}
+func calculate(ctx context.Context, repo *postgres.Repository, tenant, symbol string, session, event time.Time, days int, importance *float64) (eeom.Result, error) {
+	vals, err := repo.ListMarketOpsValuationResults(ctx, storage.MarketOpsValuationFilter{TenantID: tenant, Symbol: symbol, Limit: 20})
+	if err != nil {
+		return eeom.Result{}, err
+	}
+	var technical, vc, dosm eeom.Component
+	for _, x := range vals {
+		var trace map[string]any
+		_ = json.Unmarshal(x.ResultJSON, &trace)
+		switch x.AlgorithmID {
+		case "signalops.algorithms.tactical_market_posture_v1":
+			technical = eeom.Component{Score: 50 + x.Score/3*50, Available: true, Direction: direction(x.Classification)}
+		case "signalops.algorithms.valuation_composite_v3":
+			vc = eeom.Component{Score: x.Score * 10, Available: x.Eligible}
+		case "signalops.algorithms.distressed_opportunity_scoring_v3":
+			dosm = eeom.Component{Score: x.Score * 10, Available: x.Eligible}
+		}
+	}
+	rrs, err := repo.ListMarketOpsRiskRewardSnapshots(ctx, storage.MarketOpsRiskRewardSnapshotFilter{TenantID: tenant, Symbol: symbol, Limit: 10})
+	if err != nil {
+		return eeom.Result{}, err
+	}
+	rr := eeom.Component{}
+	if len(rrs) > 0 {
+		x := rrs[0]
+		rr = eeom.Component{Score: clamp50(x.TechnicalScore), Available: x.Eligible, Direction: direction(x.TechnicalDirection)}
+	}
+	material := 50.0 + float64(30-days)*50/30
+	if importance != nil {
+		material = clamp50(*importance * 10)
+	}
+	return eeom.Evaluate(eeom.Input{DaysToEarnings: days, Technical: technical, RiskReward: rr, VC: vc, DOSM: dosm, Materiality: eeom.Component{Score: material, Available: true}, Sector: eeom.Component{Score: 50, Available: true, Reason: "sector breadth unavailable; neutral context withheld from posture"}}), nil
+}
+func direction(x string) string {
+	x = strings.ToLower(x)
+	if strings.Contains(x, "bull") || strings.Contains(x, "constructive") {
+		return "bullish"
+	}
+	if strings.Contains(x, "bear") || strings.Contains(x, "caution") {
+		return "bearish"
+	}
+	return "neutral"
+}
+func clamp50(x float64) float64 {
+	if x >= 0 && x <= 1 {
+		return x * 100
+	}
+	if x >= -100 && x <= 100 {
+		return 50 + x/2
+	}
+	if x < 0 {
+		return 0
+	}
+	if x > 100 {
+		return 100
+	}
+	return x
+}
+func stable(p ...string) string {
+	h := sha256.Sum256([]byte(strings.Join(p, "|")))
+	return hex.EncodeToString(h[:])[:32]
+}

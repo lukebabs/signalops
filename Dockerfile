@@ -45,6 +45,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-i
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-valuation-runner ./cmd/marketops-valuation-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-tactical-valuation-runner ./cmd/marketops-tactical-valuation-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-eroc-runner ./cmd/marketops-eroc-runner
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-eeom-runner ./cmd/marketops-eeom-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-runner ./cmd/algorithm-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-adjudicator ./cmd/marketops-algorithm-adjudicator
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-asset-backfill-worker ./cmd/marketops-asset-backfill-worker
@@ -270,6 +271,10 @@ ENTRYPOINT ["/signalops-marketops-tactical-valuation-runner"]
 FROM gcr.io/distroless/static-debian12:nonroot AS marketops-eroc-runner
 COPY --from=build /out/signalops-marketops-eroc-runner /signalops-marketops-eroc-runner
 ENTRYPOINT ["/signalops-marketops-eroc-runner"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-eeom-runner
+COPY --from=build /out/signalops-marketops-eeom-runner /signalops-marketops-eeom-runner
+ENTRYPOINT ["/signalops-marketops-eeom-runner"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS algorithm-proposal-generator
 

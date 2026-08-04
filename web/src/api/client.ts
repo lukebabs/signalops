@@ -450,6 +450,7 @@ export const api = {
   getMarketOpsValuation: (tenantId: string, eligibleOnly = true) =>
     get<MarketOpsValuationResponse>(`/v1/tenants/${encodeURIComponent(tenantId)}/marketops/valuation`, { eligible_only: String(eligibleOnly) }, "no-store"),
   getMarketOpsEROC: (tenantId: string) => get<MarketOpsEROCResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/eroc", {}, "no-store"),
+  getMarketOpsEEOM: (tenantId: string) => get<any>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/earnings-opportunities", {}, "no-store"),
   getMarketOpsEROCOverview: (tenantId: string, window = "30_trade_days") => get<MarketOpsEROCOverviewResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/eroc/overview", { window }, "no-store"),
   getMarketOpsIntradayConditions: (tenantId: string, universeGroup = "all_active", symbol?: string) =>
     get<MarketOpsIntradayConditionsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/assets/" + (symbol ? encodeURIComponent(symbol) + "/" : "") + "intraday-conditions", { universe_group: universeGroup }, 'no-store'),
