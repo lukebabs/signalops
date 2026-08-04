@@ -71,6 +71,8 @@ func evaluateH001(in inputSet) evaluation {
 	r := base(in)
 	rsi := requireFeature(&r, in, "rsi_14", nil)
 	coverage := requireFeature(&r, in, "surface_coverage_ratio", nil)
+	ivRV := findFeature(in, "iv_rv_ratio_20d", nil)
+	ivRegime := optionalTextFeature(in, "medium_term_iv_regime")
 	put30 := requireFeature(&r, in, "iv", dims("put", 30, .25))
 	put60 := requireFeature(&r, in, "iv", dims("put", 60, .25))
 	premium := requireFeature(&r, in, "extrinsic_premium", dims("put", 30, .25))
@@ -91,9 +93,12 @@ func evaluateH001(in inputSet) evaluation {
 	r.eligible = len(r.reasons) == 0 && !r.invalidated
 	if r.eligible {
 		r.triggered = value(rsi) >= 70 && value(coverage) >= .8 && change(t30) > .02 && change(t60) > .02 && change(tp) > 0 && value(oi) > 0 && change(to) > 0 && value(premium) >= 0 && value(put30) > 0 && value(put60) > 0
-		r.checks = map[string]any{"rsi_14": value(rsi), "surface_coverage_ratio": value(coverage), "put_iv_change_30d": change(t30), "put_iv_change_60d": change(t60), "premium_change": change(tp), "put_oi_change": value(oi)}
+		r.checks = map[string]any{"rsi_14": value(rsi), "surface_coverage_ratio": value(coverage), "iv_rv_ratio_20d": value(ivRV), "medium_term_iv_regime": textValue(ivRegime), "put_iv_change_30d": change(t30), "put_iv_change_60d": change(t60), "premium_change": change(tp), "put_oi_change": value(oi)}
 		r.magnitude = clamp((value(rsi)-70)/20 + math.Max(change(t30), 0)*5 + math.Max(change(t60), 0)*5)
-		r.corroboration, r.persistence, r.rarity = 1, .5, .5
+		r.corroboration, r.persistence, r.rarity = .75, .5, .5
+		if usable(ivRV.QualityState) && ivRV.NumericValue != nil && *ivRV.NumericValue >= 1.25 && usable(ivRegime.QualityState) && textValue(ivRegime) == "elevated_premium" {
+			r.corroboration = 1
+		}
 		if !r.triggered {
 			r.reasons = thresholdReasons(map[string]bool{"rsi_below_threshold": value(rsi) < 70, "surface_coverage_below_minimum": value(coverage) < .8, "put_iv_not_expanding": change(t30) <= .02 || change(t60) <= .02, "premium_not_expanding": change(tp) <= 0, "put_oi_not_increasing": value(oi) <= 0 || change(to) <= 0})
 		}
@@ -189,6 +194,21 @@ func requireFeature(r *evaluation, in inputSet, key string, dimensions map[strin
 	return storage.MarketOpsFeatureObservationRecord{}
 }
 
+func requireTextFeature(r *evaluation, in inputSet, key string) storage.MarketOpsFeatureObservationRecord {
+	for _, item := range in.observations {
+		if item.FeatureKey == key && dimensionsMatch(item.DimensionsJSON, nil) {
+			if !usable(item.QualityState) || item.TextValue == nil {
+				r.reasons = append(r.reasons, "unusable_feature:"+key+":"+item.QualityState)
+				return item
+			}
+			r.featureIDs = append(r.featureIDs, item.FeatureObservationID)
+			return item
+		}
+	}
+	r.reasons = append(r.reasons, "missing_feature:"+key)
+	return storage.MarketOpsFeatureObservationRecord{}
+}
+
 func requireAnyOptionFeature(r *evaluation, in inputSet, key string) storage.MarketOpsFeatureObservationRecord {
 	for _, optionType := range []string{"put", "call"} {
 		item := findFeature(in, key, dims(optionType, 30, .25))
@@ -265,6 +285,13 @@ func value(v storage.MarketOpsFeatureObservationRecord) float64 {
 	}
 	return *v.NumericValue
 }
+func textValue(v storage.MarketOpsFeatureObservationRecord) string {
+	if v.TextValue == nil {
+		return ""
+	}
+	return *v.TextValue
+}
+
 func change(v storage.MarketOpsStateTransitionRecord) float64 {
 	if v.TransitionValue == nil {
 		return 0

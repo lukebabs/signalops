@@ -70,6 +70,7 @@ var g144FeatureSpecs = []featureSpec{
 	{Key: "iv_change_5d", Domain: "implied_volatility", Title: "5-session normalized-cell IV change", Unit: "decimal", RequiredInputs: []string{"options.implied_volatility", "prior_options.implied_volatility"}, Calculation: map[string]any{"operator": "surface_cell_absolute_difference", "lookback_sessions": 5}},
 	{Key: "iv_minus_rv_20d", Domain: "implied_volatility", Title: "30-DTE ATM IV less 20-session realized volatility", Unit: "decimal", RequiredInputs: []string{"atm_iv_30d", "rv_20d"}, Calculation: map[string]any{"operator": "absolute_difference"}},
 	{Key: "iv_rv_ratio_20d", Domain: "implied_volatility", Title: "30-DTE ATM IV to 20-session realized-volatility ratio", Unit: "ratio", RequiredInputs: []string{"atm_iv_30d", "rv_20d"}, Calculation: map[string]any{"operator": "ratio"}},
+	{Key: "medium_term_iv_regime", Domain: "implied_volatility", Title: "30-90-DTE implied-volatility regime", RequiredInputs: []string{"atm_iv_30d", "atm_iv_60d", "atm_iv_90d", "iv_rv_ratio_20d"}, Calculation: map[string]any{"operator": "iv_rv_band_with_medium_term_curve_coverage", "elevated_min_ratio": 1.25, "neutral_min_ratio": .85, "neutral_max_ratio": 1.15, "minimum_usable_atm_cells": 2}},
 	{Key: "term_structure_state", Domain: "volatility_surface", Title: "30/60/90-DTE term-structure state", RequiredInputs: []string{"atm_iv_30d", "atm_iv_60d", "atm_iv_90d"}, Calculation: map[string]any{"operator": "classified_curve_state", "flat_tolerance": 0.0025}},
 	{Key: "premium_change_1d", Domain: "option_premium", Title: "1-session normalized-cell premium change", Unit: "currency", RequiredInputs: []string{"options.bid", "options.ask", "prior_options.bid", "prior_options.ask"}, Calculation: map[string]any{"operator": "surface_cell_midpoint_absolute_difference", "lookback_sessions": 1}},
 	{Key: "premium_change_5d", Domain: "option_premium", Title: "5-session normalized-cell premium change", Unit: "currency", RequiredInputs: []string{"options.bid", "options.ask", "prior_options.bid", "prior_options.ask"}, Calculation: map[string]any{"operator": "surface_cell_midpoint_absolute_difference", "lookback_sessions": 5}},
@@ -91,7 +92,7 @@ func FeatureDefinitions(tenantID string) []storage.MarketOpsFeatureDefinitionRec
 		}
 		quality, _ := json.Marshal(policy)
 		valueType := "numeric"
-		if spec.Key == "oi_quality_state" || spec.Key == "term_structure_state" || spec.Key == "earnings_window_state" {
+		if spec.Key == "oi_quality_state" || spec.Key == "term_structure_state" || spec.Key == "earnings_window_state" || spec.Key == "medium_term_iv_regime" {
 			valueType = "text"
 		}
 		definitions = append(definitions, storage.MarketOpsFeatureDefinitionRecord{

@@ -112,6 +112,31 @@ func calculate(ctx context.Context, repo *postgres.Repository, tenant, symbol st
 			dosm = eeom.Component{Score: x.Score * 10, Available: x.Eligible}
 		}
 	}
+	options := eeom.Component{}
+	observations, err := repo.ListMarketOpsFeatureObservations(ctx, storage.MarketOpsFeatureObservationFilter{TenantID: tenant, AppID: "marketops", Symbol: symbol, Limit: 500})
+	if err != nil {
+		return eeom.Result{}, err
+	}
+	var ivRV *float64
+	regime := ""
+	for _, observation := range observations {
+		if observation.QualityState != storage.MarketOpsQualityUsable && observation.QualityState != storage.MarketOpsQualityUsableWithWarning {
+			continue
+		}
+		if observation.FeatureKey == "iv_rv_ratio_20d" && observation.NumericValue != nil && ivRV == nil {
+			ivRV = observation.NumericValue
+		}
+		if observation.FeatureKey == "medium_term_iv_regime" && observation.TextValue != nil && regime == "" {
+			regime = *observation.TextValue
+		}
+	}
+	if ivRV != nil && regime != "" {
+		options = eeom.Component{Score: 50, Available: true, Reason: "30-90 DTE IV regime: " + regime}
+		if regime == "elevated_premium" && technical.Direction != "" && technical.Direction != "neutral" {
+			options.Score, options.Direction = 60, technical.Direction
+			options.Reason = "30-90 DTE IV premium corroborates the independently observed " + technical.Direction + " technical posture"
+		}
+	}
 	rrs, err := repo.ListMarketOpsRiskRewardSnapshots(ctx, storage.MarketOpsRiskRewardSnapshotFilter{TenantID: tenant, Symbol: symbol, Limit: 10})
 	if err != nil {
 		return eeom.Result{}, err
@@ -125,7 +150,7 @@ func calculate(ctx context.Context, repo *postgres.Repository, tenant, symbol st
 	if importance != nil {
 		material = clamp50(*importance * 10)
 	}
-	return eeom.Evaluate(eeom.Input{DaysToEarnings: days, Technical: technical, RiskReward: rr, VC: vc, DOSM: dosm, Materiality: eeom.Component{Score: material, Available: true}}), nil
+	return eeom.Evaluate(eeom.Input{DaysToEarnings: days, Technical: technical, Options: options, RiskReward: rr, VC: vc, DOSM: dosm, Materiality: eeom.Component{Score: material, Available: true}}), nil
 }
 func direction(x string) string {
 	x = strings.ToLower(x)

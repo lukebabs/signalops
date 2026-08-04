@@ -307,10 +307,16 @@ func executeRiskReward(ctx context.Context, repo Repository, cfg Config, metrics
 				input := map[string]any{"quality_state": row.QualityState, "as_of_time": row.AsOfTime.UTC().Format(time.RFC3339Nano), "feature_observation_id": row.FeatureObservationID, "source_event_ids": row.SourceEventIDs}
 				if row.NumericValue != nil {
 					input["value"] = *row.NumericValue
+				} else if row.TextValue != nil {
+					input["value"] = *row.TextValue
 				}
 				inputValues[row.FeatureKey] = input
 				if row.NumericValue != nil && (row.QualityState == storage.MarketOpsQualityUsable || row.QualityState == storage.MarketOpsQualityUsableWithWarning) {
 					values[row.FeatureKey] = *row.NumericValue
+					ids = append(ids, row.FeatureObservationID)
+					refs = append(refs, row.SourceEventIDs...)
+				} else if row.TextValue != nil && (row.QualityState == storage.MarketOpsQualityUsable || row.QualityState == storage.MarketOpsQualityUsableWithWarning) {
+					values[row.FeatureKey] = *row.TextValue
 					ids = append(ids, row.FeatureObservationID)
 					refs = append(refs, row.SourceEventIDs...)
 				}
@@ -365,6 +371,7 @@ func executeRiskReward(ctx context.Context, repo Repository, cfg Config, metrics
 			if item.Payload == nil {
 				item.Payload = map[string]any{}
 			}
+			applyRiskRewardIVCorroboration(item.Payload, inputSnapshotsByID[item.SourceEventID], &item.Score)
 			if provenance := provenanceByID[item.SourceEventID]; len(provenance) > 0 {
 				item.Payload["input_provenance"] = provenance
 			}
@@ -897,4 +904,27 @@ func number(value any) (float64, bool) {
 func round(value float64, places int) float64 {
 	factor := math.Pow10(places)
 	return math.Round(value*factor) / factor
+}
+
+func applyRiskRewardIVCorroboration(payload map[string]any, input map[string]any, score *float64) {
+	direction, _ := payload["technical_direction"].(string)
+	features, _ := input["features"].(map[string]any)
+	regimeInput, _ := features["medium_term_iv_regime"].(map[string]any)
+	regime, _ := regimeInput["value"].(string)
+	if regime != "elevated_premium" || (direction != "bullish" && direction != "bearish") {
+		payload["iv_corroboration"] = map[string]any{"regime": regime, "applied": false, "reason": "requires_elevated_iv_and_existing_technical_direction"}
+		return
+	}
+	technical, ok := number(payload["technical_score"])
+	if !ok {
+		return
+	}
+	adjustment := 10.0
+	if direction == "bearish" {
+		adjustment = -10
+	}
+	technical = math.Max(-100, math.Min(100, technical+adjustment))
+	payload["technical_score"] = technical
+	payload["iv_corroboration"] = map[string]any{"regime": regime, "applied": true, "adjustment": adjustment, "base_technical_score": technical - adjustment, "final_technical_score": technical}
+	*score = math.Abs(technical) / 100
 }

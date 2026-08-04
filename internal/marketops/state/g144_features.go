@@ -10,7 +10,7 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-const totalFeatureSlots = 75
+const totalFeatureSlots = 76
 
 func g144UnderlyingFeatures(history []equityPoint, index int) []featureValue {
 	return []featureValue{
@@ -191,14 +191,41 @@ func crossDomainG144Features(values []featureValue) []featureValue {
 		return []featureValue{
 			missingFeatureWithDimensions("iv_minus_rv_20d", nil, "missing_usable_iv_or_realized_volatility", nil, rv.EventIDs, atm.ArtifactIDs),
 			missingFeatureWithDimensions("iv_rv_ratio_20d", nil, "missing_usable_iv_or_realized_volatility", nil, rv.EventIDs, atm.ArtifactIDs),
+			mediumTermIVRegime(values, nil),
 		}
 	}
 	spread := usableNumeric("iv_minus_rv_20d", round(*atm.Numeric-*rv.Numeric, 8), rv.EventIDs, atm.ArtifactIDs, map[string]any{"iv_feature": "atm_iv_30d", "rv_feature": "rv_20d"})
 	if *rv.Numeric <= 0 {
-		return []featureValue{spread, missingFeatureWithDimensions("iv_rv_ratio_20d", nil, "non_positive_realized_volatility", nil, rv.EventIDs, atm.ArtifactIDs)}
+		return []featureValue{spread, missingFeatureWithDimensions("iv_rv_ratio_20d", nil, "non_positive_realized_volatility", nil, rv.EventIDs, atm.ArtifactIDs), mediumTermIVRegime(values, nil)}
 	}
 	ratio := usableNumeric("iv_rv_ratio_20d", round(*atm.Numeric / *rv.Numeric, 8), rv.EventIDs, atm.ArtifactIDs, map[string]any{"iv_feature": "atm_iv_30d", "rv_feature": "rv_20d", "source_refs": refs})
-	return []featureValue{spread, ratio}
+	return []featureValue{spread, ratio, mediumTermIVRegime(values, ratio.Numeric)}
+}
+
+// mediumTermIVRegime summarizes the 30/60/90-DTE curve without asserting a
+// directional outcome. Two usable ATM cells and the 30-DTE IV/RV ratio are
+// required so unavailable coverage never becomes a neutral regime.
+func mediumTermIVRegime(values []featureValue, ratio *float64) featureValue {
+	coverage, refs := 0, []string{}
+	for _, key := range []string{"atm_iv_30d", "atm_iv_60d", "atm_iv_90d"} {
+		value, ok := findUsableNumericValue(values, key, nil)
+		if ok {
+			coverage++
+			refs = append(refs, value.ArtifactIDs...)
+		}
+	}
+	if ratio == nil || coverage < 2 {
+		return missingFeatureWithDimensions("medium_term_iv_regime", nil, "insufficient_medium_term_iv_coverage", map[string]any{"usable_atm_cells": coverage, "required_atm_cells": 2, "requires_iv_rv_ratio_20d": true}, nil, uniqueStrings(refs))
+	}
+	regime := "intermediate"
+	if *ratio >= 1.25 {
+		regime = "elevated_premium"
+	} else if *ratio >= .85 && *ratio <= 1.15 {
+		regime = "neutral"
+	} else if *ratio < .85 {
+		regime = "discounted"
+	}
+	return featureValue{Key: "medium_term_iv_regime", Text: &regime, Quality: storage.MarketOpsQualityUsable, QualityScore: 1, Details: map[string]any{"iv_rv_ratio_20d": round(*ratio, 8), "usable_atm_cells": coverage, "required_atm_cells": 2, "dte_span": "30-90", "elevated_min_ratio": 1.25, "neutral_min_ratio": .85, "neutral_max_ratio": 1.15}, ArtifactIDs: uniqueStrings(refs)}
 }
 
 func findUsableNumericValue(values []featureValue, key string, dimensions map[string]any) (featureValue, bool) {

@@ -105,7 +105,11 @@ func run(ctx context.Context) error {
 					break
 				}
 			}
-			result := eroc.Evaluate(eroc.Input{Closes: closes, Volumes: volumes, CallVolume: calls, PutVolume: puts})
+			ivRegime, err := ivRegimeForSession(ctx, repo, *tenant, symbol, session)
+			if err != nil {
+				return err
+			}
+			result := eroc.Evaluate(eroc.Input{Closes: closes, Volumes: volumes, CallVolume: calls, PutVolume: puts, IVRegime: ivRegime})
 			payload, _ := json.Marshal(result)
 			input, _ := json.Marshal(map[string]any{"close_count": len(closes), "call_volume": calls, "put_volume": puts, "session_date": session.Format("2006-01-02")})
 			id := stable(*tenant, symbol, session.Format("2006-01-02"), eroc.ModelVersion)
@@ -124,6 +128,19 @@ func run(ctx context.Context) error {
 	fmt.Printf("eroc completed assets=%d sessions=%d dry_run=%t\n", written, len(sessions), *dry)
 	return nil
 }
+func ivRegimeForSession(ctx context.Context, repo *postgres.Repository, tenant, symbol string, session time.Time) (string, error) {
+	rows, err := repo.ListMarketOpsFeatureObservations(ctx, storage.MarketOpsFeatureObservationFilter{TenantID: tenant, AppID: "marketops", Symbol: symbol, SessionStart: session, SessionEnd: session, Limit: 100})
+	if err != nil {
+		return "", err
+	}
+	for _, row := range rows {
+		if row.FeatureKey == "medium_term_iv_regime" && (row.QualityState == storage.MarketOpsQualityUsable || row.QualityState == storage.MarketOpsQualityUsableWithWarning) && row.TextValue != nil {
+			return *row.TextValue, nil
+		}
+	}
+	return "", nil
+}
+
 func requestedSessions(date string, backfill int, available map[string]struct{}) ([]time.Time, error) {
 	if backfill <= 0 {
 		if date == "" {

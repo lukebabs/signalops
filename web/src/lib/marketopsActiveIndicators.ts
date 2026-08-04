@@ -51,6 +51,10 @@ export function activeMarketOpsIndicators(
   const ivRvRatio = number(observations, 'iv_rv_ratio_20d');
   if (ivRvRatio !== null && ivRvRatio >= 1.25) out.push({ key: 'iv_premium', title: 'Implied-volatility premium', tone: 'neutral', detail: `30-day ATM IV is ${fixed(ivRvRatio, 2)}× 20-day realized volatility` });
 
+  const mediumTermIV = text(observations, 'medium_term_iv_regime');
+  if (mediumTermIV === 'elevated_premium') out.push({ key: 'medium_term_iv', title: 'Elevated 30–90 DTE IV', tone: 'neutral', detail: 'Medium-term IV is elevated relative to realized volatility (' + fixed(ivRvRatio === null ? 0 : ivRvRatio, 2) + '× IV/RV); context only until price/trend evidence confirms direction.' });
+  if (mediumTermIV === 'neutral') out.push({ key: 'medium_term_iv_neutral', title: 'Neutral 30–90 DTE IV', tone: 'neutral', detail: 'Medium-term IV is near realized volatility (' + fixed(ivRvRatio === null ? 0 : ivRvRatio, 2) + '× IV/RV).' });
+
   const term = text(observations, 'term_structure_state');
   if (term === 'backwardation') out.push({ key: 'iv_backwardation', title: 'IV term structure in backwardation', tone: 'negative', detail: 'Near-term ATM IV exceeds longer-dated IV' });
 
