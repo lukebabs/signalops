@@ -7901,3 +7901,14 @@ Rationale and expected outcome:
 - 2026-08-02: Corrected MarketOps intraday-breadth timestamp semantics. Explicit off-session reconciliation retains Massive's completed-EOD quote timestamp in the durable condition snapshot instead of the job time, so the dashboard cannot appear to extend past the last completed session. All 115 `all_active` snapshots were reconciled to the 2026-07-31 EOD record and verified against their persisted quote timestamps.
 
 - 2026-08-02: Hardened frontend deployment behavior for Vite route chunks. The app shell is not cached, hashed assets are immutable only when present, missing historical chunks return a true 404 rather than SPA HTML, and the browser performs one guarded reload on a Vite dynamic-import/preload mismatch. This prevents stale open tabs from repeatedly rendering `Failed to fetch dynamically imported module` after a deployment.
+
+## 2026-08-04 — MarketOps operational reconciliation and unified universe
+
+- Verified the canonical `marketops_universal_assets` projection contains 115 active, non-repeating tickers across `top50_megacap`, `sp100`, and `analyst_watchlist` memberships.
+- Corrected the shared `all_active` selector to deduplicate ticker memberships before limits are applied; this prevents overlapping groups from producing duplicate job work.
+- Removed the legacy 50-asset assertion from equity reconciliation. It now uses its explicit provider-request capacity and defaults to `all_active` when no scope is supplied.
+- Aligned post-close and algorithm-corroboration shell acquisition with the same deduplicated projection; rebuilt EOD/options/cohort/tactical/EROC/intraday/valuation job images and recreated the persistent asset-backfill worker.
+- Reconciled current Risk/Reward artifacts to 115/115 active assets. Fixed the Assets API result scope so all current summaries are returned rather than only the first 50 selected assets.
+- Reconciled Exhaustive Reversal to 115/115 active assets for the latest persisted session; prior July 31 coverage was 60 assets.
+- Reconciled Current Intraday Breadth for 115 assets. 93 completed-close snapshots are fresh and 22 are retained as provider-stale/unavailable; no stale provider record is relabeled as live data.
+- Changed MarketOps Dashboard default breadth window from 60 to 10 trading days, keeping 30 and 60 trading days as analyst-selectable context windows.

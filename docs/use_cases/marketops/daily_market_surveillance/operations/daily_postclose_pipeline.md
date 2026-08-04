@@ -93,3 +93,19 @@ Reconciliation reports are bounded JSON in the service journal. Inspect `marketo
 Live acceptance on 2026-07-21 repaired the 2026-07-20 session from 45 to 50 exact normalized equity symbols. The queue processed `PM`, `RY`, `BABA`, `NVS`, and `PANW` sequentially with five provider requests and five successful terminal tasks. The final ledger contained exactly one row per active symbol, included canonical `GOOGL`, and did not require `GOOG`.
 
 Do not use the legacy `massive-scheduler` interval loop for this workflow. It does not provide the normalization, G142 options, or ten-symbol cohort barriers.
+
+## Unified active-universe contract (2026-08-04)
+
+`marketops_universal_assets` is the sole authoritative MarketOps asset list. `all_active` means one active record per ticker across its membership groups, not a concatenation of the `top50_megacap`, `sp100`, and `analyst_watchlist` memberships. The shared repository selection applies deterministic ticker deduplication and ordering; at the time of this update it resolves to 115 active tickers.
+
+All scheduled and on-demand data workflows must obtain their universe through that shared selector or through the identical deduplicated SQL projection used by the post-close and algorithm-corroboration shell scripts. Explicit symbol lists remain valid only when an operator intentionally scopes a bounded run.
+
+The equity reconciliation path no longer assumes a 50-asset universe. It uses its declared provider-request capacity and fails explicitly if that capacity is insufficient, rather than silently selecting a legacy subset. Scheduler installation builds the EOD, options, cohort, tactical, Exhaustive Reversal, intraday, valuation, and asset-backfill job images together so each uses the same selector revision.
+
+## Reconciliation verification (2026-08-04)
+
+- Risk/Reward EOD results and snapshots: 115/115 active tickers for the latest persisted completed session.
+- Exhaustive Reversal: reconciled to 115/115 active tickers for 2026-08-03. The earlier 60-asset July 31 result set was legacy coverage, not the current universal state.
+- Intraday conditions: 115/115 snapshots persisted by the all-active monitor. 93 quotes were refreshed as non-stale completed-close observations; 22 remain provider-stale and are intentionally shown as unavailable rather than as current intraday evidence.
+
+Dashboard breadth views are read-only projections of these persisted artifacts. The MarketOps dashboard defaults to 10 trading days to emphasize recent analyst context; 30- and 60-day windows remain available.

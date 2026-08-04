@@ -55,3 +55,9 @@ Do not bypass the capture barrier or manually publish downstream results. The re
 ## Related incident
 
 The 2026-07-31 post-close service also ended non-zero after downstream work because the Risk/Reward retention script was not executable. That issue is resolved: the script is executable and is invoked with `bash`. It is documented separately in `marketops-eod-retention-permission-incident-2026-07-31.md`.
+
+## Follow-up: unified selection remediation (2026-08-04)
+
+A subsequent Exhaustive Reversal reconciliation exposed an additional selection inconsistency: an older job image iterated 161 membership records while the authoritative database projection held 115 unique active tickers. This was membership duplication across universe groups, not 161 unique assets.
+
+The shared `ListMarketOpsAssets(..., "all_active", ...)` selector now scopes and deduplicates by ticker before applying its limit. The post-close and algorithm-corroboration scripts use the same deterministic ticker projection. The affected job images and persistent asset-backfill worker were rebuilt. The post-remediation canonical count is 115, and Exhaustive Reversal verified 115/115 current result rows.
