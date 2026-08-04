@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/lukebabs/signalops/internal/adapters/marketdata/fmp"
 	"github.com/lukebabs/signalops/internal/config"
 	"github.com/lukebabs/signalops/internal/marketops/eeom"
 	"github.com/lukebabs/signalops/internal/storage"
@@ -46,53 +47,51 @@ func run(ctx context.Context) error {
 			return err
 		}
 	}
-	events, err := repo.ListNormalizedEventLedger(ctx, storage.RawEventLedgerFilter{TenantID: *tenant, AppID: "marketops", Dataset: "market_event_calendar", Limit: 1000})
+	calendarClient, err := fmp.NewClient(fmp.LoadClientConfigFromEnv())
 	if err != nil {
 		return err
 	}
+	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, "all_active", true, 200)
+	if err != nil {
+		return err
+	}
+	active := map[string]bool{}
+	for _, asset := range assets {
+		active[strings.ToUpper(asset.Ticker)] = true
+	}
+	events, err := calendarClient.GetEarningsCalendar(ctx, asof, asof.AddDate(0, 0, *days))
+	if err != nil {
+		return fmt.Errorf("fetch FMP earnings calendar: %w", err)
+	}
 	written := 0
 	for _, event := range events {
-		var p struct {
-			Symbol     string   `json:"symbol"`
-			EventType  string   `json:"event_type"`
-			EventDate  string   `json:"event_date"`
-			KnownAt    string   `json:"known_at"`
-			Importance *float64 `json:"importance"`
-		}
-		if json.Unmarshal(event.NormalizedPayload, &p) != nil || strings.ToLower(p.EventType) != "earnings" || p.Symbol == "" {
+		symbol := strings.ToUpper(event.Symbol)
+		if !active[symbol] {
 			continue
 		}
-		date, err := time.Parse("2006-01-02", p.EventDate)
-		if err != nil {
-			continue
-		}
-		known := event.ObservationTime
-		if p.KnownAt != "" {
-			if x, e := time.Parse(time.RFC3339, p.KnownAt); e == nil {
-				known = x
-			}
-		}
-		if known.After(asof.Add(24 * time.Hour)) {
+		date, parseErr := time.Parse("2006-01-02", event.Date)
+		if parseErr != nil {
 			continue
 		}
 		d := int(date.Sub(asof.Truncate(24*time.Hour)).Hours() / 24)
 		if d < 0 || d > *days {
 			continue
 		}
-		result, err := calculate(ctx, repo, *tenant, strings.ToUpper(p.Symbol), asof, date, d, p.Importance)
-		if err != nil {
-			return err
+		eventID := "fmp_earnings_" + stable(*tenant, symbol, event.Date)
+		result, calcErr := calculate(ctx, repo, *tenant, symbol, asof, date, d, nil)
+		if calcErr != nil {
+			return calcErr
 		}
-		payload, _ := json.Marshal(map[string]any{"algorithm_id": eeomAlgorithmID, "event_id": event.EventID, "event_known_at": known.Format(time.RFC3339), "event_time": event.ObservationTime.Format(time.RFC3339), "result": result})
+		payload, _ := json.Marshal(map[string]any{"algorithm_id": eeomAlgorithmID, "calendar_provider": "fmp", "event_id": eventID, "calendar_retrieved_at": time.Now().UTC().Format(time.RFC3339), "calendar_record": event, "result": result})
 		if !*dry {
-			id := stable(*tenant, p.Symbol, event.EventID, asof.Format("2006-01-02"), eeom.ModelVersion)
-			if err := repo.UpsertMarketOpsEEOMResult(ctx, storage.MarketOpsEEOMResultRecord{ResultID: "eeom_" + id, TenantID: *tenant, Symbol: p.Symbol, EarningsEventID: event.EventID, EarningsDate: date, SessionDate: asof, ModelVersion: eeom.ModelVersion, Score: result.Score, Posture: result.Posture, Classification: result.Classification, EvidenceQuality: result.EvidenceQuality, Eligible: result.Eligible, ResultJSON: payload}); err != nil {
+			id := stable(*tenant, symbol, eventID, asof.Format("2006-01-02"), eeom.ModelVersion)
+			if err := repo.UpsertMarketOpsEEOMResult(ctx, storage.MarketOpsEEOMResultRecord{ResultID: "eeom_" + id, TenantID: *tenant, Symbol: symbol, EarningsEventID: eventID, EarningsDate: date, SessionDate: asof, ModelVersion: eeom.ModelVersion, Score: result.Score, Posture: result.Posture, Classification: result.Classification, EvidenceQuality: result.EvidenceQuality, Eligible: result.Eligible, ResultJSON: payload}); err != nil {
 				return err
 			}
 		}
 		written++
 	}
-	fmt.Printf("eeom completed results=%d dry_run=%t\n", written, *dry)
+	fmt.Printf("eeom completed provider=fmp calendar_events=%d results=%d fmp_calls=%d dry_run=%t\n", len(events), written, calendarClient.Calls(), *dry)
 	return nil
 }
 func calculate(ctx context.Context, repo *postgres.Repository, tenant, symbol string, session, event time.Time, days int, importance *float64) (eeom.Result, error) {
@@ -126,7 +125,7 @@ func calculate(ctx context.Context, repo *postgres.Repository, tenant, symbol st
 	if importance != nil {
 		material = clamp50(*importance * 10)
 	}
-	return eeom.Evaluate(eeom.Input{DaysToEarnings: days, Technical: technical, RiskReward: rr, VC: vc, DOSM: dosm, Materiality: eeom.Component{Score: material, Available: true}, Sector: eeom.Component{Reason: "sector breadth is not yet materialized"}}), nil
+	return eeom.Evaluate(eeom.Input{DaysToEarnings: days, Technical: technical, RiskReward: rr, VC: vc, DOSM: dosm, Materiality: eeom.Component{Score: material, Available: true}}), nil
 }
 func direction(x string) string {
 	x = strings.ToLower(x)

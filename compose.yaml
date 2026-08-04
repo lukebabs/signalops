@@ -262,6 +262,8 @@ services:
     environment:
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+      SIGNALOPS_FMP_BASE_URL: ${SIGNALOPS_FMP_BASE_URL:-}
+      SIGNALOPS_FMP_API_KEY: ${SIGNALOPS_FMP_API_KEY:-${fmp_apikey:-}}
 
   massive-puller:
     profiles: ["massive-pull"]

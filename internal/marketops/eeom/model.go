@@ -14,8 +14,8 @@ type Component struct {
 	Reason          string  `json:"reason,omitempty"`
 }
 type Input struct {
-	DaysToEarnings                                                int
-	Technical, Options, RiskReward, VC, DOSM, Materiality, Sector Component
+	DaysToEarnings                                        int
+	Technical, Options, RiskReward, VC, DOSM, Materiality Component
 }
 type Result struct {
 	Score           float64              `json:"score"`
@@ -29,7 +29,7 @@ type Result struct {
 }
 
 func Evaluate(in Input) Result {
-	components := map[string]Component{"technical": in.Technical, "options": in.Options, "risk_reward": in.RiskReward, "vc": in.VC, "dosm": in.DOSM, "event_materiality": in.Materiality, "sector": in.Sector}
+	components := map[string]Component{"technical": in.Technical, "options": in.Options, "risk_reward": in.RiskReward, "vc": in.VC, "dosm": in.DOSM, "event_materiality": in.Materiality}
 	weights := weightsFor(in.DaysToEarnings)
 	withheld := []string{}
 	total := 0.0
@@ -59,7 +59,7 @@ func Evaluate(in Input) Result {
 			score += c.Score * c.EffectiveWeight / 100
 		}
 	}
-	r.Score = round(score)
+	r.Score = round(score / 10)
 	r.EvidenceQuality = "complete"
 	if len(withheld) > 0 {
 		r.EvidenceQuality = "partial"
@@ -70,15 +70,15 @@ func Evaluate(in Input) Result {
 }
 func weightsFor(days int) map[string]float64 {
 	if days >= 21 {
-		return map[string]float64{"technical": 25, "options": 20, "risk_reward": 15, "vc": 15, "dosm": 10, "event_materiality": 10, "sector": 5}
+		return map[string]float64{"technical": 25, "options": 20, "risk_reward": 15, "vc": 15, "dosm": 10, "event_materiality": 15}
 	}
 	if days >= 10 {
-		return map[string]float64{"technical": 26, "options": 21, "risk_reward": 15, "vc": 13, "dosm": 10, "event_materiality": 10, "sector": 5}
+		return map[string]float64{"technical": 26, "options": 21, "risk_reward": 15, "vc": 13, "dosm": 10, "event_materiality": 15}
 	}
 	if days >= 5 {
-		return map[string]float64{"technical": 28, "options": 22, "risk_reward": 15, "vc": 10, "dosm": 10, "event_materiality": 10, "sector": 5}
+		return map[string]float64{"technical": 28, "options": 22, "risk_reward": 15, "vc": 10, "dosm": 10, "event_materiality": 15}
 	}
-	return map[string]float64{"technical": 30, "options": 25, "risk_reward": 15, "vc": 10, "dosm": 10, "event_materiality": 5, "sector": 5}
+	return map[string]float64{"technical": 30, "options": 25, "risk_reward": 15, "vc": 10, "dosm": 10, "event_materiality": 10}
 }
 func posture(c map[string]Component) string {
 	up, down := 0.0, 0.0
@@ -109,19 +109,19 @@ func classification(score float64, posture string, days int, quality string) str
 	if quality == "withheld" {
 		return "informational_only"
 	}
-	if score >= 80 && posture != "mixed" {
+	if score >= 8 && posture != "mixed" {
 		return "priority_a"
 	}
-	if score >= 65 {
+	if score >= 6.5 {
 		return "priority_b"
 	}
-	if score < 35 {
+	if score < 3.5 {
 		return "avoid"
 	}
 	if days <= 5 && posture == "mixed" {
 		return "await_validation"
 	}
-	if score >= 55 {
+	if score >= 5.5 {
 		return "distressed_inflection"
 	}
 	return "informational_only"

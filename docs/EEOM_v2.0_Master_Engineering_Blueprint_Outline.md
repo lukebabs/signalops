@@ -57,8 +57,6 @@ Options Opportunity Engine:
 ### Event
 - Rolling 30-day earnings calendar
 - Historical earnings volatility
-- Event timing
-- Sector context
 - Portfolio relevance
 
 ## Dynamic Weighting
@@ -77,7 +75,7 @@ VC/DOSM remain contextual.
 
 Risk / Reward Opportunity Probability (RROP)
 
-The score estimates the probability that the earnings event offers a favorable risk/reward profile.
+The setup-quality score is expressed on a 0.0–10.0 analyst scale; it measures the quality of available pre-earnings evidence.
 
 It does not predict:
 - EPS beat
