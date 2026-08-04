@@ -60,6 +60,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   syncratic: Sparkles,
   opportunities: Telescope,
   market_state: LineChart,
+  hypotheses: Lightbulb,
   access: ShieldCheck,
   settings: ShieldCheck,
 };
