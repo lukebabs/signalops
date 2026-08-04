@@ -1603,14 +1603,20 @@ func (r *Repository) ListMarketOpsAssets(ctx context.Context, tenantID string, u
 		universeGroup = "all_active"
 	}
 	rows, err := r.db.QueryContext(ctx, `
-SELECT tenant_id, app_id, domain, use_case, source_id, universe_group, CASE WHEN $2 = 'all_active' THEN row_number() OVER (ORDER BY rank ASC, ticker ASC)::int ELSE rank END AS rank, ticker, ticker_key,
+WITH scoped AS (
+  SELECT *, row_number() OVER (PARTITION BY ticker ORDER BY rank ASC, universe_group ASC) AS ticker_row
+  FROM marketops_universal_assets
+  WHERE tenant_id = $1
+    AND ($2 = 'all_active' OR universe_group = $2)
+    AND ($3 = false OR is_active = true)
+)
+SELECT tenant_id, app_id, domain, use_case, source_id, universe_group,
+  row_number() OVER (ORDER BY rank ASC, ticker ASC)::int AS rank, ticker, ticker_key,
   company, company_key, display_name, display_sector, asset_type, exchange, sector, sector_key, industry, industry_key,
   is_active, metadata, created_at, updated_at
-FROM marketops_universal_assets
-WHERE tenant_id = $1
-  AND ($2 = 'all_active' OR universe_group = $2)
-  AND ($3 = false OR is_active = true)
-ORDER BY rank ASC
+FROM scoped
+WHERE ticker_row = 1
+ORDER BY rank ASC, ticker ASC
 LIMIT $4`, strings.TrimSpace(tenantID), universeGroup, activeOnly, clampLimit(limit))
 	if err != nil {
 		return nil, fmt.Errorf("list marketops assets: %w", err)

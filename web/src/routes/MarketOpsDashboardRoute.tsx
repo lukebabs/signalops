@@ -19,7 +19,7 @@ export function MarketOpsDashboardRoute() {
   const tenantId = useTenant();
   const navigate = useNavigate();
   const [group, setGroup] = useState('all_active');
-  const [window, setWindow] = useState<MarketOpsSignalOverviewWindow>('60_trade_days');
+  const [window, setWindow] = useState<MarketOpsSignalOverviewWindow>('10_trade_days');
   const [drilldown, setDrilldown] = useState<{ title: string; members: MarketOpsSignalOverviewMember[] } | null>(null);
   const query = useMarketOpsSignalOverview(tenantId, group, window);
   const reversalQ = useQuery({ queryKey: ["marketops-eroc", tenantId], queryFn: () => api.getMarketOpsEROC(tenantId), refetchInterval: 5 * 60 * 1000 });

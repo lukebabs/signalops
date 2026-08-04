@@ -5,7 +5,7 @@ template_dir="$ROOT_DIR/deploy/systemd"
 config_base="${XDG_CONFIG_HOME:-${HOME}/.config}"
 unit_dir="$config_base/systemd/user"
 for command in docker systemctl sed install; do command -v "$command" >/dev/null || { printf 'required command not found: %s\n' "$command" >&2; exit 2; }; done
-docker compose --profile massive-pull --profile marketops-daily build massive-puller marketops-options-coverage-runner marketops-options-feature-materializer algorithm-runner marketops-intelligence-cohort-runner marketops-valuation-runner storage-monitor retention-governor cyberops-daily-feature-materializer administration-notification-recorder
+docker compose --profile massive-pull --profile marketops-daily build massive-puller marketops-options-coverage-runner marketops-options-feature-materializer algorithm-runner marketops-intelligence-cohort-runner marketops-valuation-runner marketops-tactical-valuation-runner marketops-eroc-runner marketops-intraday-monitor marketops-asset-backfill-worker storage-monitor retention-governor cyberops-daily-feature-materializer administration-notification-recorder
 mkdir -p "$unit_dir" "$ROOT_DIR/runtime/scheduled-jobs"
 for service in signalops-marketops-daily signalops-marketops-intraday signalops-marketops-fmp-continuation signalops-storage-monitor signalops-retention-governance; do sed "s|@WORKDIR@|$ROOT_DIR|g" "$template_dir/$service.service.in" > "$unit_dir/$service.service"; install -m 0644 "$template_dir/$service.timer" "$unit_dir/$service.timer"; done
 systemctl --user daemon-reload

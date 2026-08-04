@@ -237,7 +237,7 @@ done
 # stale environment variable from omitting a newly listed asset from options
 # capture or its downstream intelligence cohort.
 active_universe_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
-  "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active;")"
+  "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;")"
 [[ -n "$active_universe_symbols" ]] || { printf 'active equity universe is empty\n' >&2; exit 4; }
 IFS=',' read -r -a active_universe_array <<< "$active_universe_symbols"
 (( ${#active_universe_array[@]} >= minimum_equity_symbols )) || {
@@ -294,7 +294,7 @@ options_command=(docker compose --profile marketops-daily run --rm marketops-opt
 coverage_count() {
   local active_symbols
   active_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
-    "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active;")"
+    "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;")"
   [[ -n "$active_symbols" ]] || { printf 'active equity universe is empty\n' >&2; return 1; }
   docker compose exec -T timescaledb psql -U signalops -d signalops_temporal -Atc \
     "SELECT count(DISTINCT normalized_payload->>'symbol') FROM normalized_event_ledger WHERE tenant_id='tenant-local' AND source_id='src-massive' AND dataset='equity_eod_prices' AND normalized_payload->>'observation_date' = '$session_date' AND normalized_payload->>'symbol' = ANY(string_to_array('$active_symbols', ','));" | tr -d '[:space:]'

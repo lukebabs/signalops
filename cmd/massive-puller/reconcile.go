@@ -81,13 +81,13 @@ func runEquityReconciliation(
 		return report, errors.New("provider client and broker publisher are required for reconciliation writes")
 	}
 
-	assets, err := repo.ListMarketOpsAssets(ctx, cfg.TenantID, cfg.UniverseGroup, true, 50)
+	assets, err := repo.ListMarketOpsAssets(ctx, cfg.TenantID, cfg.UniverseGroup, true, cfg.MaxProviderRequests)
 	if err != nil {
 		return report, fmt.Errorf("load active equity universe: %w", err)
 	}
 	report.UniverseAssets = len(assets)
-	if len(assets) != 50 {
-		return report, fmt.Errorf("active universe %s contains %d assets; expected 50", cfg.UniverseGroup, len(assets))
+	if len(assets) == 0 {
+		return report, fmt.Errorf("active universe %s is empty", cfg.UniverseGroup)
 	}
 
 	now := time.Now().UTC()
@@ -416,7 +416,7 @@ func normalizeEquityReconciliationConfig(cfg equityReconciliationConfig) equityR
 	cfg.SourceID = strings.TrimSpace(cfg.SourceID)
 	cfg.UniverseGroup = strings.TrimSpace(cfg.UniverseGroup)
 	if cfg.UniverseGroup == "" {
-		cfg.UniverseGroup = "top50_megacap"
+		cfg.UniverseGroup = "all_active"
 	}
 	if cfg.MaxProviderAttempts <= 0 {
 		cfg.MaxProviderAttempts = 2
