@@ -165,9 +165,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    const manager = getUserManager();
+    // Clear the app-held session before navigating away. Some IdPs complete their
+    // logout redirect even when their browser SSO cookie remains, and without
+    // this step oidc-client-ts restores the cached user at `/`.
+    currentAccessToken = null;
+    userRef.current = null;
+    setUser(null);
     try {
-      currentAccessToken = null;
-      await getUserManager().signoutRedirect();
+      sessionStorage.removeItem("signalops.auth.redirectPath");
+      await manager.removeUser();
+      await manager.signoutRedirect();
     } catch (e) {
       setError(errMsg(e));
     }

@@ -11,7 +11,7 @@ export function createUserManager(): UserManager {
     authority: authConfig.issuer,
     client_id: authConfig.clientId,
     redirect_uri: `${currentOrigin()}/auth/callback`,
-    post_logout_redirect_uri: currentOrigin(),
+    post_logout_redirect_uri: `${currentOrigin()}/auth/signed-out`,
     silent_redirect_uri: `${currentOrigin()}/auth/silent-renew`,
     response_type: 'code',
     scope: 'openid profile email',
