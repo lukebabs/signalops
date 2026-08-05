@@ -32,6 +32,7 @@ import {
 import { useTenant } from '../auth/session';
 import type { AlgorithmResult, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOpsIntradayConditionSnapshot, MarketOpsRiskRewardSummary } from "../types";
 import { MARKETOPS_ASSET_QUICK_FILTERS, matchesAllMarketOpsAssetQuickFilters, matchesMarketOpsAssetQuickFilter, toggleMarketOpsAssetQuickFilter, type MarketOpsAssetQuickFilter } from '../lib/marketopsAssetQuickFilters';
+import { sortableTableHeaderButtonClass } from '../components/SortableTableHeader';
 
 // Read-only MarketOps asset universe (G071 frontend) + G128 per-asset options
 // intelligence panel. The universe table is backend data only; selecting a row
@@ -345,7 +346,7 @@ export function MarketOpsAssetsRoute() {
 }
 function SortableAssetHeader({ label, sortKey, activeSort, onSort, width, onResize, title }: { label: string; sortKey: AssetColumnKey; activeSort: { key: AssetSortKey; direction: 'asc' | 'desc' }; onSort: (key: AssetColumnKey) => void; width: number; onResize: (event: React.PointerEvent<HTMLButtonElement>, key: AssetColumnKey) => void; title?: string }) {
   const active = activeSort.key === sortKey;
-  return <th className="relative px-3 py-2" style={{ width }} aria-sort={active ? (activeSort.direction === "asc" ? "ascending" : "descending") : "none"} title={title}><button type="button" onClick={() => onSort(sortKey)} className="inline-flex max-w-full items-center gap-1 pr-1 hover:text-gray-800">{label}<span aria-hidden="true" className={active ? "text-brand-700" : "text-gray-300"}>{active ? (activeSort.direction === "asc" ? "↑" : "↓") : "↕"}</span></button><button type="button" aria-label={"Resize " + label + " column"} onPointerDown={(event) => onResize(event, sortKey)} className="absolute right-0 top-0 h-full w-2 cursor-col-resize touch-none border-r border-transparent hover:border-brand-500" /></th>;
+  return <th className="relative px-3 py-2" style={{ width }} aria-sort={active ? (activeSort.direction === "asc" ? "ascending" : "descending") : "none"} title={title}><button type="button" onClick={() => onSort(sortKey)} className={sortableTableHeaderButtonClass}>{label}<span aria-hidden="true" className={active ? "text-brand-700" : "text-gray-300"}>{active ? (activeSort.direction === "asc" ? "↑" : "↓") : "↕"}</span></button><button type="button" aria-label={"Resize " + label + " column"} onPointerDown={(event) => onResize(event, sortKey)} className="absolute right-0 top-0 h-full w-2 cursor-col-resize touch-none border-r border-transparent hover:border-brand-500" /></th>;
 }
 
 function AlgorithmResultLine({ result }: { result: AlgorithmResult }) {
