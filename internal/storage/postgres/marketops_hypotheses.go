@@ -135,7 +135,7 @@ WHERE ($1='' OR tenant_id=$1) AND ($2='' OR app_id=$2) AND ($3='' OR hypothesis_
 ORDER BY session_date DESC, hypothesis_key LIMIT $13`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID),
 		strings.TrimSpace(filter.HypothesisKey), strings.TrimSpace(filter.HypothesisVersion), strings.TrimSpace(filter.MarketStateID),
 		strings.TrimSpace(filter.AssetID), strings.ToUpper(strings.TrimSpace(filter.Symbol)), nullableBool(filter.Eligible),
-		nullableBool(filter.Triggered), nullableBool(filter.Invalidated), nullTime(filter.SessionStart), nullTime(filter.SessionEnd), clampLimit(filter.Limit))
+		nullableBool(filter.Triggered), nullableBool(filter.Invalidated), nullTime(filter.SessionStart), nullTime(filter.SessionEnd), clampHypothesisEvaluationLimit(filter.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list marketops hypothesis evaluations: %w", err)
 	}
@@ -177,6 +177,16 @@ func scanMarketOpsHypothesisEvaluation(scanner interface{ Scan(...any) error }) 
 		return storage.MarketOpsHypothesisEvaluationRecord{}, err
 	}
 	return record, nil
+}
+
+func clampHypothesisEvaluationLimit(limit int) int {
+	if limit <= 0 {
+		return 50
+	}
+	if limit > 600 {
+		return 600
+	}
+	return limit
 }
 
 func validateMarketOpsHypothesisDefinition(record storage.MarketOpsHypothesisDefinitionRecord) error {

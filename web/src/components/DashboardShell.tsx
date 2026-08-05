@@ -61,6 +61,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   opportunities: Telescope,
   market_state: LineChart,
   hypotheses: Lightbulb,
+  indicator_reel: Radar,
   access: ShieldCheck,
   settings: ShieldCheck,
 };

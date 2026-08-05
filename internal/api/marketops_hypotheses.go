@@ -16,7 +16,7 @@ func registerMarketOpsHypothesisRoutes(mux *http.ServeMux, queryRepository stora
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsHypothesisDefinitions(r.Context(), storage.MarketOpsHypothesisDefinitionFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), HypothesisVersion: strings.TrimSpace(r.URL.Query().Get("hypothesis_version")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), LifecycleStatus: strings.TrimSpace(r.URL.Query().Get("lifecycle_status")), Limit: queryLimit(r, 50)})
+		records, err := repo.ListMarketOpsHypothesisDefinitions(r.Context(), storage.MarketOpsHypothesisDefinitionFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), HypothesisVersion: strings.TrimSpace(r.URL.Query().Get("hypothesis_version")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), LifecycleStatus: strings.TrimSpace(r.URL.Query().Get("lifecycle_status")), Limit: hypothesisEvaluationLimit(r)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps hypothesis definitions")
 			return
@@ -61,7 +61,7 @@ func registerMarketOpsHypothesisRoutes(mux *http.ServeMux, queryRepository stora
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsHypothesisEvaluations(r.Context(), storage.MarketOpsHypothesisEvaluationFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), HypothesisVersion: strings.TrimSpace(r.URL.Query().Get("hypothesis_version")), MarketStateID: strings.TrimSpace(r.URL.Query().Get("market_state_id")), AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), Eligible: eligible, Triggered: triggered, Invalidated: invalidated, SessionStart: start, SessionEnd: end, Limit: queryLimit(r, 50)})
+		records, err := repo.ListMarketOpsHypothesisEvaluations(r.Context(), storage.MarketOpsHypothesisEvaluationFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), HypothesisVersion: strings.TrimSpace(r.URL.Query().Get("hypothesis_version")), MarketStateID: strings.TrimSpace(r.URL.Query().Get("market_state_id")), AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), Eligible: eligible, Triggered: triggered, Invalidated: invalidated, SessionStart: start, SessionEnd: end, Limit: hypothesisEvaluationLimit(r)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps hypothesis evaluations")
 			return
@@ -146,6 +146,18 @@ func hypothesisEvaluationResponses(records []storage.MarketOpsHypothesisEvaluati
 	}
 	return out
 }
+func hypothesisEvaluationLimit(r *http.Request) int {
+	raw := strings.TrimSpace(r.URL.Query().Get("limit"))
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 50
+	}
+	if value > 600 {
+		return 600
+	}
+	return value
+}
+
 func optionalBoolQuery(w http.ResponseWriter, r *http.Request, key string) (*bool, bool) {
 	raw := strings.TrimSpace(r.URL.Query().Get(key))
 	if raw == "" {
