@@ -13,6 +13,13 @@ import (
 	"time"
 )
 
+type HTTPError struct{ Status int }
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("massive request failed with status %d", e.Status)
+}
+func (e *HTTPError) StatusCode() int { return e.Status }
+
 const DefaultBaseURL = "https://api.massive.com"
 
 type ClientConfig struct {
@@ -226,7 +233,7 @@ func (c *Client) getJSONEndpoint(ctx context.Context, endpoint *url.URL, target 
 		return fmt.Errorf("read massive response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("massive request failed with status %d", resp.StatusCode)
+		return &HTTPError{Status: resp.StatusCode}
 	}
 	if err := json.Unmarshal(body, target); err != nil {
 		return fmt.Errorf("decode massive response: %w", err)

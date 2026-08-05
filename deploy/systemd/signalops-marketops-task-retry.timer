@@ -1,0 +1,11 @@
+[Unit]
+Description=Run SignalOps MarketOps governed task retries
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 18:30/15:00
+Timezone=America/New_York
+Persistent=true
+Unit=signalops-marketops-task-retry.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=SignalOps MarketOps governed task retry worker
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh marketops-task-retry "Weekdays every 15 minutes, 18:30-23:00" America/New_York @WORKDIR@/scripts/marketops_tactical_retry.sh
+TimeoutStartSec=30m
+Nice=10

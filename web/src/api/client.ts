@@ -310,6 +310,7 @@ export const api = {
   readyz: () => get<HealthResponse>('/readyz'),
   listRuns: (limit = 50) => get<SchedulerRunsResponse>('/v1/scheduler/runs', { limit }),
   listScheduledJobs: () => get<ScheduledJobsResponse>('/v1/administration/scheduled-jobs'),
+  listMarketOpsTasks: (tenantId: string) => get<{tasks:any[]}>("/v1/administration/marketops/tasks", { tenant_id: tenantId, limit: 200 }, "no-store"),
   listAdministrationNotifications: (tenantId: string) => get<AdministrationNotificationsResponse>("/v1/administration/notifications", { tenant_id: tenantId }),
   setAdministrationNotificationState: (id: string, state: { tenant_id: string; read: boolean; archived: boolean }) => post<void>(`/v1/administration/notifications/${encodeURIComponent(id)}/state`, state),
   getAdministrationSMTPSettings: (tenantId: string) => get<AdministrationSMTPSettingsResponse>('/v1/administration/notification-email', { tenant_id: tenantId }),

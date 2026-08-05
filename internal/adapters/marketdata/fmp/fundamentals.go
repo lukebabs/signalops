@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+type HTTPError struct{ Status int }
+
+func (e *HTTPError) Error() string   { return fmt.Sprintf("fmp request failed with status %d", e.Status) }
+func (e *HTTPError) StatusCode() int { return e.Status }
+
 const DefaultBaseURL = "https://financialmodelingprep.com"
 
 type ClientConfig struct {
@@ -140,7 +145,7 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, target any)
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("fmp request failed with status %d", resp.StatusCode)
+		return &HTTPError{Status: resp.StatusCode}
 	}
 	if err := json.Unmarshal(body, target); err != nil {
 		return fmt.Errorf("decode fmp response: %w", err)

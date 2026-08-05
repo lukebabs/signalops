@@ -85,6 +85,7 @@ export const queryKeys = {
   readyz: ['readyz'] as const,
   runs: (limit: number) => ['runs', limit] as const,
   scheduledJobs: ['scheduled-jobs'] as const,
+  marketOpsTasks: (tenantId: string) => ["marketops-tasks", tenantId] as const,
   administrationNotifications: (tenantId: string) => ['administration-notifications', tenantId] as const,
   administrationSMTPSettings: (tenantId: string) => ["administration-smtp-settings", tenantId] as const,
   storageOverview: ["storage-overview"] as const,
@@ -246,6 +247,7 @@ export function useMutateAdministrationSMTPSettings(tenantId: string) { const cl
 export function useMutateAdministrationNotificationState(tenantId: string) { const client = useQueryClient(); return useMutation({ mutationFn: ({ id, read, archived }: { id: string; read: boolean; archived: boolean }) => api.setAdministrationNotificationState(id, { tenant_id: tenantId, read, archived }), onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.administrationNotifications(tenantId) }) }); }
 
 export function useScheduledJobs() { return useQuery({ queryKey: queryKeys.scheduledJobs, queryFn: api.listScheduledJobs, refetchInterval: 15000 }); }
+export function useMarketOpsTasks(tenantId: string) { return useQuery({ queryKey: queryKeys.marketOpsTasks(tenantId), queryFn: () => api.listMarketOpsTasks(tenantId), refetchInterval: 15000 }); }
 export function useStorageOverview() { return useQuery({ queryKey: queryKeys.storageOverview, queryFn: api.getStorageOverview, refetchInterval: 15 * 60 * 1000 }); }
 export function useStorageAnalysis(window = "90d") { return useQuery({ queryKey: queryKeys.storageAnalysis(window), queryFn: () => api.getStorageAnalysis(window), refetchInterval: 15 * 60 * 1000 }); }
 export function useRetentionGovernance() { return useQuery({ queryKey: queryKeys.retentionGovernance, queryFn: api.getRetentionGovernance, refetchInterval: 15 * 60 * 1000 }); }

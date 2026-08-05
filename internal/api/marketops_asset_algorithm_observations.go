@@ -62,6 +62,24 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo s
 				activeSymbols[strings.ToUpper(asset.Ticker)] = struct{}{}
 			}
 		}
+		// Risk/Reward evolution requires at least two persisted sessions per asset.
+		// Do not derive it from a globally capped raw-result list: once the active
+		// universe exceeds half that cap, valid prior-session results are omitted.
+		if snapshots, ok := any(repo).(storage.MarketOpsRiskRewardSnapshotRepository); ok {
+			limit := len(activeSymbols) * 6
+			if limit < 1000 {
+				limit = 1000
+			}
+			items, err := snapshots.ListMarketOpsRiskRewardSnapshots(r.Context(), storage.MarketOpsRiskRewardSnapshotFilter{
+				TenantID: tenant, Symbols: mapKeys(activeSymbols), SessionStart: time.Now().UTC().AddDate(0, 0, -21), EligibleOnly: true, Limit: limit,
+			})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to list risk/reward snapshots")
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"summaries": curateRiskRewardSnapshotSummaries(items, activeSymbols)})
+			return
+		}
 		results, err := reader.ListAlgorithmResults(r.Context(), storage.AlgorithmResultFilter{TenantID: tenant, AlgorithmID: riskRewardAlgorithmID, Limit: 200})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list risk/reward results")
@@ -338,4 +356,58 @@ func numberAny(value any) (float64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func mapKeys(values map[string]struct{}) []string {
+	items := make([]string, 0, len(values))
+	for value := range values {
+		items = append(items, value)
+	}
+	return items
+}
+
+func curateRiskRewardSnapshotSummaries(snapshots []storage.MarketOpsRiskRewardSnapshotRecord, activeSymbols map[string]struct{}) []map[string]any {
+	bySymbol := map[string]map[string]storage.MarketOpsRiskRewardSnapshotRecord{}
+	for _, snapshot := range snapshots {
+		symbol := strings.ToUpper(strings.TrimSpace(snapshot.Symbol))
+		if _, active := activeSymbols[symbol]; !active || snapshot.SessionDate.IsZero() || !snapshot.Eligible {
+			continue
+		}
+		tradeDate := snapshot.SessionDate.UTC().Format("2006-01-02")
+		if bySymbol[symbol] == nil {
+			bySymbol[symbol] = map[string]storage.MarketOpsRiskRewardSnapshotRecord{}
+		}
+		if current, exists := bySymbol[symbol][tradeDate]; !exists || betterRiskRewardSnapshot(snapshot, current) {
+			bySymbol[symbol][tradeDate] = snapshot
+		}
+	}
+	items := make([]map[string]any, 0, len(bySymbol))
+	for symbol, byDate := range bySymbol {
+		dates := make([]string, 0, len(byDate))
+		for date := range byDate {
+			dates = append(dates, date)
+		}
+		sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+		latest := byDate[dates[0]]
+		item := map[string]any{"ticker": symbol, "trade_date": dates[0], "direction": latest.TechnicalDirection, "score": latest.TechnicalScore, "confidence": latest.Confidence, "risk_level": latest.RiskLevel, "research_only": true}
+		if len(dates) > 1 {
+			previous := byDate[dates[1]]
+			item["previous_trade_date"] = dates[1]
+			item["previous_score"] = previous.TechnicalScore
+			item["score_change"] = latest.TechnicalScore - previous.TechnicalScore
+		}
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool { return fmt.Sprint(items[i]["ticker"]) < fmt.Sprint(items[j]["ticker"]) })
+	return items
+}
+
+func betterRiskRewardSnapshot(candidate, current storage.MarketOpsRiskRewardSnapshotRecord) bool {
+	if candidate.UsableInputCount != current.UsableInputCount {
+		return candidate.UsableInputCount > current.UsableInputCount
+	}
+	if candidate.Confidence != current.Confidence {
+		return candidate.Confidence > current.Confidence
+	}
+	return candidate.CreatedAt.After(current.CreatedAt)
 }

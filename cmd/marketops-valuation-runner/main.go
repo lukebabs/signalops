@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -145,7 +146,12 @@ func run(ctx context.Context, logger *slog.Logger) error {
 			fmpFailures++
 			logger.Warn("financial derivation unavailable", "symbol", asset.Ticker, "error", err)
 			if !*dry {
-				_ = repo.UpsertMarketOpsFMPPollState(ctx, storage.MarketOpsFMPPollState{TenantID: *tenant, Symbol: asset.Ticker, Status: "failed", AttemptCount: 1, LastError: err.Error(), NextEligibleAt: ptrTime(time.Now().UTC().AddDate(0, 0, 1))})
+				code := providerHTTPStatus(err)
+				status := "failed"
+				if code == 402 || code == 429 {
+					status = "deferred_quota"
+				}
+				_ = repo.UpsertMarketOpsFMPPollState(ctx, storage.MarketOpsFMPPollState{TenantID: *tenant, Symbol: asset.Ticker, Status: status, AttemptCount: 1, LastProviderStatus: intPtr(code), LastError: err.Error(), NextEligibleAt: ptrTime(time.Now().UTC().AddDate(0, 0, 1))})
 			}
 			f = fmp.FundamentalSnapshot{Ticker: asset.Ticker, FilingDate: time.Now().UTC(), ProviderRequestIDs: []string{"fmp:error"}}
 			provider = "fmp_error"
@@ -298,4 +304,18 @@ func lastSession() time.Time {
 		d = d.AddDate(0, 0, -1)
 	}
 	return time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func providerHTTPStatus(err error) int {
+	var coded interface{ StatusCode() int }
+	if errors.As(err, &coded) {
+		return coded.StatusCode()
+	}
+	return 0
+}
+func intPtr(value int) *int {
+	if value == 0 {
+		return nil
+	}
+	return &value
 }
