@@ -34,7 +34,7 @@ func main() {
 
 func run(ctx context.Context) error {
 	tenant := flag.String("tenant-id", "tenant-local", "tenant")
-	group := flag.String("universe-group", "all_active", "universe")
+	group := flag.String("universe-group", "all_workflow_ready", "universe")
 	date := flag.String("session-date", "", "completed session YYYY-MM-DD")
 	symbols := flag.String("symbols", "", "optional comma-separated asset scope")
 	maxRetries := flag.Int("max-retries", 2, "bounded retries per transient provider call")
@@ -60,7 +60,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("Massive technical client: %w", err)
 	}
-	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, *group, true, 200)
+	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, *group, true, 5000)
 	if err != nil {
 		return err
 	}
@@ -87,12 +87,23 @@ func run(ctx context.Context) error {
 			return err
 		}
 	}
-	complete := time.Now().UTC()
-	workflowStatus := "succeeded"
-	if counts["retry_scheduled"]+counts["skipped_no_data"]+counts["blocked_entitlement"]+counts["failed_terminal"] > 0 {
-		workflowStatus = "degraded"
+	// A retry worker may process only a subset of assets. Always derive the
+	// parent workflow from the full durable ledger, never from this invocation's
+	// local counts, so prior skipped, deferred, or blocked work stays visible.
+	items, err := repo.ListMarketOpsTaskItems(ctx, storage.MarketOpsTaskItemFilter{TenantID: *tenant, SessionDate: session, TaskType: tacticalTaskType, Limit: 500})
+	if err != nil {
+		return err
 	}
-	coverage, _ := json.Marshal(counts)
+	ledgerCounts := map[string]int{}
+	workflowStatus := "succeeded"
+	for _, item := range items {
+		ledgerCounts[item.Status]++
+		if item.Status != "succeeded" {
+			workflowStatus = "degraded"
+		}
+	}
+	complete := time.Now().UTC()
+	coverage, _ := json.Marshal(ledgerCounts)
 	return repo.UpsertMarketOpsTaskWorkflow(ctx, storage.MarketOpsTaskWorkflowRecord{WorkflowID: workflowID, TenantID: *tenant, SessionDate: session, WorkflowType: "marketops_postclose", Status: workflowStatus, ScheduleJobID: "marketops-daily-postclose", CoverageJSON: coverage, CompletedAt: &complete})
 }
 
@@ -207,7 +218,7 @@ func classifyProviderFailure(err error) (string, string) {
 		return "provider_quota", "deferred_quota"
 	case code == 429 || code >= 500 || errors.Is(err, context.DeadlineExceeded) || isNetwork(err):
 		return "provider_transient", "retry_scheduled"
-	case strings.Contains(s, "no bars") || strings.Contains(s, "not found") || code == 404:
+	case strings.Contains(s, "no bars") || strings.Contains(s, "not found") || strings.Contains(s, "response contained no values") || code == 404:
 		return "provider_no_data", "skipped_no_data"
 	default:
 		return "provider_terminal", "failed_terminal"

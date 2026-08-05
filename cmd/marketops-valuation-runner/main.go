@@ -47,7 +47,7 @@ func main() {
 func run(ctx context.Context, logger *slog.Logger) error {
 	app := config.Load()
 	tenant := flag.String("tenant-id", "tenant-local", "tenant")
-	group := flag.String("universe-group", "top50_megacap", "universe")
+	group := flag.String("universe-group", "all_workflow_ready", "universe")
 	symbols := flag.String("symbols", "", "comma-separated symbols")
 	dateValue := flag.String("session-date", "", "completed YYYY-MM-DD session")
 	dry := flag.Bool("dry-run", false, "calculate only")
@@ -81,7 +81,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	if *fmpBudget < 3 {
 		return fmt.Errorf("fmp-max-requests must be at least 3")
 	}
-	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, *group, true, 200)
+	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, *group, true, 5000)
 	if err != nil {
 		return err
 	}

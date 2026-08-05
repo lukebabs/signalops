@@ -13,7 +13,7 @@ while (($# > 0)); do
 done
 [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { printf 'valid --date is required\n' >&2; exit 2; }
 
-symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;")"
+symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets u WHERE tenant_id='tenant-local' AND is_active AND (u.universe_group <> 'analyst_watchlist' OR EXISTS (SELECT 1 FROM marketops_asset_backfill_jobs b WHERE b.tenant_id=u.tenant_id AND b.symbol=u.ticker AND b.status='succeeded' AND b.completed_sessions >= 50)) ORDER BY ticker, universe_priority, rank) canonical;")"
 [[ -n "$symbols" ]] || { printf 'active universe is empty\n' >&2; exit 3; }
 IFS=',' read -r -a symbol_list <<< "$symbols"
 run_prefix="daily-evidence-${session_date//-/}"

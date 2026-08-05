@@ -43,6 +43,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	tenant := flag.String("tenant-id", "tenant-local", "tenant id")
 	group := flag.String("universe-group", "all_active", "asset universe")
+	symbols := flag.String("symbols", "", "optional comma-separated asset scope")
 	max := flag.Int("max-symbols", 200, "maximum active assets")
 	allowOutsideSession := flag.Bool("allow-outside-session", false, "persist the provider latest completed close outside regular and extended sessions")
 	dry := flag.Bool("dry-run", false, "calculate without persisting")
@@ -56,9 +57,26 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, *group, true, *max)
+	assetLimit := *max
+	if strings.TrimSpace(*symbols) != "" {
+		assetLimit = 5000
+	}
+	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, *group, true, assetLimit)
 	if err != nil {
 		return err
+	}
+	if strings.TrimSpace(*symbols) != "" {
+		wanted := map[string]bool{}
+		for _, symbol := range strings.Split(*symbols, ",") {
+			wanted[strings.ToUpper(strings.TrimSpace(symbol))] = true
+		}
+		filtered := assets[:0]
+		for _, asset := range assets {
+			if wanted[strings.ToUpper(asset.Ticker)] {
+				filtered = append(filtered, asset)
+			}
+		}
+		assets = filtered
 	}
 	now := time.Now().UTC()
 	status, active := marketSession(now)

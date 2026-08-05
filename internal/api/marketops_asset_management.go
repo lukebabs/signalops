@@ -143,7 +143,7 @@ func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
 			return
 		}
 		response := map[string]any{"asset": marketOpsAssetResponses([]storage.MarketOpsAssetRecord{asset})[0]}
-		if req.BackfillEquityHistory {
+		{
 			start, end, sessions, windowErr := parseAssetBackfillWindow(req.StartDate, req.EndDate)
 			if windowErr != nil {
 				writeError(w, http.StatusBadRequest, "invalid_backfill_window", "valid backfill dates are required")
@@ -242,7 +242,7 @@ func parseAssetBackfillWindow(startValue, endValue string) (time.Time, time.Time
 			sessions++
 		}
 	}
-	if sessions < 1 || sessions > 366 {
+	if sessions < 50 || sessions > 366 {
 		return time.Time{}, time.Time{}, 0, http.ErrNotSupported
 	}
 	return start.UTC(), end.UTC(), sessions, nil

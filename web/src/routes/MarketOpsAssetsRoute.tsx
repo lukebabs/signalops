@@ -1042,7 +1042,6 @@ function ReadinessSymbolCard({ s }: { s: MarketOpsIntelligenceReadinessSymbolVie
 export function WatchlistControls({ tenantId, onChanged }: { tenantId: string; onChanged: () => void }) {
   const [ticker, setTicker] = useState("");
   const [validation, setValidation] = useState<import("../types").MarketOpsTickerValidation | null>(null);
-  const [backfill, setBackfill] = useState(true);
   const [startDate, setStartDate] = useState(defaultBackfillStart());
   const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
   const [message, setMessage] = useState<string | null>(null);
@@ -1059,7 +1058,7 @@ export function WatchlistControls({ tenantId, onChanged }: { tenantId: string; o
     if (!validation) return;
     setBusy(true); setMessage(null);
     try {
-      const result = await api.onboardMarketOpsWatchlistAsset(tenantId, { ticker: validation.ticker, backfill_equity_history: backfill, ...(backfill ? { start_date: startDate, end_date: endDate } : {}) });
+      const result = await api.onboardMarketOpsWatchlistAsset(tenantId, { ticker: validation.ticker, backfill_equity_history: true, start_date: startDate, end_date: endDate });
       setMessage(result.backfill_job ? result.asset.ticker + " added; equity backfill queued." : result.asset.ticker + " added to the analyst watchlist.");
       setTicker(""); setValidation(null); onChanged();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to add asset."); }
@@ -1074,8 +1073,8 @@ export function WatchlistControls({ tenantId, onChanged }: { tenantId: string; o
     {validation ? <div className="mt-3 space-y-2 border-t border-brand-200 pt-3 text-xs">
       <div><span className="font-semibold">{validation.ticker}</span> · {validation.company} · {validation.exchange || "exchange unavailable"}</div>
       <div className="text-gray-600">Sector: {validation.sector || "Not supplied"} · Industry: {validation.industry || "Not supplied"}</div>
-      <label className="flex items-center gap-2 text-gray-700"><input type="checkbox" checked={backfill} onChange={(event) => setBackfill(event.target.checked)} /> Backfill 50 trading days of equity history</label>
-      {backfill ? <div className="flex flex-wrap gap-2"><label>Start<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5" /></label><label>End<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5" /></label></div> : null}
+      <div className="text-gray-600">A minimum 50-session equity backfill is required before daily strategic analysis begins.</div>
+      <div className="flex flex-wrap gap-2"><label>Start<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5" /></label><label>End<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5" /></label></div>
       <button type="button" disabled={busy} onClick={() => void onboard()} className="rounded border border-brand-700 px-3 py-1.5 text-xs font-medium text-brand-700 disabled:opacity-50">Add validated asset</button>
       <div className="text-[11px] text-gray-600">Provider metadata is authoritative. Historical options analytics are not backfilled.</div>
     </div> : null}

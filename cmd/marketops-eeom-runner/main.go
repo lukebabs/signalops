@@ -51,7 +51,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, "all_active", true, 200)
+	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, "all_workflow_ready", true, 5000)
 	if err != nil {
 		return err
 	}

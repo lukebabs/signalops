@@ -18,7 +18,9 @@ MarketOps scheduled work is controlled as durable, per-session task state rather
 
 Tactical Posture requires completed-session `return_5d` and `distance_sma_50_pct` from Market State plus same-session Massive RSI-14, SMA-200, and 21 SMA-50 observations. A missing prerequisite is recorded explicitly; it is never rendered as a generic processing delay.
 
-The post-close run processes every asset independently. A provider failure for one symbol does not terminate the remaining universe. Due `retry_scheduled` Tactical Posture tasks are selected by `scripts/marketops_tactical_retry.sh` and rerun by the `signalops-marketops-task-retry` user timer every 15 minutes during the post-close retry window.
+The post-close run processes every asset independently. A post-close stage wrapper treats a non-zero tactical process as recoverable only when the durable task ledger contains a classified outcome for every active asset; otherwise the job remains failed. Retry-only invocations roll the parent workflow up from all persisted session tasks, so they cannot erase an earlier skipped, deferred, blocked, or terminal state. A provider failure for one symbol does not terminate the remaining universe. Due `retry_scheduled` Tactical Posture tasks are selected by `scripts/marketops_tactical_retry.sh` and rerun by the `signalops-marketops-task-retry` user timer every 15 minutes during the post-close retry window.
+
+A newly onboarded analyst asset remains part of the unified `all_active` universe for quote and EOD coverage immediately. It becomes part of `all_workflow_ready` only after a successful 50-session normalized equity backfill; strategic workflows select that readiness scope. Provider-bound options and intraday work are executed in deterministic batches, so no fixed universe cap silently omits an active asset.
 
 ## Workflow semantics
 
