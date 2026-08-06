@@ -271,7 +271,7 @@ func signalOverviewIntraday(records []storage.MarketOpsIntradayConditionSnapshot
 		if record.AsOfTime.After(asOf) {
 			asOf = record.AsOfTime
 		}
-		if record.Stale {
+		if record.Stale && record.MarketStatus != "end_of_day" {
 			categories["unavailable"] = append(categories["unavailable"], signalOverviewMember{Ticker: symbol, Label: "Stale intraday monitor snapshot", AsOf: record.AsOfTime.UTC().Format(time.RFC3339)})
 			continue
 		}

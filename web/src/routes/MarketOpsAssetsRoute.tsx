@@ -1074,7 +1074,7 @@ export function WatchlistControls({ tenantId, onChanged }: { tenantId: string; o
     {validation ? <div className="mt-3 space-y-2 border-t border-brand-200 pt-3 text-xs">
       <div><span className="font-semibold">{validation.ticker}</span> · {validation.company} · {validation.exchange || "exchange unavailable"}</div>
       <div className="text-gray-600">Sector: {validation.sector || "Not supplied"} · Industry: {validation.industry || "Not supplied"}</div>
-      <div className="text-gray-600">A minimum 50-session equity backfill is required before daily strategic analysis begins.</div>
+      <div className="text-gray-600">A historical equity backfill is queued for research depth. Daily analysis always evaluates this active asset and records any missing inputs explicitly.</div>
       <div className="flex flex-wrap gap-2"><label>Start<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5" /></label><label>End<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5" /></label></div>
       <button type="button" disabled={busy} onClick={() => void onboard()} className="rounded border border-brand-700 px-3 py-1.5 text-xs font-medium text-brand-700 disabled:opacity-50">Add validated asset</button>
       <div className="text-[11px] text-gray-600">Provider metadata is authoritative. Historical options analytics are not backfilled.</div>

@@ -34,7 +34,7 @@ func main() {
 
 func run(ctx context.Context) error {
 	tenant := flag.String("tenant-id", "tenant-local", "tenant")
-	group := flag.String("universe-group", "all_workflow_ready", "universe")
+	group := flag.String("universe-group", "all_active", "universe")
 	date := flag.String("session-date", "", "completed session YYYY-MM-DD")
 	symbols := flag.String("symbols", "", "optional comma-separated asset scope")
 	maxRetries := flag.Int("max-retries", 2, "bounded retries per transient provider call")

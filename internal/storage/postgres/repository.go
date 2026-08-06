@@ -1607,19 +1607,8 @@ WITH scoped AS (
   SELECT *, row_number() OVER (PARTITION BY ticker ORDER BY rank ASC, universe_group ASC) AS ticker_row
   FROM marketops_universal_assets
   WHERE tenant_id = $1
-    AND ($2 IN ('all_active', 'all_workflow_ready') OR universe_group = $2)
+    AND ($2 IN ('all_active') OR universe_group = $2)
     AND ($3 = false OR is_active = true)
-    AND (
-      $2 <> 'all_workflow_ready'
-      OR universe_group <> 'analyst_watchlist'
-      OR EXISTS (
-        SELECT 1 FROM marketops_asset_backfill_jobs b
-        WHERE b.tenant_id = marketops_universal_assets.tenant_id
-          AND b.symbol = marketops_universal_assets.ticker
-          AND b.status = 'succeeded'
-          AND b.completed_sessions >= 50
-      )
-    )
 )
 SELECT tenant_id, app_id, domain, use_case, source_id, universe_group,
   row_number() OVER (ORDER BY rank ASC, ticker ASC)::int AS rank, ticker, ticker_key,

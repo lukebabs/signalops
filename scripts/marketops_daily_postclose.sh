@@ -242,6 +242,11 @@ active_universe_symbols="$(docker compose exec -T postgres psql -U signalops -d 
   "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;")"
 [[ -n "$active_universe_symbols" ]] || { printf 'active equity universe is empty\n' >&2; exit 4; }
 IFS=',' read -r -a active_universe_array <<< "$active_universe_symbols"
+universe_fingerprint="$(printf '%s' "$active_universe_symbols" | sha256sum | cut -c1-12)"
+# Cohort output is idempotent for an unchanged date and universe. Include the
+# canonical universe revision in the run identity so an expanded active list
+# cannot be mistaken for a completed partial cohort from the same session.
+cohort_run_prefix="${run_prefix}-u${universe_fingerprint}"
 (( ${#active_universe_array[@]} >= minimum_equity_symbols )) || {
   printf 'active equity universe contains %d assets; expected at least %d\n' "${#active_universe_array[@]}" "$minimum_equity_symbols" >&2
   exit 4
@@ -256,9 +261,9 @@ minimum_equity_symbols="${#active_universe_array[@]}"
 # with the same active-universe snapshot for this scheduled run.
 option_symbols="$active_universe_symbols"
 symbols=("${active_universe_array[@]}")
-workflow_universe_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets u WHERE tenant_id='tenant-local' AND is_active AND (u.universe_group <> 'analyst_watchlist' OR EXISTS (SELECT 1 FROM marketops_asset_backfill_jobs b WHERE b.tenant_id=u.tenant_id AND b.symbol=u.ticker AND b.status='succeeded' AND b.completed_sessions >= 50)) ORDER BY ticker, universe_priority, rank) canonical;")"
+workflow_universe_symbols="$active_universe_symbols"
 IFS=',' read -r -a workflow_symbols <<< "$workflow_universe_symbols"
-log "universe snapshot active=${#symbols[@]} workflow_ready=${#workflow_symbols[@]}"
+log "universe snapshot active=${#symbols[@]} workflow=${#workflow_symbols[@]}"
 # Pull the same combined universe that later stages consume. Explicit symbols
 # include provider-validated analyst-watchlist assets beyond the static seed.
 equity_command=(docker compose --profile massive-pull run --rm massive-puller
@@ -329,7 +334,7 @@ run_options_batches() {
 }
 run_governed_tactical_posture() {
   local task_count workflow_status
-  if docker compose --profile marketops-daily run --rm marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group all_workflow_ready --session-date "$session_date"; then
+  if docker compose --profile marketops-daily run --rm marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"; then
     return 0
   fi
 
@@ -406,7 +411,7 @@ fi
 for ((offset=0, batch=1; offset<${#workflow_symbols[@]}; offset+=10, batch++)); do
   batch_symbols=("${workflow_symbols[@]:offset:10}")
   batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
-  batch_run_id="$(printf '%s-cohort-%02d' "$run_prefix" "$batch")"
+  batch_run_id="$(printf '%s-cohort-%02d' "$cohort_run_prefix" "$batch")"
   if $write_mode; then
     existing_status="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
       "SELECT status FROM marketops_intelligence_cohort_runs WHERE tenant_id='tenant-local' AND run_id='$batch_run_id';" | tr -d '[:space:]')"
@@ -450,7 +455,7 @@ if $write_mode; then
     log "skipping weekly valuation; session weekday=$weekday"
   fi
   run_governed_tactical_posture
-  docker compose --profile marketops-daily run --rm marketops-eroc-runner --tenant-id tenant-local --universe-group all_workflow_ready --session-date "$session_date"
+  docker compose --profile marketops-daily run --rm marketops-eroc-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"
   docker compose --profile marketops-daily run --rm marketops-eeom-runner --tenant-id tenant-local --session-date "$session_date"
   # EROC and tactical posture are intentionally evaluated after the state cohorts.
   # Refresh the research-only opportunity queue afterward so its exact-session
@@ -469,7 +474,7 @@ if $write_mode; then
       --session-end "$session_date"
       --stages "opportunity_build"
       --continue-on-error=true
-      --run-id "$(printf '%s-convergence-%02d' "$run_prefix" "$batch")"
+      --run-id "$(printf '%s-convergence-%02d' "$cohort_run_prefix" "$batch")"
       --dry-run=false
       --acknowledge-writes)
     log "convergence refresh batch=$batch symbols=$batch_csv"
@@ -492,7 +497,7 @@ if $write_mode; then
       --session-end "$session_date"
       --stages "outcome_materialization"
       --continue-on-error=true
-      --run-id "$(printf '%s-outcomes-%02d' "$run_prefix" "$batch")"
+      --run-id "$(printf '%s-outcomes-%02d' "$cohort_run_prefix" "$batch")"
       --dry-run=false
       --acknowledge-writes)
     log "outcome maturity batch=$batch symbols=$batch_csv"
@@ -503,7 +508,7 @@ if $write_mode; then
   bash ./scripts/marketops_universal_completion_gate.sh "$session_date" "$workflow_universe_symbols" "${#workflow_symbols[@]}" || exit 8
   docker compose --profile marketops-daily run --rm marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
   summary="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
-    "SELECT 'captures=' || count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' UNION ALL SELECT 'cohort_results=' || count(*) FROM marketops_intelligence_cohort_symbol_results WHERE tenant_id='tenant-local' AND run_id LIKE '${run_prefix}-cohort-%' UNION ALL SELECT 'algorithm_results=' || count(*) FROM algorithm_results WHERE tenant_id='tenant-local' AND correlation_id='$run_prefix';")"
+    "SELECT 'captures=' || count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' UNION ALL SELECT 'cohort_results=' || count(*) FROM marketops_intelligence_cohort_symbol_results WHERE tenant_id='tenant-local' AND run_id LIKE '${cohort_run_prefix}-cohort-%' UNION ALL SELECT 'algorithm_results=' || count(*) FROM algorithm_results WHERE tenant_id='tenant-local' AND correlation_id='$run_prefix';")"
   log "completed session=$session_date ${summary//$'\n'/ }"
 else
   log "completed dry-run session=$session_date"
