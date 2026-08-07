@@ -359,7 +359,7 @@ func earningsContextFeatures(config BuildConfig, session time.Time, events []sto
 		refs = append(refs, next.eventID)
 		if days == 0 {
 			windowState = "earnings_day"
-		} else if days <= 5 {
+		} else if days <= 10 {
 			windowState = "pre_earnings"
 		}
 	}
@@ -374,7 +374,7 @@ func earningsContextFeatures(config BuildConfig, session time.Time, events []sto
 		}
 	}
 	refs = uniqueStrings(refs)
-	state := featureValue{Key: "earnings_window_state", Text: &windowState, Quality: storage.MarketOpsQualityUsable, QualityScore: 1, Details: map[string]any{"pre_event_days": 5, "post_event_days": 2, "point_in_time_safe": true}, EventIDs: refs}
+	state := featureValue{Key: "earnings_window_state", Text: &windowState, Quality: storage.MarketOpsQualityUsable, QualityScore: 1, Details: map[string]any{"pre_event_days": 10, "post_event_days": 2, "point_in_time_safe": true}, EventIDs: refs}
 	return []featureValue{daysTo, daysSince, state}
 }
 

@@ -59,11 +59,15 @@ func run(ctx context.Context) error {
 	for _, asset := range assets {
 		active[strings.ToUpper(asset.Ticker)] = true
 	}
-	events, err := calendarClient.GetEarningsCalendar(ctx, asof, asof.AddDate(0, 0, *days))
+	// One bounded FMP request is shared by the canonical event projection and
+	// EEOM. The two-day lookback preserves post-earnings awareness without
+	// consuming an additional provider call.
+	retrievedAt := time.Now().UTC()
+	events, err := calendarClient.GetEarningsCalendar(ctx, asof.AddDate(0, 0, -2), asof.AddDate(0, 0, *days))
 	if err != nil {
 		return fmt.Errorf("fetch FMP earnings calendar: %w", err)
 	}
-	written := 0
+	written, projected := 0, 0
 	for _, event := range events {
 		symbol := strings.ToUpper(event.Symbol)
 		if !active[symbol] {
@@ -74,15 +78,24 @@ func run(ctx context.Context) error {
 			continue
 		}
 		d := int(date.Sub(asof.Truncate(24*time.Hour)).Hours() / 24)
-		if d < 0 || d > *days {
+		if d < -2 || d > *days {
 			continue
 		}
 		eventID := "fmp_earnings_" + stable(*tenant, symbol, event.Date)
+		if !*dry {
+			if err := repo.UpsertNormalizedEventLedger(ctx, normalizedEarningsEvent(*tenant, symbol, eventID, date, retrievedAt, event)); err != nil {
+				return fmt.Errorf("persist FMP earnings event %s: %w", symbol, err)
+			}
+			projected++
+		}
+		if d < 0 {
+			continue
+		}
 		result, calcErr := calculate(ctx, repo, *tenant, symbol, asof, date, d, nil)
 		if calcErr != nil {
 			return calcErr
 		}
-		payload, _ := json.Marshal(map[string]any{"algorithm_id": eeomAlgorithmID, "calendar_provider": "fmp", "event_id": eventID, "calendar_retrieved_at": time.Now().UTC().Format(time.RFC3339), "calendar_record": event, "result": result})
+		payload, _ := json.Marshal(map[string]any{"algorithm_id": eeomAlgorithmID, "calendar_provider": "fmp", "event_id": eventID, "calendar_retrieved_at": retrievedAt.Format(time.RFC3339), "event": earningsEventPayload(symbol, date, retrievedAt, event), "calendar_record": event, "result": result})
 		if !*dry {
 			id := stable(*tenant, symbol, eventID, asof.Format("2006-01-02"), eeom.ModelVersion)
 			if err := repo.UpsertMarketOpsEEOMResult(ctx, storage.MarketOpsEEOMResultRecord{ResultID: "eeom_" + id, TenantID: *tenant, Symbol: symbol, EarningsEventID: eventID, EarningsDate: date, SessionDate: asof, ModelVersion: eeom.ModelVersion, Score: result.Score, Posture: result.Posture, Classification: result.Classification, EvidenceQuality: result.EvidenceQuality, Eligible: result.Eligible, ResultJSON: payload}); err != nil {
@@ -91,9 +104,37 @@ func run(ctx context.Context) error {
 		}
 		written++
 	}
-	fmt.Printf("eeom completed provider=fmp calendar_events=%d results=%d fmp_calls=%d dry_run=%t\n", len(events), written, calendarClient.Calls(), *dry)
+	fmt.Printf("eeom completed provider=fmp calendar_events=%d projected_events=%d results=%d fmp_calls=%d dry_run=%t\n", len(events), projected, written, calendarClient.Calls(), *dry)
 	return nil
 }
+func earningsEventPayload(symbol string, date, retrievedAt time.Time, event fmp.EarningsCalendarRecord) map[string]any {
+	lastVerified := retrievedAt.UTC()
+	if value := strings.TrimSpace(event.LastUpdated); value != "" {
+		if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+			lastVerified = parsed.UTC()
+		}
+	}
+	return map[string]any{
+		"symbol": symbol, "event_type": "earnings", "event_date": date.UTC().Format("2006-01-02"),
+		"event_time": nil, "status": "date_reported", "confidence": nil,
+		"source": "FinancialModelingPrep", "last_verified": lastVerified.Format(time.RFC3339),
+		"known_at": retrievedAt.UTC().Format(time.RFC3339),
+	}
+}
+
+func normalizedEarningsEvent(tenant, symbol, eventID string, date, retrievedAt time.Time, event fmp.EarningsCalendarRecord) storage.NormalizedEventLedgerRecord {
+	payload, _ := json.Marshal(earningsEventPayload(symbol, date, retrievedAt, event))
+	eventJSON, _ := json.Marshal(map[string]any{"event_id": eventID, "event_type": "market_data.fmp.earnings_calendar", "payload": json.RawMessage(payload)})
+	entities, _ := json.Marshal([]map[string]string{{"type": "ticker", "external_id": symbol}})
+	metadata, _ := json.Marshal(map[string]any{"provider": "fmp", "calendar_retrieved_at": retrievedAt.UTC().Format(time.RFC3339)})
+	return storage.NormalizedEventLedgerRecord{
+		EventID: eventID, TenantID: tenant, SourceID: "src-fmp", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance",
+		SourceAdapter: "market_data.fmp", Dataset: "market_event_calendar", IdempotencyKey: "idem_" + stable(tenant, eventID), SchemaID: "signalops.market_event_calendar.fmp.v1", SchemaVersion: "1.0.0",
+		ObservationTime: date.UTC(), ProcessingTime: retrievedAt.UTC(), Confidence: 0, RawTopic: "signalops.fmp.calendar", NormalizedTopic: "signalops.normalized.marketops.market_event_calendar",
+		NormalizedPayload: payload, EntitiesJSON: entities, MetadataJSON: metadata, EventJSON: eventJSON,
+	}
+}
+
 func calculate(ctx context.Context, repo *postgres.Repository, tenant, symbol string, session, event time.Time, days int, importance *float64) (eeom.Result, error) {
 	vals, err := repo.ListMarketOpsValuationResults(ctx, storage.MarketOpsValuationFilter{TenantID: tenant, Symbol: symbol, Limit: 20})
 	if err != nil {

@@ -1,1 +1,1 @@
-{"job_id":"marketops-daily-postclose","schedule":"Weekdays 18:01:55","timezone":"America/New_York","status":"failed","started_at":"2026-08-03T22:01:55Z","completed_at":"2026-08-03T22:02:35Z","exit_code":6}
+{"job_id":"marketops-daily-postclose","schedule":"Weekdays 18:01:55","timezone":"America/New_York","status":"succeeded","started_at":"2026-08-06T22:01:55Z","completed_at":"2026-08-06T22:21:54Z","exit_code":0}

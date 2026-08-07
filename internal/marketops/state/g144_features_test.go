@@ -85,6 +85,16 @@ func TestG144EarningsContextEnforcesPointInTimeKnowledge(t *testing.T) {
 	}
 }
 
+func TestG144EarningsContextBeginsTenDaysBeforeKnownEvent(t *testing.T) {
+	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	values := earningsContextFeatures(BuildConfig{TenantID: "tenant-local", Symbol: "AAPL"}, session, []storage.NormalizedEventLedgerRecord{g144EarningsEvent("known", "2026-07-30", session.AddDate(0, 0, -1))})
+	for _, value := range values {
+		if value.Key == "earnings_window_state" && (value.Text == nil || *value.Text != "pre_earnings") {
+			t.Fatalf("ten-day earnings context was not classified as pre_earnings: %+v", value)
+		}
+	}
+}
+
 func TestG144UnknownEarningsRemainExplicitlyMissing(t *testing.T) {
 	session := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
 	values := earningsContextFeatures(BuildConfig{TenantID: "tenant-local", Symbol: "AAPL"}, session, []storage.NormalizedEventLedgerRecord{g144EarningsEvent("late", "2026-07-21", session.AddDate(0, 0, 2))})

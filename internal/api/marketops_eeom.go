@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/lukebabs/signalops/internal/storage"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -31,8 +32,52 @@ func registerMarketOpsEEOMRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		for _, x := range rows {
 			trace := map[string]any{}
 			_ = json.Unmarshal(x.ResultJSON, &trace)
-			out = append(out, map[string]any{"result_id": x.ResultID, "ticker": x.Symbol, "earnings_event_id": x.EarningsEventID, "earnings_date": x.EarningsDate.Format("2006-01-02"), "trade_date": x.SessionDate.Format("2006-01-02"), "model_version": x.ModelVersion, "score": x.Score, "posture": x.Posture, "classification": x.Classification, "evidence_quality": x.EvidenceQuality, "eligible": x.Eligible, "trace": trace})
+			out = append(out, map[string]any{"result_id": x.ResultID, "ticker": x.Symbol, "earnings_event_id": x.EarningsEventID, "earnings_date": x.EarningsDate.Format("2006-01-02"), "trade_date": x.SessionDate.Format("2006-01-02"), "model_version": x.ModelVersion, "score": x.Score, "posture": x.Posture, "classification": x.Classification, "evidence_quality": x.EvidenceQuality, "eligible": x.Eligible, "event": trace["event"], "trace": trace})
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"results": out, "research_only": true, "description": "Pre-earnings setup quality, not an earnings outcome or direction forecast."})
 	})
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/material-events", func(w http.ResponseWriter, r *http.Request) {
+		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		records, err := cfg.QueryRepository.ListNormalizedEventLedger(r.Context(), storage.RawEventLedgerFilter{TenantID: tenantID, AppID: "marketops", Dataset: "market_event_calendar", Limit: queryLimit(r, 500)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps material events")
+			return
+		}
+		today := time.Now().UTC().Truncate(24 * time.Hour)
+		symbol := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("symbol")))
+		events := make([]map[string]any, 0, len(records))
+		for _, record := range records {
+			if record.SourceAdapter != "market_data.fmp" {
+				continue
+			}
+			payload := map[string]any{}
+			if json.Unmarshal(record.NormalizedPayload, &payload) != nil || strings.ToLower(eeomString(payload["event_type"])) != "earnings" {
+				continue
+			}
+			ticker := strings.ToUpper(eeomString(payload["symbol"]))
+			if symbol != "" && ticker != symbol {
+				continue
+			}
+			date, parseErr := time.Parse("2006-01-02", eeomString(payload["event_date"]))
+			if parseErr != nil || date.Before(today.AddDate(0, 0, -2)) {
+				continue
+			}
+			payload["days_to_event"] = int(date.Sub(today).Hours() / 24)
+			payload["event_id"] = record.EventID
+			events = append(events, payload)
+		}
+		sort.Slice(events, func(i, j int) bool {
+			left, right := eeomString(events[i]["event_date"]), eeomString(events[j]["event_date"])
+			if left == right {
+				return eeomString(events[i]["symbol"]) < eeomString(events[j]["symbol"])
+			}
+			return left < right
+		})
+		writeJSON(w, http.StatusOK, map[string]any{"events": events, "research_only": true, "description": "Point-in-time-known earnings dates from Financial Modeling Prep; timing and confirmation are unavailable from this source."})
+	})
+}
+
+func eeomString(value any) string {
+	text, _ := value.(string)
+	return strings.TrimSpace(text)
 }

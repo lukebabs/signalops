@@ -403,6 +403,10 @@ if $write_mode; then
 fi
 
 if $write_mode; then
+  # One FMP calendar call persists point-in-time-known earnings events before
+  # the state cohorts consume days-to-earnings and earnings-window context.
+  log "earnings calendar synchronization started"
+  docker compose --profile marketops-daily run --rm marketops-eeom-runner --tenant-id tenant-local --session-date "$session_date"
   log "algorithm corroboration deferred until current-session cohorts have materialized features"
 else
   log "algorithm corroboration skipped dry_run=true (algorithm runner has no non-mutating mode)"
@@ -456,7 +460,6 @@ if $write_mode; then
   fi
   run_governed_tactical_posture
   docker compose --profile marketops-daily run --rm marketops-eroc-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"
-  docker compose --profile marketops-daily run --rm marketops-eeom-runner --tenant-id tenant-local --session-date "$session_date"
   # EROC and tactical posture are intentionally evaluated after the state cohorts.
   # Refresh the research-only opportunity queue afterward so its exact-session
   # convergence contract can use those final daily algorithm results as well.

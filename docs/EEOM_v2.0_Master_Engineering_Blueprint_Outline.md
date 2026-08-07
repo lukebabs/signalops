@@ -127,6 +127,12 @@ Informational Only
 - Modular orchestration
 - JSON API outputs
 
+## Earnings-aware material-event context
+
+Financial Modeling Prep (FMP) is the v1 calendar authority. A single bounded calendar request during post-close persists a canonical `market_event_calendar` record before Market State cohorts materialize. The normalized event contract is `symbol`, `event_type`, `event_date`, `event_time: null`, `status: date_reported`, `confidence: null`, `source`, `last_verified`, `known_at`, and derived `days_to_event`. FMP does not provide a reliable BMO/AMC timing or confirmed-status field, so those values are not inferred.
+
+Market State uses only events whose `known_at` predates the session being materialized. The awareness window is ten calendar days before earnings through two calendar days after. Technical, options, volume, and Risk/Reward outputs receive an explainable event-proximity annotation but no numerical score adjustment; score calibration requires separate prospective evidence. The dashboard, Market State, and EEOM surface the same persisted event object.
+
 ## Future
 
 - Bayesian probability fusion
