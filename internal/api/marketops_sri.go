@@ -34,16 +34,17 @@ func registerMarketOpsSRIRoutes(mux *http.ServeMux, repository storage.QueryRepo
 	mux.HandleFunc("GET /v1/marketops/sectors/{segment_id}", func(w http.ResponseWriter, r *http.Request) {
 		tenant := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
 		id := r.PathValue("segment_id")
-		items, err := q.ListMarketOpsSRISnapshots(r.Context(), storage.MarketOpsSRISnapshotFilter{TenantID: tenant, SegmentID: id, Limit: 1})
+		items, err := q.ListMarketOpsSRISnapshots(r.Context(), storage.MarketOpsSRISnapshotFilter{TenantID: tenant, SegmentID: id, Limit: 100})
 		if err != nil {
 			writeError(w, 500, "query_failed", "failed to read SRI segment")
 			return
 		}
-		if len(items) == 0 {
+		snapshot, ok := sriLatestSnapshot(items)
+		if !ok {
 			writeError(w, 404, "not_found", "SRI segment snapshot not found")
 			return
 		}
-		writeJSON(w, 200, map[string]any{"snapshot": sriSnapshotResponse(items[0]), "research_only": true})
+		writeJSON(w, 200, map[string]any{"snapshot": sriSnapshotResponse(snapshot), "research_only": true})
 	})
 	mux.HandleFunc("GET /v1/marketops/sectors/{segment_id}/history", func(w http.ResponseWriter, r *http.Request) {
 		tenant := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
@@ -102,16 +103,17 @@ func registerMarketOpsSRIAssetContextRoute(mux *http.ServeMux, repository storag
 			writeJSON(w, 200, map[string]any{"symbol": symbol, "sector": asset.Sector, "industry": asset.Industry, "context": "unmapped", "research_only": true})
 			return
 		}
-		snapshots, err := q.ListMarketOpsSRISnapshots(r.Context(), storage.MarketOpsSRISnapshotFilter{TenantID: tenant, SegmentID: id, Limit: 1})
+		snapshots, err := q.ListMarketOpsSRISnapshots(r.Context(), storage.MarketOpsSRISnapshotFilter{TenantID: tenant, SegmentID: id, Limit: 100})
 		if err != nil {
 			writeError(w, 500, "query_failed", "failed to read SRI context")
 			return
 		}
-		if len(snapshots) == 0 {
+		snapshot, ok := sriLatestSnapshot(snapshots)
+		if !ok {
 			writeJSON(w, 200, map[string]any{"symbol": symbol, "segment_id": id, "context": "not_ready", "research_only": true})
 			return
 		}
-		writeJSON(w, 200, map[string]any{"symbol": symbol, "segment_id": id, "context": "informational", "snapshot": sriSnapshotResponse(snapshots[0]), "research_only": true})
+		writeJSON(w, 200, map[string]any{"symbol": symbol, "segment_id": id, "context": "informational", "snapshot": sriSnapshotResponse(snapshot), "research_only": true})
 	})
 }
 func sriKey(value string) string {
@@ -138,15 +140,27 @@ func sriSnapshotResponses(items []storage.MarketOpsSRISnapshotRecord) []map[stri
 	}
 	return out
 }
-func sriLatestResponses(items []storage.MarketOpsSRISnapshotRecord) []map[string]any {
+func sriLatestSnapshot(items []storage.MarketOpsSRISnapshotRecord) (storage.MarketOpsSRISnapshotRecord, bool) {
 	if len(items) == 0 {
+		return storage.MarketOpsSRISnapshotRecord{}, false
+	}
+	for _, item := range items {
+		if item.QualityState == "usable" {
+			return item, true
+		}
+	}
+	return items[0], true
+}
+
+func sriLatestResponses(items []storage.MarketOpsSRISnapshotRecord) []map[string]any {
+	latest, ok := sriLatestSnapshot(items)
+	if !ok {
 		return []map[string]any{}
 	}
-	day := items[0].SessionDate
 	out := []map[string]any{}
-	for _, x := range items {
-		if x.SessionDate.Equal(day) {
-			out = append(out, sriSnapshotResponse(x))
+	for _, item := range items {
+		if item.SessionDate.Equal(latest.SessionDate) {
+			out = append(out, sriSnapshotResponse(item))
 		}
 	}
 	return out
