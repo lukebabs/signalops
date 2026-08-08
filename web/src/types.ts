@@ -27,6 +27,8 @@ export interface MarketOpsSignalAssuranceEffectivenessObservation { evidence_sou
 export interface MarketOpsSignalAssuranceEffectivenessObservationsResponse { observations: MarketOpsSignalAssuranceEffectivenessObservation[]; evidence_source_note: string; }
 export interface MarketOpsSignalAssuranceAssertionResponse { assertion: MarketOpsSignalAssuranceAssertion; }
 export interface MarketOpsSignalAssuranceRecommendation { recommendation_id: string; evidence_source: string; dimension: string; dimension_value: string; priority: string; kind: string; summary: string; sample_size: number; directional_accuracy?: number; accuracy_upper_bound?: number; metric_definition_version: string; as_of: string; }
+export interface MarketOpsSRISnapshot { snapshot_id:string; segment_id:string; session_date:string; as_of:string; state:string; composite_score?:number; relative_strength_score?:number; momentum_score?:number; momentum_acceleration?:number; rank?:number; rank_change_5d?:number; evidence_quality?:number; quality_state:string; quality_flags:unknown; components:unknown; input_provenance:unknown; algorithm_version:string; configuration_version:string; }
+export interface MarketOpsSRIRankingsResponse { snapshots: MarketOpsSRISnapshot[]; research_only:boolean; evidence_note:string; }
 export interface MarketOpsSignalAssuranceRecommendationsResponse { recommendations: MarketOpsSignalAssuranceRecommendation[]; minimum_ranked_sample: number; }
 
 export interface SchedulerRun {

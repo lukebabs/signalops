@@ -583,6 +583,21 @@ services:
       SIGNALOPS_ENV: local
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
 
+  marketops-sri-runner:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-sri-runner
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+
   marketops-signal-assurance-worker:
     profiles: ["marketops-daily"]
     build:

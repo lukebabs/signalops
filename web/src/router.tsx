@@ -82,6 +82,7 @@ const MarketOpsOpportunitiesRoute = lazy(() =>
 const MarketOpsSignalAssuranceRoute = lazy(() =>
   import('./routes/MarketOpsSignalAssuranceRoute').then((m) => ({ default: m.MarketOpsSignalAssuranceRoute })),
 );
+const MarketOpsSRIRoute = lazy(() => import("./routes/MarketOpsSRIRoute").then((m) => ({ default: m.MarketOpsSRIRoute })));
 const MarketOpsHypothesesRoute = lazy(() => import('./routes/MarketOpsHypothesesRoute').then((m) => ({ default: m.MarketOpsHypothesesRoute })));
 const MarketOpsIndicatorReelRoute = lazy(() => import('./routes/MarketOpsIndicatorReelRoute').then((m) => ({ default: m.MarketOpsIndicatorReelRoute })));
 const MarketOpsStateRoute = lazy(() =>
@@ -274,6 +275,7 @@ const marketopsOpportunitiesRoute = createRoute({
   component: MarketOpsOpportunitiesRoute,
 });
 const marketopsSignalAssuranceRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assurance', component: MarketOpsSignalAssuranceRoute });
+const marketopsSRIRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/sectors", component: MarketOpsSRIRoute });
 const marketopsBacktestsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/backtests', component: MarketOpsBacktestsRoute });
 const marketopsSyncraticRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/syncratic', component: MarketOpsSyncraticRoute });
 const marketopsAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/algorithms', component: () => <LegacyRedirect to="/admin/algorithms" /> });
@@ -350,6 +352,7 @@ const routeTree = rootRoute.addChildren([
   marketopsValuationRoute, marketopsERocRoute, marketopsEEOMRoute,
   marketopsOpportunitiesRoute,
   marketopsSignalAssuranceRoute,
+  marketopsSRIRoute,
   marketopsBacktestsRoute,
   marketopsSyncraticRoute,
   marketopsAlgorithmsRoute,
