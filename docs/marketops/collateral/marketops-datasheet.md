@@ -20,6 +20,7 @@ MarketOps addresses this by separating slow-moving strategic context from daily 
 | Market State | Price, technical, options, research, and corroborating evidence for a selected asset | A fast way to understand the current condition without losing provenance |
 | Strategic valuation research | Valuation Composite (VC) and Distressed Opportunity Scoring Model (DOSM) | A transparent strategic ranking based on retained financial and market snapshots |
 | Daily tactical surveillance | Risk/Reward Temporal, Tactical Market Posture, and Exhaustive Reversal | A current-session view of extension, trend, participation, and reversal conditions |
+| Sector Intelligence Foundation | Price-led cross-sectional ranks for core sectors and industries versus SPY, QQQ, and RSP | A transparent way to choose where deeper research may be most relevant, without claiming rotation or a trade |
 | Options-flow context | Aggregate put/call-volume extremes with activity thresholds | A descriptive corroborating input, clearly separated from directional inference |
 | Convergent review | An Opportunities/Review Queue requiring independent same-session evidence | Less noise and a more selective research queue |
 | Administrative governance | Algorithm registry, schedules, statuses, data provenance, and retention governance | Operational visibility and repeatable research controls |
@@ -48,6 +49,7 @@ Strategic and tactical outputs remain distinct. A daily technical condition does
 - **Tactical Market Posture:** a concise daily constructive, neutral, or caution context based on RSI, recent return, SMA position, and trend slope.
 - **Exhaustive Reversal:** a signed reversal-review stance that detects extended directional movement and distinguishes fading/climactic participation from a trend that remains supported.
 - **Convergence Opportunity Builder:** a selective review layer that requires at least two independent sources to agree on asset, direction, and completed session; material disagreement becomes a non-directional mixed-conviction review.
+- **Sector Rotation Intelligence Foundation (SRI):** a versioned price-led cross-sectional context rank built from 5-, 20-, and 60-session ETF returns, benchmark-relative strength, momentum, and acceleration. It is explicitly not a rotation, flow, breadth, or recommendation engine.
 
 ## Data and operating model
 
@@ -66,5 +68,6 @@ MarketOps uses a metadata-first model rather than a raw-feed archive. Provider p
 - Scores and fair-value anchors are mathematical research artifacts, not price targets or recommendations.
 - Aggregate options data cannot distinguish buyer/seller, opening/closing, premium direction, or hedge intent.
 - An empty selective review queue can be the correct outcome when independent evidence does not converge.
+- SRI requires 61 canonical price sessions for each primary ETF and each benchmark. Partial availability is displayed as not-ready context, never as a low rank.
 
 > **Common reusable disclaimer:** SignalOps MarketOps provides deterministic, research-only analytics. It does not provide investment advice, recommendations, trade instructions, or guarantees of performance. Analysts remain responsible for independent research, risk assessment, and decision-making.

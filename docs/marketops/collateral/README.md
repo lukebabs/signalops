@@ -8,6 +8,7 @@ This folder contains externally safe, evidence-led MarketOps positioning. It des
 - [Executive Value Brief](marketops-executive-value-brief.md): business problems, differentiated value, and operating outcomes.
 - [Analyst Capability Guide](marketops-analyst-capability-guide.md): how an analyst uses the views and evidence layers.
 - [Algorithm and Evidence Reference](marketops-algorithm-evidence-reference.md): implementation-level algorithm semantics and limitations.
+- [SRI Foundation Operations](../../use_cases/marketops/daily_market_surveillance/operations/sector_rotation_intelligence.md): price-led cross-sectional context, readiness, execution, and boundaries.
 
 ## Positioning guardrails
 

@@ -4,7 +4,7 @@
 
 Status: evolving value narrative.
 
-Last updated: 2026-07-12.
+Last updated: 2026-08-08.
 
 Primary scope: the general SignalOps core engine, independent of any single
 domain application.
@@ -33,6 +33,7 @@ Canonical references:
 - `../Syncratic_SignalOps_Processing_Specification.md`
 - `../api.md`
 - `../use_cases/README.md`
+- `../use_cases/marketops/daily_market_surveillance/operations/sector_rotation_intelligence.md` for the implemented MarketOps SRI domain value and operational boundary
 
 ## Purpose
 

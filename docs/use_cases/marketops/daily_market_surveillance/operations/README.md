@@ -53,3 +53,7 @@ Current recurring validations:
 
 - `prospective_options_capture.md`: G142 bounded per-session Massive snapshot capture, readiness inspection, retry/resume, and scheduling policy.
 - `daily_postclose_pipeline.md`: exchange-aware bounded equity, durable sequential reconciliation, exact active-universe normalization, prospective options, and ten-symbol cohort orchestration with a user-systemd timer.
+
+## Sector Rotation Intelligence
+
+- `sector_rotation_intelligence.md`: Foundation SRI scope, price-history readiness, deterministic scoring, post-close execution, verification, and explicit research-only boundary.

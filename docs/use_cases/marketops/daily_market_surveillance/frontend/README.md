@@ -6,6 +6,7 @@ Current primary views:
 
 - `/marketops/assets`: Top 50 mega-cap asset universe.
 - `/marketops/dsm`: DSM Workbench for taxonomy signals and artifact visibility.
+- `/marketops/sectors`: Sector Intelligence for research-only, price-led sector and industry context.
 
 DSM Workbench Ledger column semantics:
 
@@ -25,3 +26,4 @@ Current notes:
 - `../../../../frontend/marketops_asset_options_distribution_ui_spec.md`: frontend-agent handoff for G128 asset-level options coverage, distribution, and chain-row UI.
 - `../../../../frontend/marketops_options_quality_visibility_ui_spec.md`: frontend-agent handoff for G132 options ratio/open-interest quality visibility in asset options and algorithm proposal views.
 - `../../../../frontend/marketops_intelligence_readiness_ui_spec.md`: implemented G148 read-only aggregate intelligence readiness view under MarketOps Assets.
+- `sector_rotation_intelligence.md`: implemented SRI route semantics, color language, mobile behavior, and operator validation.

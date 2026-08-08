@@ -75,6 +75,12 @@ MarketOps uses aggregate put/call contract volume. Put/call below 1 means calls 
 
 Aggregate options activity cannot show whether positions were bought or sold, opened or closed, directional or hedged. It should only corroborate—or challenge—other completed-session evidence.
 
+## Add cross-sectional sector context
+
+Use **Sector Intelligence** before narrowing to an individual asset when the question is where relative price strength and momentum are concentrated across the implemented sector and industry ETF registry. The view compares 5-, 20-, and 60-session behavior against an SPY/QQQ/RSP benchmark basket, ranks the eligible cross-section, and exposes the components and input provenance.
+
+The states are bounded context labels: Leading, Improving, Neutral, Weakening, and Lagging. They are not sector-rotation assertions and do not measure breadth, flows, holdings, options activity, or future return. Color is a scanning aid only; read the state, score, completed session, and quality label together. A usable ranking requires at least 61 sessions for the primary ETF and every benchmark.
+
 ## Analyst checklist
 
 1. Confirm the completed session and freshness of the data.

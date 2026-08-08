@@ -17,12 +17,17 @@ Its differentiation is not a black-box prediction. It is a deterministic evidenc
 | Research conclusions are difficult to reproduce | Inputs, calculation traces, model versions, source timestamps, and outcome lineage are persisted |
 | Financial-data limits create uncontrolled vendor spend | Financial snapshots are reused by default; FMP refreshes are explicit, weekly, and scheduled within the provider allowance |
 | Operational blind spots undermine trust | Administration exposes algorithm definitions, scheduled jobs, job status, storage utilization, and retention governance |
+| Teams lack a consistent cross-sectional starting point | Sector Intelligence ranks core sector and industry ETF context from canonical prices, with data-quality and provenance visibility |
 
 ## Value propositions
 
 ### Improve analyst focus
 
 MarketOps reduces the cost of first-pass triage. Rather than asking analysts to scan every asset and every data source equally, it provides a governed review queue for situations where independent evidence converges, while retaining direct asset-level detail for investigation.
+
+### Add cross-sectional context before asset triage
+
+Sector Intelligence gives analysts a compact, explainable view of where price-led relative strength and momentum are concentrated across the implemented sector and industry registry. It presents components, freshness, quality, version, and a bounded state label, so the team can decide where to investigate next without being told what to trade.
 
 ### Make opportunity research explainable
 
@@ -48,6 +53,7 @@ The solution uses retained snapshots for routine calculations, keeps source-spec
 4. **Require convergence for elevation:** two independent same-session sources must align before a directional review item is created; strong conflict is represented as mixed conviction.
 5. **Support analyst judgment:** the analyst pivots to Market State and calculation traces, then decides whether further research is warranted.
 6. **Measure later, carefully:** outcome observations mature over 1, 5, 10, and 20 trading sessions for calibration; they are not presented as a live performance promise.
+7. **Use SRI as context:** cross-sectional ETF ranks can focus research attention, but they do not claim rotation, flows, breadth, future performance, or a recommended action.
 
 ## What makes the approach proprietary
 

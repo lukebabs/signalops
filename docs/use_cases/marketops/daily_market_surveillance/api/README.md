@@ -5,6 +5,11 @@ Use this folder for MarketOps Daily Market Surveillance API notes that supplemen
 Current MarketOps-specific endpoints:
 
 - `GET /v1/tenants/{tenant_id}/marketops/assets`
+- `GET /v1/marketops/sectors`
+- `GET /v1/marketops/sectors/rankings`
+- `GET /v1/marketops/sectors/{segment_id}`
+- `GET /v1/marketops/sectors/{segment_id}/history`
+- `GET /v1/marketops/assets/{symbol}/sector-context`
 - `GET /v1/marketops/dsm/artifacts`
 - `GET /v1/marketops/dsm/artifacts/{artifact_id}`
 - `GET /v1/marketops/graph-proposals`
@@ -68,6 +73,7 @@ Current notes:
 - `backtest_evaluation_label_api.md`: G084 graph-proposal decision label sync API boundary.
 - `backtest_label_aware_evaluation_api.md`: G085 label-aware back-test scoring API boundary.
 - `backtest_calibration_readiness_api.md`: G094 calibration readiness snapshot API boundary.
+- `sector_rotation_intelligence_api.md`: implemented research-only SRI registry, ranking, history, and asset-context API semantics.
 
 ## G142 Options Capture
 

@@ -8,4 +8,6 @@ Current use cases:
 
 The implemented algorithm catalog, including VC/DOSM, daily tactical posture, Exhaustive Reversal, Risk/Reward, and convergent review semantics, is maintained at `daily_market_surveillance/algorithms/marketops_algorithm_catalog_v1.md`.
 
+The implemented SRI Foundation is documented at `daily_market_surveillance/operations/sector_rotation_intelligence.md`; it provides research-only, price-led sector and industry context and remains separate from the signal and opportunity lifecycle.
+
 Historical and target-architecture source documents still exist under `docs/marketops/`. New operational documentation should prefer the concrete use-case folder unless it applies to all MarketOps use cases.

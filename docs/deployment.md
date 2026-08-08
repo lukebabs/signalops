@@ -399,7 +399,7 @@ The browser session is inactivity-based, not a fixed access-token lifetime. `VIT
 
 ### MarketOps strategic and tactical algorithm sequence
 
-Weekly FMP-backed VC/DOSM snapshots provide strategic context; daily Tactical Market Posture and Exhaustive Reversal provide post-close technical context. The daily sequence completes Risk/Reward, retention, tactical posture, Exhaustive Reversal, same-session convergence refresh, and a rolling 45-calendar-day outcome-maturity sweep before the universal completion gate. All outputs are research-only and deterministic. The authoritative logic, score meaning, expected analyst outcomes, limits, registry IDs, and UI surfaces are documented in `docs/use_cases/marketops/daily_market_surveillance/algorithms/marketops_algorithm_catalog_v1.md`.
+Weekly FMP-backed VC/DOSM snapshots provide strategic context; daily Tactical Market Posture and Exhaustive Reversal provide post-close technical context. The daily sequence completes Risk/Reward, retention, tactical posture, Exhaustive Reversal, same-session convergence refresh, and a rolling 45-calendar-day outcome-maturity sweep before the universal completion gate. The governed post-close workflow then refreshes the research-only SRI Foundation from canonical ETF EOD prices; its price-led ranks do not create signals or trade recommendations. All outputs are research-only and deterministic. The authoritative logic, score meaning, expected analyst outcomes, limits, registry IDs, and UI surfaces are documented in `docs/use_cases/marketops/daily_market_surveillance/algorithms/marketops_algorithm_catalog_v1.md`.
 
 ### Operating timezone
 
