@@ -15,6 +15,13 @@ export interface HealthResponse {
   time: string;
 }
 
+// MarketOps Signal Assurance Framework (SAF). These DTOs mirror the read-only gateway routes.
+export interface MarketOpsSignalAssuranceAssertion { assertion_id: string; tenant_id: string; asset_id: string; symbol: string; signal_id: string; signal_type: string; direction: string; state: string; evaluation_mode: string; evaluation_run_id?: string; validation_contract_id: string; validation_contract_version: string; baseline_snapshot: unknown; baseline_provenance: unknown; confirmed_at: string; transition_sequence: number; }
+export interface MarketOpsSignalAssuranceAssertionsResponse { assertions: MarketOpsSignalAssuranceAssertion[]; }
+export interface MarketOpsSignalAssuranceAssertionFilter { tenant_id?: string; state?: string; evaluation_mode?: string; symbol?: string; limit?: number; }
+export interface MarketOpsSignalAssuranceEvaluation { evaluation_id: string; assertion_id: string; evaluation_session_date: string; input_completeness: string; trading_days_active: number; absolute_return?: number; benchmark_relative_return?: number; mfe?: number; mae?: number; materialization_condition_met: boolean; invalidation_condition_met: boolean; evaluation_version: string; }
+export interface MarketOpsSignalAssuranceEvaluationsResponse { evaluations: MarketOpsSignalAssuranceEvaluation[]; }
+
 export interface SchedulerRun {
   run_id: string;
   tenant_id: string;

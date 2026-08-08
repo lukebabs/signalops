@@ -169,6 +169,9 @@ import type {
   AlgorithmSignalMaterializationResponse,
   AlgorithmSignalMaterializationsResponse,
   AlgorithmSignalMaterializationFilter,
+  MarketOpsSignalAssuranceAssertionsResponse,
+  MarketOpsSignalAssuranceAssertionFilter,
+  MarketOpsSignalAssuranceEvaluationsResponse,
 } from "../types";
 import { authConfig } from "../auth/config";
 import { getAccessToken } from "../auth/session";
@@ -785,6 +788,10 @@ export const api = {
         limit: filter.limit ?? 500,
       },
     ),
+  listMarketOpsSignalAssuranceAssertions: (filter: MarketOpsSignalAssuranceAssertionFilter = {}) =>
+    get<MarketOpsSignalAssuranceAssertionsResponse>("/v1/marketops/signal-assurance/assertions", { tenant_id: filter.tenant_id, state: filter.state || undefined, evaluation_mode: filter.evaluation_mode || undefined, symbol: filter.symbol || undefined, limit: filter.limit ?? 100 }),
+  listMarketOpsSignalAssuranceEvaluations: (assertionId: string, tenantId: string) =>
+    get<MarketOpsSignalAssuranceEvaluationsResponse>(`/v1/marketops/signal-assurance/assertions/${encodeURIComponent(assertionId)}/evaluations`, { tenant_id: tenantId, limit: 100 }),
   // G139 MarketOps Opportunities workbench (read-only). Opportunity list/detail
   // plus supporting linked-record reads (hypothesis-evaluations, hypotheses,
   // evidence, market-state lineage). research_only / eligible / triggered /

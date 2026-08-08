@@ -53,6 +53,7 @@ export type AppRoutePath =
   | '/marketops/valuation'
   | '/marketops/eroc' | '/marketops/earnings'
   | '/marketops/opportunities'
+  | '/marketops/assurance'
   | '/marketops/backtests'
   | '/marketops/syncratic'
   | '/marketops/algorithms'
@@ -112,6 +113,7 @@ const MARKETOPS_NAV: NavItem[] = [
   { module: 'eroc', to: '/marketops/eroc', label: 'Exhaustive Reversal' },
   { module: 'earnings', to: '/marketops/earnings', label: 'Earnings Opportunities' },
   { module: 'opportunities', to: '/marketops/opportunities', label: 'Opportunities' },
+  { module: 'assurance', to: '/marketops/assurance', label: 'Signal Assurance' },
   { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Insights' },
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },
   { module: 'settings', to: '/marketops/settings', label: 'Settings' },

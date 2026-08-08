@@ -78,6 +78,7 @@ import type {
   AlgorithmSignalMaterializationRequest,
   AlgorithmSignalMaterializationResponse,
   AlgorithmSignalMaterializationFilter,
+  MarketOpsSignalAssuranceAssertionFilter,
 } from '../types';
 
 export const queryKeys = {
@@ -132,6 +133,8 @@ export const queryKeys = {
   marketOpsOptionsChain: (tenantId: string, symbol: string, filter: MarketOpsOptionsChainFilter) =>
     ['marketops-options-chain', tenantId, symbol, filter] as const,
   marketOpsOpportunities: (filter: MarketOpsOpportunityFilter) => ['marketops-opportunities', filter] as const,
+  marketOpsSignalAssuranceAssertions: (filter: MarketOpsSignalAssuranceAssertionFilter) => ['marketops-signal-assurance-assertions', filter] as const,
+  marketOpsSignalAssuranceEvaluations: (assertionId: string, tenantId: string) => ['marketops-signal-assurance-evaluations', assertionId, tenantId] as const,
   marketOpsOpportunity: (opportunityId: string, tenantId: string) =>
     ['marketops-opportunity', opportunityId, tenantId] as const,
   marketOpsHypothesisEvaluations: (filter: MarketOpsHypothesisEvaluationFilter) =>
@@ -530,6 +533,14 @@ export function useMarketOpsOptionsChain(
     enabled: !!tenantId && !!symbol && !!filter.trade_date,
     staleTime: 5 * 60 * 1000,
   });
+}
+
+export function useMarketOpsSignalAssuranceAssertions(filter: MarketOpsSignalAssuranceAssertionFilter = { tenant_id: 'tenant-local', limit: 100 }) {
+  return useQuery({ queryKey: queryKeys.marketOpsSignalAssuranceAssertions(filter), queryFn: () => api.listMarketOpsSignalAssuranceAssertions(filter), staleTime: 30 * 1000, refetchInterval: 60 * 1000 });
+}
+
+export function useMarketOpsSignalAssuranceEvaluations(assertionId: string | null, tenantId: string) {
+  return useQuery({ queryKey: queryKeys.marketOpsSignalAssuranceEvaluations(assertionId ?? '', tenantId), queryFn: () => api.listMarketOpsSignalAssuranceEvaluations(assertionId!, tenantId), enabled: !!assertionId && !!tenantId, staleTime: 30 * 1000 });
 }
 
 // G139 MarketOps Opportunities workbench (read-only). The list runs with the
