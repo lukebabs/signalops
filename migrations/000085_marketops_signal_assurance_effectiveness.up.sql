@@ -1,0 +1,1 @@
+ALTER TABLE signal_assertions ADD COLUMN confidence double precision; ALTER TABLE signal_assertions ADD CONSTRAINT signal_assertions_confidence_check CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)); ALTER TABLE signal_effectiveness_snapshots ADD COLUMN evidence_source text NOT NULL DEFAULT 'SAF' CHECK (evidence_source IN ('SAF','LEGACY'));

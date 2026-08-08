@@ -16,6 +16,7 @@
     "signal_type": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
     "direction": {"type": "string", "enum": ["bullish", "bearish"]},
     "score": {"type": "number"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
     "status": {"const": "confirmed"},
     "algorithm": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
     "algorithm_version": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},

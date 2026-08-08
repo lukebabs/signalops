@@ -27,6 +27,7 @@ type eligiblePayload struct {
 	SignalType              string          `json:"signal_type"`
 	Direction               string          `json:"direction"`
 	Score                   *float64        `json:"score,omitempty"`
+	Confidence              *float64        `json:"confidence,omitempty"`
 	Status                  string          `json:"status"`
 	Algorithm               string          `json:"algorithm"`
 	AlgorithmVersion        string          `json:"algorithm_version"`
@@ -55,7 +56,7 @@ func DecodeEligibleEvent(value []byte) (storage.SignalAssuranceEligibleEvent, er
 	event := storage.SignalAssuranceEligibleEvent{
 		EligibleEventID: raw.EligibleEventID, TenantID: raw.TenantID, SignalID: raw.SignalID,
 		SignalLedgerID: raw.SignalLedgerID, AssetID: raw.AssetID, Symbol: strings.ToUpper(strings.TrimSpace(raw.Symbol)),
-		SignalType: raw.SignalType, Direction: strings.ToLower(strings.TrimSpace(raw.Direction)), Score: raw.Score,
+		SignalType: raw.SignalType, Direction: strings.ToLower(strings.TrimSpace(raw.Direction)), Score: raw.Score, Confidence: raw.Confidence,
 		Status: strings.ToLower(strings.TrimSpace(raw.Status)), Algorithm: raw.Algorithm,
 		AlgorithmVersion: raw.AlgorithmVersion, ConfirmedAt: raw.ConfirmedAt.UTC(),
 		EventAvailableAt: raw.EventAvailableAt.UTC(), ConfirmationRuleVersion: raw.ConfirmationRuleVersion,
@@ -88,6 +89,9 @@ func ValidateEligibleEvent(event storage.SignalAssuranceEligibleEvent) error {
 	}
 	if event.Status != "confirmed" || (event.Direction != "bullish" && event.Direction != "bearish") {
 		return errors.New("eligible event must be a confirmed bullish or bearish signal")
+	}
+	if event.Confidence != nil && (*event.Confidence < 0 || *event.Confidence > 1) {
+		return errors.New("eligible event confidence must be between zero and one")
 	}
 	if event.ConfirmedAt.IsZero() || event.EventAvailableAt.IsZero() || event.EventAvailableAt.Before(event.ConfirmedAt) {
 		return errors.New("eligible event confirmation and availability times are invalid")
@@ -126,7 +130,7 @@ func AssertionRegistration(event storage.SignalAssuranceEligibleEvent, contract 
 	assertion := storage.SignalAssertionRecord{
 		AssertionID: assertionID, TenantID: event.TenantID, AssetID: event.AssetID, Symbol: event.Symbol,
 		SignalID: event.SignalID, SourceLedgerSignalID: event.SignalLedgerID, SignalType: event.SignalType,
-		SignalDirection: event.Direction, SignalScore: event.Score, Algorithm: event.Algorithm,
+		SignalDirection: event.Direction, SignalScore: event.Score, Confidence: event.Confidence, Algorithm: event.Algorithm,
 		AlgorithmVersion: event.AlgorithmVersion, ConfirmedAt: event.ConfirmedAt, State: storage.SignalAssertionActive,
 		EvaluationMode: event.EvaluationMode, EvaluationRunID: event.EvaluationRunID, RegistrationIdempotencyKey: key,
 		ValidationContractID: contract.ContractID, ValidationContractVersion: contract.ContractVersion,

@@ -55,6 +55,7 @@ type SignalAssuranceEligibleEvent struct {
 	SignalType              string          `json:"signal_type"`
 	Direction               string          `json:"direction"`
 	Score                   *float64        `json:"score,omitempty"`
+	Confidence              *float64        `json:"confidence,omitempty"`
 	Status                  string          `json:"status"`
 	Algorithm               string          `json:"algorithm"`
 	AlgorithmVersion        string          `json:"algorithm_version"`
@@ -78,6 +79,7 @@ type SignalAssertionRecord struct {
 	SignalType                 string
 	SignalDirection            string
 	SignalScore                *float64
+	Confidence                 *float64
 	Algorithm                  string
 	AlgorithmVersion           string
 	ConfirmedAt                time.Time
@@ -171,11 +173,64 @@ type SignalAssuranceEvaluationFilter struct {
 	Limit       int
 }
 
+type SignalAssuranceEffectivenessFilter struct {
+	TenantID       string
+	EvidenceSource string
+	EvaluationMode string
+	Dimension      string
+	Limit          int
+}
+
+type SignalAssuranceEffectivenessRecord struct {
+	EvidenceSource          string
+	Dimension               string
+	DimensionValue          string
+	SampleSize              int
+	DirectionalHits         int
+	MaterializedCount       int
+	InvalidatedCount        int
+	ExpiredCount            int
+	CensoredCount           int
+	ExcludedCount           int
+	DirectionalAccuracy     *float64
+	AccuracyLowerBound      *float64
+	AccuracyUpperBound      *float64
+	MaterializationRate     *float64
+	AverageReturn           *float64
+	AverageRelativeReturn   *float64
+	AverageMFE              *float64
+	AverageMAE              *float64
+	Exploratory             bool
+	AsOf                    time.Time
+	MetricDefinitionVersion string
+}
+
+type SignalAssuranceRecommendationRecord struct {
+	RecommendationID        string
+	EvidenceSource          string
+	Dimension               string
+	DimensionValue          string
+	Priority                string
+	Kind                    string
+	Summary                 string
+	SampleSize              int
+	DirectionalAccuracy     *float64
+	AccuracyUpperBound      *float64
+	MetricDefinitionVersion string
+	AsOf                    time.Time
+}
+
+type SignalAssuranceEffectivenessRepository interface {
+	ListSignalAssuranceEffectiveness(context.Context, SignalAssuranceEffectivenessFilter) ([]SignalAssuranceEffectivenessRecord, error)
+	ListSignalAssuranceRecommendations(context.Context, SignalAssuranceEffectivenessFilter) ([]SignalAssuranceRecommendationRecord, error)
+}
+
 type SignalAssuranceQueryRepository interface {
 	ListSignalAssuranceAssertions(context.Context, SignalAssuranceAssertionFilter) ([]SignalAssertionRecord, error)
 	GetSignalAssuranceAssertion(context.Context, string, string) (SignalAssertionRecord, error)
 	ListSignalAssuranceEvaluations(context.Context, SignalAssuranceEvaluationFilter) ([]SignalAssertionEvaluationRecord, error)
 	GetSignalValidationContract(context.Context, string) (SignalValidationContractRecord, error)
+	SignalAssuranceEffectivenessRepository
 }
 
 type SignalAssuranceWriteRepository interface {

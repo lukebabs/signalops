@@ -66,6 +66,7 @@ type signalAssuranceAssertionDTO struct {
 	EvaluationRunID    string          `json:"evaluation_run_id,omitempty"`
 	ContractID         string          `json:"validation_contract_id"`
 	ContractVersion    string          `json:"validation_contract_version"`
+	Confidence         *float64        `json:"confidence,omitempty"`
 	BaselineSnapshot   json.RawMessage `json:"baseline_snapshot"`
 	BaselineProvenance json.RawMessage `json:"baseline_provenance"`
 	ConfirmedAt        string          `json:"confirmed_at"`
@@ -73,7 +74,7 @@ type signalAssuranceAssertionDTO struct {
 }
 
 func assertionResponse(x storage.SignalAssertionRecord) signalAssuranceAssertionDTO {
-	return signalAssuranceAssertionDTO{AssertionID: x.AssertionID, TenantID: x.TenantID, AssetID: x.AssetID, Symbol: x.Symbol, SignalID: x.SignalID, SignalType: x.SignalType, Direction: x.SignalDirection, State: x.State, EvaluationMode: x.EvaluationMode, EvaluationRunID: x.EvaluationRunID, ContractID: x.ValidationContractID, ContractVersion: x.ValidationContractVersion, BaselineSnapshot: json.RawMessage(jsonOrDefault(x.BaselineSnapshotJSON, "{}")), BaselineProvenance: json.RawMessage(jsonOrDefault(x.BaselineProvenanceJSON, "{}")), ConfirmedAt: x.ConfirmedAt.UTC().Format("2006-01-02T15:04:05Z"), TransitionSequence: x.TransitionSequence}
+	return signalAssuranceAssertionDTO{AssertionID: x.AssertionID, TenantID: x.TenantID, AssetID: x.AssetID, Symbol: x.Symbol, SignalID: x.SignalID, SignalType: x.SignalType, Direction: x.SignalDirection, State: x.State, EvaluationMode: x.EvaluationMode, EvaluationRunID: x.EvaluationRunID, ContractID: x.ValidationContractID, ContractVersion: x.ValidationContractVersion, Confidence: x.Confidence, BaselineSnapshot: json.RawMessage(jsonOrDefault(x.BaselineSnapshotJSON, "{}")), BaselineProvenance: json.RawMessage(jsonOrDefault(x.BaselineProvenanceJSON, "{}")), ConfirmedAt: x.ConfirmedAt.UTC().Format("2006-01-02T15:04:05Z"), TransitionSequence: x.TransitionSequence}
 }
 func assertionResponses(records []storage.SignalAssertionRecord) []signalAssuranceAssertionDTO {
 	out := make([]signalAssuranceAssertionDTO, 0, len(records))

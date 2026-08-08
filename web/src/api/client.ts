@@ -172,6 +172,8 @@ import type {
   MarketOpsSignalAssuranceAssertionsResponse,
   MarketOpsSignalAssuranceAssertionFilter,
   MarketOpsSignalAssuranceEvaluationsResponse,
+  MarketOpsSignalAssuranceEffectivenessResponse,
+  MarketOpsSignalAssuranceRecommendationsResponse,
 } from "../types";
 import { authConfig } from "../auth/config";
 import { getAccessToken } from "../auth/session";
@@ -792,6 +794,10 @@ export const api = {
     get<MarketOpsSignalAssuranceAssertionsResponse>("/v1/marketops/signal-assurance/assertions", { tenant_id: filter.tenant_id, state: filter.state || undefined, evaluation_mode: filter.evaluation_mode || undefined, symbol: filter.symbol || undefined, limit: filter.limit ?? 100 }),
   listMarketOpsSignalAssuranceEvaluations: (assertionId: string, tenantId: string) =>
     get<MarketOpsSignalAssuranceEvaluationsResponse>(`/v1/marketops/signal-assurance/assertions/${encodeURIComponent(assertionId)}/evaluations`, { tenant_id: tenantId, limit: 100 }),
+  getMarketOpsSignalAssuranceEffectiveness: (tenantId: string, evidenceSource = "", dimension = "overall", evaluationMode = "") =>
+    get<MarketOpsSignalAssuranceEffectivenessResponse>("/v1/marketops/signal-assurance/effectiveness", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, dimension: dimension || undefined, evaluation_mode: evaluationMode || undefined }),
+  getMarketOpsSignalAssuranceRecommendations: (tenantId: string, evidenceSource = "", evaluationMode = "") =>
+    get<MarketOpsSignalAssuranceRecommendationsResponse>("/v1/marketops/signal-assurance/recommendations", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, evaluation_mode: evaluationMode || undefined }),
   // G139 MarketOps Opportunities workbench (read-only). Opportunity list/detail
   // plus supporting linked-record reads (hypothesis-evaluations, hypotheses,
   // evidence, market-state lineage). research_only / eligible / triggered /

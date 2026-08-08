@@ -16,11 +16,15 @@ export interface HealthResponse {
 }
 
 // MarketOps Signal Assurance Framework (SAF). These DTOs mirror the read-only gateway routes.
-export interface MarketOpsSignalAssuranceAssertion { assertion_id: string; tenant_id: string; asset_id: string; symbol: string; signal_id: string; signal_type: string; direction: string; state: string; evaluation_mode: string; evaluation_run_id?: string; validation_contract_id: string; validation_contract_version: string; baseline_snapshot: unknown; baseline_provenance: unknown; confirmed_at: string; transition_sequence: number; }
+export interface MarketOpsSignalAssuranceAssertion { assertion_id: string; tenant_id: string; asset_id: string; symbol: string; signal_id: string; signal_type: string; direction: string; state: string; evaluation_mode: string; evaluation_run_id?: string; validation_contract_id: string; validation_contract_version: string; confidence?: number; baseline_snapshot: unknown; baseline_provenance: unknown; confirmed_at: string; transition_sequence: number; }
 export interface MarketOpsSignalAssuranceAssertionsResponse { assertions: MarketOpsSignalAssuranceAssertion[]; }
 export interface MarketOpsSignalAssuranceAssertionFilter { tenant_id?: string; state?: string; evaluation_mode?: string; symbol?: string; limit?: number; }
 export interface MarketOpsSignalAssuranceEvaluation { evaluation_id: string; assertion_id: string; evaluation_session_date: string; input_completeness: string; trading_days_active: number; absolute_return?: number; benchmark_relative_return?: number; mfe?: number; mae?: number; materialization_condition_met: boolean; invalidation_condition_met: boolean; evaluation_version: string; }
 export interface MarketOpsSignalAssuranceEvaluationsResponse { evaluations: MarketOpsSignalAssuranceEvaluation[]; }
+export interface MarketOpsSignalAssuranceEffectiveness { evidence_source: string; dimension: string; dimension_value: string; sample_size: number; directional_hits: number; materialized_count: number; invalidated_count: number; expired_count: number; censored_count: number; excluded_count: number; directional_accuracy?: number; accuracy_lower_bound?: number; accuracy_upper_bound?: number; materialization_rate?: number; average_return?: number; average_relative_return?: number; average_mfe?: number; average_mae?: number; exploratory: boolean; as_of: string; metric_definition_version: string; }
+export interface MarketOpsSignalAssuranceEffectivenessResponse { effectiveness: MarketOpsSignalAssuranceEffectiveness[]; minimum_ranked_sample: number; evidence_source_note: string; }
+export interface MarketOpsSignalAssuranceRecommendation { recommendation_id: string; evidence_source: string; dimension: string; dimension_value: string; priority: string; kind: string; summary: string; sample_size: number; directional_accuracy?: number; accuracy_upper_bound?: number; metric_definition_version: string; as_of: string; }
+export interface MarketOpsSignalAssuranceRecommendationsResponse { recommendations: MarketOpsSignalAssuranceRecommendation[]; minimum_ranked_sample: number; }
 
 export interface SchedulerRun {
   run_id: string;

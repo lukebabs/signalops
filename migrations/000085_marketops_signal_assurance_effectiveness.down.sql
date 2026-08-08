@@ -1,0 +1,1 @@
+ALTER TABLE signal_effectiveness_snapshots DROP COLUMN evidence_source; ALTER TABLE signal_assertions DROP CONSTRAINT signal_assertions_confidence_check; ALTER TABLE signal_assertions DROP COLUMN confidence;
