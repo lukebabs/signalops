@@ -178,6 +178,7 @@ type SignalAssuranceEffectivenessFilter struct {
 	EvidenceSource string
 	EvaluationMode string
 	Dimension      string
+	DimensionValue string
 	Limit          int
 }
 
@@ -220,8 +221,39 @@ type SignalAssuranceRecommendationRecord struct {
 	AsOf                    time.Time
 }
 
+// SignalAssuranceEffectivenessObservationRecord is one terminal, complete
+// observation included in an effectiveness cohort. ReferenceID identifies the
+// immutable source record: an SAF assertion or the historical opportunity.
+// Consumers use it to retrieve the existing, read-only audit/provenance view.
+type SignalAssuranceEffectivenessObservationRecord struct {
+	EvidenceSource     string
+	ObservationID      string
+	ReferenceID        string
+	Symbol             string
+	SignalType         string
+	Direction          string
+	Algorithm          string
+	AlgorithmVersion   string
+	State              string
+	EvaluationMode     string
+	HorizonSessions    int
+	SignalScore        *float64
+	Confidence         *float64
+	DirectionalHit     *bool
+	AbsoluteReturn     *float64
+	DirectionalReturn  *float64
+	RelativeReturn     *float64
+	MFE                *float64
+	MAE                *float64
+	OriginAt           *time.Time
+	OutcomeAt          *time.Time
+	CalculationVersion string
+	CalculationRunID   string
+}
+
 type SignalAssuranceEffectivenessRepository interface {
 	ListSignalAssuranceEffectiveness(context.Context, SignalAssuranceEffectivenessFilter) ([]SignalAssuranceEffectivenessRecord, error)
+	ListSignalAssuranceEffectivenessObservations(context.Context, SignalAssuranceEffectivenessFilter) ([]SignalAssuranceEffectivenessObservationRecord, error)
 	ListSignalAssuranceRecommendations(context.Context, SignalAssuranceEffectivenessFilter) ([]SignalAssuranceRecommendationRecord, error)
 }
 

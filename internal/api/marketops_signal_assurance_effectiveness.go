@@ -24,6 +24,20 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"effectiveness": effectivenessResponses(rows), "minimum_ranked_sample": 30, "evidence_source_note": "LEGACY records are historical outcome evidence and are not SAF-validated assertions."})
 	})
+	mux.HandleFunc("GET /v1/marketops/signal-assurance/effectiveness/observations", func(w http.ResponseWriter, r *http.Request) {
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		dimensionValue := strings.TrimSpace(r.URL.Query().Get("dimension_value"))
+		if tenantID == "" || dimensionValue == "" {
+			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id and dimension_value are required")
+			return
+		}
+		rows, err := query.ListSignalAssuranceEffectivenessObservations(r.Context(), storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), DimensionValue: dimensionValue, Limit: queryLimit(r, 200)})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list signal assurance effectiveness observations")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"observations": effectivenessObservationResponses(rows), "evidence_source_note": "LEGACY observations are historical outcome evidence and are not SAF-validated assertions."})
+	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/recommendations", func(w http.ResponseWriter, r *http.Request) {
 		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
 		if tenantID == "" {
@@ -37,6 +51,21 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"recommendations": recommendationResponses(rows), "minimum_ranked_sample": 30})
 	})
+}
+
+func effectivenessObservationResponses(values []storage.SignalAssuranceEffectivenessObservationRecord) []map[string]any {
+	out := make([]map[string]any, 0, len(values))
+	for _, x := range values {
+		item := map[string]any{"evidence_source": x.EvidenceSource, "observation_id": x.ObservationID, "reference_id": x.ReferenceID, "symbol": x.Symbol, "signal_type": x.SignalType, "direction": x.Direction, "algorithm": x.Algorithm, "algorithm_version": x.AlgorithmVersion, "state": x.State, "evaluation_mode": x.EvaluationMode, "horizon_sessions": x.HorizonSessions, "signal_score": x.SignalScore, "confidence": x.Confidence, "directional_hit": x.DirectionalHit, "absolute_return": x.AbsoluteReturn, "directional_return": x.DirectionalReturn, "relative_return": x.RelativeReturn, "mfe": x.MFE, "mae": x.MAE, "calculation_version": x.CalculationVersion, "calculation_run_id": x.CalculationRunID}
+		if x.OriginAt != nil {
+			item["origin_at"] = x.OriginAt.UTC().Format("2006-01-02T15:04:05Z")
+		}
+		if x.OutcomeAt != nil {
+			item["outcome_at"] = x.OutcomeAt.UTC().Format("2006-01-02T15:04:05Z")
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 type signalAssuranceEffectivenessDTO struct {

@@ -21,6 +21,10 @@ type effectivenessObservation struct {
 	horizon                                                  int
 	complete                                                 bool
 	legacyHit                                                *bool
+	id, referenceID, symbol, evaluationMode                  string
+	score                                                    *float64
+	originAt, outcomeAt                                      *time.Time
+	calculationVersion, calculationRunID                     string
 }
 type effectivenessAccumulator struct {
 	sample, hits, materialized, invalidated, expired, censored, excluded int
@@ -46,8 +50,73 @@ func (r *Repository) ListSignalAssuranceEffectiveness(ctx context.Context, f sto
 	}
 	return aggregateEffectiveness(observations, normalizedEffectivenessDimension(f.Dimension)), nil
 }
+func (r *Repository) ListSignalAssuranceEffectivenessObservations(ctx context.Context, f storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessObservationRecord, error) {
+	dimension := normalizedEffectivenessDimension(f.Dimension)
+	cohort := strings.TrimSpace(f.DimensionValue)
+	if cohort == "" {
+		return []storage.SignalAssuranceEffectivenessObservationRecord{}, nil
+	}
+	values := make([]effectivenessObservation, 0)
+	for _, source := range effectivenessSources(f.EvidenceSource) {
+		var sourceValues []effectivenessObservation
+		var err error
+		if source == "SAF" {
+			sourceValues, err = r.listSAFEffectivenessObservations(ctx, f)
+		} else {
+			sourceValues, err = r.listLegacyEffectivenessObservations(ctx, f)
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, value := range sourceValues {
+			if dimensionValue(value, dimension) == cohort && effectivenessObservationIncluded(value) {
+				values = append(values, value)
+			}
+		}
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].outcomeAt == nil {
+			return false
+		}
+		if values[j].outcomeAt == nil {
+			return true
+		}
+		return values[i].outcomeAt.After(*values[j].outcomeAt)
+	})
+	limit := clampLimit(f.Limit)
+	if limit <= 0 {
+		limit = 200
+	}
+	if len(values) > limit {
+		values = values[:limit]
+	}
+	out := make([]storage.SignalAssuranceEffectivenessObservationRecord, 0, len(values))
+	for _, value := range values {
+		var hit *bool
+		if value.legacyHit != nil {
+			hit = value.legacyHit
+		} else if value.absoluteReturn != nil {
+			v := *value.absoluteReturn > 0
+			if value.direction == "bearish" {
+				v = *value.absoluteReturn < 0
+			}
+			hit = &v
+		}
+		var directionalReturn *float64
+		if value.absoluteReturn != nil {
+			v := *value.absoluteReturn
+			if value.direction == "bearish" || value.direction == "downside" {
+				v = -v
+			}
+			directionalReturn = &v
+		}
+		out = append(out, storage.SignalAssuranceEffectivenessObservationRecord{EvidenceSource: value.source, ObservationID: value.id, ReferenceID: value.referenceID, Symbol: value.symbol, SignalType: value.signalType, Direction: value.direction, Algorithm: value.algorithm, AlgorithmVersion: value.version, State: value.state, EvaluationMode: value.evaluationMode, HorizonSessions: value.horizon, SignalScore: value.score, Confidence: value.confidence, DirectionalHit: hit, AbsoluteReturn: value.absoluteReturn, DirectionalReturn: directionalReturn, RelativeReturn: value.relativeReturn, MFE: value.mfe, MAE: value.mae, OriginAt: value.originAt, OutcomeAt: value.outcomeAt, CalculationVersion: value.calculationVersion, CalculationRunID: value.calculationRunID})
+	}
+	return out, nil
+}
+
 func (r *Repository) listSAFEffectivenessObservations(ctx context.Context, f storage.SignalAssuranceEffectivenessFilter) ([]effectivenessObservation, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT a.algorithm,a.algorithm_version,a.signal_type,a.signal_direction,a.state,a.confidence,COALESCE(e.trading_days_active,0),e.absolute_return,e.benchmark_relative_return,e.mfe,e.mae,COALESCE(e.input_completeness,'INCOMPLETE') FROM signal_assertions a LEFT JOIN LATERAL (SELECT trading_days_active,absolute_return,benchmark_relative_return,mfe,mae,input_completeness FROM signal_assertion_evaluations WHERE assertion_id=a.assertion_id ORDER BY evaluation_session_date DESC LIMIT 1) e ON true WHERE a.tenant_id=$1 AND ($2='' OR a.evaluation_mode=$2)`, strings.TrimSpace(f.TenantID), strings.TrimSpace(f.EvaluationMode))
+	rows, err := r.db.QueryContext(ctx, `SELECT a.assertion_id,a.signal_id,a.symbol,a.algorithm,a.algorithm_version,a.signal_type,a.signal_direction,a.state,a.evaluation_mode,a.signal_score,a.confidence,a.confirmed_at,COALESCE(e.trading_days_active,0),e.evaluation_session_date,e.absolute_return,e.benchmark_relative_return,e.mfe,e.mae,COALESCE(e.input_completeness,'INCOMPLETE'),COALESCE(e.evaluation_version,''),COALESCE(e.evaluation_run_id,'') FROM signal_assertions a LEFT JOIN LATERAL (SELECT trading_days_active,evaluation_session_date,absolute_return,benchmark_relative_return,mfe,mae,input_completeness,evaluation_version,evaluation_run_id FROM signal_assertion_evaluations WHERE assertion_id=a.assertion_id ORDER BY evaluation_session_date DESC LIMIT 1) e ON true WHERE a.tenant_id=$1 AND ($2='' OR a.evaluation_mode=$2)`, strings.TrimSpace(f.TenantID), strings.TrimSpace(f.EvaluationMode))
 	if err != nil {
 		return nil, fmt.Errorf("list SAF effectiveness observations: %w", err)
 	}
@@ -55,14 +124,23 @@ func (r *Repository) listSAFEffectivenessObservations(ctx context.Context, f sto
 	out := []effectivenessObservation{}
 	for rows.Next() {
 		var x effectivenessObservation
-		var confidence, absolute, relative, mfe, mae sql.NullFloat64
+		var confidence, score, absolute, relative, mfe, mae sql.NullFloat64
+		var origin time.Time
+		var outcome sql.NullTime
 		var completeness string
-		if err := rows.Scan(&x.algorithm, &x.version, &x.signalType, &x.direction, &x.state, &confidence, &x.horizon, &absolute, &relative, &mfe, &mae, &completeness); err != nil {
+		if err := rows.Scan(&x.id, &x.referenceID, &x.symbol, &x.algorithm, &x.version, &x.signalType, &x.direction, &x.state, &x.evaluationMode, &score, &confidence, &origin, &x.horizon, &outcome, &absolute, &relative, &mfe, &mae, &completeness, &x.calculationVersion, &x.calculationRunID); err != nil {
 			return nil, err
 		}
 		x.source = "SAF"
+		x.referenceID = x.id
 		x.complete = completeness == storage.SignalAssuranceInputComplete && absolute.Valid
 		x.confidence = nullableFloat(confidence)
+		x.score = nullableFloat(score)
+		x.originAt = &origin
+		if outcome.Valid {
+			value := outcome.Time
+			x.outcomeAt = &value
+		}
 		x.absoluteReturn = nullableFloat(absolute)
 		x.relativeReturn = nullableFloat(relative)
 		x.mfe = nullableFloat(mfe)
@@ -72,7 +150,7 @@ func (r *Repository) listSAFEffectivenessObservations(ctx context.Context, f sto
 	return out, rows.Err()
 }
 func (r *Repository) listLegacyEffectivenessObservations(ctx context.Context, f storage.SignalAssuranceEffectivenessFilter) ([]effectivenessObservation, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT o.direction,o.horizon_sessions,o.directional_hit,o.forward_return,p.confidence_score FROM marketops_signal_outcomes o JOIN marketops_opportunities p ON p.tenant_id=o.tenant_id AND p.opportunity_id=o.source_id WHERE o.tenant_id=$1 AND o.source_type='opportunity' AND o.outcome_status='matured' AND o.direction IN ('upside','downside')`, strings.TrimSpace(f.TenantID))
+	rows, err := r.db.QueryContext(ctx, `SELECT o.outcome_id,o.source_id,o.symbol,o.direction,o.horizon_sessions,o.origin_session_date,o.matured_session_date,o.directional_hit,o.forward_return,o.max_favorable_excursion,o.max_adverse_excursion,o.calculation_version,o.calculation_run_id,p.opportunity_score,p.confidence_score FROM marketops_signal_outcomes o JOIN marketops_opportunities p ON p.tenant_id=o.tenant_id AND p.opportunity_id=o.source_id WHERE o.tenant_id=$1 AND o.source_type='opportunity' AND o.outcome_status='matured' AND o.direction IN ('upside','downside')`, strings.TrimSpace(f.TenantID))
 	if err != nil {
 		return nil, fmt.Errorf("list legacy effectiveness observations: %w", err)
 	}
@@ -81,14 +159,19 @@ func (r *Repository) listLegacyEffectivenessObservations(ctx context.Context, f 
 	for rows.Next() {
 		var x effectivenessObservation
 		var hit sql.NullBool
-		var forward, confidence sql.NullFloat64
-		if err := rows.Scan(&x.direction, &x.horizon, &hit, &forward, &confidence); err != nil {
+		var forward, confidence, score, mfe, mae sql.NullFloat64
+		var origin, outcome time.Time
+		if err := rows.Scan(&x.id, &x.referenceID, &x.symbol, &x.direction, &x.horizon, &origin, &outcome, &hit, &forward, &mfe, &mae, &x.calculationVersion, &x.calculationRunID, &score, &confidence); err != nil {
 			return nil, err
 		}
 		x.source = "LEGACY"
 		x.algorithm = "legacy_opportunity"
 		x.version = "unattributable"
 		x.signalType = "opportunity"
+		x.state = "MATURED"
+		x.originAt = &origin
+		x.outcomeAt = &outcome
+		x.score = nullableFloat(score)
 		x.complete = hit.Valid
 		if hit.Valid {
 			value := hit.Bool
@@ -96,9 +179,15 @@ func (r *Repository) listLegacyEffectivenessObservations(ctx context.Context, f 
 		}
 		x.absoluteReturn = nullableFloat(forward)
 		x.confidence = nullableFloat(confidence)
+		x.mfe = nullableFloat(mfe)
+		x.mae = nullableFloat(mae)
 		out = append(out, x)
 	}
 	return out, rows.Err()
+}
+func effectivenessObservationIncluded(x effectivenessObservation) bool {
+	terminal := x.source == "LEGACY" || x.state == storage.SignalAssertionMaterialized || x.state == storage.SignalAssertionInvalidated || x.state == storage.SignalAssertionExpired || x.state == storage.SignalAssertionSuperseded || x.state == storage.SignalAssertionClosed
+	return terminal && x.complete
 }
 func aggregateEffectiveness(values []effectivenessObservation, dimension string) []storage.SignalAssuranceEffectivenessRecord {
 	grouped := map[string]*effectivenessAccumulator{}

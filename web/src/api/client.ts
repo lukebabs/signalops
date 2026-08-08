@@ -173,6 +173,8 @@ import type {
   MarketOpsSignalAssuranceAssertionFilter,
   MarketOpsSignalAssuranceEvaluationsResponse,
   MarketOpsSignalAssuranceEffectivenessResponse,
+  MarketOpsSignalAssuranceEffectivenessObservationsResponse,
+  MarketOpsSignalAssuranceAssertionResponse,
   MarketOpsSignalAssuranceRecommendationsResponse,
 } from "../types";
 import { authConfig } from "../auth/config";
@@ -796,6 +798,10 @@ export const api = {
     get<MarketOpsSignalAssuranceEvaluationsResponse>(`/v1/marketops/signal-assurance/assertions/${encodeURIComponent(assertionId)}/evaluations`, { tenant_id: tenantId, limit: 100 }),
   getMarketOpsSignalAssuranceEffectiveness: (tenantId: string, evidenceSource = "", dimension = "overall", evaluationMode = "") =>
     get<MarketOpsSignalAssuranceEffectivenessResponse>("/v1/marketops/signal-assurance/effectiveness", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, dimension: dimension || undefined, evaluation_mode: evaluationMode || undefined }),
+  listMarketOpsSignalAssuranceEffectivenessObservations: (tenantId: string, evidenceSource: string, dimension: string, dimensionValue: string, evaluationMode = "") =>
+    get<MarketOpsSignalAssuranceEffectivenessObservationsResponse>("/v1/marketops/signal-assurance/effectiveness/observations", { tenant_id: tenantId, evidence_source: evidenceSource, dimension, dimension_value: dimensionValue, evaluation_mode: evaluationMode || undefined, limit: 200 }),
+  getMarketOpsSignalAssuranceAssertion: (assertionId: string, tenantId: string) =>
+    get<MarketOpsSignalAssuranceAssertionResponse>(`/v1/marketops/signal-assurance/assertions/${encodeURIComponent(assertionId)}`, { tenant_id: tenantId }),
   getMarketOpsSignalAssuranceRecommendations: (tenantId: string, evidenceSource = "", evaluationMode = "") =>
     get<MarketOpsSignalAssuranceRecommendationsResponse>("/v1/marketops/signal-assurance/recommendations", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, evaluation_mode: evaluationMode || undefined }),
   // G139 MarketOps Opportunities workbench (read-only). Opportunity list/detail
