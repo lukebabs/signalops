@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.syncratic.local/signalops/events/marketops.signal.assurance.eligible.v1.schema.json",
+  "title": "MarketOps Signal Assurance Eligible",
+  "description": "Trusted internal confirmation event that registers a persisted signal_ledger record with SAF.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eligible_event_id", "tenant_id", "signal_id", "signal_ledger_id", "asset_id", "symbol", "signal_type", "direction", "status", "algorithm", "algorithm_version", "confirmed_at", "event_available_at", "confirmation_rule_version", "validation_contract_ref", "baseline_snapshot", "baseline_provenance", "evaluation_mode"],
+  "properties": {
+    "eligible_event_id": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "tenant_id": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "signal_id": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "signal_ledger_id": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "asset_id": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "symbol": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "signal_type": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "direction": {"type": "string", "enum": ["bullish", "bearish"]},
+    "score": {"type": "number"},
+    "status": {"const": "confirmed"},
+    "algorithm": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "algorithm_version": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "confirmed_at": {"$ref": "common.defs.v1.schema.json#/$defs/timestamp"},
+    "event_available_at": {"$ref": "common.defs.v1.schema.json#/$defs/timestamp"},
+    "confirmation_rule_version": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "validation_contract_ref": {"$ref": "common.defs.v1.schema.json#/$defs/non_empty_string"},
+    "baseline_snapshot": {"type": "object", "required": ["asset_price"], "properties": {"asset_price": {"type": "number", "exclusiveMinimum": 0}, "benchmark_price": {"type": "number", "exclusiveMinimum": 0}}, "additionalProperties": true},
+    "baseline_provenance": {"type": "object"},
+    "evaluation_mode": {"type": "string", "enum": ["LIVE", "BACKTEST", "RESEARCH"]},
+    "evaluation_run_id": {"type": "string"}
+  }
+}

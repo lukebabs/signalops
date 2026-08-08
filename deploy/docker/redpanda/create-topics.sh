@@ -15,7 +15,9 @@ signalops.${ENVIRONMENT}.graph_mutation.v1
 signalops.${ENVIRONMENT}.insight_candidate.v1
 signalops.${ENVIRONMENT}.retry.algorithm.v1
 signalops.${ENVIRONMENT}.dlq.algorithm.v1
-signalops.${ENVIRONMENT}.connect-accepted-raw.v1
+signalops..connect-accepted-raw.v1
+signalops..marketops.signal.assurance.eligible.v1
+signalops..signal_assertion.v1
 signalops.${ENVIRONMENT}.cyberops-allowed-service-state.v1
 "
 

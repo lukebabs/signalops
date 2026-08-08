@@ -23,6 +23,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-ho
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-cyberops-daily-feature-materializer ./cmd/cyberops-daily-feature-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-retention-governor ./cmd/retention-governor
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-signal-persister ./cmd/signal-persister
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-signal-assurance-registrar ./cmd/marketops-signal-assurance-registrar
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-signal-assurance-worker ./cmd/marketops-signal-assurance-worker
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-signal-assurance-outbox ./cmd/marketops-signal-assurance-outbox
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-replay-worker ./cmd/replay-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-backtest ./cmd/marketops-backtest
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-hypothesis-backtest ./cmd/marketops-hypothesis-backtest
@@ -125,6 +128,18 @@ FROM gcr.io/distroless/static-debian12:nonroot AS signal-persister
 COPY --from=build /out/signalops-signal-persister /signalops-signal-persister
 
 ENTRYPOINT ["/signalops-signal-persister"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-signal-assurance-registrar
+COPY --from=build /out/signalops-marketops-signal-assurance-registrar /signalops-marketops-signal-assurance-registrar
+ENTRYPOINT ["/signalops-marketops-signal-assurance-registrar"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-signal-assurance-worker
+COPY --from=build /out/signalops-marketops-signal-assurance-worker /signalops-marketops-signal-assurance-worker
+ENTRYPOINT ["/signalops-marketops-signal-assurance-worker"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-signal-assurance-outbox
+COPY --from=build /out/signalops-marketops-signal-assurance-outbox /signalops-marketops-signal-assurance-outbox
+ENTRYPOINT ["/signalops-marketops-signal-assurance-outbox"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS replay-worker
 

@@ -8,15 +8,17 @@ import (
 const (
 	DefaultEnvironment = "local"
 
-	RawTopic                = "raw"
-	NormalizedTopic         = "normalized"
-	SignalTopic             = "signal"
-	ArtifactTopic           = "artifact"
-	GraphMutationTopic      = "graph_mutation"
-	InsightCandidateTopic   = "insight_candidate"
-	RetryAlgorithmTopic     = "retry.algorithm"
-	DLQAlgorithmTopic       = "dlq.algorithm"
-	ConnectAcceptedRawTopic = "connect-accepted-raw"
+	RawTopic                              = "raw"
+	NormalizedTopic                       = "normalized"
+	SignalTopic                           = "signal"
+	ArtifactTopic                         = "artifact"
+	GraphMutationTopic                    = "graph_mutation"
+	InsightCandidateTopic                 = "insight_candidate"
+	RetryAlgorithmTopic                   = "retry.algorithm"
+	DLQAlgorithmTopic                     = "dlq.algorithm"
+	ConnectAcceptedRawTopic               = "connect-accepted-raw"
+	MarketOpsSignalAssuranceEligibleTopic = "marketops.signal.assurance.eligible"
+	SignalAssertionTopic                  = "signal_assertion"
 )
 
 var durableTopicNames = []string{
@@ -29,6 +31,8 @@ var durableTopicNames = []string{
 	RetryAlgorithmTopic,
 	DLQAlgorithmTopic,
 	ConnectAcceptedRawTopic,
+	MarketOpsSignalAssuranceEligibleTopic,
+	SignalAssertionTopic,
 }
 
 // TopicName returns the durable SignalOps topic name for an environment.

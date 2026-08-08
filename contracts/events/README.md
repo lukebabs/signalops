@@ -20,6 +20,7 @@ Versioned schemas:
 - `raw_signal_event.v1.schema.json`
 - `normalized_signal_event.v1.schema.json`
 - `signal.v1.schema.json`
+- `marketops.signal.assurance.eligible.v1.schema.json`
 - `retry_event.v1.schema.json`
 - `dlq_event.v1.schema.json`
 

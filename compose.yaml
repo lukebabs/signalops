@@ -548,6 +548,56 @@ services:
       SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
       SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
 
+  marketops-signal-assurance-registrar:
+    build:
+      context: .
+      target: marketops-signal-assurance-registrar
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+
+  marketops-signal-assurance-outbox:
+    build:
+      context: .
+      target: marketops-signal-assurance-outbox
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-bootstrap:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_BROKER_BROKERS: redpanda:9092
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+
+  marketops-signal-assurance-worker:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-signal-assurance-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
+      SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+
   replay-worker:
     build:
       context: .

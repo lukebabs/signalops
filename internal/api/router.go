@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -45,6 +46,7 @@ type RouterConfig struct {
 	Auth                         AuthConfig
 	Publisher                    broker.Publisher
 	RawTopic                     string
+	Environment                  string
 	QueryRepository              storage.QueryRepository
 	AccessRepository             storage.TenantUserAccessRepository
 	CyberOpsConnectRepository    storage.CyberOpsConnectRepository
@@ -74,6 +76,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerMarketOpsTaskRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsEROCRoutes(mux, cfg)
 	registerMarketOpsEEOMRoutes(mux, cfg)
+	registerMarketOpsSignalAssuranceRoutes(mux, cfg.QueryRepository)
 	registerStorageMonitorRoutes(mux, cfg.QueryRepository)
 	registerRetentionGovernanceRoutes(mux, cfg.QueryRepository)
 	registerAdministrationNotificationRoutes(mux, cfg)
@@ -2152,6 +2155,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to persist succeeded materialization")
 			return
+		}
+		if publishErr := publishResearchEligibleFromMaterialization(r.Context(), cfg, proposal, result, record, signal); publishErr != nil {
+			slog.Default().Warn("SAF eligible event not published", "materialization_id", record.MaterializationID, "signal_id", signal.SignalID, "error", publishErr)
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{"algorithm_signal_materialization": algorithmSignalMaterializationResponse(record)})
 	})

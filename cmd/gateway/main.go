@@ -46,6 +46,7 @@ func main() {
 		ServiceName: "signalops-gateway",
 		Publisher:   brokerClient,
 		RawTopic:    broker.TopicName(cfg.Environment, broker.RawTopic),
+		Environment: cfg.Environment,
 		Auth: api.AuthConfig{
 			Enabled:  cfg.AuthEnabled,
 			Issuer:   cfg.AuthIssuer,

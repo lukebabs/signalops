@@ -214,6 +214,7 @@ if $plan_mode; then
   done
   outcome_start="$(TZ="$timezone" date -d "$session_date - ${MARKETOPS_OUTCOME_LOOKBACK_DAYS:-45} days" '+%F')"
   log "plan includes final convergence refresh and outcome maturity window=$outcome_start..$session_date"
+  print_command docker compose --profile marketops-daily run --rm marketops-signal-assurance-worker --tenant-id tenant-local --as-of "$session_date" --mode RESEARCH --run-id saf-research-materializations-v1
   for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=10, batch++)); do
     batch_symbols=("${symbols[@]:offset:10}")
     batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
@@ -506,6 +507,8 @@ if $write_mode; then
     log "outcome maturity batch=$batch symbols=$batch_csv"
     "${outcome_sweep[@]}"
   done
+  log "research signal assurance evaluation started as_of=$session_date"
+  docker compose --profile marketops-daily run --rm marketops-signal-assurance-worker --tenant-id tenant-local --as-of "$session_date" --mode RESEARCH --run-id saf-research-materializations-v1
   log "universal completed-close refresh started symbols=${#workflow_symbols[@]}"
   docker compose --profile marketops-intraday run --rm marketops-intraday-monitor --tenant-id tenant-local --universe-group all_active --max-symbols 200 --allow-outside-session
   bash ./scripts/marketops_universal_completion_gate.sh "$session_date" "$workflow_universe_symbols" "${#workflow_symbols[@]}" || exit 8

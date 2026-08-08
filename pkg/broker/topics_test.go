@@ -22,6 +22,8 @@ func TestDurableTopics(t *testing.T) {
 		"signalops.dev.retry.algorithm.v1",
 		"signalops.dev.dlq.algorithm.v1",
 		"signalops.dev.connect-accepted-raw.v1",
+		"signalops.dev.marketops.signal.assurance.eligible.v1",
+		"signalops.dev.signal_assertion.v1",
 	}
 
 	if len(got) != len(want) {
