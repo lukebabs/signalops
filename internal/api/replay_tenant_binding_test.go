@@ -337,3 +337,67 @@ func TestAuthenticatedCoreLedgersBindTenantAndHideForeignDetails(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthenticatedBacktestReadRoutesBindTenantAndHideForeignDetails(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	const foreignTenant = "tenant-other"
+	repo := &fakeQueryRepository{
+		backtestCoverage:               []storage.MarketOpsBacktestCoverageRecord{{TenantID: foreignTenant}},
+		backtestCampaigns:              []storage.MarketOpsBacktestCampaignRecord{{CampaignID: "campaign-foreign", TenantID: foreignTenant}},
+		backtestRuns:                   []storage.MarketOpsBacktestRunRecord{{RunID: "run-local", TenantID: "tenant-local"}, {RunID: "run-foreign", TenantID: foreignTenant}},
+		backtestCalibrationSummaries:   []storage.MarketOpsBacktestCalibrationSummaryRecord{{SummaryID: "summary-foreign", TenantID: foreignTenant}},
+		backtestCalibrationBaselines:   []storage.MarketOpsBacktestCalibrationBaselineRecord{{BaselineID: "baseline-foreign", TenantID: foreignTenant}},
+		backtestCalibrationComparisons: []storage.MarketOpsBacktestCalibrationComparisonRecord{{ComparisonID: "comparison-foreign", TenantID: foreignTenant}},
+		backtestPromotionCandidates:    []storage.MarketOpsBacktestPromotionCandidateRecord{{CandidateID: "candidate-foreign", TenantID: foreignTenant}},
+		backtestCalibrationReadiness:   []storage.MarketOpsBacktestCalibrationReadinessRecord{{ReadinessID: "readiness-foreign", TenantID: foreignTenant}},
+		backtestSignals:                []storage.MarketOpsBacktestSignalRecord{{RunID: "run-local", SignalLedgerRecord: storage.SignalLedgerRecord{TenantID: foreignTenant}}},
+		backtestGraphProposals:         []storage.MarketOpsBacktestGraphProposalRecord{{RunID: "run-local", MarketOpsDSMGraphProposalRecord: storage.MarketOpsDSMGraphProposalRecord{TenantID: foreignTenant}}},
+		backtestPolicyResults:          []storage.MarketOpsBacktestPolicyResultRecord{{RunID: "run-local", TenantID: foreignTenant}},
+		backtestEvaluations:            []storage.MarketOpsBacktestEvaluationRecord{{EvaluationID: "evaluation-foreign", TenantID: foreignTenant}},
+		backtestEvaluationLabels:       []storage.MarketOpsBacktestEvaluationLabelRecord{{LabelID: "label-foreign", TenantID: foreignTenant}},
+	}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	for _, request := range []struct {
+		path   string
+		tenant func() string
+	}{
+		{path: "/v1/marketops/backtest-coverage", tenant: func() string { return repo.lastBacktestCoverageFilter.TenantID }},
+		{path: "/v1/marketops/backtest-campaigns", tenant: func() string { return repo.lastBacktestCampaignFilter.TenantID }},
+		{path: "/v1/marketops/backtests", tenant: func() string { return repo.lastBacktestRunFilter.TenantID }},
+		{path: "/v1/marketops/backtest-calibration-summaries", tenant: func() string { return repo.lastBacktestCalibrationFilter.TenantID }},
+		{path: "/v1/marketops/backtest-calibration-baselines", tenant: func() string { return repo.lastBacktestBaselineFilter.TenantID }},
+		{path: "/v1/marketops/backtest-calibration-comparisons", tenant: func() string { return repo.lastBacktestComparisonFilter.TenantID }},
+		{path: "/v1/marketops/backtest-promotion-candidates", tenant: func() string { return repo.lastBacktestPromotionFilter.TenantID }},
+		{path: "/v1/marketops/backtest-calibration-readiness", tenant: func() string { return repo.lastBacktestReadinessFilter.TenantID }},
+		{path: "/v1/marketops/backtests/run-local/signals", tenant: func() string { return repo.lastBacktestSignalFilter.TenantID }},
+		{path: "/v1/marketops/backtests/run-local/graph-proposals", tenant: func() string { return repo.lastBacktestGraphFilter.TenantID }},
+		{path: "/v1/marketops/backtest-evaluations", tenant: func() string { return repo.lastBacktestEvaluationFilter.TenantID }},
+		{path: "/v1/marketops/backtest-evaluation-labels", tenant: func() string { return repo.lastEvaluationLabelFilter.TenantID }},
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, request.path, nil), token))
+		if recorder.Code != http.StatusOK || request.tenant() != "tenant-local" {
+			t.Fatalf("%s status=%d tenant=%q body=%s", request.path, recorder.Code, request.tenant(), recorder.Body.String())
+		}
+	}
+
+	for _, path := range []string{
+		"/v1/marketops/backtest-campaigns/campaign-foreign",
+		"/v1/marketops/backtests/run-foreign",
+		"/v1/marketops/backtest-calibration-summaries/summary-foreign",
+		"/v1/marketops/backtest-calibration-baselines/baseline-foreign",
+		"/v1/marketops/backtest-calibration-comparisons/comparison-foreign",
+		"/v1/marketops/backtest-promotion-candidates/candidate-foreign",
+		"/v1/marketops/backtest-calibration-readiness/readiness-foreign",
+		"/v1/marketops/backtest-evaluations/evaluation-foreign",
+		"/v1/marketops/backtest-evaluation-labels/label-foreign",
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, path, nil), token))
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("%s status=%d body=%s", path, recorder.Code, recorder.Body.String())
+		}
+	}
+}

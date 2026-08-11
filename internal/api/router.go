@@ -410,6 +410,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		windowStart, err := optionalQueryTime(r, "window_start")
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_coverage_filter", "window_start must be an RFC3339 timestamp")
@@ -424,7 +428,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_coverage_filter", "window_end must be after window_start")
 			return
 		}
-		filter := storage.MarketOpsBacktestCoverageFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: firstNonEmptyBacktestValue(r.URL.Query().Get("app_id"), "marketops"), Domain: firstNonEmptyBacktestValue(r.URL.Query().Get("domain"), "market_data"), UseCase: firstNonEmptyBacktestValue(r.URL.Query().Get("use_case"), "daily_market_surveillance"), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), SourceAdapter: strings.TrimSpace(r.URL.Query().Get("source_adapter")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Symbols: querySymbols(r), WindowStart: windowStart, WindowEnd: windowEnd, Limit: queryLimit(r, 100)}
+		filter := storage.MarketOpsBacktestCoverageFilter{TenantID: tenantID, AppID: firstNonEmptyBacktestValue(r.URL.Query().Get("app_id"), "marketops"), Domain: firstNonEmptyBacktestValue(r.URL.Query().Get("domain"), "market_data"), UseCase: firstNonEmptyBacktestValue(r.URL.Query().Get("use_case"), "daily_market_surveillance"), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), SourceAdapter: strings.TrimSpace(r.URL.Query().Get("source_adapter")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Symbols: querySymbols(r), WindowStart: windowStart, WindowEnd: windowEnd, Limit: queryLimit(r, 100)}
 		if filter.TenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_coverage_filter", "tenant_id is required")
 			return
@@ -520,7 +524,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestCampaigns(r.Context(), storage.MarketOpsBacktestCampaignFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestCampaigns(r.Context(), storage.MarketOpsBacktestCampaignFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest campaigns")
 			return
@@ -533,9 +541,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsBacktestCampaign(r.Context(), r.PathValue("campaign_id"))
 		if err != nil {
 			writeQueryError(w, err, "backtest_campaign_not_found", "MarketOps backtest campaign not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "backtest_campaign_not_found", "MarketOps backtest campaign not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"backtest_campaign": marketOpsBacktestCampaignResponse(record)})
@@ -581,8 +597,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsBacktestRuns(r.Context(), storage.MarketOpsBacktestRunFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -641,8 +661,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsBacktestCalibrationSummaries(r.Context(), storage.MarketOpsBacktestCalibrationSummaryFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -657,9 +681,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsBacktestCalibrationSummary(r.Context(), r.PathValue("summary_id"))
 		if err != nil {
 			writeQueryError(w, err, "calibration_summary_not_found", "MarketOps backtest calibration summary not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "calibration_summary_not_found", "MarketOps backtest calibration summary not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"calibration_summary": marketOpsBacktestCalibrationSummaryResponse(record)})
@@ -714,8 +746,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsBacktestCalibrationBaselines(r.Context(), storage.MarketOpsBacktestCalibrationBaselineFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -730,9 +766,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsBacktestCalibrationBaseline(r.Context(), r.PathValue("baseline_id"))
 		if err != nil {
 			writeQueryError(w, err, "calibration_baseline_not_found", "MarketOps backtest calibration baseline not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "calibration_baseline_not_found", "MarketOps backtest calibration baseline not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"calibration_baseline": marketOpsBacktestCalibrationBaselineResponse(record)})
@@ -804,8 +848,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsBacktestCalibrationComparisons(r.Context(), storage.MarketOpsBacktestCalibrationComparisonFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50),
+			TenantID: tenantID, BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest calibration comparisons")
@@ -819,9 +867,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsBacktestCalibrationComparison(r.Context(), r.PathValue("comparison_id"))
 		if err != nil {
 			writeQueryError(w, err, "calibration_comparison_not_found", "MarketOps backtest calibration comparison not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "calibration_comparison_not_found", "MarketOps backtest calibration comparison not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"calibration_comparison": marketOpsBacktestCalibrationComparisonResponse(record)})
@@ -925,7 +981,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestPromotionCandidates(r.Context(), storage.MarketOpsBacktestPromotionCandidateFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), ComparisonID: strings.TrimSpace(r.URL.Query().Get("comparison_id")), EvaluationID: strings.TrimSpace(r.URL.Query().Get("evaluation_id")), RunID: strings.TrimSpace(r.URL.Query().Get("run_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), ReadinessStatus: strings.TrimSpace(r.URL.Query().Get("readiness_status")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestPromotionCandidates(r.Context(), storage.MarketOpsBacktestPromotionCandidateFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), ComparisonID: strings.TrimSpace(r.URL.Query().Get("comparison_id")), EvaluationID: strings.TrimSpace(r.URL.Query().Get("evaluation_id")), RunID: strings.TrimSpace(r.URL.Query().Get("run_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), ReadinessStatus: strings.TrimSpace(r.URL.Query().Get("readiness_status")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest promotion candidates")
 			return
@@ -938,9 +998,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsBacktestPromotionCandidate(r.Context(), r.PathValue("candidate_id"))
 		if err != nil {
 			writeQueryError(w, err, "promotion_candidate_not_found", "MarketOps backtest promotion candidate not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "promotion_candidate_not_found", "MarketOps backtest promotion candidate not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"promotion_candidate": marketOpsBacktestPromotionCandidateResponse(record)})
@@ -1090,7 +1158,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestCalibrationReadiness(r.Context(), storage.MarketOpsBacktestCalibrationReadinessFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), ComparisonID: strings.TrimSpace(r.URL.Query().Get("comparison_id")), EvaluationID: strings.TrimSpace(r.URL.Query().Get("evaluation_id")), CandidateID: strings.TrimSpace(r.URL.Query().Get("candidate_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), ReadinessStatus: strings.TrimSpace(r.URL.Query().Get("readiness_status")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestCalibrationReadiness(r.Context(), storage.MarketOpsBacktestCalibrationReadinessFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), ComparisonID: strings.TrimSpace(r.URL.Query().Get("comparison_id")), EvaluationID: strings.TrimSpace(r.URL.Query().Get("evaluation_id")), CandidateID: strings.TrimSpace(r.URL.Query().Get("candidate_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), ReadinessStatus: strings.TrimSpace(r.URL.Query().Get("readiness_status")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps calibration readiness snapshots")
 			return
@@ -1103,9 +1175,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsBacktestCalibrationReadiness(r.Context(), r.PathValue("readiness_id"))
 		if err != nil {
 			writeQueryError(w, err, "calibration_readiness_not_found", "MarketOps calibration readiness not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "calibration_readiness_not_found", "MarketOps calibration readiness not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"calibration_readiness": marketOpsBacktestCalibrationReadinessResponse(record)})
@@ -1392,9 +1472,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsBacktestRun(r.Context(), r.PathValue("run_id"))
 		if err != nil {
 			writeQueryError(w, err, "backtest_run_not_found", "MarketOps backtest run not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "backtest_run_not_found", "MarketOps backtest run not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"backtest_run": marketOpsBacktestRunResponse(record)})
@@ -1405,7 +1493,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestSignals(r.Context(), storage.MarketOpsBacktestSignalFilter{RunID: r.PathValue("run_id"), TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestSignals(r.Context(), storage.MarketOpsBacktestSignalFilter{RunID: r.PathValue("run_id"), TenantID: tenantID, SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest signals")
 			return
@@ -1418,7 +1510,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		filter := storage.MarketOpsBacktestGraphProposalFilter{RunID: r.PathValue("run_id"), TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50)}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		filter := storage.MarketOpsBacktestGraphProposalFilter{RunID: r.PathValue("run_id"), TenantID: tenantID, SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50)}
 		records, err := repo.ListMarketOpsBacktestGraphProposals(r.Context(), filter)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest graph proposals")
@@ -1642,7 +1738,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestEvaluations(r.Context(), storage.MarketOpsBacktestEvaluationFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), RunID: strings.TrimSpace(r.URL.Query().Get("run_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestEvaluations(r.Context(), storage.MarketOpsBacktestEvaluationFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), RunID: strings.TrimSpace(r.URL.Query().Get("run_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest evaluations")
 			return
@@ -1655,9 +1755,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsBacktestEvaluation(r.Context(), r.PathValue("evaluation_id"))
 		if err != nil {
 			writeQueryError(w, err, "backtest_evaluation_not_found", "MarketOps backtest evaluation not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "backtest_evaluation_not_found", "MarketOps backtest evaluation not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"backtest_evaluation": marketOpsBacktestEvaluationResponse(record)})
@@ -1718,7 +1826,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestEvaluationLabels(r.Context(), storage.MarketOpsBacktestEvaluationLabelFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceProposalID: strings.TrimSpace(r.URL.Query().Get("source_proposal_id")), ArtifactID: strings.TrimSpace(r.URL.Query().Get("artifact_id")), SignalID: strings.TrimSpace(r.URL.Query().Get("signal_id")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), DecisionStatus: strings.TrimSpace(r.URL.Query().Get("decision_status")), Label: strings.TrimSpace(r.URL.Query().Get("label")), LabelSource: strings.TrimSpace(r.URL.Query().Get("label_source")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestEvaluationLabels(r.Context(), storage.MarketOpsBacktestEvaluationLabelFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceProposalID: strings.TrimSpace(r.URL.Query().Get("source_proposal_id")), ArtifactID: strings.TrimSpace(r.URL.Query().Get("artifact_id")), SignalID: strings.TrimSpace(r.URL.Query().Get("signal_id")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), DecisionStatus: strings.TrimSpace(r.URL.Query().Get("decision_status")), Label: strings.TrimSpace(r.URL.Query().Get("label")), LabelSource: strings.TrimSpace(r.URL.Query().Get("label_source")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps evaluation labels")
 			return
@@ -1731,9 +1843,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsBacktestEvaluationLabel(r.Context(), r.PathValue("label_id"))
 		if err != nil {
 			writeQueryError(w, err, "evaluation_label_not_found", "MarketOps evaluation label not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "evaluation_label_not_found", "MarketOps evaluation label not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"evaluation_label": marketOpsBacktestEvaluationLabelResponse(record)})

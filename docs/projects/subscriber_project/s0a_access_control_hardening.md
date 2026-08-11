@@ -47,6 +47,8 @@ MarketOps hypothesis definitions and evaluations, plus feature, state, transitio
 
 Raw-event, normalized-event, and signal ledger lists now bind to the authenticated tenant. Their detail routes verify stored ownership before responding, returning the ordinary not-found response for a foreign record ID.
 
+MarketOps backtest and calibration read surfaces now bind every list filter to the authenticated tenant: coverage, campaigns, runs, summaries, baselines, comparisons, promotion candidates, readiness snapshots, evaluations, evaluation labels, and per-run signals, graph proposals, and policy results. Identifier-based campaign, run, calibration, promotion, readiness, evaluation, and label detail reads verify stored ownership and return the ordinary not-found response for a foreign identifier.
+
 The authenticated gateway also now inspects a bounded, top-level JSON `tenant_id` on `POST`, `PUT`, `PATCH`, and `DELETE` requests before the handler runs. A conflicting declared tenant is rejected at the gateway, while a valid body is restored unchanged for the handler. This prevents the same body-tenant escalation across the remaining JSON mutation routes while their handler-level binding is audited.
 
 Focused direct-API tests cover:
@@ -80,6 +82,8 @@ Focused direct-API tests cover:
 - foreign market-state, lineage, and evidence-detail rejection.
 - authenticated raw-event, normalized-event, and signal-ledger list tenant binding; and
 - foreign core-ledger detail rejection.
+- authenticated MarketOps backtest, calibration, promotion, readiness, evaluation, label, and per-run read-filter tenant binding; and
+- foreign backtest campaign, run, calibration, promotion, readiness, evaluation, and label detail rejection.
 
 Validation: `go test ./internal/api` passes.
 
