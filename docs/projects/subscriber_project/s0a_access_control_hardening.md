@@ -57,6 +57,10 @@ Syncratic context-window creation, insight creation, Ask enrichment, and materia
 
 MarketOps asset-management routes now resolve their tenant path segment against the authenticated principal before display metadata changes, watchlist creation, onboarding, backfill creation, validation, and backfill listing. This protects the subscriber project’s centrally governed asset catalog boundary from a path-tenant escalation, in addition to the gateway path guard.
 
+The tenant-bearing mutation audit is complete. Body-tenant handlers bind an omitted tenant to the principal and reject conflicts; tenant-path handlers are covered by the gateway path guard, with the subscriber-critical asset-management routes also binding in-handler before storage access.
+
+The gateway now exposes reusable list-authorization primitives without enabling any list endpoint: `requireRequestSubject` binds a private resource subject to the immutable authenticated subject and rejects impersonation, while `requireTenantAdministrator` requires the existing SignalOps administrator role for future tenant-default list administration. Local development remains compatible until the future list routes are enabled behind their feature gate.
+
 The authenticated gateway also now inspects a bounded, top-level JSON `tenant_id` on `POST`, `PUT`, `PATCH`, and `DELETE` requests before the handler runs. A conflicting declared tenant is rejected at the gateway, while a valid body is restored unchanged for the handler. This prevents the same body-tenant escalation across the remaining JSON mutation routes while their handler-level binding is audited.
 
 Focused direct-API tests cover:
@@ -100,6 +104,8 @@ Focused direct-API tests cover:
 - foreign Syncratic insight/Ask context rejection before persistence or an external Ask call.
 - authenticated MarketOps asset display, watchlist, and backfill mutations binding to the principal tenant; and
 - foreign tenant-path asset mutation rejection before a repository write.
+- principal-bound subject resolution and subject-impersonation rejection; and
+- tenant-default administration requiring the existing SignalOps administrator role.
 
 Validation: `go test ./internal/api` passes.
 
@@ -109,12 +115,11 @@ This slice adds no migration, list or membership table, entitlement, provider re
 
 ## Remaining work before S0-A exit
 
-1. Complete the tenant-bearing mutation-route audit: apply canonical principal binding where an omitted body tenant must inherit the principal, and add direct-API regression tests for each route class.
-2. Add server-side subject ownership and tenant-administrator authorization for future private and default lists.
-3. Implement entitlement and quota policy evaluation separately from MarketOps read/write grants.
-4. Define least-privilege service identities for scheduled shared processing.
-5. Retain grant, entitlement, list-administration, and quota-decision audit evidence.
-6. Make and document the database row-level-security defense-in-depth decision.
-7. Validate production-like OIDC/JWKS configuration and the complete cross-tenant negative-test suite.
+1. Add server-side subject ownership and tenant-administrator authorization to the future private and default list routes, using the implemented principal-bound subject and administrator guards.
+2. Implement entitlement and quota policy evaluation separately from MarketOps read/write grants.
+3. Define least-privilege service identities for scheduled shared processing.
+4. Retain grant, entitlement, list-administration, and quota-decision audit evidence.
+5. Make and document the database row-level-security defense-in-depth decision.
+6. Validate production-like OIDC/JWKS configuration and the complete cross-tenant negative-test suite.
 
 No Subscriber Project feature flag may enable catalog, list, shared-EOD, or Options-demand behavior until these exit conditions are satisfied.

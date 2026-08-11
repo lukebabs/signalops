@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -295,5 +296,34 @@ func TestAuthEnabledPreservesJSONBodyAfterTenantInspection(t *testing.T) {
 	}
 	if marker != "preserved" {
 		t.Fatalf("marker = %q", marker)
+	}
+}
+
+func TestRequestSubjectBindsToPrincipalAndRejectsImpersonation(t *testing.T) {
+	principal := Principal{Subject: "subject-local", TenantID: "tenant-local"}
+	request := httptest.NewRequest(http.MethodGet, "/v1/test", nil).WithContext(context.WithValue(context.Background(), authContextKey{}, principal))
+
+	subject, err := requestSubject(request, "")
+	if err != nil || subject != "subject-local" {
+		t.Fatalf("subject=%q err=%v", subject, err)
+	}
+	if _, err := requestSubject(request, "subject-other"); err == nil {
+		t.Fatal("expected subject impersonation rejection")
+	}
+}
+
+func TestRequireTenantAdministratorUsesExistingAdminRole(t *testing.T) {
+	operator := Principal{Subject: "operator", TenantID: "tenant-local", Roles: map[string]struct{}{roleOperator: {}}}
+	operatorRequest := httptest.NewRequest(http.MethodGet, "/v1/test", nil).WithContext(context.WithValue(context.Background(), authContextKey{}, operator))
+	operatorRecorder := httptest.NewRecorder()
+	if requireTenantAdministrator(operatorRecorder, operatorRequest) || operatorRecorder.Code != http.StatusForbidden {
+		t.Fatalf("operator status=%d body=%s", operatorRecorder.Code, operatorRecorder.Body.String())
+	}
+
+	admin := Principal{Subject: "admin", TenantID: "tenant-local", Roles: map[string]struct{}{roleAdmin: {}}}
+	adminRequest := httptest.NewRequest(http.MethodGet, "/v1/test", nil).WithContext(context.WithValue(context.Background(), authContextKey{}, admin))
+	adminRecorder := httptest.NewRecorder()
+	if !requireTenantAdministrator(adminRecorder, adminRequest) {
+		t.Fatalf("admin rejected: status=%d body=%s", adminRecorder.Code, adminRecorder.Body.String())
 	}
 }

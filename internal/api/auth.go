@@ -189,6 +189,51 @@ func bindRequestTenantFromBodyOrQuery(w http.ResponseWriter, r *http.Request, te
 	return bindRequestTenant(w, r, tenantID)
 }
 
+// requestSubject resolves a subject-owned resource scope against the authenticated
+// principal. Authenticated callers may omit the subject (which then inherits the
+// immutable token subject), but may not act as a different subject. Local mode
+// preserves the supplied value for development workflows.
+func requestSubject(r *http.Request, requestedSubject string) (string, error) {
+	requestedSubject = strings.TrimSpace(requestedSubject)
+	principal, authenticated := principalFromContext(r.Context())
+	if !authenticated {
+		return requestedSubject, nil
+	}
+	subject := strings.TrimSpace(principal.Subject)
+	if subject == "" {
+		return "", errors.New("authenticated principal is missing subject identity")
+	}
+	if requestedSubject != "" && requestedSubject != subject {
+		return "", errors.New("request subject does not match authenticated principal")
+	}
+	return subject, nil
+}
+
+func requireRequestSubject(w http.ResponseWriter, r *http.Request, requestedSubject string) (string, bool) {
+	subject, err := requestSubject(r, requestedSubject)
+	if err != nil {
+		writeError(w, http.StatusForbidden, "subject_mismatch", err.Error())
+		return "", false
+	}
+	return subject, true
+}
+
+// requireTenantAdministrator is the reusable server-side guard for future
+// tenant-default list administration. The existing SignalOps admin roles are
+// the current tenant-administrator primitive; a future tenant-admin role may
+// extend this check without changing list handlers.
+func requireTenantAdministrator(w http.ResponseWriter, r *http.Request) bool {
+	principal, authenticated := principalFromContext(r.Context())
+	if !authenticated {
+		return true
+	}
+	if !isSuperAdmin(principal) {
+		writeError(w, http.StatusForbidden, "tenant_admin_required", "tenant administrator role is required")
+		return false
+	}
+	return true
+}
+
 const maxTenantScopeInspectionBytes = 8 * 1024 * 1024
 
 // requestBodyTenant returns a top-level JSON tenant_id without consuming the
