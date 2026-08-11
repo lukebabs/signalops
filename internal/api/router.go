@@ -1286,6 +1286,22 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
+		contextWindow, err := repo.GetSyncraticContextWindow(r.Context(), r.PathValue("context_window_id"))
+		if err != nil {
+			writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
+			return
+		}
+		if req.TenantID != "" && contextWindow.TenantID != req.TenantID {
+			if _, authenticated := principalFromContext(r.Context()); authenticated {
+				writeError(w, http.StatusNotFound, "context_window_not_found", "Syncratic context window not found")
+			} else {
+				writeError(w, http.StatusBadRequest, "syncratic_ask_invalid", "tenant_id does not match context window")
+			}
+			return
+		}
 		insight, result, err := enrichSyncraticInsightWithAsk(r.Context(), repo, cfg.SyncraticAskClient, r.PathValue("context_window_id"), req)
 		if err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
@@ -1314,6 +1330,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req syncraticContextWindowCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		var record storage.SyncraticContextWindowRecord
@@ -1401,13 +1420,20 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
 		contextWindow, err := repo.GetSyncraticContextWindow(r.Context(), req.ContextWindowID)
 		if err != nil {
 			writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
 			return
 		}
 		if strings.TrimSpace(req.TenantID) != "" && strings.TrimSpace(req.TenantID) != contextWindow.TenantID {
-			writeError(w, http.StatusBadRequest, "invalid_insight", "tenant_id does not match context window")
+			if _, authenticated := principalFromContext(r.Context()); authenticated {
+				writeError(w, http.StatusNotFound, "context_window_not_found", "Syncratic context window not found")
+			} else {
+				writeError(w, http.StatusBadRequest, "invalid_insight", "tenant_id does not match context window")
+			}
 			return
 		}
 		record := buildSyncraticInsight(contextWindow, req.InsightType, req.BuilderVersion)
@@ -1486,6 +1512,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req syncraticMaterializeRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		result, err := materializeSyncraticContexts(r.Context(), repo, req)

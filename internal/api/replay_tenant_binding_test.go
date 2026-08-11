@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/lukebabs/signalops/internal/storage"
 )
@@ -486,5 +487,55 @@ func TestAuthenticatedOperationalLedgerReadsBindTenantAndHideForeignDetails(t *t
 	}
 	if repo.lastIdempotencyTenant != "tenant-local" || repo.lastIdempotencySource != "source-foreign" || repo.lastIdempotencyKey != "key-foreign" {
 		t.Fatalf("idempotency lookup tenant=%q source=%q key=%q", repo.lastIdempotencyTenant, repo.lastIdempotencySource, repo.lastIdempotencyKey)
+	}
+}
+
+func TestAuthenticatedSyncraticMutationsBindTenantAndBlockForeignContext(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	now := time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
+	foreignContext := storage.SyncraticContextWindowRecord{ContextWindowID: "context-foreign", TenantID: "tenant-other", SubjectSymbol: "AAPL", ContextStrategy: "symbol_signal_cluster_5d"}
+	askClient := &fakeSyncraticAskClient{}
+	repo := &fakeQueryRepository{
+		signals:                 []storage.SignalLedgerRecord{{SignalID: "sig-local", TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SignalType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", SignalTime: now.Add(-time.Hour), EventIDs: []string{"evt-local"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)}},
+		alerts:                  []storage.AlertLedgerRecord{{AlertID: "alert-local", TenantID: "tenant-local", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", AlertType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", LastObservedAt: now.Add(-30 * time.Minute), EventIDs: []string{"evt-alert"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`)}},
+		syncraticContextWindows: []storage.SyncraticContextWindowRecord{foreignContext},
+	}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SyncraticAskClient: askClient})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	contextBody := `{"subject_symbol":"AAPL","context_strategy":"symbol_signal_cluster_5d","window_start":"2026-07-12T00:00:00Z","window_end":"2026-07-14T00:00:00Z"}`
+	contextRecorder := httptest.NewRecorder()
+	contextRequest := withBearer(httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows", bytes.NewBufferString(contextBody)), token)
+	contextRequest.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(contextRecorder, contextRequest)
+	if contextRecorder.Code != http.StatusCreated || len(repo.syncraticContextWindows) != 2 || repo.syncraticContextWindows[1].TenantID != "tenant-local" {
+		t.Fatalf("context status=%d stored=%+v body=%s", contextRecorder.Code, repo.syncraticContextWindows, contextRecorder.Body.String())
+	}
+
+	materializeRecorder := httptest.NewRecorder()
+	materializeRequest := withBearer(httptest.NewRequest(http.MethodPost, "/v1/syncratic/materialize", bytes.NewBufferString(`{"window_start":"2026-07-12T00:00:00Z","window_end":"2026-07-14T00:00:00Z","dry_run":true}`)), token)
+	materializeRequest.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(materializeRecorder, materializeRequest)
+	if materializeRecorder.Code != http.StatusOK || !bytes.Contains(materializeRecorder.Body.Bytes(), []byte(`"tenant_id":"tenant-local"`)) {
+		t.Fatalf("materialize status=%d body=%s", materializeRecorder.Code, materializeRecorder.Body.String())
+	}
+
+	for _, request := range []struct {
+		path string
+		body string
+	}{
+		{path: "/v1/syncratic/insights", body: `{"context_window_id":"context-foreign"}`},
+		{path: "/v1/syncratic/context-windows/context-foreign/ask", body: `{}`},
+	} {
+		recorder := httptest.NewRecorder()
+		httpRequest := withBearer(httptest.NewRequest(http.MethodPost, request.path, bytes.NewBufferString(request.body)), token)
+		httpRequest.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(recorder, httpRequest)
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("%s status=%d body=%s", request.path, recorder.Code, recorder.Body.String())
+		}
+	}
+	if len(repo.syncraticInsights) != 0 || askClient.calls != 0 {
+		t.Fatalf("foreign context caused writes or Ask calls: insights=%d calls=%d", len(repo.syncraticInsights), askClient.calls)
 	}
 }

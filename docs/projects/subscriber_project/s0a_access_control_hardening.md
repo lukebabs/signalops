@@ -53,6 +53,8 @@ MarketOps intelligence cohort runs and readiness now inherit tenant scope from t
 
 Alert and insight ledger lists now bind to the authenticated tenant, and their identifier details verify stored ownership before returning the ordinary not-found response for foreign records. Idempotency lookup now resolves the tenant from the principal, passes that canonical value into the tenant-qualified repository lookup, and suppresses a mismatched returned provenance record as not found.
 
+Syncratic context-window creation, insight creation, Ask enrichment, and materialization now bind JSON tenant scope to the authenticated principal. Insight creation and Ask enrichment load the referenced context first; a foreign authenticated context returns the ordinary not-found response, no insight is persisted, and Ask is never called with its evidence. Local development retains its former explicit-tenant validation response when no principal is present.
+
 The authenticated gateway also now inspects a bounded, top-level JSON `tenant_id` on `POST`, `PUT`, `PATCH`, and `DELETE` requests before the handler runs. A conflicting declared tenant is rejected at the gateway, while a valid body is restored unchanged for the handler. This prevents the same body-tenant escalation across the remaining JSON mutation routes while their handler-level binding is audited.
 
 Focused direct-API tests cover:
@@ -92,6 +94,8 @@ Focused direct-API tests cover:
 - foreign intelligence cohort, Syncratic context-window, and Syncratic insight detail rejection.
 - authenticated alert and insight-ledger list tenant binding; and
 - foreign alert, insight, and idempotency provenance-detail rejection.
+- authenticated Syncratic context-window and materialization tenant binding; and
+- foreign Syncratic insight/Ask context rejection before persistence or an external Ask call.
 
 Validation: `go test ./internal/api` passes.
 
