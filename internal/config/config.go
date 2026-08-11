@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -36,6 +38,35 @@ type Config struct {
 	AuthAudience              string
 	AuthClientID              string
 	NotificationEncryptionKey string
+}
+
+// ValidateAuthConfiguration fails closed when JWT enforcement is enabled without
+// the minimum issuer, JWKS, and audience contract required to validate tokens.
+// It validates configuration shape only; deployment readiness still requires a
+// live JWKS and browser-session validation.
+func (c Config) ValidateAuthConfiguration() error {
+	if !c.AuthEnabled {
+		return nil
+	}
+	if strings.TrimSpace(c.AuthIssuer) == "" {
+		return fmt.Errorf("SIGNALOPS_AUTH_ISSUER is required when authentication is enabled")
+	}
+	if strings.TrimSpace(c.AuthJWKSURL) == "" {
+		return fmt.Errorf("SIGNALOPS_AUTH_JWKS_URL is required when authentication is enabled")
+	}
+	if strings.TrimSpace(c.AuthAudience) == "" {
+		return fmt.Errorf("SIGNALOPS_AUTH_AUDIENCE is required when authentication is enabled")
+	}
+	for name, raw := range map[string]string{
+		"SIGNALOPS_AUTH_ISSUER":   c.AuthIssuer,
+		"SIGNALOPS_AUTH_JWKS_URL": c.AuthJWKSURL,
+	} {
+		parsed, err := url.ParseRequestURI(strings.TrimSpace(raw))
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+			return fmt.Errorf("%s must be an absolute HTTP(S) URL when authentication is enabled", name)
+		}
+	}
+	return nil
 }
 
 // Load reads configuration from environment variables.

@@ -69,6 +69,8 @@ The Subscriber Project also now has a static least-privilege manifest at `intern
 
 The project has adopted a hybrid database isolation decision: current tenant-owned data remains application-authorized during compatibility, while every new tenant-private subscriber table must use fail-closed, forced PostgreSQL row-level security before it is enabled. Shared platform records remain separate and can only reach tenants through authorized projections. The [row-level security decision](row_level_security_decision.md) specifies the role, transaction, migration, and verification model.
 
+When JWT enforcement is enabled, gateway startup now fails closed unless issuer, JWKS URL, and audience configuration is structurally valid. This prevents a partially configured production-like gateway from accepting traffic, but live JWKS, OIDC client, browser-session, grant, and cross-tenant validation remain required before the Subscriber Project gate can exit.
+
 Focused direct-API tests cover:
 
 - omitted access-grant body tenant binding to the authenticated principal;
@@ -126,6 +128,6 @@ This slice adds no migration, list or membership table, entitlement, provider re
 3. Provision and enforce the static least-privilege service identities through workload credentials, gateway and persistence scope checks, audit, rotation, and negative integration tests.
 4. Retain grant and future list-administration audit evidence alongside the entitlement and quota-decision evidence.
 5. Implement the adopted tenant-private RLS model: separate roles, forced policies, transaction-local tenant context, deployment preflight, and negative integration tests.
-6. Validate production-like OIDC/JWKS configuration and the complete cross-tenant negative-test suite.
+6. Validate live production-like OIDC/JWKS, browser session and grants, plus the complete cross-tenant negative-test suite; startup configuration shape is now fail-closed but is not proof of deployment readiness.
 
 No Subscriber Project feature flag may enable catalog, list, shared-EOD, or Options-demand behavior until these exit conditions are satisfied.

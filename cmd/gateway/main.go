@@ -24,6 +24,10 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	cfg := config.Load()
+	if err := cfg.ValidateAuthConfiguration(); err != nil {
+		logger.Error("signalops gateway authentication configuration is invalid", "error", err)
+		os.Exit(1)
+	}
 	brokerClient, err := kafkabroker.NewClient(kafkabroker.Config{
 		Brokers:  strings.Split(cfg.BrokerBrokers, ","),
 		ClientID: "signalops-gateway",

@@ -85,3 +85,36 @@ func TestLoadEnvironment(t *testing.T) {
 		t.Fatalf("auth env = %+v", cfg)
 	}
 }
+
+func TestValidateAuthConfiguration(t *testing.T) {
+	valid := Config{
+		AuthEnabled:  true,
+		AuthIssuer:   "https://auth.syncratic.co/realms/syncratic",
+		AuthJWKSURL:  "https://auth.syncratic.co/realms/syncratic/protocol/openid-connect/certs",
+		AuthAudience: "signalops-api",
+	}
+	if err := valid.ValidateAuthConfiguration(); err != nil {
+		t.Fatalf("valid auth configuration: %v", err)
+	}
+
+	for _, testCase := range []struct {
+		name string
+		cfg  Config
+	}{
+		{name: "issuer missing", cfg: Config{AuthEnabled: true, AuthJWKSURL: valid.AuthJWKSURL, AuthAudience: valid.AuthAudience}},
+		{name: "jwks missing", cfg: Config{AuthEnabled: true, AuthIssuer: valid.AuthIssuer, AuthAudience: valid.AuthAudience}},
+		{name: "audience missing", cfg: Config{AuthEnabled: true, AuthIssuer: valid.AuthIssuer, AuthJWKSURL: valid.AuthJWKSURL}},
+		{name: "issuer malformed", cfg: Config{AuthEnabled: true, AuthIssuer: "not-a-url", AuthJWKSURL: valid.AuthJWKSURL, AuthAudience: valid.AuthAudience}},
+		{name: "jwks malformed", cfg: Config{AuthEnabled: true, AuthIssuer: valid.AuthIssuer, AuthJWKSURL: "ftp://auth.syncratic.co/certs", AuthAudience: valid.AuthAudience}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if err := testCase.cfg.ValidateAuthConfiguration(); err == nil {
+				t.Fatal("expected authentication configuration error")
+			}
+		})
+	}
+
+	if err := (Config{}).ValidateAuthConfiguration(); err != nil {
+		t.Fatalf("disabled authentication configuration: %v", err)
+	}
+}
