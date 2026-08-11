@@ -490,6 +490,93 @@ func TestAuthenticatedOperationalLedgerReadsBindTenantAndHideForeignDetails(t *t
 	}
 }
 
+type assetManagementTenantBindingRepository struct {
+	*fakeQueryRepository
+	lastAsset          storage.MarketOpsAssetRecord
+	lastBackfill       storage.MarketOpsAssetBackfillJobRecord
+	lastBackfillFilter storage.MarketOpsAssetBackfillJobFilter
+}
+
+func (r *assetManagementTenantBindingRepository) UpsertMarketOpsAsset(_ context.Context, record storage.MarketOpsAssetRecord) (storage.MarketOpsAssetRecord, error) {
+	r.lastAsset = record
+	return record, nil
+}
+
+func (r *assetManagementTenantBindingRepository) UpdateMarketOpsAssetDisplayName(_ context.Context, tenantID, universeGroup, ticker, displayName string) (storage.MarketOpsAssetRecord, error) {
+	r.lastAsset = storage.MarketOpsAssetRecord{TenantID: tenantID, UniverseGroup: universeGroup, Ticker: ticker, DisplayName: displayName}
+	return r.lastAsset, nil
+}
+
+func (r *assetManagementTenantBindingRepository) UpdateMarketOpsAssetDisplaySector(_ context.Context, tenantID, universeGroup, ticker, displaySector string) (storage.MarketOpsAssetRecord, error) {
+	r.lastAsset = storage.MarketOpsAssetRecord{TenantID: tenantID, UniverseGroup: universeGroup, Ticker: ticker, DisplaySector: displaySector}
+	return r.lastAsset, nil
+}
+
+func (r *assetManagementTenantBindingRepository) CreateMarketOpsAssetBackfillJob(_ context.Context, record storage.MarketOpsAssetBackfillJobRecord) (storage.MarketOpsAssetBackfillJobRecord, error) {
+	r.lastBackfill = record
+	return record, nil
+}
+
+func (r *assetManagementTenantBindingRepository) ListMarketOpsAssetBackfillJobs(_ context.Context, filter storage.MarketOpsAssetBackfillJobFilter) ([]storage.MarketOpsAssetBackfillJobRecord, error) {
+	r.lastBackfillFilter = filter
+	return []storage.MarketOpsAssetBackfillJobRecord{r.lastBackfill}, nil
+}
+
+func (r *assetManagementTenantBindingRepository) GetMarketOpsAssetBackfillJob(context.Context, string, string) (storage.MarketOpsAssetBackfillJobRecord, error) {
+	return storage.MarketOpsAssetBackfillJobRecord{}, storage.ErrNotFound
+}
+
+func (r *assetManagementTenantBindingRepository) ClaimNextMarketOpsAssetBackfillJob(context.Context, string, time.Time) (storage.MarketOpsAssetBackfillJobRecord, error) {
+	return storage.MarketOpsAssetBackfillJobRecord{}, storage.ErrNotFound
+}
+
+func (r *assetManagementTenantBindingRepository) UpdateMarketOpsAssetBackfillJob(context.Context, storage.MarketOpsAssetBackfillJobRecord) error {
+	return nil
+}
+
+func TestAuthenticatedAssetManagementRoutesBindPrincipalTenant(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &assetManagementTenantBindingRepository{fakeQueryRepository: &fakeQueryRepository{}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	for _, request := range []struct {
+		method string
+		path   string
+		body   string
+		status int
+	}{
+		{method: http.MethodPatch, path: "/v1/tenants/tenant-local/marketops/assets/AAPL/display-name", body: `{"universe_group":"analyst_watchlist","display_name":"Apple"}`, status: http.StatusOK},
+		{method: http.MethodPost, path: "/v1/tenants/tenant-local/marketops/assets/watchlist", body: `{"ticker":"MSFT"}`, status: http.StatusCreated},
+		{method: http.MethodPost, path: "/v1/tenants/tenant-local/marketops/assets/MSFT/backfill-jobs", body: `{"start_date":"2026-01-02","end_date":"2026-04-01"}`, status: http.StatusCreated},
+	} {
+		recorder := httptest.NewRecorder()
+		httpRequest := withBearer(httptest.NewRequest(request.method, request.path, bytes.NewBufferString(request.body)), token)
+		httpRequest.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(recorder, httpRequest)
+		if recorder.Code != request.status {
+			t.Fatalf("%s %s status=%d body=%s", request.method, request.path, recorder.Code, recorder.Body.String())
+		}
+	}
+	if repo.lastAsset.TenantID != "tenant-local" || repo.lastBackfill.TenantID != "tenant-local" {
+		t.Fatalf("asset=%+v backfill=%+v", repo.lastAsset, repo.lastBackfill)
+	}
+
+	list := httptest.NewRecorder()
+	router.ServeHTTP(list, withBearer(httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-local/marketops/assets/backfill-jobs", nil), token))
+	if list.Code != http.StatusOK || repo.lastBackfillFilter.TenantID != "tenant-local" {
+		t.Fatalf("list status=%d filter=%+v body=%s", list.Code, repo.lastBackfillFilter, list.Body.String())
+	}
+
+	foreign := httptest.NewRecorder()
+	foreignRequest := withBearer(httptest.NewRequest(http.MethodPatch, "/v1/tenants/tenant-other/marketops/assets/AAPL/display-sector", bytes.NewBufferString(`{"universe_group":"analyst_watchlist","display_sector":"Technology"}`)), token)
+	foreignRequest.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(foreign, foreignRequest)
+	if foreign.Code != http.StatusForbidden || repo.lastAsset.TenantID != "tenant-local" {
+		t.Fatalf("foreign status=%d asset=%+v body=%s", foreign.Code, repo.lastAsset, foreign.Body.String())
+	}
+}
+
 func TestAuthenticatedSyncraticMutationsBindTenantAndBlockForeignContext(t *testing.T) {
 	fixture := newTestAuthFixture(t)
 	now := time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC)
