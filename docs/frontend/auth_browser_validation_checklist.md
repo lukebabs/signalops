@@ -15,6 +15,9 @@ authorization endpoint is not.
 
 - Backend remains `SIGNALOPS_AUTH_ENABLED=false` for this validation (the frontend
   flow is validated with the backend not yet enforcing tokens).
+- Run `scripts/signalops_oidc_preflight.sh` with the intended issuer, JWKS URL,
+  and audience. It validates discovery/JWKS consistency only; a passing result
+  does not replace the browser steps below.
 - A real browser (Chrome/Firefox/Safari) and the initial operator account
   `lukeb` (member of `/signalops/admins`).
 
