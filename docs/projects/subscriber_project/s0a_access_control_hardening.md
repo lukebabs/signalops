@@ -37,6 +37,8 @@ MarketOps graph-proposal list and detail routes now bind an omitted tenant to th
 
 MarketOps DSM artifact lists now bind to the authenticated tenant, and artifact detail routes suppress foreign records with the ordinary not-found response. This protects the underlying evidence and provenance payloads associated with each artifact.
 
+Signal Assurance assertion, evaluation, effectiveness, observation, and recommendation reads now resolve their tenant scope from the authenticated principal. Assertion-detail and evaluation routes continue to use tenant-qualified retrieval, so a foreign assertion ID returns the ordinary not-found response rather than revealing provenance or effectiveness evidence.
+
 The authenticated gateway also now inspects a bounded, top-level JSON `tenant_id` on `POST`, `PUT`, `PATCH`, and `DELETE` requests before the handler runs. A conflicting declared tenant is rejected at the gateway, while a valid body is restored unchanged for the handler. This prevents the same body-tenant escalation across the remaining JSON mutation routes while their handler-level binding is audited.
 
 Focused direct-API tests cover:
@@ -61,6 +63,8 @@ Focused direct-API tests cover:
 - authenticated graph-proposal list binding and foreign detail/decision rejection; and
 - authenticated graph-proposal decision tenant binding and trusted reviewer attribution.
 - authenticated DSM artifact-list tenant binding and foreign artifact-detail rejection.
+- authenticated Signal Assurance assertion/evaluation, effectiveness, observation, and recommendation tenant binding; and
+- foreign Signal Assurance assertion-detail rejection.
 
 Validation: `go test ./internal/api` passes.
 

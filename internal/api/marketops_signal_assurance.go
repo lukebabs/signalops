@@ -14,7 +14,11 @@ func registerMarketOpsSignalAssuranceRoutes(mux *http.ServeMux, repository stora
 		return
 	}
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/assertions", func(w http.ResponseWriter, r *http.Request) {
-		records, err := query.ListSignalAssuranceAssertions(r.Context(), storage.SignalAssuranceAssertionFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), State: strings.TrimSpace(r.URL.Query().Get("state")), EvaluationMode: strings.TrimSpace(r.URL.Query().Get("evaluation_mode")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := query.ListSignalAssuranceAssertions(r.Context(), storage.SignalAssuranceAssertionFilter{TenantID: tenantID, State: strings.TrimSpace(r.URL.Query().Get("state")), EvaluationMode: strings.TrimSpace(r.URL.Query().Get("evaluation_mode")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list signal assurance assertions")
 			return
@@ -22,7 +26,10 @@ func registerMarketOpsSignalAssuranceRoutes(mux *http.ServeMux, repository stora
 		writeJSON(w, http.StatusOK, map[string]any{"assertions": assertionResponses(records)})
 	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/assertions/{assertion_id}", func(w http.ResponseWriter, r *http.Request) {
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
@@ -35,7 +42,10 @@ func registerMarketOpsSignalAssuranceRoutes(mux *http.ServeMux, repository stora
 		writeJSON(w, http.StatusOK, map[string]any{"assertion": assertionResponse(record)})
 	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/assertions/{assertion_id}/evaluations", func(w http.ResponseWriter, r *http.Request) {
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return

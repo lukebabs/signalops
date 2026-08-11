@@ -12,7 +12,10 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 		return
 	}
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/effectiveness", func(w http.ResponseWriter, r *http.Request) {
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
@@ -25,7 +28,10 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 		writeJSON(w, http.StatusOK, map[string]any{"effectiveness": effectivenessResponses(rows), "minimum_ranked_sample": 30, "evidence_source_note": "LEGACY records are historical outcome evidence and are not SAF-validated assertions."})
 	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/effectiveness/observations", func(w http.ResponseWriter, r *http.Request) {
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		dimensionValue := strings.TrimSpace(r.URL.Query().Get("dimension_value"))
 		if tenantID == "" || dimensionValue == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id and dimension_value are required")
@@ -39,7 +45,10 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 		writeJSON(w, http.StatusOK, map[string]any{"observations": effectivenessObservationResponses(rows), "evidence_source_note": "LEGACY observations are historical outcome evidence and are not SAF-validated assertions."})
 	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/recommendations", func(w http.ResponseWriter, r *http.Request) {
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return

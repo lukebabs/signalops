@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -207,5 +208,96 @@ func TestAuthenticatedDSMArtifactRoutesBindTenantAndHideForeignArtifact(t *testi
 	router.ServeHTTP(get, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/dsm/artifacts/"+artifact.ArtifactID, nil), token))
 	if get.Code != http.StatusNotFound {
 		t.Fatalf("foreign get status = %d body = %s", get.Code, get.Body.String())
+	}
+}
+
+type signalAssuranceTenantBindingRepository struct {
+	*fakeQueryRepository
+	assertion                storage.SignalAssertionRecord
+	lastAssertionFilter      storage.SignalAssuranceAssertionFilter
+	lastEffectivenessFilter  storage.SignalAssuranceEffectivenessFilter
+	lastObservationFilter    storage.SignalAssuranceEffectivenessFilter
+	lastRecommendationFilter storage.SignalAssuranceEffectivenessFilter
+}
+
+func (r *signalAssuranceTenantBindingRepository) ListSignalAssuranceAssertions(_ context.Context, filter storage.SignalAssuranceAssertionFilter) ([]storage.SignalAssertionRecord, error) {
+	r.lastAssertionFilter = filter
+	if filter.TenantID != r.assertion.TenantID {
+		return []storage.SignalAssertionRecord{}, nil
+	}
+	return []storage.SignalAssertionRecord{r.assertion}, nil
+}
+
+func (r *signalAssuranceTenantBindingRepository) GetSignalAssuranceAssertion(_ context.Context, tenantID, assertionID string) (storage.SignalAssertionRecord, error) {
+	if tenantID != r.assertion.TenantID || assertionID != r.assertion.AssertionID {
+		return storage.SignalAssertionRecord{}, storage.ErrNotFound
+	}
+	return r.assertion, nil
+}
+
+func (r *signalAssuranceTenantBindingRepository) ListSignalAssuranceEvaluations(context.Context, storage.SignalAssuranceEvaluationFilter) ([]storage.SignalAssertionEvaluationRecord, error) {
+	return []storage.SignalAssertionEvaluationRecord{}, nil
+}
+
+func (r *signalAssuranceTenantBindingRepository) GetSignalValidationContract(context.Context, string) (storage.SignalValidationContractRecord, error) {
+	return storage.SignalValidationContractRecord{}, storage.ErrNotFound
+}
+
+func (r *signalAssuranceTenantBindingRepository) ListSignalAssuranceEffectiveness(_ context.Context, filter storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessRecord, error) {
+	r.lastEffectivenessFilter = filter
+	return []storage.SignalAssuranceEffectivenessRecord{}, nil
+}
+
+func (r *signalAssuranceTenantBindingRepository) ListSignalAssuranceEffectivenessObservations(_ context.Context, filter storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessObservationRecord, error) {
+	r.lastObservationFilter = filter
+	return []storage.SignalAssuranceEffectivenessObservationRecord{}, nil
+}
+
+func (r *signalAssuranceTenantBindingRepository) ListSignalAssuranceRecommendations(_ context.Context, filter storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceRecommendationRecord, error) {
+	r.lastRecommendationFilter = filter
+	return []storage.SignalAssuranceRecommendationRecord{}, nil
+}
+
+func TestAuthenticatedSignalAssuranceRoutesBindTenantAndHideForeignData(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &signalAssuranceTenantBindingRepository{
+		fakeQueryRepository: &fakeQueryRepository{},
+		assertion:           storage.SignalAssertionRecord{AssertionID: "assertion-foreign", TenantID: "tenant-other"},
+	}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	assertions := httptest.NewRecorder()
+	router.ServeHTTP(assertions, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/signal-assurance/assertions", nil), token))
+	if assertions.Code != http.StatusOK {
+		t.Fatalf("assertions status = %d body = %s", assertions.Code, assertions.Body.String())
+	}
+	if repo.lastAssertionFilter.TenantID != "tenant-local" {
+		t.Fatalf("assertion list tenant = %q", repo.lastAssertionFilter.TenantID)
+	}
+
+	foreign := httptest.NewRecorder()
+	router.ServeHTTP(foreign, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/signal-assurance/assertions/assertion-foreign", nil), token))
+	if foreign.Code != http.StatusNotFound {
+		t.Fatalf("foreign assertion status = %d body = %s", foreign.Code, foreign.Body.String())
+	}
+
+	requests := []struct {
+		path   string
+		filter *storage.SignalAssuranceEffectivenessFilter
+	}{
+		{path: "/v1/marketops/signal-assurance/effectiveness", filter: &repo.lastEffectivenessFilter},
+		{path: "/v1/marketops/signal-assurance/effectiveness/observations?dimension_value=signal_type", filter: &repo.lastObservationFilter},
+		{path: "/v1/marketops/signal-assurance/recommendations", filter: &repo.lastRecommendationFilter},
+	}
+	for _, request := range requests {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, request.path, nil), token))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s status = %d body = %s", request.path, recorder.Code, recorder.Body.String())
+		}
+		if request.filter.TenantID != "tenant-local" {
+			t.Fatalf("%s tenant = %q", request.path, request.filter.TenantID)
+		}
 	}
 }
