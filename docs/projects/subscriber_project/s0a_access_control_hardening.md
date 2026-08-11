@@ -67,6 +67,8 @@ The Subscriber Project now has a separate, pure entitlement and quota evaluator 
 
 The Subscriber Project also now has a static least-privilege manifest at `internal/subscriber/worker` for future catalog, shared-EOD, Options-demand, and Options-capture machine principals. It assigns only narrow process scopes and excludes browser, tenant-administration, and unrelated subscriber data authority; it changes no current runner or credential. The [shared-worker identity contract](worker_identities.md) defines the required deployment, provenance, and fail-closed integration boundary.
 
+The project has adopted a hybrid database isolation decision: current tenant-owned data remains application-authorized during compatibility, while every new tenant-private subscriber table must use fail-closed, forced PostgreSQL row-level security before it is enabled. Shared platform records remain separate and can only reach tenants through authorized projections. The [row-level security decision](row_level_security_decision.md) specifies the role, transaction, migration, and verification model.
+
 Focused direct-API tests cover:
 
 - omitted access-grant body tenant binding to the authenticated principal;
@@ -123,7 +125,7 @@ This slice adds no migration, list or membership table, entitlement, provider re
 2. Add an authoritative entitlement provisioning source, atomic quota reservation and usage accounting, durable entitlement and quota-decision audit, and route or worker integration for the implemented default-deny policy contract.
 3. Provision and enforce the static least-privilege service identities through workload credentials, gateway and persistence scope checks, audit, rotation, and negative integration tests.
 4. Retain grant and future list-administration audit evidence alongside the entitlement and quota-decision evidence.
-5. Make and document the database row-level-security defense-in-depth decision.
+5. Implement the adopted tenant-private RLS model: separate roles, forced policies, transaction-local tenant context, deployment preflight, and negative integration tests.
 6. Validate production-like OIDC/JWKS configuration and the complete cross-tenant negative-test suite.
 
 No Subscriber Project feature flag may enable catalog, list, shared-EOD, or Options-demand behavior until these exit conditions are satisfied.
