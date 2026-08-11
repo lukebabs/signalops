@@ -301,3 +301,39 @@ func TestAuthenticatedSignalAssuranceRoutesBindTenantAndHideForeignData(t *testi
 		}
 	}
 }
+
+func TestAuthenticatedCoreLedgersBindTenantAndHideForeignDetails(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	raw := validRawEventLedgerRecord()
+	raw.EventID, raw.TenantID = "raw-foreign", "tenant-other"
+	repo := &fakeQueryRepository{
+		rawEvents:        []storage.RawEventLedgerRecord{raw},
+		normalizedEvents: []storage.NormalizedEventLedgerRecord{{EventID: "normalized-foreign", TenantID: "tenant-other"}},
+		signals:          []storage.SignalLedgerRecord{{SignalID: "signal-foreign", TenantID: "tenant-other"}},
+	}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	for _, request := range []struct {
+		path  string
+		check func() string
+	}{
+		{path: "/v1/raw-events", check: func() string { return repo.lastFilter.TenantID }},
+		{path: "/v1/normalized-events", check: func() string { return repo.lastFilter.TenantID }},
+		{path: "/v1/signals", check: func() string { return repo.lastSignalLedgerFilter.TenantID }},
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, request.path, nil), token))
+		if recorder.Code != http.StatusOK || request.check() != "tenant-local" {
+			t.Fatalf("%s status=%d tenant=%q body=%s", request.path, recorder.Code, request.check(), recorder.Body.String())
+		}
+	}
+
+	for _, path := range []string{"/v1/raw-events/raw-foreign", "/v1/normalized-events/normalized-foreign", "/v1/signals/signal-foreign"} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, path, nil), token))
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("%s status=%d body=%s", path, recorder.Code, recorder.Body.String())
+		}
+	}
+}

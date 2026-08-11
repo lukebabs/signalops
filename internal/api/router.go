@@ -281,8 +281,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListRawEventLedger(r.Context(), storage.RawEventLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")),
+			TenantID: tenantID,
 			AppID:    strings.TrimSpace(r.URL.Query().Get("app_id")),
 			Domain:   strings.TrimSpace(r.URL.Query().Get("domain")),
 			UseCase:  strings.TrimSpace(r.URL.Query().Get("use_case")),
@@ -302,9 +306,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetRawEventLedger(r.Context(), r.PathValue("event_id"))
 		if err != nil {
 			writeQueryError(w, err, "raw_event_not_found", "raw event not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "raw_event_not_found", "raw event not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"raw_event": rawEventResponse(record)})
@@ -315,8 +327,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListNormalizedEventLedger(r.Context(), storage.RawEventLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -331,9 +347,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetNormalizedEventLedger(r.Context(), r.PathValue("event_id"))
 		if err != nil {
 			writeQueryError(w, err, "normalized_event_not_found", "normalized event not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "normalized_event_not_found", "normalized event not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"normalized_event": normalizedEventResponse(record)})
@@ -344,8 +368,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListSignalLedger(r.Context(), storage.SignalLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")),
 			Severity: strings.TrimSpace(r.URL.Query().Get("severity")), Limit: queryLimit(r, 50),
 		})
@@ -361,9 +389,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetSignalLedger(r.Context(), r.PathValue("signal_id"))
 		if err != nil {
 			writeQueryError(w, err, "signal_not_found", "signal not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "signal_not_found", "signal not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"signal": signalResponse(record)})

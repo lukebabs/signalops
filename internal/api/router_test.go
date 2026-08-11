@@ -79,6 +79,7 @@ type fakeQueryRepository struct {
 	lastReplayFilter                   storage.ReplayJobFilter
 	usage                              []storage.ProviderUsageRecord
 	rawEvents                          []storage.RawEventLedgerRecord
+	normalizedEvents                   []storage.NormalizedEventLedgerRecord
 	cyberOpsTraffic                    []storage.CyberOpsTrafficInput
 	idem                               storage.IdempotencyRecord
 	sources                            []storage.CatalogSourceRecord
@@ -292,7 +293,16 @@ func (q *fakeQueryRepository) ListProviderUsage(context.Context, string, int) ([
 func (q *fakeQueryRepository) ListRawEventLedger(_ context.Context, filter storage.RawEventLedgerFilter) ([]storage.RawEventLedgerRecord, error) {
 	q.rawEventQueries++
 	q.lastFilter = filter
-	return q.rawEvents, nil
+	if filter.TenantID == "" {
+		return q.rawEvents, nil
+	}
+	records := []storage.RawEventLedgerRecord{}
+	for _, record := range q.rawEvents {
+		if record.TenantID == filter.TenantID {
+			records = append(records, record)
+		}
+	}
+	return records, nil
 }
 
 func (q *fakeQueryRepository) GetRawEventLedger(_ context.Context, eventID string) (storage.RawEventLedgerRecord, error) {
@@ -307,10 +317,25 @@ func (q *fakeQueryRepository) GetRawEventLedger(_ context.Context, eventID strin
 	return storage.RawEventLedgerRecord{}, storage.ErrNotFound
 }
 
-func (q *fakeQueryRepository) ListNormalizedEventLedger(context.Context, storage.RawEventLedgerFilter) ([]storage.NormalizedEventLedgerRecord, error) {
-	return nil, nil
+func (q *fakeQueryRepository) ListNormalizedEventLedger(_ context.Context, filter storage.RawEventLedgerFilter) ([]storage.NormalizedEventLedgerRecord, error) {
+	q.lastFilter = filter
+	if filter.TenantID == "" {
+		return q.normalizedEvents, nil
+	}
+	records := []storage.NormalizedEventLedgerRecord{}
+	for _, record := range q.normalizedEvents {
+		if record.TenantID == filter.TenantID {
+			records = append(records, record)
+		}
+	}
+	return records, nil
 }
-func (q *fakeQueryRepository) GetNormalizedEventLedger(context.Context, string) (storage.NormalizedEventLedgerRecord, error) {
+func (q *fakeQueryRepository) GetNormalizedEventLedger(_ context.Context, eventID string) (storage.NormalizedEventLedgerRecord, error) {
+	for _, event := range q.normalizedEvents {
+		if event.EventID == eventID {
+			return event, nil
+		}
+	}
 	return storage.NormalizedEventLedgerRecord{}, storage.ErrNotFound
 }
 
@@ -321,7 +346,16 @@ func (q *fakeQueryRepository) ListCyberOpsTrafficInputs(context.Context, string,
 func (q *fakeQueryRepository) ListSignalLedger(_ context.Context, filter storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
 	q.signalLedgerQueries++
 	q.lastSignalLedgerFilter = filter
-	return q.signals, nil
+	if filter.TenantID == "" {
+		return q.signals, nil
+	}
+	records := []storage.SignalLedgerRecord{}
+	for _, record := range q.signals {
+		if record.TenantID == filter.TenantID {
+			records = append(records, record)
+		}
+	}
+	return records, nil
 }
 func (q *fakeQueryRepository) GetSignalLedger(_ context.Context, signalID string) (storage.SignalLedgerRecord, error) {
 	for _, signal := range q.signals {
