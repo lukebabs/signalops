@@ -65,6 +65,8 @@ The authenticated gateway also now inspects a bounded, top-level JSON `tenant_id
 
 The Subscriber Project now has a separate, pure entitlement and quota evaluator at `internal/subscriber/policy`. It is explicitly distinct from MarketOps read/write grants, recognizes catalog search, shared EOD activation, and Options demand as separate capabilities, and defaults to deny when a matching explicit entitlement and quota are not present. Its deterministic decision includes tenant, subject, capability, units, usage snapshot, quota, policy and provisioning versions, correlation ID, and time so a later durable audit adapter can retain the decision provenance. It has no provisioning source, database table, route, worker integration, reservation behavior, or enabled feature flag. The [entitlement and quota policy contract](entitlement_quota_policy.md) records this boundary.
 
+The Subscriber Project also now has a static least-privilege manifest at `internal/subscriber/worker` for future catalog, shared-EOD, Options-demand, and Options-capture machine principals. It assigns only narrow process scopes and excludes browser, tenant-administration, and unrelated subscriber data authority; it changes no current runner or credential. The [shared-worker identity contract](worker_identities.md) defines the required deployment, provenance, and fail-closed integration boundary.
+
 Focused direct-API tests cover:
 
 - omitted access-grant body tenant binding to the authenticated principal;
@@ -119,7 +121,7 @@ This slice adds no migration, list or membership table, entitlement, provider re
 
 1. Add server-side subject ownership and tenant-administrator authorization to the future private and default list routes, using the implemented principal-bound subject and administrator guards.
 2. Add an authoritative entitlement provisioning source, atomic quota reservation and usage accounting, durable entitlement and quota-decision audit, and route or worker integration for the implemented default-deny policy contract.
-3. Define least-privilege service identities for scheduled shared processing.
+3. Provision and enforce the static least-privilege service identities through workload credentials, gateway and persistence scope checks, audit, rotation, and negative integration tests.
 4. Retain grant and future list-administration audit evidence alongside the entitlement and quota-decision evidence.
 5. Make and document the database row-level-security defense-in-depth decision.
 6. Validate production-like OIDC/JWKS configuration and the complete cross-tenant negative-test suite.

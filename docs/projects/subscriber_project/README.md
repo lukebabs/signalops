@@ -32,6 +32,8 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [MarketOps daily surveillance architecture](../../use_cases/marketops/daily_market_surveillance/architecture/functional_components.md): current production components.
 - [Sprint S0 — Baseline and Controls](s0_baseline_and_controls.md): read-only current-state baseline utility, metrics, evidence review, reserved flags, and rollback posture.
 - [Sprint S0-A — Access-control Hardening](s0a_access_control_hardening.md): principal-bound tenant enforcement progress, direct-API regression coverage, and remaining gate criteria.
+- [Entitlement and quota policy contract](entitlement_quota_policy.md): separate default-deny subscriber product-policy decision model.
+- [Shared-worker identity contract](worker_identities.md): least-privilege future worker identities and deployment boundary.
 - [Tenant Use-Case RBAC v1](../../rbac_use_case_access_v1.md): current grant model, gateway enforcement, and access-management audit boundary.
 - [MarketOps ETF makeup guide](../../use_cases/marketops/daily_market_surveillance/operations/sri_etf_makeup.md): current issuer snapshot behavior and provenance boundary.
 - [Tenant access implementation](../../frontend/auth_integration_spec.md): current authenticated-session behavior and tenant claim model.
