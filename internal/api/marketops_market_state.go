@@ -15,8 +15,12 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsFeatureDefinitions(r.Context(), storage.MarketOpsFeatureDefinitionFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), FeatureKey: strings.TrimSpace(r.URL.Query().Get("feature_key")),
+			TenantID: tenantID, FeatureKey: strings.TrimSpace(r.URL.Query().Get("feature_key")),
 			FeatureVersion: strings.TrimSpace(r.URL.Query().Get("feature_version")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")),
 			Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
@@ -40,8 +44,12 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsFeatureObservations(r.Context(), storage.MarketOpsFeatureObservationFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
 			AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")),
 			FeatureKey: strings.TrimSpace(r.URL.Query().Get("feature_key")), FeatureVersion: strings.TrimSpace(r.URL.Query().Get("feature_version")),
 			Domain: strings.TrimSpace(r.URL.Query().Get("domain")), QualityState: strings.TrimSpace(r.URL.Query().Get("quality_state")),
@@ -64,8 +72,12 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsMarketStates(r.Context(), storage.MarketOpsMarketStateFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
 			AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")),
 			StateSchemaVersion: strings.TrimSpace(r.URL.Query().Get("state_schema_version")),
 			QualityState:       strings.TrimSpace(r.URL.Query().Get("quality_state")), SessionStart: start, SessionEnd: end,
@@ -83,9 +95,17 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsMarketState(r.Context(), r.PathValue("market_state_id"))
 		if err != nil {
 			writeQueryError(w, err, "market_state_not_found", "MarketOps market state not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "market_state_not_found", "MarketOps market state not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"market_state": marketOpsMarketStateResponse(record)})
@@ -96,9 +116,17 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		state, err := repo.GetMarketOpsMarketState(r.Context(), r.PathValue("market_state_id"))
 		if err != nil {
 			writeQueryError(w, err, "market_state_not_found", "MarketOps market state not found")
+			return
+		}
+		if tenantID != "" && state.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "market_state_not_found", "MarketOps market state not found")
 			return
 		}
 		lineage, err := resolveMarketOpsStateLineage(r, repo, state)
@@ -118,8 +146,12 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsStateTransitions(r.Context(), storage.MarketOpsStateTransitionFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
 			AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")),
 			CurrentStateID: strings.TrimSpace(r.URL.Query().Get("current_state_id")), FeatureKey: strings.TrimSpace(r.URL.Query().Get("feature_key")),
 			FeatureVersion: strings.TrimSpace(r.URL.Query().Get("feature_version")), TransitionType: strings.TrimSpace(r.URL.Query().Get("transition_type")),
@@ -142,8 +174,12 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsEvidence(r.Context(), storage.MarketOpsEvidenceFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
 			AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")),
 			EvidenceType: strings.TrimSpace(r.URL.Query().Get("evidence_type")), EvidenceVersion: strings.TrimSpace(r.URL.Query().Get("evidence_version")),
 			Domain: strings.TrimSpace(r.URL.Query().Get("domain")), Direction: strings.TrimSpace(r.URL.Query().Get("direction")),
@@ -161,9 +197,17 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsEvidence(r.Context(), r.PathValue("evidence_id"))
 		if err != nil {
 			writeQueryError(w, err, "evidence_not_found", "MarketOps evidence not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "evidence_not_found", "MarketOps evidence not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"evidence": marketOpsEvidenceResponse(record)})

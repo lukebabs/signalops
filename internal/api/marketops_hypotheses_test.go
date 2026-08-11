@@ -63,3 +63,31 @@ func TestMarketOpsHypothesisReadsRejectInvalidQueries(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthenticatedHypothesisReadsBindPrincipalTenant(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &fakeQueryRepository{
+		marketOpsHypothesisDefinitions: []storage.MarketOpsHypothesisDefinitionRecord{{TenantID: "tenant-other", HypothesisKey: "H-FOREIGN", HypothesisVersion: "v1"}},
+		marketOpsHypothesisEvaluations: []storage.MarketOpsHypothesisEvaluationRecord{{TenantID: "tenant-other", EvaluationID: "eval-foreign"}},
+	}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	list := httptest.NewRecorder()
+	router.ServeHTTP(list, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/hypotheses", nil), token))
+	if list.Code != http.StatusOK || repo.lastHypothesisDefinitionFilter.TenantID != "tenant-local" {
+		t.Fatalf("definition list status=%d tenant=%q body=%s", list.Code, repo.lastHypothesisDefinitionFilter.TenantID, list.Body.String())
+	}
+
+	foreign := httptest.NewRecorder()
+	router.ServeHTTP(foreign, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/hypotheses/H-FOREIGN/v1", nil), token))
+	if foreign.Code != http.StatusNotFound {
+		t.Fatalf("foreign definition status=%d body=%s", foreign.Code, foreign.Body.String())
+	}
+
+	evaluations := httptest.NewRecorder()
+	router.ServeHTTP(evaluations, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/hypothesis-evaluations", nil), token))
+	if evaluations.Code != http.StatusOK || repo.lastHypothesisEvaluationFilter.TenantID != "tenant-local" {
+		t.Fatalf("evaluation list status=%d tenant=%q body=%s", evaluations.Code, repo.lastHypothesisEvaluationFilter.TenantID, evaluations.Body.String())
+	}
+}

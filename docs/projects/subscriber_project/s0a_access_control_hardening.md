@@ -43,6 +43,8 @@ MarketOps algorithm-evaluation runs, result and outcome evidence, and backfill-c
 
 MarketOps signal-outcome lists and detail reads now bind an omitted tenant to the authenticated principal. The tenant-qualified outcome lookup continues to suppress foreign identifiers through the ordinary not-found response.
 
+MarketOps hypothesis definitions and evaluations, plus feature, state, transition, and evidence lists, now bind an omitted tenant to the authenticated principal. State, lineage, and evidence detail routes verify stored ownership before responding, returning the ordinary not-found response for foreign records.
+
 The authenticated gateway also now inspects a bounded, top-level JSON `tenant_id` on `POST`, `PUT`, `PATCH`, and `DELETE` requests before the handler runs. A conflicting declared tenant is rejected at the gateway, while a valid body is restored unchanged for the handler. This prevents the same body-tenant escalation across the remaining JSON mutation routes while their handler-level binding is audited.
 
 Focused direct-API tests cover:
@@ -72,6 +74,8 @@ Focused direct-API tests cover:
 - authenticated algorithm-evaluation run, result, outcome, and backfill read tenant binding; and
 - foreign algorithm-evaluation run and backfill-campaign detail rejection.
 - authenticated MarketOps outcome-list tenant binding and foreign outcome-detail rejection.
+- authenticated hypothesis, feature, market-state, transition, and evidence-list tenant binding; and
+- foreign market-state, lineage, and evidence-detail rejection.
 
 Validation: `go test ./internal/api` passes.
 
