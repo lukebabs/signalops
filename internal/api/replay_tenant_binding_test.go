@@ -446,3 +446,45 @@ func TestAuthenticatedIntelligenceSyncraticAndAlgorithmReadsBindTenant(t *testin
 		}
 	}
 }
+
+func TestAuthenticatedOperationalLedgerReadsBindTenantAndHideForeignDetails(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	alert := validAlertRecord()
+	alert.AlertID, alert.TenantID = "alert-foreign", "tenant-other"
+	insight := validInsightRecord()
+	insight.InsightID, insight.TenantID = "insight-foreign", "tenant-other"
+	repo := &fakeQueryRepository{
+		alerts:   []storage.AlertLedgerRecord{alert},
+		insights: []storage.InsightLedgerRecord{insight},
+		idem: storage.IdempotencyRecord{
+			TenantID: "tenant-other", SourceID: "source-foreign", IdempotencyKey: "key-foreign",
+		},
+	}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	for _, request := range []struct {
+		path   string
+		tenant func() string
+	}{
+		{path: "/v1/alerts", tenant: func() string { return repo.lastAlertLedgerFilter.TenantID }},
+		{path: "/v1/insights", tenant: func() string { return repo.lastInsightLedgerFilter.TenantID }},
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, request.path, nil), token))
+		if recorder.Code != http.StatusOK || request.tenant() != "tenant-local" {
+			t.Fatalf("%s status=%d tenant=%q body=%s", request.path, recorder.Code, request.tenant(), recorder.Body.String())
+		}
+	}
+
+	for _, path := range []string{"/v1/alerts/alert-foreign", "/v1/insights/insight-foreign", "/v1/idempotency?source_id=source-foreign&idempotency_key=key-foreign"} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, path, nil), token))
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("%s status=%d body=%s", path, recorder.Code, recorder.Body.String())
+		}
+	}
+	if repo.lastIdempotencyTenant != "tenant-local" || repo.lastIdempotencySource != "source-foreign" || repo.lastIdempotencyKey != "key-foreign" {
+		t.Fatalf("idempotency lookup tenant=%q source=%q key=%q", repo.lastIdempotencyTenant, repo.lastIdempotencySource, repo.lastIdempotencyKey)
+	}
+}

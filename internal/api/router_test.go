@@ -172,6 +172,10 @@ type fakeQueryRepository struct {
 	lastEvidenceFilter                 storage.MarketOpsEvidenceFilter
 	lastSignalLedgerFilter             storage.SignalLedgerFilter
 	lastAlertLedgerFilter              storage.AlertLedgerFilter
+	lastInsightLedgerFilter            storage.InsightLedgerFilter
+	lastIdempotencyTenant              string
+	lastIdempotencySource              string
+	lastIdempotencyKey                 string
 	signalLedgerQueries                int
 	alertLedgerQueries                 int
 	signals                            []storage.SignalLedgerRecord
@@ -1006,7 +1010,8 @@ func (q *fakeQueryRepository) MutateAlertLifecycle(_ context.Context, mutation s
 	return storage.AlertLedgerRecord{}, storage.ErrNotFound
 }
 
-func (q *fakeQueryRepository) ListInsightLedger(context.Context, storage.InsightLedgerFilter) ([]storage.InsightLedgerRecord, error) {
+func (q *fakeQueryRepository) ListInsightLedger(_ context.Context, filter storage.InsightLedgerFilter) ([]storage.InsightLedgerRecord, error) {
+	q.lastInsightLedgerFilter = filter
 	return q.insights, nil
 }
 
@@ -1040,7 +1045,10 @@ func (q *fakeQueryRepository) MutateInsightLifecycle(_ context.Context, mutation
 	return storage.InsightLedgerRecord{}, storage.ErrNotFound
 }
 
-func (q *fakeQueryRepository) GetIdempotencyRecord(context.Context, string, string, string) (storage.IdempotencyRecord, error) {
+func (q *fakeQueryRepository) GetIdempotencyRecord(_ context.Context, tenantID, sourceID, key string) (storage.IdempotencyRecord, error) {
+	q.lastIdempotencyTenant = tenantID
+	q.lastIdempotencySource = sourceID
+	q.lastIdempotencyKey = key
 	if q.notFound {
 		return storage.IdempotencyRecord{}, storage.ErrNotFound
 	}

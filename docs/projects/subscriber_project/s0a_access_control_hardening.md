@@ -51,6 +51,8 @@ MarketOps backtest and calibration read surfaces now bind every list filter to t
 
 MarketOps intelligence cohort runs and readiness now inherit tenant scope from the authenticated principal; the cohort-run detail already uses tenant-qualified retrieval. Syncratic context-window and insight lists bind the same scope, while their details verify stored ownership before deriving related evidence and return the ordinary not-found response for foreign IDs. Algorithm registry and evaluation reads now reconcile their required tenant scope with the authenticated principal across definitions, execution requests and summaries, results, materializations, signal-proposal lists and summaries, preflight, and tenant-qualified details.
 
+Alert and insight ledger lists now bind to the authenticated tenant, and their identifier details verify stored ownership before returning the ordinary not-found response for foreign records. Idempotency lookup now resolves the tenant from the principal, passes that canonical value into the tenant-qualified repository lookup, and suppresses a mismatched returned provenance record as not found.
+
 The authenticated gateway also now inspects a bounded, top-level JSON `tenant_id` on `POST`, `PUT`, `PATCH`, and `DELETE` requests before the handler runs. A conflicting declared tenant is rejected at the gateway, while a valid body is restored unchanged for the handler. This prevents the same body-tenant escalation across the remaining JSON mutation routes while their handler-level binding is audited.
 
 Focused direct-API tests cover:
@@ -88,6 +90,8 @@ Focused direct-API tests cover:
 - foreign backtest campaign, run, calibration, promotion, readiness, evaluation, and label detail rejection.
 - authenticated intelligence cohort, readiness, Syncratic context/insight, and algorithm registry read-filter tenant binding; and
 - foreign intelligence cohort, Syncratic context-window, and Syncratic insight detail rejection.
+- authenticated alert and insight-ledger list tenant binding; and
+- foreign alert, insight, and idempotency provenance-detail rejection.
 
 Validation: `go test ./internal/api` passes.
 
