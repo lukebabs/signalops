@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rsa"
@@ -8,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"math/big"
 	"net/http"
 	"strings"
@@ -105,6 +107,15 @@ func authMiddleware(next http.Handler, cfg AuthConfig) http.Handler {
 			writeError(w, http.StatusForbidden, "tenant_mismatch", "request tenant does not match token tenant")
 			return
 		}
+		bodyTenant, bodyTenantDeclared, bodyErr := requestBodyTenant(r)
+		if bodyErr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_tenant_scope", bodyErr.Error())
+			return
+		}
+		if bodyTenantDeclared && bodyTenant != "" && bodyTenant != principal.TenantID {
+			writeError(w, http.StatusForbidden, "tenant_mismatch", "request tenant does not match token tenant")
+			return
+		}
 		principal.SuperAdmin = isSuperAdmin(principal)
 		if cfg.AccessResolver != nil {
 			grants, grantErr := cfg.AccessResolver.ListTenantUserAccessForSubject(r.Context(), principal.TenantID, principal.Subject)
@@ -131,6 +142,94 @@ func isSuperAdmin(principal Principal) bool {
 
 func isPublicRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && (r.URL.Path == "/healthz" || r.URL.Path == "/readyz")
+}
+
+// requestTenant resolves a tenant-bearing handler input against the authenticated
+// principal. In authenticated mode the principal is authoritative: an omitted
+// handler value inherits the claim and a conflicting value is rejected. Local
+// mode retains the supplied value for existing development workflows.
+func requestTenant(r *http.Request, requestedTenant string) (string, error) {
+	requestedTenant = strings.TrimSpace(requestedTenant)
+	principal, authenticated := principalFromContext(r.Context())
+	if !authenticated {
+		return requestedTenant, nil
+	}
+	principalTenant := strings.TrimSpace(principal.TenantID)
+	if principalTenant == "" {
+		return "", errors.New("authenticated principal is missing tenant scope")
+	}
+	if requestedTenant != "" && requestedTenant != principalTenant {
+		return "", errors.New("request tenant does not match authenticated principal")
+	}
+	return principalTenant, nil
+}
+
+func requireRequestTenant(w http.ResponseWriter, r *http.Request, requestedTenant string) (string, bool) {
+	tenantID, err := requestTenant(r, requestedTenant)
+	if err != nil {
+		writeError(w, http.StatusForbidden, "tenant_mismatch", err.Error())
+		return "", false
+	}
+	return tenantID, true
+}
+
+func bindRequestTenant(w http.ResponseWriter, r *http.Request, tenantID *string) bool {
+	resolved, ok := requireRequestTenant(w, r, *tenantID)
+	if !ok {
+		return false
+	}
+	*tenantID = resolved
+	return true
+}
+
+func bindRequestTenantFromBodyOrQuery(w http.ResponseWriter, r *http.Request, tenantID *string) bool {
+	if strings.TrimSpace(*tenantID) == "" {
+		*tenantID = r.URL.Query().Get("tenant_id")
+	}
+	return bindRequestTenant(w, r, tenantID)
+}
+
+const maxTenantScopeInspectionBytes = 8 * 1024 * 1024
+
+// requestBodyTenant returns a top-level JSON tenant_id without consuming the
+// downstream handler body. The bounded inspection applies only to JSON or
+// content-type-unspecified mutation requests; other handlers retain their own
+// payload validation behavior.
+func requestBodyTenant(r *http.Request) (string, bool, error) {
+	if r.Body == nil || r.ContentLength == 0 {
+		return "", false, nil
+	}
+	contentType := strings.ToLower(r.Header.Get("Content-Type"))
+	if contentType != "" && !strings.Contains(contentType, "json") {
+		return "", false, nil
+	}
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+	default:
+		return "", false, nil
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxTenantScopeInspectionBytes+1))
+	if err != nil {
+		return "", false, errors.New("unable to read request body for tenant scope")
+	}
+	if len(body) > maxTenantScopeInspectionBytes {
+		return "", false, errors.New("request body exceeds tenant-scope inspection limit")
+	}
+	_ = r.Body.Close()
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &fields); err != nil {
+		return "", false, nil
+	}
+	rawTenant, declared := fields["tenant_id"]
+	if !declared || string(rawTenant) == "null" {
+		return "", false, nil
+	}
+	var tenantID string
+	if err := json.Unmarshal(rawTenant, &tenantID); err != nil {
+		return "", false, errors.New("request tenant_id must be a string")
+	}
+	return strings.TrimSpace(tenantID), true, nil
 }
 
 func tenantMatchesRequest(r *http.Request, tenantID string) bool {

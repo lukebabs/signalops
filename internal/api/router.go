@@ -136,8 +136,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListReplayJobs(r.Context(), storage.ReplayJobFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: tenantID, SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), SourceKind: strings.TrimSpace(r.URL.Query().Get("source_kind")),
 			Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
@@ -158,6 +162,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, req.TenantID)
+		if !ok {
+			return
+		}
+		req.TenantID = tenantID
 		record, err := replayJobRecordFromRequest(req, replayActor(r, req.RequestedBy), time.Now().UTC())
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_replay_job", err.Error())
@@ -175,9 +184,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetReplayJob(r.Context(), r.PathValue("replay_job_id"))
 		if err != nil {
 			writeQueryError(w, err, "replay_job_not_found", "replay job not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "replay_job_not_found", "replay job not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"replay_job": replayJobResponse(record)})
@@ -193,6 +210,19 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		existing, err := repo.GetReplayJob(r.Context(), r.PathValue("replay_job_id"))
+		if err != nil {
+			writeQueryError(w, err, "replay_job_not_found", "replay job not found")
+			return
+		}
+		if tenantID != "" && existing.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "replay_job_not_found", "replay job not found")
+			return
+		}
 		record, err := repo.CancelReplayJob(r.Context(), r.PathValue("replay_job_id"), lifecycleActor(r, req.Actor), time.Now().UTC(), firstNonEmpty(req.Reason, req.Note), nil)
 		if err != nil {
 			writeQueryError(w, err, "replay_job_not_found", "replay job not found")
@@ -206,7 +236,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		now := time.Now().UTC()
 		counts, err := repo.CountReplayJobsByStatus(r.Context(), tenantID)
 		if err != nil {
@@ -381,6 +414,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
 		runner := cfg.MarketOpsBacktestRunner
 		if runner == nil {
 			runner = marketopsbacktest.Run
@@ -479,6 +515,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
 		backtestCfg, err := marketOpsBacktestConfigFromRequest(req, replayActor(r, req.RequestedBy))
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_backtest", err.Error())
@@ -525,6 +564,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req marketOpsBacktestCalibrationSummaryCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		filter := marketOpsBacktestRunFilterFromCalibrationRequest(req)
@@ -597,6 +639,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
 		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.SummaryID) == "" {
 			writeError(w, http.StatusBadRequest, "invalid_calibration_baseline", "tenant_id, name, and summary_id are required")
 			return
@@ -665,6 +710,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req marketOpsBacktestCalibrationComparisonCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.BaselineID) == "" || strings.TrimSpace(req.CandidateSummaryID) == "" {
@@ -751,6 +799,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req marketOpsBacktestPromotionCandidateCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.BaselineID) == "" || strings.TrimSpace(req.ComparisonID) == "" {
@@ -869,6 +920,19 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		candidate, err := repo.GetMarketOpsBacktestPromotionCandidate(r.Context(), r.PathValue("candidate_id"))
+		if err != nil {
+			writeQueryError(w, err, "promotion_candidate_not_found", "MarketOps promotion candidate not found")
+			return
+		}
+		if tenantID != "" && candidate.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "promotion_candidate_not_found", "MarketOps promotion candidate not found")
+			return
+		}
 		if !marketOpsBacktestPromotionCandidateDecisionStatusAllowed(req.Status) {
 			writeError(w, http.StatusBadRequest, "invalid_status", "promotion candidate decision status is invalid")
 			return
@@ -893,6 +957,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req marketOpsBacktestCalibrationReadinessCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.BaselineID) == "" || strings.TrimSpace(req.ComparisonID) == "" {
@@ -1334,8 +1401,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsDSMArtifacts(r.Context(), storage.MarketOpsDSMArtifactFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -1350,9 +1421,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsDSMArtifact(r.Context(), r.PathValue("artifact_id"))
 		if err != nil {
 			writeQueryError(w, err, "artifact_not_found", "MarketOps DSM artifact not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "artifact_not_found", "MarketOps DSM artifact not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"artifact": marketOpsDSMArtifactResponse(record)})
@@ -1367,8 +1446,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsDSMGraphProposals(r.Context(), storage.MarketOpsDSMGraphProposalFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			ArtifactID: strings.TrimSpace(r.URL.Query().Get("artifact_id")), SignalID: strings.TrimSpace(r.URL.Query().Get("signal_id")), SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")),
 			CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), Status: strings.TrimSpace(r.URL.Query().Get("status")), ProposalSource: storage.MarketOpsGraphProposalSourceDSMSignal, Limit: queryLimit(r, 50),
 		})
@@ -1384,12 +1467,20 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsDSMGraphProposal(r.Context(), r.PathValue("proposal_id"))
 		if err != nil {
 			writeQueryError(w, err, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
 			return
 		}
 		if record.ProposalSource != "" && record.ProposalSource != storage.MarketOpsGraphProposalSourceDSMSignal {
+			writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
 			writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
 			return
 		}
@@ -1401,6 +1492,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		existing, err := repo.GetMarketOpsDSMGraphProposal(r.Context(), r.PathValue("proposal_id"))
 		if err != nil || (existing.ProposalSource != "" && existing.ProposalSource != storage.MarketOpsGraphProposalSourceDSMSignal) {
 			if err != nil {
@@ -1409,6 +1504,13 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
 			}
 			return
+		}
+		if tenantID != "" && existing.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
+			return
+		}
+		if tenantID == "" {
+			tenantID = strings.TrimSpace(existing.TenantID)
 		}
 		var req graphProposalDecisionRequest
 		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, defaultMaxRawEventBytes))
@@ -1423,7 +1525,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			return
 		}
 		record, err := repo.MutateMarketOpsDSMGraphProposal(r.Context(), storage.MarketOpsDSMGraphProposalMutation{
-			ProposalID: r.PathValue("proposal_id"), Status: status, ReviewedBy: lifecycleActor(r, req.Actor), DecisionNote: strings.TrimSpace(req.Note), DecidedAt: time.Now().UTC(),
+			ProposalID: r.PathValue("proposal_id"), TenantID: tenantID, Status: status, ReviewedBy: lifecycleActor(r, req.Actor), DecisionNote: strings.TrimSpace(req.Note), DecidedAt: time.Now().UTC(),
 		})
 		if err != nil {
 			if strings.Contains(err.Error(), "status") {
@@ -1444,6 +1546,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req marketOpsBacktestEvaluationCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.RunID) == "" {
@@ -1530,6 +1635,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req marketOpsBacktestEvaluationLabelSyncRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" {
@@ -1693,6 +1801,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
 		record := algorithmDefinitionRecord(req)
 		if err := repo.UpsertAlgorithmDefinition(r.Context(), record); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_definition", err.Error())
@@ -1750,6 +1861,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req algorithmExecutionRequestCreate
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		record := algorithmExecutionRequestRecord(req, replayActor(r, req.RequestedBy))
@@ -2012,10 +2126,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
-		tenantID := strings.TrimSpace(req.TenantID)
-		if tenantID == "" {
-			tenantID = strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if !bindRequestTenantFromBodyOrQuery(w, r, &req.TenantID) {
+			return
 		}
+		tenantID := req.TenantID
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2044,10 +2158,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
-		tenantID := strings.TrimSpace(req.TenantID)
-		if tenantID == "" {
-			tenantID = strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if !bindRequestTenantFromBodyOrQuery(w, r, &req.TenantID) {
+			return
 		}
+		tenantID := req.TenantID
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2518,6 +2632,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
+		}
+
+		tenantID, ok := requireRequestTenant(w, r, jsonStringField(fields, "tenant_id"))
+		if !ok {
+			return
+		}
+		if _, authenticated := principalFromContext(r.Context()); authenticated {
+			rawTenant, err := json.Marshal(tenantID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "tenant_scope_failed", "failed to encode authenticated tenant scope")
+				return
+			}
+			fields["tenant_id"] = rawTenant
+			payload, err = json.Marshal(fields)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "tenant_scope_failed", "failed to encode authenticated event payload")
+				return
+			}
 		}
 
 		eventID := firstNonEmpty(headerValue(r, "X-SignalOps-Event-ID"), jsonStringField(fields, "event_id"), newID("evt"))
@@ -3421,6 +3553,19 @@ func alertLifecycleHandler(cfg RouterConfig, status string, action string) http.
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		existing, err := repo.GetAlertLedger(r.Context(), r.PathValue("alert_id"))
+		if err != nil {
+			writeQueryError(w, err, "alert_not_found", "alert not found")
+			return
+		}
+		if tenantID != "" && existing.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "alert_not_found", "alert not found")
+			return
+		}
 		actor := lifecycleActor(r, req.Actor)
 		metadata, err := lifecycleMetadata(action, actor, req)
 		if err != nil {
@@ -3447,6 +3592,19 @@ func insightLifecycleHandler(cfg RouterConfig, status string, action string) htt
 		req, err := readLifecycleMutationRequest(w, r)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		existing, err := repo.GetInsightLedger(r.Context(), r.PathValue("insight_id"))
+		if err != nil {
+			writeQueryError(w, err, "insight_not_found", "insight not found")
+			return
+		}
+		if tenantID != "" && existing.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "insight_not_found", "insight not found")
 			return
 		}
 		actor := lifecycleActor(r, req.Actor)
@@ -3758,6 +3916,9 @@ func replayJobRecordFromRequest(req replayJobCreateRequest, actor string, now ti
 }
 
 func replayActor(r *http.Request, requestedBy string) string {
+	if principal, authenticated := principalFromContext(r.Context()); authenticated {
+		return firstNonEmpty(strings.TrimSpace(principal.Actor), strings.TrimSpace(principal.Subject), "operator-authenticated")
+	}
 	return firstNonEmpty(strings.TrimSpace(r.Header.Get("X-SignalOps-Actor")), strings.TrimSpace(requestedBy), "operator-local")
 }
 

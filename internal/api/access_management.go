@@ -15,7 +15,10 @@ func registerAccessManagementRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			writeError(w, 503, "access_unavailable", "access repository is unavailable")
 			return
 		}
-		tenant := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenant, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListTenantUserAccess(r.Context(), tenant)
 		if err != nil {
 			writeError(w, 500, "query_failed", "failed to list tenant access")
@@ -29,7 +32,10 @@ func registerAccessManagementRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			writeError(w, 503, "access_unavailable", "access repository is unavailable")
 			return
 		}
-		tenant := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenant, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListTenantUserAccessAudit(r.Context(), tenant, strings.TrimSpace(r.URL.Query().Get("subject")), queryLimit(r, 100))
 		if err != nil {
 			writeError(w, 500, "query_failed", "failed to list access audit")
@@ -55,8 +61,12 @@ func registerAccessManagementRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			writeError(w, 400, "invalid_request", "invalid access request")
 			return
 		}
+		tenant, ok := requireRequestTenant(w, r, body.TenantID)
+		if !ok {
+			return
+		}
 		p, _ := principalFromContext(r.Context())
-		record, err := repo.UpsertTenantUserAccess(r.Context(), storage.TenantUserAccessRecord{TenantID: body.TenantID, Subject: body.Subject, DisplayName: body.DisplayName, Email: body.Email, AppID: body.AppID, Permission: body.Permission, GrantedBy: p.Subject}, p.Subject, p.Actor)
+		record, err := repo.UpsertTenantUserAccess(r.Context(), storage.TenantUserAccessRecord{TenantID: tenant, Subject: body.Subject, DisplayName: body.DisplayName, Email: body.Email, AppID: body.AppID, Permission: body.Permission, GrantedBy: p.Subject}, p.Subject, p.Actor)
 		if err != nil {
 			writeError(w, 400, "invalid_access_grant", err.Error())
 			return
@@ -69,8 +79,12 @@ func registerAccessManagementRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			writeError(w, 503, "access_unavailable", "access repository is unavailable")
 			return
 		}
+		tenant, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		p, _ := principalFromContext(r.Context())
-		err := repo.DeleteTenantUserAccess(r.Context(), strings.TrimSpace(r.URL.Query().Get("tenant_id")), r.PathValue("subject"), r.PathValue("app_id"), p.Subject, p.Actor)
+		err := repo.DeleteTenantUserAccess(r.Context(), tenant, r.PathValue("subject"), r.PathValue("app_id"), p.Subject, p.Actor)
 		if err != nil {
 			writeQueryError(w, err, "access_grant_not_found", "access grant not found")
 			return

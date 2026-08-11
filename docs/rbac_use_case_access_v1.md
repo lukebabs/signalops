@@ -35,3 +35,11 @@ keeps the landing experience profile-driven without weakening RBAC.
 ## Enforcement
 
 The gateway verifies issuer, audience, signature, expiry, and tenant match before resolving grants. The UI derives its role visibility from the same access-token claims; OIDC UserInfo alone is not authoritative for roles. It classifies each request as MarketOps, CyberOps, or platform. UI visibility is a convenience only; direct API requests are denied when the caller lacks the matching grant.
+
+## Subscriber Project extension
+
+The current grant model is the authorization foundation for the future Subscriber Project, not its complete production policy. It already provides verified identity, tenant scoping, immutable subject identity, registered application grants, super-admin management, and grant audit.
+
+Before subscriber capabilities are enabled, the gateway and data model must additionally enforce subject-owned lists, tenant-managed default lists, shared-global-record projections, product entitlements, provider budgets, and scoped worker identities. Every tenant-bearing value from a path, query, or request body must be derived from or checked against the authenticated principal. Cross-tenant and privilege-escalation attempts must be covered by direct API integration tests.
+
+The Subscriber Project roadmap defines this as S0-A, Access-control hardening. No subscriber global-catalog, membership, entitlement, or coverage projection is enabled until that gate has passed.

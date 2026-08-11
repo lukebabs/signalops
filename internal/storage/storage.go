@@ -2032,6 +2032,7 @@ type MarketOpsDSMGraphProposalFilter struct {
 
 type MarketOpsDSMGraphProposalMutation struct {
 	ProposalID   string
+	TenantID     string
 	Status       string
 	ReviewedBy   string
 	DecisionNote string

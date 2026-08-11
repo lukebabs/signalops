@@ -205,7 +205,9 @@ func TestAuthEnabledRequiresAdminForPlatformDefinitionWrite(t *testing.T) {
 
 func TestAuthEnabledUsesTokenActorForLifecycleMutation(t *testing.T) {
 	fixture := newTestAuthFixture(t)
-	repo := &fakeQueryRepository{alerts: []storage.AlertLedgerRecord{validAlertRecord()}}
+	alert := validAlertRecord()
+	alert.TenantID = "tenant-local"
+	repo := &fakeQueryRepository{alerts: []storage.AlertLedgerRecord{alert}}
 	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
 	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleAdmin}}})
 	req := httptest.NewRequest(http.MethodPost, "/v1/alerts/alert-1/acknowledge", bytes.NewBufferString(`{"actor":"body-actor","note":"triaged"}`))
@@ -240,5 +242,58 @@ func TestAuthEnabledRejectsCyberOpsLiveTrafficTenantMismatch(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "tenant_mismatch") {
 		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestAuthEnabledRejectsMismatchedJSONBodyTenantBeforeHandler(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	called := false
+	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	}), fixture.authCfg)
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{rolePlatformSuperAdmin}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketops/test", bytes.NewBufferString(`{"tenant_id":"tenant-other"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "tenant_mismatch") {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+	if called {
+		t.Fatal("handler was called for a mismatched body tenant")
+	}
+}
+
+func TestAuthEnabledPreservesJSONBodyAfterTenantInspection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	marker := ""
+	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			TenantID string `json:"tenant_id"`
+			Marker   string `json:"marker"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode preserved body: %v", err)
+		}
+		if body.TenantID != "tenant-local" {
+			t.Fatalf("body tenant = %q", body.TenantID)
+		}
+		marker = body.Marker
+		w.WriteHeader(http.StatusNoContent)
+	}), fixture.authCfg)
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{rolePlatformSuperAdmin}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketops/test", bytes.NewBufferString(`{"tenant_id":"tenant-local","marker":"preserved"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if marker != "preserved" {
+		t.Fatalf("marker = %q", marker)
 	}
 }
