@@ -41,6 +41,6 @@ Rollback disables only the guard; it does not delete any evidence or primary tim
 
 The recovery wrapper writes marketops-postclose-recovery status through the existing scheduled-job status contract. The guard also writes marketops-risk-reward stage status including session date, expected active symbols, persisted Risk/Reward result count, snapshot count, and whether recovery is needed, running, succeeded, or failed.
 
-The Admin scheduled-job registry must include both statuses when the surrounding SRI worktree changes are committed. Until then, the status files provide the auditable runtime evidence and the primary post-close job remains the visible composite workflow.
+The Admin scheduled-job registry includes both statuses, so analysts can see recovery activity and the Risk/Reward completion stage alongside the composite post-close workflow. The status files remain the auditable runtime evidence.
 
 A terminated primary workflow can leave its previous status file as running because it never reaches wrapper cleanup. The recovery guard relies on completion evidence and the systemd/lock state instead of trusting that stale status alone.
