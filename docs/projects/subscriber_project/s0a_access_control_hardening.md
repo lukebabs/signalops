@@ -49,6 +49,8 @@ Raw-event, normalized-event, and signal ledger lists now bind to the authenticat
 
 MarketOps backtest and calibration read surfaces now bind every list filter to the authenticated tenant: coverage, campaigns, runs, summaries, baselines, comparisons, promotion candidates, readiness snapshots, evaluations, evaluation labels, and per-run signals, graph proposals, and policy results. Identifier-based campaign, run, calibration, promotion, readiness, evaluation, and label detail reads verify stored ownership and return the ordinary not-found response for a foreign identifier.
 
+MarketOps intelligence cohort runs and readiness now inherit tenant scope from the authenticated principal; the cohort-run detail already uses tenant-qualified retrieval. Syncratic context-window and insight lists bind the same scope, while their details verify stored ownership before deriving related evidence and return the ordinary not-found response for foreign IDs. Algorithm registry and evaluation reads now reconcile their required tenant scope with the authenticated principal across definitions, execution requests and summaries, results, materializations, signal-proposal lists and summaries, preflight, and tenant-qualified details.
+
 The authenticated gateway also now inspects a bounded, top-level JSON `tenant_id` on `POST`, `PUT`, `PATCH`, and `DELETE` requests before the handler runs. A conflicting declared tenant is rejected at the gateway, while a valid body is restored unchanged for the handler. This prevents the same body-tenant escalation across the remaining JSON mutation routes while their handler-level binding is audited.
 
 Focused direct-API tests cover:
@@ -84,6 +86,8 @@ Focused direct-API tests cover:
 - foreign core-ledger detail rejection.
 - authenticated MarketOps backtest, calibration, promotion, readiness, evaluation, label, and per-run read-filter tenant binding; and
 - foreign backtest campaign, run, calibration, promotion, readiness, evaluation, and label detail rejection.
+- authenticated intelligence cohort, readiness, Syncratic context/insight, and algorithm registry read-filter tenant binding; and
+- foreign intelligence cohort, Syncratic context-window, and Syncratic insight detail rejection.
 
 Validation: `go test ./internal/api` passes.
 

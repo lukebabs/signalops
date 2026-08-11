@@ -1196,7 +1196,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_cohort_filter", "tenant_id is required")
 			return
@@ -1218,7 +1221,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_cohort_filter", "tenant_id is required")
 			return
@@ -1245,7 +1251,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_readiness_filter", "tenant_id is required")
 			return
@@ -1349,7 +1358,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		records, err := repo.ListSyncraticContextWindows(r.Context(), storage.SyncraticContextWindowFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), ContextStrategy: strings.TrimSpace(r.URL.Query().Get("context_strategy")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListSyncraticContextWindows(r.Context(), storage.SyncraticContextWindowFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), ContextStrategy: strings.TrimSpace(r.URL.Query().Get("context_strategy")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list Syncratic context windows")
 			return
@@ -1362,9 +1375,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetSyncraticContextWindow(r.Context(), r.PathValue("context_window_id"))
 		if err != nil {
 			writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "context_window_not_found", "Syncratic context window not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"context_window": syncraticContextWindowResponse(record)})
@@ -1407,7 +1428,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		filter := storage.SyncraticInsightFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), ContextWindowID: strings.TrimSpace(r.URL.Query().Get("context_window_id")), InsightType: strings.TrimSpace(r.URL.Query().Get("insight_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		filter := storage.SyncraticInsightFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), ContextWindowID: strings.TrimSpace(r.URL.Query().Get("context_window_id")), InsightType: strings.TrimSpace(r.URL.Query().Get("insight_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)}
 		records, err := repo.ListSyncraticInsights(r.Context(), filter)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list Syncratic insights")
@@ -1426,9 +1451,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetSyncraticInsight(r.Context(), r.PathValue("syncratic_insight_id"))
 		if err != nil {
 			writeQueryError(w, err, "syncratic_insight_not_found", "Syncratic insight not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "syncratic_insight_not_found", "Syncratic insight not found")
 			return
 		}
 		relatedInsights, err := repo.ListSyncraticInsights(r.Context(), storage.SyncraticInsightFilter{TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SubjectSymbol: record.SubjectSymbol, Limit: 5000})
@@ -1978,7 +2011,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1996,7 +2032,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2040,7 +2079,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2058,7 +2100,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2082,7 +2127,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2100,7 +2148,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2118,7 +2169,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2136,7 +2190,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2154,7 +2211,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2172,7 +2232,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2190,7 +2253,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2208,7 +2274,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2259,7 +2328,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return

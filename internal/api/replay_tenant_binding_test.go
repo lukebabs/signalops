@@ -401,3 +401,48 @@ func TestAuthenticatedBacktestReadRoutesBindTenantAndHideForeignDetails(t *testi
 		}
 	}
 }
+
+func TestAuthenticatedIntelligenceSyncraticAndAlgorithmReadsBindTenant(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &fakeQueryRepository{
+		cohortRuns:              []storage.MarketOpsIntelligenceCohortRunRecord{{RunID: "cohort-foreign", TenantID: "tenant-other"}},
+		cohortResults:           []storage.MarketOpsIntelligenceCohortSymbolResultRecord{{ResultID: "readiness-foreign", TenantID: "tenant-other"}},
+		syncraticContextWindows: []storage.SyncraticContextWindowRecord{{ContextWindowID: "context-foreign", TenantID: "tenant-other"}},
+		syncraticInsights:       []storage.SyncraticInsightRecord{{SyncraticInsightID: "insight-foreign", TenantID: "tenant-other"}},
+	}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	for _, request := range []struct {
+		path   string
+		tenant func() string
+	}{
+		{path: "/v1/marketops/intelligence/cohort-runs", tenant: func() string { return repo.lastCohortRunFilter.TenantID }},
+		{path: "/v1/marketops/intelligence/readiness", tenant: func() string { return repo.lastCohortReadinessFilter.TenantID }},
+		{path: "/v1/syncratic/context-windows", tenant: func() string { return repo.lastSyncraticContextWindowFilter.TenantID }},
+		{path: "/v1/syncratic/insights", tenant: func() string { return repo.lastSyncraticInsightFilter.TenantID }},
+		{path: "/v1/algorithms/definitions", tenant: func() string { return repo.lastAlgorithmDefinitionFilter.TenantID }},
+		{path: "/v1/algorithms/execution-requests", tenant: func() string { return repo.lastAlgorithmExecutionFilter.TenantID }},
+		{path: "/v1/algorithms/results", tenant: func() string { return repo.lastAlgorithmResultFilter.TenantID }},
+		{path: "/v1/algorithms/signal-materializations", tenant: func() string { return repo.lastAlgorithmMaterializationFilter.TenantID }},
+		{path: "/v1/algorithms/signal-proposals", tenant: func() string { return repo.lastAlgorithmProposalFilter.TenantID }},
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, request.path, nil), token))
+		if recorder.Code != http.StatusOK || request.tenant() != "tenant-local" {
+			t.Fatalf("%s status=%d tenant=%q body=%s", request.path, recorder.Code, request.tenant(), recorder.Body.String())
+		}
+	}
+
+	for _, path := range []string{
+		"/v1/marketops/intelligence/cohort-runs/cohort-foreign",
+		"/v1/syncratic/context-windows/context-foreign",
+		"/v1/syncratic/insights/insight-foreign",
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, path, nil), token))
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("%s status=%d body=%s", path, recorder.Code, recorder.Body.String())
+		}
+	}
+}

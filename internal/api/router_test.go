@@ -129,6 +129,10 @@ type fakeQueryRepository struct {
 	syncraticInsights                  []storage.SyncraticInsightRecord
 	cohortRuns                         []storage.MarketOpsIntelligenceCohortRunRecord
 	cohortResults                      []storage.MarketOpsIntelligenceCohortSymbolResultRecord
+	lastSyncraticContextWindowFilter   storage.SyncraticContextWindowFilter
+	lastSyncraticInsightFilter         storage.SyncraticInsightFilter
+	lastCohortRunFilter                storage.MarketOpsIntelligenceCohortRunFilter
+	lastCohortReadinessFilter          storage.MarketOpsIntelligenceReadinessFilter
 	algorithmDefinitions               []storage.AlgorithmDefinitionRecord
 	algorithmExecutionRequests         []storage.AlgorithmExecutionRequestRecord
 	algorithmResults                   []storage.AlgorithmResultRecord
@@ -727,6 +731,7 @@ func (q *fakeQueryRepository) UpsertSyncraticContextWindow(_ context.Context, re
 }
 
 func (q *fakeQueryRepository) ListSyncraticContextWindows(_ context.Context, filter storage.SyncraticContextWindowFilter) ([]storage.SyncraticContextWindowRecord, error) {
+	q.lastSyncraticContextWindowFilter = filter
 	out := []storage.SyncraticContextWindowRecord{}
 	for _, record := range q.syncraticContextWindows {
 		if filter.TenantID != "" && record.TenantID != filter.TenantID {
@@ -777,6 +782,7 @@ func (q *fakeQueryRepository) UpsertSyncraticInsight(_ context.Context, record s
 }
 
 func (q *fakeQueryRepository) ListSyncraticInsights(_ context.Context, filter storage.SyncraticInsightFilter) ([]storage.SyncraticInsightRecord, error) {
+	q.lastSyncraticInsightFilter = filter
 	out := []storage.SyncraticInsightRecord{}
 	for _, record := range q.syncraticInsights {
 		if filter.TenantID != "" && record.TenantID != filter.TenantID {
