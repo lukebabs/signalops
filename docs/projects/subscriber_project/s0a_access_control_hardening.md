@@ -63,6 +63,8 @@ The gateway now exposes reusable list-authorization primitives without enabling 
 
 The authenticated gateway also now inspects a bounded, top-level JSON `tenant_id` on `POST`, `PUT`, `PATCH`, and `DELETE` requests before the handler runs. A conflicting declared tenant is rejected at the gateway, while a valid body is restored unchanged for the handler. This prevents the same body-tenant escalation across the remaining JSON mutation routes while their handler-level binding is audited.
 
+The Subscriber Project now has a separate, pure entitlement and quota evaluator at `internal/subscriber/policy`. It is explicitly distinct from MarketOps read/write grants, recognizes catalog search, shared EOD activation, and Options demand as separate capabilities, and defaults to deny when a matching explicit entitlement and quota are not present. Its deterministic decision includes tenant, subject, capability, units, usage snapshot, quota, policy and provisioning versions, correlation ID, and time so a later durable audit adapter can retain the decision provenance. It has no provisioning source, database table, route, worker integration, reservation behavior, or enabled feature flag. The [entitlement and quota policy contract](entitlement_quota_policy.md) records this boundary.
+
 Focused direct-API tests cover:
 
 - omitted access-grant body tenant binding to the authenticated principal;
@@ -116,9 +118,9 @@ This slice adds no migration, list or membership table, entitlement, provider re
 ## Remaining work before S0-A exit
 
 1. Add server-side subject ownership and tenant-administrator authorization to the future private and default list routes, using the implemented principal-bound subject and administrator guards.
-2. Implement entitlement and quota policy evaluation separately from MarketOps read/write grants.
+2. Add an authoritative entitlement provisioning source, atomic quota reservation and usage accounting, durable entitlement and quota-decision audit, and route or worker integration for the implemented default-deny policy contract.
 3. Define least-privilege service identities for scheduled shared processing.
-4. Retain grant, entitlement, list-administration, and quota-decision audit evidence.
+4. Retain grant and future list-administration audit evidence alongside the entitlement and quota-decision evidence.
 5. Make and document the database row-level-security defense-in-depth decision.
 6. Validate production-like OIDC/JWKS configuration and the complete cross-tenant negative-test suite.
 
