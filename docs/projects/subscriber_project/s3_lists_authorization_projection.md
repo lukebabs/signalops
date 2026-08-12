@@ -45,9 +45,9 @@ This slice is durable storage and authorization-aware repository code, not a use
 - No list action can yet enqueue a cold-asset activation.
 - No catalog, EOD, options, intraday, scheduler, or legacy MarketOps path changed.
 
-## Next S3 slice
+## Remaining S3 pilot gate
 
-Add API handlers behind an off-by-default, tenant-scoped feature flag. The handlers must bind tenant and subject from the verified principal, require the tenant-administrator guard for tenant-default mutations, invoke only these repository operations, and add API-level cross-tenant and ownership-negative tests. The flag remains disabled until the workload-login preflight and browser evidence are complete.
+The storage and minimal API routes are complete. Before any pilot can be enabled, deployment must provision the dedicated gateway login through secret management, execute the gateway workload preflight, select an entitled pilot tenant, and retain browser evidence for private-list ownership, tenant-default administrator mutation, and cross-tenant isolation. The existing Assets UI remains the default until the separate subscriber list interface and catalog projection are ready.
 
 ## Disabled API boundary
 
