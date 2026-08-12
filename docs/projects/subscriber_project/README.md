@@ -6,14 +6,14 @@ Status: discovery and architecture project. This documentation describes a targe
 
 Turn MarketOps into a subscription service in which customers receive an individualized experience over one centrally governed market-data and algorithm-processing plane.
 
-The platform will maintain one global catalog of Massive-eligible US common stocks and process the configured EOD MarketOps baseline once per covered symbol. A tenant and its users will consume authorized projections of that shared data. They will not create copies of assets, prices, features, states, algorithm outputs, or provider pulls.
+The platform will maintain one global catalog of Massive-eligible US common stocks and process the configured EOD MarketOps baseline once per covered symbol. The approved top 1,000 eligible assets form the hot baseline; an eligible cold asset selected in an authorized watchlist creates one globally deduplicated coverage-activation request and warms centrally. A tenant and its users consume authorized projections of that shared data. They will not create copies of assets, prices, features, states, algorithm outputs, or provider pulls.
 
 ## Product decisions recorded
 
-- The initial global catalog scope is active US common stocks that Massive can govern and identify.
+- The initial global catalog scope is exchange-listed US common stocks that Massive can govern and identify. The centrally processed hot baseline is capped at the approved top 1,000 eligible assets; other governed eligible assets remain cold until demand activates them.
 - Price-based EOD ingestion, features, and algorithms run centrally for the active global coverage set.
 - Each tenant has a shared default watchlist. Each user has private watchlists and sees only those lists plus the tenant default.
-- Every watchlist entry references a global asset. Adding a symbol to a list is a membership change, not asset onboarding or data collection.
+- Every watchlist entry references a global asset. Adding a hot symbol to a list is a membership change, not asset onboarding or data collection. Adding an eligible cold symbol also writes the membership, then creates one idempotent, auditable global activation request; the browser never calls Massive and the system shows `queued`/`warming_up` until central evidence is available.
 - Tenant RBAC remains the authorization and isolation boundary for browser/API access. The existing OIDC/JWT, immutable subject, tenant claim, per-use-case grant, and audit primitives are the foundation for subscriber access control; the subscriber-specific authorization layer is an explicit production gate.
 - The project will not introduce a second identity provider or authorization service. It will extend the existing gateway and grant model with tenant binding, list ownership, entitlements, quotas, and service identities.
 - Options data is an entitled, budgeted enrichment. At EOD, the system resolves one deduplicated demand union across eligible users and tenants, polls each selected symbol once, and shares the persisted result with all entitled watchers. Options analytics use the central, prospective capture history: the current default lookback is 10 calendar days, configurable up to 60 calendar days.

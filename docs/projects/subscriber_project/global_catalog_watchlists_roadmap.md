@@ -25,7 +25,7 @@ The migration objective is compatibility first:
 3. Map current tenant universe rows to tenant-default or migrated user-list membership as appropriate.
 4. Change collection and calculation planners to resolve the global active coverage set.
 5. Change tenant read routes to authorize and project global results through memberships and entitlements.
-6. Retire direct tenant-owned asset creation as the normal user path. An absent symbol becomes an administrator-governed catalog request, not a user-created duplicate.
+6. Retire direct tenant-owned asset creation as the normal user path. Adding an eligible cold global asset to a tenant-default or private list creates one idempotent, governed global coverage-activation request; it never creates a tenant-local asset or provider pull from the browser.
 
 No destructive migration is allowed until the global catalog, membership mapping, and result parity are proved.
 
@@ -38,6 +38,8 @@ The catalog begins with US common stocks that Massive identifies as active and e
 | discovered | Reference identity was found but has not passed governance checks. | Not searchable to subscribers. |
 | eligible | Identity, market, security type, and provider policy passed. | May be made searchable when coverage is active. |
 | backfilling | Bounded EOD history is being established. | Searchable only if the product permits partial readiness; coverage is labelled. |
+| queued | A list membership requested activation and the global planner has accepted it, subject to the coverage budget. | The asset remains visible in the list with an explicit pending reason. |
+| warming_up | The first central collection has begun but the selected analysis does not yet have its required evidence. | Current coverage is shown truthfully; no missing evidence is rendered as a signal. |
 | active | Daily EOD collection and baseline algorithms are scheduled. | Available for entitled lists and research views. |
 | degraded | A required collection or quality condition failed. | Still identifiable; state/date/coverage are shown truthfully. |
 | suspended | Delisted, ineligible, or provider-blocked. | Cannot be newly added; retained history/provenance remains auditable. |
@@ -89,19 +91,28 @@ The project may exit this gate only when:
 6. Worker identities have least-privilege scopes and cannot use subscriber-facing administration paths.
 7. Feature flags and rollback preserve the current tenant-owned experience without deleting shared evidence or subscriber preferences.
 
+### Coverage activation
+
+The platform maintains a centrally governed hot EOD coverage set of the top 1,000 eligible US common stocks. Those assets are normally `active` before any subscriber selects them. The broader governed catalog may contain eligible but cold assets.
+
+When a tenant administrator adds an eligible cold asset to a tenant-default list, or a user adds one to a private list, SignalOps must create an idempotent global coverage-activation request keyed by the global asset ID. The request records the requesting tenant and subject for audit and entitlement/quota evaluation, but the worker resolves a single global demand record and never exposes another tenant's membership or demand.
+
+The central coverage service—initially interoperating with the current `tenant-local` MarketOps operating plane during migration—admits the unique asset into global coverage and moves it through `queued`, `warming_up`, and `active` (or a truthful deferred/degraded state). It must not clone assets, prices, features, or algorithm results into `tenant-pilot-b` or any other subscriber tenant. The browser never calls Massive directly.
+
 ### Lists
 
 Each tenant has one or more administrator-managed default lists. Each user may have one or more private lists. At launch, the UI shows the tenant default and the authenticated user’s private lists only.
 
 Membership operations are idempotent:
 
-- Adding an asset references its global asset ID.
+- Adding an asset references its global asset ID. If the asset is cold, the membership writes successfully and creates the idempotent global activation request; it does not wait for a browser provider call.
+- A cold or warming asset displays its coverage state, reason, first successful EOD date, and available evidence instead of an invented score.
 - Adding an existing membership returns the existing item without a duplicate.
 - Removing a membership never deletes the global asset or shared intelligence.
 - Deactivating or suspending a global asset preserves existing memberships but shows its coverage state and blocks new additions under policy.
 - Tenant administrators may manage tenant default lists; users may manage only their private lists.
 
-The normal user flow is catalog search, select asset, choose list, and add. It must not call Massive synchronously from the browser or create a tenant-local market-data asset.
+The normal user flow is catalog search, select asset, choose list, and add. A hot asset is immediately projected from central coverage. A cold eligible asset is added to the selected list and queued for globally deduplicated activation. Neither flow calls Massive synchronously from the browser or creates a tenant-local market-data asset.
 
 ## 6. Dynamic EOD options-demand planner
 
@@ -177,7 +188,7 @@ Every sprint must preserve these controls:
 | S0 — Baseline and controls | Inventory current asset, scheduler, API, authorization, and retention contracts; define metrics and flags. | Read-only. The [S0 baseline utility and rollback posture](s0_baseline_and_controls.md) are reviewed before any schema change. |
 | S0-A — Access-control hardening | Bind every tenant-bearing input to the principal; add list ownership, entitlement/quota policy, service identities, audit, and negative integration tests. | Local implementation is complete; the [S0-A exit checklist](s0a_exit_checklist.md) records the required production workload-login and browser/cross-tenant evidence. Current tenant-owned reads and writes remain the fallback under feature flags until formal exit. |
 | S1 — Global catalog shadow | Add global identity, eligibility, reference provenance, and coverage registry; seed from existing assets and reference data. | Existing reads and jobs are unchanged. Every current active asset maps to exactly one global asset; no duplicate identities. |
-| S2 — Catalog breadth and EOD planner shadow | Admit exchange-listed US common stocks to the catalog; configure a centrally governed top-1,000 EOD baseline and a watchlist-triggered activation queue. | Shadow plan only. It produces budget, queue-age, eligibility, and expected-coverage evidence without changing collection. |
+| S2 — Catalog breadth and EOD planner shadow | Admit exchange-listed US common stocks to the catalog; configure a centrally governed top-1,000 hot EOD baseline and a cold-watchlist-triggered activation queue. | Shadow plan only. It produces budget, queue-age, eligibility, duplicate-demand, and expected-coverage evidence without changing collection. |
 | S3 — Lists and authorization projection | Add tenant-default lists, private lists, and global-ID memberships behind feature flags. | Opt-in tenant pilot. Authorization tests prove list isolation; the existing Assets view remains the default projection. |
 | S4 — Shared EOD canary | Enable global EOD collection and baseline calculation for a small approved cohort, then expand within the top-1,000 budget. | Dual-run parity confirms one canonical result per symbol/session, no duplicate provider pulls, and safe rollback to current scheduling. |
 | S5 — Subscriber read experience | Add catalog search, list management, coverage truth, and compatibility projections. | Pilot users can compare new and current views; no current endpoint is removed or changes ownership. |
@@ -202,7 +213,7 @@ Exit criterion: two users in one tenant can have separate private lists; a user 
 
 ### Phase C — Global EOD coverage
 
-Move the completed-session reconciliation queue and price-based algorithm planners to global active coverage. Run bounded pilot batches, measure provider requests, completeness, queue age, quality, and storage growth, then expand progressively.
+Move the completed-session reconciliation queue and price-based algorithm planners to global active coverage. Maintain the top-1,000 hot set, then admit eligible cold symbols when one or more watchlist memberships create a deduplicated activation request. Run bounded pilot batches, measure provider requests, completeness, queue age, quality, activation-to-first-evidence time, and storage growth, then expand progressively.
 
 Exit criterion: the same globally covered symbol is ingested and calculated once per session even when used by multiple tenants.
 
@@ -223,6 +234,7 @@ Exit criterion: a new tenant can be provisioned with an entitlement tier and a d
 The project is ready to progress when it can demonstrate:
 
 - One global asset identity and one global EOD result per covered symbol/session.
+- The centrally governed hot set contains the approved top 1,000 eligible assets; a cold eligible asset selected by any authorized watchlist creates one auditable, deduplicated global activation request and transitions through truthful coverage states.
 - No cross-tenant list membership disclosure.
 - Personal lists plus tenant default render correctly for authenticated users.
 - Every list membership points to a governed global asset.
