@@ -33,6 +33,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [Sprint S2 catalog breadth and EOD planner shadow](s2_catalog_breadth_eod_planner_shadow.md): evidence-gated US-common-stock admission, top-1,000 selection, and cold-activation queue without collection.
 - [S2 ranking-source preflight](s2_ranking_source_preflight_2026-08-12.md): provider capability evidence and the required decision to fill the top-1,000 capacity.
 - [S2 ranked hot-set plan evidence](s2_ranked_hot_set_plan_evidence_2026-08-12.md): supplied ranking snapshot, governed admission result, and final no-collection shadow-plan record.
+- [Sprint S3 lists and authorization projection](s3_lists_authorization_projection.md): RLS-protected tenant-default and private-list foundation, initially without a browser route.
 - [MarketOps daily surveillance architecture](../../use_cases/marketops/daily_market_surveillance/architecture/functional_components.md): current production components.
 - [Sprint S0 — Baseline and Controls](s0_baseline_and_controls.md): read-only current-state baseline utility, metrics, evidence review, reserved flags, and rollback posture.
 - [Sprint S0-A — Access-control Hardening](s0a_access_control_hardening.md): principal-bound tenant enforcement and the deployment gate.
