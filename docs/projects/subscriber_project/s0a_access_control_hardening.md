@@ -124,7 +124,7 @@ This slice adds no migration, list or membership table, entitlement, provider re
 ## Remaining work before S0-A exit
 
 1. Add server-side subject ownership and tenant-administrator authorization to the future private and default list routes, using the implemented principal-bound subject and administrator guards.
-2. Add an authoritative entitlement provisioning source, atomic quota reservation and usage accounting, durable entitlement and quota-decision audit, and route or worker integration for the implemented default-deny policy contract.
+2. Complete the entitlement path: RLS-scoped provisioning, atomic idempotent reservation, and durable provisioning/decision audit are implemented but have no enabled route or worker. Add release/consume lifecycle handling, workload-identity enforcement, and route or worker integration with gateway-level negative tests.
 3. Provision and enforce the static least-privilege service identities through workload credentials, gateway and persistence scope checks, audit, rotation, and negative integration tests.
 4. Retain grant and future list-administration audit evidence alongside the entitlement and quota-decision evidence.
 5. Complete the adopted tenant-private RLS model: the role bootstrap, role preflight, transaction-local tenant context, and first forced-RLS entitlement/quota tables are implemented and locally cross-tenant tested. Workload login credentials, production grants, and application-level negative integration tests remain required before any subscriber path can be enabled.
