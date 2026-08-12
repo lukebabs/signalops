@@ -36,7 +36,16 @@ The pure planner considers up to 10,000 global candidates, selects only eligible
 
 Capacity is bounded from 1 through 1,000. Every exclusion is counted as `not_eligible`, `no_active_source`, or `capacity`. The persisted plan is always `execution_mode = shadow`; it cannot modify the coverage registry, call Massive, enqueue work, or start a worker.
 
-After migration and future global-EOD workload preflight, an operator may record a plan:
+Before planning, the catalog-sync identity may run the bounded Massive-reference admission import. It records one immutable eligible or ineligible decision per discovered asset; failures remain discovered for a later retry and do not become eligible by inference.
+
+```sh
+go run ./cmd/subscriber-global-catalog-admission --execute \
+  --max-assets 1000 \
+  --actor subscriber-catalog-reference-sync \
+  --correlation-id s2-admission-<change-id>
+```
+
+After migration and future global-EOD workload preflight, an operator may record a plan:)
 
 ```sh
 go run ./cmd/subscriber-global-eod-shadow-planner --execute \
