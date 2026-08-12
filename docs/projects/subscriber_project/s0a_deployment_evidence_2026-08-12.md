@@ -1,6 +1,6 @@
 # S0-A Deployment Evidence — 2026-08-12
 
-Status: evidence package prepared; awaiting the final replay assertion and formal security/platform approval.
+Status: all technical assertions passed; awaiting temporary-role teardown and formal security/platform approval.
 
 ## Scope
 
@@ -16,17 +16,16 @@ This record covers the deployed tenant-isolation and bootstrap controls for the 
 | Read-only mutation denial | Pass | `POST /v1/tenants/tenant-pilot-b/marketops/assets/onboard` returned `403 insufficient_role` to the pilot read user. |
 | Cross-tenant denial | Pass | The pilot token sent to `POST /v1/tenants/tenant-local/marketops/assets/onboard` returned `403 tenant_mismatch` before a mutation could occur. |
 | Browser renewal | Pass | The frontend renewal window was reduced from 300 seconds to 60 seconds and deployed in commit `9638fdf`, preventing immediate refresh-token churn for five-minute access tokens. |
+| Bootstrap replay guard | Pass | On 2026-08-12, controlled subject `df0edb14-66ae-4594-bab7-97a803312e89` with `tenant_id=tenant-local` and the temporary provisioner role retried the pilot bootstrap. The endpoint returned `409 tenant_already_provisioned` with `target tenant already has access history`. No grant was created or modified. |
 
 The HAR captured during validation is sensitive because it contains OIDC refresh-token exchanges. Retain it only in the approved evidence store, restrict access, and delete/redact working copies after review.
 
-## Final assertion to capture
+## Required teardown and approval
 
-1. Temporarily assign `signalops:tenant_provisioner` to the controlled bootstrap identity and obtain a fresh token.
-2. Repeat `POST /v1/administration/tenant-provisioning/access` for `tenant-pilot-b`.
-3. Confirm `409 tenant_already_provisioned`; retain the status, correlation/request identifier, and response body in the evidence store.
-4. Remove the provisioner role again and invalidate the temporary session/token.
-5. Record a request made without the provisioner role returning `403`. The exact error may be `insufficient_role` or `tenant_mismatch`, depending on whether the request also conflicts with the caller tenant.
+1. Remove `signalops:tenant_provisioner` from the controlled Chigos identity and invalidate the temporary session/token used for the replay.
+2. Record the role-removal and session-invalidation confirmation in the approved evidence store.
+3. Security and platform owners review this record plus the retained preflight, Keycloak, audit, and browser evidence, then approve S0-A closure.
 
 ## Approval decision
 
-After the final assertion is retained, the security and platform owners may mark S0-A complete. This approval enables S1 global-catalog shadow work only. It does not enable subscriber list features, global data projections, provider-budget expansion, or any tenant rollout flag.
+After the required temporary-role teardown is retained and the security and platform owners approve this record, S0-A may be marked complete. This approval enables S1 global-catalog shadow work only. It does not enable subscriber list features, global data projections, provider-budget expansion, or any tenant rollout flag.
