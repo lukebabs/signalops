@@ -37,4 +37,4 @@ The returned decision carries tenant, subject, capability, requested and consume
 
 ## Activation boundary
 
-The RLS-scoped storage foundation now retains explicit tenant provisioning, per-provisioning-version idempotent quota reservations, provisioning audit, and policy-decision audit. It remains unreachable from a route or worker and has no feature flag consumer. Before any subscriber capability is enabled, the project must add workload-identity enforcement, server-side authorization at the relevant route or worker, release/consume lifecycle handling, bounded concurrency behavior, and gateway-level cross-tenant negative tests.
+The RLS-scoped storage foundation now retains explicit tenant provisioning, per-provisioning-version idempotent quota reservations, consume/release lifecycle records, provisioning audit, decision audit, and quota-lifecycle audit. It remains unreachable from a route or worker and has no feature flag consumer. Before any subscriber capability is enabled, the project must add workload-identity enforcement, server-side authorization at the relevant route or worker, bounded concurrency behavior, and gateway-level cross-tenant negative tests.

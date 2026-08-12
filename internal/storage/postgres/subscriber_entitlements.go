@@ -210,6 +210,72 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 	return reservation, decision, err
 }
 
+func (r *Repository) FinalizeSubscriberQuotaReservation(ctx context.Context, request storage.SubscriberQuotaReservationLifecycleRequest) (storage.SubscriberQuotaReservationRecord, error) {
+	var record storage.SubscriberQuotaReservationRecord
+	request.TenantID = strings.TrimSpace(request.TenantID)
+	request.ReservationID = strings.TrimSpace(request.ReservationID)
+	request.ActorSubject = strings.TrimSpace(request.ActorSubject)
+	request.Transition = strings.TrimSpace(request.Transition)
+	request.CorrelationID = strings.TrimSpace(request.CorrelationID)
+	if !validSubscriberTenantID(request.TenantID) || request.ReservationID == "" || request.ActorSubject == "" ||
+		(request.Transition != storage.SubscriberQuotaConsumed && request.Transition != storage.SubscriberQuotaReleased) {
+		return record, fmt.Errorf("invalid subscriber quota lifecycle request")
+	}
+	if request.OccurredAt.IsZero() {
+		request.OccurredAt = time.Now().UTC()
+	}
+
+	err := r.WithSubscriberTenantScope(ctx, request.TenantID, func(ctx context.Context, tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx, `
+SELECT reservation_id, tenant_id, capability, provisioning_version, idempotency_key, subject, requested_units, status, policy_version, correlation_id, reserved_at, released_at
+FROM subscriber_quota_reservations
+WHERE tenant_id=$1 AND reservation_id=$2 FOR UPDATE`, request.TenantID, request.ReservationID,
+		).Scan(&record.ReservationID, &record.TenantID, &record.Capability, &record.ProvisioningVersion, &record.IdempotencyKey, &record.Subject, &record.RequestedUnits, &record.Status, &record.PolicyVersion, &record.CorrelationID, &record.ReservedAt, &record.ReleasedAt)
+		if errors.Is(err, sql.ErrNoRows) {
+			return storage.ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("lock quota reservation: %w", err)
+		}
+		if record.Status == request.Transition {
+			return nil
+		}
+		if record.Status != storage.SubscriberQuotaReserved {
+			return storage.ErrConflict
+		}
+
+		before := record.Status
+		if request.Transition == storage.SubscriberQuotaReleased {
+			record.ReleasedAt = &request.OccurredAt
+		}
+		if err := tx.QueryRowContext(ctx, `
+UPDATE subscriber_quota_reservations
+SET status=$3, released_at=$4
+WHERE tenant_id=$1 AND reservation_id=$2
+RETURNING status, released_at`, request.TenantID, request.ReservationID, request.Transition, record.ReleasedAt,
+		).Scan(&record.Status, &record.ReleasedAt); err != nil {
+			return fmt.Errorf("finalize quota reservation: %w", err)
+		}
+		mutation := request.Transition
+		if mutation == storage.SubscriberQuotaReleased {
+			mutation = "release"
+		} else {
+			mutation = "consume"
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO subscriber_quota_reservation_audit
+  (audit_id, tenant_id, reservation_id, actor_subject, mutation, before_status, after_status, correlation_id, occurred_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+			newSubscriberID("subquotaaudit"), request.TenantID, request.ReservationID, request.ActorSubject,
+			mutation, before, record.Status, request.CorrelationID, request.OccurredAt,
+		); err != nil {
+			return fmt.Errorf("audit quota reservation lifecycle: %w", err)
+		}
+		return nil
+	})
+	return record, err
+}
+
 func subscriberQuotaReservationByKey(ctx context.Context, tx *sql.Tx, tenantID, capability, version, key string) (storage.SubscriberQuotaReservationRecord, bool, error) {
 	var record storage.SubscriberQuotaReservationRecord
 	err := tx.QueryRowContext(ctx, `

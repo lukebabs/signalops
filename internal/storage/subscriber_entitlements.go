@@ -73,8 +73,18 @@ type SubscriberEntitlementDecisionRecord struct {
 	ProvenanceJSON     []byte
 }
 
+type SubscriberQuotaReservationLifecycleRequest struct {
+	TenantID      string
+	ReservationID string
+	ActorSubject  string
+	Transition    string
+	CorrelationID string
+	OccurredAt    time.Time
+}
+
 type SubscriberEntitlementRepository interface {
 	UpsertSubscriberEntitlement(context.Context, SubscriberEntitlementRecord) (SubscriberEntitlementRecord, error)
 	GetSubscriberEntitlement(context.Context, string) (SubscriberEntitlementRecord, error)
 	ReserveSubscriberQuota(context.Context, SubscriberQuotaReservationRequest) (SubscriberQuotaReservationRecord, SubscriberEntitlementDecisionRecord, error)
+	FinalizeSubscriberQuotaReservation(context.Context, SubscriberQuotaReservationLifecycleRequest) (SubscriberQuotaReservationRecord, error)
 }
