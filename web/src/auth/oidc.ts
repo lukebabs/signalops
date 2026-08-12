@@ -31,11 +31,20 @@ export function getUserManager(): UserManager {
 }
 
 // Remember the requested path across the IdP redirect so the callback can restore it.
+// Auth endpoints are flow machinery, never destinations: restoring one after a
+// successful callback would render the application's not-found route.
 const REDIRECT_PATH_KEY = 'signalops.auth.redirectPath';
+export const DEFAULT_POST_LOGIN_PATH = '/marketops/dashboard';
+
+export function sanitizeRedirectPath(path: string | null | undefined): string {
+  if (!path || !path.startsWith('/') || path.startsWith('//')) return DEFAULT_POST_LOGIN_PATH;
+  if (path === '/auth' || path.startsWith('/auth/')) return DEFAULT_POST_LOGIN_PATH;
+  return path;
+}
 
 export function rememberRedirectPath(path: string): void {
   try {
-    sessionStorage.setItem(REDIRECT_PATH_KEY, path || '/');
+    sessionStorage.setItem(REDIRECT_PATH_KEY, sanitizeRedirectPath(path));
   } catch {
     /* sessionStorage unavailable */
   }
@@ -43,10 +52,10 @@ export function rememberRedirectPath(path: string): void {
 
 export function consumeRedirectPath(): string {
   try {
-    const path = sessionStorage.getItem(REDIRECT_PATH_KEY) || '/';
+    const path = sanitizeRedirectPath(sessionStorage.getItem(REDIRECT_PATH_KEY));
     sessionStorage.removeItem(REDIRECT_PATH_KEY);
     return path;
   } catch {
-    return '/';
+    return DEFAULT_POST_LOGIN_PATH;
   }
 }
