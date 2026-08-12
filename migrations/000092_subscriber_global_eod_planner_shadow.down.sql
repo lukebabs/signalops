@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS subscriber_global_coverage_activation_requests;
+DROP TABLE IF EXISTS subscriber_global_eod_hot_set_plan_members;
+DROP TABLE IF EXISTS subscriber_global_eod_hot_set_plan_runs;
+DROP TABLE IF EXISTS subscriber_global_asset_eligibility_decisions;
