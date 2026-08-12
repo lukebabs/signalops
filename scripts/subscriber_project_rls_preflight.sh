@@ -5,7 +5,7 @@ usage() {
   printf '%s\n' \
     'Usage: scripts/subscriber_project_rls_preflight.sh' \
     '' \
-    'Verifies the required Subscriber Project NOLOGIN database group roles.' \
+    'Verifies Subscriber Project NOLOGIN database group roles and forced-RLS entitlement tables.' \
     'Set SIGNALOPS_SUBSCRIBER_RLS_MIGRATOR_DATABASE_URL for a privileged migration connection,' \
     'or run from this repository with the local postgres Compose service available.'
 }
@@ -47,7 +47,29 @@ roles=(
 for role in "${roles[@]}"; do
   row="$(query_roles "SELECT rolcanlogin, rolsuper, rolcreaterole, rolbypassrls FROM pg_roles WHERE rolname='${role}'")"
   [[ -n "$row" ]] || { printf 'RLS preflight failed: required role %s is missing.\n' "$role" >&2; exit 4; }
-  [[ "$row" == "f|f|f|f" ]] || { printf 'RLS preflight failed: role %s must be NOLOGIN, non-superuser, non-CREATEROLE, and NOBYPASSRLS (got %s).\n' "$role" "$row" >&2; exit 4; }
+  [[ "$row" == "f|f|f|f" || "$row" == "false|false|false|false" ]] || { printf 'RLS preflight failed: role %s must be NOLOGIN, non-superuser, non-CREATEROLE, and NOBYPASSRLS (got %s).\n' "$role" "$row" >&2; exit 4; }
+done
+
+tables=(
+  subscriber_tenant_entitlements
+  subscriber_entitlement_capabilities
+  subscriber_quota_reservations
+  subscriber_entitlement_decision_audit
+  subscriber_entitlement_provisioning_audit
+  subscriber_quota_reservation_audit
+)
+
+for table in "${tables[@]}"; do
+  row="$(query_roles "SELECT c.relrowsecurity, c.relforcerowsecurity, r.rolname FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner WHERE c.relname='${table}'")"
+  [[ "$row" == "t|t|signalops_subscriber_migrator" || "$row" == "true|true|signalops_subscriber_migrator" ]] || {
+    printf 'RLS preflight failed: table %s must be forced-RLS and owned by signalops_subscriber_migrator (got %s).\n' "$table" "${row:-missing}" >&2
+    exit 4
+  }
+  policy_count="$(query_roles "SELECT count(*) FROM pg_policies WHERE schemaname='public' AND tablename='${table}' AND roles @> ARRAY['signalops_subscriber_gateway']::name[]")"
+  [[ "$policy_count" == "1" ]] || {
+    printf 'RLS preflight failed: table %s lacks the subscriber gateway isolation policy.\n' "$table" >&2
+    exit 4
+  }
 done
 
 printf 'Subscriber RLS role preflight passed for %d least-privilege group roles.\n' "${#roles[@]}"

@@ -31,7 +31,8 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [Global Catalog and Watchlist Roadmap](global_catalog_watchlists_roadmap.md): target architecture, data flow, options demand design, compatibility-first sprint plan, controls, and acceptance measures.
 - [MarketOps daily surveillance architecture](../../use_cases/marketops/daily_market_surveillance/architecture/functional_components.md): current production components.
 - [Sprint S0 — Baseline and Controls](s0_baseline_and_controls.md): read-only current-state baseline utility, metrics, evidence review, reserved flags, and rollback posture.
-- [Sprint S0-A — Access-control Hardening](s0a_access_control_hardening.md): principal-bound tenant enforcement progress, direct-API regression coverage, and remaining gate criteria.
+- [Sprint S0-A — Access-control Hardening](s0a_access_control_hardening.md): principal-bound tenant enforcement and the deployment gate.
+- [Sprint S0-A exit checklist](s0a_exit_checklist.md): required workload-login, OIDC, browser, and cross-tenant evidence before enabling S1.
 - [Entitlement and quota policy contract](entitlement_quota_policy.md): separate default-deny subscriber product-policy decision model.
 - [Shared-worker identity contract](worker_identities.md): least-privilege future worker identities and deployment boundary.
 - [Database row-level security decision](row_level_security_decision.md): hybrid subscriber-table RLS boundary and required rollout model.

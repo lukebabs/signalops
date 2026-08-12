@@ -1,6 +1,6 @@
 # Sprint S0-A — Access-control Hardening
 
-Status: in progress. This document records the implemented first slice and the remaining conditions required to exit the access-control readiness gate.
+Status: implementation complete locally; formal deployment exit remains pending the required workload-identity, browser, and cross-tenant evidence recorded in [the S0-A exit checklist](s0a_exit_checklist.md).
 
 ## Objective
 
@@ -121,7 +121,7 @@ Validation: `go test ./internal/api` passes.
 
 This slice adds no migration, list or membership table, entitlement, provider request, scheduler, worker identity, browser behavior, or change to existing data ownership. The gateway continues to reject conflicting tenant values in request paths and queries, and now rejects declared top-level JSON body mismatches before route handling. Handler-specific binding remains required where an omitted tenant must inherit the principal rather than fail ordinary request validation.
 
-## Remaining work before S0-A exit
+## Formal deployment exit requirements
 
 1. Add server-side subject ownership and tenant-administrator authorization to the future private and default list routes, using the implemented principal-bound subject and administrator guards.
 2. Complete the entitlement path: RLS-scoped provisioning, atomic idempotent reservation, and durable provisioning/decision audit are implemented but have no enabled route or worker. Add workload-identity enforcement and route or worker integration with gateway-level negative tests.
@@ -130,4 +130,4 @@ This slice adds no migration, list or membership table, entitlement, provider re
 5. Complete the adopted tenant-private RLS model: the role bootstrap, role preflight, transaction-local tenant context, and first forced-RLS entitlement/quota tables are implemented and locally cross-tenant tested. Workload login credentials, production grants, and application-level negative integration tests remain required before any subscriber path can be enabled.
 6. Run the discovery/JWKS preflight against the intended deployment, then validate live browser session and grants plus the complete cross-tenant negative-test suite; startup configuration shape and discovery consistency are fail-closed but are not proof of deployment readiness.
 
-No Subscriber Project feature flag may enable catalog, list, shared-EOD, or Options-demand behavior until these exit conditions are satisfied.
+No Subscriber Project feature flag may enable catalog, list, shared-EOD, or Options-demand behavior until these exit conditions are satisfied. See [the S0-A exit checklist](s0a_exit_checklist.md) for the runnable evidence sequence and rollback.
