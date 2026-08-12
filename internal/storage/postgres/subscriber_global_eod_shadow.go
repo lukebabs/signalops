@@ -12,24 +12,23 @@ import (
 )
 
 func (r *Repository) ListSubscriberGlobalEODHotSetCandidates(ctx context.Context, limit int) ([]storage.SubscriberGlobalEODHotSetCandidate, error) {
-	rows, err := r.db.QueryContext(ctx, `WITH canonical_sources AS (
-  SELECT resolution.canonical_global_asset_id, source.global_asset_id, source.eligibility_status
-  FROM subscriber_global_asset_identity_resolutions resolution
-  JOIN subscriber_global_assets source ON source.global_asset_id=resolution.source_global_asset_id
+	rows, err := r.db.QueryContext(ctx, `WITH current_ranking AS (
+  SELECT entry.selection_rank, resolution.canonical_global_asset_id
+  FROM subscriber_global_ranking_snapshots snapshot
+  JOIN subscriber_global_ranking_snapshot_entries entry ON entry.ranking_snapshot_id=snapshot.ranking_snapshot_id
+  JOIN subscriber_global_asset_identity_resolutions resolution ON resolution.source_global_asset_id=entry.global_asset_id
+  WHERE snapshot.is_current
 ), candidate_evidence AS (
-  SELECT canonical_global_asset_id,
-    bool_or(eligibility_status='eligible') AS has_eligible_source,
-    count(link.*) FILTER (WHERE link.source_is_active)::int AS active_source_rows,
-    COALESCE(min(link.source_rank) FILTER (WHERE link.source_is_active), 0)::int AS best_source_rank
-  FROM canonical_sources source
-  LEFT JOIN subscriber_global_asset_source_links link ON link.global_asset_id=source.global_asset_id
-  GROUP BY canonical_global_asset_id
+  SELECT ranking.canonical_global_asset_id, bool_or(asset.eligibility_status='eligible') AS has_eligible_source,
+    1::int AS active_source_rows, min(ranking.selection_rank)::int AS best_source_rank
+  FROM current_ranking ranking
+  JOIN subscriber_global_asset_identity_resolutions resolution ON resolution.canonical_global_asset_id=ranking.canonical_global_asset_id
+  JOIN subscriber_global_assets asset ON asset.global_asset_id=resolution.source_global_asset_id
+  GROUP BY ranking.canonical_global_asset_id
 )
-SELECT canonical_global_asset_id,
-  CASE WHEN has_eligible_source THEN 'eligible' ELSE 'ineligible' END,
-  active_source_rows, best_source_rank
+SELECT canonical_global_asset_id, CASE WHEN has_eligible_source THEN 'eligible' ELSE 'ineligible' END, active_source_rows, best_source_rank
 FROM candidate_evidence
-ORDER BY canonical_global_asset_id
+ORDER BY best_source_rank, canonical_global_asset_id
 LIMIT $1`, globalEODPlannerCandidateLimit(limit))
 	if err != nil {
 		return nil, fmt.Errorf("list global EOD hot-set candidates: %w", err)
