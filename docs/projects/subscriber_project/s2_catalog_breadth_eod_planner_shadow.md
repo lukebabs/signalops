@@ -62,6 +62,10 @@ A plan with zero selected members is correct until governed reference evidence a
 
 The S2 queue is global and deduplicated by global asset ID while a request is `queued` or `warming_up`. It preserves the origin kind, tenant/subject/list coordinates where a later authorized S3 membership supplies them, request key, policy version, provenance, and state. No API or browser writer exists in S2. S3 may create an idempotent request only after server-side list authorization and entitlement/quota evaluation succeed.
 
+(## Ranking-source decision
+
+The Massive reference catalogue is authoritative for active US common-stock discovery and eligibility, but not for a market-cap-ranked top 1,000 in one bounded request: a live sort=market_cap probe returned an invalid-sort response. The initial 125 eligible canonical securities form the compatibility cohort only. Filling the capacity requires a separately approved, provenance-retained ranking snapshot; alphabetical paging must never be described as “top.”
+
 ## S2 exit evidence
 
 1. Reference-import evidence shows every admitted asset has valid US-common-stock provider evidence.
