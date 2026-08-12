@@ -1,6 +1,6 @@
 # Sprint S3 - Lists and Authorization Projection
 
-Status: storage and a disabled-by-default pilot API boundary are complete; no browser route, UI, feature-flag enablement, or data-collection worker is enabled. The existing MarketOps Assets experience remains unchanged.
+Status: storage and a disabled-by-default pilot API boundary are complete. The local deployment-equivalent gateway now enables the API only for tenant-pilot-b; no browser route, UI, or data-collection worker is enabled. The existing MarketOps Assets experience remains unchanged.
 
 ## Delivered storage boundary
 
@@ -37,17 +37,17 @@ The repository integration test also proves private-list subject isolation, tena
 
 ## Explicit boundary
 
-This slice is durable storage and authorization-aware repository code, not a user-facing rollout:
+This slice is durable storage and authorization-aware repository code with a locally enabled, API-only tenant-pilot-b pilot. It is not yet a user-facing rollout:
 
-- API routes are compiled but unregistered unless the server feature flag, named pilot tenant, and dedicated subscriber gateway login are all configured.
+- API routes register only when the server feature flag, named pilot tenant, and dedicated subscriber gateway login are all configured. The local gateway currently satisfies those conditions for tenant-pilot-b alone.
 - No browser UI can create or view a subscriber list.
-- No feature flag is enabled.
+- The local feature flag is enabled only for tenant-pilot-b; production remains outside this local activation.
 - No list action can yet enqueue a cold-asset activation.
 - No catalog, EOD, options, intraday, scheduler, or legacy MarketOps path changed.
 
-## Remaining S3 pilot gate
+## Remaining S3 pilot validation
 
-The storage and minimal API routes are complete. Before any pilot can be enabled, deployment must provision the dedicated gateway login through secret management, execute the gateway workload preflight, select an entitled pilot tenant, and retain browser evidence for private-list ownership, tenant-default administrator mutation, and cross-tenant isolation. The existing Assets UI remains the default until the separate subscriber list interface and catalog projection are ready.
+The local tenant-pilot-b API-only gateway is enabled after the dedicated gateway-login preflight and entitlement/default-list provisioning. Browser evidence remains outstanding for private-list ownership, tenant-default administrator mutation, and cross-tenant isolation. The existing Assets UI remains the default until the separate subscriber list interface and catalog projection are ready. Production must repeat the secret-managed deployment preflight and obtain its own activation evidence.
 
 ## Disabled API boundary
 
@@ -59,7 +59,7 @@ The gateway can register the following routes only when all of these conditions 
 
 The gateway refuses to start with the feature flag enabled and no dedicated subscriber gateway database URL. It must not reuse the ordinary gateway database credential for subscriber-private tables.
 
-The initially available, still-disabled routes are:
+The available pilot routes are:
 
 - GET /v1/tenants/{tenant_id}/marketops/subscriber/lists
 - GET /v1/tenants/{tenant_id}/marketops/subscriber/lists/{list_id}/memberships
@@ -70,7 +70,7 @@ The initially available, still-disabled routes are:
 
 Every route binds the tenant and immutable subject from the verified principal. The tenant-default create and membership paths also require the existing tenant-administrator guard. API tests prove routes are absent by default, tenant scope reaches storage unchanged, foreign tenant paths are rejected, and a viewer cannot mutate a tenant-default list.
 
-No frontend calls these routes. The pilot remains disabled until the dedicated workload-login preflight and browser validation evidence are complete.
+No frontend calls these routes. The local API-only pilot is enabled for tenant-pilot-b after the dedicated workload-login preflight; browser validation evidence is still required before a UI rollout or production enablement.
 
 ## Dedicated gateway login evidence
 
@@ -78,4 +78,4 @@ On 2026-08-12, the local SignalOps database received signalops_subscriber_gatewa
 
 The runtime login has CRUD access to the tenant-private entitlement and S3 list tables, no direct SELECT access to subscriber_global_assets, and no access to legacy MarketOps asset ownership tables. With no tenant context it saw zero private-list rows. In a rolled-back transaction it inserted a private list for subscriber_gateway_probe_a, read one row under that tenant context, switched to subscriber_gateway_probe_b, and read zero rows.
 
-The local DSN is stored only in ignored local configuration. The subscriber list flag remains disabled. Production provisioning must create an equivalent deployment-secret-managed login and run scripts/subscriber_project_gateway_workload_preflight.sh before any pilot flag is enabled.
+The local DSN is stored only in ignored local configuration. The flag was disabled during preflight and was then enabled only for tenant-pilot-b on the local deployment-equivalent gateway. Production provisioning must create an equivalent deployment-secret-managed login and run scripts/subscriber_project_gateway_workload_preflight.sh before its own pilot flag is enabled.

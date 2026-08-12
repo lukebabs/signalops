@@ -19,3 +19,9 @@ The S3 pilot preflight passed for `tenant-pilot-b` while `SIGNALOPS_SUBSCRIBER_L
 This is readiness evidence only. It did not set the S3 feature flag true, deploy/restart the production gateway, register a browser UI, add a provider call, activate a cold asset, alter shared EOD coverage, or change a scheduled job.
 
 The next controlled action is deployment enablement for `tenant-pilot-b` alone, followed immediately by the browser ownership, tenant-administrator, and cross-tenant isolation validation. A production deployment must rerun this same preflight with its secret-managed gateway DSN before that action.
+
+## Controlled local activation
+
+After the passing preflight, the local deployment-equivalent gateway was rebuilt and restarted at 2026-08-12T21:46:55Z with the S3 flag enabled and the allowlist restricted to `tenant-pilot-b`. The process started successfully and both `/healthz` and `/readyz` returned success. The deployment revision is `fbf5ed7`.
+
+This is an API-only local pilot: no production gateway, browser route, provider call, cold-asset activation, shared coverage change, or scheduler change was enabled. Browser evidence for private-list ownership, tenant-default administrator mutation, and cross-tenant isolation remains required before a UI rollout or a production activation.

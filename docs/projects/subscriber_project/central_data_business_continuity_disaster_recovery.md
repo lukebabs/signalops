@@ -1,6 +1,6 @@
 # Subscriber Project - Central Data, Business Continuity, and Disaster Recovery
 
-Status: architecture and recovery contract. The S3 list tables are deployed in the existing SignalOps PostgreSQL database, but no subscriber list API or UI is enabled. This document defines the required continuity posture before an S3 pilot is opened. It does not assert that a backup, replica, recovery-time objective, or recovery-point objective has already been provisioned.
+Status: architecture and recovery contract. The S3 list tables are deployed in the existing SignalOps PostgreSQL database, and the local deployment-equivalent gateway exposes an API-only pilot for tenant-pilot-b. No subscriber-list UI or production rollout is enabled. This document defines the required continuity posture for the current API-only pilot and any future production rollout. It does not assert that a backup, replica, recovery-time objective, or recovery-point objective has already been provisioned.
 
 ## Purpose
 

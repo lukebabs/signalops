@@ -33,10 +33,10 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [Sprint S2 catalog breadth and EOD planner shadow](s2_catalog_breadth_eod_planner_shadow.md): evidence-gated US-common-stock admission, top-1,000 selection, and cold-activation queue without collection.
 - [S2 ranking-source preflight](s2_ranking_source_preflight_2026-08-12.md): provider capability evidence and the required decision to fill the top-1,000 capacity.
 - [S2 ranked hot-set plan evidence](s2_ranked_hot_set_plan_evidence_2026-08-12.md): supplied ranking snapshot, governed admission result, and final no-collection shadow-plan record.
-- [Sprint S3 lists and authorization projection](s3_lists_authorization_projection.md): RLS-protected tenant-default and private-list foundation, initially without a browser route.
+- [Sprint S3 lists and authorization projection](s3_lists_authorization_projection.md): RLS-protected tenant-default and private-list foundation, API-only local pilot; still without a browser route.
 - [S3 pilot readiness gate](s3_pilot_readiness_gate.md): required pre-enable checks for the dedicated gateway login, named tenant, entitlement, and default list.
 - [S3 pilot tier and default-list decision](s3_pilot_tier_default_list_decision_2026-08-12.md): tenant-pilot-b list-only tier and audited governed top-ten seed.
-- [S3 pilot preflight evidence](s3_pilot_preflight_evidence_2026-08-12.md): passed local deployment-equivalent readiness checks with the S3 flag still disabled.
+- [S3 pilot preflight and activation evidence](s3_pilot_preflight_evidence_2026-08-12.md): passed local readiness checks and the subsequent tenant-pilot-b API-only gateway activation.
 - [Central data, business continuity, and disaster recovery](central_data_business_continuity_disaster_recovery.md): centralized storage model, dependency order, recovery controls, and the required pre-pilot rehearsal.
 - [MarketOps daily surveillance architecture](../../use_cases/marketops/daily_market_surveillance/architecture/functional_components.md): current production components.
 - [Sprint S0 — Baseline and Controls](s0_baseline_and_controls.md): read-only current-state baseline utility, metrics, evidence review, reserved flags, and rollback posture.
