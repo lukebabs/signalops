@@ -166,6 +166,35 @@ func registerSubscriberWatchlistRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"membership": subscriberWatchlistMembershipResponse(record)})
 	})
+	mux.HandleFunc("DELETE /v1/tenants/{tenant_id}/marketops/subscriber/lists/{list_id}/memberships/{global_asset_id}", func(w http.ResponseWriter, r *http.Request) {
+		tenantID, subject, ok := requireScope(w, r)
+		if !ok {
+			return
+		}
+		store, ok := repo(w)
+		if !ok {
+			return
+		}
+		input := storage.SubscriberWatchlistMembershipRequest{TenantID: tenantID, ListID: r.PathValue("list_id"), GlobalAssetID: r.PathValue("global_asset_id"), ActorSubject: subject, CorrelationID: strings.TrimSpace(r.URL.Query().Get("correlation_id"))}
+		var err error
+		switch strings.TrimSpace(r.URL.Query().Get("list_kind")) {
+		case storage.SubscriberWatchlistKindPrivate:
+			err = store.RemoveSubscriberPrivateWatchlistMembership(r.Context(), input)
+		case storage.SubscriberWatchlistKindTenantDefault:
+			if !requireTenantAdministrator(w, r) {
+				return
+			}
+			err = store.RemoveSubscriberTenantDefaultWatchlistMembership(r.Context(), input)
+		default:
+			writeError(w, http.StatusBadRequest, "invalid_subscriber_list_kind", "list_kind must be private or tenant_default")
+			return
+		}
+		if err != nil {
+			writeSubscriberWatchlistMutationError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 }
 
 func readSubscriberWatchlistRequest(w http.ResponseWriter, r *http.Request) (subscriberWatchlistRequest, bool) {

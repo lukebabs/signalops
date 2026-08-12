@@ -1,6 +1,6 @@
 # Sprint S3 - Lists and Authorization Projection
 
-Status: storage layer complete; no subscriber list API, browser route, UI, feature-flag enablement, or data-collection worker is enabled. The existing MarketOps Assets experience remains unchanged.
+Status: storage and a disabled-by-default pilot API boundary are complete; no browser route, UI, feature-flag enablement, or data-collection worker is enabled. The existing MarketOps Assets experience remains unchanged.
 
 ## Delivered storage boundary
 
@@ -39,7 +39,7 @@ The repository integration test also proves private-list subject isolation, tena
 
 This slice is durable storage and authorization-aware repository code, not a user-facing rollout:
 
-- No API route is registered.
+- API routes are compiled but unregistered unless the server feature flag, named pilot tenant, and dedicated subscriber gateway login are all configured.
 - No browser UI can create or view a subscriber list.
 - No feature flag is enabled.
 - No list action can yet enqueue a cold-asset activation.
@@ -66,6 +66,7 @@ The initially available, still-disabled routes are:
 - POST /v1/tenants/{tenant_id}/marketops/subscriber/private-lists
 - POST /v1/tenants/{tenant_id}/marketops/subscriber/tenant-default-list
 - POST /v1/tenants/{tenant_id}/marketops/subscriber/lists/{list_id}/memberships
+- DELETE /v1/tenants/{tenant_id}/marketops/subscriber/lists/{list_id}/memberships/{global_asset_id}?list_kind=private|tenant_default
 
 Every route binds the tenant and immutable subject from the verified principal. The tenant-default create and membership paths also require the existing tenant-administrator guard. API tests prove routes are absent by default, tenant scope reaches storage unchanged, foreign tenant paths are rejected, and a viewer cannot mutate a tenant-default list.
 

@@ -11,7 +11,7 @@ import (
 )
 
 type subscriberWatchlistAPIFake struct {
-	lastTenant, lastSubject string
+	lastTenant, lastSubject, lastMutation string
 }
 
 func (f *subscriberWatchlistAPIFake) CreateSubscriberPrivateWatchlist(_ context.Context, request storage.SubscriberWatchlistCreateRequest) (storage.SubscriberWatchlistRecord, error) {
@@ -35,7 +35,8 @@ func (f *subscriberWatchlistAPIFake) AddSubscriberPrivateWatchlistMembership(_ c
 func (f *subscriberWatchlistAPIFake) AddSubscriberTenantDefaultWatchlistMembership(_ context.Context, request storage.SubscriberWatchlistMembershipRequest) (storage.SubscriberWatchlistMembershipRecord, error) {
 	return storage.SubscriberWatchlistMembershipRecord{TenantID: request.TenantID, ListID: request.ListID, GlobalAssetID: request.GlobalAssetID, AddedBySubject: request.ActorSubject}, nil
 }
-func (f *subscriberWatchlistAPIFake) RemoveSubscriberPrivateWatchlistMembership(context.Context, storage.SubscriberWatchlistMembershipRequest) error {
+func (f *subscriberWatchlistAPIFake) RemoveSubscriberPrivateWatchlistMembership(_ context.Context, request storage.SubscriberWatchlistMembershipRequest) error {
+	f.lastTenant, f.lastSubject, f.lastMutation = request.TenantID, request.ActorSubject, "remove_private"
 	return nil
 }
 func (f *subscriberWatchlistAPIFake) RemoveSubscriberTenantDefaultWatchlistMembership(context.Context, storage.SubscriberWatchlistMembershipRequest) error {
@@ -92,5 +93,25 @@ func TestSubscriberWatchlistDefaultMutationRequiresAdmin(t *testing.T) {
 	router.ServeHTTP(recorder, withBearer(request, token))
 	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "tenant_admin_required") {
 		t.Fatalf("default mutation status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestSubscriberWatchlistPrivateMembershipRemovalBindsSubject(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	store := &subscriberWatchlistAPIFake{}
+	router := NewRouter(RouterConfig{
+		Auth: fixture.authCfg, SubscriberListsEnabled: true,
+		SubscriberListsPilotTenants:   map[string]struct{}{"tenant-local": {}},
+		SubscriberWatchlistRepository: store,
+	})
+	token := fixture.token(t, nil)
+	request := httptest.NewRequest(http.MethodDelete, "/v1/tenants/tenant-local/marketops/subscriber/lists/private-a/memberships/global-a?list_kind=private", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("private removal status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if store.lastTenant != "tenant-local" || store.lastSubject != "user-123" || store.lastMutation != "remove_private" {
+		t.Fatalf("private removal scope tenant=%q subject=%q mutation=%q", store.lastTenant, store.lastSubject, store.lastMutation)
 	}
 }
