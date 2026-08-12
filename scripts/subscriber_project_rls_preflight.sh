@@ -57,6 +57,9 @@ tables=(
   subscriber_entitlement_decision_audit
   subscriber_entitlement_provisioning_audit
   subscriber_quota_reservation_audit
+  subscriber_watchlists
+  subscriber_watchlist_memberships
+  subscriber_watchlist_audit
 )
 
 for table in "${tables[@]}"; do

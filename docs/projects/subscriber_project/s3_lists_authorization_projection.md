@@ -70,3 +70,11 @@ The initially available, still-disabled routes are:
 Every route binds the tenant and immutable subject from the verified principal. The tenant-default create and membership paths also require the existing tenant-administrator guard. API tests prove routes are absent by default, tenant scope reaches storage unchanged, foreign tenant paths are rejected, and a viewer cannot mutate a tenant-default list.
 
 No frontend calls these routes. The pilot remains disabled until the dedicated workload-login preflight and browser validation evidence are complete.
+
+## Dedicated gateway login evidence
+
+On 2026-08-12, the local SignalOps database received signalops_subscriber_gateway_runtime. It is a LOGIN role, non-superuser, non-CREATEROLE, and NOBYPASSRLS. Its only subscriber membership is signalops_subscriber_gateway with inherited group permissions.
+
+The runtime login has CRUD access to the tenant-private entitlement and S3 list tables, no direct SELECT access to subscriber_global_assets, and no access to legacy MarketOps asset ownership tables. With no tenant context it saw zero private-list rows. In a rolled-back transaction it inserted a private list for subscriber_gateway_probe_a, read one row under that tenant context, switched to subscriber_gateway_probe_b, and read zero rows.
+
+The local DSN is stored only in ignored local configuration. The subscriber list flag remains disabled. Production provisioning must create an equivalent deployment-secret-managed login and run scripts/subscriber_project_gateway_workload_preflight.sh before any pilot flag is enabled.

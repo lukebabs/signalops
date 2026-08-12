@@ -36,7 +36,7 @@ identity="$(query "SELECT current_user || '|' || rolsuper || '|' || rolcreaterol
   exit 4
 }
 
-for table in subscriber_tenant_entitlements subscriber_entitlement_capabilities subscriber_quota_reservations subscriber_entitlement_decision_audit subscriber_entitlement_provisioning_audit subscriber_quota_reservation_audit; do
+for table in subscriber_tenant_entitlements subscriber_entitlement_capabilities subscriber_quota_reservations subscriber_entitlement_decision_audit subscriber_entitlement_provisioning_audit subscriber_quota_reservation_audit subscriber_watchlists subscriber_watchlist_memberships subscriber_watchlist_audit; do
   allowed="$(query "SELECT has_table_privilege(current_user, '${table}', 'SELECT,INSERT,UPDATE,DELETE')")"
   [[ "$allowed" == "t" || "$allowed" == "true" ]] || { printf 'Gateway workload preflight failed: missing entitlement-table privilege on %s.\n' "$table" >&2; exit 4; }
 done
@@ -47,7 +47,7 @@ legacy_access="$(query "SELECT has_table_privilege(current_user, 'marketops_univ
   exit 4
 }
 
-no_context="$(query "SELECT count(*) FROM subscriber_tenant_entitlements")"
+no_context="$(query "SELECT (SELECT count(*) FROM subscriber_tenant_entitlements) + (SELECT count(*) FROM subscriber_watchlists) + (SELECT count(*) FROM subscriber_watchlist_memberships) + (SELECT count(*) FROM subscriber_watchlist_audit)")"
 [[ "$no_context" == "0" ]] || {
   printf 'Gateway workload preflight failed: tenant-private rows were visible without tenant context.\n' >&2
   exit 4
