@@ -31,6 +31,13 @@ export interface MarketOpsSRISnapshot { snapshot_id:string; segment_id:string; s
 export interface MarketOpsSRIRankingsResponse { snapshots: MarketOpsSRISnapshot[]; research_only:boolean; evidence_note:string; }
 export interface MarketOpsSignalAssuranceRecommendationsResponse { recommendations: MarketOpsSignalAssuranceRecommendation[]; minimum_ranked_sample: number; }
 
+export type SubscriberWatchlistKind = "tenant_default" | "private";
+export interface SubscriberWatchlist { list_id: string; tenant_id: string; list_kind: SubscriberWatchlistKind; owner_subject: string; list_name: string; created_at: string; updated_at: string; }
+export interface SubscriberWatchlistItem { tenant_id: string; list_id: string; list_kind: SubscriberWatchlistKind; list_name: string; global_asset_id: string; ticker: string; company_name: string; asset_type: string; exchange: string; sector: string; eligibility_status: string; coverage_state: string; coverage_mode: string; added_at: string; }
+export interface SubscriberWatchlistsResponse { lists: SubscriberWatchlist[]; }
+export interface SubscriberWatchlistItemsResponse { items: SubscriberWatchlistItem[]; }
+export interface SubscriberWatchlistCreateRequest { list_name: string; correlation_id?: string; provenance?: unknown; }
+
 export interface SchedulerRun {
   run_id: string;
   tenant_id: string;

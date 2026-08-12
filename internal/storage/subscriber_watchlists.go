@@ -33,6 +33,23 @@ type SubscriberWatchlistMembershipRecord struct {
 	UpdatedAt      time.Time
 }
 
+type SubscriberWatchlistItemRecord struct {
+	TenantID          string
+	ListID            string
+	ListKind          string
+	ListName          string
+	GlobalAssetID     string
+	Ticker            string
+	CompanyName       string
+	AssetType         string
+	Exchange          string
+	Sector            string
+	EligibilityStatus string
+	CoverageState     string
+	CoverageMode      string
+	AddedAt           time.Time
+}
+
 type SubscriberWatchlistCreateRequest struct {
 	ListID         string
 	TenantID       string
@@ -60,6 +77,7 @@ type SubscriberWatchlistRepository interface {
 	CreateSubscriberTenantDefaultWatchlist(context.Context, SubscriberWatchlistCreateRequest) (SubscriberWatchlistRecord, error)
 	ListSubscriberWatchlists(context.Context, string, string) ([]SubscriberWatchlistRecord, error)
 	ListSubscriberWatchlistMemberships(context.Context, string, string, string) ([]SubscriberWatchlistMembershipRecord, error)
+	ListSubscriberWatchlistItems(context.Context, string, string, string) ([]SubscriberWatchlistItemRecord, error)
 	AddSubscriberPrivateWatchlistMembership(context.Context, SubscriberWatchlistMembershipRequest) (SubscriberWatchlistMembershipRecord, error)
 	AddSubscriberTenantDefaultWatchlistMembership(context.Context, SubscriberWatchlistMembershipRequest) (SubscriberWatchlistMembershipRecord, error)
 	RemoveSubscriberPrivateWatchlistMembership(context.Context, SubscriberWatchlistMembershipRequest) error

@@ -79,3 +79,12 @@ On 2026-08-12, the local SignalOps database received signalops_subscriber_gatewa
 The runtime login has CRUD access to the tenant-private entitlement and S3 list tables, no direct SELECT access to subscriber_global_assets, and no access to legacy MarketOps asset ownership tables. With no tenant context it saw zero private-list rows. In a rolled-back transaction it inserted a private list for subscriber_gateway_probe_a, read one row under that tenant context, switched to subscriber_gateway_probe_b, and read zero rows.
 
 The local DSN is stored only in ignored local configuration. The flag was disabled during preflight and was then enabled only for tenant-pilot-b on the local deployment-equivalent gateway. Production provisioning must create an equivalent deployment-secret-managed login and run scripts/subscriber_project_gateway_workload_preflight.sh before its own pilot flag is enabled.
+
+
+## Catalog projection and Watchlists UI
+
+Migration 000096_subscriber_watchlist_projection adds one bounded database function. It returns display metadata and coverage state only for the tenant-default list or the authenticated subject's own private list, while preserving the gateway prohibition on direct global-catalog reads. It is not a catalog search endpoint.
+
+The frontend adds the /marketops/watchlists route and a Watchlists navigation item. The page reads the authorized list projection and permits a MarketOps read user to create a private list. It intentionally does not expose tenant-default mutation, catalog search, list membership mutation, provider access, cold-asset activation, or legacy asset onboarding.
+
+The route is source-complete but not live until migration 000096 is applied and the gateway and frontend are deployed under the existing named S3 pilot flag. The pilot remains API/UI limited to tenant-pilot-b; production requires its own preflight and activation evidence.

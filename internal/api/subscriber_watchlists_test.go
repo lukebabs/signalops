@@ -29,6 +29,10 @@ func (f *subscriberWatchlistAPIFake) ListSubscriberWatchlists(_ context.Context,
 func (f *subscriberWatchlistAPIFake) ListSubscriberWatchlistMemberships(context.Context, string, string, string) ([]storage.SubscriberWatchlistMembershipRecord, error) {
 	return nil, nil
 }
+func (f *subscriberWatchlistAPIFake) ListSubscriberWatchlistItems(_ context.Context, tenantID, subject, listID string) ([]storage.SubscriberWatchlistItemRecord, error) {
+	f.lastTenant, f.lastSubject = tenantID, subject
+	return []storage.SubscriberWatchlistItemRecord{{TenantID: tenantID, ListID: listID, ListKind: storage.SubscriberWatchlistKindTenantDefault, ListName: "Default", GlobalAssetID: "global-a", Ticker: "AAPL", CompanyName: "Apple", EligibilityStatus: "eligible", CoverageState: "active", CoverageMode: "shadow"}}, nil
+}
 func (f *subscriberWatchlistAPIFake) AddSubscriberPrivateWatchlistMembership(_ context.Context, request storage.SubscriberWatchlistMembershipRequest) (storage.SubscriberWatchlistMembershipRecord, error) {
 	return storage.SubscriberWatchlistMembershipRecord{TenantID: request.TenantID, ListID: request.ListID, GlobalAssetID: request.GlobalAssetID, AddedBySubject: request.ActorSubject}, nil
 }
@@ -135,6 +139,26 @@ func TestSubscriberWatchlistPrivateMutationAllowsMarketOpsReadGrant(t *testing.T
 	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, nil)))
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("private mutation status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if store.lastTenant != "tenant-local" || store.lastSubject != "user-123" {
+		t.Fatalf("repository scope tenant=%q subject=%q", store.lastTenant, store.lastSubject)
+	}
+}
+
+func TestSubscriberWatchlistItemsRouteBindsTenantAndSubject(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	store := &subscriberWatchlistAPIFake{}
+	router := NewRouter(RouterConfig{
+		Auth:                          fixture.authCfg,
+		SubscriberListsEnabled:        true,
+		SubscriberListsPilotTenants:   map[string]struct{}{"tenant-local": {}},
+		SubscriberWatchlistRepository: store,
+	})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-local/marketops/subscriber/lists/default-a/items", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, nil)))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"ticker":"AAPL"`) {
+		t.Fatalf("items status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 	if store.lastTenant != "tenant-local" || store.lastSubject != "user-123" {
 		t.Fatalf("repository scope tenant=%q subject=%q", store.lastTenant, store.lastSubject)

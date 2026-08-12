@@ -78,6 +78,23 @@ func registerSubscriberWatchlistRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		writeJSON(w, http.StatusOK, map[string]any{"memberships": subscriberWatchlistMembershipResponses(records)})
 	})
 
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/subscriber/lists/{list_id}/items", func(w http.ResponseWriter, r *http.Request) {
+		tenantID, subject, ok := requireScope(w, r)
+		if !ok {
+			return
+		}
+		store, ok := repo(w)
+		if !ok {
+			return
+		}
+		items, err := store.ListSubscriberWatchlistItems(r.Context(), tenantID, subject, r.PathValue("list_id"))
+		if err != nil {
+			writeQueryError(w, err, "subscriber_list_not_found", "subscriber list was not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": subscriberWatchlistItemResponses(items)})
+	})
+
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/marketops/subscriber/private-lists", func(w http.ResponseWriter, r *http.Request) {
 		tenantID, subject, ok := requireScope(w, r)
 		if !ok {
@@ -230,6 +247,14 @@ func subscriberWatchlistResponses(records []storage.SubscriberWatchlistRecord) [
 
 func subscriberWatchlistResponse(record storage.SubscriberWatchlistRecord) map[string]any {
 	return map[string]any{"list_id": record.ListID, "tenant_id": record.TenantID, "list_kind": record.ListKind, "owner_subject": record.OwnerSubject, "list_name": record.ListName, "created_at": record.CreatedAt, "updated_at": record.UpdatedAt}
+}
+
+func subscriberWatchlistItemResponses(records []storage.SubscriberWatchlistItemRecord) []map[string]any {
+	out := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		out = append(out, map[string]any{"tenant_id": record.TenantID, "list_id": record.ListID, "list_kind": record.ListKind, "list_name": record.ListName, "global_asset_id": record.GlobalAssetID, "ticker": record.Ticker, "company_name": record.CompanyName, "asset_type": record.AssetType, "exchange": record.Exchange, "sector": record.Sector, "eligibility_status": record.EligibilityStatus, "coverage_state": record.CoverageState, "coverage_mode": record.CoverageMode, "added_at": record.AddedAt})
+	}
+	return out
 }
 
 func subscriberWatchlistMembershipResponses(records []storage.SubscriberWatchlistMembershipRecord) []map[string]any {

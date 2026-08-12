@@ -53,6 +53,9 @@ const MarketOpsSettingsRoute = lazy(() => import('./routes/MarketOpsSettingsRout
 const MarketOpsAssetsRoute = lazy(() =>
   import('./routes/MarketOpsAssetsRoute').then((m) => ({ default: m.MarketOpsAssetsRoute })),
 );
+const MarketOpsWatchlistsRoute = lazy(() =>
+  import('./routes/MarketOpsWatchlistsRoute').then((m) => ({ default: m.MarketOpsWatchlistsRoute })),
+);
 const CyberOpsDashboardRoute = lazy(() =>
   import("./routes/CyberOpsDashboardRoute").then((m) => ({ default: m.CyberOpsDashboardRoute })),
 );
@@ -238,6 +241,7 @@ const marketopsPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, p
 const marketopsHealthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/health', component: () => <LegacyRedirect to="/admin/system" /> });
 const marketOpsSettingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/settings', component: MarketOpsSettingsRoute });
 const marketopsAssetsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assets', component: MarketOpsAssetsRoute });
+const marketopsWatchlistsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/watchlists', component: MarketOpsWatchlistsRoute });
 const marketopsHypothesesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/hypotheses', component: MarketOpsHypothesesRoute });
 const marketopsIndicatorReelRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/indicator-reel', component: MarketOpsIndicatorReelRoute });
 const marketopsStateRoute = createRoute({
@@ -345,6 +349,7 @@ const routeTree = rootRoute.addChildren([
   marketopsHealthRoute,
   marketOpsSettingsRoute,
   marketopsAssetsRoute,
+  marketopsWatchlistsRoute,
   marketopsHypothesesRoute,
   marketopsIndicatorReelRoute,
   marketopsStateRoute,

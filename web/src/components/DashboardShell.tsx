@@ -48,6 +48,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   sources: DatabaseZap,
   providers: DatabaseZap,
   symbols: CircleDollarSign,
+  watchlists: ListTree,
   pipelines: Workflow,
   rules: ShieldCheck,
   replay: History,

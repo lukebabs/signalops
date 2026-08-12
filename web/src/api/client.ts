@@ -178,6 +178,10 @@ import type {
   MarketOpsSignalAssuranceRecommendationsResponse,
   MarketOpsSRIRankingsResponse,
 } from "../types";
+  SubscriberWatchlistsResponse,
+  SubscriberWatchlistItemsResponse,
+  SubscriberWatchlistCreateRequest,
+  SubscriberWatchlist,
 import { authConfig } from "../auth/config";
 import { getAccessToken } from "../auth/session";
 
@@ -806,6 +810,12 @@ export const api = {
   getMarketOpsSignalAssuranceRecommendations: (tenantId: string, evidenceSource = "", evaluationMode = "") =>
     get<MarketOpsSignalAssuranceRecommendationsResponse>("/v1/marketops/signal-assurance/recommendations", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, evaluation_mode: evaluationMode || undefined }),
   getMarketOpsSRIRankings: (tenantId: string, segmentType = "", state = "") =>
+  listSubscriberWatchlists: (tenantId: string) =>
+    get<SubscriberWatchlistsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists", undefined, "no-store"),
+  listSubscriberWatchlistItems: (tenantId: string, listId: string) =>
+    get<SubscriberWatchlistItemsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists/" + encodeURIComponent(listId) + "/items", undefined, "no-store"),
+  createSubscriberPrivateWatchlist: (tenantId: string, body: SubscriberWatchlistCreateRequest) =>
+    post<{ list: SubscriberWatchlist }>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/private-lists", body),
     get<MarketOpsSRIRankingsResponse>("/v1/marketops/sectors/rankings", { tenant_id: tenantId, segment_type: segmentType || undefined, state: state || undefined }),
   // G139 MarketOps Opportunities workbench (read-only). Opportunity list/detail
   // plus supporting linked-record reads (hypothesis-evaluations, hypotheses,

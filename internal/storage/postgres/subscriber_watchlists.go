@@ -115,6 +115,34 @@ ORDER BY added_at, global_asset_id`, tenantID, listID)
 	return records, err
 }
 
+// ListSubscriberWatchlistItems resolves display metadata only for assets already
+// authorized by the tenant-default or caller-owned private list. The database
+// function is the sole gateway projection over the global catalog.
+func (r *Repository) ListSubscriberWatchlistItems(ctx context.Context, tenantID, subject, listID string) ([]storage.SubscriberWatchlistItemRecord, error) {
+	tenantID, subject, listID = strings.TrimSpace(tenantID), strings.TrimSpace(subject), strings.TrimSpace(listID)
+	if !validSubscriberTenantID(tenantID) || subject == "" || listID == "" {
+		return nil, errors.New("invalid subscriber watchlist item scope")
+	}
+	items := []storage.SubscriberWatchlistItemRecord{}
+	err := r.WithSubscriberTenantScope(ctx, tenantID, func(ctx context.Context, tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `SELECT tenant_id, list_id, list_kind, list_name, global_asset_id, ticker, company_name, asset_type, exchange, sector, eligibility_status, coverage_state, coverage_mode, added_at
+FROM subscriber_visible_watchlist_items($1, $2)`, subject, listID)
+		if err != nil {
+			return fmt.Errorf("list subscriber watchlist items: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var item storage.SubscriberWatchlistItemRecord
+			if err := rows.Scan(&item.TenantID, &item.ListID, &item.ListKind, &item.ListName, &item.GlobalAssetID, &item.Ticker, &item.CompanyName, &item.AssetType, &item.Exchange, &item.Sector, &item.EligibilityStatus, &item.CoverageState, &item.CoverageMode, &item.AddedAt); err != nil {
+				return fmt.Errorf("scan subscriber watchlist item: %w", err)
+			}
+			items = append(items, item)
+		}
+		return rows.Err()
+	})
+	return items, err
+}
+
 func (r *Repository) AddSubscriberPrivateWatchlistMembership(ctx context.Context, request storage.SubscriberWatchlistMembershipRequest) (storage.SubscriberWatchlistMembershipRecord, error) {
 	return r.addSubscriberWatchlistMembership(ctx, request, storage.SubscriberWatchlistKindPrivate)
 }

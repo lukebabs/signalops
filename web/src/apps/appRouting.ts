@@ -46,6 +46,7 @@ export type AppRoutePath =
   | '/marketops/pipelines'
   | '/marketops/health'
   | '/marketops/assets'
+  | '/marketops/watchlists'
   | '/marketops/hypotheses'
   | '/marketops/indicator-reel'
   | '/marketops/state'
@@ -107,6 +108,7 @@ const CONSOLE_NAV: NavItem[] = [
 const MARKETOPS_NAV: NavItem[] = [
   { module: 'dashboard', to: '/marketops/dashboard', label: 'Dashboard' },
   { module: 'symbols', to: '/marketops/assets', label: 'Assets' },
+  { module: 'watchlists', to: '/marketops/watchlists', label: 'Watchlists' },
   { module: 'state', to: '/marketops/state', label: 'Market State' },
   { module: 'indicator_reel', to: '/marketops/indicator-reel', label: 'Market Intelligence' },
   { module: 'review', to: '/marketops/review', label: 'Review Queue' },
