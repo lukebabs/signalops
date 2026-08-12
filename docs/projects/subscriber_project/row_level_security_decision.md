@@ -1,6 +1,6 @@
 # Subscriber Database Row-Level Security Decision
 
-Status: adopted architecture decision; no PostgreSQL role, policy, or runtime behavior has changed in this slice.
+Status: implementation in progress. The least-privilege NOLOGIN group-role bootstrap, role preflight, and transaction-local tenant-context primitive are implemented; no subscriber-private table, policy, workload credential, or browser path is enabled. Existing MarketOps data remains unchanged.
 
 ## Decision
 
@@ -25,6 +25,12 @@ A future migration must create distinct non-owner roles for gateway access, each
 Each tenant-private table must include a non-null `tenant_id`, enable and force RLS, and use a policy that compares the row tenant to a transaction-local setting such as `current_setting(signalops.tenant_id, true)`. Gateway storage code must start a transaction, set that setting from the verified principal using a parameterized local command, perform every tenant-private query or write in that transaction, and commit or roll back before returning the connection to the pool. An absent, malformed, or mismatched setting must yield no rows or a permission failure; it must never become a cross-tenant default.
 
 Workers do not receive arbitrary tenant scope. A tenant-aware worker receives only an immutable authorized planning snapshot and sets a tenant context only for the narrow tenant-private operation it is permitted to perform. Shared-data workers use a separate role with table-level permissions only for their platform-owned inputs and outputs.
+
+## Implemented foundation
+
+- `deploy/postgres/subscriber_project_roles.sql` creates six inert NOLOGIN group roles: a migration owner, gateway, catalog sync, global EOD, Options demand, and Options capture. It intentionally grants no access to current MarketOps tables. Production secret management must attach a distinct workload login to exactly one applicable group role; the current shared superuser credential is not eligible for subscriber-private paths.
+- `scripts/subscriber_project_rls_preflight.sh` verifies that each group role is non-login, non-superuser, non-CREATEROLE, and NOBYPASSRLS. It uses a privileged database URL when `SIGNALOPS_SUBSCRIBER_RLS_MIGRATOR_DATABASE_URL` is configured, or the local Compose PostgreSQL service for development.
+- `Repository.WithSubscriberTenantScope` starts a transaction and uses `set_config(..., true)` to set `signalops.tenant_id`. Future subscriber-private repositories must use the supplied transaction exclusively so the context clears before a pooled connection is reused.
 
 ## Migration and verification sequence
 

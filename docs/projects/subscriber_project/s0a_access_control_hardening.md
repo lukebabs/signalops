@@ -127,7 +127,7 @@ This slice adds no migration, list or membership table, entitlement, provider re
 2. Add an authoritative entitlement provisioning source, atomic quota reservation and usage accounting, durable entitlement and quota-decision audit, and route or worker integration for the implemented default-deny policy contract.
 3. Provision and enforce the static least-privilege service identities through workload credentials, gateway and persistence scope checks, audit, rotation, and negative integration tests.
 4. Retain grant and future list-administration audit evidence alongside the entitlement and quota-decision evidence.
-5. Implement the adopted tenant-private RLS model: separate roles, forced policies, transaction-local tenant context, deployment preflight, and negative integration tests.
+5. Complete the adopted tenant-private RLS model: the role bootstrap, role preflight, and transaction-local tenant context are implemented, but the first forced-RLS subscriber-private table, workload login credentials, explicit grants, and negative integration tests remain required before any subscriber path can be enabled.
 6. Run the discovery/JWKS preflight against the intended deployment, then validate live browser session and grants plus the complete cross-tenant negative-test suite; startup configuration shape and discovery consistency are fail-closed but are not proof of deployment readiness.
 
 No Subscriber Project feature flag may enable catalog, list, shared-EOD, or Options-demand behavior until these exit conditions are satisfied.
