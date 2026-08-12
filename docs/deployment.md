@@ -389,7 +389,7 @@ The selected-asset view reads `GET /v1/tenants/{tenant_id}/marketops/assets/{sym
 
 ### Browser session inactivity and renewal
 
-The browser session is inactivity-based, not a fixed access-token lifetime. `VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES` defaults to `30`; pointer, keyboard, scroll, touch, and browser-focus activity keep the local session active. While it remains active, the SPA renews a token that is within `VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS` (default `300`) of expiry. After the configured inactivity period the SPA clears its local user/token and requires a new sign-in flow.
+The browser session is inactivity-based, not a fixed access-token lifetime. `VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES` defaults to `30`; pointer, keyboard, scroll, touch, and browser-focus activity keep the local session active. While it remains active, the SPA renews a token that is within `VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS` (default `60`) of expiry. After the configured inactivity period the SPA clears its local user/token and requires a new sign-in flow.
 
 `signalops-web` uses refresh-token renewal when the provider grants a refresh token; otherwise it falls back to the OIDC iframe callback at `${public_origin}/auth/silent-renew`. Register that exact redirect URI for the `signalops-web` Keycloak client, in addition to `${public_origin}/auth/callback` and the public-origin logout redirect. The IdP's own maximum session/idle limits remain authoritative and can still require sign-in when they are stricter than the browser setting.
 

@@ -337,7 +337,7 @@ Build-time settings:
 
 ```text
 VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES=30
-VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS=300
+VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS=60
 ```
 
 The IdP session idle/max settings remain authoritative and must allow at least the

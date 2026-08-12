@@ -10,7 +10,7 @@ describe('auth config', () => {
     expect(c.audience).toBe('signalops-api');
     expect(c.realm).toBe('syncratic');
     expect(c.idleTimeoutMinutes).toBe(30);
-    expect(c.renewBeforeExpirySeconds).toBe(300);
+    expect(c.renewBeforeExpirySeconds).toBe(60);
   });
 
   it('enables auth only for the literal "true" (case-insensitive)', () => {

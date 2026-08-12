@@ -32,7 +32,7 @@ export function resolveAuthConfig(env: Record<string, string | undefined>): Auth
     audience: env.VITE_SIGNALOPS_AUTH_AUDIENCE ?? 'signalops-api',
     realm: env.VITE_SIGNALOPS_AUTH_REALM ?? 'syncratic',
     idleTimeoutMinutes: positiveInt(env.VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES, 30),
-    renewBeforeExpirySeconds: positiveInt(env.VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS, 300),
+    renewBeforeExpirySeconds: positiveInt(env.VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS, 60),
   };
 }
 
