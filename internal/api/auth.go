@@ -332,6 +332,14 @@ func authorizedForRequest(r *http.Request, principal Principal) bool {
 		if permission == "" {
 			return false
 		}
+		// Subscriber watchlists are tenant-scoped user preferences. A MarketOps
+		// read grant is sufficient for a subscriber to manage their own private
+		// list; tenant-default mutations retain their handler-level administrator
+		// requirement. This avoids granting broad MarketOps write access merely
+		// to create or edit a personal watchlist.
+		if isSubscriberWatchlistRequest(r) {
+			return permission == "read" || permission == "write"
+		}
 		return r.Method == http.MethodGet || permission == "write"
 	}
 	if isPlatformRegistryMutationRoute(r) || isCyberOpsLifecycleAdminMutationRoute(r) {
@@ -355,6 +363,10 @@ func appScopeForRequest(r *http.Request) string {
 
 func isExperienceRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/v1/session/experience"
+}
+
+func isSubscriberWatchlistRequest(r *http.Request) bool {
+	return strings.Contains(r.URL.Path, "/marketops/subscriber/")
 }
 
 func isPlatformRegistryMutationRoute(r *http.Request) bool {

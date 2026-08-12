@@ -13,6 +13,7 @@ import (
 type accessManagementTestRepository struct {
 	lastListTenant    string
 	existing          []storage.TenantUserAccessRecord
+	subjectAccess     []storage.TenantUserAccessRecord
 	lastUpsert        storage.TenantUserAccessRecord
 	upsertCount       int
 	initialGrantCount int
@@ -23,8 +24,8 @@ func (r *accessManagementTestRepository) ListTenantUserAccess(_ context.Context,
 	return r.existing, nil
 }
 
-func (*accessManagementTestRepository) ListTenantUserAccessForSubject(context.Context, string, string) ([]storage.TenantUserAccessRecord, error) {
-	return nil, nil
+func (r *accessManagementTestRepository) ListTenantUserAccessForSubject(context.Context, string, string) ([]storage.TenantUserAccessRecord, error) {
+	return r.subjectAccess, nil
 }
 
 func (r *accessManagementTestRepository) UpsertTenantUserAccess(_ context.Context, record storage.TenantUserAccessRecord, _, _ string) (storage.TenantUserAccessRecord, error) {

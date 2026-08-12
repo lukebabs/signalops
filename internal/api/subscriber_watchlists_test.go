@@ -115,3 +115,28 @@ func TestSubscriberWatchlistPrivateMembershipRemovalBindsSubject(t *testing.T) {
 		t.Fatalf("private removal scope tenant=%q subject=%q mutation=%q", store.lastTenant, store.lastSubject, store.lastMutation)
 	}
 }
+
+func TestSubscriberWatchlistPrivateMutationAllowsMarketOpsReadGrant(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	store := &subscriberWatchlistAPIFake{}
+	access := &accessManagementTestRepository{subjectAccess: []storage.TenantUserAccessRecord{{
+		TenantID: "tenant-local", Subject: "user-123", AppID: "marketops", Permission: "read",
+	}}}
+	router := NewRouter(RouterConfig{
+		Auth:                          fixture.authCfg,
+		AccessRepository:              access,
+		SubscriberListsEnabled:        true,
+		SubscriberListsPilotTenants:   map[string]struct{}{"tenant-local": {}},
+		SubscriberWatchlistRepository: store,
+	})
+	request := httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-local/marketops/subscriber/private-lists", strings.NewReader(`{"list_name":"Research"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, nil)))
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("private mutation status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if store.lastTenant != "tenant-local" || store.lastSubject != "user-123" {
+		t.Fatalf("repository scope tenant=%q subject=%q", store.lastTenant, store.lastSubject)
+	}
+}
