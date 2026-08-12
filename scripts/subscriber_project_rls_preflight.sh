@@ -51,4 +51,4 @@ for role in "${roles[@]}"; do
 done
 
 printf 'Subscriber RLS role preflight passed for %d least-privilege group roles.\n' "${#roles[@]}"
-printf 'No subscriber-private table is enabled by this preflight; validate forced RLS policies and workload login grants with the owning migration.\n'
+printf 'Forced-RLS entitlement tables are present, but no subscriber route is enabled. Validate workload login grants and application-level negative tests before enabling any feature.\n'

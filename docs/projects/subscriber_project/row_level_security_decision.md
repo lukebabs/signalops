@@ -1,6 +1,6 @@
 # Subscriber Database Row-Level Security Decision
 
-Status: implementation in progress. The least-privilege NOLOGIN group-role bootstrap, role preflight, and transaction-local tenant-context primitive are implemented; no subscriber-private table, policy, workload credential, or browser path is enabled. Existing MarketOps data remains unchanged.
+Status: implementation in progress. The least-privilege NOLOGIN group-role bootstrap, role preflight, transaction-local tenant context, and first forced-RLS entitlement/quota schema are implemented; no workload credential, API route, or browser path is enabled. Existing MarketOps data remains unchanged.
 
 ## Decision
 
@@ -13,7 +13,7 @@ The decision is deliberately not to retrofit all existing tenant-owned and tempo
 RLS is mandatory before enabling these new tenant-private classes:
 
 - tenant default lists, private lists, and list memberships;
-- entitlement provisioning, quota reservation or usage, and entitlement/decision audit records;
+- entitlement provisioning, quota reservation or usage, and entitlement/decision audit records (the initial inert schema is present under forced RLS);
 - tenant-specific coverage projections, preferences, saved views, and subscriber notifications.
 
 The following remain platform-owned shared records and do not receive tenant-membership RLS policies: global asset identity, reference provenance, global coverage state, shared EOD/raw/normalized evidence, canonical algorithm outputs, and deduplicated Options captures. They remain inaccessible to browser callers except through a tenant-authorized projection.
@@ -31,11 +31,12 @@ Workers do not receive arbitrary tenant scope. A tenant-aware worker receives on
 - `deploy/postgres/subscriber_project_roles.sql` creates six inert NOLOGIN group roles: a migration owner, gateway, catalog sync, global EOD, Options demand, and Options capture. It intentionally grants no access to current MarketOps tables. Production secret management must attach a distinct workload login to exactly one applicable group role; the current shared superuser credential is not eligible for subscriber-private paths.
 - `scripts/subscriber_project_rls_preflight.sh` verifies that each group role is non-login, non-superuser, non-CREATEROLE, and NOBYPASSRLS. It uses a privileged database URL when `SIGNALOPS_SUBSCRIBER_RLS_MIGRATOR_DATABASE_URL` is configured, or the local Compose PostgreSQL service for development.
 - `Repository.WithSubscriberTenantScope` starts a transaction and uses `set_config(..., true)` to set `signalops.tenant_id`. Future subscriber-private repositories must use the supplied transaction exclusively so the context clears before a pooled connection is reused.
+- Migration `000088_subscriber_entitlement_foundation` creates the first tenant-private entitlement, capability, quota-reservation, and decision-audit tables. Each is owned by `signalops_subscriber_migrator`, has forced RLS, and grants access only to `signalops_subscriber_gateway`. It supplies no API route, provisioning workflow, or feature enablement.
 
 ## Migration and verification sequence
 
 1. Introduce separate migration, gateway, and per-worker database roles through deployment secret management.
-2. Add a tenant-private table with `tenant_id`, forced RLS, explicit grants, and a transaction helper that sets and clears the local tenant context.
+2. The entitlement/quota foundation is the first tenant-private schema with `tenant_id`, forced RLS, explicit gateway grants, and transaction-local tenant context. Subsequent private tables must follow the same model.
 3. Exercise direct database and API tests for missing context, a conflicting context, cross-tenant read/write/enumeration, connection-pool reuse, worker scope violation, and migration-role bypass.
 4. Add SQL policy/role verification to deployment preflight and record migration, policy version, identity, tenant, and correlation provenance.
 5. Repeat the approach table by table. Existing tables are migrated only after query inventory, dual-read parity, temporal-store validation, and rollback review.
