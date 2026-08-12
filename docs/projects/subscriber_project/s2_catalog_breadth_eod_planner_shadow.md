@@ -1,6 +1,6 @@
-# Sprint S2 �w^~)�t Catalog Breadth and EOD Planner Shadow
+# Sprint S2 — Catalog Breadth and EOD Planner Shadow
 
-Status: migration and initial zero-selection shadow plan deployed; governed reference admission and activation-queue event evidence remain outstanding. No provider collection, scheduler, browser route, tenant projection, or list membership write is enabled.
+Status: governed reference admission, a provenance-retained ranked top-1,000 snapshot, and the final EOD hot-set shadow plan are complete. The future activation writer remains intentionally deferred to S3, where it can be bound to an authorized tenant-default or private-list membership. No provider collection, scheduler, browser route, tenant projection, or list membership write is enabled.
 
 ## Scope delivered
 
@@ -62,9 +62,9 @@ A plan with zero selected members is correct until governed reference evidence a
 
 The S2 queue is global and deduplicated by global asset ID while a request is `queued` or `warming_up`. It preserves the origin kind, tenant/subject/list coordinates where a later authorized S3 membership supplies them, request key, policy version, provenance, and state. No API or browser writer exists in S2. S3 may create an idempotent request only after server-side list authorization and entitlement/quota evaluation succeed.
 
-(## Ranking-source decision
+## Ranking-source decision
 
-The Massive reference catalogue is authoritative for active US common-stock discovery and eligibility, but not for a market-cap-ranked top 1,000 in one bounded request: a live sort=market_cap probe returned an invalid-sort response. The initial 125 eligible canonical securities form the compatibility cohort only. Filling the capacity requires a separately approved, provenance-retained ranking snapshot; alphabetical paging must never be described as “top.”
+The Massive reference catalogue is authoritative for active US common-stock discovery and eligibility, but not for a market-cap-ranked top 1,000 in one bounded request: a live sort=market_cap probe returned an invalid-sort response. The supplied, provenance-retained 2026-08-12 ranking snapshot now defines the ranking input. Alphabetical paging must never be described as “top.”
 
 ## S2 exit evidence
 
@@ -72,7 +72,7 @@ The Massive reference catalogue is authoritative for active US common-stock disc
 2. The planner report records candidate, eligible, selected, excluded, and reason counts at capacity 1,000.
 3. Selected ranks and IDs can be replayed exactly from retained input data.
 4. No coverage row or plan is in `enabled` mode; no provider request or scheduled job changed.
-5. Duplicate cold-activation requests coalesce to one global active request.
+5. Duplicate cold-activation requests coalesce to one global active request when S3 introduces the authorized membership writer.
 
 ## Rollback
 
