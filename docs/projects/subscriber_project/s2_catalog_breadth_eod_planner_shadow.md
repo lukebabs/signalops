@@ -1,6 +1,6 @@
 # Sprint S2 ºw^~)Þt Catalog Breadth and EOD Planner Shadow
 
-Status: implementation in progress; no provider collection, scheduler, browser route, tenant projection, or list membership write is enabled.
+Status: migration and initial zero-selection shadow plan deployed; governed reference admission and activation-queue event evidence remain outstanding. No provider collection, scheduler, browser route, tenant projection, or list membership write is enabled.
 
 ## Scope delivered
 
