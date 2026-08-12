@@ -19,6 +19,36 @@ The Administration Workbench searches existing Keycloak identities by name, user
 
 Super-admins call the Administration access endpoints with the target identity's immutable Keycloak `sub`, optional display name/email, application, and `read` or `write` permission. SignalOps does not create IdP users, issue invitations, or manage passwords. Each grant, permission change, and revocation creates an immutable tenant audit record.
 
+### Initial cross-tenant provisioning
+
+The dedicated Keycloak realm role `signalops:tenant_provisioner` supports a narrow, one-time tenant bootstrap only. It may call `POST /v1/administration/tenant-provisioning/access` to create the first access grant in a tenant other than the provisioner's own token tenant.
+
+The endpoint is deliberately restricted:
+
+- it accepts only one initial `marketops` grant with `read` or `write` permission;
+- it rejects a target tenant with current access or immutable access history;
+- it writes through the normal grant and immutable audit path, with the provisioner's subject as the grant actor;
+- it cannot list, edit, or revoke foreign-tenant grants; and
+- it does not grant cross-tenant MarketOps, subscriber, or platform-data access.
+
+All ordinary endpoints, including the Administration Workbench, remain bound to the authenticated token tenant. Assign `signalops:tenant_provisioner` only to a controlled provisioning identity (or as a short-lived additional role to a platform operator), then remove it when the bootstrap is complete. The target tenant must subsequently manage its own grants through a tenant-scoped administrator.
+
+Example request, using the provisioner's own access token:
+
+```sh
+curl --request POST 'https://signalops.syncratic.io/v1/administration/tenant-provisioning/access' \
+  --header 'Authorization: Bearer <provisioner-access-token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "tenant_id": "tenant-pilot-b",
+    "subject": "<keycloak-subject>",
+    "display_name": "Pilot user",
+    "email": "pilot@example.com",
+    "app_id": "marketops",
+    "permission": "read"
+  }'
+```
+
 ## Landing experience
 
 Authenticated entry uses the self-experience response to show only the use-case profiles available to the caller. A user with one permitted domain opens it directly; a user with multiple domains selects from the concise landing page. Super-admin Administration remains a header utility rather than a use-case tile. Profile metadata supplies the landing summary and route prefix, so a newly registered backend profile appears without a frontend domain-specific widget.

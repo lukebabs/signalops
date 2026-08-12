@@ -27,6 +27,7 @@ const (
 	// roleAdmin remains accepted while existing SignalOps role mappings migrate.
 	rolePlatformSuperAdmin = "super_admin"
 	roleAdmin              = "signalops:admin"
+	roleTenantProvisioner  = "signalops:tenant_provisioner"
 )
 
 type authContextKey struct{}
@@ -103,7 +104,8 @@ func authMiddleware(next http.Handler, cfg AuthConfig) http.Handler {
 			writeError(w, http.StatusForbidden, "missing_tenant_claim", "token must include tenant_id")
 			return
 		}
-		if !tenantMatchesRequest(r, principal.TenantID) {
+		principal.SuperAdmin = isSuperAdmin(principal)
+		if !allowsCrossTenantInitialProvisioning(r, principal) && !tenantMatchesRequest(r, principal.TenantID) {
 			writeError(w, http.StatusForbidden, "tenant_mismatch", "request tenant does not match token tenant")
 			return
 		}
@@ -112,11 +114,10 @@ func authMiddleware(next http.Handler, cfg AuthConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_tenant_scope", bodyErr.Error())
 			return
 		}
-		if bodyTenantDeclared && bodyTenant != "" && bodyTenant != principal.TenantID {
+		if !allowsCrossTenantInitialProvisioning(r, principal) && bodyTenantDeclared && bodyTenant != "" && bodyTenant != principal.TenantID {
 			writeError(w, http.StatusForbidden, "tenant_mismatch", "request tenant does not match token tenant")
 			return
 		}
-		principal.SuperAdmin = isSuperAdmin(principal)
 		if cfg.AccessResolver != nil {
 			grants, grantErr := cfg.AccessResolver.ListTenantUserAccessForSubject(r.Context(), principal.TenantID, principal.Subject)
 			if grantErr != nil {
@@ -300,8 +301,26 @@ func tenantFromPath(path string) string {
 	return rest[:idx]
 }
 
+// allowsCrossTenantInitialProvisioning permits one dedicated provisioning endpoint only.
+// It never grants cross-tenant access to subscriber or MarketOps data routes.
+func allowsCrossTenantInitialProvisioning(r *http.Request, principal Principal) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/v1/administration/tenant-provisioning/access" && hasAnyRole(principal, roleTenantProvisioner)
+}
+
+func requireInitialProvisioningTenant(w http.ResponseWriter, r *http.Request, requestedTenant string) (string, bool) {
+	tenant := strings.TrimSpace(requestedTenant)
+	principal, authenticated := principalFromContext(r.Context())
+	if authenticated && hasAnyRole(principal, roleTenantProvisioner) && tenant != "" && tenant != strings.TrimSpace(principal.TenantID) {
+		return tenant, true
+	}
+	return requireRequestTenant(w, r, tenant)
+}
+
 func authorizedForRequest(r *http.Request, principal Principal) bool {
 	if isExperienceRequest(r) {
+		return true
+	}
+	if allowsCrossTenantInitialProvisioning(r, principal) {
 		return true
 	}
 	if principal.SuperAdmin {

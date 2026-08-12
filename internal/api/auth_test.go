@@ -269,6 +269,23 @@ func TestAuthEnabledRejectsMismatchedJSONBodyTenantBeforeHandler(t *testing.T) {
 	}
 }
 
+func TestTenantProvisionerCannotUseOtherCrossTenantRoute(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	called := false
+	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	}), fixture.authCfg)
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleTenantProvisioner, roleViewer}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketops/test", bytes.NewBufferString(`{"tenant_id":"tenant-other"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "tenant_mismatch") || called {
+		t.Fatalf("status=%d called=%t body=%s", recorder.Code, called, recorder.Body.String())
+	}
+}
+
 func TestAuthEnabledPreservesJSONBodyAfterTenantInspection(t *testing.T) {
 	fixture := newTestAuthFixture(t)
 	marker := ""

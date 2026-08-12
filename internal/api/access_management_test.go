@@ -11,14 +11,16 @@ import (
 )
 
 type accessManagementTestRepository struct {
-	lastListTenant string
-	lastUpsert     storage.TenantUserAccessRecord
-	upsertCount    int
+	lastListTenant    string
+	existing          []storage.TenantUserAccessRecord
+	lastUpsert        storage.TenantUserAccessRecord
+	upsertCount       int
+	initialGrantCount int
 }
 
 func (r *accessManagementTestRepository) ListTenantUserAccess(_ context.Context, tenantID string) ([]storage.TenantUserAccessRecord, error) {
 	r.lastListTenant = tenantID
-	return nil, nil
+	return r.existing, nil
 }
 
 func (*accessManagementTestRepository) ListTenantUserAccessForSubject(context.Context, string, string) ([]storage.TenantUserAccessRecord, error) {
@@ -29,6 +31,15 @@ func (r *accessManagementTestRepository) UpsertTenantUserAccess(_ context.Contex
 	r.lastUpsert = record
 	r.upsertCount++
 	return record, nil
+}
+
+func (r *accessManagementTestRepository) CreateInitialTenantUserAccess(_ context.Context, record storage.TenantUserAccessRecord, _, _ string) (storage.TenantUserAccessRecord, bool, error) {
+	if len(r.existing) != 0 {
+		return record, false, nil
+	}
+	r.lastUpsert = record
+	r.initialGrantCount++
+	return record, true, nil
 }
 
 func (*accessManagementTestRepository) DeleteTenantUserAccess(context.Context, string, string, string, string, string) error {
@@ -92,5 +103,47 @@ func TestAccessListBindsOmittedQueryTenantToAuthenticatedPrincipal(t *testing.T)
 	}
 	if repo.lastListTenant != "tenant-local" {
 		t.Fatalf("listed tenant = %q", repo.lastListTenant)
+	}
+}
+
+func TestTenantProvisionerCanCreateInitialCrossTenantGrant(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &accessManagementTestRepository{}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, AccessRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleTenantProvisioner}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/administration/tenant-provisioning/access", strings.NewReader(`{"tenant_id":"tenant-pilot-b","subject":"pilot-subject","display_name":"Pilot","email":"pilot@example.test","app_id":"marketops","permission":"read"}`))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if repo.initialGrantCount != 1 || repo.lastUpsert.TenantID != "tenant-pilot-b" || repo.lastUpsert.GrantedBy != "user-123" {
+		t.Fatalf("initial grants=%d grant=%+v", repo.initialGrantCount, repo.lastUpsert)
+	}
+}
+
+func TestTenantProvisionerCannotAddASecondInitialGrant(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &accessManagementTestRepository{existing: []storage.TenantUserAccessRecord{{TenantID: "tenant-pilot-b", Subject: "existing"}}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, AccessRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleTenantProvisioner}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/administration/tenant-provisioning/access", strings.NewReader(`{"tenant_id":"tenant-pilot-b","subject":"pilot-subject","app_id":"marketops","permission":"read"}`))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), "tenant_already_provisioned") || repo.initialGrantCount != 0 {
+		t.Fatalf("status=%d initial grants=%d body=%s", recorder.Code, repo.initialGrantCount, recorder.Body.String())
+	}
+}
+
+func TestSuperAdminWithoutProvisionerRoleCannotCrossTenantProvision(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &accessManagementTestRepository{}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, AccessRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{rolePlatformSuperAdmin}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/administration/tenant-provisioning/access", strings.NewReader(`{"tenant_id":"tenant-pilot-b","subject":"pilot-subject","app_id":"marketops","permission":"read"}`))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "tenant_mismatch") || repo.initialGrantCount != 0 {
+		t.Fatalf("status=%d initial grants=%d body=%s", recorder.Code, repo.initialGrantCount, recorder.Body.String())
 	}
 }

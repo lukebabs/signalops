@@ -40,6 +40,16 @@ Use two browser users in distinct tenants plus a tenant administrator:
 4. Verify a user cannot impersonate another subject and a non-administrator cannot manage a tenant-default resource.
 5. Retain correlation IDs, screenshots/request logs, and the unedited preflight output in the approved deployment evidence store.
 
+## Initial tenant bootstrap test
+
+The initial provisioner endpoint is a controlled setup operation, not a general cross-tenant administration feature:
+
+1. Create the Keycloak realm role `signalops:tenant_provisioner` and assign it only to the approved provisioning identity. Ensure its access token contains the role.
+2. With that identity's token, create the first `marketops` `read` or `write` grant for the pilot identity in `tenant-pilot-b` through `POST /v1/administration/tenant-provisioning/access`.
+3. Confirm the response is `201`, the immutable access audit identifies the provisioning subject, and the target tenant's first grant has the intended Keycloak `sub`.
+4. Repeat the request: it must return `409 tenant_already_provisioned`. Repeat with an identity without `signalops:tenant_provisioner`: it must return `403 tenant_mismatch`.
+5. Configure the pilot identity's one authoritative `tenant_id` claim and its SignalOps viewer/operator role, then sign in and confirm its tenant-scoped MarketOps access works. Do not leave multiple Keycloak mappers emitting `tenant_id`.
+
 ## Formal exit decision
 
 S0-A may be marked complete only after the deployment evidence and browser/cross-tenant test are reviewed by the security and platform owners. Until then, every subscriber rollout flag remains false and S1 global-catalog work must not be enabled.
