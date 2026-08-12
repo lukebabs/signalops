@@ -1,34 +1,50 @@
-# Sprint S3 ºw^~)Þt Lists and Authorization Projection
+# Sprint S3 - Lists and Authorization Projection
 
-Status: foundation in progress. The tenant-default/private-list schema is RLS-protected and has no registered browser or API route. The existing Assets experience remains unchanged.
+Status: storage layer complete; no subscriber list API, browser route, UI, feature-flag enablement, or data-collection worker is enabled. The existing MarketOps Assets experience remains unchanged.
 
-## First slice
+## Delivered storage boundary
 
-S3 introduces private preference records only:
+S3 adds centralized preference storage inside the existing SignalOps PostgreSQL database:
 
 - one durable tenant-default list per tenant;
 - subject-owned private lists;
-- membership rows that reference a platform-owned global asset ID;
-- immutable list-mutation audit records; and
-- forced tenant RLS using the established transaction-local `signalops.tenant_id` scope.
+- idempotent list memberships that reference a platform-owned global asset ID;
+- durable list-mutation audit records; and
+- forced tenant RLS using the established transaction-local signalops.tenant_id scope.
 
-The browser gateway receives CRUD access to tenant-private list tables and only `REFERENCES` privilege on the global-asset key. It receives no global-catalog `SELECT` privilege, no plan/ranking access, and no direct provider credential. Therefore a membership can reference a server-verified global asset without turning the shared catalog into an unrestricted tenant-data query surface.
+The browser gateway has CRUD access to tenant-private list tables and only REFERENCES privilege on the global-asset key. It has no global-catalog SELECT privilege, plan/ranking access, provider credential, or worker-table access. A membership can therefore reference a server-verified global asset without turning the shared catalog into an unrestricted tenant-data query surface.
 
-## Authorization contract
+## Repository authorization contract
 
-The S0-A gateway primitives remain mandatory for every future list route:
+The repository now provides:
 
-- tenant scope comes from the verified JWT claim;
-- a private-list owner must equal the immutable JWT subject;
-- a tenant-default-list mutation requires the existing tenant-administrator guard;
-- all list and membership reads/writes occur in `WithSubscriberTenantScope`;
-- a cross-tenant list identifier returns ordinary not-found behavior; and
-- cold-asset activation is evaluated only after a valid membership write, entitlement decision, and quota reservation.
+- creation of a subject's private list;
+- creation of a tenant-default list, for a caller already approved by the API tenant-administrator guard;
+- list reads limited to the tenant default and the requesting subject's private lists;
+- membership reads limited to the same authorized list set;
+- private-membership add/remove operations constrained to the owning subject; and
+- tenant-default membership operations reserved for a caller already approved by the API tenant-administrator guard.
 
-No S3 route is enabled in this slice. The next slice adds storage operations and negative authorization tests before an opt-in pilot route can be registered.
+Private list operations return not found for a foreign subject rather than disclosing list existence. Repeating an add returns the existing membership and does not write a second membership or audit event. Every successful create, add, and remove is captured in the tenant-scoped audit table.
 
-## Deployment evidence
+## Evidence
 
-Migration `000095_subscriber_watchlist_foundation` was applied to the local SignalOps PostgreSQL database on 2026-08-12. A rolled-back least-privilege transaction running as `signalops_subscriber_gateway` created a private list and referenced a global asset under `s3-tenant-a`. When the transaction-local tenant context changed to `s3-tenant-b`, the gateway role saw zero lists and zero memberships. The test left no records behind.
+Migration 000095_subscriber_watchlist_foundation was applied to the local SignalOps PostgreSQL database on 2026-08-12.
 
-This proves the table/RLS boundary and foreign-key privilege, not a user-facing rollout. No route, UI tab, feature flag enablement, scheduler, collection worker, or MarketOps legacy-table mutation was introduced.
+A rolled-back least-privilege transaction running as signalops_subscriber_gateway created a private list and referenced a global asset under s3-tenant-a. After the transaction-local tenant context changed to s3-tenant-b, that role saw zero lists and zero memberships. The probe left no records behind.
+
+The repository integration test also proves private-list subject isolation, tenant-default visibility, idempotent membership addition, private-list membership removal, and no foreign-subject private-list enumeration. It runs only when SIGNALOPS_SUBSCRIBER_RLS_INTEGRATION=1 and uses the local test PostgreSQL connection.
+
+## Explicit boundary
+
+This slice is durable storage and authorization-aware repository code, not a user-facing rollout:
+
+- No API route is registered.
+- No browser UI can create or view a subscriber list.
+- No feature flag is enabled.
+- No list action can yet enqueue a cold-asset activation.
+- No catalog, EOD, options, intraday, scheduler, or legacy MarketOps path changed.
+
+## Next S3 slice
+
+Add API handlers behind an off-by-default, tenant-scoped feature flag. The handlers must bind tenant and subject from the verified principal, require the tenant-administrator guard for tenant-default mutations, invoke only these repository operations, and add API-level cross-tenant and ownership-negative tests. The flag remains disabled until the workload-login preflight and browser evidence are complete.
