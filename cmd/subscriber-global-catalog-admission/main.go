@@ -88,6 +88,18 @@ func run(args []string) error {
 		if err != nil {
 			out.Failed++
 			out.Failures = append(out.Failures, candidate.ProviderSymbol+":"+err.Error())
+			now := time.Now().UTC()
+			evidence, encodeErr := json.Marshal(map[string]any{"provider": "massive", "provider_symbol": candidate.ProviderSymbol, "lookup_error": err.Error()})
+			if encodeErr != nil {
+				return encodeErr
+			}
+			if _, recordErr := repo.RecordSubscriberGlobalAssetEligibilityDecision(ctx, storage.SubscriberGlobalAssetEligibilityDecision{
+				GlobalAssetID: candidate.GlobalAssetID, Decision: "deferred", ReasonCode: "massive_reference_lookup_failed",
+				ProviderReferenceAt: &now, EvidenceJSON: evidence, ProvenanceJSON: admissionProvenance(*correlationID),
+				DecidedBy: *actor, DecidedAt: now,
+			}); recordErr != nil {
+				return recordErr
+			}
 			continue
 		}
 		decision := catalogadmission.Evaluate(details)

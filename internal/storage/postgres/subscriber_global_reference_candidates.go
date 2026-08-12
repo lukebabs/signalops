@@ -13,6 +13,7 @@ func (r *Repository) ListSubscriberGlobalReferenceCandidates(ctx context.Context
 	rows, err := r.db.QueryContext(ctx, `SELECT global_asset_id, source_id, provider_symbol, canonical_symbol
 FROM subscriber_global_assets
 WHERE eligibility_status='discovered'
+  AND NOT EXISTS (SELECT 1 FROM subscriber_global_asset_eligibility_decisions decision WHERE decision.global_asset_id=subscriber_global_assets.global_asset_id AND decision.decision='deferred')
 ORDER BY source_id, provider_symbol, global_asset_id
 LIMIT $1`, globalReferenceCandidateLimit(limit))
 	if err != nil {
