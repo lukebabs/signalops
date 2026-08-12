@@ -29,6 +29,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 ## Document set
 
 - [Global Catalog and Watchlist Roadmap](global_catalog_watchlists_roadmap.md): target architecture, data flow, options demand design, compatibility-first sprint plan, controls, and acceptance measures.
+- [Sprint S1 global-catalog shadow](s1_global_catalog_shadow.md): additive identity, immutable provenance, coverage-shadow, controlled seed, and parity evidence.
 - [MarketOps daily surveillance architecture](../../use_cases/marketops/daily_market_surveillance/architecture/functional_components.md): current production components.
 - [Sprint S0 — Baseline and Controls](s0_baseline_and_controls.md): read-only current-state baseline utility, metrics, evidence review, reserved flags, and rollback posture.
 - [Sprint S0-A — Access-control Hardening](s0a_access_control_hardening.md): principal-bound tenant enforcement and the deployment gate.
