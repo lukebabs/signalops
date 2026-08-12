@@ -33,6 +33,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [Sprint S0 — Baseline and Controls](s0_baseline_and_controls.md): read-only current-state baseline utility, metrics, evidence review, reserved flags, and rollback posture.
 - [Sprint S0-A — Access-control Hardening](s0a_access_control_hardening.md): principal-bound tenant enforcement and the deployment gate.
 - [Sprint S0-A exit checklist](s0a_exit_checklist.md): required workload-login, OIDC, browser, and cross-tenant evidence before enabling S1.
+- [S0-A deployment evidence — 2026-08-12](s0a_deployment_evidence_2026-08-12.md): pilot bootstrap, browser, mutation-denial, and cross-tenant validation record awaiting final approval.
 - [Entitlement and quota policy contract](entitlement_quota_policy.md): separate default-deny subscriber product-policy decision model.
 - [Shared-worker identity contract](worker_identities.md): least-privilege future worker identities and deployment boundary.
 - [Database row-level security decision](row_level_security_decision.md): hybrid subscriber-table RLS boundary and required rollout model.
