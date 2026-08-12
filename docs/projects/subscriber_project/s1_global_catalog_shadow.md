@@ -1,6 +1,6 @@
 # Sprint S1 ºw^~)Þt Global Catalog Shadow
 
-Status: implementation in progress; no new browser path, subscriber projection, or provider collection is enabled.
+Status: shadow schema, controlled seed, and parity evidence complete; no new browser path, subscriber projection, or provider collection is enabled.
 
 ## Delivered foundation
 
