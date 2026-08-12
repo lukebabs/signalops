@@ -8,36 +8,42 @@ import (
 )
 
 const (
-	defaultHTTPAddr                  = ":8080"
-	defaultBrokerProvider            = "redpanda"
-	defaultBrokerBrokers             = "redpanda:9092"
-	defaultEnvironment               = "local"
-	defaultDatabaseURL               = ""
-	defaultTemporalDatabaseURL       = ""
-	defaultAuthEnabled               = "false"
-	defaultAuthIssuer                = ""
-	defaultAuthRealm                 = ""
-	defaultAuthJWKSURL               = ""
-	defaultAuthAudience              = ""
-	defaultAuthClientID              = ""
-	defaultNotificationEncryptionKey = ""
+	defaultHTTPAddr                    = ":8080"
+	defaultBrokerProvider              = "redpanda"
+	defaultBrokerBrokers               = "redpanda:9092"
+	defaultEnvironment                 = "local"
+	defaultDatabaseURL                 = ""
+	defaultTemporalDatabaseURL         = ""
+	defaultAuthEnabled                 = "false"
+	defaultAuthIssuer                  = ""
+	defaultAuthRealm                   = ""
+	defaultAuthJWKSURL                 = ""
+	defaultAuthAudience                = ""
+	defaultAuthClientID                = ""
+	defaultNotificationEncryptionKey   = ""
+	defaultSubscriberListsEnabled      = "false"
+	defaultSubscriberListsPilotTenants = ""
+	defaultSubscriberListsDatabaseURL  = ""
 )
 
 // Config contains process-level settings for SignalOps services.
 type Config struct {
-	HTTPAddr                  string
-	BrokerProvider            string
-	BrokerBrokers             string
-	Environment               string
-	DatabaseURL               string
-	TemporalDatabaseURL       string
-	AuthEnabled               bool
-	AuthIssuer                string
-	AuthRealm                 string
-	AuthJWKSURL               string
-	AuthAudience              string
-	AuthClientID              string
-	NotificationEncryptionKey string
+	HTTPAddr                    string
+	BrokerProvider              string
+	BrokerBrokers               string
+	Environment                 string
+	DatabaseURL                 string
+	TemporalDatabaseURL         string
+	AuthEnabled                 bool
+	AuthIssuer                  string
+	AuthRealm                   string
+	AuthJWKSURL                 string
+	AuthAudience                string
+	AuthClientID                string
+	NotificationEncryptionKey   string
+	SubscriberListsEnabled      bool
+	SubscriberListsPilotTenants string
+	SubscriberListsDatabaseURL  string
 }
 
 // ValidateAuthConfiguration fails closed when JWT enforcement is enabled without
@@ -72,19 +78,22 @@ func (c Config) ValidateAuthConfiguration() error {
 // Load reads configuration from environment variables.
 func Load() Config {
 	return Config{
-		HTTPAddr:                  envOrDefault("SIGNALOPS_HTTP_ADDR", defaultHTTPAddr),
-		BrokerProvider:            envOrDefault("SIGNALOPS_BROKER_PROVIDER", defaultBrokerProvider),
-		BrokerBrokers:             envOrDefault("SIGNALOPS_BROKER_BROKERS", defaultBrokerBrokers),
-		Environment:               envOrDefault("SIGNALOPS_ENV", defaultEnvironment),
-		DatabaseURL:               envOrDefault("SIGNALOPS_DATABASE_URL", defaultDatabaseURL),
-		TemporalDatabaseURL:       envOrDefault("SIGNALOPS_TEMPORAL_DATABASE_URL", defaultTemporalDatabaseURL),
-		AuthEnabled:               envBool("SIGNALOPS_AUTH_ENABLED", defaultAuthEnabled),
-		AuthIssuer:                envOrDefault("SIGNALOPS_AUTH_ISSUER", defaultAuthIssuer),
-		AuthRealm:                 envOrDefault("SIGNALOPS_AUTH_REALM", defaultAuthRealm),
-		AuthJWKSURL:               envOrDefault("SIGNALOPS_AUTH_JWKS_URL", defaultAuthJWKSURL),
-		AuthAudience:              envOrDefault("SIGNALOPS_AUTH_AUDIENCE", defaultAuthAudience),
-		AuthClientID:              envOrDefault("SIGNALOPS_AUTH_CLIENT_ID", defaultAuthClientID),
-		NotificationEncryptionKey: envOrDefault("SIGNALOPS_NOTIFICATION_ENCRYPTION_KEY", defaultNotificationEncryptionKey),
+		HTTPAddr:                    envOrDefault("SIGNALOPS_HTTP_ADDR", defaultHTTPAddr),
+		BrokerProvider:              envOrDefault("SIGNALOPS_BROKER_PROVIDER", defaultBrokerProvider),
+		BrokerBrokers:               envOrDefault("SIGNALOPS_BROKER_BROKERS", defaultBrokerBrokers),
+		Environment:                 envOrDefault("SIGNALOPS_ENV", defaultEnvironment),
+		DatabaseURL:                 envOrDefault("SIGNALOPS_DATABASE_URL", defaultDatabaseURL),
+		TemporalDatabaseURL:         envOrDefault("SIGNALOPS_TEMPORAL_DATABASE_URL", defaultTemporalDatabaseURL),
+		AuthEnabled:                 envBool("SIGNALOPS_AUTH_ENABLED", defaultAuthEnabled),
+		AuthIssuer:                  envOrDefault("SIGNALOPS_AUTH_ISSUER", defaultAuthIssuer),
+		AuthRealm:                   envOrDefault("SIGNALOPS_AUTH_REALM", defaultAuthRealm),
+		AuthJWKSURL:                 envOrDefault("SIGNALOPS_AUTH_JWKS_URL", defaultAuthJWKSURL),
+		AuthAudience:                envOrDefault("SIGNALOPS_AUTH_AUDIENCE", defaultAuthAudience),
+		AuthClientID:                envOrDefault("SIGNALOPS_AUTH_CLIENT_ID", defaultAuthClientID),
+		NotificationEncryptionKey:   envOrDefault("SIGNALOPS_NOTIFICATION_ENCRYPTION_KEY", defaultNotificationEncryptionKey),
+		SubscriberListsEnabled:      envBool("SIGNALOPS_SUBSCRIBER_LISTS_ENABLED", defaultSubscriberListsEnabled),
+		SubscriberListsPilotTenants: envOrDefault("SIGNALOPS_SUBSCRIBER_LISTS_PILOT_TENANTS", defaultSubscriberListsPilotTenants),
+		SubscriberListsDatabaseURL:  envOrDefault("SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL", defaultSubscriberListsDatabaseURL),
 	}
 }
 

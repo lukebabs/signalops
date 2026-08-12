@@ -48,3 +48,25 @@ This slice is durable storage and authorization-aware repository code, not a use
 ## Next S3 slice
 
 Add API handlers behind an off-by-default, tenant-scoped feature flag. The handlers must bind tenant and subject from the verified principal, require the tenant-administrator guard for tenant-default mutations, invoke only these repository operations, and add API-level cross-tenant and ownership-negative tests. The flag remains disabled until the workload-login preflight and browser evidence are complete.
+
+## Disabled API boundary
+
+The gateway can register the following routes only when all of these conditions are true:
+
+1. SIGNALOPS_SUBSCRIBER_LISTS_ENABLED is explicitly true.
+2. The tenant is named in SIGNALOPS_SUBSCRIBER_LISTS_PILOT_TENANTS.
+3. SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL supplies a dedicated least-privilege gateway login.
+
+The gateway refuses to start with the feature flag enabled and no dedicated subscriber gateway database URL. It must not reuse the ordinary gateway database credential for subscriber-private tables.
+
+The initially available, still-disabled routes are:
+
+- GET /v1/tenants/{tenant_id}/marketops/subscriber/lists
+- GET /v1/tenants/{tenant_id}/marketops/subscriber/lists/{list_id}/memberships
+- POST /v1/tenants/{tenant_id}/marketops/subscriber/private-lists
+- POST /v1/tenants/{tenant_id}/marketops/subscriber/tenant-default-list
+- POST /v1/tenants/{tenant_id}/marketops/subscriber/lists/{list_id}/memberships
+
+Every route binds the tenant and immutable subject from the verified principal. The tenant-default create and membership paths also require the existing tenant-administrator guard. API tests prove routes are absent by default, tenant scope reaches storage unchanged, foreign tenant paths are rejected, and a viewer cannot mutate a tenant-default list.
+
+No frontend calls these routes. The pilot remains disabled until the dedicated workload-login preflight and browser validation evidence are complete.

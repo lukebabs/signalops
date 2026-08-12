@@ -41,20 +41,23 @@ var supportedDashboardStreamChannels = map[string]struct{}{
 
 // RouterConfig contains process-local API wiring options.
 type RouterConfig struct {
-	ServiceName                  string
-	MarketOpsBacktestRunner      func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
-	Auth                         AuthConfig
-	Publisher                    broker.Publisher
-	RawTopic                     string
-	Environment                  string
-	QueryRepository              storage.QueryRepository
-	AccessRepository             storage.TenantUserAccessRepository
-	CyberOpsConnectRepository    storage.CyberOpsConnectRepository
-	PlatformDefinitionRepository storage.PlatformPrimitiveDefinitionRepository
-	PublishRepository            storage.PublishRepository
-	SyncraticAskClient           syncraticAskClient
-	NotificationEncryptionKey    string
-	MarketQuoteClient            interface {
+	ServiceName                   string
+	MarketOpsBacktestRunner       func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
+	Auth                          AuthConfig
+	Publisher                     broker.Publisher
+	RawTopic                      string
+	Environment                   string
+	QueryRepository               storage.QueryRepository
+	AccessRepository              storage.TenantUserAccessRepository
+	CyberOpsConnectRepository     storage.CyberOpsConnectRepository
+	PlatformDefinitionRepository  storage.PlatformPrimitiveDefinitionRepository
+	PublishRepository             storage.PublishRepository
+	SyncraticAskClient            syncraticAskClient
+	NotificationEncryptionKey     string
+	SubscriberListsEnabled        bool
+	SubscriberListsPilotTenants   map[string]struct{}
+	SubscriberWatchlistRepository storage.SubscriberWatchlistRepository
+	MarketQuoteClient             interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}
 }
@@ -84,6 +87,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerRetentionGovernanceRoutes(mux, cfg.QueryRepository)
 	registerAdministrationNotificationRoutes(mux, cfg)
 	registerAdministrationSMTPRoutes(mux, cfg)
+	if cfg.SubscriberListsEnabled {
+		registerSubscriberWatchlistRoutes(mux, cfg)
+	}
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{
