@@ -29,6 +29,8 @@ The S1 seed has 178 identities, all intentionally `discovered`. Its compatibilit
 
 ## Deterministic hot-set shadow
 
+Before planning, source-scoped compatibility identities are resolved to one deterministic canonical security. `src-massive` is the preferred head when available; source links and immutable observations are preserved under their original IDs. This prevents a symbol present in both `src-massive` and `src-spglobal` from producing duplicate provider pulls or EOD outputs.
+
 The pure planner considers up to 10,000 global candidates, selects only eligible assets with an active source link, then sorts by:
 
 1. lowest active compatibility-source rank;

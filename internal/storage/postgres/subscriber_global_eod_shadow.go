@@ -12,13 +12,24 @@ import (
 )
 
 func (r *Repository) ListSubscriberGlobalEODHotSetCandidates(ctx context.Context, limit int) ([]storage.SubscriberGlobalEODHotSetCandidate, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT a.global_asset_id, a.eligibility_status,
-  count(l.*) FILTER (WHERE l.source_is_active)::int AS active_source_rows,
-  COALESCE(min(l.source_rank) FILTER (WHERE l.source_is_active), 0)::int AS best_source_rank
-FROM subscriber_global_assets a
-LEFT JOIN subscriber_global_asset_source_links l ON l.global_asset_id=a.global_asset_id
-GROUP BY a.global_asset_id, a.eligibility_status
-ORDER BY a.global_asset_id
+	rows, err := r.db.QueryContext(ctx, `WITH canonical_sources AS (
+  SELECT resolution.canonical_global_asset_id, source.global_asset_id, source.eligibility_status
+  FROM subscriber_global_asset_identity_resolutions resolution
+  JOIN subscriber_global_assets source ON source.global_asset_id=resolution.source_global_asset_id
+), candidate_evidence AS (
+  SELECT canonical_global_asset_id,
+    bool_or(eligibility_status='eligible') AS has_eligible_source,
+    count(link.*) FILTER (WHERE link.source_is_active)::int AS active_source_rows,
+    COALESCE(min(link.source_rank) FILTER (WHERE link.source_is_active), 0)::int AS best_source_rank
+  FROM canonical_sources source
+  LEFT JOIN subscriber_global_asset_source_links link ON link.global_asset_id=source.global_asset_id
+  GROUP BY canonical_global_asset_id
+)
+SELECT canonical_global_asset_id,
+  CASE WHEN has_eligible_source THEN 'eligible' ELSE 'ineligible' END,
+  active_source_rows, best_source_rank
+FROM candidate_evidence
+ORDER BY canonical_global_asset_id
 LIMIT $1`, globalEODPlannerCandidateLimit(limit))
 	if err != nil {
 		return nil, fmt.Errorf("list global EOD hot-set candidates: %w", err)
@@ -89,10 +100,7 @@ VALUES ($1,$2,$3,NULLIF($4,0),'eligible_active_ranked')`, plan.PlanRunID, member
 }
 
 func globalEODPlannerCandidateLimit(limit int) int {
-	if limit <= 0 {
-		return 10000
-	}
-	if limit > 10000 {
+	if limit <= 0 || limit > 10000 {
 		return 10000
 	}
 	return limit
