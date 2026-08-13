@@ -9,3 +9,9 @@ Migration `000101_subscriber_catalog_function_rls` replaces only that function w
 The retry repair re-evaluates a previously released quota reservation before re-reserving it. This permits a valid retry after the failed pre-repair request while preserving the ten-request pilot quota.
 
 Transactional verification produced one queued result for the pilot user and zero rows for the same list when scoped to `tenant-local`; all probe mutations were rolled back.
+
+## Live deployment evidence
+
+Gateway revision `af6e68e` and migration `000101_subscriber_catalog_function_rls` are live. The final production transaction proof repeated the queued pilot result and zero foreign-tenant rows. The three failed pre-repair browser attempts remain released quota reservations; no user membership or activation request was created by them.
+
+Retrying **Add to private list** now will re-evaluate the released reservation, add the canonical asset, consume one of the ten EOD-activation quota units, and create one deduplicated central `queued` request. It still will not call a provider or start an EOD worker.

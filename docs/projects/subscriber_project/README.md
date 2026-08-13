@@ -41,6 +41,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [Sprint S5 subscriber catalog search](s5_subscriber_catalog_search.md): pilot-only, active-entitlement-gated global catalog projection with no direct catalog read privilege or provider side effect.
 - [S5 pilot capability activation](s5_pilot_capability_activation_2026-08-13.md): live `tenant-pilot-b` policy of catalog search 50 and ten quota-enforced, provider-free EOD activation requests; Options remains disabled.
 - [S5 canonical catalog projection](s5_canonical_catalog_projection_2026-08-13.md): source provenance retained while subscriber search returns one canonical governed security.
+- [S5 catalog membership repair](s5_catalog_membership_repair_2026-08-13.md): live fix for the private-list add mutation, with retry-safe quota reuse and cross-tenant proof.
 - [Central data, business continuity, and disaster recovery](central_data_business_continuity_disaster_recovery.md): centralized storage model, dependency order, recovery controls, and the required pre-pilot rehearsal.
 - [Production backup and restore runbook](production_backup_restore_runbook.md): procurement inputs, encrypted PostgreSQL/PITR backup procedure, restore sequence, and acceptance evidence required before production pilot enablement.
 - [MarketOps daily surveillance architecture](../../use_cases/marketops/daily_market_surveillance/architecture/functional_components.md): current production components.
