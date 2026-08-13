@@ -23,6 +23,9 @@ func (r *Repository) PrepareSubscriberGlobalEODCanary(ctx context.Context, reque
 	if request.CanaryRunID == "" {
 		request.CanaryRunID = newSubscriberID("subeodcanary")
 	}
+	if request.StartPriority == 0 {
+		request.StartPriority = 1
+	}
 	if request.PlanRunID == "" || request.PreparedBy == "" || request.MaxSymbols <= 0 || request.MaxSymbols > eodcanary.MaximumCanarySize || request.SessionDate.IsZero() {
 		return request, errors.New("invalid global EOD canary preparation")
 	}
@@ -40,10 +43,13 @@ func (r *Repository) PrepareSubscriberGlobalEODCanary(ctx context.Context, reque
 	if err := tx.QueryRowContext(ctx, `SELECT execution_mode FROM subscriber_global_eod_hot_set_plan_runs WHERE plan_run_id=$1`, request.PlanRunID).Scan(&executionMode); err != nil {
 		return request, fmt.Errorf("load shadow plan for global EOD canary: %w", err)
 	}
+	if request.StartPriority <= 0 {
+		return request, errors.New("global EOD canary start priority must be positive")
+	}
 	if executionMode != "shadow" {
 		return request, errors.New("global EOD canary must derive from a shadow plan")
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT global_asset_id,priority,COALESCE(source_rank,0) FROM subscriber_global_eod_hot_set_plan_members WHERE plan_run_id=$1 ORDER BY priority,global_asset_id`, request.PlanRunID)
+	rows, err := tx.QueryContext(ctx, `SELECT global_asset_id,priority,COALESCE(source_rank,0) FROM subscriber_global_eod_hot_set_plan_members WHERE plan_run_id=$1 AND priority >= $2 ORDER BY priority,global_asset_id`, request.PlanRunID, request.StartPriority)
 	if err != nil {
 		return request, fmt.Errorf("list shadow plan members for global EOD canary: %w", err)
 	}
@@ -69,6 +75,7 @@ func (r *Repository) PrepareSubscriberGlobalEODCanary(ctx context.Context, reque
 		"provider_execution_enabled":  false,
 		"scheduled_execution_enabled": false,
 		"parity_required":             true,
+		"start_priority":              request.StartPriority,
 	})
 	if err != nil {
 		return request, fmt.Errorf("encode global EOD canary report: %w", err)

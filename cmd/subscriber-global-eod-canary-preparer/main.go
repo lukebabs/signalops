@@ -31,6 +31,7 @@ func run(args []string) error {
 	planRunID := flags.String("plan-run-id", "", "required S2 shadow plan run id")
 	sessionDate := flags.String("session-date", "", "required completed market-session date (YYYY-MM-DD)")
 	maxSymbols := flags.Int("max-symbols", 10, "bounded canary size, from 1 through 50")
+	startPriority := flags.Int("start-priority", 1, "first frozen shadow-plan priority eligible for this canary")
 	actor := flags.String("actor", "subscriber-global-eod-reconciler", "controlled global EOD worker identity")
 	correlationID := flags.String("correlation-id", "", "optional trace correlation id")
 	execute := flags.Bool("execute", false, "persist the prepared canary cohort")
@@ -47,7 +48,7 @@ func run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("parse session date: %w", err)
 	}
-	if *maxSymbols <= 0 || *maxSymbols > eodcanary.MaximumCanarySize {
+	if *maxSymbols <= 0 || *maxSymbols > eodcanary.MaximumCanarySize || *startPriority <= 0 {
 		return errors.New("max symbols must be between 1 and 50")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -58,7 +59,7 @@ func run(args []string) error {
 	}
 	defer repo.Close()
 	prepared, err := repo.PrepareSubscriberGlobalEODCanary(ctx, storage.SubscriberGlobalEODCanaryPreparation{
-		PlanRunID: *planRunID, SessionDate: parsedSessionDate, MaxSymbols: *maxSymbols,
+		PlanRunID: *planRunID, SessionDate: parsedSessionDate, StartPriority: *startPriority, MaxSymbols: *maxSymbols,
 		PreparedBy: *actor, CorrelationID: *correlationID,
 	})
 	if err != nil {

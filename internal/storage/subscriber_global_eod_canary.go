@@ -18,6 +18,7 @@ type SubscriberGlobalEODCanaryPreparation struct {
 	CanaryRunID   string
 	PlanRunID     string
 	SessionDate   time.Time
+	StartPriority int
 	MaxSymbols    int
 	Members       []SubscriberGlobalEODCanaryMember
 	PreparedBy    string
