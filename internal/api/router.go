@@ -41,25 +41,26 @@ var supportedDashboardStreamChannels = map[string]struct{}{
 
 // RouterConfig contains process-local API wiring options.
 type RouterConfig struct {
-	ServiceName                     string
-	MarketOpsBacktestRunner         func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
-	Auth                            AuthConfig
-	Publisher                       broker.Publisher
-	RawTopic                        string
-	Environment                     string
-	QueryRepository                 storage.QueryRepository
-	AccessRepository                storage.TenantUserAccessRepository
-	CyberOpsConnectRepository       storage.CyberOpsConnectRepository
-	PlatformDefinitionRepository    storage.PlatformPrimitiveDefinitionRepository
-	PublishRepository               storage.PublishRepository
-	SyncraticAskClient              syncraticAskClient
-	NotificationEncryptionKey       string
-	SubscriberListsEnabled          bool
-	SubscriberListsPilotTenants     map[string]struct{}
-	SubscriberWatchlistRepository   storage.SubscriberWatchlistRepository
-	SubscriberCatalogRepository     storage.SubscriberCatalogProjectionRepository
-	SubscriberEntitlementRepository storage.SubscriberEntitlementRepository
-	MarketQuoteClient               interface {
+	ServiceName                           string
+	MarketOpsBacktestRunner               func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
+	Auth                                  AuthConfig
+	Publisher                             broker.Publisher
+	RawTopic                              string
+	Environment                           string
+	QueryRepository                       storage.QueryRepository
+	AccessRepository                      storage.TenantUserAccessRepository
+	CyberOpsConnectRepository             storage.CyberOpsConnectRepository
+	PlatformDefinitionRepository          storage.PlatformPrimitiveDefinitionRepository
+	PublishRepository                     storage.PublishRepository
+	SyncraticAskClient                    syncraticAskClient
+	NotificationEncryptionKey             string
+	SubscriberListsEnabled                bool
+	SubscriberListsPilotTenants           map[string]struct{}
+	SubscriberWatchlistRepository         storage.SubscriberWatchlistRepository
+	SubscriberCatalogRepository           storage.SubscriberCatalogProjectionRepository
+	SubscriberEntitlementRepository       storage.SubscriberEntitlementRepository
+	SubscriberCatalogMembershipRepository storage.SubscriberCatalogMembershipRepository
+	MarketQuoteClient                     interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}
 }
@@ -92,6 +93,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	if cfg.SubscriberListsEnabled {
 		registerSubscriberWatchlistRoutes(mux, cfg)
 		registerSubscriberCatalogRoutes(mux, cfg)
+		registerSubscriberCatalogMembershipRoutes(mux, cfg)
 	}
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

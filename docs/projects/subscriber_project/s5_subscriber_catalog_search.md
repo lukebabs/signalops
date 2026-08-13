@@ -8,4 +8,4 @@ Migration `000098_subscriber_catalog_search_projection` adds `subscriber_search_
 
 The current pilot entitlement intentionally has metered capabilities disabled. Therefore the route fails closed with `subscriber_catalog_not_entitled` until product ownership explicitly enables `catalog_search` for the tenant. This is expected; implementation does not silently change entitlements.
 
-A later S5 membership-and-activation increment must server-verify the selected global asset, preserve the private-list ownership/tenant-default administrator boundary, write a durable activation request only for eligible cold assets, and retain the no-browser-provider-call contract.
+The delivered private membership route requires the separate `eod_activation` entitlement, server-verifies an eligible global asset, preserves private-list ownership, writes one audit record for a new membership, and writes at most one central `queued` activation request for a cold asset. It cannot call Massive or mutate a tenant-default list.

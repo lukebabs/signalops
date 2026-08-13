@@ -53,11 +53,15 @@ func registerSubscriberCatalogRoutes(mux *http.ServeMux, cfg RouterConfig) {
 }
 
 func subscriberCatalogSearchEnabled(entitlement storage.SubscriberEntitlementRecord) bool {
+	return subscriberCapabilityEnabled(entitlement, "catalog_search")
+}
+
+func subscriberCapabilityEnabled(entitlement storage.SubscriberEntitlementRecord, required string) bool {
 	if entitlement.Status != storage.SubscriberEntitlementActive {
 		return false
 	}
 	for _, capability := range entitlement.Capabilities {
-		if capability.Capability == "catalog_search" && capability.Enabled && capability.QuotaLimit > 0 {
+		if capability.Capability == required && capability.Enabled && capability.QuotaLimit > 0 {
 			return true
 		}
 	}
