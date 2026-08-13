@@ -1,6 +1,6 @@
 # Subscriber Project Production Backup and Restore Runbook
 
-Status: required production gate; not yet provisioned.
+Status: implementation prepared; privileged production activation and restore rehearsal pending.
 
 ## Purpose and boundary
 
@@ -50,6 +50,48 @@ SIGNALOPS_BACKUP_PGBACKREST_CONFIG=/etc/pgbackrest/pgbackrest.conf \
 The check rejects root identities and non-assumed-role credentials, and performs no backup, WAL, or object-write operation. Its pass output is prerequisite evidence, not a substitute for the first verified backup and restore rehearsal.
 
 Copying a Docker named volume is not an accepted production backup. It does not provide a consistent PostgreSQL recovery point, WAL continuity, off-host durability, encryption, or a tested restore path.
+
+## Implemented pgBackRest architecture
+
+The production path is: restricted root-only backup-runner key -> STS assume-role every 30 minutes -> root-owned rendered pgBackRest config (temporary credentials and cipher pass) -> read-only bind mount to PostgreSQL (postgres group only) -> pgBackRest encrypted S3 backup and continuous WAL archive.
+
+`signalops-postgres-backup-runner` can only assume `signalops-postgres-backup`; the role owns the narrowly scoped bucket permissions. The static runner key never enters the container. The rendered config is `root:70` mode `0640`; group 70 is the fixed `postgres` group in the PostgreSQL 16 Alpine image. pgBackRest `aes-256-cbc` encryption is independent of S3 default SSE-S3. The database remains the operational source of truth; S3 holds only recovery artifacts.
+
+### Activation
+
+The first activation causes one brief PostgreSQL restart to apply `archive_mode=on`, pgBackRest archival, and `archive_timeout=15min`. From the production host, run:
+
+```bash
+sudo ./scripts/provision_signalops_pgbackrest.sh /tmp/signalops-postgres-backup-runner-access-key.json
+```
+
+The idempotent provisioner creates protected source and cipher files under `/etc/signalops`, renders temporary-role credentials, builds the PostgreSQL 16 + pgBackRest image, creates the stanza, restarts only PostgreSQL, takes the first full backup, installs the system timers, and removes the one-time key handoff. It is not a workstation command.
+
+| Unit | Cadence | Responsibility |
+| --- | --- | --- |
+| `signalops-pgbackrest-credentials.timer` | boot + every 30 minutes | refresh the one-hour STS role session and atomically render the config |
+| `signalops-postgres-pgbackrest.timer` | 02:15 UTC daily | full backup on the first day of each month; differential otherwise |
+
+Retention is 12 monthly full points and 35 differential daily points. WAL archive forcing every 15 minutes defines the maximum archival interval.
+
+### Restore rehearsal
+
+After the first backup, run this isolated rehearsal before closing the gate:
+
+```bash
+sudo SIGNALOPS_PGBACKREST_CONFIG_PATH=/etc/signalops/pgbackrest.conf ./scripts/signalops_postgres_restore_rehearsal.sh
+```
+
+It verifies the repository, restores to a fresh temporary Docker volume, starts a separate PostgreSQL container, validates `SELECT 1`, and removes the temporary recovery resources. Record the backup label, command output, start/end time, restored version, and query result as evidence.
+
+For routine non-mutating health verification:
+
+```bash
+sudo SIGNALOPS_PGBACKREST_CONFIG_PATH=/etc/signalops/pgbackrest.conf ./scripts/signalops_postgres_backup.sh check
+sudo systemctl status signalops-pgbackrest-credentials.timer signalops-postgres-pgbackrest.timer --no-pager
+```
+
+Any credential-refresh, archive, recovery-point, or rehearsal failure leaves the production recovery gate open. Repair it before re-enabling the authorized S6 provider capture.
 
 ## Incident restore procedure
 
