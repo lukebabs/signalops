@@ -1,6 +1,6 @@
 # Sprint S4 — Shared EOD Canary
 
-Status: prepared-cohort implementation. Provider collection, scheduler cutover, coverage activation, and legacy MarketOps changes remain disabled.
+Status: a one-time two-symbol live canary was executed under the separate authorization in `000103`; parity failed closed. Scheduler cutover, coverage activation, and legacy MarketOps changes remain disabled.
 
 ## Purpose
 
@@ -36,4 +36,4 @@ A later, separately approved S4 execution slice must retain:
 6. rollback that disables the new worker without deleting the prepared run, catalog, shared evidence, or legacy results; and
 7. confirmation that no subscriber browser action or membership change can start the worker.
 
-Until that slice lands and its evidence is approved, S4 remains prepared-only and the current MarketOps EOD scheduler remains authoritative.
+The live slice is now implemented and its [execution evidence](s4_live_canary_execution_evidence_2026-08-13.md) records a 0/2 parity result. The current MarketOps EOD scheduler remains authoritative; no expansion is approved.
