@@ -81,8 +81,8 @@ pg1-path=/var/lib/postgresql/data
 pg1-user=postgres
 EOF
 
-chown root:70 ""
-chmod 0640 ""
-mv -f "" ""
+chown root:70 "$rendered"
+chmod 0640 "$rendered"
+mv -f "$rendered" "$config_path"
 trap - EXIT
 printf 'Rendered renewed pgBackRest assumed-role configuration at %s.\n' "$config_path"
