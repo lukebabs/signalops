@@ -37,6 +37,18 @@ Recommended planning defaults—subject to owner approval—are a 15-minute RPO,
 7. Back up Keycloak realm/client configuration and retain a separate controlled recovery path for deployment secrets; the database backup does not restore either system.
 8. Restore to the isolated environment and record the evidence before production Subscriber enablement; repeat on the approved cadence.
 
+Before enabling WAL archival or taking the first backup, run the read-only runner check with the secret-manager supplied environment:
+
+```bash
+AWS_PROFILE=signalops-postgres-backup \
+SIGNALOPS_BACKUP_ROLE_ARN=arn:aws:iam::<account-id>:role/signalops-postgres-backup \
+SIGNALOPS_BACKUP_BUCKET=<dedicated-bucket> \
+SIGNALOPS_BACKUP_PGBACKREST_CONFIG=/etc/pgbackrest/pgbackrest.conf \
+./scripts/subscriber_project_backup_runner_preflight.sh
+```
+
+The check rejects root identities and non-assumed-role credentials, and performs no backup, WAL, or object-write operation. Its pass output is prerequisite evidence, not a substitute for the first verified backup and restore rehearsal.
+
 Copying a Docker named volume is not an accepted production backup. It does not provide a consistent PostgreSQL recovery point, WAL continuity, off-host durability, encryption, or a tested restore path.
 
 ## Incident restore procedure
