@@ -38,25 +38,56 @@ func erocRows(rows []storage.MarketOpsValuationResultRecord) []erocRow {
 }
 func enrichEROCOptionsFlow(ctx context.Context, repo storage.QueryRepository, tenant string, rows []erocRow) error {
 	reader, ok := any(repo).(erocOptionsDistributionReader)
-	if !ok { return nil }
+	if !ok {
+		return nil
+	}
 	for index := range rows {
 		distributions, err := reader.ListMarketOpsOptionsDistributions(ctx, storage.MarketOpsOptionsDistributionFilter{TenantID: tenant, Symbol: rows[index].Ticker, WindowName: "10_trade_days", Limit: 10})
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		for _, distribution := range distributions {
-			if distribution.TradeDate.UTC().Format("2006-01-02") != rows[index].TradeDate { continue }
+			if distribution.TradeDate.UTC().Format("2006-01-02") != rows[index].TradeDate {
+				continue
+			}
 			trace := rows[index].Trace
 			trace["total_option_volume"] = distribution.TotalCallVolume + distribution.TotalPutVolume
 			if distribution.TotalCallVolume > 0 {
 				ratio := float64(distribution.TotalPutVolume) / float64(distribution.TotalCallVolume)
 				trace["put_call_volume_ratio"] = ratio
-				if distribution.TotalCallVolume + distribution.TotalPutVolume >= 1000 {
-					if ratio < .30 { trace["options_flow_extreme"] = "call_volume_extreme" } else if ratio > 1.20 { trace["options_flow_extreme"] = "put_volume_extreme" }
+				if distribution.TotalCallVolume+distribution.TotalPutVolume >= 1000 {
+					if ratio < .30 {
+						trace["options_flow_extreme"] = "call_volume_extreme"
+					} else if ratio > 1.20 {
+						trace["options_flow_extreme"] = "put_volume_extreme"
+					}
 				}
 			}
 			break
 		}
 	}
 	return nil
+}
+
+func scopedEROCRows(w http.ResponseWriter, r *http.Request, cfg RouterConfig, rows []erocRow) ([]erocRow, bool) {
+	tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+	if !ok {
+		return nil, false
+	}
+	context, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+	if !ok {
+		return nil, false
+	}
+	if !subscriberWatchlistContextEnabled(cfg, tenantID) {
+		return rows, true
+	}
+	visible := rows[:0]
+	for _, row := range rows {
+		if _, allowed := context.Tickers[strings.ToUpper(row.Ticker)]; allowed {
+			visible = append(visible, row)
+		}
+	}
+	return visible, true
 }
 
 func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
@@ -74,6 +105,10 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			return
 		}
 		all := erocRows(rows)
+		all, ok := scopedEROCRows(w, r, cfg, all)
+		if !ok {
+			return
+		}
 		latest := map[string]erocRow{}
 		for _, row := range all {
 			if current, ok := latest[row.Ticker]; !ok || row.TradeDate > current.TradeDate {
@@ -105,7 +140,12 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		}
 		cutoff := time.Now().UTC().AddDate(0, 0, -days*3)
 		groups := map[string]map[string][]erocRow{}
-		for _, row := range erocRows(rows) {
+		all := erocRows(rows)
+		all, ok := scopedEROCRows(w, r, cfg, all)
+		if !ok {
+			return
+		}
+		for _, row := range all {
 			d, _ := time.Parse("2006-01-02", row.TradeDate)
 			if d.Before(cutoff) {
 				continue

@@ -8,6 +8,8 @@ import (
 const (
 	SubscriberWatchlistKindTenantDefault = "tenant_default"
 	SubscriberWatchlistKindPrivate       = "private"
+	SubscriberWatchlistContextModeList   = "list"
+	SubscriberWatchlistContextModeAll    = "all"
 )
 
 type SubscriberWatchlistRecord struct {
@@ -50,6 +52,18 @@ type SubscriberWatchlistItemRecord struct {
 	AddedAt           time.Time
 }
 
+// SubscriberWatchlistContextPreference is a subject-owned UX preference. It
+// contains no market data and is always resolved against the caller's current
+// authorized list set before it can be used by a MarketOps read.
+type SubscriberWatchlistContextPreference struct {
+	TenantID       string
+	Subject        string
+	SelectionMode  string
+	ListID         string
+	UpdatedAt      time.Time
+	ProvenanceJSON []byte
+}
+
 type SubscriberWatchlistCreateRequest struct {
 	ListID         string
 	TenantID       string
@@ -76,6 +90,8 @@ type SubscriberWatchlistRepository interface {
 	CreateSubscriberPrivateWatchlist(context.Context, SubscriberWatchlistCreateRequest) (SubscriberWatchlistRecord, error)
 	CreateSubscriberTenantDefaultWatchlist(context.Context, SubscriberWatchlistCreateRequest) (SubscriberWatchlistRecord, error)
 	ListSubscriberWatchlists(context.Context, string, string) ([]SubscriberWatchlistRecord, error)
+	GetSubscriberWatchlistContextPreference(context.Context, string, string) (SubscriberWatchlistContextPreference, error)
+	SetSubscriberWatchlistContextPreference(context.Context, SubscriberWatchlistContextPreference) (SubscriberWatchlistContextPreference, error)
 	ListSubscriberWatchlistMemberships(context.Context, string, string, string) ([]SubscriberWatchlistMembershipRecord, error)
 	ListSubscriberWatchlistItems(context.Context, string, string, string) ([]SubscriberWatchlistItemRecord, error)
 	AddSubscriberPrivateWatchlistMembership(context.Context, SubscriberWatchlistMembershipRequest) (SubscriberWatchlistMembershipRecord, error)

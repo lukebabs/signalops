@@ -180,6 +180,8 @@ import type {
   SubscriberWatchlistsResponse,
   SubscriberWatchlistItemsResponse,
   SubscriberWatchlistCreateRequest,
+  SubscriberWatchlistContext,
+  SubscriberWatchlistContextRequest,
   SubscriberWatchlist,
   SubscriberCatalogResponse,
   SubscriberCatalogMembershipResult,
@@ -815,6 +817,10 @@ export const api = {
     get<MarketOpsSRIRankingsResponse>("/v1/marketops/sectors/rankings", { tenant_id: tenantId, segment_type: segmentType || undefined, state: state || undefined }),
   listSubscriberWatchlists: (tenantId: string) =>
     get<SubscriberWatchlistsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists", undefined, "no-store"),
+  getSubscriberWatchlistContext: (tenantId: string) =>
+    get<SubscriberWatchlistContext>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/watchlist-context", undefined, "no-store"),
+  setSubscriberWatchlistContext: (tenantId: string, body: SubscriberWatchlistContextRequest) =>
+    put<SubscriberWatchlistContext>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/watchlist-context", body),
   listSubscriberWatchlistItems: (tenantId: string, listId: string) =>
     get<SubscriberWatchlistItemsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists/" + encodeURIComponent(listId) + "/items", undefined, "no-store"),
   createSubscriberPrivateWatchlist: (tenantId: string, body: SubscriberWatchlistCreateRequest) =>

@@ -10,7 +10,8 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-func registerMarketOpsOpportunityRoutes(mux *http.ServeMux, queryRepository storage.QueryRepository) {
+func registerMarketOpsOpportunityRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	queryRepository := cfg.QueryRepository
 	mux.HandleFunc("GET /v1/marketops/opportunities", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, queryRepository)
 		if !ok {
@@ -35,12 +36,29 @@ func registerMarketOpsOpportunityRoutes(mux *http.ServeMux, queryRepository stor
 			Horizon: strings.TrimSpace(r.URL.Query().Get("horizon")), LifecycleStatus: strings.TrimSpace(r.URL.Query().Get("lifecycle_status")),
 			ResearchOnly: researchOnly, SessionStart: start, SessionEnd: end, Limit: queryLimit(r, 50),
 		}
+		watchlistContext, scoped := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+		if !scoped {
+			return
+		}
 		records, err := repo.ListMarketOpsOpportunities(r.Context(), filter)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps opportunities")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"opportunities": opportunityResponses(records)})
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			visible := records[:0]
+			for _, record := range records {
+				if _, allowed := watchlistContext.Tickers[strings.ToUpper(record.Symbol)]; allowed {
+					visible = append(visible, record)
+				}
+			}
+			records = visible
+		}
+		response := map[string]any{"opportunities": opportunityResponses(records)}
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 	mux.HandleFunc("GET /v1/marketops/opportunities/{opportunity_id}", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, queryRepository)

@@ -22,17 +22,33 @@ func registerMarketOpsValuationRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			writeError(w, http.StatusServiceUnavailable, "valuation_unavailable", "valuation results are unavailable")
 			return
 		}
-		tenant := strings.TrimSpace(r.PathValue("tenant_id"))
-		if tenant == "" {
-			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+		tenant, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
 			return
 		}
-		results, err := repo.ListMarketOpsValuationResults(r.Context(), storage.MarketOpsValuationFilter{TenantID: tenant, Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), EligibleOnly: strings.EqualFold(r.URL.Query().Get("eligible_only"), "true"), Limit: queryLimit(r, 200)})
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenant)
+		if !ok {
+			return
+		}
+		results, err := repo.ListMarketOpsValuationResults(r.Context(), storage.MarketOpsValuationFilter{TenantID: tenant, Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), EligibleOnly: strings.EqualFold(r.URL.Query().Get("eligible_only"), "true"), Limit: 200})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list valuation results")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"results": valuationRows(results), "research_only": true})
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			visible := results[:0]
+			for _, result := range results {
+				if _, allowed := watchlistContext.Tickers[strings.ToUpper(result.Symbol)]; allowed {
+					visible = append(visible, result)
+				}
+			}
+			results = visible
+		}
+		response := map[string]any{"results": valuationRows(results), "research_only": true}
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 }
 

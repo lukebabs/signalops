@@ -93,6 +93,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerAdministrationSMTPRoutes(mux, cfg)
 	if cfg.SubscriberListsEnabled {
 		registerSubscriberWatchlistRoutes(mux, cfg)
+		registerSubscriberWatchlistContextRoutes(mux, cfg)
 		registerSubscriberCatalogRoutes(mux, cfg)
 		registerSubscriberCatalogMembershipRoutes(mux, cfg)
 	}
@@ -2692,19 +2693,43 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
-		if tenantID == "" {
-			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+		if !ok {
 			return
 		}
 		universeGroup := strings.TrimSpace(r.URL.Query().Get("universe_group"))
 		activeOnly := !strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("active_only")), "false")
-		assets, err := repo.ListMarketOpsAssets(r.Context(), tenantID, universeGroup, activeOnly, queryLimit(r, 50))
+		assets, err := repo.ListMarketOpsAssets(r.Context(), tenantID, universeGroup, activeOnly, 200)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps assets")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"assets": marketOpsAssetResponses(assets)})
+		response := map[string]any{}
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			visible := make([]storage.MarketOpsAssetRecord, 0, len(assets))
+			visibleTickers := map[string]struct{}{}
+			for _, asset := range assets {
+				if _, allowed := watchlistContext.Tickers[strings.ToUpper(asset.Ticker)]; allowed {
+					visible = append(visible, asset)
+					visibleTickers[strings.ToUpper(asset.Ticker)] = struct{}{}
+				}
+			}
+			assets = visible
+			pending := make([]map[string]any, 0)
+			for _, item := range watchlistContext.Items {
+				if _, available := visibleTickers[strings.ToUpper(item.Ticker)]; !available {
+					pending = append(pending, map[string]any{"ticker": item.Ticker, "company": item.CompanyName, "coverage_state": item.CoverageState, "coverage_mode": item.CoverageMode, "eligibility_status": item.EligibilityStatus})
+				}
+			}
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+			response["pending_assets"] = pending
+		}
+		response["assets"] = marketOpsAssetResponses(assets)
+		writeJSON(w, http.StatusOK, response)
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/quotes", func(w http.ResponseWriter, r *http.Request) {
@@ -3011,7 +3036,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerMarketOpsAssetAlgorithmObservationRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsSignalOverviewRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsAssetManagementRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsOpportunityRoutes(mux, cfg.QueryRepository)
+	registerMarketOpsOpportunityRoutes(mux, cfg)
 	registerMarketOpsOutcomeRoutes(mux, cfg.QueryRepository)
 	registerMarketOpsAlgorithmEvaluationRoutes(mux, cfg.QueryRepository)
 

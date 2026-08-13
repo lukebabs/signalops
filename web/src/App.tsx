@@ -6,6 +6,7 @@ import { DashboardStreamBridge } from './components/DashboardStreamBridge';
 import { AuthProvider, useAuth } from './auth/session';
 import { AuthCallbackProcessor, LoginScreen, SilentRenewProcessor } from './auth/LoginScreen';
 import { ThemeProvider } from './theme/theme';
+import { MarketOpsWatchlistContextProvider } from "./components/MarketOpsWatchlistContext";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,7 +40,7 @@ function RootGate() {
     return (
       <>
         <DashboardStreamBridge />
-        <RouterProvider router={router} />
+        <MarketOpsWatchlistContextProvider><RouterProvider router={router} /></MarketOpsWatchlistContextProvider>
       </>
     );
   }
@@ -58,7 +59,7 @@ function RootGate() {
   return (
     <>
       <DashboardStreamBridge />
-      <RouterProvider router={router} />
+      <MarketOpsWatchlistContextProvider><RouterProvider router={router} /></MarketOpsWatchlistContextProvider>
     </>
   );
 }

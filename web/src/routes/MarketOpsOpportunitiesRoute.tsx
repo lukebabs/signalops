@@ -52,6 +52,7 @@ import {
   formatNullablePercent,
 } from '../lib/marketopsState';
 import { useTenant } from '../auth/session';
+import { MarketOpsWatchlistSelector } from "../components/MarketOpsWatchlistContext";
 import type {
   MarketOpsOpportunityFilter,
   MarketOpsOpportunityLifecycle,

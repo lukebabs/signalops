@@ -33,6 +33,7 @@ import { useTenant } from '../auth/session';
 import type { AlgorithmResult, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOpsIntradayConditionSnapshot, MarketOpsRiskRewardSummary } from "../types";
 import { MARKETOPS_ASSET_QUICK_FILTERS, matchesAllMarketOpsAssetQuickFilters, matchesMarketOpsAssetQuickFilter, toggleMarketOpsAssetQuickFilter, type MarketOpsAssetQuickFilter } from '../lib/marketopsAssetQuickFilters';
 import { sortableTableHeaderButtonClass } from '../components/SortableTableHeader';
+import { MarketOpsWatchlistSelector, useMarketOpsWatchlistContext } from "../components/MarketOpsWatchlistContext";
 
 // Read-only MarketOps asset universe (G071 frontend) + G128 per-asset options
 // intelligence panel. The universe table is backend data only; selecting a row
@@ -58,6 +59,7 @@ function assetSectorLabel(asset: { display_sector?: string; sector?: string }): 
 
 export function MarketOpsAssetsRoute() {
   const TENANT_ID = useTenant();
+  const watchlist = useMarketOpsWatchlistContext();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [editSelectedAssetKey, setEditSelectedAssetKey] = useState<string | null>(null);
   const [displayNameInput, setDisplayNameInput] = useState('');
@@ -232,9 +234,11 @@ export function MarketOpsAssetsRoute() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Assets</h1>
-          <p className="text-xs text-gray-500">Tenant {TENANT_ID} · universal market universe · {data.length} assets</p>
+          <p className="text-xs text-gray-500">Tenant {TENANT_ID} · {watchlist.context?.selection_mode === "all" ? "all my watchlists" : watchlist.context?.list_name ?? "market universe"} · {data.length} ready assets</p>
         </div>
-      </div>
+      </div><MarketOpsWatchlistSelector />
+
+      {query.data?.pending_assets?.length ? <section className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><div className="font-semibold">Coverage pending</div><div className="mt-1 flex flex-wrap gap-2">{query.data.pending_assets.map(asset => <span key={asset.ticker} className="rounded border border-amber-200 bg-white px-2 py-1"><span className="font-mono font-semibold">{asset.ticker}</span> · {asset.coverage_state}</span>)}</div></section> : null}
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" aria-label="Asset quick filters">
         {MARKETOPS_ASSET_QUICK_FILTERS.map((filter) => {

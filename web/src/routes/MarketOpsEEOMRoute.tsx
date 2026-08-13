@@ -2,16 +2,18 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { api } from "../api/client";
+import { useTenant } from "../auth/session";
+import { MarketOpsWatchlistSelector } from "../components/MarketOpsWatchlistContext";
 import { EmptyState, ErrorState, LoadingState } from "../components/States";
 import {
   EEOMAssessmentGuide,
   EEOMSelectedSignals,
 } from "../components/EEOMAssessmentDetails";
-const TENANT_ID = "tenant-local";
 export function MarketOpsEEOMRoute() {
+  const tenantId = useTenant();
   const q = useQuery({
-    queryKey: ["marketops-eeom", TENANT_ID],
-    queryFn: () => api.getMarketOpsEEOM(TENANT_ID),
+    queryKey: ["marketops-eeom", tenantId],
+    queryFn: () => api.getMarketOpsEEOM(tenantId),
     staleTime: 60_000,
   });
   const rows = ((q.data?.results ?? []) as any[])
@@ -34,6 +36,7 @@ export function MarketOpsEEOMRoute() {
           forecast, price target, or recommendation.
         </p>
       </div>
+      <MarketOpsWatchlistSelector />
       <div className="rounded border border-brand-100 bg-brand-50 p-3 text-xs text-brand-800">
         EEOM scores setup quality from technical, options, Risk/Reward,
         Valuation Composite, DOSM, earnings materiality. Unavailable inputs are

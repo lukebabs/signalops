@@ -26,6 +26,8 @@ func (f *subscriberWatchlistAPIFake) ListSubscriberWatchlists(_ context.Context,
 	f.lastTenant, f.lastSubject = tenantID, subject
 	return []storage.SubscriberWatchlistRecord{{ListID: "private-a", TenantID: tenantID, ListKind: storage.SubscriberWatchlistKindPrivate, OwnerSubject: subject, ListName: "Private"}}, nil
 }
+func (f *subscriberWatchlistAPIFake) GetSubscriberWatchlistContextPreference(context.Context, string, string) (storage.SubscriberWatchlistContextPreference, error) { return storage.SubscriberWatchlistContextPreference{}, storage.ErrNotFound }
+func (f *subscriberWatchlistAPIFake) SetSubscriberWatchlistContextPreference(_ context.Context, preference storage.SubscriberWatchlistContextPreference) (storage.SubscriberWatchlistContextPreference, error) { return preference, nil }
 func (f *subscriberWatchlistAPIFake) ListSubscriberWatchlistMemberships(context.Context, string, string, string) ([]storage.SubscriberWatchlistMembershipRecord, error) {
 	return nil, nil
 }

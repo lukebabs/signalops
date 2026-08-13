@@ -16,6 +16,14 @@ func registerMarketOpsEEOMRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			writeError(w, http.StatusServiceUnavailable, "eeom_unavailable", "EEOM results are unavailable")
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+		if !ok {
+			return
+		}
 		start, end := time.Now().UTC(), time.Now().UTC().AddDate(0, 0, 30)
 		if v := r.URL.Query().Get("start_date"); v != "" {
 			start, _ = time.Parse("2006-01-02", v)
@@ -23,21 +31,37 @@ func registerMarketOpsEEOMRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		if v := r.URL.Query().Get("end_date"); v != "" {
 			end, _ = time.Parse("2006-01-02", v)
 		}
-		rows, err := repo.ListMarketOpsEEOMResults(r.Context(), storage.MarketOpsEEOMFilter{TenantID: strings.TrimSpace(r.PathValue("tenant_id")), Symbol: r.URL.Query().Get("symbol"), StartDate: start, EndDate: end, EligibleOnly: strings.EqualFold(r.URL.Query().Get("eligible_only"), "true"), Limit: queryLimit(r, 200)})
+		rows, err := repo.ListMarketOpsEEOMResults(r.Context(), storage.MarketOpsEEOMFilter{TenantID: tenantID, Symbol: r.URL.Query().Get("symbol"), StartDate: start, EndDate: end, EligibleOnly: strings.EqualFold(r.URL.Query().Get("eligible_only"), "true"), Limit: queryLimit(r, 200)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list EEOM results")
 			return
 		}
 		out := make([]map[string]any, 0, len(rows))
 		for _, x := range rows {
+			if subscriberWatchlistContextEnabled(cfg, tenantID) {
+				if _, allowed := watchlistContext.Tickers[strings.ToUpper(x.Symbol)]; !allowed {
+					continue
+				}
+			}
 			trace := map[string]any{}
 			_ = json.Unmarshal(x.ResultJSON, &trace)
 			out = append(out, map[string]any{"result_id": x.ResultID, "ticker": x.Symbol, "earnings_event_id": x.EarningsEventID, "earnings_date": x.EarningsDate.Format("2006-01-02"), "trade_date": x.SessionDate.Format("2006-01-02"), "model_version": x.ModelVersion, "score": x.Score, "posture": x.Posture, "classification": x.Classification, "evidence_quality": x.EvidenceQuality, "eligible": x.Eligible, "event": trace["event"], "trace": trace})
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"results": out, "research_only": true, "description": "Pre-earnings setup quality, not an earnings outcome or direction forecast."})
+		response := map[string]any{"results": out, "research_only": true, "description": "Pre-earnings setup quality, not an earnings outcome or direction forecast."}
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/material-events", func(w http.ResponseWriter, r *http.Request) {
-		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+		if !ok {
+			return
+		}
 		records, err := cfg.QueryRepository.ListNormalizedEventLedger(r.Context(), storage.RawEventLedgerFilter{TenantID: tenantID, AppID: "marketops", Dataset: "market_event_calendar", Limit: queryLimit(r, 500)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps material events")
@@ -57,6 +81,11 @@ func registerMarketOpsEEOMRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			ticker := strings.ToUpper(eeomString(payload["symbol"]))
 			if symbol != "" && ticker != symbol {
 				continue
+			}
+			if subscriberWatchlistContextEnabled(cfg, tenantID) {
+				if _, allowed := watchlistContext.Tickers[ticker]; !allowed {
+					continue
+				}
 			}
 			date, parseErr := time.Parse("2006-01-02", eeomString(payload["event_date"]))
 			if parseErr != nil || date.Before(today.AddDate(0, 0, -2)) {

@@ -37,6 +37,9 @@ export interface SubscriberWatchlistItem { tenant_id: string; list_id: string; l
 export interface SubscriberWatchlistsResponse { lists: SubscriberWatchlist[]; }
 export interface SubscriberWatchlistItemsResponse { items: SubscriberWatchlistItem[]; }
 export interface SubscriberWatchlistCreateRequest { list_name: string; correlation_id?: string; provenance?: unknown; }
+export type SubscriberWatchlistContextMode = "list" | "all";
+export interface SubscriberWatchlistContext { selection_mode: SubscriberWatchlistContextMode; list_id: string; list_name: string; selection_source: string; lists: SubscriberWatchlist[]; items: SubscriberWatchlistItem[]; member_count: number; }
+export interface SubscriberWatchlistContextRequest { selection_mode: SubscriberWatchlistContextMode; list_id?: string; provenance?: unknown; }
 export interface SubscriberCatalogAsset { global_asset_id:string; ticker:string; company_name:string; asset_type:string; exchange:string; sector:string; eligibility_status:string; coverage_state:string; coverage_mode:string; }
 export interface SubscriberCatalogResponse { assets: SubscriberCatalogAsset[]; }
 export interface SubscriberCatalogMembershipResult { membership: SubscriberWatchlistItem; activation_state:string; }
@@ -629,8 +632,11 @@ export interface MarketOpsAsset {
   updated_at: string;
 }
 
+export interface MarketOpsPendingAsset { ticker: string; company: string; coverage_state: string; coverage_mode: string; eligibility_status: string; }
 export interface MarketOpsAssetsResponse {
   assets: MarketOpsAsset[];
+  pending_assets?: MarketOpsPendingAsset[];
+  watchlist_context?: SubscriberWatchlistContext;
 }
 export interface MarketOpsAssetCreateRequest { ticker:string; company?:string; sector?:string; industry?:string; }
 export interface MarketOpsAssetDisplayNameRequest { universe_group: string; display_name: string; }
@@ -663,7 +669,7 @@ export interface MarketOpsAssetQuotesResponse {
 export type MarketOpsValuationOutput = { score:number; fair_value:number; classification:string; algorithm_id:string; trace:{ raw_metrics?:Record<string,number>; component_scores?:Record<string,number>; confidence?:number; confidence_label?:string; confidence_reasons?:string[]; data_profile?:string; growth_status?:string; } };
 export type MarketOpsTacticalPosture = { posture:'constructive'|'neutral'|'caution'|string; overlay:number; algorithm_id:string; session_date:string; technical_components?:Record<string,number>; feature_observation_ids?:string[]; };
 export type MarketOpsValuationRow = { ticker:string; trade_date:string; eligible:boolean; evaluation_status:string; confidence:number; confidence_label:string; model_version:string; data_profile?:string; growth_status?:string; vc?:MarketOpsValuationOutput; dosm?:MarketOpsValuationOutput; tactical?:MarketOpsTacticalPosture; tactical_vc?:MarketOpsValuationOutput; tactical_dosm?:MarketOpsValuationOutput; };
-export interface MarketOpsValuationResponse { results:MarketOpsValuationRow[]; research_only:true; }
+export interface MarketOpsValuationResponse { results:MarketOpsValuationRow[]; research_only:true; watchlist_context?: SubscriberWatchlistContext; }
 
 export interface MarketOpsIntradayCondition {
   key: string; title: string; tone: "positive" | "negative" | "neutral" | string; score: number; evidence: string; interpretation: string; analyst_question: string;
