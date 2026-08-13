@@ -17,7 +17,7 @@ region="${AWS_REGION:-us-east-1}"
 config_path="$SIGNALOPS_PGBACKREST_CONFIG_PATH"
 cipher_pass_file="$SIGNALOPS_PGBACKREST_CIPHER_PASS_FILE"
 
-for command in aws install mktemp dirname jq tr hostname cat rm; do
+for command in aws install mktemp dirname jq tr hostname cat rm chown chmod mv; do
   command -v "$command" >/dev/null 2>&1 || { printf 'required command not found: %s\n' "$command" >&2; exit 3; }
 done
 
@@ -81,5 +81,8 @@ pg1-path=/var/lib/postgresql/data
 pg1-user=postgres
 EOF
 
-install -m 0640 -o root -g 70 "$rendered" "$config_path"
+chown root:70 ""
+chmod 0640 ""
+mv -f "" ""
+trap - EXIT
 printf 'Rendered renewed pgBackRest assumed-role configuration at %s.\n' "$config_path"
