@@ -33,13 +33,11 @@ filtering both shared temporal ledgers by `app_id='marketops'`.
 ## Bootstrap
 
 The additive Compose definition is [compose.marketops-boundary.yaml](../../../compose.marketops-boundary.yaml).
-It requires independently injected secrets; do not add these to `.env`.
+It requires independently injected secrets; do not add these to `.env`. The root-only provisioner installs the handoff into `/etc/signalops/marketops-boundary.env` mode `0600`, which is the only persistent location for the two database passwords.
 
 ```bash
-export SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD='<secret>'
-export SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD='<secret>'
-MARKETOPS_BOUNDARY_ACKNOWLEDGE_WRITES=true \
-  ./scripts/bootstrap_marketops_database_boundary.sh
+sudo ./scripts/provision_marketops_database_boundary.sh \
+  /tmp/signalops-marketops-boundary-secrets.env
 ```
 
 The script creates only the new target services, applies the current schema,
