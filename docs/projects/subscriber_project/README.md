@@ -50,6 +50,8 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [S4 historical assurance deployment evidence](s4_historical_assurance_deployment_evidence_2026-08-13.md): clean gateway release and health/auth-boundary verification for the SAF contract.
 - [S4 current MarketOps context integration](s4_current_market_context_integration.md): a tenant-authorized, latest-verified EOD projection for the asset-detail API that remains separate from historical evaluation.
 - [S4 current MarketOps context deployment evidence](s4_current_market_context_deployment_evidence_2026-08-13.md): deployed Assets detail card, projection checks, and release verification.
+- [S4 EOD revision review workflow](s4_revision_review_workflow.md): immutable initial-versus-revised comparison, materiality, and tenant-authorized analyst access.
+- [S4 revision review deployment evidence](s4_revision_review_deployment_evidence_2026-08-13.md): narrow projection, data, build, and public release proof.
 - [Sprint S5 subscriber catalog search](s5_subscriber_catalog_search.md): pilot-only, active-entitlement-gated global catalog projection with no direct catalog read privilege or provider side effect.
 - [S5 pilot capability activation](s5_pilot_capability_activation_2026-08-13.md): live `tenant-pilot-b` policy of catalog search 50 and ten quota-enforced, provider-free EOD activation requests; Options remains disabled.
 - [S5 canonical catalog projection](s5_canonical_catalog_projection_2026-08-13.md): source provenance retained while subscriber search returns one canonical governed security.
