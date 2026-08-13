@@ -47,6 +47,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [S4 as-of selection policy](s4_as_of_selection_policy.md): deterministic initial capture for historical assurance and latest verified revision for current context.
 - [S4 as-of selection evidence](s4_as_of_selection_evidence_2026-08-13.md): deployed AAPL/NVDA resolution proves both contexts carry immutable policy and as-of provenance.
 - [S4 historical assurance integration](s4_historical_assurance_integration.md): SAF effectiveness/outcomes and new backtests use the immutable initial-capture contract without historical restatement.
+- [S4 historical assurance deployment evidence](s4_historical_assurance_deployment_evidence_2026-08-13.md): clean gateway release and health/auth-boundary verification for the SAF contract.
 - [Sprint S5 subscriber catalog search](s5_subscriber_catalog_search.md): pilot-only, active-entitlement-gated global catalog projection with no direct catalog read privilege or provider side effect.
 - [S5 pilot capability activation](s5_pilot_capability_activation_2026-08-13.md): live `tenant-pilot-b` policy of catalog search 50 and ten quota-enforced, provider-free EOD activation requests; Options remains disabled.
 - [S5 canonical catalog projection](s5_canonical_catalog_projection_2026-08-13.md): source provenance retained while subscriber search returns one canonical governed security.
