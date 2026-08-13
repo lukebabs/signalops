@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -105,13 +106,36 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo s
 		}
 		eod, other := curateAssetAlgorithmObservations(results, symbol)
 		riskReward := curateRiskRewardObservations(results, symbol)
+		var currentEOD any
+		if currentReader, ok := any(repo).(storage.SubscriberCurrentEODContextRepository); ok {
+			current, currentErr := currentReader.GetSubscriberCurrentEODContext(r.Context(), tenant, symbol)
+			if currentErr != nil && !errors.Is(currentErr, storage.ErrNotFound) {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to load current EOD context")
+				return
+			}
+			if currentErr == nil {
+				currentEOD = currentEODContextResponse(current)
+			}
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"symbol":        symbol,
-			"eod_zscores":   eod,
-			"other_outputs": algorithmResultResponses(other),
-			"risk_reward":   riskReward,
+			"symbol":              symbol,
+			"eod_zscores":         eod,
+			"other_outputs":       algorithmResultResponses(other),
+			"risk_reward":         riskReward,
+			"current_eod_context": currentEOD,
 		})
 	})
+}
+
+func currentEODContextResponse(record storage.SubscriberCurrentEODContextRecord) map[string]any {
+	return map[string]any{
+		"symbol": record.Symbol, "session_date": record.SessionDate.UTC().Format("2006-01-02"),
+		"open": record.Open, "high": record.High, "low": record.Low, "close": record.Close, "volume": record.Volume, "vwap": record.VWAP,
+		"provider": record.Provider, "usage_context": "current_market_context", "selected_observation_role": record.SelectedObservationRole,
+		"policy_version": record.SelectionPolicyVersion, "payload_fingerprint": record.PayloadFingerprint,
+		"source_event_id": record.SourceEventID, "source_run_id": record.SourceRunID, "algorithm_version": record.AlgorithmVersion,
+		"quality_state": record.QualityState, "as_of_time": record.AsOfTime.UTC().Format(time.RFC3339),
+	}
 }
 
 func curateAssetAlgorithmObservations(results []storage.AlgorithmResultRecord, symbol string) ([]marketOpsEODZScoreDTO, []storage.AlgorithmResultRecord) {
