@@ -41,7 +41,8 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [S4 pilot canary preparation evidence](s4_pilot_canary_preparation_evidence_2026-08-13.md): prepared-only NVDA/AAPL cohort from the frozen shadow plan; provider and scheduler execution remain false.
 - [S4 canary execution gate](s4_canary_execution_gate.md): immutable two-request controls, per-symbol evidence/parity contract, workload preflight, and an engaged kill switch; provider collection remains disabled.
 - [S4 canary execution-gate evidence](s4_canary_execution_gate_evidence_2026-08-13.md): migration and dedicated-workload proof for the live disabled NVDA/AAPL gate; no provider event is permitted.
-- [S4 live-canary execution evidence](s4_live_canary_execution_evidence_2026-08-13.md): two-request Massive canary completed with 0/2 parity; VWAP and volume revisions are retained as a fail-closed lineage finding.
+- [S4 live-canary execution evidence](s4_live_canary_execution_evidence_2026-08-13.md): two-request Massive canary completed with 0/2 raw parity; VWAP and volume revisions are retained as immutable lineage evidence.
+- [S4 policy-aware parity evidence](s4_policy_aware_parity_evidence_2026-08-13.md): the original-capture historical context and latest-verified current context both match for AAPL and NVDA (4/4), without another provider request.
 - [S4 provider revision policy](s4_provider_revision_policy.md): immutable initial/revised EOD observations and field-level revision deltas; canonical selection is held for review.
 - [S4 provider revision evidence](s4_provider_revision_evidence_2026-08-13.md): 4 immutable observations and 12 deltas prove VWAP/volume provider revisions while OHLC remains unchanged.
 - [S4 as-of selection policy](s4_as_of_selection_policy.md): deterministic initial capture for historical assurance and latest verified revision for current context.
