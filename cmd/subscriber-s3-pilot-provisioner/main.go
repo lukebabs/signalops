@@ -27,6 +27,7 @@ type config struct {
 	CorrelationID      string
 	CatalogSearchQuota int
 	EODActivationQuota int
+	OptionsDemandQuota int
 }
 
 func main() {
@@ -40,10 +41,11 @@ func main() {
 	flag.StringVar(&cfg.CorrelationID, "correlation-id", "", "provisioning correlation ID")
 	flag.IntVar(&cfg.CatalogSearchQuota, "catalog-search-quota", 0, "positive pilot catalog-search result limit; zero disables")
 	flag.IntVar(&cfg.EODActivationQuota, "eod-activation-quota", 0, "number of cold-asset activation requests permitted for the pilot; zero disables")
+	flag.IntVar(&cfg.OptionsDemandQuota, "options-demand-quota", 0, "number of distinct eligible assets permitted to contribute to an Options-demand shadow plan; zero disables")
 	flag.Parse()
 	cfg.GlobalAssetIDs = splitIDs(rawAssets)
 
-	if strings.TrimSpace(cfg.DatabaseURL) == "" || strings.TrimSpace(cfg.TenantID) == "" || strings.TrimSpace(cfg.Actor) == "" || len(cfg.GlobalAssetIDs) == 0 || cfg.CatalogSearchQuota < 0 || cfg.EODActivationQuota < 0 {
+	if strings.TrimSpace(cfg.DatabaseURL) == "" || strings.TrimSpace(cfg.TenantID) == "" || strings.TrimSpace(cfg.Actor) == "" || len(cfg.GlobalAssetIDs) == 0 || cfg.CatalogSearchQuota < 0 || cfg.EODActivationQuota < 0 || cfg.OptionsDemandQuota < 0 {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -65,7 +67,7 @@ func main() {
 		slog.Error("provision S3 pilot", "tenant_id", cfg.TenantID, "error", err)
 		os.Exit(1)
 	}
-	fmt.Printf("{\"tenant_id\":%q,\"product_tier\":%q,\"default_list_id\":%q,\"seeded_memberships\":%d,\"capabilities\":{\"catalog_search\":{\"enabled\":%t,\"quota\":%d},\"eod_activation\":{\"enabled\":%t,\"quota\":%d},\"options_demand\":{\"enabled\":false,\"quota\":0}}}\n", result.TenantID, defaultPilotTier, result.DefaultListID, result.SeededMemberships, cfg.CatalogSearchQuota > 0, cfg.CatalogSearchQuota, cfg.EODActivationQuota > 0, cfg.EODActivationQuota)
+	fmt.Printf("{\"tenant_id\":%q,\"product_tier\":%q,\"default_list_id\":%q,\"seeded_memberships\":%d,\"capabilities\":{\"catalog_search\":{\"enabled\":%t,\"quota\":%d},\"eod_activation\":{\"enabled\":%t,\"quota\":%d},\"options_demand\":{\"enabled\":%t,\"quota\":%d}}}\n", result.TenantID, defaultPilotTier, result.DefaultListID, result.SeededMemberships, cfg.CatalogSearchQuota > 0, cfg.CatalogSearchQuota, cfg.EODActivationQuota > 0, cfg.EODActivationQuota, cfg.OptionsDemandQuota > 0, cfg.OptionsDemandQuota)
 }
 
 type result struct {
@@ -83,7 +85,7 @@ type pilotStore interface {
 
 func provision(ctx context.Context, store pilotStore, cfg config) (result, error) {
 	cfg.TenantID, cfg.Actor, cfg.DefaultListName, cfg.CorrelationID = strings.TrimSpace(cfg.TenantID), strings.TrimSpace(cfg.Actor), strings.TrimSpace(cfg.DefaultListName), strings.TrimSpace(cfg.CorrelationID)
-	if cfg.TenantID == "" || cfg.Actor == "" || cfg.DefaultListName == "" || len(cfg.GlobalAssetIDs) == 0 || cfg.CatalogSearchQuota < 0 || cfg.EODActivationQuota < 0 {
+	if cfg.TenantID == "" || cfg.Actor == "" || cfg.DefaultListName == "" || len(cfg.GlobalAssetIDs) == 0 || cfg.CatalogSearchQuota < 0 || cfg.EODActivationQuota < 0 || cfg.OptionsDemandQuota < 0 {
 		return result{}, fmt.Errorf("tenant, actor, default list name, and global asset IDs are required")
 	}
 	entitlement, err := store.UpsertSubscriberEntitlement(ctx, storage.SubscriberEntitlementRecord{
@@ -92,7 +94,7 @@ func provision(ctx context.Context, store pilotStore, cfg config) (result, error
 		Capabilities: []storage.SubscriberEntitlementCapabilityRecord{
 			{Capability: "catalog_search", Enabled: cfg.CatalogSearchQuota > 0, QuotaLimit: cfg.CatalogSearchQuota},
 			{Capability: "eod_activation", Enabled: cfg.EODActivationQuota > 0, QuotaLimit: cfg.EODActivationQuota},
-			{Capability: "options_demand", Enabled: false, QuotaLimit: 0},
+			{Capability: "options_demand", Enabled: cfg.OptionsDemandQuota > 0, QuotaLimit: cfg.OptionsDemandQuota},
 		},
 	})
 	if err != nil {
