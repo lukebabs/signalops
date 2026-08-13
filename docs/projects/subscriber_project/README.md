@@ -71,6 +71,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [S6 Options-capture authorization request](s6_options_capture_authorization_request.md): append-only pending review request, distinct from any provider authorization.
 - [S6 capture authorization-request evidence](s6_options_capture_authorization_request_evidence_2026-08-13.md): NVDA review request remains pending and non-executable.
 - [S6 Options-capture named approval](s6_options_capture_named_approval.md): immutable human approval attestation held pending recovery.
+- [S6 named-approval evidence](s6_options_capture_named_approval_evidence_2026-08-13.md): Luke approval is retained with a one-request/no-retry limit and recovery block.
 - [Central data, business continuity, and disaster recovery](central_data_business_continuity_disaster_recovery.md): centralized storage model, dependency order, recovery controls, and the required pre-pilot rehearsal.
 - [Production backup and restore runbook](production_backup_restore_runbook.md): procurement inputs, encrypted PostgreSQL/PITR backup procedure, restore sequence, and acceptance evidence required before production pilot enablement.
 - [S4 recovery readiness evidence — 2026-08-13](s4_recovery_readiness_evidence_2026-08-13.md): verified recovery-bucket and IAM controls, unprovisioned safeguards, and the handoff sequence before provider execution.
