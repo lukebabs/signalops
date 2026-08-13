@@ -11,6 +11,15 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
+// AssumeSubscriberOptionsCaptureRole permits only the fixed capture-worker
+// group after authentication by its NOINHERIT login.
+func (r *Repository) AssumeSubscriberOptionsCaptureRole(ctx context.Context) error {
+	if _, err := r.db.ExecContext(ctx, "SET ROLE signalops_subscriber_options_capture"); err != nil {
+		return fmt.Errorf("assume subscriber options capture role: %w", err)
+	}
+	return nil
+}
+
 // PrepareSubscriberOptionsCaptureCanaryGate freezes only priority-one selected
 // shadow demand in a database-disabled, one-request plan. This method imports
 // no market-data client and cannot make a provider request.

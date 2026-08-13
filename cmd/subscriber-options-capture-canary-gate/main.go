@@ -46,6 +46,9 @@ func run(args []string) error {
 		return err
 	}
 	defer repo.Close()
+	if err := repo.AssumeSubscriberOptionsCaptureRole(ctx); err != nil {
+		return err
+	}
 	gate, err := repo.PrepareSubscriberOptionsCaptureCanaryGate(ctx, storage.SubscriberOptionsCaptureCanaryGate{SnapshotRunID: *snapshotRunID, PlannedBy: *actor, CorrelationID: *correlationID})
 	if err != nil {
 		return err
