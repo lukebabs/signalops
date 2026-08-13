@@ -54,6 +54,9 @@ func run(args []string) error {
 		return err
 	}
 	defer repo.Close()
+	if err := repo.AssumeSubscriberOptionsDemandRole(ctx); err != nil {
+		return err
+	}
 	aggregates, err := repo.ListSubscriberOptionsDemandAggregates(ctx)
 	if err != nil {
 		return err

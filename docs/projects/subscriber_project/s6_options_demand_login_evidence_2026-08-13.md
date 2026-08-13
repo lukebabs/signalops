@@ -10,6 +10,6 @@ Its real password-authenticated preflight passed from an ephemeral PostgreSQL cl
 PGOPTIONS=-c role=signalops_subscriber_options_demand
 ```
 
-That role selection is required because the login is intentionally `NOINHERIT`. The deployment secret must retain both the runner DSN and this runtime setting. It must not share a login, credential, or role session with the gateway, global-EOD reconciler, or Options-capture worker.
+The preflight uses that role selection because the login is intentionally `NOINHERIT`. The planner command itself performs the same fixed role transition after authenticating, so its deployment secret needs only the runner DSN. It must not share a login, credential, or role session with the gateway, global-EOD reconciler, or Options-capture worker.
 
 The preflight verified aggregate-only input, append-only shadow-storage access, and absence of direct subscriber/list/Options-capture-table privileges. It made no provider request and wrote no snapshot.
