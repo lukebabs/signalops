@@ -1,6 +1,6 @@
 # S5 Pilot Deployment Evidence — 2026-08-13
 
-Status: deployed safely; catalog-use and shared-coverage activation remain deliberately default-deny.
+Status: initial safe deployment evidence. The subsequent limited capability activation is recorded in [S5 pilot capability activation](s5_pilot_capability_activation_2026-08-13.md).
 
 ## Release
 
