@@ -27,6 +27,7 @@ install -m 0644 "$template_dir/signalops-pgbackrest-credentials.timer" \
 install -m 0644 "$template_dir/signalops-postgres-pgbackrest.timer" \
   /etc/systemd/system/signalops-postgres-pgbackrest.timer
 systemctl daemon-reload
-systemctl enable signalops-pgbackrest-credentials.timer signalops-postgres-pgbackrest.timer
+systemctl enable --now signalops-pgbackrest-credentials.timer
+systemctl disable --now signalops-postgres-pgbackrest.timer
 systemctl start signalops-pgbackrest-credentials.service
-systemctl list-timers 'signalops-*pgbackrest*' --no-pager
+printf '%s\n' 'Installed the credential-refresh timer. The backup timer is deliberately disabled until the approved backup scope is dedicated to MarketOps.'

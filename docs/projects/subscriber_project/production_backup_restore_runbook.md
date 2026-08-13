@@ -1,6 +1,6 @@
 # Subscriber Project Production Backup and Restore Runbook
 
-Status: implementation prepared; privileged production activation and restore rehearsal pending.
+Status: shared-cluster baseline completed; MarketOps-only recurring backup and restore rehearsal pending data-boundary approval.
 
 ## Purpose and boundary
 
@@ -65,12 +65,12 @@ The first activation causes one brief PostgreSQL restart to apply `archive_mode=
 sudo ./scripts/provision_signalops_pgbackrest.sh /tmp/signalops-postgres-backup-runner-access-key.json
 ```
 
-The idempotent provisioner creates protected source and cipher files under `/etc/signalops`, renders temporary-role credentials, builds the PostgreSQL 16 + pgBackRest image, creates the stanza, restarts only PostgreSQL, takes the first full backup, installs the system timers, and removes the one-time key handoff. It is not a workstation command.
+The idempotent provisioner creates protected source and cipher files under `/etc/signalops`, renders temporary-role credentials, builds the PostgreSQL 16 + pgBackRest image, creates the stanza, restarts only PostgreSQL, takes the first full backup, installs the credential-refresh timer, deliberately leaves the backup timer disabled until scope approval, and removes the one-time key handoff. It is not a workstation command.
 
 | Unit | Cadence | Responsibility |
 | --- | --- | --- |
 | `signalops-pgbackrest-credentials.timer` | boot + every 30 minutes | refresh the one-hour STS role session and atomically render the config |
-| `signalops-postgres-pgbackrest.timer` | 02:15 UTC daily | full backup on the first day of each month; differential otherwise |
+| `signalops-postgres-pgbackrest.timer` | 02:15 UTC daily | installed but disabled until a dedicated MarketOps backup scope is approved; then full on the first day of each month and differential otherwise |
 
 Retention is 12 monthly full points and 35 differential daily points. WAL archive forcing every 15 minutes defines the maximum archival interval.
 
