@@ -153,6 +153,7 @@ export function MarketOpsOpportunitiesRoute() {
           </p>
         </div>
         <div className="flex items-center gap-1">
+          <MarketOpsWatchlistSelector />
           <button type="button" onClick={refresh} title="Refresh" aria-label="Refresh opportunities" className={`${inputCls} inline-flex items-center gap-1 bg-white`}>
             <RotateCw size={14} className={listQ.isFetching ? 'animate-spin' : ''} />
           </button>
