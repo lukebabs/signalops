@@ -1,6 +1,6 @@
 # S6 Options Demand Snapshot Contract
 
-Status: additive, shadow-only persistence contract; migration `000111` is not applied by this change.
+Status: additive, shadow-only persistence contract. Migration `000111` remains unapplied; the dedicated command is wired but cannot run until it is applied and the workload login is provisioned.
 
 The planner receives execute-only access to `subscriber_options_demand_aggregate()`. The function returns only one aggregate row per eligible global asset: the asset ID, highest policy-derived tier rank, eligible tenant count, eligible watcher count, and deferred-session age. It returns no tenant ID, list ID, subject, entitlement version, or membership row.
 
