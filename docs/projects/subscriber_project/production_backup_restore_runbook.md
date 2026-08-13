@@ -93,6 +93,10 @@ sudo systemctl status signalops-pgbackrest-credentials.timer signalops-postgres-
 
 Any credential-refresh, archive, recovery-point, or rehearsal failure leaves the production recovery gate open. Repair it before re-enabling the authorized S6 provider capture.
 
+## MarketOps-only recovery boundary
+
+The existing `signalops` backup remains a valid shared-platform recovery point, but it is not a MarketOps-only recovery baseline. The dedicated physical-store bootstrap, copy scope, verification rules, and later cutover gates are defined in [MarketOps Dedicated Database Boundary](marketops_database_boundary.md). Do not enable a recurring pgBackRest timer for the shared database as a substitute for that boundary.
+
 ## Incident restore procedure
 
 1. Declare the incident and record its identifier, recovery operator, authority, target recovery timestamp/backup label, and deployed revision.

@@ -1,0 +1,67 @@
+# Dedicated MarketOps physical data boundary. This is intentionally an additive
+# deployment: it never changes the existing shared PostgreSQL or TimescaleDB
+# services. Bootstrap and cutover are separately controlled operations.
+services:
+  marketops-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: marketops
+      POSTGRES_USER: signalops
+      POSTGRES_PASSWORD: ${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD:?set an injected MarketOps database secret}
+    ports:
+      - "15434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signalops -d marketops"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - marketops-postgres-data:/var/lib/postgresql/data
+
+  marketops-timescaledb:
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_DB: marketops_temporal
+      POSTGRES_USER: signalops
+      POSTGRES_PASSWORD: ${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD:?set an injected MarketOps temporal database secret}
+    ports:
+      - "15435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signalops -d marketops_temporal"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - marketops-timescaledb-data:/var/lib/postgresql/data
+
+  marketops-postgres-migrate:
+    image: postgres:16-alpine
+    profiles: ["marketops-boundary"]
+    depends_on:
+      marketops-postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD}@marketops-postgres:5432/marketops?sslmode=disable
+      SIGNALOPS_MIGRATION_DIR: /workspace/migrations
+    working_dir: /workspace
+    entrypoint: ["/bin/sh", "/workspace/scripts/apply_postgres_migrations.sh"]
+    volumes:
+      - .:/workspace:ro
+
+  marketops-timescaledb-migrate:
+    image: postgres:16-alpine
+    profiles: ["marketops-boundary"]
+    depends_on:
+      marketops-timescaledb:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable
+      SIGNALOPS_MIGRATION_DIR: /workspace/temporal_migrations
+    working_dir: /workspace
+    entrypoint: ["/bin/sh", "/workspace/scripts/apply_postgres_migrations.sh"]
+    volumes:
+      - .:/workspace:ro
+
+volumes:
+  marketops-postgres-data:
+  marketops-timescaledb-data:
