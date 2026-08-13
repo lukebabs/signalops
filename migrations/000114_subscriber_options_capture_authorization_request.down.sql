@@ -1,0 +1,3 @@
+REVOKE ALL ON subscriber_options_capture_authorization_requests FROM signalops_subscriber_options_capture;
+DROP TABLE IF EXISTS subscriber_options_capture_authorization_requests;
+DROP FUNCTION IF EXISTS subscriber_options_capture_authorization_request_guard();
