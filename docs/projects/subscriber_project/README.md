@@ -66,6 +66,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [S6 Options-demand quota and fairness](s6_options_demand_quota_fairness.md): numeric per-tenant demand quota and deferred-age carry-forward contract.
 - [S6 quota/fairness deployment evidence](s6_options_demand_quota_fairness_evidence_2026-08-13.md): applied migration and restricted-role shadow run.
 - [S6 pilot Options-demand shadow evidence](s6_pilot_options_demand_shadow_evidence_2026-08-13.md): bounded ten-asset pilot, non-zero selection, and deferred-age proof with zero capture.
+- [S6 Options-capture canary gate](s6_options_capture_canary_gate.md): one-asset disabled capture control plane with no provider or scheduler path.
 - [Central data, business continuity, and disaster recovery](central_data_business_continuity_disaster_recovery.md): centralized storage model, dependency order, recovery controls, and the required pre-pilot rehearsal.
 - [Production backup and restore runbook](production_backup_restore_runbook.md): procurement inputs, encrypted PostgreSQL/PITR backup procedure, restore sequence, and acceptance evidence required before production pilot enablement.
 - [S4 recovery readiness evidence — 2026-08-13](s4_recovery_readiness_evidence_2026-08-13.md): verified recovery-bucket and IAM controls, unprovisioned safeguards, and the handoff sequence before provider execution.
