@@ -78,7 +78,7 @@ log-level-console=info
 
 [signalops]
 pg1-path=/var/lib/postgresql/data
-pg1-user=postgres
+pg1-user=signalops
 EOF
 
 chown root:70 "$rendered"
