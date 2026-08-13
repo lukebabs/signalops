@@ -107,6 +107,7 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo s
 		eod, other := curateAssetAlgorithmObservations(results, symbol)
 		riskReward := curateRiskRewardObservations(results, symbol)
 		var currentEOD any
+		revisionReview := map[string]any{"available": false, "usage_context": "revision_review", "initial_observation_role": "initial_tenant_local_capture", "revised_observation_role": "global_reobservation", "deltas": []map[string]any{}}
 		if currentReader, ok := any(repo).(storage.SubscriberCurrentEODContextRepository); ok {
 			current, currentErr := currentReader.GetSubscriberCurrentEODContext(r.Context(), tenant, symbol)
 			if currentErr != nil && !errors.Is(currentErr, storage.ErrNotFound) {
@@ -117,14 +118,43 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo s
 				currentEOD = currentEODContextResponse(current)
 			}
 		}
+		if reviewReader, ok := any(repo).(storage.SubscriberEODRevisionReviewRepository); ok {
+			deltas, reviewErr := reviewReader.ListSubscriberEODRevisionDeltas(r.Context(), tenant, symbol, 24)
+			if reviewErr != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to load EOD revision review")
+				return
+			}
+			revisionReview = revisionReviewResponse(deltas)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"symbol":              symbol,
 			"eod_zscores":         eod,
 			"other_outputs":       algorithmResultResponses(other),
 			"risk_reward":         riskReward,
 			"current_eod_context": currentEOD,
+			"eod_revision_review": revisionReview,
 		})
 	})
+}
+
+func revisionReviewResponse(records []storage.SubscriberEODRevisionDeltaRecord) map[string]any {
+	deltas := make([]map[string]any, 0, len(records))
+	reviewRequired := 0
+	for _, record := range records {
+		if record.Materiality == "review_required" {
+			reviewRequired++
+		}
+		deltas = append(deltas, map[string]any{
+			"session_date": record.SessionDate.UTC().Format("2006-01-02"), "field_name": record.FieldName,
+			"initial_value": record.InitialValue, "revised_value": record.RevisedValue, "delta_class": record.DeltaClass, "materiality": record.Materiality,
+			"initial_observed_at": record.InitialObservedAt.UTC().Format(time.RFC3339), "revised_observed_at": record.RevisedObservedAt.UTC().Format(time.RFC3339),
+			"initial_source_event_id": record.InitialSourceEventID, "revised_source_event_id": record.RevisedSourceEventID,
+			"initial_source_run_id": record.InitialSourceRunID, "revised_source_run_id": record.RevisedSourceRunID,
+			"initial_payload_fingerprint": record.InitialPayloadFingerprint, "revised_payload_fingerprint": record.RevisedPayloadFingerprint,
+			"initial_algorithm_version": record.InitialAlgorithmVersion, "revised_algorithm_version": record.RevisedAlgorithmVersion,
+		})
+	}
+	return map[string]any{"available": len(deltas) > 0, "usage_context": "revision_review", "initial_observation_role": "initial_tenant_local_capture", "revised_observation_role": "global_reobservation", "review_required_count": reviewRequired, "deltas": deltas}
 }
 
 func currentEODContextResponse(record storage.SubscriberCurrentEODContextRecord) map[string]any {
