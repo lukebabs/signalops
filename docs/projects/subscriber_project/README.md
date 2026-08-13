@@ -39,6 +39,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [S3 pilot preflight and activation evidence](s3_pilot_preflight_evidence_2026-08-12.md): passed local readiness checks and the subsequent tenant-pilot-b API-only gateway activation.
 - [Sprint S4 shared-EOD canary](s4_shared_eod_canary.md): disabled-by-default, immutable small-cohort preparation from an existing S2 shadow plan; it has no provider or scheduler execution path.
 - [S4 pilot canary preparation evidence](s4_pilot_canary_preparation_evidence_2026-08-13.md): prepared-only NVDA/AAPL cohort from the frozen shadow plan; provider and scheduler execution remain false.
+- [S4 canary execution gate](s4_canary_execution_gate.md): immutable two-request controls, per-symbol evidence/parity contract, workload preflight, and an engaged kill switch; provider collection remains disabled.
 - [Sprint S5 subscriber catalog search](s5_subscriber_catalog_search.md): pilot-only, active-entitlement-gated global catalog projection with no direct catalog read privilege or provider side effect.
 - [S5 pilot capability activation](s5_pilot_capability_activation_2026-08-13.md): live `tenant-pilot-b` policy of catalog search 50 and ten quota-enforced, provider-free EOD activation requests; Options remains disabled.
 - [S5 canonical catalog projection](s5_canonical_catalog_projection_2026-08-13.md): source provenance retained while subscriber search returns one canonical governed security.
