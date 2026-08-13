@@ -1,9 +1,11 @@
 package api
 
 import (
-	"github.com/lukebabs/signalops/internal/storage"
 	"net/http"
 	"strings"
+
+	"github.com/lukebabs/signalops/internal/storage"
+	"github.com/lukebabs/signalops/internal/subscriber/eodrevisionpolicy"
 )
 
 func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, repository storage.QueryRepository) {
@@ -25,7 +27,7 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to calculate signal assurance effectiveness")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"effectiveness": effectivenessResponses(rows), "minimum_ranked_sample": 30, "evidence_source_note": "LEGACY records are historical outcome evidence and are not SAF-validated assertions."})
+		writeJSON(w, http.StatusOK, map[string]any{"effectiveness": effectivenessResponses(rows), "minimum_ranked_sample": 30, "evidence_source_note": "LEGACY records are historical outcome evidence and are not SAF-validated assertions.", "data_selection": historicalAssuranceDataSelection()})
 	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/effectiveness/observations", func(w http.ResponseWriter, r *http.Request) {
 		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
@@ -42,7 +44,7 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list signal assurance effectiveness observations")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"observations": effectivenessObservationResponses(rows), "evidence_source_note": "LEGACY observations are historical outcome evidence and are not SAF-validated assertions."})
+		writeJSON(w, http.StatusOK, map[string]any{"observations": effectivenessObservationResponses(rows), "evidence_source_note": "LEGACY observations are historical outcome evidence and are not SAF-validated assertions.", "data_selection": historicalAssuranceDataSelection()})
 	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/recommendations", func(w http.ResponseWriter, r *http.Request) {
 		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
@@ -58,8 +60,23 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to calculate signal assurance recommendations")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"recommendations": recommendationResponses(rows), "minimum_ranked_sample": 30})
+		writeJSON(w, http.StatusOK, map[string]any{"recommendations": recommendationResponses(rows), "minimum_ranked_sample": 30, "data_selection": historicalAssuranceDataSelection()})
 	})
+}
+
+// historicalAssuranceDataSelection exposes the immutable point-in-time EOD contract used by SAF outcomes.
+func historicalAssuranceDataSelection() map[string]any {
+	selection, err := eodrevisionpolicy.SelectionFor(eodrevisionpolicy.HistoricalAssurance)
+	if err != nil {
+		return map[string]any{"usage_context": string(eodrevisionpolicy.HistoricalAssurance)}
+	}
+	return map[string]any{
+		"usage_context":             string(selection.UsageContext),
+		"selected_observation_role": string(selection.SelectedObservationRole),
+		"policy_version":            selection.PolicyVersion,
+		"as_of_policy":              "initial_capture",
+		"restatement":               "disabled",
+	}
 }
 
 func effectivenessObservationResponses(values []storage.SignalAssuranceEffectivenessObservationRecord) []map[string]any {

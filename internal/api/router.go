@@ -20,6 +20,7 @@ import (
 	"github.com/lukebabs/signalops/internal/appmeta"
 	marketopsbacktest "github.com/lukebabs/signalops/internal/marketops/backtest"
 	"github.com/lukebabs/signalops/internal/storage"
+	"github.com/lukebabs/signalops/internal/subscriber/eodrevisionpolicy"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
 
@@ -3964,7 +3965,7 @@ func marketOpsBacktestConfigFromRequest(req marketOpsBacktestCreateRequest, acto
 		SourceID: strings.TrimSpace(req.SourceID), SourceAdapter: strings.TrimSpace(req.SourceAdapter), Dataset: strings.TrimSpace(req.Dataset),
 		DetectorID: strings.TrimSpace(req.DetectorID), DetectorVersion: strings.TrimSpace(req.DetectorVersion), RequestedBy: actor,
 		WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), Symbols: cleanSymbols(req.Symbols), MaxRecords: maxRecords, BatchSize: batchSize,
-		AutoAcceptConfidence: req.AutoAcceptConfidence, PythonBin: pythonBin,
+		AutoAcceptConfidence: req.AutoAcceptConfidence, PythonBin: pythonBin, EODDataSelectionContext: eodrevisionpolicy.HistoricalAssurance,
 	}
 	if strings.TrimSpace(cfg.TenantID) == "" {
 		return marketopsbacktest.Config{}, errors.New("tenant_id is required")
