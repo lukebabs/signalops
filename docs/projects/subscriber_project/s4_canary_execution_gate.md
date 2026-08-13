@@ -56,3 +56,13 @@ The command does not import a market-data client and cannot make a network/provi
 The kill switch begins engaged and cannot be changed by this release. Restarting or redeploying the worker therefore leaves collection disabled. Existing evidence is retained for audit; rollback drops only this additive control-plane schema after an operator confirms no later execution-release tables depend on it. Existing MarketOps jobs and the S2 shadow planner are unaffected.
 
 Actual provider execution remains a later explicit authorization gate. It requires a dedicated short-lived workload credential, a separately reviewed code release that preserves the two-request ceiling, an explicit named session approval, live parity/reporting verification, and the existing backup/restore readiness work. It must not be enabled by a browser action or by this command.
+
+## Live execution release
+
+Migration `000103_subscriber_global_eod_canary_live_execution` adds a one-time authorization record and separate append-only live-run ledger. An authorization is restricted to the existing frozen execution plan, `subscriber-global-eod-reconciler`, Massive, the original session, and exactly two members. It cannot enable a scheduler. A request-intent row is committed for both frozen symbols before either external call; each symbol has no retry path and only one intent row. If the process stops after intent, it fails closed rather than risking an unrecorded repeat call.
+
+The live worker writes a central global EOD baseline record and immutable provider response/normalization evidence for each symbol. Its canonical payload is the established Massive EOD OHLCV contract and its algorithm version is `subscriber-global-eod-baseline-v1`. It does not accept tenant, symbol, or execution-plan input from a browser.
+
+The separate parity reporter makes no provider call. It compares each global canonical payload with the `tenant-local` `src-massive` normalized EOD ledger for the same symbol/session. It records `matched`, `mismatched`, or `missing`; only two `matched` rows constitute a successful canary. A missing comparison is an incomplete canary, never a pass.
+
+The previously deployed gate remains intact and disabled. The live authorization is a new, separately auditable, exact-two-request exception; it does not weaken or update the original gate.
