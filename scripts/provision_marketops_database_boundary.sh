@@ -11,10 +11,18 @@ handoff_path="${1:-/tmp/signalops-marketops-boundary-secrets.env}"
 secret_dir=/etc/signalops
 secret_env="$secret_dir/marketops-boundary.env"
 
-[[ -f "$handoff_path" ]] || {
-  printf 'MarketOps boundary secret handoff not found: %s\n' "$handoff_path" >&2
-  exit 3
-}
+if [[ ! -f "$handoff_path" ]]; then
+  [[ -r "$secret_env" ]] || {
+    printf 'MarketOps boundary secret handoff is absent and no protected retry credential exists: %s\n' "$secret_env" >&2
+    exit 3
+  }
+  set -a
+  # shellcheck disable=SC1090
+  . "$secret_env"
+  set +a
+  MARKETOPS_BOUNDARY_ACKNOWLEDGE_WRITES=true "$root_dir/scripts/bootstrap_marketops_database_boundary.sh"
+  exit $?
+fi
 
 previous_postgres_password=""
 previous_temporal_password=""

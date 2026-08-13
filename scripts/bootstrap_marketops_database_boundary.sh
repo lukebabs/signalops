@@ -28,7 +28,7 @@ done
   exit 2
 }
 
-"${compose[@]}" up -d marketops-postgres marketops-timescaledb
+"${compose[@]}" up -d --wait marketops-postgres marketops-timescaledb
 if [[ -n "${SIGNALOPS_MARKETOPS_PREVIOUS_POSTGRES_PASSWORD:-}" ]]; then
   PGPASSWORD="$SIGNALOPS_MARKETOPS_PREVIOUS_POSTGRES_PASSWORD" "${compose[@]}" exec -T marketops-postgres \
     psql -v ON_ERROR_STOP=1 -U signalops -d postgres -c "ALTER ROLE signalops PASSWORD '$SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD';"
