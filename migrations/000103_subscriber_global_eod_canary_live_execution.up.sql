@@ -80,7 +80,6 @@ CREATE TABLE subscriber_global_eod_canary_live_evidence_events (
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
   recorded_at timestamptz NOT NULL,
-  PRIMARY KEY (evidence_event_id),
   FOREIGN KEY (live_run_id, global_asset_id)
     REFERENCES subscriber_global_eod_canary_live_run_members(live_run_id, global_asset_id) ON DELETE RESTRICT,
   UNIQUE (live_run_id, global_asset_id, evidence_kind)
