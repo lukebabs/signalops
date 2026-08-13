@@ -65,10 +65,10 @@ func run(args []string) error {
 	var session time.Time
 	var budget int
 	var state string
-	err = db.QueryRowContext(ctx, `SELECT authorization.session_date,authorization.provider_request_budget,authorization.authorization_state
-FROM subscriber_global_eod_canary_live_authorizations authorization
-JOIN subscriber_global_eod_canary_execution_plans plan ON plan.execution_plan_id=authorization.execution_plan_id
-WHERE authorization.authorization_id=$1 AND authorization.authorized_worker_identity=$2 AND authorization.authorized_provider='massive'`, strings.TrimSpace(*authID), workerIdentity).Scan(&session, &budget, &state)
+	err = db.QueryRowContext(ctx, `SELECT auth.session_date,auth.provider_request_budget,auth.authorization_state
+FROM subscriber_global_eod_canary_live_authorizations auth
+JOIN subscriber_global_eod_canary_execution_plans plan ON plan.execution_plan_id=auth.execution_plan_id
+WHERE auth.authorization_id=$1 AND auth.authorized_worker_identity=$2 AND auth.authorized_provider='massive'`, strings.TrimSpace(*authID), workerIdentity).Scan(&session, &budget, &state)
 	if err != nil {
 		return fmt.Errorf("load live authorization: %w", err)
 	}

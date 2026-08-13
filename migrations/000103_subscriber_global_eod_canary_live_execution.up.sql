@@ -37,9 +37,9 @@ DECLARE
 BEGIN
   SELECT member.expected_symbol, member.request_ordinal
     INTO frozen_symbol, frozen_ordinal
-  FROM subscriber_global_eod_canary_live_authorizations authorization
-  JOIN subscriber_global_eod_canary_execution_members member ON member.execution_plan_id=authorization.execution_plan_id
-  WHERE authorization.authorization_id=NEW.authorization_id
+  FROM subscriber_global_eod_canary_live_authorizations auth
+  JOIN subscriber_global_eod_canary_execution_members member ON member.execution_plan_id=auth.execution_plan_id
+  WHERE auth.authorization_id=NEW.authorization_id
     AND member.global_asset_id=NEW.global_asset_id;
   IF NOT FOUND OR frozen_ordinal <> NEW.request_ordinal OR frozen_symbol <> NEW.expected_symbol THEN
     RAISE EXCEPTION 'live authorization member must match the frozen execution plan';
