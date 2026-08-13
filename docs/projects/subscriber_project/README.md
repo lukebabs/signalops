@@ -43,6 +43,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [S4 canary execution-gate evidence](s4_canary_execution_gate_evidence_2026-08-13.md): migration and dedicated-workload proof for the live disabled NVDA/AAPL gate; no provider event is permitted.
 - [S4 live-canary execution evidence](s4_live_canary_execution_evidence_2026-08-13.md): two-request Massive canary completed with 0/2 parity; VWAP and volume revisions are retained as a fail-closed lineage finding.
 - [S4 provider revision policy](s4_provider_revision_policy.md): immutable initial/revised EOD observations and field-level revision deltas; canonical selection is held for review.
+- [S4 provider revision evidence](s4_provider_revision_evidence_2026-08-13.md): 4 immutable observations and 12 deltas prove VWAP/volume provider revisions while OHLC remains unchanged.
 - [Sprint S5 subscriber catalog search](s5_subscriber_catalog_search.md): pilot-only, active-entitlement-gated global catalog projection with no direct catalog read privilege or provider side effect.
 - [S5 pilot capability activation](s5_pilot_capability_activation_2026-08-13.md): live `tenant-pilot-b` policy of catalog search 50 and ten quota-enforced, provider-free EOD activation requests; Options remains disabled.
 - [S5 canonical catalog projection](s5_canonical_catalog_projection_2026-08-13.md): source provenance retained while subscriber search returns one canonical governed security.
