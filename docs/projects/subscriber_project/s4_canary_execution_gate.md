@@ -8,8 +8,8 @@ The prepared S4 cohort is exactly two frozen canonical assets for the completed 
 
 | Request ordinal | Symbol | Canary member |
 |---:|---|---|
-| 1 | AAPL | `subglobal_c0a811ecc7ae886f86a517dda3c4d398` |
-| 2 | NVDA | `subglobal_b9dd5a39559ce4ea0ebed63f1574411e` |
+| 1 | NVDA | `subglobal_b9dd5a39559ce4ea0ebed63f1574411e` |
+| 2 | AAPL | `subglobal_c0a811ecc7ae886f86a517dda3c4d398` |
 
 Migration `000102_subscriber_global_eod_canary_execution_gate` creates a separate append-only execution-plan record. It cannot alter the original prepared canary. Its database constraints require all of the following:
 
