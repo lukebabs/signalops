@@ -63,6 +63,17 @@ func TestSubscriberQuotaLifecycleAgainstPostgres(t *testing.T) {
 		t.Fatalf("idempotent release: %v", err)
 	}
 
+	reactivated := reserve("release-1")
+	if reactivated.ReservationID != released.ReservationID || reactivated.Status != storage.SubscriberQuotaReserved {
+		t.Fatalf("re-reserved record=%+v released=%+v", reactivated, released)
+	}
+	if _, err := repo.FinalizeSubscriberQuotaReservation(ctx, storage.SubscriberQuotaReservationLifecycleRequest{
+		TenantID: tenantID, ReservationID: reactivated.ReservationID, ActorSubject: "test-worker",
+		Transition: storage.SubscriberQuotaReleased,
+	}); err != nil {
+		t.Fatalf("release re-reserved quota: %v", err)
+	}
+
 	consumed := reserve("consume-1")
 	consumed, err = repo.FinalizeSubscriberQuotaReservation(ctx, storage.SubscriberQuotaReservationLifecycleRequest{
 		TenantID: tenantID, ReservationID: consumed.ReservationID, ActorSubject: "test-worker",
@@ -76,7 +87,7 @@ func TestSubscriberQuotaLifecycleAgainstPostgres(t *testing.T) {
 	if err := repo.db.QueryRowContext(ctx, "SELECT count(*) FROM subscriber_quota_reservation_audit WHERE tenant_id=$1", tenantID).Scan(&auditCount); err != nil {
 		t.Fatalf("count lifecycle audit: %v", err)
 	}
-	if auditCount != 2 {
-		t.Fatalf("lifecycle audit count=%d, want 2", auditCount)
+	if auditCount != 3 {
+		t.Fatalf("lifecycle audit count=%d, want 3", auditCount)
 	}
 }

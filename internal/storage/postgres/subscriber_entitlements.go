@@ -138,6 +138,7 @@ func (r *Repository) ReserveSubscriberQuota(ctx context.Context, request storage
 SELECT tenant_id, provisioning_version, product_tier, status, provisioned_by, correlation_id, created_at, updated_at
 FROM subscriber_tenant_entitlements WHERE tenant_id=$1 FOR UPDATE`, request.TenantID,
 		).Scan(&entitlement.TenantID, &entitlement.ProvisioningVersion, &entitlement.ProductTier, &entitlement.Status, &entitlement.ProvisionedBy, &entitlement.CorrelationID, &entitlement.CreatedAt, &entitlement.UpdatedAt)
+		var releasedReservation *storage.SubscriberQuotaReservationRecord
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("lock entitlement: %w", err)
 		}
@@ -146,14 +147,17 @@ FROM subscriber_tenant_entitlements WHERE tenant_id=$1 FOR UPDATE`, request.Tena
 			if existing, found, err := subscriberQuotaReservationByKey(ctx, tx, request.TenantID, request.Capability, entitlement.ProvisioningVersion, request.IdempotencyKey); err != nil {
 				return err
 			} else if found {
-				reservation = existing
-				decision = subscriberDecisionRecord(policy.Decision{
-					Allowed: true, Reason: policy.DecisionAllowed, TenantID: request.TenantID, Subject: request.Subject,
-					Capability: policy.Capability(request.Capability), RequestedUnits: request.RequestedUnits,
-					EntitlementVersion: entitlement.ProvisioningVersion, PolicyVersion: policy.DefaultPolicyVersion,
-					CorrelationID: request.CorrelationID, DecidedAt: request.RequestedAt,
-				}, existing.ReservationID, request.IdempotencyKey)
-				return insertSubscriberDecisionAudit(ctx, tx, decision)
+				if existing.Status != storage.SubscriberQuotaReleased {
+					reservation = existing
+					decision = subscriberDecisionRecord(policy.Decision{
+						Allowed: true, Reason: policy.DecisionAllowed, TenantID: request.TenantID, Subject: request.Subject,
+						Capability: policy.Capability(request.Capability), RequestedUnits: request.RequestedUnits,
+						EntitlementVersion: entitlement.ProvisioningVersion, PolicyVersion: policy.DefaultPolicyVersion,
+						CorrelationID: request.CorrelationID, DecidedAt: request.RequestedAt,
+					}, existing.ReservationID, request.IdempotencyKey)
+					return insertSubscriberDecisionAudit(ctx, tx, decision)
+				}
+				releasedReservation = &existing
 			}
 		}
 
@@ -183,23 +187,36 @@ FROM subscriber_tenant_entitlements WHERE tenant_id=$1 FOR UPDATE`, request.Tena
 		}, consumed)
 		reservationID := ""
 		if policyDecision.Allowed {
-			reservationID = newSubscriberID("subquota")
-			reservation = storage.SubscriberQuotaReservationRecord{
-				ReservationID: reservationID, TenantID: request.TenantID, Capability: request.Capability,
-				ProvisioningVersion: entitlement.ProvisioningVersion, IdempotencyKey: request.IdempotencyKey,
-				Subject: request.Subject, RequestedUnits: request.RequestedUnits, Status: storage.SubscriberQuotaReserved,
-				PolicyVersion: policyDecision.PolicyVersion, CorrelationID: request.CorrelationID, ReservedAt: request.RequestedAt,
-			}
-			if _, err := tx.ExecContext(ctx, `
+			if releasedReservation != nil {
+				reservation = *releasedReservation
+				reservation.Subject, reservation.RequestedUnits, reservation.Status = request.Subject, request.RequestedUnits, storage.SubscriberQuotaReserved
+				reservation.PolicyVersion, reservation.CorrelationID, reservation.ReservedAt, reservation.ReleasedAt = policyDecision.PolicyVersion, request.CorrelationID, request.RequestedAt, nil
+				if _, err := tx.ExecContext(ctx, `
+UPDATE subscriber_quota_reservations
+SET subject=$3, requested_units=$4, status=$5, policy_version=$6, correlation_id=$7, reserved_at=$8, released_at=NULL
+WHERE tenant_id=$1 AND reservation_id=$2`, reservation.TenantID, reservation.ReservationID, reservation.Subject, reservation.RequestedUnits, reservation.Status, reservation.PolicyVersion, reservation.CorrelationID, reservation.ReservedAt); err != nil {
+					return fmt.Errorf("re-reserve subscriber quota: %w", err)
+				}
+			} else {
+				reservationID = newSubscriberID("subquota")
+				reservation = storage.SubscriberQuotaReservationRecord{
+					ReservationID: reservationID, TenantID: request.TenantID, Capability: request.Capability,
+					ProvisioningVersion: entitlement.ProvisioningVersion, IdempotencyKey: request.IdempotencyKey,
+					Subject: request.Subject, RequestedUnits: request.RequestedUnits, Status: storage.SubscriberQuotaReserved,
+					PolicyVersion: policyDecision.PolicyVersion, CorrelationID: request.CorrelationID, ReservedAt: request.RequestedAt,
+				}
+				if _, err := tx.ExecContext(ctx, `
 INSERT INTO subscriber_quota_reservations
   (reservation_id, tenant_id, capability, provisioning_version, idempotency_key, subject, requested_units, status, policy_version, correlation_id, reserved_at)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-				reservation.ReservationID, reservation.TenantID, reservation.Capability, reservation.ProvisioningVersion,
-				reservation.IdempotencyKey, reservation.Subject, reservation.RequestedUnits, reservation.Status,
-				reservation.PolicyVersion, reservation.CorrelationID, reservation.ReservedAt,
-			); err != nil {
-				return fmt.Errorf("reserve subscriber quota: %w", err)
+					reservation.ReservationID, reservation.TenantID, reservation.Capability, reservation.ProvisioningVersion,
+					reservation.IdempotencyKey, reservation.Subject, reservation.RequestedUnits, reservation.Status,
+					reservation.PolicyVersion, reservation.CorrelationID, reservation.ReservedAt,
+				); err != nil {
+					return fmt.Errorf("reserve subscriber quota: %w", err)
+				}
 			}
+			reservationID = reservation.ReservationID
 		}
 		decision = subscriberDecisionRecord(policyDecision, reservationID, request.IdempotencyKey)
 		if err := insertSubscriberDecisionAudit(ctx, tx, decision); err != nil {
