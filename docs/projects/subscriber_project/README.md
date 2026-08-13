@@ -57,6 +57,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [S5 pilot capability activation](s5_pilot_capability_activation_2026-08-13.md): live `tenant-pilot-b` policy of catalog search 50 and ten quota-enforced, provider-free EOD activation requests; Options remains disabled.
 - [S5 canonical catalog projection](s5_canonical_catalog_projection_2026-08-13.md): source provenance retained while subscriber search returns one canonical governed security.
 - [S5 catalog membership repair](s5_catalog_membership_repair_2026-08-13.md): live fix for the private-list add mutation, with retry-safe quota reuse and cross-tenant proof.
+- [Sprint S6 — Options demand union](s6_options_demand_union.md): internal shadow-only deterministic demand union; it has no provider, scheduler, entitlement, or capture side effect.
 - [Central data, business continuity, and disaster recovery](central_data_business_continuity_disaster_recovery.md): centralized storage model, dependency order, recovery controls, and the required pre-pilot rehearsal.
 - [Production backup and restore runbook](production_backup_restore_runbook.md): procurement inputs, encrypted PostgreSQL/PITR backup procedure, restore sequence, and acceptance evidence required before production pilot enablement.
 - [S4 recovery readiness evidence — 2026-08-13](s4_recovery_readiness_evidence_2026-08-13.md): verified recovery-bucket and IAM controls, unprovisioned safeguards, and the handoff sequence before provider execution.
