@@ -60,7 +60,7 @@ Before enabling an S3 pilot, operations must own and rehearse a runbook with the
 1. Declare the incident, disable the subscriber-list feature flag, and stop any future list writer or activation worker.
 2. Restore/validate identity and secret-management dependencies; verify the JWT issuer, signing keys, intended audience, tenant claim mapper, and access grants.
 3. Restore the SignalOps PostgreSQL database from the approved backup/point-in-time recovery procedure.
-4. Apply the exact schema migrations required by the restored release, including 000088 through 000095, before any gateway is allowed to use subscriber tables.
+4. Apply the exact schema migrations required by the restored release, including `000088_subscriber_entitlement_foundation` through `000096_subscriber_watchlist_projection` for the current S3 release, before any gateway is allowed to use subscriber tables.
 5. Verify subscriber roles and grants:
    - migration owner, gateway, catalog-sync, and global-EOD roles are non-superuser and do not bypass RLS;
    - the gateway has access only to tenant-private tables plus the minimum required key-reference privilege;
@@ -94,6 +94,8 @@ A successful recovery must record:
 RTO, RPO, backup frequency, backup retention, cross-region replication, and the recovery environment are operational commitments that must be selected with platform ownership before a subscriber pilot is enabled. They are intentionally not fabricated here.
 
 The pilot gate requires a documented target for each, an assigned owner, evidence that backups are encrypted and access-controlled, and a restore rehearsal against a non-production environment. A production list route must not be enabled merely because the schema exists.
+
+The concrete operating procedure and its procurement inputs are maintained in [the production backup and restore runbook](production_backup_restore_runbook.md). The runbook is intentionally a gate rather than evidence that the required infrastructure has already been provisioned.
 
 ## S3 rollback versus disaster recovery
 
