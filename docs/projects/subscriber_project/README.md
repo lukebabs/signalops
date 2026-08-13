@@ -63,6 +63,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [S6 Options-demand deployment evidence](s6_options_demand_migration_evidence_2026-08-13.md): applied migration and provider-free dedicated-role rehearsal.
 - [S6 Options-demand login evidence](s6_options_demand_login_evidence_2026-08-13.md): provisioned dedicated login and password-authenticated preflight record.
 - [S6 Options-demand shadow-run evidence](s6_options_demand_shadow_run_evidence_2026-08-13.md): first real dedicated-login zero-demand snapshot proof.
+- [S6 Options-demand quota and fairness](s6_options_demand_quota_fairness.md): numeric per-tenant demand quota and deferred-age carry-forward contract.
 - [Central data, business continuity, and disaster recovery](central_data_business_continuity_disaster_recovery.md): centralized storage model, dependency order, recovery controls, and the required pre-pilot rehearsal.
 - [Production backup and restore runbook](production_backup_restore_runbook.md): procurement inputs, encrypted PostgreSQL/PITR backup procedure, restore sequence, and acceptance evidence required before production pilot enablement.
 - [S4 recovery readiness evidence — 2026-08-13](s4_recovery_readiness_evidence_2026-08-13.md): verified recovery-bucket and IAM controls, unprovisioned safeguards, and the handoff sequence before provider execution.
