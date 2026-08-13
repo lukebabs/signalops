@@ -177,11 +177,13 @@ import type {
   MarketOpsSignalAssuranceAssertionResponse,
   MarketOpsSignalAssuranceRecommendationsResponse,
   MarketOpsSRIRankingsResponse,
-} from "../types";
   SubscriberWatchlistsResponse,
   SubscriberWatchlistItemsResponse,
   SubscriberWatchlistCreateRequest,
   SubscriberWatchlist,
+  SubscriberCatalogResponse,
+  SubscriberCatalogMembershipResult,
+} from "../types";
 import { authConfig } from "../auth/config";
 import { getAccessToken } from "../auth/session";
 
@@ -810,13 +812,17 @@ export const api = {
   getMarketOpsSignalAssuranceRecommendations: (tenantId: string, evidenceSource = "", evaluationMode = "") =>
     get<MarketOpsSignalAssuranceRecommendationsResponse>("/v1/marketops/signal-assurance/recommendations", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, evaluation_mode: evaluationMode || undefined }),
   getMarketOpsSRIRankings: (tenantId: string, segmentType = "", state = "") =>
+    get<MarketOpsSRIRankingsResponse>("/v1/marketops/sectors/rankings", { tenant_id: tenantId, segment_type: segmentType || undefined, state: state || undefined }),
   listSubscriberWatchlists: (tenantId: string) =>
     get<SubscriberWatchlistsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists", undefined, "no-store"),
   listSubscriberWatchlistItems: (tenantId: string, listId: string) =>
     get<SubscriberWatchlistItemsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists/" + encodeURIComponent(listId) + "/items", undefined, "no-store"),
   createSubscriberPrivateWatchlist: (tenantId: string, body: SubscriberWatchlistCreateRequest) =>
     post<{ list: SubscriberWatchlist }>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/private-lists", body),
-    get<MarketOpsSRIRankingsResponse>("/v1/marketops/sectors/rankings", { tenant_id: tenantId, segment_type: segmentType || undefined, state: state || undefined }),
+  searchSubscriberCatalog: (tenantId: string, query: string) =>
+    get<SubscriberCatalogResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/catalog", { q: query, limit: 20 }, "no-store"),
+  addSubscriberPrivateCatalogMembership: (tenantId: string, listId: string, globalAssetId: string) =>
+    post<SubscriberCatalogMembershipResult>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists/" + encodeURIComponent(listId) + "/catalog-memberships", { global_asset_id: globalAssetId, correlation_id: "subscriber-catalog-ui" }),
   // G139 MarketOps Opportunities workbench (read-only). Opportunity list/detail
   // plus supporting linked-record reads (hypothesis-evaluations, hypotheses,
   // evidence, market-state lineage). research_only / eligible / triggered /
