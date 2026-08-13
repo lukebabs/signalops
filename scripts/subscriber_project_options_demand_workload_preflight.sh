@@ -30,7 +30,7 @@ for table in subscriber_options_demand_snapshot_runs subscriber_options_demand_s
   mutable="$(query "SELECT has_table_privilege(current_user, '$table', 'UPDATE,DELETE')")"
   [[ "$mutable" == f || "$mutable" == false ]] || { printf 'Options-demand preflight failed: append-only table %s must not permit UPDATE or DELETE.\n' "$table" >&2; exit 4; }
 done
-for table in subscriber_tenant_entitlements subscriber_entitlement_capabilities subscriber_watchlists subscriber_watchlist_memberships subscriber_global_assets marketops_options_chain marketops_options_capture_sessions; do
+for table in subscriber_tenant_entitlements subscriber_entitlement_capabilities subscriber_watchlists subscriber_watchlist_memberships subscriber_global_assets marketops_options_chain_daily marketops_options_capture_sessions; do
   forbidden="$(query "SELECT has_table_privilege(current_user, '$table', 'SELECT,INSERT,UPDATE,DELETE')")"
   [[ "$forbidden" == f || "$forbidden" == false ]] || { printf 'Options-demand preflight failed: direct access to %s is forbidden.\n' "$table" >&2; exit 4; }
 done
