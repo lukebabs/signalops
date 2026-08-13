@@ -2707,7 +2707,8 @@ export interface MarketOpsSignalOverviewCategory { key:string; count:number; mem
 export interface MarketOpsSignalOverviewCoverage { eligible:number; insufficient_inputs:number; unprocessed:number; }
 export interface MarketOpsSignalOverviewPoint { trade_date:string; categories:MarketOpsSignalOverviewCategory[]; coverage?:MarketOpsSignalOverviewCoverage; }
 export interface MarketOpsSignalOverviewResponse { generated_at:string; universe_group:string; window:MarketOpsSignalOverviewWindow; asset_count:number; risk_reward:{points:MarketOpsSignalOverviewPoint[]}; hypotheses:{points:MarketOpsSignalOverviewPoint[]}; options_flow_extremes:{as_of:string;categories:MarketOpsSignalOverviewCategory[];coverage:{eligible:number;insufficient_activity:number;unusable_ratio:number;missing_or_stale:number}}; intraday:{as_of_time?:string;categories:MarketOpsSignalOverviewCategory[]}; }
-export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; risk_reward?:MarketOpsRiskRewardResponse; }
+export type MarketOpsCurrentEODContext = { symbol:string; session_date:string; open?:number; high?:number; low?:number; close?:number; volume?:number; vwap?:number; provider:string; usage_context:"current_market_context"; selected_observation_role:"global_reobservation"; policy_version:string; payload_fingerprint:string; source_event_id:string; source_run_id:string; algorithm_version:string; quality_state:string; as_of_time:string; };
+export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; risk_reward?:MarketOpsRiskRewardResponse; current_eod_context?:MarketOpsCurrentEODContext | null; }
 
 
 export type CyberOpsTrafficWindow = "1h" | "24h" | "7d";
