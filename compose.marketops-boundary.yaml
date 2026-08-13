@@ -41,7 +41,8 @@ services:
       marketops-postgres:
         condition: service_healthy
     environment:
-      SIGNALOPS_DATABASE_URL: postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD}@marketops-postgres:5432/marketops?sslmode=disable
+      SIGNALOPS_DATABASE_URL: postgres://signalops@marketops-postgres:5432/marketops?sslmode=disable
+      PGPASSWORD: ${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD}
       SIGNALOPS_MIGRATION_DIR: /workspace/migrations
     working_dir: /workspace
     entrypoint: ["/bin/sh", "/workspace/scripts/apply_postgres_migrations.sh"]
@@ -55,7 +56,8 @@ services:
       marketops-timescaledb:
         condition: service_healthy
     environment:
-      SIGNALOPS_DATABASE_URL: postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable
+      SIGNALOPS_DATABASE_URL: postgres://signalops@marketops-timescaledb:5432/marketops_temporal?sslmode=disable
+      PGPASSWORD: ${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD}
       SIGNALOPS_MIGRATION_DIR: /workspace/temporal_migrations
     working_dir: /workspace
     entrypoint: ["/bin/sh", "/workspace/scripts/apply_postgres_migrations.sh"]

@@ -16,6 +16,16 @@ secret_env="$secret_dir/marketops-boundary.env"
   exit 3
 }
 
+previous_postgres_password=""
+previous_temporal_password=""
+if [[ -r "$secret_env" ]]; then
+  set +u
+  # shellcheck disable=SC1090
+  . "$secret_env"
+  previous_postgres_password="${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD:-}"
+  previous_temporal_password="${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD:-}"
+  set -u
+fi
 for command in install rm; do
   command -v "$command" >/dev/null 2>&1 || {
     printf 'required command not found: %s\n' "$command" >&2
@@ -31,5 +41,11 @@ set -a
 # shellcheck disable=SC1090
 . "$secret_env"
 set +a
+if [[ -n "$previous_postgres_password" && "$previous_postgres_password" != "$SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD" ]]; then
+  export SIGNALOPS_MARKETOPS_PREVIOUS_POSTGRES_PASSWORD="$previous_postgres_password"
+fi
+if [[ -n "$previous_temporal_password" && "$previous_temporal_password" != "$SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD" ]]; then
+  export SIGNALOPS_MARKETOPS_PREVIOUS_TEMPORAL_PASSWORD="$previous_temporal_password"
+fi
 MARKETOPS_BOUNDARY_ACKNOWLEDGE_WRITES=true \
   "$root_dir/scripts/bootstrap_marketops_database_boundary.sh"

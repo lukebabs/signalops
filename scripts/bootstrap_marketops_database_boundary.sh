@@ -19,8 +19,24 @@ done
 for name in SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD; do
   [[ -n "${!name:-}" ]] || { printf 'missing required secret environment: %s\n' "$name" >&2; exit 2; }
 done
+[[ "$SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD" =~ ^[A-Za-z0-9]{32,}$ ]] || {
+  printf 'SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD must be a URL-safe, 32-character minimum secret\n' >&2
+  exit 2
+}
+[[ "$SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD" =~ ^[A-Za-z0-9]{32,}$ ]] || {
+  printf 'SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD must be a URL-safe, 32-character minimum secret\n' >&2
+  exit 2
+}
 
 "${compose[@]}" up -d marketops-postgres marketops-timescaledb
+if [[ -n "${SIGNALOPS_MARKETOPS_PREVIOUS_POSTGRES_PASSWORD:-}" ]]; then
+  PGPASSWORD="$SIGNALOPS_MARKETOPS_PREVIOUS_POSTGRES_PASSWORD" "${compose[@]}" exec -T marketops-postgres \
+    psql -v ON_ERROR_STOP=1 -U signalops -d postgres -c "ALTER ROLE signalops PASSWORD '$SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD';"
+fi
+if [[ -n "${SIGNALOPS_MARKETOPS_PREVIOUS_TEMPORAL_PASSWORD:-}" ]]; then
+  PGPASSWORD="$SIGNALOPS_MARKETOPS_PREVIOUS_TEMPORAL_PASSWORD" "${compose[@]}" exec -T marketops-timescaledb \
+    psql -v ON_ERROR_STOP=1 -U signalops -d postgres -c "ALTER ROLE signalops PASSWORD '$SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD';"
+fi
 "${compose[@]}" --profile marketops-boundary run --rm marketops-postgres-migrate
 "${compose[@]}" --profile marketops-boundary run --rm marketops-timescaledb-migrate
 
