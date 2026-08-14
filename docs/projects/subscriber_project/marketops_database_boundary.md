@@ -80,15 +80,13 @@ from the pushed release in a clean worktree. This avoids accidentally coupling
 the database cutover to unreviewed changes:
 
 ```bash
-git worktree add --detach /tmp/signalops-marketops-read-cutover 7abf1c9
+git fetch origin subscribers
+git worktree add --detach /tmp/signalops-marketops-read-cutover origin/subscribers
 cd /tmp/signalops-marketops-read-cutover
-sudo ./scripts/deploy_marketops_read_cutover.sh
+sudo ./scripts/deploy_marketops_read_cutover.sh /home/adminalien/docker/syncratic-core/subsystems/signalops/.env
 ```
 
-The wrapper regenerates the root-owned cutover environment and loads the boundary
-passwords only while Compose resolves its service definitions. This is necessary
-because Compose interpolates those definitions even when it is starting only the
-gateway.
+The wrapper requires the protected production Compose environment file so the replacement gateway preserves its authentication, subscriber-list, and other existing runtime settings. It regenerates the root-owned cutover environment and loads the boundary passwords only while Compose resolves its service definitions. This is necessary because Compose interpolates those definitions even when it is starting only the gateway.
 
 Validate the gateway health endpoint, the protected MarketOps asset and SAF
 views for the approved tenant/watchlist cohort, and a non-MarketOps/CyberOps
@@ -96,9 +94,11 @@ route. Keep all MarketOps timers stopped until those checks pass. Rollback is
 one gateway redeploy with the read override omitted; the shared databases have
 not been mutated by the read phase.
 
-## Gateway read-cutover evidence — 2026-08-14
+## Initial gateway read-cutover observability — 2026-08-14
 
-The clean release `e913ce0` was built and deployed to `signalops-gateway-1`
+Do not treat this initial deployment as acceptance evidence. The clean worktree lacked the protected production Compose environment file, so its replacement gateway started with authentication and subscriber-list features disabled. The supplied tenant-pilot-b HAR caught the regression through `404` responses for both subscriber watchlist endpoints. Redeploy using `deploy_marketops_read_cutover.sh` with the protected production environment file before further validation.
+
+The initial clean release `e913ce0` was built and deployed to `signalops-gateway-1`
 with the read-only override. Its startup log states that MarketOps gateway reads
 are routed to the dedicated data boundary. `GET /healthz` and `GET /readyz`
 returned `200`. The dedicated MarketOps asset endpoint returned 132 assets for

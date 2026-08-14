@@ -9,8 +9,17 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 boundary_env=/etc/signalops/marketops-boundary.env
 cutover_env=/etc/signalops/marketops-cutover.env
+runtime_env="${1:-${SIGNALOPS_PRODUCTION_ENV_FILE:-}}"
 [[ -r "$boundary_env" ]] || {
   printf 'Protected MarketOps boundary secret is not readable: %s\n' "$boundary_env" >&2
+  exit 3
+}
+[[ -n "$runtime_env" ]] || {
+  printf 'Provide the protected production Compose environment file as argument 1.\n' >&2
+  exit 2
+}
+[[ -r "$runtime_env" ]] || {
+  printf 'Production Compose environment file is not readable: %s\n' "$runtime_env" >&2
   exit 3
 }
 
@@ -25,7 +34,9 @@ set +a
 
 "$root_dir/scripts/render_marketops_cutover_env.sh" "$boundary_env" "$cutover_env"
 
-exec docker compose -p signalops \
+exec docker compose \
+  --env-file "$runtime_env" \
+  -p signalops \
   -f "$root_dir/compose.yaml" \
   -f "$root_dir/compose.marketops-boundary.yaml" \
   -f "$root_dir/compose.marketops-read-cutover.yaml" \
