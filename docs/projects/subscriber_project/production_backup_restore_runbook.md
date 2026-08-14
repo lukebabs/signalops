@@ -118,3 +118,18 @@ Attach the backup/PITR reference, archive verification, restore timestamps, reco
 ## Completion criteria
 
 The production S3 pilot remains unavailable until the procurement record is approved, the first encrypted off-host backup completes, WAL archival meets the chosen RPO, monitoring is active, and an isolated restore rehearsal has produced the acceptance evidence above.
+
+### Dedicated MarketOps activation
+
+The MarketOps physical boundary uses two additional pgBackRest stanzas in the existing protected configuration: `marketops-primary` for the primary PostgreSQL store and `marketops-temporal` for TimescaleDB. Both use the existing assumed backup role and encrypted repository, but maintain distinct backup/WAL namespaces. The root-controlled activation builds the matching pgBackRest images, enables WAL archival, takes one full backup per store, and enables only the dedicated 02:45 UTC recovery-point timer. It restarts each dedicated database once; run it only during the approved maintenance window:
+
+```bash
+sudo ./scripts/provision_marketops_pgbackrest.sh
+```
+
+After both backup labels and archive checks are recorded, run the isolated rehearsal:
+
+```bash
+sudo SIGNALOPS_PGBACKREST_CONFIG_PATH=/etc/signalops/pgbackrest.conf \
+  ./scripts/marketops_pgbackrest_restore_rehearsal.sh
+```

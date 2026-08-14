@@ -190,3 +190,9 @@ The one-minute scheduling accuracy intentionally avoids a fragile exact-second d
 ## Controlled SRI schedule deployment evidence — 2026-08-14
 
 Release `f2fa7f9` was installed from the clean `/tmp/signalops-marketops-sri-scheduler-release` worktree with explicit approval. Both persistent system timers are loaded, enabled, and waiting; neither performed a catch-up invocation at installation. Their first scheduled runs are Friday 2026-08-14 at 20:07 and 20:20 America/New_York (00:07 and 00:20 UTC on 2026-08-15). They target the dedicated scheduler instances `marketops-sri-refresh` and `marketops-sri-holdings-refresh` respectively. The installed unit has the protected dedicated primary and temporal URL overlay and retains no legacy user timer dependency.
+
+## Dedicated MarketOps recovery implementation — 2026-08-14
+
+The recovery tooling now uses the existing root-owned short-lived AWS assumed-role source and encrypted repository configuration, but defines separate pgBackRest stanzas for the dedicated primary (`marketops-primary`) and temporal (`marketops-temporal`) stores. Both stanzas share the governed bucket while retaining isolated backup/WAL namespaces. New dedicated PostgreSQL 16 and TimescaleDB 2.17/PG16 images include pgBackRest; both image builds and Compose interpolation validation passed without touching the running databases.
+
+Activation is a single root-controlled maintenance action. It rebuilds only the two dedicated database containers, creates their stanzas, configures a 15-minute WAL archive command, restarts each dedicated database once, verifies archival, creates a full encrypted backup for each, and then enables the dedicated 02:45 UTC daily timer (monthly full, otherwise differential). It never enables the legacy shared-database backup timer. The isolated restore rehearsal remains a separate, required root command and starts each restored database with `--network none` before validating it.
