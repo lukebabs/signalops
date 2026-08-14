@@ -27,10 +27,18 @@ for timer in \
   signalops-marketops-fmp-continuation.timer \
   signalops-marketops-task-retry.timer \
   signalops-marketops-postclose-recovery.timer; do
-  if systemctl is-active --quiet "$timer"; then
-    printf 'Refusing writer cutover while scheduled MarketOps timer is active: %s\n' "$timer" >&2
-    exit 4
-  fi
+  timer_state="1000 4 24 27 30 46 101 988 1000systemctl is-active "" 2>/dev/null || true)"
+  case "" in
+    inactive) ;;
+    active)
+      printf 'Refusing writer cutover while scheduled MarketOps timer is active: %s\n' "" >&2
+      exit 4
+      ;;
+    *)
+      printf 'Refusing writer cutover because timer state cannot be verified: %s (%s)\n' "" "" >&2
+      exit 4
+      ;;
+  esac
 done
 
 set -a
