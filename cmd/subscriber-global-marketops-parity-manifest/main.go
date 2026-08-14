@@ -78,8 +78,17 @@ func run(args []string) error {
 		return err
 	}
 	defer db.Close()
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	if err := db.PingContext(ctx); err != nil {
 		return fmt.Errorf("connect to global worker database: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "SET ROLE signalops_subscriber_global_eod"); err != nil {
+		return fmt.Errorf("assume controlled global-EOD role: %w", err)
+	}
+	defer func() { _, _ = db.ExecContext(context.Background(), "RESET ROLE") }()
+	if err := validateWorkload(ctx, db); err != nil {
+		return err
 	}
 
 	entries, err := readManifestEntries(ctx, db, kinds, *limit)
@@ -131,6 +140,31 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15)`,
 		return fmt.Errorf("commit parity manifest: %w", err)
 	}
 	fmt.Printf("parity_run_id=%s selected=%d mapped=%d unmapped=%d ambiguous=%d manifest_fingerprint=%s\n", runID, len(entries), mapped, unmapped, ambiguous, manifestFingerprint)
+	return nil
+}
+
+func validateWorkload(ctx context.Context, db *sql.DB) error {
+	var currentUser string
+	var superuser, createRole, bypassRLS, member bool
+	if err := db.QueryRowContext(ctx, `SELECT current_user,rolsuper,rolcreaterole,rolbypassrls,
+  pg_has_role(current_user,'signalops_subscriber_global_eod', 'member')
+FROM pg_roles WHERE rolname=current_user`).Scan(&currentUser, &superuser, &createRole, &bypassRLS, &member); err != nil {
+		return fmt.Errorf("inspect parity workload identity: %w", err)
+	}
+	if superuser || createRole || bypassRLS || !member {
+		return fmt.Errorf("parity workload must be a non-privileged member of signalops_subscriber_global_eod (got %s)", currentUser)
+	}
+	var viewRead, manifestWrite, rawFeatureRead, rawStateRead bool
+	if err := db.QueryRowContext(ctx, `SELECT
+  has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_source', 'SELECT'),
+  has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_runs', 'SELECT,INSERT'),
+  has_table_privilege(current_user,'marketops_feature_observations', 'SELECT'),
+  has_table_privilege(current_user,'marketops_market_states', 'SELECT')`).Scan(&viewRead, &manifestWrite, &rawFeatureRead, &rawStateRead); err != nil {
+		return fmt.Errorf("inspect parity workload grants: %w", err)
+	}
+	if !viewRead || !manifestWrite || rawFeatureRead || rawStateRead {
+		return fmt.Errorf("parity workload grants must allow manifest view/write and deny direct legacy-table reads")
+	}
 	return nil
 }
 
