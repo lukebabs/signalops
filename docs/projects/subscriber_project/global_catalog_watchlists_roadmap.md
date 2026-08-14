@@ -268,6 +268,12 @@ Production exit requires one platform-owned, immutable global evidence path keye
 
 Until that work passes migration, backfill, scheduler, authorization, parity, and browser acceptance gates, the UI must use truthful global coverage states. It must not render invalid placeholder timestamps, "Open Market State", or implied algorithm availability for a symbol without globally materialized evidence.
 
+### Evidence-ledger foundation — pending controlled migration
+
+Migration `000118_subscriber_global_analytical_evidence_foundation` is the first additive remediation slice. It introduces an append-only platform ledger keyed by global asset, session, evidence kind, algorithm/version, fingerprint, validation-contract reference, immutable-baseline reference, and source/run provenance. Its writer contract is constrained to `shadow_read_only` reconciliation runs under the existing no-login `signalops_subscriber_global_eod` role. The only new gateway surface is a coverage-count view; it cannot serve scores, states, signals, or legacy data as canonical.
+
+The migration has **not** been applied to production. It does not import history, reroute existing jobs, enable a scheduler, or change an API response. The next slices are: (1) apply and permission-test the ledger, (2) produce read-only legacy-to-global parity manifests per evidence kind, (3) add a separately approved immutable import/capture path, and (4) expose each algorithm only through a type-specific parity-approved gateway projection and browser contract. This remains a production blocker until all cited evidence types have completed those gates.
+
 ## Watchlist context closure — 2026-08-14
 
 MarketOps resolves a user’s first private list when no saved context exists; the tenant default is used only when that user has no private list. A later explicit selection remains authoritative. Creating a private list now selects it for the shared MarketOps context, and the Watchlists screen exposes a **Use across MarketOps** action for an existing list. The context is persisted per tenant and subject, then invalidates MarketOps queries so Assets, Dashboard, EROC, valuation, EEOM, material events, opportunities, and Market State reads converge on the same selected ticker set. Coverage remains truthful: a selected symbol without usable central EOD evidence is displayed as pending rather than populated with invented values.
