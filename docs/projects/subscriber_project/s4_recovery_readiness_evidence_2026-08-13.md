@@ -39,3 +39,7 @@ Only after the resulting evidence is attached to the change record may the S4 ex
 ## Boundary
 
 No S3 objects, IAM policies, PostgreSQL settings, scheduler settings, feature flags, or provider requests were changed while collecting this evidence. The current AWS caller is the account root identity and was used only for read-only inspection; it is explicitly excluded from the operating procedure.
+
+## Completion evidence — 2026-08-14
+
+Dedicated MarketOps primary and temporal pgBackRest stanzas are active, encrypted, and archive-checked. Latest full labels are `20260814-065438F` and `20260814-065604F`. Both stores passed an isolated network-disabled restore-and-query rehearsal, and the dedicated daily backup timer is active while the shared backup timer remains disabled. This replaces the prior dedicated-MarketOps recovery gap; separate monitoring/alert delivery and any broader shared-platform recovery work remain independently governed.

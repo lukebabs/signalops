@@ -202,3 +202,11 @@ Activation is a single root-controlled maintenance action. It rebuilds only the 
 Release `bf4a26d` provisioned encrypted pgBackRest for the dedicated MarketOps stores. Both containers restarted successfully and remain healthy. WAL archiving is enabled with `archive_timeout=15min` and stanza-specific commands: `marketops-primary` for the primary store and `marketops-temporal` for TimescaleDB.
 
 The verified primary full backup is `20260814-061739F` (1,034,510,699-byte source, 198,797,488-byte encrypted repository object); the verified temporal full backup is `20260814-061905F` (1,113,358,688-byte source, 147,249,872-byte encrypted repository object). Both repository reports have status `ok`, no held backup/restore lock, and archived WAL segments. The dedicated `signalops-marketops-pgbackrest.timer` is active and waiting for 02:45 UTC daily; the legacy `signalops-postgres-pgbackrest.timer` remains inactive. The remaining recovery closure gate is the isolated two-store restore rehearsal.
+
+## Dedicated MarketOps restore-rehearsal acceptance evidence — 2026-08-14
+
+The final isolated rehearsal restored both dedicated stores from the latest encrypted full recovery points: primary `20260814-065438F` and temporal `20260814-065604F`. Each restore completed into a fresh temporary Docker volume, started a separate PostgreSQL-compatible container with `--network none`, and accepted `SELECT 1`. The primary and temporal containers/volumes were removed automatically after validation.
+
+The disposable rehearsal uses `archive-copy=y`, `--type=none`, and `--archive-mode=off`. This validates that the encrypted physical backup plus its packaged consistency WAL can restore and start without network access, archive retrieval, or any production/database write. Continuous WAL archival is separately verified on both live stores (`archive_mode=on`, 15-minute archive timeout) and each pgBackRest repository check passed. This rehearsal is therefore recovery-point validation, not a networked point-in-time restore drill.
+
+Post-rehearsal checks confirm `marketops` and `marketops_temporal` remain healthy with WAL archiving enabled. The dedicated daily recovery-point timer remains active for 02:45 UTC; the shared `signalops-postgres-pgbackrest.timer` remains inactive. This closes the dedicated MarketOps backup-and-isolated-restore gate.

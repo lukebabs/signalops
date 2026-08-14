@@ -133,3 +133,7 @@ After both backup labels and archive checks are recorded, run the isolated rehea
 sudo SIGNALOPS_PGBACKREST_CONFIG_PATH=/etc/signalops/pgbackrest.conf \
   ./scripts/marketops_pgbackrest_restore_rehearsal.sh
 ```
+
+### Dedicated MarketOps recovery evidence — 2026-08-14
+
+The primary (`20260814-065438F`) and temporal (`20260814-065604F`) recovery points were each restored to a fresh disposable volume and started in network-disabled containers. Both accepted a validation query, and all temporary resources were removed. The exercise uses archive-copy consistency WAL with `--type=none` and archiving disabled on the disposable target; it verifies an offline physical recovery point rather than a networked PITR drill. Live dedicated WAL archival remains enabled and its daily timer is active; the shared backup timer remains disabled.
