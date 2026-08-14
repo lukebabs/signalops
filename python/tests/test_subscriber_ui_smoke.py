@@ -83,8 +83,14 @@ def subscriber_page(browser: Browser, request: pytest.FixtureRequest) -> Page:
 
 def login(page: Page, config: SubscriberUIConfig) -> None:
     page.goto(f"{config.base_url}/marketops/watchlists", wait_until="domcontentloaded")
-    if "auth." in page.url or "login-actions" in page.url:
-        page.locator("#username, input[name='username']").first.fill(config.username)
+    if page.get_by_role("heading", name="Watchlists").is_visible():
+        return
+    sign_in = page.get_by_role("button", name="Sign in")
+    if sign_in.is_visible():
+        sign_in.click()
+    username = page.locator("#username, input[name='username']").first
+    if username.is_visible():
+        username.fill(config.username)
         page.locator("#password, input[name='password']").first.fill(config.password)
         page.locator("#kc-login, input[type='submit']").first.click()
     page.wait_for_url(re.compile(re.escape(config.base_url) + r"/marketops/.*"), timeout=30_000)
