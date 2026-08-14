@@ -5,16 +5,16 @@ job_id="${1:-}"
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root_dir"
 
-case "" in
+case "$job_id" in
   preflight)
     source ./scripts/marketops_schedule_database.sh
-    primary="1000 4 24 27 30 46 101 988 1000marketops_primary_psql -Atc "select current_database()")"
-    temporal="1000 4 24 27 30 46 101 988 1000marketops_temporal_psql -Atc "select current_database()")"
-    [[ "" == "marketops" && "" == "marketops_temporal" ]] || {
-      printf 'Dedicated scheduler preflight failed: primary=%s temporal=%s\n' "" "" >&2
+    primary="$(marketops_primary_psql -Atc "select current_database()")"
+    temporal="$(marketops_temporal_psql -Atc "select current_database()")"
+    [[ "$primary" == "marketops" && "$temporal" == "marketops_temporal" ]] || {
+      printf 'Dedicated scheduler preflight failed: primary=%s temporal=%s\n' "$primary" "$temporal" >&2
       exit 3
     }
-    printf 'Dedicated scheduler preflight passed: primary=%s temporal=%s\n' "" ""
+    printf 'Dedicated scheduler preflight passed: primary=%s temporal=%s\n' "$primary" "$temporal"
     ;;
   marketops-daily-postclose)
     exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 18:01:55" America/New_York ./scripts/marketops_daily_postclose.sh --write
