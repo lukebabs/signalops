@@ -73,6 +73,12 @@ docker compose --env-file .env -p signalops -f compose.yaml -f compose.traefik.y
 
 Result: the Subscriber Project remains blocked from production acceptance by the documented global analytical-data-plane gap. The browser test is now a reproducible release control for that gap.
 
+## UX truth-gate validation — 2026-08-14
+
+After the shared and pending Asset projection remediation, the same isolated `tenant-pilot-b` browser contract passed: authentication, private-list activation, reload persistence, Assets, Dashboard, EROC, valuation, EEOM, and Market State all preserved the selected list and tenant scope. Shared rows now render verified global-EOD provenance and explicitly identify global intraday/Risk-Reward/Market-State evidence as unmaterialized. Pending rows render only their central coverage state. Neither class renders the legacy sentinel timestamp, tenant-local algorithm placeholder, or Market-State link.
+
+This closes the **UX truthfulness** sub-gate only. It does not close the global analytical-data-plane production blocker: the referenced algorithm and historical evidence still need to be materialized platform-wide.
+
 ## Production gate
 
 Run this suite after Gateway/Web deployment and before declaring a subscriber release accepted. A passing browser smoke validates UX and authorization propagation; it does not replace the separate global analytical-data-plane, provider, scheduler, parity, or recovery gates.

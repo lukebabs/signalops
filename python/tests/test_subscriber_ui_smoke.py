@@ -160,6 +160,8 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
     for ticker in config.shared_tickers:
         row = subscriber_page.get_by_test_id(f"marketops-asset-row-{ticker}")
         expect(row).to_contain_text("Shared", timeout=30_000)
+        expect(row).to_contain_text("Global EOD only")
+        expect(row).not_to_contain_text("Open Market State")
         expect(row).not_to_contain_text("1-12-31")
         expect(row).not_to_contain_text("Awaiting monitor")
         expect(row).not_to_contain_text("Awaiting EOD analysis")
@@ -167,7 +169,11 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
     expect(pending_coverage).to_contain_text("Coverage in progress", timeout=30_000)
     for ticker in config.pending_tickers:
         expect(pending_coverage).to_contain_text(ticker)
-        expect(subscriber_page.get_by_test_id(f"marketops-asset-row-{ticker}")).to_contain_text("Pending")
+        pending_row = subscriber_page.get_by_test_id(f"marketops-asset-row-{ticker}")
+        expect(pending_row).to_contain_text("Pending")
+        expect(pending_row).to_contain_text("Coverage pending")
+        expect(pending_row).not_to_contain_text("Open Market State")
+        expect(pending_row).not_to_contain_text("1-12-31")
     expect(subscriber_page.locator("body")).not_to_contain_text("1-12-31")
 
     dashboard = visit_for_response(
