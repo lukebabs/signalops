@@ -350,15 +350,15 @@ export function MarketOpsAssetsRoute() {
                         {editSelectedAssetKey === assetRowKey(a) && displaySectorError ? <div className="mt-1 text-[10px] text-red-700">{displaySectorError}</div> : null}
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span>{a.asset_type}</span>
-                          {sharedEODContext(a) ? <span title="This shared row has verified global EOD only. Global Market State is not materialized yet." className="text-gray-500">Global evidence pending</span> : <Link to="/marketops/state" search={{ symbol: a.ticker }} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} className="text-brand-700 underline hover:text-brand-800">Open Market State</Link>}
+                          {sharedEODContext(a) || a.subscriberCoverage ? <span title={a.subscriberCoverage ? "Central coverage is pending; no Market State exists yet." : "This shared row has verified global EOD only. Global Market State is not materialized yet."} className="text-gray-500">{a.subscriberCoverage ? "Coverage pending" : "Global evidence pending"}</span> : <Link to="/marketops/state" search={{ symbol: a.ticker }} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} className="text-brand-700 underline hover:text-brand-800">Open Market State</Link>}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <MarketDataCell quote={quoteMap.get(a.ticker.toUpperCase())} sharedEOD={sharedEODContext(a)} />
-                  <IntradayConditionsCell snapshot={conditionMap.get(a.ticker.toUpperCase())} loading={conditionsQ.isLoading} error={conditionsQ.isError} sharedEOD={sharedEODContext(a)} />
-                  <RiskRewardCell summary={riskRewardMap.get(a.ticker.toUpperCase())} loading={riskRewardQ.isLoading} error={riskRewardQ.isError} sharedEOD={sharedEODContext(a)} />
-                  <MarketDataUpdatedCell quote={quoteMap.get(a.ticker.toUpperCase())} refreshedAt={quotesQ.data?.refreshed_at ?? null} sharedEOD={sharedEODContext(a)} />
+                  <MarketDataCell quote={quoteMap.get(a.ticker.toUpperCase())} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
+                  <IntradayConditionsCell snapshot={conditionMap.get(a.ticker.toUpperCase())} loading={conditionsQ.isLoading} error={conditionsQ.isError} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
+                  <RiskRewardCell summary={riskRewardMap.get(a.ticker.toUpperCase())} loading={riskRewardQ.isLoading} error={riskRewardQ.isError} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
+                  <MarketDataUpdatedCell quote={quoteMap.get(a.ticker.toUpperCase())} refreshedAt={quotesQ.data?.refreshed_at ?? null} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
                 </tr>
                 {selectedTicker === a.ticker ? (
                   <tr className="bg-brand-50">
@@ -436,7 +436,8 @@ function AlgorithmEvidencePanel({ results, loading, error }: { results: Algorith
   return <div className="rounded border border-violet-100 bg-violet-50 p-2"><div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-violet-700">Algorithm evidence</div><p className="mb-2 text-[11px] text-violet-700">The five most recent raw platform observations, retained for deeper analysis. The selected EOD z-score is intentionally excluded.</p>{loading ? <div className="text-xs text-gray-500">Loading algorithm evidence…</div> : error ? <div className="text-xs text-red-700">Algorithm evidence is unavailable.</div> : dates.length ? <div className="space-y-3">{dates.map((date) => <div key={date}><div className="text-[10px] font-semibold text-violet-700">{date}</div><div className="space-y-2">{grouped[date].map((result) => <AlgorithmResultLine key={result.algorithm_result_id} result={result} />)}</div></div>)}</div> : <div className="text-xs text-gray-500">No additional platform outputs are available for this asset.</div>}</div>;
 }
 
-function RiskRewardCell({ summary, loading, error, sharedEOD }: { summary?: MarketOpsRiskRewardSummary; loading: boolean; error: boolean; sharedEOD?: SharedEODContext }) {
+function RiskRewardCell({ summary, loading, error, sharedEOD, pending }: { summary?: MarketOpsRiskRewardSummary; loading: boolean; error: boolean; sharedEOD?: SharedEODContext; pending?: boolean }) {
+  if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; no Risk/Reward evidence is available.">Coverage pending<div className="text-[10px]">Risk/Reward unavailable</div></td>;
   if (sharedEOD) return <td className="px-3 py-2 text-xs text-slate-600" title="Verified global EOD exists, but global Risk/Reward evidence has not been materialized.">Global EOD only<div className="text-[10px] text-slate-500">Risk/Reward pending</div></td>;
   if (error && !summary) return <td className="px-3 py-2 text-xs text-red-700" title="The persisted post-close Risk/Reward summary could not be loaded. This does not indicate an asset-level signal.">Risk/Reward unavailable</td>;
   if (loading && !summary) return <td className="px-3 py-2 text-xs text-gray-500" title="Loading the latest persisted post-close technical Risk/Reward analysis.">Loading EOD analysis…</td>;
@@ -452,7 +453,8 @@ function RiskRewardCell({ summary, loading, error, sharedEOD }: { summary?: Mark
   return <td className="px-3 py-2 text-xs" title={title}><div className={`font-medium ${tone}`}>{direction} · {score}</div><div className={`text-[10px] ${evolutionTone}`}>{evolution}</div></td>;
 }
 
-function IntradayConditionsCell({ snapshot, loading, error, sharedEOD }: { snapshot?: MarketOpsIntradayConditionSnapshot; loading: boolean; error: boolean; sharedEOD?: SharedEODContext }) {
+function IntradayConditionsCell({ snapshot, loading, error, sharedEOD, pending }: { snapshot?: MarketOpsIntradayConditionSnapshot; loading: boolean; error: boolean; sharedEOD?: SharedEODContext; pending?: boolean }) {
+  if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; no intraday evidence is available.">Coverage pending<div className="text-[10px]">Intraday unavailable</div></td>;
   if (sharedEOD) return <td className="px-3 py-2 text-xs text-slate-600" title="No global intraday monitor snapshot has been materialized for this shared asset.">Global EOD only<div className="text-[10px] text-slate-500">Intraday pending</div></td>;
   if (error && !snapshot) return <td className="px-3 py-2 text-xs text-red-700" title="The persisted intraday-condition request failed; this does not mean monitoring has not run.">Monitor data unavailable</td>;
   if (loading && !snapshot) return <td className="px-3 py-2 text-xs text-gray-500" title="Loading the latest persisted 15-minute condition snapshot.">Loading monitor…</td>;
@@ -462,7 +464,8 @@ function IntradayConditionsCell({ snapshot, loading, error, sharedEOD }: { snaps
   return <td className="px-3 py-2 text-xs"><div className="space-y-1">{top.map((item) => <div key={item.key} title={item.evidence + " " + item.interpretation} className={item.tone === "positive" ? "cursor-help text-green-700" : item.tone === "negative" ? "cursor-help text-red-700" : "cursor-help text-gray-700"}>{item.title}</div>)}{snapshot.conditions.length > 2 ? <div className="text-[10px] text-gray-500">+{snapshot.conditions.length - 2} more</div> : null}<div className="text-[10px] text-gray-400">{snapshot.stale ? "Stale" : "15m monitor"}</div></div></td>;
 }
 
-function MarketDataCell({ quote, sharedEOD }: { quote?: MarketOpsAssetQuote; sharedEOD?: SharedEODContext }) {
+function MarketDataCell({ quote, sharedEOD, pending }: { quote?: MarketOpsAssetQuote; sharedEOD?: SharedEODContext; pending?: boolean }) {
+  if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; no completed-session close is available.">Coverage pending<div className="text-[10px]">No central close yet</div></td>;
   if (sharedEOD) return <td className="px-3 py-2 text-xs text-emerald-800" title={"Verified global completed-session EOD from " + sharedEOD.provider + "; quality " + sharedEOD.qualityState + "."}><div className="font-medium">{sharedEOD.close == null ? "Close unavailable" : sharedEOD.close.toFixed(2)} <span className="rounded bg-emerald-100 px-1 text-[9px] font-medium text-emerald-700">Global EOD</span></div><div className="text-[10px] text-emerald-700">{sharedEOD.sessionDate} · {sharedEOD.provider}</div></td>;
   if (quote?.price == null) {
     return <td className="px-3 py-2 text-xs text-gray-500" title="No delayed intraday aggregate or completed daily close is currently available from the market-data provider.">Unavailable</td>;
@@ -492,7 +495,8 @@ function MarketDataCell({ quote, sharedEOD }: { quote?: MarketOpsAssetQuote; sha
   );
 }
 
-function MarketDataUpdatedCell({ quote, refreshedAt, sharedEOD }: { quote?: MarketOpsAssetQuote; refreshedAt?: string | null; sharedEOD?: SharedEODContext }) {
+function MarketDataUpdatedCell({ quote, refreshedAt, sharedEOD, pending }: { quote?: MarketOpsAssetQuote; refreshedAt?: string | null; sharedEOD?: SharedEODContext; pending?: boolean }) {
+  if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; there is no completed-session timestamp yet.">Coverage pending</td>;
   if (sharedEOD) return <td className="px-3 py-2 text-xs text-emerald-800" title={"Verified global EOD observation from " + sharedEOD.provider + "."}>Global EOD · {sharedEOD.sessionDate}</td>;
   if (quote?.market_status === 'end_of_day') {
     const sessionDate = quote.timestamp ? quote.timestamp.slice(0, 10) : 'latest session';
