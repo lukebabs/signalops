@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Installed root-owned by provision_signalops_deployment_agent.sh.  This is an
+# allowlisted control surface, not a general deployment shell.
+root_dir=/usr/local/lib/signalops-deployment-agent
+action="${1:-}"
+actor="${SUDO_USER:-unknown}"
+
+[[ "$#" -eq 1 ]] || {
+  printf 'Usage: signalops-deploy-agent <action>\n' >&2
+  exit 2
+}
+
+audit() {
+  logger -p authpriv.notice -t signalops-deploy-agent \
+    "actor=${actor} action=${action} result=$1"
+}
+
+run() {
+  "$@"
+  audit success
+}
+
+case "$action" in
+  render-cutover-env)
+    run "$root_dir/render_marketops_cutover_env.sh"
+    ;;
+  scheduler-preflight)
+    run systemctl start signalops-marketops-boundary-schedule@preflight.service
+    ;;
+  scheduler-intraday-run)
+    run systemctl start signalops-marketops-boundary-schedule@marketops-intraday.service
+    ;;
+  scheduler-intraday-enable)
+    run systemctl enable --now signalops-marketops-boundary-intraday.timer
+    ;;
+  scheduler-intraday-disable)
+    run systemctl disable --now signalops-marketops-boundary-intraday.timer
+    ;;
+  scheduler-status)
+    systemctl status \
+      signalops-marketops-boundary-schedule@preflight.service \
+      signalops-marketops-boundary-schedule@marketops-intraday.service \
+      signalops-marketops-boundary-intraday.timer \
+      --no-pager -l
+    audit success
+    ;;
+  *)
+    printf 'Unsupported deployment-agent action: %s\n' "$action" >&2
+    audit rejected
+    exit 2
+    ;;
+esac
