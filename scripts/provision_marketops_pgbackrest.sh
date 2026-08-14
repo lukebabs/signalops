@@ -12,7 +12,7 @@ set -a
 . "$boundary_env"
 set +a
 "$root_dir/scripts/refresh_signalops_pgbackrest_credentials.sh"
-compose=(docker compose --env-file "$boundary_env" -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-pgbackrest.yaml")
+compose=(docker compose -p signalops --env-file "$boundary_env" -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-pgbackrest.yaml")
 SIGNALOPS_PGBACKREST_CONFIG_PATH="$config_path" "${compose[@]}" up -d --build --wait marketops-postgres marketops-timescaledb
 for target in "marketops-postgres marketops-primary marketops" "marketops-timescaledb marketops-temporal marketops_temporal"; do
   read -r service stanza database <<<"$target"

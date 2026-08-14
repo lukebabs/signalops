@@ -6,7 +6,7 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 config_path="${SIGNALOPS_PGBACKREST_CONFIG_PATH:-/etc/signalops/pgbackrest.conf}"
 boundary_env=/etc/signalops/marketops-boundary.env
 [[ -r "$config_path" && -r "$boundary_env" ]] || { echo "pgBackRest configuration or MarketOps boundary secret is not readable." >&2; exit 3; }
-compose=(docker compose --env-file "$boundary_env" -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-pgbackrest.yaml")
+compose=(docker compose -p signalops --env-file "$boundary_env" -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-pgbackrest.yaml")
 targets=("marketops-postgres marketops-primary marketops signalops-marketops-postgres-pgbackrest:16" "marketops-timescaledb marketops-temporal marketops_temporal signalops-marketops-timescaledb-pgbackrest:2.17.2-pg16")
 cleanup_targets=()
 cleanup() {
