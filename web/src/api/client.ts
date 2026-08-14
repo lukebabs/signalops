@@ -177,6 +177,8 @@ import type {
   MarketOpsSignalAssuranceAssertionResponse,
   MarketOpsSignalAssuranceRecommendationsResponse,
   MarketOpsSRIRankingsResponse,
+  MarketOpsSRIHistoryResponse,
+  MarketOpsSRIETFMakeupResponse,
   SubscriberWatchlistsResponse,
   SubscriberWatchlistItemsResponse,
   SubscriberWatchlistCreateRequest,
@@ -813,8 +815,6 @@ export const api = {
     get<MarketOpsSignalAssuranceAssertionResponse>(`/v1/marketops/signal-assurance/assertions/${encodeURIComponent(assertionId)}`, { tenant_id: tenantId }),
   getMarketOpsSignalAssuranceRecommendations: (tenantId: string, evidenceSource = "", evaluationMode = "") =>
     get<MarketOpsSignalAssuranceRecommendationsResponse>("/v1/marketops/signal-assurance/recommendations", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, evaluation_mode: evaluationMode || undefined }),
-  getMarketOpsSRIRankings: (tenantId: string, segmentType = "", state = "") =>
-    get<MarketOpsSRIRankingsResponse>("/v1/marketops/sectors/rankings", { tenant_id: tenantId, segment_type: segmentType || undefined, state: state || undefined }),
   listSubscriberWatchlists: (tenantId: string) =>
     get<SubscriberWatchlistsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists", undefined, "no-store"),
   getSubscriberWatchlistContext: (tenantId: string) =>
@@ -829,6 +829,12 @@ export const api = {
     get<SubscriberCatalogResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/catalog", { q: query, limit: 20 }, "no-store"),
   addSubscriberPrivateCatalogMembership: (tenantId: string, listId: string, globalAssetId: string) =>
     post<SubscriberCatalogMembershipResult>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists/" + encodeURIComponent(listId) + "/catalog-memberships", { global_asset_id: globalAssetId, correlation_id: "subscriber-catalog-ui" }),
+  getMarketOpsSRIRankings: (tenantId: string, segmentType = "", state = "") =>
+    get<MarketOpsSRIRankingsResponse>("/v1/marketops/sectors/rankings", { tenant_id: tenantId, segment_type: segmentType || undefined, state: state || undefined }),
+  getMarketOpsSRIHistory: (tenantId: string, segmentId: string, limit = 60) =>
+    get<MarketOpsSRIHistoryResponse>("/v1/marketops/sectors/" + encodeURIComponent(segmentId) + "/history", { tenant_id: tenantId, limit }),
+  getMarketOpsSRIETFMakeup: (tenantId: string, segmentId: string, limit = 25) =>
+    get<MarketOpsSRIETFMakeupResponse>("/v1/marketops/sectors/" + encodeURIComponent(segmentId) + "/makeup", { tenant_id: tenantId, limit }),
   // G139 MarketOps Opportunities workbench (read-only). Opportunity list/detail
   // plus supporting linked-record reads (hypothesis-evaluations, hypotheses,
   // evidence, market-state lineage). research_only / eligible / triggered /

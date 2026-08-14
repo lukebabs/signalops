@@ -19,6 +19,12 @@ case "$job_id" in
   marketops-daily-postclose)
     exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 18:01:55" America/New_York ./scripts/marketops_daily_postclose.sh --write
     ;;
+  marketops-sri-refresh)
+    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 20:07" America/New_York ./scripts/marketops_sri_refresh.sh
+    ;;
+  marketops-sri-holdings-refresh)
+    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 20:20" America/New_York ./scripts/marketops_sri_holdings_refresh.sh
+    ;;
   marketops-intraday)
     exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays every 15 minutes, 09:30-20:00" America/New_York ./scripts/marketops_intraday_monitor.sh
     ;;

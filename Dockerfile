@@ -43,6 +43,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-o
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-outcome-materializer ./cmd/marketops-outcome-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-history-runner ./cmd/marketops-history-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-sri-runner ./cmd/marketops-sri-runner
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-sri-holdings-runner ./cmd/marketops-sri-holdings-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-evaluator ./cmd/marketops-algorithm-evaluator
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-evaluation-backfill ./cmd/marketops-algorithm-evaluation-backfill
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-intraday-monitor ./cmd/marketops-intraday-monitor
@@ -257,6 +258,12 @@ FROM gcr.io/distroless/static-debian12:nonroot AS marketops-sri-runner
 COPY --from=build /out/signalops-marketops-sri-runner /signalops-marketops-sri-runner
 
 ENTRYPOINT ["/signalops-marketops-sri-runner"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-sri-holdings-runner
+
+COPY --from=build /out/signalops-marketops-sri-holdings-runner /signalops-marketops-sri-holdings-runner
+
+ENTRYPOINT ["/signalops-marketops-sri-holdings-runner"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS marketops-algorithm-evaluator
 

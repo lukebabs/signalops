@@ -64,15 +64,12 @@ The state does not assert capital flow, constituent breadth, rotation in/out, fu
 
 ## Daily execution
 
-The governed MarketOps post-close workflow invokes SRI after the universal completed-close gate. The runner seeds the versioned registry idempotently and upserts deterministic snapshots.
+SRI is independent of the active-asset post-close workflow. A dedicated weekday 20:07 America/New_York job first reconciles the 24 versioned registry ETFs and benchmarks to one completed EOD session, waits for canonical normalization, and only then invokes the runner. The registry is seeded idempotently and the runner upserts deterministic snapshots. A missing source ETF fails the job closed; it never publishes a stale session as current.
 
 Manual execution:
 
 ~~~bash
-docker compose --profile marketops-daily run --rm marketops-sri-runner \
-  --tenant-id tenant-local \
-  --as-of YYYY-MM-DD \
-  --run-id sri-manual-YYYYMMDD
+scripts/marketops_sri_refresh.sh --date YYYY-MM-DD
 ~~~
 
 Expected output is JSON with segments, snapshots, and partial. A successful execution writes one deterministic snapshot per scored segment for the applicable market session and algorithm version.
@@ -83,14 +80,40 @@ Apply storage before the first run:
 docker compose --profile storage run --rm postgres-migrate
 ~~~
 
+## Historical progression materialization
+
+The ETF Progression view reads only canonical EOD events and displays up to the last 60 common, usable market sessions. It makes no provider call. Initialize or refresh that history with:
+
+~~~bash
+docker compose --profile marketops-daily run --rm marketops-sri-runner --tenant-id tenant-local --as-of YYYY-MM-DD --backfill-sessions 60 --run-id sri-progression-60-session-YYYYMMDD
+~~~
+
+The runner uses only sessions shared by every configured primary ETF and benchmark. It reports the session bounds, snapshot count, and partial count as JSON; incomplete historical records remain excluded from the progression API.
+
+
+## Current issuer holdings snapshots
+
+For complete source, coverage, provenance, API, UI, schedule, verification, and troubleshooting guidance, see [SRI Current ETF Makeup](sri_etf_makeup.md).
+
+Migration 000087_marketops_sri_etf_holdings adds append-only current ETF makeup snapshots and their constituents. The free State Street adapter downloads the issuer daily XLSX holdings files for KRE and XLB, XLC, XLE, XLF, XLI, XLK, XLP, XLRE, XLU, XLV, and XLY. It records source URL, issuer effective date, retrieval time, content hash, and reported constituent weights.
+
+This is a present-time representation layer only. It is not an SRI input, cannot change historical scores, and does not infer unavailable holdings. The remaining primary ETFs (IBB, IGV, OIH, and SMH) return an explicit unavailable state in the UI.
+
+Run a collection manually with:
+
+    docker compose --profile marketops-daily run --rm marketops-sri-holdings-runner --tenant-id tenant-local
+
+The independent weekday marketops-sri-holdings-refresh timer runs at 20:20 America/New_York, after SRI scoring. A source failure is reported as a failed governed job; the prior immutable snapshot remains visible rather than being replaced with fabricated data.
+
 ## Verification and troubleshooting
 
-1. Confirm migration 000086 is applied.
+1. Confirm migrations 000086 and 000087 are applied.
 2. Confirm all primary ETFs and benchmarks satisfy the 61-session readiness query.
 3. Run the SRI command for a completed market session.
 4. Confirm 16 latest usable snapshots, ranks, and quality_state=usable.
-5. Open /marketops/sectors under an authenticated MarketOps session.
-6. If a later partial seed exists, the API intentionally selects the latest usable snapshot for rankings and asset context; it does not let a partial placeholder hide a usable prior session.
+5. Run the issuer holdings command and confirm current snapshots for the 12 State Street-covered primary ETFs.
+6. Open /marketops/sectors under an authenticated MarketOps session.
+7. If a later partial seed exists, the API intentionally selects the latest usable snapshot for rankings and asset context; it does not let a partial placeholder hide a usable prior session.
 
 Useful relational check:
 
@@ -114,4 +137,4 @@ ORDER BY x.rank, s.name;
 
 SRI Foundation does not publish MarketOps signals, SAF assertions, alerts, opportunities, or Syncratic knowledge changes. It does not mutate VC, DOSM, EEOM, Tactical Market Posture, or Exhaustive Reversal.
 
-Holdings, constituent breadth, diffusion, flows, options context, pairwise rotation, state-change event publication, backtesting, and SAF validation are separate future work. Any addition must preserve point-in-time inputs, versioned contracts, immutable provenance, and the research-only boundary until separately governed.
+Historical holdings, constituent breadth, diffusion, flows, options context, pairwise rotation, state-change event publication, backtesting, and SAF validation are separate future work. Any addition must preserve point-in-time inputs, versioned contracts, immutable provenance, and the research-only boundary until separately governed.

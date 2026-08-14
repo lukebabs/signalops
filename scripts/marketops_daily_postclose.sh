@@ -217,7 +217,6 @@ if $plan_mode; then
   outcome_start="$(TZ="$timezone" date -d "$session_date - ${MARKETOPS_OUTCOME_LOOKBACK_DAYS:-45} days" '+%F')"
   log "plan includes final convergence refresh and outcome maturity window=$outcome_start..$session_date"
   print_command docker compose --profile marketops-daily run --rm marketops-signal-assurance-worker --tenant-id tenant-local --as-of "$session_date" --mode RESEARCH --run-id saf-research-materializations-v1
-  print_command docker compose --profile marketops-daily run --rm marketops-sri-runner --tenant-id tenant-local --as-of "$session_date" --run-id "${run_prefix}-sri"
   for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=10, batch++)); do
     batch_symbols=("${symbols[@]:offset:10}")
     batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
@@ -515,8 +514,6 @@ if $write_mode; then
   log "universal completed-close refresh started symbols=${#workflow_symbols[@]}"
   docker compose --profile marketops-intraday run --rm marketops-intraday-monitor --tenant-id tenant-local --universe-group all_active --max-symbols 200 --allow-outside-session
   bash ./scripts/marketops_universal_completion_gate.sh "$session_date" "$workflow_universe_symbols" "${#workflow_symbols[@]}" || exit 8
-  log "sector intelligence refresh started as_of=$session_date"
-  docker compose --profile marketops-daily run --rm marketops-sri-runner --tenant-id tenant-local --as-of "$session_date" --run-id "${run_prefix}-sri"
   docker compose --profile marketops-daily run --rm marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
   summary="$(marketops_primary_psql -Atc \
     "SELECT 'captures=' || count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' UNION ALL SELECT 'cohort_results=' || count(*) FROM marketops_intelligence_cohort_symbol_results WHERE tenant_id='tenant-local' AND run_id LIKE '${cohort_run_prefix}-cohort-%' UNION ALL SELECT 'algorithm_results=' || count(*) FROM algorithm_results WHERE tenant_id='tenant-local' AND correlation_id='$run_prefix';")"

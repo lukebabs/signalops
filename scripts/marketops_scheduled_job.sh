@@ -19,7 +19,7 @@ mv "$status_dir/.${job_id}.tmp" "$status_dir/${job_id}.json"
 
 # Governed daily/weekly completions and every job failure become administrator inbox
 # events. Recorder failure is non-blocking so it cannot conceal the job result.
-if [[ "$status" == "failed" || "$job_id" == "marketops-daily-postclose" || "$job_id" == "marketops-fmp-continuation" || "$job_id" == "signalops-storage-monitor" || "$job_id" == "signalops-retention-governance" ]]; then
+if [[ "$status" == "failed" || "$job_id" == "marketops-daily-postclose" || "$job_id" == "marketops-fmp-continuation" || "$job_id" == "marketops-sri-refresh" || "$job_id" == "marketops-sri-holdings-refresh" || "$job_id" == "signalops-storage-monitor" || "$job_id" == "signalops-retention-governance" ]]; then
   set +e
   docker compose --profile administration-notifications run --rm administration-notification-recorder \
     --tenant-id "${SIGNALOPS_ADMIN_NOTIFICATION_TENANT_ID:-tenant-local}" \
