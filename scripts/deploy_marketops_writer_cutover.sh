@@ -19,26 +19,34 @@ runtime_env="${1:-${SIGNALOPS_PRODUCTION_ENV_FILE:-}}"
   exit 2
 }
 
-for timer in \
-  signalops-marketops-daily.timer \
-  signalops-marketops-sri-refresh.timer \
-  signalops-marketops-sri-holdings-refresh.timer \
-  signalops-marketops-intraday.timer \
-  signalops-marketops-fmp-continuation.timer \
-  signalops-marketops-task-retry.timer \
-  signalops-marketops-postclose-recovery.timer; do
-  timer_state="$(systemctl is-active "$timer" 2>/dev/null || true)"
-  case "$timer_state" in
-    inactive) ;;
-    active)
-      printf 'Refusing writer cutover while scheduled MarketOps timer is active: %s\n' "$timer" >&2
-      exit 4
-      ;;
-    *)
-      printf 'Refusing writer cutover because timer state cannot be verified: %s (%s)\n' "$timer" "$timer_state" >&2
-      exit 4
-      ;;
-  esac
+timers=(
+  signalops-marketops-daily.timer
+  signalops-marketops-sri-refresh.timer
+  signalops-marketops-sri-holdings-refresh.timer
+  signalops-marketops-intraday.timer
+  signalops-marketops-fmp-continuation.timer
+  signalops-marketops-task-retry.timer
+  signalops-marketops-postclose-recovery.timer
+)
+for timer in "${timers[@]}"; do
+  for scope in system user; do
+    if [[ "$scope" == system ]]; then
+      timer_state="$(systemctl is-active "$timer" 2>/dev/null || true)"
+    else
+      timer_state="$(sudo -u adminalien XDG_RUNTIME_DIR=/run/user/$(id -u adminalien) systemctl --user is-active "$timer" 2>/dev/null || true)"
+    fi
+    case "$timer_state" in
+      inactive) ;;
+      active)
+        printf 'Refusing writer cutover while a scheduled MarketOps timer is active: %s (%s scope)\n' "$timer" "$scope" >&2
+        exit 4
+        ;;
+      *)
+        printf 'Refusing writer cutover because timer state cannot be verified: %s (%s scope: %s)\n' "$timer" "$scope" "$timer_state" >&2
+        exit 4
+        ;;
+    esac
+  done
 done
 
 set -a

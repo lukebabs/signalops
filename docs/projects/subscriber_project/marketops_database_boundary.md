@@ -135,7 +135,7 @@ This authorizes only the next continuous-writer gate. The paused scheduled batch
 
 Release `353a541` was deployed from the clean cutover worktree after the final parity gate. Normalizer, signal persister, and the SAF registrar were stopped briefly and rebuilt with the protected dedicated MarketOps URLs. Each replacement container is running with `SIGNALOPS_MARKETOPS_DATABASE_URL` present; the registrar logged that its writes are routed to the dedicated MarketOps boundary.
 
-The immediate post-deployment preflight passed every scoped primary and temporal count, including the reconciled 2,800 SRI holdings and 48 snapshots. It again found zero non-MarketOps normalized-event or signal-ledger rows in either dedicated store. The gateway remains on its already accepted dedicated read path. All seven scheduled MarketOps timers remain inactive; no batch job was enabled or rerouted by this release.
+The immediate post-deployment preflight passed every scoped primary and temporal count, including the reconciled 2,800 SRI holdings and 48 snapshots. It again found zero non-MarketOps normalized-event or signal-ledger rows in either dedicated store. The gateway remains on its already accepted dedicated read path. The seven scheduler units were found enabled in the user-level systemd scope despite being inactive; they were explicitly stopped and disabled. The writer-cutover guard now verifies both system and user scopes. No batch job was enabled or rerouted by this release.
 
 ## Cutover gates
 
