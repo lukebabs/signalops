@@ -258,6 +258,16 @@ The following need a separate product and commercial decision before implementat
 Until these are decided, the architecture must preserve entitlement-aware interfaces and measurable usage without fabricating a commercial policy.
 
 
+## Production blocker — global analytical data plane — 2026-08-14
+
+**Status: critical; blocks Subscriber Project production readiness.**
+
+The deployed subscriber catalogue currently centralizes identity, list membership, coverage state, and a narrow current-EOD projection. It does not yet centralize the historical MarketOps evidence plane. The pilot browser therefore correctly resolves globally shared AAPL/NVDA EOD context, but it cannot resolve global Market State, EROC, valuation, EEOM, earnings-event, or historical price/feature evidence. Those ledgers remain legacy `tenant-local` records and must not be presented as a subscriber data source.
+
+Production exit requires one platform-owned, immutable global evidence path keyed by `global_asset_id` and market session. It must retain provider/source/run provenance and power global EOD history, features, Market State, EROC, VC/DOSM, EEOM, material events, outcomes, and SRI. Central jobs process each covered asset exactly once; authorized tenant/default/private lists only project those results. A verified legacy-history import may seed the global path only after identity and provenance parity checks. It must never copy historical records per user or silently treat tenant-local results as globally canonical.
+
+Until that work passes migration, backfill, scheduler, authorization, parity, and browser acceptance gates, the UI must use truthful global coverage states. It must not render invalid placeholder timestamps, "Open Market State", or implied algorithm availability for a symbol without globally materialized evidence.
+
 ## Watchlist context closure — 2026-08-14
 
 MarketOps resolves a user’s first private list when no saved context exists; the tenant default is used only when that user has no private list. A later explicit selection remains authoritative. Creating a private list now selects it for the shared MarketOps context, and the Watchlists screen exposes a **Use across MarketOps** action for an existing list. The context is persisted per tenant and subject, then invalidates MarketOps queries so Assets, Dashboard, EROC, valuation, EEOM, material events, opportunities, and Market State reads converge on the same selected ticker set. Coverage remains truthful: a selected symbol without usable central EOD evidence is displayed as pending rather than populated with invented values.
