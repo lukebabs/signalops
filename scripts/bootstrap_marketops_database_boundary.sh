@@ -29,6 +29,15 @@ done
 }
 
 "${compose[@]}" up -d --wait marketops-postgres marketops-timescaledb
+# Fresh dedicated clusters need the no-login Subscriber migration roles.
+"${compose[@]}" cp "$root_dir/deploy/postgres/marketops_boundary_subscriber_roles.sql" marketops-postgres:/tmp/marketops_boundary_subscriber_roles.sql
+"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -f /tmp/marketops_boundary_subscriber_roles.sql
+"${compose[@]}" exec -T marketops-postgres rm -f /tmp/marketops_boundary_subscriber_roles.sql
+
+# An interrupted initial 000088 migration can leave only its empty pre-grant tables.
+if [[ "$("${compose[@]}" exec -T marketops-postgres psql -U signalops -d marketops -Atc "SELECT count(*) FROM schema_migrations WHERE version = '000088_subscriber_entitlement_foundation';")" == "0" ]]; then
+  "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "DROP TABLE IF EXISTS subscriber_entitlement_decision_audit CASCADE; DROP TABLE IF EXISTS subscriber_quota_reservations CASCADE; DROP TABLE IF EXISTS subscriber_entitlement_capabilities CASCADE; DROP TABLE IF EXISTS subscriber_tenant_entitlements CASCADE;"
+fi
 if [[ -n "${SIGNALOPS_MARKETOPS_PREVIOUS_POSTGRES_PASSWORD:-}" ]]; then
   PGPASSWORD="$SIGNALOPS_MARKETOPS_PREVIOUS_POSTGRES_PASSWORD" "${compose[@]}" exec -T marketops-postgres \
     psql -v ON_ERROR_STOP=1 -U signalops -d postgres -c "ALTER ROLE signalops PASSWORD '$SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD';"
