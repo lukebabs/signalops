@@ -268,11 +268,11 @@ Production exit requires one platform-owned, immutable global evidence path keye
 
 Until that work passes migration, backfill, scheduler, authorization, parity, and browser acceptance gates, the UI must use truthful global coverage states. It must not render invalid placeholder timestamps, "Open Market State", or implied algorithm availability for a symbol without globally materialized evidence.
 
-### Evidence-ledger foundation — pending controlled migration
+### Evidence-ledger foundation — applied, inactive — 2026-08-14
 
 Migration `000118_subscriber_global_analytical_evidence_foundation` is the first additive remediation slice. It introduces an append-only platform ledger keyed by global asset, session, evidence kind, algorithm/version, fingerprint, validation-contract reference, immutable-baseline reference, and source/run provenance. Its writer contract is constrained to `shadow_read_only` reconciliation runs under the existing no-login `signalops_subscriber_global_eod` role. The only new gateway surface is a coverage-count view; it cannot serve scores, states, signals, or legacy data as canonical.
 
-The migration has **not** been applied to production. It does not import history, reroute existing jobs, enable a scheduler, or change an API response. The next slices are: (1) apply and permission-test the ledger, (2) produce read-only legacy-to-global parity manifests per evidence kind, (3) add a separately approved immutable import/capture path, and (4) expose each algorithm only through a type-specific parity-approved gateway projection and browser contract. This remains a production blocker until all cited evidence types have completed those gates.
+Migration `000118` was applied to the dedicated MarketOps primary database on 2026-08-14 17:29 UTC. Ownership is `signalops_subscriber_migrator`; `signalops_subscriber_global_eod` has `SELECT, INSERT` only on the two base tables; the gateway has `SELECT` only on the coverage view; `PUBLIC` has no access. The ledger contains zero runs and zero records after migration. It did not import history, reroute existing jobs, enable a scheduler, restart a service, or change an API response. The next slices are: (1) produce read-only legacy-to-global parity manifests per evidence kind, (2) add a separately approved immutable import/capture path, and (3) expose each algorithm only through a type-specific parity-approved gateway projection and browser contract. This remains a production blocker until all cited evidence types have completed those gates.
 
 ## Watchlist context closure — 2026-08-14
 
