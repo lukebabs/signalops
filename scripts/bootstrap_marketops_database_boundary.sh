@@ -83,6 +83,18 @@ WHERE schemaname='public'
        OR tablename LIKE 'catalog\\_%' ESCAPE '\\'
        OR tablename IN ('signal_assertions','signal_assertion_events','signal_assertion_evaluations','signal_assurance_registration_inbox','signal_effectiveness_snapshots','signal_validation_contracts','registered_use_case_profiles','tenant_user_access','administration_notifications','administration_notification_deliveries','administration_notification_inbox_state'));" )"
 [[ -n "$target_truncate_sql" ]] && "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "$target_truncate_sql"
+# Reset the two target-only filtered ledgers before a retry. They never contain CyberOps rows.
+"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "TRUNCATE TABLE public.normalized_event_ledger, public.signal_ledger RESTART IDENTITY CASCADE;"
+
+audit_trigger_disabled=false
+restore_audit_trigger() {
+  if [[ "$audit_trigger_disabled" == "true" ]]; then
+    "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions ENABLE TRIGGER platform_primitive_definitions_audit_mutation;" || true
+  fi
+}
+trap restore_audit_trigger EXIT
+"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions DISABLE TRIGGER platform_primitive_definitions_audit_mutation;"
+audit_trigger_disabled=true
 # The large shared ledgers are copied only for MarketOps rows. Binary COPY
 # preserves types and avoids an intermediate plaintext file.
 for table in normalized_event_ledger signal_ledger; do
@@ -94,6 +106,10 @@ done
   | "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops
 
 # Timescale data is MarketOps data by contract, apart from the two shared
+"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions ENABLE TRIGGER platform_primitive_definitions_audit_mutation;"
+audit_trigger_disabled=false
+
+"${compose[@]}" exec -T marketops-timescaledb psql -v ON_ERROR_STOP=1 -U signalops -d marketops_temporal -c "TRUNCATE TABLE public.marketdata_equity_eod_prices, public.marketdata_option_contracts_daily, public.normalized_event_ledger, public.signal_ledger RESTART IDENTITY;"
 # ledgers which receive the same strict app_id filter.
 "${compose[@]}" exec -T timescaledb pg_dump -U signalops -d signalops_temporal --data-only --no-owner --no-privileges \
   --table=public.marketdata_equity_eod_prices --table=public.marketdata_option_contracts_daily \
