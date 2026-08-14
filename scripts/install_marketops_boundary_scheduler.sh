@@ -25,9 +25,11 @@ enable_sri=false
 enable_market_data=false
 
 [[ -n "$runtime_env" && -r "$runtime_env" ]] || {
-  printf 'Provide a readable protected production Compose environment file as argument 1.\n' >&2
+  printf 'Provide a readable protected production Compose environment file as argument 1.
+' >&2
   exit 2
 }
+runtime_env="$(cd "$(dirname "$runtime_env")" && pwd)/$(basename "$runtime_env")"
 [[ "$run_as_user" =~ ^[a-z_][a-z0-9_-]*$ ]] || {
   printf 'Invalid service user: %s\n' "$run_as_user" >&2
   exit 2
