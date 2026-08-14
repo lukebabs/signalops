@@ -1,5 +1,6 @@
-# Writer cutover is a separate, post-read-validation phase. It is not applied
-# with the read override until the dedicated gateway smoke check has passed.
+# Writer cutover is a separate, post-read-validation phase. It adds dedicated
+# URLs to the continuous MarketOps writers; shared application writers retain their
+# existing configuration. Scheduler activation is separately controlled.
 services:
   normalizer:
     env_file:
@@ -8,5 +9,11 @@ services:
     env_file:
       - /etc/signalops/marketops-cutover.env
   marketops-signal-assurance-registrar:
+    env_file:
+      - /etc/signalops/marketops-cutover.env
+  marketops-signal-assurance-outbox:
+    env_file:
+      - /etc/signalops/marketops-cutover.env
+  marketops-signal-assurance-worker:
     env_file:
       - /etc/signalops/marketops-cutover.env

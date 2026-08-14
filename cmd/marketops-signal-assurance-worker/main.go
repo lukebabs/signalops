@@ -49,14 +49,21 @@ func main() {
 }
 func run(logger *slog.Logger) error {
 	app := config.Load()
-	if strings.TrimSpace(app.DatabaseURL) == "" || strings.TrimSpace(app.TemporalDatabaseURL) == "" {
+	databaseURL := app.DatabaseURL
+	temporalDatabaseURL := app.TemporalDatabaseURL
+	if strings.TrimSpace(app.MarketOpsDatabaseURL) != "" {
+		databaseURL = app.MarketOpsDatabaseURL
+		temporalDatabaseURL = app.MarketOpsTemporalDatabaseURL
+		logger.Info("SAF evaluation writes are routed to the dedicated MarketOps data boundary")
+	}
+	if strings.TrimSpace(databaseURL) == "" || strings.TrimSpace(temporalDatabaseURL) == "" {
 		return errors.New("SIGNALOPS_DATABASE_URL and SIGNALOPS_TEMPORAL_DATABASE_URL are required")
 	}
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
-	repo, err := postgresstorage.OpenWithTemporal(context.Background(), app.DatabaseURL, app.TemporalDatabaseURL)
+	repo, err := postgresstorage.OpenWithTemporal(context.Background(), databaseURL, temporalDatabaseURL)
 	if err != nil {
 		return err
 	}

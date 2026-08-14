@@ -1,6 +1,6 @@
 # MarketOps Dedicated Database Boundary
 
-Status: bootstrap/parity evidence and the read-cutover release are complete. Production gateway deployment, writer cutover, dedicated pgBackRest schedules, and restore rehearsal remain separate approvals.
+Status: bootstrap/parity evidence, corrected gateway-read acceptance, and a clean writer preflight are complete. The continuous-writer deployment, scheduled-job routing/resume, dedicated pgBackRest schedules, and restore rehearsal remain separate gates.
 
 ## Decision
 
@@ -10,7 +10,7 @@ inside the existing shared cluster:
 
 | Store | Owns | Excludes |
 | --- | --- | --- |
-| `marketops-postgres` | MarketOps operational tables, SAF/SRI, algorithms, MarketOps subscriber catalog/control data, and filtered MarketOps rows in the primary ledgers | CyberOps event/outbox/lifecycle/IoT data; non-MarketOps ledger rows |
+| `marketops-postgres` | MarketOps operational tables, SAF/SRI, algorithms, and filtered MarketOps rows in the primary ledgers | CyberOps event/outbox/lifecycle/IoT data; non-MarketOps ledger rows; the live subscriber control plane |
 | `marketops-timescaledb` | MarketOps EOD prices, options history, and filtered MarketOps temporal ledgers | CyberOps and console temporal-ledger rows |
 
 The shared `signalops` and `signalops_temporal` stores remain authoritative
@@ -71,9 +71,7 @@ sudo ./scripts/render_marketops_cutover_env.sh
 ```
 
 `compose.marketops-read-cutover.yaml` attaches that file only to `gateway`.
-`compose.marketops-writer-cutover.yaml` attaches it only to `normalizer` and
-`signal-persister`; it is a later, separate phase. Do not apply both overrides
-in the same first deployment.
+`compose.marketops-writer-cutover.yaml` attaches it to the continuous MarketOps writers (normalizer, signal persister, SAF registrar, and SAF outbox). It does not enable or reroute any paused scheduled batch job; that is a separate schedule-resume gate.
 
 Because the active working tree contains unrelated SRI work, build the gateway
 from the pushed release in a clean worktree. This avoids accidentally coupling
@@ -125,11 +123,18 @@ all seven MarketOps timers remain `inactive`. Accordingly, the corrected
 acceptance is limited to gateway reads; the writer cutover and schedule resume
 are still pending their separate gates.
 
+## Writer preflight reconciliation — 2026-08-14
+
+The read-only `scripts/preflight_marketops_writer_cutover.sh` compared every scoped primary and temporal MarketOps table while excluding `subscriber_*`. The subscriber catalog, watchlists, tenant grants, and their audit/RLS controls remain on the central shared subscriber gateway database; their bootstrap copy in the boundary is not a live source of truth.
+
+The first preflight found one bounded post-bootstrap delta: 12 State Street ETF holdings snapshots (effective 2026-08-12, retrieved 2026-08-14) and their 700 child holdings. Those exact parent/child rows were reconciled to the dedicated primary store in a single target transaction. The rerun passed all scoped counts, including 24,422 normalized events and 139,442 signals in the temporal store, and confirmed zero non-MarketOps ledger rows in both dedicated stores.
+
+This authorizes only the next continuous-writer gate. The paused scheduled batch jobs still require explicit launch-environment routing before any timer can be resumed.
+
 ## Cutover gates
 
 1. Bootstrap evidence passes, including table counts and database sizes.
-2. Add dedicated MarketOps repository wiring to the gateway and every
-   MarketOps worker; retain shared-store reads during parity validation.
+2. Add dedicated MarketOps repository wiring to the gateway and continuous MarketOps writers; retain shared-store reads during parity validation. Route paused scheduled jobs separately before any timer resume.
 3. Reconcile source versus target checksums/counts and API responses for the
    approved tenant/watchlist cohort.
 4. Freeze MarketOps writers briefly, run final delta copy, route MarketOps

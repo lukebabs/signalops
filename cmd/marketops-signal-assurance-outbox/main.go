@@ -31,7 +31,12 @@ func main() {
 }
 func run(logger *slog.Logger) error {
 	cfg := config.Load()
-	if strings.TrimSpace(cfg.DatabaseURL) == "" {
+	databaseURL := cfg.DatabaseURL
+	if strings.TrimSpace(cfg.MarketOpsDatabaseURL) != "" {
+		databaseURL = cfg.MarketOpsDatabaseURL
+		logger.Info("SAF outbox writes are routed to the dedicated MarketOps data boundary")
+	}
+	if strings.TrimSpace(databaseURL) == "" {
 		return errors.New("SIGNALOPS_DATABASE_URL is required")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -41,7 +46,7 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer closePublisher(client)
-	repo, err := postgresstorage.Open(ctx, cfg.DatabaseURL)
+	repo, err := postgresstorage.Open(ctx, databaseURL)
 	if err != nil {
 		return err
 	}
