@@ -2727,13 +2727,28 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					visibleTickers[strings.ToUpper(asset.Ticker)] = struct{}{}
 				}
 			}
-			assets = visible
+			currentEODReader, currentEODAvailable := any(marketOpsQueryRepository).(storage.SubscriberCurrentEODContextRepository)
 			pending := make([]map[string]any, 0)
 			for _, item := range watchlistContext.Items {
-				if _, available := visibleTickers[strings.ToUpper(item.Ticker)]; !available {
-					pending = append(pending, map[string]any{"ticker": item.Ticker, "company": item.CompanyName, "coverage_state": item.CoverageState, "coverage_mode": item.CoverageMode, "eligibility_status": item.EligibilityStatus})
+				ticker := strings.ToUpper(item.Ticker)
+				if _, available := visibleTickers[ticker]; available {
+					continue
 				}
+				if currentEODAvailable {
+					current, currentErr := currentEODReader.GetSubscriberCurrentEODContext(r.Context(), tenantID, ticker)
+					if currentErr == nil {
+						visible = append(visible, subscriberWatchlistCurrentEODAsset(tenantID, item, len(visible)+1, current))
+						visibleTickers[ticker] = struct{}{}
+						continue
+					}
+					if !errors.Is(currentErr, storage.ErrNotFound) {
+						writeError(w, http.StatusInternalServerError, "query_failed", "failed to load shared MarketOps EOD context")
+						return
+					}
+				}
+				pending = append(pending, map[string]any{"ticker": item.Ticker, "company": item.CompanyName, "coverage_state": item.CoverageState, "coverage_mode": item.CoverageMode, "eligibility_status": item.EligibilityStatus})
 			}
+			assets = visible
 			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
 			response["pending_assets"] = pending
 		}
@@ -3042,7 +3057,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerMarketOpsHypothesisRoutes(mux, marketOpsQueryRepository)
 	registerMarketOpsAlgorithmAdjudicationRoutes(mux, marketOpsQueryRepository)
 	registerMarketOpsQuantitativeSeriesRoutes(mux, marketOpsQueryRepository)
-	registerMarketOpsAssetAlgorithmObservationRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsAssetAlgorithmObservationRoutes(mux, marketOpsConfig)
 	registerMarketOpsSignalOverviewRoutes(mux, marketOpsConfig)
 	registerMarketOpsAssetManagementRoutes(mux, marketOpsQueryRepository)
 	registerMarketOpsOpportunityRoutes(mux, marketOpsConfig)
@@ -4511,6 +4526,27 @@ func marketOpsIntradayConditionSnapshotResponse(record storage.MarketOpsIntraday
 	source := any(map[string]any{})
 	_ = json.Unmarshal(record.SourcePayloadJSON, &source)
 	return map[string]any{"snapshot_id": record.SnapshotID, "ticker": record.Symbol, "as_of_time": record.AsOfTime, "market_status": record.MarketStatus, "stale": record.Stale || time.Since(record.AsOfTime) > 30*time.Minute, "conditions": conditions, "source": source, "created_at": record.CreatedAt}
+}
+
+// subscriberWatchlistCurrentEODAsset is a tenant-authorized projection over an
+// already-selected global EOD observation. It creates no tenant-local asset,
+// provider request, or duplicate evidence.
+func subscriberWatchlistCurrentEODAsset(tenantID string, item storage.SubscriberWatchlistItemRecord, rank int, current storage.SubscriberCurrentEODContextRecord) storage.MarketOpsAssetRecord {
+	metadata, _ := json.Marshal(map[string]any{
+		"global_asset_id":           item.GlobalAssetID,
+		"coverage_state":            item.CoverageState,
+		"coverage_mode":             item.CoverageMode,
+		"current_eod_session_date":  current.SessionDate.Format("2006-01-02"),
+		"current_eod_quality_state": current.QualityState,
+		"current_eod_provider":      current.Provider,
+	})
+	ticker := strings.ToUpper(strings.TrimSpace(item.Ticker))
+	return storage.MarketOpsAssetRecord{
+		TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "subscriber_watchlist", SourceID: "subscriber_global_eod", UniverseGroup: "subscriber_watchlist_current_eod", Rank: rank,
+		Ticker: ticker, TickerKey: strings.ToLower(ticker), Company: item.CompanyName, CompanyKey: strings.ToLower(item.CompanyName), DisplayName: item.CompanyName,
+		AssetType: item.AssetType, Exchange: item.Exchange, Sector: item.Sector, SectorKey: strings.ToLower(item.Sector), IsActive: true, MetadataJSON: metadata,
+		CreatedAt: item.AddedAt, UpdatedAt: current.AsOfTime,
+	}
 }
 
 func marketOpsAssetResponses(records []storage.MarketOpsAssetRecord) []marketOpsAssetDTO {

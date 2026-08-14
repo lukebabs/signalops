@@ -7985,3 +7985,11 @@ Next-cycle priority:
 - The initial context remains the earliest private list created by the authenticated subject; when that user has no private list, the tenant default is selected. A deliberately saved list selection remains available through the shared selector.
 - The Dashboard now uses that same shared watchlist selector and the signal-overview API scopes its aggregate asset set server-side for enabled pilot tenants. Dashboard no longer offers a competing legacy-universe selector.
 - This is a presentation and tenant-projection correction. It does not relabel a cold/global-shadow asset as analytically ready: quotes, scores, signals, and detail remain withheld until centrally persisted evidence is available.
+
+
+## 2026-08-14 — Pilot watchlist shared-EOD projection
+
+- Verified the pilot watchlist contains 12 memberships: the tenant default has ten seeded symbols and the first private list contains AAPL and NVDA.
+- Verified the dedicated shared EOD canary has usable immutable baseline observations only for AAPL and NVDA, both for the 2026-08-12 completed session. The other selected symbols remain `active` catalog references in shadow mode, but do not yet have shared EOD evidence.
+- Updated the authorized projection so a selected member with verified shared EOD context is visible to its tenant without creating a tenant-local asset copy. Asset detail and Dashboard coverage expose that central evidence; unobserved members remain explicitly pending.
+- Algorithm-derived Dashboard breadth remains withheld until the global algorithm pipeline materializes its own outputs. A raw shared EOD observation is not represented as a Risk/Reward score, hypothesis, options signal, or recommendation.

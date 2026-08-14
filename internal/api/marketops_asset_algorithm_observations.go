@@ -36,31 +36,41 @@ type marketOpsEODZScoreDTO struct {
 	Reason          string              `json:"reason,omitempty"`
 }
 
-func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo storage.QueryRepository) {
+func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	repo := cfg.QueryRepository
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/risk-reward", func(w http.ResponseWriter, r *http.Request) {
 		reader, ok := any(repo).(marketOpsAssetAlgorithmObservationReader)
 		if !ok {
 			writeError(w, http.StatusNotImplemented, "risk_reward_unavailable", "risk/reward summaries are unavailable")
 			return
 		}
-		tenant := strings.TrimSpace(r.PathValue("tenant_id"))
-		if tenant == "" {
-			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+		tenant, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenant)
+		if !ok {
 			return
 		}
 		universeGroup := strings.TrimSpace(r.URL.Query().Get("universe_group"))
 		if universeGroup == "" {
 			universeGroup = "top50_megacap"
 		}
-		assets, err := reader.ListMarketOpsAssets(r.Context(), tenant, universeGroup, true, 500)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list marketops assets")
-			return
-		}
-		activeSymbols := make(map[string]struct{}, len(assets))
-		for _, asset := range assets {
-			if asset.IsActive {
-				activeSymbols[strings.ToUpper(asset.Ticker)] = struct{}{}
+		activeSymbols := map[string]struct{}{}
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			for ticker := range watchlistContext.Tickers {
+				activeSymbols[ticker] = struct{}{}
+			}
+		} else {
+			assets, err := reader.ListMarketOpsAssets(r.Context(), tenant, universeGroup, true, 500)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to list marketops assets")
+				return
+			}
+			for _, asset := range assets {
+				if asset.IsActive {
+					activeSymbols[strings.ToUpper(asset.Ticker)] = struct{}{}
+				}
 			}
 		}
 		// Risk/Reward evolution requires at least two persisted sessions per asset.
@@ -94,10 +104,24 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo s
 			writeError(w, http.StatusNotImplemented, "algorithm_observations_unavailable", "asset algorithm observations are unavailable")
 			return
 		}
-		tenant, symbol := strings.TrimSpace(r.PathValue("tenant_id")), strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
-		if tenant == "" || symbol == "" {
-			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id and symbol are required")
+		tenant, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
 			return
+		}
+		symbol := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
+		if symbol == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "symbol is required")
+			return
+		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenant)
+		if !ok {
+			return
+		}
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			if _, allowed := watchlistContext.Tickers[symbol]; !allowed {
+				writeError(w, http.StatusNotFound, "marketops_asset_not_found", "MarketOps asset was not found in the selected watchlist")
+				return
+			}
 		}
 		results, err := reader.ListAlgorithmResults(r.Context(), storage.AlgorithmResultFilter{TenantID: tenant, Limit: 2000})
 		if err != nil {

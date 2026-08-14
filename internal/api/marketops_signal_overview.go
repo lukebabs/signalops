@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sort"
 	"strings"
@@ -53,8 +54,31 @@ func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, cfg RouterConfig)
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to build signal overview")
 			return
 		}
+		sharedEODCoverage := []map[string]any{}
 		if subscriberWatchlistContextEnabled(cfg, tenant) {
 			inputs.Assets = filterMarketOpsSignalOverviewAssets(inputs.Assets, watchlistContext.Tickers)
+			available := map[string]struct{}{}
+			for _, asset := range inputs.Assets {
+				available[strings.ToUpper(asset.Ticker)] = struct{}{}
+			}
+			if currentReader, supported := any(repo).(storage.SubscriberCurrentEODContextRepository); supported {
+				for _, item := range watchlistContext.Items {
+					ticker := strings.ToUpper(item.Ticker)
+					current, currentErr := currentReader.GetSubscriberCurrentEODContext(r.Context(), tenant, ticker)
+					if currentErr != nil {
+						if errors.Is(currentErr, storage.ErrNotFound) {
+							continue
+						}
+						writeError(w, http.StatusInternalServerError, "query_failed", "failed to load shared MarketOps EOD context")
+						return
+					}
+					if _, present := available[ticker]; !present {
+						inputs.Assets = append(inputs.Assets, subscriberWatchlistCurrentEODAsset(tenant, item, len(inputs.Assets)+1, current))
+						available[ticker] = struct{}{}
+					}
+					sharedEODCoverage = append(sharedEODCoverage, map[string]any{"ticker": ticker, "session_date": current.SessionDate.Format("2006-01-02"), "close": current.Close, "provider": current.Provider, "quality_state": current.QualityState, "as_of_time": current.AsOfTime})
+				}
+			}
 		}
 		var snapshots []storage.MarketOpsRiskRewardSnapshotRecord
 		if snapshotReader, ok := any(repo).(storage.MarketOpsRiskRewardSnapshotRepository); ok {
@@ -67,6 +91,7 @@ func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, cfg RouterConfig)
 		response := buildMarketOpsSignalOverview(inputs, group, window, days, snapshots)
 		if subscriberWatchlistContextEnabled(cfg, tenant) {
 			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+			response["shared_eod_coverage"] = sharedEODCoverage
 		}
 		writeJSON(w, http.StatusOK, response)
 	})
