@@ -47,3 +47,11 @@ S3 is a recovery-artifact repository, not the operational data store. Before N1 
 3. A restore stamp newer than 31 days.
 4. Documented S3 lifecycle and Keycloak/deployment-secret recovery ownership.
 5. No host watch-limit warning after approved remediation.
+
+## First controlled monitor evidence — 2026-08-14
+
+The monitor was installed disabled, then invoked manually through the scoped deployment-control agent. Its first run proved the backup, repository, credential, primary-WAL, and dedicated-intraday scheduler controls. It also created the expected durable administrator-inbox warning notification (`scheduler:marketops-operations-monitor:failed`).
+
+The first result failed closed on three conditions: temporal WAL was 20,438 seconds old, no durable restore-rehearsal stamp existed (the prior successful rehearsal predated stamp creation), and two global activation requests were older than the 24-hour queue threshold. A provider-free pgBackRest check immediately archived temporal WAL and reduced that check to 8 seconds. The controlled rerun therefore left exactly two active failures: the missing fresh rehearsal stamp and the aged activation queue. Those requests remain intact for N3; they were not suppressed, deleted, or relabeled.
+
+The bounded inotify/file-limit configuration was persisted and applied. The monitor timer is enabled hourly because the alert path has been verified; it is expected to remain warning-state until the two truthful failures are resolved. `systemctl daemon-reexec`, a post-reexec scheduler/backup verification, and the actual removal of the host warning remain an approved-maintenance action.
