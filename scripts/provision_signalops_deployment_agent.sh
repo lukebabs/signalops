@@ -26,15 +26,16 @@ sudoers_file=/etc/sudoers.d/signalops-deploy-agent
 }
 
 install -d -m 0750 -o root -g root "$agent_dir"
-install -m 0750 -o root -g root "$source_agent" "$agent_bin"
-install -m 0750 -o root -g root "$source_renderer" "$agent_dir/render_marketops_cutover_env.sh"
-
+agent_temporary="$(mktemp "$agent_dir/.signalops-deploy-agent.XXXXXX")"
 temporary="$(mktemp /etc/sudoers.d/.signalops-deploy-agent.XXXXXX)"
-trap 'rm -f "$temporary"' EXIT
+trap 'rm -f "$temporary" "$agent_temporary"' EXIT
+sed "s|@REPOSITORY_DIR@|$repo_dir|g" "$source_agent" > "$agent_temporary"
+install -m 0750 -o root -g root "$agent_temporary" "$agent_bin"
+install -m 0750 -o root -g root "$source_renderer" "$agent_dir/render_marketops_cutover_env.sh"
 printf '%s ALL=(root) NOPASSWD: %s\n' "$operator" "$agent_bin" > "$temporary"
 visudo -cf "$temporary" >/dev/null
 install -m 0440 -o root -g root "$temporary" "$sudoers_file"
 
 printf 'Installed SignalOps deployment-control agent.\n'
 printf 'Allowed operator: %s\n' "$operator"
-printf 'Available actions: render-cutover-env, scheduler-preflight, scheduler-intraday-run, scheduler-intraday-enable, scheduler-intraday-disable, scheduler-status\n'
+printf 'Available actions: render-cutover-env, scheduler-preflight, scheduler-intraday-run, scheduler-intraday-enable, scheduler-intraday-disable, scheduler-status, operations-monitor-install, operations-monitor-run, operations-monitor-enable, operations-monitor-disable, watch-limits-stage\n'

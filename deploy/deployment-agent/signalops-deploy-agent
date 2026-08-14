@@ -4,6 +4,7 @@ set -euo pipefail
 # Installed root-owned by provision_signalops_deployment_agent.sh.  This is an
 # allowlisted control surface, not a general deployment shell.
 root_dir=/usr/local/lib/signalops-deployment-agent
+repository_dir=@REPOSITORY_DIR@
 action="${1:-}"
 actor="${SUDO_USER:-unknown}"
 
@@ -37,6 +38,21 @@ case "$action" in
     ;;
   scheduler-intraday-disable)
     run systemctl disable --now signalops-marketops-boundary-intraday.timer
+    ;;
+  operations-monitor-install)
+    run "$repository_dir/scripts/install_marketops_operations_monitor.sh"
+    ;;
+  operations-monitor-run)
+    run systemctl start signalops-marketops-operations-monitor.service
+    ;;
+  operations-monitor-enable)
+    run systemctl enable --now signalops-marketops-operations-monitor.timer
+    ;;
+  operations-monitor-disable)
+    run systemctl disable --now signalops-marketops-operations-monitor.timer
+    ;;
+  watch-limits-stage)
+    run "$repository_dir/scripts/provision_signalops_systemd_watch_limits.sh"
     ;;
   scheduler-status)
     systemctl status \
