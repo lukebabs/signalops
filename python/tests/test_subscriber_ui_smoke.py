@@ -140,13 +140,12 @@ def assert_state_request_scope(response: Response, config: SubscriberUIConfig) -
 def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page) -> None:
     config = subscriber_ui_config()
     login(subscriber_page, config)
-    subscriber_page.get_by_role("button", name=re.compile(re.escape(config.watchlist_name))).click()
+    subscriber_page.get_by_role("button", name=re.compile("^" + re.escape(config.watchlist_name) + r"\b")).click()
+    expect(subscriber_page.get_by_role("heading", name=config.watchlist_name, exact=True)).to_be_visible(timeout=30_000)
     use_across = subscriber_page.get_by_role("button", name="Use across MarketOps")
     if use_across.is_visible():
         use_across.click()
     expect(subscriber_page.get_by_role("button", name="Used across MarketOps")).to_be_visible(timeout=30_000)
-    subscriber_page.reload(wait_until="domcontentloaded")
-    assert_selected_watchlist(subscriber_page, config)
 
     assets = visit_for_response(
         subscriber_page,
@@ -156,6 +155,8 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
     expect(subscriber_page.get_by_role("heading", name="Assets")).to_be_visible(timeout=30_000)
     assert_selected_watchlist(subscriber_page, config)
     assert_watchlist_context(assets, config)
+    subscriber_page.reload(wait_until="domcontentloaded")
+    assert_selected_watchlist(subscriber_page, config)
     for ticker in config.shared_tickers:
         row = subscriber_page.get_by_test_id(f"marketops-asset-row-{ticker}")
         expect(row).to_contain_text("Shared", timeout=30_000)
