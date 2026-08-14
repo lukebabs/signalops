@@ -1,0 +1,41 @@
+# Dedicated URLs for MarketOps batch runners. This file is intentionally not
+# loaded by default and must be used only by the root-owned scheduler launcher.
+x-marketops-scheduled-boundary: &marketops-scheduled-boundary
+  SIGNALOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+  SIGNALOPS_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:?inject dedicated MarketOps temporal URL}
+
+services:
+  marketops-intraday-monitor:
+    environment: *marketops-scheduled-boundary
+  marketops-valuation-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-tactical-valuation-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-eroc-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-eeom-runner:
+    environment: *marketops-scheduled-boundary
+  massive-puller:
+    environment: *marketops-scheduled-boundary
+  massive-scheduler:
+    environment: *marketops-scheduled-boundary
+  marketops-asset-backfill-worker:
+    environment: *marketops-scheduled-boundary
+  marketops-algorithm-adjudicator:
+    environment: *marketops-scheduled-boundary
+  marketops-options-feature-materializer:
+    environment: *marketops-scheduled-boundary
+  algorithm-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-options-coverage-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-intelligence-cohort-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-syncratic-intelligence-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-sri-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-sri-holdings-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-signal-assurance-worker:
+    environment: *marketops-scheduled-boundary

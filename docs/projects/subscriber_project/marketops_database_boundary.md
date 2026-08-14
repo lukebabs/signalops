@@ -137,6 +137,12 @@ Release `353a541` was deployed from the clean cutover worktree after the final p
 
 The immediate post-deployment preflight passed every scoped primary and temporal count, including the reconciled 2,800 SRI holdings and 48 snapshots. It again found zero non-MarketOps normalized-event or signal-ledger rows in either dedicated store. The gateway remains on its already accepted dedicated read path. The seven scheduler units were found enabled in the user-level systemd scope despite being inactive; they were explicitly stopped and disabled. The writer-cutover guard now verifies both system and user scopes. No batch job was enabled or rerouted by this release.
 
+## Scheduled-job routing preparation — 2026-08-14
+
+`compose.marketops-scheduled-cutover.yaml` is a dormant, validated overlay for MarketOps batch runners. When invoked through the future root-owned scheduler launcher, it replaces each runner standard primary and temporal URL with the dedicated MarketOps URLs. It does not alter normalizer, signal persister, the gateway, subscriber control-plane services, or CyberOps.
+
+The existing user-level timers were explicitly disabled after discovery that system-level checks did not cover them. No timer is to be re-enabled until the scheduled scripts direct their completion queries to the dedicated database services and the root-owned launcher has been installed and smoke-tested.
+
 ## Cutover gates
 
 1. Bootstrap evidence passes, including table counts and database sizes.
