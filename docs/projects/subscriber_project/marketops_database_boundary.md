@@ -80,15 +80,15 @@ from the pushed release in a clean worktree. This avoids accidentally coupling
 the database cutover to unreviewed changes:
 
 ```bash
-git worktree add --detach /tmp/signalops-marketops-read-cutover d606d06
+git worktree add --detach /tmp/signalops-marketops-read-cutover 7abf1c9
 cd /tmp/signalops-marketops-read-cutover
-sudo ./scripts/render_marketops_cutover_env.sh
-sudo docker compose -p signalops \
-  -f compose.yaml \
-  -f compose.marketops-boundary.yaml \
-  -f compose.marketops-read-cutover.yaml \
-  up -d --build --no-deps gateway
+sudo ./scripts/deploy_marketops_read_cutover.sh
 ```
+
+The wrapper regenerates the root-owned cutover environment and loads the boundary
+passwords only while Compose resolves its service definitions. This is necessary
+because Compose interpolates those definitions even when it is starting only the
+gateway.
 
 Validate the gateway health endpoint, the protected MarketOps asset and SAF
 views for the approved tenant/watchlist cohort, and a non-MarketOps/CyberOps
