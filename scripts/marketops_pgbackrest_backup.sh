@@ -3,6 +3,7 @@ set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 config_path="${SIGNALOPS_PGBACKREST_CONFIG_PATH:-/etc/signalops/pgbackrest.conf}"
+boundary_env=/etc/signalops/marketops-boundary.env
 action="${1:-scheduled}"
 
 case "$action" in
@@ -12,8 +13,8 @@ case "$action" in
   *) echo "Usage: ${0##*/} [scheduled|full|diff|incr|check]" >&2; exit 2 ;;
 esac
 
-[[ -r "$config_path" ]] || { echo "pgBackRest configuration is not readable: $config_path" >&2; exit 3; }
-compose=(docker compose -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-pgbackrest.yaml")
+[[ -r "$config_path" && -r "$boundary_env" ]] || { echo "pgBackRest configuration or MarketOps boundary secret is not readable." >&2; exit 3; }
+compose=(docker compose --env-file "$boundary_env" -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-pgbackrest.yaml")
 targets=("marketops-postgres marketops-primary" "marketops-timescaledb marketops-temporal")
 for target in "${targets[@]}"; do
   read -r service stanza <<<"$target"
