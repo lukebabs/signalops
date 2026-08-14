@@ -55,3 +55,7 @@ The monitor was installed disabled, then invoked manually through the scoped dep
 The first result failed closed on three conditions: temporal WAL was 20,438 seconds old, no durable restore-rehearsal stamp existed (the prior successful rehearsal predated stamp creation), and two global activation requests were older than the 24-hour queue threshold. A provider-free pgBackRest check immediately archived temporal WAL and reduced that check to 8 seconds. The controlled rerun therefore left exactly two active failures: the missing fresh rehearsal stamp and the aged activation queue. Those requests remain intact for N3; they were not suppressed, deleted, or relabeled.
 
 The bounded inotify/file-limit configuration was persisted and applied. The monitor timer is enabled hourly because the alert path has been verified; it is expected to remain warning-state until the two truthful failures are resolved. `systemctl daemon-reexec`, a post-reexec scheduler/backup verification, and the actual removal of the host warning remain an approved-maintenance action.
+
+## Watch-limit remediation evidence — 2026-08-14
+
+The bounded inotify settings were applied and systemd was re-executed under explicit approval. The subsequent dedicated scheduler preflight passed with `primary=marketops` and `temporal=marketops_temporal`; its post-reexec journal contains no `Failed to allocate directory watch` warning. A later scheduled backup remains the final independent cadence confirmation.
