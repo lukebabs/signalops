@@ -89,11 +89,11 @@ WHERE schemaname='public'
 audit_trigger_disabled=false
 restore_audit_trigger() {
   if [[ "$audit_trigger_disabled" == "true" ]]; then
-    "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions ENABLE TRIGGER platform_primitive_definitions_audit_mutation;" || true
+    "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions ENABLE TRIGGER USER;" || true
   fi
 }
 trap restore_audit_trigger EXIT
-"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions DISABLE TRIGGER platform_primitive_definitions_audit_mutation;"
+"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions DISABLE TRIGGER USER;"
 audit_trigger_disabled=true
 # The large shared ledgers are copied only for MarketOps rows. Binary COPY
 # preserves types and avoids an intermediate plaintext file.
@@ -106,7 +106,7 @@ done
   | "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops
 
 # Timescale data is MarketOps data by contract, apart from the two shared
-"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions ENABLE TRIGGER platform_primitive_definitions_audit_mutation;"
+"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions ENABLE TRIGGER USER;"
 audit_trigger_disabled=false
 
 "${compose[@]}" exec -T marketops-timescaledb psql -v ON_ERROR_STOP=1 -U signalops -d marketops_temporal -c "TRUNCATE TABLE public.marketdata_equity_eod_prices, public.marketdata_option_contracts_daily, public.normalized_event_ledger, public.signal_ledger RESTART IDENTITY;"
