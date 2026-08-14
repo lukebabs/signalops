@@ -54,6 +54,12 @@ case "$action" in
   watch-limits-stage)
     run "$repository_dir/scripts/provision_signalops_systemd_watch_limits.sh"
     ;;
+  backup-run)
+    run systemctl start signalops-marketops-pgbackrest.service
+    ;;
+  restore-rehearsal-run)
+    run "$repository_dir/scripts/marketops_pgbackrest_restore_rehearsal.sh"
+    ;;
   scheduler-status)
     systemctl status \
       signalops-marketops-boundary-schedule@preflight.service \
