@@ -1,6 +1,6 @@
 # MarketOps Dedicated Database Boundary
 
-Status: bootstrap/parity evidence, corrected gateway-read acceptance, and a clean writer preflight are complete. The continuous-writer deployment, scheduled-job routing/resume, dedicated pgBackRest schedules, and restore rehearsal remain separate gates.
+Status: bootstrap/parity evidence, corrected gateway-read acceptance, and the continuous-writer cutover are complete. Scheduled-job routing/resume, dedicated pgBackRest schedules, and restore rehearsal remain separate gates.
 
 ## Decision
 
@@ -130,6 +130,12 @@ The read-only `scripts/preflight_marketops_writer_cutover.sh` compared every sco
 The first preflight found one bounded post-bootstrap delta: 12 State Street ETF holdings snapshots (effective 2026-08-12, retrieved 2026-08-14) and their 700 child holdings. Those exact parent/child rows were reconciled to the dedicated primary store in a single target transaction. The rerun passed all scoped counts, including 24,422 normalized events and 139,442 signals in the temporal store, and confirmed zero non-MarketOps ledger rows in both dedicated stores.
 
 This authorizes only the next continuous-writer gate. The paused scheduled batch jobs still require explicit launch-environment routing before any timer can be resumed.
+
+## Continuous-writer cutover evidence — 2026-08-14
+
+Release `353a541` was deployed from the clean cutover worktree after the final parity gate. Normalizer, signal persister, and the SAF registrar were stopped briefly and rebuilt with the protected dedicated MarketOps URLs. Each replacement container is running with `SIGNALOPS_MARKETOPS_DATABASE_URL` present; the registrar logged that its writes are routed to the dedicated MarketOps boundary.
+
+The immediate post-deployment preflight passed every scoped primary and temporal count, including the reconciled 2,800 SRI holdings and 48 snapshots. It again found zero non-MarketOps normalized-event or signal-ledger rows in either dedicated store. The gateway remains on its already accepted dedicated read path. All seven scheduled MarketOps timers remain inactive; no batch job was enabled or rerouted by this release.
 
 ## Cutover gates
 
