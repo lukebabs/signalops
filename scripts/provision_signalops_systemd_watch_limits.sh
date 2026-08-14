@@ -14,4 +14,5 @@ fs.inotify.max_user_watches = 524288
 fs.inotify.max_queued_events = 32768
 EOF
 sysctl -p /etc/sysctl.d/70-signalops-inotify.conf
-printf 'Installed persistent SignalOps inotify/watch limits. Run systemctl daemon-reexec during the approved maintenance window, then verify the scheduler warnings are absent.\n'
+systemctl daemon-reexec
+printf 'Installed persistent SignalOps inotify/watch limits and re-executed systemd. Verify the scheduler warnings are absent.\n'
