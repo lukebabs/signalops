@@ -143,6 +143,12 @@ The immediate post-deployment preflight passed every scoped primary and temporal
 
 The existing user-level timers were explicitly disabled after discovery that system-level checks did not cover them. `scripts/install_marketops_boundary_scheduler.sh` installs only the disabled dispatcher unit; it does not enable a timer. No timer is to be re-enabled until a separately approved one-job smoke test passes. The SRI refresh and holdings jobs remain outside this dispatcher because their in-progress implementation is not part of this clean release.
 
+## Scheduler dispatcher preflight evidence — 2026-08-14
+
+The disabled system-managed dispatcher was installed from the clean release and started as the `preflight` instance. It completed successfully and logged `Dedicated scheduler preflight passed: primary=marketops temporal=marketops_temporal`. The host emitted a pre-existing `Too many open files` directory-watch warning, but systemd recorded exit code 0 and result `success`; the warning did not prevent execution.
+
+Immediately afterward, the dedicated tactical retry query returned zero due records and the legacy user timer inventory contained no scheduled MarketOps timer. A one-shot retry-dispatcher smoke is therefore provider-free while that queue remains empty; it remains a separate execution step and does not re-enable any timer.
+
 ## Cutover gates
 
 1. Bootstrap evidence passes, including table counts and database sizes.
