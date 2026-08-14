@@ -259,7 +259,7 @@ export function MarketOpsAssetsRoute() {
         </div>
       </div><MarketOpsWatchlistSelector />
 
-      {pendingAssets.length ? <section className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><div className="font-semibold">Coverage in progress</div><p className="mt-1">These selected watchlist assets remain in the table so the list is complete. Their central EOD evidence is not ready yet, so MarketOps does not invent a quote, score, or signal.</p><div className="mt-2 flex flex-wrap gap-2">{pendingAssets.map(asset => <span key={asset.ticker} className="rounded border border-amber-200 bg-white px-2 py-1"><span className="font-mono font-semibold">{asset.ticker}</span> · {asset.coverage_state}</span>)}</div></section> : null}
+      {pendingAssets.length ? <section data-testid="marketops-pending-coverage" className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><div className="font-semibold">Coverage in progress</div><p className="mt-1">These selected watchlist assets remain in the table so the list is complete. Their central EOD evidence is not ready yet, so MarketOps does not invent a quote, score, or signal.</p><div className="mt-2 flex flex-wrap gap-2">{pendingAssets.map(asset => <span key={asset.ticker} className="rounded border border-amber-200 bg-white px-2 py-1"><span className="font-mono font-semibold">{asset.ticker}</span> · {asset.coverage_state}</span>)}</div></section> : null}
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" aria-label="Asset quick filters">
         {MARKETOPS_ASSET_QUICK_FILTERS.map((filter) => {
@@ -306,7 +306,7 @@ export function MarketOpsAssetsRoute() {
             <tbody className="divide-y divide-gray-100">
               {sortedData.length ? sortedData.map((a) => (
                 <Fragment key={a.ticker}>
-                <tr
+                <tr data-testid={`marketops-asset-row-${a.ticker}`}
                   onClick={() => setSelectedTicker((current) => current === a.ticker ? null : a.ticker)}
                   className={`cursor-pointer align-top hover:bg-gray-50 ${selectedTicker === a.ticker ? 'bg-brand-50' : ''}`}
                 >

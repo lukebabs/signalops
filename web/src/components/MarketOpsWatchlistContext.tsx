@@ -53,7 +53,7 @@ export function useMarketOpsWatchlistContext() {
 export function MarketOpsWatchlistSelector() {
   const { available, loading, context, selectedKey, setSelection } = useMarketOpsWatchlistContext();
   if (loading || !available || !context) return null;
-  return <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+  return <label data-testid="marketops-watchlist-selector" className="inline-flex items-center gap-2 text-xs text-gray-600">
     <span className="font-medium text-gray-700">Watchlist</span>
     <select value={selectedKey} onChange={event => {
       const value = event.target.value;
