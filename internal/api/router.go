@@ -4537,6 +4537,8 @@ func subscriberWatchlistCurrentEODAsset(tenantID string, item storage.Subscriber
 		"coverage_state":            item.CoverageState,
 		"coverage_mode":             item.CoverageMode,
 		"current_eod_session_date":  current.SessionDate.Format("2006-01-02"),
+		"current_eod_close":         current.Close,
+		"current_eod_as_of_time":    current.AsOfTime,
 		"current_eod_quality_state": current.QualityState,
 		"current_eod_provider":      current.Provider,
 	})
