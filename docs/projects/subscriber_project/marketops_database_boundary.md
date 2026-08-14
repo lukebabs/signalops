@@ -153,6 +153,12 @@ Immediately afterward, the dedicated tactical retry query returned zero due reco
 
 The dedicated `marketops-task-retry` dispatcher instance ran after the preflight. It completed with systemd result `success` and exit code 0, logging `no due tactical retries for 2026-08-12`. This proves the installed system-managed unit can invoke a real scheduled script, reach the dedicated query path, and terminate cleanly without a provider call or a MarketOps data mutation when no retry is eligible. Legacy user timers remained unscheduled.
 
+## SRI gateway and scheduler release evidence — 2026-08-14
+
+Release `8da1855` rebuilt and restarted only the gateway and web containers from a fresh worktree. Authentication, subscriber lists, and the dedicated MarketOps gateway URL remained configured; the gateway logged its dedicated-read route. The new ETF-makeup route responds with the expected authentication challenge before a session is supplied. The continuous writers were not restarted and all scheduled timers remained disabled.
+
+After active dedicated writers produced 261 new MarketOps temporal signals, strict source/target equality is no longer the correct post-cutover criterion. The reconciliation gate now has an explicit `--dedicated-authoritative` mode: every former shared count must remain present or be exceeded in the dedicated store, and cross-workload ledger rows must remain zero. That gate passed, recording 139,703 dedicated MarketOps temporal signals versus the frozen shared baseline of 139,442.
+
 ## Cutover gates
 
 1. Bootstrap evidence passes, including table counts and database sizes.
