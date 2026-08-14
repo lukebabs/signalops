@@ -1,0 +1,11 @@
+[Unit]
+Description=Run dedicated bounded MarketOps post-close recovery checks
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 18:30/15:00 America/New_York
+Persistent=true
+AccuracySec=1min
+Unit=signalops-marketops-boundary-schedule@marketops-postclose-recovery.service
+
+[Install]
+WantedBy=timers.target

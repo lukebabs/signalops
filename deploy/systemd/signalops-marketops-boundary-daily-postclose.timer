@@ -1,0 +1,11 @@
+[Unit]
+Description=Run dedicated MarketOps post-close pipeline and risk/reward reconciliation
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 18:01:55 America/New_York
+Persistent=true
+AccuracySec=1min
+Unit=signalops-marketops-boundary-schedule@marketops-daily-postclose.service
+
+[Install]
+WantedBy=timers.target

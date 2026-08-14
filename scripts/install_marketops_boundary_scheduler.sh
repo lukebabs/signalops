@@ -9,13 +9,20 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runtime_env="${1:-}"
 run_as_user="${2:-${SUDO_USER:-adminalien}}"
-enable_sri="${3:-}"
+enable_flags=("${@:3}")
 template="$root_dir/deploy/systemd/signalops-marketops-boundary-schedule@.service.in"
 unit=/etc/systemd/system/signalops-marketops-boundary-schedule@.service
 sri_timers=(
   signalops-marketops-boundary-sri-refresh.timer
   signalops-marketops-boundary-sri-holdings-refresh.timer
 )
+market_data_timers=(
+  signalops-marketops-boundary-intraday.timer
+  signalops-marketops-boundary-daily-postclose.timer
+  signalops-marketops-boundary-postclose-recovery.timer
+)
+enable_sri=false
+enable_market_data=false
 
 [[ -n "$runtime_env" && -r "$runtime_env" ]] || {
   printf 'Provide a readable protected production Compose environment file as argument 1.\n' >&2
@@ -34,13 +41,20 @@ id "$run_as_user" >/dev/null
   printf 'Missing unit template: %s\n' "$template" >&2
   exit 3
 }
-if [[ -n "$enable_sri" && "$enable_sri" != "--enable-sri" ]]; then
-  printf 'Optional argument 3 must be --enable-sri.\n' >&2
-  exit 2
-fi
-for timer in "${sri_timers[@]}"; do
+for flag in "${enable_flags[@]}"; do
+  case "$flag" in
+    --enable-sri) enable_sri=true ;;
+    --enable-market-data) enable_market_data=true ;;
+    "") ;;
+    *)
+      printf "Optional flags must be --enable-sri and/or --enable-market-data.\n" >&2
+      exit 2
+      ;;
+  esac
+done
+for timer in "${sri_timers[@]}" "${market_data_timers[@]}"; do
   [[ -r "$root_dir/deploy/systemd/$timer" ]] || {
-    printf 'Missing SRI timer template: %s\n' "$timer" >&2
+    printf 'Missing dedicated scheduler timer template: %s\n' "$timer" >&2
     exit 3
   }
 done
@@ -53,15 +67,20 @@ sed \
   -e "s|@RUN_AS_USER@|$run_as_user|g" \
   "$template" > "$temporary"
 install -m 0644 -o root -g root "$temporary" "$unit"
-for timer in "${sri_timers[@]}"; do
+for timer in "${sri_timers[@]}" "${market_data_timers[@]}"; do
   install -m 0644 -o root -g root "$root_dir/deploy/systemd/$timer" "/etc/systemd/system/$timer"
 done
 systemctl daemon-reload
 
 printf 'Installed dedicated scheduler dispatcher: %s\n' "$unit"
-if [[ "$enable_sri" == "--enable-sri" ]]; then
+if "$enable_sri"; then
   systemctl enable --now "${sri_timers[@]}"
-  printf 'Enabled controlled SRI refresh timers: weekdays 20:07 and 20:20 America/New_York.\n'
-  exit 0
+  printf "Enabled controlled SRI refresh timers: weekdays 20:07 and 20:20 America/New_York.\n"
 fi
-printf 'No timer was enabled. Use --enable-sri only with recorded approval.\n'
+if "$enable_market_data"; then
+  systemctl enable --now "${market_data_timers[@]}"
+  printf "Enabled controlled MarketOps timers: intraday every 15 minutes 09:30-20:00, post-close 18:01:55, and bounded recovery from 18:30 America/New_York.\n"
+fi
+if ! "$enable_sri" && ! "$enable_market_data"; then
+  printf "No timer was enabled. Use --enable-sri and/or --enable-market-data only with recorded approval.\n"
+fi
