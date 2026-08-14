@@ -28,7 +28,11 @@ output_dir="$(dirname "$output_env")"
 install -d -m 0750 -o root -g root "$output_dir"
 temp_env="$(mktemp "$output_dir/.marketops-cutover.XXXXXX")"
 trap 'rm -f "$temp_env"' EXIT
+# Compose also resolves the dedicated database service definitions, which require
+# standalone variables in addition to the protected connection URLs.
 printf '%s\n' \
+  "SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD=${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD}" \
+  "SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD=${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD}" \
   "SIGNALOPS_MARKETOPS_DATABASE_URL=postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD}@marketops-postgres:5432/marketops?sslmode=disable" \
   "SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL=postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable" \
   > "$temp_env"
