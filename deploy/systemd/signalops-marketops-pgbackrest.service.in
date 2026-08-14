@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=@WORKDIR@
-Environment=SIGNALOPS_PGBACKREST_CONFIG_PATH=/etc/signalops/pgbackrest.conf
+Environment=SIGNALOPS_PGBACKREST_CONFIG_PATH=/etc/signalops/marketops-pgbackrest/pgbackrest.conf
 ExecStartPre=/usr/bin/systemctl start signalops-pgbackrest-credentials.service
 ExecStart=@WORKDIR@/scripts/marketops_pgbackrest_backup.sh scheduled
 TimeoutStartSec=4h

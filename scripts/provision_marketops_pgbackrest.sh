@@ -4,9 +4,10 @@ set -euo pipefail
 [[ "${EUID}" -eq 0 ]] || { echo "Run this provisioning command as root." >&2; exit 2; }
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_env=/etc/signalops/pgbackrest-source.env
-config_path=/etc/signalops/pgbackrest.conf
+config_path=/etc/signalops/marketops-pgbackrest/pgbackrest.conf
 boundary_env=/etc/signalops/marketops-boundary.env
-[[ -r "$source_env" && -r "$config_path" && -r "$boundary_env" ]] || { echo "Existing root-owned pgBackRest source/configuration is required." >&2; exit 3; }
+[[ -r "$source_env" && -r "$boundary_env" ]] || { echo "Existing root-owned pgBackRest source/configuration is required." >&2; exit 3; }
+grep -qx "SIGNALOPS_MARKETOPS_PGBACKREST_CONFIG_PATH=$config_path" "$source_env" || printf "SIGNALOPS_MARKETOPS_PGBACKREST_CONFIG_PATH=%s\n" "$config_path" >> "$source_env"
 set -a
 . "$source_env"
 . "$boundary_env"

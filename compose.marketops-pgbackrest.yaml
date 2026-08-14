@@ -7,7 +7,7 @@ services:
       dockerfile: deploy/postgres/pgbackrest.Dockerfile
     image: signalops-marketops-postgres-pgbackrest:16
     volumes:
-      - ${SIGNALOPS_PGBACKREST_CONFIG_PATH:?set a root-owned pgBackRest configuration}:/etc/pgbackrest/pgbackrest.conf:ro
+      - /etc/signalops/marketops-pgbackrest:/etc/pgbackrest:ro
 
   marketops-timescaledb:
     build:
@@ -15,4 +15,4 @@ services:
       dockerfile: deploy/postgres/marketops-timescaledb-pgbackrest.Dockerfile
     image: signalops-marketops-timescaledb-pgbackrest:2.17.2-pg16
     volumes:
-      - ${SIGNALOPS_PGBACKREST_CONFIG_PATH:?set a root-owned pgBackRest configuration}:/etc/pgbackrest/pgbackrest.conf:ro
+      - /etc/signalops/marketops-pgbackrest:/etc/pgbackrest:ro

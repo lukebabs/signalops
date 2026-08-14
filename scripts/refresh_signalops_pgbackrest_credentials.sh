@@ -15,9 +15,10 @@ role_arn="${SIGNALOPS_BACKUP_ROLE_ARN:-arn:aws:iam::354918409279:role/signalops-
 bucket="${SIGNALOPS_BACKUP_BUCKET:-signalops-production-postgres-backups-354918409279-us-east-1}"
 region="${AWS_REGION:-us-east-1}"
 config_path="$SIGNALOPS_PGBACKREST_CONFIG_PATH"
+marketops_config_path="${SIGNALOPS_MARKETOPS_PGBACKREST_CONFIG_PATH:-}"
 cipher_pass_file="$SIGNALOPS_PGBACKREST_CIPHER_PASS_FILE"
 
-for command in aws install mktemp dirname jq tr hostname cat rm chown chmod mv; do
+for command in aws install mktemp dirname jq tr hostname cat cp rm chown chmod mv; do
   command -v "$command" >/dev/null 2>&1 || { printf 'required command not found: %s\n' "$command" >&2; exit 3; }
 done
 
@@ -94,5 +95,15 @@ EOF
 chown root:70 "$rendered"
 chmod 0640 "$rendered"
 mv -f "$rendered" "$config_path"
+if [[ -n "$marketops_config_path" ]]; then
+  [[ "$marketops_config_path" == /* ]] || { printf "MarketOps configuration path must be absolute\n" >&2; exit 2; }
+  marketops_config_dir="$(dirname "$marketops_config_path")"
+  install -d -m 0750 -o root -g root "$marketops_config_dir"
+  marketops_rendered="$(mktemp "$marketops_config_dir/.pgbackrest.conf.XXXXXX")"
+  cp "$config_path" "$marketops_rendered"
+  chown root:70 "$marketops_rendered"
+  chmod 0640 "$marketops_rendered"
+  mv -f "$marketops_rendered" "$marketops_config_path"
+fi
 trap - EXIT
 printf 'Rendered renewed pgBackRest assumed-role configuration at %s.\n' "$config_path"

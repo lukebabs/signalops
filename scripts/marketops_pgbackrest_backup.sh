@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-config_path="${SIGNALOPS_PGBACKREST_CONFIG_PATH:-/etc/signalops/pgbackrest.conf}"
+config_path="${SIGNALOPS_PGBACKREST_CONFIG_PATH:-/etc/signalops/marketops-pgbackrest/pgbackrest.conf}"
 boundary_env=/etc/signalops/marketops-boundary.env
 action="${1:-scheduled}"
 

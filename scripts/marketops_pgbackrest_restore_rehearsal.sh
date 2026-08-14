@@ -3,7 +3,7 @@ set -euo pipefail
 
 [[ "${EUID}" -eq 0 ]] || { echo "Run this restore rehearsal as root because it creates isolated Docker volumes." >&2; exit 2; }
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-config_path="${SIGNALOPS_PGBACKREST_CONFIG_PATH:-/etc/signalops/pgbackrest.conf}"
+config_path="${SIGNALOPS_PGBACKREST_CONFIG_PATH:-/etc/signalops/marketops-pgbackrest/pgbackrest.conf}"
 boundary_env=/etc/signalops/marketops-boundary.env
 [[ -r "$config_path" && -r "$boundary_env" ]] || { echo "pgBackRest configuration or MarketOps boundary secret is not readable." >&2; exit 3; }
 compose=(docker compose -p signalops --env-file "$boundary_env" -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-pgbackrest.yaml")
