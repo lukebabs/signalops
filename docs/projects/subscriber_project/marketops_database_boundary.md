@@ -149,6 +149,10 @@ The disabled system-managed dispatcher was installed from the clean release and 
 
 Immediately afterward, the dedicated tactical retry query returned zero due records and the legacy user timer inventory contained no scheduled MarketOps timer. A one-shot retry-dispatcher smoke is therefore provider-free while that queue remains empty; it remains a separate execution step and does not re-enable any timer.
 
+## Scheduler no-op retry smoke evidence — 2026-08-14
+
+The dedicated `marketops-task-retry` dispatcher instance ran after the preflight. It completed with systemd result `success` and exit code 0, logging `no due tactical retries for 2026-08-12`. This proves the installed system-managed unit can invoke a real scheduled script, reach the dedicated query path, and terminate cleanly without a provider call or a MarketOps data mutation when no retry is eligible. Legacy user timers remained unscheduled.
+
 ## Cutover gates
 
 1. Bootstrap evidence passes, including table counts and database sizes.
