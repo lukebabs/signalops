@@ -7912,3 +7912,68 @@ Rationale and expected outcome:
 - Reconciled Exhaustive Reversal to 115/115 active assets for the latest persisted session; prior July 31 coverage was 60 assets.
 - Reconciled Current Intraday Breadth for 115 assets. 93 completed-close snapshots are fresh and 22 are retained as provider-stale/unavailable; no stale provider record is relabeled as live data.
 - Changed MarketOps Dashboard default breadth window from 60 to 10 trading days, keeping 30 and 60 trading days as analyst-selectable context windows.
+
+
+## 2026-08-14 — Subscriber Project next-cycle backlog and sprint boundary
+
+Summary:
+
+- Closed the dedicated MarketOps data-boundary and recovery gate: MarketOps reads and continuous writers use the dedicated boundary; encrypted pgBackRest recovery points, WAL archiving, and isolated offline restore rehearsals have been verified. The legacy shared backup timer remains disabled.
+- Enabled the controlled SRI refresh cadence: weekday completed-session reconciliation runs at 20:07 America/New_York and the State Street issuer-holdings refresh follows at 20:20 America/New_York. The first scheduled-run evidence remains to be reviewed.
+- The global-catalog, tenant-aware authorization, entitlement, default/private-list, watchlist projection, and controlled canary foundations are no longer the principal implementation blockers.
+
+Outstanding work is organized into independently releasable next-cycle sprints. None of these items changes the completed boundary or recovery evidence without a separately approved change.
+
+### N1 — Production observability and recovery operations
+
+- Add actionable monitoring and alert delivery for dedicated backup age, WAL archive lag/failure, repository capacity, credential-refresh failure, restore-rehearsal age, SRI scheduler failure, and coverage/queue degradation.
+- Establish recurring restore-rehearsal cadence and evidence retention. A networked point-in-time recovery exercise remains a distinct, separately approved test; the completed rehearsal validates isolated physical recovery without network egress.
+- Set and document S3 repository lifecycle/retention policy alongside the configured pgBackRest retention policy; document recovery of Keycloak configuration and deployment secrets as companion continuity procedures.
+- Resolve the host `Too many open files` systemd directory-watch warning without weakening the active scheduler or recovery controls.
+
+Exit gate: alerts are delivered to an accountable operator, at least one scheduled job and one scheduled backup are evidenced, and the recurring recovery checklist is owned and executable.
+
+### N2 — Pilot acceptance and subscriber operating model
+
+- Complete pilot-tenant acceptance for tenant-default/private-list management, first-custom-list defaulting, watchlist selection across MarketOps views, authorization-negative cases, and cold-asset coverage-state presentation.
+- Define the production tenant lifecycle: approved tenant provisioning, tenant administrator responsibilities, entitlement/tier changes, support/audit workflow, and criteria for pilot-to-general-availability expansion.
+- Keep tenant isolation and centrally shared intelligence explicit: tenants own memberships and preferences, while global assets, market data, and algorithm evidence remain single-copy platform records.
+
+Exit gate: a pilot tenant can be provisioned, administered, supported, and deprovisioned through an auditable documented workflow without cross-tenant disclosure.
+
+### N3 — Catalog coverage and centrally governed scale
+
+- Operationalize the exchange-listed US common-stock catalog refresh and governance reconciliation.
+- Formalize the top-1,000 hot EOD coverage policy, budget/deadline/quality metrics, and expansion evidence.
+- Complete and observe the cold-asset path: authorized list membership creates one globally deduplicated activation request, central processing warms the asset, and all entitled viewers receive the same resulting evidence without browser provider calls.
+- Decide and document capacity/entitlement controls for catalog search, activation, and enrichment demand.
+
+Exit gate: coverage expansion demonstrates one collection and one canonical algorithm result per globally covered symbol/session, including symbols requested by more than one tenant.
+
+### N4 — Provider revision and market-data quality governance
+
+- Review the immutable provider-revision observations and field-level deltas; approve, revise, or reject the policy that permits newer provider evidence to supersede legacy canonical selection.
+- Confirm scheduled SRI price and holdings results, freshness, provider provenance, and failure handling after their first controlled execution.
+- Maintain truthful degraded, deferred, warming, and provider-gap states rather than translating absence of evidence into neutral or directional conclusions.
+
+Exit gate: canonical-selection policy is approved and its rollout/rollback decision has auditable evidence.
+
+### N5 — Deferred enrichment and algorithm roadmap
+
+- Integrate FMP annual fundamentals and ratios when prioritized; retain the current bounded TTM profile until a validated richer-history path exists.
+- Continue SAF effectiveness accumulation and calibration only from matured, provenance-complete evidence.
+- Re-open the S6 options-demand/capture canary only with a new named approval now that recovery evidence is complete; evaluate its result before any cohort expansion. No broad options capture is implied by this backlog entry.
+
+Exit gate: each enrichment has a named provider budget, readiness/coverage contract, rollout cohort, and rollback path.
+
+### N6 — Documentation and release governance
+
+- Reconcile historical sprint documents whose temporary pending or partially provisioned language has been superseded by deployed boundary, recovery, and canary evidence.
+- Maintain one release checklist that links tenant acceptance, provider approvals, operational alerts, recovery evidence, and each controlled expansion decision.
+
+Next-cycle priority:
+
+1. N1 production observability and recovery operations.
+2. N2 pilot acceptance and subscriber operating model.
+3. N3 catalog coverage scale, with N4 policy review required before canonical-provider behavior expands.
+4. N5 only through separate provider/capture approvals.
