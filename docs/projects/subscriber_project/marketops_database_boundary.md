@@ -186,3 +186,7 @@ The run log showed the legacy `signalops-postgres-1` only because Compose inheri
 The dedicated scheduler installer now supports an explicit `--enable-sri` action, used only with recorded approval. It installs two system-managed, persistent timers that invoke the dedicated dispatcher: the SRI ETF price/reconciliation job at 20:07 America/New_York every weekday, followed by the State Street issuer-holdings job at 20:20 America/New_York. Both jobs inherit the protected dedicated MarketOps URLs; they do not reactivate legacy user timers or alter CyberOps or subscriber control-plane processing.
 
 The one-minute scheduling accuracy intentionally avoids a fragile exact-second dependency while preserving ordering. Each service remains a separately observable one-shot unit, and no retry loop is added by these timers.
+
+## Controlled SRI schedule deployment evidence — 2026-08-14
+
+Release `f2fa7f9` was installed from the clean `/tmp/signalops-marketops-sri-scheduler-release` worktree with explicit approval. Both persistent system timers are loaded, enabled, and waiting; neither performed a catch-up invocation at installation. Their first scheduled runs are Friday 2026-08-14 at 20:07 and 20:20 America/New_York (00:07 and 00:20 UTC on 2026-08-15). They target the dedicated scheduler instances `marketops-sri-refresh` and `marketops-sri-holdings-refresh` respectively. The installed unit has the protected dedicated primary and temporal URL overlay and retains no legacy user timer dependency.
