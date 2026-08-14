@@ -1,6 +1,6 @@
 # MarketOps Dedicated Database Boundary
 
-Status: bootstrap implementation ready; data copy and application cutover are separate approvals.
+Status: bootstrap and parity verification completed 2026-08-14; application cutover, dedicated pgBackRest schedules, and restore rehearsal remain separate approvals.
 
 ## Decision
 
@@ -45,6 +45,12 @@ copies the explicit MarketOps tables, binary-copies only `app_id='marketops'`
 rows from shared ledgers, then proves target exclusion of CyberOps and
 non-MarketOps ledger data. It does not change any application environment,
 scheduled job, S3 backup, or source data.
+
+## Bootstrap evidence — 2026-08-14
+
+The additive bootstrap completed without changing the shared source stores or application routing. The source and dedicated primary stores each exposed 123 scoped tables with zero per-table row-count mismatches. The dedicated temporal store matched 24,422 MarketOps normalized events and 139,442 MarketOps signals. Both source and target had zero rows in the current `marketdata_equity_eod_prices` and `marketdata_option_contracts_daily` hypertable roots.
+
+The resulting dedicated physical stores are 914 MB (`marketops-postgres`) and 1007 MB (`marketops-timescaledb`). Boundary verification proved zero CyberOps rows and zero non-MarketOps ledger rows in either target. Both the shared and dedicated primary databases have migrations `000116_platform_primitive_audit_schema_qualification` and `000117_platform_primitive_policy_schema_qualification` applied.
 
 ## Cutover gates
 
