@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"os"
@@ -54,7 +55,16 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer repository.Close()
+	marketRepository := repository
+	if strings.TrimSpace(cfg.MarketOpsDatabaseURL) != "" {
+		marketRepository, err = postgresstorage.OpenWithTemporal(ctx, cfg.MarketOpsDatabaseURL, cfg.MarketOpsTemporalDatabaseURL)
+		if err != nil {
+			return err
+		}
+		defer marketRepository.Close()
+	}
 	processor := signals.Processor{Repository: repository}
+	marketProcessor := signals.Processor{Repository: marketRepository}
 	logger.Info("signalops signal persister started", "input_topic", inputTopic)
 
 	for {
@@ -65,7 +75,11 @@ func run(logger *slog.Logger) error {
 			}
 			return err
 		}
-		record, err := processor.Process(ctx, message)
+		activeProcessor := processor
+		if marketRepository != repository && marketOpsAppID(message.Value) {
+			activeProcessor = marketProcessor
+		}
+		record, err := activeProcessor.Process(ctx, message)
 		if err != nil {
 			var invalid signals.InvalidEventError
 			if errors.As(err, &invalid) {
@@ -94,6 +108,13 @@ func run(logger *slog.Logger) error {
 		logger.Info("signal persisted", "signal_id", record.SignalID, "detector_id", record.DetectorID,
 			"partition", record.BrokerPartition, "offset", record.BrokerOffset)
 	}
+}
+
+func marketOpsAppID(value []byte) bool {
+	var envelope struct {
+		AppID string `json:"app_id"`
+	}
+	return json.Unmarshal(value, &envelope) == nil && strings.EqualFold(strings.TrimSpace(envelope.AppID), "marketops")
 }
 
 func closeBroker(logger *slog.Logger, publisher broker.Publisher) {

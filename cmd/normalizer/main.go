@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"os"
@@ -52,9 +53,19 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer repository.Close()
+	marketRepository := repository
+	if strings.TrimSpace(cfg.MarketOpsDatabaseURL) != "" {
+		marketRepository, err = postgresstorage.OpenWithTemporal(ctx, cfg.MarketOpsDatabaseURL, cfg.MarketOpsTemporalDatabaseURL)
+		if err != nil {
+			return err
+		}
+		defer marketRepository.Close()
+	}
 	processor := normalization.Processor{Publisher: client, Repository: repository, OutputTopic: outputTopic}
+	marketProcessor := normalization.Processor{Publisher: client, Repository: marketRepository, OutputTopic: outputTopic}
 	if envBoolOrDefault("SIGNALOPS_PLATFORM_REGISTRY_ENFORCEMENT", false) {
 		processor.DefinitionValidator = platformregistry.MassiveRawEventDefinitionValidator{Lister: repository}
+		marketProcessor.DefinitionValidator = platformregistry.MassiveRawEventDefinitionValidator{Lister: marketRepository}
 		logger.Info("platform registry enforcement enabled for Massive scheduled-pull events")
 	}
 	logger.Info("signalops normalizer started", "input_topic", inputTopic, "output_topic", outputTopic)
@@ -73,7 +84,11 @@ func run(logger *slog.Logger) error {
 			logger.Info("connect candidate reserved for cyberops accepted-raw path", "topic", message.Topic, "partition", message.Partition, "offset", message.Offset)
 			continue
 		}
-		record, err := processor.Process(ctx, message)
+		activeProcessor := processor
+		if marketRepository != repository && marketOpsAppID(message.Value) {
+			activeProcessor = marketProcessor
+		}
+		record, err := activeProcessor.Process(ctx, message)
 		if err != nil {
 			var invalid normalization.InvalidEventError
 			if errors.As(err, &invalid) {
@@ -99,6 +114,13 @@ func run(logger *slog.Logger) error {
 		}
 		logger.Info("normalized event persisted", "event_id", record.EventID, "raw_partition", record.RawPartition, "raw_offset", record.RawOffset, "normalized_partition", record.NormalizedPartition, "normalized_offset", record.NormalizedOffset)
 	}
+}
+
+func marketOpsAppID(value []byte) bool {
+	var envelope struct {
+		AppID string `json:"app_id"`
+	}
+	return json.Unmarshal(value, &envelope) == nil && strings.EqualFold(strings.TrimSpace(envelope.AppID), "marketops")
 }
 
 func closeBroker(logger *slog.Logger, publisher broker.Publisher) {
