@@ -40,4 +40,12 @@ for target in "${targets[@]}"; do
   docker exec "$container" psql -U signalops -d "$database" -tAc "SELECT 1" | grep -qx "1"
   echo "Restore rehearsal passed for $stanza: isolated database started and accepted a validation query."
 done
+state_dir="${SIGNALOPS_MARKETOPS_OPERATIONS_STATE_DIR:-/var/lib/signalops/marketops-operations}"
+mkdir -p "$state_dir"
+completed_epoch="$(date -u +%s)"
+temporary="$state_dir/.restore-rehearsal.$$"
+printf '{"completed_at":"%s","completed_epoch":%s,"stanzas":["marketops-primary","marketops-temporal"],"result":"passed"}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$completed_epoch" > "$temporary"
+install -m 0640 "$temporary" "$state_dir/restore-rehearsal.json"
+rm -f "$temporary"
 echo "Dedicated MarketOps restore rehearsal passed. Temporary containers and volumes will now be removed."

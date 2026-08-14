@@ -1,0 +1,13 @@
+[Unit]
+Description=SignalOps dedicated MarketOps operations monitor
+After=network-online.target docker.service signalops-pgbackrest-credentials.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+Environment=SIGNALOPS_PGBACKREST_CONFIG_PATH=/etc/signalops/marketops-pgbackrest/pgbackrest.conf
+ExecStartPre=/usr/bin/systemctl start signalops-pgbackrest-credentials.service
+ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh marketops-operations-monitor "Hourly" "UTC" @WORKDIR@/scripts/marketops_operations_monitor.sh
+TimeoutStartSec=10min
+Nice=10
