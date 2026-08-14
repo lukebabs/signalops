@@ -9,6 +9,11 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 boundary_env=/etc/signalops/marketops-boundary.env
 cutover_env=/etc/signalops/marketops-cutover.env
+mode="--pre-writer"
+if [[ "${1:-}" == "--dedicated-authoritative" ]]; then
+  mode="$1"
+  shift
+fi
 runtime_env="${1:-${SIGNALOPS_PRODUCTION_ENV_FILE:-}}"
 [[ -r "$boundary_env" ]] || {
   printf 'Protected MarketOps boundary secret is not readable: %s\n' "$boundary_env" >&2
@@ -66,10 +71,10 @@ restore_shared() {
 }
 trap 'status=$?; restore_shared; exit "$status"' EXIT
 
-"$root_dir/scripts/preflight_marketops_writer_cutover.sh"
+"$root_dir/scripts/preflight_marketops_writer_cutover.sh" "$mode"
 "${base[@]}" stop "${continuous_writers[@]}"
 restoration_required=true
-"$root_dir/scripts/preflight_marketops_writer_cutover.sh"
+"$root_dir/scripts/preflight_marketops_writer_cutover.sh" "$mode"
 
 "${base[@]}" \
   -f "$root_dir/compose.marketops-read-cutover.yaml" \
