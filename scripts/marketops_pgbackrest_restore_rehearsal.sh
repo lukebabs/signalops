@@ -37,7 +37,7 @@ for target in "${targets[@]}"; do
     docker logs "$container" >&2 || true
     exit 4
   fi
-  docker exec "$container" psql -U signalops -d "$database" -tAc "SELECT 1" | rg -qx "1"
+  docker exec "$container" psql -U signalops -d "$database" -tAc "SELECT 1" | grep -qx "1"
   echo "Restore rehearsal passed for $stanza: isolated database started and accepted a validation query."
 done
 echo "Dedicated MarketOps restore rehearsal passed. Temporary containers and volumes will now be removed."
