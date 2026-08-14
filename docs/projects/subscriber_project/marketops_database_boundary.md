@@ -96,6 +96,20 @@ route. Keep all MarketOps timers stopped until those checks pass. Rollback is
 one gateway redeploy with the read override omitted; the shared databases have
 not been mutated by the read phase.
 
+## Gateway read-cutover evidence — 2026-08-14
+
+The clean release `e913ce0` was built and deployed to `signalops-gateway-1`
+with the read-only override. Its startup log states that MarketOps gateway reads
+are routed to the dedicated data boundary. `GET /healthz` and `GET /readyz`
+returned `200`. The dedicated MarketOps asset endpoint returned 132 assets for
+`tenant-local`; the SAF effectiveness endpoint returned `200` (925 bytes).
+
+The shared-plane controls remained available: catalog sources returned `200`
+(553 bytes) and CyberOps events returned `200` (446 bytes). The normalizer and
+signal persister containers retained their pre-cutover start times, and all
+seven paused MarketOps timers were confirmed `inactive`. This is gateway-read
+evidence only; no MarketOps writer has been cut over or resumed.
+
 ## Cutover gates
 
 1. Bootstrap evidence passes, including table counts and database sizes.
