@@ -81,10 +81,12 @@ pg1-path=/var/lib/postgresql/data
 pg1-user=signalops
 
 [marketops-primary]
+archive-copy=y
 pg1-path=/var/lib/postgresql/data
 pg1-user=signalops
 
 [marketops-temporal]
+archive-copy=y
 pg1-path=/var/lib/postgresql/data
 pg1-user=signalops
 EOF

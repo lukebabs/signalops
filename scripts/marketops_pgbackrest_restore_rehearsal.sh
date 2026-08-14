@@ -26,13 +26,17 @@ for target in "${targets[@]}"; do
   cleanup_targets+=("$container $volume")
   docker volume create "$volume" >/dev/null
   docker run --rm --user root -v "$volume:/var/lib/postgresql/data" "$image" sh -ceu "chown -R postgres:postgres /var/lib/postgresql/data"
-  docker run --rm --user postgres -v "$config_path:/etc/pgbackrest/pgbackrest.conf:ro" -v "$volume:/var/lib/postgresql/data" "$image" pgbackrest --stanza="$stanza" restore
-  docker run -d --network none --name "$container" -e POSTGRES_PASSWORD=signalops-restore-rehearsal -v "$volume:/var/lib/postgresql/data" "$image" postgres >/dev/null
+  docker run --rm --user postgres -v "$config_path:/etc/pgbackrest/pgbackrest.conf:ro" -v "$volume:/var/lib/postgresql/data" "$image" pgbackrest --stanza="$stanza" --type=immediate --target-action=promote --archive-mode=off restore
+  docker run -d --network none --name "$container" -e POSTGRES_PASSWORD=signalops-restore-rehearsal -v "$config_path:/etc/pgbackrest/pgbackrest.conf:ro" -v "$volume:/var/lib/postgresql/data" "$image" postgres >/dev/null
+  ready=false
   for attempt in $(seq 1 30); do
-    if docker exec "$container" pg_isready -U signalops -d "$database" >/dev/null; then break; fi
+    if docker exec "$container" pg_isready -U signalops -d "$database" >/dev/null; then ready=true; break; fi
     sleep 2
   done
-  docker exec "$container" pg_isready -U signalops -d "$database" >/dev/null
+  if [[ "$ready" != true ]]; then
+    docker logs "$container" >&2 || true
+    exit 4
+  fi
   docker exec "$container" psql -U signalops -d "$database" -tAc "SELECT 1" | rg -qx "1"
   echo "Restore rehearsal passed for $stanza: isolated database started and accepted a validation query."
 done
