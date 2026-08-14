@@ -98,7 +98,7 @@ mv -f "$rendered" "$config_path"
 if [[ -n "$marketops_config_path" ]]; then
   [[ "$marketops_config_path" == /* ]] || { printf "MarketOps configuration path must be absolute\n" >&2; exit 2; }
   marketops_config_dir="$(dirname "$marketops_config_path")"
-  install -d -m 0750 -o root -g root "$marketops_config_dir"
+  install -d -m 0750 -o root -g 70 "$marketops_config_dir"
   marketops_rendered="$(mktemp "$marketops_config_dir/.pgbackrest.conf.XXXXXX")"
   cp "$config_path" "$marketops_rendered"
   chown root:70 "$marketops_rendered"
