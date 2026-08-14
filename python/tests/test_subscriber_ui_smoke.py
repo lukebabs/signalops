@@ -88,19 +88,13 @@ def login(page: Page, config: SubscriberUIConfig) -> None:
     sign_in = page.get_by_role("button", name="Sign in")
     if sign_in.is_visible():
         sign_in.click()
-    username = page.locator("#username, input[name='username']").first
-    if not username.is_visible():
-        username = page.get_by_role("textbox", name="Email or username")
-    if username.is_visible():
-        username.fill(config.username)
-        password = page.locator("#password, input[name='password']").first
-        if not password.is_visible():
-            password = page.get_by_role("textbox", name="Password")
-        password.fill(config.password)
-        submit = page.locator("#kc-login, input[type='submit']").first
-        if not submit.is_visible():
-            submit = page.get_by_role("button", name="Continue")
-        submit.click()
+    username = page.locator("#username, input[name='username']").or_(page.get_by_role("textbox", name="Email or username")).first
+    username.wait_for(state="visible", timeout=30_000)
+    username.fill(config.username)
+    password = page.locator("#password, input[name='password']").or_(page.get_by_role("textbox", name="Password")).first
+    password.fill(config.password)
+    submit = page.locator("#kc-login, input[type='submit']").or_(page.get_by_role("button", name="Continue")).first
+    submit.click()
     page.wait_for_url(re.compile(re.escape(config.base_url) + r"/marketops/.*"), timeout=30_000)
     expect(page.get_by_role("heading", name="Watchlists")).to_be_visible(timeout=30_000)
 
