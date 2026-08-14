@@ -54,6 +54,11 @@ case "$action" in
   watch-limits-stage)
     run "$repository_dir/scripts/provision_signalops_systemd_watch_limits.sh"
     ;;
+  marketops-recovery-resume)
+    systemctl enable --now signalops-marketops-boundary-daily-postclose.timer signalops-marketops-boundary-postclose-recovery.timer signalops-marketops-boundary-sri-refresh.timer signalops-marketops-boundary-sri-holdings-refresh.timer
+    systemctl start signalops-marketops-boundary-schedule@marketops-daily-postclose.service
+    audit success
+    ;;
   backup-run)
     run systemctl start signalops-marketops-pgbackrest.service
     ;;
