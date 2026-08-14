@@ -1,6 +1,6 @@
 # MarketOps Dedicated Database Boundary
 
-Status: bootstrap and parity verification completed 2026-08-14; application cutover, dedicated pgBackRest schedules, and restore rehearsal remain separate approvals.
+Status: bootstrap/parity evidence and the read-cutover release are complete. Production gateway deployment, writer cutover, dedicated pgBackRest schedules, and restore rehearsal remain separate approvals.
 
 ## Decision
 
@@ -51,6 +51,50 @@ scheduled job, S3 backup, or source data.
 The additive bootstrap completed without changing the shared source stores or application routing. The source and dedicated primary stores each exposed 123 scoped tables with zero per-table row-count mismatches. The dedicated temporal store matched 24,422 MarketOps normalized events and 139,442 MarketOps signals. Both source and target had zero rows in the current `marketdata_equity_eod_prices` and `marketdata_option_contracts_daily` hypertable roots.
 
 The resulting dedicated physical stores are 914 MB (`marketops-postgres`) and 1007 MB (`marketops-timescaledb`). Boundary verification proved zero CyberOps rows and zero non-MarketOps ledger rows in either target. Both the shared and dedicated primary databases have migrations `000116_platform_primitive_audit_schema_qualification` and `000117_platform_primitive_policy_schema_qualification` applied.
+
+## Phased application cutover
+
+Release `d606d06` adds an optional dedicated MarketOps repository to the
+gateway. When `SIGNALOPS_MARKETOPS_DATABASE_URL` is present, MarketOps-only
+routes use it; access control, CyberOps, platform administration, generic
+alerts/algorithms, Syncratic, and publishing remain on the shared repository.
+This prevents a broad repository swap from exposing CyberOps to the MarketOps
+store. The configuration is backwards compatible: without the variables every
+route remains on the existing shared stores.
+
+The root-only renderer derives the two URLs from the existing protected
+boundary secret and writes `/etc/signalops/marketops-cutover.env` mode `0600`.
+Neither the passwords nor the rendered file belong in Git or `.env`.
+
+```bash
+sudo ./scripts/render_marketops_cutover_env.sh
+```
+
+`compose.marketops-read-cutover.yaml` attaches that file only to `gateway`.
+`compose.marketops-writer-cutover.yaml` attaches it only to `normalizer` and
+`signal-persister`; it is a later, separate phase. Do not apply both overrides
+in the same first deployment.
+
+Because the active working tree contains unrelated SRI work, build the gateway
+from the pushed release in a clean worktree. This avoids accidentally coupling
+the database cutover to unreviewed changes:
+
+```bash
+git worktree add --detach /tmp/signalops-marketops-read-cutover d606d06
+cd /tmp/signalops-marketops-read-cutover
+sudo ./scripts/render_marketops_cutover_env.sh
+sudo docker compose -p signalops \
+  -f compose.yaml \
+  -f compose.marketops-boundary.yaml \
+  -f compose.marketops-read-cutover.yaml \
+  up -d --build --no-deps gateway
+```
+
+Validate the gateway health endpoint, the protected MarketOps asset and SAF
+views for the approved tenant/watchlist cohort, and a non-MarketOps/CyberOps
+route. Keep all MarketOps timers stopped until those checks pass. Rollback is
+one gateway redeploy with the read override omitted; the shared databases have
+not been mutated by the read phase.
 
 ## Cutover gates
 
