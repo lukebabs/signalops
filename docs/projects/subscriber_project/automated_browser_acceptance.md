@@ -58,6 +58,21 @@ The pre-seeded fixture list must contain the exact symbols declared in `SIGNALOP
 
 A failure of the shared-evidence checks is intentionally a release failure, not a reason to export another HAR. It is the automated proof that the global analytical-data-plane blocker remains open.
 
+## First controlled execution — 2026-08-14
+
+The first live run used the dedicated `testsignalops` identity in `tenant-pilot-b`, with `First List` as the private fixture. The test passed the SignalOps landing page, branded identity-provider authentication, private-list activation, context persistence, Assets route, and contextual Assets API response.
+
+The first substantive assertion failed as intended: `AAPL` was marked `Shared` but rendered `Unavailable`, `Awaiting monitor`, `Awaiting EOD analysis`, and `Regular · 1-12-31 19:03:58 ET`. This is direct production evidence that current shared EOD projection is not yet accompanied by the global analytical evidence plane. The run retained a protected HAR, trace, and screenshot under `/tmp/signalops-e2e-artifacts`; they must not be committed or distributed.
+
+During this run, the public front door initially returned `404` before the application loaded because the Web service had been deployed without `compose.traefik.yaml`. Reapplying the Web-only deployment with that overlay restored public `/` and `/marketops/watchlists` routing to `200`. This is now part of the required deployment command for public Web changes:
+
+```bash
+docker compose --env-file .env -p signalops -f compose.yaml -f compose.traefik.yaml \
+  up -d --build --no-deps web
+```
+
+Result: the Subscriber Project remains blocked from production acceptance by the documented global analytical-data-plane gap. The browser test is now a reproducible release control for that gap.
+
 ## Production gate
 
 Run this suite after Gateway/Web deployment and before declaring a subscriber release accepted. A passing browser smoke validates UX and authorization propagation; it does not replace the separate global analytical-data-plane, provider, scheduler, parity, or recovery gates.
