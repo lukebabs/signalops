@@ -1,0 +1,9 @@
+# Writer cutover is a separate, post-read-validation phase. It is not applied
+# with the read override until the dedicated gateway smoke check has passed.
+services:
+  normalizer:
+    env_file:
+      - /etc/signalops/marketops-cutover.env
+  signal-persister:
+    env_file:
+      - /etc/signalops/marketops-cutover.env

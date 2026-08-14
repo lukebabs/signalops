@@ -1,0 +1,6 @@
+# Read-only gateway cutover. The referenced file is root-owned and contains
+# the dedicated database URLs; it is intentionally not committed.
+services:
+  gateway:
+    env_file:
+      - /etc/signalops/marketops-cutover.env

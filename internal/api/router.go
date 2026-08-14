@@ -42,13 +42,16 @@ var supportedDashboardStreamChannels = map[string]struct{}{
 
 // RouterConfig contains process-local API wiring options.
 type RouterConfig struct {
-	ServiceName                           string
-	MarketOpsBacktestRunner               func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
-	Auth                                  AuthConfig
-	Publisher                             broker.Publisher
-	RawTopic                              string
-	Environment                           string
-	QueryRepository                       storage.QueryRepository
+	ServiceName             string
+	MarketOpsBacktestRunner func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
+	Auth                    AuthConfig
+	Publisher               broker.Publisher
+	RawTopic                string
+	Environment             string
+	QueryRepository         storage.QueryRepository
+	// MarketOpsQueryRepository is an optional, app-scoped repository. When configured,
+	// only MarketOps routes use it; shared platform and CyberOps routes remain shared.
+	MarketOpsQueryRepository              storage.QueryRepository
 	AccessRepository                      storage.TenantUserAccessRepository
 	CyberOpsConnectRepository             storage.CyberOpsConnectRepository
 	PlatformDefinitionRepository          storage.PlatformPrimitiveDefinitionRepository
@@ -72,6 +75,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		cfg.Auth.AccessResolver = cfg.AccessRepository
 	}
 	mux := http.NewServeMux()
+	marketOpsQueryRepository := cfg.QueryRepository
+	if cfg.MarketOpsQueryRepository != nil {
+		marketOpsQueryRepository = cfg.MarketOpsQueryRepository
+	}
+	marketOpsConfig := cfg
+	marketOpsConfig.QueryRepository = marketOpsQueryRepository
 	serviceName := cfg.ServiceName
 	if serviceName == "" {
 		serviceName = "signalops"
@@ -79,14 +88,14 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	rawTopic := cfg.RawTopic
 	registerAccessManagementRoutes(mux, cfg)
 	registerSessionExperienceRoute(mux, cfg)
-	registerMarketOpsValuationRoutes(mux, cfg)
-	registerMarketOpsTaskRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsEROCRoutes(mux, cfg)
-	registerMarketOpsEEOMRoutes(mux, cfg)
-	registerMarketOpsSignalAssuranceRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsSignalAssuranceEffectivenessRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsSRIRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsSRIAssetContextRoute(mux, cfg.QueryRepository)
+	registerMarketOpsValuationRoutes(mux, marketOpsConfig)
+	registerMarketOpsTaskRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsEROCRoutes(mux, marketOpsConfig)
+	registerMarketOpsEEOMRoutes(mux, marketOpsConfig)
+	registerMarketOpsSignalAssuranceRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsSignalAssuranceEffectivenessRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsSRIRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsSRIAssetContextRoute(mux, marketOpsQueryRepository)
 	registerStorageMonitorRoutes(mux, cfg.QueryRepository)
 	registerRetentionGovernanceRoutes(mux, cfg.QueryRepository)
 	registerAdministrationNotificationRoutes(mux, cfg)
@@ -419,7 +428,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-coverage", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -455,7 +464,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-campaigns", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -533,7 +542,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-campaigns", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -550,7 +559,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-campaigns/{campaign_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -571,7 +580,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtests", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -606,7 +615,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtests", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -626,7 +635,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-calibration-summaries", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -670,7 +679,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-summaries", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -690,7 +699,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-summaries/{summary_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -711,7 +720,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-calibration-baselines", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -755,7 +764,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-baselines", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -775,7 +784,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-baselines/{baseline_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -796,7 +805,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-calibration-comparisons", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -857,7 +866,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-comparisons", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -876,7 +885,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-comparisons/{comparison_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -897,7 +906,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-promotion-candidates", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -990,7 +999,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-promotion-candidates", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1007,7 +1016,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-promotion-candidates/{candidate_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1028,7 +1037,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-promotion-candidates/{candidate_id}/decision", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1067,7 +1076,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-calibration-readiness", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1167,7 +1176,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-readiness", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1184,7 +1193,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-readiness/{readiness_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1205,7 +1214,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/intelligence/cohort-runs", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1230,7 +1239,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/intelligence/cohort-runs/{run_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1260,7 +1269,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/intelligence/readiness", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1543,7 +1552,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtests/{run_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1564,7 +1573,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtests/{run_id}/signals", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1581,7 +1590,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtests/{run_id}/graph-proposals", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1604,7 +1613,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/dsm/artifacts", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1624,7 +1633,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/dsm/artifacts/{artifact_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1644,12 +1653,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"artifact": marketOpsDSMArtifactResponse(record)})
 	})
 
-	mux.HandleFunc("GET /v1/marketops/graph-proposals", marketOpsGraphProposalListHandler(cfg.QueryRepository))
-	mux.HandleFunc("GET /v1/marketops/graph-proposals/{proposal_id}", marketOpsGraphProposalGetHandler(cfg.QueryRepository))
-	mux.HandleFunc("POST /v1/marketops/graph-proposals/{proposal_id}/decision", marketOpsGraphProposalDecisionHandler(cfg.QueryRepository))
+	mux.HandleFunc("GET /v1/marketops/graph-proposals", marketOpsGraphProposalListHandler(marketOpsQueryRepository))
+	mux.HandleFunc("GET /v1/marketops/graph-proposals/{proposal_id}", marketOpsGraphProposalGetHandler(marketOpsQueryRepository))
+	mux.HandleFunc("POST /v1/marketops/graph-proposals/{proposal_id}/decision", marketOpsGraphProposalDecisionHandler(marketOpsQueryRepository))
 
 	mux.HandleFunc("GET /v1/marketops/dsm/graph-proposals", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1670,7 +1679,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/dsm/graph-proposals/{proposal_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1695,7 +1704,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/dsm/graph-proposals/{proposal_id}/decision", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1746,7 +1755,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-evaluations", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1809,7 +1818,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-evaluations", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1826,7 +1835,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-evaluations/{evaluation_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1847,7 +1856,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-evaluation-labels/sync", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1897,7 +1906,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-evaluation-labels", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1914,7 +1923,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-evaluation-labels/{label_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2689,7 +2698,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2733,7 +2742,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/quotes", func(w http.ResponseWriter, r *http.Request) {
-		reader, ok := any(cfg.QueryRepository).(interface {
+		reader, ok := any(marketOpsQueryRepository).(interface {
 			ListMarketOpsAssetQuotes(context.Context, storage.MarketOpsAssetQuoteFilter) ([]storage.MarketOpsAssetQuoteRecord, error)
 		})
 		if !ok {
@@ -2761,7 +2770,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"quotes": quotes, "refreshed_at": refreshed, "cache_backed": true})
 	})
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/intraday-conditions", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2789,7 +2798,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/intraday-conditions", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2812,7 +2821,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/coverage", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2831,7 +2840,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/distribution", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2851,7 +2860,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/chain", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2875,7 +2884,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/options/captures", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2916,7 +2925,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/options/captures/{capture_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -3029,16 +3038,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		})
 	})
 
-	registerMarketOpsMarketStateRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsHypothesisRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsAlgorithmAdjudicationRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsQuantitativeSeriesRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsAssetAlgorithmObservationRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsSignalOverviewRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsAssetManagementRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsOpportunityRoutes(mux, cfg)
-	registerMarketOpsOutcomeRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsAlgorithmEvaluationRoutes(mux, cfg.QueryRepository)
+	registerMarketOpsMarketStateRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsHypothesisRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsAlgorithmAdjudicationRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsQuantitativeSeriesRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsAssetAlgorithmObservationRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsSignalOverviewRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsAssetManagementRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsOpportunityRoutes(mux, marketOpsConfig)
+	registerMarketOpsOutcomeRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsAlgorithmEvaluationRoutes(mux, marketOpsQueryRepository)
 
 	registerCyberOpsConnectRoutes(mux, cfg)
 	registerCyberOpsTrafficRoutes(mux, cfg.QueryRepository)

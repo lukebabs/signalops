@@ -38,6 +38,7 @@ func main() {
 	}
 
 	var queryRepo *postgresstorage.Repository
+	var marketOpsQueryRepo *postgresstorage.Repository
 	var subscriberWatchlistRepo *postgresstorage.Repository
 	if strings.TrimSpace(cfg.DatabaseURL) != "" {
 		queryRepo, err = postgresstorage.OpenWithTemporal(context.Background(), cfg.DatabaseURL, cfg.TemporalDatabaseURL)
@@ -45,6 +46,15 @@ func main() {
 			logger.Error("signalops gateway storage setup failed", "error", err)
 			os.Exit(1)
 		}
+	}
+
+	if strings.TrimSpace(cfg.MarketOpsDatabaseURL) != "" {
+		marketOpsQueryRepo, err = postgresstorage.OpenWithTemporal(context.Background(), cfg.MarketOpsDatabaseURL, cfg.MarketOpsTemporalDatabaseURL)
+		if err != nil {
+			logger.Error("signalops gateway MarketOps storage setup failed", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("MarketOps gateway reads are routed to the dedicated data boundary")
 	}
 
 	routerConfig := api.RouterConfig{
@@ -87,6 +97,9 @@ func main() {
 	}
 	if queryRepo != nil {
 		routerConfig.QueryRepository = queryRepo
+		if marketOpsQueryRepo != nil {
+			routerConfig.MarketOpsQueryRepository = marketOpsQueryRepo
+		}
 		routerConfig.AccessRepository = queryRepo
 		routerConfig.CyberOpsConnectRepository = queryRepo
 		routerConfig.PlatformDefinitionRepository = queryRepo
@@ -155,6 +168,13 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if marketOpsQueryRepo != nil {
+		if err := marketOpsQueryRepo.Close(); err != nil {
+			logger.Error("signalops gateway MarketOps storage shutdown failed", "error", err)
+			os.Exit(1)
+		}
+	}
+
 	if queryRepo != nil {
 		if err := queryRepo.Close(); err != nil {
 			logger.Error("signalops gateway storage shutdown failed", "error", err)
