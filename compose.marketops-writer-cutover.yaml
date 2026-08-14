@@ -7,3 +7,6 @@ services:
   signal-persister:
     env_file:
       - /etc/signalops/marketops-cutover.env
+  marketops-signal-assurance-registrar:
+    env_file:
+      - /etc/signalops/marketops-cutover.env
