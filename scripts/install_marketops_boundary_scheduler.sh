@@ -9,8 +9,13 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runtime_env="${1:-}"
 run_as_user="${2:-${SUDO_USER:-adminalien}}"
+enable_sri="${3:-}"
 template="$root_dir/deploy/systemd/signalops-marketops-boundary-schedule@.service.in"
 unit=/etc/systemd/system/signalops-marketops-boundary-schedule@.service
+sri_timers=(
+  signalops-marketops-boundary-sri-refresh.timer
+  signalops-marketops-boundary-sri-holdings-refresh.timer
+)
 
 [[ -n "$runtime_env" && -r "$runtime_env" ]] || {
   printf 'Provide a readable protected production Compose environment file as argument 1.\n' >&2
@@ -29,6 +34,16 @@ id "$run_as_user" >/dev/null
   printf 'Missing unit template: %s\n' "$template" >&2
   exit 3
 }
+if [[ -n "$enable_sri" && "$enable_sri" != "--enable-sri" ]]; then
+  printf 'Optional argument 3 must be --enable-sri.\n' >&2
+  exit 2
+fi
+for timer in "${sri_timers[@]}"; do
+  [[ -r "$root_dir/deploy/systemd/$timer" ]] || {
+    printf 'Missing SRI timer template: %s\n' "$timer" >&2
+    exit 3
+  }
+done
 
 temporary="$(mktemp /etc/systemd/system/.signalops-marketops-boundary.XXXXXX)"
 trap 'rm -f "$temporary"' EXIT
@@ -38,8 +53,15 @@ sed \
   -e "s|@RUN_AS_USER@|$run_as_user|g" \
   "$template" > "$temporary"
 install -m 0644 -o root -g root "$temporary" "$unit"
+for timer in "${sri_timers[@]}"; do
+  install -m 0644 -o root -g root "$root_dir/deploy/systemd/$timer" "/etc/systemd/system/$timer"
+done
 systemctl daemon-reload
 
-printf 'Installed disabled dedicated scheduler dispatcher: %s\n' "$unit"
-printf 'No timer was enabled. Use a separately approved one-job smoke command, for example:\n'
-printf '  sudo systemctl start signalops-marketops-boundary-schedule@marketops-intraday.service\n'
+printf 'Installed dedicated scheduler dispatcher: %s\n' "$unit"
+if [[ "$enable_sri" == "--enable-sri" ]]; then
+  systemctl enable --now "${sri_timers[@]}"
+  printf 'Enabled controlled SRI refresh timers: weekdays 20:07 and 20:20 America/New_York.\n'
+  exit 0
+fi
+printf 'No timer was enabled. Use --enable-sri only with recorded approval.\n'

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run dedicated MarketOps SRI ETF reconciliation after extended-session processing
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 20:07:00 America/New_York
+Persistent=true
+AccuracySec=1min
+Unit=signalops-marketops-boundary-schedule@marketops-sri-refresh.service
+
+[Install]
+WantedBy=timers.target

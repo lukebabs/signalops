@@ -180,3 +180,9 @@ With the named approval of `luke@strategiclabs.io`, the disabled dedicated sched
 State Street returned the same effective-date/content hashes already stored for all 12 supported ETFs. The immutable snapshot and holding upserts therefore correctly resolved as no-ops: the dedicated store remains at 48 State Street snapshots, latest retrieved timestamp `2026-08-14 00:20:03 UTC`. No duplicate or mutable historical holding rows were created.
 
 The run log showed the legacy `signalops-postgres-1` only because Compose inherited its base dependency health check. The scheduler overlay supplied the dedicated primary URL to the runner, and neither the shared nor dedicated snapshot row set changed because the source content was unchanged. The runner is now invoked with `--no-deps` so future dedicated runs do not start or log that legacy dependency; this improves boundary evidence without changing provider or data behavior. No timer was enabled.
+
+## Controlled recurring SRI schedule — approved 2026-08-14
+
+The dedicated scheduler installer now supports an explicit `--enable-sri` action, used only with recorded approval. It installs two system-managed, persistent timers that invoke the dedicated dispatcher: the SRI ETF price/reconciliation job at 20:07 America/New_York every weekday, followed by the State Street issuer-holdings job at 20:20 America/New_York. Both jobs inherit the protected dedicated MarketOps URLs; they do not reactivate legacy user timers or alter CyberOps or subscriber control-plane processing.
+
+The one-minute scheduling accuracy intentionally avoids a fragile exact-second dependency while preserving ordering. Each service remains a separately observable one-shot unit, and no retry loop is added by these timers.

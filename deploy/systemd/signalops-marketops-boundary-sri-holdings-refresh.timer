@@ -1,0 +1,11 @@
+[Unit]
+Description=Run dedicated MarketOps issuer holdings refresh after SRI scoring
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 20:20:00 America/New_York
+Persistent=true
+AccuracySec=1min
+Unit=signalops-marketops-boundary-schedule@marketops-sri-holdings-refresh.service
+
+[Install]
+WantedBy=timers.target
