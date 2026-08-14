@@ -49,7 +49,7 @@ exec 9>"$lock_file"
 flock -n 9 || { printf 'another SRI refresh holds %s\n' "$lock_file" >&2; exit 3; }
 
 printf '%s SRI source reconciliation started session=%s symbols=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$session_date" "$expected_symbols"
-docker compose --profile massive-pull run --rm massive-puller \
+marketops_compose --profile massive-pull run --rm massive-puller \
   --mode pull --date "$session_date" --symbols "$symbols" --allow-unseeded-symbols \
   --datasets equity --max-companies "$expected_symbols" --max-provider-requests "$expected_symbols" \
   --max-events-built "$expected_symbols" --max-events-published "$expected_symbols" \
@@ -68,4 +68,4 @@ while true; do
 done
 
 printf '%s SRI source normalization passed session=%s symbols=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$session_date" "$normalized"
-docker compose --profile marketops-daily run --rm marketops-sri-runner \
+marketops_compose --profile marketops-daily run --rm marketops-sri-runner \
