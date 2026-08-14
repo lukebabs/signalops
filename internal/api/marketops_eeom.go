@@ -102,7 +102,11 @@ func registerMarketOpsEEOMRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			}
 			return left < right
 		})
-		writeJSON(w, http.StatusOK, map[string]any{"events": events, "research_only": true, "description": "Point-in-time-known earnings dates from Financial Modeling Prep; timing and confirmation are unavailable from this source."})
+		response := map[string]any{"events": events, "research_only": true, "description": "Point-in-time-known earnings dates from Financial Modeling Prep; timing and confirmation are unavailable from this source."}
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 }
 

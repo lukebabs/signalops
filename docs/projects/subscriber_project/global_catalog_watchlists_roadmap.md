@@ -256,3 +256,8 @@ The following need a separate product and commercial decision before implementat
 - Any recommendation, alerting, or execution product built from MarketOps research outputs.
 
 Until these are decided, the architecture must preserve entitlement-aware interfaces and measurable usage without fabricating a commercial policy.
+
+
+## Watchlist context closure — 2026-08-14
+
+MarketOps resolves a user’s first private list when no saved context exists; the tenant default is used only when that user has no private list. A later explicit selection remains authoritative. Creating a private list now selects it for the shared MarketOps context, and the Watchlists screen exposes a **Use across MarketOps** action for an existing list. The context is persisted per tenant and subject, then invalidates MarketOps queries so Assets, Dashboard, EROC, valuation, EEOM, material events, opportunities, and Market State reads converge on the same selected ticker set. Coverage remains truthful: a selected symbol without usable central EOD evidence is displayed as pending rather than populated with invented values.

@@ -69,17 +69,17 @@ func enrichEROCOptionsFlow(ctx context.Context, repo storage.QueryRepository, te
 	return nil
 }
 
-func scopedEROCRows(w http.ResponseWriter, r *http.Request, cfg RouterConfig, rows []erocRow) ([]erocRow, bool) {
+func scopedEROCRows(w http.ResponseWriter, r *http.Request, cfg RouterConfig, rows []erocRow) ([]erocRow, subscriberWatchlistContext, bool) {
 	tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
 	if !ok {
-		return nil, false
+		return nil, subscriberWatchlistContext{}, false
 	}
 	context, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
 	if !ok {
-		return nil, false
+		return nil, subscriberWatchlistContext{}, false
 	}
 	if !subscriberWatchlistContextEnabled(cfg, tenantID) {
-		return rows, true
+		return rows, context, true
 	}
 	visible := rows[:0]
 	for _, row := range rows {
@@ -87,7 +87,7 @@ func scopedEROCRows(w http.ResponseWriter, r *http.Request, cfg RouterConfig, ro
 			visible = append(visible, row)
 		}
 	}
-	return visible, true
+	return visible, context, true
 }
 
 func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
@@ -105,7 +105,7 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			return
 		}
 		all := erocRows(rows)
-		all, ok := scopedEROCRows(w, r, cfg, all)
+		all, watchlistContext, ok := scopedEROCRows(w, r, cfg, all)
 		if !ok {
 			return
 		}
@@ -124,7 +124,11 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			return
 		}
 		sort.Slice(out, func(i, j int) bool { return out[i].Score > out[j].Score })
-		writeJSON(w, http.StatusOK, map[string]any{"results": out, "research_only": true})
+		response := map[string]any{"results": out, "research_only": true}
+		if subscriberWatchlistContextEnabled(cfg, strings.TrimSpace(r.PathValue("tenant_id"))) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/eroc/overview", func(w http.ResponseWriter, r *http.Request) {
 		rows, err := read(r)
@@ -141,7 +145,7 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		cutoff := time.Now().UTC().AddDate(0, 0, -days*3)
 		groups := map[string]map[string][]erocRow{}
 		all := erocRows(rows)
-		all, ok := scopedEROCRows(w, r, cfg, all)
+		all, watchlistContext, ok := scopedEROCRows(w, r, cfg, all)
 		if !ok {
 			return
 		}
@@ -192,7 +196,11 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			}
 			points = append(points, map[string]any{"trade_date": date, "series": series})
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"points": points, "research_only": true})
+		response := map[string]any{"points": points, "research_only": true}
+		if subscriberWatchlistContextEnabled(cfg, strings.TrimSpace(r.PathValue("tenant_id"))) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 }
 

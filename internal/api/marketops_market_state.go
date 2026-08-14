@@ -9,7 +9,8 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository storage.QueryRepository) {
+func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	queryRepository := cfg.QueryRepository
 	mux.HandleFunc("GET /v1/marketops/features/definitions", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, queryRepository)
 		if !ok {
@@ -76,6 +77,10 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsMarketStates(r.Context(), storage.MarketOpsMarketStateFilter{
 			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
 			AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")),
@@ -87,7 +92,20 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, queryRepository stor
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps market states")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"market_states": marketOpsMarketStateResponses(records)})
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			visible := records[:0]
+			for _, record := range records {
+				if _, allowed := watchlistContext.Tickers[strings.ToUpper(record.Symbol)]; allowed {
+					visible = append(visible, record)
+				}
+			}
+			records = visible
+		}
+		response := map[string]any{"market_states": marketOpsMarketStateResponses(records)}
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 
 	mux.HandleFunc("GET /v1/marketops/states/{market_state_id}", func(w http.ResponseWriter, r *http.Request) {

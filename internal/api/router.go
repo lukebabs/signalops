@@ -3053,7 +3053,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		})
 	})
 
-	registerMarketOpsMarketStateRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsMarketStateRoutes(mux, marketOpsConfig)
 	registerMarketOpsHypothesisRoutes(mux, marketOpsQueryRepository)
 	registerMarketOpsAlgorithmAdjudicationRoutes(mux, marketOpsQueryRepository)
 	registerMarketOpsQuantitativeSeriesRoutes(mux, marketOpsQueryRepository)
