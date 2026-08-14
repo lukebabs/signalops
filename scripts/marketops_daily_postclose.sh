@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=marketops_schedule_database.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_database.sh"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -240,7 +242,7 @@ done
 # The database universe is authoritative at execution time. This prevents a
 # stale environment variable from omitting a newly listed asset from options
 # capture or its downstream intelligence cohort.
-active_universe_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+active_universe_symbols="$(marketops_primary_psql -Atc \
   "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;")"
 [[ -n "$active_universe_symbols" ]] || { printf 'active equity universe is empty\n' >&2; exit 4; }
 IFS=',' read -r -a active_universe_array <<< "$active_universe_symbols"
@@ -301,10 +303,10 @@ options_command=(docker compose --profile marketops-daily run --rm marketops-opt
 
 coverage_count() {
   local active_symbols
-  active_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+  active_symbols="$(marketops_primary_psql -Atc \
     "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;")"
   [[ -n "$active_symbols" ]] || { printf 'active equity universe is empty\n' >&2; return 1; }
-  docker compose exec -T timescaledb psql -U signalops -d signalops_temporal -Atc \
+  marketops_temporal_psql -Atc \
     "SELECT count(DISTINCT normalized_payload->>'symbol') FROM normalized_event_ledger WHERE tenant_id='tenant-local' AND source_id='src-massive' AND dataset='equity_eod_prices' AND normalized_payload->>'observation_date' = '$session_date' AND normalized_payload->>'symbol' = ANY(string_to_array('$active_symbols', ','));" | tr -d '[:space:]'
 }
 
@@ -343,8 +345,8 @@ run_governed_tactical_posture() {
   # A tactical runner may report a non-zero process result after independently
   # recording asset outcomes. Continue only when the durable ledger proves the
   # full active universe was classified; otherwise preserve the job failure.
-  task_count="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT count(DISTINCT symbol) FROM marketops_task_items WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' AND task_type='tactical_posture';" | tr -d '[:space:]')"
-  workflow_status="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT status FROM marketops_task_workflows WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' AND workflow_type='marketops_postclose' ORDER BY updated_at DESC LIMIT 1;" | tr -d '[:space:]')"
+  task_count="$(marketops_primary_psql -Atc "SELECT count(DISTINCT symbol) FROM marketops_task_items WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' AND task_type='tactical_posture';" | tr -d '[:space:]')"
+  workflow_status="$(marketops_primary_psql -Atc "SELECT status FROM marketops_task_workflows WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' AND workflow_type='marketops_postclose' ORDER BY updated_at DESC LIMIT 1;" | tr -d '[:space:]')"
   if [[ "$task_count" == "${#workflow_symbols[@]}" ]] && [[ "$workflow_status" == "succeeded" || "$workflow_status" == "degraded" ]]; then
     log "tactical posture process exited non-zero but task ledger is complete; workflow=$workflow_status tasks=$task_count; continuing governed post-close"
     return 0
@@ -395,7 +397,7 @@ log "options stage started batches of $provider_batch_size dry_run=$dry_run"
 run_options_batches
 
 if $write_mode; then
-  capture_count="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+  capture_count="$(marketops_primary_psql -Atc \
     "SELECT count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date = DATE '$session_date' AND symbol = ANY (string_to_array('$option_symbols', ','));" | tr -d '[:space:]')"
   (( capture_count == ${#symbols[@]} )) || {
     printf 'options capture barrier failed: captures=%s expected=%s\n' "$capture_count" "${#symbols[@]}" >&2
@@ -419,7 +421,7 @@ for ((offset=0, batch=1; offset<${#workflow_symbols[@]}; offset+=10, batch++)); 
   batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
   batch_run_id="$(printf '%s-cohort-%02d' "$cohort_run_prefix" "$batch")"
   if $write_mode; then
-    existing_status="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+    existing_status="$(marketops_primary_psql -Atc \
       "SELECT status FROM marketops_intelligence_cohort_runs WHERE tenant_id='tenant-local' AND run_id='$batch_run_id';" | tr -d '[:space:]')"
     if [[ "$existing_status" == "succeeded" ]]; then
       log "cohort batch=$batch skipped run_id=$batch_run_id status=succeeded"
@@ -516,7 +518,7 @@ if $write_mode; then
   log "sector intelligence refresh started as_of=$session_date"
   docker compose --profile marketops-daily run --rm marketops-sri-runner --tenant-id tenant-local --as-of "$session_date" --run-id "${run_prefix}-sri"
   docker compose --profile marketops-daily run --rm marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
-  summary="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+  summary="$(marketops_primary_psql -Atc \
     "SELECT 'captures=' || count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' UNION ALL SELECT 'cohort_results=' || count(*) FROM marketops_intelligence_cohort_symbol_results WHERE tenant_id='tenant-local' AND run_id LIKE '${cohort_run_prefix}-cohort-%' UNION ALL SELECT 'algorithm_results=' || count(*) FROM algorithm_results WHERE tenant_id='tenant-local' AND correlation_id='$run_prefix';")"
   log "completed session=$session_date ${summary//$'\n'/ }"
 else

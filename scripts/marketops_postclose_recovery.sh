@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=marketops_schedule_database.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_database.sh"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -52,12 +54,12 @@ exec 9>"$recovery_lock"
 flock -n 9 || { printf 'post-close recovery already running\n'; exit 0; }
 
 compact() { tr -d '[:space:]'; }
-active_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;" | compact)"
+active_symbols="$(marketops_primary_psql -Atc "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;" | compact)"
 [[ -n "$active_symbols" ]] || { printf 'active equity universe is empty\n' >&2; exit 4; }
-expected="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT count(DISTINCT ticker) FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active;" | compact)"
+expected="$(marketops_primary_psql -Atc "SELECT count(DISTINCT ticker) FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active;" | compact)"
 [[ "$expected" =~ ^[1-9][0-9]*$ ]] || { printf 'invalid active universe count: %s\n' "$expected" >&2; exit 4; }
 
-risk_counts="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT (SELECT count(DISTINCT result_payload->>'symbol') FROM algorithm_results WHERE tenant_id='tenant-local' AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1' AND (result_payload->>'observation_time')::date=DATE '$session_date') || '|' || (SELECT count(DISTINCT symbol) FROM marketops_risk_reward_snapshots WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date');" | compact)"
+risk_counts="$(marketops_primary_psql -Atc "SELECT (SELECT count(DISTINCT result_payload->>'symbol') FROM algorithm_results WHERE tenant_id='tenant-local' AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1' AND (result_payload->>'observation_time')::date=DATE '$session_date') || '|' || (SELECT count(DISTINCT symbol) FROM marketops_risk_reward_snapshots WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date');" | compact)"
 IFS='|' read -r risk_results risk_snapshots <<< "$risk_counts"
 risk_results="${risk_results:-0}"
 risk_snapshots="${risk_snapshots:-0}"
@@ -115,7 +117,7 @@ printf 'post-close recovery: starting attempt %s of %s for %s\n' "$attempts" "$m
 export MARKETOPS_DAILY_ACKNOWLEDGE_WRITES=true
 bash ./scripts/marketops_scheduled_job.sh marketops-daily-postclose "Weekdays 18:01:55" "$timezone" ./scripts/marketops_daily_postclose.sh --date "$session_date" --write
 
-risk_counts="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT (SELECT count(DISTINCT result_payload->>'symbol') FROM algorithm_results WHERE tenant_id='tenant-local' AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1' AND (result_payload->>'observation_time')::date=DATE '$session_date') || '|' || (SELECT count(DISTINCT symbol) FROM marketops_risk_reward_snapshots WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date');" | compact)"
+risk_counts="$(marketops_primary_psql -Atc "SELECT (SELECT count(DISTINCT result_payload->>'symbol') FROM algorithm_results WHERE tenant_id='tenant-local' AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1' AND (result_payload->>'observation_time')::date=DATE '$session_date') || '|' || (SELECT count(DISTINCT symbol) FROM marketops_risk_reward_snapshots WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date');" | compact)"
 IFS='|' read -r risk_results risk_snapshots <<< "$risk_counts"
 risk_results="${risk_results:-0}"
 risk_snapshots="${risk_snapshots:-0}"

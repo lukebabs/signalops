@@ -139,9 +139,9 @@ The immediate post-deployment preflight passed every scoped primary and temporal
 
 ## Scheduled-job routing preparation — 2026-08-14
 
-`compose.marketops-scheduled-cutover.yaml` is a dormant, validated overlay for MarketOps batch runners. When invoked through the future root-owned scheduler launcher, it replaces each runner standard primary and temporal URL with the dedicated MarketOps URLs. It does not alter normalizer, signal persister, the gateway, subscriber control-plane services, or CyberOps.
+`compose.marketops-scheduled-cutover.yaml` is a dormant, validated overlay for MarketOps batch runners. The system-managed `signalops-marketops-boundary-schedule@.service` template receives the protected environment from systemd, runs as the existing Docker-capable service user, and uses the overlay to replace runner standard primary and temporal URLs with the dedicated MarketOps URLs. Direct completion queries in the daily, intraday, retry, recovery, and universal-completion scripts use explicit dedicated database helpers. It does not alter normalizer, signal persister, the gateway, subscriber control-plane services, or CyberOps.
 
-The existing user-level timers were explicitly disabled after discovery that system-level checks did not cover them. No timer is to be re-enabled until the scheduled scripts direct their completion queries to the dedicated database services and the root-owned launcher has been installed and smoke-tested.
+The existing user-level timers were explicitly disabled after discovery that system-level checks did not cover them. `scripts/install_marketops_boundary_scheduler.sh` installs only the disabled dispatcher unit; it does not enable a timer. No timer is to be re-enabled until a separately approved one-job smoke test passes. The SRI refresh and holdings jobs remain outside this dispatcher because their in-progress implementation is not part of this clean release.
 
 ## Cutover gates
 

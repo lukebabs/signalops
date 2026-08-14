@@ -1,0 +1,18 @@
+[Unit]
+Description=SignalOps dedicated MarketOps scheduled job (%i)
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=@RUN_AS_USER@
+WorkingDirectory=@WORKDIR@
+EnvironmentFile=@RUNTIME_ENV@
+EnvironmentFile=/etc/signalops/marketops-cutover.env
+Environment=COMPOSE_PROJECT_NAME=signalops
+Environment=COMPOSE_FILE=@WORKDIR@/compose.yaml:@WORKDIR@/compose.marketops-boundary.yaml:@WORKDIR@/compose.marketops-scheduled-cutover.yaml
+Environment=SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
+Environment=SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
+Environment=SIGNALOPS_MARKETOPS_TEMPORAL_DB_SERVICE=marketops-timescaledb
+Environment=SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE=marketops_temporal
+ExecStart=@WORKDIR@/scripts/marketops_boundary_scheduled_job.sh %i
