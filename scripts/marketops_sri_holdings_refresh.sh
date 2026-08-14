@@ -8,4 +8,4 @@ if ! flock -n 9; then
   exit 0
 fi
 cd "$ROOT_DIR"
-docker compose --profile marketops-daily run --rm marketops-sri-holdings-runner --tenant-id "${SIGNALOPS_TENANT_ID:-tenant-local}"
+docker compose --profile marketops-daily run --rm --no-deps marketops-sri-holdings-runner --tenant-id "${SIGNALOPS_TENANT_ID:-tenant-local}"

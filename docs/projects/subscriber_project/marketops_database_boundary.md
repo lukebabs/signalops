@@ -172,3 +172,11 @@ After active dedicated writers produced 261 new MarketOps temporal signals, stri
    cluster, enable their timers, and complete an isolated restore rehearsal.
 6. Retain the existing shared-cluster backup as a separate platform safety
    baseline; do not use it as MarketOps recovery evidence.
+
+## Approved State Street issuer-holdings refresh evidence — 2026-08-14
+
+With the named approval of `luke@strategiclabs.io`, the disabled dedicated scheduler ran exactly one `marketops-sri-holdings-refresh` for `tenant-local`. It completed successfully with no retry (`systemd` result `success`, exit code `0`): 12 supported State Street primary ETFs were evaluated, producing 12 snapshot candidates and 700 holding candidates; four non-State-Street primary ETFs were reported unsupported.
+
+State Street returned the same effective-date/content hashes already stored for all 12 supported ETFs. The immutable snapshot and holding upserts therefore correctly resolved as no-ops: the dedicated store remains at 48 State Street snapshots, latest retrieved timestamp `2026-08-14 00:20:03 UTC`. No duplicate or mutable historical holding rows were created.
+
+The run log showed the legacy `signalops-postgres-1` only because Compose inherited its base dependency health check. The scheduler overlay supplied the dedicated primary URL to the runner, and neither the shared nor dedicated snapshot row set changed because the source content was unchanged. The runner is now invoked with `--no-deps` so future dedicated runs do not start or log that legacy dependency; this improves boundary evidence without changing provider or data behavior. No timer was enabled.
