@@ -110,6 +110,21 @@ signal persister containers retained their pre-cutover start times, and all
 seven paused MarketOps timers were confirmed `inactive`. This is gateway-read
 evidence only; no MarketOps writer has been cut over or resumed.
 
+## Corrected gateway read-cutover acceptance evidence — 2026-08-14
+
+Release `3132b75` redeployed the gateway using the protected production Compose
+environment file. The gateway was verified with authentication enabled and
+subscriber lists enabled for `tenant-pilot-b`. The fresh
+`signalops.syncratic.io-testsignal-01.har` contains 94 requests and zero failed
+requests. Its pilot-tenant MarketOps, watchlist-context, subscriber-list, and
+subscriber-list-items calls all returned `200`; the tenant context was
+consistently `tenant-pilot-b`.
+
+The normalizer and signal persister retain their pre-cutover start times, and
+all seven MarketOps timers remain `inactive`. Accordingly, the corrected
+acceptance is limited to gateway reads; the writer cutover and schedule resume
+are still pending their separate gates.
+
 ## Cutover gates
 
 1. Bootstrap evidence passes, including table counts and database sizes.
