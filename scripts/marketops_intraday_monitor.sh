@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_database.sh"
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if (($# > 0)); then
-  exec docker compose --profile marketops-intraday run --rm marketops-intraday-monitor "$@"
+  exec marketops_compose --profile marketops-intraday run --rm marketops-intraday-monitor "$@"
 fi
 
 symbols="$(marketops_primary_psql -Atc "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;")"
@@ -15,5 +15,5 @@ batch_size="${MARKETOPS_INTRADAY_BATCH_SIZE:-50}"
 for ((offset=0, batch=1; offset<${#assets[@]}; offset+=batch_size, batch++)); do
   batch_symbols=("${assets[@]:offset:batch_size}")
   batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
-  docker compose --profile marketops-intraday run --rm marketops-intraday-monitor --universe-group all_active --symbols "$batch_csv" --max-symbols "${#batch_symbols[@]}"
+  marketops_compose --profile marketops-intraday run --rm marketops-intraday-monitor --universe-group all_active --symbols "$batch_csv" --max-symbols "${#batch_symbols[@]}"
 done
