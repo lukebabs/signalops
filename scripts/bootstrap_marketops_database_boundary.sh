@@ -86,15 +86,6 @@ WHERE schemaname='public'
 # Reset the two target-only filtered ledgers before a retry. They never contain CyberOps rows.
 "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "TRUNCATE TABLE public.normalized_event_ledger, public.signal_ledger RESTART IDENTITY CASCADE;"
 
-audit_trigger_disabled=false
-restore_audit_trigger() {
-  if [[ "$audit_trigger_disabled" == "true" ]]; then
-    "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions ENABLE TRIGGER USER;" || true
-  fi
-}
-trap restore_audit_trigger EXIT
-"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions DISABLE TRIGGER USER;"
-audit_trigger_disabled=true
 # The large shared ledgers are copied only for MarketOps rows. Binary COPY
 # preserves types and avoids an intermediate plaintext file.
 for table in normalized_event_ledger signal_ledger; do
@@ -102,15 +93,16 @@ for table in normalized_event_ledger signal_ledger; do
     | "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "COPY public.$table FROM STDIN WITH (FORMAT binary)"
 done
 
+# Source data is authoritative. Restore under PostgreSQL superuser-only replica
+# mode so source-table triggers cannot be re-evaluated under pg_dump's empty
+# search_path. Boundary verification runs after the copy.
 "${compose[@]}" exec -T postgres pg_dump -U signalops -d signalops --data-only --no-owner --no-privileges "${primary_patterns[@]}" \
-  | "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops
+  | "${compose[@]}" exec -T -e "PGOPTIONS=-c session_replication_role=replica" marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops
 
-# Timescale data is MarketOps data by contract, apart from the two shared
-"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "ALTER TABLE public.platform_primitive_definitions ENABLE TRIGGER USER;"
-audit_trigger_disabled=false
+# Timescale data is MarketOps data by contract, apart from the two shared ledgers
+# which receive the same strict app_id filter.
 
 "${compose[@]}" exec -T marketops-timescaledb psql -v ON_ERROR_STOP=1 -U signalops -d marketops_temporal -c "TRUNCATE TABLE public.marketdata_equity_eod_prices, public.marketdata_option_contracts_daily, public.normalized_event_ledger, public.signal_ledger RESTART IDENTITY;"
-# ledgers which receive the same strict app_id filter.
 "${compose[@]}" exec -T timescaledb pg_dump -U signalops -d signalops_temporal --data-only --no-owner --no-privileges \
   --table=public.marketdata_equity_eod_prices --table=public.marketdata_option_contracts_daily \
   | "${compose[@]}" exec -T marketops-timescaledb psql -v ON_ERROR_STOP=1 -U signalops -d marketops_temporal
