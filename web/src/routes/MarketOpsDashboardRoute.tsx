@@ -8,6 +8,7 @@ import { api } from "../api/client";
 import { LoadingState, EmptyState, ErrorState } from "../components/States";
 import { TechnicalScoreDistributionChart } from "../components/SignalOverviewAggregateCharts";
 import { formatUtc } from "../lib/format";
+import { MarketOpsWatchlistSelector, useMarketOpsWatchlistContext } from "../components/MarketOpsWatchlistContext";
 import type {
   MarketOpsSignalOverviewMember,
   MarketOpsSignalOverviewPoint,
@@ -20,12 +21,6 @@ const WINDOWS: MarketOpsSignalOverviewWindow[] = [
   "30_trade_days",
   "60_trade_days",
 ];
-const GROUPS = [
-  ["all_active", "All active"],
-  ["top50_megacap", "Megacap"],
-  ["sp100", "S&P 100"],
-  ["analyst_watchlist", "Watchlist"],
-] as const;
 const label = (value: string) =>
   ({
     bullish: "Bullish",
@@ -54,14 +49,14 @@ const color = (value: string) =>
 export function MarketOpsDashboardRoute() {
   const tenantId = useTenant();
   const navigate = useNavigate();
-  const [group, setGroup] = useState("all_active");
+  const watchlist = useMarketOpsWatchlistContext();
   const [window, setWindow] =
     useState<MarketOpsSignalOverviewWindow>("10_trade_days");
   const [drilldown, setDrilldown] = useState<{
     title: string;
     members: MarketOpsSignalOverviewMember[];
   } | null>(null);
-  const query = useMarketOpsSignalOverview(tenantId, group, window);
+  const query = useMarketOpsSignalOverview(tenantId, "all_active", window);
   const reversalQ = useQuery({
     queryKey: ["marketops-eroc", tenantId],
     queryFn: () => api.getMarketOpsEROC(tenantId),
@@ -81,26 +76,11 @@ export function MarketOpsDashboardRoute() {
         <div>
           <h1 className="text-lg font-semibold">MarketOps Dashboard</h1>
           <p className="text-xs text-gray-500">
-            Persisted research breadth across the selected active universe.
-            Evidence, not a recommendation.
+            Persisted research breadth across the selected watchlist. Evidence, not a recommendation.
           </p>
         </div>
-        <div className="flex gap-2">
-          <select
-            aria-label="Signal overview universe"
-            value={group}
-            onChange={(event) => {
-              setGroup(event.target.value);
-              setDrilldown(null);
-            }}
-            className="rounded border border-gray-300 px-2 py-1 text-xs"
-          >
-            {GROUPS.map(([value, name]) => (
-              <option key={value} value={value}>
-                {name}
-              </option>
-            ))}
-          </select>
+        <div className="flex items-center gap-2">
+          <MarketOpsWatchlistSelector />
           <select
             aria-label="Signal overview window"
             value={window}
@@ -127,8 +107,8 @@ export function MarketOpsDashboardRoute() {
       ) : (
         <>
           <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">
-            Active assets{" "}
-            <strong className="text-gray-900">{data.asset_count}</strong> ·
+            Watchlist assets {" "}
+            <strong className="text-gray-900">{data.asset_count}</strong>{watchlist.context?.list_name ? <> · {watchlist.context.list_name}</> : null} ·
             generated {formatUtc(data.generated_at)} · select any chart segment
             to inspect its represented assets.
           </div>

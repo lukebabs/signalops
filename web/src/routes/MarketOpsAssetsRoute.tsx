@@ -30,7 +30,7 @@ import {
   type MarketOpsOptionsBucketEntry,
 } from '../lib/marketopsOptions';
 import { useTenant } from '../auth/session';
-import type { AlgorithmResult, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOpsIntradayConditionSnapshot, MarketOpsRiskRewardSummary } from "../types";
+import type { AlgorithmResult, MarketOpsAsset, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOpsIntradayConditionSnapshot, MarketOpsPendingAsset, MarketOpsRiskRewardSummary } from "../types";
 import { MARKETOPS_ASSET_QUICK_FILTERS, matchesAllMarketOpsAssetQuickFilters, matchesMarketOpsAssetQuickFilter, toggleMarketOpsAssetQuickFilter, type MarketOpsAssetQuickFilter } from '../lib/marketopsAssetQuickFilters';
 import { sortableTableHeaderButtonClass } from '../components/SortableTableHeader';
 import { MarketOpsWatchlistSelector, useMarketOpsWatchlistContext } from "../components/MarketOpsWatchlistContext";
@@ -48,6 +48,17 @@ type AssetColumnKey = Exclude<AssetSortKey, 'default'>;
 const ASSET_COLUMN_WIDTHS_KEY = 'signalops.marketops.assets.column-widths.v1';
 const ASSET_SELECTION_COLUMN_WIDTH = 44;
 const DEFAULT_ASSET_COLUMN_WIDTHS: Record<AssetColumnKey, number> = { rank: 70, asset: 290, market: 220, intraday: 230, riskReward: 170, updated: 205 };
+
+type DisplayAsset = MarketOpsAsset & { subscriberCoverage?: MarketOpsPendingAsset };
+
+function subscriberPendingDisplayAsset(tenantId: string, asset: MarketOpsPendingAsset, rank: number): DisplayAsset {
+  const ticker = asset.ticker.toUpperCase();
+  return {
+    tenant_id: tenantId, app_id: "marketops", domain: "market_data", use_case: "subscriber_watchlist", source_id: "subscriber_global_catalog", universe_group: "subscriber_pending", rank, ticker, ticker_key: ticker.toLowerCase(),
+    company: asset.company, display_name: asset.company, display_sector: "", company_key: asset.company.toLowerCase(), asset_type: "common_stock", exchange: "", sector: "", sector_key: "", industry: "", industry_key: "",
+    is_active: true, metadata: { coverage_state: asset.coverage_state, coverage_mode: asset.coverage_mode, eligibility_status: asset.eligibility_status }, created_at: "", updated_at: "", subscriberCoverage: asset,
+  };
+}
 
 function assetRowKey(asset: { universe_group: string; ticker: string }): string {
   return asset.universe_group + ":" + asset.ticker;
@@ -92,8 +103,18 @@ export function MarketOpsAssetsRoute() {
     limit: 200,
   });
 
-  // The API is canonical and already deduplicated by the universal registry.
-  const data = query.data?.assets ?? [];
+  // Ready rows come from the canonical MarketOps projection. A selected
+  // watchlist member remains visible while central coverage is warming; it is
+  // not silently dropped simply because no legacy tenant-universe row exists.
+  const readyData = query.data?.assets ?? [];
+  const pendingAssets = query.data?.pending_assets ?? [];
+  const data = useMemo<DisplayAsset[]>(() => {
+    const visible = readyData as DisplayAsset[];
+    const readyTickers = new Set(visible.map((asset) => asset.ticker.toUpperCase()));
+    return visible.concat(pendingAssets
+      .filter((asset) => !readyTickers.has(asset.ticker.toUpperCase()))
+      .map((asset, index) => subscriberPendingDisplayAsset(TENANT_ID, asset, visible.length + index + 1)));
+  }, [TENANT_ID, pendingAssets, readyData]);
   const quotesQ = useMarketOpsAssetQuotes(TENANT_ID, "all_active");
   const quoteMap = new Map((quotesQ.data?.quotes ?? []).map((q) => [q.ticker.toUpperCase(), q]));
   const conditionsQ = useMarketOpsIntradayConditions(TENANT_ID, "all_active");
@@ -234,11 +255,11 @@ export function MarketOpsAssetsRoute() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Assets</h1>
-          <p className="text-xs text-gray-500">Tenant {TENANT_ID} · {watchlist.context?.selection_mode === "all" ? "all my watchlists" : watchlist.context?.list_name ?? "market universe"} · {data.length} ready assets</p>
+          <p className="text-xs text-gray-500">Tenant {TENANT_ID} · {watchlist.context?.selection_mode === "all" ? "all my watchlists" : watchlist.context?.list_name ?? "market universe"} · {data.length} listed · {readyData.length} ready</p>
         </div>
       </div><MarketOpsWatchlistSelector />
 
-      {query.data?.pending_assets?.length ? <section className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><div className="font-semibold">Coverage pending</div><div className="mt-1 flex flex-wrap gap-2">{query.data.pending_assets.map(asset => <span key={asset.ticker} className="rounded border border-amber-200 bg-white px-2 py-1"><span className="font-mono font-semibold">{asset.ticker}</span> · {asset.coverage_state}</span>)}</div></section> : null}
+      {pendingAssets.length ? <section className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><div className="font-semibold">Coverage in progress</div><p className="mt-1">These selected watchlist assets remain in the table so the list is complete. Their central EOD evidence is not ready yet, so MarketOps does not invent a quote, score, or signal.</p><div className="mt-2 flex flex-wrap gap-2">{pendingAssets.map(asset => <span key={asset.ticker} className="rounded border border-amber-200 bg-white px-2 py-1"><span className="font-mono font-semibold">{asset.ticker}</span> · {asset.coverage_state}</span>)}</div></section> : null}
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" aria-label="Asset quick filters">
         {MARKETOPS_ASSET_QUICK_FILTERS.map((filter) => {
@@ -289,7 +310,7 @@ export function MarketOpsAssetsRoute() {
                   onClick={() => setSelectedTicker((current) => current === a.ticker ? null : a.ticker)}
                   className={`cursor-pointer align-top hover:bg-gray-50 ${selectedTicker === a.ticker ? 'bg-brand-50' : ''}`}
                 >
-                  <td className="px-2 py-2 text-center"><input type="checkbox" checked={editSelectedAssetKey === assetRowKey(a)} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} onChange={() => toggleAssetEditSelection(a)} aria-label={"Select " + a.ticker + " for display-name and sector editing"} title="Select this asset to edit its display name and sector" className="h-4 w-4 rounded border-gray-300 text-brand-700 focus:ring-brand-600" /></td>
+                  <td className="px-2 py-2 text-center">{a.subscriberCoverage ? <span className="text-[10px] text-amber-700" title="Global watchlist metadata cannot be edited through the legacy tenant-universe editor.">Pending</span> : <input type="checkbox" checked={editSelectedAssetKey === assetRowKey(a)} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} onChange={() => toggleAssetEditSelection(a)} aria-label={"Select " + a.ticker + " for display-name and sector editing"} title="Select this asset to edit its display name and sector" className="h-4 w-4 rounded border-gray-300 text-brand-700 focus:ring-brand-600" />}</td>
                   <td className="px-3 py-2 text-xs text-gray-500">{a.rank}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-start gap-2">
@@ -326,7 +347,7 @@ export function MarketOpsAssetsRoute() {
                 {selectedTicker === a.ticker ? (
                   <tr className="bg-brand-50">
                     <td colSpan={7} className="p-3">
-                      <AssetOptionsPanel tenantId={TENANT_ID} symbol={selectedTicker} onClose={() => setSelectedTicker(null)} />
+                      {data.find((asset) => asset.ticker === selectedTicker)?.subscriberCoverage ? <PendingAssetCoveragePanel asset={data.find((asset) => asset.ticker === selectedTicker)!.subscriberCoverage!} onClose={() => setSelectedTicker(null)} /> : <AssetOptionsPanel tenantId={TENANT_ID} symbol={selectedTicker} onClose={() => setSelectedTicker(null)} />}
                     </td>
                   </tr>
                 ) : null}
@@ -348,6 +369,10 @@ export function MarketOpsAssetsRoute() {
     </div>
   );
 }
+function PendingAssetCoveragePanel({ asset, onClose }: { asset: MarketOpsPendingAsset; onClose: () => void }) {
+  return <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="font-semibold">{asset.ticker} is in the selected watchlist</div><p className="mt-1 text-xs">Central MarketOps coverage is {asset.coverage_state}. Until it is ready, this asset remains visible without fabricated market data, scores, or signals.</p><div className="mt-2 text-xs text-amber-800">Eligibility {asset.eligibility_status} · coverage mode {asset.coverage_mode}</div></div><button type="button" onClick={onClose} className="text-xs text-amber-800 underline">Close</button></div></div>;
+}
+
 function SortableAssetHeader({ label, sortKey, activeSort, onSort, width, onResize, title }: { label: string; sortKey: AssetColumnKey; activeSort: { key: AssetSortKey; direction: 'asc' | 'desc' }; onSort: (key: AssetColumnKey) => void; width: number; onResize: (event: React.PointerEvent<HTMLButtonElement>, key: AssetColumnKey) => void; title?: string }) {
   const active = activeSort.key === sortKey;
   return <th className="relative px-3 py-2" style={{ width }} aria-sort={active ? (activeSort.direction === "asc" ? "ascending" : "descending") : "none"} title={title}><button type="button" onClick={() => onSort(sortKey)} className={sortableTableHeaderButtonClass}>{label}<span aria-hidden="true" className={active ? "text-brand-700" : "text-gray-300"}>{active ? (activeSort.direction === "asc" ? "↑" : "↓") : "↕"}</span></button><button type="button" aria-label={"Resize " + label + " column"} onPointerDown={(event) => onResize(event, sortKey)} className="absolute right-0 top-0 h-full w-2 cursor-col-resize touch-none border-r border-transparent hover:border-brand-500" /></th>;

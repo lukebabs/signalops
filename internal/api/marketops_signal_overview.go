@@ -19,14 +19,22 @@ type signalOverviewMember struct {
 	AsOf   string   `json:"as_of"`
 }
 
-func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, repo storage.QueryRepository) {
+func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	repo := cfg.QueryRepository
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/signal-overview", func(w http.ResponseWriter, r *http.Request) {
 		reader, ok := any(repo).(storage.MarketOpsSignalOverviewRepository)
 		if !ok {
 			writeError(w, http.StatusNotImplemented, "signal_overview_unavailable", "signal overview is unavailable")
 			return
 		}
-		tenant := strings.TrimSpace(r.PathValue("tenant_id"))
+		tenant, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenant)
+		if !ok {
+			return
+		}
 		group := strings.TrimSpace(r.URL.Query().Get("universe_group"))
 		if group == "" || group == signalOverviewAllActive {
 			group = ""
@@ -45,6 +53,9 @@ func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, repo storage.Quer
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to build signal overview")
 			return
 		}
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			inputs.Assets = filterMarketOpsSignalOverviewAssets(inputs.Assets, watchlistContext.Tickers)
+		}
 		var snapshots []storage.MarketOpsRiskRewardSnapshotRecord
 		if snapshotReader, ok := any(repo).(storage.MarketOpsRiskRewardSnapshotRepository); ok {
 			snapshots, err = snapshotReader.ListMarketOpsRiskRewardSnapshots(r.Context(), storage.MarketOpsRiskRewardSnapshotFilter{TenantID: tenant, SessionStart: time.Now().UTC().AddDate(0, 0, -days*3), Limit: 20000})
@@ -53,8 +64,25 @@ func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, repo storage.Quer
 				return
 			}
 		}
-		writeJSON(w, http.StatusOK, buildMarketOpsSignalOverview(inputs, group, window, days, snapshots))
+		response := buildMarketOpsSignalOverview(inputs, group, window, days, snapshots)
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
+}
+
+// filterMarketOpsSignalOverviewAssets scopes an aggregate to already authorized
+// list members. The underlying MarketOps evidence remains platform data; this
+// only changes the tenant-facing projection.
+func filterMarketOpsSignalOverviewAssets(assets []storage.MarketOpsAssetRecord, tickers map[string]struct{}) []storage.MarketOpsAssetRecord {
+	visible := make([]storage.MarketOpsAssetRecord, 0, len(assets))
+	for _, asset := range assets {
+		if _, allowed := tickers[strings.ToUpper(asset.Ticker)]; allowed {
+			visible = append(visible, asset)
+		}
+	}
+	return visible
 }
 
 func signalOverviewWindow(value string) (string, int) {

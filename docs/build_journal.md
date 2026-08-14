@@ -7977,3 +7977,11 @@ Next-cycle priority:
 2. N2 pilot acceptance and subscriber operating model.
 3. N3 catalog coverage scale, with N4 policy review required before canonical-provider behavior expands.
 4. N5 only through separate provider/capture approvals.
+
+
+## 2026-08-14 — Watchlist-governed MarketOps projection correction
+
+- Corrected the Assets presentation so every member of the selected subscriber watchlist remains visible. A member whose central coverage is still warming is shown as a truthful coverage-in-progress row rather than being dropped from the table and presented only as a disconnected pending notice.
+- The initial context remains the earliest private list created by the authenticated subject; when that user has no private list, the tenant default is selected. A deliberately saved list selection remains available through the shared selector.
+- The Dashboard now uses that same shared watchlist selector and the signal-overview API scopes its aggregate asset set server-side for enabled pilot tenants. Dashboard no longer offers a competing legacy-universe selector.
+- This is a presentation and tenant-projection correction. It does not relabel a cold/global-shadow asset as analytically ready: quotes, scores, signals, and detail remain withheld until centrally persisted evidence is available.
