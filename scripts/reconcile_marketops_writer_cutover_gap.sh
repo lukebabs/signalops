@@ -18,11 +18,10 @@ copy_missing() {
   local source_container="$1" source_db="$2" destination_container="$3" destination_db="$4" table="$5" predicate="$6"
   local stage="${stage_prefix}_${table}_$$" inserted
   docker exec "$destination_container" psql -X -v ON_ERROR_STOP=1 -U signalops -d "$destination_db" -c "CREATE UNLOGGED TABLE public.${stage} (LIKE public.${table} INCLUDING DEFAULTS);"
-  cleanup_stage() { docker exec "$destination_container" psql -X -q -U signalops -d "$destination_db" -c "DROP TABLE IF EXISTS public.${stage};" >/dev/null 2>&1 || true; }
-  trap cleanup_stage RETURN
   docker exec "$source_container" psql -X -v ON_ERROR_STOP=1 -U signalops -d "$source_db" -c "COPY (SELECT * FROM public.${table} WHERE ${predicate}) TO STDOUT WITH (FORMAT binary)" | docker exec -i "$destination_container" psql -X -v ON_ERROR_STOP=1 -U signalops -d "$destination_db" -c "COPY public.${stage} FROM STDIN WITH (FORMAT binary)"
   inserted="$(docker exec "$destination_container" psql -X -qAt -v ON_ERROR_STOP=1 -U signalops -d "$destination_db" -c "WITH inserted AS (INSERT INTO public.${table} SELECT * FROM public.${stage} ON CONFLICT DO NOTHING RETURNING 1) SELECT count(*) FROM inserted;")"
   printf "Reconciled %s.%s: inserted %s missing rows.\n" "$destination_db" "$table" "$inserted"
+  docker exec "$destination_container" psql -X -q -v ON_ERROR_STOP=1 -U signalops -d "$destination_db" -c "DROP TABLE public.${stage};"
 }
 
 copy_missing "$src_primary" "$src_primary_db" "$dst_primary" "$dst_primary_db" signal_ledger "app_id = 'marketops'"
