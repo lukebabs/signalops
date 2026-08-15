@@ -33,3 +33,11 @@ type SubscriberCurrentEODContextRecord struct {
 type SubscriberCurrentEODContextRepository interface {
 	GetSubscriberCurrentEODContext(context.Context, string, string) (SubscriberCurrentEODContextRecord, error)
 }
+
+type SubscriberGlobalRiskRewardSnapshotRepository interface {
+	ListSubscriberGlobalRiskRewardSnapshots(context.Context, []string, time.Time, int) ([]MarketOpsRiskRewardSnapshotRecord, error)
+}
+
+type SubscriberGlobalOptionsDistributionRepository interface {
+	ListSubscriberGlobalOptionsDistributions(context.Context, []string, time.Time, int) ([]MarketOpsOptionsDistributionRecord, error)
+}

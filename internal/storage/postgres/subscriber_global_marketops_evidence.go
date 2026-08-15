@@ -15,7 +15,7 @@ const subscriberGlobalMarketOpsEvidenceWorker = "subscriber-global-eod-reconcile
 
 var subscriberGlobalMarketOpsEvidenceKinds = map[string]struct{}{
 	"eod_bar": {}, "feature_vector": {}, "market_state": {}, "eroc": {}, "valuation": {}, "eeom": {},
-	"material_event": {}, "signal_assertion": {}, "outcome": {}, "sri_snapshot": {}, "options_snapshot": {},
+	"material_event": {}, "signal_assertion": {}, "outcome": {}, "risk_reward": {}, "sri_snapshot": {}, "options_snapshot": {},
 }
 
 var subscriberGlobalMarketOpsEvidenceQualityStates = map[string]struct{}{

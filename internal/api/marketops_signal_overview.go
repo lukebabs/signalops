@@ -81,11 +81,36 @@ func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, cfg RouterConfig)
 			}
 		}
 		var snapshots []storage.MarketOpsRiskRewardSnapshotRecord
-		if snapshotReader, ok := any(repo).(storage.MarketOpsRiskRewardSnapshotRepository); ok {
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			if globalReader, supported := any(repo).(storage.SubscriberGlobalRiskRewardSnapshotRepository); supported {
+				symbols := make([]string, 0, len(watchlistContext.Tickers))
+				for ticker := range watchlistContext.Tickers {
+					symbols = append(symbols, ticker)
+				}
+				snapshots, err = globalReader.ListSubscriberGlobalRiskRewardSnapshots(r.Context(), symbols, time.Now().UTC().AddDate(0, 0, -days*3), 20000)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "query_failed", "failed to load global risk/reward history")
+					return
+				}
+			}
+		} else if snapshotReader, supported := any(repo).(storage.MarketOpsRiskRewardSnapshotRepository); supported {
 			snapshots, err = snapshotReader.ListMarketOpsRiskRewardSnapshots(r.Context(), storage.MarketOpsRiskRewardSnapshotFilter{TenantID: tenant, SessionStart: time.Now().UTC().AddDate(0, 0, -days*3), Limit: 20000})
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "query_failed", "failed to load risk/reward history")
 				return
+			}
+		}
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			if globalOptions, supported := any(repo).(storage.SubscriberGlobalOptionsDistributionRepository); supported {
+				symbols := make([]string, 0, len(watchlistContext.Tickers))
+				for ticker := range watchlistContext.Tickers {
+					symbols = append(symbols, ticker)
+				}
+				inputs.OptionsDistributions, err = globalOptions.ListSubscriberGlobalOptionsDistributions(r.Context(), symbols, time.Now().UTC().AddDate(0, 0, -days*3), 20000)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "query_failed", "failed to load global options history")
+					return
+				}
 			}
 		}
 		response := buildMarketOpsSignalOverview(inputs, group, window, days, snapshots)

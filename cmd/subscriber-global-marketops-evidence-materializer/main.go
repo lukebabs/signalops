@@ -26,7 +26,7 @@ const (
 )
 
 var allowedKinds = map[string]struct{}{
-	"feature_vector": {}, "market_state": {}, "valuation": {}, "eeom": {}, "signal_assertion": {}, "outcome": {},
+	"feature_vector": {}, "market_state": {}, "valuation": {}, "eeom": {}, "signal_assertion": {}, "outcome": {}, "options_snapshot": {}, "risk_reward": {},
 }
 
 type entry struct {
@@ -45,7 +45,7 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("subscriber-global-marketops-evidence-materializer", flag.ContinueOnError)
 	databaseURL := flags.String("database-url", os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL"), "dedicated global-worker database URL")
 	parityRunID := flags.String("parity-run-id", "", "immutable parity manifest run to materialize")
-	evidenceKinds := flags.String("evidence-kinds", "feature_vector,market_state,valuation,eeom,signal_assertion,outcome", "comma-separated supported evidence kinds")
+	evidenceKinds := flags.String("evidence-kinds", "feature_vector,market_state,valuation,eeom,signal_assertion,outcome,options_snapshot,risk_reward", "comma-separated supported evidence kinds")
 	limit := flags.Int("limit", 1000, "maximum entries to materialize (1-50000)")
 	correlationID := flags.String("correlation-id", "", "optional operator correlation ID")
 	actor := flags.String("actor", workerIdentity, "must be subscriber-global-eod-reconciler")
@@ -112,17 +112,19 @@ func run(args []string) error {
 
 func validateWorkload(ctx context.Context, db *sql.DB) error {
 	var currentUser string
-	var superuser, createRole, bypassRLS, member, sourceRead, manifestRead, evidenceWrite, rawRead bool
+	var superuser, createRole, bypassRLS, member, sourceRead, manifestRead, evidenceWrite, rawRead, rawOptionsRead, rawRiskRewardRead bool
 	if err := db.QueryRowContext(ctx, `SELECT current_user,rolsuper,rolcreaterole,rolbypassrls,
   pg_has_role(current_user,'signalops_subscriber_global_eod','member'),
-  has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_source','SELECT'),
+  has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_source_v2','SELECT'),
   has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_manifest_entries','SELECT'),
   has_table_privilege(current_user,'subscriber_global_marketops_evidence_runs','SELECT,INSERT'),
-  has_table_privilege(current_user,'marketops_feature_observations','SELECT')
-FROM pg_roles WHERE rolname=current_user`).Scan(&currentUser, &superuser, &createRole, &bypassRLS, &member, &sourceRead, &manifestRead, &evidenceWrite, &rawRead); err != nil {
+  has_table_privilege(current_user,'marketops_feature_observations','SELECT'),
+  has_table_privilege(current_user,'marketops_options_distribution_daily','SELECT'),
+  has_table_privilege(current_user,'marketops_risk_reward_snapshots','SELECT')
+FROM pg_roles WHERE rolname=current_user`).Scan(&currentUser, &superuser, &createRole, &bypassRLS, &member, &sourceRead, &manifestRead, &evidenceWrite, &rawRead, &rawOptionsRead, &rawRiskRewardRead); err != nil {
 		return fmt.Errorf("inspect materializer workload identity: %w", err)
 	}
-	if superuser || createRole || bypassRLS || !member || !sourceRead || !manifestRead || !evidenceWrite || rawRead {
+	if superuser || createRole || bypassRLS || !member || !sourceRead || !manifestRead || !evidenceWrite || rawRead || rawOptionsRead || rawRiskRewardRead {
 		return fmt.Errorf("materializer workload must be a non-privileged global-EOD member with only parity-source, manifest, and evidence-write grants (got %s)", currentUser)
 	}
 	return nil
@@ -137,7 +139,7 @@ func readEntries(ctx context.Context, db *sql.DB, parityRunID string, kinds []st
   entry.legacy_algorithm_id,entry.legacy_algorithm_version,entry.legacy_quality_state,
   source.legacy_payload::text,entry.legacy_fingerprint,entry.global_asset_id,source.legacy_created_at
 FROM subscriber_global_marketops_legacy_parity_manifest_entries entry
-JOIN subscriber_global_marketops_legacy_parity_source source
+JOIN subscriber_global_marketops_legacy_parity_source_v2 source
   ON source.evidence_kind=entry.evidence_kind AND source.legacy_record_id=entry.legacy_record_id
 WHERE entry.parity_run_id=$1 AND entry.mapping_status='mapped'
   AND entry.global_materialization_status='pending_global_materialization'

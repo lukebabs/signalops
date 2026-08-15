@@ -26,7 +26,7 @@ const (
 )
 
 var supportedEvidenceKinds = map[string]struct{}{
-	"feature_vector": {}, "market_state": {}, "valuation": {}, "eeom": {}, "signal_assertion": {}, "outcome": {},
+	"feature_vector": {}, "market_state": {}, "valuation": {}, "eeom": {}, "signal_assertion": {}, "outcome": {}, "options_snapshot": {}, "risk_reward": {},
 }
 
 type sourceRecord struct {
@@ -52,7 +52,7 @@ func main() {
 func run(args []string) error {
 	flags := flag.NewFlagSet("subscriber-global-marketops-parity-manifest", flag.ContinueOnError)
 	databaseURL := flags.String("database-url", os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL"), "dedicated MarketOps global-worker database URL")
-	evidenceKinds := flags.String("evidence-kinds", "feature_vector,market_state,valuation,eeom,signal_assertion,outcome", "comma-separated supported evidence kinds")
+	evidenceKinds := flags.String("evidence-kinds", "feature_vector,market_state,valuation,eeom,signal_assertion,outcome,options_snapshot,risk_reward", "comma-separated supported evidence kinds")
 	newestFirst := flags.Bool("newest-first", false, "select newest unmanifested source records first")
 	limit := flags.Int("limit", 1000, "bounded source rows per immutable manifest (1-50000)")
 	correlationID := flags.String("correlation-id", "", "optional operator correlation ID")
@@ -155,15 +155,17 @@ FROM pg_roles WHERE rolname=current_user`).Scan(&currentUser, &superuser, &creat
 	if superuser || createRole || bypassRLS || !member {
 		return fmt.Errorf("parity workload must be a non-privileged member of signalops_subscriber_global_eod (got %s)", currentUser)
 	}
-	var viewRead, manifestWrite, rawFeatureRead, rawStateRead bool
+	var viewRead, manifestWrite, rawFeatureRead, rawStateRead, rawOptionsRead, rawRiskRewardRead bool
 	if err := db.QueryRowContext(ctx, `SELECT
-  has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_source', 'SELECT'),
+  has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_source_v2', 'SELECT'),
   has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_runs', 'SELECT,INSERT'),
   has_table_privilege(current_user,'marketops_feature_observations', 'SELECT'),
-  has_table_privilege(current_user,'marketops_market_states', 'SELECT')`).Scan(&viewRead, &manifestWrite, &rawFeatureRead, &rawStateRead); err != nil {
+  has_table_privilege(current_user,'marketops_market_states', 'SELECT'),
+  has_table_privilege(current_user,'marketops_options_distribution_daily', 'SELECT'),
+  has_table_privilege(current_user,'marketops_risk_reward_snapshots', 'SELECT')`).Scan(&viewRead, &manifestWrite, &rawFeatureRead, &rawStateRead, &rawOptionsRead, &rawRiskRewardRead); err != nil {
 		return fmt.Errorf("inspect parity workload grants: %w", err)
 	}
-	if !viewRead || !manifestWrite || rawFeatureRead || rawStateRead {
+	if !viewRead || !manifestWrite || rawFeatureRead || rawStateRead || rawOptionsRead || rawRiskRewardRead {
 		return fmt.Errorf("parity workload grants must allow manifest view/write and deny direct legacy-table reads")
 	}
 	return nil
@@ -181,7 +183,7 @@ func readManifestEntries(ctx context.Context, db *sql.DB, kinds []string, limit 
 	rows, err := db.QueryContext(ctx, `SELECT source.evidence_kind,source.legacy_record_id,source.legacy_symbol,source.legacy_session_date,
   source.legacy_algorithm_id,source.legacy_algorithm_version,source.legacy_quality_state,source.legacy_payload::text,source.legacy_created_at,
   mapping.canonical_global_asset_id,mapping.match_count
-FROM subscriber_global_marketops_legacy_parity_source source
+FROM subscriber_global_marketops_legacy_parity_source_v2 source
 LEFT JOIN LATERAL (
   SELECT min(resolution.canonical_global_asset_id) AS canonical_global_asset_id,
     count(DISTINCT resolution.canonical_global_asset_id)::integer AS match_count

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/lukebabs/signalops/internal/storage"
 )
@@ -38,4 +39,29 @@ LIMIT 1`, strings.TrimSpace(symbol)).Scan(
 		return storage.SubscriberCurrentEODContextRecord{}, fmt.Errorf("get subscriber current EOD context: %w", err)
 	}
 	return record, nil
+}
+
+// ListSubscriberGlobalRiskRewardSnapshots reads only the platform-owned
+// gateway projection. The caller authorizes symbols via subscriber watchlists.
+func (r *Repository) ListSubscriberGlobalRiskRewardSnapshots(ctx context.Context, symbols []string, sessionStart time.Time, limit int) ([]storage.MarketOpsRiskRewardSnapshotRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT snapshot_id,'platform-global','', '', symbol, session_date, observed_at,
+  0, '', '', 0, usable_input_count, required_input_count, eligible, result_payload, '{}'::jsonb, observed_at
+FROM subscriber_gateway_global_risk_reward_snapshots
+WHERE upper(symbol) = ANY($1) AND session_date >= $2::date
+ORDER BY session_date DESC, usable_input_count DESC, observed_at DESC
+LIMIT $3`, pqArray(symbols), sessionStart.UTC(), riskRewardSnapshotLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list subscriber global risk/reward snapshots: %w", err)
+	}
+	defer rows.Close()
+	items := []storage.MarketOpsRiskRewardSnapshotRecord{}
+	for rows.Next() {
+		var item storage.MarketOpsRiskRewardSnapshotRecord
+		if err := rows.Scan(&item.SnapshotID, &item.TenantID, &item.AlgorithmResultID, &item.ExecutionRequestID, &item.Symbol, &item.SessionDate, &item.ObservedAt, &item.TechnicalScore, &item.TechnicalDirection, &item.RiskLevel, &item.Confidence, &item.UsableInputCount, &item.RequiredInputCount, &item.Eligible, &item.ResultPayloadJSON, &item.InputSnapshotJSON, &item.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan subscriber global risk/reward snapshot: %w", err)
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
