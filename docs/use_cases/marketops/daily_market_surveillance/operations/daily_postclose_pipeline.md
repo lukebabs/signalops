@@ -100,7 +100,7 @@ Do not use the legacy `massive-scheduler` interval loop for this workflow. It do
 
 All scheduled and on-demand data workflows must obtain their universe through that shared selector or through the identical deduplicated SQL projection used by the post-close and algorithm-corroboration shell scripts. Explicit symbol lists remain valid only when an operator intentionally scopes a bounded run.
 
-The equity reconciliation path no longer assumes a 50-asset universe. It uses its declared provider-request capacity and fails explicitly if that capacity is insufficient, rather than silently selecting a legacy subset. Scheduler installation builds the EOD, options, cohort, tactical, Exhaustive Reversal, intraday, valuation, and asset-backfill job images together so each uses the same selector revision.
+The equity reconciliation path has no fixed rank or universe-size ceiling. It uses its declared provider-request capacity and fails explicitly if that capacity is insufficient, rather than silently selecting a legacy subset. Scheduler installation builds the EOD, options, cohort, tactical, Exhaustive Reversal, intraday, valuation, and asset-backfill job images together so each uses the same selector revision.
 
 ## Reconciliation verification (2026-08-04)
 
