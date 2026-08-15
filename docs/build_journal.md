@@ -8015,3 +8015,10 @@ Next-cycle priority:
 - Materialized the five immutable, fully mapped 2026-08-14 parity manifests through `signalops_subscriber_global_eod`: EEOM 75, feature vectors 250, Market State 250, valuation 250, and outcomes 250—**1,075 global evidence records** total. No provider was called and no tenant-local source record was changed.
 - Each resulting evidence run is append-only, `legacy_materialized`, `legacy_materialization`, and retains its parity-run/fingerprint provenance. Re-running the EEOM manifest inserted zero additional records, demonstrating idempotency.
 - These records remain metadata-only until each type-specific read projection proves parity, freshness, authorization, and browser acceptance. The materialization bootstrap therefore advances the production blocker but does not close it.
+
+
+## 2026-08-15 — Incremental global evidence materialization
+
+- Corrected the parity-manifest source selection to exclude legacy records that already have a mapped immutable manifest entry. This allows each bounded run to advance through previously unseen evidence rather than repeatedly creating the bootstrap batch. Unmapped and ambiguous records remain eligible for a future remapping review.
+- Focused Go tests passed for both restricted runners. A live provider-free feature-vector batch proved the behavior: it selected the next 1,000 fully mapped records after the original 250 and appended all 1,000 under restricted-role provenance.
+- The global feature-vector ledger now contains 1,250 immutable records across 101 materialization runs. This remains a ledger/provenance advance only; analytical read projection and freshness gates are still closed.

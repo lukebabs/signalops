@@ -185,6 +185,12 @@ LEFT JOIN LATERAL (
   WHERE upper(asset.canonical_symbol)=upper(source.legacy_symbol)
 ) mapping ON true
 WHERE source.evidence_kind IN (`+strings.Join(quotedKinds, ",")+`)
+  AND NOT EXISTS (
+    SELECT 1 FROM subscriber_global_marketops_legacy_parity_manifest_entries prior
+    WHERE prior.evidence_kind=source.evidence_kind
+      AND prior.legacy_record_id=source.legacy_record_id
+      AND prior.mapping_status='mapped'
+  )
 ORDER BY source.evidence_kind,source.legacy_session_date,source.legacy_record_id
 LIMIT $1`, limit)
 	if err != nil {
