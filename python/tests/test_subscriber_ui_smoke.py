@@ -207,4 +207,10 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
     )
     assert_selected_watchlist(subscriber_page, config)
     assert_state_request_scope(state, config)
+    state_payload = assert_watchlist_context(state, config)
+    market_states = state_payload.get("market_states")
+    assert isinstance(market_states, list) and market_states, f"{state.url} returned no global Market State"
+    selected = [item for item in market_states if str(item.get("symbol", "")).upper() == config.shared_tickers[0]]
+    assert selected, f"{state.url} omitted selected global Market State"
+    assert selected[0].get("tenant_id") == "platform-global", f"{state.url} fell back from global Market State"
     expect(subscriber_page.locator("body")).to_contain_text(config.shared_tickers[0])

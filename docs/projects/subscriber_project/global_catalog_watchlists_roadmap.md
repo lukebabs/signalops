@@ -322,3 +322,10 @@ The controlled deployment-agent action applied `000125_subscriber_global_market_
 The same run reconciled a historical migration-ledger omission for `000124_subscriber_global_risk_reward_projection`: its earlier DDL had created the named view but had not recorded the schema-migrations row. The repair reran only that known idempotent DDL with `CREATE OR REPLACE VIEW`, reasserted its ownership and grants, and recorded the missing version before applying `000125`. It did not alter evidence records, coverage, provider data, or tenant memberships.
 
 The next gate is a dedicated Gateway deployment followed by the pilot browser contract and a direct authorized Market State response check. Until that gate passes, the deployed UI must retain the existing truthful unmaterialized-state presentation.
+
+
+### Market State global reader — Gateway and pilot acceptance complete — 2026-08-15
+
+The named Gateway deployment rebuilt the application, passed its complete Go test suite, verified dedicated primary and temporal routing at startup, and restarted only the Gateway. The isolated `tenant-pilot-b` browser acceptance then passed against the live service. Its strengthened contract requires the selected watchlist symbol to be present in the Market State response with `tenant_id = platform-global`; this is retained proof that the subscriber reader does not fall back to a tenant-local Market State row.
+
+This closes the first type-specific global analytical-reader gate. The Assets card remains deliberately conservative until it has a per-symbol global Market State availability projection; it must not imply every shared-EOD asset has a usable global state. The next reader slices remain EROC, valuation, EEOM, material events, Signal Assurance/outcomes, and SRI.
