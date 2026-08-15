@@ -39,3 +39,18 @@ services:
     environment: *marketops-scheduled-boundary
   marketops-signal-assurance-worker:
     environment: *marketops-scheduled-boundary
+
+  subscriber-global-marketops-parity-manifest:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-marketops-parity-manifest
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+  subscriber-global-marketops-evidence-materializer:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-marketops-evidence-materializer
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
