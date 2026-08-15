@@ -213,7 +213,7 @@ Exit criterion: two users in one tenant can have separate private lists; a user 
 
 ### Phase C — Global EOD coverage
 
-Move the completed-session reconciliation queue and price-based algorithm planners to global warm coverage. Maintain the top-1,000 warm EOD set, then admit eligible cold symbols when one or more watchlist memberships create a deduplicated activation request. Intraday processing is a separate hot tier: the deduplicated union of explicitly saved MarketOps watchlist selections. Run bounded pilot batches, measure provider requests, completeness, queue age, quality, activation-to-first-evidence time, and storage growth, then expand progressively.
+Move the completed-session reconciliation queue and price-based algorithm planners to global warm coverage. Maintain the top-1,000 warm EOD set, then admit eligible cold symbols when one or more watchlist memberships create a deduplicated activation request. The initial central history policy matches the existing analyst backfill: 50 prior weekdays plus the completed-session end date, price-only EOD, with no recurring history job and no five-year reconstruction. Intraday processing is a separate hot tier: the deduplicated union of explicitly saved MarketOps watchlist selections. Run bounded pilot batches, measure provider requests, completeness, queue age, quality, activation-to-first-evidence time, and storage growth, then expand progressively.
 
 Exit criterion: the same globally covered symbol is ingested and calculated once per session even when used by multiple tenants.
 

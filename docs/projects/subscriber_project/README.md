@@ -12,6 +12,7 @@ The platform will maintain one global catalog of Massive-eligible US common stoc
 
 - The initial global catalog scope is exchange-listed US common stocks that Massive can govern and identify. The centrally processed warm EOD baseline is capped at the approved top 1,000 eligible assets; other governed eligible assets remain cold until demand activates them.
 - The **hot intraday tier** is separate: it is the deduplicated union of assets in an explicitly saved MarketOps watchlist selection. Warm membership alone never produces intraday provider polling.
+- Where a warm asset needs initial price history, its one-time central EOD backfill uses the existing analyst-watchlist default: 50 prior weekdays plus the selected completed-session end date (at most 51 weekday observations before market holidays). It is equity EOD only, never options or intraday, and is not a recurring schedule or a five-year reconstruction.
 - Price-based EOD ingestion, features, and algorithms run centrally for the active global coverage set.
 - Each tenant has a shared default watchlist. Each user has private watchlists and sees only those lists plus the tenant default.
 - Every watchlist entry references a global asset. Adding a hot symbol to a list is a membership change, not asset onboarding or data collection. Adding an eligible cold symbol also writes the membership, then creates one idempotent, auditable global activation request; the browser never calls Massive and the system shows `queued`/`warming_up` until central evidence is available.

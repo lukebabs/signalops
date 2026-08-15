@@ -8000,3 +8000,10 @@ Next-cycle priority:
 - Added migration `000122_subscriber_global_legacy_evidence_materialization` and the controlled `subscriber-global-marketops-evidence-materializer`.
 - The runner requires `--execute` and an immutable mapped parity-manifest run. It appends globally identified legacy evidence with exact source fingerprints and provenance; it makes no provider request, rewrites no legacy record, and creates no tenant-local projection.
 - The coverage projection can identify materialized central evidence, but remains metadata-only. Dashboard, EROC, Material Events, Valuation, EEOM, Market State, SAF, SRI, intraday, and Risk/Reward require separate type-specific parity, freshness, authorization, and browser gates before their global records are displayed.
+
+
+## 2026-08-15 — Warm EOD history scope aligned to existing analyst backfill
+
+- The centrally governed warm tier will not request five years of price history. Its one-time initial-history policy matches the existing analyst watchlist default: rewind 50 weekdays from a selected completed-session end date and include that end date (at most 51 weekday observations before market holidays).
+- This is equity EOD only: it has no options or intraday capture path and must be invoked as a one-time controlled run rather than installed as recurring schedule.
+- The global analytical-evidence materialization, type-specific parity, freshness, authorization, and browser gates remain mandatory before subscriber views consume the retained history.
