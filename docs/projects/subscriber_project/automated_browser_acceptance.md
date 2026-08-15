@@ -24,6 +24,17 @@ smoke: production user-journey evidence must be produced by the isolated,
 read-only pilot identity. A future tenant-local admin check must be an explicit
 separate control with its own narrowly scoped assertions.
 
+## Automated invocation
+
+The deployment-control agent exposes `subscriber-pilot-ui-smoke`, which runs the
+pilot contract as the approved host operator with the installed Chromium path.
+`marketops-gateway-deploy` runs that same smoke after the Gateway has passed its
+dedicated-read cutover verification. The weekday post-close workflow runs it
+after the global Dashboard projection gate succeeds whenever the pilot credentials
+are configured. A browser failure exits the post-close workflow with a distinct
+non-zero status and is therefore visible through the normal scheduled-job and
+administrator-notification controls.
+
 ## Installation
 
 The repository pins the browser-test dependency in `python/requirements-e2e.txt`.

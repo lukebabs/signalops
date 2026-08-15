@@ -16,11 +16,12 @@ id "$operator" >/dev/null
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_agent="$repo_dir/deploy/deployment-agent/signalops-deploy-agent"
 source_renderer="$repo_dir/scripts/render_marketops_cutover_env.sh"
+source_browser_smoke="$repo_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
 agent_dir=/usr/local/lib/signalops-deployment-agent
 agent_bin=/usr/local/sbin/signalops-deploy-agent
 sudoers_file=/etc/sudoers.d/signalops-deploy-agent
 
-[[ -x "$source_agent" && -x "$source_renderer" ]] || {
+[[ -x "$source_agent" && -x "$source_renderer" && -x "$source_browser_smoke" ]] || {
   printf 'Deployment-agent source files are missing or not executable.\n' >&2
   exit 3
 }
@@ -38,4 +39,4 @@ install -m 0440 -o root -g root "$temporary" "$sudoers_file"
 
 printf 'Installed SignalOps deployment-control agent.\n'
 printf 'Allowed operator: %s\n' "$operator"
-printf 'Available actions: render-cutover-env, scheduler-preflight, scheduler-intraday-run, scheduler-intraday-enable, scheduler-intraday-disable, scheduler-status, operations-monitor-install, operations-monitor-run, operations-monitor-enable, operations-monitor-disable, watch-limits-stage, backup-run, restore-rehearsal-run, marketops-recovery-resume\n'
+printf 'Available actions: render-cutover-env, scheduler-preflight, scheduler-intraday-run, scheduler-intraday-enable, scheduler-intraday-disable, scheduler-status, operations-monitor-install, operations-monitor-run, operations-monitor-enable, operations-monitor-disable, watch-limits-stage, backup-run, restore-rehearsal-run, marketops-recovery-resume, subscriber-pilot-ui-smoke\n'

@@ -68,8 +68,18 @@ case "$action" in
   marketops-warm-eod-enable)
     run "$repository_dir/scripts/install_marketops_boundary_scheduler.sh" "$repository_dir/.env" "adminalien" --enable-warm-eod
     ;;
+  subscriber-pilot-ui-smoke)
+    [[ "$actor" =~ ^[a-z_][a-z0-9_-]*$ && "$actor" != "unknown" ]] || {
+      printf "%s\n" "subscriber_pilot_ui_smoke_operator_invalid" >&2
+      exit 2
+    }
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
   marketops-gateway-deploy)
-    run "$repository_dir/scripts/deploy_marketops_read_cutover.sh" "$repository_dir/.env"
+    "$repository_dir/scripts/deploy_marketops_read_cutover.sh" "$repository_dir/.env"
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
     ;;
   marketops-writer-cutover)
     systemctl stop signalops-marketops-boundary-schedule@marketops-daily-postclose.service signalops-marketops-boundary-schedule@marketops-postclose-recovery.service || true
