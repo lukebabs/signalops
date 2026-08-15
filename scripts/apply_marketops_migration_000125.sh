@@ -26,13 +26,24 @@ runtime_env="${1:-${SIGNALOPS_PRODUCTION_ENV_FILE:-}}"
 load_marketops_boundary_env "$boundary_env"
 compose=(docker compose --env-file "$runtime_env" -p signalops -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml")
 
+# Reconcile the known 000124 ledger omission before the ordered runner. The
+# old attempt completed its constraint changes but stopped at a pre-existing
+# view. Replaying it with CREATE OR REPLACE VIEW safely reasserts its views,
+# ownership, and grants before recording the missing ledger version.
+repair_file="$(mktemp)"
+trap "rm -f \"$repair_file\"" EXIT
+sed "s/^CREATE VIEW /CREATE OR REPLACE VIEW /" "$root_dir/migrations/000124_subscriber_global_risk_reward_projection.up.sql" > "$repair_file"
+"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops < "$repair_file"
+"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "INSERT INTO schema_migrations(version) VALUES ('000124_subscriber_global_risk_reward_projection') ON CONFLICT DO NOTHING;"
+printf "%s\n" "marketops_migration_000124_ledger_reconciled"
+
 # The standard migration runner is idempotent and records the exact version in
 # schema_migrations. This action is intentionally limited to the primary
 # MarketOps store; it does not touch the temporal database, Gateway, or jobs.
 "${compose[@]}" --profile marketops-boundary run --rm marketops-postgres-migrate
 
 "${compose[@]}" exec -T marketops-postgres \
-  psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "SELECT version, applied_at FROM schema_migrations ORDER BY applied_at DESC LIMIT 1;"
+  psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "SELECT version, applied_at FROM schema_migrations ORDER BY applied_at DESC LIMIT 2;"
 "${compose[@]}" exec -T marketops-postgres \
   psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "SELECT count(*) AS global_market_state_records, max(session_date) AS latest_session_date FROM subscriber_gateway_global_market_states;"
 "${compose[@]}" exec -T marketops-postgres \
