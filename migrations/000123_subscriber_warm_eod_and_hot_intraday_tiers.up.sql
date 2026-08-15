@@ -55,3 +55,21 @@ REVOKE ALL ON subscriber_global_eod_warm_set_activations FROM PUBLIC;
 REVOKE ALL ON subscriber_global_warm_eod_assets, subscriber_global_hot_intraday_assets FROM PUBLIC;
 GRANT SELECT, INSERT ON subscriber_global_eod_warm_set_activations TO signalops_subscriber_global_eod;
 GRANT SELECT ON subscriber_global_warm_eod_assets, subscriber_global_hot_intraday_assets TO signalops_subscriber_global_eod;
+
+
+-- The user-directed warm policy takes effect from the latest already-governed
+-- S2 plan. This is an auditable policy transition, not a per-run approval;
+-- provider work begins only when the separately deployed scheduler invokes the
+-- warm-EOD runner.
+INSERT INTO subscriber_global_eod_warm_set_activations
+  (activation_id, plan_run_id, activation_state, policy_version, activated_by, correlation_id, rationale, activated_at)
+SELECT
+  'subwarm-' || md5(plan.plan_run_id || ':subscriber-warm-eod-v1'),
+  plan.plan_run_id, 'enabled', 'subscriber-warm-eod-v1',
+  'subscriber-warm-eod-policy', 'subscriber-warm-eod-policy-20260815',
+  'automatic activation of the latest governed warm-EOD plan', now()
+FROM subscriber_global_eod_hot_set_plan_runs plan
+WHERE plan.selected_count > 0
+ORDER BY plan.planned_at DESC, plan.plan_run_id DESC
+LIMIT 1
+ON CONFLICT (activation_id) DO NOTHING;

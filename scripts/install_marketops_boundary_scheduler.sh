@@ -21,8 +21,12 @@ market_data_timers=(
   signalops-marketops-boundary-daily-postclose.timer
   signalops-marketops-boundary-postclose-recovery.timer
 )
+warm_eod_timers=(
+  signalops-marketops-boundary-warm-eod.timer
+)
 enable_sri=false
 enable_market_data=false
+enable_warm_eod=false
 
 [[ -n "$runtime_env" && -r "$runtime_env" ]] || {
   printf 'Provide a readable protected production Compose environment file as argument 1.\n' >&2
@@ -46,14 +50,15 @@ for flag in "${enable_flags[@]}"; do
   case "$flag" in
     --enable-sri) enable_sri=true ;;
     --enable-market-data) enable_market_data=true ;;
+    --enable-warm-eod) enable_warm_eod=true ;;
     "") ;;
     *)
-      printf "Optional flags must be --enable-sri and/or --enable-market-data.\n" >&2
+      printf "Optional flags must be --enable-sri, --enable-market-data, and/or --enable-warm-eod.\n" >&2
       exit 2
       ;;
   esac
 done
-for timer in "${sri_timers[@]}" "${market_data_timers[@]}"; do
+for timer in "${sri_timers[@]}" "${market_data_timers[@]}" "${warm_eod_timers[@]}"; do
   [[ -r "$root_dir/deploy/systemd/$timer" ]] || {
     printf 'Missing dedicated scheduler timer template: %s\n' "$timer" >&2
     exit 3
@@ -68,7 +73,7 @@ sed \
   -e "s|@RUN_AS_USER@|$run_as_user|g" \
   "$template" > "$temporary"
 install -m 0644 -o root -g root "$temporary" "$unit"
-for timer in "${sri_timers[@]}" "${market_data_timers[@]}"; do
+for timer in "${sri_timers[@]}" "${market_data_timers[@]}" "${warm_eod_timers[@]}"; do
   install -m 0644 -o root -g root "$root_dir/deploy/systemd/$timer" "/etc/systemd/system/$timer"
 done
 systemctl daemon-reload
@@ -82,6 +87,10 @@ if "$enable_market_data"; then
   systemctl enable --now "${market_data_timers[@]}"
   printf "Enabled controlled MarketOps timers: intraday every 15 minutes 09:30-20:00, post-close 18:01:55, and bounded recovery from 18:30 America/New_York.\n"
 fi
-if ! "$enable_sri" && ! "$enable_market_data"; then
-  printf "No timer was enabled. Use --enable-sri and/or --enable-market-data only with recorded approval.\n"
+if "$enable_warm_eod"; then
+  systemctl enable --now "${warm_eod_timers[@]}"
+  printf "Enabled centrally governed warm EOD acquisition: weekdays 18:00 America/New_York.\n"
+fi
+if ! "$enable_sri" && ! "$enable_market_data" && ! "$enable_warm_eod"; then
+  printf "No timer was enabled. Use --enable-sri, --enable-market-data, and/or --enable-warm-eod only with recorded approval.\n"
 fi

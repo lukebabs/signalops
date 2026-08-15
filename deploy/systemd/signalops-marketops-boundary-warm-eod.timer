@@ -1,0 +1,11 @@
+[Unit]
+Description=Run centrally governed MarketOps warm EOD acquisition
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 18:00:00 America/New_York
+Persistent=true
+AccuracySec=1min
+Unit=signalops-marketops-boundary-schedule@marketops-warm-eod.service
+
+[Install]
+WantedBy=timers.target
