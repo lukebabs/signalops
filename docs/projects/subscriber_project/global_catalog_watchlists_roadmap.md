@@ -213,7 +213,7 @@ Exit criterion: two users in one tenant can have separate private lists; a user 
 
 ### Phase C — Global EOD coverage
 
-Move the completed-session reconciliation queue and price-based algorithm planners to global active coverage. Maintain the top-1,000 hot set, then admit eligible cold symbols when one or more watchlist memberships create a deduplicated activation request. Run bounded pilot batches, measure provider requests, completeness, queue age, quality, activation-to-first-evidence time, and storage growth, then expand progressively.
+Move the completed-session reconciliation queue and price-based algorithm planners to global warm coverage. Maintain the top-1,000 warm EOD set, then admit eligible cold symbols when one or more watchlist memberships create a deduplicated activation request. Intraday processing is a separate hot tier: the deduplicated union of explicitly saved MarketOps watchlist selections. Run bounded pilot batches, measure provider requests, completeness, queue age, quality, activation-to-first-evidence time, and storage growth, then expand progressively.
 
 Exit criterion: the same globally covered symbol is ingested and calculated once per session even when used by multiple tenants.
 
@@ -234,7 +234,7 @@ Exit criterion: a new tenant can be provisioned with an entitlement tier and a d
 The project is ready to progress when it can demonstrate:
 
 - One global asset identity and one global EOD result per covered symbol/session.
-- The centrally governed hot set contains the approved top 1,000 eligible assets; a cold eligible asset selected by any authorized watchlist creates one auditable, deduplicated global activation request and transitions through truthful coverage states.
+- The centrally governed warm EOD set contains the approved top 1,000 eligible assets; a cold eligible asset selected by any authorized watchlist creates one auditable, deduplicated global activation request and transitions through truthful coverage states. Hot intraday eligibility derives only from an explicit saved watchlist selection and is globally deduplicated.
 - No cross-tenant list membership disclosure.
 - Personal lists plus tenant default render correctly for authenticated users.
 - Every list membership points to a governed global asset.

@@ -6,11 +6,12 @@ Status: discovery and architecture project. This documentation describes a targe
 
 Turn MarketOps into a subscription service in which customers receive an individualized experience over one centrally governed market-data and algorithm-processing plane.
 
-The platform will maintain one global catalog of Massive-eligible US common stocks and process the configured EOD MarketOps baseline once per covered symbol. The approved top 1,000 eligible assets form the hot baseline; an eligible cold asset selected in an authorized watchlist creates one globally deduplicated coverage-activation request and warms centrally. A tenant and its users consume authorized projections of that shared data. They will not create copies of assets, prices, features, states, algorithm outputs, or provider pulls.
+The platform will maintain one global catalog of Massive-eligible US common stocks and process the configured EOD MarketOps baseline once per covered symbol. The approved top 1,000 eligible assets form the **warm EOD baseline**; an eligible cold asset selected in an authorized watchlist creates one globally deduplicated coverage-activation request and warms centrally. A tenant and its users consume authorized projections of that shared data. They will not create copies of assets, prices, features, states, algorithm outputs, or provider pulls.
 
 ## Product decisions recorded
 
-- The initial global catalog scope is exchange-listed US common stocks that Massive can govern and identify. The centrally processed hot baseline is capped at the approved top 1,000 eligible assets; other governed eligible assets remain cold until demand activates them.
+- The initial global catalog scope is exchange-listed US common stocks that Massive can govern and identify. The centrally processed warm EOD baseline is capped at the approved top 1,000 eligible assets; other governed eligible assets remain cold until demand activates them.
+- The **hot intraday tier** is separate: it is the deduplicated union of assets in an explicitly saved MarketOps watchlist selection. Warm membership alone never produces intraday provider polling.
 - Price-based EOD ingestion, features, and algorithms run centrally for the active global coverage set.
 - Each tenant has a shared default watchlist. Each user has private watchlists and sees only those lists plus the tenant default.
 - Every watchlist entry references a global asset. Adding a hot symbol to a list is a membership change, not asset onboarding or data collection. Adding an eligible cold symbol also writes the membership, then creates one idempotent, auditable global activation request; the browser never calls Massive and the system shows `queued`/`warming_up` until central evidence is available.
