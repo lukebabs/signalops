@@ -41,3 +41,20 @@ grep -qx "SIGNALOPS_MARKETOPS_DATABASE_URL" <<< "$gateway_env_names" || { printf
 grep -qx "SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL" <<< "$gateway_env_names" || { printf "%s\n" "marketops_read_cutover_temporal_env_missing" >&2; exit 4; }
 docker logs "$gateway_id" 2>&1 | grep -Fq "MarketOps gateway reads are routed to the dedicated data boundary" || { printf "%s\n" "marketops_read_cutover_startup_evidence_missing" >&2; exit 4; }
 printf "%s\n" "marketops_read_cutover_gateway_verified"
+
+# The installed deployment agent invokes this root-only launcher. Run the
+# browser contract as the repository owner so its Playwright installation and
+# protected local QA configuration remain outside the root service account.
+qa_operator="${SIGNALOPS_DEPLOYMENT_QA_USER:-$(stat -c %U "$root_dir")}"
+[[ "$qa_operator" =~ ^[a-z_][a-z0-9_-]*$ ]] || {
+  printf "%s\n" "subscriber_pilot_ui_smoke_operator_invalid" >&2
+  exit 5
+}
+qa_home="$(getent passwd "$qa_operator" | cut -d: -f6)"
+[[ -n "$qa_home" && -d "$qa_home" ]] || {
+  printf "%s\n" "subscriber_pilot_ui_smoke_home_missing" >&2
+  exit 5
+}
+runuser -u "$qa_operator" -- env "HOME=$qa_home" "PLAYWRIGHT_BROWSERS_PATH=$qa_home/.cache/ms-playwright" \
+  "$root_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+printf "%s\n" "subscriber_pilot_ui_smoke_verified"
