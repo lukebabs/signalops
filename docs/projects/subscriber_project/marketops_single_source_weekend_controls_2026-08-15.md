@@ -1,6 +1,6 @@
 # MarketOps single-source and non-trading-day controls
 
-Status: source controls complete; live read-switch verification is required.
+Status: source controls complete; live Gateway read-switch verified 2026-08-15.
 
 ## Observed drift
 
@@ -50,3 +50,19 @@ scheduled MarketOps workload.
    artifacts for `skipped/non_trading_day` if they are manually invoked.
 5. Retain the shared copy until rollback and route-validation evidence are
    recorded; do not delete shared platform databases.
+
+## Deployment evidence — 2026-08-15
+
+The dedicated deployment agent executed the Gateway-only read-cutover release.
+The launcher rendered the protected cutover environment, rebuilt and replaced
+only `signalops-gateway-1`, and completed with
+`marketops_read_cutover_gateway_verified`. That result requires both dedicated
+MarketOps database settings on the replacement container and the Gateway's
+dedicated-read startup evidence. The public `GET /healthz` check then returned
+`{"service":"signalops-gateway","status":"ok"}`.
+
+This closes the live read-switch verification. The next operational acceptance
+is the first trading-day post-close run: it must materialize the global
+Options and Risk/Reward Dashboard projections for the completed session and
+show that session through protected MarketOps browser routes. The shared
+SignalOps database remains rollback evidence only and is not deleted.
