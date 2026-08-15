@@ -313,3 +313,12 @@ Migration `000125_subscriber_global_market_state_projection` creates the first t
 For a subscriber pilot with a selected watchlist, the Market State list endpoint now authorizes requested symbols from that list and reads this global projection. It is fail-closed: once the global-reader capability is active, an absent global state yields no state rather than falling back to a tenant-local row. The focused API contract proves a newer platform-global record is returned instead of an older `tenant-pilot-b` record. Legacy behavior remains unchanged for non-subscriber contexts and for routes not yet migrated.
 
 This is implementation evidence, not production activation. Before enabling the projection, apply migration `000125` to the dedicated MarketOps database, verify current materialized Market State coverage and freshness for the pilot list, deploy the Gateway, then retain the pilot browser result. Market State detail and lineage routes, plus EROC, valuation, EEOM, material events, Signal Assurance/outcomes, and SRI, remain separate global-reader slices and continue to block overall production readiness.
+
+
+### Market State global reader — migration applied, Gateway inactive — 2026-08-15
+
+The controlled deployment-agent action applied `000125_subscriber_global_market_state_projection` to the dedicated MarketOps primary at 2026-08-15 23:47 UTC. Its verification found 1,250 platform-global Market State records through the completed 2026-08-14 session. The view is owned by `signalops_subscriber_migrator`; `signalops_subscriber_gateway` has `SELECT` only; `PUBLIC` has no grant. The action neither changed the temporal database nor restarted the Gateway or any scheduler.
+
+The same run reconciled a historical migration-ledger omission for `000124_subscriber_global_risk_reward_projection`: its earlier DDL had created the named view but had not recorded the schema-migrations row. The repair reran only that known idempotent DDL with `CREATE OR REPLACE VIEW`, reasserted its ownership and grants, and recorded the missing version before applying `000125`. It did not alter evidence records, coverage, provider data, or tenant memberships.
+
+The next gate is a dedicated Gateway deployment followed by the pilot browser contract and a direct authorized Market State response check. Until that gate passes, the deployed UI must retain the existing truthful unmaterialized-state presentation.
