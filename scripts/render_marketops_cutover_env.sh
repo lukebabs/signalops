@@ -8,21 +8,14 @@ set -euo pipefail
 
 source_env="${1:-/etc/signalops/marketops-boundary.env}"
 output_env="${2:-/etc/signalops/marketops-cutover.env}"
+# shellcheck source=lib/marketops_boundary_env.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_boundary_env.sh"
 [[ -r "$source_env" ]] || {
   printf 'MarketOps boundary secret file is not readable: %s\n' "$source_env" >&2
   exit 3
 }
 
-set -a
-# shellcheck disable=SC1090
-. "$source_env"
-set +a
-for name in SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD; do
-  [[ "${!name:-}" =~ ^[A-Za-z0-9]{32,}$ ]] || {
-    printf '%s must be a URL-safe 32-character minimum secret\n' "$name" >&2
-    exit 2
-  }
-done
+load_marketops_boundary_env "$source_env"
 
 output_dir="$(dirname "$output_env")"
 install -d -m 0750 -o root -g root "$output_dir"

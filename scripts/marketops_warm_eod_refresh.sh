@@ -20,7 +20,11 @@ while (($# > 0)); do
     *) printf 'unknown argument: %s\n' "$1" >&2; exit 2 ;;
   esac
 done
-if [[ -f .env ]]; then set -a; . ./.env; set +a; fi
+if [[ -f .env ]]; then
+  # shellcheck source=lib/dotenv.sh
+  source "$root_dir/scripts/lib/dotenv.sh"
+  load_dotenv "$root_dir/.env"
+fi
 timezone="${MARKETOPS_WARM_EOD_TIMEZONE:-America/New_York}"
 batch_size="${MARKETOPS_WARM_EOD_BATCH_SIZE:-100}"
 normalization_timeout="${MARKETOPS_WARM_EOD_NORMALIZATION_TIMEOUT_SECONDS:-900}"

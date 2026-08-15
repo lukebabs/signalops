@@ -2,9 +2,19 @@
 set -euo pipefail
 
 job_id="$1"; schedule="$2"; timezone="$3"; shift 3
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/marketops_trading_calendar.sh
+source "$root_dir/scripts/lib/marketops_trading_calendar.sh"
 status_dir="${SIGNALOPS_SCHEDULE_STATUS_DIR:-$(pwd)/runtime/scheduled-jobs}"
 mkdir -p "$status_dir"
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+if marketops_is_weekend "$timezone" && ! marketops_weekend_permitted_job "$job_id"; then
+  printf "{\"job_id\":\"%s\",\"schedule\":\"%s\",\"timezone\":\"%s\",\"status\":\"skipped\",\"reason\":\"non_trading_day\",\"started_at\":\"%s\",\"completed_at\":\"%s\",\"exit_code\":0}\n" "$job_id" "$schedule" "$timezone" "$started_at" "$started_at" > "$status_dir/.${job_id}.tmp"
+  mv "$status_dir/.${job_id}.tmp" "$status_dir/${job_id}.json"
+  printf "skipped non-trading-day job: %s\n" "$job_id"
+  exit 0
+fi
+
 printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"running","started_at":"%s"}\n' "$job_id" "$schedule" "$timezone" "$started_at" > "$status_dir/.${job_id}.tmp"
 mv "$status_dir/.${job_id}.tmp" "$status_dir/${job_id}.json"
 

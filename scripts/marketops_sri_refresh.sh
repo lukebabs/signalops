@@ -24,10 +24,9 @@ while (($# > 0)); do
 done
 
 if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
+  # shellcheck source=lib/dotenv.sh
+  source "$ROOT_DIR/scripts/lib/dotenv.sh"
+  load_dotenv "$ROOT_DIR/.env"
 fi
 
 timezone="${MARKETOPS_SRI_TIMEZONE:-America/New_York}"

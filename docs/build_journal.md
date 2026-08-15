@@ -1,5 +1,39 @@
 # SignalOps Build Journal
 
+## 2026-08-15T20:35:00Z
+
+Summary:
+
+- Added the dedicated MarketOps read-cutover verification and a data-only allowlisted boundary-secret loader.
+- Added a non-trading-day scheduler guard: market-data jobs skip weekends while three explicit maintenance jobs remain allowed.
+
+Files changed:
+
+- `scripts/deploy_marketops_read_cutover.sh`
+- `scripts/render_marketops_cutover_env.sh`
+- `scripts/lib/marketops_boundary_env.sh`
+- `scripts/lib/dotenv.sh` and the scheduled EOD/recovery entry points
+- `scripts/lib/marketops_trading_calendar.sh`
+- `scripts/marketops_scheduled_job.sh`
+- `deploy/systemd/signalops-marketops-fmp-continuation.timer`
+- `docs/projects/subscriber_project/marketops_single_source_weekend_controls_2026-08-15.md`
+
+Rationale:
+
+- The live dashboard was reading the shared store while completed MarketOps writes reached the dedicated store, leaving dashboard dates stale.
+- Saturday must not trigger EOD, intraday, or other market-data workflows.
+- The scheduled EOD and recovery path must parse `.env` as data, never execute it as shell code.
+
+Verification performed:
+
+- Shell syntax validation passed.
+- A disposable Saturday proof recorded EOD dispatch as skipped and permitted the explicit operations-monitor maintenance dispatch.
+
+Next step:
+
+- Deploy the Gateway read-cutover with its protected production environment and verify the dedicated data source before any scheduler resume.
+
+
 This journal is the ongoing record of SignalOps build progress. Entries are
 append-only unless correcting factual errors. All timestamps are UTC.
 
