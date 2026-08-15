@@ -81,16 +81,43 @@ func registerMarketOpsMarketStateRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsMarketStates(r.Context(), storage.MarketOpsMarketStateFilter{
+		filter := storage.MarketOpsMarketStateFilter{
 			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
 			AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")),
 			StateSchemaVersion: strings.TrimSpace(r.URL.Query().Get("state_schema_version")),
 			QualityState:       strings.TrimSpace(r.URL.Query().Get("quality_state")), SessionStart: start, SessionEnd: end,
 			Limit: queryLimit(r, 50),
-		})
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps market states")
-			return
+		}
+		var records []storage.MarketOpsMarketStateRecord
+		var err error
+		globalRead := false
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			if globalReader, supported := any(repo).(storage.SubscriberGlobalMarketStateRepository); supported {
+				symbols := make([]string, 0, len(watchlistContext.Tickers))
+				requestedSymbol := strings.ToUpper(strings.TrimSpace(filter.Symbol))
+				if requestedSymbol != "" {
+					if _, allowed := watchlistContext.Tickers[requestedSymbol]; allowed {
+						symbols = append(symbols, requestedSymbol)
+					}
+				} else {
+					for symbol := range watchlistContext.Tickers {
+						symbols = append(symbols, symbol)
+					}
+				}
+				records, err = globalReader.ListSubscriberGlobalMarketOpsMarketStates(r.Context(), symbols, filter)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "query_failed", "failed to load global MarketOps market states")
+					return
+				}
+				globalRead = true
+			}
+		}
+		if !globalRead {
+			records, err = repo.ListMarketOpsMarketStates(r.Context(), filter)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps market states")
+				return
+			}
 		}
 		if subscriberWatchlistContextEnabled(cfg, tenantID) {
 			visible := records[:0]

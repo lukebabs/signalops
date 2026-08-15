@@ -41,3 +41,10 @@ type SubscriberGlobalRiskRewardSnapshotRepository interface {
 type SubscriberGlobalOptionsDistributionRepository interface {
 	ListSubscriberGlobalOptionsDistributions(context.Context, []string, time.Time, int) ([]MarketOpsOptionsDistributionRecord, error)
 }
+
+// SubscriberGlobalMarketStateRepository returns only the platform-owned,
+// parity-approved Market State projection. Callers authorize symbols through
+// a selected watchlist before invoking it.
+type SubscriberGlobalMarketStateRepository interface {
+	ListSubscriberGlobalMarketOpsMarketStates(context.Context, []string, MarketOpsMarketStateFilter) ([]MarketOpsMarketStateRecord, error)
+}
