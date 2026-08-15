@@ -25,8 +25,8 @@ copy_missing() {
   printf "Reconciled %s.%s: inserted %s missing rows.\n" "$destination_db" "$table" "$inserted"
 }
 
+copy_missing "$src_primary" "$src_primary_db" "$dst_primary" "$dst_primary_db" signal_ledger "app_id = 'marketops'"
 copy_missing "$src_primary" "$src_primary_db" "$dst_primary" "$dst_primary_db" marketops_dsm_artifacts "true"
 copy_missing "$src_primary" "$src_primary_db" "$dst_primary" "$dst_primary_db" marketops_dsm_graph_proposals "true"
-copy_missing "$src_primary" "$src_primary_db" "$dst_primary" "$dst_primary_db" signal_ledger "app_id = 'marketops'"
 copy_missing "$src_temporal" "$src_temporal_db" "$dst_temporal" "$dst_temporal_db" normalized_event_ledger "app_id = 'marketops'"
 copy_missing "$src_temporal" "$src_temporal_db" "$dst_temporal" "$dst_temporal_db" signal_ledger "app_id = 'marketops'"
