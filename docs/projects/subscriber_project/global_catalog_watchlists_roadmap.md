@@ -290,3 +290,15 @@ MarketOps resolves a user’s first private list when no saved context exists; t
 ### Browser acceptance evidence — 2026-08-14
 
 The pilot user for `tenant-pilot-b` selected `First List` through the Watchlists **Use across MarketOps** action. The retained `signalops.syncratic.io-testsignal-04.har` records a `200` context mutation and subsequent `First List` responses for Assets, Dashboard signal overview, and Market State. Assets rendered usable shared EOD rows for AAPL and NVDA; NOW and SNOW remained pending because they have no usable central EOD evidence. The follow-up `signalops.syncratic.io-testsignal-05.har` records `200` responses carrying `First List` context for EROC, Material Events, Valuation, EEOM, and both Market State list requests. This closes the pilot browser acceptance for shared watchlist-context propagation.
+
+
+### Global analytical-evidence materialization — next-cycle foundation
+
+The global catalog is not complete merely because a tenant membership resolves to a canonical symbol. Every analytical view must ultimately read a single-copy, platform-owned record by `global_asset_id`; it must not create a tenant-local clone or infer a score from a raw EOD bar. Migration `000122` and the `subscriber-global-marketops-evidence-materializer` establish the first safe transition path for existing evidence:
+
+- The materializer accepts only an immutable, mapped parity-manifest run and its manifest entries.
+- It reads the fixed tenant-local parity source through the restricted worker role, appends globally identified evidence with the source fingerprint and provenance, and never calls a provider or changes a legacy row.
+- Each appended run declares `legacy_materialized` execution and `legacy_materialization` source scope. The global coverage view may report that provenance, but remains metadata-only.
+- Type-specific gateway readers for Dashboard, EROC, Material Events, Valuation, EEOM, Market State, SAF, SRI, intraday, and Risk/Reward remain independently gated. A projection may be enabled only after its parity, freshness, authorization, and browser acceptance evidence is retained.
+
+This sequencing keeps the ownership model explicit: catalogue identity and analytical evidence are global; tenant data is limited to entitlement, membership, list preference, and authorized projection selection. An asset without materialized central evidence remains Pending; it is never rendered with fabricated historical or algorithmic data.

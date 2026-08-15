@@ -7993,3 +7993,10 @@ Next-cycle priority:
 - Verified the dedicated shared EOD canary has usable immutable baseline observations only for AAPL and NVDA, both for the 2026-08-12 completed session. The other selected symbols remain `active` catalog references in shadow mode, but do not yet have shared EOD evidence.
 - Updated the authorized projection so a selected member with verified shared EOD context is visible to its tenant without creating a tenant-local asset copy. Asset detail and Dashboard coverage expose that central evidence; unobserved members remain explicitly pending.
 - Algorithm-derived Dashboard breadth remains withheld until the global algorithm pipeline materializes its own outputs. A raw shared EOD observation is not represented as a Risk/Reward score, hypothesis, options signal, or recommendation.
+
+
+## 2026-08-15 — Global analytical evidence materialization foundation
+
+- Added migration `000122_subscriber_global_legacy_evidence_materialization` and the controlled `subscriber-global-marketops-evidence-materializer`.
+- The runner requires `--execute` and an immutable mapped parity-manifest run. It appends globally identified legacy evidence with exact source fingerprints and provenance; it makes no provider request, rewrites no legacy record, and creates no tenant-local projection.
+- The coverage projection can identify materialized central evidence, but remains metadata-only. Dashboard, EROC, Material Events, Valuation, EEOM, Market State, SAF, SRI, intraday, and Risk/Reward require separate type-specific parity, freshness, authorization, and browser gates before their global records are displayed.
