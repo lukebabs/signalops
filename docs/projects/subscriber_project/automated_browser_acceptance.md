@@ -10,6 +10,20 @@ The Subscriber Project must not depend on manually exported HAR files for routin
 
 Use a non-human, read-only QA account in an isolated tenant. Do not use a personal account, an administrator, or a production customer identity. The QA account needs MarketOps read access and one pre-seeded private list with safe fixture symbols. Its password must exist only in a root-readable deployment secret; it is never committed, printed, or attached to CI output.
 
+## Pilot account mapping
+
+The read-only launcher `scripts/run_subscriber_pilot_ui_smoke.sh` maps the protected
+`SIGNALOPS_WEB` and `SIGNALOPS_WEB_PASS` values to the suite's pilot identity. It
+uses the verified `tenant-pilot-b` fixture by default: `First List`, shared
+`AAPL,NVDA`, and pending `NOW,SNOW`. It parses `.env` as literal data through
+`scripts/lib/dotenv.sh`; it does not source or print that file.
+
+`SIGNALOPS_WEB_ADMIN` and `SIGNALOPS_WEB_PASS_ADMIN` identify the tenant-local
+administrator. They are intentionally excluded from the normal subscriber
+smoke: production user-journey evidence must be produced by the isolated,
+read-only pilot identity. A future tenant-local admin check must be an explicit
+separate control with its own narrowly scoped assertions.
+
 ## Installation
 
 The repository pins the browser-test dependency in `python/requirements-e2e.txt`.
