@@ -74,6 +74,9 @@ trap 'status=$?; restore_shared; exit "$status"' EXIT
 "$root_dir/scripts/preflight_marketops_writer_cutover.sh" "$mode"
 "${base[@]}" stop "${continuous_writers[@]}"
 restoration_required=true
+if [[ "$mode" == "--dedicated-authoritative" ]]; then
+  "$root_dir/scripts/reconcile_marketops_writer_cutover_gap.sh"
+fi
 "$root_dir/scripts/preflight_marketops_writer_cutover.sh" "$mode"
 
 "${base[@]}" \
