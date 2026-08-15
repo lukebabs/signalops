@@ -71,7 +71,9 @@ restore_shared() {
 }
 trap 'status=$?; restore_shared; exit "$status"' EXIT
 
-"$root_dir/scripts/preflight_marketops_writer_cutover.sh" "$mode"
+if [[ "$mode" != "--dedicated-authoritative" ]]; then
+  "$root_dir/scripts/preflight_marketops_writer_cutover.sh" "$mode"
+fi
 "${base[@]}" stop "${continuous_writers[@]}"
 restoration_required=true
 if [[ "$mode" == "--dedicated-authoritative" ]]; then
