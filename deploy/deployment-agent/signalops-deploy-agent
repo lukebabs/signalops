@@ -68,6 +68,9 @@ case "$action" in
   marketops-warm-eod-enable)
     run "$repository_dir/scripts/install_marketops_boundary_scheduler.sh" "$repository_dir/.env" "adminalien" --enable-warm-eod
     ;;
+  marketops-global-market-state-migration)
+    run "$repository_dir/scripts/apply_marketops_migration_000125.sh" "$repository_dir/.env"
+    ;;
   subscriber-pilot-ui-smoke)
     [[ "$actor" =~ ^[a-z_][a-z0-9_-]*$ && "$actor" != "unknown" ]] || {
       printf "%s\n" "subscriber_pilot_ui_smoke_operator_invalid" >&2

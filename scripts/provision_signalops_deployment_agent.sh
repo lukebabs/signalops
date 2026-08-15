@@ -39,4 +39,4 @@ install -m 0440 -o root -g root "$temporary" "$sudoers_file"
 
 printf 'Installed SignalOps deployment-control agent.\n'
 printf 'Allowed operator: %s\n' "$operator"
-printf 'Available actions: render-cutover-env, scheduler-preflight, scheduler-intraday-run, scheduler-intraday-enable, scheduler-intraday-disable, scheduler-status, operations-monitor-install, operations-monitor-run, operations-monitor-enable, operations-monitor-disable, watch-limits-stage, backup-run, restore-rehearsal-run, marketops-recovery-resume, subscriber-pilot-ui-smoke\n'
+printf 'Available actions: render-cutover-env, scheduler-preflight, scheduler-intraday-run, scheduler-intraday-enable, scheduler-intraday-disable, scheduler-status, operations-monitor-install, operations-monitor-run, operations-monitor-enable, operations-monitor-disable, watch-limits-stage, backup-run, restore-rehearsal-run, marketops-recovery-resume, marketops-global-market-state-migration, subscriber-pilot-ui-smoke\n'
