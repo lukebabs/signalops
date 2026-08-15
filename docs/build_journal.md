@@ -8022,3 +8022,10 @@ Next-cycle priority:
 - Corrected the parity-manifest source selection to exclude legacy records that already have a mapped immutable manifest entry. This allows each bounded run to advance through previously unseen evidence rather than repeatedly creating the bootstrap batch. Unmapped and ambiguous records remain eligible for a future remapping review.
 - Focused Go tests passed for both restricted runners. A live provider-free feature-vector batch proved the behavior: it selected the next 1,000 fully mapped records after the original 250 and appended all 1,000 under restricted-role provenance.
 - The global feature-vector ledger now contains 1,250 immutable records across 101 materialization runs. This remains a ledger/provenance advance only; analytical read projection and freshness gates are still closed.
+
+
+## 2026-08-15 — Current Market State global-evidence batch
+
+- Added deterministic `--newest-first` selection to the restricted parity runner. This is a bounded catch-up control, not a change to source data, and keeps historical oldest-first imports available for later audit work.
+- Materialized a 1,000-record newest-first Market State manifest after a restricted-role preflight: it includes 132 records for the 2026-08-14 completed session and coverage back through 2026-08-05.
+- The imported Market State records are all `partial`, matching their retained source quality. No Market State or Dashboard projection is enabled from this batch: currentness alone does not override completeness, parity, authorization, or browser gates.

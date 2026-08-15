@@ -53,6 +53,7 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("subscriber-global-marketops-parity-manifest", flag.ContinueOnError)
 	databaseURL := flags.String("database-url", os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL"), "dedicated MarketOps global-worker database URL")
 	evidenceKinds := flags.String("evidence-kinds", "feature_vector,market_state,valuation,eeom,signal_assertion,outcome", "comma-separated supported evidence kinds")
+	newestFirst := flags.Bool("newest-first", false, "select newest unmanifested source records first")
 	limit := flags.Int("limit", 1000, "bounded source rows per immutable manifest (1-50000)")
 	correlationID := flags.String("correlation-id", "", "optional operator correlation ID")
 	actor := flags.String("actor", workerIdentity, "must be subscriber-global-eod-reconciler")
@@ -91,7 +92,7 @@ func run(args []string) error {
 		return err
 	}
 
-	entries, err := readManifestEntries(ctx, db, kinds, *limit)
+	entries, err := readManifestEntries(ctx, db, kinds, *limit, *newestFirst)
 	if err != nil {
 		return err
 	}
@@ -168,10 +169,14 @@ FROM pg_roles WHERE rolname=current_user`).Scan(&currentUser, &superuser, &creat
 	return nil
 }
 
-func readManifestEntries(ctx context.Context, db *sql.DB, kinds []string, limit int) ([]manifestEntry, error) {
+func readManifestEntries(ctx context.Context, db *sql.DB, kinds []string, limit int, newestFirst bool) ([]manifestEntry, error) {
 	quotedKinds := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
 		quotedKinds = append(quotedKinds, fmt.Sprintf("'%s'", kind))
+	}
+	orderDirection := "ASC"
+	if newestFirst {
+		orderDirection = "DESC"
 	}
 	rows, err := db.QueryContext(ctx, `SELECT source.evidence_kind,source.legacy_record_id,source.legacy_symbol,source.legacy_session_date,
   source.legacy_algorithm_id,source.legacy_algorithm_version,source.legacy_quality_state,source.legacy_payload::text,source.legacy_created_at,
@@ -191,7 +196,7 @@ WHERE source.evidence_kind IN (`+strings.Join(quotedKinds, ",")+`)
       AND prior.legacy_record_id=source.legacy_record_id
       AND prior.mapping_status='mapped'
   )
-ORDER BY source.evidence_kind,source.legacy_session_date,source.legacy_record_id
+ORDER BY source.evidence_kind,source.legacy_session_date `+orderDirection+`,source.legacy_record_id `+orderDirection+`
 LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("read tenant-local parity source: %w", err)
