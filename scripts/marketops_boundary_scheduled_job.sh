@@ -20,6 +20,7 @@ case "$job_id" in
     exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 18:01:55" America/New_York ./scripts/marketops_daily_postclose.sh --write
     ;;
   marketops-warm-eod)
+    export MARKETOPS_WARM_EOD_ACKNOWLEDGE_WRITES=true
     exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 18:00" America/New_York ./scripts/marketops_warm_eod_refresh.sh --write
     ;;
   marketops-sri-refresh)
