@@ -17,3 +17,20 @@ services:
   marketops-signal-assurance-worker:
     env_file:
       - /etc/signalops/marketops-cutover.env
+
+
+  subscriber-global-marketops-parity-manifest:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-marketops-parity-manifest
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:-}
+
+  subscriber-global-marketops-evidence-materializer:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-marketops-evidence-materializer
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:-}

@@ -55,6 +55,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-r
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-adjudicator ./cmd/marketops-algorithm-adjudicator
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-asset-backfill-worker ./cmd/marketops-asset-backfill-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-proposal-generator ./cmd/algorithm-proposal-generator
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-marketops-parity-manifest ./cmd/subscriber-global-marketops-parity-manifest
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-marketops-evidence-materializer ./cmd/subscriber-global-marketops-evidence-materializer
 
 FROM python:3.12-slim AS gateway
 
@@ -341,3 +343,12 @@ ENTRYPOINT ["/signalops-retention-governor"]
 FROM gcr.io/distroless/static-debian12:nonroot AS administration-notification-recorder
 COPY --from=build /out/signalops-administration-notification-recorder /signalops-administration-notification-recorder
 ENTRYPOINT ["/signalops-administration-notification-recorder"]
+
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-marketops-parity-manifest
+COPY --from=build /out/signalops-subscriber-global-marketops-parity-manifest /signalops-subscriber-global-marketops-parity-manifest
+ENTRYPOINT ["/signalops-subscriber-global-marketops-parity-manifest"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-marketops-evidence-materializer
+COPY --from=build /out/signalops-subscriber-global-marketops-evidence-materializer /signalops-subscriber-global-marketops-evidence-materializer
+ENTRYPOINT ["/signalops-subscriber-global-marketops-evidence-materializer"]

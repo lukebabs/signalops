@@ -8007,3 +8007,11 @@ Next-cycle priority:
 - The centrally governed warm tier will not request five years of price history. Its one-time initial-history policy matches the existing analyst watchlist default: rewind 50 weekdays from a selected completed-session end date and include that end date (at most 51 weekday observations before market holidays).
 - This is equity EOD only: it has no options or intraday capture path and must be invoked as a one-time controlled run rather than installed as recurring schedule.
 - The global analytical-evidence materialization, type-specific parity, freshness, authorization, and browser gates remain mandatory before subscriber views consume the retained history.
+
+
+## 2026-08-15 — Global analytical-evidence materialization bootstrap
+
+- Packaged the restricted `subscriber-global-marketops-parity-manifest` and `subscriber-global-marketops-evidence-materializer` workloads in the dedicated MarketOps Compose topology. Their runtime database URL comes only from the protected cutover environment.
+- Materialized the five immutable, fully mapped 2026-08-14 parity manifests through `signalops_subscriber_global_eod`: EEOM 75, feature vectors 250, Market State 250, valuation 250, and outcomes 250—**1,075 global evidence records** total. No provider was called and no tenant-local source record was changed.
+- Each resulting evidence run is append-only, `legacy_materialized`, `legacy_materialization`, and retains its parity-run/fingerprint provenance. Re-running the EEOM manifest inserted zero additional records, demonstrating idempotency.
+- These records remain metadata-only until each type-specific read projection proves parity, freshness, authorization, and browser acceptance. The materialization bootstrap therefore advances the production blocker but does not close it.

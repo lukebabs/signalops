@@ -302,3 +302,5 @@ The global catalog is not complete merely because a tenant membership resolves t
 - Type-specific gateway readers for Dashboard, EROC, Material Events, Valuation, EEOM, Market State, SAF, SRI, intraday, and Risk/Reward remain independently gated. A projection may be enabled only after its parity, freshness, authorization, and browser acceptance evidence is retained.
 
 This sequencing keeps the ownership model explicit: catalogue identity and analytical evidence are global; tenant data is limited to entitlement, membership, list preference, and authorized projection selection. An asset without materialized central evidence remains Pending; it is never rendered with fabricated historical or algorithmic data.
+
+On 2026-08-15, the first five fully mapped manifests were appended through that restricted path: 1,075 records across EEOM (75), feature vectors (250), Market State (250), valuation (250), and outcomes (250). The global coverage ledger now has immutable provenance for those records, but no analytical read projection has been enabled; the type-specific parity, freshness, authorization, and browser gates remain mandatory.
