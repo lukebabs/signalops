@@ -68,6 +68,9 @@ case "$action" in
   marketops-warm-eod-enable)
     run "$repository_dir/scripts/install_marketops_boundary_scheduler.sh" "$repository_dir/.env" "adminalien" --enable-warm-eod
     ;;
+  marketops-gateway-deploy)
+    run "/scripts/deploy_marketops_read_cutover.sh" "/.env"
+    ;;
   marketops-writer-cutover)
     systemctl stop signalops-marketops-boundary-schedule@marketops-daily-postclose.service signalops-marketops-boundary-schedule@marketops-postclose-recovery.service || true
     run "$repository_dir/scripts/deploy_marketops_writer_cutover.sh" --dedicated-authoritative "$repository_dir/.env"
