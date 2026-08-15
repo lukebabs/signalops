@@ -59,6 +59,12 @@ case "$action" in
     systemctl start signalops-marketops-boundary-schedule@marketops-daily-postclose.service
     audit success
     ;;
+  marketops-postclose-status-reconcile)
+    run systemctl start signalops-marketops-boundary-schedule@marketops-postclose-recovery.service
+    ;;
+  marketops-sri-refresh-run)
+    run systemctl start signalops-marketops-boundary-schedule@marketops-sri-refresh.service
+    ;;
   marketops-writer-cutover)
     systemctl stop signalops-marketops-boundary-schedule@marketops-daily-postclose.service signalops-marketops-boundary-schedule@marketops-postclose-recovery.service || true
     run "$repository_dir/scripts/deploy_marketops_writer_cutover.sh" --dedicated-authoritative "$repository_dir/.env"
