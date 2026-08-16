@@ -86,11 +86,6 @@ func authorizedEROCTickers(context subscriberWatchlistContext, requested string)
 }
 
 func loadEROCRows(w http.ResponseWriter, r *http.Request, cfg RouterConfig) ([]storage.MarketOpsValuationResultRecord, subscriberWatchlistContext, bool) {
-	repo, ok := any(cfg.QueryRepository).(storage.MarketOpsValuationRepository)
-	if !ok {
-		writeEROCErr(w, errEROCAvailable{})
-		return nil, subscriberWatchlistContext{}, false
-	}
 	tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
 	if !ok {
 		return nil, subscriberWatchlistContext{}, false
@@ -100,14 +95,22 @@ func loadEROCRows(w http.ResponseWriter, r *http.Request, cfg RouterConfig) ([]s
 		return nil, subscriberWatchlistContext{}, false
 	}
 	if subscriberWatchlistContextEnabled(cfg, tenantID) {
-		if globalReader, supported := any(repo).(storage.SubscriberGlobalEROCRepository); supported {
-			rows, err := globalReader.ListSubscriberGlobalEROCResults(r.Context(), authorizedEROCTickers(watchlistContext, r.URL.Query().Get("symbol")), 5000)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, "query_failed", "failed to load global EROC results")
-				return nil, subscriberWatchlistContext{}, false
-			}
-			return rows, watchlistContext, true
+		globalReader, supported := any(cfg.QueryRepository).(storage.SubscriberGlobalEROCRepository)
+		if !supported {
+			writeError(w, http.StatusServiceUnavailable, "global_eroc_unavailable", "global EROC projection is unavailable")
+			return nil, subscriberWatchlistContext{}, false
 		}
+		rows, err := globalReader.ListSubscriberGlobalEROCResults(r.Context(), authorizedEROCTickers(watchlistContext, r.URL.Query().Get("symbol")), 5000)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to load global EROC results")
+			return nil, subscriberWatchlistContext{}, false
+		}
+		return rows, watchlistContext, true
+	}
+	repo, supported := any(cfg.QueryRepository).(storage.MarketOpsValuationRepository)
+	if !supported {
+		writeEROCErr(w, errEROCAvailable{})
+		return nil, subscriberWatchlistContext{}, false
 	}
 	rows, err := repo.ListMarketOpsValuationResults(r.Context(), storage.MarketOpsValuationFilter{TenantID: tenantID, Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), AlgorithmID: erocAlgorithmID, Limit: 5000})
 	if err != nil {
