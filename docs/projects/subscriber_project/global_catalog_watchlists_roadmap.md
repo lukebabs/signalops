@@ -408,3 +408,12 @@ bounded legacy input bridge explicitly: `SIGNALOPS_SRI_INPUT_TENANT_ID`
 defaults to `tenant-local`, while `SIGNALOPS_SRI_OUTPUT_TENANT_ID` defaults to
 `platform-global`. This input bridge is a tracked production-readiness debt,
 not a tenant-local serving fallback.
+
+### Runtime-role grant correction — 2026-08-16
+
+The first SRI browser acceptance run exposed a database-role mismatch: the
+Gateway runtime connects as `signalops`, while the new views had initially been
+granted only to the logical `signalops_subscriber_gateway` reader role.
+Migration `000133` grants `signalops` read access to the same five
+security-barrier global SRI views only. It grants neither raw SRI tables nor a
+tenant-local fallback.
