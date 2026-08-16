@@ -1,7 +1,8 @@
 # FMP Annual Financial Enrichment and VC/DOSM v4
 
-**Status:** implemented as a disabled central-capture and scoring foundation;
-not yet scheduled, populated, reader-exposed, or promoted over v3.
+**Status:** the additive evidence schema is applied; the central-capture and
+scoring foundation is disabled. It is not yet scheduled, populated,
+reader-exposed, or promoted over v3.
 
 ## Decision
 
@@ -61,8 +62,9 @@ Signal Assurance assertion is created by this profile.
 
 ## Required activation gates
 
-1. Apply migration `000136_subscriber_global_annual_financial_evidence` to the
-   dedicated MarketOps primary database.
+1. Migration `000136_subscriber_global_annual_financial_evidence` was applied
+   to the dedicated MarketOps primary on 2026-08-16. It changes only allowed
+   evidence kinds/execution modes; it creates no provider capture or reader.
 2. Verify the configured FMP credential against all five annual endpoints with
    one bounded non-writing preflight. A 402/403 or incomplete response leaves
    the worker disabled.
