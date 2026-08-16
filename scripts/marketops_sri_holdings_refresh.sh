@@ -10,4 +10,4 @@ if ! flock -n 9; then
   exit 0
 fi
 cd "$ROOT_DIR"
-marketops_compose --profile marketops-daily run --rm --no-deps marketops-sri-holdings-runner --tenant-id "${SIGNALOPS_TENANT_ID:-tenant-local}"
+marketops_compose --profile marketops-daily run --rm --no-deps marketops-sri-holdings-runner --tenant-id "${SIGNALOPS_SRI_OUTPUT_TENANT_ID:-platform-global}"

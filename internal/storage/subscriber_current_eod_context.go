@@ -77,3 +77,14 @@ type SubscriberGlobalSignalAssuranceEffectivenessRepository interface {
 	ListSubscriberGlobalSignalAssuranceEffectivenessObservations(context.Context, []string, SignalAssuranceEffectivenessFilter) ([]SignalAssuranceEffectivenessObservationRecord, error)
 	ListSubscriberGlobalSignalAssuranceRecommendations(context.Context, []string, SignalAssuranceEffectivenessFilter) ([]SignalAssuranceRecommendationRecord, error)
 }
+
+// SubscriberGlobalSRIRepository reads the platform-owned sector intelligence
+// foundation. SRI is market-wide context, while the selected watchlist remains
+// the caller's authorized UI context; no tenant-local SRI result is a fallback.
+type SubscriberGlobalSRIRepository interface {
+	ListSubscriberGlobalSRISegments(context.Context, bool, int) ([]MarketOpsSRISegmentRecord, error)
+	ListSubscriberGlobalSRIETFRegistry(context.Context, string) ([]MarketOpsSRIETFRecord, error)
+	ListSubscriberGlobalSRISnapshots(context.Context, MarketOpsSRISnapshotFilter) ([]MarketOpsSRISnapshotRecord, error)
+	GetLatestSubscriberGlobalSRIETFHoldingsSnapshot(context.Context, string) (MarketOpsSRIETFHoldingsSnapshotRecord, bool, error)
+	ListSubscriberGlobalSRIETFHoldings(context.Context, string, int) ([]MarketOpsSRIETFHoldingRecord, error)
+}

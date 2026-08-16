@@ -27,7 +27,7 @@ func run() error {
 	if app.DatabaseURL == "" {
 		return fmt.Errorf("SIGNALOPS_DATABASE_URL is required")
 	}
-	tenant := flag.String("tenant-id", "tenant-local", "tenant")
+	tenant := flag.String("tenant-id", "platform-global", "output data scope")
 	flag.Parse()
 	repo, err := postgres.Open(context.Background(), app.DatabaseURL)
 	if err != nil {

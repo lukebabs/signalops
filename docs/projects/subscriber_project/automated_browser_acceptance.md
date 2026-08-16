@@ -130,3 +130,12 @@ The Material Events API regression contract requires selected-watchlist symbols 
 ## Global Signal Assurance historical-outcome acceptance — 2026-08-16
 
 The global SAF projection contains 92 complete directional historical outcomes, of which 46 are directional matches, from the immutable legacy-parity materialization. The isolated pilot list contains seven applicable observations across NOW and NVDA. The reader is filtered by the selected watchlist, reads only the restricted `platform-global` projection, and is fail-closed when that projection is unavailable. There are currently **zero** confirmed SAF assertions; the UI and API explicitly disclose that absence rather than upgrading historical outcomes into SAF assertions. The browser contract now requires the global scope, the persisted watchlist context, a non-empty historical cohort, and `LEGACY` evidence source only.
+
+### SRI platform-global acceptance
+
+For the pilot subscriber, navigate to `/marketops/sectors` and assert that the
+rankings response has `data_scope: "platform-global"`, a resolved authorized
+`watchlist_context`, non-empty historical snapshots, and the research-only
+evidence note. Exercise one ETF progression and issuer-makeup request. A
+missing global projection must surface a controlled unavailable error; the UI
+must never receive tenant-local SRI as a fallback.

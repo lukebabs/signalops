@@ -244,3 +244,29 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
     effectiveness = assurance_payload.get("effectiveness")
     assert isinstance(effectiveness, list) and effectiveness, f"{assurance.url} returned no global historical outcome cohort"
     assert all(item.get("evidence_source") == "LEGACY" for item in effectiveness), f"{assurance.url} represented unconfirmed SAF assertions as evidence"
+
+
+def test_subscriber_sri_uses_platform_global_projection(subscriber_page: Page) -> None:
+    config = subscriber_ui_config()
+    login(subscriber_page, config)
+    rankings = visit_for_response(
+        subscriber_page,
+        f"{config.base_url}/marketops/sectors",
+        "/v1/marketops/sectors/rankings?",
+    )
+    expect(subscriber_page.get_by_role("heading", name="Sector Rotation Intelligence")).to_be_visible(timeout=30_000)
+    payload = assert_watchlist_context(rankings, config)
+    assert payload.get("data_scope") == "platform-global", f"{rankings.url} fell back from global SRI"
+    snapshots = payload.get("snapshots")
+    assert isinstance(snapshots, list) and snapshots, f"{rankings.url} returned no platform-global SRI snapshots"
+    segment_id = snapshots[0].get("segment_id")
+    assert isinstance(segment_id, str) and segment_id, f"{rankings.url} returned an invalid SRI segment"
+
+    history = visit_for_response(
+        subscriber_page,
+        f"{config.base_url}/marketops/sectors/{segment_id}/history?tenant_id={config.tenant_id}",
+        f"/v1/marketops/sectors/{segment_id}/history?",
+    )
+    history_payload = assert_watchlist_context(history, config)
+    assert history_payload.get("data_scope") == "platform-global", f"{history.url} fell back from global SRI history"
+    assert isinstance(history_payload.get("snapshots"), list) and history_payload["snapshots"], f"{history.url} returned no global SRI history"

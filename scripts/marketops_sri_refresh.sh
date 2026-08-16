@@ -68,3 +68,6 @@ done
 
 printf '%s SRI source normalization passed session=%s symbols=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$session_date" "$normalized"
 marketops_compose --profile marketops-daily run --rm marketops-sri-runner \
+  --tenant-id "${SIGNALOPS_SRI_OUTPUT_TENANT_ID:-platform-global}" \
+  --input-tenant-id "${SIGNALOPS_SRI_INPUT_TENANT_ID:-tenant-local}" \
+  --as-of "$session_date"

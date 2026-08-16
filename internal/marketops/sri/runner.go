@@ -16,8 +16,11 @@ type Repository interface {
 	ListMarketOpsEODEvents(context.Context, string, []string) ([]storage.NormalizedEventLedgerRecord, error)
 }
 type Config struct {
-	TenantID, RunID string
-	AsOf            time.Time
+	// TenantID is the destination data scope. InputTenantID permits a bounded
+	// legacy-input bridge while all new SRI configuration and snapshots are
+	// written to platform-global.
+	TenantID, InputTenantID, RunID string
+	AsOf                           time.Time
 }
 type Result struct {
 	Segments  int
@@ -53,7 +56,7 @@ func RunRecentSessions(ctx context.Context, repo Repository, cfg Config, session
 			symbols = append(symbols, etf.ETFSymbol)
 		}
 	}
-	events, err := repo.ListMarketOpsEODEvents(ctx, cfg.TenantID, symbols)
+	events, err := repo.ListMarketOpsEODEvents(ctx, sriInputTenantID(cfg), symbols)
 	if err != nil {
 		return RangeResult{}, err
 	}
@@ -129,7 +132,7 @@ func Run(ctx context.Context, repo Repository, cfg Config) (Result, error) {
 			symbols = append(symbols, x.ETFSymbol)
 		}
 	}
-	events, err := repo.ListMarketOpsEODEvents(ctx, cfg.TenantID, symbols)
+	events, err := repo.ListMarketOpsEODEvents(ctx, sriInputTenantID(cfg), symbols)
 	if err != nil {
 		return Result{}, err
 	}
@@ -156,6 +159,13 @@ func Run(ctx context.Context, repo Repository, cfg Config) (Result, error) {
 	}
 	return result, nil
 }
+func sriInputTenantID(cfg Config) string {
+	if tenant := strings.TrimSpace(cfg.InputTenantID); tenant != "" {
+		return tenant
+	}
+	return cfg.TenantID
+}
+
 func priceHistory(events []storage.NormalizedEventLedgerRecord, asOf time.Time) map[string][]PricePoint {
 	by := map[string]map[string]PricePoint{}
 	for _, e := range events {

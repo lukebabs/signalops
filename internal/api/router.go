@@ -94,7 +94,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerMarketOpsEEOMRoutes(mux, marketOpsConfig)
 	registerMarketOpsSignalAssuranceRoutes(mux, marketOpsConfig)
 	registerMarketOpsSignalAssuranceEffectivenessRoutes(mux, marketOpsConfig)
-	registerMarketOpsSRIRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsSRIRoutes(mux, marketOpsConfig)
 	registerMarketOpsSRIAssetContextRoute(mux, marketOpsQueryRepository)
 	registerStorageMonitorRoutes(mux, cfg.QueryRepository)
 	registerRetentionGovernanceRoutes(mux, cfg.QueryRepository)
