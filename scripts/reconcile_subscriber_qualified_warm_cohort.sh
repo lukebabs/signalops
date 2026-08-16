@@ -30,6 +30,13 @@ ranking_input="$root_dir/companies.csv"
   exit 4
 }
 
+# One active reconciliation is permitted. The lock spans provider validation,
+# planning, and activation so a detached caller cannot create a duplicate run.
+exec 9>/var/lock/signalops-subscriber-qualified-warm-cohort.lock
+flock -n 9 || {
+  printf '%s\n' 'subscriber_qualified_warm_cohort_reconciliation_already_running' >&2
+  exit 3
+}
 load_marketops_boundary_env "$boundary_env"
 export SIGNALOPS_MARKETOPS_DATABASE_URL="postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD}@marketops-postgres:5432/marketops?sslmode=disable"
 export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL="postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable"
