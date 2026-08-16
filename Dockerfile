@@ -64,6 +64,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-ranking-import ./cmd/subscriber-global-ranking-import
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-catalog-admission ./cmd/subscriber-global-catalog-admission
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-eod-shadow-planner ./cmd/subscriber-global-eod-shadow-planner
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-intraday-shadow-capture ./cmd/subscriber-global-intraday-shadow-capture
 
 FROM python:3.12-slim AS gateway
 
@@ -387,3 +388,7 @@ ENTRYPOINT ["/signalops-subscriber-global-catalog-admission"]
 FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-eod-shadow-planner
 COPY --from=build /out/signalops-subscriber-global-eod-shadow-planner /signalops-subscriber-global-eod-shadow-planner
 ENTRYPOINT ["/signalops-subscriber-global-eod-shadow-planner"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-intraday-shadow-capture
+COPY --from=build /out/signalops-subscriber-global-intraday-shadow-capture /signalops-subscriber-global-intraday-shadow-capture
+ENTRYPOINT ["/signalops-subscriber-global-intraday-shadow-capture"]

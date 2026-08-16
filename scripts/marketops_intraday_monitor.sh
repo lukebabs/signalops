@@ -17,5 +17,5 @@ batch_size="${MARKETOPS_INTRADAY_BATCH_SIZE:-50}"
 for ((offset=0, batch=1; offset<${#assets[@]}; offset+=batch_size, batch++)); do
   batch_symbols=("${assets[@]:offset:batch_size}")
   batch_csv="$(IFS=,; printf "%s" "${batch_symbols[*]}")"
-  marketops_compose --profile marketops-intraday run --rm marketops-intraday-monitor --universe-group subscriber_hot --symbols "$batch_csv" --max-symbols "${#batch_symbols[@]}"
+  marketops_compose --profile marketops-intraday run --rm marketops-intraday-monitor --universe-group all_active --symbols "$batch_csv" --max-symbols "${#batch_symbols[@]}"
 done

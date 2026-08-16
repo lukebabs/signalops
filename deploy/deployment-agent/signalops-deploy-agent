@@ -69,7 +69,10 @@ case "$action" in
     run "$repository_dir/scripts/install_marketops_boundary_scheduler.sh" "$repository_dir/.env" "adminalien" --enable-warm-eod
     ;;
   marketops-global-market-state-migration)
-    run "$repository_dir/scripts/apply_marketops_migration_000125.sh" "$repository_dir/.env"
+    run "/scripts/apply_marketops_migration_000125.sh" "/.env"
+    ;;
+  subscriber-global-intraday-shadow-migration)
+    run "/scripts/apply_subscriber_global_intraday_shadow_capture_migration.sh" "/.env"
     ;;
   subscriber-global-eod-history-materialize)
     run "$repository_dir/scripts/materialize_subscriber_global_eod_history.sh" "$repository_dir/.env"

@@ -112,3 +112,14 @@ services:
       target: subscriber-global-eod-shadow-planner
     environment:
       SIGNALOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+
+
+  subscriber-global-intraday-shadow-capture:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-intraday-shadow-capture
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
