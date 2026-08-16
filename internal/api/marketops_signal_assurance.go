@@ -8,8 +8,8 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-func registerMarketOpsSignalAssuranceRoutes(mux *http.ServeMux, repository storage.QueryRepository) {
-	query, ok := repository.(storage.SignalAssuranceQueryRepository)
+func registerMarketOpsSignalAssuranceRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	query, ok := cfg.QueryRepository.(storage.SignalAssuranceQueryRepository)
 	if !ok {
 		return
 	}

@@ -231,3 +231,16 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
     assert selected, f"{state.url} omitted selected global Market State"
     assert selected[0].get("tenant_id") == "platform-global", f"{state.url} fell back from global Market State"
     expect(subscriber_page.locator("body")).to_contain_text(config.shared_tickers[0])
+
+    assurance = visit_for_response(
+        subscriber_page,
+        f"{config.base_url}/marketops/assurance",
+        "/v1/marketops/signal-assurance/effectiveness?",
+    )
+    expect(subscriber_page.get_by_role("heading", name="Signal Assurance")).to_be_visible(timeout=30_000)
+    assurance_payload = assurance.json()
+    assert assurance_payload.get("data_scope") == "platform-global", f"{assurance.url} fell back from global Signal Assurance evidence"
+    assert isinstance(assurance_payload.get("watchlist_context"), dict), f"{assurance.url} omitted watchlist context"
+    effectiveness = assurance_payload.get("effectiveness")
+    assert isinstance(effectiveness, list) and effectiveness, f"{assurance.url} returned no global historical outcome cohort"
+    assert all(item.get("evidence_source") == "LEGACY" for item in effectiveness), f"{assurance.url} represented unconfirmed SAF assertions as evidence"

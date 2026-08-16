@@ -4,7 +4,7 @@ Status: production-readiness control. The suite is committed; it remains inactiv
 
 ## Purpose
 
-The Subscriber Project must not depend on manually exported HAR files for routine release validation. The browser acceptance suite drives the real OIDC login screen and validates that the configured private watchlist persists across Assets, Dashboard, EROC, Valuation, EEOM, and Market State. It also verifies each contextual API response, shared-EOD coverage, honest cold-coverage presentation, and the absence of legacy sentinel timestamps or blank shared-algorithm cells. It performs no provider request, catalogue mutation, list creation, or data backfill.
+The Subscriber Project must not depend on manually exported HAR files for routine release validation. The browser acceptance suite drives the real OIDC login screen and validates that the configured private watchlist persists across Assets, Dashboard, EROC, Valuation, EEOM, Market State, and Signal Assurance. It also verifies each contextual API response, shared-EOD coverage, honest cold-coverage presentation, and the absence of legacy sentinel timestamps or blank shared-algorithm cells. It performs no provider request, catalogue mutation, list creation, or data backfill.
 
 ## Identity boundary
 
@@ -80,6 +80,7 @@ The pre-seeded fixture list must contain the exact symbols declared in `SIGNALOP
 - Cold assets remain visible as `Pending` and appear in the explicit `Coverage in progress` panel. They are not silently omitted or shown as completed data.
 - The Dashboard reports each declared warm symbol under `Shared EOD coverage`.
 - Assets, Dashboard, EROC, Valuation, and EEOM responses all return the saved list context, with the configured fixture symbols in scope. Market State sends the configured tenant and a configured in-scope symbol.
+- Signal Assurance returns a non-empty platform-global historical-outcome cohort for the selected list. The test explicitly requires `LEGACY` evidence only until a real confirmed SAF assertion exists; it must never represent an absent assertion as a confirmed result.
 
 A failure of the shared-evidence checks is intentionally a release failure, not a reason to export another HAR. It is the automated proof that the global analytical-data-plane blocker remains open.
 
@@ -125,3 +126,7 @@ The live pilot smoke passed after the EEOM global reader was materialized and de
 ## Global Material Events reader acceptance — 2026-08-16
 
 The Material Events API regression contract requires selected-watchlist symbols to be authorized before reading the restricted global projection and requires returned events to carry `data_scope = platform-global`. The live bootstrap proved the Gateway role can read 20 central FMP events; the isolated pilot browser smoke passed after deployment. The smoke does not require a fixture symbol to have an upcoming earnings event, because calendar absence is valid and must not be converted into a false failure.
+
+## Global Signal Assurance historical-outcome acceptance — 2026-08-16
+
+The global SAF projection contains 92 complete directional historical outcomes, of which 46 are directional matches, from the immutable legacy-parity materialization. The isolated pilot list contains seven applicable observations across NOW and NVDA. The reader is filtered by the selected watchlist, reads only the restricted `platform-global` projection, and is fail-closed when that projection is unavailable. There are currently **zero** confirmed SAF assertions; the UI and API explicitly disclose that absence rather than upgrading historical outcomes into SAF assertions. The browser contract now requires the global scope, the persisted watchlist context, a non-empty historical cohort, and `LEGACY` evidence source only.

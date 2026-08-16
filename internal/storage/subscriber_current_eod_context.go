@@ -67,3 +67,13 @@ type SubscriberGlobalValuationRepository interface {
 type SubscriberGlobalEEOMRepository interface {
 	ListSubscriberGlobalEEOMResults(context.Context, []string, MarketOpsEEOMFilter) ([]MarketOpsEEOMResultRecord, error)
 }
+
+// SubscriberGlobalSignalAssuranceEffectivenessRepository reads only
+// parity-approved, platform-owned historical outcome observations. It does
+// not manufacture SAF assertions: an empty SAF cohort is a meaningful result.
+// The Gateway supplies symbols authorized by the selected watchlist.
+type SubscriberGlobalSignalAssuranceEffectivenessRepository interface {
+	ListSubscriberGlobalSignalAssuranceEffectiveness(context.Context, []string, SignalAssuranceEffectivenessFilter) ([]SignalAssuranceEffectivenessRecord, error)
+	ListSubscriberGlobalSignalAssuranceEffectivenessObservations(context.Context, []string, SignalAssuranceEffectivenessFilter) ([]SignalAssuranceEffectivenessObservationRecord, error)
+	ListSubscriberGlobalSignalAssuranceRecommendations(context.Context, []string, SignalAssuranceEffectivenessFilter) ([]SignalAssuranceRecommendationRecord, error)
+}

@@ -8,8 +8,8 @@ import (
 	"github.com/lukebabs/signalops/internal/subscriber/eodrevisionpolicy"
 )
 
-func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, repository storage.QueryRepository) {
-	query, ok := repository.(storage.SignalAssuranceEffectivenessRepository)
+func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	query, ok := cfg.QueryRepository.(storage.SignalAssuranceEffectivenessRepository)
 	if !ok {
 		return
 	}
@@ -22,12 +22,34 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
 		}
-		rows, err := query.ListSignalAssuranceEffectiveness(r.Context(), storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), Limit: queryLimit(r, 100)})
+		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), Limit: queryLimit(r, 100)}
+		watchlistContext, global, allowed := subscriberGlobalSignalAssuranceContext(w, r, cfg, tenantID)
+		if !allowed {
+			return
+		}
+		var rows []storage.SignalAssuranceEffectivenessRecord
+		var err error
+		if global {
+			reader, supported := cfg.QueryRepository.(storage.SubscriberGlobalSignalAssuranceEffectivenessRepository)
+			if !supported {
+				writeError(w, http.StatusServiceUnavailable, "global_signal_assurance_unavailable", "global Signal Assurance projection is unavailable")
+				return
+			}
+			rows, err = reader.ListSubscriberGlobalSignalAssuranceEffectiveness(r.Context(), authorizedEROCTickers(watchlistContext, ""), filter)
+		} else {
+			rows, err = query.ListSignalAssuranceEffectiveness(r.Context(), filter)
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to calculate signal assurance effectiveness")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"effectiveness": effectivenessResponses(rows), "minimum_ranked_sample": 30, "evidence_source_note": "LEGACY records are historical outcome evidence and are not SAF-validated assertions.", "data_selection": historicalAssuranceDataSelection()})
+		response := map[string]any{"effectiveness": effectivenessResponses(rows), "minimum_ranked_sample": 30, "evidence_source_note": "LEGACY records are historical outcome evidence and are not SAF-validated assertions.", "data_selection": historicalAssuranceDataSelection()}
+		if global {
+			response["data_scope"] = "platform-global"
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+			response["evidence_source_note"] = "SAF has no confirmed global assertions yet. Historical outcome evidence is platform-global and filtered to the selected watchlist."
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/effectiveness/observations", func(w http.ResponseWriter, r *http.Request) {
 		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
@@ -39,12 +61,34 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id and dimension_value are required")
 			return
 		}
-		rows, err := query.ListSignalAssuranceEffectivenessObservations(r.Context(), storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), DimensionValue: dimensionValue, Limit: queryLimit(r, 200)})
+		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), DimensionValue: dimensionValue, Limit: queryLimit(r, 200)}
+		watchlistContext, global, allowed := subscriberGlobalSignalAssuranceContext(w, r, cfg, tenantID)
+		if !allowed {
+			return
+		}
+		var rows []storage.SignalAssuranceEffectivenessObservationRecord
+		var err error
+		if global {
+			reader, supported := cfg.QueryRepository.(storage.SubscriberGlobalSignalAssuranceEffectivenessRepository)
+			if !supported {
+				writeError(w, http.StatusServiceUnavailable, "global_signal_assurance_unavailable", "global Signal Assurance projection is unavailable")
+				return
+			}
+			rows, err = reader.ListSubscriberGlobalSignalAssuranceEffectivenessObservations(r.Context(), authorizedEROCTickers(watchlistContext, ""), filter)
+		} else {
+			rows, err = query.ListSignalAssuranceEffectivenessObservations(r.Context(), filter)
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list signal assurance effectiveness observations")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"observations": effectivenessObservationResponses(rows), "evidence_source_note": "LEGACY observations are historical outcome evidence and are not SAF-validated assertions.", "data_selection": historicalAssuranceDataSelection()})
+		response := map[string]any{"observations": effectivenessObservationResponses(rows), "evidence_source_note": "LEGACY observations are historical outcome evidence and are not SAF-validated assertions.", "data_selection": historicalAssuranceDataSelection()}
+		if global {
+			response["data_scope"] = "platform-global"
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+			response["evidence_source_note"] = "SAF has no confirmed global assertions yet. Historical outcome evidence is platform-global and filtered to the selected watchlist."
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/recommendations", func(w http.ResponseWriter, r *http.Request) {
 		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
@@ -55,13 +99,42 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, rep
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
 		}
-		rows, err := query.ListSignalAssuranceRecommendations(r.Context(), storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode")))})
+		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode")))}
+		watchlistContext, global, allowed := subscriberGlobalSignalAssuranceContext(w, r, cfg, tenantID)
+		if !allowed {
+			return
+		}
+		var rows []storage.SignalAssuranceRecommendationRecord
+		var err error
+		if global {
+			reader, supported := cfg.QueryRepository.(storage.SubscriberGlobalSignalAssuranceEffectivenessRepository)
+			if !supported {
+				writeError(w, http.StatusServiceUnavailable, "global_signal_assurance_unavailable", "global Signal Assurance projection is unavailable")
+				return
+			}
+			rows, err = reader.ListSubscriberGlobalSignalAssuranceRecommendations(r.Context(), authorizedEROCTickers(watchlistContext, ""), filter)
+		} else {
+			rows, err = query.ListSignalAssuranceRecommendations(r.Context(), filter)
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to calculate signal assurance recommendations")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"recommendations": recommendationResponses(rows), "minimum_ranked_sample": 30, "data_selection": historicalAssuranceDataSelection()})
+		response := map[string]any{"recommendations": recommendationResponses(rows), "minimum_ranked_sample": 30, "data_selection": historicalAssuranceDataSelection()}
+		if global {
+			response["data_scope"] = "platform-global"
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
+}
+
+func subscriberGlobalSignalAssuranceContext(w http.ResponseWriter, r *http.Request, cfg RouterConfig, tenantID string) (subscriberWatchlistContext, bool, bool) {
+	if !subscriberWatchlistContextEnabled(cfg, tenantID) {
+		return subscriberWatchlistContext{}, false, true
+	}
+	context, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+	return context, true, ok
 }
 
 // historicalAssuranceDataSelection exposes the immutable point-in-time EOD contract used by SAF outcomes.

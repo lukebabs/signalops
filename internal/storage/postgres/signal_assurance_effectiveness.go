@@ -265,10 +265,16 @@ func aggregateEffectiveness(values []effectivenessObservation, dimension string)
 	return out
 }
 func (r *Repository) ListSignalAssuranceRecommendations(ctx context.Context, f storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceRecommendationRecord, error) {
+	return signalAssuranceRecommendations(f, func(filter storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessRecord, error) {
+		return r.ListSignalAssuranceEffectiveness(ctx, filter)
+	})
+}
+
+func signalAssuranceRecommendations(f storage.SignalAssuranceEffectivenessFilter, list func(storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessRecord, error)) ([]storage.SignalAssuranceRecommendationRecord, error) {
 	dimensions := []string{"algorithm_version", "signal_type", "confidence_band"}
 	out := []storage.SignalAssuranceRecommendationRecord{}
 	for _, dimension := range dimensions {
-		rows, err := r.ListSignalAssuranceEffectiveness(ctx, storage.SignalAssuranceEffectivenessFilter{TenantID: f.TenantID, EvidenceSource: f.EvidenceSource, EvaluationMode: f.EvaluationMode, Dimension: dimension})
+		rows, err := list(storage.SignalAssuranceEffectivenessFilter{TenantID: f.TenantID, EvidenceSource: f.EvidenceSource, EvaluationMode: f.EvaluationMode, Dimension: dimension})
 		if err != nil {
 			return nil, err
 		}
