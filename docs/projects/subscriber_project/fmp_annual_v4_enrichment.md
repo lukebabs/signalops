@@ -65,10 +65,12 @@ Signal Assurance assertion is created by this profile.
 1. Migration `000136_subscriber_global_annual_financial_evidence` was applied
    to the dedicated MarketOps primary on 2026-08-16. It changes only allowed
    evidence kinds/execution modes; it creates no provider capture or reader.
-2. Verify the configured FMP credential against all five annual endpoints with
-   one bounded non-writing preflight. A 402/403 or incomplete response leaves
-   the worker disabled.
-3. Run one bounded central dry run and retain its count, failure classes,
+2. The configured FMP credential passed the one-symbol, five-endpoint,
+   non-writing preflight on 2026-08-16. Its detailed proof is retained in
+   [preflight evidence](fmp_annual_v4_entitlement_preflight_evidence_2026-08-16.md).
+   A future 402/403 or incomplete response leaves the worker disabled.
+3. Obtain an explicit full-capture approval, then retain the central run's
+   count, failure classes,
    endpoint provenance, and rate-limit evidence.
 4. Execute one approved full warm-cohort capture and validate immutable row
    counts, absence of tenant copies, and no FMP access from browser routes.
