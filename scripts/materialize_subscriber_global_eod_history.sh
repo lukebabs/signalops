@@ -24,6 +24,12 @@ runtime_env="${1:-${SIGNALOPS_PRODUCTION_ENV_FILE:-}}"
 # Parse only the dedicated primary/temporal credentials as literal dotenv data.
 # The values are supplied directly to Compose and are never written or printed.
 load_marketops_boundary_env "$boundary_env"
+# The materializer is an ephemeral container on the dedicated Compose network.
+# Build its internal service URLs from the two literal, allowlisted passwords;
+# the boundary loader accepts alphanumeric values only, so these URLs need no
+# additional escaping. They remain process-local and are never printed.
+export SIGNALOPS_MARKETOPS_DATABASE_URL="postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD}@marketops-postgres:5432/marketops?sslmode=disable"
+export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL="postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable"
 compose=(docker compose --env-file "$runtime_env" -p signalops -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-writer-cutover.yaml")
 run=("${compose[@]}" --profile subscriber-global-evidence run --rm subscriber-global-eod-history-materializer)
 
