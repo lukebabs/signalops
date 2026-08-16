@@ -77,6 +77,9 @@ case "$action" in
   fmp-annual-entitlement-preflight)
     run "$repository_dir/scripts/preflight_subscriber_global_annual_financial.sh" "$repository_dir/.env"
     ;;
+  marketops-fmp-annual-run)
+    run systemctl start signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service
+    ;;
   subscriber-qualified-warm-cohort-reconcile)
     run "$repository_dir/scripts/reconcile_subscriber_qualified_warm_cohort.sh" "$repository_dir/.env"
     ;;

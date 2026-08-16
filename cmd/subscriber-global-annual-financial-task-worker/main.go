@@ -11,6 +11,7 @@ import (
 	"fmt"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/lukebabs/signalops/internal/adapters/marketdata/fmp"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -55,6 +56,8 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	defer db.Close()
 	if _, err = db.ExecContext(ctx, "SET ROLE signalops_subscriber_global_eod"); err != nil {
 		return err
@@ -157,6 +160,10 @@ func outcome(e error, x task) (string, string, time.Time) {
 		if (h.StatusCode() == 429 || h.StatusCode() >= 500) && x.attempt < x.max {
 			return "retry_scheduled", "provider_transient", time.Now().UTC().Add(time.Minute)
 		}
+	}
+	var networkErr net.Error
+	if (errors.Is(e, context.DeadlineExceeded) || errors.As(e, &networkErr)) && x.attempt < x.max {
+		return "retry_scheduled", "provider_transient", time.Now().UTC().Add(time.Minute)
 	}
 	if x.attempt >= x.max {
 		return "failed_terminal", "retry_exhausted", time.Time{}
