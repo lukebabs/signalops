@@ -31,14 +31,30 @@ runtime_env="${1:-${SIGNALOPS_PRODUCTION_ENV_FILE:-}}"
 load_marketops_boundary_env "$boundary_env"
 
 "$root_dir/scripts/render_marketops_cutover_env.sh" "$boundary_env" "$cutover_env"
+# The subscriber login is distinct from the primary application login. It is
+# provisioned with only the logical gateway role, using a secret generated in
+# the root-owned cutover environment for this deployment.
+subscriber_gateway_password="$(grep -E "^SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD=" "$cutover_env" | cut -d= -f2-)"
+[[ "$subscriber_gateway_password" =~ ^[A-Fa-f0-9]{64}$ ]] || {
+  printf "%s\n" "marketops_read_cutover_subscriber_gateway_secret_invalid" >&2
+  exit 4
+}
 
-compose=(docker compose --env-file "$runtime_env" -p signalops -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-read-cutover.yaml")
+
+compose=(docker compose --env-file "$runtime_env" --env-file "$cutover_env" -p signalops -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-read-cutover.yaml")
+
+"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops \
+  -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'signalops_subscriber_gateway_runtime') THEN CREATE ROLE signalops_subscriber_gateway_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS; END IF; END \$\$;" \
+  -c "ALTER ROLE signalops_subscriber_gateway_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD '${subscriber_gateway_password}';" \
+  -c "GRANT signalops_subscriber_gateway TO signalops_subscriber_gateway_runtime;"
 "${compose[@]}" up -d --build --no-deps gateway
 gateway_id="$("${compose[@]}" ps -q gateway)"
 [[ -n "$gateway_id" ]] || { printf "%s\n" "marketops_read_cutover_gateway_missing" >&2; exit 4; }
 gateway_env_names="$(docker inspect --format "{{range .Config.Env}}{{println .}}{{end}}" "$gateway_id" | cut -d= -f1)"
 grep -qx "SIGNALOPS_MARKETOPS_DATABASE_URL" <<< "$gateway_env_names" || { printf "%s\n" "marketops_read_cutover_primary_env_missing" >&2; exit 4; }
 grep -qx "SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL" <<< "$gateway_env_names" || { printf "%s\n" "marketops_read_cutover_temporal_env_missing" >&2; exit 4; }
+gateway_subscriber_url="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$gateway_id" | grep -E "^SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL=" | cut -d= -f2-)"
+[[ "$gateway_subscriber_url" == *'@marketops-postgres:5432/marketops?sslmode=disable' ]] || { printf "%s\n" "marketops_read_cutover_subscriber_gateway_boundary_missing" >&2; exit 4; }
 docker logs "$gateway_id" 2>&1 | grep -Fq "MarketOps gateway reads are routed to the dedicated data boundary" || { printf "%s\n" "marketops_read_cutover_startup_evidence_missing" >&2; exit 4; }
 printf "%s\n" "marketops_read_cutover_gateway_verified"
 

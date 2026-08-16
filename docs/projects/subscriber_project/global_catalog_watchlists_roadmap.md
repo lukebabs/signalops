@@ -547,3 +547,11 @@ Migration `000143_subscriber_global_intraday_current_state_projection` makes the
 ### Legacy hot-cohort dual-run — 2026-08-16
 
 Migration `000144_subscriber_legacy_hot_cohort_shadow` preserves all 132 tenant-local legacy default members in a temporary compatibility cohort, while activating only the 125 currently eligible US-common-stock identities. The first immutable comparison correctly records a 125-versus-0 mismatch because no user has saved a MarketOps watchlist context. Display fallback is deliberately not treated as a hot-tier selection. An authorized tenant-local analyst must explicitly select the legacy default; only then can the dual-run prove 125 shared members before a scheduler or UI cutover. The seven preserved but deferred catalog-ineligible symbols remain subject to the documented normalization/admission roadmap.
+
+### Dedicated subscriber list-storage cutover — 2026-08-16
+
+The tenant-local browser diagnostic established that the legacy default list and its 132 preserved memberships were correctly present in the dedicated MarketOps primary, while the gateway subscriber-list repository was still pointed at the shared SignalOps primary. The resulting API response was an empty list, so no explicit user selection could be saved. This is a configuration-boundary defect, not missing catalog data or an authorization failure.
+
+The MarketOps read-cutover contract now treats subscriber lists and subject-owned watchlist context as MarketOps data. It provisions `signalops_subscriber_gateway_runtime` on the dedicated primary with only the logical `signalops_subscriber_gateway` role, rotates a per-deployment opaque credential in the root-owned cutover environment, and verifies that the replacement gateway points at `marketops-postgres:5432/marketops`. The shared SignalOps primary remains unavailable to this repository path.
+
+The root-owned deployment-agent action is the only release mechanism for this boundary change. After deployment, browser acceptance must show the tenant default, save an explicit context selection, and the immutable hot-cohort comparison must produce exactly 125 shared, zero cohort-only, and zero selector-only assets. No scheduler, provider, or intraday writer behavior changes at this gate.
