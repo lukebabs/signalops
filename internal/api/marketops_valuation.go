@@ -11,6 +11,8 @@ import (
 
 const valuationCompositeAlgorithmID = "signalops.algorithms.valuation_composite_v3"
 const dosmAlgorithmID = "signalops.algorithms.distressed_opportunity_scoring_v3"
+const annualValuationCompositeAlgorithmID = "signalops.algorithms.valuation_composite_v4_annual"
+const annualDOSMAlgorithmID = "signalops.algorithms.distressed_opportunity_scoring_v4_annual"
 const tacticalValuationCompositeAlgorithmID = "signalops.algorithms.tactical_valuation_composite_v1"
 const tacticalDOSMAlgorithmID = "signalops.algorithms.tactical_distressed_opportunity_v1"
 const tacticalPostureAlgorithmID = "signalops.algorithms.tactical_market_posture_v1"
@@ -75,10 +77,14 @@ func valuationRows(results []storage.MarketOpsValuationResultRecord) []map[strin
 		if byKey[key] == nil {
 			byKey[key] = &pair{}
 		}
-		if item.AlgorithmID == valuationCompositeAlgorithmID {
+		if item.AlgorithmID == annualValuationCompositeAlgorithmID {
+			byKey[key].vc = item
+		} else if item.AlgorithmID == valuationCompositeAlgorithmID && byKey[key].vc == nil {
 			byKey[key].vc = item
 		}
-		if item.AlgorithmID == dosmAlgorithmID {
+		if item.AlgorithmID == annualDOSMAlgorithmID {
+			byKey[key].dosm = item
+		} else if item.AlgorithmID == dosmAlgorithmID && byKey[key].dosm == nil {
 			byKey[key].dosm = item
 		}
 		if item.AlgorithmID == tacticalPostureAlgorithmID {

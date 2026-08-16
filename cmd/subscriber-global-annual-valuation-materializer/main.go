@@ -134,7 +134,7 @@ func loadSources(ctx context.Context, db *sql.DB, anchor time.Time, limit int) (
   FROM subscriber_global_marketops_evidence_records record
   JOIN subscriber_global_marketops_evidence_runs run ON run.evidence_run_id=record.evidence_run_id
   WHERE record.evidence_kind='fundamental_annual' AND record.algorithm_id='marketops.fundamental_annual.fmp'
-    AND record.algorithm_version='v1' AND record.quality_state='usable' AND run.source_scope='global_provider_capture'
+    AND record.algorithm_version='v2' AND record.quality_state='usable' AND run.source_scope='global_provider_capture'
   ORDER BY record.global_asset_id,record.observed_at DESC,record.global_evidence_id DESC
 ), price AS (
   SELECT DISTINCT ON (record.global_asset_id) record.global_asset_id,record.global_evidence_id,record.evidence_fingerprint,record.session_date,(record.payload->>'close')::double precision AS close
@@ -188,7 +188,7 @@ func evaluate(source sourceCandidate, anchor time.Time) resultCandidate {
 		return candidate
 	}
 	var payload struct {
-		Periods []fmp.AnnualFinancialPeriod `json:"annual_periods"`
+		Periods []fmp.AnnualFinancialPeriod `json:"periods"`
 	}
 	if err := json.Unmarshal(source.annualPayload, &payload); err != nil || len(payload.Periods) == 0 {
 		candidate.result = valuation.EvaluateAnnual(valuation.AnnualInput{Ticker: source.symbol, Price: source.price})
