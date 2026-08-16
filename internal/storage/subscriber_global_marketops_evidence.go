@@ -13,6 +13,7 @@ type SubscriberGlobalMarketOpsEvidenceRun struct {
 	EvidenceKind             string
 	AlgorithmID              string
 	AlgorithmVersion         string
+	ExecutionMode            string
 	SourceScope              string
 	SessionStartDate         time.Time
 	SessionEndDate           time.Time

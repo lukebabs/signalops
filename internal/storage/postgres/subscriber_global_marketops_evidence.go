@@ -15,7 +15,7 @@ const subscriberGlobalMarketOpsEvidenceWorker = "subscriber-global-eod-reconcile
 
 var subscriberGlobalMarketOpsEvidenceKinds = map[string]struct{}{
 	"eod_bar": {}, "feature_vector": {}, "market_state": {}, "eroc": {}, "valuation": {}, "eeom": {},
-	"material_event": {}, "signal_assertion": {}, "outcome": {}, "risk_reward": {}, "sri_snapshot": {}, "options_snapshot": {},
+	"material_event": {}, "signal_assertion": {}, "outcome": {}, "risk_reward": {}, "sri_snapshot": {}, "options_snapshot": {}, "fundamental_annual": {},
 }
 
 var subscriberGlobalMarketOpsEvidenceQualityStates = map[string]struct{}{
@@ -32,8 +32,8 @@ func (r *Repository) RecordSubscriberGlobalMarketOpsEvidenceRun(ctx context.Cont
 	}
 	if _, err := r.db.ExecContext(ctx, `INSERT INTO subscriber_global_marketops_evidence_runs
   (evidence_run_id,evidence_kind,algorithm_id,algorithm_version,execution_mode,source_scope,session_start_date,session_end_date,input_manifest_fingerprint,validation_contract_ref,immutable_baseline_ref,provenance,recorded_by,correlation_id,recorded_at)
-VALUES ($1,$2,$3,$4,'shadow_read_only',$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14)`,
-		run.EvidenceRunID, run.EvidenceKind, run.AlgorithmID, run.AlgorithmVersion, run.SourceScope,
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15)`,
+		run.EvidenceRunID, run.EvidenceKind, run.AlgorithmID, run.AlgorithmVersion, run.ExecutionMode, run.SourceScope,
 		nullTime(run.SessionStartDate), nullTime(run.SessionEndDate), run.InputManifestFingerprint,
 		run.ValidationContractRef, run.ImmutableBaselineRef, string(run.ProvenanceJSON), run.RecordedBy,
 		run.CorrelationID, run.RecordedAt.UTC()); err != nil {
@@ -63,6 +63,7 @@ func normalizeSubscriberGlobalMarketOpsEvidenceRun(run *storage.SubscriberGlobal
 	run.EvidenceKind = strings.TrimSpace(run.EvidenceKind)
 	run.AlgorithmID = strings.TrimSpace(run.AlgorithmID)
 	run.AlgorithmVersion = strings.TrimSpace(run.AlgorithmVersion)
+	run.ExecutionMode = strings.TrimSpace(run.ExecutionMode)
 	run.SourceScope = strings.TrimSpace(run.SourceScope)
 	run.InputManifestFingerprint = strings.TrimSpace(run.InputManifestFingerprint)
 	run.ValidationContractRef = strings.TrimSpace(run.ValidationContractRef)
@@ -78,9 +79,13 @@ func normalizeSubscriberGlobalMarketOpsEvidenceRun(run *storage.SubscriberGlobal
 	if run.RecordedAt.IsZero() {
 		run.RecordedAt = time.Now().UTC()
 	}
+	if run.ExecutionMode == "" {
+		run.ExecutionMode = "shadow_read_only"
+	}
 	if _, ok := subscriberGlobalMarketOpsEvidenceKinds[run.EvidenceKind]; !ok || run.AlgorithmID == "" || run.AlgorithmVersion == "" ||
 		(run.SourceScope != "global_provider_capture" && run.SourceScope != "legacy_parity_review") || run.InputManifestFingerprint == "" ||
 		run.ValidationContractRef == "" || run.ImmutableBaselineRef == "" || run.RecordedBy != subscriberGlobalMarketOpsEvidenceWorker ||
+		(run.ExecutionMode != "shadow_read_only" && run.ExecutionMode != "provider_capture") ||
 		(!run.SessionStartDate.IsZero() && !run.SessionEndDate.IsZero() && run.SessionStartDate.After(run.SessionEndDate)) {
 		return errors.New("invalid subscriber global MarketOps evidence run")
 	}
