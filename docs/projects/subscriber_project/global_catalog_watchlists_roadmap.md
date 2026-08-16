@@ -417,3 +417,12 @@ granted only to the logical `signalops_subscriber_gateway` reader role.
 Migration `000133` grants `signalops` read access to the same five
 security-barrier global SRI views only. It grants neither raw SRI tables nor a
 tenant-local fallback.
+
+### Projection-owner grant correction — 2026-08-16
+
+The first runtime-role correction exposed PostgreSQL view evaluation semantics:
+a security-barrier view uses its owner’s permissions for underlying tables.
+Migration `000134` gives the projection-owner/migrator role the minimum
+source-table `SELECT` grants required to evaluate the five views. The Gateway
+runtime role remains limited to the views granted by `000133`; it receives no
+raw SRI-table access.
