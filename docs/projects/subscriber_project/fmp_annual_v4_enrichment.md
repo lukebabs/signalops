@@ -72,9 +72,11 @@ Signal Assurance assertion is created by this profile.
    endpoint provenance, and rate-limit evidence.
 4. Execute one approved full warm-cohort capture and validate immutable row
    counts, absence of tenant copies, and no FMP access from browser routes.
-5. Build an append-only v4 result writer and a restricted global reader. It
-   must disclose `data_profile=annual_5y`, model version, financial as-of date,
-   coverage/confidence, source scope, and the input evidence references.
+5. The append-only v4 result writer is implemented, but remains inactive until
+   annual evidence exists. It writes distinct annual VC/DOSM algorithm IDs and
+   discloses `data_profile=annual_5y`, model version, financial as-of date,
+   coverage/confidence, source scope, and the input evidence references. A
+   restricted global reader remains a separate gate.
 6. Run deterministic replay and a time-aware historical calibration before any
    change to the UI default or any comparison with v3.
 7. After the above gates, enable the Saturday 02:30 America/New_York central
