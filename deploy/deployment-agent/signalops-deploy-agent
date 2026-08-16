@@ -71,6 +71,9 @@ case "$action" in
   marketops-global-market-state-migration)
     run "$repository_dir/scripts/apply_marketops_migration_000125.sh" "$repository_dir/.env"
     ;;
+  subscriber-global-eod-history-materialize)
+    run "$repository_dir/scripts/materialize_subscriber_global_eod_history.sh" "$repository_dir/.env"
+    ;;
   subscriber-pilot-ui-smoke)
     [[ "$actor" =~ ^[a-z_][a-z0-9_-]*$ && "$actor" != "unknown" ]] || {
       printf "%s\n" "subscriber_pilot_ui_smoke_operator_invalid" >&2
