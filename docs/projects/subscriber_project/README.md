@@ -32,6 +32,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 
 - [Global Catalog and Watchlist Roadmap](global_catalog_watchlists_roadmap.md): target architecture, data flow, options demand design, compatibility-first sprint plan, controls, and acceptance measures.
 - [Tenant-local legacy-default preservation — 2026-08-16](tenant_local_legacy_default_preservation_2026-08-16.md): audited, non-destructive preservation of the 132-symbol legacy tenant-default list through canonical global identities.
+- [Tenant-local legacy-hot parity foundation — 2026-08-16](tenant_local_legacy_hot_parity_foundation_2026-08-16.md): immutable inventory of the 132 legacy current intraday states and all retained Risk/Reward history; serving and scheduler cutover remain gated.
 - [FMP annual financial enrichment and VC/DOSM v4](fmp_annual_v4_enrichment.md): disabled, centrally governed annual financial capture and parallel research-model contract; it does not replace the live v3 profile.
 - [FMP annual v4 migration evidence — 2026-08-16](fmp_annual_v4_migration_evidence_2026-08-16.md): additive dedicated-primary schema deployment, with no provider, scheduler, Gateway, or tenant-data side effect.
 - [FMP annual v4 entitlement preflight — 2026-08-16](fmp_annual_v4_entitlement_preflight_evidence_2026-08-16.md): one-symbol, five-endpoint dry-run proof of Starter annual-data access.

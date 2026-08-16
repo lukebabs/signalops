@@ -529,3 +529,9 @@ policy release must:
 Until that release is approved, all qualified-list work—including the central
 EOD path and FMP annual-financial enrichment—continues only for verified US
 common stocks.
+
+### Tenant-local legacy-hot parity foundation — 2026-08-16
+
+Migration `000142_subscriber_tenant_local_legacy_hot_parity_foundation` records the safe preservation prerequisite for the legacy 132-symbol hot universe. It exposes only the `tenant-local` `all_active` **current-state** intraday source through a security-barrier view, extends immutable parity manifests with `intraday_snapshot`, and keeps direct raw intraday-table access denied to the global worker. The completed manifest run `subglobalparity_d72978bedcbace8096a8d305` mapped 132 intraday current states plus 1,533 previously unmanifested Risk/Reward rows (1,665/1,665 mapped). Together with earlier manifests, all 2,533 retained legacy Risk/Reward rows are now immutable provenance records.
+
+This is not a materialization or cutover. The global Risk/Reward reader continues to have 1,000 materialized records, and the intraday evidence has no global reader. The remaining gates are append-only materialization, source/global parity proof, a separately defined current-state intraday reader, and dual-run evidence for the grandfathered 132-symbol hot cohort before any scheduler or UI switch.
