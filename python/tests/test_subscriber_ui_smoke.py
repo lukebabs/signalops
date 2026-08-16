@@ -262,11 +262,15 @@ def test_subscriber_sri_uses_platform_global_projection(subscriber_page: Page) -
     segment_id = snapshots[0].get("segment_id")
     assert isinstance(segment_id, str) and segment_id, f"{rankings.url} returned an invalid SRI segment"
 
-    history = visit_for_response(
-        subscriber_page,
-        f"{config.base_url}/marketops/sectors/{segment_id}/history?tenant_id={config.tenant_id}",
-        f"/v1/marketops/sectors/{segment_id}/history?",
-    )
+    subscriber_page.get_by_role("tab", name="ETF progression").click()
+    row = subscriber_page.locator("tr[aria-expanded]").first
+    with subscriber_page.expect_response(
+        lambda response: response.request.method == "GET" and f"/v1/marketops/sectors/{segment_id}/history?" in response.url,
+        timeout=30_000,
+    ) as response_info:
+        row.click()
+    history = response_info.value
+    assert history.status == 200, f"{history.url} returned HTTP {history.status}"
     history_payload = assert_watchlist_context(history, config)
     assert history_payload.get("data_scope") == "platform-global", f"{history.url} fell back from global SRI history"
     assert isinstance(history_payload.get("snapshots"), list) and history_payload["snapshots"], f"{history.url} returned no global SRI history"
