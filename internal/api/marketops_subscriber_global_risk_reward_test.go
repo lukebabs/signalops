@@ -238,3 +238,43 @@ func TestSubscriberValuationUsesGlobalProjection(t *testing.T) {
 		t.Fatalf("subscriber DOSM output did not use global projection: %#v", dosmOutput)
 	}
 }
+
+type subscriberGlobalEEOMFake struct {
+	*fakeQueryRepository
+	results []storage.MarketOpsEEOMResultRecord
+	symbols []string
+}
+
+func (f *subscriberGlobalEEOMFake) ListSubscriberGlobalEEOMResults(_ context.Context, symbols []string, _ storage.MarketOpsEEOMFilter) ([]storage.MarketOpsEEOMResultRecord, error) {
+	f.symbols = append([]string(nil), symbols...)
+	return f.results, nil
+}
+
+func TestSubscriberEEOMUsesGlobalProjection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	globalDate := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	globalResult := storage.MarketOpsEEOMResultRecord{ResultID: "global-eeom-aapl-20260814", TenantID: "platform-global", Symbol: "AAPL", EarningsEventID: "earnings-aapl", EarningsDate: globalDate.AddDate(0, 0, 7), SessionDate: globalDate, ModelVersion: "eeom-v1", Score: 7.2, Posture: "bullish", Classification: "setup", EvidenceQuality: "usable", Eligible: true, ResultJSON: []byte("{}")}
+	repo := &subscriberGlobalEEOMFake{fakeQueryRepository: &fakeQueryRepository{}, results: []storage.MarketOpsEEOMResultRecord{globalResult}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-pilot-b": {}}, SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{}})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/earnings-opportunities?symbol=AAPL&start_date=2026-08-14&end_date=2026-08-30", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" {
+		t.Fatalf("global EEOM symbols=%v, want [AAPL]", repo.symbols)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	results := response["results"].([]any)
+	if len(results) != 1 {
+		t.Fatalf("EEOM results=%#v", results)
+	}
+	result := results[0].(map[string]any)
+	if result["data_scope"] != "platform-global" || result["trade_date"] != "2026-08-14" {
+		t.Fatalf("subscriber EEOM did not use global projection: %#v", result)
+	}
+}

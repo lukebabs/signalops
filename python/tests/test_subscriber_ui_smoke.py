@@ -211,6 +211,11 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
             selected_valuation = [item for item in valuation_results if str(item.get("ticker", "")).upper() == config.shared_tickers[0]]
             assert selected_valuation, f"{response.url} omitted selected global valuation result"
             assert selected_valuation[0].get("data_scope") == "platform-global", f"{response.url} fell back from global valuation"
+        if route == "earnings":
+            eeom_results = payload.get("results")
+            selected_eeom = [item for item in eeom_results if str(item.get("ticker", "")).upper() == config.shared_tickers[0]] if isinstance(eeom_results, list) else []
+            if selected_eeom:
+                assert selected_eeom[0].get("data_scope") == "platform-global", f"{response.url} fell back from global EEOM"
 
     state = visit_for_response(
         subscriber_page,
