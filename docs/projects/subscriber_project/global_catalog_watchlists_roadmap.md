@@ -324,13 +324,28 @@ report exact coverage; only a separately controlled `--execute` invocation
 appends immutable evidence.
 
 This is not a claim of complete history. At the time this slice was prepared,
-the retained source covers 156 currently mapped symbols from 2025-06-23
+the retained source covers 121 currently mapped warm symbols from 2025-06-23
 through 2026-08-14. The other enabled warm assets remain explicitly without
 historical EOD evidence until the central EOD pipeline captures their normal
 50-prior-weekday baseline and subsequent sessions. A future EOD history reader
 may show only this global evidence and its coverage state; it must never fall
 back to `tenant-local` or imply a price/algorithm result for an uncovered
 asset.
+
+#### Initial import execution — 2026-08-16
+
+The audited deployment-agent action completed a dry-run and then one bounded
+append-only execution (`subglobaleodhist-20260816T025951Z`). The dry-run and
+execution agreed exactly: 17,421 initial-capture `eod_bar` records across 121
+of the 881 enabled warm assets, from 2025-06-23 through 2026-08-14. The
+post-run dedicated-primary verification returned the same 17,421 records,
+121 distinct global assets, and date range. No provider call, legacy-event
+mutation, tenant/list change, reader activation, or scheduler change occurred.
+
+The coverage gap is intentional and visible: 760 enabled warm assets did not
+have a retained, uniquely mapped source bar in this one-time import. They
+remain history-uncovered until the authoritative global EOD path captures the
+normal price-only baseline and future completed sessions.
 
 On 2026-08-15, the first five fully mapped manifests were appended through that restricted path: 1,075 records across EEOM (75), feature vectors (250), Market State (250), valuation (250), and outcomes (250). The manifest reader then advanced safely to the next 1,000 mapped feature-vector rows, bringing globally materialized feature evidence to 1,250 records. A separately bounded newest-first Market State run appended 1,000 current records, including 132 for the 2026-08-14 completed session. The global coverage ledger now has immutable provenance for those records, but no analytical read projection has been enabled; the type-specific parity, freshness, authorization, and browser gates remain mandatory.
 
