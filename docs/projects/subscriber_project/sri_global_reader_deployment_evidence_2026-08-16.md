@@ -52,3 +52,10 @@ not granted raw SRI table access.
   and the interactive ETF progression/history request.
 
 No market-data or issuer-holdings provider call was made by this release.
+
+## Scheduled writer image readiness
+
+The dedicated `marketops-sri-runner` and `marketops-sri-holdings-runner` images
+were rebuilt at 2026-08-16 02:30 UTC from the released source. This prepares
+the approved weekday schedules to write `platform-global` output on their next
+execution. The build did not start a SRI refresh or a State Street request.
