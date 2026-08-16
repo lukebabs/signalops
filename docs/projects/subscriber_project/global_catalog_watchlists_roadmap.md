@@ -331,10 +331,16 @@ The named Gateway deployment rebuilt the application, passed its complete Go tes
 This closes the first type-specific global analytical-reader gate. The Assets card remains deliberately conservative until it has a per-symbol global Market State availability projection; it must not imply every shared-EOD asset has a usable global state. The next reader slices remain EROC, valuation, EEOM, material events, Signal Assurance/outcomes, and SRI.
 
 
-### EROC global reader — implemented, evidence activation pending — 2026-08-16
+### EROC global reader — Gateway and pilot acceptance complete — 2026-08-16
 
 Migration `000126_subscriber_global_eroc_projection` defines a restricted EROC v6 projection over platform-owned valuation evidence. For a subscriber pilot, both EROC list and overview endpoints authorize the selected watchlist symbols first, then read that projection fail-closed; an absent global EROC record is not replaced by a tenant-local result. Non-subscriber behavior remains unchanged.
 
 The immutable parity-manifest and evidence-materializer runners now accept an optional exact `--algorithm-id` filter. This permits a bounded, provenance-preserving import of `signalops.algorithms.eroc_v6` only, rather than mixing EROC records with unrelated valuation evidence. Focused API, Postgres-reader, parity-runner, and materializer tests pass, including a regression with a newer global EROC result and an older tenant-local result.
 
-Activation remains blocked by data evidence, not code: the dedicated store has 1,346 legacy EROC v6 rows through 2026-08-14 but zero globally materialized EROC v6 rows. The older 250 global valuation records are `eroc_v2` from 2026-04-16 and are not eligible substitutes. The next controlled step is one algorithm-filtered parity manifest and append-only materialization run, followed by migration `000126`, Gateway deployment, and the strengthened pilot browser contract.
+One controlled, newest-first, algorithm-filtered parity run selected and uniquely mapped all 1,346 `signalops.algorithms.eroc_v6` records through the completed 2026-08-14 session. Its append-only materialization wrote the corresponding 1,346 platform-global records in two immutable evidence runs (`legacy_materialization` source scope). No provider call, legacy-table mutation, tenant membership change, or scheduler activation occurred. The legacy parity entries intentionally retain their immutable `pending_global_materialization` status; materialization provenance is recorded separately rather than rewriting the manifest.
+
+The deployment-agent migration action then applied `000126` to the dedicated MarketOps primary. The restricted Gateway role can select the global EROC projection and cannot read the source evidence tables. A named Gateway-only deployment passed the full Go test suite and preserved dedicated primary/temporal routing. The isolated `tenant-pilot-b` browser contract now passes with a selected watchlist EROC response containing a result whose `data_scope` is `platform-global`.
+
+During activation, the browser contract exposed an unsafe fallback: a subscriber request could receive an empty tenant-local result when the global-reader capability was unavailable. Commit `a9f684e` corrects this by failing closed with `global_eroc_unavailable`; it never falls back to tenant-local EROC. The focused API/storage tests and live pilot browser smoke passed after that correction.
+
+This closes the EROC type-specific reader gate. It does not close the broader production blocker: valuation, EEOM, material events, Signal Assurance/outcomes, SRI, intraday, and Risk/Reward still require their own global projections, materialization, freshness/parity evidence, and browser acceptance.

@@ -107,3 +107,9 @@ This closes the **UX truthfulness** sub-gate only. It does not close the global 
 ## Production gate
 
 Run this suite after Gateway/Web deployment and before declaring a subscriber release accepted. A passing browser smoke validates UX and authorization propagation; it does not replace the separate global analytical-data-plane, provider, scheduler, parity, or recovery gates.
+
+## Global EROC reader acceptance — 2026-08-16
+
+After the controlled, algorithm-filtered materialization of 1,346 EROC v6 records, the pilot contract was strengthened to require a non-empty EROC result for a selected shared symbol and `data_scope = platform-global`. The named Gateway deployment and the isolated `tenant-pilot-b` smoke both passed. This proves the subscriber EROC route reads authorized global evidence rather than legacy tenant-local data.
+
+The route is fail-closed. If the global reader is unavailable, it returns `global_eroc_unavailable` rather than substituting a tenant-local result. This test covers one reader type only; the other analytical projections remain independently gated.
