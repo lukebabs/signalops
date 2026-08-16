@@ -139,3 +139,8 @@ rankings response has `data_scope: "platform-global"`, a resolved authorized
 evidence note. Exercise one ETF progression and issuer-makeup request. A
 missing global projection must surface a controlled unavailable error; the UI
 must never receive tenant-local SRI as a fallback.
+
+
+### Fixture reconciliation evidence — 2026-08-16
+
+The controlled tenant-pilot-b `First List` currently contains AAPL and NVDA. The browser-smoke defaults were reconciled to that actual fixture; NOW and SNOW are no longer asserted as list members. The explicit run using the protected pilot identity passed both browser contracts on 2026-08-16: watchlist context propagation/global-coverage assertions and the SRI platform-global projection assertion (2 passed).
