@@ -77,6 +77,9 @@ case "$action" in
   fmp-annual-entitlement-preflight)
     run "$repository_dir/scripts/preflight_subscriber_global_annual_financial.sh" "$repository_dir/.env"
     ;;
+  subscriber-qualified-warm-cohort-reconcile)
+    run "$repository_dir/scripts/reconcile_subscriber_qualified_warm_cohort.sh" "$repository_dir/.env"
+    ;;
   subscriber-pilot-ui-smoke)
     [[ "$actor" =~ ^[a-z_][a-z0-9_-]*$ && "$actor" != "unknown" ]] || {
       printf "%s\n" "subscriber_pilot_ui_smoke_operator_invalid" >&2

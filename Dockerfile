@@ -61,6 +61,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-financial-refresh ./cmd/subscriber-global-annual-financial-refresh
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-valuation-materializer ./cmd/subscriber-global-annual-valuation-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-financial-task-worker ./cmd/subscriber-global-annual-financial-task-worker
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-ranking-import ./cmd/subscriber-global-ranking-import
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-catalog-admission ./cmd/subscriber-global-catalog-admission
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-eod-shadow-planner ./cmd/subscriber-global-eod-shadow-planner
 
 FROM python:3.12-slim AS gateway
 
@@ -372,3 +375,15 @@ ENTRYPOINT ["/signalops-subscriber-global-annual-valuation-materializer"]
 FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-annual-financial-task-worker
 COPY --from=build /out/signalops-subscriber-global-annual-financial-task-worker /signalops-subscriber-global-annual-financial-task-worker
 ENTRYPOINT ["/signalops-subscriber-global-annual-financial-task-worker"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-ranking-import
+COPY --from=build /out/signalops-subscriber-global-ranking-import /signalops-subscriber-global-ranking-import
+ENTRYPOINT ["/signalops-subscriber-global-ranking-import"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-catalog-admission
+COPY --from=build /out/signalops-subscriber-global-catalog-admission /signalops-subscriber-global-catalog-admission
+ENTRYPOINT ["/signalops-subscriber-global-catalog-admission"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-eod-shadow-planner
+COPY --from=build /out/signalops-subscriber-global-eod-shadow-planner /signalops-subscriber-global-eod-shadow-planner
+ENTRYPOINT ["/signalops-subscriber-global-eod-shadow-planner"]
