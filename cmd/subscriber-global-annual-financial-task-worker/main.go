@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const worker = "subscriber-global-eod-reconciler"
+const worker = "subscriber-global-annual-financial-task-worker"
 const taskType = "subscriber_global_annual_financial"
 const algo = "marketops.fundamental_annual.fmp"
 const version = "v1"
@@ -130,7 +130,7 @@ func seed(c context.Context, d *sql.DB, s time.Time, n int) error {
 	return e
 }
 func claim(c context.Context, d *sql.DB, s time.Time, n int) ([]task, error) {
-	r, e := d.QueryContext(c, `WITH x AS(SELECT task_id FROM subscriber_global_annual_financial_tasks WHERE workflow_id=$1 AND((status IN('queued','retry_scheduled')AND next_attempt_at<=now())OR(status='running'AND lease_expires_at<=now()))ORDER BY next_attempt_at FOR UPDATE SKIP LOCKED LIMIT $2)UPDATE subscriber_global_annual_financial_tasks t SET status='running',attempt_count=t.attempt_count+1,lease_expires_at=now()+interval '20 minutes',updated_at=now() FROM x WHERE t.task_id=x.task_id RETURNING t.task_id,t.global_asset_id,t.symbol,t.attempt_count,t.max_attempts`, wid(s), n)
+	r, e := d.QueryContext(c, `WITH x AS(SELECT task_id FROM subscriber_global_annual_financial_tasks WHERE workflow_id=$1 AND((status IN('queued','retry_scheduled')AND next_attempt_at<=now())OR(status='running'AND lease_expires_at<=now())OR(status='succeeded' AND NOT (result ? 'periods')))ORDER BY next_attempt_at FOR UPDATE SKIP LOCKED LIMIT $2)UPDATE subscriber_global_annual_financial_tasks t SET status='running',attempt_count=t.attempt_count+1,lease_expires_at=now()+interval '20 minutes',updated_at=now() FROM x WHERE t.task_id=x.task_id RETURNING t.task_id,t.global_asset_id,t.symbol,t.attempt_count,t.max_attempts`, wid(s), n)
 	if e != nil {
 		return nil, e
 	}
@@ -207,7 +207,7 @@ func payload(sym string, s fmp.AnnualFinancialSnapshot, e error) ([]byte, string
 		p, _ := json.Marshal(map[string]any{"symbol": sym, "capture_error": e.Error(), "annual_periods": 0})
 		return p, "invalid", "fmp:annual:error:" + sym, time.Now().UTC()
 	}
-	p, _ := json.Marshal(map[string]any{"symbol": sym, "annual_periods": s.Periods, "ratio_references_by_period": s.RatioReferences, "key_metric_references_by_period": s.KeyMetricReferences, "provider_request_ids": s.ProviderRequestIDs, "retrieved_at": s.RetrievedAt.UTC().Format(time.RFC3339Nano)})
+	p, _ := json.Marshal(map[string]any{"symbol": sym, "periods": s.Periods, "ratio_references_by_period": s.RatioReferences, "key_metric_references_by_period": s.KeyMetricReferences, "provider_request_ids": s.ProviderRequestIDs, "retrieved_at": s.RetrievedAt.UTC().Format(time.RFC3339Nano)})
 	return p, "usable", "fmp:annual:" + sym + ":" + s.Periods[0].PeriodEnd.Format("2006-01-02"), s.RetrievedAt
 }
 func nullable(t time.Time) any {
