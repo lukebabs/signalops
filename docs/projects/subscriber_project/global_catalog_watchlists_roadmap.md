@@ -543,3 +543,7 @@ The append-only global materializer now closes the existing Risk/Reward evidence
 ### Global intraday current-state projection — 2026-08-16
 
 Migration `000143_subscriber_global_intraday_current_state_projection` makes the 132 already materialized, platform-owned intraday snapshots available only through a security-barrier gateway projection. It selects one canonical asset state by immutable payload `as_of_time`, preserving the current-only disclosure and denying raw evidence access to the gateway role. The projection is not yet consumed by an API, UI, or scheduler. The legacy scheduler therefore remains authoritative until the grandfathered-132-versus-watchlist-selector dual-run proves membership and freshness parity.
+
+### Legacy hot-cohort dual-run — 2026-08-16
+
+Migration `000144_subscriber_legacy_hot_cohort_shadow` preserves all 132 tenant-local legacy default members in a temporary compatibility cohort, while activating only the 125 currently eligible US-common-stock identities. The first immutable comparison correctly records a 125-versus-0 mismatch because no user has saved a MarketOps watchlist context. Display fallback is deliberately not treated as a hot-tier selection. An authorized tenant-local analyst must explicitly select the legacy default; only then can the dual-run prove 125 shared members before a scheduler or UI cutover. The seven preserved but deferred catalog-ineligible symbols remain subject to the documented normalization/admission roadmap.
