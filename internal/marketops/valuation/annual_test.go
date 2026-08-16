@@ -1,6 +1,9 @@
 package valuation
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestEvaluateAnnualBalancedSixDimensionProfile(t *testing.T) {
 	result := EvaluateAnnual(AnnualInput{
@@ -44,5 +47,16 @@ func TestEvaluateAnnualRequiresAnnualValuationInputs(t *testing.T) {
 	result := EvaluateAnnual(AnnualInput{Revenue: 100})
 	if result.Eligible || result.Confidence != 0 || result.Status != "insufficient_data" {
 		t.Fatalf("expected insufficient annual result: %#v", result)
+	}
+}
+
+func TestEvaluateAnnualGrowthScoreCalibration(t *testing.T) {
+	cases := []struct{ cagr, want float64 }{{0, 2}, {.05, 3}, {.10, 4}, {.15, 5}, {.25, 6}, {.35, 8}, {.50, 10}}
+	for _, test := range cases {
+		input := AnnualInput{Revenue: 100, Revenue3YAgo: 100 / math.Pow(1+test.cagr, 3)}
+		score, ok := annualGrowth(input, &AnnualResult{Raw: map[string]float64{}, Components: map[string]float64{}})
+		if !ok || math.Abs(score-test.want) > 0.000001 {
+			t.Fatalf("cagr %.2f: got %.6f (ok=%v), want %.2f", test.cagr, score, ok, test.want)
+		}
 	}
 }

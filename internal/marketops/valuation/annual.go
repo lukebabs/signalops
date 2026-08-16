@@ -5,7 +5,7 @@ import "math"
 // AnnualModelVersion is deliberately separate from the live TTM model. It is
 // an annual-only, evidence-backed research profile and must not replace v3
 // until its own calibration and rollout gates are approved.
-const AnnualModelVersion = "vc-dosm-4.0-annual"
+const AnnualModelVersion = "vc-dosm-4.1-annual"
 
 // AnnualInput contains values derived locally from raw, provider-captured
 // annual statements. Provider ratios are useful references but are never used
@@ -54,6 +54,9 @@ type AnnualResult struct {
 	Components         map[string]float64 `json:"component_scores"`
 	Reasons            []string           `json:"confidence_reasons"`
 }
+
+// annualGrowthPoints makes zero growth a low (2/10) result and reserves top scores for exceptional growth.
+var annualGrowthPoints = [][2]float64{{-.15, 0}, {0, 2}, {.05, 3}, {.10, 4}, {.15, 5}, {.25, 6}, {.35, 8}, {.50, 10}}
 
 var currentRatioPoints = [][2]float64{{0.5, 0}, {0.75, 2}, {1, 5}, {1.25, 7}, {1.5, 8.5}, {2, 10}}
 var quickRatioPoints = [][2]float64{{0.4, 0}, {0.6, 2}, {0.8, 5}, {1, 7.5}, {1.25, 9}, {1.5, 10}}
@@ -191,7 +194,7 @@ func annualGrowth(in AnnualInput, r *AnnualResult) (float64, bool) {
 	}
 	cagr := math.Pow(in.Revenue/in.Revenue3YAgo, 1.0/3) - 1
 	r.Raw["revenue_cagr_3y_annual"] = cagr
-	r.Components["revenue_growth_score"] = ascending(cagr, growthPoints)
+	r.Components["revenue_growth_score"] = ascending(cagr, annualGrowthPoints)
 	return r.Components["revenue_growth_score"], true
 }
 
