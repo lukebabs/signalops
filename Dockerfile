@@ -60,6 +60,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-eod-history-materializer ./cmd/subscriber-global-eod-history-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-financial-refresh ./cmd/subscriber-global-annual-financial-refresh
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-valuation-materializer ./cmd/subscriber-global-annual-valuation-materializer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-financial-task-worker ./cmd/subscriber-global-annual-financial-task-worker
 
 FROM python:3.12-slim AS gateway
 
@@ -367,3 +368,7 @@ ENTRYPOINT ["/signalops-subscriber-global-annual-financial-refresh"]
 FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-annual-valuation-materializer
 COPY --from=build /out/signalops-subscriber-global-annual-valuation-materializer /signalops-subscriber-global-annual-valuation-materializer
 ENTRYPOINT ["/signalops-subscriber-global-annual-valuation-materializer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-annual-financial-task-worker
+COPY --from=build /out/signalops-subscriber-global-annual-financial-task-worker /signalops-subscriber-global-annual-financial-task-worker
+ENTRYPOINT ["/signalops-subscriber-global-annual-financial-task-worker"]

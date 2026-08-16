@@ -29,6 +29,13 @@ func registerMarketOpsTaskRoutes(mux *http.ServeMux, repo storage.QueryRepositor
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list marketops task items")
 			return
 		}
+		if strings.TrimSpace(r.URL.Query().Get("tenant_id")) == "tenant-local" {
+			if global, ok := any(repo).(storage.SubscriberGlobalAnnualFinancialTaskRepository); ok {
+				if rows, e := global.ListSubscriberGlobalAnnualFinancialTasks(r.Context(), queryLimit(r, 200)); e == nil {
+					items = append(items, rows...)
+				}
+			}
+		}
 		out := make([]map[string]any, 0, len(items))
 		for _, x := range items {
 			out = append(out, map[string]any{"task_id": x.TaskID, "workflow_id": x.WorkflowID, "tenant_id": x.TenantID, "session_date": x.SessionDate.Format("2006-01-02"), "task_type": x.TaskType, "symbol": x.Symbol, "status": x.Status, "attempt_count": x.AttemptCount, "max_attempts": x.MaxAttempts, "next_attempt_at": x.NextAttemptAt, "provider": x.Provider, "failure_class": x.FailureClass, "provider_status": x.ProviderStatus, "error_message": x.ErrorMessage, "result": taskResultJSON(x.ResultJSON), "completed_at": x.CompletedAt, "created_at": x.CreatedAt, "updated_at": x.UpdatedAt})

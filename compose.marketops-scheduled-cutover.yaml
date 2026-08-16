@@ -78,3 +78,12 @@ services:
       target: subscriber-global-annual-valuation-materializer
     environment:
       SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+  subscriber-global-annual-financial-task-worker:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-annual-financial-task-worker
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+      SIGNALOPS_FMP_BASE_URL: ${SIGNALOPS_FMP_BASE_URL:-}
+      SIGNALOPS_FMP_API_KEY: ${SIGNALOPS_FMP_API_KEY:-${fmp_apikey:-}}

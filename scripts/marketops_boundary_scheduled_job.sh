@@ -35,6 +35,9 @@ case "$job_id" in
   marketops-fmp-continuation)
     exec ./scripts/marketops_scheduled_job.sh "$job_id" "Daily 04:00" America/New_York ./scripts/marketops_fmp_continuation.sh
     ;;
+  marketops-fmp-annual-financial)
+    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Saturday 02:30" America/New_York ./scripts/marketops_annual_financial_task_worker.sh
+    ;;
   marketops-task-retry)
     exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays every 15 minutes, 18:30-23:00" America/New_York ./scripts/marketops_tactical_retry.sh
     ;;

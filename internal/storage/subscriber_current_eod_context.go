@@ -62,6 +62,10 @@ type SubscriberGlobalValuationRepository interface {
 	ListSubscriberGlobalValuationResults(context.Context, []string, bool, int) ([]MarketOpsValuationResultRecord, error)
 }
 
+type SubscriberGlobalAnnualFinancialTaskRepository interface {
+	ListSubscriberGlobalAnnualFinancialTasks(context.Context, int) ([]MarketOpsTaskItemRecord, error)
+}
+
 // SubscriberGlobalEEOMRepository reads parity-approved platform EEOM results.
 // Symbol authorization remains the selected watchlist's responsibility.
 type SubscriberGlobalEEOMRepository interface {

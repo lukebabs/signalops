@@ -60,3 +60,32 @@ func (r *Repository) ListMarketOpsTaskItems(ctx context.Context, f storage.Marke
 	}
 	return out, rows.Err()
 }
+
+func (r *Repository) ListSubscriberGlobalAnnualFinancialTasks(ctx context.Context, limit int) ([]storage.MarketOpsTaskItemRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT task_id,workflow_id,tenant_id,session_date,task_type,symbol,status,attempt_count,max_attempts,next_attempt_at,lease_expires_at,provider,failure_class,provider_status,error_message,result,completed_at,created_at,updated_at FROM subscriber_gateway_global_annual_financial_tasks ORDER BY session_date DESC,symbol LIMIT $1`, clampLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list global annual financial tasks: %w", err)
+	}
+	defer rows.Close()
+	out := []storage.MarketOpsTaskItemRecord{}
+	for rows.Next() {
+		var x storage.MarketOpsTaskItemRecord
+		var lease, done sql.NullTime
+		var code sql.NullInt32
+		if err := rows.Scan(&x.TaskID, &x.WorkflowID, &x.TenantID, &x.SessionDate, &x.TaskType, &x.Symbol, &x.Status, &x.AttemptCount, &x.MaxAttempts, &x.NextAttemptAt, &lease, &x.Provider, &x.FailureClass, &code, &x.ErrorMessage, &x.ResultJSON, &done, &x.CreatedAt, &x.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if lease.Valid {
+			x.LeaseExpiresAt = &lease.Time
+		}
+		if done.Valid {
+			x.CompletedAt = &done.Time
+		}
+		if code.Valid {
+			v := int(code.Int32)
+			x.ProviderStatus = &v
+		}
+		out = append(out, x)
+	}
+	return out, rows.Err()
+}

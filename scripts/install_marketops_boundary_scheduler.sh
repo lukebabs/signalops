@@ -24,9 +24,11 @@ market_data_timers=(
 warm_eod_timers=(
   signalops-marketops-boundary-warm-eod.timer
 )
+annual_fmp_timers=(signalops-marketops-boundary-fmp-annual-financial.timer)
 enable_sri=false
 enable_market_data=false
 enable_warm_eod=false
+enable_annual_fmp=false
 
 [[ -n "$runtime_env" && -r "$runtime_env" ]] || {
   printf 'Provide a readable protected production Compose environment file as argument 1.\n' >&2
@@ -51,6 +53,7 @@ for flag in "${enable_flags[@]}"; do
     --enable-sri) enable_sri=true ;;
     --enable-market-data) enable_market_data=true ;;
     --enable-warm-eod) enable_warm_eod=true ;;
+    --enable-fmp-annual) enable_annual_fmp=true ;;
     "") ;;
     *)
       printf "Optional flags must be --enable-sri, --enable-market-data, and/or --enable-warm-eod.\n" >&2
@@ -58,7 +61,7 @@ for flag in "${enable_flags[@]}"; do
       ;;
   esac
 done
-for timer in "${sri_timers[@]}" "${market_data_timers[@]}" "${warm_eod_timers[@]}"; do
+for timer in "${sri_timers[@]}" "${market_data_timers[@]}" "${warm_eod_timers[@]}" "${annual_fmp_timers[@]}"; do
   [[ -r "$root_dir/deploy/systemd/$timer" ]] || {
     printf 'Missing dedicated scheduler timer template: %s\n' "$timer" >&2
     exit 3
@@ -73,7 +76,7 @@ sed \
   -e "s|@RUN_AS_USER@|$run_as_user|g" \
   "$template" > "$temporary"
 install -m 0644 -o root -g root "$temporary" "$unit"
-for timer in "${sri_timers[@]}" "${market_data_timers[@]}" "${warm_eod_timers[@]}"; do
+for timer in "${sri_timers[@]}" "${market_data_timers[@]}" "${warm_eod_timers[@]}" "${annual_fmp_timers[@]}"; do
   install -m 0644 -o root -g root "$root_dir/deploy/systemd/$timer" "/etc/systemd/system/$timer"
 done
 systemctl daemon-reload
@@ -91,6 +94,7 @@ if "$enable_warm_eod"; then
   systemctl enable --now "${warm_eod_timers[@]}"
   printf "Enabled centrally governed warm EOD acquisition: weekdays 18:00 America/New_York.\n"
 fi
+if "$enable_annual_fmp"; then systemctl enable --now "${annual_fmp_timers[@]}"; printf "Enabled governed FMP annual financial capture: Saturdays 02:30 America/New_York.\n"; fi
 if ! "$enable_sri" && ! "$enable_market_data" && ! "$enable_warm_eod"; then
   printf "No timer was enabled. Use --enable-sri, --enable-market-data, and/or --enable-warm-eod only with recorded approval.\n"
 fi
