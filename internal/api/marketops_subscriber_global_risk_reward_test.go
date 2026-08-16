@@ -278,3 +278,43 @@ func TestSubscriberEEOMUsesGlobalProjection(t *testing.T) {
 		t.Fatalf("subscriber EEOM did not use global projection: %#v", result)
 	}
 }
+
+type subscriberGlobalMaterialEventFake struct {
+	*fakeQueryRepository
+	events  []storage.SubscriberGlobalMaterialEventRecord
+	symbols []string
+}
+
+func (f *subscriberGlobalMaterialEventFake) ListSubscriberGlobalMaterialEvents(_ context.Context, symbols []string, _ time.Time, _ int) ([]storage.SubscriberGlobalMaterialEventRecord, error) {
+	f.symbols = append([]string(nil), symbols...)
+	return f.events, nil
+}
+
+func TestSubscriberMaterialEventsUsesGlobalProjection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	payload := []byte(`{"symbol":"AAPL","event_type":"earnings","event_date":"` + now.AddDate(0, 0, 5).Format("2006-01-02") + `","known_at":"` + now.Format(time.RFC3339) + `"}`)
+	repo := &subscriberGlobalMaterialEventFake{fakeQueryRepository: &fakeQueryRepository{}, events: []storage.SubscriberGlobalMaterialEventRecord{{GlobalAssetID: "subglobal-aapl", Symbol: "AAPL", EventID: "fmp-aapl-event", SessionDate: now, ObservedAt: now.Add(20 * time.Hour), QualityState: "usable", PayloadJSON: payload}}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-pilot-b": {}}, SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{}})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/material-events?symbol=AAPL", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" {
+		t.Fatalf("global Material Events symbols=%v, want [AAPL]", repo.symbols)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	events := response["events"].([]any)
+	if len(events) != 1 {
+		t.Fatalf("material events=%#v", events)
+	}
+	event := events[0].(map[string]any)
+	if event["event_id"] != "fmp-aapl-event" || event["data_scope"] != "platform-global" {
+		t.Fatalf("subscriber Material Events did not use global projection: %#v", event)
+	}
+}

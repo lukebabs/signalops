@@ -74,6 +74,40 @@ func registerMarketOpsEEOMRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		if !ok {
 			return
 		}
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			globalReader, supported := any(cfg.QueryRepository).(storage.SubscriberGlobalMaterialEventRepository)
+			if !supported {
+				writeError(w, http.StatusServiceUnavailable, "global_material_events_unavailable", "global Material Events projection is unavailable")
+				return
+			}
+			today := time.Now().UTC().Truncate(24 * time.Hour)
+			symbol := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("symbol")))
+			globalEvents, err := globalReader.ListSubscriberGlobalMaterialEvents(r.Context(), authorizedEROCTickers(watchlistContext, symbol), today.AddDate(0, 0, -2), queryLimit(r, 500))
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to list global MarketOps material events")
+				return
+			}
+			events := make([]map[string]any, 0, len(globalEvents))
+			for _, record := range globalEvents {
+				payload := map[string]any{}
+				if json.Unmarshal(record.PayloadJSON, &payload) != nil || strings.ToLower(eeomString(payload["event_type"])) != "earnings" {
+					continue
+				}
+				payload["event_id"] = record.EventID
+				payload["data_scope"] = "platform-global"
+				payload["days_to_event"] = int(recordedEventDate(payload).Sub(today).Hours() / 24)
+				events = append(events, payload)
+			}
+			sort.Slice(events, func(i, j int) bool {
+				left, right := eeomString(events[i]["event_date"]), eeomString(events[j]["event_date"])
+				if left == right {
+					return eeomString(events[i]["symbol"]) < eeomString(events[j]["symbol"])
+				}
+				return left < right
+			})
+			writeJSON(w, http.StatusOK, map[string]any{"events": events, "research_only": true, "description": "Point-in-time-known earnings dates from Financial Modeling Prep; timing and confirmation are unavailable from this source.", "watchlist_context": subscriberWatchlistContextResponse(watchlistContext)})
+			return
+		}
 		records, err := cfg.QueryRepository.ListNormalizedEventLedger(r.Context(), storage.RawEventLedgerFilter{TenantID: tenantID, AppID: "marketops", Dataset: "market_event_calendar", Limit: queryLimit(r, 500)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps material events")
@@ -120,6 +154,11 @@ func registerMarketOpsEEOMRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		}
 		writeJSON(w, http.StatusOK, response)
 	})
+}
+
+func recordedEventDate(payload map[string]any) time.Time {
+	date, _ := time.Parse("2006-01-02", eeomString(payload["event_date"]))
+	return date.UTC()
 }
 
 func eeomString(value any) string {
