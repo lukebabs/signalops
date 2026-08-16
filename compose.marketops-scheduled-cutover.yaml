@@ -62,3 +62,12 @@ services:
     environment:
       SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
       SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:?inject dedicated MarketOps temporal URL}
+  subscriber-global-annual-financial-refresh:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-annual-financial-refresh
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+      SIGNALOPS_FMP_BASE_URL: ${SIGNALOPS_FMP_BASE_URL:-}
+      SIGNALOPS_FMP_API_KEY: ${SIGNALOPS_FMP_API_KEY:-${fmp_apikey:-}}

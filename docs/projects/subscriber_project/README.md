@@ -31,6 +31,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 ## Document set
 
 - [Global Catalog and Watchlist Roadmap](global_catalog_watchlists_roadmap.md): target architecture, data flow, options demand design, compatibility-first sprint plan, controls, and acceptance measures.
+- [FMP annual financial enrichment and VC/DOSM v4](fmp_annual_v4_enrichment.md): disabled, centrally governed annual financial capture and parallel research-model contract; it does not replace the live v3 profile.
 - **Production blocker:** the roadmap records the required global analytical data plane; subscriber production readiness is blocked until globally materialized EOD history and analytics replace legacy tenant-local evidence.
 - [Sprint S1 global-catalog shadow](s1_global_catalog_shadow.md): additive identity, immutable provenance, coverage-shadow, controlled seed, and parity evidence.
 - [Sprint S2 catalog breadth and EOD planner shadow](s2_catalog_breadth_eod_planner_shadow.md): evidence-gated US-common-stock admission, top-1,000 selection, and cold-activation queue without collection.

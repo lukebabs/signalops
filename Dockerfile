@@ -58,6 +58,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-p
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-marketops-parity-manifest ./cmd/subscriber-global-marketops-parity-manifest
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-marketops-evidence-materializer ./cmd/subscriber-global-marketops-evidence-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-eod-history-materializer ./cmd/subscriber-global-eod-history-materializer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-financial-refresh ./cmd/subscriber-global-annual-financial-refresh
 
 FROM python:3.12-slim AS gateway
 
@@ -357,3 +358,7 @@ ENTRYPOINT ["/signalops-subscriber-global-marketops-evidence-materializer"]
 FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-eod-history-materializer
 COPY --from=build /out/signalops-subscriber-global-eod-history-materializer /signalops-subscriber-global-eod-history-materializer
 ENTRYPOINT ["/signalops-subscriber-global-eod-history-materializer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-annual-financial-refresh
+COPY --from=build /out/signalops-subscriber-global-annual-financial-refresh /signalops-subscriber-global-annual-financial-refresh
+ENTRYPOINT ["/signalops-subscriber-global-annual-financial-refresh"]
