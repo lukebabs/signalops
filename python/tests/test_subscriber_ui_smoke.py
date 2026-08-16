@@ -198,7 +198,13 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
         response = visit_for_response(subscriber_page, f"{config.base_url}/marketops/{route}", endpoint)
         expect(subscriber_page.get_by_role("heading", name=heading)).to_be_visible(timeout=30_000)
         assert_selected_watchlist(subscriber_page, config)
-        assert_watchlist_context(response, config)
+        payload = assert_watchlist_context(response, config)
+        if route == "eroc":
+            eroc_results = payload.get("results")
+            assert isinstance(eroc_results, list) and eroc_results, f"{response.url} returned no global EROC results"
+            selected_eroc = [item for item in eroc_results if str(item.get("ticker", "")).upper() == config.shared_tickers[0]]
+            assert selected_eroc, f"{response.url} omitted selected global EROC result"
+            assert selected_eroc[0].get("data_scope") == "platform-global", f"{response.url} fell back from global EROC"
 
     state = visit_for_response(
         subscriber_page,

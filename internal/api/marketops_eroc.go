@@ -25,6 +25,7 @@ type erocRow struct {
 	Confirmed    bool           `json:"confirmed"`
 	ModelVersion string         `json:"model_version"`
 	Trace        map[string]any `json:"trace"`
+	DataScope    string         `json:"data_scope"`
 }
 
 func erocRows(rows []storage.MarketOpsValuationResultRecord) []erocRow {
@@ -32,7 +33,7 @@ func erocRows(rows []storage.MarketOpsValuationResultRecord) []erocRow {
 	for _, row := range rows {
 		trace := map[string]any{}
 		_ = json.Unmarshal(row.ResultJSON, &trace)
-		out = append(out, erocRow{Ticker: row.Symbol, TradeDate: row.SessionDate.Format("2006-01-02"), Score: row.Score, State: row.Classification, Confirmed: row.Eligible, ModelVersion: row.ModelVersion, Trace: trace})
+		out = append(out, erocRow{Ticker: row.Symbol, TradeDate: row.SessionDate.Format("2006-01-02"), Score: row.Score, State: row.Classification, Confirmed: row.Eligible, ModelVersion: row.ModelVersion, Trace: trace, DataScope: row.TenantID})
 	}
 	return out
 }
