@@ -53,6 +53,7 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("subscriber-global-marketops-parity-manifest", flag.ContinueOnError)
 	databaseURL := flags.String("database-url", os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL"), "dedicated MarketOps global-worker database URL")
 	evidenceKinds := flags.String("evidence-kinds", "feature_vector,market_state,valuation,eeom,signal_assertion,outcome,options_snapshot,risk_reward", "comma-separated supported evidence kinds")
+	algorithmID := flags.String("algorithm-id", "", "optional exact legacy algorithm identifier")
 	newestFirst := flags.Bool("newest-first", false, "select newest unmanifested source records first")
 	limit := flags.Int("limit", 1000, "bounded source rows per immutable manifest (1-50000)")
 	correlationID := flags.String("correlation-id", "", "optional operator correlation ID")
@@ -92,7 +93,7 @@ func run(args []string) error {
 		return err
 	}
 
-	entries, err := readManifestEntries(ctx, db, kinds, *limit, *newestFirst)
+	entries, err := readManifestEntries(ctx, db, kinds, strings.TrimSpace(*algorithmID), *limit, *newestFirst)
 	if err != nil {
 		return err
 	}
@@ -171,7 +172,7 @@ FROM pg_roles WHERE rolname=current_user`).Scan(&currentUser, &superuser, &creat
 	return nil
 }
 
-func readManifestEntries(ctx context.Context, db *sql.DB, kinds []string, limit int, newestFirst bool) ([]manifestEntry, error) {
+func readManifestEntries(ctx context.Context, db *sql.DB, kinds []string, algorithmID string, limit int, newestFirst bool) ([]manifestEntry, error) {
 	quotedKinds := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
 		quotedKinds = append(quotedKinds, fmt.Sprintf("'%s'", kind))
@@ -192,6 +193,7 @@ LEFT JOIN LATERAL (
   WHERE upper(asset.canonical_symbol)=upper(source.legacy_symbol)
 ) mapping ON true
 WHERE source.evidence_kind IN (`+strings.Join(quotedKinds, ",")+`)
+  AND ($1='' OR source.legacy_algorithm_id=$1)
   AND NOT EXISTS (
     SELECT 1 FROM subscriber_global_marketops_legacy_parity_manifest_entries prior
     WHERE prior.evidence_kind=source.evidence_kind
@@ -199,7 +201,7 @@ WHERE source.evidence_kind IN (`+strings.Join(quotedKinds, ",")+`)
       AND prior.mapping_status='mapped'
   )
 ORDER BY source.evidence_kind,source.legacy_session_date `+orderDirection+`,source.legacy_record_id `+orderDirection+`
-LIMIT $1`, limit)
+LIMIT $2`, algorithmID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("read tenant-local parity source: %w", err)
 	}

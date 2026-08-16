@@ -69,17 +69,56 @@ func enrichEROCOptionsFlow(ctx context.Context, repo storage.QueryRepository, te
 	return nil
 }
 
-func scopedEROCRows(w http.ResponseWriter, r *http.Request, cfg RouterConfig, rows []erocRow) ([]erocRow, subscriberWatchlistContext, bool) {
+func authorizedEROCTickers(context subscriberWatchlistContext, requested string) []string {
+	symbol := strings.ToUpper(strings.TrimSpace(requested))
+	if symbol != "" {
+		if _, allowed := context.Tickers[symbol]; allowed {
+			return []string{symbol}
+		}
+		return []string{}
+	}
+	symbols := make([]string, 0, len(context.Tickers))
+	for ticker := range context.Tickers {
+		symbols = append(symbols, ticker)
+	}
+	return symbols
+}
+
+func loadEROCRows(w http.ResponseWriter, r *http.Request, cfg RouterConfig) ([]storage.MarketOpsValuationResultRecord, subscriberWatchlistContext, bool) {
+	repo, ok := any(cfg.QueryRepository).(storage.MarketOpsValuationRepository)
+	if !ok {
+		writeEROCErr(w, errEROCAvailable{})
+		return nil, subscriberWatchlistContext{}, false
+	}
 	tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
 	if !ok {
 		return nil, subscriberWatchlistContext{}, false
 	}
-	context, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+	watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
 	if !ok {
 		return nil, subscriberWatchlistContext{}, false
 	}
-	if !subscriberWatchlistContextEnabled(cfg, tenantID) {
-		return rows, context, true
+	if subscriberWatchlistContextEnabled(cfg, tenantID) {
+		if globalReader, supported := any(repo).(storage.SubscriberGlobalEROCRepository); supported {
+			rows, err := globalReader.ListSubscriberGlobalEROCResults(r.Context(), authorizedEROCTickers(watchlistContext, r.URL.Query().Get("symbol")), 5000)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to load global EROC results")
+				return nil, subscriberWatchlistContext{}, false
+			}
+			return rows, watchlistContext, true
+		}
+	}
+	rows, err := repo.ListMarketOpsValuationResults(r.Context(), storage.MarketOpsValuationFilter{TenantID: tenantID, Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), AlgorithmID: erocAlgorithmID, Limit: 5000})
+	if err != nil {
+		writeEROCErr(w, err)
+		return nil, subscriberWatchlistContext{}, false
+	}
+	return rows, watchlistContext, true
+}
+
+func filterEROCRows(rows []erocRow, context subscriberWatchlistContext, enabled bool) []erocRow {
+	if !enabled {
+		return rows
 	}
 	visible := rows[:0]
 	for _, row := range rows {
@@ -87,28 +126,16 @@ func scopedEROCRows(w http.ResponseWriter, r *http.Request, cfg RouterConfig, ro
 			visible = append(visible, row)
 		}
 	}
-	return visible, context, true
+	return visible
 }
 
 func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
-	read := func(r *http.Request) ([]storage.MarketOpsValuationResultRecord, error) {
-		repo, ok := any(cfg.QueryRepository).(storage.MarketOpsValuationRepository)
-		if !ok {
-			return nil, errEROCAvailable{}
-		}
-		return repo.ListMarketOpsValuationResults(r.Context(), storage.MarketOpsValuationFilter{TenantID: strings.TrimSpace(r.PathValue("tenant_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), AlgorithmID: erocAlgorithmID, Limit: 5000})
-	}
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/eroc", func(w http.ResponseWriter, r *http.Request) {
-		rows, err := read(r)
-		if err != nil {
-			writeEROCErr(w, err)
-			return
-		}
-		all := erocRows(rows)
-		all, watchlistContext, ok := scopedEROCRows(w, r, cfg, all)
+		rows, watchlistContext, ok := loadEROCRows(w, r, cfg)
 		if !ok {
 			return
 		}
+		all := filterEROCRows(erocRows(rows), watchlistContext, subscriberWatchlistContextEnabled(cfg, strings.TrimSpace(r.PathValue("tenant_id"))))
 		latest := map[string]erocRow{}
 		for _, row := range all {
 			if current, ok := latest[row.Ticker]; !ok || row.TradeDate > current.TradeDate {
@@ -131,9 +158,8 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		writeJSON(w, http.StatusOK, response)
 	})
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/eroc/overview", func(w http.ResponseWriter, r *http.Request) {
-		rows, err := read(r)
-		if err != nil {
-			writeEROCErr(w, err)
+		rows, watchlistContext, ok := loadEROCRows(w, r, cfg)
+		if !ok {
 			return
 		}
 		days := 10
@@ -144,11 +170,7 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		}
 		cutoff := time.Now().UTC().AddDate(0, 0, -days*3)
 		groups := map[string]map[string][]erocRow{}
-		all := erocRows(rows)
-		all, watchlistContext, ok := scopedEROCRows(w, r, cfg, all)
-		if !ok {
-			return
-		}
+		all := filterEROCRows(erocRows(rows), watchlistContext, subscriberWatchlistContextEnabled(cfg, strings.TrimSpace(r.PathValue("tenant_id"))))
 		for _, row := range all {
 			d, _ := time.Parse("2006-01-02", row.TradeDate)
 			if d.Before(cutoff) {

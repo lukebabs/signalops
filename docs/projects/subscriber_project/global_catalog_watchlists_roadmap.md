@@ -329,3 +329,12 @@ The next gate is a dedicated Gateway deployment followed by the pilot browser co
 The named Gateway deployment rebuilt the application, passed its complete Go test suite, verified dedicated primary and temporal routing at startup, and restarted only the Gateway. The isolated `tenant-pilot-b` browser acceptance then passed against the live service. Its strengthened contract requires the selected watchlist symbol to be present in the Market State response with `tenant_id = platform-global`; this is retained proof that the subscriber reader does not fall back to a tenant-local Market State row.
 
 This closes the first type-specific global analytical-reader gate. The Assets card remains deliberately conservative until it has a per-symbol global Market State availability projection; it must not imply every shared-EOD asset has a usable global state. The next reader slices remain EROC, valuation, EEOM, material events, Signal Assurance/outcomes, and SRI.
+
+
+### EROC global reader — implemented, evidence activation pending — 2026-08-16
+
+Migration `000126_subscriber_global_eroc_projection` defines a restricted EROC v6 projection over platform-owned valuation evidence. For a subscriber pilot, both EROC list and overview endpoints authorize the selected watchlist symbols first, then read that projection fail-closed; an absent global EROC record is not replaced by a tenant-local result. Non-subscriber behavior remains unchanged.
+
+The immutable parity-manifest and evidence-materializer runners now accept an optional exact `--algorithm-id` filter. This permits a bounded, provenance-preserving import of `signalops.algorithms.eroc_v6` only, rather than mixing EROC records with unrelated valuation evidence. Focused API, Postgres-reader, parity-runner, and materializer tests pass, including a regression with a newer global EROC result and an older tenant-local result.
+
+Activation remains blocked by data evidence, not code: the dedicated store has 1,346 legacy EROC v6 rows through 2026-08-14 but zero globally materialized EROC v6 rows. The older 250 global valuation records are `eroc_v2` from 2026-04-16 and are not eligible substitutes. The next controlled step is one algorithm-filtered parity manifest and append-only materialization run, followed by migration `000126`, Gateway deployment, and the strengthened pilot browser contract.

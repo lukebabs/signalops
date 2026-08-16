@@ -141,3 +141,59 @@ func TestSubscriberMarketStateUsesGlobalProjection(t *testing.T) {
 		t.Fatalf("subscriber market state did not use the global projection: %#v", state)
 	}
 }
+
+type subscriberGlobalEROCFake struct {
+	*fakeQueryRepository
+	results       []storage.MarketOpsValuationResultRecord
+	legacyResults []storage.MarketOpsValuationResultRecord
+	symbols       []string
+}
+
+func (f *subscriberGlobalEROCFake) ListSubscriberGlobalEROCResults(_ context.Context, symbols []string, _ int) ([]storage.MarketOpsValuationResultRecord, error) {
+	f.symbols = append([]string(nil), symbols...)
+	return f.results, nil
+}
+
+func (f *subscriberGlobalEROCFake) UpsertMarketOpsValuationSnapshot(context.Context, storage.MarketOpsValuationSnapshotRecord) error {
+	return nil
+}
+func (f *subscriberGlobalEROCFake) UpsertMarketOpsValuationResult(context.Context, storage.MarketOpsValuationResultRecord) error {
+	return nil
+}
+func (f *subscriberGlobalEROCFake) LatestMarketOpsValuationSnapshot(context.Context, string, string, string) (storage.MarketOpsValuationSnapshotRecord, error) {
+	return storage.MarketOpsValuationSnapshotRecord{}, storage.ErrNotFound
+}
+func (f *subscriberGlobalEROCFake) ListMarketOpsValuationResults(context.Context, storage.MarketOpsValuationFilter) ([]storage.MarketOpsValuationResultRecord, error) {
+	return f.legacyResults, nil
+}
+
+func TestSubscriberEROCUsesGlobalProjection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	globalDate := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	globalResult := storage.MarketOpsValuationResultRecord{ResultID: "global-eroc-aapl-20260814", TenantID: "platform-global", Symbol: "AAPL", SessionDate: globalDate, AlgorithmID: erocAlgorithmID, ModelVersion: "v6", Score: 77, Classification: "confirmed", Eligible: true, ResultJSON: []byte("{\"direction\":\"BULLISH\"}")}
+	legacyResult := globalResult
+	legacyResult.ResultID, legacyResult.TenantID, legacyResult.SessionDate, legacyResult.Score = "legacy-eroc-aapl-20260813", "tenant-pilot-b", globalDate.AddDate(0, 0, -1), 12
+	repo := &subscriberGlobalEROCFake{fakeQueryRepository: &fakeQueryRepository{}, legacyResults: []storage.MarketOpsValuationResultRecord{legacyResult}, results: []storage.MarketOpsValuationResultRecord{globalResult}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-pilot-b": {}}, SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{}})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/eroc?symbol=AAPL", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" {
+		t.Fatalf("global EROC symbols=%v, want [AAPL]", repo.symbols)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	results := response["results"].([]any)
+	if len(results) != 1 {
+		t.Fatalf("EROC results=%#v", results)
+	}
+	result := results[0].(map[string]any)
+	if result["score"] != 77.0 || result["trade_date"] != "2026-08-14" {
+		t.Fatalf("subscriber EROC did not use global projection: %#v", result)
+	}
+}

@@ -48,3 +48,9 @@ type SubscriberGlobalOptionsDistributionRepository interface {
 type SubscriberGlobalMarketStateRepository interface {
 	ListSubscriberGlobalMarketOpsMarketStates(context.Context, []string, MarketOpsMarketStateFilter) ([]MarketOpsMarketStateRecord, error)
 }
+
+// SubscriberGlobalEROCRepository reads parity-approved platform EROC results.
+// Symbol authorization remains the responsibility of the selected watchlist.
+type SubscriberGlobalEROCRepository interface {
+	ListSubscriberGlobalEROCResults(context.Context, []string, int) ([]MarketOpsValuationResultRecord, error)
+}

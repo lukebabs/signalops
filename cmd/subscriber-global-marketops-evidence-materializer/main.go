@@ -46,6 +46,7 @@ func run(args []string) error {
 	databaseURL := flags.String("database-url", os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL"), "dedicated global-worker database URL")
 	parityRunID := flags.String("parity-run-id", "", "immutable parity manifest run to materialize")
 	evidenceKinds := flags.String("evidence-kinds", "feature_vector,market_state,valuation,eeom,signal_assertion,outcome,options_snapshot,risk_reward", "comma-separated supported evidence kinds")
+	algorithmID := flags.String("algorithm-id", "", "optional exact legacy algorithm identifier")
 	limit := flags.Int("limit", 1000, "maximum entries to materialize (1-50000)")
 	correlationID := flags.String("correlation-id", "", "optional operator correlation ID")
 	actor := flags.String("actor", workerIdentity, "must be subscriber-global-eod-reconciler")
@@ -82,7 +83,7 @@ func run(args []string) error {
 	if err := validateWorkload(ctx, db); err != nil {
 		return err
 	}
-	entries, err := readEntries(ctx, db, strings.TrimSpace(*parityRunID), kinds, *limit)
+	entries, err := readEntries(ctx, db, strings.TrimSpace(*parityRunID), kinds, strings.TrimSpace(*algorithmID), *limit)
 	if err != nil {
 		return err
 	}
@@ -130,7 +131,7 @@ FROM pg_roles WHERE rolname=current_user`).Scan(&currentUser, &superuser, &creat
 	return nil
 }
 
-func readEntries(ctx context.Context, db *sql.DB, parityRunID string, kinds []string, limit int) ([]entry, error) {
+func readEntries(ctx context.Context, db *sql.DB, parityRunID string, kinds []string, algorithmID string, limit int) ([]entry, error) {
 	quoted := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
 		quoted = append(quoted, "'"+kind+"'")
@@ -144,8 +145,9 @@ JOIN subscriber_global_marketops_legacy_parity_source_v2 source
 WHERE entry.parity_run_id=$1 AND entry.mapping_status='mapped'
   AND entry.global_materialization_status='pending_global_materialization'
   AND entry.evidence_kind IN (`+strings.Join(quoted, ",")+`)
+  AND ($2='' OR entry.legacy_algorithm_id=$2)
 ORDER BY entry.evidence_kind,entry.legacy_algorithm_id,entry.legacy_algorithm_version,entry.legacy_session_date,entry.legacy_record_id
-LIMIT $2`, parityRunID, limit)
+LIMIT $3`, parityRunID, algorithmID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("read parity-gated source entries: %w", err)
 	}
