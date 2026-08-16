@@ -32,8 +32,8 @@ ranking_input="$root_dir/companies.csv"
 
 load_marketops_boundary_env "$boundary_env"
 export SIGNALOPS_MARKETOPS_DATABASE_URL="postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD}@marketops-postgres:5432/marketops?sslmode=disable"
-compose=(docker compose --env-file "$runtime_env" -p signalops
 export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL="postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable"
+compose=(docker compose --env-file "$runtime_env" -p signalops
   -f "$root_dir/compose.yaml"
   -f "$root_dir/compose.marketops-boundary.yaml"
   -f "$root_dir/compose.marketops-scheduled-cutover.yaml")
