@@ -303,6 +303,35 @@ The global catalog is not complete merely because a tenant membership resolves t
 
 This sequencing keeps the ownership model explicit: catalogue identity and analytical evidence are global; tenant data is limited to entitlement, membership, list preference, and authorized projection selection. An asset without materialized central evidence remains Pending; it is never rendered with fabricated historical or algorithmic data.
 
+### Global EOD-history materialization — controlled import foundation — 2026-08-16
+
+The next raw-evidence slice is a one-time, provider-free materializer for the
+enabled global warm-EOD cohort. The current cohort has **881** enabled assets
+(within the 1,000-asset warm capacity); that is the scope the worker reads,
+not the entire 1,105-identity catalogue. It obtains data solely from retained
+`equity_eod_prices` events in the dedicated temporal ledger and appends a
+platform-owned `eod_bar` evidence record keyed by canonical global asset and
+completed session. It makes no Massive/FMP/State Street request, changes no
+legacy event, creates no tenant copy, and does not activate a Gateway reader.
+
+The import is deliberately **initial-capture** rather than newest-wins: for a
+symbol/session it selects the earliest retained processing time, with event ID
+as a deterministic tie-breaker. Every run and record retains the source
+tenant/dataset, original event ID and processing timestamp, selection policy,
+algorithm/version, validation-contract reference, immutable-baseline
+reference, and evidence fingerprint. It can first run with `--dry-run` to
+report exact coverage; only a separately controlled `--execute` invocation
+appends immutable evidence.
+
+This is not a claim of complete history. At the time this slice was prepared,
+the retained source covers 156 currently mapped symbols from 2025-06-23
+through 2026-08-14. The other enabled warm assets remain explicitly without
+historical EOD evidence until the central EOD pipeline captures their normal
+50-prior-weekday baseline and subsequent sessions. A future EOD history reader
+may show only this global evidence and its coverage state; it must never fall
+back to `tenant-local` or imply a price/algorithm result for an uncovered
+asset.
+
 On 2026-08-15, the first five fully mapped manifests were appended through that restricted path: 1,075 records across EEOM (75), feature vectors (250), Market State (250), valuation (250), and outcomes (250). The manifest reader then advanced safely to the next 1,000 mapped feature-vector rows, bringing globally materialized feature evidence to 1,250 records. A separately bounded newest-first Market State run appended 1,000 current records, including 132 for the 2026-08-14 completed session. The global coverage ledger now has immutable provenance for those records, but no analytical read projection has been enabled; the type-specific parity, freshness, authorization, and browser gates remain mandatory.
 
 

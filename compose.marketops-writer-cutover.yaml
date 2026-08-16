@@ -34,3 +34,11 @@ services:
       target: subscriber-global-marketops-evidence-materializer
     environment:
       SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:-}
+  subscriber-global-eod-history-materializer:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-eod-history-materializer
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:-}
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:-}
