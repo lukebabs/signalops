@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const worker = "subscriber-global-annual-financial-task-worker"
+const worker = "subscriber-global-eod-reconciler"
 const taskType = "subscriber_global_annual_financial"
 const algo = "marketops.fundamental_annual.fmp"
 const version = "v2"
