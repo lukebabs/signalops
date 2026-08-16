@@ -539,3 +539,7 @@ This is not a materialization or cutover. The global Risk/Reward reader continue
 ### Tenant-local legacy-hot materialization — 2026-08-16
 
 The append-only global materializer now closes the existing Risk/Reward evidence gap for the 132-symbol legacy universe: all 2,533 legacy rows match canonical global records by asset, session, evidence kind, and fingerprint, with zero missing. It also appends 132 central `intraday_snapshot` records from the all-active legacy current-state source. Intraday payloads retain `as_of_time` and `current_only_source=true`; a future reader must use that payload time for freshness because legacy snapshot `created_at` is not a mutable freshness field. No Gateway intraday reader, dashboard switch, or scheduler change was made.
+
+### Global intraday current-state projection — 2026-08-16
+
+Migration `000143_subscriber_global_intraday_current_state_projection` makes the 132 already materialized, platform-owned intraday snapshots available only through a security-barrier gateway projection. It selects one canonical asset state by immutable payload `as_of_time`, preserving the current-only disclosure and denying raw evidence access to the gateway role. The projection is not yet consumed by an API, UI, or scheduler. The legacy scheduler therefore remains authoritative until the grandfathered-132-versus-watchlist-selector dual-run proves membership and freshness parity.
