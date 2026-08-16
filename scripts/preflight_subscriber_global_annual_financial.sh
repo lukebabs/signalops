@@ -25,6 +25,10 @@ boundary_env=/etc/signalops/marketops-boundary.env
 }
 
 load_marketops_boundary_env "$boundary_env"
+# The root-only boundary secret is alphanumeric by contract, so this literal
+# Docker-network URL needs no shell evaluation or URL escaping. It is exported
+# only to the one-shot Compose worker and is never printed.
+export SIGNALOPS_MARKETOPS_DATABASE_URL="postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD}@marketops-postgres:5432/marketops?sslmode=disable"
 compose=(docker compose --env-file "$runtime_env" -p signalops
   -f "$root_dir/compose.yaml"
   -f "$root_dir/compose.marketops-boundary.yaml"
