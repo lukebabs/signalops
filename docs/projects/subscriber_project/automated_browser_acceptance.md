@@ -121,3 +121,7 @@ The pilot contract now requires a non-empty Valuation result for a selected shar
 ## Global EEOM reader acceptance — 2026-08-16
 
 The live pilot smoke passed after the EEOM global reader was materialized and deployed. When an EEOM event is present for a selected watchlist symbol, the contract requires `data_scope = platform-global`; it does not manufacture an expectation that the AAPL/NVDA fixture must have a future earnings event. This proves provenance without turning ordinary calendar absence into a false release failure.
+
+## Global Material Events reader acceptance — 2026-08-16
+
+The Material Events API regression contract requires selected-watchlist symbols to be authorized before reading the restricted global projection and requires returned events to carry `data_scope = platform-global`. The live bootstrap proved the Gateway role can read 20 central FMP events; the isolated pilot browser smoke passed after deployment. The smoke does not require a fixture symbol to have an upcoming earnings event, because calendar absence is valid and must not be converted into a false failure.
