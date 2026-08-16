@@ -53,7 +53,11 @@ def subscriber_ui_config() -> SubscriberUIConfig:
         watchlist_name=required["SIGNALOPS_E2E_WATCHLIST_NAME"],
         tenant_id=required["SIGNALOPS_E2E_TENANT_ID"],
         shared_tickers=symbols("SIGNALOPS_E2E_SHARED_TICKERS", required["SIGNALOPS_E2E_SHARED_TICKERS"]),
-        pending_tickers=symbols("SIGNALOPS_E2E_PENDING_TICKERS", os.getenv("SIGNALOPS_E2E_PENDING_TICKERS", "NOW,SNOW")),
+        pending_tickers=tuple(
+            symbol.strip().upper()
+            for symbol in os.getenv("SIGNALOPS_E2E_PENDING_TICKERS", "").split(",")
+            if symbol.strip()
+        ),
     )
 
 
@@ -166,14 +170,17 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
         expect(row).not_to_contain_text("Awaiting monitor")
         expect(row).not_to_contain_text("Awaiting EOD analysis")
     pending_coverage = subscriber_page.get_by_test_id("marketops-pending-coverage")
-    expect(pending_coverage).to_contain_text("Coverage in progress", timeout=30_000)
-    for ticker in config.pending_tickers:
-        expect(pending_coverage).to_contain_text(ticker)
-        pending_row = subscriber_page.get_by_test_id(f"marketops-asset-row-{ticker}")
-        expect(pending_row).to_contain_text("Pending")
-        expect(pending_row).to_contain_text("Coverage pending")
-        expect(pending_row).not_to_contain_text("Open Market State")
-        expect(pending_row).not_to_contain_text("1-12-31")
+    if config.pending_tickers:
+        expect(pending_coverage).to_contain_text("Coverage in progress", timeout=30_000)
+        for ticker in config.pending_tickers:
+            expect(pending_coverage).to_contain_text(ticker)
+            pending_row = subscriber_page.get_by_test_id(f"marketops-asset-row-{ticker}")
+            expect(pending_row).to_contain_text("Pending")
+            expect(pending_row).to_contain_text("Coverage pending")
+            expect(pending_row).not_to_contain_text("Open Market State")
+            expect(pending_row).not_to_contain_text("1-12-31")
+    else:
+        expect(pending_coverage).not_to_be_attached()
     expect(subscriber_page.locator("body")).not_to_contain_text("1-12-31")
 
     dashboard = visit_for_response(

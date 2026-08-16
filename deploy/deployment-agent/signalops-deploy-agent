@@ -91,6 +91,11 @@ case "$action" in
     run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
       "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
     ;;
+  marketops-web-deploy)
+    run make -C "$repository_dir" deploy-web
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
   marketops-gateway-deploy)
     "$repository_dir/scripts/deploy_marketops_read_cutover.sh" "$repository_dir/.env"
     run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \

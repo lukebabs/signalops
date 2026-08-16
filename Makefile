@@ -90,4 +90,4 @@ compose-temporal-backfill:
 # web rebuild path because it forces the auth-enabled frontend build arg.
 deploy-web:
 	VITE_SIGNALOPS_AUTH_ENABLED=$(VITE_SIGNALOPS_AUTH_ENABLED) \
-		$(COMPOSE) -f compose.yaml -f compose.traefik.yaml up -d --build web
+		$(COMPOSE) -f compose.yaml -f compose.traefik.yaml up -d --build --no-deps web
