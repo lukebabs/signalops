@@ -117,3 +117,7 @@ The route is fail-closed. If the global reader is unavailable, it returns `globa
 ## Global Valuation reader acceptance — 2026-08-16
 
 The pilot contract now requires a non-empty Valuation result for a selected shared symbol and `data_scope = platform-global`. The live `tenant-pilot-b` smoke passed after the VC/DOSM-only global projection was materialized and the Gateway restarted. It proves that subscriber Valuation no longer reads a tenant-local copy. Tactical valuation and posture are not included in this proof and remain separately gated.
+
+## Global EEOM reader acceptance — 2026-08-16
+
+The live pilot smoke passed after the EEOM global reader was materialized and deployed. When an EEOM event is present for a selected watchlist symbol, the contract requires `data_scope = platform-global`; it does not manufacture an expectation that the AAPL/NVDA fixture must have a future earnings event. This proves provenance without turning ordinary calendar absence into a false release failure.
