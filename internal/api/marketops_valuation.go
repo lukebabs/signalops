@@ -17,11 +17,6 @@ const tacticalPostureAlgorithmID = "signalops.algorithms.tactical_market_posture
 
 func registerMarketOpsValuationRoutes(mux *http.ServeMux, cfg RouterConfig) {
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/valuation", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := any(cfg.QueryRepository).(storage.MarketOpsValuationRepository)
-		if !ok {
-			writeError(w, http.StatusServiceUnavailable, "valuation_unavailable", "valuation results are unavailable")
-			return
-		}
 		tenant, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
 		if !ok {
 			return
@@ -30,7 +25,24 @@ func registerMarketOpsValuationRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		if !ok {
 			return
 		}
-		results, err := repo.ListMarketOpsValuationResults(r.Context(), storage.MarketOpsValuationFilter{TenantID: tenant, Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), EligibleOnly: strings.EqualFold(r.URL.Query().Get("eligible_only"), "true"), Limit: 200})
+		eligibleOnly := strings.EqualFold(r.URL.Query().Get("eligible_only"), "true")
+		var results []storage.MarketOpsValuationResultRecord
+		var err error
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			globalReader, supported := any(cfg.QueryRepository).(storage.SubscriberGlobalValuationRepository)
+			if !supported {
+				writeError(w, http.StatusServiceUnavailable, "global_valuation_unavailable", "global valuation projection is unavailable")
+				return
+			}
+			results, err = globalReader.ListSubscriberGlobalValuationResults(r.Context(), authorizedEROCTickers(watchlistContext, r.URL.Query().Get("symbol")), eligibleOnly, 200)
+		} else {
+			repo, supported := any(cfg.QueryRepository).(storage.MarketOpsValuationRepository)
+			if !supported {
+				writeError(w, http.StatusServiceUnavailable, "valuation_unavailable", "valuation results are unavailable")
+				return
+			}
+			results, err = repo.ListMarketOpsValuationResults(r.Context(), storage.MarketOpsValuationFilter{TenantID: tenant, Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), EligibleOnly: eligibleOnly, Limit: 200})
+		}
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list valuation results")
 			return
@@ -90,7 +102,7 @@ func valuationRows(results []storage.MarketOpsValuationResultRecord) []map[strin
 		}
 		primaryOutput := valuationOutput(*primary)
 		trace, _ := primaryOutput["trace"].(map[string]any)
-		row := map[string]any{"ticker": primary.Symbol, "trade_date": primary.SessionDate.Format("2006-01-02"), "eligible": primary.Eligible, "evaluation_status": primary.EvaluationStatus, "confidence": primary.Confidence, "confidence_label": primary.ConfidenceLabel, "model_version": primary.ModelVersion, "data_profile": trace["data_profile"], "growth_status": trace["growth_status"]}
+		row := map[string]any{"ticker": primary.Symbol, "trade_date": primary.SessionDate.Format("2006-01-02"), "eligible": primary.Eligible, "evaluation_status": primary.EvaluationStatus, "confidence": primary.Confidence, "confidence_label": primary.ConfidenceLabel, "model_version": primary.ModelVersion, "data_scope": primary.TenantID, "data_profile": trace["data_profile"], "growth_status": trace["growth_status"]}
 		if item.vc != nil {
 			row["vc"] = valuationOutput(*item.vc)
 		}
@@ -121,7 +133,7 @@ func valuationRows(results []storage.MarketOpsValuationResultRecord) []map[strin
 func valuationOutput(item storage.MarketOpsValuationResultRecord) map[string]any {
 	trace := map[string]any{}
 	_ = json.Unmarshal(item.ResultJSON, &trace)
-	return map[string]any{"score": item.Score, "fair_value": item.FairValue, "classification": item.Classification, "algorithm_id": item.AlgorithmID, "trace": trace}
+	return map[string]any{"score": item.Score, "fair_value": item.FairValue, "classification": item.Classification, "algorithm_id": item.AlgorithmID, "data_scope": item.TenantID, "trace": trace}
 }
 
 func tacticalPostureOutput(item storage.MarketOpsValuationResultRecord) map[string]any {

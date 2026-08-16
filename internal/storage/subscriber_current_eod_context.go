@@ -54,3 +54,10 @@ type SubscriberGlobalMarketStateRepository interface {
 type SubscriberGlobalEROCRepository interface {
 	ListSubscriberGlobalEROCResults(context.Context, []string, int) ([]MarketOpsValuationResultRecord, error)
 }
+
+// SubscriberGlobalValuationRepository reads parity-approved platform VC/DOSM
+// valuation results. Symbol authorization remains the selected watchlist's
+// responsibility; tactical valuation is intentionally a later reader slice.
+type SubscriberGlobalValuationRepository interface {
+	ListSubscriberGlobalValuationResults(context.Context, []string, bool, int) ([]MarketOpsValuationResultRecord, error)
+}

@@ -144,14 +144,20 @@ func TestSubscriberMarketStateUsesGlobalProjection(t *testing.T) {
 
 type subscriberGlobalEROCFake struct {
 	*fakeQueryRepository
-	results       []storage.MarketOpsValuationResultRecord
-	legacyResults []storage.MarketOpsValuationResultRecord
-	symbols       []string
+	results          []storage.MarketOpsValuationResultRecord
+	legacyResults    []storage.MarketOpsValuationResultRecord
+	valuationResults []storage.MarketOpsValuationResultRecord
+	symbols          []string
 }
 
 func (f *subscriberGlobalEROCFake) ListSubscriberGlobalEROCResults(_ context.Context, symbols []string, _ int) ([]storage.MarketOpsValuationResultRecord, error) {
 	f.symbols = append([]string(nil), symbols...)
 	return f.results, nil
+}
+
+func (f *subscriberGlobalEROCFake) ListSubscriberGlobalValuationResults(_ context.Context, symbols []string, _ bool, _ int) ([]storage.MarketOpsValuationResultRecord, error) {
+	f.symbols = append([]string(nil), symbols...)
+	return f.valuationResults, nil
 }
 
 func (f *subscriberGlobalEROCFake) UpsertMarketOpsValuationSnapshot(context.Context, storage.MarketOpsValuationSnapshotRecord) error {
@@ -195,5 +201,40 @@ func TestSubscriberEROCUsesGlobalProjection(t *testing.T) {
 	result := results[0].(map[string]any)
 	if result["score"] != 77.0 || result["trade_date"] != "2026-08-14" {
 		t.Fatalf("subscriber EROC did not use global projection: %#v", result)
+	}
+}
+
+func TestSubscriberValuationUsesGlobalProjection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	globalDate := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	vc := storage.MarketOpsValuationResultRecord{ResultID: "global-vc-aapl-20260814", TenantID: "platform-global", Symbol: "AAPL", SessionDate: globalDate, AlgorithmID: valuationCompositeAlgorithmID, ModelVersion: "v3", Score: 55, Classification: "fair", Eligible: true, ResultJSON: []byte("{}")}
+	dosm := storage.MarketOpsValuationResultRecord{ResultID: "global-dosm-aapl-20260814", TenantID: "platform-global", Symbol: "AAPL", SessionDate: globalDate, AlgorithmID: dosmAlgorithmID, ModelVersion: "v3", Score: 71, Classification: "opportunity", Eligible: true, ResultJSON: []byte("{}")}
+	legacy := dosm
+	legacy.ResultID, legacy.TenantID, legacy.SessionDate, legacy.Score = "legacy-dosm-aapl-20260813", "tenant-pilot-b", globalDate.AddDate(0, 0, -1), 12
+	repo := &subscriberGlobalEROCFake{fakeQueryRepository: &fakeQueryRepository{}, legacyResults: []storage.MarketOpsValuationResultRecord{legacy}, valuationResults: []storage.MarketOpsValuationResultRecord{vc, dosm}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-pilot-b": {}}, SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{}})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/valuation?symbol=AAPL", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" {
+		t.Fatalf("global valuation symbols=%v, want [AAPL]", repo.symbols)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	results := response["results"].([]any)
+	if len(results) != 1 {
+		t.Fatalf("valuation results=%#v", results)
+	}
+	result := results[0].(map[string]any)
+	if result["data_scope"] != "platform-global" || result["trade_date"] != "2026-08-14" {
+		t.Fatalf("subscriber valuation did not use global projection: %#v", result)
+	}
+	if dosmOutput, _ := result["dosm"].(map[string]any); dosmOutput["data_scope"] != "platform-global" || dosmOutput["score"] != 71.0 {
+		t.Fatalf("subscriber DOSM output did not use global projection: %#v", dosmOutput)
 	}
 }

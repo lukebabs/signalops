@@ -205,6 +205,12 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
             selected_eroc = [item for item in eroc_results if str(item.get("ticker", "")).upper() == config.shared_tickers[0]]
             assert selected_eroc, f"{response.url} omitted selected global EROC result"
             assert selected_eroc[0].get("data_scope") == "platform-global", f"{response.url} fell back from global EROC"
+        if route == "valuation":
+            valuation_results = payload.get("results")
+            assert isinstance(valuation_results, list) and valuation_results, f"{response.url} returned no global valuation results"
+            selected_valuation = [item for item in valuation_results if str(item.get("ticker", "")).upper() == config.shared_tickers[0]]
+            assert selected_valuation, f"{response.url} omitted selected global valuation result"
+            assert selected_valuation[0].get("data_scope") == "platform-global", f"{response.url} fell back from global valuation"
 
     state = visit_for_response(
         subscriber_page,
