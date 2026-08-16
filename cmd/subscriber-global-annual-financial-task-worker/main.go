@@ -20,8 +20,8 @@ import (
 const worker = "subscriber-global-annual-financial-task-worker"
 const taskType = "subscriber_global_annual_financial"
 const algo = "marketops.fundamental_annual.fmp"
-const version = "v1"
-const contract = "subscriber-global-annual-financial-capture/v1"
+const version = "v2"
+const contract = "subscriber-global-annual-financial-capture/v2"
 const baseline = "fmp-starter-annual-v1"
 
 type task struct {
