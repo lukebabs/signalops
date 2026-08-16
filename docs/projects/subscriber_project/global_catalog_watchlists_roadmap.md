@@ -347,6 +347,23 @@ have a retained, uniquely mapped source bar in this one-time import. They
 remain history-uncovered until the authoritative global EOD path captures the
 normal price-only baseline and future completed sessions.
 
+#### Current-EOD reader gate — applied and accepted — 2026-08-16
+
+Migration `000135_subscriber_global_eod_history_current_context` extends the
+existing security-barrier current-EOD projection. It selects the newest session
+per global asset from only two platform-owned sources: a verified global
+re-observation or the immutable history bar. A global re-observation wins only
+when both sources describe the same session; a newer immutable global bar is
+therefore not hidden by an older context row. The Gateway runtime (`signalops`)
+has `SELECT` on the projection only; it receives neither raw evidence-table
+access nor a tenant-local fallback.
+
+The applied reader returned 121 `initial_global_evidence_capture` current
+contexts, all for the completed 2026-08-14 session. The automated read-only
+pilot-browser smoke completed after the migration. Assets and Dashboard can
+therefore display the covered selected symbols as central completed-session EOD
+evidence while keeping algorithm breadth and all uncovered assets truthful.
+
 On 2026-08-15, the first five fully mapped manifests were appended through that restricted path: 1,075 records across EEOM (75), feature vectors (250), Market State (250), valuation (250), and outcomes (250). The manifest reader then advanced safely to the next 1,000 mapped feature-vector rows, bringing globally materialized feature evidence to 1,250 records. A separately bounded newest-first Market State run appended 1,000 current records, including 132 for the 2026-08-14 completed session. The global coverage ledger now has immutable provenance for those records, but no analytical read projection has been enabled; the type-specific parity, freshness, authorization, and browser gates remain mandatory.
 
 

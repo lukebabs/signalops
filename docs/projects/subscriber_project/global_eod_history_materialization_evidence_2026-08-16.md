@@ -48,7 +48,15 @@ analytical result.
 
 ## Follow-on gate
 
-Build a restricted, type-specific global EOD-history projection and migrate
-each approved reader to it with its own authorization, freshness, parity, and
-browser acceptance evidence. The raw evidence ledger is available; it is not
-itself a browser API.
+Migration `000135_subscriber_global_eod_history_current_context` completed the
+first restricted reader gate. It changes the existing Gateway-safe
+current-EOD projection to select the newest platform-global session from either
+a verified global re-observation or an immutable `eod_bar`; re-observation
+has priority only for equal sessions. It does not query tenant-local data.
+
+The dedicated-primary runtime-role check returned 121 contexts with
+`initial_global_evidence_capture`, all dated 2026-08-14. The read-only pilot
+browser smoke also completed successfully. Historical charts and every
+algorithm-specific reader remain separate gates: raw EOD evidence does not
+itself constitute a feature vector, Market State, risk/reward result, or
+recommendation.
