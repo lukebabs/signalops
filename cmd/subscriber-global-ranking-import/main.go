@@ -32,11 +32,15 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("subscriber-global-ranking-import", flag.ContinueOnError)
 	databaseURL := flags.String("database-url", os.Getenv("SIGNALOPS_DATABASE_URL"), "catalog-sync PostgreSQL URL")
 	input := flags.String("input", "", "ranked CSV input")
+	candidateLimit := flags.Int("candidate-limit", 1000, "ranked candidates to retain for eligibility selection; 1 through 10000")
 	asOf := flags.String("as-of", "", "required YYYY-MM-DD source snapshot date")
 	actor := flags.String("actor", "subscriber-catalog-reference-sync", "catalog-sync identity")
 	execute := flags.Bool("execute", false, "persist ranking snapshot")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *candidateLimit <= 0 || *candidateLimit > storage.SubscriberGlobalRankingCandidateMaximum {
+		return fmt.Errorf("candidate-limit must be between 1 and %d", storage.SubscriberGlobalRankingCandidateMaximum)
 	}
 	if !*execute {
 		return errors.New("refusing to mutate: pass --execute after ranking-source review")
@@ -52,12 +56,12 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	entries, examined, duplicates, err := parse(bytes, 1000)
+	entries, examined, duplicates, err := parse(bytes, *candidateLimit)
 	if err != nil {
 		return err
 	}
 	sum := sha256.Sum256(bytes)
-	provenance, _ := json.Marshal(map[string]any{"input_filename": *input, "selection_policy": "first_1000_distinct_symbols_by_source_rank", "source_as_of_date": date.Format("2006-01-02")})
+	provenance, _ := json.Marshal(map[string]any{"input_filename": *input, "selection_policy": fmt.Sprintf("first_%d_distinct_symbols_by_source_rank", *candidateLimit), "warm_cohort_capacity": 1000, "source_as_of_date": date.Format("2006-01-02")})
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	repo, err := postgresstorage.Open(ctx, *databaseURL)
@@ -65,11 +69,11 @@ func run(args []string) error {
 		return err
 	}
 	defer repo.Close()
-	out, err := repo.ImportSubscriberGlobalRankingSnapshot(ctx, storage.SubscriberGlobalRankingSnapshotImport{SourceLabel: "companies.csv", SourceSHA256: hex.EncodeToString(sum[:]), AsOfDate: date, RequestedCapacity: 1000, SourceRowsExamined: examined, DuplicateSymbolsSkipped: duplicates, ImportedBy: *actor, ProvenanceJSON: provenance, Entries: entries})
+	out, err := repo.ImportSubscriberGlobalRankingSnapshot(ctx, storage.SubscriberGlobalRankingSnapshotImport{SourceLabel: "companies.csv", SourceSHA256: hex.EncodeToString(sum[:]), AsOfDate: date, RequestedCapacity: *candidateLimit, SourceRowsExamined: examined, DuplicateSymbolsSkipped: duplicates, ImportedBy: *actor, ProvenanceJSON: provenance, Entries: entries})
 	if err != nil {
 		return err
 	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{"ranking_snapshot_id": out.RankingSnapshotID, "as_of_date": date.Format("2006-01-02"), "selected": len(entries), "source_rows_examined": examined, "duplicate_symbols_skipped": duplicates, "source_sha256": out.SourceSHA256})
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"ranking_snapshot_id": out.RankingSnapshotID, "as_of_date": date.Format("2006-01-02"), "candidate_count": len(entries), "source_rows_examined": examined, "duplicate_symbols_skipped": duplicates, "source_sha256": out.SourceSHA256})
 }
 
 func parse(raw []byte, capacity int) ([]storage.SubscriberGlobalRankingSnapshotEntry, int, int, error) {

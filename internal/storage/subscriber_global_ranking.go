@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const SubscriberGlobalRankingCandidateMaximum = 10000
+
 type SubscriberGlobalRankingSnapshotEntry struct {
 	SelectionRank   int
 	SourceRank      int

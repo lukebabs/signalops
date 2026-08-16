@@ -17,7 +17,7 @@ func (r *Repository) ImportSubscriberGlobalRankingSnapshot(ctx context.Context, 
 	if in.RankingSnapshotID == "" {
 		in.RankingSnapshotID = newSubscriberID("subrank")
 	}
-	if in.AsOfDate.IsZero() || in.SourceLabel == "" || in.SourceSHA256 == "" || in.ImportedBy == "" || in.RequestedCapacity <= 0 || in.RequestedCapacity > 1000 || len(in.Entries) != in.RequestedCapacity {
+	if in.AsOfDate.IsZero() || in.SourceLabel == "" || in.SourceSHA256 == "" || in.ImportedBy == "" || in.RequestedCapacity <= 0 || in.RequestedCapacity > storage.SubscriberGlobalRankingCandidateMaximum || len(in.Entries) != in.RequestedCapacity {
 		return in, errors.New("invalid global ranking snapshot import")
 	}
 	if len(in.ProvenanceJSON) == 0 {
