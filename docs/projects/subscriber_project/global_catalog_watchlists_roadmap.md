@@ -487,3 +487,45 @@ Migration `000134` gives the projection-owner/migrator role the minimum
 source-table `SELECT` grants required to evaluate the five views. The Gateway
 runtime role remains limited to the views granted by `000133`; it receives no
 raw SRI-table access.
+
+## Deferred policy expansion — US-listed non-common securities and symbol normalization
+
+The current warm-cohort policy remains deliberately narrow: only active,
+exchange-listed **US common stocks** with verified Massive reference evidence
+are eligible for central EOD, annual-financial, and algorithm coverage. That
+policy is not a statement that other US-listed instruments have no provider
+data.
+
+The first ranked top-1,000 review left 119 positions unqualified under that
+policy. Of those, 118 are US-listed according to the retained Massive
+reference evidence: 115 are classified as ADR/ADRC, two as preferred shares,
+and one as a special security type. The remaining submitted symbol, `UMBF.O`,
+has no usable Massive reference record. These assets stay catalogued with their
+source evidence, but remain cold and are not provider-polled by the qualified
+US-common-stock workflows.
+
+This is deferred scope, not a reason to reduce the intended 1,000-asset warm
+cohort. The qualified cohort must instead be filled by continuing down the
+ranked catalog until it contains 1,000 eligible US common stocks. Intraday
+remains a separate, watchlist-driven hot tier.
+
+Before the platform admits US-listed non-common securities, a later governed
+policy release must:
+
+1. Define supported classes separately (for example ADR/ADRC, preferred, and
+   special securities), including their allowed providers, data contracts,
+   algorithm applicability, corporate-action handling, and user disclosure.
+2. Add an auditable symbol-normalization and validation contract. A submitted
+   provider-form symbol such as `UMBF.O` may resolve to `UMBF` only when a
+   retained provider reference proves the canonical identity; name matching or
+   ticker guessing is prohibited.
+3. Retain the original source symbol, normalization rule/version, provider
+   response, validation time, and immutable provenance. An unresolved symbol
+   remains `discovered` or `deferred`; it must never be silently promoted.
+4. Re-run eligibility and coverage planning deterministically, with explicit
+   cohort, provider-call, and browser-acceptance evidence before enabling any
+   new reader or scheduled collection.
+
+Until that release is approved, all qualified-list work—including the central
+EOD path and FMP annual-financial enrichment—continues only for verified US
+common stocks.
