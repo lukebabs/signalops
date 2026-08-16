@@ -26,16 +26,20 @@ runtime_env="${1:-${SIGNALOPS_PRODUCTION_ENV_FILE:-}}"
 load_marketops_boundary_env "$boundary_env"
 compose=(docker compose --env-file "$runtime_env" -p signalops -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml")
 
-# Reconcile the known 000124 ledger omission before the ordered runner. The
-# old attempt completed its constraint changes but stopped at a pre-existing
-# view. Replaying it with CREATE OR REPLACE VIEW safely reasserts its views,
-# ownership, and grants before recording the missing ledger version.
-repair_file="$(mktemp)"
-trap "rm -f \"$repair_file\"" EXIT
-sed "s/^CREATE VIEW /CREATE OR REPLACE VIEW /" "$root_dir/migrations/000124_subscriber_global_risk_reward_projection.up.sql" > "$repair_file"
-"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops < "$repair_file"
-"${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "INSERT INTO schema_migrations(version) VALUES ('000124_subscriber_global_risk_reward_projection') ON CONFLICT DO NOTHING;"
-printf "%s\n" "marketops_migration_000124_ledger_reconciled"
+# The historical 000124 repair is needed only when its migration-ledger row is
+# absent. Replaying it after later migrations would restore an older constraint
+# definition and regress newer evidence kinds.
+ledger_000124="$("${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -Atc "SELECT 1 FROM schema_migrations WHERE version='000124_subscriber_global_risk_reward_projection';")"
+if [[ "$ledger_000124" != "1" ]]; then
+  repair_file="$(mktemp)"
+  trap "rm -f \"$repair_file\"" EXIT
+  sed "s/^CREATE VIEW /CREATE OR REPLACE VIEW /" "$root_dir/migrations/000124_subscriber_global_risk_reward_projection.up.sql" > "$repair_file"
+  "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops < "$repair_file"
+  "${compose[@]}" exec -T marketops-postgres psql -v ON_ERROR_STOP=1 -U signalops -d marketops -c "INSERT INTO schema_migrations(version) VALUES ('000124_subscriber_global_risk_reward_projection') ON CONFLICT DO NOTHING;"
+  printf "%s\n" "marketops_migration_000124_ledger_reconciled"
+else
+  printf "%s\n" "marketops_migration_000124_ledger_already_present"
+fi
 
 # The standard migration runner is idempotent and records the exact version in
 # schema_migrations. This action is intentionally limited to the primary
