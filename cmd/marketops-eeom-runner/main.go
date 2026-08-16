@@ -31,6 +31,7 @@ func run(ctx context.Context) error {
 	session := flag.String("session-date", "", "completed date")
 	days := flag.Int("window-days", 30, "maximum earnings horizon")
 	dry := flag.Bool("dry-run", false, "calculate only")
+	eventsOnly := flag.Bool("events-only", false, "persist calendar events without recalculating EEOM scores")
 	flag.Parse()
 	if app.DatabaseURL == "" || app.TemporalDatabaseURL == "" {
 		return fmt.Errorf("both database URLs are required")
@@ -120,7 +121,7 @@ func run(ctx context.Context) error {
 			}
 			projected++
 		}
-		if d < 0 {
+		if *eventsOnly || d < 0 {
 			continue
 		}
 		result, calcErr := calculate(ctx, repo, *tenant, symbol, asof, date, d, nil)
@@ -136,7 +137,7 @@ func run(ctx context.Context) error {
 		}
 		written++
 	}
-	fmt.Printf("eeom completed provider=fmp calendar_events=%d projected_events=%d global_projected_events=%d results=%d fmp_calls=%d dry_run=%t\n", len(events), projected, globalProjected, written, calendarClient.Calls(), *dry)
+	fmt.Printf("eeom completed provider=fmp calendar_events=%d projected_events=%d global_projected_events=%d results=%d fmp_calls=%d dry_run=%t events_only=%t\n", len(events), projected, globalProjected, written, calendarClient.Calls(), *dry, *eventsOnly)
 	return nil
 }
 func earningsEventPayload(symbol string, date, retrievedAt time.Time, event fmp.EarningsCalendarRecord) map[string]any {
