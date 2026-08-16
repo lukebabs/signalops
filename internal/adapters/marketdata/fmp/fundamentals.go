@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,14 +23,18 @@ func (e *HTTPError) StatusCode() int { return e.Status }
 const DefaultBaseURL = "https://financialmodelingprep.com"
 
 type ClientConfig struct {
-	BaseURL, APIKey string
-	HTTPClient      *http.Client
+	BaseURL, APIKey    string
+	HTTPClient         *http.Client
+	MinRequestInterval time.Duration
 }
 type Client struct {
-	baseURL    *url.URL
-	apiKey     string
-	httpClient *http.Client
-	calls      int
+	baseURL            *url.URL
+	apiKey             string
+	httpClient         *http.Client
+	minRequestInterval time.Duration
+	requestMu          sync.Mutex
+	lastRequestAt      time.Time
+	calls              int
 }
 
 type FundamentalSnapshot struct {
@@ -65,7 +70,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	if hc == nil {
 		hc = &http.Client{Timeout: 30 * time.Second}
 	}
-	return &Client{baseURL: u, apiKey: strings.TrimSpace(cfg.APIKey), httpClient: hc}, nil
+	return &Client{baseURL: u, apiKey: strings.TrimSpace(cfg.APIKey), httpClient: hc, minRequestInterval: cfg.MinRequestInterval}, nil
 }
 func (c *Client) Calls() int { return c.calls }
 
@@ -127,6 +132,9 @@ func (c *Client) GetFundamentalSnapshot(ctx context.Context, ticker string) (Fun
 	return FundamentalSnapshot{Ticker: ticker, FilingDate: filing, RevenueTTM: i.Revenue, Revenue3YAgo: annual[len(annual)-1].Revenue, NetIncomeTTM: i.NetIncome, EBITDATTM: i.EBITDA, OperatingIncomeTTM: i.OperatingIncome, OperatingCashFlowTTM: cf.OperatingCashFlow, CapitalExpendituresTTM: cf.CapitalExpenditure, TotalDebt: b.TotalDebt, Cash: b.Cash, Equity: b.Equity, InvestedCapital: b.TotalAssets - b.Cash, MarketCap: marketCap, EnterpriseValue: marketCap + b.TotalDebt - b.Cash, ProviderRequestIDs: paths}, nil
 }
 func (c *Client) get(ctx context.Context, path string, q url.Values, target any) error {
+	if err := c.waitForRequestSlot(ctx); err != nil {
+		return err
+	}
 	u := c.baseURL.ResolveReference(&url.URL{Path: path})
 	u.RawQuery = q.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -150,6 +158,26 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, target any)
 	if err := json.Unmarshal(body, target); err != nil {
 		return fmt.Errorf("decode fmp response: %w", err)
 	}
+	return nil
+}
+
+func (c *Client) waitForRequestSlot(ctx context.Context) error {
+	c.requestMu.Lock()
+	defer c.requestMu.Unlock()
+	if c.minRequestInterval <= 0 {
+		c.lastRequestAt = time.Now()
+		return nil
+	}
+	if wait := c.minRequestInterval - time.Since(c.lastRequestAt); !c.lastRequestAt.IsZero() && wait > 0 {
+		timer := time.NewTimer(wait)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	c.lastRequestAt = time.Now()
 	return nil
 }
 func latest(values ...string) time.Time {

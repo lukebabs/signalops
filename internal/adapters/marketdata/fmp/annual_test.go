@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGetAnnualFinancialSnapshotUsesAnnualStarterEndpoints(t *testing.T) {
@@ -53,6 +54,23 @@ func TestGetAnnualFinancialSnapshotUsesAnnualStarterEndpoints(t *testing.T) {
 		if !strings.Contains(request, "period=annual") || !strings.Contains(request, "limit=5") || !strings.Contains(request, "symbol=AAPL") {
 			t.Fatalf("request did not use annual contract: %s", request)
 		}
+	}
+}
+
+func TestClientPacesRequests(t *testing.T) {
+	client, err := NewClient(ClientConfig{BaseURL: "https://example.test", APIKey: "test-key", MinRequestInterval: 5 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	if err := client.waitForRequestSlot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.waitForRequestSlot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed < 4*time.Millisecond {
+		t.Fatalf("request pacing elapsed=%s", elapsed)
 	}
 }
 
