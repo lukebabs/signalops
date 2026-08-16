@@ -344,3 +344,13 @@ The deployment-agent migration action then applied `000126` to the dedicated Mar
 During activation, the browser contract exposed an unsafe fallback: a subscriber request could receive an empty tenant-local result when the global-reader capability was unavailable. Commit `a9f684e` corrects this by failing closed with `global_eroc_unavailable`; it never falls back to tenant-local EROC. The focused API/storage tests and live pilot browser smoke passed after that correction.
 
 This closes the EROC type-specific reader gate. It does not close the broader production blocker: valuation, EEOM, material events, Signal Assurance/outcomes, SRI, intraday, and Risk/Reward still require their own global projections, materialization, freshness/parity evidence, and browser acceptance.
+
+### Valuation global reader — Gateway and pilot acceptance complete — 2026-08-16
+
+Migration `000127_subscriber_global_valuation_projection` creates the restricted global reader for the core valuation pair: `signalops.algorithms.valuation_composite_v3` (VC) and `signalops.algorithms.distressed_opportunity_scoring_v3` (DOSM). Tactical valuation and Tactical Market Posture are deliberately excluded; they remain a separate projection and must not inherit this gate.
+
+Two controlled newest-first parity runs selected and uniquely mapped 1,432 legacy VC records and 1,432 legacy DOSM records through the completed 2026-08-14 session. The corresponding append-only materialization runs inserted all 2,864 platform-global evidence records. They made no provider request, legacy-table mutation, tenant/list mutation, or schedule change. The projection exposes 1,254 current VC and 1,254 current DOSM records across 132 canonical assets; the difference is expected historical/session retention rather than a mapping loss.
+
+The approved migration action applied `000127` to the dedicated MarketOps primary at 2026-08-16 01:17 UTC. `signalops_subscriber_gateway` has `SELECT` only on the security-barrier view and can read the selected AAPL/NVDA rows; `PUBLIC` has no access. The named Gateway-only deployment passed the full Go suite and retained dedicated primary/temporal routing. The strengthened isolated `tenant-pilot-b` browser smoke passed, requiring a selected valuation row and nested DOSM output with `data_scope = platform-global`.
+
+This closes the core VC/DOSM Valuation reader gate. The remaining independent global analytical-reader slices are EEOM, material events, Signal Assurance/outcomes, SRI, intraday, Risk/Reward, and tactical valuation/posture. Each still requires its own projection, parity/materialization, freshness/authorization evidence, and browser acceptance before Subscriber Project production readiness can be claimed.

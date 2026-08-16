@@ -113,3 +113,7 @@ Run this suite after Gateway/Web deployment and before declaring a subscriber re
 After the controlled, algorithm-filtered materialization of 1,346 EROC v6 records, the pilot contract was strengthened to require a non-empty EROC result for a selected shared symbol and `data_scope = platform-global`. The named Gateway deployment and the isolated `tenant-pilot-b` smoke both passed. This proves the subscriber EROC route reads authorized global evidence rather than legacy tenant-local data.
 
 The route is fail-closed. If the global reader is unavailable, it returns `global_eroc_unavailable` rather than substituting a tenant-local result. This test covers one reader type only; the other analytical projections remain independently gated.
+
+## Global Valuation reader acceptance — 2026-08-16
+
+The pilot contract now requires a non-empty Valuation result for a selected shared symbol and `data_scope = platform-global`. The live `tenant-pilot-b` smoke passed after the VC/DOSM-only global projection was materialized and the Gateway restarted. It proves that subscriber Valuation no longer reads a tenant-local copy. Tactical valuation and posture are not included in this proof and remain separately gated.
