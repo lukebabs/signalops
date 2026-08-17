@@ -1,6 +1,6 @@
 # MarketOps Subscription Commerce Model
 
-Status: implemented foundation; commercial activation remains deliberately disabled until migration, product provisioning, and payment-provider readiness have evidence.
+Status: foundation deployed and verified on 2026-08-17; commercial activation remains deliberately disabled until controlled product provisioning and payment-provider readiness have evidence. See [release evidence](subscription_commerce_foundation_release_evidence_2026-08-17.md).
 
 ## Product intent
 
