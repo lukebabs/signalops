@@ -24,3 +24,18 @@ Status: foundation deployed and verified; commercial enforcement remains disable
 4. Set `SIGNALOPS_SUBSCRIPTIONS_ENABLED=true` only after the above evidence passes. Rollback remains a single configuration reversal to `false`; subscription and audit records remain intact.
 
 Stripe Checkout, customer portal, signed webhook reconciliation, tenant seat-management UI, and the remaining Institutional work are separate future slices. They are not represented as completed by this release.
+
+## Pilot provisioning evidence — 2026-08-17
+
+The controlled platform subscription administrator provisioned the following records through the Administration workbench. These writes used the signed browser identity and normal gateway mutation boundary; no direct database write, provider call, worker, schedule, or feature-flag change was used.
+
+- `tenant-pilot-b`: an active Explorer subject subscription for the controlled pilot identity.
+- `tenant-local`: an active Institutional tenant contract and an active `tenant_admin` seat for `luke@strategiclabs.io`.
+
+The dedicated subscription store retains one immutable audit event for each mutation: `subject_subscription_upserted`, `tenant_subscription_upserted`, and `tenant_subscription_seat_upserted`. The tenant-local seat resolves against the active Institutional contract.
+
+The read-only administrator browser smoke passed after provisioning. `SIGNALOPS_SUBSCRIPTIONS_ENABLED` remains disabled, so these records prepare the acceptance matrix but do not restrict or expand any live analyst capability yet.
+
+### Remaining pilot gate
+
+Professional requires a separate controlled subject because a direct subject plan takes precedence over an Institutional tenant seat. Once that identity is nominated and provisioned, run the full three-tier acceptance matrix and retain the 402 negative-path evidence before requesting feature-flag activation.
