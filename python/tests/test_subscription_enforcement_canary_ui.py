@@ -94,8 +94,10 @@ def api(page: Page, path: str) -> tuple[int, dict[str, object]]:
 
 
 def set_pilot_plan(page: Page, config: dict[str, str], plan: str) -> None:
-    sign_in(page, base_url=config["base_url"], username=config["admin_username"], password=config["admin_password"], path="/admin/subscriptions", heading="Subscription Administration")
-    form = page.get_by_role("heading", name="Explorer or Professional subject plan").locator("xpath=ancestor::form")
+    plan_heading = page.get_by_role("heading", name="Explorer or Professional subject plan")
+    if not plan_heading.is_visible():
+        sign_in(page, base_url=config["base_url"], username=config["admin_username"], password=config["admin_password"], path="/admin/subscriptions", heading="Subscription Administration")
+    form = plan_heading.locator("xpath=ancestor::form")
     expect(form).to_be_visible(timeout=30_000)
     payload = {"tenant_id": PILOT_TENANT, "subject": PILOT_SUBJECT, "product_key": plan, "status": "active", "correlation_id": "subscription-enforcement-canary-" + plan}
     response = page.evaluate(
