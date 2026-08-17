@@ -49,3 +49,25 @@ Direct subject plans take precedence over Institutional tenant seats, so the thr
 ### Remaining pilot gate
 
 Run the live browser/API acceptance matrix and retain the 402 negative-path evidence before requesting feature-flag activation. Professional browser acceptance requires that controlled QA identityâ€™s login credential to be supplied to the protected QA environment; no credential was added or exposed during this provisioning operation.
+
+## Controlled temporary production enforcement canary"éÝyø§yÔ 2026-08-17
+
+Status: **passed**. This was a bounded production proof, not a persistent commercial activation.
+
+The named approval authorized a temporary gateway-only enforcement window. The constrained deployment agent enabled the flag only in an isolated temporary Compose environment, ran the browser/API matrix below, restored the controlled pilot subject to Explorer, regenerated the dedicated gateway credential, and restarted the gateway from the normal configuration. At completion the live gateway reported `SIGNALOPS_SUBSCRIPTIONS_ENABLED=false`.
+
+| Tier | Controlled evidence | Result |
+| --- | --- | --- |
+| Explorer | `tenant-pilot-b` controlled subject | Value Intelligence browser route locked; valuation API returned `402 subscription_feature_required`; public Sector Rotation rankings continued to return `200`. |
+| Professional | Same controlled subject, temporarily and audibly changed to Professional | Value Intelligence browser route and valuation API returned normal access; Signal Assurance browser route remained locked and its API returned `402 subscription_feature_required`. |
+| Institutional | `luke@strategiclabs.io` active `tenant_admin` seat for the active `tenant-local` Institutional contract | Signal Assurance browser route and effectiveness API returned normal access. |
+
+All temporary Explorer"éÝyø§yÒ Professional"éÝyø§yÒ Explorer changes were performed through the signed Subscription Administration boundary and retained immutable audit events. No provider request, scheduler, data-plane job, tenant contract, institutional seat, or production dotenv was changed.
+
+### Canary hardening findings closed
+
+- The gateway configuration read `SIGNALOPS_SUBSCRIPTIONS_ENABLED`, but the Compose gateway service did not inject it. The missing environment mapping is now fixed.
+- The dedicated subscriber-gateway credential must be refreshed before a gateway-only restart. The canary runner now uses the proven boundary credential preparation flow.
+- The runner now waits for both a running container and the gateway `/readyz` endpoint before browser validation. It always restores the normal enforcement-off configuration in its exit path.
+
+The canary action is narrowly allowlisted in the deployment agent. It cannot accept arbitrary commands or persistently enable enforcement. The remaining business decision is a separately named approval to enable commercial enforcement beyond this temporary proof; that approval is not implied by the successful canary.
