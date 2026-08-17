@@ -50,4 +50,8 @@ func TestSubscriberSignalAssuranceUsesGlobalWatchlistEvidence(t *testing.T) {
 	if response["data_scope"] != "platform-global" || len(response["effectiveness"].([]any)) != 1 {
 		t.Fatalf("subscriber Signal Assurance did not use global evidence: %#v", response)
 	}
+	row := response["effectiveness"].([]any)[0].(map[string]any)
+	if row["viability_state"] != "insufficient_evidence" || row["viability_policy_version"] != "saf_viability.v1" {
+		t.Fatalf("viability response = %#v", row)
+	}
 }

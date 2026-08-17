@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/lukebabs/signalops/internal/marketops/signalassurance"
 	"github.com/lukebabs/signalops/internal/storage"
 	"github.com/lukebabs/signalops/internal/subscriber/eodrevisionpolicy"
 )
@@ -188,13 +189,17 @@ type signalAssuranceEffectivenessDTO struct {
 	AverageMAE              *float64 `json:"average_mae,omitempty"`
 	Exploratory             bool     `json:"exploratory"`
 	AsOf                    string   `json:"as_of"`
+	ViabilityState          string   `json:"viability_state"`
+	ViabilityReasons        []string `json:"viability_reasons"`
+	ViabilityPolicyVersion  string   `json:"viability_policy_version"`
 	MetricDefinitionVersion string   `json:"metric_definition_version"`
 }
 
 func effectivenessResponses(values []storage.SignalAssuranceEffectivenessRecord) []signalAssuranceEffectivenessDTO {
 	out := make([]signalAssuranceEffectivenessDTO, 0, len(values))
 	for _, x := range values {
-		out = append(out, signalAssuranceEffectivenessDTO{EvidenceSource: x.EvidenceSource, Dimension: x.Dimension, DimensionValue: x.DimensionValue, SampleSize: x.SampleSize, DirectionalHits: x.DirectionalHits, MaterializedCount: x.MaterializedCount, InvalidatedCount: x.InvalidatedCount, ExpiredCount: x.ExpiredCount, CensoredCount: x.CensoredCount, ExcludedCount: x.ExcludedCount, DirectionalAccuracy: x.DirectionalAccuracy, AccuracyLowerBound: x.AccuracyLowerBound, AccuracyUpperBound: x.AccuracyUpperBound, MaterializationRate: x.MaterializationRate, AverageReturn: x.AverageReturn, AverageRelativeReturn: x.AverageRelativeReturn, AverageMFE: x.AverageMFE, AverageMAE: x.AverageMAE, Exploratory: x.Exploratory, AsOf: x.AsOf.UTC().Format("2006-01-02T15:04:05Z"), MetricDefinitionVersion: x.MetricDefinitionVersion})
+		assessment := signalassurance.AssessViability(x)
+		out = append(out, signalAssuranceEffectivenessDTO{EvidenceSource: x.EvidenceSource, Dimension: x.Dimension, DimensionValue: x.DimensionValue, SampleSize: x.SampleSize, DirectionalHits: x.DirectionalHits, MaterializedCount: x.MaterializedCount, InvalidatedCount: x.InvalidatedCount, ExpiredCount: x.ExpiredCount, CensoredCount: x.CensoredCount, ExcludedCount: x.ExcludedCount, DirectionalAccuracy: x.DirectionalAccuracy, AccuracyLowerBound: x.AccuracyLowerBound, AccuracyUpperBound: x.AccuracyUpperBound, MaterializationRate: x.MaterializationRate, AverageReturn: x.AverageReturn, AverageRelativeReturn: x.AverageRelativeReturn, AverageMFE: x.AverageMFE, AverageMAE: x.AverageMAE, Exploratory: x.Exploratory, ViabilityState: assessment.State, ViabilityReasons: assessment.Reasons, ViabilityPolicyVersion: signalassurance.ViabilityPolicyVersion, AsOf: x.AsOf.UTC().Format("2006-01-02T15:04:05Z"), MetricDefinitionVersion: x.MetricDefinitionVersion})
 	}
 	return out
 }

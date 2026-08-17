@@ -47,6 +47,7 @@ The scorecard will use conservative states:
 |---|---|
 | `insufficient_evidence` | Fewer than 30 complete, matured directional observations. No ranking or viability claim. |
 | `benchmark_pending` | Matured sample exists but matched benchmark-relative evidence is absent. |
+| `outcome_profile_pending` | Matched return exists but favorable/adverse excursion evidence is incomplete. |
 | `not_demonstrated` | Predeclared in-sample directional and/or excess-return conditions are not met. |
 | `research_supported_in_sample` | The completed in-sample cohort clears the predeclared conditions. It remains research-only. |
 | `out_of_sample_pending` | An immutable in-sample baseline is frozen; independent evidence has not matured. |
