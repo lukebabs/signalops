@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	calculationVersion = "saf_benchmark.v1"
-	selectionPolicy    = "historical_assurance_initial_capture.v1"
-	legacyDefaultList  = "sublist-tenant-local-legacy-default"
+	defaultCalculationVersion = "saf_benchmark.v1"
+	selectionPolicy           = "historical_assurance_initial_capture.v1"
+	legacyDefaultList         = "sublist-tenant-local-legacy-default"
 )
 
 type observation struct {
@@ -55,6 +55,7 @@ func run(ctx context.Context, args []string) error {
 	temporalURL := flags.String("temporal-database-url", strings.TrimSpace(os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL")), "dedicated MarketOps temporal database URL")
 	limit := flags.Int("max-observations", 500, "maximum legacy observations to inspect (1-500)")
 	correlation := flags.String("correlation-id", "", "operator correlation id")
+	calculationVersion := flags.String("calculation-version", defaultCalculationVersion, "append-only benchmark calculation version")
 	dryRun := flags.Bool("dry-run", false, "calculate without writes")
 	execute := flags.Bool("execute", false, "append matched benchmark observations")
 	if err := flags.Parse(args); err != nil {
@@ -68,6 +69,10 @@ func run(ctx context.Context, args []string) error {
 	}
 	if *limit < 1 || *limit > 500 {
 		return errors.New("max-observations must be between 1 and 500")
+	}
+	*calculationVersion = strings.TrimSpace(*calculationVersion)
+	if !validCalculationVersion(*calculationVersion) {
+		return errors.New("calculation-version must contain only lowercase letters, digits, dots, underscores, or hyphens")
 	}
 	primary, err := sql.Open("pgx", strings.TrimSpace(*primaryURL))
 	if err != nil {
@@ -133,17 +138,17 @@ func run(ctx context.Context, args []string) error {
 		}
 	}
 	if *dryRun {
-		fmt.Printf("dry_run=true legacy_list=%s observations=%d benchmark_rows=%d matched=%d sector_unmapped=%d price_unavailable=%d calculation_version=%s\n", legacyDefaultList, len(items), len(calculated), matched, unmapped, unavailable, calculationVersion)
+		fmt.Printf("dry_run=true legacy_list=%s observations=%d benchmark_rows=%d matched=%d sector_unmapped=%d price_unavailable=%d calculation_version=%s\n", legacyDefaultList, len(items), len(calculated), matched, unmapped, unavailable, *calculationVersion)
 		return nil
 	}
 	if strings.TrimSpace(*correlation) == "" {
 		*correlation = "saf-benchmark-" + time.Now().UTC().Format("20060102")
 	}
-	inserted, err := appendBenchmarks(ctx, primary, calculated, *correlation)
+	inserted, err := appendBenchmarks(ctx, primary, calculated, *correlation, *calculationVersion)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("legacy_list=%s observations=%d benchmark_rows=%d inserted=%d matched=%d sector_unmapped=%d price_unavailable=%d calculation_version=%s correlation_id=%s\n", legacyDefaultList, len(items), len(calculated), inserted, matched, unmapped, unavailable, calculationVersion, *correlation)
+	fmt.Printf("legacy_list=%s observations=%d benchmark_rows=%d inserted=%d matched=%d sector_unmapped=%d price_unavailable=%d calculation_version=%s correlation_id=%s\n", legacyDefaultList, len(items), len(calculated), inserted, matched, unmapped, unavailable, *calculationVersion, *correlation)
 	return nil
 }
 
@@ -237,7 +242,7 @@ ORDER BY processing_time ASC, event_id ASC LIMIT 1`, symbol, session).Scan(&valu
 	return &value, nil
 }
 
-func appendBenchmarks(ctx context.Context, db *sql.DB, rows []benchmark, correlation string) (int, error) {
+func appendBenchmarks(ctx context.Context, db *sql.DB, rows []benchmark, correlation, calculationVersion string) (int, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -287,4 +292,17 @@ func timeString(p *price) string {
 func hash(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])
+}
+
+func validCalculationVersion(value string) bool {
+	if value == "" || len(value) > 80 {
+		return false
+	}
+	for _, character := range value {
+		if (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9') || character == '.' || character == '_' || character == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }

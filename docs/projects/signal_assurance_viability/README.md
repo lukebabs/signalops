@@ -109,3 +109,34 @@ returns, revise outcomes, or alter any viability gate.
 This makes the current sector-normalization backlog directly inspectable while
 retaining the existing rule that incomplete sector coverage remains
 `benchmark_pending`.
+
+## SAF-V2b governed legacy-sector normalization — 2026-08-17
+
+The 17 `sector_unmapped` observations are attributable to 11 global catalog
+assets. A bounded FMP `/stable/profile` lookup returned a profile sector,
+industry, and exchange for every one. The classifications are normalized only
+to the governed SRI sector vocabulary:
+
+| Canonical sector | Symbols |
+|---|---|
+| Industrials | FDX |
+| Healthcare | GILD |
+| Materials | LIN |
+| Consumer Discretionary | MCD, NKE |
+| Communication Services | META, TMUS |
+| Consumer Staples | MO, PEP |
+| Utilities | NEE |
+| Technology | QCOM |
+
+Migration `000150_subscriber_global_sector_normalization` creates append-only
+provider-backed classification evidence, applies these eleven catalog references
+with FMP authority/provenance, and prevents later legacy-catalog seeding from
+overwriting that authority. It retains the v1 benchmark projection until the
+v2 calculation is present for each observation.
+
+The separate, one-time `saf_benchmark.v2` materialization repeats all 92
+broad-market and sector comparisons from immutable initial-capture EOD data.
+It appends rather than updates: v1 stays available as audit history, while the
+projection prefers v2 per observation only after it exists. The guarded launchers
+are `apply_subscriber_global_sector_normalization_migration.sh` and
+`run_subscriber_global_saf_benchmark_v2_materialization.sh`.

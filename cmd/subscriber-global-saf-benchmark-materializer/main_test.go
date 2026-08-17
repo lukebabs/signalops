@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"strings"
+	"testing"
+)
 
 func TestSectorBenchmark(t *testing.T) {
 	cases := []struct{ raw, segment, symbol string }{
@@ -21,5 +25,17 @@ func TestBenchmarkChoicesLeavesUnknownSectorExplicit(t *testing.T) {
 	items := benchmarkChoices(observation{sector: "", symbol: "ABC"})
 	if len(items) != 2 || items[0].symbol != "SPY" || items[0].state != "matched" || items[1].state != "sector_unmapped" {
 		t.Fatalf("unexpected benchmark choices: %#v", items)
+	}
+}
+
+func TestRunRejectsUnsafeCalculationVersionBeforeDatabaseAccess(t *testing.T) {
+	err := run(context.Background(), []string{
+		"--dry-run",
+		"--database-url", "postgres://example.invalid/marketops",
+		"--temporal-database-url", "postgres://example.invalid/marketops_temporal",
+		"--calculation-version", "saf_benchmark.v2;drop",
+	})
+	if err == nil || !strings.Contains(err.Error(), "calculation-version") {
+		t.Fatalf("unsafe calculation version error=%v", err)
 	}
 }
