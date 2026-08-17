@@ -8,6 +8,8 @@ boundary_env=/etc/signalops/marketops-boundary.env
 runtime_env="$root_dir/.env"
 [[ -r "$boundary_env" && -r "$runtime_env" ]] || { echo "Protected boundary or runtime environment is unavailable." >&2; exit 3; }
 load_marketops_boundary_env "$boundary_env"
+export SIGNALOPS_MARKETOPS_DATABASE_URL="postgres://signalops:@marketops-postgres:5432/marketops?sslmode=disable"
+export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL="postgres://signalops:@marketops-timescaledb:5432/marketops_temporal?sslmode=disable"
 docker compose --env-file "$runtime_env" -p signalops \
   -f "$root_dir/compose.yaml" \
   -f "$root_dir/compose.marketops-boundary.yaml" \
