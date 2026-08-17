@@ -42,6 +42,10 @@ The worker is safe to invoke with `--dry-run` on a weekend: it makes no provider
 
 On `2026-08-17`, the managed `subscriber-global-intraday-shadow-dry-run` completed against the dedicated MarketOps primary: **125** aggregate hot assets resolved; `market_open=false`; no session value was returned. The worker made no Massive request and the append-only `subscriber_global_intraday_shadow_capture_runs` ledger remained at **0** rows after the run.
 
+## Approved one-shot release
+
+Luke approved one no-retry Massive central intraday shadow capture for the aggregate hot selector. The managed release schedules exactly one execution for `2026-08-17 09:50 America/New_York`, five minutes after the legacy `09:45` interval and within the same 15-minute bucket. The one-shot does not enable any recurring central schedule and fails closed if the legacy intraday timer is inactive.
+
 ## Next gate
 
 Define the temporary 132-symbol grandfathered global hot cohort and run it in shadow against the watchlist-derived global hot selector. The dual-run must prove identical membership and state freshness before a controlled central writer or any API/UI reader switch is enabled.
