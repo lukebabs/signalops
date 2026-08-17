@@ -72,7 +72,7 @@ case "$action" in
     run "$repository_dir/scripts/apply_marketops_migration_000125.sh" "$repository_dir/.env"
     ;;
   subscriber-subscription-commerce-migration)
-    run "/scripts/apply_subscriber_subscription_commerce_migration.sh" "/.env"
+    run "$repository_dir/scripts/apply_subscriber_subscription_commerce_migration.sh" "$repository_dir/.env"
     ;;
   subscriber-global-intraday-shadow-migration)
     run "$repository_dir/scripts/apply_subscriber_global_intraday_shadow_capture_migration.sh" "$repository_dir/.env"
