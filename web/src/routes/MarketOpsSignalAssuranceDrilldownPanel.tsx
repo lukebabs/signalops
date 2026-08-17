@@ -12,7 +12,7 @@ const label = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (lett
 export function MarketOpsSignalAssuranceDrilldownPanel() {
   const tenantId = useTenant();
   const [source, setSource] = useState('LEGACY');
-  const [dimension, setDimension] = useState('direction');
+  const [dimension, setDimension] = useState('benchmark_coverage');
   const [cohort, setCohort] = useState('');
   const [selected, setSelected] = useState<MarketOpsSignalAssuranceEffectivenessObservation | null>(null);
   const cohorts = useQuery({ queryKey: ['saf-drilldown-cohorts', tenantId, source, dimension], queryFn: () => api.getMarketOpsSignalAssuranceEffectiveness(tenantId, source, dimension), staleTime: 30_000 });

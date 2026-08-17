@@ -14,7 +14,7 @@ const label = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (lett
 export function MarketOpsSignalAssuranceEffectivenessPanel() {
   const tenantId = useTenant();
   const [source, setSource] = useState('');
-  const [dimension, setDimension] = useState('algorithm_version');
+  const [dimension, setDimension] = useState('benchmark_coverage');
   const [mode, setMode] = useState('');
   const overview = useQuery({
     queryKey: ['saf-effectiveness', tenantId, source, 'overall', mode],
@@ -46,7 +46,7 @@ export function MarketOpsSignalAssuranceEffectivenessPanel() {
         <div>
           <h2 className="text-base font-semibold">Effectiveness & viability</h2>
           <p className="max-w-3xl text-xs text-gray-500">
-            Directional accuracy is one input, not a performance claim. Viability is a read-only research gate:
+            Benchmark coverage is shown first so unresolved sector mapping is explicit. Directional accuracy is one input, not a performance claim. Viability is a read-only research gate:
             insufficient evidence, missing benchmarks, or adverse outcome profiles cannot be treated as a pass.
           </p>
         </div>
