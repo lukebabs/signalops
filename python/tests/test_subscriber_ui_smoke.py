@@ -199,8 +199,8 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
     tenant_api = "/v1/tenants/" + config.tenant_id + "/marketops/"
     for route, endpoint, heading in (
         ("eroc", tenant_api + "eroc", "Exhaustive Reversal"),
-        ("valuation", tenant_api + "valuation", "Valuation & DOSM"),
-        ("earnings", tenant_api + "earnings-opportunities", "Earnings Event Opportunity Model (EEOM)"),
+        ("valuation", tenant_api + "valuation", "Value Intelligence & Distressed Opportunity Intelligence"),
+        ("earnings", tenant_api + "earnings-opportunities", "Earnings Opportunity Intelligence"),
     ):
         response = visit_for_response(subscriber_page, f"{config.base_url}/marketops/{route}", endpoint)
         expect(subscriber_page.get_by_role("heading", name=heading)).to_be_visible(timeout=30_000)

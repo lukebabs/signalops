@@ -92,7 +92,7 @@ function SnapshotCard({ item, onSelect, selected }: { item: MarketOpsSRISnapshot
 
 function RankingsTab({ snapshots, type, state }: { snapshots: MarketOpsSRISnapshot[]; type: string; state: string }) {
   const filtered = snapshots.filter((item) => (!type || item.segment_id.includes("_" + type + "_")) && (!state || item.state === state));
-  return <>{filtered.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{filtered.map((item) => <SnapshotCard key={item.snapshot_id} item={item} />)}</div> : <EmptyState message="No SRI snapshots match the current filters." />}</>;
+  return <>{filtered.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{filtered.map((item) => <SnapshotCard key={item.snapshot_id} item={item} />)}</div> : <EmptyState message="No Sector Rotation Intelligence snapshots match the current filters." />}</>;
 }
 
 function ProgressionChart({ snapshot, history }: { snapshot: MarketOpsSRISnapshot; history: MarketOpsSRISnapshot[] }) {
@@ -126,7 +126,7 @@ function ProgressionChart({ snapshot, history }: { snapshot: MarketOpsSRISnapsho
 
   return <section className="rounded border border-brand-200 bg-brand-50 p-3" aria-label={primaryETF(snapshot) + " progression"}>
     <div className="flex flex-wrap items-start justify-between gap-2">
-      <div><h2 className="text-sm font-semibold text-brand-900">{primaryETF(snapshot)} · {title(snapshot.segment_id)} progression</h2><p className="text-xs text-brand-800">Persisted price-led SRI history. Point color represents the recorded state; ranks and quality are available in the tooltip.</p></div>
+      <div><h2 className="text-sm font-semibold text-brand-900">{primaryETF(snapshot)} · {title(snapshot.segment_id)} progression</h2><p className="text-xs text-brand-800">Persisted price-led Sector Rotation Intelligence history. Point color represents the recorded state; ranks and quality are available in the tooltip.</p></div>
       <label className="text-xs font-medium text-brand-900">Metric<select value={metric} onChange={(event) => setMetric(event.target.value as MetricKey)} className="ml-2 rounded border border-brand-300 bg-white px-2 py-1 text-xs">{metrics.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
     </div>
     {points.length ? <div className="mt-3 rounded bg-white p-2"><ThemedEChart option={option} style={{ height: 300 }} /></div> : <EmptyState message="No persisted progression history is available for this ETF." />}
@@ -147,7 +147,7 @@ function ETFMakeup({ makeup, loading, error }: { makeup?: MarketOpsSRIETFMakeupR
     </div>
     <dl className="mt-3 grid grid-cols-3 gap-2 rounded bg-white p-2 text-xs"><div><dt className="text-gray-500">Constituents</dt><dd className="font-semibold tabular-nums">{snapshot.holdings_count}</dd></div><div><dt className="text-gray-500">Reported weight</dt><dd className="font-semibold tabular-nums">{snapshot.total_weight.toFixed(2)}%</dd></div><div><dt className="text-gray-500">Top 10 weight</dt><dd className="font-semibold tabular-nums">{snapshot.top_ten_weight.toFixed(2)}%</dd></div></dl>
     <div className="mt-3 max-w-full overflow-x-auto rounded border border-gray-200 bg-white overscroll-x-contain"><table className="min-w-[680px] divide-y divide-gray-200 text-xs"><thead className="bg-gray-50 text-left uppercase tracking-wide text-gray-500"><tr><th className="px-2 py-2">#</th><th className="px-2 py-2">Holding</th><th className="px-2 py-2">Ticker</th><th className="px-2 py-2 text-right">Weight</th><th className="px-2 py-2">Sector</th></tr></thead><tbody className="divide-y divide-gray-100">{makeup.holdings.map((holding) => <tr key={holding.rank}><td className="px-2 py-2 tabular-nums text-gray-500">{holding.rank}</td><td className="px-2 py-2 font-medium text-gray-900">{holding.name}</td><td className="px-2 py-2 font-mono text-gray-700">{holding.ticker || "—"}</td><td className="px-2 py-2 text-right font-semibold tabular-nums text-gray-900">{holding.weight.toFixed(2)}%</td><td className="px-2 py-2 text-gray-600">{holding.sector || "—"}</td></tr>)}</tbody></table></div>
-    <p className="mt-2 text-[11px] text-brand-800">{makeup.evidence_note ?? "Current issuer-published representation only; it does not affect SRI scores or reconstruct historical holdings."}</p>
+    <p className="mt-2 text-[11px] text-brand-800">{makeup.evidence_note ?? "Current issuer-published representation only; it does not affect Sector Rotation Intelligence scores or reconstruct historical holdings."}</p>
   </section>;
 }
 
@@ -213,7 +213,7 @@ function ProgressionTab({ tenantId, snapshots }: { tenantId: string; snapshots: 
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500"><tr>
             <th className="px-3 py-2">{heading("Rank", "rank")}</th>
             <th className="px-3 py-2">{heading("ETF / segment", "etf")}</th>
-            <th className="px-3 py-2">{heading("SRI score", "score")}</th>
+            <th className="px-3 py-2">{heading("Sector Rotation score", "score")}</th>
             <th className="px-3 py-2">{heading("Context", "state")}</th>
             <th className="px-3 py-2"><div className="flex items-center gap-5">{heading("Relative strength", "strength")}{heading("Momentum", "momentum")}</div></th>
             <th className="px-3 py-2">{heading("Quality", "quality")}</th>
@@ -256,7 +256,7 @@ export function MarketOpsSRIRoute() {
       <RefreshButton onClick={refresh} loading={rankingsQ.isFetching} />
     </div>
 
-    <div role="tablist" aria-label="Sector Intelligence views" className="flex border-b border-gray-200">
+    <div role="tablist" aria-label="Sector Rotation Intelligence views" className="flex border-b border-gray-200">
       <button role="tab" aria-selected={tab === "rankings"} onClick={() => setTab("rankings")} className={"border-b-2 px-3 py-2 text-sm font-medium " + (tab === "rankings" ? "border-brand-600 text-brand-700" : "border-transparent text-gray-600 hover:text-gray-900")}>Rankings</button>
       <button role="tab" aria-selected={tab === "progression"} onClick={() => setTab("progression")} className={"border-b-2 px-3 py-2 text-sm font-medium " + (tab === "progression" ? "border-brand-600 text-brand-700" : "border-transparent text-gray-600 hover:text-gray-900")}>ETF progression</button>
     </div>
@@ -267,7 +267,7 @@ export function MarketOpsSRIRoute() {
       <div className="self-end pb-1 text-xs text-gray-500">Score: <span className="font-medium text-emerald-700">75+ strong</span> · <span className="font-medium text-sky-700">60+ positive</span> · <span className="font-medium text-amber-700">&lt;40 weak</span></div>
     </div> : null}
 
-    <div aria-label="SRI context color legend" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600"><span className="font-medium text-gray-700">Context legend:</span>{legend.map((item) => { const tone = stateTone(item); return <span key={item} className="inline-flex items-center gap-1"><i aria-hidden className={"h-2 w-2 rounded-full " + tone.dot} />{title(item)}</span>; })}</div>
+    <div aria-label="Sector Rotation Intelligence context color legend" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600"><span className="font-medium text-gray-700">Context legend:</span>{legend.map((item) => { const tone = stateTone(item); return <span key={item} className="inline-flex items-center gap-1"><i aria-hidden className={"h-2 w-2 rounded-full " + tone.dot} />{title(item)}</span>; })}</div>
 
     {rankingsQ.isLoading ? <LoadingState label="Loading sector context..." /> : rankingsQ.isError ? <ErrorState error={rankingsQ.error} /> : <>
       <p className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">{rankingsQ.data?.evidence_note}</p>

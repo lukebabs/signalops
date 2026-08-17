@@ -4,7 +4,7 @@ Status: production-readiness control. The suite is committed; it remains inactiv
 
 ## Purpose
 
-The Subscriber Project must not depend on manually exported HAR files for routine release validation. The browser acceptance suite drives the real OIDC login screen and validates that the configured private watchlist persists across Assets, Dashboard, EROC, Valuation, EEOM, Market State, and Signal Assurance. It also verifies each contextual API response, shared-EOD coverage, honest cold-coverage presentation, and the absence of legacy sentinel timestamps or blank shared-algorithm cells. It performs no provider request, catalogue mutation, list creation, or data backfill.
+The Subscriber Project must not depend on manually exported HAR files for routine release validation. The browser acceptance suite drives the real OIDC login screen and validates that the configured private watchlist persists across Assets, Dashboard, EROC, Value & Distressed Opportunity Intelligence (VC/DOSM), Earnings Opportunity Intelligence (EEOM), Market State, and Signal Assurance. It also verifies each contextual API response, shared-EOD coverage, honest cold-coverage presentation, and the absence of legacy sentinel timestamps or blank shared-algorithm cells. It performs no provider request, catalogue mutation, list creation, or data backfill.
 
 ## Identity boundary
 

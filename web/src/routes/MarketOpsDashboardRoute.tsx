@@ -214,7 +214,7 @@ function UpcomingEarnings({
           href="/marketops/earnings"
           className="text-xs text-brand-700 hover:underline"
         >
-          Open EEOM
+          Open Earnings Opportunity Intelligence
         </a>
       </div>
       {loading ? (

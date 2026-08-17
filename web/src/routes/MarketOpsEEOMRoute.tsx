@@ -28,18 +28,18 @@ export function MarketOpsEEOMRoute() {
     <div className="space-y-3">
       <div>
         <h1 className="text-lg font-semibold">
-          Earnings Event Opportunity Model (EEOM)
+          Earnings Opportunity Intelligence
         </h1>
         <p className="text-xs text-gray-500">
-          Earnings Event Opportunity Model (EEOM): deterministic pre-earnings
+          Earnings Opportunity Intelligence (EEOM): deterministic pre-earnings
           setup quality from persisted MarketOps evidence. It is not an earnings
           forecast, price target, or recommendation.
         </p>
       </div>
       <MarketOpsWatchlistSelector />
       <div className="rounded border border-brand-100 bg-brand-50 p-3 text-xs text-brand-800">
-        EEOM scores setup quality from technical, options, Risk/Reward,
-        Valuation Composite, DOSM, earnings materiality. Unavailable inputs are
+        Earnings Opportunity Intelligence (EEOM) scores setup quality from technical, options, Risk/Reward,
+        Value Intelligence and Distressed Opportunity Intelligence, earnings materiality. Unavailable inputs are
         shown and reweighted; posture describes evidence balance separately.
       </div>
       <EEOMAssessmentGuide />
@@ -48,7 +48,7 @@ export function MarketOpsEEOMRoute() {
       ) : q.isError ? (
         <ErrorState error={q.error} />
       ) : !rows.length ? (
-        <EmptyState message="No point-in-time-known earnings events have eligible EEOM evidence in the next 30 days." />
+        <EmptyState message="No point-in-time-known earnings events have eligible Earnings Opportunity Intelligence evidence in the next 30 days." />
       ) : (
         <div className="overflow-x-auto rounded border border-gray-200 bg-white">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
