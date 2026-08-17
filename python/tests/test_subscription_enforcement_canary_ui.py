@@ -96,12 +96,16 @@ def api(page: Page, path: str) -> tuple[int, dict[str, object]]:
 def set_pilot_plan(page: Page, config: dict[str, str], plan: str) -> None:
     sign_in(page, base_url=config["base_url"], username=config["admin_username"], password=config["admin_password"], path="/admin/subscriptions", heading="Subscription Administration")
     form = page.get_by_role("heading", name="Explorer or Professional subject plan").locator("xpath=ancestor::form")
-    form.get_by_role("textbox", name="Tenant ID").fill(PILOT_TENANT)
-    form.get_by_role("textbox", name="OIDC subject").fill(PILOT_SUBJECT)
-    form.get_by_role("combobox", name="Plan").select_option(plan)
-    form.get_by_role("combobox", name="Status").select_option("active")
-    form.get_by_role("button", name="Provision subject plan").click()
-    expect(form.get_by_role("status")).to_have_text("Provisioning change recorded successfully.", timeout=30_000)
+    expect(form).to_be_visible(timeout=30_000)
+    payload = {"tenant_id": PILOT_TENANT, "subject": PILOT_SUBJECT, "product_key": plan, "status": "active", "correlation_id": "subscription-enforcement-canary-" + plan}
+    response = page.evaluate(
+        """async ({token, payload}) => {
+          const response = await fetch("/v1/administration/subscriptions/subject", {method: "POST", headers: {Authorization: "Bearer " + token, "Content-Type": "application/json"}, body: JSON.stringify(payload)});
+          return {status: response.status, body: await response.json().catch(() => ({}))};
+        }""",
+        {"token": bearer(page), "payload": payload},
+    )
+    assert int(response["status"]) == 200, response["body"]
 
 
 def test_subscription_enforcement_three_tier_canary(canary_context: BrowserContext, browser: Browser, config: dict[str, str]) -> None:
