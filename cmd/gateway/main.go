@@ -68,9 +68,14 @@ func main() {
 			JWKSURL:  cfg.AuthJWKSURL,
 			Audience: cfg.AuthAudience,
 		},
-		NotificationEncryptionKey:   cfg.NotificationEncryptionKey,
-		SubscriberListsEnabled:      cfg.SubscriberListsEnabled,
-		SubscriberListsPilotTenants: subscriberPilotTenants(cfg.SubscriberListsPilotTenants),
+		NotificationEncryptionKey:      cfg.NotificationEncryptionKey,
+		SubscriberListsEnabled:         cfg.SubscriberListsEnabled,
+		SubscriberSubscriptionsEnabled: cfg.SubscriberSubscriptionsEnabled,
+		SubscriberListsPilotTenants:    subscriberPilotTenants(cfg.SubscriberListsPilotTenants),
+	}
+	if cfg.SubscriberSubscriptionsEnabled && !cfg.SubscriberListsEnabled {
+		logger.Error("subscription enforcement requires the subscriber catalog gateway database")
+		os.Exit(1)
 	}
 	if cfg.SubscriberListsEnabled {
 		if strings.TrimSpace(cfg.SubscriberListsDatabaseURL) == "" {
@@ -87,6 +92,7 @@ func main() {
 		routerConfig.SubscriberEntitlementRepository = subscriberWatchlistRepo
 		routerConfig.SubscriberCatalogMembershipRepository = subscriberWatchlistRepo
 		routerConfig.SubscriberSubscriptionRepository = subscriberWatchlistRepo
+		routerConfig.SubscriberSubscriptionAdministrationRepository = subscriberWatchlistRepo
 	}
 
 	if key := strings.TrimSpace(os.Getenv("SIGNALOPS_MASSIVE_API_KEY")); key != "" {

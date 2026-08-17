@@ -51,21 +51,23 @@ type RouterConfig struct {
 	QueryRepository         storage.QueryRepository
 	// MarketOpsQueryRepository is an optional, app-scoped repository. When configured,
 	// only MarketOps routes use it; shared platform and CyberOps routes remain shared.
-	MarketOpsQueryRepository              storage.QueryRepository
-	AccessRepository                      storage.TenantUserAccessRepository
-	CyberOpsConnectRepository             storage.CyberOpsConnectRepository
-	PlatformDefinitionRepository          storage.PlatformPrimitiveDefinitionRepository
-	PublishRepository                     storage.PublishRepository
-	SyncraticAskClient                    syncraticAskClient
-	NotificationEncryptionKey             string
-	SubscriberListsEnabled                bool
-	SubscriberListsPilotTenants           map[string]struct{}
-	SubscriberWatchlistRepository         storage.SubscriberWatchlistRepository
-	SubscriberCatalogRepository           storage.SubscriberCatalogProjectionRepository
-	SubscriberEntitlementRepository       storage.SubscriberEntitlementRepository
-	SubscriberCatalogMembershipRepository storage.SubscriberCatalogMembershipRepository
-	SubscriberSubscriptionRepository      storage.SubscriberSubscriptionRepository
-	MarketQuoteClient                     interface {
+	MarketOpsQueryRepository                       storage.QueryRepository
+	AccessRepository                               storage.TenantUserAccessRepository
+	CyberOpsConnectRepository                      storage.CyberOpsConnectRepository
+	PlatformDefinitionRepository                   storage.PlatformPrimitiveDefinitionRepository
+	PublishRepository                              storage.PublishRepository
+	SyncraticAskClient                             syncraticAskClient
+	NotificationEncryptionKey                      string
+	SubscriberListsEnabled                         bool
+	SubscriberSubscriptionsEnabled                 bool
+	SubscriberListsPilotTenants                    map[string]struct{}
+	SubscriberWatchlistRepository                  storage.SubscriberWatchlistRepository
+	SubscriberCatalogRepository                    storage.SubscriberCatalogProjectionRepository
+	SubscriberEntitlementRepository                storage.SubscriberEntitlementRepository
+	SubscriberCatalogMembershipRepository          storage.SubscriberCatalogMembershipRepository
+	SubscriberSubscriptionRepository               storage.SubscriberSubscriptionRepository
+	SubscriberSubscriptionAdministrationRepository storage.SubscriberSubscriptionAdministrationRepository
+	MarketQuoteClient                              interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}
 }
@@ -107,6 +109,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		registerSubscriberCatalogRoutes(mux, cfg)
 		registerSubscriberCatalogMembershipRoutes(mux, cfg)
 		registerSubscriberSubscriptionRoutes(mux, cfg)
+		registerSubscriberSubscriptionAdministrationRoutes(mux, cfg)
 	}
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -3070,7 +3073,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerCyberOpsTrafficRoutes(mux, cfg.QueryRepository)
 	registerCyberOpsIoTRoutes(mux, cfg.QueryRepository)
 	registerCyberOpsLifecycleRoutes(mux, cfg.QueryRepository)
-	return authMiddleware(mux, cfg.Auth)
+	return authMiddleware(subscriptionFeatureMiddleware(mux, cfg), cfg.Auth)
 }
 
 type rawIngestFields struct {

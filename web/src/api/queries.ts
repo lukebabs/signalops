@@ -115,6 +115,7 @@ export const queryKeys = {
   replayStatus: (tenantId: string, limit?: number) => ['replay-status', tenantId, limit] as const,
   appProfiles: ['app-profiles'] as const,
   sessionExperience: ['session-experience'] as const,
+  subscriberSubscription: (tenantId: string) => ['subscriber-subscription', tenantId] as const,
   marketOpsAssets: (filter: MarketOpsAssetFilter) => ['marketops-assets', filter] as const,
   marketOpsAssetQuotes: (tenantId: string, group: string) => ['marketops-asset-quotes', tenantId, group] as const,
   marketOpsIntradayConditions: (tenantId: string, group: string, symbol = "") => ["marketops-intraday-conditions", tenantId, group, symbol] as const,
@@ -451,6 +452,16 @@ export function useSessionExperience() {
     queryKey: queryKeys.sessionExperience,
     queryFn: api.getSessionExperience,
     staleTime: 60_000,
+  });
+}
+
+export function useSubscriberSubscription(tenantId: string) {
+  return useQuery({
+    queryKey: queryKeys.subscriberSubscription(tenantId),
+    queryFn: () => api.getSubscriberSubscription(tenantId),
+    enabled: !!tenantId,
+    staleTime: 60_000,
+    retry: false,
   });
 }
 

@@ -22,6 +22,7 @@ import {
   Monitor,
   Telescope,
   LineChart,
+  LockKeyhole,
   type LucideIcon,
 } from 'lucide-react';
 import { HealthIndicator } from './HealthIndicator';
@@ -32,6 +33,7 @@ import { useAppProfile } from '../apps/AppProfileContext';
 import { defaultRouteForApp } from '../apps/appRouting';
 import syncraticPortalLogo from '../assets/syncratic-portal-logo.svg';
 import type { AppProfile } from '../types';
+import { useSubscription } from '../subscriber/SubscriptionContext';
 
 const navItem =
   'inline-flex items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-gray-600 hover:bg-gray-50';
@@ -72,6 +74,7 @@ export function DashboardShell() {
   const { preference, setPreference } = useTheme();
   const identity = authEnabled ? displayIdentity(claims) : undefined;
   const { profiles, currentApp, currentAppId, nav, superAdmin } = useAppProfile();
+  const { subscription, known: subscriptionKnown, allows } = useSubscription();
   const location = useLocation();
   const isLanding = location.pathname === "/";
   const navigate = useNavigate();
@@ -121,6 +124,11 @@ export function DashboardShell() {
           </label>
           <HealthIndicator />
           {superAdmin && <Link to="/admin/dashboard" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Administration</Link>}
+          {currentAppId === 'marketops' && subscriptionKnown && (
+            <span className="rounded bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700" title="Current MarketOps analytical plan">
+              {subscription?.display_name ?? "Subscription required"}
+            </span>
+          )}
           {identity && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-600">{identity}</span>
@@ -140,6 +148,12 @@ export function DashboardShell() {
       {!isLanding && <nav className="flex flex-wrap gap-1 border-b border-gray-200 bg-white px-2">
         {nav.map((item) => {
           const Icon = MODULE_ICONS[item.module] ?? Activity;
+          const locked = !allows(item.subscriptionFeature);
+          if (locked) return (
+            <span key={item.to} title="Requires an included MarketOps subscription" className={` cursor-not-allowed text-gray-400`} aria-disabled="true">
+              <LockKeyhole size={14} /> {item.label}
+            </span>
+          );
           return (
             <Link key={item.to} to={item.to} className={navItem} activeProps={{ className: navItemActive }}>
               <Icon size={14} /> {item.label}

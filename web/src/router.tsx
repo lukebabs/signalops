@@ -2,7 +2,9 @@ import { lazy, useEffect } from 'react';
 import { createRouter, createRoute, createRootRoute, useNavigate } from '@tanstack/react-router';
 import { DashboardShell } from './components/DashboardShell';
 import { AppProfileProvider } from './apps/AppProfileContext';
+import { SubscriptionProvider } from './subscriber/SubscriptionContext';
 import { LoadingState } from './components/States';
+import { SubscriptionFeatureGate } from './subscriber/SubscriptionFeatureGate';
 
 // Route-level code splitting: AG Grid / ECharts only load when the Runs or
 // Raw Events views are visited.
@@ -108,7 +110,9 @@ const AlgorithmsRoute = lazy(() =>
 function AppRoot() {
   return (
     <AppProfileProvider>
-      <DashboardShell />
+      <SubscriptionProvider>
+        <DashboardShell />
+      </SubscriptionProvider>
     </AppProfileProvider>
   );
 }
@@ -265,9 +269,9 @@ const marketopsStateRoute = createRoute({
   component: MarketOpsStateRoute,
 });
 const marketopsDsmRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/dsm', component: () => <LegacyRedirect to="/admin/signals" /> });
-const marketopsValuationRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/valuation", component: MarketOpsValuationRoute });
-const marketopsERocRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/eroc", component: MarketOpsEROCRoute });
-const marketopsEEOMRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/earnings", component: MarketOpsEEOMRoute });
+const marketopsValuationRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/valuation", component: () => <SubscriptionFeatureGate feature="value_intelligence" title="Value & Distressed Opportunity Intelligence"><MarketOpsValuationRoute /></SubscriptionFeatureGate> });
+const marketopsERocRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/eroc", component: () => <SubscriptionFeatureGate feature="distressed_opportunity_intelligence" title="Distressed Opportunity Intelligence"><MarketOpsEROCRoute /></SubscriptionFeatureGate> });
+const marketopsEEOMRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/earnings", component: () => <SubscriptionFeatureGate feature="earnings_opportunity_intelligence" title="Earnings Opportunity Intelligence"><MarketOpsEEOMRoute /></SubscriptionFeatureGate> });
 const marketopsOpportunitiesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/marketops/opportunities',
@@ -278,7 +282,7 @@ const marketopsOpportunitiesRoute = createRoute({
   }),
   component: MarketOpsOpportunitiesRoute,
 });
-const marketopsSignalAssuranceRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assurance', component: MarketOpsSignalAssuranceRoute });
+const marketopsSignalAssuranceRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assurance', component: () => <SubscriptionFeatureGate feature="signal_assurance_analytics" title="Signal Assurance Analytics"><MarketOpsSignalAssuranceRoute /></SubscriptionFeatureGate> });
 const marketopsSRIRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/sectors", component: MarketOpsSRIRoute });
 const marketopsBacktestsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/backtests', component: MarketOpsBacktestsRoute });
 const marketopsSyncraticRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/syncratic', component: MarketOpsSyncraticRoute });

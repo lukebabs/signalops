@@ -28,6 +28,7 @@ const (
 	rolePlatformSuperAdmin = "super_admin"
 	roleAdmin              = "signalops:admin"
 	roleTenantProvisioner  = "signalops:tenant_provisioner"
+	roleSubscriptionAdmin  = "signalops:subscription_admin"
 )
 
 type authContextKey struct{}
@@ -105,7 +106,7 @@ func authMiddleware(next http.Handler, cfg AuthConfig) http.Handler {
 			return
 		}
 		principal.SuperAdmin = isSuperAdmin(principal)
-		if !allowsCrossTenantInitialProvisioning(r, principal) && !tenantMatchesRequest(r, principal.TenantID) {
+		if !allowsCrossTenantInitialProvisioning(r, principal) && !allowsCrossTenantSubscriptionAdministration(r, principal) && !tenantMatchesRequest(r, principal.TenantID) {
 			writeError(w, http.StatusForbidden, "tenant_mismatch", "request tenant does not match token tenant")
 			return
 		}
@@ -114,7 +115,7 @@ func authMiddleware(next http.Handler, cfg AuthConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_tenant_scope", bodyErr.Error())
 			return
 		}
-		if !allowsCrossTenantInitialProvisioning(r, principal) && bodyTenantDeclared && bodyTenant != "" && bodyTenant != principal.TenantID {
+		if !allowsCrossTenantInitialProvisioning(r, principal) && !allowsCrossTenantSubscriptionAdministration(r, principal) && bodyTenantDeclared && bodyTenant != "" && bodyTenant != principal.TenantID {
 			writeError(w, http.StatusForbidden, "tenant_mismatch", "request tenant does not match token tenant")
 			return
 		}
@@ -139,6 +140,10 @@ func authMiddleware(next http.Handler, cfg AuthConfig) http.Handler {
 
 func isSuperAdmin(principal Principal) bool {
 	return hasAnyRole(principal, rolePlatformSuperAdmin, roleAdmin)
+}
+
+func isSubscriptionAdministrator(principal Principal) bool {
+	return isSuperAdmin(principal) || hasAnyRole(principal, roleSubscriptionAdmin)
 }
 
 func isPublicRoute(r *http.Request) bool {
@@ -307,6 +312,10 @@ func allowsCrossTenantInitialProvisioning(r *http.Request, principal Principal) 
 	return r.Method == http.MethodPost && r.URL.Path == "/v1/administration/tenant-provisioning/access" && hasAnyRole(principal, roleTenantProvisioner)
 }
 
+func allowsCrossTenantSubscriptionAdministration(r *http.Request, principal Principal) bool {
+	return strings.HasPrefix(r.URL.Path, "/v1/administration/subscriptions") && isSubscriptionAdministrator(principal)
+}
+
 func requireInitialProvisioningTenant(w http.ResponseWriter, r *http.Request, requestedTenant string) (string, bool) {
 	tenant := strings.TrimSpace(requestedTenant)
 	principal, authenticated := principalFromContext(r.Context())
@@ -320,7 +329,10 @@ func authorizedForRequest(r *http.Request, principal Principal) bool {
 	if isExperienceRequest(r) {
 		return true
 	}
-	if allowsCrossTenantInitialProvisioning(r, principal) {
+	if isSubscriberSubscriptionAdministrationRequest(r) {
+		return isSubscriptionAdministrator(principal)
+	}
+	if allowsCrossTenantInitialProvisioning(r, principal) || allowsCrossTenantSubscriptionAdministration(r, principal) {
 		return true
 	}
 	if principal.SuperAdmin {
@@ -363,6 +375,10 @@ func appScopeForRequest(r *http.Request) string {
 
 func isExperienceRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/v1/session/experience"
+}
+
+func isSubscriberSubscriptionAdministrationRequest(r *http.Request) bool {
+	return strings.HasPrefix(r.URL.Path, "/v1/administration/subscriptions")
 }
 
 func isSubscriberWatchlistRequest(r *http.Request) bool {

@@ -1,6 +1,6 @@
 # Subscriber Project
 
-Status: discovery and architecture project. This documentation describes a target subscription-service capability; it does not change the deployed MarketOps data contracts.
+Status: active implementation project. The global catalog and subscriber-list foundation are deployed behind controls; subscription commerce is implemented behind a default-off feature flag and awaits controlled activation evidence.
 
 ## Goal
 
@@ -29,6 +29,8 @@ The current MarketOps asset model is tenant-owned and supports direct watchlist 
 The existing SRI ETF makeup feature is not the product boundary. It is one useful source of current constituents and an example of provenance-preserving market representation. ETF composition must not determine the global catalog or make a user-visible list unless a user or tenant chooses it.
 
 ## Document set
+
+- [Subscription Commerce Model](subscription_commerce_model.md): Explorer, Professional, and Institutional product decisions; tier enforcement, RBAC separation, Stripe boundary, rollout, and deferred work.
 
 - [Global Catalog and Watchlist Roadmap](global_catalog_watchlists_roadmap.md): target architecture, data flow, options demand design, compatibility-first sprint plan, controls, and acceptance measures.
 - [Tenant-local legacy-default preservation — 2026-08-16](tenant_local_legacy_default_preservation_2026-08-16.md): audited, non-destructive preservation of the 132-symbol legacy tenant-default list through canonical global identities.

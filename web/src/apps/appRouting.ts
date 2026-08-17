@@ -1,5 +1,5 @@
 // Pure app-routing helpers. No React, no DOM — fully unit-testable.
-import type { AppProfile } from '../types';
+import type { AppProfile, SubscriberSubscriptionFeature } from '../types';
 
 // All frontend route paths used by app nav/selector. Must stay a subset of the
 // routes registered in router.tsx so TanStack Router's typed <Link to=... />
@@ -74,6 +74,7 @@ export interface NavItem {
   module: string;
   to: AppRoutePath;
   label: string;
+  subscriptionFeature?: SubscriberSubscriptionFeature;
 }
 
 // Detect the active app from its route prefix. Every other path (including "/"
@@ -112,11 +113,11 @@ const MARKETOPS_NAV: NavItem[] = [
   { module: 'state', to: '/marketops/state', label: 'Market State' },
   { module: 'indicator_reel', to: '/marketops/indicator-reel', label: 'Market Intelligence' },
   { module: 'review', to: '/marketops/review', label: 'Review Queue' },
-  { module: 'valuation', to: '/marketops/valuation', label: 'Value & Distressed Opportunity Intelligence' },
-  { module: 'eroc', to: '/marketops/eroc', label: 'Exhaustive Reversal' },
-  { module: 'earnings', to: '/marketops/earnings', label: 'Earnings Opportunity Intelligence' },
+  { module: 'valuation', to: '/marketops/valuation', label: 'Value & Distressed Opportunity Intelligence', subscriptionFeature: 'value_intelligence' },
+  { module: 'eroc', to: '/marketops/eroc', label: 'Exhaustive Reversal', subscriptionFeature: 'distressed_opportunity_intelligence' },
+  { module: 'earnings', to: '/marketops/earnings', label: 'Earnings Opportunity Intelligence', subscriptionFeature: 'earnings_opportunity_intelligence' },
   { module: 'opportunities', to: '/marketops/opportunities', label: 'Opportunities' },
-  { module: 'assurance', to: '/marketops/assurance', label: 'Signal Assurance' },
+  { module: 'assurance', to: '/marketops/assurance', label: 'Signal Assurance', subscriptionFeature: 'signal_assurance_analytics' },
   { module: 'sectors', to: '/marketops/sectors', label: 'Sector Rotation Intelligence' },
   { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Insights' },
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },
