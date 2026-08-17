@@ -13,6 +13,7 @@ export interface AuthClaims {
 export const ROLE_VIEWER = 'signalops:viewer';
 export const ROLE_OPERATOR = 'signalops:operator';
 export const ROLE_ADMIN = 'signalops:admin';
+export const ROLE_SUBSCRIPTION_ADMIN = 'signalops:subscription_admin';
 // The realm-level platform administrator role. ROLE_ADMIN remains a compatibility alias.
 export const ROLE_SUPER_ADMIN = 'super_admin';
 
@@ -47,6 +48,10 @@ export function mergeSessionClaims(profile: AuthClaims | null | undefined, acces
 export function hasPlatformAdmin(claims: AuthClaims | null | undefined): boolean {
   const roles = rolesFromClaims(claims);
   return roles.includes(ROLE_SUPER_ADMIN) || roles.includes(ROLE_ADMIN);
+}
+
+export function hasSubscriptionAdministrator(claims: AuthClaims | null | undefined): boolean {
+  return hasPlatformAdmin(claims) || hasRole(claims, ROLE_SUBSCRIPTION_ADMIN);
 }
 
 // Read access to protected /v1/* requires viewer, operator, or admin.

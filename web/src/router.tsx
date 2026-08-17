@@ -100,6 +100,7 @@ const MarketOpsSyncraticRoute = lazy(() =>
   import('./routes/MarketOpsSyncraticRoute').then((m) => ({ default: m.MarketOpsSyncraticRoute })),
 );
 const AccessManagementRoute = lazy(() => import('./routes/AccessManagementRoute').then((m) => ({ default: m.AccessManagementRoute })));
+const SubscriptionAdministrationRoute = lazy(() => import('./routes/SubscriptionAdministrationRoute').then((m) => ({ default: m.SubscriptionAdministrationRoute })));
 const AlgorithmsRoute = lazy(() =>
   import('./routes/AlgorithmsRoute').then((m) => ({ default: m.AlgorithmsRoute })),
 );
@@ -139,6 +140,7 @@ const adminAlertsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/
 const adminInsightsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/insights', component: InsightsRoute });
 const adminAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/algorithms', component: AlgorithmsRoute });
 const adminAccessRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/access', component: AccessManagementRoute });
+const adminSubscriptionsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/subscriptions', component: SubscriptionAdministrationRoute });
 const adminSystemRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/system', component: SystemRoute });
 const adminStorageRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/storage', component: StorageRoute });
 
@@ -323,7 +325,7 @@ const authCallbackRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
-  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminAccessRoute, adminSystemRoute, adminStorageRoute,
+  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminAccessRoute, adminSubscriptionsRoute, adminSystemRoute, adminStorageRoute,
   indexRoute,
   runsRoute,
   rawEventsRoute,

@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { HealthIndicator } from './HealthIndicator';
 import { useAuth } from '../auth/session';
-import { displayIdentity } from '../auth/claims';
+import { displayIdentity, hasSubscriptionAdministrator } from '../auth/claims';
 import { useTheme, type ThemePreference } from '../theme/theme';
 import { useAppProfile } from '../apps/AppProfileContext';
 import { defaultRouteForApp } from '../apps/appRouting';
@@ -67,6 +67,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   indicator_reel: Radar,
   access: ShieldCheck,
   settings: ShieldCheck,
+  subscriptions: ShieldCheck,
 };
 
 export function DashboardShell() {
@@ -124,6 +125,7 @@ export function DashboardShell() {
           </label>
           <HealthIndicator />
           {superAdmin && <Link to="/admin/dashboard" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Administration</Link>}
+          {!superAdmin && hasSubscriptionAdministrator(claims) && <Link to="/admin/subscriptions" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Subscription Administration</Link>}
           {currentAppId === 'marketops' && subscriptionKnown && (
             <span className="rounded bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700" title="Current MarketOps analytical plan">
               {subscription?.display_name ?? "Subscription required"}

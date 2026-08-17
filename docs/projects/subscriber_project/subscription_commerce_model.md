@@ -52,7 +52,7 @@ Explorer retains dashboard/public-signal access and SRI rankings. The web shell 
 | Subscriber | Personal lists and the analytical features granted by the effective subscription. |
 | Data-plane worker | Global catalog/coverage/algorithm work only; no subscription administration or browser impersonation. |
 
-The Platform Subscription Admin API is implemented as a fail-closed, signed-role-only provisioning boundary for subject plans, Institutional contracts, and seats. It is not a browser self-upgrade path. Stripe webhook reconciliation remains the next commerce integration slice.
+The Platform Subscription Admin API is implemented as a fail-closed, signed-role-only provisioning boundary for subject plans, Institutional contracts, and seats. Its controlled operator UI is in the Administration workbench at /admin/subscriptions, never in MarketOps. It is not a browser self-upgrade path. Stripe webhook reconciliation remains the next commerce integration slice.
 
 ## Stripe boundary
 
