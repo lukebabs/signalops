@@ -64,6 +64,7 @@ type RouterConfig struct {
 	SubscriberCatalogRepository           storage.SubscriberCatalogProjectionRepository
 	SubscriberEntitlementRepository       storage.SubscriberEntitlementRepository
 	SubscriberCatalogMembershipRepository storage.SubscriberCatalogMembershipRepository
+	SubscriberSubscriptionRepository      storage.SubscriberSubscriptionRepository
 	MarketQuoteClient                     interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}
@@ -105,6 +106,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		registerSubscriberWatchlistContextRoutes(mux, cfg)
 		registerSubscriberCatalogRoutes(mux, cfg)
 		registerSubscriberCatalogMembershipRoutes(mux, cfg)
+		registerSubscriberSubscriptionRoutes(mux, cfg)
 	}
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

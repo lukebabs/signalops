@@ -86,6 +86,7 @@ func main() {
 		routerConfig.SubscriberCatalogRepository = subscriberWatchlistRepo
 		routerConfig.SubscriberEntitlementRepository = subscriberWatchlistRepo
 		routerConfig.SubscriberCatalogMembershipRepository = subscriberWatchlistRepo
+		routerConfig.SubscriberSubscriptionRepository = subscriberWatchlistRepo
 	}
 
 	if key := strings.TrimSpace(os.Getenv("SIGNALOPS_MASSIVE_API_KEY")); key != "" {
