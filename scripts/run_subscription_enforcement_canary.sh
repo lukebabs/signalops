@@ -21,8 +21,10 @@ canary_compose=(docker compose --env-file "$runtime_env" --env-file "$cutover_en
 wait_for_gateway() {
   local attempt
   for attempt in {1..30}; do
-    [[ "1000 4 24 27 30 46 101 988 1000docker inspect -f '{{.State.Running}}' signalops-gateway-1 2>/dev/null || true)" == true ]] && curl --fail --silent --show-error --max-time 2 http://127.0.0.1:18000/readyz >/dev/null && return 0
-    [[ "$(docker inspect -f '{{.State.Running}}' signalops-gateway-1 2>/dev/null || true)" == true ]] && curl --fail --silent --show-error --max-time 2 http://127.0.0.1:18000/readyz >/dev/null && return 0
+    if [[ "$(docker inspect -f '{{.State.Running}}' signalops-gateway-1 2>/dev/null || true)" == true ]] && curl --fail --silent --show-error --max-time 2 http://127.0.0.1:18000/readyz >/dev/null; then
+      return 0
+    fi
+    sleep 1
   done
   docker logs --tail 80 signalops-gateway-1 >&2 || true
   return 1
