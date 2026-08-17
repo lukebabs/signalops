@@ -74,6 +74,9 @@ case "$action" in
   subscriber-global-intraday-shadow-migration)
     run "$repository_dir/scripts/apply_subscriber_global_intraday_shadow_capture_migration.sh" "$repository_dir/.env"
     ;;
+  subscriber-global-intraday-shadow-dry-run)
+    run "$repository_dir/scripts/run_subscriber_global_intraday_shadow_capture_dry_run.sh"
+    ;;
   subscriber-global-eod-history-materialize)
     run "$repository_dir/scripts/materialize_subscriber_global_eod_history.sh" "$repository_dir/.env"
     ;;

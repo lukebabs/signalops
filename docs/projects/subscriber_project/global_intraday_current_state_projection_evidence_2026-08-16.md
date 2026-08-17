@@ -34,7 +34,7 @@ This is a one-time imported current-state baseline. It is intentionally stale af
 
 ## Central shadow-capture gate
 
-Migration `000146_subscriber_global_intraday_shadow_capture` adds an unscheduled, append-only central provider-capture worker. It resolves only the aggregate hot selector through the constrained selector role, records no tenant, user, or watchlist identity, and records per-symbol freshness parity only against the existing legacy projection. It is deliberately not a reader switch: the existing legacy scheduler and current-state view remain authoritative.
+Migration `000146_subscriber_global_intraday_shadow_capture` was applied to the dedicated MarketOps primary at `2026-08-17T00:07:26Z`; it adds an unscheduled, append-only central provider-capture worker. It resolves only the aggregate hot selector through the constrained selector role, records no tenant, user, or watchlist identity, and records per-symbol freshness parity only against the existing legacy projection. It is deliberately not a reader switch: the existing legacy scheduler and current-state view remain authoritative.
 
 The worker is safe to invoke with `--dry-run` on a weekend: it makes no provider request and writes nothing. A live `--execute` capture remains a separately approved market-session action; it must produce zero provider failures and a documented freshness result before any projection or scheduler cutover is considered.
 
