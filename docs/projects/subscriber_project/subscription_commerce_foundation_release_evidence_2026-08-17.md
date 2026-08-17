@@ -36,6 +36,16 @@ The dedicated subscription store retains one immutable audit event for each muta
 
 The read-only administrator browser smoke passed after provisioning. `SIGNALOPS_SUBSCRIPTIONS_ENABLED` remains disabled, so these records prepare the acceptance matrix but do not restrict or expand any live analyst capability yet.
 
+### Prepared three-tier matrix
+
+A separate, established tenant-local non-admin QA identity now has an active Professional subject plan. The prepared acceptance matrix is therefore:
+
+- Explorer — controlled `tenant-pilot-b` subscriber.
+- Professional — controlled `tenant-local` non-admin subscriber.
+- Institutional — `luke@strategiclabs.io` as the active `tenant_admin` seat on the `tenant-local` Institutional contract.
+
+Direct subject plans take precedence over Institutional tenant seats, so the three distinct identities avoid masking a tier during testing.
+
 ### Remaining pilot gate
 
-Professional requires a separate controlled subject because a direct subject plan takes precedence over an Institutional tenant seat. Once that identity is nominated and provisioned, run the full three-tier acceptance matrix and retain the 402 negative-path evidence before requesting feature-flag activation.
+Run the live browser/API acceptance matrix and retain the 402 negative-path evidence before requesting feature-flag activation. Professional browser acceptance requires that controlled QA identity’s login credential to be supplied to the protected QA environment; no credential was added or exposed during this provisioning operation.
