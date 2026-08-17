@@ -76,4 +76,9 @@ def test_subscription_administration_is_platform_only(admin_page: Page, admin_co
     admin_page.goto(f"{base_url}/marketops/settings", wait_until="domcontentloaded")
     expect(admin_page.get_by_role("heading", name="MarketOps Settings")).to_be_visible(timeout=30_000)
     expect(admin_page.locator("body")).not_to_contain_text("Subscription and analytical depth")
+    expect(admin_page.locator("body")).not_to_contain_text("Subscription required")
     expect(admin_page.locator("body")).not_to_contain_text("Provision subject plan")
+
+    admin_page.goto(f"{base_url}/marketops/valuation", wait_until="domcontentloaded")
+    expect(admin_page.get_by_role("heading", name="Value Intelligence & Distressed Opportunity Intelligence")).to_be_visible(timeout=30_000)
+    expect(admin_page.locator("body")).not_to_contain_text("requires additional analytical depth")

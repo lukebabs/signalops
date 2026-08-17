@@ -57,7 +57,7 @@ export type SubscriberSubscriptionFeature =
 export interface SubscriberSubscriptionProduct { product_key:string; billing_scope:"subject"|"tenant"|string; display_name:string; is_free:boolean; trial_days:number; feature_policy:Partial<Record<SubscriberSubscriptionFeature, boolean>>; limit_policy:Record<string, number>; revision:number; }
 export interface SubscriberEffectiveSubscription extends SubscriberSubscriptionProduct { subscription_id:string; status:"trialing"|"active"|"past_due"|"suspended"|"canceled"|string; source:"subject"|"tenant_seat"|string; seat_role?:string; trial_ends_at?:string; current_period_ends_at?:string; grace_ends_at?:string; canceled_at?:string; }
 export interface SubscriberSubscriptionProductsResponse { products:SubscriberSubscriptionProduct[]; }
-export interface SubscriberSubscriptionResponse { access_state:"active"|"unprovisioned"|string; subscription:SubscriberEffectiveSubscription|null; }
+export interface SubscriberSubscriptionResponse { access_state:"active"|"unprovisioned"|string; enforcement_enabled:boolean; subscription:SubscriberEffectiveSubscription|null; }
 
 export interface SchedulerRun {
   run_id: string;

@@ -45,7 +45,7 @@ func TestSubscriberSubscriptionBindsTenantAndSubject(t *testing.T) {
 	router := NewRouter(RouterConfig{Auth: fixture.authCfg, SubscriberListsEnabled: true, SubscriberSubscriptionRepository: store})
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-local/marketops/subscription", nil), fixture.token(t, nil)))
-	if recorder.Code != http.StatusOK || store.tenant != "tenant-local" || store.subject != "user-123" || !strings.Contains(recorder.Body.String(), `"access_state":"active"`) {
+	if recorder.Code != http.StatusOK || store.tenant != "tenant-local" || store.subject != "user-123" || !strings.Contains(recorder.Body.String(), `"access_state":"active"`) || !strings.Contains(recorder.Body.String(), `"enforcement_enabled":false`) {
 		t.Fatalf("status=%d tenant=%s subject=%s body=%s", recorder.Code, store.tenant, store.subject, recorder.Body.String())
 	}
 	foreign := httptest.NewRecorder()
@@ -61,7 +61,7 @@ func TestSubscriberSubscriptionReturnsUnprovisionedWithoutFallback(t *testing.T)
 	router := NewRouter(RouterConfig{Auth: fixture.authCfg, SubscriberListsEnabled: true, SubscriberSubscriptionRepository: store})
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-local/marketops/subscription", nil), fixture.token(t, nil)))
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"access_state":"unprovisioned"`) {
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"access_state":"unprovisioned"`) || !strings.Contains(recorder.Body.String(), `"enforcement_enabled":false`) {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 	store.err = errors.New("database unavailable")
@@ -69,5 +69,16 @@ func TestSubscriberSubscriptionReturnsUnprovisionedWithoutFallback(t *testing.T)
 	router.ServeHTTP(failed, withBearer(httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-local/marketops/subscription", nil), fixture.token(t, nil)))
 	if failed.Code != http.StatusServiceUnavailable || !strings.Contains(failed.Body.String(), "subscription_unavailable") {
 		t.Fatalf("failed status=%d body=%s", failed.Code, failed.Body.String())
+	}
+}
+
+func TestSubscriberSubscriptionReportsWhenEnforcementIsEnabled(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	store := &subscriberSubscriptionAPIFake{err: storage.ErrNotFound}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, SubscriberListsEnabled: true, SubscriberSubscriptionsEnabled: true, SubscriberSubscriptionRepository: store})
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-local/marketops/subscription", nil), fixture.token(t, nil)))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"enforcement_enabled":true`) {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }

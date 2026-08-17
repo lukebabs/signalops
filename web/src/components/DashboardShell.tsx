@@ -75,7 +75,7 @@ export function DashboardShell() {
   const { preference, setPreference } = useTheme();
   const identity = authEnabled ? displayIdentity(claims) : undefined;
   const { profiles, currentApp, currentAppId, nav, superAdmin } = useAppProfile();
-  const { subscription, known: subscriptionKnown, allows } = useSubscription();
+  const { allows } = useSubscription();
   const location = useLocation();
   const isLanding = location.pathname === "/";
   const navigate = useNavigate();
@@ -126,11 +126,6 @@ export function DashboardShell() {
           <HealthIndicator />
           {superAdmin && <Link to="/admin/dashboard" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Administration</Link>}
           {!superAdmin && hasSubscriptionAdministrator(claims) && <Link to="/admin/subscriptions" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Subscription Administration</Link>}
-          {currentAppId === 'marketops' && subscriptionKnown && (
-            <span className="rounded bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700" title="Current MarketOps analytical plan">
-              {subscription?.display_name ?? "Subscription required"}
-            </span>
-          )}
           {identity && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-600">{identity}</span>

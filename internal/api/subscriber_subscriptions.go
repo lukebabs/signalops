@@ -46,14 +46,14 @@ func registerSubscriberSubscriptionRoutes(mux *http.ServeMux, cfg RouterConfig) 
 		}
 		subscription, err := repo.GetSubscriberEffectiveSubscription(r.Context(), tenantID, subject)
 		if errors.Is(err, storage.ErrNotFound) {
-			writeJSON(w, http.StatusOK, map[string]any{"access_state": "unprovisioned", "subscription": nil})
+			writeJSON(w, http.StatusOK, map[string]any{"access_state": "unprovisioned", "enforcement_enabled": cfg.SubscriberSubscriptionsEnabled, "subscription": nil})
 			return
 		}
 		if err != nil {
 			writeError(w, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access is unavailable")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"access_state": "active", "subscription": effectiveSubscriptionResponse(subscription)})
+		writeJSON(w, http.StatusOK, map[string]any{"access_state": "active", "enforcement_enabled": cfg.SubscriberSubscriptionsEnabled, "subscription": effectiveSubscriptionResponse(subscription)})
 	})
 }
 
