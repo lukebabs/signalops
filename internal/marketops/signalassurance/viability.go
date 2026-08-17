@@ -46,6 +46,12 @@ func AssessViability(row storage.SignalAssuranceEffectivenessRecord) ViabilityAs
 			Reasons: []string{"Matched benchmark-relative return is unavailable, so incremental value cannot be assessed."},
 		}
 	}
+	if row.BroadMarketBenchmarkSampleSize < row.SampleSize || row.SectorBenchmarkSampleSize < row.SampleSize {
+		return ViabilityAssessment{
+			State:   ViabilityBenchmarkPending,
+			Reasons: []string{"Matched broad-market and sector benchmark coverage is incomplete for this cohort, so incremental value cannot be assessed consistently."},
+		}
+	}
 	if row.AverageMFE == nil || row.AverageMAE == nil {
 		return ViabilityAssessment{
 			State:   ViabilityOutcomeProfilePending,

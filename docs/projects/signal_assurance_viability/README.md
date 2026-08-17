@@ -84,3 +84,15 @@ Monitor rolling drift after completed sessions and surface degraded cohorts in t
 - Fewer than 30 matured observations cannot be presented as viable.
 - Missing benchmark-relative evidence cannot be interpreted as zero or as a pass.
 - The slice is read-only and cannot change an algorithm, validation contract, provider schedule, or signal outcome.
+
+SAF-V2a is now implemented as an additive benchmark materializer. For each matured historical observation in the immutable 132-member legacy-default cohort, it records:
+
+- a broad-market comparison against `SPY`;
+- a sector comparison against the governed SRI primary ETF (for example `XLK`, `XLF`, or `XLV`) when the current global catalog has a resolvable sector;
+- the first available normalized EOD record for both the origin and maturity session, rather than a later provider revision;
+- source event identifiers, content fingerprints, selection-policy version, calculation version, and run correlation; and
+- explicit `sector_unmapped`, `origin_price_unavailable`, or `maturity_price_unavailable` states rather than a fabricated return.
+
+The materializer writes only `subscriber_global_saf_benchmark_observations`; it cannot update or delete a legacy outcome, outcome payload, baseline, or confirmation. The scorecard treats incomplete broad-market **or** sector coverage as `benchmark_pending`.
+
+The initial catalog inspection shows that only 40 of the 132 legacy members currently carry a canonical top-level sector label. This is an input-quality gap, not a license to infer a sector silently. The remaining unmapped rows remain visible and block a complete sector-relative viability conclusion until governed catalog normalization is completed.

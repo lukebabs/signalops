@@ -48,7 +48,7 @@ func (r *Repository) ListSubscriberGlobalSignalAssuranceEffectivenessObservation
 			Algorithm: value.algorithm, AlgorithmVersion: value.version, State: value.state,
 			EvaluationMode: value.evaluationMode, HorizonSessions: value.horizon,
 			DirectionalHit: value.legacyHit, AbsoluteReturn: value.absoluteReturn,
-			DirectionalReturn: directionalReturn, MFE: value.mfe, MAE: value.mae,
+			DirectionalReturn: directionalReturn, RelativeReturn: value.relativeReturn, SectorRelativeReturn: value.sectorRelativeReturn, MFE: value.mfe, MAE: value.mae,
 			OriginAt: value.originAt, OutcomeAt: value.outcomeAt,
 			CalculationVersion: value.calculationVersion, CalculationRunID: value.calculationRunID,
 		})
@@ -85,7 +85,7 @@ func (r *Repository) listSubscriberGlobalHistoricalAssuranceObservations(ctx con
 	rows, err := r.db.QueryContext(ctx, `
 SELECT observation_id, source_id, symbol, direction, horizon_sessions,
   origin_session_date, matured_session_date, directional_hit, forward_return,
-  mfe, mae, calculation_version, calculation_run_id
+  mfe, mae, broad_market_relative_return, sector_relative_return, calculation_version, calculation_run_id
 FROM subscriber_gateway_global_signal_assurance_observations
 WHERE upper(symbol) = ANY($1)
 ORDER BY matured_session_date DESC NULLS LAST, origin_session_date DESC, observation_id
@@ -100,8 +100,8 @@ LIMIT $2`, pqArray(symbols), clampLimit(f.Limit))
 		var origin time.Time
 		var matured sql.NullTime
 		var hit sql.NullBool
-		var forward, mfe, mae sql.NullFloat64
-		if err := rows.Scan(&x.id, &x.referenceID, &x.symbol, &x.direction, &x.horizon, &origin, &matured, &hit, &forward, &mfe, &mae, &x.calculationVersion, &x.calculationRunID); err != nil {
+		var forward, mfe, mae, relative, sectorRelative sql.NullFloat64
+		if err := rows.Scan(&x.id, &x.referenceID, &x.symbol, &x.direction, &x.horizon, &origin, &matured, &hit, &forward, &mfe, &mae, &relative, &sectorRelative, &x.calculationVersion, &x.calculationRunID); err != nil {
 			return nil, fmt.Errorf("scan subscriber global historical assurance observation: %w", err)
 		}
 		x.source, x.algorithm, x.version, x.signalType, x.state = "LEGACY", "legacy_opportunity", "unattributable", "opportunity", "MATURED"
@@ -115,6 +115,7 @@ LIMIT $2`, pqArray(symbols), clampLimit(f.Limit))
 			x.legacyHit = &value
 		}
 		x.absoluteReturn, x.mfe, x.mae = nullableFloat(forward), nullableFloat(mfe), nullableFloat(mae)
+		x.relativeReturn, x.sectorRelativeReturn = nullableFloat(relative), nullableFloat(sectorRelative)
 		out = append(out, x)
 	}
 	if err := rows.Err(); err != nil {

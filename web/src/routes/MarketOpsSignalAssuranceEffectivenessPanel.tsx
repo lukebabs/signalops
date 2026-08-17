@@ -76,7 +76,7 @@ export function MarketOpsSignalAssuranceEffectivenessPanel() {
         <div className="overflow-x-auto rounded border border-gray-200">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500"><tr>
-              <th className="px-3 py-2">Evidence</th><th className="px-3 py-2">Cohort</th><th className="px-3 py-2">Accuracy</th><th className="px-3 py-2">95% interval</th><th className="px-3 py-2">Matured sample</th><th className="px-3 py-2">Coverage</th><th className="px-3 py-2">Return</th><th className="px-3 py-2">Viability</th>
+              <th className="px-3 py-2">Evidence</th><th className="px-3 py-2">Cohort</th><th className="px-3 py-2">Accuracy</th><th className="px-3 py-2">95% interval</th><th className="px-3 py-2">Matured sample</th><th className="px-3 py-2">Coverage</th><th className="px-3 py-2">Return & benchmarks</th><th className="px-3 py-2">Viability</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100">{rows.map((row) => <tr key={`${row.evidence_source}:${row.dimension_value}`}>
               <td className="px-3 py-2 text-xs font-medium">{row.evidence_source === 'SAF' ? 'SAF validated' : 'Historical outcome'}</td>
@@ -85,7 +85,7 @@ export function MarketOpsSignalAssuranceEffectivenessPanel() {
               <td className="px-3 py-2 text-xs">{pct(row.accuracy_lower_bound)} - {pct(row.accuracy_upper_bound)}</td>
               <td className="px-3 py-2 text-xs">{row.directional_hits}/{row.sample_size}</td>
               <td className="px-3 py-2 text-xs">{row.censored_count ? `${row.censored_count} active` : 'terminal'}{row.excluded_count ? ` - ${row.excluded_count} excluded` : ''}</td>
-              <td className="px-3 py-2 text-xs">{pct(row.average_return)}{row.average_relative_return != null ? ` - rel ${pct(row.average_relative_return)}` : ''}</td>
+              <td className="px-3 py-2 text-xs">{pct(row.average_return)}<div className="mt-1 text-[11px] text-gray-500">SPY excess {pct(row.average_relative_return)} · sector excess {pct(row.average_sector_relative_return)}</div><div className="text-[11px] text-gray-500">coverage: SPY {row.broad_market_benchmark_sample_size}/{row.sample_size} · sector {row.sector_benchmark_sample_size}/{row.sample_size}</div></td>
               <ViabilityCell row={row} />
             </tr>)}</tbody>
           </table>

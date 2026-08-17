@@ -16,20 +16,20 @@ const signalAssuranceMetricDefinitionVersion = "saf_effectiveness.v1"
 const signalAssuranceMinimumRankedSample = 30
 
 type effectivenessObservation struct {
-	source, algorithm, version, signalType, direction, state string
-	confidence, absoluteReturn, relativeReturn, mfe, mae     *float64
-	horizon                                                  int
-	complete                                                 bool
-	legacyHit                                                *bool
-	id, referenceID, symbol, evaluationMode                  string
-	score                                                    *float64
-	originAt, outcomeAt                                      *time.Time
-	calculationVersion, calculationRunID                     string
+	source, algorithm, version, signalType, direction, state                   string
+	confidence, absoluteReturn, relativeReturn, sectorRelativeReturn, mfe, mae *float64
+	horizon                                                                    int
+	complete                                                                   bool
+	legacyHit                                                                  *bool
+	id, referenceID, symbol, evaluationMode                                    string
+	score                                                                      *float64
+	originAt, outcomeAt                                                        *time.Time
+	calculationVersion, calculationRunID                                       string
 }
 type effectivenessAccumulator struct {
 	sample, hits, materialized, invalidated, expired, censored, excluded int
-	absoluteSum, relativeSum, mfeSum, maeSum                             float64
-	absoluteN, relativeN, mfeN, maeN                                     int
+	absoluteSum, relativeSum, sectorRelativeSum, mfeSum, maeSum          float64
+	absoluteN, relativeN, sectorRelativeN, mfeN, maeN                    int
 }
 
 func (r *Repository) ListSignalAssuranceEffectiveness(ctx context.Context, f storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessRecord, error) {
@@ -110,7 +110,7 @@ func (r *Repository) ListSignalAssuranceEffectivenessObservations(ctx context.Co
 			}
 			directionalReturn = &v
 		}
-		out = append(out, storage.SignalAssuranceEffectivenessObservationRecord{EvidenceSource: value.source, ObservationID: value.id, ReferenceID: value.referenceID, Symbol: value.symbol, SignalType: value.signalType, Direction: value.direction, Algorithm: value.algorithm, AlgorithmVersion: value.version, State: value.state, EvaluationMode: value.evaluationMode, HorizonSessions: value.horizon, SignalScore: value.score, Confidence: value.confidence, DirectionalHit: hit, AbsoluteReturn: value.absoluteReturn, DirectionalReturn: directionalReturn, RelativeReturn: value.relativeReturn, MFE: value.mfe, MAE: value.mae, OriginAt: value.originAt, OutcomeAt: value.outcomeAt, CalculationVersion: value.calculationVersion, CalculationRunID: value.calculationRunID})
+		out = append(out, storage.SignalAssuranceEffectivenessObservationRecord{EvidenceSource: value.source, ObservationID: value.id, ReferenceID: value.referenceID, Symbol: value.symbol, SignalType: value.signalType, Direction: value.direction, Algorithm: value.algorithm, AlgorithmVersion: value.version, State: value.state, EvaluationMode: value.evaluationMode, HorizonSessions: value.horizon, SignalScore: value.score, Confidence: value.confidence, DirectionalHit: hit, AbsoluteReturn: value.absoluteReturn, DirectionalReturn: directionalReturn, RelativeReturn: value.relativeReturn, SectorRelativeReturn: value.sectorRelativeReturn, MFE: value.mfe, MAE: value.mae, OriginAt: value.originAt, OutcomeAt: value.outcomeAt, CalculationVersion: value.calculationVersion, CalculationRunID: value.calculationRunID})
 	}
 	return out, nil
 }
@@ -233,6 +233,7 @@ func aggregateEffectiveness(values []effectivenessObservation, dimension string)
 		}
 		addMetric(&a.absoluteSum, &a.absoluteN, x.absoluteReturn)
 		addMetric(&a.relativeSum, &a.relativeN, x.relativeReturn)
+		addMetric(&a.sectorRelativeSum, &a.sectorRelativeN, x.sectorRelativeReturn)
 		addMetric(&a.mfeSum, &a.mfeN, x.mfe)
 		addMetric(&a.maeSum, &a.maeN, x.mae)
 	}
@@ -255,6 +256,9 @@ func aggregateEffectiveness(values []effectivenessObservation, dimension string)
 		}
 		record.AverageReturn = averageMetric(a.absoluteSum, a.absoluteN)
 		record.AverageRelativeReturn = averageMetric(a.relativeSum, a.relativeN)
+		record.AverageSectorRelativeReturn = averageMetric(a.sectorRelativeSum, a.sectorRelativeN)
+		record.BroadMarketBenchmarkSampleSize = a.relativeN
+		record.SectorBenchmarkSampleSize = a.sectorRelativeN
 		record.AverageMFE = averageMetric(a.mfeSum, a.mfeN)
 		record.AverageMAE = averageMetric(a.maeSum, a.maeN)
 		out = append(out, record)
