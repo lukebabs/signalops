@@ -140,3 +140,21 @@ It appends rather than updates: v1 stays available as audit history, while the
 projection prefers v2 per observation only after it exists. The guarded launchers
 are `apply_subscriber_global_sector_normalization_migration.sh` and
 `run_subscriber_global_saf_benchmark_v2_materialization.sh`.
+
+## SAF-V2c historical-identity reconciliation — 2026-08-17
+
+The first v2 calculation exposed a catalog lineage issue: some immutable historical evidence records referenced an older global-asset identity for the same canonical symbol. The FMP-backed classification had been recorded against the newer identity, so the v2 computation correctly preserved an unresolved sector rather than silently crossing identities.
+
+Migration `000151_subscriber_global_sector_classification_reconciliation` reconciles reference metadata for those equivalent canonical-symbol catalog identities. It does **not** merge, delete, or rewrite global assets, evidence records, historical outcomes, or v1/v2 benchmark rows. The durable catalog consolidation work remains a separate roadmap item; this narrow repair allows the fixed legacy cohort to use its governed sector classification now.
+
+`saf_benchmark.v3` is a new append-only calculation version. Its projection preference is v3, then v2, then v1, so every calculation remains available for audit. The controlled launcher is `run_subscriber_global_saf_benchmark_v3_materialization.sh`.
+
+### Deployment evidence
+
+- `000150_subscriber_global_sector_normalization` applied at `2026-08-17 17:11:57 UTC`.
+- `000151_subscriber_global_sector_classification_reconciliation` applied at `2026-08-17 17:16:58 UTC`.
+- The v3 run used only already-stored, immutable initial-capture EOD data: 92 legacy observations, 184 benchmark rows, 92 broad-market matches, and 92 sector matches. It made no FMP or market-data request.
+- The live gateway projection now reports `matched=92` and no `sector_unmapped` rows.
+- `python/tests/test_signal_assurance_benchmark_ui_smoke.py` is the read-only authenticated browser regression: it verifies the live Signal Assurance view exposes only `broad=matched; sector=matched` for the legacy benchmark-coverage cohort. The 2026-08-17 run passed.
+
+This establishes complete benchmark coverage for the declared historical cohort. It does not establish algorithm viability by itself; the next gate is the predeclared score/confidence and frozen-policy evaluation described in SAF-V2/SAF-V3 above.
