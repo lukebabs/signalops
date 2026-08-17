@@ -173,3 +173,7 @@ The read-only `saf_viability.v1` gate is therefore **not demonstrated** for this
 - Mean favorable excursion: 2.310%; mean adverse excursion: -3.858%.
 
 The cohort does not clear the predeclared directional-confidence or favorable-versus-adverse-excursion conditions. This is an actionable research result: do not promote or tune from it automatically. The next governed step is a formal frozen-policy record and an independently matured forward cohort, with score/confidence and algorithm-version attribution captured prospectively.
+
+## SAF-V3b frozen policy record — 2026-08-17
+
+Migration `000153_subscriber_global_saf_frozen_viability_baseline` persists the append-only `saf_viability.v1` policy and frozen baseline: the immutable 132-member legacy-default scope, 92 completed observations through the 2026-08-14 cutoff, `saf_benchmark.v4` direction-normalized evidence, predeclared thresholds, and the research-only `not_demonstrated` result with its exact metric snapshot. This baseline is evidence, not a parameter change; a later forward cohort or revised policy must be a new append-only record.
