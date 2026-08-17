@@ -59,6 +59,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-marketops-evidence-materializer ./cmd/subscriber-global-marketops-evidence-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-eod-history-materializer ./cmd/subscriber-global-eod-history-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-financial-refresh ./cmd/subscriber-global-annual-financial-refresh
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-saf-benchmark-materializer ./cmd/subscriber-global-saf-benchmark-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-valuation-materializer ./cmd/subscriber-global-annual-valuation-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-financial-task-worker ./cmd/subscriber-global-annual-financial-task-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-ranking-import ./cmd/subscriber-global-ranking-import
@@ -364,6 +365,10 @@ ENTRYPOINT ["/signalops-subscriber-global-marketops-evidence-materializer"]
 FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-eod-history-materializer
 COPY --from=build /out/signalops-subscriber-global-eod-history-materializer /signalops-subscriber-global-eod-history-materializer
 ENTRYPOINT ["/signalops-subscriber-global-eod-history-materializer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-saf-benchmark-materializer
+COPY --from=build /out/signalops-subscriber-global-saf-benchmark-materializer /signalops-subscriber-global-saf-benchmark-materializer
+ENTRYPOINT ["/signalops-subscriber-global-saf-benchmark-materializer"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-annual-financial-refresh
 COPY --from=build /out/signalops-subscriber-global-annual-financial-refresh /signalops-subscriber-global-annual-financial-refresh
