@@ -60,9 +60,8 @@ WITH seed(canonical_symbol, provider_sector, provider_industry, provider_exchang
   RETURNING global_asset_id,classification_id,provider_symbol,provider_sector,provider_industry,provider_exchange,canonical_sector,source_fingerprint
 ), latest AS (
   SELECT DISTINCT ON (global_asset_id) global_asset_id,classification_id,provider_symbol,provider_sector,provider_industry,provider_exchange,canonical_sector,source_fingerprint
-  FROM subscriber_global_asset_sector_classifications
-  WHERE correlation_id = 'saf-v2b-legacy-sector-normalization-20260817'
-  ORDER BY global_asset_id, captured_at DESC, classification_id DESC
+  FROM inserted
+  ORDER BY global_asset_id, classification_id DESC
 )
 UPDATE subscriber_global_assets asset
 SET canonical_symbol = latest.provider_symbol,
