@@ -177,3 +177,9 @@ The cohort does not clear the predeclared directional-confidence or favorable-ve
 ## SAF-V3b frozen policy record — 2026-08-17
 
 Migration `000153_subscriber_global_saf_frozen_viability_baseline` persists the append-only `saf_viability.v1` policy and frozen baseline: the immutable 132-member legacy-default scope, 92 completed observations through the 2026-08-14 cutoff, `saf_benchmark.v4` direction-normalized evidence, predeclared thresholds, and the research-only `not_demonstrated` result with its exact metric snapshot. This baseline is evidence, not a parameter change; a later forward cohort or revised policy must be a new append-only record.
+
+## Prospective evaluation readiness — 2026-08-17
+
+The prospective SAF loop is ready without manufacturing an assertion. The continuous registrar and outbox services are running on the dedicated MarketOps boundary. A real confirmed materialization supplies the required signal direction, score, confidence, algorithm/version, confirmation-rule version, resolved research contract, immutable baseline snapshot, and provenance before an assertion can be registered.
+
+Readiness evidence at closeout: zero assertions, zero research assertions, and zero unpublished assertion events. This is the correct pre-cohort state. The first independent forward record must originate from normal MarketOps processing; no backfill, synthetic assertion, or provider request is permitted to satisfy this gate.
