@@ -105,10 +105,15 @@ def set_pilot_plan(page: Page, config: dict[str, str], plan: str) -> None:
 
 
 def test_subscription_enforcement_three_tier_canary(canary_context: BrowserContext, browser: Browser, config: dict[str, str]) -> None:
+    artifact_dir = Path(os.getenv("SIGNALOPS_E2E_ARTIFACT_DIR", "/tmp/signalops-e2e-artifacts"))
+    artifact_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     pilot = canary_context.new_page()
-    admin_context = browser.new_context()
-    institutional_context = browser.new_context()
+    admin_har = artifact_dir / "subscription-enforcement-canary-admin.har"
+    institutional_har = artifact_dir / "subscription-enforcement-canary-institutional.har"
+    admin_context = browser.new_context(record_har_path=str(admin_har), record_har_mode="minimal")
+    institutional_context = browser.new_context(record_har_path=str(institutional_har), record_har_mode="minimal")
     admin = admin_context.new_page()
+    completed = False
     try:
         sign_in(pilot, base_url=config["base_url"], username=config["pilot_username"], password=config["pilot_password"], path="/marketops/valuation", heading=re.compile("requires additional analytical depth"))
         status, body = api(pilot, f"/v1/tenants/{PILOT_TENANT}/marketops/valuation?symbol=AAPL")
@@ -130,6 +135,7 @@ def test_subscription_enforcement_three_tier_canary(canary_context: BrowserConte
         sign_in(institutional, base_url=config["base_url"], username=config["admin_username"], password=config["admin_password"], path="/marketops/assurance", heading="Signal Assurance")
         status, _ = api(institutional, f"/v1/marketops/signal-assurance/effectiveness?tenant_id={LOCAL_TENANT}")
         assert status == 200
+        completed = True
     finally:
         # Keep the controlled pilot's original Explorer state even if any proof fails.
         try:
@@ -137,3 +143,6 @@ def test_subscription_enforcement_three_tier_canary(canary_context: BrowserConte
         finally:
             institutional_context.close()
             admin_context.close()
+            if completed:
+                admin_har.unlink(missing_ok=True)
+                institutional_har.unlink(missing_ok=True)
