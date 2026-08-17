@@ -60,7 +60,7 @@ export function MarketOpsSignalAssuranceEffectivenessPanel() {
         </label>
         <label className="text-xs font-medium text-gray-700">Breakdown
           <select value={dimension} onChange={(event) => setDimension(event.target.value)} className="mt-1 block rounded border border-gray-300 bg-white px-2 py-1.5 text-sm">
-            <option value="algorithm_version">Algorithm / version</option><option value="signal_type">Signal type</option><option value="direction">Direction</option><option value="confidence_band">Confidence band</option><option value="horizon">Evaluation horizon</option>
+            <option value="algorithm_version">Algorithm / version</option><option value="signal_type">Signal type</option><option value="direction">Direction</option><option value="confidence_band">Confidence band</option><option value="horizon">Evaluation horizon</option><option value="benchmark_coverage">Benchmark coverage</option>
           </select>
         </label>
         <label className="text-xs font-medium text-gray-700">SAF mode

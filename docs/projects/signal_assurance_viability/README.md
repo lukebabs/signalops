@@ -96,3 +96,16 @@ SAF-V2a is now implemented as an additive benchmark materializer. For each matur
 The materializer writes only `subscriber_global_saf_benchmark_observations`; it cannot update or delete a legacy outcome, outcome payload, baseline, or confirmation. The scorecard treats incomplete broad-market **or** sector coverage as `benchmark_pending`.
 
 The initial catalog inspection shows that only 40 of the 132 legacy members currently carry a canonical top-level sector label. This is an input-quality gap, not a license to infer a sector silently. The remaining unmapped rows remain visible and block a complete sector-relative viability conclusion until governed catalog normalization is completed.
+
+## SAF-V2a operational benchmark diagnostic — 2026-08-17
+
+The analyst drill-down now supports a **Benchmark coverage** cohort dimension.
+It separates observations by their immutable broad-market and sector resolution
+states (for example, `broad=matched; sector=matched` and
+`broad=matched; sector=sector_unmapped`) and shows both states on each included
+observation. This is diagnostic only: it does not infer sectors, fill missing
+returns, revise outcomes, or alter any viability gate.
+
+This makes the current sector-normalization backlog directly inspectable while
+retaining the existing rule that incomplete sector coverage remains
+`benchmark_pending`.

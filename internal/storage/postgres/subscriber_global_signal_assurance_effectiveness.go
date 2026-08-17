@@ -51,6 +51,7 @@ func (r *Repository) ListSubscriberGlobalSignalAssuranceEffectivenessObservation
 			DirectionalReturn: directionalReturn, RelativeReturn: value.relativeReturn, SectorRelativeReturn: value.sectorRelativeReturn, MFE: value.mfe, MAE: value.mae,
 			OriginAt: value.originAt, OutcomeAt: value.outcomeAt,
 			CalculationVersion: value.calculationVersion, CalculationRunID: value.calculationRunID,
+			BroadMarketBenchmarkState: value.broadMarketBenchmarkState, SectorBenchmarkState: value.sectorBenchmarkState,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -85,7 +86,9 @@ func (r *Repository) listSubscriberGlobalHistoricalAssuranceObservations(ctx con
 	rows, err := r.db.QueryContext(ctx, `
 SELECT observation_id, source_id, symbol, direction, horizon_sessions,
   origin_session_date, matured_session_date, directional_hit, forward_return,
-  mfe, mae, broad_market_relative_return, sector_relative_return, calculation_version, calculation_run_id
+  mfe, mae, broad_market_relative_return, sector_relative_return,
+  COALESCE(broad_market_benchmark_state, 'not_recorded'), COALESCE(sector_benchmark_state, 'not_recorded'),
+  calculation_version, calculation_run_id
 FROM subscriber_gateway_global_signal_assurance_observations
 WHERE upper(symbol) = ANY($1)
 ORDER BY matured_session_date DESC NULLS LAST, origin_session_date DESC, observation_id
@@ -101,7 +104,7 @@ LIMIT $2`, pqArray(symbols), clampLimit(f.Limit))
 		var matured sql.NullTime
 		var hit sql.NullBool
 		var forward, mfe, mae, relative, sectorRelative sql.NullFloat64
-		if err := rows.Scan(&x.id, &x.referenceID, &x.symbol, &x.direction, &x.horizon, &origin, &matured, &hit, &forward, &mfe, &mae, &relative, &sectorRelative, &x.calculationVersion, &x.calculationRunID); err != nil {
+		if err := rows.Scan(&x.id, &x.referenceID, &x.symbol, &x.direction, &x.horizon, &origin, &matured, &hit, &forward, &mfe, &mae, &relative, &sectorRelative, &x.broadMarketBenchmarkState, &x.sectorBenchmarkState, &x.calculationVersion, &x.calculationRunID); err != nil {
 			return nil, fmt.Errorf("scan subscriber global historical assurance observation: %w", err)
 		}
 		x.source, x.algorithm, x.version, x.signalType, x.state = "LEGACY", "legacy_opportunity", "unattributable", "opportunity", "MATURED"

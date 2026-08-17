@@ -18,6 +18,7 @@ const signalAssuranceMinimumRankedSample = 30
 type effectivenessObservation struct {
 	source, algorithm, version, signalType, direction, state                   string
 	confidence, absoluteReturn, relativeReturn, sectorRelativeReturn, mfe, mae *float64
+	broadMarketBenchmarkState, sectorBenchmarkState                            string
 	horizon                                                                    int
 	complete                                                                   bool
 	legacyHit                                                                  *bool
@@ -310,7 +311,7 @@ func effectivenessSources(value string) []string {
 }
 func normalizedEffectivenessDimension(value string) string {
 	switch strings.TrimSpace(value) {
-	case "algorithm_version", "signal_type", "direction", "confidence_band", "horizon":
+	case "algorithm_version", "signal_type", "direction", "confidence_band", "horizon", "benchmark_coverage":
 		return strings.TrimSpace(value)
 	default:
 		return "overall"
@@ -331,10 +332,24 @@ func dimensionValue(x effectivenessObservation, dimension string) string {
 		return confidenceBand(x.confidence)
 	case "horizon":
 		return strconv.Itoa(x.horizon) + " sessions"
+	case "benchmark_coverage":
+		return benchmarkCoverageBand(x)
 	default:
 		return "all"
 	}
 }
+func benchmarkCoverageBand(x effectivenessObservation) string {
+	broad := strings.TrimSpace(x.broadMarketBenchmarkState)
+	sector := strings.TrimSpace(x.sectorBenchmarkState)
+	if broad == "" {
+		broad = "not_recorded"
+	}
+	if sector == "" {
+		sector = "not_recorded"
+	}
+	return "broad=" + broad + "; sector=" + sector
+}
+
 func confidenceBand(value *float64) string {
 	if value == nil {
 		return "unknown"

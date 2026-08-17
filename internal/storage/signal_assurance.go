@@ -230,30 +230,32 @@ type SignalAssuranceRecommendationRecord struct {
 // immutable source record: an SAF assertion or the historical opportunity.
 // Consumers use it to retrieve the existing, read-only audit/provenance view.
 type SignalAssuranceEffectivenessObservationRecord struct {
-	EvidenceSource       string
-	ObservationID        string
-	ReferenceID          string
-	Symbol               string
-	SignalType           string
-	Direction            string
-	Algorithm            string
-	AlgorithmVersion     string
-	State                string
-	EvaluationMode       string
-	HorizonSessions      int
-	SignalScore          *float64
-	Confidence           *float64
-	DirectionalHit       *bool
-	AbsoluteReturn       *float64
-	DirectionalReturn    *float64
-	RelativeReturn       *float64
-	SectorRelativeReturn *float64
-	MFE                  *float64
-	MAE                  *float64
-	OriginAt             *time.Time
-	OutcomeAt            *time.Time
-	CalculationVersion   string
-	CalculationRunID     string
+	EvidenceSource            string
+	ObservationID             string
+	ReferenceID               string
+	Symbol                    string
+	SignalType                string
+	Direction                 string
+	Algorithm                 string
+	AlgorithmVersion          string
+	State                     string
+	EvaluationMode            string
+	HorizonSessions           int
+	SignalScore               *float64
+	Confidence                *float64
+	DirectionalHit            *bool
+	AbsoluteReturn            *float64
+	DirectionalReturn         *float64
+	RelativeReturn            *float64
+	SectorRelativeReturn      *float64
+	MFE                       *float64
+	MAE                       *float64
+	OriginAt                  *time.Time
+	OutcomeAt                 *time.Time
+	CalculationVersion        string
+	CalculationRunID          string
+	BroadMarketBenchmarkState string
+	SectorBenchmarkState      string
 }
 
 type SignalAssuranceEffectivenessRepository interface {
