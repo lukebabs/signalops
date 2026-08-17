@@ -104,9 +104,11 @@ def set_pilot_plan(page: Page, config: dict[str, str], plan: str) -> None:
     expect(form.get_by_role("status")).to_have_text("Provisioning change recorded successfully.", timeout=30_000)
 
 
-def test_subscription_enforcement_three_tier_canary(canary_context: BrowserContext, config: dict[str, str]) -> None:
+def test_subscription_enforcement_three_tier_canary(canary_context: BrowserContext, browser: Browser, config: dict[str, str]) -> None:
     pilot = canary_context.new_page()
-    admin = canary_context.new_page()
+    admin_context = browser.new_context()
+    institutional_context = browser.new_context()
+    admin = admin_context.new_page()
     try:
         sign_in(pilot, base_url=config["base_url"], username=config["pilot_username"], password=config["pilot_password"], path="/marketops/valuation", heading=re.compile("requires additional analytical depth"))
         status, body = api(pilot, f"/v1/tenants/{PILOT_TENANT}/marketops/valuation?symbol=AAPL")
@@ -124,10 +126,14 @@ def test_subscription_enforcement_three_tier_canary(canary_context: BrowserConte
         status, body = api(pilot, f"/v1/marketops/signal-assurance/effectiveness?tenant_id={PILOT_TENANT}")
         assert status == 402 and body.get("error") == "subscription_feature_required"
 
-        institutional = canary_context.new_page()
+        institutional = institutional_context.new_page()
         sign_in(institutional, base_url=config["base_url"], username=config["admin_username"], password=config["admin_password"], path="/marketops/assurance", heading="Signal Assurance")
         status, _ = api(institutional, f"/v1/marketops/signal-assurance/effectiveness?tenant_id={LOCAL_TENANT}")
         assert status == 200
     finally:
         # Keep the controlled pilot's original Explorer state even if any proof fails.
-        set_pilot_plan(admin, config, "explorer")
+        try:
+            set_pilot_plan(admin, config, "explorer")
+        finally:
+            institutional_context.close()
+            admin_context.close()
