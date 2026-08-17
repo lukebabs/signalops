@@ -38,6 +38,10 @@ Migration `000146_subscriber_global_intraday_shadow_capture` was applied to the 
 
 The worker is safe to invoke with `--dry-run` on a weekend: it makes no provider request and writes nothing. A live `--execute` capture remains a separately approved market-session action; it must produce zero provider failures and a documented freshness result before any projection or scheduler cutover is considered.
 
+## Weekend dry-run evidence
+
+On `2026-08-17`, the managed `subscriber-global-intraday-shadow-dry-run` completed against the dedicated MarketOps primary: **125** aggregate hot assets resolved; `market_open=false`; no session value was returned. The worker made no Massive request and the append-only `subscriber_global_intraday_shadow_capture_runs` ledger remained at **0** rows after the run.
+
 ## Next gate
 
 Define the temporary 132-symbol grandfathered global hot cohort and run it in shadow against the watchlist-derived global hot selector. The dual-run must prove identical membership and state freshness before a controlled central writer or any API/UI reader switch is enabled.
