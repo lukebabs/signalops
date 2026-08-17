@@ -18,6 +18,7 @@ type subscriberGlobalRiskRewardOverviewFake struct {
 	options       []storage.MarketOpsOptionsDistributionRecord
 	symbols       []string
 	optionSymbols []string
+	eodSymbols    []string
 }
 
 func (f *subscriberGlobalRiskRewardOverviewFake) ListSubscriberGlobalRiskRewardSnapshots(_ context.Context, symbols []string, _ time.Time, _ int) ([]storage.MarketOpsRiskRewardSnapshotRecord, error) {
@@ -28,6 +29,11 @@ func (f *subscriberGlobalRiskRewardOverviewFake) ListSubscriberGlobalRiskRewardS
 func (f *subscriberGlobalRiskRewardOverviewFake) ListSubscriberGlobalOptionsDistributions(_ context.Context, symbols []string, _ time.Time, _ int) ([]storage.MarketOpsOptionsDistributionRecord, error) {
 	f.optionSymbols = append([]string(nil), symbols...)
 	return f.options, nil
+}
+
+func (f *subscriberGlobalRiskRewardOverviewFake) ListSubscriberCurrentEODContexts(_ context.Context, symbols []string) ([]storage.SubscriberCurrentEODContextRecord, error) {
+	f.eodSymbols = append([]string(nil), symbols...)
+	return nil, nil
 }
 
 func TestSubscriberSignalOverviewUsesGlobalRiskRewardProjection(t *testing.T) {
@@ -65,12 +71,15 @@ func TestSubscriberSignalOverviewUsesGlobalRiskRewardProjection(t *testing.T) {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 	sort.Strings(repo.symbols)
-	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" || len(repo.optionSymbols) != 1 || repo.optionSymbols[0] != "AAPL" {
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" || len(repo.optionSymbols) != 1 || repo.optionSymbols[0] != "AAPL" || len(repo.eodSymbols) != 1 || repo.eodSymbols[0] != "AAPL" {
 		t.Fatalf("global reader symbols risk=%v options=%v, want [AAPL]", repo.symbols, repo.optionSymbols)
 	}
 	var response map[string]any
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatal(err)
+	}
+	if _, present := response["shared_eod_coverage"]; present {
+		t.Fatalf("diagnostic shared EOD coverage leaked into dashboard response: %#v", response)
 	}
 	points := response["risk_reward"].(map[string]any)["points"].([]any)
 	if len(points) != 1 {

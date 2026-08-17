@@ -34,6 +34,13 @@ type SubscriberCurrentEODContextRepository interface {
 	GetSubscriberCurrentEODContext(context.Context, string, string) (SubscriberCurrentEODContextRecord, error)
 }
 
+// SubscriberCurrentEODContextBatchRepository returns latest global EOD context
+// for an already-authorized set of watchlist symbols in one query. Missing symbols
+// are omitted; callers must authorize every supplied symbol before invocation.
+type SubscriberCurrentEODContextBatchRepository interface {
+	ListSubscriberCurrentEODContexts(context.Context, []string) ([]SubscriberCurrentEODContextRecord, error)
+}
+
 type SubscriberGlobalRiskRewardSnapshotRepository interface {
 	ListSubscriberGlobalRiskRewardSnapshots(context.Context, []string, time.Time, int) ([]MarketOpsRiskRewardSnapshotRecord, error)
 }

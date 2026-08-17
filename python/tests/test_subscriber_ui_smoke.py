@@ -195,10 +195,8 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
     expect(subscriber_page.get_by_role("heading", name="MarketOps Dashboard")).to_be_visible(timeout=30_000)
     assert_selected_watchlist(subscriber_page, config)
     assert_watchlist_context(dashboard, config)
-    shared_coverage = subscriber_page.get_by_test_id("marketops-shared-eod-coverage")
-    expect(shared_coverage).to_contain_text("Shared EOD coverage", timeout=30_000)
-    for ticker in config.shared_tickers:
-        expect(shared_coverage).to_contain_text(ticker)
+    expect(subscriber_page.locator("body")).not_to_contain_text("Shared EOD coverage")
+    expect(subscriber_page.locator("body")).not_to_contain_text("central completed-session evidence")
 
     tenant_api = "/v1/tenants/" + config.tenant_id + "/marketops/"
     for route, endpoint, heading in (

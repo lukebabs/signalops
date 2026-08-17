@@ -2732,24 +2732,33 @@ func NewRouter(cfg RouterConfig) http.Handler {
 					visibleTickers[strings.ToUpper(asset.Ticker)] = struct{}{}
 				}
 			}
-			currentEODReader, currentEODAvailable := any(marketOpsQueryRepository).(storage.SubscriberCurrentEODContextRepository)
 			pending := make([]map[string]any, 0)
+			currentByTicker := map[string]storage.SubscriberCurrentEODContextRecord{}
+			if currentEODReader, available := any(marketOpsQueryRepository).(storage.SubscriberCurrentEODContextBatchRepository); available {
+				symbols := make([]string, 0, len(watchlistContext.Items))
+				for _, item := range watchlistContext.Items {
+					if _, alreadyVisible := visibleTickers[strings.ToUpper(item.Ticker)]; !alreadyVisible {
+						symbols = append(symbols, item.Ticker)
+					}
+				}
+				currents, currentErr := currentEODReader.ListSubscriberCurrentEODContexts(r.Context(), symbols)
+				if currentErr != nil {
+					writeError(w, http.StatusInternalServerError, "query_failed", "failed to load shared MarketOps EOD context")
+					return
+				}
+				for _, current := range currents {
+					currentByTicker[strings.ToUpper(current.Symbol)] = current
+				}
+			}
 			for _, item := range watchlistContext.Items {
 				ticker := strings.ToUpper(item.Ticker)
-				if _, available := visibleTickers[ticker]; available {
+				if _, alreadyVisible := visibleTickers[ticker]; alreadyVisible {
 					continue
 				}
-				if currentEODAvailable {
-					current, currentErr := currentEODReader.GetSubscriberCurrentEODContext(r.Context(), tenantID, ticker)
-					if currentErr == nil {
-						visible = append(visible, subscriberWatchlistCurrentEODAsset(tenantID, item, len(visible)+1, current))
-						visibleTickers[ticker] = struct{}{}
-						continue
-					}
-					if !errors.Is(currentErr, storage.ErrNotFound) {
-						writeError(w, http.StatusInternalServerError, "query_failed", "failed to load shared MarketOps EOD context")
-						return
-					}
+				if current, found := currentByTicker[ticker]; found {
+					visible = append(visible, subscriberWatchlistCurrentEODAsset(tenantID, item, len(visible)+1, current))
+					visibleTickers[ticker] = struct{}{}
+					continue
 				}
 				pending = append(pending, map[string]any{"ticker": item.Ticker, "company": item.CompanyName, "coverage_state": item.CoverageState, "coverage_mode": item.CoverageMode, "eligibility_status": item.EligibilityStatus})
 			}

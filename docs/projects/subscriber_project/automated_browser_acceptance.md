@@ -4,7 +4,7 @@ Status: production-readiness control. The suite is committed; it remains inactiv
 
 ## Purpose
 
-The Subscriber Project must not depend on manually exported HAR files for routine release validation. The browser acceptance suite drives the real OIDC login screen and validates that the configured private watchlist persists across Assets, Dashboard, EROC, Value & Distressed Opportunity Intelligence (VC/DOSM), Earnings Opportunity Intelligence (EEOM), Market State, and Signal Assurance. It also verifies each contextual API response, shared-EOD coverage, honest cold-coverage presentation, and the absence of legacy sentinel timestamps or blank shared-algorithm cells. It performs no provider request, catalogue mutation, list creation, or data backfill.
+The Subscriber Project must not depend on manually exported HAR files for routine release validation. The browser acceptance suite drives the real OIDC login screen and validates that the configured private watchlist persists across Assets, Dashboard, EROC, Value & Distressed Opportunity Intelligence (VC/DOSM), Earnings Opportunity Intelligence (EEOM), Market State, and Signal Assurance. It also verifies each contextual API response, Dashboard analytical scope, honest cold-coverage presentation, and the absence of legacy sentinel timestamps or blank shared-algorithm cells. It performs no provider request, catalogue mutation, list creation, or data backfill.
 
 ## Identity boundary
 
@@ -78,7 +78,7 @@ The pre-seeded fixture list must contain the exact symbols declared in `SIGNALOP
 - The chosen private list survives a full browser reload and remains selected on every MarketOps view.
 - Assets identified as shared show central evidence and never show `1-12-31`, `Awaiting monitor`, or `Awaiting EOD analysis`; those states would misleadingly mix legacy tenant-only algorithm gaps into a shared row.
 - Cold assets remain visible as `Pending` and appear in the explicit `Coverage in progress` panel. They are not silently omitted or shown as completed data.
-- The Dashboard reports each declared warm symbol under `Shared EOD coverage`.
+- The Dashboard remains scoped to the selected list's analytical breadth and never renders an operational shared-EOD asset dump. Shared EOD provenance is shown only on the selected Assets rows.
 - Assets, Dashboard, EROC, Valuation, and EEOM responses all return the saved list context, with the configured fixture symbols in scope. Market State sends the configured tenant and a configured in-scope symbol.
 - Signal Assurance returns a non-empty platform-global historical-outcome cohort for the selected list. The test explicitly requires `LEGACY` evidence only until a real confirmed SAF assertion exists; it must never represent an absent assertion as a confirmed result.
 
