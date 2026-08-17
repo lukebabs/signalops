@@ -114,17 +114,12 @@ describe('navForApp (G067)', () => {
     expect(navForApp('console').some((n) => n.to === '/marketops/assets')).toBe(false);
   });
 
-  it('exposes the MarketOps DSM workbench route only under marketops (G076)', () => {
-    const dsm = navForApp('marketops').find((n) => n.module === 'dsm');
-    expect(dsm).toBeDefined();
-    expect(dsm?.to).toBe('/marketops/dsm');
-    expect(dsm?.label).toBe('DSM');
-    // Generic MarketOps routes are still present alongside the new DSM entry.
-    const labels = navForApp('marketops').map((n) => n.label);
-    expect(labels).toContain('Signals');
-    expect(labels).toContain('Assets');
-    // Console parity: DSM does not leak into console nav.
-    expect(navForApp('console').some((n) => n.to === '/marketops/dsm')).toBe(false);
+  it('exposes the Value and Distressed Opportunity Intelligence workbench only under MarketOps', () => {
+    const valuation = navForApp('marketops').find((n) => n.module === 'valuation');
+    expect(valuation?.to).toBe('/marketops/valuation');
+    expect(valuation?.label).toBe('Value & Distressed Opportunity Intelligence');
+    expect(navForApp('marketops').some((n) => n.module === 'dsm')).toBe(false);
+    expect(navForApp('console').some((n) => n.to === '/marketops/valuation')).toBe(false);
   });
 
   it('keeps Market State as a direct drill-down route, not visible navigation', () => {
@@ -137,30 +132,13 @@ describe('navForApp (G067)', () => {
     expect(opportunities).toBeDefined();
     expect(opportunities?.to).toBe('/marketops/opportunities');
     expect(opportunities?.label).toBe('Opportunities');
-    // It sits near Assets and DSM.
-    const marketopsNav = navForApp('marketops');
-    const dsmIndex = marketopsNav.findIndex((n) => n.module === 'dsm');
-    const opportunitiesIndex = marketopsNav.findIndex((n) => n.module === 'opportunities');
-    expect(opportunitiesIndex).toBeGreaterThan(-1);
-    expect(Math.abs(opportunitiesIndex - dsmIndex)).toBeLessThanOrEqual(1);
     // Console parity: Opportunities does not leak into console nav.
     expect(navForApp('console').some((n) => n.to === '/marketops/opportunities')).toBe(false);
   });
 
-  it('exposes the MarketOps back-tests route only under marketops (G081)', () => {
-    const backtests = navForApp('marketops').find((n) => n.module === 'backtests');
-    expect(backtests).toBeDefined();
-    expect(backtests?.to).toBe('/marketops/backtests');
-    expect(backtests?.label).toBe('Back-Tests');
-    // It sits near DSM (the spec allows near DSM or Replay).
-    const marketopsNav = navForApp('marketops');
-    const dsmIndex = marketopsNav.findIndex((n) => n.module === 'dsm');
-    const backtestsIndex = marketopsNav.findIndex((n) => n.module === 'backtests');
-    expect(dsmIndex).toBeGreaterThanOrEqual(0);
-    expect(backtestsIndex).toBeGreaterThan(dsmIndex);
-    // Console parity: back-tests never appear in console nav.
+  it('keeps Back-Tests as a direct route rather than analyst navigation', () => {
+    expect(navForApp('marketops').some((n) => n.to === '/marketops/backtests')).toBe(false);
     expect(navForApp('console').some((n) => n.to === '/marketops/backtests')).toBe(false);
-    expect(navForApp('console').map((n) => n.label)).not.toContain('Back-Tests');
   });
 
   it('exposes algorithm management only in Administration', () => {

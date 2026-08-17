@@ -61,8 +61,12 @@ def subscriber_ui_config() -> SubscriberUIConfig:
     )
 
 
+@pytest.fixture(scope="session")
+def subscriber_config() -> SubscriberUIConfig:
+    return subscriber_ui_config()
+
 @pytest.fixture
-def subscriber_page(browser: Browser, request: pytest.FixtureRequest) -> Page:
+def subscriber_page(subscriber_config: SubscriberUIConfig, browser: Browser, request: pytest.FixtureRequest) -> Page:
     artifact_dir = Path(os.getenv("SIGNALOPS_E2E_ARTIFACT_DIR", "/tmp/signalops-e2e-artifacts"))
     artifact_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     artifact_dir.chmod(0o700)

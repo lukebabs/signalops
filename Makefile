@@ -24,7 +24,7 @@ docker-test-python:
 		-w $(DOCKER_WORKDIR) \
 		-e PYTHONPATH=$(DOCKER_WORKDIR)/python \
 		$(PYTHON_IMAGE) \
-		python -m unittest discover -s python/tests
+		sh -ec 'pip install --no-cache-dir -r python/requirements-e2e.txt && PYTHONPATH=$(DOCKER_WORKDIR)/python python -m pytest -q python/tests'
 
 docker-test-broker-integration:
 	docker run --rm --network host \
