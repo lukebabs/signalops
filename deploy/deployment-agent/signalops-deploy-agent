@@ -103,6 +103,9 @@ case "$action" in
     run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
       "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
     ;;
+  subscription-enforcement-canary)
+    run "$repository_dir/scripts/run_subscription_enforcement_canary.sh" "$actor"
+    ;;
   marketops-web-deploy)
     run make -C "$repository_dir" deploy-web
     run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
