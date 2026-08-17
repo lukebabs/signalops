@@ -1597,4 +1597,12 @@ The system remains deterministic, version-controlled, auditable, and analyst-gov
 
 ---
 
+## 68. Operational Viability Extension
+
+SAF effectiveness is not a dashboard-only statistic. A viable research signal must be evaluated as a versioned cohort with a declared horizon, immutable selection context, sample/maturity accounting, directional and benchmark-relative results, and an independent out-of-sample check. No viability state may create a trade instruction, alert, or automatic algorithm mutation.
+
+The active primary-cohort charter, states, evidence gates, and phased delivery plan are maintained in [the Signal Assurance Viability Sprint](../projects/signal_assurance_viability/README.md).
+
+---
+
 # End of Specification
