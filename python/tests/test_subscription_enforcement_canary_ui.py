@@ -119,6 +119,8 @@ def test_subscription_enforcement_three_tier_canary(canary_context: BrowserConte
     admin = admin_context.new_page()
     completed = False
     try:
+        # Establish the known Explorer baseline before testing its lock behavior.
+        set_pilot_plan(admin, config, "explorer")
         sign_in(pilot, base_url=config["base_url"], username=config["pilot_username"], password=config["pilot_password"], path="/marketops/valuation", heading=re.compile("requires additional analytical depth"))
         status, body = api(pilot, f"/v1/tenants/{PILOT_TENANT}/marketops/valuation?symbol=AAPL")
         assert status == 402 and body.get("error") == "subscription_feature_required"
