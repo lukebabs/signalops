@@ -6,12 +6,16 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
 type subscriberWatchlistAPIFake struct {
 	lastTenant, lastSubject, lastMutation string
+	lists                                 []storage.SubscriberWatchlistRecord
+	preference                            storage.SubscriberWatchlistContextPreference
+	preferenceErr                         error
 }
 
 func (f *subscriberWatchlistAPIFake) CreateSubscriberPrivateWatchlist(_ context.Context, request storage.SubscriberWatchlistCreateRequest) (storage.SubscriberWatchlistRecord, error) {
@@ -24,10 +28,23 @@ func (f *subscriberWatchlistAPIFake) CreateSubscriberTenantDefaultWatchlist(_ co
 }
 func (f *subscriberWatchlistAPIFake) ListSubscriberWatchlists(_ context.Context, tenantID, subject string) ([]storage.SubscriberWatchlistRecord, error) {
 	f.lastTenant, f.lastSubject = tenantID, subject
+	if f.lists != nil {
+		return f.lists, nil
+	}
 	return []storage.SubscriberWatchlistRecord{{ListID: "private-a", TenantID: tenantID, ListKind: storage.SubscriberWatchlistKindPrivate, OwnerSubject: subject, ListName: "Private"}}, nil
 }
-func (f *subscriberWatchlistAPIFake) GetSubscriberWatchlistContextPreference(context.Context, string, string) (storage.SubscriberWatchlistContextPreference, error) { return storage.SubscriberWatchlistContextPreference{}, storage.ErrNotFound }
-func (f *subscriberWatchlistAPIFake) SetSubscriberWatchlistContextPreference(_ context.Context, preference storage.SubscriberWatchlistContextPreference) (storage.SubscriberWatchlistContextPreference, error) { return preference, nil }
+func (f *subscriberWatchlistAPIFake) GetSubscriberWatchlistContextPreference(context.Context, string, string) (storage.SubscriberWatchlistContextPreference, error) {
+	if f.preferenceErr != nil {
+		return storage.SubscriberWatchlistContextPreference{}, f.preferenceErr
+	}
+	if f.preference.SelectionMode != "" {
+		return f.preference, nil
+	}
+	return storage.SubscriberWatchlistContextPreference{}, storage.ErrNotFound
+}
+func (f *subscriberWatchlistAPIFake) SetSubscriberWatchlistContextPreference(_ context.Context, preference storage.SubscriberWatchlistContextPreference) (storage.SubscriberWatchlistContextPreference, error) {
+	return preference, nil
+}
 func (f *subscriberWatchlistAPIFake) ListSubscriberWatchlistMemberships(context.Context, string, string, string) ([]storage.SubscriberWatchlistMembershipRecord, error) {
 	return nil, nil
 }
@@ -164,5 +181,47 @@ func TestSubscriberWatchlistItemsRouteBindsTenantAndSubject(t *testing.T) {
 	}
 	if store.lastTenant != "tenant-local" || store.lastSubject != "user-123" {
 		t.Fatalf("repository scope tenant=%q subject=%q", store.lastTenant, store.lastSubject)
+	}
+}
+
+func TestResolveSubscriberWatchlistContextFallsBackFromStaleSavedList(t *testing.T) {
+	created := time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC)
+	store := &subscriberWatchlistAPIFake{
+		lists: []storage.SubscriberWatchlistRecord{
+			{ListID: "default-a", TenantID: "tenant-local", ListKind: storage.SubscriberWatchlistKindTenantDefault, ListName: "Default"},
+			{ListID: "private-a", TenantID: "tenant-local", ListKind: storage.SubscriberWatchlistKindPrivate, OwnerSubject: "user-123", ListName: "Research", CreatedAt: created},
+		},
+		preference: storage.SubscriberWatchlistContextPreference{
+			TenantID: "tenant-local", Subject: "user-123", SelectionMode: storage.SubscriberWatchlistContextModeList, ListID: "removed-private-list",
+		},
+	}
+	context, err := resolveSubscriberWatchlistContext(httptest.NewRequest(http.MethodGet, "/", nil), RouterConfig{
+		SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-local": {}}, SubscriberWatchlistRepository: store,
+	}, "tenant-local", "user-123")
+	if err != nil {
+		t.Fatalf("resolve stale saved list: %v", err)
+	}
+	if context.ListID != "private-a" || context.SelectionSource != "stale_preference_fallback" {
+		t.Fatalf("unexpected fallback context: list=%q source=%q", context.ListID, context.SelectionSource)
+	}
+}
+
+func TestResolveSubscriberWatchlistContextFallsBackToTenantDefault(t *testing.T) {
+	store := &subscriberWatchlistAPIFake{
+		lists: []storage.SubscriberWatchlistRecord{{
+			ListID: "default-a", TenantID: "tenant-local", ListKind: storage.SubscriberWatchlistKindTenantDefault, ListName: "Legacy Default",
+		}},
+		preference: storage.SubscriberWatchlistContextPreference{
+			TenantID: "tenant-local", Subject: "user-123", SelectionMode: storage.SubscriberWatchlistContextModeList, ListID: "removed-private-list",
+		},
+	}
+	context, err := resolveSubscriberWatchlistContext(httptest.NewRequest(http.MethodGet, "/", nil), RouterConfig{
+		SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-local": {}}, SubscriberWatchlistRepository: store,
+	}, "tenant-local", "user-123")
+	if err != nil {
+		t.Fatalf("resolve stale saved list: %v", err)
+	}
+	if context.ListID != "default-a" || context.SelectionSource != "stale_preference_fallback" {
+		t.Fatalf("unexpected fallback context: list=%q source=%q", context.ListID, context.SelectionSource)
 	}
 }

@@ -46,13 +46,7 @@ func resolveSubscriberWatchlistContext(r *http.Request, cfg RouterConfig, tenant
 	if len(lists) == 0 {
 		return context, storage.ErrNotFound
 	}
-	preference, preferenceErr := cfg.SubscriberWatchlistRepository.GetSubscriberWatchlistContextPreference(r.Context(), tenantID, subject)
-	if preferenceErr != nil && !errors.Is(preferenceErr, storage.ErrNotFound) {
-		return context, preferenceErr
-	}
-	context.SelectionSource = "saved"
-	if errors.Is(preferenceErr, storage.ErrNotFound) {
-		preference.SelectionMode = storage.SubscriberWatchlistContextModeList
+	selectFallback := func() bool {
 		var oldestPrivate *storage.SubscriberWatchlistRecord
 		for index := range lists {
 			list := &lists[index]
@@ -61,18 +55,31 @@ func resolveSubscriberWatchlistContext(r *http.Request, cfg RouterConfig, tenant
 			}
 		}
 		if oldestPrivate != nil {
-			preference.ListID = oldestPrivate.ListID
-		}
-		if preference.ListID == "" {
-			for _, list := range lists {
-				if list.ListKind == storage.SubscriberWatchlistKindTenantDefault {
-					preference.ListID = list.ListID
-					break
-				}
-			}
-			context.SelectionSource = "tenant_default"
-		} else {
+			context.SelectionMode = storage.SubscriberWatchlistContextModeList
+			context.ListID = oldestPrivate.ListID
+			context.ListName = oldestPrivate.ListName
 			context.SelectionSource = "oldest_private"
+			return true
+		}
+		for _, list := range lists {
+			if list.ListKind == storage.SubscriberWatchlistKindTenantDefault {
+				context.SelectionMode = storage.SubscriberWatchlistContextModeList
+				context.ListID = list.ListID
+				context.ListName = list.ListName
+				context.SelectionSource = "tenant_default"
+				return true
+			}
+		}
+		return false
+	}
+	preference, preferenceErr := cfg.SubscriberWatchlistRepository.GetSubscriberWatchlistContextPreference(r.Context(), tenantID, subject)
+	if preferenceErr != nil && !errors.Is(preferenceErr, storage.ErrNotFound) {
+		return context, preferenceErr
+	}
+	context.SelectionSource = "saved"
+	if errors.Is(preferenceErr, storage.ErrNotFound) {
+		if !selectFallback() {
+			return subscriberWatchlistContext{}, storage.ErrNotFound
 		}
 	}
 	if preference.SelectionMode == storage.SubscriberWatchlistContextModeAll {
@@ -86,7 +93,13 @@ func resolveSubscriberWatchlistContext(r *http.Request, cfg RouterConfig, tenant
 			}
 		}
 		if context.ListID == "" {
-			return subscriberWatchlistContext{}, storage.ErrNotFound
+			// A saved private-list selection can become unavailable after an owner,
+			// entitlement, or tenant assignment changes. Preserve the session by
+			// resolving the normal default selection instead of returning a 404.
+			if !selectFallback() {
+				return subscriberWatchlistContext{}, storage.ErrNotFound
+			}
+			context.SelectionSource = "stale_preference_fallback"
 		}
 	}
 	selected := lists
