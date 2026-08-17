@@ -26,9 +26,9 @@ const (
 )
 
 type observation struct {
-	id, assetID, symbol, sector string
-	origin, maturity            time.Time
-	forward                     float64
+	id, assetID, symbol, sector, direction string
+	origin, maturity                       time.Time
+	forward                                float64
 }
 type price struct {
 	eventID, fingerprint string
@@ -119,7 +119,7 @@ func run(ctx context.Context, args []string) error {
 					choice.state = "maturity_price_unavailable"
 				} else {
 					value := choice.maturity.close/choice.origin.close - 1
-					relative := item.forward - value
+					relative := directionalRelativeReturn(item.direction, item.forward, value)
 					choice.benchmarkReturn, choice.relativeReturn = &value, &relative
 				}
 			}
@@ -153,7 +153,7 @@ func run(ctx context.Context, args []string) error {
 }
 
 func loadObservations(ctx context.Context, db *sql.DB, limit int) ([]observation, error) {
-	rows, err := db.QueryContext(ctx, `SELECT observation_id, observation.global_asset_id, observation.symbol, COALESCE(asset.sector,''), origin_session_date, matured_session_date, forward_return
+	rows, err := db.QueryContext(ctx, `SELECT observation_id, observation.global_asset_id, observation.symbol, COALESCE(asset.sector,''), observation.direction, origin_session_date, matured_session_date, forward_return
 FROM subscriber_gateway_global_signal_assurance_observations observation
 JOIN subscriber_global_assets asset ON asset.global_asset_id=observation.global_asset_id
 JOIN subscriber_global_saf_benchmark_legacy_default_members() member ON member.global_asset_id=observation.global_asset_id
@@ -166,10 +166,11 @@ ORDER BY matured_session_date, observation_id LIMIT $1`, limit)
 	out := []observation{}
 	for rows.Next() {
 		var item observation
-		if err := rows.Scan(&item.id, &item.assetID, &item.symbol, &item.sector, &item.origin, &item.maturity, &item.forward); err != nil {
+		if err := rows.Scan(&item.id, &item.assetID, &item.symbol, &item.sector, &item.direction, &item.origin, &item.maturity, &item.forward); err != nil {
 			return nil, err
 		}
 		item.symbol = strings.ToUpper(strings.TrimSpace(item.symbol))
+		item.direction = strings.ToLower(strings.TrimSpace(item.direction))
 		out = append(out, item)
 	}
 	return out, rows.Err()
@@ -242,6 +243,17 @@ ORDER BY processing_time ASC, event_id ASC LIMIT 1`, symbol, session).Scan(&valu
 	return &value, nil
 }
 
+// directionalRelativeReturn expresses incremental return in the direction the
+// source opportunity asserted. A downside outcome that falls more than its
+// benchmark is positive evidence, just as an upside outcome that rises more is.
+func directionalRelativeReturn(direction string, assetReturn, benchmarkReturn float64) float64 {
+	relative := assetReturn - benchmarkReturn
+	if strings.EqualFold(strings.TrimSpace(direction), "downside") || strings.EqualFold(strings.TrimSpace(direction), "bearish") {
+		return -relative
+	}
+	return relative
+}
+
 func appendBenchmarks(ctx context.Context, db *sql.DB, rows []benchmark, correlation, calculationVersion string) (int, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -250,7 +262,7 @@ func appendBenchmarks(ctx context.Context, db *sql.DB, rows []benchmark, correla
 	defer tx.Rollback()
 	inserted := 0
 	for _, item := range rows {
-		provenance, _ := json.Marshal(map[string]any{"correlation_id": correlation, "source_scope": "tenant-local legacy default 132", "outcome_immutable": true, "selection_policy": selectionPolicy, "sector_source_value": item.observation.sector, "origin_price_observed_at": timeString(item.origin), "maturity_price_observed_at": timeString(item.maturity)})
+		provenance, _ := json.Marshal(map[string]any{"correlation_id": correlation, "source_scope": "tenant-local legacy default 132", "outcome_immutable": true, "selection_policy": selectionPolicy, "sector_source_value": item.observation.sector, "signal_direction": item.observation.direction, "relative_return_basis": "direction_adjusted_excess_return.v1", "origin_price_observed_at": timeString(item.origin), "maturity_price_observed_at": timeString(item.maturity)})
 		result, err := tx.ExecContext(ctx, `INSERT INTO subscriber_global_saf_benchmark_observations (benchmark_observation_id,source_observation_id,global_asset_id,benchmark_kind,benchmark_symbol,benchmark_segment_key,benchmark_resolution_state,origin_session_date,matured_session_date,origin_price,matured_price,benchmark_return,benchmark_relative_return,source_origin_event_id,source_matured_event_id,source_origin_fingerprint,source_matured_fingerprint,selection_policy_version,calculation_version,calculation_run_id,provenance,observed_at)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,now()) ON CONFLICT (source_observation_id,benchmark_kind,calculation_version) DO NOTHING`,
 			"safbench-"+hash(item.observation.id + "|" + item.kind + "|" + calculationVersion)[:24], item.observation.id, item.observation.assetID, item.kind, item.symbol, item.segment, item.state, item.observation.origin, item.observation.maturity, priceValue(item.origin), priceValue(item.maturity), item.benchmarkReturn, item.relativeReturn, eventID(item.origin), eventID(item.maturity), fingerprint(item.origin), fingerprint(item.maturity), selectionPolicy, calculationVersion, "safbench-"+hash(correlation)[:20], string(provenance))

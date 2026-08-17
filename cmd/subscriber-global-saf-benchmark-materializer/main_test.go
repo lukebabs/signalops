@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"math"
 	"strings"
 	"testing"
 )
@@ -25,6 +26,15 @@ func TestBenchmarkChoicesLeavesUnknownSectorExplicit(t *testing.T) {
 	items := benchmarkChoices(observation{sector: "", symbol: "ABC"})
 	if len(items) != 2 || items[0].symbol != "SPY" || items[0].state != "matched" || items[1].state != "sector_unmapped" {
 		t.Fatalf("unexpected benchmark choices: %#v", items)
+	}
+}
+
+func TestDirectionalRelativeReturnAlignsBearishAndBullishEvidence(t *testing.T) {
+	if got := directionalRelativeReturn("upside", .05, .02); math.Abs(got-.03) > 1e-12 {
+		t.Fatalf("upside relative=%v, want .03", got)
+	}
+	if got := directionalRelativeReturn("downside", -.05, -.02); math.Abs(got-.03) > 1e-12 {
+		t.Fatalf("downside relative=%v, want .03", got)
 	}
 }
 
