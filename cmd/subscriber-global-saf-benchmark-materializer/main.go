@@ -151,9 +151,9 @@ func loadObservations(ctx context.Context, db *sql.DB, limit int) ([]observation
 	rows, err := db.QueryContext(ctx, `SELECT observation_id, observation.global_asset_id, observation.symbol, COALESCE(asset.sector,''), origin_session_date, matured_session_date, forward_return
 FROM subscriber_gateway_global_signal_assurance_observations observation
 JOIN subscriber_global_assets asset ON asset.global_asset_id=observation.global_asset_id
-JOIN subscriber_watchlist_memberships member ON member.global_asset_id=observation.global_asset_id AND member.list_id=$1
+JOIN subscriber_global_saf_benchmark_legacy_default_members() member ON member.global_asset_id=observation.global_asset_id
 WHERE matured_session_date IS NOT NULL AND forward_return IS NOT NULL
-ORDER BY matured_session_date, observation_id LIMIT $2`, legacyDefaultList, limit)
+ORDER BY matured_session_date, observation_id LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("load legacy SAF observations: %w", err)
 	}
