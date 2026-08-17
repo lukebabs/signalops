@@ -158,3 +158,18 @@ Migration `000151_subscriber_global_sector_classification_reconciliation` reconc
 - `python/tests/test_signal_assurance_benchmark_ui_smoke.py` is the read-only authenticated browser regression: it verifies the live Signal Assurance view exposes only `broad=matched; sector=matched` for the legacy benchmark-coverage cohort. The 2026-08-17 run passed.
 
 This establishes complete benchmark coverage for the declared historical cohort. It does not establish algorithm viability by itself; the next gate is the predeclared score/confidence and frozen-policy evaluation described in SAF-V2/SAF-V3 above.
+
+## SAF-V3a direction-normalized viability baseline — 2026-08-17
+
+Before freezing a viability interpretation, the benchmark calculation was corrected to express excess return in the asserted direction. This matters because 85 of the 92 historical outcomes are downside opportunities: an asset declining more than its benchmark is favorable evidence and must be positive after normalization.
+
+Migration `000152_subscriber_global_saf_directional_benchmark_projection` makes `saf_benchmark.v4` the preferred projection when present, while v1-v3 remain append-only audit evidence. The v4 materializer uses only the same immutable initial-capture EOD observations; it made no provider request.
+
+The read-only `saf_viability.v1` gate is therefore **not demonstrated** for this cohort. Its complete benchmark coverage is a prerequisite, not proof of effectiveness:
+
+- 92 matured legacy observations; 46 directional matches (50.0%).
+- Mean direction-normalized broad-market excess: 0.041%.
+- Mean direction-normalized sector excess: 0.061%.
+- Mean favorable excursion: 2.310%; mean adverse excursion: -3.858%.
+
+The cohort does not clear the predeclared directional-confidence or favorable-versus-adverse-excursion conditions. This is an actionable research result: do not promote or tune from it automatically. The next governed step is a formal frozen-policy record and an independently matured forward cohort, with score/confidence and algorithm-version attribution captured prospectively.
