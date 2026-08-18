@@ -15,5 +15,6 @@ load_dotenv "$dotenv_path"
 export SIGNALOPS_E2E_ADMIN_USERNAME="$SIGNALOPS_WEB_ADMIN"
 export SIGNALOPS_E2E_ADMIN_PASSWORD="$SIGNALOPS_WEB_PASS_ADMIN"
 
-exec "$repo_dir/.venv/bin/python" -m pytest -q \
+"$repo_dir/.venv/bin/python" -m pytest -q \
   "$repo_dir/python/tests/test_marketops_intelligence_timestamp_ui.py"
+printf '%s\n' 'marketops_intelligence_timestamp_ui_smoke_passed'
