@@ -30,6 +30,9 @@ func main() {
 
 func run(logger *slog.Logger) error {
 	cfg := config.Load()
+	if err := cfg.ValidateMarketOpsDataBoundary(); err != nil {
+		return err
+	}
 	if strings.TrimSpace(cfg.DatabaseURL) == "" {
 		return errors.New("SIGNALOPS_DATABASE_URL is required")
 	}
@@ -60,6 +63,7 @@ func run(logger *slog.Logger) error {
 			return err
 		}
 		defer marketRepository.Close()
+		logger.Info("MarketOps normalization writes are routed to the dedicated data boundary")
 	}
 	processor := normalization.Processor{Publisher: client, Repository: repository, OutputTopic: outputTopic}
 	marketProcessor := normalization.Processor{Publisher: client, Repository: marketRepository, OutputTopic: outputTopic}

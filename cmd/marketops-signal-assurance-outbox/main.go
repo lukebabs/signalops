@@ -31,6 +31,9 @@ func main() {
 }
 func run(logger *slog.Logger) error {
 	cfg := config.Load()
+	if err := cfg.ValidateMarketOpsDataBoundary(); err != nil {
+		return err
+	}
 	databaseURL := cfg.DatabaseURL
 	if strings.TrimSpace(cfg.MarketOpsDatabaseURL) != "" {
 		databaseURL = cfg.MarketOpsDatabaseURL

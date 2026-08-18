@@ -61,7 +61,7 @@ set +a
 "$root_dir/scripts/render_marketops_cutover_env.sh" "$boundary_env" "$cutover_env"
 
 base=(docker compose --env-file "$runtime_env" -p signalops -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml")
-continuous_writers=(normalizer signal-persister marketops-signal-assurance-registrar)
+continuous_writers=(normalizer signal-persister marketops-signal-assurance-registrar marketops-signal-assurance-outbox)
 restoration_required=false
 restore_shared() {
   if "$restoration_required"; then
@@ -85,6 +85,21 @@ fi
   -f "$root_dir/compose.marketops-read-cutover.yaml" \
   -f "$root_dir/compose.marketops-writer-cutover.yaml" \
   up -d --build --no-deps "${continuous_writers[@]}"
+
+# The compose overlay is only a declaration. Verify the running containers,
+# rather than trusting a successful `up`, before a scheduler may acquire data.
+for service in "${continuous_writers[@]}"; do
+  container_id="$("${base[@]}" ps -q "$service")"
+  [[ -n "$container_id" ]] || { printf 'Writer cutover verification failed: %s is missing.\n' "$service" >&2; exit 5; }
+  env_lines="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container_id")"
+  boundary_required="$(awk -F= '$1 == "SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED" {print substr($0, index($0, "=") + 1); exit}' <<<"$env_lines")"
+  primary_url="$(awk -F= '$1 == "SIGNALOPS_MARKETOPS_DATABASE_URL" {print substr($0, index($0, "=") + 1); exit}' <<<"$env_lines")"
+  temporal_url="$(awk -F= '$1 == "SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL" {print substr($0, index($0, "=") + 1); exit}' <<<"$env_lines")"
+  [[ "$boundary_required" == "true" && "$primary_url" == *'@marketops-postgres:5432/marketops?sslmode=disable' && "$temporal_url" == *'@marketops-timescaledb:5432/marketops_temporal?sslmode=disable' ]] || {
+    printf 'Writer cutover verification failed: %s lacks the dedicated MarketOps route.\n' "$service" >&2
+    exit 5
+  }
+done
 restoration_required=false
 trap - EXIT
-printf 'Continuous MarketOps writers are now routed to the dedicated boundary. Scheduled timers remain inactive.\n'
+printf 'Continuous MarketOps writers are verified on the dedicated boundary. Scheduled timers remain inactive.\n'

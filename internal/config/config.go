@@ -52,6 +52,11 @@ type Config struct {
 	SubscriberListsDatabaseURL     string
 	MarketOpsDatabaseURL           string
 	MarketOpsTemporalDatabaseURL   string
+	// MarketOpsDataBoundaryRequired makes the dedicated MarketOps primary and
+	// temporal stores mandatory for processes that participate in the
+	// production data plane. It is rendered only in the protected cutover
+	// environment; development and pre-cutover deployments remain supported.
+	MarketOpsDataBoundaryRequired bool
 }
 
 // ValidateAuthConfiguration fails closed when JWT enforcement is enabled without
@@ -83,6 +88,22 @@ func (c Config) ValidateAuthConfiguration() error {
 	return nil
 }
 
+// ValidateMarketOpsDataBoundary prevents a process from silently using the
+// shared SignalOps stores after the MarketOps data boundary has become
+// authoritative. The URLs are a pair: a primary-only or temporal-only route
+// is never a valid topology.
+func (c Config) ValidateMarketOpsDataBoundary() error {
+	primary := strings.TrimSpace(c.MarketOpsDatabaseURL)
+	temporal := strings.TrimSpace(c.MarketOpsTemporalDatabaseURL)
+	if (primary == "") != (temporal == "") {
+		return fmt.Errorf("SIGNALOPS_MARKETOPS_DATABASE_URL and SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL must be configured together")
+	}
+	if c.MarketOpsDataBoundaryRequired && primary == "" {
+		return fmt.Errorf("dedicated MarketOps data boundary is required: configure SIGNALOPS_MARKETOPS_DATABASE_URL and SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL")
+	}
+	return nil
+}
+
 // Load reads configuration from environment variables.
 func Load() Config {
 	return Config{
@@ -105,6 +126,7 @@ func Load() Config {
 		SubscriberListsDatabaseURL:     envOrDefault("SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL", defaultSubscriberListsDatabaseURL),
 		MarketOpsDatabaseURL:           envOrDefault("SIGNALOPS_MARKETOPS_DATABASE_URL", ""),
 		MarketOpsTemporalDatabaseURL:   envOrDefault("SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL", ""),
+		MarketOpsDataBoundaryRequired:  envBool("SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED", "false"),
 	}
 }
 

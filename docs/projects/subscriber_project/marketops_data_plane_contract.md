@@ -1,0 +1,67 @@
+# MarketOps Data-Plane Contract
+
+## Purpose
+
+MarketOps runs as a dedicated operational data plane while SignalOps continues
+to host shared platform and CyberOps data. Every MarketOps result must follow
+one route:
+
+```text
+scheduled acquisition → raw broker topic → continuous MarketOps-aware writer
+→ dedicated MarketOps primary / temporal stores → algorithms and UI
+```
+
+The scheduler is not an alternate data path. It only acquires or materializes
+work; continuous broker consumers own normalized persistence.
+
+## Boundary contract
+
+The protected `/etc/signalops/marketops-cutover.env` renders the complete
+dedicated pair:
+
+- `SIGNALOPS_MARKETOPS_DATABASE_URL`
+- `SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL`
+- `SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED=true`
+
+The normalizer and signal persister retain their shared URLs for non-MarketOps
+envelopes, while selecting the dedicated pair for `app_id=marketops`. The SAF
+registrar, outbox, and worker select the dedicated pair for all SAF work.
+
+When `SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED=true`, processes fail at
+startup if either dedicated URL is absent. A primary-only or temporal-only
+configuration is invalid in every environment.
+
+## Deployment and job guardrails
+
+`scripts/deploy_marketops_writer_cutover.sh` now restarts and verifies all
+continuous MarketOps writers:
+
+- `normalizer`
+- `signal-persister`
+- `marketops-signal-assurance-registrar`
+- `marketops-signal-assurance-outbox`
+
+It inspects the running containers and refuses completion unless each has the
+boundary-required flag and both dedicated routes. A successful Compose command
+alone is not deployment evidence.
+
+The root-owned boundary dispatcher sets
+`SIGNALOPS_MARKETOPS_DATA_PLANE_PREFLIGHT_REQUIRED=true`. Before any scheduled
+job command runs, `scripts/preflight_marketops_data_plane.sh` verifies that the
+same four containers are running, have the complete route, and that the two
+dedicated databases answer as `marketops` and `marketops_temporal`.
+
+If the contract is broken, the scheduled-job wrapper records a failed job and
+raises its normal administrator notification **before any provider call**. It
+does not wait for a downstream normalization timeout or attempt a misleading
+post-close recovery.
+
+## August 17, 2026 incident
+
+The initial dedicated scheduler configuration was correct, but the running
+normalizer had only the shared `SIGNALOPS_DATABASE_URL` and
+`SIGNALOPS_TEMPORAL_DATABASE_URL`. It consumed 1,034 EOD events successfully
+into the shared temporal store while the dedicated temporal store received
+none. Warm EOD, post-close/risk-reward recovery, and SRI then failed their
+dedicated-normalization barriers. This contract prevents recurrence of that
+split route.

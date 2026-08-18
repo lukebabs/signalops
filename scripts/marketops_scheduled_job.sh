@@ -19,8 +19,17 @@ printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"running","start
 mv "$status_dir/.${job_id}.tmp" "$status_dir/${job_id}.json"
 
 set +e
-"$@"
-exit_code=$?
+if [[ "${SIGNALOPS_MARKETOPS_DATA_PLANE_PREFLIGHT_REQUIRED:-false}" == "true" ]]; then
+  "$root_dir/scripts/preflight_marketops_data_plane.sh"
+  exit_code=$?
+  if [[ "$exit_code" -eq 0 ]]; then
+    "$@"
+    exit_code=$?
+  fi
+else
+  "$@"
+  exit_code=$?
+fi
 set -e
 completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 status="succeeded"; [[ "$exit_code" -eq 0 ]] || status="failed"

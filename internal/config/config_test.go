@@ -118,3 +118,25 @@ func TestValidateAuthConfiguration(t *testing.T) {
 		t.Fatalf("disabled authentication configuration: %v", err)
 	}
 }
+
+func TestValidateMarketOpsDataBoundary(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  Config
+		want bool
+	}{
+		{name: "pre-cutover shared topology is allowed", cfg: Config{}, want: false},
+		{name: "complete dedicated topology is allowed", cfg: Config{MarketOpsDatabaseURL: "postgres://primary", MarketOpsTemporalDatabaseURL: "postgres://temporal"}, want: false},
+		{name: "primary without temporal is rejected", cfg: Config{MarketOpsDatabaseURL: "postgres://primary"}, want: true},
+		{name: "temporal without primary is rejected", cfg: Config{MarketOpsTemporalDatabaseURL: "postgres://temporal"}, want: true},
+		{name: "authoritative boundary cannot fall back to shared", cfg: Config{MarketOpsDataBoundaryRequired: true}, want: true},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := testCase.cfg.ValidateMarketOpsDataBoundary()
+			if (got != nil) != testCase.want {
+				t.Fatalf("ValidateMarketOpsDataBoundary() error = %v, want error=%t", got, testCase.want)
+			}
+		})
+	}
+}
