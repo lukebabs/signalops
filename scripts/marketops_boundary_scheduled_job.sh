@@ -7,6 +7,7 @@ cd "$root_dir"
 
 case "$job_id" in
   preflight)
+    ./scripts/preflight_marketops_data_plane.sh
     source ./scripts/marketops_schedule_database.sh
     primary="$(marketops_primary_psql -Atc "select current_database()")"
     temporal="$(marketops_temporal_psql -Atc "select current_database()")"

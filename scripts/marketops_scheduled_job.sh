@@ -19,7 +19,7 @@ printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"running","start
 mv "$status_dir/.${job_id}.tmp" "$status_dir/${job_id}.json"
 
 set +e
-if [[ "${SIGNALOPS_MARKETOPS_DATA_PLANE_PREFLIGHT_REQUIRED:-false}" == "true" ]]; then
+if [[ "${SIGNALOPS_MARKETOPS_DATA_PLANE_PREFLIGHT_REQUIRED:-false}" == "true" || "${SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE:-}" == "marketops-postgres" ]]; then
   "$root_dir/scripts/preflight_marketops_data_plane.sh"
   exit_code=$?
   if [[ "$exit_code" -eq 0 ]]; then
