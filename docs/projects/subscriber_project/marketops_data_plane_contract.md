@@ -65,3 +65,26 @@ into the shared temporal store while the dedicated temporal store received
 none. Warm EOD, post-close/risk-reward recovery, and SRI then failed their
 dedicated-normalization barriers. This contract prevents recurrence of that
 split route.
+
+## Global Dashboard projection completeness
+
+The subscriber Dashboard reads restricted, platform-global projections rather
+than tenant-local algorithm tables. Therefore a completed post-close run is not
+complete merely because the primary MarketOps tables contain the new session.
+
+`scripts/marketops_global_dashboard_projection.sh` materializes and verifies,
+for its exact completed session date:
+
+- options distributions;
+- Risk/Reward snapshots; and
+- Market State evidence.
+
+The parity-manifest worker accepts `--session-date YYYY-MM-DD`. The post-close
+projection passes that exact date, preventing a bounded newest-first run from
+silently consuming an older backlog. It fails when the restricted global
+projection has fewer rows than its authoritative tenant-local source.
+
+On 2026-08-18, the catch-up for the Aug 17 completed session appended the
+missing immutable Market State evidence and restored 132 of 132 global Dashboard
+Market State records. This is append-only global evidence; it does not mutate
+the tenant-local source records.
