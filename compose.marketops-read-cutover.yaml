@@ -8,3 +8,6 @@ services:
       # Subscriber lists and their subject-owned context are MarketOps data.
       # The root-owned cutover environment injects this dedicated credential.
       SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL: postgres://signalops_subscriber_gateway_runtime:${SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD:?inject dedicated MarketOps subscriber gateway secret}@marketops-postgres:5432/marketops?sslmode=disable
+      SIGNALOPS_SCHEDULE_RUNNER_SOCKET: /run/signalops/deployment-agent.sock
+    volumes:
+      - /run/signalops:/run/signalops:ro

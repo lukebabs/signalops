@@ -1,10 +1,14 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestScheduledJobStatusesIncludePostCloseRecoveryStages(t *testing.T) {
@@ -70,5 +74,39 @@ func TestScheduledJobRunActionIsAllowlisted(t *testing.T) {
 	}
 	if action, ok := scheduledJobRunAction("arbitrary-host-command"); ok || action != "" {
 		t.Fatalf("unexpected action for unsupported job: %q", action)
+	}
+}
+
+func TestTriggerScheduledJobRunNowViaSocket(t *testing.T) {
+	socketPath := filepath.Join(t.TempDir(), "runner.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/run-now" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		var req scheduledJobRunnerRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		if req.Action != "scheduler-run-now:signalops-storage-monitor" {
+			t.Fatalf("unexpected action: %s", req.Action)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(scheduledJobRunnerResponse{Status: "accepted", Output: "started"})
+	})}
+	defer server.Close()
+	go func() { _ = server.Serve(listener) }()
+
+	result, err := triggerScheduledJobRunNowViaSocket(context.Background(), "signalops-storage-monitor", "scheduler-run-now:signalops-storage-monitor", socketPath, time.Date(2026, 8, 19, 2, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Runner != "unix:"+socketPath || result.Output != "started" || result.Status != "accepted" {
+		t.Fatalf("unexpected result: %#v", result)
 	}
 }

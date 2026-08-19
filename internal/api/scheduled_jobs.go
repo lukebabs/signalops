@@ -1,9 +1,14 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,6 +48,15 @@ type scheduledJobRunNowResult struct {
 	Output    string `json:"output,omitempty"`
 }
 
+type scheduledJobRunnerRequest struct {
+	Action string `json:"action"`
+}
+
+type scheduledJobRunnerResponse struct {
+	Status string `json:"status"`
+	Output string `json:"output"`
+}
+
 func scheduledJobStatuses() []map[string]any {
 	jobs := scheduledJobDefinitions
 	dir := os.Getenv("SIGNALOPS_SCHEDULE_STATUS_DIR")
@@ -80,6 +94,9 @@ func triggerScheduledJobRunNow(ctx context.Context, jobID string, now time.Time)
 	if !ok {
 		return scheduledJobRunNowResult{}, errUnsupportedScheduledJob
 	}
+	if socketPath := strings.TrimSpace(os.Getenv("SIGNALOPS_SCHEDULE_RUNNER_SOCKET")); socketPath != "" {
+		return triggerScheduledJobRunNowViaSocket(ctx, jobID, action, socketPath, now)
+	}
 	runner := strings.TrimSpace(os.Getenv("SIGNALOPS_SCHEDULE_RUNNER_BIN"))
 	if runner == "" {
 		runner = "/usr/local/sbin/signalops-deploy-agent"
@@ -99,6 +116,60 @@ func triggerScheduledJobRunNow(ctx context.Context, jobID string, now time.Time)
 			result.Output = err.Error()
 		}
 		return result, err
+	}
+	return result, nil
+}
+
+func triggerScheduledJobRunNowViaSocket(ctx context.Context, jobID, action, socketPath string, now time.Time) (scheduledJobRunNowResult, error) {
+	payload, err := json.Marshal(scheduledJobRunnerRequest{Action: action})
+	if err != nil {
+		return scheduledJobRunNowResult{}, err
+	}
+	dialer := &net.Dialer{}
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return dialer.DialContext(ctx, "unix", socketPath)
+			},
+		},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://signalops-deployment-agent/run-now", bytes.NewReader(payload))
+	if err != nil {
+		return scheduledJobRunNowResult{}, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	result := scheduledJobRunNowResult{
+		JobID:     jobID,
+		Status:    "accepted",
+		Action:    action,
+		Runner:    "unix:" + socketPath,
+		StartedAt: now.UTC().Format(time.RFC3339),
+	}
+	if err != nil {
+		result.Output = err.Error()
+		return result, err
+	}
+	defer resp.Body.Close()
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if readErr != nil {
+		result.Output = readErr.Error()
+		return result, readErr
+	}
+	var runnerResponse scheduledJobRunnerResponse
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &runnerResponse)
+	}
+	if runnerResponse.Status != "" {
+		result.Status = runnerResponse.Status
+	}
+	result.Output = strings.TrimSpace(runnerResponse.Output)
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		if result.Output == "" {
+			result.Output = strings.TrimSpace(string(raw))
+		}
+		return result, fmt.Errorf("scheduled job runner returned HTTP %d", resp.StatusCode)
 	}
 	return result, nil
 }
