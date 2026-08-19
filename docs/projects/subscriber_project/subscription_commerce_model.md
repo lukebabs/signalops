@@ -1,6 +1,6 @@
 # MarketOps Subscription Commerce Model
 
-Status: foundation deployed and verified on 2026-08-17; commercial activation remains deliberately disabled until controlled product provisioning and payment-provider readiness have evidence. See [release evidence](subscription_commerce_foundation_release_evidence_2026-08-17.md).
+Status: foundation deployed and verified on 2026-08-17; Administration governance for enrolled users, tenant contracts, seats, tier policy, limits, and audit visibility was added on 2026-08-19. Commercial activation remains deliberately disabled until controlled activation evidence is retained. See [release evidence](subscription_commerce_foundation_release_evidence_2026-08-17.md).
 
 ## Product intent
 
@@ -52,7 +52,20 @@ Explorer retains dashboard/public-signal access and SRI rankings. The web shell 
 | Subscriber | Personal lists and the analytical features granted by the effective subscription. |
 | Data-plane worker | Global catalog/coverage/algorithm work only; no subscription administration or browser impersonation. |
 
-The Platform Subscription Admin API is implemented as a fail-closed, signed-role-only provisioning boundary for subject plans, Institutional contracts, and seats. Its controlled operator UI is in the Administration workbench at /admin/subscriptions, never in MarketOps. It is not a browser self-upgrade path. Stripe webhook reconciliation remains the next commerce integration slice.
+The Platform Subscription Admin API is implemented as a fail-closed, signed-role-only governance boundary for subject plans, Institutional contracts, seats, product/tier feature policy, limits, product active state, and audit visibility. Its controlled operator UI is in the Administration workbench at /admin/subscriptions, never in MarketOps. It is not a browser self-upgrade path. Stripe webhook reconciliation remains the next commerce integration slice.
+
+
+## Administration governance surface — 2026-08-19
+
+The Administration workbench now exposes a real governance view rather than only blind provisioning forms:
+
+- tenant-filtered enrolled subject subscriptions with current plan/status evidence;
+- Institutional tenant contracts and assigned seats;
+- tier/product policy cards showing billing scope, active state, trial days, revision, feature policy, and limit policy;
+- product-policy mutation for feature alignment and limits, with revision increment and audit evidence;
+- tenant-scoped subscription audit trail for provisioning and policy changes.
+
+This governance surface still does not enable Stripe Checkout, tenant self-service upgrades, provider polling, or subscription enforcement by itself. Enforcement remains controlled by `SIGNALOPS_SUBSCRIPTIONS_ENABLED`, and the gateway remains authoritative for feature checks.
 
 ## Stripe boundary
 
@@ -79,7 +92,7 @@ Rollback is one configuration change to `false`. It removes commercial feature e
 ## Explicitly deferred work
 
 - Stripe credentials, Checkout, customer portal, webhook verification/reconciliation worker, retry/dead-letter handling, and billing telemetry.
-- Tenant-facing seat-management UI, product/price editing, and controlled overrides. The platform provisioning API exists but has no browser self-service upgrade path.
+- Tenant-facing seat-management UI, Stripe price editing, controlled commercial overrides beyond the platform-admin governance boundary, and customer self-service upgrade paths.
 - Research-report generation/storage, portfolio CSV ingestion, batch-screening UI, custom-universe selector, API-key lifecycle, and shared-tenant branding controls.
 - SRI discovery/detail response shaping beyond the current endpoint boundary.
 - A production purchase flow. There is no hidden self-service billing path in this release.

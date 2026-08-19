@@ -1,6 +1,6 @@
 # Subscription Commerce Foundation Release Evidence â€” 2026-08-17
 
-Status: foundation deployed and verified; commercial enforcement remains disabled.
+Status: foundation deployed and verified; Administration governance for enrolled users and tier policy was added on 2026-08-19; commercial enforcement remains disabled.
 
 ## Completed release evidence
 
@@ -50,7 +50,7 @@ Direct subject plans take precedence over Institutional tenant seats, so the thr
 
 Run the live browser/API acceptance matrix and retain the 402 negative-path evidence before requesting feature-flag activation. Professional browser acceptance requires that controlled QA identityâ€™s login credential to be supplied to the protected QA environment; no credential was added or exposed during this provisioning operation.
 
-## Controlled temporary production enforcement canary"éÝyø§yÔ 2026-08-17
+## Controlled temporary production enforcement canary"ï¿½ï¿½yï¿½ï¿½yï¿½ 2026-08-17
 
 Status: **passed**. This was a bounded production proof, not a persistent commercial activation.
 
@@ -62,7 +62,7 @@ The named approval authorized a temporary gateway-only enforcement window. The c
 | Professional | Same controlled subject, temporarily and audibly changed to Professional | Value Intelligence browser route and valuation API returned normal access; Signal Assurance browser route remained locked and its API returned `402 subscription_feature_required`. |
 | Institutional | `luke@strategiclabs.io` active `tenant_admin` seat for the active `tenant-local` Institutional contract | Signal Assurance browser route and effectiveness API returned normal access. |
 
-All temporary Explorer"éÝyø§yÒ Professional"éÝyø§yÒ Explorer changes were performed through the signed Subscription Administration boundary and retained immutable audit events. No provider request, scheduler, data-plane job, tenant contract, institutional seat, or production dotenv was changed.
+All temporary Explorer"ï¿½ï¿½yï¿½ï¿½yï¿½ Professional"ï¿½ï¿½yï¿½ï¿½yï¿½ Explorer changes were performed through the signed Subscription Administration boundary and retained immutable audit events. No provider request, scheduler, data-plane job, tenant contract, institutional seat, or production dotenv was changed.
 
 ### Canary hardening findings closed
 
@@ -71,3 +71,21 @@ All temporary Explorer"éÝyø§yÒ Professional"éÝyø§yÒ Explorer changes were perfor
 - The runner now waits for both a running container and the gateway `/readyz` endpoint before browser validation. It always restores the normal enforcement-off configuration in its exit path.
 
 The canary action is narrowly allowlisted in the deployment agent. It cannot accept arbitrary commands or persistently enable enforcement. The remaining business decision is a separately named approval to enable commercial enforcement beyond this temporary proof; that approval is not implied by the successful canary.
+
+
+## Administration governance enhancement â€” 2026-08-19
+
+The Subscription Administration workbench was expanded from a provisioning-only form into a governance console. It now reads a tenant-scoped subscription snapshot and shows product/tier policies, subject subscriptions, Institutional contracts, seats, and audit history. Platform subscription administrators can update tier feature policy, limit policy, active state, display name, and trial days through a signed, audited API.
+
+Implementation boundaries:
+
+- no new migration was required; the slice uses the existing `000147` subscription commerce tables;
+- product-policy updates increment product revision and write audit evidence under the signed administrator tenant;
+- provisioning remains signed-role-only through `signalops:subscription_admin`;
+- no Stripe Checkout, webhook reconciliation, provider polling, feature-flag activation, or customer self-service upgrade path was added.
+
+Validation retained:
+
+- `go test ./internal/api ./internal/storage/postgres`;
+- `npm --prefix web run build`;
+- `git diff --check`.

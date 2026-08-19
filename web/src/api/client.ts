@@ -191,6 +191,8 @@ import type {
   SubscriberCatalogMembershipResult,
   SubscriberSubscriptionProductsResponse,
   SubscriberSubscriptionResponse,
+  SubscriberSubscriptionAdministrationResponse,
+  SubscriberSubscriptionProductUpdateRequest,
 } from "../types";
 import { authConfig } from "../auth/config";
 import { getAccessToken } from "../auth/session";
@@ -825,6 +827,10 @@ export const api = {
     get<MarketOpsSignalAssuranceRecommendationsResponse>("/v1/marketops/signal-assurance/recommendations", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, evaluation_mode: evaluationMode || undefined }),
   listSubscriberSubscriptionProducts: () =>
     get<SubscriberSubscriptionProductsResponse>("/v1/marketops/subscription-products", undefined, "no-store"),
+  getSubscriberSubscriptionAdministration: (tenantId: string) =>
+    get<SubscriberSubscriptionAdministrationResponse>("/v1/administration/subscriptions", { tenant_id: tenantId }, "no-store"),
+  updateSubscriberSubscriptionProduct: (productKey: string, body: SubscriberSubscriptionProductUpdateRequest) =>
+    put<{ status: string }>("/v1/administration/subscriptions/products/" + encodeURIComponent(productKey), body),
   getSubscriberSubscription: (tenantId: string) =>
     get<SubscriberSubscriptionResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscription", undefined, "no-store"),
   listSubscriberWatchlists: (tenantId: string) =>

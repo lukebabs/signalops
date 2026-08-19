@@ -1,5 +1,40 @@
 # SignalOps Build Journal
 
+## 2026-08-19T04:48:13Z
+
+Summary:
+
+- Expanded Subscription Administration from provisioning-only forms into a governance console.
+- Added signed platform-admin API reads for tenant-scoped subject subscriptions, Institutional contracts, seats, product policies, and audit events.
+- Added signed product/tier policy mutation for feature policy, limits, active state, display name, and trial days with revision/audit persistence.
+- Updated the Admin UI to show enrolled users, tenant contracts/seats, tier capability policy, limits, and audit history.
+
+Files changed:
+
+- `internal/api/subscriber_subscription_admin.go`
+- `internal/api/subscriber_subscription_admin_test.go`
+- `internal/storage/subscriber_subscription_admin.go`
+- `internal/storage/postgres/subscriber_subscription_admin.go`
+- `web/src/routes/SubscriptionAdministrationRoute.tsx`
+- `web/src/api/client.ts`
+- `web/src/types.ts`
+- `docs/projects/subscriber_project/subscription_commerce_model.md`
+- `docs/projects/subscriber_project/subscription_commerce_foundation_release_evidence_2026-08-17.md`
+
+Rationale:
+
+- A subscription administration surface must govern enrolled users and tier-entitlement policy. Blind provisioning forms are insufficient for production operations because administrators need current enrollment state, product-policy revision, limits, seats, and audit evidence before enabling commercial enforcement.
+
+Verification performed:
+
+- `go test ./internal/api ./internal/storage/postgres`
+- `npm --prefix web run build`
+- `git diff --check`
+
+Next step:
+
+- Deploy Gateway and Web, then validate `/admin/subscriptions` with `luke@strategiclabs.io` against `tenant-local` before any production enforcement decision.
+
 ## 2026-08-19T04:24:47Z
 
 Summary:

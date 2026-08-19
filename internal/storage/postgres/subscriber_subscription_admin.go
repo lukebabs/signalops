@@ -3,12 +3,226 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/lukebabs/signalops/internal/storage"
 )
+
+func (r *Repository) ListSubscriberSubscriptionAdministration(ctx context.Context, filter storage.SubscriberSubscriptionAdministrationFilter) (storage.SubscriberSubscriptionAdministrationSnapshot, error) {
+	tenantID := strings.TrimSpace(filter.TenantID)
+	if !validSubscriberTenantID(tenantID) {
+		return storage.SubscriberSubscriptionAdministrationSnapshot{}, errors.New("invalid subscription administration tenant")
+	}
+	var snapshot storage.SubscriberSubscriptionAdministrationSnapshot
+	snapshot.TenantID = tenantID
+	err := r.WithSubscriberTenantScope(ctx, tenantID, func(ctx context.Context, tx *sql.Tx) error {
+		products, err := listSubscriberSubscriptionProductsTx(ctx, tx, false)
+		if err != nil {
+			return err
+		}
+		snapshot.Products = products
+		subjects, err := listSubscriberSubjectSubscriptionsTx(ctx, tx, tenantID)
+		if err != nil {
+			return err
+		}
+		snapshot.SubjectSubscriptions = subjects
+		contracts, err := listSubscriberTenantSubscriptionsTx(ctx, tx, tenantID)
+		if err != nil {
+			return err
+		}
+		snapshot.TenantSubscriptions = contracts
+		seats, err := listSubscriberSubscriptionSeatsTx(ctx, tx, tenantID)
+		if err != nil {
+			return err
+		}
+		snapshot.Seats = seats
+		audit, err := listSubscriberSubscriptionAuditEventsTx(ctx, tx, tenantID)
+		if err != nil {
+			return err
+		}
+		snapshot.AuditEvents = audit
+		return nil
+	})
+	return snapshot, err
+}
+
+func (r *Repository) UpdateSubscriberSubscriptionProduct(ctx context.Context, input storage.SubscriberSubscriptionProductMutation) error {
+	if err := validSubscriberSubscriptionProductMutation(input); err != nil {
+		return err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	auditTenantID := strings.TrimSpace(input.TenantID)
+	if !validSubscriberTenantID(auditTenantID) {
+		return errors.New("invalid subscription product audit tenant")
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('signalops.tenant_id', $1, true)`, auditTenantID); err != nil {
+		return fmt.Errorf("set subscription product audit scope: %w", err)
+	}
+	var before []byte
+	if err := tx.QueryRowContext(ctx, `
+SELECT to_jsonb(p)::text::jsonb
+FROM subscriber_subscription_products p
+WHERE product_key=$1`, input.ProductKey).Scan(&before); errors.Is(err, sql.ErrNoRows) {
+		return storage.ErrNotFound
+	} else if err != nil {
+		return fmt.Errorf("read subscription product: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+UPDATE subscriber_subscription_products
+SET display_name=$2, is_free=$3, trial_days=$4,
+  feature_policy=$5::jsonb, limit_policy=$6::jsonb, active=$7,
+  changed_by=$8, revision=revision+1, updated_at=now()
+WHERE product_key=$1`, input.ProductKey, input.DisplayName, input.IsFree, input.TrialDays, string(input.FeaturePolicyJSON), string(input.LimitPolicyJSON), input.Active, input.ActorSubject)
+	if err != nil {
+		return fmt.Errorf("update subscription product: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return storage.ErrNotFound
+	}
+	var after []byte
+	if err := tx.QueryRowContext(ctx, `SELECT to_jsonb(p)::text::jsonb FROM subscriber_subscription_products p WHERE product_key=$1`, input.ProductKey).Scan(&after); err != nil {
+		return fmt.Errorf("read updated subscription product: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO subscriber_subscription_audit_events
+  (audit_id, tenant_id, subject, actor_subject, event_type, before_state, after_state, correlation_id)
+VALUES ($1, $2, '', $3, 'subscription_product_policy_updated', $4::jsonb, $5::jsonb, $6)`,
+		newSubscriberID("subaudit"), auditTenantID, input.ActorSubject, string(before), string(after), input.CorrelationID)
+	if err != nil {
+		return fmt.Errorf("insert subscription product audit: %w", err)
+	}
+	return tx.Commit()
+}
+
+func listSubscriberSubscriptionProductsTx(ctx context.Context, tx *sql.Tx, activeOnly bool) ([]storage.SubscriberSubscriptionProductRecord, error) {
+	query := `
+SELECT product_key, billing_scope, display_name, is_free, trial_days,
+  stripe_product_id, stripe_monthly_price_id, stripe_annual_price_id,
+  feature_policy, limit_policy, revision, active, changed_by, created_at, updated_at
+FROM subscriber_subscription_products`
+	if activeOnly {
+		query += ` WHERE active=true`
+	}
+	query += ` ORDER BY CASE product_key WHEN 'explorer' THEN 1 WHEN 'professional' THEN 2 WHEN 'institutional' THEN 3 ELSE 99 END`
+	rows, err := tx.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list subscription products: %w", err)
+	}
+	defer rows.Close()
+	products := []storage.SubscriberSubscriptionProductRecord{}
+	for rows.Next() {
+		var product storage.SubscriberSubscriptionProductRecord
+		if err := scanSubscriberSubscriptionProduct(rows, &product); err != nil {
+			return nil, err
+		}
+		products = append(products, product)
+	}
+	return products, rows.Err()
+}
+
+func listSubscriberSubjectSubscriptionsTx(ctx context.Context, tx *sql.Tx, tenantID string) ([]storage.SubscriberSubjectSubscriptionRecord, error) {
+	rows, err := tx.QueryContext(ctx, `
+SELECT s.tenant_id, s.subject, s.subscription_id, s.product_key, p.display_name, s.status,
+  s.trial_ends_at, s.current_period_ends_at, s.grace_ends_at, s.canceled_at,
+  s.provisioned_by, s.correlation_id, s.created_at, s.updated_at
+FROM subscriber_subject_subscriptions s
+JOIN subscriber_subscription_products p ON p.product_key=s.product_key
+WHERE s.tenant_id=$1
+ORDER BY s.updated_at DESC, s.subject`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list subject subscriptions: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.SubscriberSubjectSubscriptionRecord{}
+	for rows.Next() {
+		var record storage.SubscriberSubjectSubscriptionRecord
+		if err := rows.Scan(&record.TenantID, &record.Subject, &record.SubscriptionID, &record.ProductKey, &record.DisplayName, &record.Status, &record.TrialEndsAt, &record.CurrentPeriodEndsAt, &record.GraceEndsAt, &record.CanceledAt, &record.ProvisionedBy, &record.CorrelationID, &record.CreatedAt, &record.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan subject subscription: %w", err)
+		}
+		records = append(records, record)
+	}
+	return records, rows.Err()
+}
+
+func listSubscriberTenantSubscriptionsTx(ctx context.Context, tx *sql.Tx, tenantID string) ([]storage.SubscriberTenantSubscriptionRecord, error) {
+	rows, err := tx.QueryContext(ctx, `
+SELECT s.tenant_id, s.subscription_id, s.product_key, p.display_name, s.status,
+  s.current_period_ends_at, s.grace_ends_at, s.canceled_at,
+  s.provisioned_by, s.correlation_id, s.created_at, s.updated_at
+FROM subscriber_tenant_subscriptions s
+JOIN subscriber_subscription_products p ON p.product_key=s.product_key
+WHERE s.tenant_id=$1
+ORDER BY s.updated_at DESC`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list tenant subscriptions: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.SubscriberTenantSubscriptionRecord{}
+	for rows.Next() {
+		var record storage.SubscriberTenantSubscriptionRecord
+		if err := rows.Scan(&record.TenantID, &record.SubscriptionID, &record.ProductKey, &record.DisplayName, &record.Status, &record.CurrentPeriodEndsAt, &record.GraceEndsAt, &record.CanceledAt, &record.ProvisionedBy, &record.CorrelationID, &record.CreatedAt, &record.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan tenant subscription: %w", err)
+		}
+		records = append(records, record)
+	}
+	return records, rows.Err()
+}
+
+func listSubscriberSubscriptionSeatsTx(ctx context.Context, tx *sql.Tx, tenantID string) ([]storage.SubscriberSubscriptionSeatRecord, error) {
+	rows, err := tx.QueryContext(ctx, `
+SELECT tenant_id, subject, tenant_subscription_id, seat_role, status, assigned_by,
+  correlation_id, assigned_at, revoked_at
+FROM subscriber_subscription_seats
+WHERE tenant_id=$1
+ORDER BY assigned_at DESC, subject`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list subscription seats: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.SubscriberSubscriptionSeatRecord{}
+	for rows.Next() {
+		var record storage.SubscriberSubscriptionSeatRecord
+		if err := rows.Scan(&record.TenantID, &record.Subject, &record.TenantSubscriptionID, &record.SeatRole, &record.Status, &record.AssignedBy, &record.CorrelationID, &record.AssignedAt, &record.RevokedAt); err != nil {
+			return nil, fmt.Errorf("scan subscription seat: %w", err)
+		}
+		records = append(records, record)
+	}
+	return records, rows.Err()
+}
+
+func listSubscriberSubscriptionAuditEventsTx(ctx context.Context, tx *sql.Tx, tenantID string) ([]storage.SubscriberSubscriptionAuditEventRecord, error) {
+	rows, err := tx.QueryContext(ctx, `
+SELECT audit_id, tenant_id, subject, subscription_id, actor_subject, event_type,
+  COALESCE(before_state, '{}'::jsonb), COALESCE(after_state, '{}'::jsonb), correlation_id, occurred_at
+FROM subscriber_subscription_audit_events
+WHERE tenant_id=$1
+ORDER BY occurred_at DESC
+LIMIT 100`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list subscription audit events: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.SubscriberSubscriptionAuditEventRecord{}
+	for rows.Next() {
+		var record storage.SubscriberSubscriptionAuditEventRecord
+		if err := rows.Scan(&record.AuditID, &record.TenantID, &record.Subject, &record.SubscriptionID, &record.ActorSubject, &record.EventType, &record.BeforeStateJSON, &record.AfterStateJSON, &record.CorrelationID, &record.OccurredAt); err != nil {
+			return nil, fmt.Errorf("scan subscription audit event: %w", err)
+		}
+		records = append(records, record)
+	}
+	return records, rows.Err()
+}
 
 func (r *Repository) UpsertSubscriberSubjectSubscription(ctx context.Context, input storage.SubscriberSubjectSubscriptionMutation) error {
 	if err := validSubscriberSubjectSubscriptionMutation(input); err != nil {
@@ -158,4 +372,25 @@ func validSubscriberSubscriptionStatus(status string) error {
 	default:
 		return errors.New("invalid subscription status")
 	}
+}
+
+func validSubscriberSubscriptionProductMutation(input storage.SubscriberSubscriptionProductMutation) error {
+	if input.ProductKey != "explorer" && input.ProductKey != "professional" && input.ProductKey != "institutional" {
+		return errors.New("invalid subscription product")
+	}
+	if strings.TrimSpace(input.DisplayName) == "" || strings.TrimSpace(input.ActorSubject) == "" {
+		return errors.New("invalid subscription product mutation")
+	}
+	if input.TrialDays < 0 || input.TrialDays > 31 {
+		return errors.New("invalid subscription trial days")
+	}
+	if !jsonObject(input.FeaturePolicyJSON) || !jsonObject(input.LimitPolicyJSON) {
+		return errors.New("invalid subscription policy json")
+	}
+	return nil
+}
+
+func jsonObject(raw []byte) bool {
+	var value map[string]any
+	return json.Unmarshal(raw, &value) == nil
 }

@@ -30,7 +30,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 
 ## Document set
 
-- [Subscription Commerce Model](subscription_commerce_model.md): Explorer, Professional, and Institutional product decisions; tier enforcement, RBAC separation, Stripe boundary, rollout, and deferred work.
+- [Subscription Commerce Model](subscription_commerce_model.md): Explorer, Professional, and Institutional product decisions; tier enforcement, RBAC separation, Administration governance, Stripe boundary, rollout, and deferred work.
 
 - [Global Catalog and Watchlist Roadmap](global_catalog_watchlists_roadmap.md): target architecture, data flow, options demand design, compatibility-first sprint plan, controls, and acceptance measures.
 - [Tenant-local legacy-default preservation — 2026-08-16](tenant_local_legacy_default_preservation_2026-08-16.md): audited, non-destructive preservation of the 132-symbol legacy tenant-default list through canonical global identities.
