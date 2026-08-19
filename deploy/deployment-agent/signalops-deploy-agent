@@ -57,6 +57,9 @@ case "$action" in
       marketops-risk-reward)
         unit="signalops-marketops-boundary-schedule@marketops-postclose-recovery.service"
         ;;
+      marketops-operations-monitor)
+        unit="signalops-marketops-operations-monitor.service"
+        ;;
       signalops-storage-monitor)
         unit="signalops-storage-monitor.service"
         ;;

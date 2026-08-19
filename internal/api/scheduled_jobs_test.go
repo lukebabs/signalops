@@ -9,12 +9,14 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/lukebabs/signalops/internal/storage"
 )
 
 func TestScheduledJobStatusesIncludePostCloseRecoveryStages(t *testing.T) {
 	t.Setenv("SIGNALOPS_SCHEDULE_STATUS_DIR", t.TempDir())
 
-	jobs := scheduledJobStatuses()
+	jobs := scheduledJobStatuses(context.Background(), nil)
 	byID := make(map[string]map[string]any, len(jobs))
 	for _, job := range jobs {
 		byID[job["job_id"].(string)] = job
@@ -45,7 +47,7 @@ func TestScheduledJobStatusesReadRecoveryEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, job := range scheduledJobStatuses() {
+	for _, job := range scheduledJobStatuses(context.Background(), nil) {
 		if job["job_id"] != "marketops-risk-reward" {
 			continue
 		}
@@ -109,4 +111,44 @@ func TestTriggerScheduledJobRunNowViaSocket(t *testing.T) {
 	if result.Runner != "unix:"+socketPath || result.Output != "started" || result.Status != "accepted" {
 		t.Fatalf("unexpected result: %#v", result)
 	}
+}
+
+type fakeScheduledJobStatusRepository struct {
+	records []storage.MarketOpsScheduledJobStatusRecord
+}
+
+func (f fakeScheduledJobStatusRepository) ListMarketOpsScheduledJobStatuses(context.Context) ([]storage.MarketOpsScheduledJobStatusRecord, error) {
+	return f.records, nil
+}
+
+func TestScheduledJobStatusesPreferDatabaseStatus(t *testing.T) {
+	started := time.Date(2026, 8, 19, 4, 0, 0, 0, time.UTC)
+	completed := time.Date(2026, 8, 19, 4, 0, 2, 0, time.UTC)
+	exitCode := 0
+	repo := fakeScheduledJobStatusRepository{records: []storage.MarketOpsScheduledJobStatusRecord{{
+		JobID:       "marketops-operations-monitor",
+		Schedule:    "Hourly",
+		Timezone:    "UTC",
+		Status:      "succeeded",
+		StartedAt:   &started,
+		CompletedAt: &completed,
+		ExitCode:    &exitCode,
+		DetailJSON:  []byte(`{"checks":8}`),
+		UpdatedAt:   completed,
+	}}}
+
+	jobs := scheduledJobStatuses(context.Background(), repo)
+	for _, job := range jobs {
+		if job["job_id"] != "marketops-operations-monitor" {
+			continue
+		}
+		if job["status"] != "succeeded" || job["status_source"] != "database" || job["exit_code"] != 0 {
+			t.Fatalf("database status was not merged: %#v", job)
+		}
+		if job["checks"] != float64(8) {
+			t.Fatalf("database detail was not flattened: %#v", job)
+		}
+		return
+	}
+	t.Fatal("operations monitor job missing")
 }

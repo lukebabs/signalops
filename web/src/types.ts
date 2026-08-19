@@ -89,7 +89,7 @@ export interface SchedulerRunResponse {
   run: SchedulerRun;
 }
 
-export interface ScheduledJob { job_id:string; label:string; schedule:string; timezone:string; status:"pending"|"running"|"succeeded"|"failed"|string; started_at?:string; completed_at?:string; exit_code?:number; }
+export interface ScheduledJob { job_id:string; label:string; schedule:string; timezone:string; status:"pending"|"running"|"succeeded"|"failed"|string; started_at?:string; completed_at?:string; exit_code?:number; run_now_enabled?:boolean; }
 export interface ScheduledJobsResponse { jobs: ScheduledJob[]; }
 export interface ScheduledJobRunNow { job_id:string; status:string; action:string; runner:string; started_at:string; output?:string; }
 export interface ScheduledJobRunNowResponse { run: ScheduledJobRunNow; }

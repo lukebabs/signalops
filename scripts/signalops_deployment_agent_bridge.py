@@ -23,6 +23,7 @@ ALLOWED_JOB_IDS = {
     "marketops-task-retry",
     "marketops-postclose-recovery",
     "marketops-risk-reward",
+    "marketops-operations-monitor",
     "signalops-storage-monitor",
     "signalops-retention-governance",
 }

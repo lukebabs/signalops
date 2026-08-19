@@ -5,18 +5,26 @@ job_id="$1"; schedule="$2"; timezone="$3"; shift 3
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/marketops_trading_calendar.sh
 source "$root_dir/scripts/lib/marketops_trading_calendar.sh"
+# shellcheck source=marketops_schedule_database.sh
+source "$root_dir/scripts/marketops_schedule_database.sh"
 status_dir="${SIGNALOPS_SCHEDULE_STATUS_DIR:-$(pwd)/runtime/scheduled-jobs}"
 mkdir -p "$status_dir"
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-if marketops_is_weekend "$timezone" && ! marketops_weekend_permitted_job "$job_id"; then
-  printf "{\"job_id\":\"%s\",\"schedule\":\"%s\",\"timezone\":\"%s\",\"status\":\"skipped\",\"reason\":\"non_trading_day\",\"started_at\":\"%s\",\"completed_at\":\"%s\",\"exit_code\":0}\n" "$job_id" "$schedule" "$timezone" "$started_at" "$started_at" > "$status_dir/.${job_id}.tmp"
+run_id="${job_id}-$(date -u -d "$started_at" +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%dT%H%M%SZ)"
+write_status_file() {
+  local payload="$1"
+  printf '%s\n' "$payload" > "$status_dir/.${job_id}.tmp"
   mv "$status_dir/.${job_id}.tmp" "$status_dir/${job_id}.json"
+}
+if marketops_is_weekend "$timezone" && ! marketops_weekend_permitted_job "$job_id"; then
+  marketops_record_scheduled_job_status_or_warn "$run_id" "$job_id" "$schedule" "$timezone" "skipped" "$started_at" "$started_at" "0" "non_trading_day" "{}" || true
+  write_status_file "$(printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"skipped","reason":"non_trading_day","started_at":"%s","completed_at":"%s","exit_code":0}' "$job_id" "$schedule" "$timezone" "$started_at" "$started_at")"
   printf "skipped non-trading-day job: %s\n" "$job_id"
   exit 0
 fi
 
-printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"running","started_at":"%s"}\n' "$job_id" "$schedule" "$timezone" "$started_at" > "$status_dir/.${job_id}.tmp"
-mv "$status_dir/.${job_id}.tmp" "$status_dir/${job_id}.json"
+marketops_record_scheduled_job_status_or_warn "$run_id" "$job_id" "$schedule" "$timezone" "running" "$started_at" "" "" "" "{}" || true
+write_status_file "$(printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"running","started_at":"%s"}' "$job_id" "$schedule" "$timezone" "$started_at")"
 
 set +e
 if [[ "${SIGNALOPS_MARKETOPS_DATA_PLANE_PREFLIGHT_REQUIRED:-false}" == "true" || "${SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE:-}" == "marketops-postgres" ]]; then
@@ -33,8 +41,8 @@ fi
 set -e
 completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 status="succeeded"; [[ "$exit_code" -eq 0 ]] || status="failed"
-printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"%s","started_at":"%s","completed_at":"%s","exit_code":%s}\n' "$job_id" "$schedule" "$timezone" "$status" "$started_at" "$completed_at" "$exit_code" > "$status_dir/.${job_id}.tmp"
-mv "$status_dir/.${job_id}.tmp" "$status_dir/${job_id}.json"
+marketops_record_scheduled_job_status_or_warn "$run_id" "$job_id" "$schedule" "$timezone" "$status" "$started_at" "$completed_at" "$exit_code" "" "{}" || true
+write_status_file "$(printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"%s","started_at":"%s","completed_at":"%s","exit_code":%s}' "$job_id" "$schedule" "$timezone" "$status" "$started_at" "$completed_at" "$exit_code")"
 
 # Governed daily/weekly completions and every job failure become administrator inbox
 # events. Recorder failure is non-blocking so it cannot conceal the job result.

@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 .venv
+runtime/scheduled-jobs/*.json
 cert/*
 *.pem
 *.orig

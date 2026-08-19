@@ -8090,3 +8090,12 @@ Next-cycle priority:
 - Reran `signalops-marketops-operations-monitor.service`; it passed at 2026-08-19 03:43 UTC. Backup freshness, WAL freshness, repository size, credentials, scheduler checks, restore rehearsal, and coverage queue are all passing.
 - Reprovisioned the deployment agent and verified the live root-owned `signalops-marketops-pgbackrest.service` ExecStart is re-anchored to the current repository path. The latest controlled backup exited `status=0` from `2026-08-19 03:48:33 UTC` to `2026-08-19 03:49:40 UTC`.
 - Reran `sudo -n signalops-deploy-agent operations-monitor-run`; it exited successfully after the re-anchor. Scheduler status shows active MarketOps intraday, post-close, post-close recovery, SRI, holdings, and warm-EOD timers with latest one-shot results successful. N1 has no remaining blocker from the 2026-08-19 recovery-control loop.
+
+
+## 2026-08-19 — MarketOps scheduled-job status moved to database
+
+- Added migration `000154_marketops_scheduled_job_statuses` to store latest scheduled-job status and append-only run history in the dedicated MarketOps primary.
+- Applied `000154` live to the dedicated MarketOps primary at `2026-08-19 04:12:38 UTC`, then seeded 13 latest job statuses and 11 historical run rows from the existing local fallback JSON.
+- Updated the scheduled-job wrapper and Risk/Reward recovery status writer to persist status to MarketOps PostgreSQL first. Repo-local JSON remains only as ignored fallback/debug output and is no longer source-controlled.
+- Fixed the operations-monitor systemd template to load the protected MarketOps cutover environment only for status persistence, without changing its monitoring command. A controlled run at `2026-08-19 04:16:18 UTC` wrote `marketops-operations-monitor` status `succeeded` with runner `systemd` into `marketops_scheduled_job_statuses`.
+- Updated the Administration scheduled-jobs API to read DB-backed status through the MarketOps repository, with file fallback during transition. The UI now marks jobs without a safe run-now action as status-only instead of exposing a failing button.

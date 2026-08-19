@@ -177,10 +177,10 @@ export function SystemRoute() {
               <button
                 type="button"
                 onClick={() => runScheduledJobNow.mutate(job.job_id)}
-                disabled={runScheduledJobNow.isPending}
+                disabled={runScheduledJobNow.isPending || job.run_now_enabled === false}
                 className="rounded border border-brand-300 bg-white px-2 py-1 text-[11px] font-medium text-brand-700 hover:bg-brand-50 disabled:cursor-wait disabled:border-gray-200 disabled:text-gray-400"
               >
-                {runScheduledJobNow.isPending && runScheduledJobNow.variables === job.job_id ? "Starting..." : "Run now"}
+                {job.run_now_enabled === false ? "Status only" : runScheduledJobNow.isPending && runScheduledJobNow.variables === job.job_id ? "Starting..." : "Run now"}
               </button>
             </td>
           </tr>

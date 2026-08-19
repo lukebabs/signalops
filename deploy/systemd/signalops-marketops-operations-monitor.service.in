@@ -5,6 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+EnvironmentFile=-/etc/signalops/marketops-cutover.env
+Environment=SIGNALOPS_SCHEDULE_STATUS_DB_SERVICE=marketops-postgres
+Environment=SIGNALOPS_SCHEDULE_STATUS_DATABASE=marketops
 WorkingDirectory=@WORKDIR@
 Environment=SIGNALOPS_PGBACKREST_CONFIG_PATH=/etc/signalops/marketops-pgbackrest/pgbackrest.conf
 ExecStartPre=/usr/bin/systemctl start signalops-pgbackrest-credentials.service

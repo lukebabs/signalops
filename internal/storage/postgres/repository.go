@@ -881,6 +881,30 @@ ON CONFLICT (tenant_id, primitive_type, definition_key, version) DO UPDATE SET
 	return nil
 }
 
+func (r *Repository) ListMarketOpsScheduledJobStatuses(ctx context.Context) ([]storage.MarketOpsScheduledJobStatusRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT job_id, schedule, timezone, status, reason, started_at, completed_at, exit_code,
+  COALESCE(detail, '{}'::jsonb)::text, runner, updated_at
+FROM marketops_scheduled_job_statuses
+ORDER BY job_id`)
+	if err != nil {
+		return nil, fmt.Errorf("list marketops scheduled job statuses: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.MarketOpsScheduledJobStatusRecord{}
+	for rows.Next() {
+		record, err := scanMarketOpsScheduledJobStatus(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list marketops scheduled job status rows: %w", err)
+	}
+	return records, nil
+}
+
 func (r *Repository) ListSchedulerRuns(ctx context.Context, limit int) ([]storage.SchedulerRunRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT run_id, tenant_id, source_id, source_adapter, COALESCE(array_to_json(datasets), '[]'::json)::text,
@@ -1878,6 +1902,10 @@ type catalogPipelineScanner interface {
 	Scan(dest ...any) error
 }
 
+type marketOpsScheduledJobStatusScanner interface {
+	Scan(dest ...any) error
+}
+
 type catalogRuleScanner interface {
 	Scan(dest ...any) error
 }
@@ -1888,6 +1916,42 @@ type platformPrimitiveDefinitionScanner interface {
 
 type marketOpsAssetScanner interface {
 	Scan(dest ...any) error
+}
+
+func scanMarketOpsScheduledJobStatus(scanner marketOpsScheduledJobStatusScanner) (storage.MarketOpsScheduledJobStatusRecord, error) {
+	var record storage.MarketOpsScheduledJobStatusRecord
+	var startedAt, completedAt sql.NullTime
+	var exitCode sql.NullInt32
+	var detailJSON string
+	if err := scanner.Scan(
+		&record.JobID,
+		&record.Schedule,
+		&record.Timezone,
+		&record.Status,
+		&record.Reason,
+		&startedAt,
+		&completedAt,
+		&exitCode,
+		&detailJSON,
+		&record.Runner,
+		&record.UpdatedAt,
+	); err != nil {
+		return storage.MarketOpsScheduledJobStatusRecord{}, mapScanError("scan marketops scheduled job status", err)
+	}
+	if startedAt.Valid {
+		t := startedAt.Time
+		record.StartedAt = &t
+	}
+	if completedAt.Valid {
+		t := completedAt.Time
+		record.CompletedAt = &t
+	}
+	if exitCode.Valid {
+		code := int(exitCode.Int32)
+		record.ExitCode = &code
+	}
+	record.DetailJSON = []byte(detailJSON)
+	return record, nil
 }
 
 func scanSchedulerRun(scanner schedulerScanner) (storage.SchedulerRunRecord, error) {

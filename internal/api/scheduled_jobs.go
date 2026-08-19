@@ -33,6 +33,7 @@ var scheduledJobDefinitions = []scheduledJobDefinition{
 	{"marketops-task-retry", "MarketOps governed task retry", "Weekdays every 15 minutes, 18:30-23:00", "America/New_York", "scheduler-run-now:marketops-task-retry"},
 	{"marketops-postclose-recovery", "MarketOps post-close recovery guard", "Weekdays every 15 minutes, 18:30-23:00", "America/New_York", "scheduler-run-now:marketops-postclose-recovery"},
 	{"marketops-risk-reward", "MarketOps Risk/Reward post-close", "Post-close completion stage", "America/New_York", "scheduler-run-now:marketops-risk-reward"},
+	{"marketops-operations-monitor", "MarketOps operations monitor", "Hourly", "UTC", ""},
 	{"signalops-storage-monitor", "Persistent storage monitor", "Daily 02:00", "America/New_York", "scheduler-run-now:signalops-storage-monitor"},
 	{"signalops-retention-governance", "Retention governance (dry run)", "Daily 02:30", "America/New_York", "scheduler-run-now:signalops-retention-governance"},
 }
@@ -57,26 +58,92 @@ type scheduledJobRunnerResponse struct {
 	Output string `json:"output"`
 }
 
-func scheduledJobStatuses() []map[string]any {
+func scheduledJobStatuses(ctx context.Context, repo any) []map[string]any {
 	jobs := scheduledJobDefinitions
+	byID := make(map[string]map[string]any, len(jobs))
+	out := make([]map[string]any, 0, len(jobs))
+	for _, job := range jobs {
+		row := map[string]any{
+			"job_id":          job.ID,
+			"label":           job.Label,
+			"schedule":        job.Schedule,
+			"timezone":        job.Timezone,
+			"status":          "pending",
+			"run_now_enabled": job.RunAction != "",
+		}
+		byID[job.ID] = row
+		out = append(out, row)
+	}
+
+	if reader, ok := repo.(storage.MarketOpsScheduledJobStatusRepository); ok && reader != nil {
+		if records, err := reader.ListMarketOpsScheduledJobStatuses(ctx); err == nil {
+			for _, record := range records {
+				if row, ok := byID[record.JobID]; ok {
+					mergeScheduledJobDatabaseRecord(row, record)
+				}
+			}
+			return out
+		}
+	}
+
+	mergeScheduledJobFileStatuses(out, byID)
+	return out
+}
+
+func mergeScheduledJobDatabaseRecord(row map[string]any, record storage.MarketOpsScheduledJobStatusRecord) {
+	row["schedule"] = record.Schedule
+	row["timezone"] = record.Timezone
+	row["status"] = record.Status
+	row["status_source"] = "database"
+	if record.Reason != "" {
+		row["reason"] = record.Reason
+	}
+	if record.StartedAt != nil {
+		row["started_at"] = record.StartedAt.UTC().Format(time.RFC3339)
+	}
+	if record.CompletedAt != nil {
+		row["completed_at"] = record.CompletedAt.UTC().Format(time.RFC3339)
+	}
+	if record.ExitCode != nil {
+		row["exit_code"] = *record.ExitCode
+	}
+	if record.Runner != "" {
+		row["runner"] = record.Runner
+	}
+	if !record.UpdatedAt.IsZero() {
+		row["updated_at"] = record.UpdatedAt.UTC().Format(time.RFC3339)
+	}
+	if len(record.DetailJSON) > 0 {
+		var detail map[string]any
+		if json.Unmarshal(record.DetailJSON, &detail) == nil {
+			row["detail"] = detail
+			for key, value := range detail {
+				if _, exists := row[key]; !exists {
+					row[key] = value
+				}
+			}
+		}
+	}
+}
+
+func mergeScheduledJobFileStatuses(out []map[string]any, byID map[string]map[string]any) {
 	dir := os.Getenv("SIGNALOPS_SCHEDULE_STATUS_DIR")
 	if dir == "" {
 		dir = "/var/lib/signalops/scheduled-jobs"
 	}
-	out := make([]map[string]any, 0, len(jobs))
-	for _, job := range jobs {
-		row := map[string]any{"job_id": job.ID, "label": job.Label, "schedule": job.Schedule, "timezone": job.Timezone, "status": "pending"}
-		if raw, err := os.ReadFile(filepath.Join(dir, job.ID+".json")); err == nil {
+	for _, row := range out {
+		jobID, _ := row["job_id"].(string)
+		if raw, err := os.ReadFile(filepath.Join(dir, jobID+".json")); err == nil {
 			var recorded map[string]any
 			if json.Unmarshal(raw, &recorded) == nil {
 				for k, v := range recorded {
 					row[k] = v
 				}
+				row["status_source"] = "file"
 			}
 		}
-		out = append(out, row)
 	}
-	return out
+	_ = byID
 }
 
 func scheduledJobRunAction(jobID string) (string, bool) {
@@ -180,7 +247,7 @@ func marketOpsOperationsHealth(ctx context.Context, repo storage.QueryRepository
 	result := map[string]any{
 		"generated_at":   now.Format(time.RFC3339),
 		"tenant_id":      tenantID,
-		"scheduled_jobs": scheduledJobStatuses(),
+		"scheduled_jobs": scheduledJobStatuses(ctx, repo),
 	}
 
 	taskSummary := map[string]any{

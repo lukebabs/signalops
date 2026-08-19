@@ -182,6 +182,20 @@ const (
 	MarketOpsQualityNotApplicable     = "not_applicable"
 )
 
+type MarketOpsScheduledJobStatusRecord struct {
+	JobID       string
+	Schedule    string
+	Timezone    string
+	Status      string
+	Reason      string
+	StartedAt   *time.Time
+	CompletedAt *time.Time
+	ExitCode    *int
+	DetailJSON  []byte
+	Runner      string
+	UpdatedAt   time.Time
+}
+
 type SchedulerRunRecord struct {
 	RunID            string
 	TenantID         string
@@ -2214,6 +2228,10 @@ type ReplayJobFilter struct {
 	SourceKind string
 	Status     string
 	Limit      int
+}
+
+type MarketOpsScheduledJobStatusRepository interface {
+	ListMarketOpsScheduledJobStatuses(ctx context.Context) ([]MarketOpsScheduledJobStatusRecord, error)
 }
 
 type QueryRepository interface {

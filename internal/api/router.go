@@ -129,7 +129,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/administration/scheduled-jobs", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"jobs": scheduledJobStatuses()})
+		writeJSON(w, http.StatusOK, map[string]any{"jobs": scheduledJobStatuses(r.Context(), marketOpsQueryRepository)})
 	})
 
 	mux.HandleFunc("POST /v1/administration/scheduled-jobs/{job_id}/run-now", func(w http.ResponseWriter, r *http.Request) {

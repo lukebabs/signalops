@@ -83,10 +83,14 @@ risk_results="${risk_results:-0}"
 risk_snapshots="${risk_snapshots:-0}"
 
 write_risk_status() {
-  local status="$1" detail="$2" now temp
+  local status="$1" detail="$2" now temp detail_json run_id
   now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  run_id="marketops-risk-reward-${session_date}"
+  detail_json="$(printf '{"session_date":"%s","risk_reward_results":%s,"risk_reward_snapshots":%s,"expected_symbols":%s,"detail":"%s"}' "$session_date" "$risk_results" "$risk_snapshots" "$expected" "$detail")"
+  marketops_record_scheduled_job_status_or_warn "$run_id" "marketops-risk-reward" "Post-close stage; completion-guarded" "$timezone" "$status" "$now" "$now" "0" "$detail" "$detail_json" || true
   temp="$status_dir/.marketops-risk-reward.tmp"
-  printf '{"job_id":"marketops-risk-reward","schedule":"Post-close stage; completion-guarded","timezone":"%s","status":"%s","session_date":"%s","risk_reward_results":%s,"risk_reward_snapshots":%s,"expected_symbols":%s,"detail":"%s","updated_at":"%s"}\n' "$timezone" "$status" "$session_date" "$risk_results" "$risk_snapshots" "$expected" "$detail" "$now" > "$temp"
+  printf '{"job_id":"marketops-risk-reward","schedule":"Post-close stage; completion-guarded","timezone":"%s","status":"%s","session_date":"%s","risk_reward_results":%s,"risk_reward_snapshots":%s,"expected_symbols":%s,"detail":"%s","updated_at":"%s"}
+' "$timezone" "$status" "$session_date" "$risk_results" "$risk_snapshots" "$expected" "$detail" "$now" > "$temp"
   mv "$temp" "$status_dir/marketops-risk-reward.json"
 }
 
