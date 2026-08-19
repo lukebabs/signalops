@@ -14,7 +14,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from playwright.sync_api import Browser, Page, Response, expect
+from playwright.sync_api import Browser, Page, Response, TimeoutError as PlaywrightTimeoutError, expect
 
 
 @dataclass(frozen=True)
@@ -90,23 +90,42 @@ def subscriber_page(subscriber_config: SubscriberUIConfig, browser: Browser, req
 
 
 def login(page: Page, config: SubscriberUIConfig) -> None:
-    page.goto(f"{config.base_url}/marketops/watchlists", wait_until="domcontentloaded")
     heading = page.get_by_role("heading", name="Watchlists")
-    if heading.is_visible(timeout=5_000):
-        return
-    sign_in = page.get_by_role("button", name="Sign in")
-    if sign_in.is_visible(timeout=10_000):
-        sign_in.click()
-    if heading.is_visible(timeout=3_000):
-        return
-    username = page.locator("#username, input[name='username']").or_(page.get_by_role("textbox", name="Email or username")).first
-    username.wait_for(state="visible", timeout=30_000)
-    username.fill(config.username)
-    password = page.locator("#password, input[name='password']").or_(page.get_by_role("textbox", name="Password")).first
-    password.fill(config.password)
-    submit = page.locator("#kc-login, input[type='submit']").or_(page.get_by_role("button", name="Continue")).first
-    submit.click()
-    expect(heading).to_be_visible(timeout=30_000)
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            page.goto(f"{config.base_url}/marketops/watchlists", wait_until="domcontentloaded", timeout=30_000)
+            if page.url.startswith("chrome-error://"):
+                page.wait_for_timeout(1_000 * (attempt + 1))
+                continue
+            if heading.is_visible(timeout=5_000):
+                return
+            sign_in = page.get_by_role("button", name="Sign in")
+            if sign_in.is_visible(timeout=10_000):
+                sign_in.click()
+            if page.url.startswith("chrome-error://"):
+                page.wait_for_timeout(1_000 * (attempt + 1))
+                continue
+            if heading.is_visible(timeout=3_000):
+                return
+            username = page.locator("#username, input[name='username']").or_(page.get_by_role("textbox", name="Email or username")).first
+            username.wait_for(state="visible", timeout=30_000)
+            username.fill(config.username)
+            password = page.locator("#password, input[name='password']").or_(page.get_by_role("textbox", name="Password")).first
+            password.fill(config.password)
+            submit = page.locator("#kc-login, input[type='submit']").or_(page.get_by_role("button", name="Continue")).first
+            submit.click()
+            expect(heading).to_be_visible(timeout=30_000)
+            return
+        except PlaywrightTimeoutError as exc:
+            last_error = exc
+            if page.url.startswith("chrome-error://") or attempt < 2:
+                page.wait_for_timeout(1_000 * (attempt + 1))
+                continue
+            raise
+    if last_error is not None:
+        raise last_error
+    raise AssertionError("Subscriber UI smoke could not reach the login page after retries")
 
 
 def selected_watchlist_name(page: Page) -> str:
