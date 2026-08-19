@@ -56,6 +56,42 @@ raises its normal administrator notification **before any provider call**. It
 does not wait for a downstream normalization timeout or attempt a misleading
 post-close recovery.
 
+The continuous writers are Compose-managed daemons and must use
+`restart: unless-stopped`. A transient PostgreSQL restart or network reset must
+not permanently remove a required data-plane writer. Backup and restore
+rehearsal controls must also treat the live MarketOps database containers as
+pre-existing services: they may verify that the live containers are pgBackRest
+capable, but they must not run `docker compose up -d --build` against the live
+database services as part of routine backup or isolated restore rehearsal.
+
+The operations monitor actively probes WAL archiving with a bounded
+`pg_switch_wal()` before evaluating archive freshness. This prevents low-write
+periods, especially in the temporal store, from appearing stale when archive
+transport is functional. Non-success systemd results such as `exit-code` are
+actionable failures.
+
+
+## August 19, 2026 recovery-control incident
+
+A controlled `restore-rehearsal-run` restarted the live dedicated MarketOps
+PostgreSQL container at `2026-08-19T03:24:37Z`. The
+`marketops-signal-assurance-outbox` process had a live database connection,
+received a connection reset, exited with code 1, and stayed down because the
+container had no restart policy. The first market-session intraday run at
+`2026-08-19T13:30:00Z` then failed the data-plane preflight with
+`marketops_data_plane_service_missing=marketops-signal-assurance-outbox` before
+any provider polling.
+
+Permanent controls added after the incident:
+
+- continuous MarketOps writers use `restart: unless-stopped`;
+- backup and restore rehearsal scripts verify live pgBackRest-capable services
+  instead of rebuilding/recreating live database containers;
+- operations monitor WAL checks actively switch WAL before measuring archive
+  freshness;
+- operations monitor treats non-success systemd results, including `exit-code`,
+  as actionable failures.
+
 ## August 17, 2026 incident
 
 The initial dedicated scheduler configuration was correct, but the running

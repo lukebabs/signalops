@@ -1,5 +1,39 @@
 # SignalOps Build Journal
 
+## 2026-08-19T14:20:00Z
+
+Summary:
+
+- Root-caused MarketOps intraday and operations monitor failures to data-plane recovery-control gaps.
+- Added restart policies to continuous MarketOps writer services.
+- Removed live database rebuild/recreate behavior from routine pgBackRest backup and isolated restore rehearsal paths.
+- Hardened operations monitor WAL freshness and systemd result classification.
+
+Files changed:
+
+- `compose.yaml`
+- `scripts/marketops_pgbackrest_backup.sh`
+- `scripts/marketops_pgbackrest_restore_rehearsal.sh`
+- `scripts/marketops_operations_monitor.sh`
+- `docs/projects/subscriber_project/marketops_data_plane_contract.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- A restore rehearsal at `2026-08-19T03:24:37Z` restarted the live dedicated MarketOps PostgreSQL container. The SAF outbox received a connection reset and exited; without a restart policy, the required data-plane service stayed down until the intraday preflight blocked provider work.
+
+Verification performed:
+
+- `bash -n scripts/marketops_pgbackrest_backup.sh`
+- `bash -n scripts/marketops_pgbackrest_restore_rehearsal.sh`
+- `bash -n scripts/marketops_operations_monitor.sh`
+- `docker compose config --quiet`
+- `git diff --check`
+
+Next step:
+
+- Apply the Compose restart-policy update to the running writer containers and rerun the operations monitor.
+
 ## 2026-08-19T06:00:00Z
 
 Summary:

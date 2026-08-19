@@ -513,6 +513,7 @@ services:
     build:
       context: .
       target: normalizer
+    restart: unless-stopped
     depends_on:
       redpanda:
         condition: service_healthy
@@ -535,6 +536,7 @@ services:
     build:
       context: .
       target: signal-persister
+    restart: unless-stopped
     depends_on:
       redpanda:
         condition: service_healthy
@@ -556,6 +558,7 @@ services:
     build:
       context: .
       target: marketops-signal-assurance-registrar
+    restart: unless-stopped
     depends_on:
       redpanda:
         condition: service_healthy
@@ -575,6 +578,7 @@ services:
     build:
       context: .
       target: marketops-signal-assurance-outbox
+    restart: unless-stopped
     depends_on:
       redpanda:
         condition: service_healthy

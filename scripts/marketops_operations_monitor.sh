@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Read-only operational health control for the dedicated MarketOps boundary.
+# Operational health control for the dedicated MarketOps boundary.
 # A non-zero result is intentionally consumed by marketops_scheduled_job.sh,
-# which creates an actionable administrator-inbox notification.
+# which creates an actionable administrator-inbox notification. The WAL check
+# performs a bounded pg_switch_wal() probe so low-write periods do not look
+# stale while recovery-point archiving is actually functional.
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 config_path="${SIGNALOPS_PGBACKREST_CONFIG_PATH:-/etc/signalops/marketops-pgbackrest/pgbackrest.conf}"
 boundary_env="${SIGNALOPS_MARKETOPS_BOUNDARY_ENV:-/etc/signalops/marketops-boundary.env}"
@@ -88,6 +90,16 @@ check_backup() {
   fi
 }
 
+request_wal_archive() {
+  local label="$1" query_function="$2"
+  if ! "$query_function" "SELECT pg_switch_wal()" >/dev/null; then
+    record "wal_${label}" failed "pg_switch_wal unavailable"
+    return 1
+  fi
+  sleep 5
+  return 0
+}
+
 check_wal() {
   local label="$1" query_function="$2" age
   if ! age="$($query_function "SELECT COALESCE(floor(extract(epoch FROM now() - last_archived_time))::bigint,-1) FROM pg_stat_archiver")" || [[ ! "$age" =~ ^[0-9]+$ ]]; then
@@ -103,8 +115,8 @@ check_wal() {
 
 check_backup marketops-postgres marketops-primary
 check_backup marketops-timescaledb marketops-temporal
-check_wal primary primary_sql
-check_wal temporal temporal_sql
+request_wal_archive primary primary_sql && check_wal primary primary_sql
+request_wal_archive temporal temporal_sql && check_wal temporal temporal_sql
 
 credentials_result="$(systemctl show signalops-pgbackrest-credentials.service --property=Result --value 2>/dev/null || true)"
 if [[ "$credentials_result" == "failed" ]]; then
@@ -115,16 +127,18 @@ fi
 
 for unit in signalops-marketops-pgbackrest.service signalops-marketops-boundary-schedule@marketops-intraday.service; do
   result="$(systemctl show "$unit" --property=Result --value 2>/dev/null || true)"
-  if [[ "$result" == "failed" ]]; then
-    record "scheduler_${unit}" failed "systemd result=failed"
-  else
-    record "scheduler_${unit}" passed "last_result=${result:-unknown}"
-  fi
+  case "${result:-}" in
+    ""|success) record "scheduler_${unit}" passed "last_result=${result:-unknown}" ;;
+    *) record "scheduler_${unit}" failed "systemd result=$result" ;;
+  esac
 done
 if [[ "$require_sri" == "true" ]]; then
   for unit in signalops-marketops-boundary-schedule@marketops-sri-refresh.service signalops-marketops-boundary-schedule@marketops-sri-holdings-refresh.service; do
     result="$(systemctl show "$unit" --property=Result --value 2>/dev/null || true)"
-    [[ "$result" == "failed" ]] && record "scheduler_${unit}" failed "systemd result=failed" || record "scheduler_${unit}" passed "last_result=${result:-unknown}"
+    case "${result:-}" in
+      ""|success) record "scheduler_${unit}" passed "last_result=${result:-unknown}" ;;
+      *) record "scheduler_${unit}" failed "systemd result=$result" ;;
+    esac
   done
 else
   record scheduler_sri paused "SRI cadence is deliberately disabled pending controlled routing validation"

@@ -7,7 +7,17 @@ config_path="${SIGNALOPS_PGBACKREST_CONFIG_PATH:-/etc/signalops/marketops-pgback
 boundary_env=/etc/signalops/marketops-boundary.env
 [[ -r "$config_path" && -r "$boundary_env" ]] || { echo "pgBackRest configuration or MarketOps boundary secret is not readable." >&2; exit 3; }
 compose=(docker compose -p signalops --env-file "$boundary_env" -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-pgbackrest.yaml")
-SIGNALOPS_PGBACKREST_CONFIG_PATH="$config_path" "${compose[@]}" up -d --build --wait marketops-postgres marketops-timescaledb
+require_live_pgbackrest_service() {
+  local service="$1"
+  local container_id running
+  container_id="$("${compose[@]}" ps -q "$service")"
+  [[ -n "$container_id" ]] || { echo "MarketOps pgBackRest service is missing: $service" >&2; exit 4; }
+  running="$(docker inspect --format '{{.State.Running}}' "$container_id")"
+  [[ "$running" == "true" ]] || { echo "MarketOps pgBackRest service is not running: $service" >&2; exit 4; }
+  docker exec --user postgres "$container_id" pgbackrest version >/dev/null || { echo "MarketOps service is not pgBackRest-capable: $service" >&2; exit 4; }
+}
+require_live_pgbackrest_service marketops-postgres
+require_live_pgbackrest_service marketops-timescaledb
 targets=("marketops-postgres marketops-primary marketops signalops-marketops-postgres-pgbackrest:16" "marketops-timescaledb marketops-temporal marketops_temporal signalops-marketops-timescaledb-pgbackrest:2.17.2-pg16")
 cleanup_targets=()
 cleanup() {
