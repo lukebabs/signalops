@@ -52,3 +52,23 @@ func TestScheduledJobStatusesReadRecoveryEvidence(t *testing.T) {
 	}
 	t.Fatal("risk/reward job is missing")
 }
+
+func TestScheduledJobRunActionIsAllowlisted(t *testing.T) {
+	cases := map[string]string{
+		"marketops-intraday":             "scheduler-run-now:marketops-intraday",
+		"marketops-risk-reward":          "scheduler-run-now:marketops-risk-reward",
+		"signalops-retention-governance": "scheduler-run-now:signalops-retention-governance",
+	}
+	for jobID, expected := range cases {
+		action, ok := scheduledJobRunAction(jobID)
+		if !ok {
+			t.Fatalf("scheduled job %q is not allowlisted", jobID)
+		}
+		if action != expected {
+			t.Fatalf("scheduled job %q action = %q, want %q", jobID, action, expected)
+		}
+	}
+	if action, ok := scheduledJobRunAction("arbitrary-host-command"); ok || action != "" {
+		t.Fatalf("unexpected action for unsupported job: %q", action)
+	}
+}

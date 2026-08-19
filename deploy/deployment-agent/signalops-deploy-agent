@@ -39,6 +39,29 @@ case "$action" in
   scheduler-intraday-disable)
     run systemctl disable --now signalops-marketops-boundary-intraday.timer
     ;;
+  scheduler-run-now:*)
+    job_id="${action#scheduler-run-now:}"
+    case "$job_id" in
+      marketops-daily-postclose|marketops-sri-refresh|marketops-sri-holdings-refresh|marketops-intraday|marketops-fmp-continuation|marketops-fmp-annual-financial|marketops-task-retry|marketops-postclose-recovery)
+        unit="signalops-marketops-boundary-schedule@${job_id}.service"
+        ;;
+      marketops-risk-reward)
+        unit="signalops-marketops-boundary-schedule@marketops-postclose-recovery.service"
+        ;;
+      signalops-storage-monitor)
+        unit="signalops-storage-monitor.service"
+        ;;
+      signalops-retention-governance)
+        unit="signalops-retention-governance.service"
+        ;;
+      *)
+        printf 'Unsupported scheduled job: %s\n' "$job_id" >&2
+        audit rejected
+        exit 2
+        ;;
+    esac
+    run systemctl start --no-block "$unit"
+    ;;
   operations-monitor-install)
     run "$repository_dir/scripts/install_marketops_operations_monitor.sh"
     ;;

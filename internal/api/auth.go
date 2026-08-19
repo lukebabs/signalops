@@ -329,6 +329,9 @@ func authorizedForRequest(r *http.Request, principal Principal) bool {
 	if isExperienceRequest(r) {
 		return true
 	}
+	if isAdministrationOperationsRequest(r) {
+		return isSubscriptionAdministrator(principal)
+	}
 	if isSubscriberSubscriptionAdministrationRequest(r) {
 		return isSubscriptionAdministrator(principal)
 	}
@@ -375,6 +378,16 @@ func appScopeForRequest(r *http.Request) string {
 
 func isExperienceRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/v1/session/experience"
+}
+
+func isAdministrationOperationsRequest(r *http.Request) bool {
+	if r.URL.Path == "/v1/administration/scheduled-jobs" {
+		return true
+	}
+	if strings.HasPrefix(r.URL.Path, "/v1/administration/scheduled-jobs/") {
+		return true
+	}
+	return strings.HasPrefix(r.URL.Path, "/v1/administration/marketops/")
 }
 
 func isSubscriberSubscriptionAdministrationRequest(r *http.Request) bool {

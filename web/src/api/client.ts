@@ -3,6 +3,7 @@ import type {
   SchedulerRunsResponse,
   SchedulerRunResponse,
   ScheduledJobsResponse,
+  ScheduledJobRunNowResponse,
   AdministrationNotificationsResponse,
   AdministrationSMTPSettingsResponse,
   AdministrationSMTPSettingsRequest,
@@ -37,6 +38,7 @@ import type {
   ReplayJobCreateRequest,
   ReplayJobCancelRequest,
   ReplayOperationsStatusResponse,
+  MarketOpsOperationsHealthResponse,
   AppProfilesResponse,
   SessionExperienceResponse,
   MarketOpsAssetsResponse,
@@ -381,6 +383,10 @@ export const api = {
     get<SchedulerRunsResponse>("/v1/scheduler/runs", { limit }),
   listScheduledJobs: () =>
     get<ScheduledJobsResponse>("/v1/administration/scheduled-jobs"),
+  runScheduledJobNow: (jobId: string) =>
+    post<ScheduledJobRunNowResponse>(`/v1/administration/scheduled-jobs/${encodeURIComponent(jobId)}/run-now`, {}),
+  getMarketOpsOperationsHealth: (tenantId: string) =>
+    get<MarketOpsOperationsHealthResponse>("/v1/administration/marketops/operations-health", { tenant_id: tenantId }),
   listMarketOpsTasks: (tenantId: string) =>
     get<{ tasks: any[] }>(
       "/v1/administration/marketops/tasks",

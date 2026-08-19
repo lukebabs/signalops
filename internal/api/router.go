@@ -132,6 +132,36 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"jobs": scheduledJobStatuses()})
 	})
 
+	mux.HandleFunc("POST /v1/administration/scheduled-jobs/{job_id}/run-now", func(w http.ResponseWriter, r *http.Request) {
+		result, err := triggerScheduledJobRunNow(r.Context(), r.PathValue("job_id"), time.Now().UTC())
+		if err != nil {
+			if errors.Is(err, errUnsupportedScheduledJob) {
+				writeError(w, http.StatusNotFound, "scheduled_job_not_found", "scheduled job is not allowlisted for manual execution")
+				return
+			}
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "scheduled_job_start_failed", "message": "failed to start scheduled job", "run": result})
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"run": result})
+	})
+
+	mux.HandleFunc("GET /v1/administration/marketops/operations-health", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, marketOpsConfig.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		health, err := marketOpsOperationsHealth(r.Context(), repo, tenantID, time.Now().UTC())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to load marketops operations health")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"marketops_operations_health": health})
+	})
+
 	mux.HandleFunc("GET /v1/scheduler/runs", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

@@ -91,6 +91,33 @@ export interface SchedulerRunResponse {
 
 export interface ScheduledJob { job_id:string; label:string; schedule:string; timezone:string; status:"pending"|"running"|"succeeded"|"failed"|string; started_at?:string; completed_at?:string; exit_code?:number; }
 export interface ScheduledJobsResponse { jobs: ScheduledJob[]; }
+export interface ScheduledJobRunNow { job_id:string; status:string; action:string; runner:string; started_at:string; output?:string; }
+export interface ScheduledJobRunNowResponse { run: ScheduledJobRunNow; }
+
+export interface MarketOpsOperationsHealthTaskSummary {
+  tenant_id: string;
+  status_counts: Record<string, number>;
+  total_count: number;
+  incomplete_count: number;
+  stale_incomplete_count: number;
+  stale_threshold_minutes: number;
+  latest_session_date?: string;
+  latest_update?: string;
+  available: boolean;
+  error?: string;
+}
+
+export interface MarketOpsOperationsHealth {
+  generated_at: string;
+  tenant_id: string;
+  scheduled_jobs: ScheduledJob[];
+  marketops_tasks: MarketOpsOperationsHealthTaskSummary;
+  replay_status: ReplayOperationsStatus;
+}
+
+export interface MarketOpsOperationsHealthResponse {
+  marketops_operations_health: MarketOpsOperationsHealth;
+}
 export interface StorageStore { store_id:string; observed_at?:string; used_bytes?:number; capacity_bytes?:number; free_bytes?:number; usage_percent?:number; status:string; detail?:unknown; message?:string; }
 export interface StorageOverviewResponse { stores:StorageStore[]; }
 export interface StorageComponent { store_id:string; component_kind:string; component_name:string; app_id:string; domain:string; attribution_method:"exact"|"estimated"|"shared"|"unattributed"; physical_bytes:number; attributed_bytes:number; observed_at:string; metadata?:unknown; }

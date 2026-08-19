@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAdministrationNotifications, useAdministrationSMTPSettings, useMutateAdministrationSMTPSettings, useHealthz, useReadyz, useRuns, useReplayStatus, useScheduledJobs, useMarketOpsOperationsHealth, useMarketOpsTasks, useStorageOverview, useMutateAdministrationNotificationState } from '../api/queries';
+import { useAdministrationNotifications, useAdministrationSMTPSettings, useMutateAdministrationSMTPSettings, useHealthz, useReadyz, useRuns, useReplayStatus, useScheduledJobs, useMutateScheduledJobRunNow, useMarketOpsOperationsHealth, useMarketOpsTasks, useStorageOverview, useMutateAdministrationNotificationState } from '../api/queries';
 import { useUi } from '../store/ui';
 import { MetricTile } from '../components/MetricTile';
 import { RefreshButton } from '../components/RefreshButton';
@@ -30,6 +30,7 @@ export function SystemRoute() {
   const TENANT_ID = useTenant();
   const replayStatus = useReplayStatus({ tenant_id: TENANT_ID, limit: 10 });
   const scheduledJobs = useScheduledJobs();
+  const runScheduledJobNow = useMutateScheduledJobRunNow(TENANT_ID);
   const marketOpsOperationsHealth = useMarketOpsOperationsHealth(TENANT_ID);
   const marketOpsTasks = useMarketOpsTasks(TENANT_ID);
   const storage = useStorageOverview();
@@ -59,6 +60,7 @@ export function SystemRoute() {
     replayStatus.refetch();
     scheduledJobs.refetch();
     marketOpsOperationsHealth.refetch();
+    marketOpsTasks.refetch();
     storage.refetch();
     notifications.refetch();
     setLastRefresh(new Date().toISOString());
@@ -159,6 +161,7 @@ export function SystemRoute() {
           <th className="px-2 py-1">Started</th>
           <th className="px-2 py-1">Completed</th>
           <th className="px-2 py-1">Exit code</th>
+          <th className="px-2 py-1">Action</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-100">
@@ -170,15 +173,26 @@ export function SystemRoute() {
             <td className="px-2 py-1 text-gray-600">{formatUtc(job.started_at)}</td>
             <td className="px-2 py-1 text-gray-600">{formatUtc(job.completed_at)}</td>
             <td className="px-2 py-1 text-gray-600">{job.exit_code ?? "—"}</td>
+            <td className="px-2 py-1">
+              <button
+                type="button"
+                onClick={() => runScheduledJobNow.mutate(job.job_id)}
+                disabled={runScheduledJobNow.isPending}
+                className="rounded border border-brand-300 bg-white px-2 py-1 text-[11px] font-medium text-brand-700 hover:bg-brand-50 disabled:cursor-wait disabled:border-gray-200 disabled:text-gray-400"
+              >
+                {runScheduledJobNow.isPending && runScheduledJobNow.variables === job.job_id ? "Starting..." : "Run now"}
+              </button>
+            </td>
           </tr>
         ))}
         {operationsScheduledJobs.length === 0 ? (
           <tr>
-            <td className="px-2 py-1 text-gray-500" colSpan={6}>No schedule status records yet.</td>
+            <td className="px-2 py-1 text-gray-500" colSpan={7}>No schedule status records yet.</td>
           </tr>
         ) : null}
       </tbody>
     </table>
+    {runScheduledJobNow.isError ? <div className="border-t border-red-100 p-2 text-xs text-red-700">{runScheduledJobNow.error instanceof Error ? runScheduledJobNow.error.message : "Unable to start scheduled job."}</div> : null}
   </div>
 )}
 <h2 className="text-sm font-semibold text-gray-900">Scheduled Jobs</h2><div className="overflow-x-auto rounded border border-gray-200 bg-white"><table className="min-w-full divide-y divide-gray-200 text-xs"><thead className="bg-gray-50 text-left text-gray-500"><tr><th className="px-2 py-1">Job</th><th className="px-2 py-1">Schedule</th><th className="px-2 py-1">Status</th><th className="px-2 py-1">Started</th><th className="px-2 py-1">Completed</th><th className="px-2 py-1">Exit</th></tr></thead><tbody className="divide-y divide-gray-100">{scheduledJobs.data?.jobs.map(job => <tr key={job.job_id}><td className="px-2 py-1 font-medium">{job.label}</td><td className="px-2 py-1 text-gray-600">{job.schedule} · {job.timezone}</td><td className="px-2 py-1"><StatusBadge status={job.status} /></td><td className="px-2 py-1 text-gray-600">{formatUtc(job.started_at)}</td><td className="px-2 py-1 text-gray-600">{formatUtc(job.completed_at)}</td><td className="px-2 py-1">{job.exit_code ?? "—"}</td></tr>)}</tbody></table></div>{scheduledJobs.isError ? <ErrorState error={scheduledJobs.error} /> : null}<h2 className="text-sm font-semibold text-gray-900">MarketOps task control</h2><div className="overflow-x-auto rounded border border-gray-200 bg-white"><table className="min-w-full divide-y divide-gray-200 text-xs"><thead className="bg-gray-50 text-left text-gray-500"><tr><th className="px-2 py-1">Task</th><th className="px-2 py-1">Asset</th><th className="px-2 py-1">State</th><th className="px-2 py-1">Reason</th><th className="px-2 py-1">Retry</th></tr></thead><tbody className="divide-y divide-gray-100">{marketOpsTasks.data?.tasks.filter((task:any)=>task.status!=="succeeded").map((task:any)=><tr key={task.task_id}><td className="px-2 py-1">{task.task_type}</td><td className="px-2 py-1 font-mono">{task.symbol||"—"}</td><td className="px-2 py-1"><StatusBadge status={task.status}/></td><td className="px-2 py-1 text-gray-600">{task.failure_class||task.error_message||"—"}</td><td className="px-2 py-1 text-gray-600">{task.status==="retry_scheduled"?formatUtc(task.next_attempt_at):"—"}</td></tr>)}</tbody></table>{marketOpsTasks.data?.tasks.filter((task:any)=>task.status!=="succeeded").length===0?<div className="p-2 text-xs text-gray-500">No incomplete MarketOps tasks.</div>:null}</div>{marketOpsTasks.isError?<ErrorState error={marketOpsTasks.error}/>:null}<h2 className="text-sm font-semibold text-gray-900">Replay Operations</h2>
