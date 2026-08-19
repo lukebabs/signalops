@@ -58,6 +58,25 @@ active_symbols="$(marketops_primary_psql -Atc "SELECT string_agg(ticker, ',' ORD
 expected="$(marketops_primary_psql -Atc "SELECT count(DISTINCT ticker) FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active;" | compact)"
 [[ "$expected" =~ ^[1-9][0-9]*$ ]] || { printf 'invalid active universe count: %s\n' "$expected" >&2; exit 4; }
 
+sri_output_tenant="${SIGNALOPS_SRI_OUTPUT_TENANT_ID:-platform-global}"
+sri_expected="$(marketops_primary_psql -Atc "SELECT count(*) FROM sri_segments WHERE tenant_id='$sri_output_tenant' AND active AND segment_type <> 'benchmark';" | compact)"
+[[ "$sri_expected" =~ ^[1-9][0-9]*$ ]] || { printf 'invalid SRI segment count: %s\n' "$sri_expected" >&2; exit 4; }
+
+ensure_sri_completed_session() {
+  local materialized
+  materialized="$(marketops_primary_psql -Atc "SELECT count(DISTINCT segment_id) FROM sri_segment_snapshots WHERE tenant_id='$sri_output_tenant' AND session_date=DATE '$session_date';" | compact)"
+  [[ "$materialized" =~ ^[0-9]+$ ]] || {
+    printf 'invalid SRI output count: %s\n' "$materialized" >&2
+    return 1
+  }
+  if [[ "$materialized" == "$sri_expected" ]]; then
+    printf 'post-close recovery: SRI already complete for %s (%s segments)\n' "$session_date" "$materialized"
+    return 0
+  fi
+  printf 'post-close recovery: SRI incomplete for %s (%s/%s); reusing canonical normalization\n' "$session_date" "$materialized" "$sri_expected"
+  bash ./scripts/marketops_sri_refresh.sh --date "$session_date" --normalized-only
+}
+
 risk_counts="$(marketops_primary_psql -Atc "SELECT (SELECT count(DISTINCT result_payload->>'symbol') FROM algorithm_results WHERE tenant_id='tenant-local' AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1' AND (result_payload->>'observation_time')::date=DATE '$session_date') || '|' || (SELECT count(DISTINCT symbol) FROM marketops_risk_reward_snapshots WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date');" | compact)"
 IFS='|' read -r risk_results risk_snapshots <<< "$risk_counts"
 risk_results="${risk_results:-0}"
@@ -72,6 +91,11 @@ write_risk_status() {
 }
 
 if completion_output="$(./scripts/marketops_universal_completion_gate.sh "$session_date" "$active_symbols" "$expected" 2>&1)"; then
+  if ! ensure_sri_completed_session; then
+    write_risk_status "recovery_needed" "universal completion passed; SRI platform-global materialization pending"
+    printf 'post-close recovery: universal completion passed but SRI materialization remains incomplete\n' >&2
+    exit 7
+  fi
   write_risk_status "succeeded" "universal completion gate passed"
   rm -f "$state_dir/$session_date.attempts"
   printf '%s\n' "$completion_output"
@@ -121,6 +145,11 @@ IFS='|' read -r risk_results risk_snapshots <<< "$risk_counts"
 risk_results="${risk_results:-0}"
 risk_snapshots="${risk_snapshots:-0}"
 if completion_output="$(./scripts/marketops_universal_completion_gate.sh "$session_date" "$active_symbols" "$expected" 2>&1)"; then
+  if ! ensure_sri_completed_session; then
+    write_risk_status "failed" "recovery completed but SRI platform-global materialization remains incomplete"
+    printf 'post-close recovery: universal completion passed but SRI materialization remains incomplete\n' >&2
+    exit 7
+  fi
   write_risk_status "succeeded" "universal completion gate passed after recovery"
   rm -f "$attempt_file"
   printf '%s\n' "$completion_output"

@@ -1,0 +1,14 @@
+[Unit]
+Description=SignalOps MarketOps SRI issuer ETF holdings snapshot
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+Environment=MARKETOPS_SRI_TIMEZONE=America/New_York
+ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh marketops-sri-holdings-refresh "Weekdays 20:20" America/New_York @WORKDIR@/scripts/marketops_sri_holdings_refresh.sh
+TimeoutStartSec=20m
+Nice=10
+
+[Install]
+WantedBy=default.target

@@ -515,9 +515,14 @@ if $write_mode; then
   bash ./scripts/marketops_universal_completion_gate.sh "$session_date" "$workflow_universe_symbols" "${#workflow_symbols[@]}" || exit 8
   marketops_compose --profile marketops-daily run --rm marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
   bash ./scripts/marketops_global_dashboard_projection.sh "$session_date" || exit 9
+  # SRI is a platform-global reader. It is calculated only after the daily
+  # source session is complete, so it reuses canonical normalized ETF
+  # observations and never races or duplicates the scheduled provider pull.
+  log "SRI completed-session materialization started session=$session_date"
+  bash ./scripts/marketops_sri_refresh.sh --date "$session_date" --normalized-only || exit 10
   if [[ -n "${SIGNALOPS_WEB:-}" && -n "${SIGNALOPS_WEB_PASS:-}" ]]; then
     log "subscriber pilot browser acceptance started"
-    ./scripts/run_subscriber_pilot_ui_smoke.sh || exit 10
+    ./scripts/run_subscriber_pilot_ui_smoke.sh || exit 11
     log "subscriber pilot browser acceptance passed"
   else
     log "subscriber pilot browser acceptance skipped: QA identity is not configured"
