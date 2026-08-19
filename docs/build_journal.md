@@ -1,5 +1,31 @@
 # SignalOps Build Journal
 
+## 2026-08-19T05:05:33Z
+
+Summary:
+
+- Recorded live browser validation for Subscription Administration governance.
+- Confirmed the public route was restored after recreating `web` with `compose.traefik.yaml`.
+- Closed the outstanding item requiring `luke@strategiclabs.io` validation on `tenant-local`.
+
+Files changed:
+
+- `docs/projects/subscriber_project/subscription_commerce_foundation_release_evidence_2026-08-17.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- The subscription governance slice needs retained browser evidence before it can be considered operationally closed.
+
+Verification performed:
+
+- User validation: `#1 is solid!` for Subscription Administration governance.
+- Public `/readyz` returned 200 after Traefik labels were restored.
+
+Next step:
+
+- Add a safe deploy command/Make target that always includes the required MarketOps and Traefik overlays.
+
 ## 2026-08-19T04:48:13Z
 
 Summary:

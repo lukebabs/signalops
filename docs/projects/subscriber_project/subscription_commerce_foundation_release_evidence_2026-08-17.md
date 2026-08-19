@@ -50,7 +50,7 @@ Direct subject plans take precedence over Institutional tenant seats, so the thr
 
 Run the live browser/API acceptance matrix and retain the 402 negative-path evidence before requesting feature-flag activation. Professional browser acceptance requires that controlled QA identity’s login credential to be supplied to the protected QA environment; no credential was added or exposed during this provisioning operation.
 
-## Controlled temporary production enforcement canary"��y��y� 2026-08-17
+## Controlled temporary production enforcement canary — 2026-08-17
 
 Status: **passed**. This was a bounded production proof, not a persistent commercial activation.
 
@@ -62,7 +62,7 @@ The named approval authorized a temporary gateway-only enforcement window. The c
 | Professional | Same controlled subject, temporarily and audibly changed to Professional | Value Intelligence browser route and valuation API returned normal access; Signal Assurance browser route remained locked and its API returned `402 subscription_feature_required`. |
 | Institutional | `luke@strategiclabs.io` active `tenant_admin` seat for the active `tenant-local` Institutional contract | Signal Assurance browser route and effectiveness API returned normal access. |
 
-All temporary Explorer"��y��y� Professional"��y��y� Explorer changes were performed through the signed Subscription Administration boundary and retained immutable audit events. No provider request, scheduler, data-plane job, tenant contract, institutional seat, or production dotenv was changed.
+All temporary Explorer → Professional → Explorer changes were performed through the signed Subscription Administration boundary and retained immutable audit events. No provider request, scheduler, data-plane job, tenant contract, institutional seat, or production dotenv was changed.
 
 ### Canary hardening findings closed
 
@@ -89,3 +89,18 @@ Validation retained:
 - `go test ./internal/api ./internal/storage/postgres`;
 - `npm --prefix web run build`;
 - `git diff --check`.
+
+
+### Administration governance browser validation — 2026-08-19
+
+The live Administration → Subscription governance surface was validated by `luke@strategiclabs.io` on `tenant-local` after the Gateway/Web rebuild and Traefik route restoration. The browser validation confirmed that the page loads and the governance surface is usable for the intended production-administrator workflow.
+
+Validated scope:
+
+- `/admin/subscriptions` loads for the subscription administrator;
+- tier cards are visible for Explorer, Professional, and Institutional;
+- tenant-local enrollment, contract/seat, and audit sections render;
+- the product-policy editor loads the current feature and limit policy;
+- public routing is restored through `https://signalops.syncratic.io` with `/readyz` returning 200.
+
+This closes the browser-validation item for the 2026-08-19 subscription governance enhancement. Commercial enforcement remains off until separately approved.
