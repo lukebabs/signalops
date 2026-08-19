@@ -150,11 +150,45 @@ case "$action" in
     run "$repository_dir/scripts/marketops_pgbackrest_restore_rehearsal.sh"
     ;;
   scheduler-status)
-    systemctl status \
+    failed=0
+    printf 'SignalOps scheduler status\n'
+    for timer in \
+      signalops-marketops-boundary-intraday.timer \
+      signalops-marketops-boundary-daily-postclose.timer \
+      signalops-marketops-boundary-postclose-recovery.timer \
+      signalops-marketops-boundary-sri-refresh.timer \
+      signalops-marketops-boundary-sri-holdings-refresh.timer \
+      signalops-marketops-boundary-warm-eod.timer \
+      signalops-marketops-boundary-fmp-annual-financial.timer; do
+      load_state="$(systemctl show "$timer" --property=LoadState --value 2>/dev/null || true)"
+      active_state="$(systemctl show "$timer" --property=ActiveState --value 2>/dev/null || true)"
+      next_elapse="$(systemctl show "$timer" --property=NextElapseUSecRealtime --value 2>/dev/null || true)"
+      printf 'timer=%s load=%s active=%s next=%s\n' "$timer" "${load_state:-unknown}" "${active_state:-unknown}" "${next_elapse:-n/a}"
+      if [[ "$load_state" == "not-found" || "$active_state" == "failed" ]]; then
+        failed=1
+      fi
+    done
+    for service in \
       signalops-marketops-boundary-schedule@preflight.service \
       signalops-marketops-boundary-schedule@marketops-intraday.service \
-      signalops-marketops-boundary-intraday.timer \
-      --no-pager -l
+      signalops-marketops-boundary-schedule@marketops-daily-postclose.service \
+      signalops-marketops-boundary-schedule@marketops-postclose-recovery.service \
+      signalops-marketops-boundary-schedule@marketops-sri-refresh.service \
+      signalops-marketops-boundary-schedule@marketops-sri-holdings-refresh.service \
+      signalops-storage-monitor.service \
+      signalops-retention-governance.service; do
+      load_state="$(systemctl show "$service" --property=LoadState --value 2>/dev/null || true)"
+      active_state="$(systemctl show "$service" --property=ActiveState --value 2>/dev/null || true)"
+      result="$(systemctl show "$service" --property=Result --value 2>/dev/null || true)"
+      printf 'service=%s load=%s active=%s result=%s\n' "$service" "${load_state:-unknown}" "${active_state:-unknown}" "${result:-unknown}"
+      if [[ "$load_state" == "not-found" || "$active_state" == "failed" || "$result" == "failed" ]]; then
+        failed=1
+      fi
+    done
+    if (( failed )); then
+      audit failed
+      exit 3
+    fi
     audit success
     ;;
   *)
