@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -21,7 +21,7 @@ from playwright.sync_api import Browser, Page, Response, expect
 class SubscriberUIConfig:
     base_url: str
     username: str
-    password: str
+    password: str = field(repr=False)
     watchlist_name: str
     tenant_id: str
     shared_tickers: tuple[str, ...]
@@ -91,11 +91,14 @@ def subscriber_page(subscriber_config: SubscriberUIConfig, browser: Browser, req
 
 def login(page: Page, config: SubscriberUIConfig) -> None:
     page.goto(f"{config.base_url}/marketops/watchlists", wait_until="domcontentloaded")
-    if page.get_by_role("heading", name="Watchlists").is_visible():
+    heading = page.get_by_role("heading", name="Watchlists")
+    if heading.is_visible(timeout=5_000):
         return
     sign_in = page.get_by_role("button", name="Sign in")
-    if sign_in.is_visible():
+    if sign_in.is_visible(timeout=10_000):
         sign_in.click()
+    if heading.is_visible(timeout=3_000):
+        return
     username = page.locator("#username, input[name='username']").or_(page.get_by_role("textbox", name="Email or username")).first
     username.wait_for(state="visible", timeout=30_000)
     username.fill(config.username)
@@ -103,8 +106,7 @@ def login(page: Page, config: SubscriberUIConfig) -> None:
     password.fill(config.password)
     submit = page.locator("#kc-login, input[type='submit']").or_(page.get_by_role("button", name="Continue")).first
     submit.click()
-    page.wait_for_url(re.compile(re.escape(config.base_url) + r"/marketops/.*"), timeout=30_000)
-    expect(page.get_by_role("heading", name="Watchlists")).to_be_visible(timeout=30_000)
+    expect(heading).to_be_visible(timeout=30_000)
 
 
 def selected_watchlist_name(page: Page) -> str:
