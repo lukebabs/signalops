@@ -8063,3 +8063,12 @@ Next-cycle priority:
 - Added deterministic `--newest-first` selection to the restricted parity runner. This is a bounded catch-up control, not a change to source data, and keeps historical oldest-first imports available for later audit work.
 - Materialized a 1,000-record newest-first Market State manifest after a restricted-role preflight: it includes 132 records for the 2026-08-14 completed session and coverage back through 2026-08-05.
 - The imported Market State records are all `partial`, matching their retained source quality. No Market State or Dashboard projection is enabled from this batch: currentness alone does not override completeness, parity, authorization, or browser gates.
+
+
+## 2026-08-19 — Subscriber Project N1 control-plane closure and pgBackRest blocker
+
+- Restored the normal non-manual operations path with the constrained deployment agent and root-owned Unix-socket bridge. Admin run-now was verified through the live Gateway for `signalops-storage-monitor`, returning `202 accepted` via `unix:/run/signalops/deployment-agent.sock`.
+- Verified scheduler status, Gateway readiness, and subscriber pilot browser smoke. The smoke test was hardened for transient Chromium `net::ERR_NETWORK_CHANGED` during OIDC redirect.
+- Operations monitor still fails truthfully on recovery freshness: stale pgBackRest service path, missing fresh restore stamp, aged WAL/backup evidence, and two aged coverage-activation requests.
+- The root cause is deployment-control drift: the installed MarketOps pgBackRest unit points at `/tmp/signalops-marketops-recovery-release`, and backup/restore now execute in containers without `pgbackrest` in `$PATH`.
+- Closing the remaining N1 recovery loop requires explicit approval for a production recovery-control fix that may recreate the dedicated MarketOps database containers under the pgBackRest image overlay and reinstall the root-owned backup unit from the current repository path.
