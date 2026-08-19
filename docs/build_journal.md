@@ -1,5 +1,48 @@
 # SignalOps Build Journal
 
+## 2026-08-19T04:24:47Z
+
+Summary:
+
+- Moved MarketOps scheduled-job operational status from repository-local runtime JSON to the dedicated MarketOps primary database.
+- Added the current-status and run-history tables through migration `000154_marketops_scheduled_job_statuses`.
+- Seeded existing ignored runtime status into the database for continuity.
+- Updated Gateway/Admin status reads to prefer the MarketOps database and retain file fallback only for outage/debug visibility.
+- Updated the scheduler wrappers and systemd templates so MarketOps status writes use the protected MarketOps cutover environment.
+
+Files changed:
+
+- `migrations/000154_marketops_scheduled_job_statuses.*.sql`
+- `internal/api/scheduled_jobs.go`
+- `internal/api/router.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/`
+- `scripts/marketops_schedule_database.sh`
+- `scripts/marketops_scheduled_job.sh`
+- `scripts/marketops_postclose_recovery.sh`
+- `deploy/systemd/`
+- `deploy/deployment-agent/signalops-deploy-agent`
+- `scripts/signalops_deployment_agent_bridge.py`
+- `web/src/routes/SystemRoute.tsx`
+- `web/src/types.ts`
+- `docs/projects/subscriber_project/`
+
+Rationale:
+
+- Runtime status belongs in the MarketOps database now that MarketOps has a dedicated data boundary. Keeping operational state in tracked or semi-tracked repository paths creates ambiguity and weakens recovery evidence.
+
+Verification performed:
+
+- Applied migration `000154_marketops_scheduled_job_statuses` to `signalops-marketops-postgres-1`.
+- Seeded 13 current status rows and 11 run-history rows.
+- Verified `marketops-operations-monitor` wrote a fresh DB-backed success row from `2026-08-19 04:16:18 UTC` to `2026-08-19 04:16:20 UTC`.
+- Ran shell syntax checks, Go focused tests, web build, Gateway deployment, readiness check, and subscriber pilot UI smoke (`2 passed`).
+- Pushed commit `5b0871f` to `origin/subscribers`.
+
+Next step:
+
+- Reinstall any remaining scheduled systemd units from the current repository if their installed environment is found to omit the MarketOps cutover file; otherwise continue the next sprint backlog from DB-backed operational status.
+
 ## 2026-08-15T20:35:00Z
 
 Summary:

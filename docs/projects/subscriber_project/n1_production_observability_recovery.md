@@ -1,6 +1,6 @@
 # N1 — Production Observability and Recovery Operations
 
-Status: implementation prepared; installation and the first successful monitored run are controlled production actions.
+Status: implementation deployed for N1 closure. Monitor health, recovery-control re-anchoring, and DB-backed scheduled-job status have production evidence.
 
 ## Purpose
 
@@ -13,6 +13,8 @@ N1 makes the dedicated MarketOps boundary observable without changing market-dat
 It checks backup and WAL archive age, repository-growth threshold, credential and scheduler failure, restore-rehearsal age, and global coverage-activation queue age/depth. The defaults are 26 hours, 30 minutes, 100 GiB per stanza, 31 days, and 1,000 requests/24 hours respectively. An unavailable metric fails closed.
 
 The systemd service runs through `marketops_scheduled_job.sh`. A non-zero result creates a durable administrator-inbox event for `marketops-operations-monitor`; configured administrator email delivery continues to use the existing inbox/email policy. The monitor never makes a provider call.
+
+Scheduled-job status is persisted to the dedicated MarketOps primary database through `marketops_scheduled_job_statuses` and `marketops_scheduled_job_runs`. Local JSON under `runtime/scheduled-jobs/` is ignored fallback/debug output only. The Admin System workbench must treat the MarketOps database as the source of truth for operational scheduler status.
 
 Install it disabled, then run and review it manually:
 
@@ -59,3 +61,15 @@ The bounded inotify/file-limit configuration was persisted and applied. The moni
 ## Watch-limit remediation evidence — 2026-08-14
 
 The bounded inotify settings were applied and systemd was re-executed under explicit approval. The subsequent dedicated scheduler preflight passed with `primary=marketops` and `temporal=marketops_temporal`; its post-reexec journal contains no `Failed to allocate directory watch` warning. A later scheduled backup remains the final independent cadence confirmation.
+
+
+## DB-backed scheduler status evidence — 2026-08-19
+
+Migration `000154_marketops_scheduled_job_statuses` was applied to the
+dedicated MarketOps primary database. Existing ignored runtime artifacts were
+seeded into the new tables, and `marketops-operations-monitor` subsequently
+wrote a fresh success row directly from the installed systemd wrapper.
+
+This closes the prior repository/runtime-file ambiguity: production scheduler
+status is database-backed, while file artifacts remain local fallback/debug
+evidence during a database outage.

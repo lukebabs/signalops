@@ -40,7 +40,7 @@ make compose-down
 - `redpanda`: default Kafka-compatible broker.
 - `redpanda-console`: local broker UI on `http://localhost:18080`.
 - `topic-bootstrap`: one-shot topic creation job.
-- `postgres`: relational system-of-record store on `localhost:15432` for scheduler runs, provider usage, idempotency, catalogs, lifecycle state, and operational metadata.
+- `postgres`: relational system-of-record store on `localhost:15432` for generic SignalOps scheduler runs, provider usage, idempotency, catalogs, lifecycle state, and operational metadata. In the dedicated production MarketOps boundary, MarketOps scheduled-job operational status is stored in `marketops-postgres` through `marketops_scheduled_job_statuses` and `marketops_scheduled_job_runs`.
 - `timescaledb`: temporal/replay store on `localhost:15433` for raw events, normalized events, signal observations, feature/window data, and market-data history.
 - `gateway`: SignalOps gateway on `http://localhost:18000`.
 - `normalizer`: Go worker that consumes `signalops.local.raw.v1`, publishes `signalops.local.normalized.v1`, and persists normalized lineage.
@@ -105,7 +105,7 @@ SignalOps keeps PostgreSQL and TimescaleDB as separate logical roles. PostgreSQL
 
 In local Compose these roles run as two services:
 
-- `postgres` / `SIGNALOPS_DATABASE_URL`: scheduler runs, provider usage, idempotency, catalogs, alert/insight lifecycle state, and operational metadata.
+- `postgres` / `SIGNALOPS_DATABASE_URL`: generic SignalOps scheduler runs, provider usage, idempotency, catalogs, alert/insight lifecycle state, and operational metadata. MarketOps production operations that have crossed the dedicated-boundary gate use `SIGNALOPS_MARKETOPS_DATABASE_URL` for MarketOps data and scheduler-status state.
 - `timescaledb` / `SIGNALOPS_TEMPORAL_DATABASE_URL`: `raw_event_ledger`, `normalized_event_ledger`, `signal_ledger`, and market-data temporal history hypertables.
 
 Apply migrations separately:
@@ -116,6 +116,8 @@ make compose-temporal-migrate
 ```
 
 If `SIGNALOPS_TEMPORAL_DATABASE_URL` is empty, services fall back to the relational DSN for compatibility with single-Postgres deployments and existing tests.
+
+Dedicated MarketOps deployments add `marketops-postgres` and `marketops-timescaledb` through the MarketOps boundary Compose overlays. `SIGNALOPS_MARKETOPS_DATABASE_URL` and `SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL` are rendered into protected root-owned environment files, not committed `.env` files. The Admin scheduled-jobs view reads MarketOps status from `marketops_scheduled_job_statuses`; local `runtime/scheduled-jobs/` files are ignored fallback/debug artifacts.
 
 For an existing deployment, apply temporal migrations and backfill or replay existing raw/normalized/signal rows before redeploying services with `SIGNALOPS_TEMPORAL_DATABASE_URL` enabled. Without that step, new temporal writes go to TimescaleDB but historical rows that only exist in relational PostgreSQL will not appear in temporal-backed query endpoints.
 

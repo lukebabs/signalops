@@ -17,7 +17,7 @@ scripts/subscriber_project_s0_baseline.sh --tenant-id tenant-local
 The utility:
 
 - performs `SELECT` queries only against the primary and temporal stores;
-- reads existing `runtime/scheduled-jobs/*.json` status records;
+- reads existing scheduled-job status records; after migration `000154`, the operational source is `marketops_scheduled_job_statuses`, while `runtime/scheduled-jobs/*.json` is fallback/debug evidence only;
 - does not invoke a provider, scheduler, migration, gateway write, or background worker;
 - reports the current universe, EOD and Options coverage, applied migrations, RBAC-grant count, authentication configuration booleans, and recorded job status; and
 - emits Markdown to standard output so the operator can retain a timestamped evidence artifact in the approved operational-evidence location.
@@ -58,7 +58,7 @@ The baseline report is the source record for these measurements:
 | Latest normalized EOD observation | Detect stale or changed processing behavior. |
 | Options symbols, date span, and analytics-ready captures | Preserve truthful prospective-history and warm-up comparisons. |
 | MarketOps grant count and auth enabled-state | Confirm the access-control starting condition before S0-A. |
-| Recorded scheduled-job status | Identify existing operational degradation before a canary is evaluated. |
+| Recorded scheduled-job status | Identify existing operational degradation before a canary is evaluated. The current source is the dedicated MarketOps database; fallback runtime JSON is not production truth. |
 
 Counts alone do not establish correctness. Every future parity comparison must also sample stable asset IDs/tickers, session dates, quality states, provenance, and failure/deferred reasons.
 

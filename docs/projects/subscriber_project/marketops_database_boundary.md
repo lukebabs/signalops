@@ -1,6 +1,6 @@
 # MarketOps Dedicated Database Boundary
 
-Status: bootstrap/parity evidence, corrected gateway-read acceptance, and the continuous-writer cutover are complete. Scheduled-job routing/resume, dedicated pgBackRest schedules, and restore rehearsal remain separate gates.
+Status: bootstrap/parity evidence, corrected gateway-read acceptance, continuous-writer cutover, scheduled-job routing/resume, dedicated pgBackRest schedules, restore rehearsal, and DB-backed scheduled-job status are complete.
 
 ## Decision
 
@@ -210,3 +210,18 @@ The final isolated rehearsal restored both dedicated stores from the latest encr
 The disposable rehearsal uses `archive-copy=y`, `--type=none`, and `--archive-mode=off`. This validates that the encrypted physical backup plus its packaged consistency WAL can restore and start without network access, archive retrieval, or any production/database write. Continuous WAL archival is separately verified on both live stores (`archive_mode=on`, 15-minute archive timeout) and each pgBackRest repository check passed. This rehearsal is therefore recovery-point validation, not a networked point-in-time restore drill.
 
 Post-rehearsal checks confirm `marketops` and `marketops_temporal` remain healthy with WAL archiving enabled. The dedicated daily recovery-point timer remains active for 02:45 UTC; the shared `signalops-postgres-pgbackrest.timer` remains inactive. This closes the dedicated MarketOps backup-and-isolated-restore gate.
+
+
+## Scheduled-job status source-of-truth closure — 2026-08-19
+
+The scheduler status plane now follows the same dedicated MarketOps boundary as
+the application data plane. Migration
+`000154_marketops_scheduled_job_statuses` created database tables for current
+job status and run history in `marketops`. The Gateway reads those tables for
+Admin System scheduler status and falls back to ignored runtime JSON only if
+database access is unavailable.
+
+The installed MarketOps operations monitor wrote fresh success evidence to the
+dedicated database, and subscriber UI smoke passed after the Gateway/web
+deployment. This removes repository-local runtime files from the operational
+source-of-truth path.

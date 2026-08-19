@@ -1,6 +1,6 @@
 # N1 closure evidence — 2026-08-19
 
-Status: N1 closed. Monitor health, deployment-agent control, activation queue reconciliation, and pgBackRest unit re-anchoring are verified.
+Status: N1 closed. Monitor health, deployment-agent control, activation queue reconciliation, pgBackRest unit re-anchoring, and DB-backed scheduled-job status are verified.
 
 ## Closed in this cycle
 
@@ -10,6 +10,7 @@ Status: N1 closed. Monitor health, deployment-agent control, activation queue re
 - Verified Admin run-now through the live Gateway: `signalops-storage-monitor` returned `202 accepted` with runner `unix:/run/signalops/deployment-agent.sock`.
 - Verified Gateway readiness at `/readyz`.
 - Verified subscriber pilot browser smoke after hardening the auth navigation retry for transient Chromium `net::ERR_NETWORK_CHANGED`.
+- Moved scheduled-job operational status into the dedicated MarketOps database so Admin status reads no longer depend on repository-local runtime files.
 
 ## Fresh evidence
 
@@ -133,3 +134,25 @@ Final verification:
 - `signalops-marketops-boundary-fmp-annual-financial.timer` remains intentionally inactive with `next=n/a`.
 
 N1 has no remaining blocker from the 2026-08-19 recovery-control loop. Future work moves to the next sprint backlog rather than reopening N1.
+
+
+## Scheduled-job status database closure — 2026-08-19 04:24 UTC
+
+Migration `000154_marketops_scheduled_job_statuses` was applied to the
+dedicated MarketOps primary database. The previous ignored runtime status
+artifacts were seeded into `marketops_scheduled_job_statuses` and
+`marketops_scheduled_job_runs` so Admin did not lose continuity.
+
+Verification evidence:
+
+- commit `5b0871f` deployed and pushed to `origin/subscribers`;
+- Gateway `/readyz` returned healthy;
+- `signalops-web-1`, `signalops-gateway-1`, and
+  `signalops-marketops-postgres-1` were running;
+- `marketops-operations-monitor` wrote a fresh DB-backed success row from
+  `2026-08-19 04:16:18 UTC` to `2026-08-19 04:16:20 UTC`;
+- subscriber pilot UI smoke passed with `2 passed`.
+
+The operational source of truth for scheduled-job status is now the dedicated
+MarketOps database. `runtime/scheduled-jobs/` remains ignored fallback/debug
+output only and must not be committed.

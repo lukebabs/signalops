@@ -1,6 +1,6 @@
 # Subscriber Project
 
-Status: active implementation project. The global catalog and subscriber-list foundation are deployed behind controls; subscription commerce is implemented behind a default-off feature flag and awaits controlled activation evidence. Scheduled-job operations status is moving to the dedicated MarketOps database; repo-local runtime JSON is retained only as ignored fallback/debug output.
+Status: active implementation project. The global catalog and subscriber-list foundation are deployed behind controls; subscription commerce is implemented behind a default-off feature flag and awaits controlled activation evidence. Scheduled-job operations status is now stored in the dedicated MarketOps database; repo-local runtime JSON is retained only as ignored fallback/debug output.
 
 ## Goal
 
@@ -89,6 +89,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [Production backup and restore runbook](production_backup_restore_runbook.md): procurement inputs, encrypted PostgreSQL/PITR backup procedure, restore sequence, and acceptance evidence required before production pilot enablement.
 - [N1 production observability and recovery](n1_production_observability_recovery.md): dedicated-boundary health checks, alert delivery, recovery cadence, and host-watch remediation.
 - [N1 closure evidence — 2026-08-19](n1_closure_evidence_2026-08-19.md): deployment-agent/Admin run-now closure, activation-queue reconciliation, and pgBackRest recovery-control re-anchor verification.
+- [MarketOps scheduled-job status database migration — 2026-08-19](marketops_scheduled_job_status_database_2026-08-19.md): DB-backed scheduler-status source of truth, fallback boundary, and live verification.
 - [Automated browser acceptance](automated_browser_acceptance.md): real-OIDC, read-only subscriber smoke validation with failure-only HAR/trace/screenshot evidence.
 - [S4 recovery readiness evidence — 2026-08-13](s4_recovery_readiness_evidence_2026-08-13.md): verified recovery-bucket and IAM controls, unprovisioned safeguards, and the handoff sequence before provider execution.
 - [MarketOps daily surveillance architecture](../../use_cases/marketops/daily_market_surveillance/architecture/functional_components.md): current production components.

@@ -175,7 +175,7 @@ systemctl --user status signalops-marketops-sri-holdings-refresh.timer --no-page
 systemctl --user list-timers 'signalops-*' --no-pager
 ~~~
 
-The timer records runtime state through the existing governed scheduled-job wrapper. Do not edit files under runtime/scheduled-jobs by hand.
+The timer records runtime state through the governed scheduled-job wrapper. The operational source is the dedicated MarketOps database tables `marketops_scheduled_job_statuses` and `marketops_scheduled_job_runs`; `runtime/scheduled-jobs/` is fallback/debug output only. Do not edit runtime files by hand.
 
 ## API contract
 
