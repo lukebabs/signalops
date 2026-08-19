@@ -1,5 +1,14 @@
 __pycache__/
 *.py[cod]
-
+.venv
+cert/*
+*.pem
+*.orig
+companies.csv
+runtime/postclose-recovery/*.attempts
+web/Makefile
+web/compose*.yaml
+web/go.mod
+web/go.sum
 .env
 *.swp
