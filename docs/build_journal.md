@@ -1,5 +1,34 @@
 # SignalOps Build Journal
 
+## 2026-08-19T05:25:48Z
+
+Summary:
+
+- Ran the approved temporary production subscription enforcement canary through the constrained deployment agent.
+- Verified Explorer, Professional, and Institutional subscription enforcement behavior.
+- Verified automatic restoration to enforcement-off and pilot Explorer state.
+
+Files changed:
+
+- `docs/projects/subscriber_project/subscription_commerce_foundation_release_evidence_2026-08-17.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- Permanent commercial enforcement requires retained evidence that tier enforcement works and restores cleanly before any durable activation decision.
+
+Verification performed:
+
+- `sudo -n signalops-deploy-agent subscription-enforcement-canary` completed successfully.
+- Canary UI/API matrix returned `1 passed`.
+- Gateway environment after restoration reported `SIGNALOPS_SUBSCRIPTIONS_ENABLED=false`.
+- Public `/readyz` returned healthy.
+- Database verification showed the controlled `tenant-pilot-b` pilot subject restored to active Explorer.
+
+Next step:
+
+- The remaining operations hardening item is a safe deploy command/Make target that always includes the required MarketOps and Traefik overlays.
+
 ## 2026-08-19T05:05:33Z
 
 Summary:

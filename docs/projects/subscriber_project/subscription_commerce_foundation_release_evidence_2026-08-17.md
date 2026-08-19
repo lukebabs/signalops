@@ -104,3 +104,26 @@ Validated scope:
 - public routing is restored through `https://signalops.syncratic.io` with `/readyz` returning 200.
 
 This closes the browser-validation item for the 2026-08-19 subscription governance enhancement. Commercial enforcement remains off until separately approved.
+
+
+## Three-tier enforcement matrix rerun — 2026-08-19
+
+Status: **passed**. This was a temporary production enforcement canary under named approval from `luke@strategiclabs.io`, not a persistent enforcement activation.
+
+The constrained deployment-agent action `subscription-enforcement-canary` temporarily enabled `SIGNALOPS_SUBSCRIPTIONS_ENABLED=true` on the Gateway, ran the Playwright/API three-tier matrix, restored the controlled pilot subscription to Explorer, regenerated the dedicated gateway credential, and restarted the Gateway with normal enforcement-off configuration.
+
+Validation result:
+
+- canary UI/API test: `1 passed`;
+- Explorer baseline: pilot `tenant-pilot-b` subject was blocked from Value Intelligence with `402 subscription_feature_required` while public Sector Rotation remained accessible;
+- Professional temporary state: the same pilot subject accessed Value Intelligence and remained blocked from Signal Assurance with `402 subscription_feature_required`;
+- Institutional state: `luke@strategiclabs.io` on `tenant-local` accessed Signal Assurance successfully through the active tenant Institutional seat.
+
+Restoration evidence after the canary:
+
+- Gateway reported `SIGNALOPS_SUBSCRIPTIONS_ENABLED=false`;
+- public `https://signalops.syncratic.io/readyz` returned healthy;
+- `subscriber_subject_subscriptions` restored the controlled pilot subject to `product_key='explorer'`, `status='active'`, correlation `subscription-enforcement-canary-explorer`, updated at `2026-08-19 05:25:33 UTC`;
+- `signalops-gateway-1` and `signalops-web-1` remained running.
+
+No provider polling, scheduled job, tenant contract mutation, Institutional seat mutation, Stripe action, or persistent enforcement flag change occurred.
