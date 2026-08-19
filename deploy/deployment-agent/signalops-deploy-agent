@@ -23,6 +23,15 @@ run() {
   audit success
 }
 
+ensure_marketops_pgbackrest_unit() {
+  local expected="$repository_dir/scripts/marketops_pgbackrest_backup.sh"
+  local actual
+  actual="$(systemctl show signalops-marketops-pgbackrest.service --property=ExecStart --value 2>/dev/null || true)"
+  if [[ "$actual" != *"$expected"* ]]; then
+    "$repository_dir/scripts/install_marketops_pgbackrest_system_timer.sh"
+  fi
+}
+
 case "$action" in
   render-cutover-env)
     run "$root_dir/render_marketops_cutover_env.sh"
@@ -144,6 +153,7 @@ case "$action" in
     run "$repository_dir/scripts/deploy_marketops_writer_cutover.sh" --dedicated-authoritative "$repository_dir/.env"
     ;;
   backup-run)
+    ensure_marketops_pgbackrest_unit
     run systemctl start signalops-marketops-pgbackrest.service
     ;;
   restore-rehearsal-run)

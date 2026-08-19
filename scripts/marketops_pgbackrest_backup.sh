@@ -15,6 +15,7 @@ esac
 
 [[ -r "$config_path" && -r "$boundary_env" ]] || { echo "pgBackRest configuration or MarketOps boundary secret is not readable." >&2; exit 3; }
 compose=(docker compose -p signalops --env-file "$boundary_env" -f "$root_dir/compose.yaml" -f "$root_dir/compose.marketops-boundary.yaml" -f "$root_dir/compose.marketops-pgbackrest.yaml")
+SIGNALOPS_PGBACKREST_CONFIG_PATH="$config_path" "${compose[@]}" up -d --build --wait marketops-postgres marketops-timescaledb
 targets=("marketops-postgres marketops-primary" "marketops-timescaledb marketops-temporal")
 for target in "${targets[@]}"; do
   read -r service stanza <<<"$target"
