@@ -8072,3 +8072,12 @@ Next-cycle priority:
 - Operations monitor still fails truthfully on recovery freshness: stale pgBackRest service path, missing fresh restore stamp, aged WAL/backup evidence, and two aged coverage-activation requests.
 - The root cause is deployment-control drift: the installed MarketOps pgBackRest unit points at `/tmp/signalops-marketops-recovery-release`, and backup/restore now execute in containers without `pgbackrest` in `$PATH`.
 - Closing the remaining N1 recovery loop requires explicit approval for a production recovery-control fix that may recreate the dedicated MarketOps database containers under the pgBackRest image overlay and reinstall the root-owned backup unit from the current repository path.
+
+
+## 2026-08-19 — N1 recovery-control execution evidence
+
+- Applied and pushed `2e4224d`, which reasserts the pgBackRest Compose overlay before MarketOps backup and restore rehearsal and adds a deployment-agent source guard for stale pgBackRest systemd units.
+- Ran the controlled restore rehearsal through the deployment agent: both `marketops-primary` and `marketops-temporal` restored into isolated containers and accepted validation queries.
+- Ran the controlled pgBackRest backup: primary and temporal diff backups completed successfully and archived WAL.
+- Reran the operations monitor: backup age, repository size, WAL freshness, credentials, pgBackRest scheduler result, intraday scheduler result, and restore rehearsal all passed. The monitor now has one remaining actionable failure: two stale AAPL/NVDA coverage-activation queue rows whose global EOD coverage is already active.
+- The live systemd backup unit still needs root-owned re-anchoring from the current repo path for permanence; direct `sudo -n ./scripts/install_marketops_pgbackrest_system_timer.sh` still requires a password.

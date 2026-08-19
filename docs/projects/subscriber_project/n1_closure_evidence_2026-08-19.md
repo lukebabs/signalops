@@ -1,6 +1,6 @@
 # N1 closure evidence — 2026-08-19
 
-Status: partially closed; scheduler/admin control is restored, but recovery-point freshness remains blocked by a pgBackRest runtime drift.
+Status: recovery controls materially restored; operations monitor is blocked only by the N3 coverage-activation queue reconciliation decision.
 
 ## Closed in this cycle
 
@@ -58,3 +58,33 @@ The safe target behavior is:
 6. leave the two stale coverage-activation requests for the N3 catalog-activation queue closure unless separately approved.
 
 No provider polling, tenant-data mutation, or database deletion is implied by this recovery-control change.
+
+
+## Recovery-control execution update — 2026-08-19 03:31 UTC
+
+After the approved recovery-control fix:
+
+- the current repo scripts now reassert the pgBackRest Compose overlay before backup and restore rehearsal;
+- isolated restore rehearsal passed for both `marketops-primary` and `marketops-temporal`;
+- controlled pgBackRest backup passed for both stanzas;
+- the operations monitor reduced from six actionable failures to one.
+
+Latest monitor pass evidence:
+
+- `backup_marketops-primary`: passed, age 109 seconds;
+- `repository_marketops-primary`: passed, 308,805,056 bytes;
+- `backup_marketops-temporal`: passed, age 21 seconds;
+- `repository_marketops-temporal`: passed, 154,393,056 bytes;
+- `wal_primary`: passed, age 109 seconds;
+- `wal_temporal`: passed, age 21 seconds;
+- `credentials`: passed;
+- `scheduler_signalops-marketops-pgbackrest.service`: passed;
+- `restore_rehearsal`: passed, age 156 seconds.
+
+Remaining monitor failure:
+
+- `coverage_activation_queue`: failed because two pilot activation requests are still `queued` and older than 24 hours.
+
+Read-only inspection showed those two rows are AAPL and NVDA requests from `tenant-pilot-b` private list `sublist_73a0087473df782f499b51e9`. Both underlying global assets already have active `eod_baseline` coverage and current global evidence. Closing this last monitor failure requires a separately approved data-state reconciliation that marks activation requests active when their corresponding global EOD coverage is already active. That is an N3 catalog-activation queue correction, not a provider call or backup operation.
+
+Residual hardening note: the live `signalops-marketops-pgbackrest.service` still shows the old `/tmp/signalops-marketops-recovery-release` path until the deployment agent is reprovisioned or the systemd unit is reinstalled from the current repo. The backup succeeded after the pgBackRest overlay was reasserted, but the root-owned unit should still be re-anchored for permanence.
