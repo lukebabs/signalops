@@ -8,6 +8,7 @@ Summary:
 - Added restart policies to continuous MarketOps writer services.
 - Removed live database rebuild/recreate behavior from routine pgBackRest backup and isolated restore rehearsal paths.
 - Hardened operations monitor WAL freshness and systemd result classification.
+- Updated writer-cutover preflight to tolerate dedicated-only target tables and prevent false aborts during authoritative dedicated-store validation.
 
 Files changed:
 
@@ -15,6 +16,7 @@ Files changed:
 - `scripts/marketops_pgbackrest_backup.sh`
 - `scripts/marketops_pgbackrest_restore_rehearsal.sh`
 - `scripts/marketops_operations_monitor.sh`
+- `scripts/preflight_marketops_writer_cutover.sh`
 - `docs/projects/subscriber_project/marketops_data_plane_contract.md`
 - `docs/build_journal.md`
 
@@ -32,7 +34,7 @@ Verification performed:
 
 Next step:
 
-- Apply the Compose restart-policy update to the running writer containers and rerun the operations monitor.
+- Writer cutover was rerun after fixing dedicated-only table handling; the runtime reconciled 286 shared temporal signal rows and verified continuous writers on the dedicated boundary.
 
 ## 2026-08-19T06:00:00Z
 

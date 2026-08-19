@@ -90,7 +90,10 @@ Permanent controls added after the incident:
 - operations monitor WAL checks actively switch WAL before measuring archive
   freshness;
 - operations monitor treats non-success systemd results, including `exit-code`,
-  as actionable failures.
+  as actionable failures;
+- writer-cutover preflight records dedicated-only target tables as
+  `SOURCE_ABSENT` instead of aborting when the former shared source does not
+  contain the new control table.
 
 ## August 17, 2026 incident
 

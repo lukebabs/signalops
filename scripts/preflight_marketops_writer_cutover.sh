@@ -29,14 +29,35 @@ tables() {
   query "$1" "$2" "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' AND tablename !~ '^subscriber_' AND (tablename ~ '^(marketops_|sri_|algorithm_|catalog_|platform_primitive_)' OR tablename IN ('signal_ledger','normalized_event_ledger','signal_assurance_assertions','signal_assurance_outbox','signal_assurance_validation_contracts','signal_assurance_baselines')) ORDER BY tablename;"
 }
 compare() {
-  local kind="$1" table="$2" sc tc result
+  local kind="$1" table="$2" sc tc result source_exists target_exists display_table
+  display_table="$table"
+  source_exists="$(query "$3" "$4" "SELECT to_regclass('public.$table') IS NOT NULL;")"
+  target_exists="$(query "$5" "$6" "SELECT to_regclass('public.$table') IS NOT NULL;")"
+  if [[ "$target_exists" != "t" ]]; then
+    printf '%-9s %-58s source=%-10s target=%-10s %s\n' "$kind" "$table" unknown absent MISMATCH
+    failures=$((failures+1))
+    return
+  fi
   if [[ "$table" == "signal_ledger" || "$table" == "normalized_event_ledger" ]]; then
-    sc="$(query "$3" "$4" "SELECT count(*) FROM public.$table WHERE app_id='marketops';")"
     tc="$(query "$5" "$6" "SELECT count(*) FROM public.$table WHERE app_id='marketops';")"
-    table="$table (app_id=marketops)"
+    display_table="$table (app_id=marketops)"
+    if [[ "$source_exists" == "t" ]]; then
+      sc="$(query "$3" "$4" "SELECT count(*) FROM public.$table WHERE app_id='marketops';")"
+    else
+      sc=absent
+    fi
   else
-    sc="$(query "$3" "$4" "SELECT count(*) FROM public.$table;")"
     tc="$(query "$5" "$6" "SELECT count(*) FROM public.$table;")"
+    if [[ "$source_exists" == "t" ]]; then
+      sc="$(query "$3" "$4" "SELECT count(*) FROM public.$table;")"
+    else
+      sc=absent
+    fi
+  fi
+  if [[ "$sc" == absent ]]; then
+    result=SOURCE_ABSENT
+    printf '%-9s %-58s source=%-10s target=%-10s %s\n' "$kind" "$display_table" "$sc" "$tc" "$result"
+    return
   fi
   if [[ "$mode" == "--pre-writer" ]]; then
     [[ "$sc" == "$tc" ]] && result=OK || result=MISMATCH
@@ -45,7 +66,7 @@ compare() {
   else
     result=MISMATCH
   fi
-  printf '%-9s %-58s source=%-10s target=%-10s %s\n' "$kind" "$table" "$sc" "$tc" "$result"
+  printf '%-9s %-58s source=%-10s target=%-10s %s\n' "$kind" "$display_table" "$sc" "$tc" "$result"
   [[ "$result" != MISMATCH ]] || failures=$((failures+1))
 }
 
