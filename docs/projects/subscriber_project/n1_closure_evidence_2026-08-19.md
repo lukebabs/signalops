@@ -1,6 +1,6 @@
 # N1 closure evidence — 2026-08-19
 
-Status: N1 monitor closure passed; residual hardening is limited to re-anchoring the live root-owned pgBackRest systemd unit path for permanence.
+Status: N1 closed. Monitor health, deployment-agent control, activation queue reconciliation, and pgBackRest unit re-anchoring are verified.
 
 ## Closed in this cycle
 
@@ -17,9 +17,9 @@ Status: N1 monitor closure passed; residual hardening is limited to re-anchoring
 - `signalops-storage-monitor` run-now completed successfully at `2026-08-19T03:10:47Z`.
 - Scheduler status showed active timers for intraday, post-close, post-close recovery, SRI refresh, SRI holdings refresh, and warm EOD.
 
-## Remaining N1 failures
+## Historical N1 failures before recovery-control fix
 
-The operations monitor still fails truthfully. The 2026-08-19 03:11 UTC monitor run reported six actionable checks:
+At 2026-08-19 03:11 UTC, before the recovery-control fix, the operations monitor failed truthfully with six actionable checks:
 
 1. `backup_marketops-primary`: pgBackRest info unavailable.
 2. `backup_marketops-temporal`: backup age above the 26-hour threshold.
@@ -30,25 +30,25 @@ The operations monitor still fails truthfully. The 2026-08-19 03:11 UTC monitor 
 
 ## Root cause identified
 
-The installed `signalops-marketops-pgbackrest.service` still points at an old temporary release directory:
+At that point, the installed `signalops-marketops-pgbackrest.service` pointed at an old temporary release directory:
 
 ```text
 /tmp/signalops-marketops-recovery-release/scripts/marketops_pgbackrest_backup.sh
 ```
 
-That stale backup path now executes against MarketOps database containers that do not have `pgbackrest` in `$PATH`, causing:
+That stale backup path executed against MarketOps database containers that do not have `pgbackrest` in `$PATH`, causing:
 
 ```text
 OCI runtime exec failed: exec failed: unable to start container process: exec: "pgbackrest": executable file not found in $PATH
 ```
 
-This is a deployment-control drift, not a provider-data failure. The dedicated MarketOps databases remain reachable and the scheduler timers are active.
+This is a deployment-control drift, not a provider-data failure. The dedicated MarketOps databases remained reachable and the scheduler timers were active.
 
-## Required approval boundary
+## Approved recovery-control boundary
 
-Closing the remaining N1 recovery loop requires an explicitly approved production recovery-control change because the fix may rebuild/recreate the dedicated MarketOps database containers under the pgBackRest image overlay and reinstall the root-owned systemd backup unit from the current repository path.
+Closing the remaining N1 recovery loop required an explicitly approved production recovery-control change because the fix may rebuild/recreate the dedicated MarketOps database containers under the pgBackRest image overlay and reinstall the root-owned systemd backup unit from the current repository path.
 
-The safe target behavior is:
+The approved target behavior was:
 
 1. re-anchor `signalops-marketops-pgbackrest.service` to the current repository path;
 2. ensure backup and restore rehearsal run against MarketOps database containers that include pgBackRest and the mounted root-owned config;
@@ -57,7 +57,7 @@ The safe target behavior is:
 5. rerun the operations monitor;
 6. leave the two stale coverage-activation requests for the N3 catalog-activation queue closure unless separately approved.
 
-No provider polling, tenant-data mutation, or database deletion is implied by this recovery-control change.
+No provider polling, tenant-data mutation, or database deletion was implied by this recovery-control change.
 
 
 ## Recovery-control execution update — 2026-08-19 03:31 UTC
@@ -81,13 +81,13 @@ Latest monitor pass evidence:
 - `scheduler_signalops-marketops-pgbackrest.service`: passed;
 - `restore_rehearsal`: passed, age 156 seconds.
 
-Remaining monitor failure:
+Historical remaining monitor failure at 03:31 UTC:
 
-- `coverage_activation_queue`: failed because two pilot activation requests are still `queued` and older than 24 hours.
+- `coverage_activation_queue`: failed because two pilot activation requests were still `queued` and older than 24 hours.
 
-Read-only inspection showed those two rows are AAPL and NVDA requests from `tenant-pilot-b` private list `sublist_73a0087473df782f499b51e9`. Both underlying global assets already have active `eod_baseline` coverage and current global evidence. Closing this last monitor failure requires a separately approved data-state reconciliation that marks activation requests active when their corresponding global EOD coverage is already active. That is an N3 catalog-activation queue correction, not a provider call or backup operation.
+Read-only inspection showed those two rows are AAPL and NVDA requests from `tenant-pilot-b` private list `sublist_73a0087473df782f499b51e9`. Both underlying global assets already have active `eod_baseline` coverage and current global evidence. Closing this last monitor failure required a separately approved data-state reconciliation that marks activation requests active when their corresponding global EOD coverage is already active. That is an N3 catalog-activation queue correction, not a provider call or backup operation.
 
-Residual hardening note: the live `signalops-marketops-pgbackrest.service` still shows the old `/tmp/signalops-marketops-recovery-release` path until the deployment agent is reprovisioned or the systemd unit is reinstalled from the current repo. The backup succeeded after the pgBackRest overlay was reasserted, but the root-owned unit should still be re-anchored for permanence.
+Historical residual hardening note before reprovisioning: the live `signalops-marketops-pgbackrest.service` still showed the old `/tmp/signalops-marketops-recovery-release` path until the deployment agent was reprovisioned or the systemd unit was reinstalled from the current repo. The backup succeeded after the pgBackRest overlay was reasserted, but the root-owned unit needed to be re-anchored for permanence.
 
 
 ## Activation queue reconciliation and N1 monitor pass — 2026-08-19 03:43 UTC
@@ -112,4 +112,24 @@ Post-reconciliation evidence:
 - operations monitor passed at `2026-08-19T03:43:01Z`;
 - backup, repository size, WAL freshness, credentials, pgBackRest scheduler result, intraday scheduler result, restore rehearsal, and coverage queue checks all passed.
 
-N1 is functionally closed for monitor health. The remaining hardening item is to reinstall/reprovision the root-owned pgBackRest unit from the current repository path so `signalops-marketops-pgbackrest.service` no longer reports the old `/tmp/signalops-marketops-recovery-release` ExecStart path.
+N1 is functionally closed for monitor health. The remaining hardening item was to reinstall/reprovision the root-owned pgBackRest unit from the current repository path so `signalops-marketops-pgbackrest.service` no longer reports the old `/tmp/signalops-marketops-recovery-release` ExecStart path.
+
+
+## pgBackRest unit re-anchor verification — 2026-08-19 03:49 UTC
+
+After the deployment agent was reprovisioned, the controlled backup path reinstalled the MarketOps pgBackRest systemd unit from the current repository. The live unit now resolves to:
+
+```text
+/home/adminalien/docker/syncratic-core/subsystems/signalops/scripts/marketops_pgbackrest_backup.sh scheduled
+```
+
+Systemd recorded the latest `signalops-marketops-pgbackrest.service` execution as `status=0` from `2026-08-19 03:48:33 UTC` to `2026-08-19 03:49:40 UTC`.
+
+Final verification:
+
+- `sudo -n signalops-deploy-agent operations-monitor-run` exited successfully;
+- `sudo -n signalops-deploy-agent scheduler-status` showed active MarketOps timers for intraday, daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, and warm EOD;
+- the same scheduler status showed the latest one-shot results for preflight, intraday, daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, storage monitor, and retention governance as `result=success`;
+- `signalops-marketops-boundary-fmp-annual-financial.timer` remains intentionally inactive with `next=n/a`.
+
+N1 has no remaining blocker from the 2026-08-19 recovery-control loop. Future work moves to the next sprint backlog rather than reopening N1.
