@@ -9,7 +9,7 @@ COMPOSE ?= docker compose
 # `make deploy-web VITE_SIGNALOPS_AUTH_ENABLED=false` for an auth-disabled build.
 VITE_SIGNALOPS_AUTH_ENABLED ?= true
 
-.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-build-massive-puller docker-build-massive-scheduler docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate compose-storage-migrate compose-temporal-migrate compose-temporal-backfill deploy-web
+.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-build-massive-puller docker-build-massive-scheduler docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate compose-storage-migrate compose-temporal-migrate compose-temporal-backfill deploy-web deploy-production deploy-production-dry-run deploy-production-web deploy-production-gateway
 
 docker-test:
 	docker run --rm \
@@ -91,3 +91,19 @@ compose-temporal-backfill:
 deploy-web:
 	VITE_SIGNALOPS_AUTH_ENABLED=$(VITE_SIGNALOPS_AUTH_ENABLED) \
 		$(COMPOSE) -f compose.yaml -f compose.traefik.yaml up -d --build --no-deps web
+
+# Public production deploy for the decoupled MarketOps topology. This forces the
+# MarketOps boundary/read-cutover overlays and Traefik overlay together, then
+# validates that web still has public router labels and gateway still has the
+# dedicated MarketOps database environment.
+deploy-production:
+	./scripts/deploy_signalops_public_production.sh
+
+deploy-production-dry-run:
+	./scripts/deploy_signalops_public_production.sh --dry-run
+
+deploy-production-web:
+	./scripts/deploy_signalops_public_production.sh --web-only
+
+deploy-production-gateway:
+	./scripts/deploy_signalops_public_production.sh --gateway-only

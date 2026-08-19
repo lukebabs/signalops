@@ -187,6 +187,40 @@ Traefik labels attached. If `COMPOSE_FILE` is absent, a bare
 which **404s the public host**. Always keep `COMPOSE_FILE` set for this public
 deployment and prefer `make deploy-web` when rebuilding the public web image.
 
+For the decoupled MarketOps production topology, use the safer public production
+deploy target whenever `gateway` is included or when both public entrypoints are
+rebuilt together:
+
+```bash
+make deploy-production-dry-run
+sudo make deploy-production
+
+# Narrow variants when a bounded restart is required:
+sudo make deploy-production-web
+sudo make deploy-production-gateway
+```
+
+The same operation is available through the constrained deployment agent after the agent is re-provisioned from this repository:
+
+```bash
+sudo -n signalops-deploy-agent signalops-production-deploy
+
+# Narrow variants:
+sudo -n signalops-deploy-agent signalops-production-web-deploy
+sudo -n signalops-deploy-agent signalops-production-gateway-deploy
+```
+
+`make deploy-production` runs `scripts/deploy_signalops_public_production.sh`.
+The script always supplies the base Compose file, MarketOps boundary overlay,
+MarketOps read-cutover overlay, and Traefik overlay together. It validates the
+rendered Compose config before restarting services, then verifies the running
+`web` container still has the public Traefik labels, the running `gateway`
+container still has the dedicated MarketOps database environment, and local plus
+public `/readyz` endpoints respond. This is the preferred command after the
+MarketOps database decoupling because a plain `docker compose up -d --build` can
+recreate services without the protected cutover env or public router labels.
+
+
 Only the `web` service is exposed publicly. The web nginx container proxies API
 and SSE paths to the internal gateway, preserving same-origin browser behavior:
 

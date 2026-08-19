@@ -141,6 +141,21 @@ case "$action" in
   subscription-enforcement-canary)
     run "$repository_dir/scripts/run_subscription_enforcement_canary.sh" "$actor"
     ;;
+  signalops-production-deploy)
+    "$repository_dir/scripts/deploy_signalops_public_production.sh"
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
+  signalops-production-web-deploy)
+    "$repository_dir/scripts/deploy_signalops_public_production.sh" --web-only
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
+  signalops-production-gateway-deploy)
+    "$repository_dir/scripts/deploy_signalops_public_production.sh" --gateway-only
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
   marketops-web-deploy)
     run make -C "$repository_dir" deploy-web
     run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \

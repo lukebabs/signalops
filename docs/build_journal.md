@@ -1,5 +1,39 @@
 # SignalOps Build Journal
 
+## 2026-08-19T06:00:00Z
+
+Summary:
+
+- Added a safe public production deploy command for the decoupled MarketOps topology.
+- Added Makefile wrappers and deployment-agent actions for full, dry-run, web-only, and gateway-only production deploys.
+- Documented why plain Compose rebuilds are unsafe after MarketOps database decoupling.
+
+Files changed:
+
+- `scripts/deploy_signalops_public_production.sh`
+- `Makefile`
+- `docs/deployment.md`
+- `deploy/deployment-agent/signalops-deploy-agent`
+- `scripts/provision_signalops_deployment_agent.sh`
+- `docs/build_journal.md`
+
+Rationale:
+
+- Public deploys must consistently include the MarketOps boundary, MarketOps read-cutover, and Traefik overlays so Gateway keeps dedicated MarketOps data access and Web keeps public routing labels.
+
+Verification performed:
+
+- `bash -n scripts/deploy_signalops_public_production.sh`
+- `bash -n deploy/deployment-agent/signalops-deploy-agent`
+- `bash -n scripts/provision_signalops_deployment_agent.sh`
+- `make deploy-production-dry-run`
+- `make -n deploy-production`
+- `git diff --check`
+
+Next step:
+
+- Re-provision the deployment agent, then use `sudo -n signalops-deploy-agent signalops-production-deploy` for the next approved production gateway/web restart.
+
 ## 2026-08-19T05:25:48Z
 
 Summary:
