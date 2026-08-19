@@ -1,1 +1,1 @@
-{"job_id":"marketops-intraday","schedule":"Weekdays every 15 minutes, 09:30-20:00","timezone":"America/New_York","status":"succeeded","started_at":"2026-08-07T21:30:00Z","completed_at":"2026-08-07T21:30:24Z","exit_code":0}
+{"job_id":"marketops-intraday","schedule":"Weekdays every 15 minutes, 09:30-20:00","timezone":"America/New_York","status":"succeeded","started_at":"2026-08-19T00:00:00Z","completed_at":"2026-08-19T00:00:34Z","exit_code":0}
