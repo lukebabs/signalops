@@ -8081,3 +8081,11 @@ Next-cycle priority:
 - Ran the controlled pgBackRest backup: primary and temporal diff backups completed successfully and archived WAL.
 - Reran the operations monitor: backup age, repository size, WAL freshness, credentials, pgBackRest scheduler result, intraday scheduler result, and restore rehearsal all passed. The monitor now has one remaining actionable failure: two stale AAPL/NVDA coverage-activation queue rows whose global EOD coverage is already active.
 - The live systemd backup unit still needs root-owned re-anchoring from the current repo path for permanence; direct `sudo -n ./scripts/install_marketops_pgbackrest_system_timer.sh` still requires a password.
+
+
+## 2026-08-19 — N1 monitor pass after activation queue reconciliation
+
+- Reconciled the two stale `tenant-pilot-b` AAPL/NVDA coverage-activation requests to `active` under explicit approval. The guarded update required active global `eod_baseline` coverage, exact tenant/private-list origin, exact symbols, and exactly two rows updated. No provider polling was performed; provenance records approval and correlation `n1-coverage-activation-reconcile-20260819`.
+- Verified open activation requests are now zero.
+- Reran `signalops-marketops-operations-monitor.service`; it passed at 2026-08-19 03:43 UTC. Backup freshness, WAL freshness, repository size, credentials, scheduler checks, restore rehearsal, and coverage queue are all passing.
+- Remaining hardening: re-anchor the live root-owned `signalops-marketops-pgbackrest.service` ExecStart from the old `/tmp/signalops-marketops-recovery-release` path to the current repository path by reprovisioning the deployment agent/systemd unit.

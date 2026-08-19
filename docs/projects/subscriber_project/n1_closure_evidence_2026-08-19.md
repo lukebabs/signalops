@@ -1,6 +1,6 @@
 # N1 closure evidence — 2026-08-19
 
-Status: recovery controls materially restored; operations monitor is blocked only by the N3 coverage-activation queue reconciliation decision.
+Status: N1 monitor closure passed; residual hardening is limited to re-anchoring the live root-owned pgBackRest systemd unit path for permanence.
 
 ## Closed in this cycle
 
@@ -88,3 +88,28 @@ Remaining monitor failure:
 Read-only inspection showed those two rows are AAPL and NVDA requests from `tenant-pilot-b` private list `sublist_73a0087473df782f499b51e9`. Both underlying global assets already have active `eod_baseline` coverage and current global evidence. Closing this last monitor failure requires a separately approved data-state reconciliation that marks activation requests active when their corresponding global EOD coverage is already active. That is an N3 catalog-activation queue correction, not a provider call or backup operation.
 
 Residual hardening note: the live `signalops-marketops-pgbackrest.service` still shows the old `/tmp/signalops-marketops-recovery-release` path until the deployment agent is reprovisioned or the systemd unit is reinstalled from the current repo. The backup succeeded after the pgBackRest overlay was reasserted, but the root-owned unit should still be re-anchored for permanence.
+
+
+## Activation queue reconciliation and N1 monitor pass — 2026-08-19 03:43 UTC
+
+Under explicit approval from `luke@strategiclabs.io`, the two stale `tenant-pilot-b` activation requests were reconciled to `active` because their corresponding global assets already had active `eod_baseline` coverage and current global evidence.
+
+Guardrails applied:
+
+- exact tenant: `tenant-pilot-b`;
+- exact requester kind: `user_private_list`;
+- exact symbols: AAPL and NVDA;
+- prior request state had to be `queued` or `warming_up`;
+- matching `subscriber_global_asset_coverage` row had to be `coverage_product='eod_baseline'`, `coverage_state='active'`, and `active_source_rows > 0`;
+- exactly two rows had to be eligible and exactly two rows had to update;
+- no provider polling was performed.
+
+Both rows now carry provenance under `coverage_reconciliation` with approval, correlation ID `n1-coverage-activation-reconcile-20260819`, basis, and `provider_polling=false`.
+
+Post-reconciliation evidence:
+
+- open activation requests: 0;
+- operations monitor passed at `2026-08-19T03:43:01Z`;
+- backup, repository size, WAL freshness, credentials, pgBackRest scheduler result, intraday scheduler result, restore rehearsal, and coverage queue checks all passed.
+
+N1 is functionally closed for monitor health. The remaining hardening item is to reinstall/reprovision the root-owned pgBackRest unit from the current repository path so `signalops-marketops-pgbackrest.service` no longer reports the old `/tmp/signalops-marketops-recovery-release` ExecStart path.
