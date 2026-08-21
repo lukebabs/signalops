@@ -1,5 +1,37 @@
 # SignalOps Build Journal
 
+## 2026-08-21T06:45:00Z
+
+Summary:
+
+- Deployed the PR-1 Admin operations visibility slice through `sudo -n signalops-deploy-agent signalops-production-deploy`.
+- Production deployment reported `signalops_public_production_deploy_verified`.
+- Public `/readyz`, `/marketops/watchlists`, and `/marketops/admin` returned `200`.
+- `scheduler-status` remained clean after deployment.
+- The bundled subscriber smoke failed once on the known browser/auth harness path, then passed on one constrained retry: `2 passed in 5.83s`.
+
+Files changed:
+
+- `docs/projects/subscriber_project/pr1_admin_operations_visibility_2026-08-21.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- PR-1 deployment evidence needs to distinguish successful production deployment and route health from transient browser-smoke instability.
+
+Verification performed:
+
+- `sudo -n signalops-deploy-agent signalops-production-deploy`
+- `curl https://signalops.syncratic.io/readyz` returned `200`
+- `curl https://signalops.syncratic.io/marketops/watchlists` returned `200`
+- `curl https://signalops.syncratic.io/marketops/admin` returned `200`
+- `sudo -n signalops-deploy-agent scheduler-status` returned clean
+- `sudo -n signalops-deploy-agent subscriber-pilot-ui-smoke` returned `2 passed` on retry
+
+Next step:
+
+- Browser-verify the Admin Workbench data-freshness table with `luke@strategiclabs.io`, then add Assets and FMP freshness rows before PR-1 exit.
+
 ## 2026-08-21T06:20:00Z
 
 Summary:

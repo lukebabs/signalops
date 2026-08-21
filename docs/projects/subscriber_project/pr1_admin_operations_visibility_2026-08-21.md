@@ -67,3 +67,34 @@ After deploying Gateway and Web, verify:
 4. Dashboard is `current` only when completed-session components align.
 5. Failed/stale/partial states include a reason.
 6. Existing scheduled-job run-now buttons still use only constrained deployment-agent actions.
+
+
+## Live deployment evidence
+
+Production deployment was executed through the constrained deployment-agent path after commit `248c85a`.
+
+Evidence:
+
+```text
+signalops_public_production_deploy_verified
+```
+
+Public route checks returned `200` for:
+
+```text
+https://signalops.syncratic.io/readyz
+https://signalops.syncratic.io/marketops/watchlists
+https://signalops.syncratic.io/marketops/admin
+```
+
+`scheduler-status` remained clean after deployment. The first bundled subscriber pilot smoke failed on the watchlist login/heading check after reaching `chrome-error://chromewebdata/`, matching the known smoke harness/auth instability rather than a route outage. A single retry of the constrained smoke action passed:
+
+```text
+..                                                                       [100%]
+2 passed in 5.83s
+```
+
+Remaining live verification:
+
+- Log in as `luke@strategiclabs.io` and confirm Admin Workbench renders the data-freshness table under MarketOps Operations Health.
+- Confirm rows are present for Dashboard, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, and Intraday conditions.
