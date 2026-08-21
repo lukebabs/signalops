@@ -8318,3 +8318,12 @@ Next-cycle priority:
 - Root cause: `marketops_signal_outcomes` has matured opportunity outcomes through 2026-08-20, but `subscriber_gateway_global_signal_assurance_observations` stopped at 2026-08-14 because `scripts/marketops_global_dashboard_projection.sh` only projected options, Risk/Reward, and Market State after post-close; it omitted outcome evidence.
 - Code fix staged: post-close global projection now materializes `outcome` evidence and verifies the SAF outcome projection count for the session. A constrained deployment-agent action `marketops-saf-projection-refresh` was added in repo to compute the latest matured outcome date, run the projection, and append missing `saf_benchmark.v4` rows idempotently.
 - Runtime status: live provisioning of the new root-owned deployment-agent action requires explicit approval because it expands the persistent privileged allowlist. No provider polling is required for the refresh; it uses existing MarketOps outcome/evidence rows only.
+
+
+## 2026-08-21 — SAF projection refresh closure evidence
+
+- Ran the approved constrained deployment-agent action `marketops-saf-projection-refresh` after provisioning the action. The first run exposed the deeper source-lifecycle issue: opportunity outcomes can be manifested while pending and later mature under the same `outcome_id`, so the parity selector must de-duplicate by payload fingerprint, not record id alone.
+- Fixed `subscriber-global-marketops-parity-manifest` so `outcome` session filtering matches `matured_session_date` and prior-manifest filtering uses the exact computed source fingerprint. This allows pending-to-matured lifecycle rows to be re-manifested without duplicating unchanged source payloads.
+- Fixed `marketops_global_dashboard_projection.sh` so its SAF outcome verification matches the projection contract: matured opportunity rows with `direction IN ('upside','downside')` and non-null `directional_hit`.
+- Fixed the SAF benchmark materializer to clamp oversized `--max-observations` values to the governed 500-row cap; this preserved safety while allowing the already-installed constrained action to complete.
+- Runtime closure: `subscriber_gateway_global_signal_assurance_observations` now exposes 132 eligible observations for matured session `2026-08-20` across 80 symbols. `saf_benchmark.v4` now has 224 broad-market matched rows and sector coverage through `2026-08-20` (`188` sector matched, `36` sector unmapped). No provider polling was performed.

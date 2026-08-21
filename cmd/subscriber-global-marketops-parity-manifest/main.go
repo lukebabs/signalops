@@ -204,13 +204,7 @@ LEFT JOIN LATERAL (
 ) mapping ON true
 WHERE source.evidence_kind IN (`+strings.Join(quotedKinds, ",")+`)
   AND ($1='' OR source.legacy_algorithm_id=$1)
-	  AND ($2::date IS NULL OR source.legacy_session_date=$2::date)
-  AND NOT EXISTS (
-    SELECT 1 FROM subscriber_global_marketops_legacy_parity_manifest_entries prior
-    WHERE prior.evidence_kind=source.evidence_kind
-      AND prior.legacy_record_id=source.legacy_record_id
-      AND prior.mapping_status='mapped'
-  )
+  AND ($2::date IS NULL OR source.legacy_session_date=$2::date OR (source.evidence_kind='outcome' AND NULLIF(source.legacy_payload->>'matured_session_date', '')::date=$2::date))
 ORDER BY source.evidence_kind,source.legacy_session_date `+orderDirection+`,source.legacy_record_id `+orderDirection+`
 LIMIT $3`, algorithmID, exactSession, limit)
 	if err != nil {
@@ -228,7 +222,53 @@ LIMIT $3`, algorithmID, exactSession, limit)
 		entry.mappingStatus, entry.materializationStatus = mappingStates(entry.globalMatches)
 		entries = append(entries, entry)
 	}
-	return entries, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return filterNewManifestEntries(ctx, db, entries)
+}
+
+func filterNewManifestEntries(ctx context.Context, db *sql.DB, entries []manifestEntry) ([]manifestEntry, error) {
+	if len(entries) == 0 {
+		return entries, nil
+	}
+	kindSet := map[string]struct{}{}
+	for _, entry := range entries {
+		kindSet[entry.kind] = struct{}{}
+	}
+	quotedKinds := make([]string, 0, len(kindSet))
+	for kind := range kindSet {
+		quotedKinds = append(quotedKinds, fmt.Sprintf("'%s'", kind))
+	}
+	sort.Strings(quotedKinds)
+	rows, err := db.QueryContext(ctx, `SELECT evidence_kind,legacy_record_id,legacy_fingerprint,mapping_status FROM subscriber_global_marketops_legacy_parity_manifest_entries WHERE evidence_kind IN (`+strings.Join(quotedKinds, ",")+`)`)
+	if err != nil {
+		return nil, fmt.Errorf("load prior parity manifest fingerprints: %w", err)
+	}
+	defer rows.Close()
+	existing := map[string]struct{}{}
+	for rows.Next() {
+		var kind, id, fingerprint, status string
+		if err := rows.Scan(&kind, &id, &fingerprint, &status); err != nil {
+			return nil, fmt.Errorf("scan prior parity manifest fingerprint: %w", err)
+		}
+		existing[manifestIdentity(kind, id, fingerprint, status)] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]manifestEntry, 0, len(entries))
+	for _, entry := range entries {
+		if _, ok := existing[manifestIdentity(entry.kind, entry.id, entry.fingerprint, entry.mappingStatus)]; ok {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out, nil
+}
+
+func manifestIdentity(kind, id, fingerprint, status string) string {
+	return kind + "\x1f" + id + "\x1f" + fingerprint + "\x1f" + status
 }
 
 func parseEvidenceKinds(raw string) ([]string, error) {

@@ -53,7 +53,7 @@ func run(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("subscriber-global-saf-benchmark-materializer", flag.ContinueOnError)
 	primaryURL := flags.String("database-url", strings.TrimSpace(os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL")), "dedicated MarketOps primary database URL")
 	temporalURL := flags.String("temporal-database-url", strings.TrimSpace(os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL")), "dedicated MarketOps temporal database URL")
-	limit := flags.Int("max-observations", 500, "maximum legacy observations to inspect (1-500)")
+	limit := flags.Int("max-observations", 500, "maximum legacy observations to inspect; values above 500 are clamped to the governed safety cap")
 	correlation := flags.String("correlation-id", "", "operator correlation id")
 	calculationVersion := flags.String("calculation-version", defaultCalculationVersion, "append-only benchmark calculation version")
 	dryRun := flags.Bool("dry-run", false, "calculate without writes")
@@ -67,8 +67,11 @@ func run(ctx context.Context, args []string) error {
 	if strings.TrimSpace(*primaryURL) == "" || strings.TrimSpace(*temporalURL) == "" {
 		return errors.New("dedicated primary and temporal database URLs are required")
 	}
-	if *limit < 1 || *limit > 500 {
-		return errors.New("max-observations must be between 1 and 500")
+	if *limit < 1 {
+		return errors.New("max-observations must be at least 1")
+	}
+	if *limit > 500 {
+		*limit = 500
 	}
 	*calculationVersion = strings.TrimSpace(*calculationVersion)
 	if !validCalculationVersion(*calculationVersion) {
