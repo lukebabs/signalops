@@ -147,6 +147,12 @@ case "$action" in
   marketops-fmp-annual-run)
     run systemctl start signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service
     ;;
+  scheduler-fmp-annual-enable)
+    run systemctl enable --now signalops-marketops-boundary-fmp-annual-financial.timer
+    ;;
+  scheduler-fmp-annual-disable)
+    run systemctl disable --now signalops-marketops-boundary-fmp-annual-financial.timer
+    ;;
   subscriber-qualified-warm-cohort-reconcile)
     run "$repository_dir/scripts/reconcile_subscriber_qualified_warm_cohort.sh" "$repository_dir/.env"
     ;;

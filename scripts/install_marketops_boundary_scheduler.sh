@@ -56,7 +56,7 @@ for flag in "${enable_flags[@]}"; do
     --enable-fmp-annual) enable_annual_fmp=true ;;
     "") ;;
     *)
-      printf "Optional flags must be --enable-sri, --enable-market-data, and/or --enable-warm-eod.\n" >&2
+      printf "Optional flags must be --enable-sri, --enable-market-data, --enable-warm-eod, and/or --enable-fmp-annual.\n" >&2
       exit 2
       ;;
   esac
@@ -95,6 +95,6 @@ if "$enable_warm_eod"; then
   printf "Enabled centrally governed warm EOD acquisition: weekdays 18:00 America/New_York.\n"
 fi
 if "$enable_annual_fmp"; then systemctl enable --now "${annual_fmp_timers[@]}"; printf "Enabled governed FMP annual financial capture: Saturdays 02:30 America/New_York.\n"; fi
-if ! "$enable_sri" && ! "$enable_market_data" && ! "$enable_warm_eod"; then
-  printf "No timer was enabled. Use --enable-sri, --enable-market-data, and/or --enable-warm-eod only with recorded approval.\n"
+if ! "$enable_sri" && ! "$enable_market_data" && ! "$enable_warm_eod" && ! "$enable_annual_fmp"; then
+  printf "No timer was enabled. Use --enable-sri, --enable-market-data, --enable-warm-eod, and/or --enable-fmp-annual only with recorded approval.\n"
 fi

@@ -22,7 +22,7 @@ Production readiness is still blocked by operational consistency gaps. The most 
 | Intraday freshness | Schedule-ready, market-idle | Latest intraday snapshot was 2026-08-20 22:15 UTC. At the review time, no 2026-08-21 market-session intraday data was expected yet. |
 | Scheduled jobs | Ready / observing | `scheduler-status` returned clean on 2026-08-21 05:17 UTC. The next acceptance point is the natural 2026-08-21 post-close cycle. |
 | Daily post-close | Observing | The stale failed systemd state was reconciled only after dedicated MarketOps DB evidence showed recovered completion. The next eligible post-close cycle must complete without manual reconcile before PR-0/PR-1 exit is final. |
-| FMP annual financial job | Partial / PR-4 | FMP annual enrichment has a central worker, Admin-visible job status, freshness row, run-now action, and disabled Saturday schedule hook. PR-4 must decide when to enable recurring capture. |
+| FMP annual financial job | Policy selected / PR-4 | Option B selected: weekly Saturday 02:30 ET recurring capture. Source now includes constrained deployment-agent enable/disable actions; live timer activation requires deploying/reprovisioning the agent and verifying scheduler status. |
 | Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. |
@@ -192,7 +192,7 @@ Status: started.
 
 Scope:
 
-- Govern FMP annual enrichment lifecycle.
+- Govern FMP annual enrichment lifecycle. Option B selected: weekly Saturday 02:30 ET recurring timer, controlled through constrained deployment-agent enable/disable actions.
 - Add trading-calendar correctness. Scheduler non-trading-day skips and SAF UI 10/20-day filters now use matching 2026/2027 US market-holiday semantics.
 - Complete subscriber administration workflow.
 - Finalize incident runbooks.

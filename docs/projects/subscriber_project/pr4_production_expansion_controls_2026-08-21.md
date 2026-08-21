@@ -103,3 +103,47 @@ npm --prefix web run build
 ```
 
 Operational note: `web/src/lib/marketopsTradingCalendar.ts` and `scripts/lib/marketops_trading_calendar.sh` intentionally duplicate the same static holiday list for now. They must be updated together until a later shared calendar source is introduced.
+
+## Third slice decision — FMP annual recurring cadence
+
+Decision: Option B is selected. `marketops-fmp-annual-financial` should run as a governed recurring weekly job.
+
+Production cadence:
+
+- Timer: `signalops-marketops-boundary-fmp-annual-financial.timer`
+- Schedule: Saturday 02:30 America/New_York
+- Job: `marketops-fmp-annual-financial`
+- Worker: `scripts/marketops_annual_financial_task_worker.sh`
+- Provider scope: FMP annual financial enrichment only
+- Failure posture: task-level failures/deferred rows are recorded; the workflow may finish degraded instead of failing catastrophically on one symbol
+- Operations surface: Admin scheduled jobs and operations freshness expose status/freshness
+
+Control path:
+
+- The installer supports `--enable-fmp-annual`.
+- The deployment agent now exposes constrained actions:
+  - `scheduler-fmp-annual-enable`
+  - `scheduler-fmp-annual-disable`
+- These actions only enable/disable `signalops-marketops-boundary-fmp-annual-financial.timer`; they do not grant general `systemctl` access.
+
+Recommended live enablement command after deployment-agent reprovision/deploy:
+
+```bash
+sudo -n signalops-deploy-agent scheduler-fmp-annual-enable
+sudo -n signalops-deploy-agent scheduler-status
+```
+
+Rollback command:
+
+```bash
+sudo -n signalops-deploy-agent scheduler-fmp-annual-disable
+sudo -n signalops-deploy-agent scheduler-status
+```
+
+Acceptance:
+
+- Timer is loaded and active.
+- Next run is Saturday 02:30 America/New_York.
+- Admin Scheduled Jobs lists FMP annual financial capture.
+- Operations Health contains `FMP annual financials` freshness.
+- The next natural run completes as `succeeded` or `degraded` with per-task evidence, not an untracked failure.

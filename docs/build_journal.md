@@ -8568,3 +8568,10 @@ Next-cycle priority:
 - Updated SAF daily progression 10/20-day filters to exclude configured market holidays, not just weekends.
 - Added `web/src/lib/marketopsTradingCalendar.test.ts` to prove regular sessions, weekends, market holidays, and trailing trading-day selection.
 - Validation passed: targeted calendar test, full web Vitest suite (`37` files, `440` tests), and production web build.
+
+## 2026-08-21 — PR-4 FMP annual recurring cadence selected
+
+- Selected Option B for FMP annual financial enrichment: governed weekly recurring capture at Saturday 02:30 America/New_York.
+- Added constrained deployment-agent actions `scheduler-fmp-annual-enable` and `scheduler-fmp-annual-disable` so recurring activation can be controlled without broad manual `systemctl` access.
+- Updated scheduler installer help/no-op messaging to include `--enable-fmp-annual` consistently.
+- Live activation still requires deploying/reprovisioning the deployment agent and then running `sudo -n signalops-deploy-agent scheduler-fmp-annual-enable`, followed by `scheduler-status` verification.
