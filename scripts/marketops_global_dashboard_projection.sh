@@ -26,6 +26,7 @@ project_kind() {
 project_kind options_snapshot
 project_kind risk_reward
 project_kind market_state
+project_kind outcome
 
 options_source="$(marketops_primary_psql -Atc "SELECT count(*) FROM marketops_options_distribution_daily WHERE tenant_id='tenant-local' AND trade_date=DATE '$session_date' AND window_name='10_trade_days'" | tr -d '[:space:]')"
 options_global="$(marketops_primary_psql -Atc "SELECT count(*) FROM subscriber_gateway_global_options_distributions WHERE trade_date=DATE '$session_date' AND window_name='10_trade_days'" | tr -d '[:space:]')"
@@ -33,6 +34,8 @@ risk_source="$(marketops_primary_psql -Atc "SELECT count(*) FROM marketops_risk_
 risk_global="$(marketops_primary_psql -Atc "SELECT count(*) FROM subscriber_gateway_global_risk_reward_snapshots WHERE session_date=DATE '$session_date'" | tr -d '[:space:]')"
 state_source="$(marketops_primary_psql -Atc "SELECT count(*) FROM marketops_market_states WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date'" | tr -d '[:space:]')"
 state_global="$(marketops_primary_psql -Atc "SELECT count(*) FROM subscriber_gateway_global_market_states WHERE session_date=DATE '$session_date'" | tr -d '[:space:]')"
+outcome_source="$(marketops_primary_psql -Atc "SELECT count(*) FROM marketops_signal_outcomes WHERE tenant_id='tenant-local' AND source_type='opportunity' AND outcome_status='matured' AND matured_session_date=DATE '$session_date'" | tr -d '[:space:]')"
+outcome_global="$(marketops_primary_psql -Atc "SELECT count(*) FROM subscriber_gateway_global_signal_assurance_observations WHERE source_type='opportunity' AND matured_session_date=DATE '$session_date'" | tr -d '[:space:]')"
 
 (( options_global >= options_source )) || {
   printf 'global options projection incomplete: source=%s global=%s session=%s\n' "$options_source" "$options_global" "$session_date" >&2
@@ -46,4 +49,8 @@ state_global="$(marketops_primary_psql -Atc "SELECT count(*) FROM subscriber_gat
   printf 'global Market State projection incomplete: source=%s global=%s session=%s\n' "$state_source" "$state_global" "$session_date" >&2
   exit 6
 }
-printf 'global Dashboard evidence projection passed: session=%s options=%s risk_reward=%s market_state=%s\n' "$session_date" "$options_global" "$risk_global" "$state_global"
+(( outcome_global >= outcome_source )) || {
+  printf 'global SAF outcome projection incomplete: source=%s global=%s session=%s\n' "$outcome_source" "$outcome_global" "$session_date" >&2
+  exit 7
+}
+printf 'global Dashboard evidence projection passed: session=%s options=%s risk_reward=%s market_state=%s saf_outcomes=%s\n' "$session_date" "$options_global" "$risk_global" "$state_global" "$outcome_global"

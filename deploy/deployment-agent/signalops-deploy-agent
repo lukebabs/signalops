@@ -130,6 +130,26 @@ case "$action" in
   subscriber-qualified-warm-cohort-reconcile)
     run "$repository_dir/scripts/reconcile_subscriber_qualified_warm_cohort.sh" "$repository_dir/.env"
     ;;
+  marketops-saf-projection-refresh)
+    set -a
+    source /etc/signalops/marketops-cutover.env
+    set +a
+    export SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
+    export SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
+    export SIGNALOPS_MARKETOPS_TEMPORAL_DB_SERVICE=marketops-timescaledb
+    export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE=marketops_temporal
+    cd "$repository_dir"
+    source "$repository_dir/scripts/marketops_schedule_database.sh"
+    session_date="$(marketops_primary_psql -Atc "SELECT max(matured_session_date) FROM marketops_signal_outcomes WHERE tenant_id='tenant-local' AND source_type='opportunity' AND outcome_status='matured';" | tr -d '[:space:]')"
+    [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || {
+      printf 'No matured SAF outcome session is available.\n' >&2
+      audit failed
+      exit 3
+    }
+    "$repository_dir/scripts/marketops_global_dashboard_projection.sh" "$session_date"
+    marketops_compose --profile subscriber-global-evidence run --rm --build subscriber-global-saf-benchmark-materializer --execute --calculation-version saf_benchmark.v4 --max-observations 5000 --correlation-id "saf-benchmark-incremental-$session_date"
+    audit success
+    ;;
   subscriber-pilot-ui-smoke)
     [[ "$actor" =~ ^[a-z_][a-z0-9_-]*$ && "$actor" != "unknown" ]] || {
       printf "%s\n" "subscriber_pilot_ui_smoke_operator_invalid" >&2

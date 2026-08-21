@@ -183,3 +183,10 @@ Migration `000153_subscriber_global_saf_frozen_viability_baseline` persists the 
 The prospective SAF loop is ready without manufacturing an assertion. The continuous registrar and outbox services are running on the dedicated MarketOps boundary. A real confirmed materialization supplies the required signal direction, score, confidence, algorithm/version, confirmation-rule version, resolved research contract, immutable baseline snapshot, and provenance before an assertion can be registered.
 
 Readiness evidence at closeout: zero assertions, zero research assertions, and zero unpublished assertion events. This is the correct pre-cohort state. The first independent forward record must originate from normal MarketOps processing; no backfill, synthetic assertion, or provider request is permitted to satisfy this gate.
+
+
+## SAF currentness follow-up — 2026-08-21
+
+The Signal Assurance UI date currentness depends on the subscriber/global historical outcome projection, not the live SAF assertion tables, until algorithms begin registering confirmed SAF assertions. The 2026-08-21 investigation found that MarketOps source outcomes were current through 2026-08-20 while `subscriber_gateway_global_signal_assurance_observations` stopped at 2026-08-14. The gap was orchestration: post-close global projection omitted `outcome` evidence, so new matured outcomes were not promoted into the SAF effectiveness projection.
+
+The remediation updates `scripts/marketops_global_dashboard_projection.sh` to materialize `outcome` evidence with options, Risk/Reward, and Market State, then verify `subscriber_gateway_global_signal_assurance_observations` coverage for the session. The repo also adds the constrained deployment-agent action `marketops-saf-projection-refresh`, which computes the latest matured outcome session and appends missing `saf_benchmark.v4` benchmark rows idempotently. This refresh uses existing MarketOps rows only and makes no provider calls.
