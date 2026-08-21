@@ -8547,3 +8547,17 @@ Next-cycle priority:
 - Strengthened `python/tests/test_subscription_administration_ui_smoke.py` to verify the Subscription Administration governance surface and API snapshot: Explorer, Professional, Institutional products; feature and limit policies; revisions; subject subscriptions; tenant contracts; seats; audit trail; and entitlement labels.
 - Validation passed: `scripts/run_subscriber_access_control_ui_smoke.sh` returned `1 passed in 3.62s`; `scripts/run_subscription_admin_ui_smoke.sh` returned `3 passed in 3.06s`; `go test ./internal/api ./internal/storage/postgres` passed; shell syntax checks for the PR-2 runners passed.
 - No irreversible production private-list mutation was introduced. Future evidence can add a second same-tenant adversarial identity, but current PR-2 closure rests on live owner-subject projection plus existing source/API subject-binding tests.
+
+## 2026-08-21 — PR-4 production expansion controls started
+
+- Recorded product decision to defer PR-3 current backup/restore rehearsal. Prior dedicated pgBackRest backup and isolated restore evidence remains useful, but PR-3 is not marked closed because it is not current after PR-1/PR-2 changes.
+- Started PR-4 around FMP annual lifecycle, trading-calendar correctness, subscriber administration operationalization, and incident runbooks.
+- Current source review found `marketops-fmp-annual-financial` already has an Admin-visible job, deployment-agent run-now target, Saturday schedule hook, and task-level degraded/failure isolation. The recurring timer remains a separate enablement decision.
+- Current calendar guard is weekend-only via `scripts/lib/marketops_trading_calendar.sh`; first PR-4 implementation target is a reusable MarketOps US market-session calendar with explicit holiday handling.
+
+## 2026-08-21 — PR-4 trading-calendar guard
+
+- Added explicit 2026/2027 US market-holiday handling to `scripts/lib/marketops_trading_calendar.sh`, with `marketops_is_trading_day` and `marketops_non_trading_reason` helpers.
+- Updated `scripts/marketops_scheduled_job.sh` to skip non-maintenance jobs on weekends and configured market holidays, recording reasons such as `non_trading_day:market_holiday`.
+- Preserved the maintenance/FMP weekend allowlist so storage/retention/operations-monitor and `marketops-fmp-annual-financial` can still run on weekends by explicit policy.
+- Added `scripts/test_marketops_trading_calendar.sh`; validation passed with `marketops_trading_calendar_tests_passed`. Syntax checks passed for the calendar helper, scheduler wrapper, and test script. Admin browser smoke still passed with `3 passed in 3.20s`.

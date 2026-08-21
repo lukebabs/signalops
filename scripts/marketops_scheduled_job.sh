@@ -16,10 +16,12 @@ write_status_file() {
   printf '%s\n' "$payload" > "$status_dir/.${job_id}.tmp"
   mv "$status_dir/.${job_id}.tmp" "$status_dir/${job_id}.json"
 }
-if marketops_is_weekend "$timezone" && ! marketops_weekend_permitted_job "$job_id"; then
-  marketops_record_scheduled_job_status_or_warn "$run_id" "$job_id" "$schedule" "$timezone" "skipped" "$started_at" "$started_at" "0" "non_trading_day" "{}" || true
-  write_status_file "$(printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"skipped","reason":"non_trading_day","started_at":"%s","completed_at":"%s","exit_code":0}' "$job_id" "$schedule" "$timezone" "$started_at" "$started_at")"
-  printf "skipped non-trading-day job: %s\n" "$job_id"
+calendar_date="$(marketops_today "$timezone")"
+non_trading_reason="$(marketops_non_trading_reason "$timezone" "$calendar_date")"
+if [[ "$non_trading_reason" != "trading_day" ]] && ! marketops_weekend_permitted_job "$job_id"; then
+  marketops_record_scheduled_job_status_or_warn "$run_id" "$job_id" "$schedule" "$timezone" "skipped" "$started_at" "$started_at" "0" "non_trading_day:$non_trading_reason" "{}" || true
+  write_status_file "$(printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"skipped","reason":"non_trading_day:%s","calendar_date":"%s","started_at":"%s","completed_at":"%s","exit_code":0}' "$job_id" "$schedule" "$timezone" "$non_trading_reason" "$calendar_date" "$started_at" "$started_at")"
+  printf "skipped non-trading-day job: %s (%s %s)\n" "$job_id" "$calendar_date" "$non_trading_reason"
   exit 0
 fi
 

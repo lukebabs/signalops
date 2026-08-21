@@ -22,11 +22,11 @@ Production readiness is still blocked by operational consistency gaps. The most 
 | Intraday freshness | Schedule-ready, market-idle | Latest intraday snapshot was 2026-08-20 22:15 UTC. At the review time, no 2026-08-21 market-session intraday data was expected yet. |
 | Scheduled jobs | Ready / observing | `scheduler-status` returned clean on 2026-08-21 05:17 UTC. The next acceptance point is the natural 2026-08-21 post-close cycle. |
 | Daily post-close | Observing | The stale failed systemd state was reconciled only after dedicated MarketOps DB evidence showed recovered completion. The next eligible post-close cycle must complete without manual reconcile before PR-0/PR-1 exit is final. |
-| FMP annual financial job | Partial | FMP annual enrichment exists behind controls, but the recurring task was inactive at review time. |
+| FMP annual financial job | Partial / PR-4 | FMP annual enrichment has a central worker, Admin-visible job status, freshness row, run-now action, and disabled Saturday schedule hook. PR-4 must decide when to enable recurring capture. |
 | Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
-| Subscription/access controls | Partial | Tier concepts and enforcement canaries exist, but production administration still needs a fuller user/tier governance surface and repeated cross-tenant evidence. |
-| Backup/restore | Needs current re-verification | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. Production exit requires a current rehearsal after the latest schema/runtime changes. |
+| Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. |
+| Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |
 
 ## Production gates
 
@@ -100,6 +100,7 @@ These are required before broader commercial production.
    - Acceptance:
      - 10/20 trading-day filters match actual US market sessions.
      - Weekend and holiday guards prevent EOD/intraday jobs from running except explicit maintenance.
+   - Current PR-4 evidence: scheduler eligibility now uses a reusable MarketOps calendar helper with explicit 2026/2027 US market-holiday closures; UI 10/20-day filters still need to consume the same calendar semantics before this gate is fully closed.
 
 9. **Subscriber administration**
    - Expand Subscription Administration into a complete governance surface.
@@ -170,6 +171,8 @@ Implementation note — 2026-08-21:
 
 ### Sprint PR-3 — Rehearse recovery
 
+Status: deferred by product decision.
+
 Scope:
 
 - Run current backup and isolated restore rehearsal.
@@ -179,7 +182,13 @@ Exit:
 
 - Backup/restore evidence is current after the latest production schema and runtime changes.
 
+Deferral note — 2026-08-21:
+
+- Product chose to skip PR-3 for now because a dedicated backup and isolated restore rehearsal passed a few days earlier. This does not convert PR-3 to closed; it records accepted risk that recovery evidence is not current after PR-1/PR-2 changes.
+
 ### Sprint PR-4 — Production expansion controls
+
+Status: started.
 
 Scope:
 
@@ -191,6 +200,10 @@ Scope:
 Exit:
 
 - Platform can support paid pilot tenants with secure access, consistent data, visible operations, and documented recovery paths.
+
+Implementation note — 2026-08-21:
+
+- PR-4 starts with controls, not broader provider polling. The first implementation added a reusable MarketOps trading-calendar primitive and wired scheduled jobs to skip configured US market holidays as well as weekends, while preserving the explicit maintenance/FMP weekend allowlist.
 
 ## Standing readiness check
 
@@ -208,7 +221,7 @@ Each production-readiness review should record:
 
 ## Next recommended action
 
-Observe the next natural 2026-08-21 post-close cycle. If `marketops-daily-postclose`, `marketops-postclose-recovery`, Risk/Reward, SRI, SAF, Dashboard, and Assets freshness all align without manual reconcile, close PR-0/PR-1. PR-2 access/subscription hardening is closed for the configured QA identities, so the next active implementation gate is **Sprint PR-3 — Rehearse recovery**. If it fails, treat the failure as the highest-priority production blocker.
+Observe the next natural 2026-08-21 post-close cycle. If `marketops-daily-postclose`, `marketops-postclose-recovery`, Risk/Reward, SRI, SAF, Dashboard, and Assets freshness all align without manual reconcile, close PR-0/PR-1. PR-2 access/subscription hardening is closed for the configured QA identities. PR-3 is deferred by accepted risk, so the next active implementation gate is **Sprint PR-4 — Production expansion controls**. If it fails, treat the failure as the highest-priority production blocker.
 
 ## 2026-08-21 05:17 UTC readiness update
 
