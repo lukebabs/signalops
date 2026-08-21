@@ -2,12 +2,28 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/lukebabs/signalops/internal/marketops/signalassurance"
 	"github.com/lukebabs/signalops/internal/storage"
 	"github.com/lukebabs/signalops/internal/subscriber/eodrevisionpolicy"
 )
+
+func signalAssuranceObservationLimit(r *http.Request) int {
+	value := strings.TrimSpace(r.URL.Query().Get("limit"))
+	if value == "" {
+		return 200
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return 200
+	}
+	if parsed > 2000 {
+		return 2000
+	}
+	return parsed
+}
 
 func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, cfg RouterConfig) {
 	query, ok := cfg.QueryRepository.(storage.SignalAssuranceEffectivenessRepository)
@@ -62,7 +78,7 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, cfg
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id and dimension_value are required")
 			return
 		}
-		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), DimensionValue: dimensionValue, Limit: queryLimit(r, 200)}
+		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), DimensionValue: dimensionValue, Limit: signalAssuranceObservationLimit(r)}
 		watchlistContext, global, allowed := subscriberGlobalSignalAssuranceContext(w, r, cfg, tenantID)
 		if !allowed {
 			return
