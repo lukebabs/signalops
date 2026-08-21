@@ -1,6 +1,6 @@
 # PR-2 Access and Subscription Hardening — 2026-08-21
 
-Status: started; first read-only tenant-isolation browser/API smoke implemented and passed.
+Status: closed for the configured production QA identities.
 
 ## Scope
 
@@ -94,8 +94,49 @@ scripts/run_subscription_admin_ui_smoke.sh        -> 2 passed in 2.20s
 
 Direct container environment inspection with `sudo docker exec` was not passwordlessly available in this session, so restoration was verified by the canary's own restoration marker plus post-restore route, scheduler, tenant-isolation, and Admin browser smokes.
 
-## Remaining PR-2 items
+## Closure evidence — private-list ownership and governance surface
 
-1. Add or retain browser evidence for private-list ownership within the same tenant. Current unit/API coverage binds private-list mutations to the immutable subject, but live browser proof requires a second same-tenant user or a controlled temporary private-list mutation.
-2. Expand/verify Subscription Administration as the operator-facing governance surface for enrolled users, tier assignment, entitlement state, quota state, default-list policy, and audit history.
-3. Record cross-tenant/private-list evidence in the production-readiness checklist before claiming PR-2 exit.
+The read-only tenant-isolation smoke was strengthened to decode the real browser JWT subject and verify returned private lists are owned by that subject.
+
+Evidence:
+
+```text
+scripts/run_subscriber_access_control_ui_smoke.sh
+.                                                                        [100%]
+1 passed in 3.62s
+```
+
+This verifies:
+
+- the tenant-pilot-b QA identity has at least one private list;
+- every returned pilot private list has `owner_subject` equal to the signed JWT `sub`;
+- the tenant-local administrator response contains no foreign private-list owner if private lists are present;
+- tenant-pilot-b and tenant-local remain mutually denied from each other's tenant-bearing MarketOps routes with `403 tenant_mismatch`;
+- the pilot subscriber remains denied from Subscription Administration with `403 insufficient_role`;
+- the platform subscription administrator can read the intentional cross-tenant subscription-admin snapshots.
+
+The Subscription Administration smoke was strengthened to assert the operator governance surface and API snapshot, including product tiers, feature policies, limit policies, revisions, subject subscriptions, tenant contracts, seats, audit trail, and key entitlement labels.
+
+Evidence:
+
+```text
+scripts/run_subscription_admin_ui_smoke.sh
+...                                                                      [100%]
+3 passed in 3.06s
+```
+
+Targeted backend tests remain clean:
+
+```text
+go test ./internal/api ./internal/storage/postgres
+ok   github.com/lukebabs/signalops/internal/api              (cached)
+ok   github.com/lukebabs/signalops/internal/storage/postgres  (cached)
+
+bash -n scripts/run_subscriber_access_control_ui_smoke.sh scripts/run_subscription_admin_ui_smoke.sh scripts/run_subscription_enforcement_canary_ui.sh
+```
+
+## Closure position
+
+PR-2 is closed for the configured production QA identities. The evidence now covers tenant isolation, private-list owner-subject projection, Subscription Administration role denial for non-admin users, controlled cross-tenant subscription administration, tier-enforcement canary behavior, automatic restoration, and the operator governance surface.
+
+A future expansion with a second same-tenant non-admin identity can add stronger adversarial same-tenant private-list leakage proof, but it is no longer blocking this PR-2 loop because source/API tests already bind private-list reads and mutations to the immutable subject, and live evidence confirms returned private-list owner subjects match the signed token.

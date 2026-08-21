@@ -110,6 +110,37 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
         expect(body).to_contain_text(label, timeout=30_000)
 
 
+
+def test_subscription_administration_governance_surface(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
+    expected_products = {"Explorer", "Professional", "Institutional"}
+    expected_tables = {"Subject subscriptions", "Institutional contracts", "Institutional seats", "Audit trail"}
+    expected_features = {"Market dashboards", "Value Intelligence", "Distressed Opportunity Intelligence", "Earnings Opportunity Intelligence", "Signal Assurance analytics", "APIs", "White-label deployment"}
+
+    with admin_page.expect_response(
+        lambda response: response.request.method == "GET" and "/v1/administration/subscriptions" in response.url,
+        timeout=30_000,
+    ) as response_info:
+        login(admin_page, admin_config)
+    response = response_info.value
+    assert response.status == 200, f"{response.url} returned HTTP {response.status}"
+    payload = response.json()
+    products = payload.get("products")
+    assert isinstance(products, list) and len(products) >= 3, "subscription administration did not return product policy rows"
+    product_names = {str(product.get("display_name", "")) for product in products}
+    assert expected_products.issubset(product_names), f"missing product tiers: {sorted(expected_products - product_names)}"
+    for product in products:
+        assert isinstance(product.get("feature_policy"), dict), f"{product.get('product_key')} has no feature policy"
+        assert isinstance(product.get("limit_policy"), dict), f"{product.get('product_key')} has no limit policy"
+        assert "revision" in product, f"{product.get('product_key')} has no revision"
+
+    body = admin_page.locator("body")
+    for label in sorted(expected_products | expected_tables | expected_features):
+        expect(body).to_contain_text(label, timeout=30_000)
+    expect(body).to_contain_text("signalops:subscription_admin")
+    expect(body).to_contain_text("Govern enrolled users")
+    expect(body).to_contain_text("Feature policy is the server-side entitlement contract")
+
+
 def test_subscription_administration_is_platform_only(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
     base_url, _, _ = admin_config
     login(admin_page, admin_config)

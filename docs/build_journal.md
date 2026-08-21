@@ -8539,3 +8539,11 @@ Next-cycle priority:
 - Canary result: `subscription_enforcement_canary_enabled`, Playwright `1 passed in 3.90s`, `subscription_enforcement_canary_verified`, and `subscription_enforcement_canary_restored`.
 - Post-restore verification passed: `/readyz` returned `200`, `/admin/system` returned `200`, `scheduler-status` returned clean, `scripts/run_subscriber_access_control_ui_smoke.sh` returned `1 passed in 3.64s`, and `scripts/run_subscription_admin_ui_smoke.sh` returned `2 passed in 2.20s`.
 - Direct `sudo docker exec` environment inspection was not passwordlessly available, so restoration evidence relies on the canary restoration marker plus behavioral route/scheduler/browser checks.
+
+## 2026-08-21 — PR-2 closure evidence
+
+- Closed PR-2 for the configured production QA identities.
+- Strengthened `python/tests/test_subscriber_access_control_ui.py` to decode the live browser JWT and verify returned private lists have `owner_subject` equal to the signed token `sub`. The pilot identity is required to have a private list; the tenant-local admin path verifies no foreign private owner is returned if private lists are present.
+- Strengthened `python/tests/test_subscription_administration_ui_smoke.py` to verify the Subscription Administration governance surface and API snapshot: Explorer, Professional, Institutional products; feature and limit policies; revisions; subject subscriptions; tenant contracts; seats; audit trail; and entitlement labels.
+- Validation passed: `scripts/run_subscriber_access_control_ui_smoke.sh` returned `1 passed in 3.62s`; `scripts/run_subscription_admin_ui_smoke.sh` returned `3 passed in 3.06s`; `go test ./internal/api ./internal/storage/postgres` passed; shell syntax checks for the PR-2 runners passed.
+- No irreversible production private-list mutation was introduced. Future evidence can add a second same-tenant adversarial identity, but current PR-2 closure rests on live owner-subject projection plus existing source/API subject-binding tests.

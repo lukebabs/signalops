@@ -8,6 +8,7 @@ subscription-admin identity.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -94,6 +95,27 @@ def api(page: Page, path: str) -> tuple[int, dict[str, Any]]:
     return int(response["status"]), response["body"]
 
 
+
+def token_claims(page: Page) -> dict[str, Any]:
+    token = bearer(page)
+    parts = token.split(".")
+    assert len(parts) >= 2, "OIDC token is not a JWT"
+    payload = parts[1] + "=" * (-len(parts[1]) % 4)
+    return json.loads(base64.urlsafe_b64decode(payload.encode()).decode())
+
+
+def assert_private_lists_owned_by_token_subject(page: Page, payload: dict[str, Any], *, require_private: bool) -> None:
+    subject = str(token_claims(page).get("sub", ""))
+    assert subject, "OIDC subject claim is missing"
+    lists = payload.get("lists")
+    assert isinstance(lists, list), "subscriber list response did not include lists"
+    private_lists = [item for item in lists if item.get("list_kind") == "private"]
+    if require_private:
+        assert private_lists, "expected at least one private list for ownership evidence"
+    foreign = [item for item in private_lists if item.get("owner_subject") != subject]
+    assert not foreign, f"private lists leaked for a different subject: {foreign}"
+
+
 def assert_error(page: Page, path: str, status_code: int, error_code: str) -> None:
     status, body = api(page, path)
     assert status == status_code, f"{path} returned HTTP {status}: {body}"
@@ -116,7 +138,8 @@ def test_pilot_and_local_tokens_are_tenant_bound(browser_context: BrowserContext
         path="/marketops/watchlists",
         heading="Watchlists",
     )
-    assert_ok(pilot, f"/v1/tenants/{PILOT_TENANT}/marketops/subscriber/lists")
+    pilot_lists = assert_ok(pilot, f"/v1/tenants/{PILOT_TENANT}/marketops/subscriber/lists")
+    assert_private_lists_owned_by_token_subject(pilot, pilot_lists, require_private=True)
     assert_ok(pilot, f"/v1/tenants/{PILOT_TENANT}/marketops/assets/signal-overview?universe_group=all_active&window=10_trade_days")
     assert_error(pilot, f"/v1/tenants/{LOCAL_TENANT}/marketops/subscriber/lists", 403, "tenant_mismatch")
     assert_error(pilot, f"/v1/tenants/{LOCAL_TENANT}/marketops/assets/signal-overview?universe_group=all_active&window=10_trade_days", 403, "tenant_mismatch")
@@ -133,7 +156,8 @@ def test_pilot_and_local_tokens_are_tenant_bound(browser_context: BrowserContext
             path="/admin/system",
             heading="MarketOps Operations Health",
         )
-        assert_ok(local, f"/v1/tenants/{LOCAL_TENANT}/marketops/subscriber/lists")
+        local_lists = assert_ok(local, f"/v1/tenants/{LOCAL_TENANT}/marketops/subscriber/lists")
+        assert_private_lists_owned_by_token_subject(local, local_lists, require_private=False)
         assert_error(local, f"/v1/tenants/{PILOT_TENANT}/marketops/subscriber/lists", 403, "tenant_mismatch")
         assert_error(local, f"/v1/tenants/{PILOT_TENANT}/marketops/assets/signal-overview?universe_group=all_active&window=10_trade_days", 403, "tenant_mismatch")
         assert_ok(local, f"/v1/administration/subscriptions?tenant_id={LOCAL_TENANT}")

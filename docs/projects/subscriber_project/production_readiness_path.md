@@ -166,7 +166,7 @@ Implementation note — 2026-08-21:
 - Added `scripts/run_subscriber_access_control_ui_smoke.sh` and `python/tests/test_subscriber_access_control_ui.py` as a read-only real-OIDC PR-2 smoke.
 - Live result: `1 passed in 3.55s`.
 - The smoke proves tenant-pilot-b and tenant-local tokens are denied from each other’s tenant-bearing MarketOps routes with `403 tenant_mismatch`, while Subscription Administration remains available only to the platform subscription-admin identity.
-- The temporary production subscription-enforcement canary ran under named approval and restored successfully. It verified Explorer denial, Professional access, Professional denial for Institutional-only SAF analytics, and tenant-local Institutional/admin access. Post-restore route, scheduler, tenant-isolation, and Admin browser smokes passed. Remaining PR-2 exit work: same-tenant private-list ownership browser evidence and final governance-surface acceptance.
+- The temporary production subscription-enforcement canary ran under named approval and restored successfully. It verified Explorer denial, Professional access, Professional denial for Institutional-only SAF analytics, and tenant-local Institutional/admin access. Post-restore route, scheduler, tenant-isolation, and Admin browser smokes passed. The closing PR-2 browser smokes now also verify private-list owner-subject projection and the Subscription Administration governance surface. PR-2 is closed for the configured production QA identities; a future second same-tenant adversarial identity can deepen, but does not block, the current gate.
 
 ### Sprint PR-3 — Rehearse recovery
 
@@ -208,7 +208,7 @@ Each production-readiness review should record:
 
 ## Next recommended action
 
-Observe the next natural 2026-08-21 post-close cycle. If `marketops-daily-postclose`, `marketops-postclose-recovery`, Risk/Reward, SRI, SAF, Dashboard, and Assets freshness all align without manual reconcile, close PR-0/PR-1 and move to **Sprint PR-2 — Harden access and subscriptions**. If it fails, treat the failure as the highest-priority production blocker.
+Observe the next natural 2026-08-21 post-close cycle. If `marketops-daily-postclose`, `marketops-postclose-recovery`, Risk/Reward, SRI, SAF, Dashboard, and Assets freshness all align without manual reconcile, close PR-0/PR-1. PR-2 access/subscription hardening is closed for the configured QA identities, so the next active implementation gate is **Sprint PR-3 — Rehearse recovery**. If it fails, treat the failure as the highest-priority production blocker.
 
 ## 2026-08-21 05:17 UTC readiness update
 
