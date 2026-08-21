@@ -72,6 +72,7 @@ const DIRECTIONS = ['', 'upside', 'downside', 'non_directional'];
 const RESEARCH_ONLY = ['', 'true', 'false'];
 const LIMITS = [25, 50, 100, 200];
 const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
+const DEFAULT_LIFECYCLE: MarketOpsOpportunityLifecycle = 'active';
 
 export function MarketOpsOpportunitiesRoute() {
   const TENANT_ID = useTenant();
@@ -82,7 +83,7 @@ export function MarketOpsOpportunitiesRoute() {
 
   // Filter state. Only ?opportunity_id= is URL-persisted (refresh/back/forward).
   const [symbol, setSymbol] = useState('');
-  const [lifecycle, setLifecycle] = useState('');
+  const [lifecycle, setLifecycle] = useState<MarketOpsOpportunityLifecycle | ''>(DEFAULT_LIFECYCLE);
   const [direction, setDirection] = useState('');
   const [horizon, setHorizon] = useState('');
   const [sessionStart, setSessionStart] = useState('');
@@ -132,7 +133,7 @@ export function MarketOpsOpportunitiesRoute() {
   }
   function clearFilters() {
     setSymbol('');
-    setLifecycle('');
+    setLifecycle(DEFAULT_LIFECYCLE);
     setDirection('');
     setHorizon('');
     setSessionStart('');
@@ -149,7 +150,10 @@ export function MarketOpsOpportunitiesRoute() {
             <Telescope size={18} className="text-brand-700" /> Opportunities
           </h1>
           <p className="text-xs text-gray-500">
-            Triage queue · {opportunities.length} opportunity{opportunities.length === 1 ? '' : 'ies'} · tenant {TENANT_ID}
+            Triage queue · {opportunities.length} {lifecycle === 'active' ? 'active ' : ''}opportunit{opportunities.length === 1 ? 'y' : 'ies'} · tenant {TENANT_ID}
+          </p>
+          <p className="mt-1 max-w-3xl text-[11px] text-gray-500">
+            Default view shows active opportunities. Expired means a prior active opportunity for the same symbol was superseded by a newer completed-session builder run; select expired or any lifecycle to audit history.
           </p>
         </div>
         <div className="flex items-center gap-1">
