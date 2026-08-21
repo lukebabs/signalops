@@ -13,16 +13,18 @@ The Administration operations-health API now returns a read-only `data_freshness
 The freshness table covers:
 
 - Dashboard — derived completed-session alignment across Market State, Risk/Reward, Sector Rotation Intelligence, and Signal Assurance.
+- Assets coverage — active tenant-local symbols with active global EOD baseline coverage.
 - Market State — latest global Market State projection session and row count.
 - Risk/Reward — latest global Risk/Reward projection session and row count.
 - Sector Rotation Intelligence — latest platform-global SRI snapshot session and active segment count.
 - Signal Assurance — latest matured SAF observation session and observation count.
 - Intraday conditions — latest tenant-local intraday snapshot timestamp and current 30-minute row count.
+- FMP annual financials — latest global annual-financial workflow completion against its task count.
 
 ## Status semantics
 
 - `current`: latest evidence exists and row/alignment checks pass.
-- `partial`: latest session has fewer rows than expected, or Dashboard components are not aligned to one completed session.
+- `partial`: latest session has fewer rows than expected, Dashboard components are not aligned to one completed session, asset EOD coverage is incomplete, or the latest FMP annual workflow has incomplete/non-succeeded tasks.
 - `stale`: intraday latest snapshot is outside the configured freshness window.
 - `missing`: no rows exist for that view.
 
@@ -97,4 +99,20 @@ https://signalops.syncratic.io/marketops/admin
 Remaining live verification:
 
 - Log in as `luke@strategiclabs.io` and confirm Admin Workbench renders the data-freshness table under MarketOps Operations Health.
-- Confirm rows are present for Dashboard, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, and Intraday conditions.
+- Confirm rows are present for Dashboard, Assets coverage, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, Intraday conditions, and FMP annual financials.
+
+
+## Assets and FMP extension
+
+The second PR-1 source slice added the remaining required freshness rows:
+
+- `assets`: compares active tenant-local symbols to active global `eod_baseline` coverage.
+- `fmp_annual`: reports the latest `subscriber_global_annual_financial_workflows` session and succeeded task count. If no workflow exists yet, the row is still returned as `missing` so the administrator sees an explicit gap.
+
+Verification performed:
+
+```text
+gofmt -w internal/storage/postgres/repository.go
+go test ./internal/api ./internal/storage/postgres
+npm --prefix web run build
+```

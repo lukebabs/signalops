@@ -1,5 +1,34 @@
 # SignalOps Build Journal
 
+## 2026-08-21T07:05:00Z
+
+Summary:
+
+- Extended PR-1 Admin operations freshness with Assets coverage and FMP annual financial workflow rows.
+- Assets coverage now compares active tenant-local symbols to active global `eod_baseline` coverage.
+- FMP annual financials now reports the latest global annual workflow task completion, and returns an explicit `missing` row when no workflow exists.
+
+Files changed:
+
+- `internal/storage/postgres/repository.go`
+- `docs/projects/subscriber_project/pr1_admin_operations_visibility_2026-08-21.md`
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- PR-1 exit requires administrators to see Assets and FMP freshness in the same operations-health view as Dashboard, Market State, Risk/Reward, SRI, SAF, and Intraday.
+
+Verification performed:
+
+- `gofmt -w internal/storage/postgres/repository.go`
+- `go test ./internal/api ./internal/storage/postgres`
+- `npm --prefix web run build`
+
+Next step:
+
+- Deploy Gateway/Web and browser-verify that Admin Workbench shows all eight freshness rows.
+
 ## 2026-08-21T06:45:00Z
 
 Summary:

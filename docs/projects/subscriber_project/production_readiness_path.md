@@ -146,7 +146,8 @@ Exit:
 
 Implementation note — 2026-08-21:
 
-- The first source slice adds read-only data-freshness visibility to the Administration operations-health API and Admin Workbench. It covers Dashboard alignment, Market State, Risk/Reward, SRI, SAF, and Intraday. Assets and FMP freshness remain follow-on additions before PR-1 exit.
+- The first source slice added read-only data-freshness visibility to the Administration operations-health API and Admin Workbench for Dashboard alignment, Market State, Risk/Reward, SRI, SAF, and Intraday.
+- The follow-on source slice added Assets coverage and FMP annual financial workflow freshness. PR-1 source coverage is now complete; live exit still requires browser verification and post-close freshness evidence.
 
 ### Sprint PR-2 — Harden access and subscriptions
 
