@@ -24,6 +24,7 @@ type scheduledJobDefinition struct {
 }
 
 var scheduledJobDefinitions = []scheduledJobDefinition{
+	{"marketops-warm-eod", "MarketOps warm EOD baseline", "Weekdays 18:00", "America/New_York", "scheduler-run-now:marketops-warm-eod"},
 	{"marketops-daily-postclose", "MarketOps post-close", "Weekdays 18:01:55", "America/New_York", "scheduler-run-now:marketops-daily-postclose"},
 	{"marketops-sri-refresh", "MarketOps SRI refresh", "Weekdays 20:07", "America/New_York", "scheduler-run-now:marketops-sri-refresh"},
 	{"marketops-sri-holdings-refresh", "MarketOps SRI issuer holdings", "Weekdays 20:20", "America/New_York", "scheduler-run-now:marketops-sri-holdings-refresh"},

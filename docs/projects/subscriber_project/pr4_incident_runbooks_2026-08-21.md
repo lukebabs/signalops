@@ -29,7 +29,7 @@ Use Admin Workbench first when available:
 
 Detection:
 
-- Admin Operations Health shows Dashboard, Market State, Risk/Reward, SRI, SAF, Assets coverage, Intraday, or FMP annual financials as `stale`, `partial`, or `missing`.
+- Admin Operations Health shows Dashboard, Market State, Risk/Reward, SRI, SAF, Assets analytical coverage, Intraday, or FMP annual financials as `stale`, `partial`, or `missing`.
 - Browser views disagree on latest completed session.
 - User reports stale dates after a completed market session.
 

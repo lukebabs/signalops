@@ -883,21 +883,24 @@ ON CONFLICT (tenant_id, primitive_type, definition_key, version) DO UPDATE SET
 
 func (r *Repository) ListMarketOpsOperationsFreshness(ctx context.Context, tenantID string) ([]storage.MarketOpsOperationsFreshnessRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
-WITH expected AS (
-  SELECT count(DISTINCT ticker)::integer AS selected_assets
+WITH asset_set AS (
+  SELECT upper(ticker) AS symbol
   FROM marketops_universal_assets
   WHERE tenant_id=$1 AND is_active
+), expected AS (
+  SELECT count(DISTINCT symbol)::integer AS selected_assets
+  FROM asset_set
 ), assets AS (
-  SELECT 'assets'::text AS view_id, 'Assets coverage'::text AS label,
-    max(coverage.observed_at)::date AS latest_session_date,
-    max(coverage.observed_at)::timestamptz AS latest_as_of,
-    count(DISTINCT link.global_asset_id) FILTER (WHERE coverage.coverage_state='active')::integer AS row_count,
+  SELECT 'assets'::text AS view_id, 'Assets analytical coverage'::text AS label,
+    max(state.session_date)::date AS latest_session_date,
+    max(state.as_of_time)::timestamptz AS latest_as_of,
+    count(DISTINCT asset.symbol) FILTER (
+      WHERE state.session_date=(SELECT max(session_date) FROM subscriber_gateway_global_market_states)
+    )::integer AS row_count,
     (SELECT selected_assets FROM expected) AS expected_count
-  FROM subscriber_global_asset_source_links link
-  LEFT JOIN subscriber_global_asset_coverage coverage
-    ON coverage.global_asset_id=link.global_asset_id
-   AND coverage.coverage_product='eod_baseline'
-  WHERE link.source_tenant_id=$1 AND link.source_is_active
+  FROM asset_set asset
+  LEFT JOIN subscriber_gateway_global_market_states state
+    ON upper(state.symbol)=asset.symbol
 ), components AS (
   SELECT 'market_state'::text AS view_id, 'Market State'::text AS label,
     max(session_date)::date AS latest_session_date, max(as_of_time)::timestamptz AS latest_as_of,
@@ -922,6 +925,10 @@ WITH expected AS (
     count(*) FILTER (WHERE matured_session_date=(SELECT max(matured_session_date) FROM subscriber_gateway_global_signal_assurance_observations))::integer,
     NULL::integer
   FROM subscriber_gateway_global_signal_assurance_observations
+), latest_completed AS (
+  SELECT max(latest_session_date)::date AS session_date
+  FROM components
+  WHERE view_id IN ('market_state','risk_reward')
 ), dashboard AS (
   SELECT 'dashboard'::text AS view_id, 'Dashboard'::text AS label,
     min(latest_session_date)::date AS latest_session_date,
@@ -929,10 +936,19 @@ WITH expected AS (
     count(*) FILTER (WHERE latest_session_date IS NOT NULL AND latest_session_date=(SELECT min(latest_session_date) FROM components WHERE latest_session_date IS NOT NULL))::integer AS row_count,
     count(*)::integer AS expected_count
   FROM components
+), market_clock AS (
+  SELECT (
+    EXTRACT(ISODOW FROM (now() AT TIME ZONE 'America/New_York')) BETWEEN 1 AND 5
+    AND (now() AT TIME ZONE 'America/New_York')::time >= TIME '09:30'
+    AND (now() AT TIME ZONE 'America/New_York')::time <= TIME '20:00'
+  ) AS monitor_window
 ), intraday AS (
   SELECT 'intraday'::text AS view_id, 'Intraday conditions'::text AS label,
     max(as_of_time)::date AS latest_session_date, max(as_of_time)::timestamptz AS latest_as_of,
-    count(*) FILTER (WHERE as_of_time >= now() - interval '30 minutes')::integer AS row_count,
+    CASE
+      WHEN (SELECT monitor_window FROM market_clock) THEN count(DISTINCT symbol) FILTER (WHERE as_of_time >= now() - interval '30 minutes')::integer
+      ELSE count(DISTINCT symbol) FILTER (WHERE as_of_time::date=(SELECT session_date FROM latest_completed))::integer
+    END AS row_count,
     (SELECT selected_assets FROM expected) AS expected_count
   FROM marketops_intraday_condition_snapshots
   WHERE tenant_id=$1
@@ -961,7 +977,7 @@ WITH expected AS (
   SELECT view_id,label,latest_session_date,NULLIF(latest_as_of, '-infinity'::timestamptz) AS latest_as_of,row_count,COALESCE(expected_count,0) AS expected_count,
     CASE
       WHEN latest_session_date IS NULL AND NULLIF(latest_as_of, '-infinity'::timestamptz) IS NULL THEN 'missing'
-      WHEN view_id='intraday' AND latest_as_of < now() - interval '45 minutes' THEN 'stale'
+      WHEN view_id='intraday' AND (SELECT monitor_window FROM market_clock) AND latest_as_of < now() - interval '45 minutes' THEN 'stale'
       WHEN expected_count IS NOT NULL AND expected_count > 0 AND row_count < expected_count THEN 'partial'
       ELSE 'current'
     END AS status
@@ -970,11 +986,14 @@ WITH expected AS (
 SELECT view_id,label,latest_session_date,latest_as_of,row_count,expected_count,status,
   CASE
     WHEN status='missing' THEN 'no rows available'
-    WHEN status='stale' THEN 'latest intraday snapshot is outside the freshness window'
+    WHEN status='stale' THEN 'latest intraday snapshot is outside the live-market freshness window'
     WHEN status='partial' AND view_id='dashboard' THEN 'completed-session components are not aligned to one session'
-    WHEN status='partial' AND view_id='assets' THEN 'not all active assets have active global EOD baseline coverage'
+    WHEN status='partial' AND view_id='assets' THEN 'not all active assets have current global EOD context for the latest completed session'
     WHEN status='partial' AND view_id='fmp_annual' THEN 'latest FMP annual workflow has incomplete or non-succeeded tasks'
     WHEN status='partial' THEN 'latest session has fewer rows than expected'
+    WHEN view_id='assets' THEN 'selected assets with current Market State evidence; coverage activation history is separate'
+    WHEN view_id='intraday' AND NOT (SELECT monitor_window FROM market_clock) THEN 'market idle; latest completed-session intraday evidence is used'
+    WHEN view_id IN ('sri','signal_assurance') THEN 'latest as-of is provenance/materialization time; session date is freshness authority'
     ELSE ''
   END AS reason
 FROM assessed

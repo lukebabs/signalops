@@ -42,13 +42,22 @@ else
 fi
 set -e
 completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-status="succeeded"; [[ "$exit_code" -eq 0 ]] || status="failed"
-marketops_record_scheduled_job_status_or_warn "$run_id" "$job_id" "$schedule" "$timezone" "$status" "$started_at" "$completed_at" "$exit_code" "" "{}" || true
-write_status_file "$(printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"%s","started_at":"%s","completed_at":"%s","exit_code":%s}' "$job_id" "$schedule" "$timezone" "$status" "$started_at" "$completed_at" "$exit_code")"
+status="succeeded"
+reason=""
+process_exit_code="$exit_code"
+if [[ "$exit_code" -eq 10 ]]; then
+  status="degraded"
+  reason="bounded_provider_gap"
+  process_exit_code=0
+elif [[ "$exit_code" -ne 0 ]]; then
+  status="failed"
+fi
+marketops_record_scheduled_job_status_or_warn "$run_id" "$job_id" "$schedule" "$timezone" "$status" "$started_at" "$completed_at" "$exit_code" "$reason" "{}" || true
+write_status_file "$(printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"%s","reason":"%s","started_at":"%s","completed_at":"%s","exit_code":%s}' "$job_id" "$schedule" "$timezone" "$status" "$reason" "$started_at" "$completed_at" "$exit_code")"
 
 # Governed daily/weekly completions and every job failure become administrator inbox
 # events. Recorder failure is non-blocking so it cannot conceal the job result.
-if [[ "$status" == "failed" || "$job_id" == "marketops-daily-postclose" || "$job_id" == "marketops-fmp-continuation" || "$job_id" == "marketops-fmp-annual-financial" || "$job_id" == "marketops-sri-refresh" || "$job_id" == "marketops-sri-holdings-refresh" || "$job_id" == "signalops-storage-monitor" || "$job_id" == "signalops-retention-governance" ]]; then
+if [[ "$status" == "failed" || "$status" == "degraded" || "$job_id" == "marketops-daily-postclose" || "$job_id" == "marketops-fmp-continuation" || "$job_id" == "marketops-fmp-annual-financial" || "$job_id" == "marketops-sri-refresh" || "$job_id" == "marketops-sri-holdings-refresh" || "$job_id" == "signalops-storage-monitor" || "$job_id" == "signalops-retention-governance" ]]; then
   set +e
   docker compose --profile administration-notifications run --rm administration-notification-recorder \
     --tenant-id "${SIGNALOPS_ADMIN_NOTIFICATION_TENANT_ID:-tenant-local}" \
@@ -61,4 +70,4 @@ if [[ "$status" == "failed" || "$job_id" == "marketops-daily-postclose" || "$job
   fi
 fi
 
-exit "$exit_code"
+exit "$process_exit_code"

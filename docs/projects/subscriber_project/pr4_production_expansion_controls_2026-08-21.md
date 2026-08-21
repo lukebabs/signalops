@@ -216,3 +216,27 @@ sudo -n signalops-deploy-agent scheduler-status
 Then verify Dashboard, Assets coverage, Market State, Risk/Reward, SRI, SAF, and Admin Operations Health align to the same completed-session evidence without manual reconcile.
 
 FMP annual recurring activation remains source-ready but not live-active until the deployment agent is reprovisioned and `scheduler-fmp-annual-enable` is accepted by the installed root-owned agent.
+
+## Fifth slice implementation — operations freshness correction
+
+Implemented the recommendations from the Aug 20 freshness review:
+
+- `marketops-warm-eod` is now a first-class scheduled job in the Admin/API job list.
+- The deployment-agent source scheduler-status now checks `marketops-warm-eod` and FMP annual scheduled services; this becomes live after the root-owned deployment agent is reprovisioned.
+- Warm EOD now treats bounded provider no-bar gaps as `degraded` using exit code `10`, while the scheduler wrapper records `degraded` and exits cleanly to avoid stale systemd failure for acceptable small provider gaps.
+- Admin Operations Health now reports `Assets analytical coverage` from current Market State evidence instead of one-time coverage activation metadata.
+- Intraday freshness now distinguishes live-market staleness from after-hours market-idle completed-session evidence.
+- SRI and SAF rows now explain that their latest as-of timestamp is provenance/materialization time while session date is the freshness authority.
+
+Live gateway deployment evidence:
+
+```text
+signalops_public_production_deploy_verified
+2 passed in 7.33s
+curl -fsS https://signalops.syncratic.io/readyz
+{"service":"signalops-gateway","status":"ready",...}
+scripts/run_subscription_admin_ui_smoke.sh
+3 passed in 3.05s
+scripts/run_subscriber_access_control_ui_smoke.sh
+1 passed in 3.59s
+```

@@ -83,7 +83,7 @@ def login_marketops_admin(page: Page, config: tuple[str, str, str]) -> None:
 def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
     expected_labels = {
         "Dashboard",
-        "Assets coverage",
+        "Assets analytical coverage",
         "Market State",
         "Risk/Reward",
         "Sector Rotation Intelligence",

@@ -8595,3 +8595,13 @@ Next-cycle priority:
 - Clarified that SRI refresh and SRI holdings refresh occur after midnight UTC on Saturday, August 22, 2026, but still belong to the August 21 ET trading-session acceptance window. August 22 is not a separate EOD trading day.
 - Post-window acceptance requires `sudo -n signalops-deploy-agent scheduler-status` plus alignment checks for Dashboard, Assets coverage, Market State, Risk/Reward, SRI, SAF, and Admin Operations Health without manual reconcile.
 - FMP annual recurring activation remains source-ready but live-inactive until the deployment agent is reprovisioned and the constrained `scheduler-fmp-annual-enable` action is installed.
+
+## 2026-08-21 — Operations freshness semantics corrected
+
+- Investigated the apparent stale Aug 20 Admin Operations Health rows. The 132-asset tenant-local Dashboard, Market State, Risk/Reward, SRI, SAF, and intraday evidence were present for Aug 20; the real failed scheduled job was warm EOD for the broader 1000-asset cohort.
+- Root cause: `marketops-warm-eod` normalized 997/1000 symbols for Aug 20 and exited hard-failed because of a small set of provider no-bar responses.
+- Updated warm EOD to return degraded for bounded provider gaps (`MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS`, default `5`) and updated the scheduler wrapper to record `degraded` while exiting cleanly for exit code `10`.
+- Added warm EOD to Admin scheduled jobs and to the deployment-agent source scheduler-status service list. The installed deployment-agent binary still requires reprovisioning before this source status-list change is live.
+- Corrected Admin Operations Health freshness semantics: `Assets analytical coverage` now uses current Market State coverage; intraday is no longer stale after-hours when completed-session evidence is present; SRI/SAF rows explain provenance/materialization timestamps.
+- Validated changed SQL directly against the dedicated MarketOps database. Live result: Assets analytical coverage, Dashboard, Market State, Risk/Reward, SRI, SAF, and Intraday were current for Aug 20; FMP annual remained partial at 993/1000.
+- Deployed gateway through the constrained deployment agent. Validation passed: deployment smoke `2 passed`, `/readyz` returned `200`, Subscription/Admin smoke `3 passed`, and subscriber access-control smoke `1 passed`.

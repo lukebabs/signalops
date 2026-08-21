@@ -14,6 +14,7 @@ from pathlib import Path
 SOCKET_PATH = Path(os.environ.get("SIGNALOPS_DEPLOYMENT_AGENT_SOCKET", "/run/signalops/deployment-agent.sock"))
 AGENT_BIN = os.environ.get("SIGNALOPS_DEPLOYMENT_AGENT_BIN", "/usr/local/sbin/signalops-deploy-agent")
 ALLOWED_JOB_IDS = {
+    "marketops-warm-eod",
     "marketops-daily-postclose",
     "marketops-sri-refresh",
     "marketops-sri-holdings-refresh",

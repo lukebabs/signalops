@@ -51,7 +51,7 @@ case "$action" in
   scheduler-run-now:*)
     job_id="${action#scheduler-run-now:}"
     case "$job_id" in
-      marketops-daily-postclose|marketops-sri-refresh|marketops-sri-holdings-refresh|marketops-intraday|marketops-fmp-continuation|marketops-fmp-annual-financial|marketops-task-retry|marketops-postclose-recovery)
+      marketops-warm-eod|marketops-daily-postclose|marketops-sri-refresh|marketops-sri-holdings-refresh|marketops-intraday|marketops-fmp-continuation|marketops-fmp-annual-financial|marketops-task-retry|marketops-postclose-recovery)
         unit="signalops-marketops-boundary-schedule@${job_id}.service"
         ;;
       marketops-risk-reward)
@@ -247,8 +247,10 @@ case "$action" in
       signalops-marketops-boundary-schedule@marketops-intraday.service \
       signalops-marketops-boundary-schedule@marketops-daily-postclose.service \
       signalops-marketops-boundary-schedule@marketops-postclose-recovery.service \
+      signalops-marketops-boundary-schedule@marketops-warm-eod.service \
       signalops-marketops-boundary-schedule@marketops-sri-refresh.service \
       signalops-marketops-boundary-schedule@marketops-sri-holdings-refresh.service \
+      signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service \
       signalops-storage-monitor.service \
       signalops-retention-governance.service; do
       load_state="$(systemctl show "$service" --property=LoadState --value 2>/dev/null || true)"

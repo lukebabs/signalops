@@ -232,7 +232,7 @@ Acceptance window to observe:
 - SRI refresh: 2026-08-21 20:07 ET / 2026-08-22 00:07 UTC.
 - SRI holdings refresh: 2026-08-21 20:20 ET / 2026-08-22 00:20 UTC.
 
-After the window, run `sudo -n signalops-deploy-agent scheduler-status` and verify Dashboard, Assets coverage, Market State, Risk/Reward, SRI, SAF, and Admin Operations Health align to the same latest completed session. If they align without manual reconcile, close PR-0/PR-1. PR-2 access/subscription hardening is closed for the configured QA identities. PR-3 is deferred by accepted risk. PR-4 source controls are in place, with FMP recurring activation pending deployment-agent reprovision. If the EOD cycle fails, treat the failure as the highest-priority production blocker.
+After the window, run `sudo -n signalops-deploy-agent scheduler-status` and verify Dashboard, Assets analytical coverage, Market State, Risk/Reward, SRI, SAF, and Admin Operations Health align to the same latest completed session. If they align without manual reconcile, close PR-0/PR-1. PR-2 access/subscription hardening is closed for the configured QA identities. PR-3 is deferred by accepted risk. PR-4 source controls are in place, with FMP recurring activation pending deployment-agent reprovision. If the EOD cycle fails, treat the failure as the highest-priority production blocker.
 
 ## 2026-08-21 05:17 UTC readiness update
 
@@ -241,3 +241,12 @@ After the window, run `sudo -n signalops-deploy-agent scheduler-status` and veri
 - `sudo -n signalops-deploy-agent scheduler-status` returned clean timer/service state.
 - PR-1 Admin freshness browser acceptance passed through Playwright: the test logs in as `luke@strategiclabs.io`, opens `/admin/system`, asserts the operations-health API response, and verifies all eight freshness labels render.
 - The remaining time-gated acceptance item is the next natural post-close cycle at 2026-08-21 22:01:55 UTC, followed by recovery/SRI timers through the controlled post-close window.
+
+## 2026-08-21 06:10 UTC freshness semantics correction
+
+- Investigated the apparent Aug 20 freshness drift. Dashboard, Market State, Risk/Reward, SRI, SAF, and intraday all had Aug 20 completed-session evidence for the tenant-local 132-asset scope.
+- Identified the real failed job as `marketops-warm-eod`: Aug 20 warm EOD normalized 997/1000 symbols and failed strict completion because provider no-bar responses were returned for a small number of symbols.
+- Source fix: warm EOD now returns a governed `degraded` result for bounded provider gaps (`MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS`, default `5`) and records the missing symbols in output instead of leaving systemd in a hard failed state for small no-bar gaps.
+- Source fix: scheduler-status now includes `marketops-warm-eod` and FMP annual scheduled services, and Admin Scheduled Jobs exposes `MarketOps warm EOD baseline`. The installed root-owned deployment agent still needs reprovisioning before the new scheduler-status service list is live there.
+- Source/live gateway fix: Admin Operations Health now labels the row as `Assets analytical coverage`, uses current Market State evidence for the selected assets instead of one-time coverage activation metadata, treats after-hours intraday as market-idle current when the latest completed-session evidence is present, and adds explicit provenance notes for SRI/SAF as-of timestamps.
+- Live gateway deployment completed and verified: `signalops_public_production_deploy_verified`, deployment smoke `2 passed`, `/readyz` returned `200`, Subscription/Admin smoke `3 passed`, and subscriber access-control smoke `1 passed`.

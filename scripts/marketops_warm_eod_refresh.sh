@@ -29,6 +29,7 @@ timezone="${MARKETOPS_WARM_EOD_TIMEZONE:-America/New_York}"
 batch_size="${MARKETOPS_WARM_EOD_BATCH_SIZE:-100}"
 normalization_timeout="${MARKETOPS_WARM_EOD_NORMALIZATION_TIMEOUT_SECONDS:-900}"
 normalization_poll="${MARKETOPS_WARM_EOD_NORMALIZATION_POLL_SECONDS:-10}"
+max_missing_symbols="${MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS:-5}"
 lock_file="${MARKETOPS_WARM_EOD_LOCK_FILE:-/tmp/signalops-marketops-warm-eod.lock}"
 if [[ -z "$session_date" ]]; then
   session_date="$(TZ="$timezone" date '+%F')"
@@ -37,7 +38,7 @@ fi
 [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ && "$(date -u -d "$session_date" '+%F' 2>/dev/null)" == "$session_date" ]] || { printf 'invalid session date: %s\n' "$session_date" >&2; exit 2; }
 (( $(date -u -d "$session_date" '+%u') <= 5 )) || { printf 'session date must be a weekday: %s\n' "$session_date" >&2; exit 2; }
 [[ "$batch_size" =~ ^[1-9][0-9]*$ && "$batch_size" -le 250 ]] || { printf 'MARKETOPS_WARM_EOD_BATCH_SIZE must be 1 through 250\n' >&2; exit 2; }
-[[ "$normalization_timeout" =~ ^[1-9][0-9]*$ && "$normalization_poll" =~ ^[1-9][0-9]*$ ]] || { printf 'warm EOD normalization settings must be positive integers\n' >&2; exit 2; }
+[[ "$normalization_timeout" =~ ^[1-9][0-9]*$ && "$normalization_poll" =~ ^[1-9][0-9]*$ && "$max_missing_symbols" =~ ^[0-9]+$ ]] || { printf 'warm EOD normalization settings must be positive integers\n' >&2; exit 2; }
 if $write_mode && [[ "${MARKETOPS_WARM_EOD_ACKNOWLEDGE_WRITES:-false}" != "true" ]]; then printf 'warm EOD write mode requires MARKETOPS_WARM_EOD_ACKNOWLEDGE_WRITES=true\n' >&2; exit 2; fi
 symbols="$(marketops_warm_eod_symbols)"
 [[ -n "$symbols" ]] || { printf 'no enabled warm EOD plan is available\n' >&2; exit 4; }
@@ -57,7 +58,16 @@ deadline=$((SECONDS + normalization_timeout))
 while true; do
   normalized="$(marketops_temporal_psql -Atc "SELECT count(DISTINCT upper(normalized_payload->>'symbol')) FROM normalized_event_ledger WHERE tenant_id='tenant-local' AND source_id='src-massive' AND dataset='equity_eod_prices' AND observation_time::date=DATE '$session_date' AND upper(normalized_payload->>'symbol') = ANY(string_to_array('$symbols', ','));" | tr -d '[:space:]')"
   [[ "$normalized" == "${#symbol_list[@]}" ]] && break
-  (( SECONDS < deadline )) || { printf 'warm EOD normalization incomplete: normalized=%s expected=%s session=%s\n' "$normalized" "${#symbol_list[@]}" "$session_date" >&2; exit 5; }
+  if (( SECONDS >= deadline )); then
+    missing=$(( ${#symbol_list[@]} - normalized ))
+    missing_symbols="$(marketops_temporal_psql -Atc "WITH expected(symbol) AS (SELECT unnest(string_to_array('$symbols', ','))), normalized(symbol) AS (SELECT DISTINCT upper(normalized_payload->>'symbol') FROM normalized_event_ledger WHERE tenant_id='tenant-local' AND source_id='src-massive' AND dataset='equity_eod_prices' AND observation_time::date=DATE '$session_date' AND upper(normalized_payload->>'symbol') = ANY(string_to_array('$symbols', ','))) SELECT string_agg(expected.symbol, ',' ORDER BY expected.symbol) FROM expected LEFT JOIN normalized USING(symbol) WHERE normalized.symbol IS NULL;" | tr -d '[:space:]')"
+    if (( missing <= max_missing_symbols )); then
+      printf 'warm EOD normalization degraded: normalized=%s expected=%s missing=%s max_missing=%s session=%s symbols=%s\n' "$normalized" "${#symbol_list[@]}" "$missing" "$max_missing_symbols" "$session_date" "${missing_symbols:-unknown}" >&2
+      exit 10
+    fi
+    printf 'warm EOD normalization incomplete: normalized=%s expected=%s missing=%s max_missing=%s session=%s symbols=%s\n' "$normalized" "${#symbol_list[@]}" "$missing" "$max_missing_symbols" "$session_date" "${missing_symbols:-unknown}" >&2
+    exit 5
+  fi
   sleep "$normalization_poll"
 done
 printf '%s warm EOD acquisition completed session=%s symbols=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$session_date" "$normalized"
