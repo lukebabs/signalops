@@ -8581,3 +8581,10 @@ Next-cycle priority:
 - Added `docs/projects/subscriber_project/pr4_incident_runbooks_2026-08-21.md` with operator response paths for stale dashboard/freshness drift, failed post-close, provider outage, access-control/subscription regression, failed deployment smoke/post-login 404, backup/restore concern, and FMP annual financial degradation.
 - Each runbook records detection, owner, first response, recovery action, verification, and rollback criteria.
 - The runbooks explicitly prefer constrained deployment-agent actions and dedicated MarketOps database evidence over manual shell intervention or broad provider polling.
+
+## 2026-08-21 — PR-4 FMP annual live activation blocked by installed-agent version
+
+- Verified scheduler baseline through `sudo -n signalops-deploy-agent scheduler-status`; FMP annual timer remained `loaded active=inactive next=n/a` while other production timers remained clean.
+- Attempted `sudo -n signalops-deploy-agent scheduler-fmp-annual-enable`; the installed root-owned deployment agent returned `Unsupported deployment-agent action`, confirming the source change has not yet been reprovisioned onto the host.
+- Attempted passwordless reprovision with `sudo -n ./scripts/provision_signalops_deployment_agent.sh adminalien`; host sudo required an interactive password.
+- No timer state changed. Required operator action is to run the reprovision command once with sudo, then use the new constrained `scheduler-fmp-annual-enable` action and verify `scheduler-status`.

@@ -161,3 +161,42 @@ Added `pr4_incident_runbooks_2026-08-21.md` with production operator runbooks fo
 - FMP annual financial degradation.
 
 Each runbook includes detection, owner, first response, recovery action, verification, and rollback criteria. The runbooks prefer constrained deployment-agent actions and dedicated MarketOps database evidence over manual shell intervention.
+
+## Live activation attempt — FMP annual recurring timer
+
+Attempted to activate Option B after source deployment-agent support was pushed.
+
+Observed baseline:
+
+```text
+sudo -n signalops-deploy-agent scheduler-status
+...
+timer=signalops-marketops-boundary-fmp-annual-financial.timer load=loaded active=inactive next=n/a
+```
+
+The installed deployment agent did not yet include the new constrained action:
+
+```text
+sudo -n signalops-deploy-agent scheduler-fmp-annual-enable
+Unsupported deployment-agent action: scheduler-fmp-annual-enable
+```
+
+Reprovisioning the root-owned deployment agent from source requires an interactive sudo password in the current host session:
+
+```text
+sudo -n ./scripts/provision_signalops_deployment_agent.sh adminalien
+sudo: a password is required
+```
+
+No timer state changed. Scheduler status remained clean and FMP annual remained inactive.
+
+Required one-time operator action:
+
+```bash
+cd /home/adminalien/docker/syncratic-core/subsystems/signalops
+sudo ./scripts/provision_signalops_deployment_agent.sh adminalien
+sudo -n signalops-deploy-agent scheduler-fmp-annual-enable
+sudo -n signalops-deploy-agent scheduler-status
+```
+
+Acceptance remains: FMP annual timer must be `active=active` with next run at Saturday 02:30 America/New_York.
