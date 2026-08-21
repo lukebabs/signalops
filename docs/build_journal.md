@@ -8588,3 +8588,10 @@ Next-cycle priority:
 - Attempted `sudo -n signalops-deploy-agent scheduler-fmp-annual-enable`; the installed root-owned deployment agent returned `Unsupported deployment-agent action`, confirming the source change has not yet been reprovisioned onto the host.
 - Attempted passwordless reprovision with `sudo -n ./scripts/provision_signalops_deployment_agent.sh adminalien`; host sudo required an interactive password.
 - No timer state changed. Required operator action is to run the reprovision command once with sudo, then use the new constrained `scheduler-fmp-annual-enable` action and verify `scheduler-status`.
+
+## 2026-08-21 — Production readiness pause checkpoint
+
+- Paused active implementation at the controlled pilot-ready checkpoint pending the natural post-close acceptance window for the Friday, August 21, 2026 ET trading session.
+- Clarified that SRI refresh and SRI holdings refresh occur after midnight UTC on Saturday, August 22, 2026, but still belong to the August 21 ET trading-session acceptance window. August 22 is not a separate EOD trading day.
+- Post-window acceptance requires `sudo -n signalops-deploy-agent scheduler-status` plus alignment checks for Dashboard, Assets coverage, Market State, Risk/Reward, SRI, SAF, and Admin Operations Health without manual reconcile.
+- FMP annual recurring activation remains source-ready but live-inactive until the deployment agent is reprovisioned and the constrained `scheduler-fmp-annual-enable` action is installed.

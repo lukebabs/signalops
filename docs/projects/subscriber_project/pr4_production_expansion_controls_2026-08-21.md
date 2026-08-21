@@ -200,3 +200,19 @@ sudo -n signalops-deploy-agent scheduler-status
 ```
 
 Acceptance remains: FMP annual timer must be `active=active` with next run at Saturday 02:30 America/New_York.
+
+## Pause checkpoint — pending August 21 ET EOD acceptance
+
+Active PR-4 implementation is paused at the controlled pilot-ready checkpoint until the next natural post-close cycle completes for the Friday, August 21, 2026 ET trading session.
+
+Clarification: SRI refresh and SRI holdings refresh run after midnight UTC on Saturday, August 22, 2026, but they are part of the August 21 ET trading-session acceptance window. They should not be interpreted as a separate August 22 EOD trading day.
+
+Acceptance after the window:
+
+```bash
+sudo -n signalops-deploy-agent scheduler-status
+```
+
+Then verify Dashboard, Assets coverage, Market State, Risk/Reward, SRI, SAF, and Admin Operations Health align to the same completed-session evidence without manual reconcile.
+
+FMP annual recurring activation remains source-ready but not live-active until the deployment agent is reprovisioned and `scheduler-fmp-annual-enable` is accepted by the installed root-owned agent.

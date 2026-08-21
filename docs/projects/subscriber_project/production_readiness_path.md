@@ -1,6 +1,6 @@
 # Subscriber Project — Production Readiness Path
 
-Status: active production-readiness control.
+Status: paused at controlled pilot-ready checkpoint pending the next natural post-close acceptance window.
 
 Last reviewed: 2026-08-21.
 
@@ -222,7 +222,17 @@ Each production-readiness review should record:
 
 ## Next recommended action
 
-Observe the next natural 2026-08-21 post-close cycle. If `marketops-daily-postclose`, `marketops-postclose-recovery`, Risk/Reward, SRI, SAF, Dashboard, and Assets freshness all align without manual reconcile, close PR-0/PR-1. PR-2 access/subscription hardening is closed for the configured QA identities. PR-3 is deferred by accepted risk, so the next active implementation gate is **Sprint PR-4 — Production expansion controls**. If it fails, treat the failure as the highest-priority production blocker.
+Pause active implementation until the next natural post-close acceptance window completes for the Friday, August 21, 2026 ET trading session. The SRI timers occur after midnight UTC on Saturday, August 22, 2026, but they still belong to the August 21 ET trading session; August 22 is not a separate EOD trading day.
+
+Acceptance window to observe:
+
+- Warm EOD: 2026-08-21 18:00 ET / 22:00 UTC.
+- Daily post-close: 2026-08-21 18:01:55 ET / 22:01:55 UTC.
+- Post-close recovery guard: starts 2026-08-21 18:30 ET / 22:30 UTC.
+- SRI refresh: 2026-08-21 20:07 ET / 2026-08-22 00:07 UTC.
+- SRI holdings refresh: 2026-08-21 20:20 ET / 2026-08-22 00:20 UTC.
+
+After the window, run `sudo -n signalops-deploy-agent scheduler-status` and verify Dashboard, Assets coverage, Market State, Risk/Reward, SRI, SAF, and Admin Operations Health align to the same latest completed session. If they align without manual reconcile, close PR-0/PR-1. PR-2 access/subscription hardening is closed for the configured QA identities. PR-3 is deferred by accepted risk. PR-4 source controls are in place, with FMP recurring activation pending deployment-agent reprovision. If the EOD cycle fails, treat the failure as the highest-priority production blocker.
 
 ## 2026-08-21 05:17 UTC readiness update
 
