@@ -109,9 +109,10 @@ These are required before broader commercial production.
      - Billing/provider integration remains separated until explicitly approved.
 
 10. **Incident runbooks**
-    - Maintain runbooks for stale dashboard data, failed post-close, provider outage, access-control regression, failed deployment smoke, and backup/restore.
+    - Maintain runbooks for stale dashboard data, failed post-close, provider outage, access-control regression, failed deployment smoke, backup/restore, and FMP annual degradation.
     - Acceptance:
       - Each runbook includes detection, owner, first response, recovery action, verification, and rollback criteria.
+    - Current PR-4 evidence: `pr4_incident_runbooks_2026-08-21.md` defines all required response paths using constrained deployment-agent actions and dedicated MarketOps database evidence.
 
 ## Efficient and secure path to production
 
@@ -195,7 +196,7 @@ Scope:
 - Govern FMP annual enrichment lifecycle. Option B selected: weekly Saturday 02:30 ET recurring timer, controlled through constrained deployment-agent enable/disable actions.
 - Add trading-calendar correctness. Scheduler non-trading-day skips and SAF UI 10/20-day filters now use matching 2026/2027 US market-holiday semantics.
 - Complete subscriber administration workflow.
-- Finalize incident runbooks.
+- Finalize incident runbooks. Source runbooks now cover stale data, post-close failure, provider outage, access regression, deployment smoke/404, backup/restore, and FMP annual degradation.
 
 Exit:
 

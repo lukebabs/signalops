@@ -147,3 +147,17 @@ Acceptance:
 - Admin Scheduled Jobs lists FMP annual financial capture.
 - Operations Health contains `FMP annual financials` freshness.
 - The next natural run completes as `succeeded` or `degraded` with per-task evidence, not an untracked failure.
+
+## Fourth slice implementation — incident runbooks
+
+Added `pr4_incident_runbooks_2026-08-21.md` with production operator runbooks for:
+
+- stale Dashboard or cross-view freshness drift;
+- failed daily post-close or recovery guard;
+- provider outage or provider schema drift;
+- access-control or subscription regression;
+- failed deployment smoke or post-login 404;
+- backup/restore concern;
+- FMP annual financial degradation.
+
+Each runbook includes detection, owner, first response, recovery action, verification, and rollback criteria. The runbooks prefer constrained deployment-agent actions and dedicated MarketOps database evidence over manual shell intervention.

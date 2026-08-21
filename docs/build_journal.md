@@ -8575,3 +8575,9 @@ Next-cycle priority:
 - Added constrained deployment-agent actions `scheduler-fmp-annual-enable` and `scheduler-fmp-annual-disable` so recurring activation can be controlled without broad manual `systemctl` access.
 - Updated scheduler installer help/no-op messaging to include `--enable-fmp-annual` consistently.
 - Live activation still requires deploying/reprovisioning the deployment agent and then running `sudo -n signalops-deploy-agent scheduler-fmp-annual-enable`, followed by `scheduler-status` verification.
+
+## 2026-08-21 — PR-4 incident runbooks added
+
+- Added `docs/projects/subscriber_project/pr4_incident_runbooks_2026-08-21.md` with operator response paths for stale dashboard/freshness drift, failed post-close, provider outage, access-control/subscription regression, failed deployment smoke/post-login 404, backup/restore concern, and FMP annual financial degradation.
+- Each runbook records detection, owner, first response, recovery action, verification, and rollback criteria.
+- The runbooks explicitly prefer constrained deployment-agent actions and dedicated MarketOps database evidence over manual shell intervention or broad provider polling.
