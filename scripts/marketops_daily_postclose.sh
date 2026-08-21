@@ -519,7 +519,13 @@ if $write_mode; then
   # source session is complete, so it reuses canonical normalized ETF
   # observations and never races or duplicates the scheduled provider pull.
   log "SRI completed-session materialization started session=$session_date"
-  bash ./scripts/marketops_sri_refresh.sh --date "$session_date" --normalized-only || exit 10
+  if ! bash ./scripts/marketops_sri_refresh.sh --date "$session_date" --normalized-only; then
+    now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    detail="deferred_to_sri_refresh_timer"
+    detail_json="$(printf '{"session_date":"%s","detail":"%s","deferred_from":"marketops-daily-postclose"}' "$session_date" "$detail")"
+    marketops_record_scheduled_job_status_or_warn "marketops-sri-refresh-${session_date}-deferred" "marketops-sri-refresh" "Weekdays 20:07" "$timezone" "recovery_needed" "$now" "$now" "0" "$detail" "$detail_json" || true
+    log "SRI completed-session materialization deferred session=$session_date reason=$detail"
+  fi
   if [[ -n "${SIGNALOPS_WEB:-}" && -n "${SIGNALOPS_WEB_PASS:-}" ]]; then
     log "subscriber pilot browser acceptance started"
     ./scripts/run_subscriber_pilot_ui_smoke.sh || exit 11

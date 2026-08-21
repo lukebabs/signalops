@@ -10,16 +10,17 @@ The primary post-close service remains the authoritative scheduled workflow. The
 
 ## Recovery behavior
 
-The signalops-marketops-postclose-recovery timer runs on weekdays every 15 minutes from 18:30 through 23:00 America/New_York.
+The signalops-marketops-postclose-recovery timer runs on weekdays every 15 minutes from 18:30 through 23:00 America/New_York. The timer uses explicit calendar entries for 18:30/18:45, 19:00-22:45, and 23:00 because a compact `18:30/15:00` expression only fired twice in production.
 
 For the current completed session it:
 
 1. derives the active canonical universe and runs the existing universal completion gate;
 2. records a marketops-risk-reward stage status with current result/snapshot counts;
 3. exits without work when the gate has passed;
-4. defers when the primary post-close service or its lock is active;
-5. otherwise launches the same idempotent post-close workflow for that explicit session date;
-6. reruns the completion gate and clears its attempt state only after success.
+4. records SRI as `recovery_needed` instead of failing Risk/Reward recovery when only SRI is pending its dedicated 20:07 ET refresh;
+5. defers when the primary post-close service or its lock is active;
+6. otherwise launches the same idempotent post-close workflow for that explicit session date;
+7. reruns the completion gate and clears its attempt state only after success.
 
 The guard writes at most two recovery attempts per session by default. Configure MARKETOPS_POSTCLOSE_RECOVERY_MAX_ATTEMPTS only as part of an operational capacity decision. Exhaustion remains visible as a failed recovery job and requires operator review; it does not loop indefinitely or conceal provider/data-quality failures.
 
@@ -39,7 +40,7 @@ Rollback disables only the guard; it does not delete any evidence or primary tim
 
 ## Observability
 
-The recovery wrapper writes marketops-postclose-recovery status through the existing scheduled-job status contract. The guard also writes marketops-risk-reward stage status including session date, expected active symbols, persisted Risk/Reward result count, snapshot count, and whether recovery is needed, running, succeeded, or failed.
+The recovery wrapper writes marketops-postclose-recovery status through the existing scheduled-job status contract. The guard also writes marketops-risk-reward stage status including session date, expected active symbols, persisted Risk/Reward result count, snapshot count, and whether recovery is needed, running, succeeded, or failed. If universal completion has passed but SRI is not yet materialized, the guard writes `marketops-sri-refresh` as `recovery_needed` with `deferred_to_sri_refresh_timer`; the dedicated SRI timer is then responsible for clearing that status. When recovery proves completion after a prior failed post-close row, it updates the latest `marketops-daily-postclose` status to `degraded` with recovery provenance while preserving the original failed run in history.
 
 The Admin scheduled-job registry includes both statuses, so analysts can see recovery activity and the Risk/Reward completion stage alongside the composite post-close workflow. The status files remain the auditable runtime evidence.
 

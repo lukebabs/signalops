@@ -94,13 +94,40 @@ write_risk_status() {
   mv "$temp" "$status_dir/marketops-risk-reward.json"
 }
 
+write_sri_status() {
+  local status="$1" detail="$2" now detail_json run_id
+  now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  run_id="marketops-sri-refresh-${session_date}-recovery"
+  detail_json="$(printf '{"session_date":"%s","expected_segments":%s,"detail":"%s","deferred_from":"marketops-postclose-recovery"}' "$session_date" "$sri_expected" "$detail")"
+  marketops_record_scheduled_job_status_or_warn "$run_id" "marketops-sri-refresh" "Weekdays 20:07" "$timezone" "$status" "$now" "$now" "0" "$detail" "$detail_json" || true
+}
+
+write_daily_recovery_status() {
+  local prior_status now detail detail_json run_id
+  prior_status="$(marketops_primary_psql -Atc "SELECT status FROM marketops_scheduled_job_statuses WHERE job_id='marketops-daily-postclose'" | compact)"
+  case "$prior_status" in
+    failed|recovery_needed|degraded) ;;
+    *) return 0 ;;
+  esac
+  now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  detail="recovery_guard_verified_completion_after_prior_${prior_status}"
+  run_id="marketops-daily-postclose-${session_date}-recovery-verified"
+  detail_json="$(printf '{"session_date":"%s","prior_status":"%s","detail":"%s","verified_by":"marketops-postclose-recovery"}' "$session_date" "$prior_status" "$detail")"
+  marketops_record_scheduled_job_status_or_warn "$run_id" "marketops-daily-postclose" "Weekdays 18:01:55" "$timezone" "degraded" "$now" "$now" "0" "$detail" "$detail_json" || true
+}
+
 if completion_output="$(./scripts/marketops_universal_completion_gate.sh "$session_date" "$active_symbols" "$expected" 2>&1)"; then
   if ! ensure_sri_completed_session; then
-    write_risk_status "recovery_needed" "universal completion passed; SRI platform-global materialization pending"
-    printf 'post-close recovery: universal completion passed but SRI materialization remains incomplete\n' >&2
-    exit 7
+    write_risk_status "succeeded" "universal completion gate passed; SRI deferred to dedicated refresh timer"
+    write_daily_recovery_status
+    write_sri_status "recovery_needed" "deferred_to_sri_refresh_timer"
+    rm -f "$state_dir/$session_date.attempts"
+    printf '%s\n' "$completion_output"
+    printf 'post-close recovery: universal completion passed; SRI deferred to dedicated refresh timer for %s\n' "$session_date"
+    exit 0
   fi
   write_risk_status "succeeded" "universal completion gate passed"
+  write_daily_recovery_status
   rm -f "$state_dir/$session_date.attempts"
   printf '%s\n' "$completion_output"
   printf 'post-close recovery: session %s is complete; no retry required\n' "$session_date"
@@ -150,11 +177,16 @@ risk_results="${risk_results:-0}"
 risk_snapshots="${risk_snapshots:-0}"
 if completion_output="$(./scripts/marketops_universal_completion_gate.sh "$session_date" "$active_symbols" "$expected" 2>&1)"; then
   if ! ensure_sri_completed_session; then
-    write_risk_status "failed" "recovery completed but SRI platform-global materialization remains incomplete"
-    printf 'post-close recovery: universal completion passed but SRI materialization remains incomplete\n' >&2
-    exit 7
+    write_risk_status "succeeded" "universal completion gate passed after recovery; SRI deferred to dedicated refresh timer"
+    write_daily_recovery_status
+    write_sri_status "recovery_needed" "deferred_to_sri_refresh_timer"
+    rm -f "$attempt_file"
+    printf '%s\n' "$completion_output"
+    printf 'post-close recovery: universal completion passed after recovery; SRI deferred to dedicated refresh timer for %s\n' "$session_date"
+    exit 0
   fi
   write_risk_status "succeeded" "universal completion gate passed after recovery"
+  write_daily_recovery_status
   rm -f "$attempt_file"
   printf '%s\n' "$completion_output"
   exit 0

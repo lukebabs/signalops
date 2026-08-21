@@ -8302,3 +8302,12 @@ Next-cycle priority:
 - Updated the scheduled-job wrapper and Risk/Reward recovery status writer to persist status to MarketOps PostgreSQL first. Repo-local JSON remains only as ignored fallback/debug output and is no longer source-controlled.
 - Fixed the operations-monitor systemd template to load the protected MarketOps cutover environment only for status persistence, without changing its monitoring command. A controlled run at `2026-08-19 04:16:18 UTC` wrote `marketops-operations-monitor` status `succeeded` with runner `systemd` into `marketops_scheduled_job_statuses`.
 - Updated the Administration scheduled-jobs API to read DB-backed status through the MarketOps repository, with file fallback during transition. The UI now marks jobs without a safe run-now action as status-only instead of exposing a failing button.
+
+
+## 2026-08-21 — Post-close SRI deferral and recovery timer correction
+
+- Root cause analysis for repeated post-close failures found that `marketops-daily-postclose` exited `10` after universal/Risk-Reward completion because the inline normalized-only SRI refresh was not complete yet. The separate SRI refresh timer later materialized all 16 platform-global segments at 20:07 ET, so the failure was sequencing, not missing EOD/Risk-Reward evidence.
+- Corrected `marketops_daily_postclose.sh` so SRI pending at the post-close boundary records `marketops-sri-refresh` as `recovery_needed` with `deferred_to_sri_refresh_timer` instead of failing the whole post-close job.
+- Corrected `marketops_postclose_recovery.sh` so universal completion plus pending SRI marks Risk/Reward succeeded and leaves SRI as the separately visible deferred job state.
+- Fixed the root cause in the recovery timer definition: `18:30/15:00` only fired at 18:30 and 18:45 ET in production. The source timer now uses explicit 18:30/18:45, 19:00-22:45, and 23:00 ET calendar entries.
+- Validation: `bash -n` passed for the edited scripts, `systemd-analyze calendar` accepted the corrected timer expressions, and the installed deployment-agent recovery run for the 2026-08-20 session updated `marketops-postclose-recovery` and `marketops-risk-reward` to `succeeded` in the MarketOps DB. A second recovery run wrote `marketops-daily-postclose` as `degraded` with `recovery_guard_verified_completion_after_prior_failed`, preserving the original failed run history while making the latest Admin status truthful. Remaining runtime action: install the corrected root-owned timer file with a narrowly approved scheduler-timer deployment.

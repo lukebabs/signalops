@@ -2,7 +2,11 @@
 Description=Run dedicated bounded MarketOps post-close recovery checks
 
 [Timer]
-OnCalendar=Mon..Fri *-*-* 18:30/15:00 America/New_York
+# Keep the bounded recovery guard alive through the delayed SRI refresh window.
+# A single `18:30/15:00` expression only fired at 18:30 and 18:45 in practice.
+OnCalendar=Mon..Fri *-*-* 18:30,45:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 19..22:00,15,30,45:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 23:00:00 America/New_York
 Persistent=true
 AccuracySec=1min
 Unit=signalops-marketops-boundary-schedule@marketops-postclose-recovery.service
