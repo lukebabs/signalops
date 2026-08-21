@@ -1,5 +1,32 @@
 # SignalOps Build Journal
 
+## 2026-08-21T05:00:00Z
+
+Summary:
+
+- Saved the Subscriber Project production-readiness checklist as an active project control.
+- Recorded the current readiness position as controlled pilot-ready, not full external production-ready.
+- Defined a secure path to production around scheduler consistency, Admin operations visibility, subscription/access-control hardening, backup/restore rehearsal, FMP lifecycle, trading-calendar correctness, and subscriber administration.
+
+Files changed:
+
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/projects/subscriber_project/README.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- The project needs a durable readiness source of truth that can be checked repeatedly instead of relying on ad hoc chat summaries.
+- The near-term production blocker is operational consistency: every MarketOps job must complete or expose an actionable failure while every view reads the same dedicated MarketOps data plane.
+
+Verification performed:
+
+- Documentation-only change.
+
+Next step:
+
+- Start Sprint PR-0 by fixing the daily post-close failure semantics/root cause and verifying `scheduler-status` returns clean after the next eligible run.
+
 ## 2026-08-19T14:20:00Z
 
 Summary:
