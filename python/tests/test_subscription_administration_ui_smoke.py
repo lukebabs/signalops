@@ -63,13 +63,60 @@ def login(page: Page, config: tuple[str, str, str]) -> None:
     page.wait_for_url(re.compile(re.escape(base_url) + r"/admin/subscriptions"), timeout=30_000)
 
 
+def login_marketops_admin(page: Page, config: tuple[str, str, str]) -> None:
+    base_url, username, password = config
+    page.goto(f"{base_url}/admin/system", wait_until="domcontentloaded")
+    if page.get_by_role("heading", name="MarketOps Operations Health").is_visible(timeout=5_000):
+        return
+    sign_in = page.get_by_role("button", name="Sign in")
+    if sign_in.is_visible(timeout=10_000):
+        sign_in.click()
+    username_input = page.locator("#username, input[name='username']").or_(page.get_by_role("textbox", name="Email or username")).first
+    username_input.wait_for(state="visible", timeout=30_000)
+    username_input.fill(username)
+    password_input = page.locator("#password, input[name='password']").or_(page.get_by_role("textbox", name="Password")).first
+    password_input.fill(password)
+    page.locator("#kc-login, input[type='submit']").or_(page.get_by_role("button", name="Continue")).first.click()
+    expect(page.get_by_role("heading", name="MarketOps Operations Health")).to_be_visible(timeout=30_000)
+
+
+def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
+    expected_labels = {
+        "Dashboard",
+        "Assets coverage",
+        "Market State",
+        "Risk/Reward",
+        "Sector Rotation Intelligence",
+        "Signal Assurance",
+        "Intraday conditions",
+        "FMP annual financials",
+    }
+    with admin_page.expect_response(
+        lambda response: response.request.method == "GET" and "/v1/administration/marketops/operations-health" in response.url,
+        timeout=30_000,
+    ) as response_info:
+        login_marketops_admin(admin_page, admin_config)
+    response = response_info.value
+    assert response.status == 200, f"{response.url} returned HTTP {response.status}"
+    payload = response.json()
+    rows = payload.get("marketops_operations_health", {}).get("data_freshness")
+    assert isinstance(rows, list), "operations-health response did not include data_freshness rows"
+    labels = {str(row.get("label", "")) for row in rows}
+    assert expected_labels.issubset(labels), f"missing freshness rows: {sorted(expected_labels - labels)}"
+
+    expect(admin_page.get_by_role("heading", name="MarketOps Operations Health")).to_be_visible(timeout=30_000)
+    body = admin_page.locator("body")
+    for label in sorted(expected_labels):
+        expect(body).to_contain_text(label, timeout=30_000)
+
+
 def test_subscription_administration_is_platform_only(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
     base_url, _, _ = admin_config
     login(admin_page, admin_config)
     expect(admin_page.get_by_role("heading", name="Subscription Administration")).to_be_visible(timeout=30_000)
     expect(admin_page.get_by_role("heading", name="Explorer or Professional subject plan")).to_be_visible()
     expect(admin_page.get_by_role("heading", name="Institutional tenant contract")).to_be_visible()
-    expect(admin_page.get_by_role("heading", name="Institutional seat")).to_be_visible()
+    expect(admin_page.get_by_role("heading", name="Institutional seat", exact=True)).to_be_visible()
     expect(admin_page.locator("body")).to_contain_text("signalops:subscription_admin")
     assert "/marketops/" not in admin_page.url
 

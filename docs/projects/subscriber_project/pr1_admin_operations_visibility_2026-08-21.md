@@ -125,7 +125,7 @@ Verification after deployment:
 
 ```text
 https://signalops.syncratic.io/readyz           -> 200
-https://signalops.syncratic.io/marketops/admin  -> 200
+https://signalops.syncratic.io/admin/system      -> 200
 ```
 
 Scheduler status after deployment remained clean:
@@ -154,9 +154,11 @@ Constrained production UI smoke passed:
 2 passed in 5.60s
 ```
 
-Remaining PR-1 browser acceptance:
+PR-1 browser acceptance is now automated and passed. The Playwright smoke logs in as `luke@strategiclabs.io`, opens Administration -> System, waits for `/v1/administration/marketops/operations-health`, asserts HTTP 200, verifies the API `data_freshness` payload includes all eight required labels, and verifies each label is rendered in the browser.
 
-- Log in as `luke@strategiclabs.io`.
-- Open Administration -> Admin Workbench.
-- Confirm the MarketOps Operations Health freshness table includes all eight rows: Dashboard, Assets coverage, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, Intraday conditions, and FMP annual financials.
+```text
+scripts/run_subscription_admin_ui_smoke.sh
+..                                                                       [100%]
+2 passed in 2.29s
+```
 

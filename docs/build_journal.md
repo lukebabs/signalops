@@ -35,7 +35,7 @@ Summary:
 
 - Deployed the PR-1 Admin operations visibility slice through `sudo -n signalops-deploy-agent signalops-production-deploy`.
 - Production deployment reported `signalops_public_production_deploy_verified`.
-- Public `/readyz`, `/marketops/watchlists`, and `/marketops/admin` returned `200`.
+- Public `/readyz`, `/marketops/watchlists`, and `/admin/system` returned `200`.
 - `scheduler-status` remained clean after deployment.
 - The bundled subscriber smoke failed once on the known browser/auth harness path, then passed on one constrained retry: `2 passed in 5.83s`.
 
@@ -53,7 +53,7 @@ Verification performed:
 - `sudo -n signalops-deploy-agent signalops-production-deploy`
 - `curl https://signalops.syncratic.io/readyz` returned `200`
 - `curl https://signalops.syncratic.io/marketops/watchlists` returned `200`
-- `curl https://signalops.syncratic.io/marketops/admin` returned `200`
+- `curl https://signalops.syncratic.io/admin/system` returned `200`
 - `sudo -n signalops-deploy-agent scheduler-status` returned clean
 - `sudo -n signalops-deploy-agent subscriber-pilot-ui-smoke` returned `2 passed` on retry
 
@@ -8510,8 +8510,16 @@ Next-cycle priority:
 ## 2026-08-21 — PR-1 Admin operations freshness extension deployed
 
 - Deployed commit `41e3110`, adding explicit Admin Workbench freshness rows for Assets coverage and FMP annual financials.
-- Verified public production routes after deployment: `/readyz` returned `200` and `/marketops/admin` returned `200`.
+- Verified public production routes after deployment: `/readyz` returned `200` and `/admin/system` returned `200`.
 - Verified scheduler state after deployment: MarketOps intraday, post-close, post-close recovery, SRI refresh, SRI holdings refresh, and warm-EOD timers are loaded and active; latest one-shot scheduler services remain successful. The FMP annual timer remains intentionally inactive until a recurring cadence is approved.
 - Reran the constrained production subscriber UI smoke; it passed with `2 passed in 5.60s`.
-- Remaining PR-1 acceptance is browser-level confirmation as `luke@strategiclabs.io` that Administration -> Admin Workbench renders all eight MarketOps Operations Health freshness rows: Dashboard, Assets coverage, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, Intraday conditions, and FMP annual financials.
+- Automated PR-1 browser acceptance now passes through `scripts/run_subscription_admin_ui_smoke.sh`: Playwright logs in as `luke@strategiclabs.io`, opens `/admin/system`, waits for the operations-health API response, asserts the eight required `data_freshness` labels, and confirms they render in the browser. Result: `2 passed in 2.29s`.
 
+
+## 2026-08-21 — PR-1 Playwright Admin freshness acceptance
+
+- Added an explicit Playwright assertion to `python/tests/test_subscription_administration_ui_smoke.py` for MarketOps Operations Health freshness rows.
+- Corrected the acceptance route from `/marketops/admin` to `/admin/system`; `/marketops/admin` returned the SPA shell but rendered Not Found for the authenticated user.
+- The test verifies both the API payload and browser-rendered labels for Dashboard, Assets coverage, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, Intraday conditions, and FMP annual financials.
+- Fixed the existing Subscription Administration smoke to use an exact heading match for `Institutional seat`.
+- Verification: `scripts/run_subscription_admin_ui_smoke.sh` returned `2 passed in 2.29s`; public `/admin/system` returned `200`.
