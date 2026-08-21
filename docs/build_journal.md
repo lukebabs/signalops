@@ -8523,3 +8523,11 @@ Next-cycle priority:
 - The test verifies both the API payload and browser-rendered labels for Dashboard, Assets coverage, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, Intraday conditions, and FMP annual financials.
 - Fixed the existing Subscription Administration smoke to use an exact heading match for `Institutional seat`.
 - Verification: `scripts/run_subscription_admin_ui_smoke.sh` returned `2 passed in 2.29s`; public `/admin/system` returned `200`.
+
+## 2026-08-21 — PR-2 read-only tenant-isolation smoke
+
+- Started PR-2 access/subscription hardening with a non-mutating Playwright/API smoke: `python/tests/test_subscriber_access_control_ui.py` plus `scripts/run_subscriber_access_control_ui_smoke.sh`.
+- The smoke uses the configured tenant-pilot-b subscriber and tenant-local administrator identities. It proves same-tenant positive reads and cross-tenant `403 tenant_mismatch` denial for subscriber lists and MarketOps signal overview.
+- It also proves the pilot subscriber cannot access Subscription Administration (`403 insufficient_role`) while the platform subscription administrator can read tenant-local and tenant-pilot-b subscription snapshots through the explicitly controlled administration boundary.
+- Verification passed: `scripts/run_subscriber_access_control_ui_smoke.sh` returned `1 passed in 3.55s`; `go test ./internal/api ./internal/storage/postgres` passed; `bash -n scripts/run_subscriber_access_control_ui_smoke.sh` passed.
+- The temporary subscription-enforcement canary was not run in this slice because it mutates enforcement state and pilot plan state; it requires fresh named approval.

@@ -93,6 +93,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [Production readiness path](production_readiness_path.md): current readiness snapshot, production blockers, P0/P1/P2 gates, and the secure sprint path to production.
 - [PR-0 scheduler reconcile evidence — 2026-08-21](pr0_scheduler_reconcile_evidence_2026-08-21.md): approved deployment-agent reconcile action installed and scheduler-status returned clean after stale post-close systemd state was cleared.
 - [PR-1 admin operations visibility — 2026-08-21](pr1_admin_operations_visibility_2026-08-21.md): read-only Admin Workbench data-freshness visibility for Dashboard, Market State, Risk/Reward, SRI, SAF, and intraday.
+- [PR-2 access and subscription hardening — 2026-08-21](pr2_access_subscription_hardening_2026-08-21.md): real-OIDC read-only tenant-isolation smoke and remaining subscription/access-control exit items.
 - [Automated browser acceptance](automated_browser_acceptance.md): real-OIDC, read-only subscriber smoke validation with failure-only HAR/trace/screenshot evidence.
 - [S4 recovery readiness evidence — 2026-08-13](s4_recovery_readiness_evidence_2026-08-13.md): verified recovery-bucket and IAM controls, unprovisioned safeguards, and the handoff sequence before provider execution.
 - [MarketOps daily surveillance architecture](../../use_cases/marketops/daily_market_surveillance/architecture/functional_components.md): current production components.
