@@ -95,7 +95,8 @@ export interface SchedulerRunResponse {
   run: SchedulerRun;
 }
 
-export interface ScheduledJob { job_id:string; label:string; schedule:string; timezone:string; status:"pending"|"running"|"succeeded"|"failed"|string; started_at?:string; completed_at?:string; exit_code?:number; run_now_enabled?:boolean; }
+export interface ScheduledJob { job_id:string; label:string; schedule:string; timezone:string; status:"pending"|"running"|"succeeded"|"failed"|string; started_at?:string; completed_at?:string; exit_code?:number; run_now_enabled?:boolean; reason?:string; detail?:unknown; updated_at?:string; }
+export interface MarketOpsDataFreshness { view_id:string; label:string; latest_session_date?:string; latest_as_of?:string; row_count:number; expected_count:number; status:string; reason?:string; }
 export interface ScheduledJobsResponse { jobs: ScheduledJob[]; }
 export interface ScheduledJobRunNow { job_id:string; status:string; action:string; runner:string; started_at:string; output?:string; }
 export interface ScheduledJobRunNowResponse { run: ScheduledJobRunNow; }
@@ -117,6 +118,7 @@ export interface MarketOpsOperationsHealth {
   generated_at: string;
   tenant_id: string;
   scheduled_jobs: ScheduledJob[];
+  data_freshness: MarketOpsDataFreshness[];
   marketops_tasks: MarketOpsOperationsHealthTaskSummary;
   replay_status: ReplayOperationsStatus;
 }

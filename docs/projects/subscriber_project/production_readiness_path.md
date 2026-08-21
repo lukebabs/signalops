@@ -144,6 +144,10 @@ Exit:
 
 - An administrator can determine whether Dashboard, Assets, Market State, Risk/Reward, SRI, SAF, and FMP data are fresh without shell access.
 
+Implementation note — 2026-08-21:
+
+- The first source slice adds read-only data-freshness visibility to the Administration operations-health API and Admin Workbench. It covers Dashboard alignment, Market State, Risk/Reward, SRI, SAF, and Intraday. Assets and FMP freshness remain follow-on additions before PR-1 exit.
+
 ### Sprint PR-2 — Harden access and subscriptions
 
 Scope:

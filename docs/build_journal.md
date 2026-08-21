@@ -1,5 +1,40 @@
 # SignalOps Build Journal
 
+## 2026-08-21T06:20:00Z
+
+Summary:
+
+- Started PR-1 Admin operations visibility with a read-only data-freshness slice.
+- Added backend freshness records for Dashboard alignment, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, and Intraday conditions.
+- Added Admin Workbench rendering for the freshness table and removed the redundant legacy scheduled-jobs table from that section.
+
+Files changed:
+
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/api/scheduled_jobs.go`
+- `internal/api/scheduled_jobs_test.go`
+- `web/src/types.ts`
+- `web/src/routes/SystemRoute.tsx`
+- `docs/projects/subscriber_project/pr1_admin_operations_visibility_2026-08-21.md`
+- `docs/projects/subscriber_project/README.md`
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- Production readiness requires administrators to see whether each MarketOps view is fresh and aligned without shell access or manual SQL. This slice exposes that status from the dedicated MarketOps data plane without adding a mutation path.
+
+Verification performed:
+
+- `gofmt -w internal/storage/storage.go internal/storage/postgres/repository.go internal/api/scheduled_jobs.go internal/api/scheduled_jobs_test.go`
+- `go test ./internal/api ./internal/storage/postgres`
+- `npm --prefix web run build`
+
+Next step:
+
+- Deploy Gateway and Web, then verify Admin Workbench shows the data-freshness table for Dashboard, Market State, Risk/Reward, SRI, SAF, and Intraday.
+
 ## 2026-08-21T05:55:00Z
 
 Summary:

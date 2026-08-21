@@ -49,6 +49,7 @@ export function SystemRoute() {
   const marketOpsTaskSummary = marketOpsOperationsHealthData?.marketops_tasks;
   const marketOpsReplaySummary = marketOpsOperationsHealthData?.replay_status;
   const operationsScheduledJobs = marketOpsOperationsHealthData?.scheduled_jobs ?? [];
+  const operationsDataFreshness = marketOpsOperationsHealthData?.data_freshness ?? [];
   const replayJobCountFromOperationsHealth = (replayStatusState: string) =>
     marketOpsReplaySummary?.job_counts?.[replayStatusState] ??
     replayStatusOk?.job_counts?.[replayStatusState] ?? 0;
@@ -148,6 +149,36 @@ export function SystemRoute() {
     value={marketOpsOperationsHealth.isLoading ? "…" : String(replayJobCountFromOperationsHealth("queued")) + " / " + String(replayJobCountFromOperationsHealth("running")) + " / " + String(replayJobCountFromOperationsHealth("failed"))}
   />
 </div>
+{operationsDataFreshness.length ? (
+  <div className="overflow-x-auto rounded border border-gray-200 bg-white">
+    <table className="min-w-full divide-y divide-gray-200 text-xs">
+      <thead className="bg-gray-50 text-left text-gray-500">
+        <tr>
+          <th className="px-2 py-1">View</th>
+          <th className="px-2 py-1">Status</th>
+          <th className="px-2 py-1">Latest session</th>
+          <th className="px-2 py-1">Latest as-of</th>
+          <th className="px-2 py-1">Rows</th>
+          <th className="px-2 py-1">Reason</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100">
+        {operationsDataFreshness.map((item: any) => (
+          <tr key={item.view_id}>
+            <td className="px-2 py-1 font-medium">{item.label}</td>
+            <td className="px-2 py-1"><StatusBadge status={item.status} /></td>
+            <td className="px-2 py-1 text-gray-600">{item.latest_session_date ?? "—"}</td>
+            <td className="px-2 py-1 text-gray-600">{formatUtc(item.latest_as_of)}</td>
+            <td className="px-2 py-1 text-gray-600">{String(item.row_count ?? 0)}{item.expected_count ? " / " + String(item.expected_count) : ""}</td>
+            <td className="px-2 py-1 text-gray-600">{item.reason || "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+) : marketOpsOperationsHealth.isLoading ? null : (
+  <div className="rounded border border-gray-200 bg-white p-3 text-xs text-gray-500">No MarketOps data-freshness records available.</div>
+)}
 {marketOpsOperationsHealth.isError ? (
   <ErrorState error={marketOpsOperationsHealth.error} />
 ) : (
@@ -195,7 +226,7 @@ export function SystemRoute() {
     {runScheduledJobNow.isError ? <div className="border-t border-red-100 p-2 text-xs text-red-700">{runScheduledJobNow.error instanceof Error ? runScheduledJobNow.error.message : "Unable to start scheduled job."}</div> : null}
   </div>
 )}
-<h2 className="text-sm font-semibold text-gray-900">Scheduled Jobs</h2><div className="overflow-x-auto rounded border border-gray-200 bg-white"><table className="min-w-full divide-y divide-gray-200 text-xs"><thead className="bg-gray-50 text-left text-gray-500"><tr><th className="px-2 py-1">Job</th><th className="px-2 py-1">Schedule</th><th className="px-2 py-1">Status</th><th className="px-2 py-1">Started</th><th className="px-2 py-1">Completed</th><th className="px-2 py-1">Exit</th></tr></thead><tbody className="divide-y divide-gray-100">{scheduledJobs.data?.jobs.map(job => <tr key={job.job_id}><td className="px-2 py-1 font-medium">{job.label}</td><td className="px-2 py-1 text-gray-600">{job.schedule} · {job.timezone}</td><td className="px-2 py-1"><StatusBadge status={job.status} /></td><td className="px-2 py-1 text-gray-600">{formatUtc(job.started_at)}</td><td className="px-2 py-1 text-gray-600">{formatUtc(job.completed_at)}</td><td className="px-2 py-1">{job.exit_code ?? "—"}</td></tr>)}</tbody></table></div>{scheduledJobs.isError ? <ErrorState error={scheduledJobs.error} /> : null}<h2 className="text-sm font-semibold text-gray-900">MarketOps task control</h2><div className="overflow-x-auto rounded border border-gray-200 bg-white"><table className="min-w-full divide-y divide-gray-200 text-xs"><thead className="bg-gray-50 text-left text-gray-500"><tr><th className="px-2 py-1">Task</th><th className="px-2 py-1">Asset</th><th className="px-2 py-1">State</th><th className="px-2 py-1">Reason</th><th className="px-2 py-1">Retry</th></tr></thead><tbody className="divide-y divide-gray-100">{marketOpsTasks.data?.tasks.filter((task:any)=>task.status!=="succeeded").map((task:any)=><tr key={task.task_id}><td className="px-2 py-1">{task.task_type}</td><td className="px-2 py-1 font-mono">{task.symbol||"—"}</td><td className="px-2 py-1"><StatusBadge status={task.status}/></td><td className="px-2 py-1 text-gray-600">{task.failure_class||task.error_message||"—"}</td><td className="px-2 py-1 text-gray-600">{task.status==="retry_scheduled"?formatUtc(task.next_attempt_at):"—"}</td></tr>)}</tbody></table>{marketOpsTasks.data?.tasks.filter((task:any)=>task.status!=="succeeded").length===0?<div className="p-2 text-xs text-gray-500">No incomplete MarketOps tasks.</div>:null}</div>{marketOpsTasks.isError?<ErrorState error={marketOpsTasks.error}/>:null}<h2 className="text-sm font-semibold text-gray-900">Replay Operations</h2>
+<h2 className="text-sm font-semibold text-gray-900">MarketOps task control</h2><div className="overflow-x-auto rounded border border-gray-200 bg-white"><table className="min-w-full divide-y divide-gray-200 text-xs"><thead className="bg-gray-50 text-left text-gray-500"><tr><th className="px-2 py-1">Task</th><th className="px-2 py-1">Asset</th><th className="px-2 py-1">State</th><th className="px-2 py-1">Reason</th><th className="px-2 py-1">Retry</th></tr></thead><tbody className="divide-y divide-gray-100">{marketOpsTasks.data?.tasks.filter((task:any)=>task.status!=="succeeded").map((task:any)=><tr key={task.task_id}><td className="px-2 py-1">{task.task_type}</td><td className="px-2 py-1 font-mono">{task.symbol||"—"}</td><td className="px-2 py-1"><StatusBadge status={task.status}/></td><td className="px-2 py-1 text-gray-600">{task.failure_class||task.error_message||"—"}</td><td className="px-2 py-1 text-gray-600">{task.status==="retry_scheduled"?formatUtc(task.next_attempt_at):"—"}</td></tr>)}</tbody></table>{marketOpsTasks.data?.tasks.filter((task:any)=>task.status!=="succeeded").length===0?<div className="p-2 text-xs text-gray-500">No incomplete MarketOps tasks.</div>:null}</div>{marketOpsTasks.isError?<ErrorState error={marketOpsTasks.error}/>:null}<h2 className="text-sm font-semibold text-gray-900">Replay Operations</h2>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
         <MetricTile
           label="Replay Worker"

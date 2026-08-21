@@ -241,6 +241,30 @@ func triggerScheduledJobRunNowViaSocket(ctx context.Context, jobID, action, sock
 	return result, nil
 }
 
+func marketOpsOperationsFreshnessResponses(records []storage.MarketOpsOperationsFreshnessRecord) []map[string]any {
+	out := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		row := map[string]any{
+			"view_id":        record.ViewID,
+			"label":          record.Label,
+			"row_count":      record.RowCount,
+			"expected_count": record.ExpectedCount,
+			"status":         record.Status,
+		}
+		if record.LatestSessionDate != nil {
+			row["latest_session_date"] = record.LatestSessionDate.UTC().Format("2006-01-02")
+		}
+		if record.LatestAsOf != nil {
+			row["latest_as_of"] = record.LatestAsOf.UTC().Format(time.RFC3339)
+		}
+		if strings.TrimSpace(record.Reason) != "" {
+			row["reason"] = record.Reason
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
 const operationsHealthTaskStaleWindow = 2 * time.Hour
 
 func marketOpsOperationsHealth(ctx context.Context, repo storage.QueryRepository, tenantID string, now time.Time) (map[string]any, error) {
@@ -259,6 +283,16 @@ func marketOpsOperationsHealth(ctx context.Context, repo storage.QueryRepository
 		"stale_threshold_minutes": int(operationsHealthTaskStaleWindow.Minutes()),
 		"available":               false,
 	}
+
+	freshness := []map[string]any{}
+	if reader, ok := any(repo).(storage.MarketOpsOperationsFreshnessRepository); ok && reader != nil {
+		records, err := reader.ListMarketOpsOperationsFreshness(ctx, tenantID)
+		if err != nil {
+			return nil, err
+		}
+		freshness = marketOpsOperationsFreshnessResponses(records)
+	}
+	result["data_freshness"] = freshness
 
 	if reader, ok := any(repo).(storage.MarketOpsTaskRepository); ok {
 		tasks, err := reader.ListMarketOpsTaskItems(ctx, storage.MarketOpsTaskItemFilter{TenantID: tenantID, Limit: 200})

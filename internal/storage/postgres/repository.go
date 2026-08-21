@@ -881,6 +881,99 @@ ON CONFLICT (tenant_id, primitive_type, definition_key, version) DO UPDATE SET
 	return nil
 }
 
+func (r *Repository) ListMarketOpsOperationsFreshness(ctx context.Context, tenantID string) ([]storage.MarketOpsOperationsFreshnessRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+WITH expected AS (
+  SELECT count(DISTINCT ticker)::integer AS selected_assets
+  FROM marketops_universal_assets
+  WHERE tenant_id=$1 AND is_active
+), components AS (
+  SELECT 'market_state'::text AS view_id, 'Market State'::text AS label,
+    max(session_date)::date AS latest_session_date, max(as_of_time)::timestamptz AS latest_as_of,
+    count(*) FILTER (WHERE session_date=(SELECT max(session_date) FROM subscriber_gateway_global_market_states))::integer AS row_count,
+    (SELECT selected_assets FROM expected) AS expected_count
+  FROM subscriber_gateway_global_market_states
+  UNION ALL
+  SELECT 'risk_reward', 'Risk/Reward',
+    max(session_date)::date, max(observed_at)::timestamptz,
+    count(*) FILTER (WHERE session_date=(SELECT max(session_date) FROM subscriber_gateway_global_risk_reward_snapshots))::integer,
+    (SELECT selected_assets FROM expected)
+  FROM subscriber_gateway_global_risk_reward_snapshots
+  UNION ALL
+  SELECT 'sri', 'Sector Rotation Intelligence',
+    max(session_date)::date, max(as_of_time)::timestamptz,
+    count(*) FILTER (WHERE session_date=(SELECT max(session_date) FROM subscriber_gateway_global_sri_snapshots))::integer,
+    (SELECT count(*)::integer FROM subscriber_gateway_global_sri_segments WHERE active AND segment_type <> 'benchmark')
+  FROM subscriber_gateway_global_sri_snapshots
+  UNION ALL
+  SELECT 'signal_assurance', 'Signal Assurance',
+    max(matured_session_date)::date, max(observed_at)::timestamptz,
+    count(*) FILTER (WHERE matured_session_date=(SELECT max(matured_session_date) FROM subscriber_gateway_global_signal_assurance_observations))::integer,
+    NULL::integer
+  FROM subscriber_gateway_global_signal_assurance_observations
+), dashboard AS (
+  SELECT 'dashboard'::text AS view_id, 'Dashboard'::text AS label,
+    min(latest_session_date)::date AS latest_session_date,
+    max(latest_as_of)::timestamptz AS latest_as_of,
+    count(*) FILTER (WHERE latest_session_date IS NOT NULL AND latest_session_date=(SELECT min(latest_session_date) FROM components WHERE latest_session_date IS NOT NULL))::integer AS row_count,
+    count(*)::integer AS expected_count
+  FROM components
+), intraday AS (
+  SELECT 'intraday'::text AS view_id, 'Intraday conditions'::text AS label,
+    max(as_of_time)::date AS latest_session_date, max(as_of_time)::timestamptz AS latest_as_of,
+    count(*) FILTER (WHERE as_of_time >= now() - interval '30 minutes')::integer AS row_count,
+    (SELECT selected_assets FROM expected) AS expected_count
+  FROM marketops_intraday_condition_snapshots
+  WHERE tenant_id=$1
+), freshness AS (
+  SELECT * FROM dashboard
+  UNION ALL SELECT * FROM components
+  UNION ALL SELECT * FROM intraday
+), assessed AS (
+  SELECT view_id,label,latest_session_date,latest_as_of,row_count,COALESCE(expected_count,0) AS expected_count,
+    CASE
+      WHEN latest_session_date IS NULL AND latest_as_of IS NULL THEN 'missing'
+      WHEN view_id='intraday' AND latest_as_of < now() - interval '45 minutes' THEN 'stale'
+      WHEN expected_count IS NOT NULL AND expected_count > 0 AND row_count < expected_count THEN 'partial'
+      ELSE 'current'
+    END AS status
+  FROM freshness
+)
+SELECT view_id,label,latest_session_date,latest_as_of,row_count,expected_count,status,
+  CASE
+    WHEN status='missing' THEN 'no rows available'
+    WHEN status='stale' THEN 'latest intraday snapshot is outside the freshness window'
+    WHEN status='partial' AND view_id='dashboard' THEN 'completed-session components are not aligned to one session'
+    WHEN status='partial' THEN 'latest session has fewer rows than expected'
+    ELSE ''
+  END AS reason
+FROM assessed
+ORDER BY CASE view_id
+  WHEN 'dashboard' THEN 1
+  WHEN 'market_state' THEN 2
+  WHEN 'risk_reward' THEN 3
+  WHEN 'sri' THEN 4
+  WHEN 'signal_assurance' THEN 5
+  WHEN 'intraday' THEN 6
+  ELSE 99 END`, strings.TrimSpace(tenantID))
+	if err != nil {
+		return nil, fmt.Errorf("list marketops operations freshness: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.MarketOpsOperationsFreshnessRecord{}
+	for rows.Next() {
+		var record storage.MarketOpsOperationsFreshnessRecord
+		if err := rows.Scan(&record.ViewID, &record.Label, &record.LatestSessionDate, &record.LatestAsOf, &record.RowCount, &record.ExpectedCount, &record.Status, &record.Reason); err != nil {
+			return nil, fmt.Errorf("scan marketops operations freshness: %w", err)
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list marketops operations freshness rows: %w", err)
+	}
+	return records, nil
+}
+
 func (r *Repository) ListMarketOpsScheduledJobStatuses(ctx context.Context) ([]storage.MarketOpsScheduledJobStatusRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT job_id, schedule, timezone, status, reason, started_at, completed_at, exit_code,

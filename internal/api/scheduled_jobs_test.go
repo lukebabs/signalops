@@ -114,11 +114,16 @@ func TestTriggerScheduledJobRunNowViaSocket(t *testing.T) {
 }
 
 type fakeScheduledJobStatusRepository struct {
-	records []storage.MarketOpsScheduledJobStatusRecord
+	records   []storage.MarketOpsScheduledJobStatusRecord
+	freshness []storage.MarketOpsOperationsFreshnessRecord
 }
 
 func (f fakeScheduledJobStatusRepository) ListMarketOpsScheduledJobStatuses(context.Context) ([]storage.MarketOpsScheduledJobStatusRecord, error) {
 	return f.records, nil
+}
+
+func (f fakeScheduledJobStatusRepository) ListMarketOpsOperationsFreshness(context.Context, string) ([]storage.MarketOpsOperationsFreshnessRecord, error) {
+	return f.freshness, nil
 }
 
 func TestScheduledJobStatusesPreferDatabaseStatus(t *testing.T) {
@@ -151,4 +156,24 @@ func TestScheduledJobStatusesPreferDatabaseStatus(t *testing.T) {
 		return
 	}
 	t.Fatal("operations monitor job missing")
+}
+
+func TestMarketOpsOperationsFreshnessResponses(t *testing.T) {
+	session := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
+	asOf := time.Date(2026, 8, 20, 22, 15, 0, 0, time.UTC)
+	rows := marketOpsOperationsFreshnessResponses([]storage.MarketOpsOperationsFreshnessRecord{{
+		ViewID:            "risk_reward",
+		Label:             "Risk/Reward",
+		LatestSessionDate: &session,
+		LatestAsOf:        &asOf,
+		RowCount:          132,
+		ExpectedCount:     132,
+		Status:            "current",
+	}})
+	if len(rows) != 1 {
+		t.Fatalf("unexpected rows: %#v", rows)
+	}
+	if rows[0]["latest_session_date"] != "2026-08-20" || rows[0]["latest_as_of"] != "2026-08-20T22:15:00Z" || rows[0]["status"] != "current" {
+		t.Fatalf("unexpected freshness response: %#v", rows[0])
+	}
 }

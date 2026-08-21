@@ -196,6 +196,17 @@ type MarketOpsScheduledJobStatusRecord struct {
 	UpdatedAt   time.Time
 }
 
+type MarketOpsOperationsFreshnessRecord struct {
+	ViewID            string
+	Label             string
+	LatestSessionDate *time.Time
+	LatestAsOf        *time.Time
+	RowCount          int
+	ExpectedCount     int
+	Status            string
+	Reason            string
+}
+
 type SchedulerRunRecord struct {
 	RunID            string
 	TenantID         string
@@ -2232,6 +2243,10 @@ type ReplayJobFilter struct {
 
 type MarketOpsScheduledJobStatusRepository interface {
 	ListMarketOpsScheduledJobStatuses(ctx context.Context) ([]MarketOpsScheduledJobStatusRecord, error)
+}
+
+type MarketOpsOperationsFreshnessRepository interface {
+	ListMarketOpsOperationsFreshness(ctx context.Context, tenantID string) ([]MarketOpsOperationsFreshnessRecord, error)
 }
 
 type QueryRepository interface {
