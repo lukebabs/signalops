@@ -91,6 +91,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [N1 closure evidence — 2026-08-19](n1_closure_evidence_2026-08-19.md): deployment-agent/Admin run-now closure, activation-queue reconciliation, and pgBackRest recovery-control re-anchor verification.
 - [MarketOps scheduled-job status database migration — 2026-08-19](marketops_scheduled_job_status_database_2026-08-19.md): DB-backed scheduler-status source of truth, fallback boundary, and live verification.
 - [Production readiness path](production_readiness_path.md): current readiness snapshot, production blockers, P0/P1/P2 gates, and the secure sprint path to production.
+- [PR-0 scheduler reconcile evidence — 2026-08-21](pr0_scheduler_reconcile_evidence_2026-08-21.md): approved deployment-agent reconcile action installed and scheduler-status returned clean after stale post-close systemd state was cleared.
 - [Automated browser acceptance](automated_browser_acceptance.md): real-OIDC, read-only subscriber smoke validation with failure-only HAR/trace/screenshot evidence.
 - [S4 recovery readiness evidence — 2026-08-13](s4_recovery_readiness_evidence_2026-08-13.md): verified recovery-bucket and IAM controls, unprovisioned safeguards, and the handoff sequence before provider execution.
 - [MarketOps daily surveillance architecture](../../use_cases/marketops/daily_market_surveillance/architecture/functional_components.md): current production components.

@@ -1,5 +1,32 @@
 # SignalOps Build Journal
 
+## 2026-08-21T05:55:00Z
+
+Summary:
+
+- Recorded live PR-0 scheduler reconcile evidence after the deployment-control agent was reprovisioned.
+- `scheduler-status` returned clean service state: daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, storage monitor, and retention governance all showed `result=success`.
+- Active timers remained loaded and active for MarketOps intraday, daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, and warm EOD.
+
+Files changed:
+
+- `docs/projects/subscriber_project/pr0_scheduler_reconcile_evidence_2026-08-21.md`
+- `docs/projects/subscriber_project/README.md`
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- PR-0 needs durable evidence that the stale failed systemd state was cleared through the approved, DB-evidence-gated deployment-agent action rather than by weakening scheduler-status.
+
+Verification performed:
+
+- Operator-provided live output from `sudo -n signalops-deploy-agent scheduler-status` showed `marketops-daily-postclose` as `active=inactive result=success`.
+
+Next step:
+
+- Wait for the next eligible post-close cycle and verify it exits successfully without requiring another reconcile action.
+
 ## 2026-08-21T05:35:00Z
 
 Summary:

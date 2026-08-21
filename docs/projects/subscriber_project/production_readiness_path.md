@@ -130,6 +130,7 @@ Exit:
 Implementation note — 2026-08-21:
 
 - The approved `marketops-postclose-systemd-reconcile` deployment-agent action was added in source. It is intentionally narrow: it resets stale failed post-close systemd state only after the dedicated MarketOps database proves post-close, recovery, Risk/Reward, and SRI status are in allowed recovered states. It does not make `scheduler-status` ignore real failures.
+- Live evidence now shows the stale `marketops-daily-postclose` systemd failure was reconciled and `scheduler-status` returned clean service states. This closes the stale-state cleanup, but PR-0 still requires the next eligible post-close cycle to complete with `result=success` without needing reconcile.
 
 ### Sprint PR-1 — Make operations visible
 
