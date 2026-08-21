@@ -8561,3 +8561,10 @@ Next-cycle priority:
 - Updated `scripts/marketops_scheduled_job.sh` to skip non-maintenance jobs on weekends and configured market holidays, recording reasons such as `non_trading_day:market_holiday`.
 - Preserved the maintenance/FMP weekend allowlist so storage/retention/operations-monitor and `marketops-fmp-annual-financial` can still run on weekends by explicit policy.
 - Added `scripts/test_marketops_trading_calendar.sh`; validation passed with `marketops_trading_calendar_tests_passed`. Syntax checks passed for the calendar helper, scheduler wrapper, and test script. Admin browser smoke still passed with `3 passed in 3.20s`.
+
+## 2026-08-21 — PR-4 SAF UI trading-day filter alignment
+
+- Added `web/src/lib/marketopsTradingCalendar.ts` with the same 2026/2027 US market-holiday set used by the MarketOps scheduler guard.
+- Updated SAF daily progression 10/20-day filters to exclude configured market holidays, not just weekends.
+- Added `web/src/lib/marketopsTradingCalendar.test.ts` to prove regular sessions, weekends, market holidays, and trailing trading-day selection.
+- Validation passed: targeted calendar test, full web Vitest suite (`37` files, `440` tests), and production web build.

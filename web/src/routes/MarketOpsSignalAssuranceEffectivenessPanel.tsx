@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { RefreshButton } from '../components/RefreshButton';
 import { ThemedEChart } from '../components/ThemedEChart';
 import { formatPercent, formatUtc } from '../lib/format';
+import { marketOpsTrailingTradingDays } from '../lib/marketopsTradingCalendar';
 import type { MarketOpsSignalAssuranceEffectiveness, MarketOpsSignalAssuranceEffectivenessObservation } from '../types';
 
 const pct = (value?: number) => value == null || !Number.isFinite(value) ? '-' : formatPercent(value);
@@ -170,14 +171,7 @@ function filterObservationsByTradingWindow(observations: MarketOpsSignalAssuranc
   const dated = observations.filter((observation) => observation.outcome_at).sort((left, right) => String(right.outcome_at).localeCompare(String(left.outcome_at)));
   const latest = dated[0]?.outcome_at?.slice(0, 10);
   if (!latest) return observations;
-  const end = new Date(`${latest}T00:00:00Z`);
-  const tradingDays: string[] = [];
-  const cursor = new Date(end);
-  while (tradingDays.length < days) {
-    const weekday = cursor.getUTCDay();
-    if (weekday !== 0 && weekday !== 6) tradingDays.push(cursor.toISOString().slice(0, 10));
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
-  }
+  const tradingDays = marketOpsTrailingTradingDays(latest, days);
   const allowed = new Set(tradingDays);
   return observations.filter((observation) => observation.outcome_at && allowed.has(observation.outcome_at.slice(0, 10)));
 }

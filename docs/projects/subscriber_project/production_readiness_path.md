@@ -100,7 +100,7 @@ These are required before broader commercial production.
    - Acceptance:
      - 10/20 trading-day filters match actual US market sessions.
      - Weekend and holiday guards prevent EOD/intraday jobs from running except explicit maintenance.
-   - Current PR-4 evidence: scheduler eligibility now uses a reusable MarketOps calendar helper with explicit 2026/2027 US market-holiday closures; UI 10/20-day filters still need to consume the same calendar semantics before this gate is fully closed.
+   - Current PR-4 evidence: scheduler eligibility now uses a reusable MarketOps calendar helper with explicit 2026/2027 US market-holiday closures; SAF UI 10/20-day progression filters now use the matching frontend calendar helper.
 
 9. **Subscriber administration**
    - Expand Subscription Administration into a complete governance surface.
@@ -193,7 +193,7 @@ Status: started.
 Scope:
 
 - Govern FMP annual enrichment lifecycle.
-- Add trading-calendar correctness.
+- Add trading-calendar correctness. Scheduler non-trading-day skips and SAF UI 10/20-day filters now use matching 2026/2027 US market-holiday semantics.
 - Complete subscriber administration workflow.
 - Finalize incident runbooks.
 

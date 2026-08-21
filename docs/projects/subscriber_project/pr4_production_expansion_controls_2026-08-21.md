@@ -81,3 +81,25 @@ scripts/run_subscription_admin_ui_smoke.sh
 ```
 
 Operational note: the holiday list is intentionally static and must be updated annually from the official exchange calendar before enabling a new production year.
+
+## Second slice implementation — SAF UI trading-day filters
+
+Implemented a frontend MarketOps trading-calendar helper in `web/src/lib/marketopsTradingCalendar.ts` and wired the SAF daily progression 10/20-day filters to it.
+
+The SAF progression chart previously interpreted trading-day windows as weekdays only. That was inconsistent with the PR-4 scheduler guard because market holidays would be skipped by jobs but still counted by the UI filter. The UI now excludes both weekends and configured 2026/2027 US market holidays when selecting trailing 10/20 trading-day observation windows.
+
+Verification:
+
+```text
+npm --prefix web test -- marketopsTradingCalendar.test.ts
+✓ src/lib/marketopsTradingCalendar.test.ts (2 tests)
+
+npm --prefix web test
+Test Files  37 passed (37)
+Tests  440 passed (440)
+
+npm --prefix web run build
+✓ built
+```
+
+Operational note: `web/src/lib/marketopsTradingCalendar.ts` and `scripts/lib/marketops_trading_calendar.sh` intentionally duplicate the same static holiday list for now. They must be updated together until a later shared calendar source is introduced.
