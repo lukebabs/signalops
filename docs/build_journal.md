@@ -8506,3 +8506,12 @@ Next-cycle priority:
 - Fixed `marketops_global_dashboard_projection.sh` so its SAF outcome verification matches the projection contract: matured opportunity rows with `direction IN ('upside','downside')` and non-null `directional_hit`.
 - Fixed the SAF benchmark materializer to clamp oversized `--max-observations` values to the governed 500-row cap; this preserved safety while allowing the already-installed constrained action to complete.
 - Runtime closure: `subscriber_gateway_global_signal_assurance_observations` now exposes 132 eligible observations for matured session `2026-08-20` across 80 symbols. `saf_benchmark.v4` now has 224 broad-market matched rows and sector coverage through `2026-08-20` (`188` sector matched, `36` sector unmapped). No provider polling was performed.
+
+## 2026-08-21 — PR-1 Admin operations freshness extension deployed
+
+- Deployed commit `41e3110`, adding explicit Admin Workbench freshness rows for Assets coverage and FMP annual financials.
+- Verified public production routes after deployment: `/readyz` returned `200` and `/marketops/admin` returned `200`.
+- Verified scheduler state after deployment: MarketOps intraday, post-close, post-close recovery, SRI refresh, SRI holdings refresh, and warm-EOD timers are loaded and active; latest one-shot scheduler services remain successful. The FMP annual timer remains intentionally inactive until a recurring cadence is approved.
+- Reran the constrained production subscriber UI smoke; it passed with `2 passed in 5.60s`.
+- Remaining PR-1 acceptance is browser-level confirmation as `luke@strategiclabs.io` that Administration -> Admin Workbench renders all eight MarketOps Operations Health freshness rows: Dashboard, Assets coverage, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, Intraday conditions, and FMP annual financials.
+

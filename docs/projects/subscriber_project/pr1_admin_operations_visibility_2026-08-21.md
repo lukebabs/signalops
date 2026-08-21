@@ -116,3 +116,47 @@ gofmt -w internal/storage/postgres/repository.go
 go test ./internal/api ./internal/storage/postgres
 npm --prefix web run build
 ```
+
+## Assets and FMP live deployment evidence
+
+Production deployment for the Assets/FMP freshness extension was completed from commit `41e3110`.
+
+Verification after deployment:
+
+```text
+https://signalops.syncratic.io/readyz           -> 200
+https://signalops.syncratic.io/marketops/admin  -> 200
+```
+
+Scheduler status after deployment remained clean:
+
+```text
+timer=signalops-marketops-boundary-intraday.timer active=active
+timer=signalops-marketops-boundary-daily-postclose.timer active=active
+timer=signalops-marketops-boundary-postclose-recovery.timer active=active
+timer=signalops-marketops-boundary-sri-refresh.timer active=active
+timer=signalops-marketops-boundary-sri-holdings-refresh.timer active=active
+timer=signalops-marketops-boundary-warm-eod.timer active=active
+service=signalops-marketops-boundary-schedule@preflight.service result=success
+service=signalops-marketops-boundary-schedule@marketops-intraday.service result=success
+service=signalops-marketops-boundary-schedule@marketops-daily-postclose.service result=success
+service=signalops-marketops-boundary-schedule@marketops-postclose-recovery.service result=success
+service=signalops-marketops-boundary-schedule@marketops-sri-refresh.service result=success
+service=signalops-marketops-boundary-schedule@marketops-sri-holdings-refresh.service result=success
+service=signalops-storage-monitor.service result=success
+service=signalops-retention-governance.service result=success
+```
+
+Constrained production UI smoke passed:
+
+```text
+..                                                                       [100%]
+2 passed in 5.60s
+```
+
+Remaining PR-1 browser acceptance:
+
+- Log in as `luke@strategiclabs.io`.
+- Open Administration -> Admin Workbench.
+- Confirm the MarketOps Operations Health freshness table includes all eight rows: Dashboard, Assets coverage, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, Intraday conditions, and FMP annual financials.
+
