@@ -97,6 +97,26 @@ case "$action" in
   marketops-postclose-status-reconcile)
     run systemctl start signalops-marketops-boundary-schedule@marketops-postclose-recovery.service
     ;;
+  marketops-postclose-systemd-reconcile)
+    set -a
+    # shellcheck disable=SC1091
+    source /etc/signalops/marketops-cutover.env
+    set +a
+    export SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
+    export SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
+    cd "$repository_dir"
+    # shellcheck source=scripts/marketops_schedule_database.sh
+    source "$repository_dir/scripts/marketops_schedule_database.sh"
+    evidence="$(marketops_primary_psql -Atc "SELECT COALESCE(max(status) FILTER (WHERE job_id='marketops-daily-postclose'),'') || '|' || COALESCE(max(status) FILTER (WHERE job_id='marketops-postclose-recovery'),'') || '|' || COALESCE(max(status) FILTER (WHERE job_id='marketops-risk-reward'),'') || '|' || COALESCE(max(status) FILTER (WHERE job_id='marketops-sri-refresh'),'') FROM marketops_scheduled_job_statuses WHERE job_id IN ('marketops-daily-postclose','marketops-postclose-recovery','marketops-risk-reward','marketops-sri-refresh');" | tr -d '[:space:]')"
+    IFS='|' read -r daily_status recovery_status risk_status sri_status <<< "$evidence"
+    case "$daily_status" in succeeded|degraded) ;; *) printf 'refusing reconcile: marketops-daily-postclose status=%s\n' "${daily_status:-missing}" >&2; audit failed; exit 4 ;; esac
+    case "$recovery_status" in succeeded|degraded) ;; *) printf 'refusing reconcile: marketops-postclose-recovery status=%s\n' "${recovery_status:-missing}" >&2; audit failed; exit 4 ;; esac
+    case "$risk_status" in succeeded) ;; *) printf 'refusing reconcile: marketops-risk-reward status=%s\n' "${risk_status:-missing}" >&2; audit failed; exit 4 ;; esac
+    case "$sri_status" in succeeded|recovery_needed|degraded) ;; *) printf 'refusing reconcile: marketops-sri-refresh status=%s\n' "${sri_status:-missing}" >&2; audit failed; exit 4 ;; esac
+    systemctl reset-failed signalops-marketops-boundary-schedule@marketops-daily-postclose.service
+    systemctl reset-failed signalops-marketops-boundary-schedule@marketops-postclose-recovery.service
+    audit success
+    ;;
   marketops-sri-refresh-run)
     run systemctl start signalops-marketops-boundary-schedule@marketops-sri-refresh.service
     ;;

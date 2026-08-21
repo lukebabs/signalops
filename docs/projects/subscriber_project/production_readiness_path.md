@@ -127,6 +127,10 @@ Exit:
 - No failed MarketOps scheduled services.
 - Admin/job-status evidence identifies latest completed market session across all core views.
 
+Implementation note — 2026-08-21:
+
+- The approved `marketops-postclose-systemd-reconcile` deployment-agent action was added in source. It is intentionally narrow: it resets stale failed post-close systemd state only after the dedicated MarketOps database proves post-close, recovery, Risk/Reward, and SRI status are in allowed recovered states. It does not make `scheduler-status` ignore real failures.
+
 ### Sprint PR-1 — Make operations visible
 
 Scope:

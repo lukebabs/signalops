@@ -1,5 +1,34 @@
 # SignalOps Build Journal
 
+## 2026-08-21T05:35:00Z
+
+Summary:
+
+- Added the approved constrained deployment-agent action `marketops-postclose-systemd-reconcile`.
+- The action may reset stale failed post-close systemd state only after dedicated MarketOps DB status verifies post-close completion evidence.
+- The action refuses to run unless `marketops-daily-postclose` is `succeeded` or `degraded`, `marketops-postclose-recovery` is `succeeded` or `degraded`, `marketops-risk-reward` is `succeeded`, and `marketops-sri-refresh` is `succeeded`, `degraded`, or explicitly `recovery_needed`.
+
+Files changed:
+
+- `deploy/deployment-agent/signalops-deploy-agent`
+- `scripts/provision_signalops_deployment_agent.sh`
+- `docs/build_journal.md`
+- `docs/projects/subscriber_project/production_readiness_path.md`
+
+Rationale:
+
+- PR-0 should not weaken `scheduler-status` by ignoring failed systemd units. The safer control is an explicit, audit-logged reconcile action that clears stale unit failure only when the authoritative MarketOps DB proves recovery has already validated the completed session.
+
+Verification performed:
+
+- `bash -n deploy/deployment-agent/signalops-deploy-agent`
+- `bash -n scripts/provision_signalops_deployment_agent.sh`
+- `git diff --check`
+
+Next step:
+
+- Re-provision the root-owned deployment agent, run `sudo -n signalops-deploy-agent marketops-postclose-systemd-reconcile`, then verify `sudo -n signalops-deploy-agent scheduler-status` returns clean.
+
 ## 2026-08-21T05:00:00Z
 
 Summary:
