@@ -107,6 +107,7 @@ export function MarketOpsSignalAssuranceDailyProgressionPanel() {
   const tenantId = useTenant();
   const [source, setSource] = useState('LEGACY');
   const [mode, setMode] = useState('');
+  const [windowDays, setWindowDays] = useState('all');
   const progression = useQuery({
     queryKey: ['saf-effectiveness-daily-progression', tenantId, source, mode],
     queryFn: () => api.listMarketOpsSignalAssuranceEffectivenessObservations(tenantId, source, 'overall', 'all', mode, 1500),
@@ -132,8 +133,13 @@ export function MarketOpsSignalAssuranceDailyProgressionPanel() {
           <option value="">All modes</option><option value="RESEARCH">Research</option><option value="LIVE">Live</option><option value="BACKTEST">Backtest</option>
         </select>
       </label>
+      <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Window
+        <select value={windowDays} onChange={(event) => setWindowDays(event.target.value)} className="mt-1 block rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
+          <option value="all">All observations</option><option value="10">Last 10 trading days</option><option value="20">Last 20 trading days</option>
+        </select>
+      </label>
     </div>
-    {progression.isLoading ? <LoadingState label="Loading SAF daily progression..." /> : progression.isError ? <ErrorState error={progression.error} /> : <DailyProgressionChart observations={progression.data?.observations ?? []} evidenceSource={source} />}
+    {progression.isLoading ? <LoadingState label="Loading SAF daily progression..." /> : progression.isError ? <ErrorState error={progression.error} /> : <DailyProgressionChart observations={progression.data?.observations ?? []} evidenceSource={source} windowDays={windowDays} />}
   </section>;
 }
 
@@ -155,6 +161,26 @@ type DailyProgressionPoint = {
 const finite = (value?: number): value is number => value != null && Number.isFinite(value);
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : undefined;
 const sourceLabel = (source: string) => source === 'SAF' ? 'SAF validated' : 'Historical outcome';
+const windowLabel = (windowDays: string) => windowDays === '10' ? 'last 10 trading days' : windowDays === '20' ? 'last 20 trading days' : 'all observations';
+
+
+function filterObservationsByTradingWindow(observations: MarketOpsSignalAssuranceEffectivenessObservation[], windowDays: string): MarketOpsSignalAssuranceEffectivenessObservation[] {
+  const days = Number(windowDays);
+  if (!Number.isFinite(days) || days <= 0) return observations;
+  const dated = observations.filter((observation) => observation.outcome_at).sort((left, right) => String(right.outcome_at).localeCompare(String(left.outcome_at)));
+  const latest = dated[0]?.outcome_at?.slice(0, 10);
+  if (!latest) return observations;
+  const end = new Date(`${latest}T00:00:00Z`);
+  const tradingDays: string[] = [];
+  const cursor = new Date(end);
+  while (tradingDays.length < days) {
+    const weekday = cursor.getUTCDay();
+    if (weekday !== 0 && weekday !== 6) tradingDays.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  const allowed = new Set(tradingDays);
+  return observations.filter((observation) => observation.outcome_at && allowed.has(observation.outcome_at.slice(0, 10)));
+}
 
 function buildDailyProgression(observations: MarketOpsSignalAssuranceEffectivenessObservation[]): DailyProgressionPoint[] {
   const buckets = new Map<string, MarketOpsSignalAssuranceEffectivenessObservation[]>();
@@ -193,8 +219,9 @@ function buildDailyProgression(observations: MarketOpsSignalAssuranceEffectivene
   });
 }
 
-function DailyProgressionChart({ observations, evidenceSource }: { observations: MarketOpsSignalAssuranceEffectivenessObservation[]; evidenceSource: string }) {
-  const points = useMemo(() => buildDailyProgression(observations), [observations]);
+function DailyProgressionChart({ observations, evidenceSource, windowDays }: { observations: MarketOpsSignalAssuranceEffectivenessObservation[]; evidenceSource: string; windowDays: string }) {
+  const scopedObservations = useMemo(() => filterObservationsByTradingWindow(observations, windowDays), [observations, windowDays]);
+  const points = useMemo(() => buildDailyProgression(scopedObservations), [scopedObservations]);
   const latest = points.at(-1);
   const axisInterval = Math.max(0, Math.ceil(points.length / 7) - 1);
   const option = useMemo(() => ({
@@ -234,15 +261,15 @@ function DailyProgressionChart({ observations, evidenceSource }: { observations:
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Daily progression</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">Historical progression for {sourceLabel(evidenceSource)} observations, grouped by outcome date.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">Historical progression for {sourceLabel(evidenceSource)} observations, grouped by outcome date over {windowLabel(windowDays)}.</p>
       </div>
       {latest ? <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
         <div className="rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800"><div className="text-gray-500 dark:text-gray-400">Latest day</div><div className="font-semibold">{latest.date}</div><div>{pct(latest.accuracy)} · {latest.hits}/{latest.sample}</div></div>
-        <div className="rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800"><div className="text-gray-500 dark:text-gray-400">Cumulative</div><div className="font-semibold">{pct(latest.cumulativeAccuracy)}</div><div>{latest.cumulativeHits}/{latest.cumulativeSample}</div></div>
+        <div className="rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800"><div className="text-gray-500 dark:text-gray-400">Window cumulative</div><div className="font-semibold">{pct(latest.cumulativeAccuracy)}</div><div>{latest.cumulativeHits}/{latest.cumulativeSample}</div></div>
         <div className="rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800"><div className="text-gray-500 dark:text-gray-400">Avg aligned return</div><div className="font-semibold">{pct(latest.averageDirectionalReturn)}</div><div>SPY excess {pct(latest.averageRelativeReturn)}</div></div>
       </div> : null}
     </div>
-    {points.length ? <div className="mt-3"><ThemedEChart option={option} style={{ height: 320 }} /></div> : <EmptyState message="No terminal SAF observations are available for daily progression under this filter." />}
+    {points.length ? <div className="mt-3"><ThemedEChart option={option} style={{ height: 320 }} /></div> : <EmptyState message="No terminal SAF observations are available for this progression window." />}
   </div>;
 }
 
