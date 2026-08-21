@@ -20,10 +20,10 @@ Production readiness is still blocked by operational consistency gaps. The most 
 | Dedicated MarketOps data boundary | Ready | `signalops-marketops-postgres-1` and `signalops-marketops-timescaledb-1` were healthy. MarketOps is intended to read/write the dedicated MarketOps databases, not the old shared MarketOps tables. |
 | Completed-session global data | Mostly ready | SAF, SRI, Market State, and Risk/Reward global projections showed latest completed-session data for 2026-08-20. |
 | Intraday freshness | Schedule-ready, market-idle | Latest intraday snapshot was 2026-08-20 22:15 UTC. At the review time, no 2026-08-21 market-session intraday data was expected yet. |
-| Scheduled jobs | Blocked | `scheduler-status` still reported a failed `marketops-daily-postclose` service. |
-| Daily post-close | Blocked | Core post-close evidence completed for 2026-08-20, but the service failed because SRI canonical normalization reported `normalized=0 expected=24` while provider pull was intentionally disabled. This means the failure semantics and SRI fallback contract need correction. |
+| Scheduled jobs | Ready / observing | `scheduler-status` returned clean on 2026-08-21 05:17 UTC. The next acceptance point is the natural 2026-08-21 post-close cycle. |
+| Daily post-close | Observing | The stale failed systemd state was reconciled only after dedicated MarketOps DB evidence showed recovered completion. The next eligible post-close cycle must complete without manual reconcile before PR-0/PR-1 exit is final. |
 | FMP annual financial job | Partial | FMP annual enrichment exists behind controls, but the recurring task was inactive at review time. |
-| Deployment automation | Partial | Gateway deploy/cutover validation passed. Web deploy-agent browser smoke still produced a false-positive `404` even though direct local and public route checks returned `200`. |
+| Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Partial | Tier concepts and enforcement canaries exist, but production administration still needs a fuller user/tier governance surface and repeated cross-tenant evidence. |
 | Backup/restore | Needs current re-verification | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. Production exit requires a current rehearsal after the latest schema/runtime changes. |
@@ -147,7 +147,7 @@ Exit:
 Implementation note — 2026-08-21:
 
 - The first source slice added read-only data-freshness visibility to the Administration operations-health API and Admin Workbench for Dashboard alignment, Market State, Risk/Reward, SRI, SAF, and Intraday.
-- The follow-on source slice added Assets coverage and FMP annual financial workflow freshness. PR-1 source coverage is now complete; live exit still requires browser verification and post-close freshness evidence.
+- The follow-on source slice added Assets coverage and FMP annual financial workflow freshness. PR-1 source coverage is now complete. Browser acceptance is automated and passed through `scripts/run_subscription_admin_ui_smoke.sh`; final live exit still requires post-close freshness evidence from the next eligible scheduled cycle.
 
 ### Sprint PR-2 — Harden access and subscriptions
 
@@ -201,4 +201,12 @@ Each production-readiness review should record:
 
 ## Next recommended action
 
-Start with **Sprint PR-0**. Fix the daily post-close failure and scheduler/data-plane consistency first. Until that is clean, new subscriber features will continue to inherit stale-data and failed-job ambiguity.
+Observe the next natural 2026-08-21 post-close cycle. If `marketops-daily-postclose`, `marketops-postclose-recovery`, Risk/Reward, SRI, SAF, Dashboard, and Assets freshness all align without manual reconcile, close PR-0/PR-1 and move to **Sprint PR-2 — Harden access and subscriptions**. If it fails, treat the failure as the highest-priority production blocker.
+
+## 2026-08-21 05:17 UTC readiness update
+
+- Public `/readyz` returned `200`.
+- Public `/admin/system` returned `200`.
+- `sudo -n signalops-deploy-agent scheduler-status` returned clean timer/service state.
+- PR-1 Admin freshness browser acceptance passed through Playwright: the test logs in as `luke@strategiclabs.io`, opens `/admin/system`, asserts the operations-health API response, and verifies all eight freshness labels render.
+- The remaining time-gated acceptance item is the next natural post-close cycle at 2026-08-21 22:01:55 UTC, followed by recovery/SRI timers through the controlled post-close window.

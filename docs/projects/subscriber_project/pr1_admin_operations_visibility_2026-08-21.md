@@ -1,6 +1,6 @@
 # PR-1 Admin Operations Visibility — 2026-08-21
 
-Status: implemented in source; live deployment and browser verification remain next.
+Status: implemented, deployed, and browser-verified; awaiting next natural post-close freshness evidence for full PR-1 exit.
 
 ## Scope
 
