@@ -8531,3 +8531,11 @@ Next-cycle priority:
 - It also proves the pilot subscriber cannot access Subscription Administration (`403 insufficient_role`) while the platform subscription administrator can read tenant-local and tenant-pilot-b subscription snapshots through the explicitly controlled administration boundary.
 - Verification passed: `scripts/run_subscriber_access_control_ui_smoke.sh` returned `1 passed in 3.55s`; `go test ./internal/api ./internal/storage/postgres` passed; `bash -n scripts/run_subscriber_access_control_ui_smoke.sh` passed.
 - The temporary subscription-enforcement canary was not run in this slice because it mutates enforcement state and pilot plan state; it requires fresh named approval.
+
+## 2026-08-21 — PR-2 subscription-enforcement canary
+
+- Ran the named approved constrained production action `sudo -n signalops-deploy-agent subscription-enforcement-canary`.
+- The action temporarily enabled gateway subscription enforcement, ran the tier canary, and restored gateway enforcement off plus pilot Explorer state.
+- Canary result: `subscription_enforcement_canary_enabled`, Playwright `1 passed in 3.90s`, `subscription_enforcement_canary_verified`, and `subscription_enforcement_canary_restored`.
+- Post-restore verification passed: `/readyz` returned `200`, `/admin/system` returned `200`, `scheduler-status` returned clean, `scripts/run_subscriber_access_control_ui_smoke.sh` returned `1 passed in 3.64s`, and `scripts/run_subscription_admin_ui_smoke.sh` returned `2 passed in 2.20s`.
+- Direct `sudo docker exec` environment inspection was not passwordlessly available, so restoration evidence relies on the canary restoration marker plus behavioral route/scheduler/browser checks.

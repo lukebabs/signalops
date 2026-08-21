@@ -166,7 +166,7 @@ Implementation note — 2026-08-21:
 - Added `scripts/run_subscriber_access_control_ui_smoke.sh` and `python/tests/test_subscriber_access_control_ui.py` as a read-only real-OIDC PR-2 smoke.
 - Live result: `1 passed in 3.55s`.
 - The smoke proves tenant-pilot-b and tenant-local tokens are denied from each other’s tenant-bearing MarketOps routes with `403 tenant_mismatch`, while Subscription Administration remains available only to the platform subscription-admin identity.
-- Remaining PR-2 exit work: temporary subscription-enforcement canary with fresh named approval, same-tenant private-list ownership browser evidence, and final governance-surface acceptance.
+- The temporary production subscription-enforcement canary ran under named approval and restored successfully. It verified Explorer denial, Professional access, Professional denial for Institutional-only SAF analytics, and tenant-local Institutional/admin access. Post-restore route, scheduler, tenant-isolation, and Admin browser smokes passed. Remaining PR-2 exit work: same-tenant private-list ownership browser evidence and final governance-surface acceptance.
 
 ### Sprint PR-3 — Rehearse recovery
 

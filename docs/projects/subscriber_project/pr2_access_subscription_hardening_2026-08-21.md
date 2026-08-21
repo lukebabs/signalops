@@ -56,9 +56,46 @@ The live browser/API evidence now proves that ordinary tenant-bearing MarketOps 
 
 It also proves that cross-tenant Subscription Administration is not a general tenant-data bypass: it is isolated to `/v1/administration/subscriptions` and requires `signalops:subscription_admin` or equivalent platform admin authority.
 
+## Temporary subscription-enforcement canary — 2026-08-21
+
+Named approval:
+
+```text
+I, luke@strategiclabs.io, approve one temporary production subscription-enforcement canary for tenant-pilot-b, with automatic restoration to enforcement-off and pilot Explorer state.
+```
+
+Execution path:
+
+```text
+sudo -n signalops-deploy-agent subscription-enforcement-canary
+```
+
+Result:
+
+```text
+subscription_enforcement_canary_enabled
+.                                                                        [100%]
+1 passed in 3.90s
+subscription_enforcement_canary_verified
+subscription_enforcement_canary_restored
+```
+
+The canary temporarily enabled gateway subscription enforcement, established the controlled pilot Explorer baseline, verified Explorer denial for Professional-only features, temporarily changed the pilot to Professional, verified Professional access to Value Intelligence, verified Professional denial for Institutional-only Signal Assurance analytics, verified tenant-local Institutional/admin Signal Assurance access, and restored the pilot to Explorer with enforcement off.
+
+Post-restore verification:
+
+```text
+https://signalops.syncratic.io/readyz       -> 200
+https://signalops.syncratic.io/admin/system -> 200
+sudo -n signalops-deploy-agent scheduler-status -> clean
+scripts/run_subscriber_access_control_ui_smoke.sh -> 1 passed in 3.64s
+scripts/run_subscription_admin_ui_smoke.sh        -> 2 passed in 2.20s
+```
+
+Direct container environment inspection with `sudo docker exec` was not passwordlessly available in this session, so restoration was verified by the canary's own restoration marker plus post-restore route, scheduler, tenant-isolation, and Admin browser smokes.
+
 ## Remaining PR-2 items
 
-1. Run the temporary subscription-enforcement canary with fresh named approval. This is intentionally not run automatically because it temporarily enables subscription enforcement and changes the pilot plan before restoring it.
-2. Add or retain browser evidence for private-list ownership within the same tenant. Current unit/API coverage binds private-list mutations to the immutable subject, but live browser proof requires a second same-tenant user or a controlled temporary private-list mutation.
-3. Expand/verify Subscription Administration as the operator-facing governance surface for enrolled users, tier assignment, entitlement state, quota state, default-list policy, and audit history.
-4. Record cross-tenant/private-list evidence in the production-readiness checklist before claiming PR-2 exit.
+1. Add or retain browser evidence for private-list ownership within the same tenant. Current unit/API coverage binds private-list mutations to the immutable subject, but live browser proof requires a second same-tenant user or a controlled temporary private-list mutation.
+2. Expand/verify Subscription Administration as the operator-facing governance surface for enrolled users, tier assignment, entitlement state, quota state, default-list policy, and audit history.
+3. Record cross-tenant/private-list evidence in the production-readiness checklist before claiming PR-2 exit.
