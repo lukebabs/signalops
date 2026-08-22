@@ -1,5 +1,34 @@
 # SignalOps Build Journal
 
+## 2026-08-22 — Review Queue stale EROC evidence guard
+
+Summary:
+
+- Root-caused the Review Queue showing an Aug 14 last signal to stale EROC projection data.
+- Dedicated MarketOps DB evidence showed `subscriber_gateway_global_eroc_results` latest session is `2026-08-14`, while active opportunities and Risk/Reward are current through `2026-08-21`.
+- Updated Review Queue composition so EROC reversal rows are admitted only when their trade date matches the latest evidence date across the queue's sources. This prevents stale EROC rows from dominating an item's last-evidence timestamp while fresher opportunity/RiskReward/alert evidence exists.
+
+Evidence:
+
+```text
+eroc          latest=2026-08-14 latest_rows=132
+opportunities latest=2026-08-21 latest_rows=45
+risk_reward   latest=2026-08-21 latest_rows=132
+```
+
+Files changed:
+
+- `web/src/routes/MarketOpsReviewQueueRoute.tsx`
+- `docs/build_journal.md`
+
+Verification:
+
+- `npm --prefix web run build`
+
+Remaining:
+
+- EROC itself still needs a dedicated refresh/pipeline remediation so the EROC view and Review Queue can include current reversal evidence again.
+
 ## 2026-08-22 — FMP annual recurring timer activated
 
 Summary:

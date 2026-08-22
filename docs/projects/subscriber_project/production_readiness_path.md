@@ -272,3 +272,10 @@ service=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.ser
 ```
 
 - This closes the PR-4 activation blocker. The next evidence point is the first natural scheduled FMP annual run on Saturday, August 29, 2026 at 02:30 America/New_York.
+
+## 2026-08-22 Review Queue freshness note
+
+- Review Queue stale-date investigation found the composite queue was surfacing stale EROC reversal evidence from `subscriber_gateway_global_eroc_results`, whose latest session was `2026-08-14`.
+- Active opportunities and Risk/Reward evidence were current through `2026-08-21`.
+- The UI now guards Review Queue EROC admission to the latest queue evidence date so stale EROC rows do not appear as current last-signal evidence.
+- Remaining production-readiness item: remediate the EROC projection refresh path so EROC evidence itself advances beyond August 14.
