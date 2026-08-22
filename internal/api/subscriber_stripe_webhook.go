@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -70,6 +71,7 @@ func registerSubscriberStripeWebhookRoutes(mux *http.ServeMux, cfg RouterConfig)
 		}
 		record, err := repository.ProcessSubscriberStripeWebhook(r.Context(), mutation)
 		if err != nil {
+			slog.Warn("stripe webhook reconciliation failed", "provider_event_id", mutation.ProviderEventID, "event_type", mutation.EventType, "stripe_subscription_id", mutation.StripeSubscriptionID, "error", err)
 			writeError(w, http.StatusServiceUnavailable, "stripe_webhook_processing_failed", "stripe webhook could not be reconciled")
 			return
 		}
