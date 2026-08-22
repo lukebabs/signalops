@@ -1,6 +1,6 @@
 # Stripe Admin-Managed Billing
 
-Status: implementation slice added on 2026-08-22; production activation requires migration `000155_subscriber_admin_stripe_billing`, Stripe test-mode secret configuration, and controlled webhook validation.
+Status: implementation slice added on 2026-08-22; migration `000155_subscriber_admin_stripe_billing` is applied and the Administration UI is live. Production webhook activation still requires `STRIPE_WEBHOOK_SECRET` in the gateway runtime and controlled signed-webhook validation.
 
 ## Purpose
 
@@ -55,12 +55,38 @@ STRIPE_WEBHOOK_SECRET=<Stripe endpoint signing secret>
 
 Use Stripe test mode first. The Stripe secret must be injected as a runtime secret and must not be committed to the repository.
 
+## Canary procedure
+
+Use the non-mutating preflight first:
+
+```bash
+scripts/run_stripe_webhook_canary.sh
+```
+
+Expected results:
+
+- `{"status":"stripe_webhook_disabled", ...}` means the endpoint is deployed but `STRIPE_WEBHOOK_SECRET` is not configured in the running gateway.
+- `{"status":"rejected_invalid_signature", ...}` means the secret is configured and invalid signatures fail closed without persistence.
+
+After the Stripe endpoint signing secret is configured and the planned canary has named approval, run the persistent valid-signature check:
+
+```bash
+scripts/run_stripe_webhook_canary.sh --allow-persistent-ledger
+```
+
+That command creates or reuses one Stripe webhook ledger row. Use an intentionally unmapped `SIGNALOPS_STRIPE_CANARY_SUBSCRIPTION_ID` to prove unknown subscriptions become `unmatched`, or use a mapped subscription ID to prove reconciliation updates a known local subscription.
+
+## Stripe Tax note
+
+Before selling paid plans broadly, evaluate Stripe Tax and registrations. Do not assume tax is collected just because Billing is enabled; Stripe collects tax only after the required registrations and tax configuration are active.
+
 ## Acceptance checks
 
 - Migration `000155_subscriber_admin_stripe_billing` is applied.
 - Subscription admin can save product billing IDs.
 - Subscription admin can save subject and tenant Stripe IDs.
-- A valid signed test webhook updates a mapped subscription.
+- Non-mutating webhook preflight reports the current endpoint state.
+- A valid signed test webhook updates a mapped subscription after named approval.
 - An invalid signature returns `400`.
 - An unknown Stripe subscription event records as `unmatched` and creates no access.
 - Existing subscription enforcement and tenant-isolation smokes still pass.

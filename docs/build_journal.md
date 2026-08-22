@@ -1,5 +1,19 @@
 # SignalOps Build Journal
 
+## 2026-08-22 — Stripe webhook canary operational preflight
+
+Summary:
+
+- Added `scripts/run_stripe_webhook_canary.sh` for Stripe webhook readiness checks. Default mode is non-mutating and verifies fail-closed behavior without writing a webhook ledger row.
+- Documented the persistent valid-signature canary path behind explicit approval because it creates or reuses one Stripe webhook ledger row.
+- Production preflight result: `stripe_webhook_disabled`; the endpoint is deployed, but `STRIPE_WEBHOOK_SECRET` is not configured in the running gateway environment.
+- Added a Stripe Tax note to the billing documentation before broad paid-plan launch.
+
+Verification:
+
+- `bash -n scripts/run_stripe_webhook_canary.sh`
+- `scripts/run_stripe_webhook_canary.sh` → `{"persistent_ledger_write": false, "status": "stripe_webhook_disabled"}`
+
 ## 2026-08-22 — Admin-managed Stripe billing foundation
 
 Summary:
