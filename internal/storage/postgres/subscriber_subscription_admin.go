@@ -528,16 +528,11 @@ func (r *Repository) failSubscriberStripeWebhook(ctx context.Context, tx *sql.Tx
 }
 
 func (r *Repository) insertSubscriberStripeWebhookSubjectAudits(ctx context.Context, tx *sql.Tx, input storage.SubscriberStripeWebhookMutation) error {
-	rows, err := tx.QueryContext(ctx, `SELECT tenant_id FROM subscriber_subject_subscriptions WHERE stripe_subscription_id=$1`, input.StripeSubscriptionID)
+	tenantIDs, err := subscriberStripeWebhookAuditTenantIDs(ctx, tx, `SELECT tenant_id FROM subscriber_subject_subscriptions WHERE stripe_subscription_id=$1`, input.StripeSubscriptionID)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var tenantID string
-		if err := rows.Scan(&tenantID); err != nil {
-			return err
-		}
+	for _, tenantID := range tenantIDs {
 		if _, err := tx.ExecContext(ctx, `SELECT set_config('signalops.tenant_id', $1, true)`, tenantID); err != nil {
 			return err
 		}
@@ -545,20 +540,15 @@ func (r *Repository) insertSubscriberStripeWebhookSubjectAudits(ctx context.Cont
 			return err
 		}
 	}
-	return rows.Err()
+	return nil
 }
 
 func (r *Repository) insertSubscriberStripeWebhookTenantAudits(ctx context.Context, tx *sql.Tx, input storage.SubscriberStripeWebhookMutation) error {
-	rows, err := tx.QueryContext(ctx, `SELECT tenant_id FROM subscriber_tenant_subscriptions WHERE stripe_subscription_id=$1`, input.StripeSubscriptionID)
+	tenantIDs, err := subscriberStripeWebhookAuditTenantIDs(ctx, tx, `SELECT tenant_id FROM subscriber_tenant_subscriptions WHERE stripe_subscription_id=$1`, input.StripeSubscriptionID)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var tenantID string
-		if err := rows.Scan(&tenantID); err != nil {
-			return err
-		}
+	for _, tenantID := range tenantIDs {
 		if _, err := tx.ExecContext(ctx, `SELECT set_config('signalops.tenant_id', $1, true)`, tenantID); err != nil {
 			return err
 		}
@@ -566,7 +556,27 @@ func (r *Repository) insertSubscriberStripeWebhookTenantAudits(ctx context.Conte
 			return err
 		}
 	}
-	return rows.Err()
+	return nil
+}
+
+func subscriberStripeWebhookAuditTenantIDs(ctx context.Context, tx *sql.Tx, query string, args ...any) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tenantIDs := []string{}
+	for rows.Next() {
+		var tenantID string
+		if err := rows.Scan(&tenantID); err != nil {
+			return nil, err
+		}
+		tenantIDs = append(tenantIDs, tenantID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return tenantIDs, nil
 }
 
 func (r *Repository) UpsertSubscriberSubscriptionSeat(ctx context.Context, input storage.SubscriberSubscriptionSeatMutation) error {
