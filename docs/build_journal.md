@@ -15,6 +15,9 @@ Verification:
 - `go test ./internal/api ./internal/storage/postgres`
 - `npm --prefix web run build`
 - `bash -n scripts/apply_subscriber_subscription_commerce_migration.sh`
+- `000155_subscriber_admin_stripe_billing` applied to dedicated MarketOps database at `2026-08-22 16:10:11 UTC`; gateway webhook ledger access verified and public webhook ledger read denied.
+- Deployed updated gateway and web containers; live route chunk includes `Admin-managed Stripe billing`.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed with Stripe UI assertions: `3 passed`.
 
 ## 2026-08-22 — Subscriber production documentation split
 

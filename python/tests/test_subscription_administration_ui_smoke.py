@@ -113,7 +113,7 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
 
 def test_subscription_administration_governance_surface(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
     expected_products = {"Explorer", "Professional", "Institutional"}
-    expected_tables = {"Subject subscriptions", "Institutional contracts", "Institutional seats", "Audit trail"}
+    expected_tables = {"Subject subscriptions", "Institutional contracts", "Institutional seats", "Audit trail", "Stripe webhook ledger"}
     expected_features = {"Market dashboards", "Value Intelligence", "Distressed Opportunity Intelligence", "Earnings Opportunity Intelligence", "Signal Assurance analytics", "APIs", "White-label deployment"}
 
     with admin_page.expect_response(
@@ -139,6 +139,11 @@ def test_subscription_administration_governance_surface(admin_page: Page, admin_
     expect(body).to_contain_text("signalops:subscription_admin")
     expect(body).to_contain_text("Govern enrolled users")
     expect(body).to_contain_text("Feature policy is the server-side entitlement contract")
+    expect(body).to_contain_text("Admin-managed Stripe billing")
+    expect(body).to_contain_text("Map Stripe IDs created in Stripe Dashboard")
+    expect(body).to_contain_text("Product mapping")
+    expect(body).to_contain_text("Subject Stripe mapping")
+    expect(body).to_contain_text("Institutional Stripe mapping")
 
 
 def test_subscription_administration_is_platform_only(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
