@@ -1,5 +1,19 @@
 # SignalOps Build Journal
 
+## 2026-08-22 — Stripe Explorer and Professional product mapping
+
+Summary:
+
+- Mapped Stripe Product and Price IDs for the active self-service billing tiers through the Subscription Administration API.
+- Explorer mapped to Product `prod_V7YY6OYlzF94MO`, monthly Price `price_1U7JRI9yvXTfstCXUvv6QZkr`, and annual Price `price_1U7JRI9yvXTfstCXukjjXpJ1`.
+- Professional mapped to Product `prod_V7YZToB4EPMh3e`, monthly Price `price_1U7JSP9yvXTfstCXmEktmULQ`, and annual Price `price_1U7JSP9yvXTfstCXGujxKmPw`.
+- Institutional remains Contact Sales with no public Price mapping.
+
+Verification:
+
+- Admin API mapping script returned `stripe_product_mappings_verified` for `explorer` and `professional`.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed`.
+
 ## 2026-08-22 — Stripe webhook runtime secret wiring
 
 Summary:
