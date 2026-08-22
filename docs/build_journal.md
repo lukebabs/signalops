@@ -1,5 +1,22 @@
 # SignalOps Build Journal
 
+## 2026-08-22 — Stripe webhook runtime secret wiring
+
+Summary:
+
+- Root cause: `.env` contained `STRIPE_WEBHOOK_SECRET`, but `compose.yaml` did not pass it into the gateway container. The deployed webhook endpoint therefore remained in `stripe_webhook_disabled` state.
+- Added `STRIPE_WEBHOOK_SECRET` to the gateway compose environment.
+- Extended the safe production deploy verification to fail when `.env` defines `STRIPE_WEBHOOK_SECRET` but the gateway container does not receive it.
+- Redeployed gateway and confirmed `STRIPE_WEBHOOK_SECRET` is present in the container without printing the secret value.
+
+Verification:
+
+- `bash -n scripts/deploy_signalops_public_production.sh`
+- `git diff --check`
+- `sudo -n signalops-deploy-agent signalops-production-gateway-deploy`
+- `curl -fsS https://signalops.syncratic.io/readyz`
+- `scripts/run_stripe_webhook_canary.sh` → `{"persistent_ledger_write": false, "status": "rejected_invalid_signature"}`
+
 ## 2026-08-22 — Stripe webhook canary operational preflight
 
 Summary:

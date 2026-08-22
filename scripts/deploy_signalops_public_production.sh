@@ -147,6 +147,9 @@ traefik_rule="$(docker inspect --format '{{ index .Config.Labels "traefik.http.r
 gateway_env_names="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$gateway_id" | cut -d= -f1)"
 grep -qx "SIGNALOPS_MARKETOPS_DATABASE_URL" <<< "$gateway_env_names" || fail "gateway is missing SIGNALOPS_MARKETOPS_DATABASE_URL"
 grep -qx "SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL" <<< "$gateway_env_names" || fail "gateway is missing SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL"
+if env_value "$runtime_env" STRIPE_WEBHOOK_SECRET >/dev/null 2>&1; then
+  grep -qx "STRIPE_WEBHOOK_SECRET" <<< "$gateway_env_names" || fail "gateway is missing STRIPE_WEBHOOK_SECRET"
+fi
 
 curl -fsS http://127.0.0.1:15173/readyz >/dev/null
 curl -fsS http://127.0.0.1:18000/readyz >/dev/null
