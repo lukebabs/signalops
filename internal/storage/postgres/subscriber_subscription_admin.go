@@ -44,6 +44,11 @@ func (r *Repository) ListSubscriberSubscriptionAdministration(ctx context.Contex
 			return err
 		}
 		snapshot.AuditEvents = audit
+		webhooks, err := listSubscriberBillingWebhookEventsTx(ctx, tx)
+		if err != nil {
+			return err
+		}
+		snapshot.BillingWebhookEvents = webhooks
 		return nil
 	})
 	return snapshot, err
@@ -105,6 +110,54 @@ VALUES ($1, $2, '', $3, 'subscription_product_policy_updated', $4::jsonb, $5::js
 	return tx.Commit()
 }
 
+func (r *Repository) UpdateSubscriberSubscriptionProductBilling(ctx context.Context, input storage.SubscriberSubscriptionProductBillingMutation) error {
+	if err := validSubscriberSubscriptionProductBillingMutation(input); err != nil {
+		return err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('signalops.tenant_id', $1, true)`, input.TenantID); err != nil {
+		return fmt.Errorf("set subscription billing audit scope: %w", err)
+	}
+	var before []byte
+	if err := tx.QueryRowContext(ctx, `SELECT to_jsonb(p)::text::jsonb FROM subscriber_subscription_products p WHERE product_key=$1`, input.ProductKey).Scan(&before); errors.Is(err, sql.ErrNoRows) {
+		return storage.ErrNotFound
+	} else if err != nil {
+		return fmt.Errorf("read subscription product billing: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+UPDATE subscriber_subscription_products
+SET stripe_product_id=$2, stripe_monthly_price_id=$3, stripe_annual_price_id=$4,
+  changed_by=$5, revision=revision+1, updated_at=now()
+WHERE product_key=$1`, input.ProductKey, input.StripeProductID, input.StripeMonthlyPriceID, input.StripeAnnualPriceID, input.ActorSubject)
+	if err != nil {
+		return fmt.Errorf("update subscription product billing: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return storage.ErrNotFound
+	}
+	var after []byte
+	if err := tx.QueryRowContext(ctx, `SELECT to_jsonb(p)::text::jsonb FROM subscriber_subscription_products p WHERE product_key=$1`, input.ProductKey).Scan(&after); err != nil {
+		return fmt.Errorf("read updated subscription product billing: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO subscriber_subscription_audit_events
+  (audit_id, tenant_id, subject, actor_subject, event_type, before_state, after_state, correlation_id)
+VALUES ($1, $2, '', $3, 'subscription_product_billing_updated', $4::jsonb, $5::jsonb, $6)`,
+		newSubscriberID("subaudit"), input.TenantID, input.ActorSubject, string(before), string(after), input.CorrelationID)
+	if err != nil {
+		return fmt.Errorf("insert subscription product billing audit: %w", err)
+	}
+	return tx.Commit()
+}
+
 func listSubscriberSubscriptionProductsTx(ctx context.Context, tx *sql.Tx, activeOnly bool) ([]storage.SubscriberSubscriptionProductRecord, error) {
 	query := `
 SELECT product_key, billing_scope, display_name, is_free, trial_days,
@@ -135,6 +188,7 @@ func listSubscriberSubjectSubscriptionsTx(ctx context.Context, tx *sql.Tx, tenan
 	rows, err := tx.QueryContext(ctx, `
 SELECT s.tenant_id, s.subject, s.subscription_id, s.product_key, p.display_name, s.status,
   s.trial_ends_at, s.current_period_ends_at, s.grace_ends_at, s.canceled_at,
+  s.stripe_customer_id, s.stripe_subscription_id,
   s.provisioned_by, s.correlation_id, s.created_at, s.updated_at
 FROM subscriber_subject_subscriptions s
 JOIN subscriber_subscription_products p ON p.product_key=s.product_key
@@ -147,7 +201,7 @@ ORDER BY s.updated_at DESC, s.subject`, tenantID)
 	records := []storage.SubscriberSubjectSubscriptionRecord{}
 	for rows.Next() {
 		var record storage.SubscriberSubjectSubscriptionRecord
-		if err := rows.Scan(&record.TenantID, &record.Subject, &record.SubscriptionID, &record.ProductKey, &record.DisplayName, &record.Status, &record.TrialEndsAt, &record.CurrentPeriodEndsAt, &record.GraceEndsAt, &record.CanceledAt, &record.ProvisionedBy, &record.CorrelationID, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		if err := rows.Scan(&record.TenantID, &record.Subject, &record.SubscriptionID, &record.ProductKey, &record.DisplayName, &record.Status, &record.TrialEndsAt, &record.CurrentPeriodEndsAt, &record.GraceEndsAt, &record.CanceledAt, &record.StripeCustomerID, &record.StripeSubscriptionID, &record.ProvisionedBy, &record.CorrelationID, &record.CreatedAt, &record.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan subject subscription: %w", err)
 		}
 		records = append(records, record)
@@ -159,6 +213,7 @@ func listSubscriberTenantSubscriptionsTx(ctx context.Context, tx *sql.Tx, tenant
 	rows, err := tx.QueryContext(ctx, `
 SELECT s.tenant_id, s.subscription_id, s.product_key, p.display_name, s.status,
   s.current_period_ends_at, s.grace_ends_at, s.canceled_at,
+  s.stripe_customer_id, s.stripe_subscription_id,
   s.provisioned_by, s.correlation_id, s.created_at, s.updated_at
 FROM subscriber_tenant_subscriptions s
 JOIN subscriber_subscription_products p ON p.product_key=s.product_key
@@ -171,7 +226,7 @@ ORDER BY s.updated_at DESC`, tenantID)
 	records := []storage.SubscriberTenantSubscriptionRecord{}
 	for rows.Next() {
 		var record storage.SubscriberTenantSubscriptionRecord
-		if err := rows.Scan(&record.TenantID, &record.SubscriptionID, &record.ProductKey, &record.DisplayName, &record.Status, &record.CurrentPeriodEndsAt, &record.GraceEndsAt, &record.CanceledAt, &record.ProvisionedBy, &record.CorrelationID, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		if err := rows.Scan(&record.TenantID, &record.SubscriptionID, &record.ProductKey, &record.DisplayName, &record.Status, &record.CurrentPeriodEndsAt, &record.GraceEndsAt, &record.CanceledAt, &record.StripeCustomerID, &record.StripeSubscriptionID, &record.ProvisionedBy, &record.CorrelationID, &record.CreatedAt, &record.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan tenant subscription: %w", err)
 		}
 		records = append(records, record)
@@ -218,6 +273,27 @@ LIMIT 100`, tenantID)
 		var record storage.SubscriberSubscriptionAuditEventRecord
 		if err := rows.Scan(&record.AuditID, &record.TenantID, &record.Subject, &record.SubscriptionID, &record.ActorSubject, &record.EventType, &record.BeforeStateJSON, &record.AfterStateJSON, &record.CorrelationID, &record.OccurredAt); err != nil {
 			return nil, fmt.Errorf("scan subscription audit event: %w", err)
+		}
+		records = append(records, record)
+	}
+	return records, rows.Err()
+}
+
+func listSubscriberBillingWebhookEventsTx(ctx context.Context, tx *sql.Tx) ([]storage.SubscriberBillingWebhookEventRecord, error) {
+	rows, err := tx.QueryContext(ctx, `
+SELECT provider_event_id, event_type, processing_status, error_message, received_at, processed_at
+FROM subscriber_billing_webhook_events
+ORDER BY received_at DESC
+LIMIT 100`)
+	if err != nil {
+		return nil, fmt.Errorf("list billing webhook events: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.SubscriberBillingWebhookEventRecord{}
+	for rows.Next() {
+		var record storage.SubscriberBillingWebhookEventRecord
+		if err := rows.Scan(&record.ProviderEventID, &record.EventType, &record.ProcessingStatus, &record.ErrorMessage, &record.ReceivedAt, &record.ProcessedAt); err != nil {
+			return nil, fmt.Errorf("scan billing webhook event: %w", err)
 		}
 		records = append(records, record)
 	}
@@ -288,6 +364,163 @@ ON CONFLICT (tenant_id) DO UPDATE SET
 		return insertSubscriberSubscriptionAudit(ctx, tx, input.TenantID, "", input.ActorSubject, "tenant_subscription_upserted", input.CorrelationID,
 			fmt.Sprintf(`{"product_key":%q,"status":%q}`, input.ProductKey, input.Status))
 	})
+}
+
+func (r *Repository) UpdateSubscriberSubjectSubscriptionBilling(ctx context.Context, input storage.SubscriberSubjectSubscriptionBillingMutation) error {
+	if err := validSubscriberSubjectSubscriptionBillingMutation(input); err != nil {
+		return err
+	}
+	return r.WithSubscriberTenantScope(ctx, input.TenantID, func(ctx context.Context, tx *sql.Tx) error {
+		var before []byte
+		if err := tx.QueryRowContext(ctx, `SELECT to_jsonb(s)::text::jsonb FROM subscriber_subject_subscriptions s WHERE tenant_id=$1 AND subject=$2`, input.TenantID, input.Subject).Scan(&before); errors.Is(err, sql.ErrNoRows) {
+			return storage.ErrNotFound
+		} else if err != nil {
+			return fmt.Errorf("read subject subscription billing: %w", err)
+		}
+		result, err := tx.ExecContext(ctx, `
+UPDATE subscriber_subject_subscriptions
+SET stripe_customer_id=$3, stripe_subscription_id=$4, status=$5,
+  current_period_ends_at=$6, grace_ends_at=$7, canceled_at=$8,
+  provisioned_by=$9, correlation_id=$10, updated_at=now()
+WHERE tenant_id=$1 AND subject=$2`, input.TenantID, input.Subject, input.StripeCustomerID, input.StripeSubscriptionID, input.Status, input.CurrentPeriodEndsAt, input.GraceEndsAt, input.CanceledAt, input.ActorSubject, input.CorrelationID)
+		if err != nil {
+			return fmt.Errorf("update subject subscription billing: %w", err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return storage.ErrNotFound
+		}
+		var after []byte
+		if err := tx.QueryRowContext(ctx, `SELECT to_jsonb(s)::text::jsonb FROM subscriber_subject_subscriptions s WHERE tenant_id=$1 AND subject=$2`, input.TenantID, input.Subject).Scan(&after); err != nil {
+			return fmt.Errorf("read updated subject subscription billing: %w", err)
+		}
+		_, err = tx.ExecContext(ctx, `
+INSERT INTO subscriber_subscription_audit_events
+  (audit_id, tenant_id, subject, subscription_id, actor_subject, event_type, before_state, after_state, correlation_id)
+SELECT $1, tenant_id, subject, subscription_id, $4, 'subject_subscription_billing_updated', $5::jsonb, $6::jsonb, $7
+FROM subscriber_subject_subscriptions WHERE tenant_id=$2 AND subject=$3`, newSubscriberID("subaudit"), input.TenantID, input.Subject, input.ActorSubject, string(before), string(after), input.CorrelationID)
+		if err != nil {
+			return fmt.Errorf("insert subject subscription billing audit: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *Repository) UpdateSubscriberTenantSubscriptionBilling(ctx context.Context, input storage.SubscriberTenantSubscriptionBillingMutation) error {
+	if err := validSubscriberTenantSubscriptionBillingMutation(input); err != nil {
+		return err
+	}
+	return r.WithSubscriberTenantScope(ctx, input.TenantID, func(ctx context.Context, tx *sql.Tx) error {
+		var before []byte
+		if err := tx.QueryRowContext(ctx, `SELECT to_jsonb(s)::text::jsonb FROM subscriber_tenant_subscriptions s WHERE tenant_id=$1`, input.TenantID).Scan(&before); errors.Is(err, sql.ErrNoRows) {
+			return storage.ErrNotFound
+		} else if err != nil {
+			return fmt.Errorf("read tenant subscription billing: %w", err)
+		}
+		result, err := tx.ExecContext(ctx, `
+UPDATE subscriber_tenant_subscriptions
+SET stripe_customer_id=$2, stripe_subscription_id=$3, status=$4,
+  current_period_ends_at=$5, grace_ends_at=$6, canceled_at=$7,
+  provisioned_by=$8, correlation_id=$9, updated_at=now()
+WHERE tenant_id=$1`, input.TenantID, input.StripeCustomerID, input.StripeSubscriptionID, input.Status, input.CurrentPeriodEndsAt, input.GraceEndsAt, input.CanceledAt, input.ActorSubject, input.CorrelationID)
+		if err != nil {
+			return fmt.Errorf("update tenant subscription billing: %w", err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return storage.ErrNotFound
+		}
+		var after []byte
+		if err := tx.QueryRowContext(ctx, `SELECT to_jsonb(s)::text::jsonb FROM subscriber_tenant_subscriptions s WHERE tenant_id=$1`, input.TenantID).Scan(&after); err != nil {
+			return fmt.Errorf("read updated tenant subscription billing: %w", err)
+		}
+		_, err = tx.ExecContext(ctx, `
+INSERT INTO subscriber_subscription_audit_events
+  (audit_id, tenant_id, subject, subscription_id, actor_subject, event_type, before_state, after_state, correlation_id)
+SELECT $1, tenant_id, '', subscription_id, $3, 'tenant_subscription_billing_updated', $4::jsonb, $5::jsonb, $6
+FROM subscriber_tenant_subscriptions WHERE tenant_id=$2`, newSubscriberID("subaudit"), input.TenantID, input.ActorSubject, string(before), string(after), input.CorrelationID)
+		if err != nil {
+			return fmt.Errorf("insert tenant subscription billing audit: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *Repository) ProcessSubscriberStripeWebhook(ctx context.Context, input storage.SubscriberStripeWebhookMutation) (storage.SubscriberBillingWebhookEventRecord, error) {
+	if err := validSubscriberStripeWebhookMutation(input); err != nil {
+		return storage.SubscriberBillingWebhookEventRecord{}, err
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return storage.SubscriberBillingWebhookEventRecord{}, err
+	}
+	defer tx.Rollback()
+	var existing storage.SubscriberBillingWebhookEventRecord
+	if err := tx.QueryRowContext(ctx, `SELECT provider_event_id,event_type,processing_status,error_message,received_at,processed_at FROM subscriber_billing_webhook_events WHERE provider_event_id=$1`, input.ProviderEventID).Scan(&existing.ProviderEventID, &existing.EventType, &existing.ProcessingStatus, &existing.ErrorMessage, &existing.ReceivedAt, &existing.ProcessedAt); err == nil {
+		return existing, tx.Commit()
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return storage.SubscriberBillingWebhookEventRecord{}, fmt.Errorf("read billing webhook event: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO subscriber_billing_webhook_events(provider_event_id,event_type,payload,processing_status) VALUES($1,$2,$3::jsonb,'received')`, input.ProviderEventID, input.EventType, string(input.PayloadJSON)); err != nil {
+		return storage.SubscriberBillingWebhookEventRecord{}, fmt.Errorf("record billing webhook event: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('signalops.stripe_webhook_reconcile', 'true', true)`); err != nil {
+		return storage.SubscriberBillingWebhookEventRecord{}, fmt.Errorf("set stripe webhook reconciliation scope: %w", err)
+	}
+	matched := 0
+	if strings.TrimSpace(input.StripeSubscriptionID) != "" {
+		result, err := tx.ExecContext(ctx, `
+UPDATE subscriber_subject_subscriptions
+SET status=$2, stripe_customer_id=COALESCE(NULLIF($3,''), stripe_customer_id),
+  current_period_ends_at=$4, grace_ends_at=$5, canceled_at=$6,
+  provisioned_by='stripe-webhook', correlation_id=$7, updated_at=now()
+WHERE stripe_subscription_id=$1`, input.StripeSubscriptionID, input.Status, input.StripeCustomerID, input.CurrentPeriodEndsAt, input.GraceEndsAt, input.CanceledAt, input.ProviderEventID)
+		if err != nil {
+			return r.failSubscriberStripeWebhook(ctx, tx, input, fmt.Errorf("update subject stripe subscription: %w", err))
+		}
+		rows, _ := result.RowsAffected()
+		matched += int(rows)
+		if rows > 0 {
+			_, _ = tx.ExecContext(ctx, `INSERT INTO subscriber_subscription_audit_events(audit_id, tenant_id, subject, subscription_id, actor_subject, event_type, after_state, correlation_id) SELECT $1, tenant_id, subject, subscription_id, 'stripe-webhook', 'stripe_subscription_reconciled', jsonb_build_object('event_type',$2,'status',$3,'stripe_subscription_id',$4), $5 FROM subscriber_subject_subscriptions WHERE stripe_subscription_id=$4`, newSubscriberID("subaudit"), input.EventType, input.Status, input.StripeSubscriptionID, input.ProviderEventID)
+		}
+		result, err = tx.ExecContext(ctx, `
+UPDATE subscriber_tenant_subscriptions
+SET status=$2, stripe_customer_id=COALESCE(NULLIF($3,''), stripe_customer_id),
+  current_period_ends_at=$4, grace_ends_at=$5, canceled_at=$6,
+  provisioned_by='stripe-webhook', correlation_id=$7, updated_at=now()
+WHERE stripe_subscription_id=$1`, input.StripeSubscriptionID, input.Status, input.StripeCustomerID, input.CurrentPeriodEndsAt, input.GraceEndsAt, input.CanceledAt, input.ProviderEventID)
+		if err != nil {
+			return r.failSubscriberStripeWebhook(ctx, tx, input, fmt.Errorf("update tenant stripe subscription: %w", err))
+		}
+		rows, _ = result.RowsAffected()
+		matched += int(rows)
+		if rows > 0 {
+			_, _ = tx.ExecContext(ctx, `INSERT INTO subscriber_subscription_audit_events(audit_id, tenant_id, subject, subscription_id, actor_subject, event_type, after_state, correlation_id) SELECT $1, tenant_id, '', subscription_id, 'stripe-webhook', 'stripe_subscription_reconciled', jsonb_build_object('event_type',$2,'status',$3,'stripe_subscription_id',$4), $5 FROM subscriber_tenant_subscriptions WHERE stripe_subscription_id=$4`, newSubscriberID("subaudit"), input.EventType, input.Status, input.StripeSubscriptionID, input.ProviderEventID)
+		}
+	}
+	status := "processed"
+	if matched == 0 {
+		status = "unmatched"
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE subscriber_billing_webhook_events SET processing_status=$2, processed_at=now(), error_message='' WHERE provider_event_id=$1`, input.ProviderEventID, status); err != nil {
+		return storage.SubscriberBillingWebhookEventRecord{}, fmt.Errorf("update billing webhook event status: %w", err)
+	}
+	var record storage.SubscriberBillingWebhookEventRecord
+	if err := tx.QueryRowContext(ctx, `SELECT provider_event_id,event_type,processing_status,error_message,received_at,processed_at FROM subscriber_billing_webhook_events WHERE provider_event_id=$1`, input.ProviderEventID).Scan(&record.ProviderEventID, &record.EventType, &record.ProcessingStatus, &record.ErrorMessage, &record.ReceivedAt, &record.ProcessedAt); err != nil {
+		return storage.SubscriberBillingWebhookEventRecord{}, fmt.Errorf("read processed billing webhook event: %w", err)
+	}
+	return record, tx.Commit()
+}
+
+func (r *Repository) failSubscriberStripeWebhook(ctx context.Context, tx *sql.Tx, input storage.SubscriberStripeWebhookMutation, cause error) (storage.SubscriberBillingWebhookEventRecord, error) {
+	_, _ = tx.ExecContext(ctx, `UPDATE subscriber_billing_webhook_events SET processing_status='failed', processed_at=now(), error_message=$2 WHERE provider_event_id=$1`, input.ProviderEventID, cause.Error())
+	return storage.SubscriberBillingWebhookEventRecord{}, cause
 }
 
 func (r *Repository) UpsertSubscriberSubscriptionSeat(ctx context.Context, input storage.SubscriberSubscriptionSeatMutation) error {
@@ -372,6 +605,46 @@ func validSubscriberSubscriptionStatus(status string) error {
 	default:
 		return errors.New("invalid subscription status")
 	}
+}
+
+func validSubscriberSubscriptionProductBillingMutation(input storage.SubscriberSubscriptionProductBillingMutation) error {
+	if !validSubscriberTenantID(input.TenantID) || strings.TrimSpace(input.ActorSubject) == "" {
+		return errors.New("invalid subscription product billing scope")
+	}
+	if input.ProductKey != "explorer" && input.ProductKey != "professional" && input.ProductKey != "institutional" {
+		return errors.New("invalid subscription product")
+	}
+	return nil
+}
+
+func validSubscriberSubjectSubscriptionBillingMutation(input storage.SubscriberSubjectSubscriptionBillingMutation) error {
+	if !validSubscriberTenantID(input.TenantID) || strings.TrimSpace(input.Subject) == "" || strings.TrimSpace(input.ActorSubject) == "" {
+		return errors.New("invalid subject subscription billing scope")
+	}
+	if strings.TrimSpace(input.StripeSubscriptionID) == "" || strings.TrimSpace(input.StripeCustomerID) == "" {
+		return errors.New("stripe customer and subscription IDs are required")
+	}
+	return validSubscriberSubscriptionStatus(input.Status)
+}
+
+func validSubscriberTenantSubscriptionBillingMutation(input storage.SubscriberTenantSubscriptionBillingMutation) error {
+	if !validSubscriberTenantID(input.TenantID) || strings.TrimSpace(input.ActorSubject) == "" {
+		return errors.New("invalid tenant subscription billing scope")
+	}
+	if strings.TrimSpace(input.StripeSubscriptionID) == "" || strings.TrimSpace(input.StripeCustomerID) == "" {
+		return errors.New("stripe customer and subscription IDs are required")
+	}
+	return validSubscriberSubscriptionStatus(input.Status)
+}
+
+func validSubscriberStripeWebhookMutation(input storage.SubscriberStripeWebhookMutation) error {
+	if strings.TrimSpace(input.ProviderEventID) == "" || strings.TrimSpace(input.EventType) == "" || !jsonObject(input.PayloadJSON) {
+		return errors.New("invalid stripe webhook event")
+	}
+	if strings.TrimSpace(input.StripeSubscriptionID) == "" {
+		return nil
+	}
+	return validSubscriberSubscriptionStatus(input.Status)
 }
 
 func validSubscriberSubscriptionProductMutation(input storage.SubscriberSubscriptionProductMutation) error {

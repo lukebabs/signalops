@@ -33,6 +33,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [MarketOps Subscriber User Guide](marketops_subscriber_user_guide.md): user-centric guide for subscribers, tenant administrators, and platform administrators covering watchlists, freshness, subscription tiers, analytical surfaces, and support escalation.
 - [MarketOps Production Engineering Handbook](marketops_production_engineering_handbook.md): engineering/operator guide for production source-of-truth, scheduler controls, post-close completion, access/subscription controls, validation, and current open readiness items.
 - [Subscription Commerce Model](subscription_commerce_model.md): Explorer, Professional, and Institutional product decisions; tier enforcement, RBAC separation, Administration governance, Stripe boundary, rollout, and deferred work.
+- [Stripe Admin-Managed Billing](stripe_admin_managed_billing.md): controlled Stripe product/customer/subscription mapping and signed webhook reconciliation without Checkout or customer portal.
 
 - [Global Catalog and Watchlist Roadmap](global_catalog_watchlists_roadmap.md): target architecture, data flow, options demand design, compatibility-first sprint plan, controls, and acceptance measures.
 - [Tenant-local legacy-default preservation — 2026-08-16](tenant_local_legacy_default_preservation_2026-08-16.md): audited, non-destructive preservation of the 132-symbol legacy tenant-default list through canonical global identities.

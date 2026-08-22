@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/lukebabs/signalops/internal/storage"
 )
@@ -36,6 +38,34 @@ type subscriberSubscriptionProductPolicyRequest struct {
 	LimitPolicy   json.RawMessage `json:"limit_policy"`
 	Active        bool            `json:"active"`
 	CorrelationID string          `json:"correlation_id"`
+}
+
+type subscriberSubscriptionProductBillingRequest struct {
+	StripeProductID      string `json:"stripe_product_id"`
+	StripeMonthlyPriceID string `json:"stripe_monthly_price_id"`
+	StripeAnnualPriceID  string `json:"stripe_annual_price_id"`
+	CorrelationID        string `json:"correlation_id"`
+}
+type subscriberSubjectSubscriptionBillingRequest struct {
+	TenantID             string `json:"tenant_id"`
+	Subject              string `json:"subject"`
+	StripeCustomerID     string `json:"stripe_customer_id"`
+	StripeSubscriptionID string `json:"stripe_subscription_id"`
+	Status               string `json:"status"`
+	CurrentPeriodEndsAt  string `json:"current_period_ends_at"`
+	GraceEndsAt          string `json:"grace_ends_at"`
+	CanceledAt           string `json:"canceled_at"`
+	CorrelationID        string `json:"correlation_id"`
+}
+type subscriberTenantSubscriptionBillingRequest struct {
+	TenantID             string `json:"tenant_id"`
+	StripeCustomerID     string `json:"stripe_customer_id"`
+	StripeSubscriptionID string `json:"stripe_subscription_id"`
+	Status               string `json:"status"`
+	CurrentPeriodEndsAt  string `json:"current_period_ends_at"`
+	GraceEndsAt          string `json:"grace_ends_at"`
+	CanceledAt           string `json:"canceled_at"`
+	CorrelationID        string `json:"correlation_id"`
 }
 
 // registerSubscriberSubscriptionAdministrationRoutes provides the controlled
@@ -117,6 +147,27 @@ func registerSubscriberSubscriptionAdministrationRoutes(mux *http.ServeMux, cfg 
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 	})
+	mux.HandleFunc("PUT /v1/administration/subscriptions/products/{product_key}/billing", func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := requireSubscriptionAdministrator(w, r)
+		if !ok {
+			return
+		}
+		principal, _ := principalFromContext(r.Context())
+		var request subscriberSubscriptionProductBillingRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if err := repository.UpdateSubscriberSubscriptionProductBilling(r.Context(), storage.SubscriberSubscriptionProductBillingMutation{
+			TenantID: strings.TrimSpace(principal.TenantID), ProductKey: strings.TrimSpace(r.PathValue("product_key")),
+			StripeProductID: strings.TrimSpace(request.StripeProductID), StripeMonthlyPriceID: strings.TrimSpace(request.StripeMonthlyPriceID), StripeAnnualPriceID: strings.TrimSpace(request.StripeAnnualPriceID),
+			ActorSubject: actor, CorrelationID: subscriptionCorrelationID(r, request.CorrelationID),
+		}); err != nil {
+			writeSubscriberSubscriptionAdministrationError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+	})
 	mux.HandleFunc("POST /v1/administration/subscriptions/subject", func(w http.ResponseWriter, r *http.Request) {
 		actor, ok := requireSubscriptionAdministrator(w, r)
 		if !ok {
@@ -135,6 +186,31 @@ func registerSubscriberSubscriptionAdministrationRoutes(mux *http.ServeMux, cfg 
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "provisioned"})
 	})
+	mux.HandleFunc("PUT /v1/administration/subscriptions/subject/billing", func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := requireSubscriptionAdministrator(w, r)
+		if !ok {
+			return
+		}
+		var request subscriberSubjectSubscriptionBillingRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		currentPeriodEndsAt, graceEndsAt, canceledAt, parseErr := parseSubscriptionBillingTimes(request.CurrentPeriodEndsAt, request.GraceEndsAt, request.CanceledAt)
+		if parseErr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_subscription_request", parseErr.Error())
+			return
+		}
+		if err := repository.UpdateSubscriberSubjectSubscriptionBilling(r.Context(), storage.SubscriberSubjectSubscriptionBillingMutation{
+			TenantID: strings.TrimSpace(request.TenantID), Subject: strings.TrimSpace(request.Subject), StripeCustomerID: strings.TrimSpace(request.StripeCustomerID), StripeSubscriptionID: strings.TrimSpace(request.StripeSubscriptionID), Status: strings.TrimSpace(request.Status),
+			CurrentPeriodEndsAt: currentPeriodEndsAt, GraceEndsAt: graceEndsAt, CanceledAt: canceledAt,
+			ActorSubject: actor, CorrelationID: subscriptionCorrelationID(r, request.CorrelationID),
+		}); err != nil {
+			writeSubscriberSubscriptionAdministrationError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+	})
 	mux.HandleFunc("POST /v1/administration/subscriptions/tenant", func(w http.ResponseWriter, r *http.Request) {
 		actor, ok := requireSubscriptionAdministrator(w, r)
 		if !ok {
@@ -152,6 +228,31 @@ func registerSubscriberSubscriptionAdministrationRoutes(mux *http.ServeMux, cfg 
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "provisioned"})
+	})
+	mux.HandleFunc("PUT /v1/administration/subscriptions/tenant/billing", func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := requireSubscriptionAdministrator(w, r)
+		if !ok {
+			return
+		}
+		var request subscriberTenantSubscriptionBillingRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		currentPeriodEndsAt, graceEndsAt, canceledAt, parseErr := parseSubscriptionBillingTimes(request.CurrentPeriodEndsAt, request.GraceEndsAt, request.CanceledAt)
+		if parseErr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_subscription_request", parseErr.Error())
+			return
+		}
+		if err := repository.UpdateSubscriberTenantSubscriptionBilling(r.Context(), storage.SubscriberTenantSubscriptionBillingMutation{
+			TenantID: strings.TrimSpace(request.TenantID), StripeCustomerID: strings.TrimSpace(request.StripeCustomerID), StripeSubscriptionID: strings.TrimSpace(request.StripeSubscriptionID), Status: strings.TrimSpace(request.Status),
+			CurrentPeriodEndsAt: currentPeriodEndsAt, GraceEndsAt: graceEndsAt, CanceledAt: canceledAt,
+			ActorSubject: actor, CorrelationID: subscriptionCorrelationID(r, request.CorrelationID),
+		}); err != nil {
+			writeSubscriberSubscriptionAdministrationError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 	})
 	mux.HandleFunc("PUT /v1/administration/subscriptions/seats", func(w http.ResponseWriter, r *http.Request) {
 		actor, ok := requireSubscriptionAdministrator(w, r)
@@ -184,6 +285,32 @@ func requireSubscriptionAdministrator(w http.ResponseWriter, r *http.Request) (s
 func subscriptionCorrelationID(r *http.Request, requested string) string {
 	return firstNonEmpty(strings.TrimSpace(requested), headerValue(r, "X-Correlation-ID"), newID("subcorr"))
 }
+func parseSubscriptionBillingTimes(currentPeriodEnd, graceEnd, canceled string) (*time.Time, *time.Time, *time.Time, error) {
+	current, err := parseOptionalSubscriptionTime("current_period_ends_at", currentPeriodEnd)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	grace, err := parseOptionalSubscriptionTime("grace_ends_at", graceEnd)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	canceledAt, err := parseOptionalSubscriptionTime("canceled_at", canceled)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return current, grace, canceledAt, nil
+}
+func parseOptionalSubscriptionTime(field, raw string) (*time.Time, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil, fmt.Errorf("%s must be RFC3339", field)
+	}
+	return &parsed, nil
+}
 func writeSubscriberSubscriptionAdministrationError(w http.ResponseWriter, err error) {
 	if err == storage.ErrNotFound {
 		writeError(w, http.StatusNotFound, "subscription_target_not_found", "subscription product or tenant contract was not found")
@@ -208,6 +335,7 @@ func subscriberSubscriptionAdministrationResponse(snapshot storage.SubscriberSub
 			"product_key": record.ProductKey, "display_name": record.DisplayName, "status": record.Status,
 			"trial_ends_at": record.TrialEndsAt, "current_period_ends_at": record.CurrentPeriodEndsAt,
 			"grace_ends_at": record.GraceEndsAt, "canceled_at": record.CanceledAt,
+			"stripe_customer_id": record.StripeCustomerID, "stripe_subscription_id": record.StripeSubscriptionID,
 			"provisioned_by": record.ProvisionedBy, "correlation_id": record.CorrelationID,
 			"created_at": record.CreatedAt, "updated_at": record.UpdatedAt,
 		})
@@ -218,7 +346,7 @@ func subscriberSubscriptionAdministrationResponse(snapshot storage.SubscriberSub
 			"tenant_id": record.TenantID, "subscription_id": record.SubscriptionID,
 			"product_key": record.ProductKey, "display_name": record.DisplayName, "status": record.Status,
 			"current_period_ends_at": record.CurrentPeriodEndsAt, "grace_ends_at": record.GraceEndsAt,
-			"canceled_at": record.CanceledAt, "provisioned_by": record.ProvisionedBy,
+			"canceled_at": record.CanceledAt, "stripe_customer_id": record.StripeCustomerID, "stripe_subscription_id": record.StripeSubscriptionID, "provisioned_by": record.ProvisionedBy,
 			"correlation_id": record.CorrelationID, "created_at": record.CreatedAt, "updated_at": record.UpdatedAt,
 		})
 	}
@@ -240,7 +368,14 @@ func subscriberSubscriptionAdministrationResponse(snapshot storage.SubscriberSub
 			"occurred_at": record.OccurredAt,
 		})
 	}
-	return map[string]any{"tenant_id": snapshot.TenantID, "products": products, "subject_subscriptions": subjects, "tenant_subscriptions": contracts, "seats": seats, "audit_events": audit}
+	webhooks := make([]map[string]any, 0, len(snapshot.BillingWebhookEvents))
+	for _, record := range snapshot.BillingWebhookEvents {
+		webhooks = append(webhooks, map[string]any{
+			"provider_event_id": record.ProviderEventID, "event_type": record.EventType, "processing_status": record.ProcessingStatus,
+			"error_message": record.ErrorMessage, "received_at": record.ReceivedAt, "processed_at": record.ProcessedAt,
+		})
+	}
+	return map[string]any{"tenant_id": snapshot.TenantID, "products": products, "subject_subscriptions": subjects, "tenant_subscriptions": contracts, "seats": seats, "audit_events": audit, "billing_webhook_events": webhooks}
 }
 
 func subscriptionAdministrationProductResponse(product storage.SubscriberSubscriptionProductRecord) map[string]any {

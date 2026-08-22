@@ -193,6 +193,9 @@ import type {
   SubscriberSubscriptionResponse,
   SubscriberSubscriptionAdministrationResponse,
   SubscriberSubscriptionProductUpdateRequest,
+  SubscriberSubscriptionProductBillingRequest,
+  SubscriberSubjectSubscriptionBillingRequest,
+  SubscriberTenantSubscriptionBillingRequest,
 } from "../types";
 import { authConfig } from "../auth/config";
 import { getAccessToken } from "../auth/session";
@@ -831,6 +834,12 @@ export const api = {
     get<SubscriberSubscriptionAdministrationResponse>("/v1/administration/subscriptions", { tenant_id: tenantId }, "no-store"),
   updateSubscriberSubscriptionProduct: (productKey: string, body: SubscriberSubscriptionProductUpdateRequest) =>
     put<{ status: string }>("/v1/administration/subscriptions/products/" + encodeURIComponent(productKey), body),
+  updateSubscriberSubscriptionProductBilling: (productKey: string, body: SubscriberSubscriptionProductBillingRequest) =>
+    put<{ status: string }>("/v1/administration/subscriptions/products/" + encodeURIComponent(productKey) + "/billing", body),
+  updateSubscriberSubjectSubscriptionBilling: (body: SubscriberSubjectSubscriptionBillingRequest) =>
+    put<{ status: string }>("/v1/administration/subscriptions/subject/billing", body),
+  updateSubscriberTenantSubscriptionBilling: (body: SubscriberTenantSubscriptionBillingRequest) =>
+    put<{ status: string }>("/v1/administration/subscriptions/tenant/billing", body),
   getSubscriberSubscription: (tenantId: string) =>
     get<SubscriberSubscriptionResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscription", undefined, "no-store"),
   listSubscriberWatchlists: (tenantId: string) =>

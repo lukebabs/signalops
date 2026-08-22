@@ -2,20 +2,29 @@ package api
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
 type subscriberSubscriptionAdministrationFake struct {
-	snapshot storage.SubscriberSubscriptionAdministrationSnapshot
-	product  storage.SubscriberSubscriptionProductMutation
-	subject  storage.SubscriberSubjectSubscriptionMutation
-	tenant   storage.SubscriberTenantSubscriptionMutation
-	seat     storage.SubscriberSubscriptionSeatMutation
+	snapshot       storage.SubscriberSubscriptionAdministrationSnapshot
+	product        storage.SubscriberSubscriptionProductMutation
+	productBilling storage.SubscriberSubscriptionProductBillingMutation
+	subject        storage.SubscriberSubjectSubscriptionMutation
+	subjectBilling storage.SubscriberSubjectSubscriptionBillingMutation
+	tenant         storage.SubscriberTenantSubscriptionMutation
+	tenantBilling  storage.SubscriberTenantSubscriptionBillingMutation
+	seat           storage.SubscriberSubscriptionSeatMutation
+	stripeWebhook  storage.SubscriberStripeWebhookMutation
 }
 
 func (f *subscriberSubscriptionAdministrationFake) ListSubscriberSubscriptionAdministration(_ context.Context, filter storage.SubscriberSubscriptionAdministrationFilter) (storage.SubscriberSubscriptionAdministrationSnapshot, error) {
@@ -28,18 +37,34 @@ func (f *subscriberSubscriptionAdministrationFake) UpdateSubscriberSubscriptionP
 	f.product = input
 	return nil
 }
+func (f *subscriberSubscriptionAdministrationFake) UpdateSubscriberSubscriptionProductBilling(_ context.Context, input storage.SubscriberSubscriptionProductBillingMutation) error {
+	f.productBilling = input
+	return nil
+}
 
 func (f *subscriberSubscriptionAdministrationFake) UpsertSubscriberSubjectSubscription(_ context.Context, input storage.SubscriberSubjectSubscriptionMutation) error {
 	f.subject = input
+	return nil
+}
+func (f *subscriberSubscriptionAdministrationFake) UpdateSubscriberSubjectSubscriptionBilling(_ context.Context, input storage.SubscriberSubjectSubscriptionBillingMutation) error {
+	f.subjectBilling = input
 	return nil
 }
 func (f *subscriberSubscriptionAdministrationFake) UpsertSubscriberTenantSubscription(_ context.Context, input storage.SubscriberTenantSubscriptionMutation) error {
 	f.tenant = input
 	return nil
 }
+func (f *subscriberSubscriptionAdministrationFake) UpdateSubscriberTenantSubscriptionBilling(_ context.Context, input storage.SubscriberTenantSubscriptionBillingMutation) error {
+	f.tenantBilling = input
+	return nil
+}
 func (f *subscriberSubscriptionAdministrationFake) UpsertSubscriberSubscriptionSeat(_ context.Context, input storage.SubscriberSubscriptionSeatMutation) error {
 	f.seat = input
 	return nil
+}
+func (f *subscriberSubscriptionAdministrationFake) ProcessSubscriberStripeWebhook(_ context.Context, input storage.SubscriberStripeWebhookMutation) (storage.SubscriberBillingWebhookEventRecord, error) {
+	f.stripeWebhook = input
+	return storage.SubscriberBillingWebhookEventRecord{ProviderEventID: input.ProviderEventID, EventType: input.EventType, ProcessingStatus: "processed"}, nil
 }
 
 func TestSubscriberSubscriptionAdministrationFailsClosedWithoutPlatformRole(t *testing.T) {
@@ -100,4 +125,57 @@ func TestSubscriberSubscriptionAdministrationUpdatesProductPolicy(t *testing.T) 
 	if store.product.TenantID != "tenant-local" || store.product.ProductKey != "professional" || store.product.TrialDays != 14 || store.product.ActorSubject != "subscription-admin" || store.product.CorrelationID != "policy-test" {
 		t.Fatalf("unexpected product mutation: %+v", store.product)
 	}
+}
+
+func TestSubscriberSubscriptionAdministrationUpdatesProductBilling(t *testing.T) {
+	store := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store})
+	request := httptest.NewRequest(http.MethodPut, "/v1/administration/subscriptions/products/professional/billing", strings.NewReader(`{"stripe_product_id":"prod_123","stripe_monthly_price_id":"price_m","stripe_annual_price_id":"price_a","correlation_id":"billing-test"}`))
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-local", Subject: "subscription-admin", Roles: map[string]struct{}{roleSubscriptionAdmin: {}}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
+	}
+	if store.productBilling.ProductKey != "professional" || store.productBilling.StripeProductID != "prod_123" || store.productBilling.StripeMonthlyPriceID != "price_m" || store.productBilling.StripeAnnualPriceID != "price_a" {
+		t.Fatalf("unexpected billing mutation: %+v", store.productBilling)
+	}
+}
+
+func TestSubscriberStripeWebhookRequiresValidSignature(t *testing.T) {
+	store := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store, StripeWebhookSecret: "whsec_test"})
+	body := `{"id":"evt_1","type":"customer.subscription.updated","data":{"object":{"id":"sub_123","customer":"cus_123","status":"active","current_period_end":1800000000}}}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/billing/stripe/webhook", strings.NewReader(body))
+	request.Header.Set("Stripe-Signature", stripeTestSignature(body, "whsec_test"))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
+	}
+	if store.stripeWebhook.ProviderEventID != "evt_1" || store.stripeWebhook.StripeSubscriptionID != "sub_123" || store.stripeWebhook.StripeCustomerID != "cus_123" || store.stripeWebhook.Status != storage.SubscriberSubscriptionActive {
+		t.Fatalf("unexpected webhook mutation: %+v", store.stripeWebhook)
+	}
+}
+
+func TestSubscriberStripeWebhookRejectsBadSignature(t *testing.T) {
+	store := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store, StripeWebhookSecret: "whsec_test"})
+	request := httptest.NewRequest(http.MethodPost, "/v1/billing/stripe/webhook", strings.NewReader(`{"id":"evt_bad","type":"invoice.payment_failed","data":{"object":{}}}`))
+	request.Header.Set("Stripe-Signature", "t=1,v1=bad")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", response.Code)
+	}
+	if store.stripeWebhook.ProviderEventID != "" {
+		t.Fatal("invalid signature reached repository")
+	}
+}
+
+func stripeTestSignature(body string, secret string) string {
+	timestamp := time.Now().UTC().Unix()
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(fmt.Sprintf("%d.%s", timestamp, body)))
+	return fmt.Sprintf("t=%d,v1=%s", timestamp, hex.EncodeToString(mac.Sum(nil)))
 }

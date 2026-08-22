@@ -50,6 +50,7 @@ type Config struct {
 	SubscriberSubscriptionsEnabled bool
 	SubscriberListsPilotTenants    string
 	SubscriberListsDatabaseURL     string
+	StripeWebhookSecret            string
 	MarketOpsDatabaseURL           string
 	MarketOpsTemporalDatabaseURL   string
 	// MarketOpsDataBoundaryRequired makes the dedicated MarketOps primary and
@@ -124,6 +125,7 @@ func Load() Config {
 		SubscriberSubscriptionsEnabled: envBool("SIGNALOPS_SUBSCRIPTIONS_ENABLED", defaultSubscriberSubscriptionsEnabled),
 		SubscriberListsPilotTenants:    envOrDefault("SIGNALOPS_SUBSCRIBER_LISTS_PILOT_TENANTS", defaultSubscriberListsPilotTenants),
 		SubscriberListsDatabaseURL:     envOrDefault("SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL", defaultSubscriberListsDatabaseURL),
+		StripeWebhookSecret:            envOrDefault("STRIPE_WEBHOOK_SECRET", ""),
 		MarketOpsDatabaseURL:           envOrDefault("SIGNALOPS_MARKETOPS_DATABASE_URL", ""),
 		MarketOpsTemporalDatabaseURL:   envOrDefault("SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL", ""),
 		MarketOpsDataBoundaryRequired:  envBool("SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED", "false"),

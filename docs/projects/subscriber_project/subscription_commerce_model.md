@@ -67,9 +67,11 @@ The Administration workbench now exposes a real governance view rather than only
 
 This governance surface still does not enable Stripe Checkout, tenant self-service upgrades, provider polling, or subscription enforcement by itself. Enforcement remains controlled by `SIGNALOPS_SUBSCRIPTIONS_ENABLED`, and the gateway remains authoritative for feature checks.
 
+The first Stripe integration slice is admin-managed billing, documented in [Stripe Admin-Managed Billing](stripe_admin_managed_billing.md). It allows platform admins to map Stripe product/customer/subscription IDs and reconcile signed webhooks for known subscriptions only. It does not create a customer checkout path.
+
 ## Stripe boundary
 
-Stripe will be used only for Professional self-service checkout/billing portal and the signed, idempotent webhook ledger. The intended state transition rules are:
+Stripe will first be used as admin-managed billing evidence and signed webhook reconciliation. Later, Professional self-service checkout/billing portal can be added as a separate release. The intended state transition rules are:
 
 1. Checkout/session correlation creates or updates a subject subscription.
 2. A seven-day Professional trial grants access while `trialing`.
@@ -91,7 +93,7 @@ Rollback is one configuration change to `false`. It removes commercial feature e
 
 ## Explicitly deferred work
 
-- Stripe credentials, Checkout, customer portal, webhook verification/reconciliation worker, retry/dead-letter handling, and billing telemetry.
+- Stripe Checkout, customer portal, retry/dead-letter handling, and billing telemetry beyond the admin-managed webhook ledger.
 - Tenant-facing seat-management UI, Stripe price editing, controlled commercial overrides beyond the platform-admin governance boundary, and customer self-service upgrade paths.
 - Research-report generation/storage, portfolio CSV ingestion, batch-screening UI, custom-universe selector, API-key lifecycle, and shared-tenant branding controls.
 - SRI discovery/detail response shaping beyond the current endpoint boundary.

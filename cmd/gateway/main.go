@@ -72,6 +72,7 @@ func main() {
 		SubscriberListsEnabled:         cfg.SubscriberListsEnabled,
 		SubscriberSubscriptionsEnabled: cfg.SubscriberSubscriptionsEnabled,
 		SubscriberListsPilotTenants:    subscriberPilotTenants(cfg.SubscriberListsPilotTenants),
+		StripeWebhookSecret:            cfg.StripeWebhookSecret,
 	}
 	if cfg.SubscriberSubscriptionsEnabled && !cfg.SubscriberListsEnabled {
 		logger.Error("subscription enforcement requires the subscriber catalog gateway database")

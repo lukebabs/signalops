@@ -1,5 +1,21 @@
 # SignalOps Build Journal
 
+## 2026-08-22 — Admin-managed Stripe billing foundation
+
+Summary:
+
+- Added migration `000155_subscriber_admin_stripe_billing` to grant the gateway controlled billing-webhook ledger access, extend webhook processing states with `unmatched`, and allow Stripe reconciliation policies for mapped subscription IDs.
+- Added admin-only product, subject, and tenant Stripe billing mapping endpoints under Subscription Administration.
+- Added signed Stripe webhook endpoint `POST /v1/billing/stripe/webhook` using `STRIPE_WEBHOOK_SECRET`; invalid signatures fail before persistence, and unknown Stripe subscriptions are recorded without creating access.
+- Extended the Administration Subscription UI with product/subject/tenant Stripe mapping forms and a webhook ledger.
+- Documented the admin-managed billing boundary separately from future Checkout/customer-portal work.
+
+Verification:
+
+- `go test ./internal/api ./internal/storage/postgres`
+- `npm --prefix web run build`
+- `bash -n scripts/apply_subscriber_subscription_commerce_migration.sh`
+
 ## 2026-08-22 — Subscriber production documentation split
 
 Summary:

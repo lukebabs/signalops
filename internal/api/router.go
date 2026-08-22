@@ -67,6 +67,7 @@ type RouterConfig struct {
 	SubscriberCatalogMembershipRepository          storage.SubscriberCatalogMembershipRepository
 	SubscriberSubscriptionRepository               storage.SubscriberSubscriptionRepository
 	SubscriberSubscriptionAdministrationRepository storage.SubscriberSubscriptionAdministrationRepository
+	StripeWebhookSecret                            string
 	MarketQuoteClient                              interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}
@@ -110,6 +111,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		registerSubscriberCatalogMembershipRoutes(mux, cfg)
 		registerSubscriberSubscriptionRoutes(mux, cfg)
 		registerSubscriberSubscriptionAdministrationRoutes(mux, cfg)
+		registerSubscriberStripeWebhookRoutes(mux, cfg)
 	}
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

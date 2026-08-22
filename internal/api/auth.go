@@ -147,6 +147,9 @@ func isSubscriptionAdministrator(principal Principal) bool {
 }
 
 func isPublicRoute(r *http.Request) bool {
+	if r.Method == http.MethodPost && r.URL.Path == "/v1/billing/stripe/webhook" {
+		return true
+	}
 	return r.Method == http.MethodGet && (r.URL.Path == "/healthz" || r.URL.Path == "/readyz")
 }
 
