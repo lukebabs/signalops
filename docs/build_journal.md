@@ -1,5 +1,19 @@
 # SignalOps Build Journal
 
+## 2026-08-22 — Stripe persistent unmapped webhook canary
+
+Summary:
+
+- Ran one signed persistent Stripe webhook canary using intentionally unmapped subscription ID `sub_signalops_unmapped_canary_20260822`.
+- Gateway accepted the signed event and persisted one billing webhook ledger row.
+- The webhook resolved to `unmatched`, proving an unknown Stripe subscription does not create SignalOps access.
+
+Verification:
+
+- `scripts/run_stripe_webhook_canary.sh --allow-persistent-ledger` returned provider event `evt_signalops_canary_1787423866` with status `unmatched`.
+- Database verification found one unmatched `subscriber_billing_webhook_events` row for the canary subscription ID.
+- Database verification found `0` subject subscription matches and `0` tenant subscription matches for the canary subscription ID.
+
 ## 2026-08-22 — Stripe Explorer and Professional product mapping
 
 Summary:
