@@ -1,5 +1,32 @@
 # SignalOps Build Journal
 
+## 2026-08-22 — FMP annual recurring timer activated
+
+Summary:
+
+- Closed the deployment-agent reprovision blocker and activated the selected FMP annual recurring schedule.
+- Live `scheduler-status` now includes the warm-EOD and FMP annual scheduled-service rows.
+- FMP annual financial timer is active with next run at Saturday, August 29, 2026 06:30 UTC / 02:30 America/New_York.
+
+Evidence:
+
+```text
+timer=signalops-marketops-boundary-fmp-annual-financial.timer load=loaded active=active next=Sat 2026-08-29 06:30:00 UTC
+service=signalops-marketops-boundary-schedule@marketops-warm-eod.service load=loaded active=inactive result=success
+service=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service load=loaded active=inactive result=success
+```
+
+Files changed:
+
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/projects/subscriber_project/pr0_pr1_postclose_closure_evidence_2026-08-22.md`
+- `docs/projects/subscriber_project/pr4_production_expansion_controls_2026-08-21.md`
+- `docs/build_journal.md`
+
+Next evidence point:
+
+- Observe the first natural FMP annual run on Saturday, August 29, 2026 at 02:30 ET and verify Admin Operations Health reflects coverage/degradation status.
+
 ## 2026-08-22T06:15:00Z
 
 Summary:

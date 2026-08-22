@@ -240,3 +240,17 @@ scripts/run_subscription_admin_ui_smoke.sh
 scripts/run_subscriber_access_control_ui_smoke.sh
 1 passed in 3.59s
 ```
+
+## Live activation completed — FMP annual recurring timer
+
+The root-owned deployment agent was reprovisioned from the current repository source, installing the constrained FMP annual actions and the expanded scheduler-status service list.
+
+Live scheduler status showed:
+
+```text
+timer=signalops-marketops-boundary-fmp-annual-financial.timer load=loaded active=active next=Sat 2026-08-29 06:30:00 UTC
+service=signalops-marketops-boundary-schedule@marketops-warm-eod.service load=loaded active=inactive result=success
+service=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service load=loaded active=inactive result=success
+```
+
+This closes the FMP annual recurring activation blocker. The next PR-4 evidence point is the first natural scheduled FMP annual run on Saturday, August 29, 2026 at 02:30 America/New_York, with Admin Operations Health expected to expose freshness, task coverage, and any degraded-symbol reasons.

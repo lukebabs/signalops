@@ -74,6 +74,6 @@ PR-1 is closed because Admin Operations Health is browser-verified and the under
 
 ## Remaining non-blocking items
 
-- The installed root-owned deployment agent still needs to be reprovisioned from source commit `571f34a` so `scheduler-status` includes the new warm-EOD and FMP service rows. Attempting `sudo -n ./scripts/provision_signalops_deployment_agent.sh adminalien` returned `sudo: a password is required`, so this is a host-control action.
-- The FMP annual financial timer remains inactive until the selected weekly Saturday 02:30 ET recurring cadence is activated.
+- The deployment agent was subsequently reprovisioned and live `scheduler-status` now includes warm-EOD and FMP service rows.
+- The FMP annual financial timer was subsequently activated for the selected weekly Saturday 02:30 ET cadence. First natural run is Saturday, August 29, 2026 at 06:30 UTC.
 - PR-3 remains deferred by accepted product risk; current backup/restore evidence was intentionally not refreshed in this cycle.

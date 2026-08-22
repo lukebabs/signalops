@@ -22,7 +22,7 @@ Production readiness is still blocked by expansion and recovery-evidence gaps. T
 | Intraday freshness | Ready / market-idle | Latest intraday snapshot was 2026-08-21 22:15 UTC with 132 tenant-local symbols. Saturday, August 22 has no EOD/intraday trading session. |
 | Scheduled jobs | Ready for pilot scope | `scheduler-status` returned clean after the August 21 post-close window. Daily post-close, Risk/Reward, recovery, SRI, holdings, and intraday completed successfully. Warm EOD returned governed `degraded` with `bounded_provider_gap`. |
 | Daily post-close | Closed for PR-0 | The August 21 post-close cycle completed without requiring stale-systemd reconciliation. |
-| FMP annual financial job | Policy selected / PR-4 | Option B selected: weekly Saturday 02:30 ET recurring capture. Source includes constrained deployment-agent enable/disable actions, but live timer activation still requires deployment-agent reprovision because `sudo -n ./scripts/provision_signalops_deployment_agent.sh adminalien` required a password. |
+| FMP annual financial job | Active / observing | Option B selected and activated: weekly Saturday 02:30 ET recurring capture. Live scheduler status shows `signalops-marketops-boundary-fmp-annual-financial.timer active=active next=Sat 2026-08-29 06:30:00 UTC`. |
 | Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. |
@@ -71,7 +71,7 @@ These are required before expanding beyond tightly controlled users.
 
 5. **Admin operations status control**
    - Status: closed for the current pilot path after Admin Operations Health and Dashboard freshness browser smokes passed.
-   - Remaining expansion: install the latest deployment-agent source so `scheduler-status` also lists the new warm-EOD and FMP service rows.
+   - Deployment-agent expansion is now installed: `scheduler-status` lists warm-EOD and FMP scheduled-service rows.
    - Acceptance evidence:
      - Admin can see core job/data freshness without shell access.
      - Run-now uses constrained deployment-agent actions, not broad shell access.
@@ -228,10 +228,9 @@ Each production-readiness review should record:
 
 Move to the remaining PR-4/production-expansion work:
 
-1. Reprovision the root-owned deployment agent from commit `571f34a` so live `scheduler-status` includes the new warm-EOD and FMP scheduled-service rows.
-2. Activate and verify the selected FMP annual weekly Saturday 02:30 ET recurring timer.
-3. Decide whether to refresh PR-3 backup/restore evidence before wider paid pilot expansion.
-4. Continue monitor-cadence hardening so operations-monitor checks do not produce avoidable transient failures during long post-close/recovery windows.
+1. Observe the first scheduled FMP annual run on Saturday, August 29, 2026 at 02:30 ET / 06:30 UTC and verify task coverage/degradation reporting.
+2. Decide whether to refresh PR-3 backup/restore evidence before wider paid pilot expansion.
+3. Continue monitor-cadence hardening so operations-monitor checks do not produce avoidable transient failures during long post-close/recovery windows.
 
 ## 2026-08-21 05:17 UTC readiness update
 
@@ -246,7 +245,7 @@ Move to the remaining PR-4/production-expansion work:
 - Investigated the apparent Aug 20 freshness drift. Dashboard, Market State, Risk/Reward, SRI, SAF, and intraday all had Aug 20 completed-session evidence for the tenant-local 132-asset scope.
 - Identified the real failed job as `marketops-warm-eod`: Aug 20 warm EOD normalized 997/1000 symbols and failed strict completion because provider no-bar responses were returned for a small number of symbols.
 - Source fix: warm EOD now returns a governed `degraded` result for bounded provider gaps (`MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS`, default `5`) and records the missing symbols in output instead of leaving systemd in a hard failed state for small no-bar gaps.
-- Source fix: scheduler-status now includes `marketops-warm-eod` and FMP annual scheduled services, and Admin Scheduled Jobs exposes `MarketOps warm EOD baseline`. The installed root-owned deployment agent still needs reprovisioning before the new scheduler-status service list is live there.
+- Source fix: scheduler-status now includes `marketops-warm-eod` and FMP annual scheduled services, and Admin Scheduled Jobs exposes `MarketOps warm EOD baseline`. The installed root-owned deployment agent has now been reprovisioned and the new scheduler-status service list is live.
 - Source/live gateway fix: Admin Operations Health now labels the row as `Assets analytical coverage`, uses current Market State evidence for the selected assets instead of one-time coverage activation metadata, treats after-hours intraday as market-idle current when the latest completed-session evidence is present, and adds explicit provenance notes for SRI/SAF as-of timestamps.
 - Live gateway deployment completed and verified: `signalops_public_production_deploy_verified`, deployment smoke `2 passed`, `/readyz` returned `200`, Subscription/Admin smoke `3 passed`, and subscriber access-control smoke `1 passed`.
 
@@ -261,3 +260,15 @@ Move to the remaining PR-4/production-expansion work:
 - Market State and Risk/Reward aligned to the 2026-08-21 session with 132/132 symbols. SRI aligned to the 2026-08-21 session with 16 segments. Intraday had 132 symbols at `2026-08-21 22:15:00 UTC`.
 - A run-now operations-monitor check completed successfully at `2026-08-22 06:07:24 UTC`.
 - PR-0 and PR-1 are closed for the current pilot-readiness path.
+
+## 2026-08-22 FMP recurring activation update
+
+- The root-owned deployment agent was reprovisioned from the current source, and live `scheduler-status` now includes the warm-EOD and FMP annual scheduled-service rows.
+- The FMP annual financial recurring timer is active:
+
+```text
+timer=signalops-marketops-boundary-fmp-annual-financial.timer load=loaded active=active next=Sat 2026-08-29 06:30:00 UTC
+service=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service load=loaded active=inactive result=success
+```
+
+- This closes the PR-4 activation blocker. The next evidence point is the first natural scheduled FMP annual run on Saturday, August 29, 2026 at 02:30 America/New_York.
