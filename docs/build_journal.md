@@ -1,5 +1,27 @@
 # SignalOps Build Journal
 
+## 2026-08-22 — Stripe mapped webhook reconciliation canary
+
+Summary:
+
+- Ran the approved persistent mapped Stripe webhook canary for tenant `tenant-pilot-b` and pilot subject `2f437ac3-2cfc-4fe9-b943-198185b4797b`.
+- The canary used mapped Stripe IDs `cus_signalops_mapped_canary_20260822` and `sub_signalops_mapped_canary_20260822`.
+- Fixed the production reconciliation path so Stripe webhooks can update mapped subscriptions while preserving tenant-scoped audit evidence under RLS.
+- Root causes corrected:
+  - Stripe webhook reconciliation inserted audit evidence without setting the matched tenant scope.
+  - The audit insert ran while the reconciliation cursor was still open.
+  - PostgreSQL could not infer one webhook audit parameter type without explicit text casts.
+- Gateway was redeployed through the constrained deployment agent after the fix.
+
+Verification:
+
+- `sudo -n signalops-deploy-agent signalops-production-gateway-deploy` returned `signalops_public_production_deploy_verified` and deployment smoke `2 passed`.
+- `SIGNALOPS_STRIPE_CANARY_SUBSCRIPTION_ID=sub_signalops_mapped_canary_20260822 SIGNALOPS_STRIPE_CANARY_CUSTOMER_ID=cus_signalops_mapped_canary_20260822 scripts/run_stripe_webhook_canary.sh --allow-persistent-ledger` returned `{"event_type":"customer.subscription.updated","provider_event_id":"evt_signalops_canary_1787425181","status":"processed"}`.
+- Database verification found one processed webhook ledger row for `evt_signalops_canary_1787425181`.
+- Database verification found the pilot subject subscription updated to `status=active`, `provisioned_by=stripe-webhook`, and `correlation_id=evt_signalops_canary_1787425181`.
+- Database verification found one `stripe_subscription_reconciled` audit row scoped to `tenant-pilot-b`.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed`.
+
 ## 2026-08-22 — Stripe persistent unmapped webhook canary
 
 Summary:

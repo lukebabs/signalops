@@ -1,6 +1,6 @@
 # Stripe Admin-Managed Billing
 
-Status: implementation slice added on 2026-08-22; migration `000155_subscriber_admin_stripe_billing` is applied and the Administration UI is live. Production webhook activation still requires `STRIPE_WEBHOOK_SECRET` in the gateway runtime and controlled signed-webhook validation.
+Status: implementation slice added on 2026-08-22; migration `000155_subscriber_admin_stripe_billing` is applied, the Administration UI is live, `STRIPE_WEBHOOK_SECRET` is injected into the gateway runtime, and controlled signed-webhook validation has passed for both unmapped and mapped subscriptions.
 
 ## Purpose
 
@@ -75,6 +75,13 @@ scripts/run_stripe_webhook_canary.sh --allow-persistent-ledger
 ```
 
 That command creates or reuses one Stripe webhook ledger row. Use an intentionally unmapped `SIGNALOPS_STRIPE_CANARY_SUBSCRIPTION_ID` to prove unknown subscriptions become `unmatched`, or use a mapped subscription ID to prove reconciliation updates a known local subscription.
+
+Current production canary evidence:
+
+- Unmapped subscription canary `sub_signalops_unmapped_canary_20260822` resolved to `unmatched` and created no subject or tenant access.
+- Mapped pilot canary `sub_signalops_mapped_canary_20260822` resolved to `processed` under provider event `evt_signalops_canary_1787425181`.
+- The mapped canary updated tenant `tenant-pilot-b`, subject `2f437ac3-2cfc-4fe9-b943-198185b4797b`, to `status=active`, `provisioned_by=stripe-webhook`.
+- The mapped canary created `stripe_subscription_reconciled` audit evidence scoped to `tenant-pilot-b`.
 
 ## Stripe Tax note
 
