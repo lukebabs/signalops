@@ -536,7 +536,7 @@ func (r *Repository) insertSubscriberStripeWebhookSubjectAudits(ctx context.Cont
 		if _, err := tx.ExecContext(ctx, `SELECT set_config('signalops.tenant_id', $1, true)`, tenantID); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO subscriber_subscription_audit_events(audit_id, tenant_id, subject, subscription_id, actor_subject, event_type, after_state, correlation_id) SELECT $1, tenant_id, subject, subscription_id, 'stripe-webhook', 'stripe_subscription_reconciled', jsonb_build_object('event_type',$2,'status',$3,'stripe_subscription_id',$4), $5 FROM subscriber_subject_subscriptions WHERE stripe_subscription_id=$4 AND tenant_id=$6`, newSubscriberID("subaudit"), input.EventType, input.Status, input.StripeSubscriptionID, input.ProviderEventID, tenantID); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO subscriber_subscription_audit_events(audit_id, tenant_id, subject, subscription_id, actor_subject, event_type, after_state, correlation_id) SELECT $1, tenant_id, subject, subscription_id, 'stripe-webhook', 'stripe_subscription_reconciled', jsonb_build_object('event_type',$2::text,'status',$3::text,'stripe_subscription_id',$4::text), $5 FROM subscriber_subject_subscriptions WHERE stripe_subscription_id=$4::text AND tenant_id=$6::text`, newSubscriberID("subaudit"), input.EventType, input.Status, input.StripeSubscriptionID, input.ProviderEventID, tenantID); err != nil {
 			return err
 		}
 	}
@@ -552,7 +552,7 @@ func (r *Repository) insertSubscriberStripeWebhookTenantAudits(ctx context.Conte
 		if _, err := tx.ExecContext(ctx, `SELECT set_config('signalops.tenant_id', $1, true)`, tenantID); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO subscriber_subscription_audit_events(audit_id, tenant_id, subject, subscription_id, actor_subject, event_type, after_state, correlation_id) SELECT $1, tenant_id, '', subscription_id, 'stripe-webhook', 'stripe_subscription_reconciled', jsonb_build_object('event_type',$2,'status',$3,'stripe_subscription_id',$4), $5 FROM subscriber_tenant_subscriptions WHERE stripe_subscription_id=$4 AND tenant_id=$6`, newSubscriberID("subaudit"), input.EventType, input.Status, input.StripeSubscriptionID, input.ProviderEventID, tenantID); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO subscriber_subscription_audit_events(audit_id, tenant_id, subject, subscription_id, actor_subject, event_type, after_state, correlation_id) SELECT $1, tenant_id, '', subscription_id, 'stripe-webhook', 'stripe_subscription_reconciled', jsonb_build_object('event_type',$2::text,'status',$3::text,'stripe_subscription_id',$4::text), $5 FROM subscriber_tenant_subscriptions WHERE stripe_subscription_id=$4::text AND tenant_id=$6::text`, newSubscriberID("subaudit"), input.EventType, input.Status, input.StripeSubscriptionID, input.ProviderEventID, tenantID); err != nil {
 			return err
 		}
 	}
