@@ -1,5 +1,19 @@
 # SignalOps Build Journal
 
+## 2026-08-22 — Subscriber production documentation split
+
+Summary:
+
+- Added a user-centric MarketOps Subscriber User Guide for pilot users, tenant administrators, and platform administrators.
+- Added a production engineering handbook that consolidates source-of-truth, scheduler/job controls, post-close completion, EROC projection acceptance, access/subscription controls, and readiness validation.
+- Linked both documents from the Subscriber Project index so future project work can update user-facing and engineering-facing documentation separately.
+
+Files changed:
+
+- `docs/projects/subscriber_project/marketops_subscriber_user_guide.md`
+- `docs/projects/subscriber_project/marketops_production_engineering_handbook.md`
+- `docs/projects/subscriber_project/README.md`
+
 ## 2026-08-22 — EROC global projection catch-up and permanent post-close hook
 
 Summary:
