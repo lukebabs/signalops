@@ -1,8 +1,8 @@
 # Subscriber Project — Production Readiness Path
 
-Status: paused at controlled pilot-ready checkpoint pending the next natural post-close acceptance window.
+Status: controlled pilot-ready checkpoint advanced; PR-0 and PR-1 are closed after the August 21, 2026 ET post-close acceptance cycle.
 
-Last reviewed: 2026-08-21.
+Last reviewed: 2026-08-22.
 
 ## Readiness position
 
@@ -10,19 +10,19 @@ The Subscriber Project is **controlled pilot-ready**, not full external producti
 
 The current platform has enough structure to keep validating with controlled tenants and named approvals: dedicated MarketOps databases are live, web and gateway are serving, SAF viability analytics are visible, and the global-data projection work has advanced materially.
 
-Production readiness is still blocked by operational consistency gaps. The most important blocker is not feature breadth; it is the ability to prove every scheduled job completed, every view refreshed from the same authoritative MarketOps data plane, and every access/subscription decision was enforced consistently.
+Production readiness is still blocked by expansion and recovery-evidence gaps. The core operational-consistency loop for the tenant-local pilot scope has now passed one natural post-close acceptance cycle after the MarketOps database decoupling.
 
-## Current evidence snapshot — 2026-08-21
+## Current evidence snapshot — 2026-08-22
 
 | Area | Status | Evidence / gap |
 | --- | --- | --- |
-| Web and Gateway availability | Ready | `signalops-web-1` and `signalops-gateway-1` were running; public `/readyz` returned `200`; public `/marketops/signal-assurance` returned `200`. |
+| Web and Gateway availability | Ready | Public `/readyz` returned `200`; Admin, access-control, and Dashboard freshness Playwright smokes passed. |
 | Dedicated MarketOps data boundary | Ready | `signalops-marketops-postgres-1` and `signalops-marketops-timescaledb-1` were healthy. MarketOps is intended to read/write the dedicated MarketOps databases, not the old shared MarketOps tables. |
-| Completed-session global data | Mostly ready | SAF, SRI, Market State, and Risk/Reward global projections showed latest completed-session data for 2026-08-20. |
-| Intraday freshness | Schedule-ready, market-idle | Latest intraday snapshot was 2026-08-20 22:15 UTC. At the review time, no 2026-08-21 market-session intraday data was expected yet. |
-| Scheduled jobs | Ready / observing | `scheduler-status` returned clean on 2026-08-21 05:17 UTC. The next acceptance point is the natural 2026-08-21 post-close cycle. |
-| Daily post-close | Observing | The stale failed systemd state was reconciled only after dedicated MarketOps DB evidence showed recovered completion. The next eligible post-close cycle must complete without manual reconcile before PR-0/PR-1 exit is final. |
-| FMP annual financial job | Policy selected / PR-4 | Option B selected: weekly Saturday 02:30 ET recurring capture. Source now includes constrained deployment-agent enable/disable actions; live timer activation requires deploying/reprovisioning the agent and verifying scheduler status. |
+| Completed-session global data | Ready for pilot scope | Market State and Risk/Reward showed 132/132 tenant-local symbols for the 2026-08-21 session; SRI showed 16/16 segments for 2026-08-21; SAF matured evidence remains governed by the configured maturation window. |
+| Intraday freshness | Ready / market-idle | Latest intraday snapshot was 2026-08-21 22:15 UTC with 132 tenant-local symbols. Saturday, August 22 has no EOD/intraday trading session. |
+| Scheduled jobs | Ready for pilot scope | `scheduler-status` returned clean after the August 21 post-close window. Daily post-close, Risk/Reward, recovery, SRI, holdings, and intraday completed successfully. Warm EOD returned governed `degraded` with `bounded_provider_gap`. |
+| Daily post-close | Closed for PR-0 | The August 21 post-close cycle completed without requiring stale-systemd reconciliation. |
+| FMP annual financial job | Policy selected / PR-4 | Option B selected: weekly Saturday 02:30 ET recurring capture. Source includes constrained deployment-agent enable/disable actions, but live timer activation still requires deployment-agent reprovision because `sudo -n ./scripts/provision_signalops_deployment_agent.sh adminalien` required a password. |
 | Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. |
@@ -35,13 +35,12 @@ Production readiness is still blocked by operational consistency gaps. The most 
 These must close before wider pilot or paid production.
 
 1. **Daily post-close must end cleanly**
-   - Fix the current service failure where completed core evidence is followed by fatal SRI canonical-normalization failure.
-   - Either make SRI normalization complete from persisted canonical inputs without provider polling, or classify missing optional normalization as a warning while preserving explicit admin evidence.
-   - Acceptance:
-     - `sudo -n signalops-deploy-agent scheduler-status` returns clean status.
-     - The next eligible post-close run exits successfully.
-     - Admin status shows the job result, timestamps, and any warnings.
-     - Dashboard, Market State, Risk/Reward, SRI, and SAF read the same completed market session.
+   - Status: closed for the current pilot path after the August 21, 2026 ET post-close acceptance cycle.
+   - Evidence:
+     - `sudo -n signalops-deploy-agent scheduler-status` returned clean tracked service state.
+     - The next eligible post-close run exited successfully without another stale-systemd reconcile.
+     - Dedicated MarketOps status rows showed job result, timestamps, and the governed `marketops-warm-eod` bounded-provider-gap warning.
+     - Market State, Risk/Reward, SRI, and intraday aligned to the August 21 completed session; SAF remained consistent with its configured maturation window.
 
 2. **Scheduler/data-plane contract must be uniform**
    - Every MarketOps scheduled job must load the same dedicated MarketOps database configuration and write status to the dedicated MarketOps operations tables.
@@ -71,9 +70,10 @@ These are required before expanding beyond tightly controlled users.
      - Subscription enforcement can be enabled, tested, and restored without residue.
 
 5. **Admin operations status control**
-   - Make job health, data freshness, and recovery controls visible in Admin Workbench.
-   - Acceptance:
-     - Admin can see each job's last run, next run, result, data session, row counts, warning/error reason, and run-now eligibility.
+   - Status: closed for the current pilot path after Admin Operations Health and Dashboard freshness browser smokes passed.
+   - Remaining expansion: install the latest deployment-agent source so `scheduler-status` also lists the new warm-EOD and FMP service rows.
+   - Acceptance evidence:
+     - Admin can see core job/data freshness without shell access.
      - Run-now uses constrained deployment-agent actions, not broad shell access.
 
 6. **Backup and restore re-verification**
@@ -132,7 +132,11 @@ Exit:
 Implementation note — 2026-08-21:
 
 - The approved `marketops-postclose-systemd-reconcile` deployment-agent action was added in source. It is intentionally narrow: it resets stale failed post-close systemd state only after the dedicated MarketOps database proves post-close, recovery, Risk/Reward, and SRI status are in allowed recovered states. It does not make `scheduler-status` ignore real failures.
-- Live evidence now shows the stale `marketops-daily-postclose` systemd failure was reconciled and `scheduler-status` returned clean service states. This closes the stale-state cleanup, but PR-0 still requires the next eligible post-close cycle to complete with `result=success` without needing reconcile.
+- Live evidence now shows the stale `marketops-daily-postclose` systemd failure was reconciled and `scheduler-status` returned clean service states.
+
+Implementation note — 2026-08-22:
+
+- The next eligible post-close cycle completed without requiring another stale-systemd reconcile. `marketops-daily-postclose`, `marketops-risk-reward`, `marketops-postclose-recovery`, `marketops-sri-refresh`, `marketops-sri-holdings-refresh`, and `marketops-intraday` succeeded. `marketops-warm-eod` returned the expected governed `degraded` state for a bounded provider no-bar gap. PR-0 is closed for the current pilot path.
 
 ### Sprint PR-1 — Make operations visible
 
@@ -149,7 +153,7 @@ Exit:
 Implementation note — 2026-08-21:
 
 - The first source slice added read-only data-freshness visibility to the Administration operations-health API and Admin Workbench for Dashboard alignment, Market State, Risk/Reward, SRI, SAF, and Intraday.
-- The follow-on source slice added Assets coverage and FMP annual financial workflow freshness. PR-1 source coverage is now complete. Browser acceptance is automated and passed through `scripts/run_subscription_admin_ui_smoke.sh`; final live exit still requires post-close freshness evidence from the next eligible scheduled cycle.
+- The follow-on source slice added Assets analytical coverage and FMP annual financial workflow freshness. PR-1 source coverage is now complete. Browser acceptance is automated and passed through `scripts/run_subscription_admin_ui_smoke.sh`.
 
 ### Sprint PR-2 — Harden access and subscriptions
 
@@ -222,17 +226,12 @@ Each production-readiness review should record:
 
 ## Next recommended action
 
-Pause active implementation until the next natural post-close acceptance window completes for the Friday, August 21, 2026 ET trading session. The SRI timers occur after midnight UTC on Saturday, August 22, 2026, but they still belong to the August 21 ET trading session; August 22 is not a separate EOD trading day.
+Move to the remaining PR-4/production-expansion work:
 
-Acceptance window to observe:
-
-- Warm EOD: 2026-08-21 18:00 ET / 22:00 UTC.
-- Daily post-close: 2026-08-21 18:01:55 ET / 22:01:55 UTC.
-- Post-close recovery guard: starts 2026-08-21 18:30 ET / 22:30 UTC.
-- SRI refresh: 2026-08-21 20:07 ET / 2026-08-22 00:07 UTC.
-- SRI holdings refresh: 2026-08-21 20:20 ET / 2026-08-22 00:20 UTC.
-
-After the window, run `sudo -n signalops-deploy-agent scheduler-status` and verify Dashboard, Assets analytical coverage, Market State, Risk/Reward, SRI, SAF, and Admin Operations Health align to the same latest completed session. If they align without manual reconcile, close PR-0/PR-1. PR-2 access/subscription hardening is closed for the configured QA identities. PR-3 is deferred by accepted risk. PR-4 source controls are in place, with FMP recurring activation pending deployment-agent reprovision. If the EOD cycle fails, treat the failure as the highest-priority production blocker.
+1. Reprovision the root-owned deployment agent from commit `571f34a` so live `scheduler-status` includes the new warm-EOD and FMP scheduled-service rows.
+2. Activate and verify the selected FMP annual weekly Saturday 02:30 ET recurring timer.
+3. Decide whether to refresh PR-3 backup/restore evidence before wider paid pilot expansion.
+4. Continue monitor-cadence hardening so operations-monitor checks do not produce avoidable transient failures during long post-close/recovery windows.
 
 ## 2026-08-21 05:17 UTC readiness update
 
@@ -250,3 +249,15 @@ After the window, run `sudo -n signalops-deploy-agent scheduler-status` and veri
 - Source fix: scheduler-status now includes `marketops-warm-eod` and FMP annual scheduled services, and Admin Scheduled Jobs exposes `MarketOps warm EOD baseline`. The installed root-owned deployment agent still needs reprovisioning before the new scheduler-status service list is live there.
 - Source/live gateway fix: Admin Operations Health now labels the row as `Assets analytical coverage`, uses current Market State evidence for the selected assets instead of one-time coverage activation metadata, treats after-hours intraday as market-idle current when the latest completed-session evidence is present, and adds explicit provenance notes for SRI/SAF as-of timestamps.
 - Live gateway deployment completed and verified: `signalops_public_production_deploy_verified`, deployment smoke `2 passed`, `/readyz` returned `200`, Subscription/Admin smoke `3 passed`, and subscriber access-control smoke `1 passed`.
+
+## 2026-08-22 06:15 UTC post-close closure update
+
+- Public `/readyz` returned `200`.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed`.
+- `scripts/run_subscriber_access_control_ui_smoke.sh` passed: `1 passed`.
+- `scripts/run_marketops_dashboard_freshness_ui_smoke.sh` passed: `1 passed`.
+- `sudo -n signalops-deploy-agent scheduler-status` returned clean tracked service state.
+- Dedicated MarketOps status rows showed the August 21 post-close chain completed: daily post-close, Risk/Reward, post-close recovery, SRI refresh, SRI holdings refresh, and intraday succeeded. Warm EOD reported governed `degraded` with `bounded_provider_gap`.
+- Market State and Risk/Reward aligned to the 2026-08-21 session with 132/132 symbols. SRI aligned to the 2026-08-21 session with 16 segments. Intraday had 132 symbols at `2026-08-21 22:15:00 UTC`.
+- A run-now operations-monitor check completed successfully at `2026-08-22 06:07:24 UTC`.
+- PR-0 and PR-1 are closed for the current pilot-readiness path.

@@ -1,5 +1,42 @@
 # SignalOps Build Journal
 
+## 2026-08-22T06:15:00Z
+
+Summary:
+
+- Closed the PR-0/PR-1 post-close acceptance loop using the Friday, August 21, 2026 ET completed-session evidence.
+- Verified the live scheduler/status path after the recent runs and confirmed the current operations monitor run-now check succeeded.
+- Added durable closure evidence for PR-0/PR-1 and updated the production-readiness path.
+
+Files changed:
+
+- `docs/projects/subscriber_project/pr0_scheduler_reconcile_evidence_2026-08-21.md`
+- `docs/projects/subscriber_project/pr0_pr1_postclose_closure_evidence_2026-08-22.md`
+- `docs/projects/subscriber_project/pr1_admin_operations_visibility_2026-08-21.md`
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- The August 21 post-close cycle was the time-gated acceptance point for closing PR-0 and PR-1 after the MarketOps database decoupling and operations-freshness fixes.
+
+Evidence:
+
+- Public `/readyz` returned `200`.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed`.
+- `scripts/run_subscriber_access_control_ui_smoke.sh` passed: `1 passed`.
+- `scripts/run_marketops_dashboard_freshness_ui_smoke.sh` passed: `1 passed`.
+- `sudo -n signalops-deploy-agent scheduler-status` returned clean tracked service state.
+- Dedicated MarketOps job-status rows showed daily post-close, Risk/Reward, post-close recovery, SRI refresh, SRI holdings refresh, and intraday succeeded for the August 21 acceptance window.
+- Warm EOD reported governed `degraded` with `bounded_provider_gap`, matching the new bounded provider-gap policy.
+- Market State and Risk/Reward aligned to the 2026-08-21 session with 132 symbols; SRI aligned to 16 segments; intraday had 132 symbols at `2026-08-21 22:15:00 UTC`.
+
+Remaining:
+
+- Reprovision the root-owned deployment agent from source commit `571f34a`; the attempted non-interactive install returned `sudo: a password is required`.
+- Activate the selected FMP annual Saturday 02:30 ET recurring timer after deployment-agent reprovision.
+- PR-3 backup/restore re-verification remains deferred by accepted product risk.
+
 ## 2026-08-21T07:05:00Z
 
 Summary:

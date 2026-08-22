@@ -1,6 +1,6 @@
 # PR-1 Admin Operations Visibility — 2026-08-21
 
-Status: implemented, deployed, and browser-verified; awaiting next natural post-close freshness evidence for full PR-1 exit.
+Status: closed after the August 21, 2026 ET post-close acceptance cycle.
 
 ## Scope
 
@@ -13,7 +13,7 @@ The Administration operations-health API now returns a read-only `data_freshness
 The freshness table covers:
 
 - Dashboard — derived completed-session alignment across Market State, Risk/Reward, Sector Rotation Intelligence, and Signal Assurance.
-- Assets coverage — active tenant-local symbols with active global EOD baseline coverage.
+- Assets analytical coverage — active tenant-local selected symbols with current Market State analytical evidence.
 - Market State — latest global Market State projection session and row count.
 - Risk/Reward — latest global Risk/Reward projection session and row count.
 - Sector Rotation Intelligence — latest platform-global SRI snapshot session and active segment count.
@@ -96,10 +96,7 @@ https://signalops.syncratic.io/marketops/admin
 2 passed in 5.83s
 ```
 
-Remaining live verification:
-
-- Log in as `luke@strategiclabs.io` and confirm Admin Workbench renders the data-freshness table under MarketOps Operations Health.
-- Confirm rows are present for Dashboard, Assets coverage, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, Intraday conditions, and FMP annual financials.
+This route-level evidence was superseded by the automated Admin Workbench smoke and August 21 post-close acceptance evidence below.
 
 
 ## Assets and FMP extension
@@ -162,3 +159,37 @@ scripts/run_subscription_admin_ui_smoke.sh
 2 passed in 2.29s
 ```
 
+
+## 2026-08-22 post-close closure evidence
+
+The August 21, 2026 ET post-close acceptance window completed and was verified on August 22, 2026 UTC.
+
+Browser and API evidence:
+
+```text
+curl -fsS https://signalops.syncratic.io/readyz
+{"service":"signalops-gateway","status":"ready","time":"2026-08-22T06:04:44Z"}
+
+scripts/run_subscription_admin_ui_smoke.sh
+3 passed in 3.26s
+
+scripts/run_subscriber_access_control_ui_smoke.sh
+1 passed in 3.83s
+
+scripts/run_marketops_dashboard_freshness_ui_smoke.sh
+1 passed in 5.08s
+marketops_dashboard_freshness_ui_smoke_passed
+```
+
+Dedicated MarketOps ledgers aligned to the August 21, 2026 ET completed session:
+
+```text
+Market State  2026-08-21  132 symbols  latest_as_of=2026-08-21 22:04:31 UTC
+Risk/Reward   2026-08-21  132 symbols  latest_observed=2026-08-21 22:19:58 UTC
+SRI           2026-08-21   16 segments
+Intraday      2026-08-21  132 symbols  latest_snapshot=2026-08-21 22:15:00 UTC
+```
+
+Scheduler/job-status evidence showed `marketops-daily-postclose`, `marketops-risk-reward`, `marketops-postclose-recovery`, `marketops-sri-refresh`, `marketops-sri-holdings-refresh`, and `marketops-intraday` succeeded for the acceptance window. `marketops-warm-eod` reported the expected governed `degraded` state for a bounded provider gap.
+
+PR-1 is closed for the current pilot-readiness path. FMP recurring activation remains tracked under PR-4, not PR-1.
