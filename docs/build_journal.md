@@ -1,5 +1,37 @@
 # SignalOps Build Journal
 
+## 2026-08-22 — EROC global projection catch-up and permanent post-close hook
+
+Summary:
+
+- Root cause: the EROC algorithm was current in `marketops_valuation_results`, but `subscriber_gateway_global_eroc_results` stopped advancing after `2026-08-14` because post-close did not project `valuation` evidence into the subscriber global evidence store.
+- Performed an append-only dedicated MarketOps catch-up for `2026-08-17` through `2026-08-21`: 660 EROC records, 132 symbols per trading session, no provider polling, no source-row mutation.
+- Extended `scripts/marketops_global_dashboard_projection.sh` so the existing post-close global projection gate now materializes only `signalops.algorithms.eroc_v6` valuation evidence and verifies global EROC symbol coverage against the tenant-local source for the same session.
+
+Evidence:
+
+```text
+source_eroc 2026-08-21 132
+global_eroc 2026-08-21 132
+source_eroc 2026-08-20 132
+global_eroc 2026-08-20 132
+source_eroc 2026-08-19 132
+global_eroc 2026-08-19 132
+source_eroc 2026-08-18 132
+global_eroc 2026-08-18 132
+source_eroc 2026-08-17 132
+global_eroc 2026-08-17 132
+```
+
+Verification:
+
+- `bash -n scripts/marketops_global_dashboard_projection.sh scripts/marketops_daily_postclose.sh`
+- Read-only dedicated MarketOps DB source/global EROC coverage comparison.
+
+Remaining:
+
+- Confirm the first natural trading-day post-close after this change appends EROC through the standard parity manifest/materializer path.
+
 ## 2026-08-22 — Review Queue stale EROC evidence guard
 
 Summary:
@@ -27,7 +59,7 @@ Verification:
 
 Remaining:
 
-- EROC itself still needs a dedicated refresh/pipeline remediation so the EROC view and Review Queue can include current reversal evidence again.
+- EROC projection catch-up and permanent post-close materialization hook were completed later on 2026-08-22; next validation is the first natural trading-day post-close run.
 
 ## 2026-08-22 — FMP annual recurring timer activated
 

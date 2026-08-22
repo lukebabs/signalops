@@ -273,9 +273,11 @@ service=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.ser
 
 - This closes the PR-4 activation blocker. The next evidence point is the first natural scheduled FMP annual run on Saturday, August 29, 2026 at 02:30 America/New_York.
 
-## 2026-08-22 Review Queue freshness note
+## 2026-08-22 Review Queue / EROC projection closure
 
 - Review Queue stale-date investigation found the composite queue was surfacing stale EROC reversal evidence from `subscriber_gateway_global_eroc_results`, whose latest session was `2026-08-14`.
-- Active opportunities and Risk/Reward evidence were current through `2026-08-21`.
-- The UI now guards Review Queue EROC admission to the latest queue evidence date so stale EROC rows do not appear as current last-signal evidence.
-- Remaining production-readiness item: remediate the EROC projection refresh path so EROC evidence itself advances beyond August 14.
+- The EROC algorithm itself was not stale: `marketops_valuation_results` had 132 tenant-local EROC symbols for each trading session through `2026-08-21`. The stale layer was the subscriber global projection.
+- Completed an append-only dedicated MarketOps catch-up for `2026-08-17` through `2026-08-21`, producing 132 global EROC symbols per session without provider polling or source-row mutation.
+- The post-close global projection script now includes a constrained `valuation` projection for `signalops.algorithms.eroc_v6` and fails the post-close gate if `subscriber_gateway_global_eroc_results` has fewer symbols than the tenant-local EROC source for that session.
+- The UI stale-evidence guard remains in place as a defensive presentation layer, but the pipeline now has a permanent EROC projection hook.
+- Remaining validation: observe the next natural trading-day post-close run and confirm EROC global projection advances through the standard parity manifest/materializer path.
