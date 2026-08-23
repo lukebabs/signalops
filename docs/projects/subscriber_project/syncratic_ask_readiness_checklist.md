@@ -52,6 +52,8 @@ Out of scope:
 
 The readiness rerun exposed a second lifecycle issue: stale-digest daily jobs correctly skipped duplicate Ask calls, but completion passed empty insight/query identifiers. PostgreSQL treated the empty insight identifier as a real foreign-key value, so the completion update failed and the worker ignored that error. The source now stores empty completion identifiers as `NULL`, clears stale error fields on successful completion, and records a visible `job_completion_failed` status if a completion update ever fails again.
 
+Production reconciliation after deployment closed the pre-existing queue backlog without provider polling or AI Gateway calls: 300 legacy per-asset automatic Ask jobs were marked completed with `auto_ask_scope_retired`, and 4 stale-digest daily jobs were marked completed with `stale_evidence_digest_superseded`. The live queue then contained no queued/running tenant-local Syncratic jobs.
+
 ## Required validation command
 
 Run this after Syncratic-related Gateway deployments, AI Gateway policy/catalog changes, and before subscription production gates:

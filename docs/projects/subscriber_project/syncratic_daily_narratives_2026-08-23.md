@@ -82,3 +82,5 @@ The durable Syncratic intelligence worker now claims only daily narrative jobs b
 ## Completion lifecycle correction — 2026-08-23
 
 Stale-digest daily jobs are expected after a context window is rematerialized: the worker should close the obsolete job without making another AI Gateway call. Production validation showed those stale-digest jobs were remaining `running` because completion attempted to write an empty `syncratic_insight_id` into a nullable foreign-key column. The completion path now writes empty insight/query identifiers as SQL `NULL` and records any future completion-update error as `job_completion_failed` for operator visibility.
+
+After the gateway deployment, the live backlog was reconciled in place without provider polling or AI Gateway calls: 300 legacy per-asset automatic Ask jobs were retired as completed/operator-triggered-only, and 4 stale-digest daily jobs were completed as superseded. The Syncratic Ask browser smoke then passed.

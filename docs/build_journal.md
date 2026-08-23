@@ -9043,3 +9043,10 @@ Next-cycle priority:
 - Root-caused stuck `running` Syncratic jobs to stale evidence-digest jobs that correctly skipped duplicate Ask calls but attempted completion with an empty `syncratic_insight_id`.
 - Updated job completion persistence to store empty insight/query refs as SQL `NULL`, clear stale error fields on success, and record `job_completion_failed` if completion persistence fails again.
 - Added focused unit coverage for completion-failure visibility.
+
+### 2026-08-23 — Syncratic Ask readiness production closure
+
+- Deployed the Syncratic worker completion lifecycle fix through `sudo -n signalops-deploy-agent marketops-gateway-deploy`.
+- Deployment evidence: `marketops_read_cutover_gateway_verified`, bundled `subscriber_pilot_ui_smoke_verified`, and public `/readyz` returned ready.
+- Reconciled existing backlog without provider polling or AI Gateway calls: 300 legacy per-asset automatic Ask jobs completed with `auto_ask_scope_retired`; 4 stale-digest daily jobs completed with `stale_evidence_digest_superseded`.
+- Verified no queued/running tenant-local Syncratic jobs remained and `./scripts/run_syncratic_ask_ui_smoke.sh` passed with `1 passed in 1.50s`.
