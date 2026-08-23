@@ -8938,3 +8938,9 @@ Next-cycle priority:
 - Production materialization read-back for `2026-08-21`: Daily Overview `400` artifact refs, SRI `160`, Risk/Reward `120`, Review Queue `120`; all four context windows and insights are active.
 - Final authenticated idempotency check returned `skipped_unchanged=4`, `materialized_context_windows=0`, `materialized_insights=0`, and `queued_jobs=0`.
 - Validation passed: `go test ./internal/api`, Syncratic frontend tests (`56` tests), gateway deployment smoke (`2 passed`), `/readyz=200`, and `/marketops/syncratic=200`.
+
+## 2026-08-23 — Syncratic Ask chunked prompt strategy
+
+- Chose prompt chunking/compaction over broadly raising Syncratic AI Gateway policy. The previous UI cap of `4800` bytes was too small, but the correct durable strategy is to avoid cramming full Daily Overview lineage into a single prompt.
+- Updated daily narrative Ask prompt construction to send compact section summaries plus artifact totals and capped citation samples. Full provenance remains stored in `syncratic_context_windows.lineage_refs`.
+- Daily narrative Ask now defaults to `12000` prompt bytes and clamps at `16000`, while the UI requests `12000`. If compaction still cannot fit, the backend returns `context_requires_chunking` and the UI shows a chunking-specific message.

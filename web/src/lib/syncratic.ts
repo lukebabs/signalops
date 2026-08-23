@@ -544,6 +544,7 @@ export type SyncraticAskErrorKind =
   | 'auth'
   | 'empty'
   | 'invalid'
+  | 'chunking'
   | 'not_found'
   | 'unavailable'
   | 'failed'
@@ -553,6 +554,7 @@ export function classifySyncraticAskError(status: number, code: string): Syncrat
   if (status === 0) return 'network';
   if (status === 401 || code === 'unauthorized') return 'auth';
   if (code === 'empty_context_window') return 'empty';
+  if (code === 'context_requires_chunking') return 'chunking';
   if (code === 'syncratic_ask_invalid') return 'invalid';
   if (code === 'context_window_not_found') return 'not_found';
   if (code === 'syncratic_ask_unavailable') return 'unavailable';
@@ -566,6 +568,7 @@ export const SYNCRATIC_ASK_ERROR_MESSAGES: Record<SyncraticAskErrorKind, string>
   empty:
     'No pure supporting evidence exists for this context subject. Review signal/entity mapping or rematerialize after evidence is corrected.',
   invalid: 'Ask request validation failed. Adjust inputs and retry.',
+  chunking: 'This context is too large for one Ask prompt. Use a focused narrative tab or rematerialize after chunking compaction.',
   not_found: 'Syncratic context window not found. It may have been removed.',
   unavailable: 'Syncratic Ask is not configured on this gateway.',
   failed: 'Syncratic Ask failed. Upstream details are not exposed; retry or review gateway logs.',

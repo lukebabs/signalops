@@ -596,7 +596,7 @@ function SyncraticAskControls({
   function trigger(force: boolean) {
     askMutation.mutate({
       contextWindowId,
-      request: { tenant_id: tenantId, max_prompt_bytes: 4800, force },
+      request: { tenant_id: tenantId, max_prompt_bytes: 12000, force },
     });
   }
 

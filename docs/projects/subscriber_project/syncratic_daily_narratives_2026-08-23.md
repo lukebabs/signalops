@@ -53,3 +53,13 @@ The materializer does not call providers, alter algorithms, mutate lifecycle sta
 - Corrected deterministic digest behavior by sorting Risk/Reward leader candidates before truncating the top examples.
 - Added a Syncratic worker stale-digest guard and updated the post-close Syncratic runner to build before run so obsolete digest jobs are drained without duplicate Ask calls.
 - Final production idempotency proof: rerunning materialization returned four `unchanged_evidence_digest` skips and created no additional context windows, insights, or jobs.
+
+## Chunked prompt strategy
+
+Daily narrative Ask now follows a chunked/map-reduce-ready pattern. Focused narratives remain bounded by their own context strategies, while Daily Overview is a compact synthesis over section summaries rather than a full dump of all lineage refs. Full provenance remains in the database. The Ask prompt receives bounded examples, artifact totals, and capped citation samples.
+
+Current SignalOps policy target:
+
+- Keep Syncratic AI Gateway policy moderate; 4,000 input tokens / 1,000 output tokens remains a reasonable target for focused prompts.
+- Daily Overview should rely on compaction and source-section drilldowns before increasing gateway limits.
+- If future Institutional/custom-universe contexts require larger prompts, enable that as a separate tier/policy decision.

@@ -381,52 +381,236 @@ func buildSyncraticDailyNarrativeAskPrompt(contextWindow storage.SyncraticContex
 	}
 	maxPromptBytes := req.MaxPromptBytes
 	if maxPromptBytes <= 0 {
-		maxPromptBytes = 16000
+		maxPromptBytes = 12000
 	}
 	if maxPromptBytes < 1000 {
 		return "", syncraticAskPromptMeta{}, fmt.Errorf("max_prompt_bytes must be at least 1000")
 	}
-	if maxPromptBytes > 24000 {
-		maxPromptBytes = 24000
+	if maxPromptBytes > 16000 {
+		maxPromptBytes = 16000
 	}
-	caps := map[string]int{"max_prompt_bytes": maxPromptBytes, "max_risk_reward_refs": 120, "max_sri_refs": 160, "max_review_queue_refs": 120}
-	payload := map[string]any{
-		"prompt_builder_version": version,
-		"role":                   "MarketOps daily explainability layer over deterministic SignalOps evidence.",
-		"instructions": []string{
-			"Use only the supplied JSON context; do not retrieve documents or use external knowledge.",
-			"Start with what changed or what matters in the completed session.",
-			"Separate observed facts, calculated metrics, inferred hypotheses, historical associations, governance state, and unknown future outcomes.",
-			"Cite persisted artifact IDs for every important claim.",
-			"Call out missing or stale evidence as data quality, not as neutral market evidence.",
-			"Keep expired Review Queue items separate from active items.",
-			"Do not provide trading instructions, price targets, portfolio allocation, or certainty claims.",
-		},
-		"context_metadata": map[string]any{"tenant_id": contextWindow.TenantID, "context_window_id": contextWindow.ContextWindowID, "subject": contextWindow.SubjectSymbol, "strategy": contextWindow.ContextStrategy, "session_date": contextWindow.WindowStart.UTC().Format("2006-01-02"), "evidence_digest": contextWindow.EvidenceDigest},
-		"summary_metrics":  json.RawMessage(jsonOrDefault(contextWindow.SummaryMetricsJSON, `{}`)),
-		"lineage_refs":     json.RawMessage(jsonOrDefault(contextWindow.LineageRefsJSON, `{}`)),
-		"quality_warnings": json.RawMessage(jsonOrDefault(contextWindow.QualityWarningsJSON, `[]`)),
-		"output_contract": []string{
-			"title",
-			"executive_summary",
-			"what_changed",
-			"top_drivers",
-			"contradictions_or_weak_evidence",
-			"analyst_followups",
-			"cited_artifacts",
-			"data_quality_warnings",
-		},
+	profiles := []dailyNarrativePromptProfile{
+		{LeaderLimit: 8, ExampleLimit: 8, RefSampleLimit: 12},
+		{LeaderLimit: 5, ExampleLimit: 5, RefSampleLimit: 6},
+		{LeaderLimit: 3, ExampleLimit: 3, RefSampleLimit: 3},
 	}
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return "", syncraticAskPromptMeta{}, err
+	var lastPrompt string
+	var lastCaps map[string]int
+	for _, profile := range profiles {
+		caps := map[string]int{"max_prompt_bytes": maxPromptBytes, "max_section_leaders": profile.LeaderLimit, "max_section_examples": profile.ExampleLimit, "max_artifact_ref_samples_per_kind": profile.RefSampleLimit}
+		payload := map[string]any{
+			"prompt_builder_version": version,
+			"role":                   "MarketOps daily explainability layer over deterministic SignalOps evidence.",
+			"prompt_mode":            dailyNarrativePromptMode(contextWindow.ContextStrategy),
+			"compaction_policy": map[string]any{
+				"full_provenance_location": "syncratic_context_windows.lineage_refs",
+				"prompt_contains":          "bounded summaries plus capped citation samples and total artifact counts",
+				"reason":                   "chunked/map-reduce-ready Ask context; avoid cramming full session lineage into one prompt",
+			},
+			"instructions": []string{
+				"Use only the supplied JSON context; do not retrieve documents or use external knowledge.",
+				"Start with what changed or what matters in the completed session.",
+				"Separate observed facts, calculated metrics, inferred hypotheses, historical associations, governance state, and unknown future outcomes.",
+				"Cite supplied artifact sample IDs for key claims and state when only counts are available because lineage was compacted.",
+				"Call out missing or stale evidence as data quality, not as neutral market evidence.",
+				"Keep expired Review Queue items separate from active items.",
+				"Do not provide trading instructions, price targets, portfolio allocation, or certainty claims.",
+			},
+			"context_metadata":      map[string]any{"tenant_id": contextWindow.TenantID, "context_window_id": contextWindow.ContextWindowID, "subject": contextWindow.SubjectSymbol, "strategy": contextWindow.ContextStrategy, "session_date": contextWindow.WindowStart.UTC().Format("2006-01-02"), "evidence_digest": contextWindow.EvidenceDigest},
+			"summary_metrics":       compactDailyNarrativeSummary(contextWindow.ContextStrategy, contextWindow.SummaryMetricsJSON, profile),
+			"lineage_ref_summary":   compactDailyNarrativeLineage(contextWindow.LineageRefsJSON, profile.RefSampleLimit),
+			"quality_warnings":      json.RawMessage(jsonOrDefault(contextWindow.QualityWarningsJSON, `[]`)),
+			"recommended_next_step": dailyNarrativeNextStep(contextWindow.ContextStrategy),
+			"output_contract": []string{
+				"title",
+				"executive_summary",
+				"what_changed",
+				"top_drivers",
+				"contradictions_or_weak_evidence",
+				"analyst_followups",
+				"cited_artifacts",
+				"data_quality_warnings",
+			},
+		}
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			return "", syncraticAskPromptMeta{}, err
+		}
+		prompt := "Produce an evidence-grounded MarketOps daily narrative. Generated synthesis is explainability only and not deterministic evidence.\nCONTEXT_JSON:\n" + string(raw)
+		lastPrompt = prompt
+		lastCaps = caps
+		if len(prompt) <= maxPromptBytes {
+			sum := sha256.Sum256([]byte(prompt))
+			return prompt, syncraticAskPromptMeta{PromptBuilderVersion: version, PromptDigest: "sha256:" + hex.EncodeToString(sum[:]), ContextEvidenceDigest: contextWindow.EvidenceDigest, MaxPromptBytes: maxPromptBytes, IncludedRecordDetails: true, Caps: caps, PromptBytes: len(prompt)}, nil
+		}
 	}
-	prompt := "Produce an evidence-grounded MarketOps daily narrative. Generated synthesis is explainability only and not deterministic evidence.\nCONTEXT_JSON:\n" + string(raw)
-	if len(prompt) > maxPromptBytes {
-		return "", syncraticAskPromptMeta{}, fmt.Errorf("prompt exceeds max_prompt_bytes")
+	return "", syncraticAskPromptMeta{PromptBuilderVersion: version, ContextEvidenceDigest: contextWindow.EvidenceDigest, MaxPromptBytes: maxPromptBytes, IncludedRecordDetails: true, Caps: lastCaps, PromptBytes: len(lastPrompt)}, fmt.Errorf("context_requires_chunking: compacted prompt bytes %d exceed max_prompt_bytes %d", len(lastPrompt), maxPromptBytes)
+}
+
+type dailyNarrativePromptProfile struct {
+	LeaderLimit    int
+	ExampleLimit   int
+	RefSampleLimit int
+}
+
+func dailyNarrativePromptMode(strategy string) string {
+	switch strings.TrimSpace(strategy) {
+	case dailyNarrativeStrategyOverview:
+		return "overview_synthesis_compact"
+	case dailyNarrativeStrategySRI, dailyNarrativeStrategyRiskReward, dailyNarrativeStrategyReviewQueue:
+		return "focused_narrative_compact"
+	default:
+		return "daily_narrative_compact"
 	}
-	sum := sha256.Sum256([]byte(prompt))
-	return prompt, syncraticAskPromptMeta{PromptBuilderVersion: version, PromptDigest: "sha256:" + hex.EncodeToString(sum[:]), ContextEvidenceDigest: contextWindow.EvidenceDigest, MaxPromptBytes: maxPromptBytes, IncludedRecordDetails: true, Caps: caps, PromptBytes: len(prompt)}, nil
+}
+
+func dailyNarrativeNextStep(strategy string) string {
+	switch strings.TrimSpace(strategy) {
+	case dailyNarrativeStrategyOverview:
+		return "Synthesize the focused section summaries; if more detail is needed, inspect the source section narrative and full stored lineage."
+	case dailyNarrativeStrategySRI:
+		return "Explain sector rotation movement and quality gaps using the bounded SRI leader set."
+	case dailyNarrativeStrategyRiskReward:
+		return "Explain Risk/Reward breadth and top directional examples using the bounded snapshot sample."
+	case dailyNarrativeStrategyReviewQueue:
+		return "Separate active from expired opportunities and summarize only the bounded active examples."
+	default:
+		return "Explain the bounded MarketOps daily context and cite supplied artifact samples."
+	}
+}
+
+func compactDailyNarrativeSummary(strategy string, raw []byte, profile dailyNarrativePromptProfile) any {
+	root := jsonObjectOrEmpty(raw)
+	if len(root) == 0 {
+		return map[string]any{}
+	}
+	root = copyMapAny(root)
+	sections, ok := root["sections"].(map[string]any)
+	if !ok {
+		return compactDailyNarrativeValue(root, profile)
+	}
+	selected := map[string]any{}
+	for key, value := range sections {
+		selected[key] = compactDailyNarrativeSection(key, value, profile)
+	}
+	if strategy == dailyNarrativeStrategyOverview {
+		root["sections"] = selected
+		root["synthesis_note"] = "Daily Overview is a compact synthesis over section summaries. Full source lineage remains persisted on the context window."
+		return compactDailyNarrativeValue(root, profile)
+	}
+	root["sections"] = selected
+	return compactDailyNarrativeValue(root, profile)
+}
+
+func compactDailyNarrativeSection(section string, value any, profile dailyNarrativePromptProfile) any {
+	sectionMap, ok := value.(map[string]any)
+	if !ok {
+		return compactDailyNarrativeValue(value, profile)
+	}
+	out := copyMapAny(sectionMap)
+	for key, item := range out {
+		switch key {
+		case "leaders":
+			out[key] = compactDailyNarrativeArray(item, profile.LeaderLimit, profile)
+		case "top_examples", "active_examples":
+			out[key] = compactDailyNarrativeArray(item, profile.ExampleLimit, profile)
+		default:
+			out[key] = compactDailyNarrativeValue(item, profile)
+		}
+	}
+	return out
+}
+
+func compactDailyNarrativeLineage(raw []byte, sampleLimit int) map[string]any {
+	root := jsonObjectOrEmpty(raw)
+	out := map[string]any{}
+	if strategy := asString(root["strategy"]); strategy != "" {
+		out["strategy"] = strategy
+	}
+	artifacts, ok := root["artifacts"].(map[string]any)
+	if !ok {
+		out["artifacts"] = map[string]any{}
+		return out
+	}
+	artifactOut := map[string]any{}
+	keys := make([]string, 0, len(artifacts))
+	for key := range artifacts {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		refs := stringSliceFromAnyJSON(artifacts[key])
+		refs = uniqueSorted(refs)
+		artifactOut[key] = map[string]any{"total": len(refs), "sample": limitStrings(refs, sampleLimit)}
+	}
+	out["artifacts"] = artifactOut
+	return out
+}
+
+func compactDailyNarrativeValue(value any, profile dailyNarrativePromptProfile) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			switch key {
+			case "leaders":
+				out[key] = compactDailyNarrativeArray(item, profile.LeaderLimit, profile)
+			case "top_examples", "active_examples":
+				out[key] = compactDailyNarrativeArray(item, profile.ExampleLimit, profile)
+			case "summary":
+				out[key] = truncateText(asString(item), 180)
+			default:
+				out[key] = compactDailyNarrativeValue(item, profile)
+			}
+		}
+		return out
+	case []any:
+		return compactDailyNarrativeArray(typed, profile.ExampleLimit, profile)
+	case string:
+		return truncateText(typed, 220)
+	default:
+		return value
+	}
+}
+
+func compactDailyNarrativeArray(value any, limit int, profile dailyNarrativePromptProfile) []any {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+	out := make([]any, 0, len(items))
+	for _, item := range items {
+		out = append(out, compactDailyNarrativeValue(item, profile))
+	}
+	return out
+}
+
+func copyMapAny(input map[string]any) map[string]any {
+	out := make(map[string]any, len(input))
+	for key, value := range input {
+		out[key] = value
+	}
+	return out
+}
+
+func stringSliceFromAnyJSON(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []any:
+		out := []string{}
+		for _, item := range typed {
+			if text := asString(item); text != "" {
+				out = append(out, text)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 func syncraticDailyNarrativeEvidenceDigest(record storage.SyncraticContextWindowRecord) string {

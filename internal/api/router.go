@@ -1368,6 +1368,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
 				return
 			}
+			if strings.Contains(err.Error(), "context_requires_chunking") {
+				writeError(w, http.StatusBadRequest, "context_requires_chunking", err.Error())
+				return
+			}
 			if strings.Contains(err.Error(), "syncratic ask failed") {
 				writeError(w, http.StatusBadGateway, "syncratic_ask_failed", "Syncratic Ask request failed")
 				return
