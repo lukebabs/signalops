@@ -13,7 +13,7 @@ Syncratic Ask was expanded from narrow per-asset context windows toward platform
   - `marketops_review_queue_daily_v1`
 - Added same-origin API: `POST /v1/syncratic/daily-narratives/materialize`.
 - Reused existing `syncratic_context_windows`, `syncratic_insights`, and `syncratic_intelligence_jobs`; no new schema was required.
-- Added prompt builder `marketops.syncratic.daily_narrative_prompt.v1` with artifact citation, data-quality, and no-trading-instruction requirements.
+- Added prompt builder `marketops.syncratic.daily_narrative_prompt.v2` with artifact citation, data-quality, and no-trading-instruction requirements.
 - Updated the Syncratic worker to process daily narrative contexts with the daily narrative prompt and insight type.
 - Reworked `/marketops/syncratic` so daily narratives are the primary workbench and legacy per-asset context windows remain under Asset Drilldowns.
 

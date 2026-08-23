@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/lukebabs/signalops/internal/storage"
+	"github.com/lukebabs/signalops/internal/syncratic/userapi"
 )
 
 func TestBuildSyncraticDailyNarrativeAskPromptContracts(t *testing.T) {
@@ -101,5 +102,25 @@ func TestBuildSyncraticDailyNarrativeAskPromptCompactsLargeOverview(t *testing.T
 		if !strings.Contains(prompt, required) {
 			t.Fatalf("compact prompt missing %s: %s", required, prompt)
 		}
+	}
+}
+
+func TestApplySyncraticAskResponseFallsBackWhenDailyAnswerIsMetaCommentary(t *testing.T) {
+	ctx := storage.SyncraticContextWindowRecord{
+		ContextWindowID:    "synctx-rr",
+		TenantID:           "tenant-local",
+		SubjectSymbol:      dailyNarrativeSubjectSymbol,
+		WindowStart:        time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC),
+		ContextStrategy:    dailyNarrativeStrategyRiskReward,
+		SummaryMetricsJSON: []byte(`{"sections":{"risk_reward":{"breadth":{"bullish":13,"bearish":18,"neutral":101,"unavailable":0},"top_examples":[{"symbol":"WMT","direction":"bullish","score":50,"confidence":0.625,"risk_level":"medium"},{"symbol":"SO","direction":"bullish","score":45,"confidence":0.625,"risk_level":"medium"}]}}}`),
+		EvidenceDigest:     "digest-rr",
+	}
+	insight := buildSyncraticDailyNarrativeInsight(ctx)
+	updated := applySyncraticAskResponse(insight, ctx, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:test", ContextEvidenceDigest: "digest-rr"}, userapi.AskResponse{QueryID: "ask-meta", Answer: "The context includes a JSON with instructions and summary_metrics."}, time.Now().UTC(), time.Now().UTC())
+	if strings.Contains(strings.ToLower(updated.Explanation), "context includes a json") || !strings.Contains(updated.Explanation, "Risk/Reward breadth was 13 bullish, 18 bearish, 101 neutral") || !strings.Contains(updated.Explanation, "WMT was bullish") {
+		t.Fatalf("fallback explanation not analyst-facing: %s", updated.Explanation)
+	}
+	if !strings.HasPrefix(updated.Title, "Risk/Reward daily evolution") {
+		t.Fatalf("fallback title = %q", updated.Title)
 	}
 }

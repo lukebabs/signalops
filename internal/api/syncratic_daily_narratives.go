@@ -17,7 +17,7 @@ const (
 	dailyNarrativeBatchStrategy       = "marketops_daily_narrative_batch_v1"
 	dailyNarrativeBuilderVersion      = "marketops.syncratic.daily_context_builder.v1"
 	dailyNarrativePayloadVersion      = "marketops.syncratic.daily_context_payload.v1"
-	dailyNarrativeAskPromptVersion    = "marketops.syncratic.daily_narrative_prompt.v1"
+	dailyNarrativeAskPromptVersion    = "marketops.syncratic.daily_narrative_prompt.v2"
 	dailyNarrativeInsightType         = "marketops.syncratic.daily_narrative.v1"
 	dailyNarrativeSubjectSymbol       = "MARKETOPS"
 	dailyNarrativeStrategyOverview    = "marketops_daily_overview_v1"

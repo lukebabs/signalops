@@ -9058,3 +9058,11 @@ Next-cycle priority:
 - Disabled `direct_reasoning` on SignalOps Ask requests so the user-facing answer does not invite reasoning/meta-output from the AI Gateway path.
 - Added structured-response parsing so JSON answers are rendered into sectioned analyst explanations instead of being stored as raw JSON or generic text.
 - Validation passed: `go test ./cmd/gateway ./internal/api ./internal/syncratic/userapi`, `npm --prefix web test -- --run src/api/syncratic.test.ts src/lib/syncratic.test.ts`, and `git diff --check`.
+
+### 2026-08-23 — Syncratic Ask deterministic quality fallback
+
+- Live validation showed the AI Gateway could still return prompt/JSON meta-commentary even after the stricter v2 prompt contract.
+- Added a SignalOps quality gate for daily narratives: if the upstream answer describes the prompt, JSON, user request, or instructions, SignalOps replaces the persisted explanation with a deterministic analyst narrative built from the same persisted `syncratic_context_windows.summary_metrics` evidence.
+- The fallback currently covers Daily Overview, SRI, Risk/Reward, and Review Queue narratives and records `response_quality=deterministic_fallback_meta_answer` in Ask metadata.
+- Bumped the daily narrative prompt builder to `marketops.syncratic.daily_narrative_prompt.v2` so existing weak prompt-digest outputs are not treated as current.
+- Validation passed: `go test ./cmd/gateway ./internal/api ./internal/syncratic/userapi`, `npm --prefix web test -- --run src/api/syncratic.test.ts src/lib/syncratic.test.ts`, and `git diff --check`.
