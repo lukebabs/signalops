@@ -145,6 +145,9 @@ def assert_contextual_narrative(tab_name: str, text: str) -> None:
         "the instructions",
         "main artifact here is the json",
         "marketops syncratic context",
+        "with score",
+        "confidence 0.",
+        "opportunity scored",
     ]:
         assert forbidden not in lower, f"{tab_name} narrative contains meta-output marker {forbidden!r}: {compact}"
     assert "unknown" != lower.strip(), f"{tab_name} narrative rendered UNKNOWN"
@@ -152,8 +155,8 @@ def assert_contextual_narrative(tab_name: str, text: str) -> None:
 
     expected_by_tab = {
         "Daily Overview": [r"Sector Rotation", r"Risk/Reward", r"Review Queue", r"Contextual read|What changed"],
-        "Sector Rotation": [r"rank", r"composite score", r"Top drivers", r"leadership|rotation"],
-        "Risk/Reward": [r"bullish", r"bearish", r"neutral", r"breadth"],
+        "Sector Rotation": [r"leadership pocket|leadership posture", r"Top drivers", r"leadership|rotation", r"laggard|weakest sampled pocket"],
+        "Risk/Reward": [r"bullish", r"bearish", r"neutral", r"breadth", r"exception|opportunity"],
         "Review Queue": [r"active", r"expired", r"last evaluated|current evaluation|triage", r"opportunit"],
     }
     for pattern in expected_by_tab[tab_name]:

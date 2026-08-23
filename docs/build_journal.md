@@ -9086,3 +9086,12 @@ Next-cycle priority:
 - Enriched deterministic fallback narratives with contextual reads for SRI leadership/laggards, Risk/Reward neutrality and directional skew, and Review Queue active-vs-expired triage.
 - Expanded the Playwright Syncratic Ask smoke so HTTP 200 is not sufficient; the rendered explanation must include session/evaluation dates, tab-specific contextual markers, and no prompt/JSON meta-output.
 - Fixed the Syncratic Ask detail panel to render the refreshed insight returned by the Ask mutation immediately, avoiding stale pre-mutation prose after a successful Regenerate action.
+
+
+### 2026-08-23 — Syncratic Ask relational prose refinement
+
+- Refined Syncratic Ask daily narrative output so analyst-facing prose describes relationships rather than reciting raw metrics.
+- Risk/Reward drivers now read as monitored bullish/bearish exceptions, possible opportunities, evidence tone, and risk posture instead of score/confidence fields.
+- SRI fallback now describes leadership pockets, improving/weakening posture, and laggards without exposing composite scores in the narrative.
+- Review Queue fallback now frames active triage items and expired-row noise without score/confidence recitation.
+- Updated the daily Ask prompt and Playwright quality gate to prefer relational natural language while keeping raw metrics available in artifacts/metadata for auditability.

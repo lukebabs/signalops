@@ -32,7 +32,7 @@ func TestBuildSyncraticDailyNarrativeAskPromptContracts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prompt error: %v", err)
 	}
-	for _, required := range []string{"response_contract", "Return only a valid JSON object", "Write to the MarketOps analyst", "what_changed", "cited_artifacts", "data_quality_warnings", "rr-1", "sri-1", "opp-1"} {
+	for _, required := range []string{"response_contract", "Return only a valid JSON object", "Write to the MarketOps analyst", "relational natural language", "what_changed", "cited_artifacts", "data_quality_warnings", "rr-1", "sri-1", "opp-1"} {
 		if !strings.Contains(prompt, required) {
 			t.Fatalf("prompt missing %s: %s", required, prompt)
 		}
@@ -117,8 +117,11 @@ func TestApplySyncraticAskResponseFallsBackWhenDailyAnswerIsMetaCommentary(t *te
 	}
 	insight := buildSyncraticDailyNarrativeInsight(ctx)
 	updated := applySyncraticAskResponse(insight, ctx, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:test", ContextEvidenceDigest: "digest-rr"}, userapi.AskResponse{QueryID: "ask-meta", Answer: "The context includes a JSON with instructions and summary_metrics."}, time.Now().UTC(), time.Now().UTC())
-	if strings.Contains(strings.ToLower(updated.Explanation), "context includes a json") || !strings.Contains(updated.Explanation, "Risk/Reward breadth was 13 bullish, 18 bearish, 101 neutral") || !strings.Contains(updated.Explanation, "WMT was bullish") {
+	if strings.Contains(strings.ToLower(updated.Explanation), "context includes a json") || !strings.Contains(updated.Explanation, "Risk/Reward breadth remains mostly neutral") || !strings.Contains(updated.Explanation, "WMT is the clearest bullish exception") {
 		t.Fatalf("fallback explanation not analyst-facing: %s", updated.Explanation)
+	}
+	if strings.Contains(strings.ToLower(updated.Explanation), "score 50") || strings.Contains(strings.ToLower(updated.Explanation), "confidence 0.62") {
+		t.Fatalf("fallback explanation should not recite raw risk/reward metrics: %s", updated.Explanation)
 	}
 	if !strings.HasPrefix(updated.Title, "Risk/Reward daily evolution") {
 		t.Fatalf("fallback title = %q", updated.Title)
@@ -137,7 +140,7 @@ func TestDeterministicDailyNarrativeFallbackAddsContextualRead(t *testing.T) {
 		EvidenceDigest:     "digest-sri-contextual",
 	}
 	sri := applySyncraticAskResponse(buildSyncraticDailyNarrativeInsight(sriCtx), sriCtx, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:sri", ContextEvidenceDigest: "digest-sri-contextual"}, userapi.AskResponse{QueryID: "ask-sri", Answer: "The prompt asks for a JSON narrative."}, now, now)
-	for _, required := range []string{"Contextual read", "biotech is the primary leadership pocket", "utilities sits at the bottom", "composite score"} {
+	for _, required := range []string{"Contextual read", "biotech is the primary leadership pocket", "utilities is the weakest sampled pocket", "leadership posture"} {
 		if !strings.Contains(sri.Explanation, required) {
 			t.Fatalf("SRI fallback missing %q: %s", required, sri.Explanation)
 		}
@@ -153,7 +156,7 @@ func TestDeterministicDailyNarrativeFallbackAddsContextualRead(t *testing.T) {
 		EvidenceDigest:     "digest-rr-contextual",
 	}
 	rr := applySyncraticAskResponse(buildSyncraticDailyNarrativeInsight(rrCtx), rrCtx, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:rr", ContextEvidenceDigest: "digest-rr-contextual"}, userapi.AskResponse{QueryID: "ask-rr", Answer: "The JSON provided contains breadth."}, now, now)
-	for _, required := range []string{"Contextual read", "Neutral assets represented 77%", "bearish skew by 5 assets", "WMT was bullish"} {
+	for _, required := range []string{"Contextual read", "Most monitored assets are still neutral", "modest bearish tilt", "WMT is the clearest bullish exception"} {
 		if !strings.Contains(rr.Explanation, required) {
 			t.Fatalf("Risk/Reward fallback missing %q: %s", required, rr.Explanation)
 		}
@@ -169,9 +172,14 @@ func TestDeterministicDailyNarrativeFallbackAddsContextualRead(t *testing.T) {
 		EvidenceDigest:     "digest-review-contextual",
 	}
 	review := applySyncraticAskResponse(buildSyncraticDailyNarrativeInsight(reviewCtx), reviewCtx, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:review", ContextEvidenceDigest: "digest-review-contextual"}, userapi.AskResponse{QueryID: "ask-review", Answer: "The instructions request a JSON object."}, now, now)
-	for _, required := range []string{"Contextual read", "Active opportunities represented 5%", "last evaluated 2026-08-21", "expired rows out of primary triage"} {
+	for _, required := range []string{"Contextual read", "Active opportunities are a small minority", "last evaluated 2026-08-21", "expired rows out of primary triage"} {
 		if !strings.Contains(review.Explanation, required) {
 			t.Fatalf("Review Queue fallback missing %q: %s", required, review.Explanation)
+		}
+	}
+	for _, forbidden := range []string{"composite score 97.83", "score 50", "confidence 0.62", "opportunity scored 0.96"} {
+		if strings.Contains(strings.ToLower(sri.Explanation+rr.Explanation+review.Explanation), strings.ToLower(forbidden)) {
+			t.Fatalf("fallback explanation should use relational prose, found %q", forbidden)
 		}
 	}
 }

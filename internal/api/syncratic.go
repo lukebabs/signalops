@@ -985,9 +985,9 @@ func deterministicSRINarrative(session string, section map[string]any) determini
 		return deterministicSyncraticNarrative{}
 	}
 	leaderTexts := []string{}
-	for _, item := range leaders {
+	for idx, item := range leaders {
 		m := mapFromAny(item)
-		leaderTexts = append(leaderTexts, fmt.Sprintf("%s ranked %s with state %s and composite score %s", humanizeSegment(asString(m["segment_id"])), formatJSONNumber(m["rank"]), asString(m["state"]), formatJSONNumber(m["composite_score"])))
+		leaderTexts = append(leaderTexts, sriLeaderNarrative(idx, m, len(leaders)))
 		if len(leaderTexts) >= 5 {
 			break
 		}
@@ -995,14 +995,14 @@ func deterministicSRINarrative(session string, section map[string]any) determini
 	contextBullets := []string{}
 	if len(leaders) > 0 {
 		top := mapFromAny(leaders[0])
-		contextBullets = append(contextBullets, fmt.Sprintf("%s is the primary leadership pocket at rank %s with state %s and composite score %s", humanizeSegment(asString(top["segment_id"])), formatJSONNumber(top["rank"]), asString(top["state"]), formatJSONNumber(top["composite_score"])))
+		contextBullets = append(contextBullets, fmt.Sprintf("%s is the primary leadership pocket in the sampled rotation table and remains in a %s posture", humanizeSegment(asString(top["segment_id"])), naturalState(asString(top["state"]))))
 	}
 	if len(leaders) >= 2 {
 		tail := mapFromAny(leaders[len(leaders)-1])
-		contextBullets = append(contextBullets, fmt.Sprintf("%s sits at the bottom of the sampled rotation table with state %s and score %s", humanizeSegment(asString(tail["segment_id"])), asString(tail["state"]), formatJSONNumber(tail["composite_score"])))
+		contextBullets = append(contextBullets, fmt.Sprintf("%s is the weakest sampled pocket and should be treated as a laggard until its rotation posture improves", humanizeSegment(asString(tail["segment_id"]))))
 	}
-	summary := "Sector Rotation leadership was concentrated in " + strings.Join(leaderTexts[:minInt(len(leaderTexts), 3)], "; ") + "."
-	return deterministicSyncraticNarrative{Title: "Sector Rotation daily overview · " + session, Summary: summary, Explanation: "Executive summary:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- " + strings.Join(contextBullets, "\n- ") + "\n\nTop drivers:\n- " + strings.Join(leaderTexts, "\n- ") + "\n\nContradictions or weak evidence:\n- Rank-change fields may be unavailable for some segments; treat missing rank-change as a data-quality limitation, not neutral evidence.\n\nAnalyst follow-ups:\n- Inspect the SRI progression chart for whether leadership is persistent or a one-session move.\n- Compare leading and lagging segments against watchlist holdings before treating rotation as actionable.", Action: "review_sri_progression"}
+	summary := "Sector Rotation leadership was concentrated in " + strings.Join(topSegments(leaders, 3), ", ") + "."
+	return deterministicSyncraticNarrative{Title: "Sector Rotation daily overview · " + session, Summary: summary, Explanation: "Executive summary:\nSession date: " + session + ". " + summary + " The section reads as a leadership map rather than a market-wide recommendation.\n\nContextual read:\n- " + strings.Join(contextBullets, "\n- ") + "\n\nTop drivers:\n- " + strings.Join(leaderTexts, "\n- ") + "\n\nContradictions or weak evidence:\n- Rank-change fields may be unavailable for some segments; treat missing rank-change as a data-quality limitation, not neutral evidence.\n\nAnalyst follow-ups:\n- Inspect the SRI progression chart for whether leadership is persistent or a one-session move.\n- Compare leading and lagging segments against watchlist holdings before treating rotation as actionable.", Action: "review_sri_progression"}
 }
 
 func deterministicRiskRewardNarrative(session string, section map[string]any) deterministicSyncraticNarrative {
@@ -1013,28 +1013,23 @@ func deterministicRiskRewardNarrative(session string, section map[string]any) de
 	neutral := intFromAny(breadth["neutral"])
 	unavailable := intFromAny(breadth["unavailable"])
 	total := bullish + bearish + neutral + unavailable
-	breadthText := fmt.Sprintf("Risk/Reward breadth was %d bullish, %d bearish, %d neutral, and %d unavailable", bullish, bearish, neutral, unavailable)
+	breadthText := naturalBreadthText(bullish, bearish, neutral, unavailable)
 	drivers := []string{}
-	for _, item := range examples {
+	for idx, item := range examples {
 		m := mapFromAny(item)
-		drivers = append(drivers, fmt.Sprintf("%s was %s with score %s, confidence %s, and risk level %s", asString(m["symbol"]), asString(m["direction"]), formatJSONNumber(m["score"]), formatJSONNumber(m["confidence"]), asString(m["risk_level"])))
+		drivers = append(drivers, riskRewardDriverNarrative(idx, m))
 		if len(drivers) >= 6 {
 			break
 		}
 	}
-	summary := breadthText + ". The strongest sampled drivers were " + strings.Join(drivers[:minInt(len(drivers), 3)], "; ") + "."
-	neutralShare := "unknown"
-	if total > 0 {
-		neutralShare = fmt.Sprintf("%.0f%%", 100*float64(neutral)/float64(total))
+	driverSummary := "No representative directional exceptions were available in the bounded sample."
+	if len(drivers) > 0 {
+		driverSummary = "The strongest sampled exceptions were " + strings.Join(drivers[:minInt(len(drivers), 3)], "; ") + "."
 	}
-	imbalance := "balanced"
-	switch {
-	case bullish > bearish:
-		imbalance = fmt.Sprintf("bullish skew by %d assets", bullish-bearish)
-	case bearish > bullish:
-		imbalance = fmt.Sprintf("bearish skew by %d assets", bearish-bullish)
-	}
-	return deterministicSyncraticNarrative{Title: "Risk/Reward daily evolution · " + session, Summary: summary, Explanation: "Executive summary:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- Neutral assets represented " + neutralShare + " of the selected universe, while directional breadth showed a " + imbalance + ". This means the highlighted symbols are focused exceptions inside a mostly neutral breadth profile.\n\nWhat changed:\n- " + breadthText + ".\n\nTop drivers:\n- " + strings.Join(drivers, "\n- ") + "\n\nContradictions or weak evidence:\n- The breadth mix is still mostly neutral, so directional examples should be reviewed as a focused subset rather than a broad market call.\n\nAnalyst follow-ups:\n- Compare these symbols against Market State and Review Queue convergence before promoting any hypothesis.", Action: "compare_risk_reward_with_market_state"}
+	summary := breadthText + " " + driverSummary
+	neutralContext := naturalNeutralContext(neutral, total)
+	imbalance := naturalDirectionalImbalance(bullish, bearish)
+	return deterministicSyncraticNarrative{Title: "Risk/Reward daily evolution · " + session, Summary: summary, Explanation: "Executive summary:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- " + neutralContext + " Directional breadth showed " + imbalance + ", so the named symbols should be treated as focused exceptions inside the broader monitored group.\n\nWhat changed:\n- " + breadthText + "\n\nTop drivers:\n- " + strings.Join(drivers, "\n- ") + "\n\nContradictions or weak evidence:\n- The breadth mix is still mostly neutral, so directional examples should be reviewed as a focused subset rather than a broad market call.\n\nAnalyst follow-ups:\n- Compare these symbols against Market State and Review Queue convergence before promoting any hypothesis.", Action: "compare_risk_reward_with_market_state"}
 }
 
 func deterministicReviewQueueNarrative(session string, section map[string]any) deterministicSyncraticNarrative {
@@ -1043,21 +1038,200 @@ func deterministicReviewQueueNarrative(session string, section map[string]any) d
 	activeCount := intFromAny(counts["active"])
 	expiredCount := intFromAny(counts["expired"])
 	totalCount := activeCount + expiredCount
-	countText := fmt.Sprintf("Review Queue held %d active and %d expired opportunities", activeCount, expiredCount)
+	countText := naturalReviewQueueText(activeCount, expiredCount)
 	drivers := []string{}
 	for _, item := range examples {
 		m := mapFromAny(item)
-		drivers = append(drivers, fmt.Sprintf("%s %s opportunity scored %s with confidence %s and was last evaluated %s: %s", asString(m["symbol"]), asString(m["direction"]), formatJSONNumber(m["score"]), formatJSONNumber(m["confidence"]), asString(m["last_evaluated_date"]), asString(m["summary"])))
+		drivers = append(drivers, reviewQueueDriverNarrative(m))
 		if len(drivers) >= 6 {
 			break
 		}
 	}
-	activeShare := "unknown"
-	if totalCount > 0 {
-		activeShare = fmt.Sprintf("%.0f%%", 100*float64(activeCount)/float64(totalCount))
+	driverSummary := "No active examples were available for current triage."
+	if len(drivers) > 0 {
+		driverSummary = "Active examples were led by " + strings.Join(drivers[:minInt(len(drivers), 3)], "; ") + "."
 	}
-	summary := countText + ". Active examples were led by " + strings.Join(drivers[:minInt(len(drivers), 3)], "; ") + "."
-	return deterministicSyncraticNarrative{Title: "Review Queue daily brief · " + session, Summary: summary, Explanation: "Executive summary:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- Active opportunities represented " + activeShare + " of the current queue sample, so analyst attention should stay on live items and keep expired rows out of primary triage.\n\nWhat changed:\n- " + countText + "; expired items should remain separated from current analyst work.\n\nTop drivers:\n- " + strings.Join(drivers, "\n- ") + "\n\nContradictions or weak evidence:\n- High expired volume can overwhelm the view; focus first on active opportunities with current evaluation dates.\n\nAnalyst follow-ups:\n- Inspect active opportunity details and suppress expired rows from primary triage unless reviewing historical performance.", Action: "review_active_opportunities"}
+	activeShare := naturalActiveShare(activeCount, totalCount)
+	summary := countText + " " + driverSummary
+	return deterministicSyncraticNarrative{Title: "Review Queue daily brief · " + session, Summary: summary, Explanation: "Executive summary:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- " + activeShare + ", so analyst attention should stay on live items and keep expired rows out of primary triage.\n\nWhat changed:\n- " + countText + "; expired items should remain separated from current analyst work.\n\nTop drivers:\n- " + strings.Join(drivers, "\n- ") + "\n\nContradictions or weak evidence:\n- High expired volume can overwhelm the view; focus first on active opportunities with current evaluation dates.\n\nAnalyst follow-ups:\n- Inspect active opportunity details and suppress expired rows from primary triage unless reviewing historical performance.", Action: "review_active_opportunities"}
+}
+
+func topSegments(items []any, limit int) []string {
+	out := []string{}
+	for _, item := range items {
+		segment := humanizeSegment(asString(mapFromAny(item)["segment_id"]))
+		if segment != "" {
+			out = append(out, segment)
+		}
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out
+}
+
+func sriLeaderNarrative(index int, item map[string]any, total int) string {
+	segment := humanizeSegment(asString(item["segment_id"]))
+	state := naturalState(asString(item["state"]))
+	switch {
+	case index == 0:
+		return fmt.Sprintf("%s is leading the monitored rotation group and currently has the clearest leadership posture", segment)
+	case index <= 2:
+		return fmt.Sprintf("%s remains near the top of the rotation stack with a %s posture", segment, state)
+	case index >= total-2:
+		return fmt.Sprintf("%s is still in the weaker part of the rotation stack and needs confirmation before it can be treated as improving", segment)
+	default:
+		return fmt.Sprintf("%s is in the middle of the rotation stack, which makes it more of a monitoring candidate than a leadership signal", segment)
+	}
+}
+
+func naturalState(state string) string {
+	switch strings.ToUpper(strings.TrimSpace(state)) {
+	case "LEADING":
+		return "leading"
+	case "IMPROVING":
+		return "improving"
+	case "WEAKENING":
+		return "weakening"
+	case "LAGGING":
+		return "lagging"
+	case "NEUTRAL":
+		return "neutral"
+	default:
+		return "unclassified"
+	}
+}
+
+func naturalBreadthText(bullish, bearish, neutral, unavailable int) string {
+	switch {
+	case neutral > bullish+bearish:
+		return "Risk/Reward breadth remains mostly neutral across the monitored group."
+	case bullish > bearish:
+		return "Risk/Reward breadth leans constructive, with bullish reads outnumbering bearish reads."
+	case bearish > bullish:
+		return "Risk/Reward breadth leans cautious, with bearish reads outnumbering bullish reads."
+	case unavailable > 0:
+		return "Risk/Reward breadth is mixed, with some assets still unavailable for evaluation."
+	default:
+		return "Risk/Reward breadth is balanced across the monitored group."
+	}
+}
+
+func naturalNeutralContext(neutral, total int) string {
+	if total <= 0 {
+		return "The selected universe does not yet have enough breadth coverage for a reliable contextual read."
+	}
+	share := float64(neutral) / float64(total)
+	switch {
+	case share >= 0.70:
+		return "Most monitored assets are still neutral, which limits broad directional conviction."
+	case share >= 0.45:
+		return "A meaningful portion of the monitored group remains neutral, so directional signals are still selective."
+	default:
+		return "Neutral conditions are no longer dominating the monitored group, so directional breadth deserves closer review."
+	}
+}
+
+func naturalDirectionalImbalance(bullish, bearish int) string {
+	diff := bullish - bearish
+	switch {
+	case diff >= 10:
+		return "a clear bullish tilt"
+	case diff > 0:
+		return "a modest bullish tilt"
+	case diff <= -10:
+		return "a clear bearish tilt"
+	case diff < 0:
+		return "a modest bearish tilt"
+	default:
+		return "a balanced directional profile"
+	}
+}
+
+func riskRewardDriverNarrative(index int, item map[string]any) string {
+	symbol := asString(item["symbol"])
+	direction := strings.ToLower(asString(item["direction"]))
+	if direction == "" {
+		direction = "directional"
+	}
+	leadIn := "is a monitored"
+	if index == 0 {
+		leadIn = "is the clearest"
+	}
+	return fmt.Sprintf("%s %s %s exception in the group and is showing a possible %s opportunity; evidence looks %s with a %s risk posture", symbol, leadIn, direction, direction, naturalEvidenceTone(floatFromAny(item["confidence"])), naturalRiskTone(asString(item["risk_level"])))
+}
+
+func naturalEvidenceTone(confidence float64) string {
+	switch {
+	case confidence >= 0.75:
+		return "well supported"
+	case confidence >= 0.55:
+		return "constructive but still worth confirming"
+	case confidence > 0:
+		return "early and needs more confirmation"
+	default:
+		return "unclear from the bounded sample"
+	}
+}
+
+func naturalRiskTone(risk string) string {
+	switch strings.ToLower(strings.TrimSpace(risk)) {
+	case "low":
+		return "lower"
+	case "medium":
+		return "manageable but not clean"
+	case "high":
+		return "elevated"
+	default:
+		return "unclassified"
+	}
+}
+
+func naturalReviewQueueText(active, expired int) string {
+	switch {
+	case active > 0 && expired > active:
+		return "Review Queue is dominated by expired items, but there are still active opportunities that need current triage."
+	case active > expired:
+		return "Review Queue is primarily active, so the current triage set should drive analyst attention."
+	case active > 0:
+		return "Review Queue has a small active set that should be separated from historical or expired noise."
+	default:
+		return "Review Queue has no active opportunities in the bounded sample."
+	}
+}
+
+func naturalActiveShare(active, total int) string {
+	if total <= 0 {
+		return "The queue does not have enough current items to form a triage view"
+	}
+	share := float64(active) / float64(total)
+	switch {
+	case share >= 0.50:
+		return "Active opportunities make up a substantial part of the queue"
+	case share >= 0.10:
+		return "Active opportunities are present but still a minority of the queue"
+	case active > 0:
+		return "Active opportunities are a small minority of the queue"
+	default:
+		return "The queue is effectively historical for this window"
+	}
+}
+
+func reviewQueueDriverNarrative(item map[string]any) string {
+	symbol := asString(item["symbol"])
+	direction := strings.ToLower(asString(item["direction"]))
+	if direction == "" {
+		direction = "directional"
+	}
+	when := asString(item["last_evaluated_date"])
+	if when == "" {
+		when = "the current window"
+	}
+	summary := asString(item["summary"])
+	if summary != "" {
+		return fmt.Sprintf("%s remains an active %s review item last evaluated %s; the persisted summary points to %s", symbol, direction, when, summary)
+	}
+	return fmt.Sprintf("%s remains an active %s review item last evaluated %s", symbol, direction, when)
 }
 
 func mapFromAny(value any) map[string]any {
@@ -1089,6 +1263,23 @@ func formatJSONNumber(value any) string {
 	default:
 		return strings.TrimSpace(fmt.Sprintf("%v", typed))
 	}
+}
+
+func floatFromAny(value any) float64 {
+	switch typed := value.(type) {
+	case float64:
+		return typed
+	case int:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	case string:
+		var out float64
+		if _, err := fmt.Sscanf(strings.TrimSpace(typed), "%f", &out); err == nil {
+			return out
+		}
+	}
+	return 0
 }
 
 func intFromAny(value any) int {
