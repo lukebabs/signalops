@@ -8944,3 +8944,10 @@ Next-cycle priority:
 - Chose prompt chunking/compaction over broadly raising Syncratic AI Gateway policy. The earlier `4800` byte UI cap was a stricter byte cap than the actual `4000` input-token gateway policy, but the correct durable strategy is to avoid cramming full Daily Overview lineage into a single prompt.
 - Updated daily narrative Ask prompt construction to send compact section summaries plus artifact totals and capped citation samples. Full provenance remains stored in `syncratic_context_windows.lineage_refs`.
 - Daily narrative Ask now defaults to a conservative `10000`-byte prompt proxy, while the UI requests `10000`, to fit the current Syncratic AI Gateway `4000` input-token policy. If compaction still cannot fit, the backend returns `context_requires_chunking` and the UI shows a chunking-specific message.
+
+## 2026-08-23 — Syncratic Ask live smoke and idempotency gate
+
+- Added a controlled Playwright smoke for `/marketops/syncratic` that logs in with the tenant-local QA identity, opens a daily narrative context, clicks normal Ask (`force=false`), and verifies the `/v1/syncratic/context-windows/{id}/ask` response shape without retaining HAR artifacts on success.
+- Live smoke reached the SignalOps Ask endpoint but failed before the fix with `502 syncratic_ask_failed`. A minimal upstream probe from the gateway container showed the Syncratic AI Gateway rejected requests without `Idempotency-Key` using `400 idempotency_key_required`.
+- Patched the Syncratic user API client to send `Idempotency-Key` and wired SignalOps Ask calls to generate stable idempotency keys from context window id + prompt digest; explicit Regenerate includes a timestamp suffix.
+- A follow-up upstream probe with `Idempotency-Key` advanced to `503 gateway_price_catalog_not_found`, confirming the next blocker is Syncratic AI Gateway price-catalog policy/configuration rather than SignalOps prompt size or browser auth.

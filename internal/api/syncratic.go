@@ -542,6 +542,7 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 		DirectReasoning: &directReasoning,
 		GraphEnabled:    &graphEnabled,
 		KEEEnabled:      &keeEnabled,
+		IdempotencyKey:  syncraticAskIdempotencyKey(contextWindow, promptMeta, req.Force, started),
 		ExternalContext: &userapi.AskExternalContext{Items: []userapi.AskExternalContextItem{{Title: "SignalOps MarketOps context window " + contextWindow.ContextWindowID, SourceID: contextWindow.ContextWindowID, Text: prompt}}},
 	})
 	if err != nil {
@@ -557,6 +558,14 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
 	}
 	return stored, syncraticAskResult{ContextWindowID: contextWindow.ContextWindowID, SyncraticInsightID: stored.SyncraticInsightID, AskQueryID: askResp.QueryID, AskStatus: "completed", PromptDigest: promptMeta.PromptDigest, Updated: true, PromptBuilderVersion: promptMeta.PromptBuilderVersion}, nil
+}
+
+func syncraticAskIdempotencyKey(contextWindow storage.SyncraticContextWindowRecord, meta syncraticAskPromptMeta, force bool, started time.Time) string {
+	parts := []string{"signalops", "syncratic-ask", contextWindow.ContextWindowID, strings.TrimPrefix(meta.PromptDigest, "sha256:")}
+	if force {
+		parts = append(parts, "force", started.Format("20060102T150405.000000000Z"))
+	}
+	return strings.Join(parts, "-")
 }
 
 type syncraticAskPromptMeta struct {

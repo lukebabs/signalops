@@ -83,6 +83,8 @@ Request fields:
 - `include_record_details` is accepted for contract stability but the G090 implementation sends IDs and summary metrics only.
 - `force` defaults to `false`; unchanged prompt/evidence skips the Ask call.
 
+SignalOps sends a server-generated `Idempotency-Key` header to the Syncratic AI Gateway for every Ask call. Standard `force=false` Ask requests use a stable key derived from the context window and prompt digest; explicit `force=true` regenerate requests include a timestamp suffix so the operator can intentionally request a fresh upstream run.
+
 Response fields:
 
 - `syncratic_insight`: the updated or unchanged Syncratic insight.

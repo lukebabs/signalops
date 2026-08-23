@@ -64,3 +64,7 @@ Current SignalOps policy target:
 - Keep Syncratic AI Gateway policy moderate; 4,000 input tokens / 1,000 output tokens remains a reasonable target for focused prompts.
 - Daily Overview should rely on compaction and source-section drilldowns before increasing gateway limits.
 - If future Institutional/custom-universe contexts require larger prompts, enable that as a separate tier/policy decision.
+
+## Live Ask smoke result
+
+A controlled Playwright smoke now covers the real `/marketops/syncratic` Ask path. The first live run confirmed browser auth, UI routing, context selection, and SignalOps endpoint routing worked, but returned `502 syncratic_ask_failed`. A gateway-container probe identified the upstream sequence: Syncratic AI Gateway first required `Idempotency-Key`; after SignalOps was patched to send that header, the upstream advanced to `503 gateway_price_catalog_not_found`. The remaining live blocker is therefore Syncratic AI Gateway price-catalog/policy configuration, not SignalOps prompt size.
