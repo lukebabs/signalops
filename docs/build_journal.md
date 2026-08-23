@@ -9023,3 +9023,12 @@ Next-cycle priority:
 - Verified `pgbackrest version` works in both dedicated MarketOps database containers.
 - Ran `sudo -n signalops-deploy-agent scheduler-run-now:marketops-retention-governance` after the runner overlay correction. The run succeeded for `tenant-local` and `tenant-pilot-b` with `candidate_rows=0` and `affected_rows=0`.
 - Verified the corrected retention run preserved the pgBackRest image overlay and recorded `marketops_scheduled_job_statuses.job_id='marketops-retention-governance'` as `succeeded`.
+
+### 2026-08-23 — Syncratic Ask readiness worker boundary fix
+
+- Reran Syncratic Ask readiness validation. Backend regressions passed, web Syncratic tests passed, and the live Playwright Ask smoke passed with `1 passed in 4.34s`.
+- Verified active daily narrative contexts exist for Daily Overview, SRI, Risk/Reward, and Review Queue on tenant-local.
+- Found queued `syncratic_intelligence_jobs` in the dedicated MarketOps database while the gateway worker was polling the shared SignalOps repository.
+- Updated the gateway to start the Syncratic worker with the dedicated MarketOps repository when configured.
+- Constrained automatic worker Ask calls to daily narrative contexts only so the fix does not trigger uncontrolled per-asset AI Gateway usage.
+- Latest completed Ask metadata showed `prompt_bytes=4396`, under the local 10k-byte guard used for the governed 4k-input-token AI Gateway policy.

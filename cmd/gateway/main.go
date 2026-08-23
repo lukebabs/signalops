@@ -123,8 +123,12 @@ func main() {
 	}
 	workerCtx, stopSyncraticWorker := context.WithCancel(context.Background())
 	defer stopSyncraticWorker()
-	if queryRepo != nil && routerConfig.SyncraticAskClient != nil {
-		api.StartSyncraticIntelligenceWorker(workerCtx, queryRepo, routerConfig.SyncraticAskClient)
+	syncraticWorkerRepo := queryRepo
+	if marketOpsQueryRepo != nil {
+		syncraticWorkerRepo = marketOpsQueryRepo
+	}
+	if syncraticWorkerRepo != nil && routerConfig.SyncraticAskClient != nil {
+		api.StartSyncraticIntelligenceWorker(workerCtx, syncraticWorkerRepo, routerConfig.SyncraticAskClient)
 		logger.Info("syncratic intelligence worker enabled")
 	}
 	server := &http.Server{

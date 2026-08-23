@@ -46,6 +46,10 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 		_ = jobs.CompleteSyncraticIntelligenceJob(ctx, job.JobID, "", "", time.Now().UTC())
 		return
 	}
+	if !syncraticWorkerShouldAutoAsk(contextWindow) {
+		_ = jobs.CompleteSyncraticIntelligenceJob(ctx, job.JobID, "", "", time.Now().UTC())
+		return
+	}
 	if !syncraticContextHasAnalystEvidence(contextWindow) {
 		insight, err := syncraticInsightForContextType(ctx, repo, contextWindow, defaultSyncraticEODInsightType)
 		if err != nil {
@@ -88,4 +92,8 @@ func syncraticContextHasAnalystEvidence(contextWindow storage.SyncraticContextWi
 		len(contextWindow.GraphProposalIDs)+len(contextWindow.LabelIDs)+len(contextWindow.MarketStateIDs)+len(contextWindow.StateTransitionIDs)+
 		len(contextWindow.HypothesisEvaluationIDs)+len(contextWindow.OpportunityIDs)+len(contextWindow.OutcomeIDs)+len(contextWindow.CalibrationSummaryIDs) > 0 ||
 		(isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) && len(contextWindow.SummaryMetricsJSON) > 2)
+}
+
+func syncraticWorkerShouldAutoAsk(contextWindow storage.SyncraticContextWindowRecord) bool {
+	return isDailyNarrativeContextStrategy(contextWindow.ContextStrategy)
 }

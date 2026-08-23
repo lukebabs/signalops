@@ -2,7 +2,7 @@
 
 Status: production-readiness control.
 
-Last validated: 2026-08-23.
+Last validated: 2026-08-23 UTC.
 
 ## Purpose
 
@@ -40,10 +40,12 @@ Out of scope:
 | Provenance retention | Full evidence lineage remains persisted in MarketOps storage even when the Ask prompt is compacted. | Implemented through context-window lineage refs. |
 | Idempotency | Ask calls include `Idempotency-Key`; normal Ask is stable for the same context/prompt digest, while forced regeneration uses a timestamp suffix. | Implemented and smoke-tested. |
 | AI Gateway commercial gate | The SignalOps AI Gateway client has an active price-catalog/policy configuration. | Passing after catalog propagation. |
-| Browser smoke | `scripts/run_syncratic_ask_ui_smoke.sh` logs in, opens `/marketops/syncratic`, selects a daily narrative, runs normal Ask, and validates the Ask response. | Passing: `1 passed in 1.43s`. |
+| Browser smoke | `scripts/run_syncratic_ask_ui_smoke.sh` logs in, opens `/marketops/syncratic`, selects a daily narrative, runs normal Ask, and validates the Ask response. | Passing: latest rerun `1 passed in 4.34s`. |
 | Failure artifacts | HAR, Playwright trace, and screenshot are retained only on failure and remain protected outside Git. | Implemented by smoke script. |
 | Sanitized errors | Browser-visible errors do not expose raw prompts, tokens, secrets, API keys, or upstream response bodies. | Required release invariant. |
 | Admin operational visibility | Admin Operations Health exposes a read-only `Syncratic Ask` freshness row with latest success/failure health and context detail. | Deployed and browser-validated on 2026-08-23. |
+| Worker data boundary | The background Syncratic worker claims durable jobs from the dedicated MarketOps repository when the MarketOps data boundary is configured. | Source-fixed on 2026-08-23 after queued jobs were found in the dedicated DB while the worker was polling the shared DB. |
+| Automatic Ask scope | Automatic worker Ask enrichment is limited to daily narrative contexts: Daily Overview, SRI, Risk/Reward, and Review Queue. Legacy per-asset contexts remain operator-triggered to avoid uncontrolled AI Gateway usage. | Source-fixed on 2026-08-23. |
 
 ## Required validation command
 
@@ -89,3 +91,16 @@ Syncratic Ask is ready for controlled pilot QA when:
 5. The release journal records the run result and any upstream blocker.
 
 Production deployment validation passed on 2026-08-23: Gateway deployed through the constrained deployment agent, public `/readyz` returned `200`, and `scripts/run_subscription_admin_ui_smoke.sh` passed with the `Syncratic Ask` Operations Health row included.
+
+## 2026-08-23 readiness rerun
+
+Current validation found that the live browser Ask path is healthy, but the background worker was not draining dedicated MarketOps `syncratic_intelligence_jobs` because it was started with the shared SignalOps repository. The gateway source now starts the worker with the dedicated MarketOps repository when configured.
+
+The same fix constrains automatic worker Ask calls to daily narrative contexts only. This prevents a repository-routing fix from causing the worker to call the AI Gateway for hundreds of legacy per-asset queued contexts. Per-asset Ask remains available as an explicit operator/browser action.
+
+Validation evidence:
+
+- `go test ./cmd/gateway ./internal/api ./internal/syncratic/userapi`
+- `npm --prefix web test -- --run src/api/syncratic.test.ts src/lib/syncratic.test.ts`
+- `./scripts/run_syncratic_ask_ui_smoke.sh` returned `1 passed in 4.34s`
+- Latest completed Ask prompt metadata showed `prompt_bytes=4396`, below the local 10k-byte guard used to stay within the governed 4k-input-token AI Gateway policy.

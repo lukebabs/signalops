@@ -68,3 +68,9 @@ Current SignalOps policy target:
 ## Live Ask smoke result
 
 A controlled Playwright smoke now covers the real `/marketops/syncratic` Ask path. The first live run confirmed browser auth, UI routing, context selection, and SignalOps endpoint routing worked, but returned `502 syncratic_ask_failed`. A gateway-container probe identified the upstream sequence: Syncratic AI Gateway first required `Idempotency-Key`; after SignalOps was patched to send that header, the upstream advanced to `503 gateway_price_catalog_not_found`. The Syncratic AI Gateway price-catalog/policy blocker was resolved after propagation. The controlled production browser smoke then passed: `scripts/run_syncratic_ask_ui_smoke.sh` returned `1 passed in 1.43s`. Syncratic Ask is now a production-readiness QA control for gateway deploys and AI Gateway policy/catalog changes, not a SignalOps prompt-size blocker.
+
+## Worker boundary correction — 2026-08-23
+
+The live Ask smoke validated the direct browser route, but production evidence showed durable `syncratic_intelligence_jobs` remained queued in the dedicated MarketOps database. The gateway worker was enabled, but it was started with the shared SignalOps repository instead of the MarketOps repository.
+
+The gateway now starts the Syncratic worker with the dedicated MarketOps repository when `SIGNALOPS_MARKETOPS_DATABASE_URL` is configured. Automatic worker Ask enrichment is deliberately constrained to daily narrative contexts only: Daily Overview, SRI, Risk/Reward, and Review Queue. Legacy per-asset contexts are completed without an automatic Ask call and remain available through explicit operator-triggered Ask. This protects AI Gateway usage and aligns with the product direction away from broad per-asset automatic narratives.
