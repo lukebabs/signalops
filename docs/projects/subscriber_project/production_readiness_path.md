@@ -107,7 +107,7 @@ These are required before broader commercial production.
    - Acceptance:
      - Admins can govern enrolled users, tenant membership, tier assignment, entitlement state, quota state, default-list policy, audit evidence, and user activity visibility.
      - Billing/provider integration remains separated until explicitly approved.
-   - Current status: migration `000157_subscriber_user_activity_ledger` is applied in the dedicated MarketOps database and gateway/web are deployed. Subscription Administration now exposes append-only login/logout/feature-view/mutation activity through an Activity tab and per-user drilldown. Detail-retention automation for the 180-day target remains a follow-up operations-control item.
+   - Current status: migration `000157_subscriber_user_activity_ledger` is applied in the dedicated MarketOps database and gateway/web are deployed. Subscription Administration now exposes append-only login/logout/feature-view/mutation activity through an Activity tab and per-user drilldown. Migration `000158_subscriber_user_activity_retention_policy` prepares a 180-day dry-run retention policy for activity detail rows; enforcement remains a separate approval gate after product/legal retention and summarized activity needs are confirmed.
 
 10. **Incident runbooks**
     - Maintain runbooks for stale dashboard data, failed post-close, provider outage, access-control regression, failed deployment smoke, backup/restore, and FMP annual degradation.

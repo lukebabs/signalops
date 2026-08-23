@@ -8985,3 +8985,11 @@ Next-cycle priority:
 - Added `docs/MarketOps_Subscription_User_Journey_v1.0_Code_Agent_Spec.md` as the product/UX source for the subscription journey.
 - The spec defines Visitor, Explorer, Researcher, Professional, and Institutional lifecycle states; Daily Active Researchers as the north-star metric; contextual upgrade triggers; Stripe checkout/webhook expectations; entitlement UX rules; admin requirements; and phased acceptance criteria.
 - Linked the spec from the Subscriber Project document set so implementation work can reference it alongside the commerce model, billing, activity monitoring, and production-readiness documents.
+
+## 2026-08-23 — Subscriber activity retention policy foundation
+
+- Added migration `000158_subscriber_user_activity_retention_policy` to seed `subscriber.user_activity_180d` for `tenant-local` and `tenant-pilot-b` in `dry_run` mode.
+- Wired the retention governor to map that policy to `subscriber_user_activity_events.occurred_at`, preserving tenant scope and avoiding payload/receipt expansion.
+- Added a focused retention-governor unit test for the subscriber activity target.
+- Updated Subscriber Project readiness and user-activity documentation: retention candidate counting is ready through existing Retention Governance, while deletion/enforcement remains a separate explicit approval gate.
+- Validation passed: `gofmt`, `bash -n scripts/marketops_scheduled_job.sh`, `git diff --check`, and `go test ./cmd/retention-governor ./internal/api ./internal/storage/postgres`.

@@ -7,6 +7,7 @@ Last updated: 2026-08-23.
 Production activation evidence, 2026-08-23 UTC:
 
 - migration `000157_subscriber_user_activity_ledger` applied to the dedicated MarketOps database at `2026-08-23 06:57:56 UTC`;
+- migration `000158_subscriber_user_activity_retention_policy` is prepared to add a 180-day dry-run retention policy for `tenant-local` and `tenant-pilot-b`;
 - `subscriber_user_activity_events` exists with RLS enabled and forced;
 - `signalops_subscriber_gateway` has `SELECT,INSERT` on the activity ledger and execute access to `subscriber_subscription_admin_identity_labels(text)`;
 - gateway and web were rebuilt/restarted through the constrained deployment agent;
@@ -88,13 +89,17 @@ The activity view supports operator search across user identity labels, feature,
 
 ## Retention posture
 
-The intended detail-retention target is 180 days. The first implementation creates the ledger and UI; a follow-up operations-control slice should add a scheduled retention job or extend the existing retention governance policy to prune detail rows after the approved window.
+The intended detail-retention target is 180 days. Migration `000158_subscriber_user_activity_retention_policy` adds the retention-governance policy `subscriber.user_activity_180d` for the controlled tenant scopes.
+
+The policy is deliberately seeded as `dry_run`. Daily retention governance can now count candidate detail rows older than 180 days through the existing `signalops-retention-governance` scheduled job and Admin Storage > Retention Governance surface. No activity row is deleted unless the policy mode is explicitly changed to `enforced` and the retention governor is run with `--execute`.
+
+Enforcement remains a separate approval gate because product/legal retention, summarized activity metrics, and customer-support needs must be confirmed before pruning detailed activity rows.
 
 ## Validation
 
 Source validation for this slice:
 
-- `go test ./internal/api ./internal/storage/postgres`
+- `go test ./cmd/retention-governor ./internal/api ./internal/storage/postgres`
 - `npm --prefix web run build`
 - `python/tests/test_subscription_administration_ui_smoke.py` updated to require the Activity tab and selected-user drilldown.
 
@@ -105,3 +110,13 @@ Production validation after deployment should confirm:
 3. `/v1/administration/subscriptions/activity?tenant_id=tenant-local` returns summaries/events for a subscription admin;
 4. Subscription Administration renders `User activity`;
 5. a MarketOps watchlist mutation records an `api_mutation` event without exposing payload content.
+
+## Retention policy implementation — 2026-08-23
+
+The retention governor now recognizes `subscriber.user_activity_180d` and maps it to `subscriber_user_activity_events.occurred_at`. The target is tenant-scoped and does not use CyberOps evidence receipts.
+
+Deployment steps for this slice:
+
+1. Apply migration `000158_subscriber_user_activity_retention_policy` to the dedicated MarketOps database.
+2. Rebuild/redeploy the retention-governor image or run through the next production deployment path that rebuilds the image.
+3. Run `signalops-retention-governance` in its existing dry-run mode and verify Admin Storage > Retention Governance shows candidate/affected counts. Expected affected rows remain `0` while the policy is `dry_run`.
