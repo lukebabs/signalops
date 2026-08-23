@@ -9,24 +9,32 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 from playwright.sync_api import Browser, Page, TimeoutError as PlaywrightTimeoutError, expect
 
 
+@dataclass(frozen=True, repr=False)
+class SyncraticSmokeConfig:
+    base_url: str
+    username: str
+    password: str
+
+
 @pytest.fixture(scope="session")
-def syncratic_config() -> tuple[str, str, str]:
+def syncratic_config() -> SyncraticSmokeConfig:
     username = os.getenv("SIGNALOPS_E2E_ADMIN_USERNAME", "").strip()
     password = os.getenv("SIGNALOPS_E2E_ADMIN_PASSWORD", "").strip()
     base_url = os.getenv("SIGNALOPS_E2E_BASE_URL", "https://signalops.syncratic.io").rstrip("/")
     if not username or not password:
         pytest.skip("Syncratic Ask UI smoke is not configured")
-    return base_url, username, password
+    return SyncraticSmokeConfig(base_url=base_url, username=username, password=password)
 
 
 @pytest.fixture
-def syncratic_page(syncratic_config: tuple[str, str, str], browser: Browser, request: pytest.FixtureRequest) -> Page:
+def syncratic_page(syncratic_config: SyncraticSmokeConfig, browser: Browser, request: pytest.FixtureRequest) -> Page:
     artifact_dir = Path(os.getenv("SIGNALOPS_E2E_ARTIFACT_DIR", "/tmp/signalops-e2e-artifacts"))
     artifact_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     artifact_dir.chmod(0o700)
@@ -51,8 +59,10 @@ def syncratic_page(syncratic_config: tuple[str, str, str], browser: Browser, req
             har_path.unlink(missing_ok=True)
 
 
-def login(page: Page, config: tuple[str, str, str]) -> None:
-    base_url, username, password = config
+def login(page: Page, config: SyncraticSmokeConfig) -> None:
+    base_url = config.base_url
+    username = config.username
+    password = config.password
     heading = page.get_by_role("heading", name="Syncratic Insights")
     last_error: Exception | None = None
     for attempt in range(3):
@@ -85,7 +95,7 @@ def login(page: Page, config: tuple[str, str, str]) -> None:
     raise AssertionError("Syncratic Ask UI smoke could not reach the login page after retries")
 
 
-def test_syncratic_daily_narrative_ask_smoke(syncratic_page: Page, syncratic_config: tuple[str, str, str]) -> None:
+def test_syncratic_daily_narrative_ask_smoke(syncratic_page: Page, syncratic_config: SyncraticSmokeConfig) -> None:
     login(syncratic_page, syncratic_config)
     force_regenerate = os.getenv("SIGNALOPS_SYNCRATIC_FORCE_REGENERATE", "").strip() == "1"
     ask_button_name = "Regenerate" if force_regenerate else "Ask Syncratic AI"
