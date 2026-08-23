@@ -9032,3 +9032,8 @@ Next-cycle priority:
 - Updated the gateway to start the Syncratic worker with the dedicated MarketOps repository when configured.
 - Constrained automatic worker Ask calls to daily narrative contexts only so the fix does not trigger uncontrolled per-asset AI Gateway usage.
 - Latest completed Ask metadata showed `prompt_bytes=4396`, under the local 10k-byte guard used for the governed 4k-input-token AI Gateway policy.
+
+### 2026-08-23 — Syncratic worker daily-narrative claim boundary
+
+- Strengthened the Syncratic worker fix by scoping the repository claim query to `subject_symbol=MARKETOPS` and daily narrative strategies only.
+- This prevents the background worker from leasing legacy per-asset queued jobs before the in-process skip guard can run, preserving AI Gateway capacity and aligning automatic Ask with Daily Overview, SRI, Risk/Reward, and Review Queue only.

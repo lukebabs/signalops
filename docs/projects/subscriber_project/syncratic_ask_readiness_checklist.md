@@ -104,3 +104,7 @@ Validation evidence:
 - `npm --prefix web test -- --run src/api/syncratic.test.ts src/lib/syncratic.test.ts`
 - `./scripts/run_syncratic_ask_ui_smoke.sh` returned `1 passed in 4.34s`
 - Latest completed Ask prompt metadata showed `prompt_bytes=4396`, below the local 10k-byte guard used to stay within the governed 4k-input-token AI Gateway policy.
+
+## Daily-narrative claim boundary
+
+The background worker claim query is scoped to `subject_symbol=MARKETOPS` and the four daily narrative strategies. This is the authoritative cost-control boundary. The in-process worker policy also refuses automatic Ask for non-daily contexts as defense in depth.

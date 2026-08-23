@@ -74,3 +74,7 @@ A controlled Playwright smoke now covers the real `/marketops/syncratic` Ask pat
 The live Ask smoke validated the direct browser route, but production evidence showed durable `syncratic_intelligence_jobs` remained queued in the dedicated MarketOps database. The gateway worker was enabled, but it was started with the shared SignalOps repository instead of the MarketOps repository.
 
 The gateway now starts the Syncratic worker with the dedicated MarketOps repository when `SIGNALOPS_MARKETOPS_DATABASE_URL` is configured. Automatic worker Ask enrichment is deliberately constrained to daily narrative contexts only: Daily Overview, SRI, Risk/Reward, and Review Queue. Legacy per-asset contexts are completed without an automatic Ask call and remain available through explicit operator-triggered Ask. This protects AI Gateway usage and aligns with the product direction away from broad per-asset automatic narratives.
+
+## Claim-level cost control — 2026-08-23
+
+The durable Syncratic intelligence worker now claims only daily narrative jobs by joining `syncratic_intelligence_jobs` to `syncratic_context_windows` and requiring `subject_symbol=MARKETOPS` plus one of the four daily narrative strategies. This prevents legacy per-asset queued jobs from consuming AI Gateway capacity while preserving explicit per-asset Ask through the UI.
