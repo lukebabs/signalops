@@ -79,7 +79,7 @@ Request fields:
 
 - `tenant_id` optional but must match the context window when provided.
 - `prompt_builder_version` defaults to `marketops.syncratic.ask_prompt.v1`.
-- Asset/context Ask `max_prompt_bytes` defaults to `12000` and is capped at `24000`. MarketOps daily narrative Ask defaults to `12000` and is capped at `16000`; the prompt builder compacts section summaries and lineage samples instead of sending full stored lineage.
+- Asset/context Ask `max_prompt_bytes` defaults to `12000` and is capped at `24000`. MarketOps daily narrative Ask defaults to a conservative `10000`-byte proxy and is capped at `10000` to stay under the Syncratic AI Gateway `4000` input-token policy; the prompt builder compacts section summaries and lineage samples instead of sending full stored lineage.
 - `include_record_details` is accepted for contract stability but the G090 implementation sends IDs and summary metrics only.
 - `force` defaults to `false`; unchanged prompt/evidence skips the Ask call.
 

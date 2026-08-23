@@ -8941,6 +8941,6 @@ Next-cycle priority:
 
 ## 2026-08-23 — Syncratic Ask chunked prompt strategy
 
-- Chose prompt chunking/compaction over broadly raising Syncratic AI Gateway policy. The previous UI cap of `4800` bytes was too small, but the correct durable strategy is to avoid cramming full Daily Overview lineage into a single prompt.
+- Chose prompt chunking/compaction over broadly raising Syncratic AI Gateway policy. The earlier `4800` byte UI cap was a stricter byte cap than the actual `4000` input-token gateway policy, but the correct durable strategy is to avoid cramming full Daily Overview lineage into a single prompt.
 - Updated daily narrative Ask prompt construction to send compact section summaries plus artifact totals and capped citation samples. Full provenance remains stored in `syncratic_context_windows.lineage_refs`.
-- Daily narrative Ask now defaults to `12000` prompt bytes and clamps at `16000`, while the UI requests `12000`. If compaction still cannot fit, the backend returns `context_requires_chunking` and the UI shows a chunking-specific message.
+- Daily narrative Ask now defaults to a conservative `10000`-byte prompt proxy, while the UI requests `10000`, to fit the current Syncratic AI Gateway `4000` input-token policy. If compaction still cannot fit, the backend returns `context_requires_chunking` and the UI shows a chunking-specific message.

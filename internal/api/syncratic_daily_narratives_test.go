@@ -27,7 +27,7 @@ func TestBuildSyncraticDailyNarrativeAskPromptContracts(t *testing.T) {
 		QualityWarningsJSON:   []byte(`[{"code":"sample_warning","message":"visible warning"}]`),
 		EvidenceDigest:        "digest-1",
 	}
-	prompt, meta, err := buildSyncraticDailyNarrativeAskPrompt(ctx, syncraticAskRequest{MaxPromptBytes: 12000})
+	prompt, meta, err := buildSyncraticDailyNarrativeAskPrompt(ctx, syncraticAskRequest{MaxPromptBytes: 10000})
 	if err != nil {
 		t.Fatalf("prompt error: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestBuildSyncraticDailyNarrativeAskPromptContracts(t *testing.T) {
 	if meta.PromptBuilderVersion != dailyNarrativeAskPromptVersion || meta.ContextEvidenceDigest != "digest-1" || meta.PromptBytes != len(prompt) {
 		t.Fatalf("unexpected meta: %+v", meta)
 	}
-	prompt2, meta2, err := buildSyncraticDailyNarrativeAskPrompt(ctx, syncraticAskRequest{MaxPromptBytes: 12000})
+	prompt2, meta2, err := buildSyncraticDailyNarrativeAskPrompt(ctx, syncraticAskRequest{MaxPromptBytes: 10000})
 	if err != nil || prompt2 != prompt || meta2.PromptDigest != meta.PromptDigest {
 		t.Fatalf("prompt digest is not stable: %v %+v %+v", err, meta, meta2)
 	}
@@ -47,7 +47,7 @@ func TestBuildSyncraticDailyNarrativeAskPromptContracts(t *testing.T) {
 
 func TestBuildSyncraticDailyNarrativeAskPromptRejectsWrongVersion(t *testing.T) {
 	ctx := storage.SyncraticContextWindowRecord{ContextStrategy: dailyNarrativeStrategyOverview, SummaryMetricsJSON: []byte(`{}`), LineageRefsJSON: []byte(`{}`), QualityWarningsJSON: []byte(`[]`)}
-	_, _, err := buildSyncraticDailyNarrativeAskPrompt(ctx, syncraticAskRequest{PromptBuilderVersion: "wrong.version", MaxPromptBytes: 12000})
+	_, _, err := buildSyncraticDailyNarrativeAskPrompt(ctx, syncraticAskRequest{PromptBuilderVersion: "wrong.version", MaxPromptBytes: 10000})
 	if err == nil || !strings.Contains(err.Error(), dailyNarrativeAskPromptVersion) {
 		t.Fatalf("expected version error, got %v", err)
 	}
@@ -87,11 +87,11 @@ func TestBuildSyncraticDailyNarrativeAskPromptCompactsLargeOverview(t *testing.T
 		QualityWarningsJSON:   []byte(`[]`),
 		EvidenceDigest:        "digest-large",
 	}
-	prompt, meta, err := buildSyncraticDailyNarrativeAskPrompt(ctx, syncraticAskRequest{MaxPromptBytes: 12000})
+	prompt, meta, err := buildSyncraticDailyNarrativeAskPrompt(ctx, syncraticAskRequest{MaxPromptBytes: 10000})
 	if err != nil {
 		t.Fatalf("prompt should compact under budget: %v", err)
 	}
-	if len(prompt) > 12000 || meta.PromptBytes != len(prompt) {
+	if len(prompt) > 10000 || meta.PromptBytes != len(prompt) {
 		t.Fatalf("prompt did not respect compact budget: len=%d meta=%+v", len(prompt), meta)
 	}
 	if strings.Contains(prompt, "rr-ref-xxxxxxxxxxxxxxxxxxxxxxxx") && strings.Count(prompt, "rr-ref-") > 12 {

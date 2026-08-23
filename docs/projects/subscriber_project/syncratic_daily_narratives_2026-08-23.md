@@ -56,7 +56,8 @@ The materializer does not call providers, alter algorithms, mutate lifecycle sta
 
 ## Chunked prompt strategy
 
-Daily narrative Ask now follows a chunked/map-reduce-ready pattern. Focused narratives remain bounded by their own context strategies, while Daily Overview is a compact synthesis over section summaries rather than a full dump of all lineage refs. Full provenance remains in the database. The Ask prompt receives bounded examples, artifact totals, and capped citation samples.
+Daily narrative Ask now follows a chunked/map-reduce-ready pattern. Focused narratives remain bounded by their own context strategies, while Daily Overview is a compact synthesis over section summaries rather than a full dump of all lineage refs. Full provenance remains in the database. The Ask prompt receives bounded examples, artifact totals, and capped citation samples. SignalOps uses a conservative `10000`-byte local proxy for the current Syncratic AI Gateway `4000` input-token limit.
+
 
 Current SignalOps policy target:
 

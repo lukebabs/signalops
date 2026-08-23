@@ -379,15 +379,23 @@ func buildSyncraticDailyNarrativeAskPrompt(contextWindow storage.SyncraticContex
 	if version != dailyNarrativeAskPromptVersion {
 		return "", syncraticAskPromptMeta{}, fmt.Errorf("daily narrative context requires prompt_builder_version %s", dailyNarrativeAskPromptVersion)
 	}
+	const (
+		// Syncratic AI Gateway currently governs Ask at 4k input tokens / 1k output tokens.
+		// The gateway tokenizer is not available in SignalOps, so daily narrative prompts
+		// use a conservative serialized-byte proxy and compact/chunk before crossing it.
+		dailyNarrativeInputTokenBudget       = 4000
+		dailyNarrativeDefaultPromptByteProxy = 10000
+		dailyNarrativeMaxPromptByteProxy     = 10000
+	)
 	maxPromptBytes := req.MaxPromptBytes
 	if maxPromptBytes <= 0 {
-		maxPromptBytes = 12000
+		maxPromptBytes = dailyNarrativeDefaultPromptByteProxy
 	}
 	if maxPromptBytes < 1000 {
 		return "", syncraticAskPromptMeta{}, fmt.Errorf("max_prompt_bytes must be at least 1000")
 	}
-	if maxPromptBytes > 16000 {
-		maxPromptBytes = 16000
+	if maxPromptBytes > dailyNarrativeMaxPromptByteProxy {
+		maxPromptBytes = dailyNarrativeMaxPromptByteProxy
 	}
 	profiles := []dailyNarrativePromptProfile{
 		{LeaderLimit: 8, ExampleLimit: 8, RefSampleLimit: 12},
@@ -403,9 +411,11 @@ func buildSyncraticDailyNarrativeAskPrompt(contextWindow storage.SyncraticContex
 			"role":                   "MarketOps daily explainability layer over deterministic SignalOps evidence.",
 			"prompt_mode":            dailyNarrativePromptMode(contextWindow.ContextStrategy),
 			"compaction_policy": map[string]any{
-				"full_provenance_location": "syncratic_context_windows.lineage_refs",
-				"prompt_contains":          "bounded summaries plus capped citation samples and total artifact counts",
-				"reason":                   "chunked/map-reduce-ready Ask context; avoid cramming full session lineage into one prompt",
+				"full_provenance_location":   "syncratic_context_windows.lineage_refs",
+				"prompt_contains":            "bounded summaries plus capped citation samples and total artifact counts",
+				"reason":                     "chunked/map-reduce-ready Ask context; avoid cramming full session lineage into one prompt",
+				"gateway_input_token_budget": dailyNarrativeInputTokenBudget,
+				"local_prompt_byte_proxy":    maxPromptBytes,
 			},
 			"instructions": []string{
 				"Use only the supplied JSON context; do not retrieve documents or use external knowledge.",
