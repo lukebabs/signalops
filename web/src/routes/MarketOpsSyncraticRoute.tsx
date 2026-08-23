@@ -418,33 +418,37 @@ function SyncraticInsightDetail({
   summary: ReturnType<typeof summarizeSyncraticInsight>;
   tenantId: string;
 }) {
-  // Fetch the context window detail by context_window_id (read-only review).
-  const contextWindow = useSyncraticContextWindow(summary.contextWindowId || null);
-  const cwSummary = contextWindow.data ? summarizeSyncraticContextWindow(contextWindow.data.context_window) : null;
-
-  // G090 Ask enrichment state. `ask` is read from persisted metrics; `askMutation`
-  // carries the latest operator-triggered route result (transient skip/success).
+  // G090 Ask enrichment state. `ask` is read from the newest available
+  // insight. When Ask returns an updated insight, render it immediately instead
+  // of waiting for invalidated list/detail queries to refresh.
   const askMutation = useAskSyncraticContextWindow();
-  const ask = summarizeSyncraticAsk(insight);
-  const dataQuality = detectSyncraticDataQualityWarning(insight);
+  const mutationInsight = askMutation.data?.syncratic_insight;
+  const renderedInsight = mutationInsight?.context_window_id === insight.context_window_id ? mutationInsight : insight;
+  const renderedSummary = renderedInsight === insight ? summary : summarizeSyncraticInsight(renderedInsight);
+  const ask = summarizeSyncraticAsk(renderedInsight);
+  const dataQuality = detectSyncraticDataQualityWarning(renderedInsight);
   const latestRoute = askMutation.data?.ask_result
     ? summarizeSyncraticAskRouteResult(askMutation.data.ask_result)
     : null;
-  const badge = classifySyncraticInsightBadge(insight, latestRoute?.askStatus);
+  const badge = classifySyncraticInsightBadge(renderedInsight, latestRoute?.askStatus);
+
+  // Fetch the context window detail by context_window_id (read-only review).
+  const contextWindow = useSyncraticContextWindow(renderedSummary.contextWindowId || null);
+  const cwSummary = contextWindow.data ? summarizeSyncraticContextWindow(contextWindow.data.context_window) : null;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <SyncraticBadgeChip badge={badge} />
-        <SyncraticCurrentnessChip summary={summary} />
-        <StatusLabel status={summary.status} />
-        <SeverityLabel severity={summary.severity} />
-        <span className="text-xs text-gray-600">conf {summary.confidence.toFixed(2)}</span>
-        <code className="break-all text-xs text-gray-700">{summary.insightId}</code>
-        <CopyButton value={summary.insightId} />
-        {!summary.isCurrent && summary.supersededBySyncraticInsightId && (
+        <SyncraticCurrentnessChip summary={renderedSummary} />
+        <StatusLabel status={renderedSummary.status} />
+        <SeverityLabel severity={renderedSummary.severity} />
+        <span className="text-xs text-gray-600">conf {renderedSummary.confidence.toFixed(2)}</span>
+        <code className="break-all text-xs text-gray-700">{renderedSummary.insightId}</code>
+        <CopyButton value={renderedSummary.insightId} />
+        {!renderedSummary.isCurrent && renderedSummary.supersededBySyncraticInsightId && (
           <span className="text-[11px] text-gray-500">
-            superseded by {shortSyncraticId(summary.supersededBySyncraticInsightId)}
+            superseded by {shortSyncraticId(renderedSummary.supersededBySyncraticInsightId)}
           </span>
         )}
       </div>
@@ -462,10 +466,10 @@ function SyncraticInsightDetail({
       )}
 
       <div>
-        <div className="text-sm font-medium text-gray-900">{summary.title}</div>
-        {summary.summary && <div className="mt-0.5 text-xs text-gray-600">{summary.summary}</div>}
+        <div className="text-sm font-medium text-gray-900">{renderedSummary.title}</div>
+        {renderedSummary.summary && <div className="mt-0.5 text-xs text-gray-600">{renderedSummary.summary}</div>}
       </div>
-      {summary.explanation && (
+      {renderedSummary.explanation && (
         <div>
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-gray-700">
@@ -486,7 +490,7 @@ function SyncraticInsightDetail({
                   : 'border-gray-200 bg-gray-50 text-gray-700'
             }`}
           >
-            {summary.explanation}
+            {renderedSummary.explanation}
           </p>
           {ask.present && (
             <div className="mt-0.5 text-[11px] text-gray-500">
@@ -530,38 +534,38 @@ function SyncraticInsightDetail({
       )}
 
       <SyncraticAskControls
-        contextWindowId={summary.contextWindowId}
+        contextWindowId={renderedSummary.contextWindowId}
         tenantId={tenantId}
         askMutation={askMutation}
       />
 
       <div className="grid grid-cols-2 gap-2 text-sm">
-        <div><div className="text-xs text-gray-500">Type</div><div className="break-all text-xs">{summary.insightType || '—'}</div></div>
-        <div><div className="text-xs text-gray-500">Confidence</div><div>{summary.confidence.toFixed(2)}</div></div>
-        <div><div className="text-xs text-gray-500">Subject</div><div className="break-all text-xs">{summary.subjectSymbol || summary.subjectId || '—'}</div></div>
-        <div><div className="text-xs text-gray-500">Builder</div><div className="break-all text-xs font-mono">{summary.builderVersion || '—'}</div></div>
-        <div><div className="text-xs text-gray-500">Created</div><div className="text-xs">{formatUtc(summary.createdAt)}</div></div>
-        <div><div className="text-xs text-gray-500">Updated</div><div className="text-xs">{formatUtc(summary.updatedAt)}</div></div>
+        <div><div className="text-xs text-gray-500">Type</div><div className="break-all text-xs">{renderedSummary.insightType || '—'}</div></div>
+        <div><div className="text-xs text-gray-500">Confidence</div><div>{renderedSummary.confidence.toFixed(2)}</div></div>
+        <div><div className="text-xs text-gray-500">Subject</div><div className="break-all text-xs">{renderedSummary.subjectSymbol || renderedSummary.subjectId || '—'}</div></div>
+        <div><div className="text-xs text-gray-500">Builder</div><div className="break-all text-xs font-mono">{renderedSummary.builderVersion || '—'}</div></div>
+        <div><div className="text-xs text-gray-500">Created</div><div className="text-xs">{formatUtc(renderedSummary.createdAt)}</div></div>
+        <div><div className="text-xs text-gray-500">Updated</div><div className="text-xs">{formatUtc(renderedSummary.updatedAt)}</div></div>
       </div>
 
       {/* Evidence references grouped by type (read-only ids — no new routing). */}
       <div className="space-y-2">
-        <SyncraticEvidenceList label="Supporting alerts" ids={summary.supportingAlertIds} />
-        <SyncraticEvidenceList label="Supporting signals" ids={summary.supportingSignalIds} />
-        <SyncraticEvidenceList label="Supporting events" ids={summary.supportingEventIds} />
-        <SyncraticEvidenceList label="Supporting artifacts" ids={summary.supportingArtifactIds} />
-        <SyncraticEvidenceList label="Related graph proposals" ids={summary.relatedGraphProposalIds} />
-        <SyncraticEvidenceList label="Related labels" ids={summary.relatedLabelIds} />
+        <SyncraticEvidenceList label="Supporting alerts" ids={renderedSummary.supportingAlertIds} />
+        <SyncraticEvidenceList label="Supporting signals" ids={renderedSummary.supportingSignalIds} />
+        <SyncraticEvidenceList label="Supporting events" ids={renderedSummary.supportingEventIds} />
+        <SyncraticEvidenceList label="Supporting artifacts" ids={renderedSummary.supportingArtifactIds} />
+        <SyncraticEvidenceList label="Related graph proposals" ids={renderedSummary.relatedGraphProposalIds} />
+        <SyncraticEvidenceList label="Related labels" ids={renderedSummary.relatedLabelIds} />
       </div>
 
-      <JsonViewer label="Metrics" value={insight.metrics} />
-      <JsonViewer label="Recommendation" value={insight.recommendation} />
+      <JsonViewer label="Metrics" value={renderedInsight.metrics} />
+      <JsonViewer label="Recommendation" value={renderedInsight.recommendation} />
 
       {/* Context window detail rendered in the same panel. */}
       <div className="rounded border border-gray-200 bg-gray-50 p-2">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs font-semibold text-gray-700">Context Window</div>
-          {summary.contextWindowId && <CopyButton value={summary.contextWindowId} />}
+          {renderedSummary.contextWindowId && <CopyButton value={renderedSummary.contextWindowId} />}
         </div>
         {contextWindow.isLoading ? (
           <p className="text-xs text-gray-500">Loading context window...</p>

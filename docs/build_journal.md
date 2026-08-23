@@ -9085,3 +9085,4 @@ Next-cycle priority:
 - Live review showed Syncratic Ask could now avoid raw/meta responses but still needed stronger analyst context in fallback output.
 - Enriched deterministic fallback narratives with contextual reads for SRI leadership/laggards, Risk/Reward neutrality and directional skew, and Review Queue active-vs-expired triage.
 - Expanded the Playwright Syncratic Ask smoke so HTTP 200 is not sufficient; the rendered explanation must include session/evaluation dates, tab-specific contextual markers, and no prompt/JSON meta-output.
+- Fixed the Syncratic Ask detail panel to render the refreshed insight returned by the Ask mutation immediately, avoiding stale pre-mutation prose after a successful Regenerate action.
