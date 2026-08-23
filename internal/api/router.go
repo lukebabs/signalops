@@ -1333,7 +1333,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/syncratic/context-windows/{context_window_id}/ask", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1383,7 +1383,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/syncratic/context-windows", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1433,7 +1433,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/syncratic/context-windows", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1450,7 +1450,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/syncratic/context-windows/{context_window_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1471,7 +1471,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/syncratic/insights", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1510,7 +1510,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/syncratic/insights", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1533,7 +1533,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/syncratic/insights/{syncratic_insight_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1565,7 +1565,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/syncratic/daily-narratives/materialize", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1590,7 +1590,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/syncratic/materialize", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}

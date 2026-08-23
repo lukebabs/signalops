@@ -8927,3 +8927,14 @@ Next-cycle priority:
 - Fixed `UserActivityBridge` to track browser path changes without router context, committed/pushed the fix, and redeployed web. The final deployment-agent web smoke passed: `2 passed`.
 - Ran Subscription Administration browser smoke. The first run exposed a test predicate issue because `/v1/administration/subscriptions/activity` matched the base subscription snapshot predicate; tightened the predicate to the exact base endpoint. Final result: `3 passed`.
 - Verified live activity capture: `subscriber_user_activity_events` contained `login` and `feature_view` events, latest observed at `2026-08-23 07:04:01 UTC`.
+
+## 2026-08-23 — Syncratic daily narrative production materialization
+
+- Ran the controlled production Syncratic daily narrative materialization for tenant-local using the latest completed MarketOps session, `2026-08-21`.
+- Initial execution exposed a post-decoupling routing defect: `/v1/syncratic/*` routes still used the shared primary repository, so daily SRI reads failed on missing `subscriber_gateway_global_sri_snapshots` even though MarketOps data belongs in the dedicated MarketOps database.
+- Restored the missing dedicated MarketOps SRI gateway views/grants by rerunning the already-applied idempotent `000132_subscriber_global_sri_foundation` and `000133_subscriber_global_sri_gateway_runtime_grant` SQL against the dedicated MarketOps DB.
+- Patched Syncratic routes to use `MarketOpsQueryRepository` when the MarketOps database boundary is configured. This keeps MarketOps Syncratic context windows, insights, Ask jobs, and source artifact reads in the dedicated MarketOps database.
+- Fixed daily narrative materialization telemetry to count object-shaped artifact refs and fixed nondeterministic Risk/Reward leader ordering so unchanged evidence digests remain stable across repeated runs.
+- Production materialization read-back for `2026-08-21`: Daily Overview `400` artifact refs, SRI `160`, Risk/Reward `120`, Review Queue `120`; all four context windows and insights are active.
+- Final authenticated idempotency check returned `skipped_unchanged=4`, `materialized_context_windows=0`, `materialized_insights=0`, and `queued_jobs=0`.
+- Validation passed: `go test ./internal/api`, Syncratic frontend tests (`56` tests), gateway deployment smoke (`2 passed`), `/readyz=200`, and `/marketops/syncratic=200`.

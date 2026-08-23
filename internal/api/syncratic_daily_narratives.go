@@ -262,12 +262,19 @@ func dailyNarrativeRiskReward(ctx context.Context, repo storage.QueryRepository,
 				dir = "unavailable"
 			}
 			counts[dir]++
-			if len(leaders) < 12 {
-				leaders = append(leaders, map[string]any{"snapshot_id": item.SnapshotID, "symbol": item.Symbol, "direction": item.TechnicalDirection, "score": item.TechnicalScore, "risk_level": item.RiskLevel, "confidence": item.Confidence, "eligible": item.Eligible})
-			}
+			leaders = append(leaders, map[string]any{"snapshot_id": item.SnapshotID, "symbol": item.Symbol, "direction": item.TechnicalDirection, "score": item.TechnicalScore, "risk_level": item.RiskLevel, "confidence": item.Confidence, "eligible": item.Eligible})
 		}
 	}
-	sort.Slice(leaders, func(i, j int) bool { return asFloat(leaders[i]["score"]) > asFloat(leaders[j]["score"]) })
+	sort.Slice(leaders, func(i, j int) bool {
+		leftScore, rightScore := asFloat(leaders[i]["score"]), asFloat(leaders[j]["score"])
+		if leftScore != rightScore {
+			return leftScore > rightScore
+		}
+		return strings.ToUpper(fmt.Sprint(leaders[i]["symbol"])) < strings.ToUpper(fmt.Sprint(leaders[j]["symbol"]))
+	})
+	if len(leaders) > 12 {
+		leaders = leaders[:12]
+	}
 	return map[string]any{"available": true, "latest_session_date": latest, "session_count": len(dates), "snapshot_count": len(items), "breadth": counts, "top_examples": leaders}, limitStrings(uniqueSorted(refs), 120), nil, nil
 }
 
@@ -429,6 +436,19 @@ func syncraticDailyNarrativeEvidenceDigest(record storage.SyncraticContextWindow
 }
 
 func dailyNarrativeEvidenceCount(record storage.SyncraticContextWindowRecord) int {
+	var refs map[string]json.RawMessage
+	if err := json.Unmarshal(record.EvaluationRefsJSON, &refs); err == nil {
+		count := 0
+		for _, raw := range refs {
+			var items []string
+			if err := json.Unmarshal(raw, &items); err == nil {
+				count += len(items)
+			}
+		}
+		if count > 0 {
+			return count
+		}
+	}
 	return len(record.SignalIDs) + len(record.AlertIDs) + len(record.MarketOpsEvidenceIDs) + len(record.OpportunityIDs) + len(record.OutcomeIDs) + len(record.CalibrationSummaryIDs)
 }
 

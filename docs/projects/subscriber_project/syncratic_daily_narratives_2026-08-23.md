@@ -39,3 +39,16 @@ The materializer does not call providers, alter algorithms, mutate lifecycle sta
 - `go test ./internal/api`
 - `npm --prefix web test -- --run src/api/syncratic.test.ts src/lib/syncratic.test.ts`
 - `npm --prefix web run build`
+
+## Production execution — 2026-08-23
+
+- Materialized tenant-local daily narratives for completed session `2026-08-21` using the four v1 strategies.
+- Persisted rows are stored in the dedicated MarketOps database, not the shared SignalOps database.
+- Artifact read-back:
+  - Daily Overview: 400 refs
+  - Sector Rotation: 160 refs
+  - Risk/Reward: 120 refs
+  - Review Queue: 120 refs
+- Corrected a routing gap found during execution: Syncratic MarketOps routes now resolve through the dedicated MarketOps repository when configured.
+- Corrected deterministic digest behavior by sorting Risk/Reward leader candidates before truncating the top examples.
+- Final production idempotency proof: rerunning materialization returned four `unchanged_evidence_digest` skips and created no additional context windows, insights, or jobs.
