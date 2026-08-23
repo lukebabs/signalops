@@ -8993,3 +8993,10 @@ Next-cycle priority:
 - Added a focused retention-governor unit test for the subscriber activity target.
 - Updated Subscriber Project readiness and user-activity documentation: retention candidate counting is ready through existing Retention Governance, while deletion/enforcement remains a separate explicit approval gate.
 - Validation passed: `gofmt`, `bash -n scripts/marketops_scheduled_job.sh`, `git diff --check`, and `go test ./cmd/retention-governor ./internal/api ./internal/storage/postgres`.
+
+## 2026-08-23 — Migration 000158 applied
+
+- Applied `000158_subscriber_user_activity_retention_policy` directly to the dedicated MarketOps database through the running `signalops-marketops-postgres-1` container after non-root access to `/etc/signalops/marketops-boundary.env` was denied and `sudo -n` required a password.
+- Recorded the migration in `schema_migrations` at `2026-08-23 17:44:47 UTC`.
+- Verified `subscriber.user_activity_180d` exists for `tenant-local` and `tenant-pilot-b` with `retention_days=180`, `mode=dry_run`, and preservation rule `summarized_activity_before_detail_prune`.
+- Verified current activity row counts and candidate counts: `tenant-local` 78 rows / 0 candidates; `tenant-pilot-b` 135 rows / 0 candidates. No activity rows were deleted.

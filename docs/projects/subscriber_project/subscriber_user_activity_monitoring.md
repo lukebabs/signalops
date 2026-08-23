@@ -7,7 +7,7 @@ Last updated: 2026-08-23.
 Production activation evidence, 2026-08-23 UTC:
 
 - migration `000157_subscriber_user_activity_ledger` applied to the dedicated MarketOps database at `2026-08-23 06:57:56 UTC`;
-- migration `000158_subscriber_user_activity_retention_policy` is prepared to add a 180-day dry-run retention policy for `tenant-local` and `tenant-pilot-b`;
+- migration `000158_subscriber_user_activity_retention_policy` applied to the dedicated MarketOps database at `2026-08-23 17:44:47 UTC`, adding a 180-day dry-run retention policy for `tenant-local` and `tenant-pilot-b`;
 - `subscriber_user_activity_events` exists with RLS enabled and forced;
 - `signalops_subscriber_gateway` has `SELECT,INSERT` on the activity ledger and execute access to `subscriber_subscription_admin_identity_labels(text)`;
 - gateway and web were rebuilt/restarted through the constrained deployment agent;
@@ -89,7 +89,7 @@ The activity view supports operator search across user identity labels, feature,
 
 ## Retention posture
 
-The intended detail-retention target is 180 days. Migration `000158_subscriber_user_activity_retention_policy` adds the retention-governance policy `subscriber.user_activity_180d` for the controlled tenant scopes.
+The intended detail-retention target is 180 days. Migration `000158_subscriber_user_activity_retention_policy` adds the retention-governance policy `subscriber.user_activity_180d` for the controlled tenant scopes. It is applied in production for `tenant-local` and `tenant-pilot-b`.
 
 The policy is deliberately seeded as `dry_run`. Daily retention governance can now count candidate detail rows older than 180 days through the existing `signalops-retention-governance` scheduled job and Admin Storage > Retention Governance surface. No activity row is deleted unless the policy mode is explicitly changed to `enforced` and the retention governor is run with `--execute`.
 
@@ -120,3 +120,23 @@ Deployment steps for this slice:
 1. Apply migration `000158_subscriber_user_activity_retention_policy` to the dedicated MarketOps database.
 2. Rebuild/redeploy the retention-governor image or run through the next production deployment path that rebuilds the image.
 3. Run `signalops-retention-governance` in its existing dry-run mode and verify Admin Storage > Retention Governance shows candidate/affected counts. Expected affected rows remain `0` while the policy is `dry_run`.
+
+## Migration 000158 application evidence — 2026-08-23
+
+`000158_subscriber_user_activity_retention_policy` was applied to the dedicated MarketOps database and recorded in `schema_migrations` at `2026-08-23 17:44:47 UTC`.
+
+Verified policy rows:
+
+| Tenant | Policy | Retention | Mode |
+| --- | --- | ---: | --- |
+| `tenant-local` | `subscriber.user_activity_180d` | 180 days | `dry_run` |
+| `tenant-pilot-b` | `subscriber.user_activity_180d` | 180 days | `dry_run` |
+
+Current activity-retention dry-run candidate counts at application time:
+
+| Tenant | Activity rows | Candidates older than 180 days |
+| --- | ---: | ---: |
+| `tenant-local` | 78 | 0 |
+| `tenant-pilot-b` | 135 | 0 |
+
+No activity rows were deleted.
