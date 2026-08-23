@@ -158,8 +158,13 @@ def test_subscription_administration_governance_surface(admin_page: Page, admin_
     expect(body).to_contain_text("Institutional Stripe mapping")
 
     admin_page.get_by_role("button", name="Users & seats").click()
-    for label in ["Explorer or Professional subject plan", "Institutional tenant contract", "Institutional seat", "Subject subscriptions", "Institutional contracts", "Institutional seats"]:
+    for label in ["Explorer or Professional subject plan", "Institutional tenant contract", "Institutional seat", "Subject subscriptions", "Institutional contracts", "Institutional seats", "Selected user activity"]:
         expect(body).to_contain_text(label, timeout=30_000)
+
+    admin_page.get_by_role("button", name="User activity").click()
+    expect(admin_page.get_by_label("Search user activity")).to_be_visible()
+    expect(body).to_contain_text("Operational visibility into login, logout")
+    expect(body).to_contain_text("Activity events")
 
     admin_page.get_by_role("button", name="Audit log").click()
     expect(admin_page.get_by_label("Search audit log")).to_be_visible()

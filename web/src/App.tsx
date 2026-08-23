@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './auth/session';
 import { AuthCallbackProcessor, LoginScreen, SilentRenewProcessor } from './auth/LoginScreen';
 import { ThemeProvider } from './theme/theme';
 import { MarketOpsWatchlistContextProvider } from "./components/MarketOpsWatchlistContext";
+import { UserActivityBridge } from './components/UserActivityBridge';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,6 +60,7 @@ function RootGate() {
   return (
     <>
       <DashboardStreamBridge />
+      <UserActivityBridge />
       <MarketOpsWatchlistContextProvider><RouterProvider router={router} /></MarketOpsWatchlistContextProvider>
     </>
   );

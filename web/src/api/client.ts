@@ -192,6 +192,8 @@ import type {
   SubscriberSubscriptionProductsResponse,
   SubscriberSubscriptionResponse,
   SubscriberSubscriptionAdministrationResponse,
+  SubscriberUserActivityResponse,
+  SubscriberUserActivityRequest,
   SubscriberSubscriptionProductUpdateRequest,
   SubscriberSubscriptionProductBillingRequest,
   SubscriberSubjectSubscriptionBillingRequest,
@@ -832,6 +834,10 @@ export const api = {
     get<SubscriberSubscriptionProductsResponse>("/v1/marketops/subscription-products", undefined, "no-store"),
   getSubscriberSubscriptionAdministration: (tenantId: string) =>
     get<SubscriberSubscriptionAdministrationResponse>("/v1/administration/subscriptions", { tenant_id: tenantId }, "no-store"),
+  getSubscriberUserActivity: (tenantId: string, filter: { subject?: string; q?: string; event_type?: string; limit?: number } = {}) =>
+    get<SubscriberUserActivityResponse>("/v1/administration/subscriptions/activity", { tenant_id: tenantId, subject: filter.subject || undefined, q: filter.q || undefined, event_type: filter.event_type || undefined, limit: filter.limit ?? 200 }, "no-store"),
+  recordSubscriberSessionActivity: (body: SubscriberUserActivityRequest) =>
+    post<{ status: string }>("/v1/session/activity", body),
   updateSubscriberSubscriptionProduct: (productKey: string, body: SubscriberSubscriptionProductUpdateRequest) =>
     put<{ status: string }>("/v1/administration/subscriptions/products/" + encodeURIComponent(productKey), body),
   updateSubscriberSubscriptionProductBilling: (productKey: string, body: SubscriberSubscriptionProductBillingRequest) =>

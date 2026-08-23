@@ -16,15 +16,18 @@ import (
 )
 
 type subscriberSubscriptionAdministrationFake struct {
-	snapshot       storage.SubscriberSubscriptionAdministrationSnapshot
-	product        storage.SubscriberSubscriptionProductMutation
-	productBilling storage.SubscriberSubscriptionProductBillingMutation
-	subject        storage.SubscriberSubjectSubscriptionMutation
-	subjectBilling storage.SubscriberSubjectSubscriptionBillingMutation
-	tenant         storage.SubscriberTenantSubscriptionMutation
-	tenantBilling  storage.SubscriberTenantSubscriptionBillingMutation
-	seat           storage.SubscriberSubscriptionSeatMutation
-	stripeWebhook  storage.SubscriberStripeWebhookMutation
+	snapshot         storage.SubscriberSubscriptionAdministrationSnapshot
+	product          storage.SubscriberSubscriptionProductMutation
+	productBilling   storage.SubscriberSubscriptionProductBillingMutation
+	subject          storage.SubscriberSubjectSubscriptionMutation
+	subjectBilling   storage.SubscriberSubjectSubscriptionBillingMutation
+	tenant           storage.SubscriberTenantSubscriptionMutation
+	tenantBilling    storage.SubscriberTenantSubscriptionBillingMutation
+	seat             storage.SubscriberSubscriptionSeatMutation
+	stripeWebhook    storage.SubscriberStripeWebhookMutation
+	activity         storage.SubscriberUserActivityRecordInput
+	activityFilter   storage.SubscriberUserActivityFilter
+	activitySnapshot storage.SubscriberUserActivitySnapshot
 }
 
 func (f *subscriberSubscriptionAdministrationFake) ListSubscriberSubscriptionAdministration(_ context.Context, filter storage.SubscriberSubscriptionAdministrationFilter) (storage.SubscriberSubscriptionAdministrationSnapshot, error) {
@@ -32,6 +35,17 @@ func (f *subscriberSubscriptionAdministrationFake) ListSubscriberSubscriptionAdm
 		f.snapshot.TenantID = filter.TenantID
 	}
 	return f.snapshot, nil
+}
+func (f *subscriberSubscriptionAdministrationFake) ListSubscriberUserActivity(_ context.Context, filter storage.SubscriberUserActivityFilter) (storage.SubscriberUserActivitySnapshot, error) {
+	f.activityFilter = filter
+	if f.activitySnapshot.TenantID == "" {
+		f.activitySnapshot.TenantID = filter.TenantID
+	}
+	return f.activitySnapshot, nil
+}
+func (f *subscriberSubscriptionAdministrationFake) RecordSubscriberUserActivity(_ context.Context, input storage.SubscriberUserActivityRecordInput) error {
+	f.activity = input
+	return nil
 }
 func (f *subscriberSubscriptionAdministrationFake) UpdateSubscriberSubscriptionProduct(_ context.Context, input storage.SubscriberSubscriptionProductMutation) error {
 	f.product = input
@@ -178,4 +192,51 @@ func stripeTestSignature(body string, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write([]byte(fmt.Sprintf("%d.%s", timestamp, body)))
 	return fmt.Sprintf("t=%d,v1=%s", timestamp, hex.EncodeToString(mac.Sum(nil)))
+}
+
+func TestSubscriberSessionActivityRecordsAuthenticatedPrincipalScope(t *testing.T) {
+	store := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store})
+	request := httptest.NewRequest(http.MethodPost, "/v1/session/activity", strings.NewReader(`{"event_type":"feature_view","app_id":"marketops","feature_key":"dashboard","route_path":"/marketops/dashboard","correlation_id":"activity-test"}`))
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-pilot-b", Subject: "pilot-sub", Roles: map[string]struct{}{roleViewer: {}}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202: %s", response.Code, response.Body.String())
+	}
+	if store.activity.TenantID != "tenant-pilot-b" || store.activity.Subject != "pilot-sub" || store.activity.EventType != "feature_view" || store.activity.FeatureKey != "dashboard" || store.activity.RoutePath != "/marketops/dashboard" {
+		t.Fatalf("unexpected activity record: %+v", store.activity)
+	}
+}
+
+func TestSubscriberSubscriptionAdministrationListsUserActivity(t *testing.T) {
+	now := time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
+	store := &subscriberSubscriptionAdministrationFake{activitySnapshot: storage.SubscriberUserActivitySnapshot{
+		TenantID:  "tenant-pilot-b",
+		Summaries: []storage.SubscriberUserActivitySummaryRecord{{Subject: "pilot-sub", SubjectEmail: "pilot@example.com", LastActivityAt: &now, FeatureViewCount: 3}},
+		Events:    []storage.SubscriberUserActivityEventRecord{{ActivityID: "subact-1", TenantID: "tenant-pilot-b", Subject: "pilot-sub", SubjectEmail: "pilot@example.com", AppID: "marketops", EventType: "login", FeatureKey: "session", OccurredAt: now}},
+	}}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store})
+	request := httptest.NewRequest(http.MethodGet, "/v1/administration/subscriptions/activity?tenant_id=tenant-pilot-b&q=pilot&limit=50", nil)
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-local", Subject: "subscription-admin", Roles: map[string]struct{}{roleSubscriptionAdmin: {}}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "pilot@example.com") || !strings.Contains(response.Body.String(), "subact-1") {
+		t.Fatalf("unexpected response %d: %s", response.Code, response.Body.String())
+	}
+	if store.activityFilter.TenantID != "tenant-pilot-b" || store.activityFilter.Query != "pilot" || store.activityFilter.Limit != 50 {
+		t.Fatalf("unexpected activity filter: %+v", store.activityFilter)
+	}
+}
+
+func TestMarketOpsMutationActivityCapturedBestEffort(t *testing.T) {
+	store := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store})
+	request := httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-local/marketops/subscriber/private-lists", strings.NewReader(`{"list_name":"Research"}`))
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-local", Subject: "user-sub", Roles: map[string]struct{}{roleViewer: {}}, Access: map[string]string{"marketops": "read"}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if store.activity.TenantID != "tenant-local" || store.activity.Subject != "user-sub" || store.activity.EventType != "api_mutation" || store.activity.HTTPMethod != http.MethodPost || store.activity.FeatureKey != "subscriber" || store.activity.RoutePath != "/v1/tenants/{tenant}/marketops/subscriber/private-lists" {
+		t.Fatalf("unexpected captured activity: %+v; response=%d %s", store.activity, response.Code, response.Body.String())
+	}
 }

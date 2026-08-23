@@ -8909,3 +8909,12 @@ Next-cycle priority:
 - Corrected Admin Operations Health freshness semantics: `Assets analytical coverage` now uses current Market State coverage; intraday is no longer stale after-hours when completed-session evidence is present; SRI/SAF rows explain provenance/materialization timestamps.
 - Validated changed SQL directly against the dedicated MarketOps database. Live result: Assets analytical coverage, Dashboard, Market State, Risk/Reward, SRI, SAF, and Intraday were current for Aug 20; FMP annual remained partial at 993/1000.
 - Deployed gateway through the constrained deployment agent. Validation passed: deployment smoke `2 passed`, `/readyz` returned `200`, Subscription/Admin smoke `3 passed`, and subscriber access-control smoke `1 passed`.
+
+## 2026-08-23 — Subscriber user activity monitoring source slice
+
+- Added migration `000157_subscriber_user_activity_ledger` for an append-only `subscriber_user_activity_events` ledger in the dedicated MarketOps database, protected by tenant-scoped RLS and constrained gateway grants.
+- Added authenticated `POST /v1/session/activity` for browser login/logout/feature-view beacons. Tenant and subject are always derived from the signed token.
+- Added gateway best-effort capture for MarketOps `POST`, `PUT`, and `DELETE` routes under `/v1/tenants/{tenant}/marketops/*`, including normalized route, coarse feature key, status code, and correlation ID. Payloads, tokens, cookies, and provider data are not recorded.
+- Added `GET /v1/administration/subscriptions/activity` for subscription administrators, plus Subscription Administration UI support through a new User activity tab and a selected-user drilldown under Users & seats.
+- Updated browser smoke coverage to assert the Activity tab and selected-user drilldown.
+- Validation passed: `go test ./internal/api ./internal/storage/postgres` and `npm --prefix web run build`.

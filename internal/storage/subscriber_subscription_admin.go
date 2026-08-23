@@ -11,6 +11,8 @@ import (
 // cannot self-upgrade a product or create a tenant contract.
 type SubscriberSubscriptionAdministrationRepository interface {
 	ListSubscriberSubscriptionAdministration(context.Context, SubscriberSubscriptionAdministrationFilter) (SubscriberSubscriptionAdministrationSnapshot, error)
+	ListSubscriberUserActivity(context.Context, SubscriberUserActivityFilter) (SubscriberUserActivitySnapshot, error)
+	RecordSubscriberUserActivity(context.Context, SubscriberUserActivityRecordInput) error
 	UpdateSubscriberSubscriptionProduct(context.Context, SubscriberSubscriptionProductMutation) error
 	UpdateSubscriberSubscriptionProductBilling(context.Context, SubscriberSubscriptionProductBillingMutation) error
 	UpsertSubscriberSubjectSubscription(context.Context, SubscriberSubjectSubscriptionMutation) error
@@ -74,6 +76,66 @@ type SubscriberSubscriptionSeatMutation struct {
 
 type SubscriberSubscriptionAdministrationFilter struct {
 	TenantID string
+}
+
+type SubscriberUserActivityFilter struct {
+	TenantID       string
+	Subject        string
+	Query          string
+	EventType      string
+	OccurredAtFrom *time.Time
+	OccurredAtTo   *time.Time
+	Limit          int
+}
+
+type SubscriberUserActivitySnapshot struct {
+	TenantID  string
+	Summaries []SubscriberUserActivitySummaryRecord
+	Events    []SubscriberUserActivityEventRecord
+}
+
+type SubscriberUserActivitySummaryRecord struct {
+	Subject             string
+	SubjectDisplayName  string
+	SubjectEmail        string
+	LastActivityAt      *time.Time
+	LastLoginAt         *time.Time
+	LastLogoutAt        *time.Time
+	LoginCount          int
+	FeatureViewCount    int
+	MutationCount       int
+	FailedMutationCount int
+	TopFeatureKey       string
+}
+
+type SubscriberUserActivityEventRecord struct {
+	ActivityID         string
+	TenantID           string
+	Subject            string
+	SubjectDisplayName string
+	SubjectEmail       string
+	AppID              string
+	EventType          string
+	FeatureKey         string
+	HTTPMethod         string
+	RoutePath          string
+	StatusCode         int
+	CorrelationID      string
+	MetadataJSON       []byte
+	OccurredAt         time.Time
+}
+
+type SubscriberUserActivityRecordInput struct {
+	TenantID      string
+	Subject       string
+	AppID         string
+	EventType     string
+	FeatureKey    string
+	HTTPMethod    string
+	RoutePath     string
+	StatusCode    int
+	CorrelationID string
+	MetadataJSON  []byte
 }
 
 type SubscriberSubscriptionAdministrationSnapshot struct {

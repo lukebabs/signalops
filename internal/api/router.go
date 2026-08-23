@@ -112,6 +112,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		registerSubscriberSubscriptionRoutes(mux, cfg)
 		registerSubscriberSubscriptionAdministrationRoutes(mux, cfg)
 		registerSubscriberStripeWebhookRoutes(mux, cfg)
+		registerSubscriberSessionActivityRoutes(mux, cfg)
 	}
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -3114,7 +3115,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerCyberOpsTrafficRoutes(mux, cfg.QueryRepository)
 	registerCyberOpsIoTRoutes(mux, cfg.QueryRepository)
 	registerCyberOpsLifecycleRoutes(mux, cfg.QueryRepository)
-	return authMiddleware(subscriptionFeatureMiddleware(mux, cfg), cfg.Auth)
+	return authMiddleware(subscriberUserActivityMiddleware(subscriptionFeatureMiddleware(mux, cfg), cfg), cfg.Auth)
 }
 
 type rawIngestFields struct {

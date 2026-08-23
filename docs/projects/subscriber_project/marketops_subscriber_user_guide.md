@@ -114,8 +114,11 @@ Platform administrators use Administration, not MarketOps, for platform controls
 - user enrollment and plan/tier governance;
 - product features and limits;
 - tenant contracts and Institutional seats;
+- user activity review for login, logout, feature views, and MarketOps mutations;
 - audit trail review;
 - System / Operations Health and Scheduled Jobs.
+
+Activity monitoring is operational metadata, not content capture. The platform records immutable subject, tenant, event type, feature/route, status, correlation, and timestamp. It does not store passwords, tokens, cookies, request bodies, response bodies, or provider payloads.
 
 ## What to report
 

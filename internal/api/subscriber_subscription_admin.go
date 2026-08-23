@@ -96,6 +96,28 @@ func registerSubscriberSubscriptionAdministrationRoutes(mux *http.ServeMux, cfg 
 		}
 		writeJSON(w, http.StatusOK, subscriberSubscriptionAdministrationResponse(snapshot))
 	})
+	mux.HandleFunc("GET /v1/administration/subscriptions/activity", func(w http.ResponseWriter, r *http.Request) {
+		_, ok := requireSubscriptionAdministrator(w, r)
+		if !ok {
+			return
+		}
+		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if tenantID == "" {
+			if principal, authenticated := principalFromContext(r.Context()); authenticated {
+				tenantID = strings.TrimSpace(principal.TenantID)
+			}
+		}
+		snapshot, err := repository.ListSubscriberUserActivity(r.Context(), storage.SubscriberUserActivityFilter{
+			TenantID: tenantID, Subject: strings.TrimSpace(r.URL.Query().Get("subject")), Query: strings.TrimSpace(r.URL.Query().Get("q")),
+			EventType: strings.TrimSpace(r.URL.Query().Get("event_type")), OccurredAtFrom: parseOptionalActivityTime(r.URL.Query().Get("from")),
+			OccurredAtTo: parseOptionalActivityTime(r.URL.Query().Get("to")), Limit: subscriberActivityLimit(r),
+		})
+		if err != nil {
+			writeSubscriberSubscriptionAdministrationError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, subscriberUserActivityResponse(snapshot))
+	})
 	mux.HandleFunc("GET /v1/administration/subscriptions/products", func(w http.ResponseWriter, r *http.Request) {
 		_, ok := requireSubscriptionAdministrator(w, r)
 		if !ok {

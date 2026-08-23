@@ -105,8 +105,9 @@ These are required before broader commercial production.
 9. **Subscriber administration**
    - Expand Subscription Administration into a complete governance surface.
    - Acceptance:
-     - Admins can govern enrolled users, tenant membership, tier assignment, entitlement state, quota state, default-list policy, and audit evidence.
+     - Admins can govern enrolled users, tenant membership, tier assignment, entitlement state, quota state, default-list policy, audit evidence, and user activity visibility.
      - Billing/provider integration remains separated until explicitly approved.
+   - Current source status: migration `000157_subscriber_user_activity_ledger` adds append-only login/logout/feature-view/mutation activity, with an Activity tab and per-user drilldown in Subscription Administration. Production activation still requires applying the migration and deploying gateway/web.
 
 10. **Incident runbooks**
     - Maintain runbooks for stale dashboard data, failed post-close, provider outage, access-control regression, failed deployment smoke, backup/restore, and FMP annual degradation.

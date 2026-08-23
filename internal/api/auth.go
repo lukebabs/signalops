@@ -329,7 +329,7 @@ func requireInitialProvisioningTenant(w http.ResponseWriter, r *http.Request, re
 }
 
 func authorizedForRequest(r *http.Request, principal Principal) bool {
-	if isExperienceRequest(r) {
+	if isExperienceRequest(r) || isSessionActivityRequest(r) {
 		return true
 	}
 	if isAdministrationOperationsRequest(r) {
@@ -381,6 +381,10 @@ func appScopeForRequest(r *http.Request) string {
 
 func isExperienceRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/v1/session/experience"
+}
+
+func isSessionActivityRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/v1/session/activity"
 }
 
 func isAdministrationOperationsRequest(r *http.Request) bool {

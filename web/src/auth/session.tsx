@@ -45,6 +45,26 @@ function errMsg(e: unknown): string {
   return String((e as Error)?.message ?? e);
 }
 
+async function sendSessionActivity(eventType: 'login' | 'logout', token: string | null): Promise<void> {
+  if (!authConfig.authEnabled || !token) return;
+  try {
+    await fetch('/v1/session/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        event_type: eventType,
+        app_id: 'marketops',
+        feature_key: 'session',
+        route_path: window.location.pathname,
+        correlation_id: `session-${eventType}-${Date.now()}`,
+      }),
+      keepalive: eventType === 'logout',
+    });
+  } catch {
+    // Activity capture is best-effort and must never interrupt authentication.
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(authConfig.authEnabled);
@@ -161,6 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     lastActivityRef.current = Date.now();
     setUser(u);
     currentAccessToken = u?.access_token ?? null;
+    void sendSessionActivity('login', currentAccessToken);
     return consumeRedirectPath();
   }, []);
 
@@ -169,6 +190,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clear the app-held session before navigating away. Some IdPs complete their
     // logout redirect even when their browser SSO cookie remains, and without
     // this step oidc-client-ts restores the cached user at `/`.
+    const token = currentAccessToken;
+    void sendSessionActivity('logout', token);
     currentAccessToken = null;
     userRef.current = null;
     setUser(null);
