@@ -9120,3 +9120,11 @@ Next-cycle priority:
 - Added server-side subscription enforcement for `POST /v1/syncratic/materialize`, `POST /v1/syncratic/daily-narratives/materialize`, and `POST /v1/syncratic/context-windows/{id}/ask`; Syncratic read APIs remain available.
 - Added migration `000159_subscriber_syncratic_explainability_feature` to update existing subscription product policies.
 - Validation passed: `go test ./internal/subscriber/subscription ./internal/api ./cmd/gateway`, focused Syncratic web tests, and `npm --prefix web run build`.
+
+
+### 2026-08-23 — Syncratic Intelligence smoke and stale-meta guard
+
+- Post-deploy Playwright found the renamed Syncratic workspace heading and older persisted daily narrative rows containing `They specified...` meta-output.
+- Updated the browser smoke to target `Syncratic Intelligence` and extended backend/frontend narrative quality detectors to treat `They specified...` as meta-output.
+- The UI now downgrades stale completed Ask rows containing prompt/task meta-language from `Clean AI narrative` to deterministic fallback quality pending regeneration.
+- Validation passed: `go test ./internal/api ./internal/syncratic/userapi`, focused Syncratic web tests, and `npm --prefix web run build`.

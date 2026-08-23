@@ -315,6 +315,19 @@ describe('classifySyncraticNarrativeQuality', () => {
     expect(q.description).toContain('governed deterministic narrative');
   });
 
+  it('classifies persisted prompt meta-output as deterministic fallback even when Ask metadata says completed', () => {
+    const q = classifySyncraticNarrativeQuality({
+      summary: 'They specified to focus on strongest drivers and cite only artifact IDs.',
+      metrics: {
+        syncratic_ask: {
+          ask_status: 'completed',
+          response_quality: 'llm_answer',
+        },
+      },
+    });
+    expect(q.quality).toBe('deterministic_fallback');
+  });
+
   it('classifies latest unchanged Ask route as skipped', () => {
     const q = classifySyncraticNarrativeQuality(ASK_METRICS, {
       contextWindowId: 'synctx_1',

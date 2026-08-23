@@ -955,7 +955,7 @@ func syncraticAskAnswerIsMetaCommentary(answer string) bool {
 	if text == "" {
 		return false
 	}
-	markers := []string{"the prompt", "the json", "json provided", "json from external context", "the user specified", "the instructions", "context includes a json", "main artifact here is the json", "main goal is to generate", "they want me to", "the task is to", "the context includes", "provided external context", "caller-supplied external context"}
+	markers := []string{"the prompt", "the json", "json provided", "json from external context", "the user specified", "they specified", "the instructions", "context includes a json", "main artifact here is the json", "main goal is to generate", "they want me to", "the task is to", "the context includes", "provided external context", "caller-supplied external context"}
 	for _, marker := range markers {
 		if strings.Contains(text, marker) {
 			return true

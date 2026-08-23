@@ -63,7 +63,7 @@ def login(page: Page, config: SyncraticSmokeConfig) -> None:
     base_url = config.base_url
     username = config.username
     password = config.password
-    heading = page.get_by_role("heading", name="Syncratic Insights")
+    heading = page.get_by_role("heading", name="Syncratic Intelligence")
     last_error: Exception | None = None
     for attempt in range(3):
         try:

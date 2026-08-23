@@ -492,6 +492,24 @@ export function summarizeSyncraticAskRouteResult(result: unknown): SyncraticAskR
 // primary signal; subject mismatch and "does not support" cover phrasing
 // variants. Never inferred from subject symbol alone.
 const DATA_QUALITY_PHRASES = ['data quality warning', 'subject mismatch', 'does not support'];
+const META_OUTPUT_PHRASES = [
+  'they specified',
+  'they want me to',
+  'the task is to',
+  'the prompt',
+  'the json provided',
+  'json provided',
+  'the instructions',
+  'main artifact here is the json',
+  'context includes a json',
+  'the context includes',
+];
+
+function syncraticNarrativeContainsMetaOutput(insight: unknown): boolean {
+  if (!isRecord(insight)) return false;
+  const text = `${asString(insight.title)} ${asString(insight.summary)} ${asString(insight.explanation)}`.toLowerCase();
+  return META_OUTPUT_PHRASES.some((phrase) => text.includes(phrase));
+}
 
 export function detectSyncraticDataQualityWarning(insight: unknown): boolean {
   if (!isRecord(insight)) return false;
@@ -565,7 +583,7 @@ export function classifySyncraticNarrativeQuality(
     return narrativeQualitySummary('deterministic_context', '');
   }
   const responseQuality = ask.responseQuality.toLowerCase();
-  if (responseQuality.includes('deterministic_fallback')) {
+  if (responseQuality.includes('deterministic_fallback') || syncraticNarrativeContainsMetaOutput(insight)) {
     return narrativeQualitySummary('deterministic_fallback', ask.responseQuality);
   }
   if (ask.askStatus === 'completed') {
