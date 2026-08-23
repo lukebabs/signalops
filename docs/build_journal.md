@@ -9128,3 +9128,11 @@ Next-cycle priority:
 - Updated the browser smoke to target `Syncratic Intelligence` and extended backend/frontend narrative quality detectors to treat `They specified...` as meta-output.
 - The UI now downgrades stale completed Ask rows containing prompt/task meta-language from `Clean AI narrative` to deterministic fallback quality pending regeneration.
 - Validation passed: `go test ./internal/api ./internal/syncratic/userapi`, focused Syncratic web tests, and `npm --prefix web run build`.
+
+
+### 2026-08-23 — Dashboard Syncratic narrative digest
+
+- Surfaced actual persisted Syncratic daily narratives on the MarketOps Dashboard as compact digest cards for Daily Overview, Sector Rotation, Risk/Reward, and Review Queue.
+- Kept the Dashboard read-only and bounded: one existing Syncratic insights query, no context-window detail fetches, no provider polling, and no Ask/Regenerate controls.
+- Labeled the digest as tenant/global MarketOps context while preserving selected-watchlist-specific narratives as a follow-up scope.
+- Added pure helper coverage for latest-per-strategy selection and compact narrative excerpts.

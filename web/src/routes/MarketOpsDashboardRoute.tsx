@@ -3,18 +3,29 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ThemedEChart as ReactECharts } from "../components/ThemedEChart";
 import { useTenant } from "../auth/session";
-import { useMarketOpsSignalOverview } from "../api/queries";
+import { useMarketOpsSignalOverview, useSyncraticInsights } from "../api/queries";
 import { api } from "../api/client";
 import { LoadingState, EmptyState, ErrorState } from "../components/States";
 import { TechnicalScoreDistributionChart } from "../components/SignalOverviewAggregateCharts";
 import { formatUtc } from "../lib/format";
 import { MarketOpsWatchlistSelector, useMarketOpsWatchlistContext } from "../components/MarketOpsWatchlistContext";
 import { SyncraticExplainabilityCard } from "../components/SyncraticExplainabilityCard";
+import {
+  classifySyncraticNarrativeQuality,
+  summarizeSyncraticInsight,
+  SYNCRATIC_NARRATIVE_QUALITY_STYLES,
+} from "../lib/syncratic";
+import {
+  compactNarrative,
+  dashboardSyncraticNarrativeCards,
+  DASHBOARD_DAILY_NARRATIVE_INSIGHT_TYPE,
+} from "../lib/marketopsDashboardSyncratic";
 import type {
   MarketOpsSignalOverviewMember,
   MarketOpsSignalOverviewPoint,
   MarketOpsSignalOverviewResponse,
   MarketOpsSignalOverviewWindow,
+  SyncraticInsight,
 } from "../types";
 
 const WINDOWS: MarketOpsSignalOverviewWindow[] = [
@@ -68,6 +79,13 @@ export function MarketOpsDashboardRoute() {
     queryFn: () => api.getMarketOpsMaterialEvents(tenantId),
     refetchInterval: 5 * 60 * 1000,
   });
+  const narrativesQ = useSyncraticInsights({
+    tenant_id: tenantId,
+    subject_symbol: "MARKETOPS",
+    insight_type: DASHBOARD_DAILY_NARRATIVE_INSIGHT_TYPE,
+    status: "active",
+    limit: 20,
+  });
   const data = query.data;
   const openAsset = (symbol: string) =>
     void navigate({ to: "/marketops/state", search: { symbol } });
@@ -116,6 +134,12 @@ export function MarketOpsDashboardRoute() {
           <SyncraticExplainabilityCard
             surface="Dashboard"
             description="Ask Syncratic for a persisted daily overview that relates Risk/Reward breadth, sector posture, Review Queue pressure, and current watchlist evidence."
+          />
+          <DashboardSyncraticNarratives
+            narratives={narrativesQ.data?.syncratic_insights ?? []}
+            loading={narrativesQ.isLoading}
+            error={narrativesQ.isError ? narrativesQ.error : null}
+            openSyncratic={() => void navigate({ to: "/marketops/syncratic" })}
           />
           <div className="grid gap-3 xl:grid-cols-2">
             <div className="order-1 min-w-0">
@@ -188,6 +212,91 @@ export function MarketOpsDashboardRoute() {
     </div>
   );
 }
+
+
+function DashboardSyncraticNarratives({
+  narratives,
+  loading,
+  error,
+  openSyncratic,
+}: {
+  narratives: SyncraticInsight[];
+  loading: boolean;
+  error: unknown;
+  openSyncratic: () => void;
+}) {
+  const cards = dashboardSyncraticNarrativeCards(narratives);
+
+  return (
+    <section className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            Syncratic narrative digest
+          </div>
+          <p className="text-[11px] leading-5 text-gray-500 dark:text-gray-400">
+            Tenant/global MarketOps context. These cards summarize persisted daily narratives; selected-watchlist-specific narratives remain a follow-up scope.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openSyncratic}
+          className="rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700"
+        >
+          Open Syncratic Intelligence
+        </button>
+      </div>
+      {loading ? (
+        <div className="py-4 text-xs text-gray-500 dark:text-gray-400">
+          Loading Syncratic narratives…
+        </div>
+      ) : error ? (
+        <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+          Syncratic narratives are currently unavailable. Dashboard market breadth remains available.
+        </div>
+      ) : cards.length ? (
+        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {cards.map(({ label: cardLabel, insight }) => {
+            const summary = summarizeSyncraticInsight(insight);
+            const quality = classifySyncraticNarrativeQuality(insight);
+            const text = compactNarrative(summary.summary || summary.explanation);
+            return (
+              <button
+                key={summary.insightId}
+                type="button"
+                onClick={openSyncratic}
+                className="rounded border border-gray-200 bg-gray-50 p-2 text-left hover:border-brand-300 hover:bg-brand-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-brand-500 dark:hover:bg-brand-950/30"
+              >
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800 dark:bg-brand-950 dark:text-brand-200">
+                    {cardLabel}
+                  </span>
+                  <span className={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${SYNCRATIC_NARRATIVE_QUALITY_STYLES[quality.quality]}`}>
+                    {quality.label}
+                  </span>
+                </div>
+                <div className="mt-1 line-clamp-2 text-xs font-semibold text-gray-900 dark:text-gray-100">
+                  {summary.title || cardLabel}
+                </div>
+                <p className="mt-1 line-clamp-4 text-xs leading-5 text-gray-600 dark:text-gray-300">
+                  {text || "Narrative exists, but no compact summary text is available."}
+                </p>
+                <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                  Updated {formatUtc(summary.updatedAt)}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300">
+          No Syncratic daily narratives are available yet. Open Syncratic Intelligence to inspect or materialize persisted context.
+        </div>
+      )}
+    </section>
+  );
+}
+
 
 function UpcomingEarnings({
   events,
