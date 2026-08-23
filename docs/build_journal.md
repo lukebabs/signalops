@@ -8979,3 +8979,9 @@ Next-cycle priority:
 - The deployment returned `signalops_public_production_deploy_verified`; public `/readyz` returned `200` with `signalops-gateway`.
 - The deployment-agent bundled subscriber smoke encountered one transient Chromium `net::ERR_NETWORK_CHANGED` on initial navigation, so the slice-specific Admin smoke was used for closure.
 - `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed in 11.94s`, validating that Admin Operations Health renders the required `Syncratic Ask` freshness row.
+
+## 2026-08-23 — MarketOps subscription user journey specification
+
+- Added `docs/MarketOps_Subscription_User_Journey_v1.0_Code_Agent_Spec.md` as the product/UX source for the subscription journey.
+- The spec defines Visitor, Explorer, Researcher, Professional, and Institutional lifecycle states; Daily Active Researchers as the north-star metric; contextual upgrade triggers; Stripe checkout/webhook expectations; entitlement UX rules; admin requirements; and phased acceptance criteria.
+- Linked the spec from the Subscriber Project document set so implementation work can reference it alongside the commerce model, billing, activity monitoring, and production-readiness documents.
