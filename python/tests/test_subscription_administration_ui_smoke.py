@@ -149,6 +149,11 @@ def test_subscription_administration_governance_surface(admin_page: Page, admin_
     expect(body).to_contain_text("Admin-managed Stripe billing")
     expect(body).to_contain_text("Map Stripe IDs created in Stripe Dashboard")
     expect(body).to_contain_text("Product mapping")
+    expect(body).to_contain_text("Choose a different tier from Configured Stripe products above")
+    admin_page.get_by_role("button", name=re.compile("Professional")).click()
+    expect(body).to_contain_text("Selected product: Professional")
+    admin_page.get_by_role("button", name=re.compile("Explorer")).click()
+    expect(body).to_contain_text("Selected product: Explorer")
     expect(body).to_contain_text("Subject Stripe mapping")
     expect(body).to_contain_text("Institutional Stripe mapping")
 

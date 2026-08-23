@@ -1,3 +1,9 @@
+## 2026-08-23 — Stripe billing product selector controls product mapping
+
+- Changed the Subscription Administration Stripe billing tab so `Configured Stripe products` is the in-tab selector for the Product mapping form. Operators no longer need to switch to Tier settings to change which Stripe product mapping is being edited.
+- Added browser-smoke coverage that selects Professional and Explorer from the Stripe product list and verifies the Product mapping context follows the selection.
+- Build validation passed with `npm --prefix web run build`; production smoke is expected after web redeploy because the smoke targets the live site.
+
 ## 2026-08-23 — Subscription Administration System-style presentation refresh
 
 - Reworked Subscription Administration presentation to follow the Admin System visual pattern: compact header, metric tiles, lighter tab selector, flatter operational tables, and clearer section headings.
