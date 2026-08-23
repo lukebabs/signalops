@@ -51,4 +51,5 @@ The materializer does not call providers, alter algorithms, mutate lifecycle sta
   - Review Queue: 120 refs
 - Corrected a routing gap found during execution: Syncratic MarketOps routes now resolve through the dedicated MarketOps repository when configured.
 - Corrected deterministic digest behavior by sorting Risk/Reward leader candidates before truncating the top examples.
+- Added a Syncratic worker stale-digest guard and updated the post-close Syncratic runner to build before run so obsolete digest jobs are drained without duplicate Ask calls.
 - Final production idempotency proof: rerunning materialization returned four `unchanged_evidence_digest` skips and created no additional context windows, insights, or jobs.

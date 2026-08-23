@@ -42,6 +42,10 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 		_ = jobs.FailSyncraticIntelligenceJob(ctx, job.JobID, "context_window_not_found", strings.TrimSpace(err.Error()), time.Now().UTC())
 		return
 	}
+	if strings.TrimSpace(job.EvidenceDigest) != "" && strings.TrimSpace(contextWindow.EvidenceDigest) != "" && strings.TrimSpace(job.EvidenceDigest) != strings.TrimSpace(contextWindow.EvidenceDigest) {
+		_ = jobs.CompleteSyncraticIntelligenceJob(ctx, job.JobID, "", "", time.Now().UTC())
+		return
+	}
 	if !syncraticContextHasAnalystEvidence(contextWindow) {
 		insight, err := syncraticInsightForContextType(ctx, repo, contextWindow, defaultSyncraticEODInsightType)
 		if err != nil {
