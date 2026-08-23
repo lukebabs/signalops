@@ -28,6 +28,7 @@ const (
 	FeatureOptionsSignals                    Feature = "options_signals"
 	FeatureEarningsCalendar                  Feature = "earnings_calendar"
 	FeatureResearchReports                   Feature = "research_reports"
+	FeatureSyncraticExplainability           Feature = "syncratic_explainability"
 	FeatureSignalAssuranceAnalytics          Feature = "signal_assurance_analytics"
 	FeaturePortfolioAnalysis                 Feature = "portfolio_analysis"
 	FeatureBatchScreening                    Feature = "batch_screening"
@@ -75,6 +76,7 @@ var policies = map[Tier]Policy{
 			FeatureOptionsSignals,
 			FeatureEarningsCalendar,
 			FeatureResearchReports,
+			FeatureSyncraticExplainability,
 		),
 		Limits: map[string]int{LimitPrivateWatchlists: 20, LimitAssetsPerWatchlist: 100},
 	},
@@ -91,6 +93,7 @@ var policies = map[Tier]Policy{
 			FeatureOptionsSignals,
 			FeatureEarningsCalendar,
 			FeatureResearchReports,
+			FeatureSyncraticExplainability,
 			FeatureSignalAssuranceAnalytics,
 			FeaturePortfolioAnalysis,
 			FeatureBatchScreening,

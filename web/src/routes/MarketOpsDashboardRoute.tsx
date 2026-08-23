@@ -9,6 +9,7 @@ import { LoadingState, EmptyState, ErrorState } from "../components/States";
 import { TechnicalScoreDistributionChart } from "../components/SignalOverviewAggregateCharts";
 import { formatUtc } from "../lib/format";
 import { MarketOpsWatchlistSelector, useMarketOpsWatchlistContext } from "../components/MarketOpsWatchlistContext";
+import { SyncraticExplainabilityCard } from "../components/SyncraticExplainabilityCard";
 import type {
   MarketOpsSignalOverviewMember,
   MarketOpsSignalOverviewPoint,
@@ -106,12 +107,16 @@ export function MarketOpsDashboardRoute() {
         <EmptyState message="No persisted signal overview is available for this scope." />
       ) : (
         <>
-          <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">
+          <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
             Watchlist assets {" "}
-            <strong className="text-gray-900">{data.asset_count}</strong>{watchlist.context?.list_name ? <> · {watchlist.context.list_name}</> : null} ·
+            <strong className="text-gray-900 dark:text-gray-100">{data.asset_count}</strong>{watchlist.context?.list_name ? <> · {watchlist.context.list_name}</> : null} ·
             generated {formatUtc(data.generated_at)} · select any chart segment
             to inspect its represented assets.
           </div>
+          <SyncraticExplainabilityCard
+            surface="Dashboard"
+            description="Ask Syncratic for a persisted daily overview that relates Risk/Reward breadth, sector posture, Review Queue pressure, and current watchlist evidence."
+          />
           <div className="grid gap-3 xl:grid-cols-2">
             <div className="order-1 min-w-0">
               <Timeline

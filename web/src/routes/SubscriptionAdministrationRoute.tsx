@@ -34,6 +34,7 @@ const features: Array<{ key: SubscriberSubscriptionFeature; label: string; depth
   { key: 'options_signals', label: 'Options signals', depth: 'Professional' },
   { key: 'earnings_calendar', label: 'Earnings calendar', depth: 'Professional' },
   { key: 'research_reports', label: 'Research reports', depth: 'Professional' },
+  { key: 'syncratic_explainability', label: 'Syncratic explainability', depth: 'Professional' },
   { key: 'signal_assurance_analytics', label: 'Signal Assurance analytics', depth: 'Institutional' },
   { key: 'portfolio_analysis', label: 'Portfolio analysis', depth: 'Institutional' },
   { key: 'batch_screening', label: 'Batch screening', depth: 'Institutional' },

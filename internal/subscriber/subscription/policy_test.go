@@ -8,6 +8,7 @@ func TestTierDepthIsMonotonic(t *testing.T) {
 		FeatureSectorRotationDiscovery,
 		FeatureValueIntelligence,
 		FeatureResearchReports,
+		FeatureSyncraticExplainability,
 		FeatureSignalAssuranceAnalytics,
 		FeatureAPI,
 	}
@@ -25,7 +26,7 @@ func TestExplorerIsDiscoveryOnly(t *testing.T) {
 	if !Allows(TierExplorer, FeatureMarketDashboards) || !Allows(TierExplorer, FeaturePublicSignals) {
 		t.Fatal("explorer must retain its discovery surfaces")
 	}
-	for _, feature := range []Feature{FeatureValueIntelligence, FeatureOptionsSignals, FeatureEarningsCalendar, FeatureResearchReports} {
+	for _, feature := range []Feature{FeatureValueIntelligence, FeatureOptionsSignals, FeatureEarningsCalendar, FeatureResearchReports, FeatureSyncraticExplainability} {
 		if Allows(TierExplorer, feature) {
 			t.Fatalf("explorer must not receive %s", feature)
 		}
@@ -39,7 +40,7 @@ func TestExplorerIsDiscoveryOnly(t *testing.T) {
 }
 
 func TestProfessionalAndInstitutionalDepth(t *testing.T) {
-	for _, feature := range []Feature{FeatureValueIntelligence, FeatureDistressedOpportunityIntelligence, FeatureEarningsOpportunityIntelligence, FeatureSectorRotationDetail, FeatureOptionsSignals, FeatureEarningsCalendar, FeatureResearchReports} {
+	for _, feature := range []Feature{FeatureValueIntelligence, FeatureDistressedOpportunityIntelligence, FeatureEarningsOpportunityIntelligence, FeatureSectorRotationDetail, FeatureOptionsSignals, FeatureEarningsCalendar, FeatureResearchReports, FeatureSyncraticExplainability} {
 		if !Allows(TierProfessional, feature) {
 			t.Fatalf("professional must receive %s", feature)
 		}

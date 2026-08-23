@@ -120,7 +120,7 @@ const MARKETOPS_NAV: NavItem[] = [
   { module: 'opportunities', to: '/marketops/opportunities', label: 'Opportunities' },
   { module: 'assurance', to: '/marketops/assurance', label: 'Signal Assurance', subscriptionFeature: 'signal_assurance_analytics' },
   { module: 'sectors', to: '/marketops/sectors', label: 'Sector Rotation Intelligence' },
-  { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Insights' },
+  { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Intelligence' },
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },
   { module: 'settings', to: '/marketops/settings', label: 'Settings' },
 ];

@@ -5,6 +5,7 @@ import { useTenant } from "../auth/session";
 import { ThemedEChart } from "../components/ThemedEChart";
 import { EmptyState, ErrorState, LoadingState } from "../components/States";
 import { RefreshButton } from "../components/RefreshButton";
+import { SyncraticExplainabilityCard } from "../components/SyncraticExplainabilityCard";
 import { formatPercent } from "../lib/format";
 import type { MarketOpsSRIETFMakeupResponse, MarketOpsSRISnapshot } from "../types";
 
@@ -255,6 +256,11 @@ export function MarketOpsSRIRoute() {
       <div><h1 className="text-lg font-semibold">Sector Rotation Intelligence</h1><p className="max-w-3xl text-xs text-gray-500">Research-only, price-led market-segment context. This foundation ranks relative strength and momentum; it does not claim rotation, breadth, diffusion, flows, or a trade recommendation.</p></div>
       <RefreshButton onClick={refresh} loading={rankingsQ.isFetching} />
     </div>
+
+    <SyncraticExplainabilityCard
+      surface="Sector Rotation Intelligence"
+      description="Use Syncratic to explain which sector groups are leading, improving, weakening, or lagging, and why that rotation context matters relative to the prior session."
+    />
 
     <div role="tablist" aria-label="Sector Rotation Intelligence views" className="flex border-b border-gray-200">
       <button role="tab" aria-selected={tab === "rankings"} onClick={() => setTab("rankings")} className={"border-b-2 px-3 py-2 text-sm font-medium " + (tab === "rankings" ? "border-brand-600 text-brand-700" : "border-transparent text-gray-600 hover:text-gray-900")}>Rankings</button>

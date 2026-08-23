@@ -52,7 +52,7 @@ export type SubscriberSubscriptionFeature =
   | "market_dashboards" | "public_signals" | "sector_rotation_discovery"
   | "value_intelligence" | "distressed_opportunity_intelligence" | "earnings_opportunity_intelligence"
   | "sector_rotation_detail" | "options_signals" | "earnings_calendar" | "research_reports"
-  | "signal_assurance_analytics" | "portfolio_analysis" | "batch_screening"
+  | "syncratic_explainability" | "signal_assurance_analytics" | "portfolio_analysis" | "batch_screening"
   | "historical_replay" | "strategy_validation" | "custom_universes" | "api" | "white_label";
 export interface SubscriberSubscriptionProduct { product_key:string; billing_scope:"subject"|"tenant"|string; display_name:string; is_free:boolean; trial_days:number; feature_policy:Partial<Record<SubscriberSubscriptionFeature, boolean>>; limit_policy:Record<string, number>; revision:number; active?:boolean; changed_by?:string; created_at?:string; updated_at?:string; stripe_product_id?:string; stripe_monthly_price_id?:string; stripe_annual_price_id?:string; }
 export interface SubscriberEffectiveSubscription extends SubscriberSubscriptionProduct { subscription_id:string; status:"trialing"|"active"|"past_due"|"suspended"|"canceled"|string; source:"subject"|"tenant_seat"|string; seat_role?:string; trial_ends_at?:string; current_period_ends_at?:string; grace_ends_at?:string; canceled_at?:string; }

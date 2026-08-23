@@ -9,6 +9,7 @@ import { formatUtc } from '../lib/format';
 import { useTenant } from '../auth/session';
 import { sortableTableHeaderButtonClass } from '../components/SortableTableHeader';
 import { MarketOpsWatchlistSelector, useMarketOpsWatchlistContext } from '../components/MarketOpsWatchlistContext';
+import { SyncraticExplainabilityCard } from '../components/SyncraticExplainabilityCard';
 
 type Source = 'opportunity' | 'alert' | 'reversal' | 'options_flow' | 'risk_reward';
 type QueueSortKey = 'asset' | 'assessment' | 'priority' | 'evidence' | 'freshness';
@@ -32,6 +33,10 @@ export function MarketOpsReviewQueueRoute() {
   const failed = opportunities.isError || alerts.isError || eroc.isError || overview.isError;
   return <div className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2"><div><h1 className="flex items-center gap-1 text-lg font-semibold"><ClipboardList size={18} className="text-brand-700" /> Review Queue</h1><p className="text-xs text-gray-500">Prioritized MarketOps research items for the selected watchlist. Evidence is grouped by asset, not repeated as raw records.</p></div><div className="text-xs text-gray-500">{filtered.length} material item{filtered.length === 1 ? '' : 's'}</div></div>
+    <SyncraticExplainabilityCard
+      surface="Review Queue"
+      description="Use Syncratic to summarize active review pressure, separate current opportunities from expired/noisy rows, and call out contradictions before analyst action."
+    />
     <div className="flex flex-wrap gap-2 rounded border border-gray-200 bg-gray-50 p-3"><MarketOpsWatchlistSelector /><input value={symbol} onChange={e => setSymbol(e.target.value)} placeholder="Ticker" aria-label="Filter review queue by ticker" className="w-28 rounded border border-gray-300 bg-white px-2 py-1 text-sm" /><select value={source} onChange={e => setSource(e.target.value as Source | '')} aria-label="Filter review queue by source" className="rounded border border-gray-300 bg-white px-2 py-1 text-sm"><option value="">All evidence</option>{(Object.keys(labels) as Source[]).map(key => <option key={key} value={key}>{labels[key]}</option>)}</select>{(symbol || source) && <button type="button" onClick={() => { setSymbol(''); setSource(''); }} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-yellow-50">Clear filters</button>}</div>
     {loading ? <LoadingState /> : failed ? <ErrorState error={opportunities.error || alerts.error || eroc.error || overview.error} /> : filtered.length ? <div className="overflow-x-auto rounded border border-gray-200 bg-white"><table className="min-w-full divide-y divide-gray-200 text-sm"><thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500"><tr>{([['Asset','asset'],['Review assessment','assessment'],['Priority','priority'],['Evidence','evidence'],['Last evidence','freshness']] as [string, QueueSortKey][]).map(([label, key]) => <th key={key} className="px-3 py-2"><button type="button" onClick={() => setSort(current => current.key === key ? { key, asc: !current.asc } : { key, asc: key === 'asset' })} className={sortableTableHeaderButtonClass}>{label}<span className={sort.key === key ? 'text-brand-700' : 'text-gray-300'}>{sort.key === key ? sort.asc ? '↑' : '↓' : '↕'}</span></button></th>)}</tr></thead><tbody className="divide-y divide-gray-100">{filtered.map(item => <QueueRow key={item.symbol} item={item} selected={selected === item.symbol} onSelect={() => setSelected(selected === item.symbol ? null : item.symbol)} />)}</tbody></table></div> : <EmptyState message="No material research items match the current filters." />}
   </div>;

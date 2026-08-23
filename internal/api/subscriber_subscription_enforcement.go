@@ -67,6 +67,8 @@ func subscriptionFeatureMiddleware(next http.Handler, cfg RouterConfig) http.Han
 func subscriptionFeatureForRequest(r *http.Request) (subscription.Feature, bool) {
 	path := strings.TrimSuffix(strings.TrimSpace(r.URL.Path), "/")
 	switch {
+	case r.Method == http.MethodPost && (path == "/v1/syncratic/materialize" || path == "/v1/syncratic/daily-narratives/materialize" || strings.HasPrefix(path, "/v1/syncratic/context-windows/") && strings.HasSuffix(path, "/ask")):
+		return subscription.FeatureSyncraticExplainability, true
 	case strings.HasPrefix(path, "/v1/tenants/") && strings.Contains(path, "/marketops/valuation"):
 		return subscription.FeatureValueIntelligence, true
 	case strings.HasPrefix(path, "/v1/tenants/") && strings.Contains(path, "/marketops/eroc"):

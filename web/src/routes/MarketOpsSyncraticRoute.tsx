@@ -38,6 +38,7 @@ import {
   SYNCRATIC_ASK_BADGE_STYLES,
 } from '../lib/syncratic';
 import { useTenant } from '../auth/session';
+import { useSubscription } from '../subscriber/SubscriptionContext';
 import { useAppProfile } from '../apps/AppProfileContext';
 import type { SyncraticInsight, SyncraticContextWindow, SyncraticInsightStatus, SyncraticMaterializeRequest } from '../types';
 
@@ -59,6 +60,7 @@ const NARRATIVE_TABS = [
 ] as const;
 type SyncraticSurfaceTab = typeof NARRATIVE_TABS[number]['key'];
 const DAILY_NARRATIVE_INSIGHT_TYPE = 'marketops.syncratic.daily_narrative.v1';
+const SYNCRATIC_EXPLAINABILITY_FEATURE = 'syncratic_explainability' as const;
 
 
 // Fixed materialize defaults — the bounded form does not expose these.
@@ -161,9 +163,9 @@ export function MarketOpsSyncraticRoute() {
       <div className="flex items-center gap-2">
         <Sparkles size={18} className="text-brand-700" />
         <div>
-          <h1 className="text-lg font-semibold">Syncratic Insights</h1>
-          <p className="text-xs text-gray-500">
-            Daily MarketOps narratives and evidence-grounded analyst drilldowns
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Syncratic Intelligence</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Evidence-grounded Ask narratives over persisted MarketOps context windows
           </p>
         </div>
       </div>
@@ -344,6 +346,8 @@ function SyncraticNarrativeWorkbench({
   onInspect: (insightId: string) => void;
 }) {
   const tab = NARRATIVE_TABS.find((item) => item.key === selectedTab) ?? NARRATIVE_TABS[0];
+  const subscription = useSubscription();
+  const canRunAsk = subscription.allows(SYNCRATIC_EXPLAINABILITY_FEATURE);
   const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().slice(0, 10));
   const materialize = useMaterializeSyncraticDailyNarratives();
   const narratives = useSyncraticInsights({
@@ -362,6 +366,7 @@ function SyncraticNarrativeWorkbench({
   const strategies = tab.strategy ? [tab.strategy] : ['marketops_daily_overview_v1', 'marketops_sri_daily_v1', 'marketops_risk_reward_daily_v1', 'marketops_review_queue_daily_v1'];
 
   function run(dryRun: boolean) {
+    if (!canRunAsk) return;
     materialize.mutate({ tenant_id: tenantId, session_date: sessionDate, strategies, enqueue_briefs: !dryRun, dry_run: dryRun });
   }
 
@@ -377,10 +382,15 @@ function SyncraticNarrativeWorkbench({
             Session date
             <input type="date" value={sessionDate} onChange={(event) => setSessionDate(event.target.value)} className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" />
           </label>
-          <button type="button" onClick={() => run(true)} disabled={materialize.isPending} className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Preview</button>
-          <button type="button" onClick={() => run(false)} disabled={materialize.isPending} className="rounded bg-brand-600 px-2.5 py-1 text-xs text-white hover:bg-brand-700 disabled:opacity-50">Materialize + enqueue</button>
+          <button type="button" onClick={() => run(true)} disabled={materialize.isPending || !canRunAsk} className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Preview</button>
+          <button type="button" onClick={() => run(false)} disabled={materialize.isPending || !canRunAsk} className="rounded bg-brand-600 px-2.5 py-1 text-xs text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">Materialize + enqueue</button>
         </div>
       </div>
+      {!canRunAsk && subscription.enforcementEnabled && (
+        <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+          Explorer can review persisted Syncratic narratives. Interactive materialization, Ask, and Regenerate require Professional or Institutional Syncratic explainability.
+        </div>
+      )}
       {materialize.isSuccess && (
         <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
           {materialize.data.daily_narrative_materialization.dry_run ? 'Preview complete' : 'Materialization complete'} · {materialize.data.daily_narrative_materialization.materialized_insights} insight(s) · {materialize.data.daily_narrative_materialization.skipped_unchanged} unchanged · {materialize.data.daily_narrative_materialization.queued_job_ids.length} Ask job(s) queued
@@ -618,10 +628,13 @@ function SyncraticAskControls({
   tenantId: string;
   askMutation: ReturnType<typeof useAskSyncraticContextWindow>;
 }) {
+  const subscription = useSubscription();
+  const canRunAsk = subscription.allows(SYNCRATIC_EXPLAINABILITY_FEATURE);
   if (!contextWindowId || !tenantId) return null;
-  const disabled = askMutation.isPending;
+  const disabled = askMutation.isPending || !canRunAsk;
 
   function trigger(force: boolean) {
+    if (!canRunAsk) return;
     askMutation.mutate({
       contextWindowId,
       request: { tenant_id: tenantId, max_prompt_bytes: 10000, force },
@@ -629,14 +642,19 @@ function SyncraticAskControls({
   }
 
   return (
-    <div className="rounded border border-gray-200 bg-white p-2">
-      <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-gray-700">
-        <Sparkles size={12} /> Ask Syncratic AI
+    <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
+      <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-gray-700 dark:text-gray-200">
+        <Sparkles size={12} /> Explain with Syncratic
       </div>
-      <p className="mb-2 text-[11px] text-gray-500">
-        Exploratory analyst drill-down over the official EOD context. It never changes the official daily overview.
+      <p className="mb-2 text-[11px] text-gray-500 dark:text-gray-400">
+        Analyst drill-down over the official persisted context. It never changes official daily state or polls providers.
         Ask sends force=false; Regenerate sends force=true.
       </p>
+      {!canRunAsk && subscription.enforcementEnabled && (
+        <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+          Interactive Ask requires Professional or Institutional Syncratic explainability. This persisted explanation remains available read-only.
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -644,7 +662,7 @@ function SyncraticAskControls({
           disabled={disabled}
           className="inline-flex items-center gap-1 rounded bg-brand-500 px-2.5 py-1 text-xs text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Sparkles size={12} /> {disabled ? 'Asking…' : 'Ask Syncratic AI'}
+          <Sparkles size={12} /> {askMutation.isPending ? 'Asking…' : 'Explain with Syncratic'}
         </button>
         <button
           type="button"
@@ -782,6 +800,8 @@ function SyncraticEvidenceList({ label, ids }: { label: string; ids: string[] })
 // Bounded, operator-triggered materialization. Never runs automatically on page
 // load. Caps are shown before submit; skip counters render as normal outcomes.
 function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
+  const subscription = useSubscription();
+  const canMaterialize = subscription.allows(SYNCRATIC_EXPLAINABILITY_FEATURE);
   const materialize = useMaterializeSyncraticContexts();
   // Default window: last five days, UTC wall-clock.
   const [windowStart, setWindowStart] = useState(() => {
@@ -881,8 +901,16 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
     result.materialized_insights === 0 &&
     result.skipped_unchanged > 0;
 
+  if (!canMaterialize && subscription.enforcementEnabled) {
+    return (
+      <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+        Explorer can inspect persisted Syncratic Intelligence. Bounded context materialization and Ask regeneration require Professional or Institutional Syncratic explainability.
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={onPreview} className="rounded border border-gray-200 bg-white p-3" aria-label="Materialize Syncratic contexts">
+    <form onSubmit={onPreview} className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" aria-label="Materialize Syncratic contexts">
       <div className="mb-2 flex items-center gap-1 text-sm font-semibold text-gray-900">
         <Sparkles size={14} /> Materialize Contexts
         <span className="ml-1 text-xs font-normal text-gray-500">

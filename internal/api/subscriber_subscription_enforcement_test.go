@@ -59,6 +59,42 @@ func TestSubscriptionFeatureMiddlewareFailsClosedForUnprovisionedUser(t *testing
 	}
 }
 
+func TestSubscriptionFeatureMiddlewareProtectsSyncraticMutations(t *testing.T) {
+	base := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	explorer := storage.SubscriberEffectiveSubscriptionRecord{Product: storage.SubscriberSubscriptionProductRecord{
+		ProductKey: "explorer", Active: true,
+		FeaturePolicyJSON: []byte(`{"market_dashboards":true,"public_signals":true}`),
+	}}
+	professional := storage.SubscriberEffectiveSubscriptionRecord{Product: storage.SubscriberSubscriptionProductRecord{
+		ProductKey: "professional", Active: true,
+		FeaturePolicyJSON: []byte(`{"syncratic_explainability":true}`),
+	}}
+
+	for _, path := range []string{
+		"/v1/syncratic/materialize",
+		"/v1/syncratic/daily-narratives/materialize",
+		"/v1/syncratic/context-windows/synctx-1/ask",
+	} {
+		blocked := subscriptionFeatureMiddleware(base, RouterConfig{SubscriberSubscriptionsEnabled: true, SubscriberSubscriptionRepository: subscriberSubscriptionEnforcementFake{record: explorer}})
+		request := httptest.NewRequest(http.MethodPost, path, nil)
+		request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-local", Subject: "subject-1"}))
+		response := httptest.NewRecorder()
+		blocked.ServeHTTP(response, request)
+		if response.Code != http.StatusPaymentRequired {
+			t.Fatalf("explorer path %s status = %d, want %d", path, response.Code, http.StatusPaymentRequired)
+		}
+
+		allowed := subscriptionFeatureMiddleware(base, RouterConfig{SubscriberSubscriptionsEnabled: true, SubscriberSubscriptionRepository: subscriberSubscriptionEnforcementFake{record: professional}})
+		request = httptest.NewRequest(http.MethodPost, path, nil)
+		request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-local", Subject: "subject-1"}))
+		response = httptest.NewRecorder()
+		allowed.ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent {
+			t.Fatalf("professional path %s status = %d, want %d", path, response.Code, http.StatusNoContent)
+		}
+	}
+}
+
 func TestSubscriptionFeatureMiddlewareLeavesExplorerRoutesAvailable(t *testing.T) {
 	base := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	handler := subscriptionFeatureMiddleware(base, RouterConfig{SubscriberSubscriptionsEnabled: true})

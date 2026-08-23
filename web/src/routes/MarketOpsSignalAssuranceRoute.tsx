@@ -4,6 +4,7 @@ import { useMarketOpsSignalAssuranceAssertions } from '../api/queries';
 import { useTenant } from '../auth/session';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { RefreshButton } from '../components/RefreshButton';
+import { SyncraticExplainabilityCard } from '../components/SyncraticExplainabilityCard';
 import { formatUtc } from '../lib/format';
 import { MarketOpsSignalAssuranceDrilldownPanel } from './MarketOpsSignalAssuranceDrilldownPanel';
 import { MarketOpsSignalAssuranceDailyProgressionPanel, MarketOpsSignalAssuranceEffectivenessPanel } from './MarketOpsSignalAssuranceEffectivenessPanel';
@@ -29,6 +30,12 @@ export function MarketOpsSignalAssuranceRoute() {
       </div>
       <RefreshButton onClick={() => void assertions.refetch()} loading={assertions.isFetching} />
     </div>
+
+
+    <SyncraticExplainabilityCard
+      surface="Signal Assurance"
+      description="Use Syncratic to explain signal viability trends, strongest/weakest algorithm evidence, and where confirmation quality suggests calibration work."
+    />
 
     <MarketOpsSignalAssuranceDrilldownPanel />
     <MarketOpsSignalAssuranceDailyProgressionPanel />

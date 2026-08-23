@@ -38,10 +38,11 @@ The gateway currently guards these server endpoints when the feature flag is on:
 | EEOM | `earnings_opportunity_intelligence` | Professional |
 | Options captures | `options_signals` | Professional |
 | Detailed SRI drill-down (segment/history/makeup) | `sector_rotation_detail` | Professional |
+| Syncratic interactive explainability (Ask, Regenerate, materialize/enqueue) | `syncratic_explainability` | Professional |
 | SAF | `signal_assurance_analytics` | Institutional |
 | Backtest/replay/calibration endpoints | `historical_replay` | Institutional |
 
-Explorer retains dashboard/public-signal access and SRI rankings. The web shell uses the effective product feature policy for locked navigation and direct-route gates; the gateway remains authoritative.
+Explorer retains dashboard/public-signal access, SRI rankings, and read-only persisted Syncratic narratives. The web shell uses the effective product feature policy for locked navigation and direct-route gates; the gateway remains authoritative.
 
 ## Operating roles
 

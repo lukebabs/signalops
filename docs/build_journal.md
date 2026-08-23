@@ -9111,3 +9111,12 @@ Next-cycle priority:
 - Prevented unchanged prompt/evidence skips from preserving prior meta-commentary by forcing regeneration when the stored title, summary, or explanation contains known meta-output markers.
 - Bumped the generic Ask prompt builder to `marketops.syncratic.ask_prompt.v2` and tightened the prompt/output contract to require analyst-facing relational prose, not request or context descriptions.
 - Validation passed: `go test ./cmd/gateway ./internal/api ./internal/syncratic/userapi`.
+
+
+### 2026-08-23 — Syncratic Ask exposure and subscription boundary
+
+- Exposed Syncratic Ask as Syncratic Intelligence rather than a generic chatbot: Dashboard, Sector Rotation, Review Queue, and Signal Assurance now include contextual entry cards that route analysts into the persisted Syncratic workspace.
+- Added `syncratic_explainability` as the subscription feature for interactive Ask, Regenerate, and Syncratic context materialization/enqueue actions. Explorer remains read-only for persisted deterministic/public narratives; Professional and Institutional receive interactive explainability.
+- Added server-side subscription enforcement for `POST /v1/syncratic/materialize`, `POST /v1/syncratic/daily-narratives/materialize`, and `POST /v1/syncratic/context-windows/{id}/ask`; Syncratic read APIs remain available.
+- Added migration `000159_subscriber_syncratic_explainability_feature` to update existing subscription product policies.
+- Validation passed: `go test ./internal/subscriber/subscription ./internal/api ./cmd/gateway`, focused Syncratic web tests, and `npm --prefix web run build`.
