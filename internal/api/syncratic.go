@@ -20,7 +20,7 @@ const (
 	defaultSyncraticInsightType      = "marketops.syncratic.multi_event_context"
 	defaultSyncraticEODInsightType   = "marketops.syncratic.eod_overview.v1"
 	defaultSyncraticAskDrilldownType = "marketops.syncratic.ask_drilldown.v1"
-	defaultSyncraticAskPromptVersion = "marketops.syncratic.ask_prompt.v1"
+	defaultSyncraticAskPromptVersion = "marketops.syncratic.ask_prompt.v2"
 	defaultSyncraticAskScope         = "tenant"
 )
 
@@ -793,6 +793,7 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 		"role":                   "MarketOps surveillance reasoning layer over deterministic SignalOps evidence.",
 		"instructions": []string{
 			"Use only the supplied JSON context; do not retrieve documents or use external knowledge.",
+			"Write analyst-facing narrative in relational natural language. Do not describe what the user wants, what the task is, what the prompt says, or what the context contains.",
 			"Do not restate counts or IDs as the main explanation. Interpret the strongest evidence.",
 			"Rank top drivers only when analysis_mode is market_interpretation_allowed.",
 			"Explain why the combined signal cluster matters for the operator now.",
@@ -809,7 +810,7 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 		"output_contract": []string{
 			"title: concise finding, not the context_window_id",
 			"summary: one sentence stating the operator-relevant pattern",
-			"top_drivers: if analysis_mode=data_quality_blocked, write none; otherwise ranked bullets with signal_id, type, severity, confidence, key metrics, and why it matters",
+			"top_drivers: if analysis_mode=data_quality_blocked or evidence is empty, write none; otherwise ranked relational bullets explaining strongest drivers in natural language with cited evidence IDs",
 			"explanation: synthesize the cluster; do not merely list signal names",
 			"quality_warnings: put first when subject_mismatch_hints exist; state that affected evidence cannot support the context subject",
 			"recommendation: action one of observe, review, escalate, no_action plus next checks",
@@ -820,7 +821,7 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 	if err != nil {
 		return "", syncraticAskPromptMeta{}, err
 	}
-	prompt := "You are a non-human MarketOps reasoning client. Produce operator-useful interpretation, not a generic summary. If analysis_mode is data_quality_blocked, lead with DATA QUALITY WARNING, do not infer that one ticker impacts another, do not describe market impact, and make the recommendation about evidence remediation rather than trading/market action. Use only the JSON context below. Return the requested fields and cite evidence IDs.\nCONTEXT_JSON:\n" + string(raw)
+	prompt := "You are a non-human MarketOps reasoning client. Produce operator-useful interpretation, not a generic summary. Do not describe the request, task, prompt, JSON, external context, or what the user wants. If analysis_mode is data_quality_blocked, lead with DATA QUALITY WARNING, do not infer that one ticker impacts another, do not describe market impact, and make the recommendation about evidence remediation rather than trading/market action. Use only the JSON context below. Return the requested fields and cite evidence IDs.\nCONTEXT_JSON:\n" + string(raw)
 	if len(prompt) > maxPromptBytes {
 		return "", syncraticAskPromptMeta{}, fmt.Errorf("prompt exceeds max_prompt_bytes")
 	}
@@ -850,6 +851,9 @@ func syncraticInsightForContextType(ctx context.Context, repo storage.QueryRepos
 }
 
 func syncraticAskAlreadyApplied(insight storage.SyncraticInsightRecord, meta syncraticAskPromptMeta) bool {
+	if syncraticAskAnswerIsMetaCommentary(strings.Join([]string{insight.Title, insight.Summary, insight.Explanation}, " ")) {
+		return false
+	}
 	metrics := jsonObjectOrEmpty(insight.MetricsJSON)
 	ask, ok := metrics["syncratic_ask"].(map[string]any)
 	if !ok {
@@ -882,6 +886,15 @@ func applySyncraticAskResponse(insight storage.SyncraticInsightRecord, contextWi
 			action = firstNonEmpty(fallback.Action, action)
 			responseQuality = "deterministic_fallback_meta_answer"
 		}
+	} else if !isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) && syncraticAskGenericOutputNeedsDeterministicFallback(answer, summary, title, contextWindow) {
+		fallback := deterministicGenericSyncraticNarrativeFromContext(contextWindow)
+		if fallback.Explanation != "" {
+			answer = fallback.Explanation
+			summary = firstNonEmpty(fallback.Summary, summary)
+			title = firstNonEmpty(fallback.Title, title)
+			action = firstNonEmpty(fallback.Action, action)
+			responseQuality = fallback.ResponseQuality
+		}
 	}
 	insight.Explanation = answer
 	insight.Summary = summary
@@ -897,10 +910,25 @@ func applySyncraticAskResponse(insight storage.SyncraticInsightRecord, contextWi
 }
 
 type deterministicSyncraticNarrative struct {
-	Title       string
-	Summary     string
-	Explanation string
-	Action      string
+	Title           string
+	Summary         string
+	Explanation     string
+	Action          string
+	ResponseQuality string
+}
+
+func syncraticAskGenericOutputNeedsDeterministicFallback(answer, summary, title string, contextWindow storage.SyncraticContextWindowRecord) bool {
+	if syncraticAskAnswerIsMetaCommentary(strings.Join([]string{answer, summary, title}, " ")) {
+		return true
+	}
+	if syncraticContextEvidenceCount(contextWindow) == 0 {
+		return true
+	}
+	trimmedSummary := strings.TrimSpace(summary)
+	if trimmedSummary == "UNKNOWN" || strings.HasPrefix(trimmedSummary, "{") || strings.HasPrefix(trimmedSummary, "```") {
+		return true
+	}
+	return false
 }
 
 func syncraticAskOutputNeedsDeterministicFallback(answer, summary, title string, structured map[string]any) bool {
@@ -927,13 +955,69 @@ func syncraticAskAnswerIsMetaCommentary(answer string) bool {
 	if text == "" {
 		return false
 	}
-	markers := []string{"the prompt", "the json", "json provided", "json from external context", "the user specified", "the instructions", "context includes a json", "main artifact here is the json", "main goal is to generate"}
+	markers := []string{"the prompt", "the json", "json provided", "json from external context", "the user specified", "the instructions", "context includes a json", "main artifact here is the json", "main goal is to generate", "they want me to", "the task is to", "the context includes", "provided external context", "caller-supplied external context"}
 	for _, marker := range markers {
 		if strings.Contains(text, marker) {
 			return true
 		}
 	}
 	return false
+}
+
+func deterministicGenericSyncraticNarrativeFromContext(contextWindow storage.SyncraticContextWindowRecord) deterministicSyncraticNarrative {
+	symbol := firstNonEmpty(strings.TrimSpace(contextWindow.SubjectSymbol), strings.TrimSpace(contextWindow.SubjectID), "the selected asset")
+	session := contextWindow.WindowStart.UTC().Format("2006-01-02")
+	evidenceCount := syncraticContextEvidenceCount(contextWindow)
+	if evidenceCount == 0 {
+		summary := fmt.Sprintf("%s does not have enough persisted Syncratic evidence in this context window for an analyst-facing market interpretation.", symbol)
+		return deterministicSyncraticNarrative{
+			Title:           fmt.Sprintf("%s Syncratic evidence gap", symbol),
+			Summary:         summary,
+			Explanation:     "DATA QUALITY WARNING:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- The context window contains no supporting signals, alerts, events, artifacts, market-state evidence, opportunities, or outcomes. Because the evidence set is empty, Syncratic Ask cannot responsibly identify strongest drivers, explain a cluster, or infer opportunity posture for this asset.\n\nWeak evidence:\n- The prior response described the request structure rather than persisted MarketOps evidence. That is not a valid analyst narrative.\n\nAnalyst follow-ups:\n- Rematerialize the Syncratic context after Market State, Risk/Reward, Review Queue, or signal evidence exists for this asset.\n- Review asset-to-evidence mapping if the asset should already have current persisted MarketOps evidence.",
+			Action:          "rematerialize_or_review_mapping",
+			ResponseQuality: "deterministic_fallback_empty_context",
+		}
+	}
+	parts := []string{}
+	if len(contextWindow.SignalIDs) > 0 {
+		parts = append(parts, fmt.Sprintf("%d signal reference(s)", len(contextWindow.SignalIDs)))
+	}
+	if len(contextWindow.AlertIDs) > 0 {
+		parts = append(parts, fmt.Sprintf("%d alert reference(s)", len(contextWindow.AlertIDs)))
+	}
+	if len(contextWindow.MarketStateIDs)+len(contextWindow.MarketOpsEvidenceIDs) > 0 {
+		parts = append(parts, "market-state evidence")
+	}
+	if len(contextWindow.OpportunityIDs) > 0 {
+		parts = append(parts, "Review Queue opportunity evidence")
+	}
+	if len(parts) == 0 {
+		parts = append(parts, fmt.Sprintf("%d persisted evidence reference(s)", evidenceCount))
+	}
+	summary := fmt.Sprintf("%s has a bounded Syncratic context with %s, but the AI response was not usable as analyst prose.", symbol, strings.Join(parts, ", "))
+	return deterministicSyncraticNarrative{
+		Title:           fmt.Sprintf("%s Syncratic evidence review", symbol),
+		Summary:         summary,
+		Explanation:     "Executive summary:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- The available context is sufficient for evidence review, but the generated response described the prompt/request instead of interpreting persisted MarketOps evidence. SignalOps therefore preserved a deterministic evidence-first fallback.\n\nAnalyst follow-ups:\n- Inspect the cited context window and underlying evidence references before using this as an asset-level thesis.\n- Regenerate after richer Market State, Risk/Reward, Review Queue, or signal evidence is available if a deeper narrative is needed.",
+		Action:          "review_context_evidence",
+		ResponseQuality: "deterministic_fallback_meta_answer",
+	}
+}
+
+func syncraticContextEvidenceCount(contextWindow storage.SyncraticContextWindowRecord) int {
+	return len(contextWindow.MarketStateIDs) +
+		len(contextWindow.StateTransitionIDs) +
+		len(contextWindow.MarketOpsEvidenceIDs) +
+		len(contextWindow.HypothesisEvaluationIDs) +
+		len(contextWindow.OpportunityIDs) +
+		len(contextWindow.OutcomeIDs) +
+		len(contextWindow.CalibrationSummaryIDs) +
+		len(contextWindow.AlertIDs) +
+		len(contextWindow.SignalIDs) +
+		len(contextWindow.EventIDs) +
+		len(contextWindow.ArtifactIDs) +
+		len(contextWindow.GraphProposalIDs) +
+		len(contextWindow.LabelIDs)
 }
 
 func deterministicDailyNarrativeFromContext(contextWindow storage.SyncraticContextWindowRecord) deterministicSyncraticNarrative {

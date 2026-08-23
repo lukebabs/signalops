@@ -3986,6 +3986,69 @@ func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T)
 	}
 }
 
+func TestPostSyncraticContextWindowAskFallsBackForGenericMetaEmptyEvidence(t *testing.T) {
+	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-panw-empty", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "PANW", SubjectSymbol: "PANW", WindowStart: time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC), ContextStrategy: "market_state_session_v2", ContextBuilderVersion: defaultSyncraticBuilderVersion, SummaryMetricsJSON: []byte(`{"signal_count":0,"alert_count":0,"event_count":0,"artifact_count":0,"label_count":0,"graph_proposal_count":0}`), EvidenceDigest: "digest-empty", IdempotencyKey: "idem", Status: "active", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{insight}}
+	askAnswer := "They want me to interpret a deterministic SignalOps MarketOps context window for an operator. The task is to rank the strongest drivers and explain why the cluster matters now. The context includes metadata and data quality checks from provided external context."
+	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-empty", Answer: askAnswer, Confidence: userapi.NumericFloat(0.62), EvidenceCount: 0}}
+	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-panw-empty/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	stored := repo.syncraticInsights[0]
+	if !strings.Contains(stored.Explanation, "DATA QUALITY WARNING") || !strings.Contains(stored.Explanation, "PANW does not have enough persisted Syncratic evidence") || !strings.Contains(stored.Explanation, "Rematerialize") {
+		t.Fatalf("stored explanation did not use empty-evidence fallback: %s", stored.Explanation)
+	}
+	if strings.Contains(stored.Explanation, "They want me") || strings.Contains(stored.Explanation, "The task is to") || strings.Contains(stored.Explanation, "The context includes") {
+		t.Fatalf("meta commentary persisted: %s", stored.Explanation)
+	}
+	var metrics map[string]any
+	if err := json.Unmarshal(stored.MetricsJSON, &metrics); err != nil {
+		t.Fatal(err)
+	}
+	askMeta, ok := metrics["syncratic_ask"].(map[string]any)
+	if !ok || askMeta["response_quality"] != "deterministic_fallback_empty_context" || askMeta["prompt_builder_version"] != defaultSyncraticAskPromptVersion {
+		t.Fatalf("ask metrics = %#v", metrics["syncratic_ask"])
+	}
+}
+
+func TestPostSyncraticContextWindowAskDoesNotSkipPriorMetaAnswer(t *testing.T) {
+	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-prior-meta", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1"}, AlertIDs: []string{"alert-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":1,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active"}
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}}
+	details, missing, err := syncraticAskSignalDetails(context.Background(), repo, cw, 12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, meta, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000}, details, missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
+	insight.Explanation = "They want me to interpret a deterministic SignalOps MarketOps context window."
+	insight.MetricsJSON = mustJSON(map[string]any{"syncratic_ask": map[string]any{"ask_status": "completed", "prompt_digest": meta.PromptDigest, "context_evidence_digest": meta.ContextEvidenceDigest}})
+	repo.syncraticInsights = []storage.SyncraticInsightRecord{insight}
+	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-fixed", Answer: `{"title":"Fixed title","executive_summary":"AAPL has a bounded alert and signal cluster worth analyst review.","what_changed":["The prior answer was regenerated."],"top_drivers":["The AAPL cluster points to analyst review rather than request description."],"contradictions_or_weak_evidence":[],"analyst_followups":["Review the cited signal."],"cited_artifacts":["sig-aapl-1"],"data_quality_warnings":[]}`, Confidence: userapi.NumericFloat(0.8), EvidenceCount: 2}}
+	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-prior-meta/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if ask.calls != 1 {
+		t.Fatalf("expected prior meta insight to regenerate, calls=%d", ask.calls)
+	}
+	if strings.Contains(rec.Body.String(), "unchanged_prompt_and_evidence") {
+		t.Fatalf("prior meta answer was incorrectly skipped: %s", rec.Body.String())
+	}
+}
+
 func TestPostSyncraticContextWindowAskSkipsUnchangedEvidence(t *testing.T) {
 	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1"}, AlertIDs: []string{"alert-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":1,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active"}
 	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}}

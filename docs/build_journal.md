@@ -9102,3 +9102,12 @@ Next-cycle priority:
 - Added a user-facing narrative-quality signal to Syncratic Ask surfaces so analysts can distinguish clean AI output, deterministic fallback, unchanged/skipped Ask actions, data-quality blocked narratives, and deterministic-only contexts.
 - The signal is derived from existing `metrics.syncratic_ask.response_quality`, data-quality warning detection, and the latest Ask route result; no new write path or provider call was introduced.
 - Rendered the quality chip on daily narrative cards, the insight detail header, and the Syncratic Ask metadata panel. Playwright now asserts the quality signal is visible during the Ask smoke.
+
+
+### 2026-08-23 — Syncratic Ask asset-level meta-output guard
+
+- Root-caused the reported `synins_2fdbd7f1dba593f0a88a2c87` response to the generic asset-level Ask path, not the daily narrative path. The affected PANW context used `market_state_session_v2` and carried zero persisted evidence references, but the upstream response was still stored as `llm_answer`.
+- Added a generic Syncratic Ask quality gate for non-daily contexts: prompt/task/context meta-commentary and empty evidence windows now produce a deterministic data-quality fallback instead of persisting upstream meta text.
+- Prevented unchanged prompt/evidence skips from preserving prior meta-commentary by forcing regeneration when the stored title, summary, or explanation contains known meta-output markers.
+- Bumped the generic Ask prompt builder to `marketops.syncratic.ask_prompt.v2` and tightened the prompt/output contract to require analyst-facing relational prose, not request or context descriptions.
+- Validation passed: `go test ./cmd/gateway ./internal/api ./internal/syncratic/userapi`.
