@@ -1,3 +1,9 @@
+## 2026-08-23 — Subscription Administration System-style presentation refresh
+
+- Reworked Subscription Administration presentation to follow the Admin System visual pattern: compact header, metric tiles, lighter tab selector, flatter operational tables, and clearer section headings.
+- Preserved the existing administration boundaries and API behavior: no provider polling, no subscription mutations, no migration, and no tenant-specific market-data copies.
+- Verified with `npm --prefix web run build` and `scripts/run_subscription_admin_ui_smoke.sh` (`3 passed`).
+
 # SignalOps Build Journal
 
 ## 2026-08-23 — Subscription Administration tabbed operations layout
