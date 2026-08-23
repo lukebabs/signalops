@@ -66,6 +66,8 @@ import type {
   SyncraticContextWindowFilter,
   SyncraticMaterializeRequest,
   SyncraticMaterializationResponse,
+  SyncraticDailyNarrativeMaterializeRequest,
+  SyncraticDailyNarrativeMaterializationResponse,
   SyncraticAskRequest,
   SyncraticAskResponse,
   AlgorithmDefinitionFilter,
@@ -1204,6 +1206,26 @@ export function useMaterializeSyncraticContexts() {
   return useMutation({
     mutationFn: (request: SyncraticMaterializeRequest) => api.materializeSyncraticContexts(request),
     onSuccess: (data) => applySyncraticMaterializeResult(queryClient, data),
+  });
+}
+
+export function applySyncraticDailyNarrativeMaterializeResult(
+  queryClient: QueryClient,
+  data: SyncraticDailyNarrativeMaterializationResponse,
+) {
+  if (data?.daily_narrative_materialization?.dry_run) return;
+  queryClient.invalidateQueries({ queryKey: ['syncratic-insights'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-insight'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-context-windows'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-context-window'] });
+}
+
+export function useMaterializeSyncraticDailyNarratives() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: SyncraticDailyNarrativeMaterializeRequest) =>
+      api.materializeSyncraticDailyNarratives(request),
+    onSuccess: (data) => applySyncraticDailyNarrativeMaterializeResult(queryClient, data),
   });
 }
 

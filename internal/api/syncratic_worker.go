@@ -62,10 +62,18 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 		_ = jobs.CompleteSyncraticIntelligenceJob(ctx, job.JobID, insight.SyncraticInsightID, "", time.Now().UTC())
 		return
 	}
-	insight, result, err := enrichSyncraticInsightWithAsk(ctx, repo, askClient, job.ContextWindowID, syncraticAskRequest{TenantID: job.TenantID, PromptBuilderVersion: "marketops.syncratic.eod_overview_prompt.v1", IncludeRecordDetails: true, InsightType: defaultSyncraticEODInsightType})
+	insightType := defaultSyncraticEODInsightType
+	promptVersion := "marketops.syncratic.eod_overview_prompt.v1"
+	if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) {
+		insightType = dailyNarrativeInsightType
+		promptVersion = dailyNarrativeAskPromptVersion
+	}
+	insight, result, err := enrichSyncraticInsightWithAsk(ctx, repo, askClient, job.ContextWindowID, syncraticAskRequest{TenantID: job.TenantID, PromptBuilderVersion: promptVersion, IncludeRecordDetails: true, InsightType: insightType})
 	if err != nil {
 		code := "syncratic_ask_failed"
-		if errors.Is(err, storage.ErrNotFound) { code = "context_window_not_found" }
+		if errors.Is(err, storage.ErrNotFound) {
+			code = "context_window_not_found"
+		}
 		_ = jobs.FailSyncraticIntelligenceJob(ctx, job.JobID, code, strings.TrimSpace(err.Error()), time.Now().UTC())
 		return
 	}
@@ -73,5 +81,7 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 }
 func syncraticContextHasAnalystEvidence(contextWindow storage.SyncraticContextWindowRecord) bool {
 	return len(contextWindow.MarketOpsEvidenceIDs)+len(contextWindow.SignalIDs)+len(contextWindow.AlertIDs)+len(contextWindow.ArtifactIDs)+
-		len(contextWindow.GraphProposalIDs)+len(contextWindow.LabelIDs) > 0
+		len(contextWindow.GraphProposalIDs)+len(contextWindow.LabelIDs)+len(contextWindow.MarketStateIDs)+len(contextWindow.StateTransitionIDs)+
+		len(contextWindow.HypothesisEvaluationIDs)+len(contextWindow.OpportunityIDs)+len(contextWindow.OutcomeIDs)+len(contextWindow.CalibrationSummaryIDs) > 0 ||
+		(isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) && len(contextWindow.SummaryMetricsJSON) > 2)
 }

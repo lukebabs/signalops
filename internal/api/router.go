@@ -1564,6 +1564,31 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"syncratic_insight": syncraticInsightResponseWithCurrentness(record, currentness[record.SyncraticInsightID])})
 	})
 
+	mux.HandleFunc("POST /v1/syncratic/daily-narratives/materialize", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		if !ok {
+			return
+		}
+		var req syncraticDailyNarrativeMaterializeRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
+		result, err := materializeSyncraticDailyNarratives(r.Context(), repo, req)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "daily_narrative_materialize_failed", err.Error())
+			return
+		}
+		status := http.StatusCreated
+		if req.DryRun {
+			status = http.StatusOK
+		}
+		writeJSON(w, status, map[string]any{"daily_narrative_materialization": result})
+	})
+
 	mux.HandleFunc("POST /v1/syncratic/materialize", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
 		if !ok {

@@ -148,6 +148,8 @@ import type {
   SyncraticInsightFilter,
   SyncraticContextWindowFilter,
   SyncraticMaterializeRequest,
+  SyncraticDailyNarrativeMaterializeRequest,
+  SyncraticDailyNarrativeMaterializationResponse,
   SyncraticAskRequest,
   SyncraticAskResponse,
   AlgorithmDefinitionFilter,
@@ -1456,6 +1458,11 @@ export const api = {
   materializeSyncraticContexts: (request: SyncraticMaterializeRequest) =>
     post<SyncraticMaterializationResponse>(
       "/v1/syncratic/materialize",
+      request,
+    ),
+  materializeSyncraticDailyNarratives: (request: SyncraticDailyNarrativeMaterializeRequest) =>
+    post<SyncraticDailyNarrativeMaterializationResponse>(
+      "/v1/syncratic/daily-narratives/materialize",
       request,
     ),
   // G090 operator-triggered Syncratic Ask enrichment over an existing context

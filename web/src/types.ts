@@ -2281,6 +2281,33 @@ export interface SyncraticMaterializationResult {
   decisions: SyncraticMaterializationDecision[];
 }
 
+
+export interface SyncraticDailyNarrativeMaterializeRequest {
+  tenant_id: string;
+  session_date?: string;
+  strategies?: string[];
+  enqueue_briefs?: boolean;
+  dry_run?: boolean;
+}
+
+export interface SyncraticDailyNarrativeMaterializationResult {
+  tenant_id: string;
+  session_date: string;
+  context_builder_version: string;
+  dry_run: boolean;
+  materialized_context_windows: number;
+  materialized_insights: number;
+  skipped_unchanged: number;
+  context_window_ids: string[];
+  syncratic_insight_ids: string[];
+  queued_job_ids: string[];
+  decisions: SyncraticMaterializationDecision[];
+}
+
+export interface SyncraticDailyNarrativeMaterializationResponse {
+  daily_narrative_materialization: SyncraticDailyNarrativeMaterializationResult;
+}
+
 export interface SyncraticInsightsResponse {
   syncratic_insights: SyncraticInsight[];
 }

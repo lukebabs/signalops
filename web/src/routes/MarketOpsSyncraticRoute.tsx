@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Sparkles, AlertTriangle, RefreshCw } from 'lucide-react';
 import {
   useSyncraticInsights,
   useSyncraticInsight,
   useSyncraticContextWindow,
   useMaterializeSyncraticContexts,
+  useMaterializeSyncraticDailyNarratives,
   useAskSyncraticContextWindow,
 } from '../api/queries';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
@@ -47,6 +48,16 @@ const STATUSES: (SyncraticInsightStatus | '')[] = [
   'superseded',
 ];
 const LIMITS = [25, 50, 100, 200];
+const NARRATIVE_TABS = [
+  { key: 'daily', label: 'Daily Overview', strategy: '' },
+  { key: 'sri', label: 'Sector Rotation', strategy: 'marketops_sri_daily_v1' },
+  { key: 'risk_reward', label: 'Risk/Reward', strategy: 'marketops_risk_reward_daily_v1' },
+  { key: 'review_queue', label: 'Review Queue', strategy: 'marketops_review_queue_daily_v1' },
+  { key: 'asset', label: 'Asset Drilldowns', strategy: '' },
+] as const;
+type SyncraticSurfaceTab = typeof NARRATIVE_TABS[number]['key'];
+const DAILY_NARRATIVE_INSIGHT_TYPE = 'marketops.syncratic.daily_narrative.v1';
+
 
 // Fixed materialize defaults — the bounded form does not expose these.
 const MATERIALIZE_UNIVERSE_GROUP = 'top50_megacap';
@@ -101,6 +112,7 @@ export function MarketOpsSyncraticRoute() {
   const [insightType, setInsightType] = useState('');
   const [limit, setLimit] = useState(50);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [surfaceTab, setSurfaceTab] = useState<SyncraticSurfaceTab>('daily');
 
   const insightsList = useSyncraticInsights({
     tenant_id: TENANT_ID,
@@ -137,10 +149,32 @@ export function MarketOpsSyncraticRoute() {
         <div>
           <h1 className="text-lg font-semibold">Syncratic Insights</h1>
           <p className="text-xs text-gray-500">
-            Multi-record pattern explanations over bounded evidence windows · not event-level alerts
+            Daily MarketOps narratives and evidence-grounded analyst drilldowns
           </p>
         </div>
       </div>
+
+      <div className="flex flex-wrap gap-2 rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
+        {NARRATIVE_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setSurfaceTab(tab.key)}
+            className={`rounded px-3 py-1.5 text-xs font-medium ${surfaceTab === tab.key ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {surfaceTab !== 'asset' ? (
+        <SyncraticNarrativeWorkbench
+          tenantId={TENANT_ID}
+          selectedTab={surfaceTab}
+          onInspect={(id) => { setSelectedId(id); setSurfaceTab('asset'); }}
+        />
+      ) : (
+        <>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <MetricTile label="Insights" value={data.length} hint={insightsList.isError ? 'unreachable' : undefined} />
@@ -280,8 +314,99 @@ export function MarketOpsSyncraticRoute() {
           ) : null}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
+}
+
+function SyncraticNarrativeWorkbench({
+  tenantId,
+  selectedTab,
+  onInspect,
+}: {
+  tenantId: string;
+  selectedTab: Exclude<SyncraticSurfaceTab, 'asset'>;
+  onInspect: (insightId: string) => void;
+}) {
+  const tab = NARRATIVE_TABS.find((item) => item.key === selectedTab) ?? NARRATIVE_TABS[0];
+  const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const materialize = useMaterializeSyncraticDailyNarratives();
+  const narratives = useSyncraticInsights({
+    tenant_id: tenantId,
+    subject_symbol: 'MARKETOPS',
+    insight_type: DAILY_NARRATIVE_INSIGHT_TYPE,
+    status: 'active',
+    limit: 50,
+  });
+  const filtered = useMemo(() => {
+    const all = narratives.data?.syncratic_insights ?? [];
+    if (!tab.strategy) return all;
+    return all.filter((insight) => narrativeStrategy(insight) === tab.strategy);
+  }, [narratives.data, tab.strategy]);
+  const latest = filtered.slice().sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+  const strategies = tab.strategy ? [tab.strategy] : ['marketops_daily_overview_v1', 'marketops_sri_daily_v1', 'marketops_risk_reward_daily_v1', 'marketops_review_queue_daily_v1'];
+
+  function run(dryRun: boolean) {
+    materialize.mutate({ tenant_id: tenantId, session_date: sessionDate, strategies, enqueue_briefs: !dryRun, dry_run: dryRun });
+  }
+
+  return (
+    <section className="space-y-3 rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{tab.label} narratives</h2>
+          <p className="text-xs text-gray-600 dark:text-gray-300">Automated explainability over persisted MarketOps artifacts. Narrative output is not a signal, recommendation, or provider poll.</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-xs text-gray-600 dark:text-gray-300">
+            Session date
+            <input type="date" value={sessionDate} onChange={(event) => setSessionDate(event.target.value)} className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" />
+          </label>
+          <button type="button" onClick={() => run(true)} disabled={materialize.isPending} className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Preview</button>
+          <button type="button" onClick={() => run(false)} disabled={materialize.isPending} className="rounded bg-brand-600 px-2.5 py-1 text-xs text-white hover:bg-brand-700 disabled:opacity-50">Materialize + enqueue</button>
+        </div>
+      </div>
+      {materialize.isSuccess && (
+        <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+          {materialize.data.daily_narrative_materialization.dry_run ? 'Preview complete' : 'Materialization complete'} · {materialize.data.daily_narrative_materialization.materialized_insights} insight(s) · {materialize.data.daily_narrative_materialization.skipped_unchanged} unchanged · {materialize.data.daily_narrative_materialization.queued_job_ids.length} Ask job(s) queued
+        </div>
+      )}
+      {materialize.isError && <ErrorState error={materialize.error} />}
+      {narratives.isLoading ? <LoadingState label="Loading Syncratic narratives..." /> : narratives.isError ? <ErrorState error={narratives.error} /> : latest.length ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {latest.map((insight) => (
+            <button key={insight.syncratic_insight_id} type="button" onClick={() => onInspect(insight.syncratic_insight_id)} className="rounded border border-gray-200 bg-gray-50 p-3 text-left hover:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-brand-500">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800 dark:bg-brand-950 dark:text-brand-200">{narrativeLabel(narrativeStrategy(insight))}</span>
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">{formatUtc(insight.updated_at)}</span>
+              </div>
+              <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{insight.title}</div>
+              <p className="mt-1 line-clamp-3 text-xs text-gray-600 dark:text-gray-300">{insight.summary || insight.explanation}</p>
+              <div className="mt-2 text-[11px] text-brand-700 dark:text-brand-300">Inspect artifacts and context →</div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <EmptyState message="No daily Syncratic narratives are available for this tab yet. Use Preview first, then Materialize + enqueue when the deterministic context looks eligible." />
+      )}
+    </section>
+  );
+}
+
+function narrativeStrategy(insight: SyncraticInsight): string {
+  const metrics = insight.metrics;
+  if (!metrics || typeof metrics !== 'object') return '';
+  const value = (metrics as Record<string, unknown>).strategy;
+  return typeof value === 'string' ? value : '';
+}
+
+function narrativeLabel(strategy: string): string {
+  if (strategy === 'marketops_sri_daily_v1') return 'SRI';
+  if (strategy === 'marketops_risk_reward_daily_v1') return 'Risk/Reward';
+  if (strategy === 'marketops_review_queue_daily_v1') return 'Review Queue';
+  if (strategy === 'marketops_daily_overview_v1') return 'Daily Overview';
+  return 'Narrative';
 }
 
 function SyncraticInsightDetail({
