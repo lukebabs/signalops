@@ -31,7 +31,7 @@ func TestBuildSyncraticDailyNarrativeAskPromptContracts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prompt error: %v", err)
 	}
-	for _, required := range []string{"what_changed", "cited_artifacts", "data_quality_warnings", "rr-1", "sri-1", "opp-1"} {
+	for _, required := range []string{"response_contract", "Return only a valid JSON object", "Write to the MarketOps analyst", "what_changed", "cited_artifacts", "data_quality_warnings", "rr-1", "sri-1", "opp-1"} {
 		if !strings.Contains(prompt, required) {
 			t.Fatalf("prompt missing %s: %s", required, prompt)
 		}

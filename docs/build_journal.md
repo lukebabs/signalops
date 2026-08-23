@@ -9050,3 +9050,11 @@ Next-cycle priority:
 - Deployment evidence: `marketops_read_cutover_gateway_verified`, bundled `subscriber_pilot_ui_smoke_verified`, and public `/readyz` returned ready.
 - Reconciled existing backlog without provider polling or AI Gateway calls: 300 legacy per-asset automatic Ask jobs completed with `auto_ask_scope_retired`; 4 stale-digest daily jobs completed with `stale_evidence_digest_superseded`.
 - Verified no queued/running tenant-local Syncratic jobs remained and `./scripts/run_syncratic_ask_ui_smoke.sh` passed with `1 passed in 1.50s`.
+
+### 2026-08-23 — Syncratic Ask response-quality correction
+
+- Root-caused weak Syncratic Ask output to prompt/response-contract ambiguity: the AI response described the prompt and JSON payload instead of producing analyst-facing interpretation.
+- Tightened daily narrative prompts to require strict JSON, prohibit discussion of the prompt/JSON/instructions, and define field-level expectations for `executive_summary`, `what_changed`, `top_drivers`, `contradictions_or_weak_evidence`, `analyst_followups`, cited artifacts, and data-quality warnings.
+- Disabled `direct_reasoning` on SignalOps Ask requests so the user-facing answer does not invite reasoning/meta-output from the AI Gateway path.
+- Added structured-response parsing so JSON answers are rendered into sectioned analyst explanations instead of being stored as raw JSON or generic text.
+- Validation passed: `go test ./cmd/gateway ./internal/api ./internal/syncratic/userapi`, `npm --prefix web test -- --run src/api/syncratic.test.ts src/lib/syncratic.test.ts`, and `git diff --check`.

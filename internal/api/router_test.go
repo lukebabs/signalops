@@ -3954,7 +3954,7 @@ func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T)
 	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1", "sig-aapl-2"}, AlertIDs: []string{"alert-aapl-1"}, EventIDs: []string{"evt-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":2,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
 	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{insight}, signals: []storage.SignalLedgerRecord{{SignalID: "sig-aapl-1", SignalType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", Severity: "high", Confidence: 0.91, EventIDs: []string{"evt-aapl-1"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`), SupportingMetrics: []byte(`{"daily_return_pct":6.9,"intraday_range_pct":13}`), EvidenceJSON: []byte(`[{"summary":"volatility expansion threshold crossed"}]`)}}}
-	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-1", Answer: "Generated Syncratic Ask explanation for AAPL.", Confidence: userapi.NumericFloat(0.91), EvidenceCount: 3, Raw: []byte(`{"title":"Ask title","summary":"Ask summary","action":"review"}`)}}
+	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-1", Answer: `{"title":"Ask title","executive_summary":"AAPL showed a volatility expansion cluster that deserves analyst review.","what_changed":["Volatility expansion evidence was present for AAPL."],"top_drivers":["sig-aapl-1 showed daily_return_pct=6.9."],"contradictions_or_weak_evidence":["Only one detailed signal was supplied to the Ask context."],"analyst_followups":["Review the cited signal and source metrics before acting."],"cited_artifacts":["sig-aapl-1"],"data_quality_warnings":[]}`, Confidence: userapi.NumericFloat(0.91), EvidenceCount: 3, Raw: []byte(`{"title":"Ask title","summary":"Ask summary","action":"review"}`)}}
 	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
 	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-test/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -3966,14 +3966,14 @@ func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T)
 	if ask.calls != 1 || ask.req.Scope != defaultSyncraticAskScope || ask.req.K != 1 || ask.req.ThreadMode != "off" || ask.req.IncludeRefs == nil || *ask.req.IncludeRefs || len(ask.req.Filters) != 0 {
 		t.Fatalf("ask call = %+v calls=%d", ask.req, ask.calls)
 	}
-	if ask.req.DirectReasoning == nil || !*ask.req.DirectReasoning || ask.req.GraphEnabled == nil || *ask.req.GraphEnabled || ask.req.KEEEnabled == nil || *ask.req.KEEEnabled {
+	if ask.req.DirectReasoning == nil || *ask.req.DirectReasoning || ask.req.GraphEnabled == nil || *ask.req.GraphEnabled || ask.req.KEEEnabled == nil || *ask.req.KEEEnabled {
 		t.Fatalf("ask reasoning flags = %+v", ask.req)
 	}
 	if ask.req.ExternalContext == nil || len(ask.req.ExternalContext.Items) != 1 || ask.req.ExternalContext.Items[0].SourceID != "synctx-test" || !strings.Contains(ask.req.ExternalContext.Items[0].Text, "synctx-test") {
 		t.Fatalf("ask external context = %+v", ask.req.ExternalContext)
 	}
 	stored := repo.syncraticInsights[0]
-	if stored.Explanation != "Generated Syncratic Ask explanation for AAPL." || stored.Title != "Ask title" || stored.Summary != "Ask summary" || stored.Confidence != 0.91 {
+	if !strings.Contains(stored.Explanation, "Executive summary:") || !strings.Contains(stored.Explanation, "Top drivers:") || stored.Title != "Ask title" || stored.Summary != "AAPL showed a volatility expansion cluster that deserves analyst review." || stored.Confidence != 0.91 {
 		t.Fatalf("stored insight = %+v", stored)
 	}
 	var metrics map[string]any

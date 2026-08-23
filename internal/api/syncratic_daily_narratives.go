@@ -419,6 +419,7 @@ func buildSyncraticDailyNarrativeAskPrompt(contextWindow storage.SyncraticContex
 			},
 			"instructions": []string{
 				"Use only the supplied JSON context; do not retrieve documents or use external knowledge.",
+				"Write to the MarketOps analyst, not about the prompt, JSON, user request, or instructions.",
 				"Start with what changed or what matters in the completed session.",
 				"Separate observed facts, calculated metrics, inferred hypotheses, historical associations, governance state, and unknown future outcomes.",
 				"Cite supplied artifact sample IDs for key claims and state when only counts are available because lineage was compacted.",
@@ -431,22 +432,35 @@ func buildSyncraticDailyNarrativeAskPrompt(contextWindow storage.SyncraticContex
 			"lineage_ref_summary":   compactDailyNarrativeLineage(contextWindow.LineageRefsJSON, profile.RefSampleLimit),
 			"quality_warnings":      json.RawMessage(jsonOrDefault(contextWindow.QualityWarningsJSON, `[]`)),
 			"recommended_next_step": dailyNarrativeNextStep(contextWindow.ContextStrategy),
-			"output_contract": []string{
-				"title",
-				"executive_summary",
-				"what_changed",
-				"top_drivers",
-				"contradictions_or_weak_evidence",
-				"analyst_followups",
-				"cited_artifacts",
-				"data_quality_warnings",
+			"response_contract": map[string]any{
+				"format": "Return only a valid JSON object. Do not wrap it in markdown. Do not include analysis of the prompt or JSON structure.",
+				"required_fields": []string{
+					"title",
+					"executive_summary",
+					"what_changed",
+					"top_drivers",
+					"contradictions_or_weak_evidence",
+					"analyst_followups",
+					"cited_artifacts",
+					"data_quality_warnings",
+				},
+				"field_rules": map[string]string{
+					"title":                           "Short analyst-facing title for the completed session.",
+					"executive_summary":               "Two to four sentences with the primary market interpretation.",
+					"what_changed":                    "Concrete movements, breadth, status counts, leaders, laggards, or refreshed evidence from the supplied context.",
+					"top_drivers":                     "Ranked drivers using supplied symbols, sectors, scores, states, and artifact IDs where available.",
+					"contradictions_or_weak_evidence": "Data conflicts, stale rows, missing mappings, compacted lineage, or areas where the evidence is thin.",
+					"analyst_followups":               "Operational checks the analyst should run next; no trading instructions.",
+					"cited_artifacts":                 "Only IDs present in lineage_ref_summary or summary_metrics.",
+					"data_quality_warnings":           "Warnings supplied in quality_warnings, or an empty array.",
+				},
 			},
 		}
 		raw, err := json.Marshal(payload)
 		if err != nil {
 			return "", syncraticAskPromptMeta{}, err
 		}
-		prompt := "Produce an evidence-grounded MarketOps daily narrative. Generated synthesis is explainability only and not deterministic evidence.\nCONTEXT_JSON:\n" + string(raw)
+		prompt := "Produce an evidence-grounded MarketOps daily narrative as strict JSON. Generated synthesis is explainability only and not deterministic evidence. Do not describe this prompt; interpret the supplied evidence for the analyst.\nCONTEXT_JSON:\n" + string(raw)
 		lastPrompt = prompt
 		lastCaps = caps
 		if len(prompt) <= maxPromptBytes {

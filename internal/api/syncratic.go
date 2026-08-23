@@ -527,10 +527,10 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 	if contextWindow.ContextStrategy == marketStateContextStrategy {
 		question = marketStateAskQuestion(contextWindow)
 	} else if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) {
-		question = "Produce the MarketOps daily narrative for this bounded deterministic context. Focus on what changed, strongest drivers, contradictions, data-quality gaps, and analyst follow-ups. Cite only supplied artifact IDs."
+		question = "Return only the requested JSON daily narrative for this bounded deterministic MarketOps context. Interpret the supplied evidence for an analyst; do not describe the prompt, JSON, or instructions."
 	}
 	includeRefs := false
-	directReasoning := true
+	directReasoning := false
 	graphEnabled := false
 	keeEnabled := false
 	askResp, err := askClient.Ask(ctx, userapi.AskRequest{
@@ -859,27 +859,110 @@ func syncraticAskAlreadyApplied(insight storage.SyncraticInsightRecord, meta syn
 }
 
 func applySyncraticAskResponse(insight storage.SyncraticInsightRecord, contextWindow storage.SyncraticContextWindowRecord, meta syncraticAskPromptMeta, resp userapi.AskResponse, started, completed time.Time) storage.SyncraticInsightRecord {
+	structured := syncraticAskStructuredPayload(resp)
 	answer := strings.TrimSpace(resp.Answer)
-	if answer == "" && len(resp.Raw) > 0 {
-		var raw map[string]any
-		if json.Unmarshal(resp.Raw, &raw) == nil {
-			answer = firstNonEmpty(asString(raw["answer"]), asString(raw["explanation"]), asString(raw["summary"]))
-		}
+	if rendered := renderSyncraticAskStructuredExplanation(structured); rendered != "" {
+		answer = rendered
+	} else if answer == "" {
+		answer = firstNonEmpty(asString(structured["answer"]), asString(structured["explanation"]), asString(structured["executive_summary"]), asString(structured["summary"]))
 	}
 	if answer == "" {
 		answer = "Syncratic Ask returned no textual explanation. Review deterministic evidence directly."
 	}
 	insight.Explanation = answer
-	insight.Summary = firstNonEmpty(extractAskString(resp.Raw, "summary"), truncateForSummary(answer), insight.Summary)
-	insight.Title = firstNonEmpty(extractAskString(resp.Raw, "title"), insight.Title, fmt.Sprintf("%s Syncratic Ask explanation", contextWindow.SubjectSymbol))
+	insight.Summary = firstNonEmpty(asString(structured["executive_summary"]), asString(structured["summary"]), extractAskString(resp.Raw, "summary"), truncateForSummary(answer), insight.Summary)
+	insight.Title = firstNonEmpty(asString(structured["title"]), extractAskString(resp.Raw, "title"), insight.Title, fmt.Sprintf("%s Syncratic Ask explanation", contextWindow.SubjectSymbol))
 	if resp.Confidence > 0 {
 		insight.Confidence = float64(resp.Confidence)
 	}
 	metrics := jsonObjectOrEmpty(insight.MetricsJSON)
-	metrics["syncratic_ask"] = map[string]any{"enabled": true, "ask_query_id": resp.QueryID, "ask_status": "completed", "prompt_builder_version": meta.PromptBuilderVersion, "prompt_digest": meta.PromptDigest, "context_window_id": contextWindow.ContextWindowID, "context_evidence_digest": meta.ContextEvidenceDigest, "request_scope": defaultSyncraticAskScope, "request_k": 1, "direct_reasoning": true, "graph_enabled": false, "kee_enabled": false, "included_record_details": meta.IncludedRecordDetails, "prompt_bytes": meta.PromptBytes, "caps": meta.Caps, "response": map[string]any{"confidence": resp.Confidence, "evidence_count": resp.EvidenceCount, "citation_count": len(resp.Citations)}, "started_at": started.Format(time.RFC3339Nano), "completed_at": completed.Format(time.RFC3339Nano), "latency_ms": completed.Sub(started).Milliseconds()}
+	metrics["syncratic_ask"] = map[string]any{"enabled": true, "ask_query_id": resp.QueryID, "ask_status": "completed", "prompt_builder_version": meta.PromptBuilderVersion, "prompt_digest": meta.PromptDigest, "context_window_id": contextWindow.ContextWindowID, "context_evidence_digest": meta.ContextEvidenceDigest, "request_scope": defaultSyncraticAskScope, "request_k": 1, "direct_reasoning": false, "graph_enabled": false, "kee_enabled": false, "included_record_details": meta.IncludedRecordDetails, "prompt_bytes": meta.PromptBytes, "caps": meta.Caps, "response": map[string]any{"confidence": resp.Confidence, "evidence_count": resp.EvidenceCount, "citation_count": len(resp.Citations)}, "started_at": started.Format(time.RFC3339Nano), "completed_at": completed.Format(time.RFC3339Nano), "latency_ms": completed.Sub(started).Milliseconds()}
 	insight.MetricsJSON = mustJSON(metrics)
-	insight.RecommendationJSON = mustJSON(map[string]any{"action": firstNonEmpty(extractAskString(resp.Raw, "action"), "review"), "source": "syncratic_ask", "reason": "LLM-generated explanation over a bounded deterministic SignalOps context window", "ask_query_id": resp.QueryID, "prompt_digest": meta.PromptDigest})
+	insight.RecommendationJSON = mustJSON(map[string]any{"action": firstNonEmpty(asString(structured["recommended_next_step"]), asString(structured["action"]), extractAskString(resp.Raw, "action"), "review"), "source": "syncratic_ask", "reason": "LLM-generated explanation over a bounded deterministic SignalOps context window", "ask_query_id": resp.QueryID, "prompt_digest": meta.PromptDigest})
 	return insight
+}
+
+func syncraticAskStructuredPayload(resp userapi.AskResponse) map[string]any {
+	for _, candidate := range []string{resp.Answer, string(resp.Raw)} {
+		if payload := parseSyncraticAskStructuredPayload(candidate); len(payload) > 0 {
+			return payload
+		}
+	}
+	return map[string]any{}
+}
+
+func parseSyncraticAskStructuredPayload(raw string) map[string]any {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	raw = strings.TrimPrefix(raw, "```json")
+	raw = strings.TrimPrefix(raw, "```")
+	raw = strings.TrimSuffix(raw, "```")
+	raw = strings.TrimSpace(raw)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return nil
+	}
+	if answer := asString(payload["answer"]); strings.HasPrefix(strings.TrimSpace(answer), "{") {
+		if nested := parseSyncraticAskStructuredPayload(answer); len(nested) > 0 {
+			return nested
+		}
+	}
+	return payload
+}
+
+func renderSyncraticAskStructuredExplanation(payload map[string]any) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	sections := []struct {
+		key   string
+		label string
+	}{
+		{key: "executive_summary", label: "Executive summary"},
+		{key: "what_changed", label: "What changed"},
+		{key: "top_drivers", label: "Top drivers"},
+		{key: "contradictions_or_weak_evidence", label: "Contradictions or weak evidence"},
+		{key: "analyst_followups", label: "Analyst follow-ups"},
+		{key: "cited_artifacts", label: "Cited artifacts"},
+		{key: "data_quality_warnings", label: "Data quality warnings"},
+	}
+	parts := []string{}
+	for _, section := range sections {
+		if rendered := renderSyncraticAskValue(payload[section.key]); rendered != "" {
+			parts = append(parts, section.label+":\n"+rendered)
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func renderSyncraticAskValue(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(typed)
+	case []any:
+		lines := []string{}
+		for _, item := range typed {
+			if rendered := renderSyncraticAskValue(item); rendered != "" {
+				lines = append(lines, "- "+rendered)
+			}
+		}
+		return strings.Join(lines, "\n")
+	case map[string]any:
+		if text := firstNonEmpty(asString(typed["summary"]), asString(typed["description"]), asString(typed["text"]), asString(typed["reason"])); text != "" {
+			return text
+		}
+		raw, err := json.Marshal(typed)
+		if err != nil {
+			return ""
+		}
+		return string(raw)
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", typed))
+	}
 }
 
 func extractAskString(raw json.RawMessage, key string) string {
