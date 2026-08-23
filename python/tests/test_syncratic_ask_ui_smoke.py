@@ -98,7 +98,7 @@ def login(page: Page, config: SyncraticSmokeConfig) -> None:
 def test_syncratic_daily_narrative_ask_smoke(syncratic_page: Page, syncratic_config: SyncraticSmokeConfig) -> None:
     login(syncratic_page, syncratic_config)
     force_regenerate = os.getenv("SIGNALOPS_SYNCRATIC_FORCE_REGENERATE", "").strip() == "1"
-    ask_button_name = "Regenerate" if force_regenerate else "Ask Syncratic AI"
+    ask_button_name = "Regenerate" if force_regenerate else "Explain with Syncratic"
 
     for tab_name, card_name in [("Daily Overview", "Daily Overview"), ("Sector Rotation", "SRI"), ("Risk/Reward", "Risk/Reward"), ("Review Queue", "Review Queue")]:
         syncratic_page.get_by_role("button", name=tab_name, exact=True).click()
@@ -106,7 +106,11 @@ def test_syncratic_daily_narrative_ask_smoke(syncratic_page: Page, syncratic_con
         card = syncratic_page.locator("button").filter(has_text=card_name).filter(has_text="Inspect artifacts and context").first
         expect(card).to_be_visible(timeout=30_000)
         card.click()
-        expect(syncratic_page.get_by_text("Ask Syncratic AI").first).to_be_visible(timeout=30_000)
+        expect(syncratic_page.get_by_role("button", name="Asset Drilldowns", exact=True)).to_have_class(
+            re.compile("bg-brand-600"),
+            timeout=30_000,
+        )
+        expect(syncratic_page.get_by_text("Explain with Syncratic").first).to_be_visible(timeout=30_000)
         ask_button = syncratic_page.get_by_role("button", name=ask_button_name, exact=True).first
         expect(ask_button).to_be_visible(timeout=30_000)
 
