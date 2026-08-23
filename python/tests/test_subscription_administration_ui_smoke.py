@@ -113,7 +113,6 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
 
 def test_subscription_administration_governance_surface(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
     expected_products = {"Explorer", "Professional", "Institutional"}
-    expected_tables = {"Subject subscriptions", "Institutional contracts", "Institutional seats", "Audit trail", "Stripe webhook ledger"}
     expected_features = {"Market dashboards", "Value Intelligence", "Distressed Opportunity Intelligence", "Earnings Opportunity Intelligence", "Signal Assurance analytics", "APIs", "White-label deployment"}
 
     with admin_page.expect_response(
@@ -134,22 +133,43 @@ def test_subscription_administration_governance_surface(admin_page: Page, admin_
         assert "revision" in product, f"{product.get('product_key')} has no revision"
 
     body = admin_page.locator("body")
-    for label in sorted(expected_products | expected_tables | expected_features):
+    for label in sorted(expected_products):
         expect(body).to_contain_text(label, timeout=30_000)
     expect(body).to_contain_text("signalops:subscription_admin")
     expect(body).to_contain_text("Govern enrolled users")
+    expect(body).to_contain_text("Stripe product map")
+    expect(body).to_contain_text("Subject subscriptions")
+
+    admin_page.get_by_role("button", name="Tier settings").click()
     expect(body).to_contain_text("Feature policy is the server-side entitlement contract")
+    for label in sorted(expected_features):
+        expect(body).to_contain_text(label, timeout=30_000)
+
+    admin_page.get_by_role("button", name="Stripe billing").click()
     expect(body).to_contain_text("Admin-managed Stripe billing")
     expect(body).to_contain_text("Map Stripe IDs created in Stripe Dashboard")
     expect(body).to_contain_text("Product mapping")
     expect(body).to_contain_text("Subject Stripe mapping")
     expect(body).to_contain_text("Institutional Stripe mapping")
 
+    admin_page.get_by_role("button", name="Users & seats").click()
+    for label in ["Explorer or Professional subject plan", "Institutional tenant contract", "Institutional seat", "Subject subscriptions", "Institutional contracts", "Institutional seats"]:
+        expect(body).to_contain_text(label, timeout=30_000)
+
+    admin_page.get_by_role("button", name="Audit log").click()
+    expect(admin_page.get_by_label("Search audit log")).to_be_visible()
+    expect(body).to_contain_text("Audit trail")
+
+    admin_page.get_by_role("button", name="Webhook ledger").click()
+    expect(admin_page.get_by_label("Search webhooks")).to_be_visible()
+    expect(body).to_contain_text("Stripe webhook ledger")
+
 
 def test_subscription_administration_is_platform_only(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
     base_url, _, _ = admin_config
     login(admin_page, admin_config)
     expect(admin_page.get_by_role("heading", name="Subscription Administration")).to_be_visible(timeout=30_000)
+    admin_page.get_by_role("button", name="Users & seats").click()
     expect(admin_page.get_by_role("heading", name="Explorer or Professional subject plan")).to_be_visible()
     expect(admin_page.get_by_role("heading", name="Institutional tenant contract")).to_be_visible()
     expect(admin_page.get_by_role("heading", name="Institutional seat", exact=True)).to_be_visible()

@@ -1,5 +1,20 @@
 # SignalOps Build Journal
 
+## 2026-08-23 — Subscription Administration tabbed operations layout
+
+Summary:
+
+- Refactored Subscription Administration from one dense page into operational tabs: Overview, Tier settings, Stripe billing, Users & seats, Audit log, and Webhook ledger.
+- Separated tier/entitlement settings from operational enrollment and billing functions.
+- Added a read-only Stripe product map so Explorer and Professional product/price mappings are visible side by side instead of only through the selected edit form.
+- Added searchable Audit log and Webhook ledger views for active operator search across actors, subjects, event types, correlations, provider event IDs, statuses, and errors.
+- Preserved immutable OIDC UUIDs as secondary identity evidence while rendering available email/name labels as primary display text.
+
+Verification:
+
+- Web build passed: `npm --prefix web run build`.
+- Subscription Admin Playwright smoke was updated to navigate the tabbed interface. Live smoke must be rerun after deploying the new web bundle.
+
 ## 2026-08-23 — Subscription Admin identity labels
 
 Summary:
