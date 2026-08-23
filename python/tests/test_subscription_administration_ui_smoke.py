@@ -116,7 +116,7 @@ def test_subscription_administration_governance_surface(admin_page: Page, admin_
     expected_features = {"Market dashboards", "Value Intelligence", "Distressed Opportunity Intelligence", "Earnings Opportunity Intelligence", "Signal Assurance analytics", "APIs", "White-label deployment"}
 
     with admin_page.expect_response(
-        lambda response: response.request.method == "GET" and "/v1/administration/subscriptions" in response.url,
+        lambda response: response.request.method == "GET" and response.url.split("?", 1)[0].endswith("/v1/administration/subscriptions"),
         timeout=30_000,
     ) as response_info:
         login(admin_page, admin_config)

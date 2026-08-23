@@ -1,8 +1,18 @@
 # Subscriber User Activity Monitoring
 
-Status: source implemented; production activation requires migration `000157_subscriber_user_activity_ledger` and gateway/web deployment.
+Status: production activated for the controlled pilot environment.
 
 Last updated: 2026-08-23.
+
+Production activation evidence, 2026-08-23 UTC:
+
+- migration `000157_subscriber_user_activity_ledger` applied to the dedicated MarketOps database at `2026-08-23 06:57:56 UTC`;
+- `subscriber_user_activity_events` exists with RLS enabled and forced;
+- `signalops_subscriber_gateway` has `SELECT,INSERT` on the activity ledger and execute access to `subscriber_subscription_admin_identity_labels(text)`;
+- gateway and web were rebuilt/restarted through the constrained deployment agent;
+- public deployment and subscriber browser smokes passed;
+- Subscription Administration smoke passed after tightening the test to distinguish the base subscription snapshot endpoint from the new activity endpoint;
+- the live activity ledger recorded login and feature-view events, latest observed at `2026-08-23 07:04:01 UTC`.
 
 ## Purpose
 

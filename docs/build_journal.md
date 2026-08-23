@@ -8918,3 +8918,12 @@ Next-cycle priority:
 - Added `GET /v1/administration/subscriptions/activity` for subscription administrators, plus Subscription Administration UI support through a new User activity tab and a selected-user drilldown under Users & seats.
 - Updated browser smoke coverage to assert the Activity tab and selected-user drilldown.
 - Validation passed: `go test ./internal/api ./internal/storage/postgres` and `npm --prefix web run build`.
+
+## 2026-08-23 — Subscriber user activity monitoring production activation
+
+- Applied `000157_subscriber_user_activity_ledger` to the dedicated MarketOps database and verified the migration ledger, activity table existence, forced RLS, gateway `SELECT,INSERT` table access, and identity-label function access.
+- Rebuilt/restarted gateway through the constrained deployment agent. The gateway build ran the full Go test stage and deployment smoke passed.
+- Rebuilt/restarted web through the constrained deployment agent. The first smoke exposed a real frontend placement bug: `UserActivityBridge` was mounted above `RouterProvider` while using TanStack `useLocation`, preventing authenticated Watchlists rendering.
+- Fixed `UserActivityBridge` to track browser path changes without router context, committed/pushed the fix, and redeployed web. The final deployment-agent web smoke passed: `2 passed`.
+- Ran Subscription Administration browser smoke. The first run exposed a test predicate issue because `/v1/administration/subscriptions/activity` matched the base subscription snapshot predicate; tightened the predicate to the exact base endpoint. Final result: `3 passed`.
+- Verified live activity capture: `subscriber_user_activity_events` contained `login` and `feature_view` events, latest observed at `2026-08-23 07:04:01 UTC`.
