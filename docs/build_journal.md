@@ -8951,3 +8951,9 @@ Next-cycle priority:
 - Live smoke reached the SignalOps Ask endpoint but failed before the fix with `502 syncratic_ask_failed`. A minimal upstream probe from the gateway container showed the Syncratic AI Gateway rejected requests without `Idempotency-Key` using `400 idempotency_key_required`.
 - Patched the Syncratic user API client to send `Idempotency-Key` and wired SignalOps Ask calls to generate stable idempotency keys from context window id + prompt digest; explicit Regenerate includes a timestamp suffix.
 - A follow-up upstream probe with `Idempotency-Key` advanced to `503 gateway_price_catalog_not_found`, confirming the next blocker is Syncratic AI Gateway price-catalog policy/configuration rather than SignalOps prompt size or browser auth.
+
+## 2026-08-23 — Syncratic Ask live smoke closure
+
+- After the Syncratic AI Gateway price-catalog configuration propagated, reran the controlled production browser smoke with `scripts/run_syncratic_ask_ui_smoke.sh`.
+- Result: `1 passed in 1.43s`. This verifies `/marketops/syncratic` login, daily narrative selection, normal Ask (`force=false`), SignalOps `Idempotency-Key` forwarding, upstream AI Gateway acceptance, and valid Ask response rendering.
+- Syncratic Ask is now part of the production-readiness QA checklist after gateway deploys, after Syncratic AI Gateway policy/catalog changes, and before subscription production gates.

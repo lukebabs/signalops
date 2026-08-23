@@ -107,7 +107,7 @@ This closes the **UX truthfulness** sub-gate only. It does not close the global 
 
 ## Production gate
 
-Run this suite after Gateway/Web deployment and before declaring a subscriber release accepted. A passing browser smoke validates UX and authorization propagation; it does not replace the separate global analytical-data-plane, provider, scheduler, parity, or recovery gates.
+Run this suite after Gateway/Web deployment and before declaring a subscriber release accepted. Also run the controlled Syncratic Ask smoke after Gateway deployments that touch Syncratic, after Syncratic AI Gateway policy/catalog changes, and before subscription production gates. A passing browser smoke validates UX and authorization propagation; it does not replace the separate global analytical-data-plane, provider, scheduler, parity, or recovery gates.
 
 ## Global EROC reader acceptance — 2026-08-16
 
@@ -144,3 +144,9 @@ must never receive tenant-local SRI as a fallback.
 ### Fixture reconciliation evidence — 2026-08-16
 
 The controlled tenant-pilot-b `First List` currently contains AAPL and NVDA. The browser-smoke defaults were reconciled to that actual fixture; NOW and SNOW are no longer asserted as list members. The explicit run using the protected pilot identity passed both browser contracts on 2026-08-16: watchlist context propagation/global-coverage assertions and the SRI platform-global projection assertion (2 passed).
+
+## Syncratic Ask browser acceptance — 2026-08-23
+
+The controlled tenant-local Syncratic Ask smoke is available through `scripts/run_syncratic_ask_ui_smoke.sh`. It logs in with `SIGNALOPS_WEB_ADMIN`, opens `/marketops/syncratic`, selects a daily narrative, clicks normal Ask (`force=false`), and verifies the `/v1/syncratic/context-windows/{id}/ask` response. Success removes the temporary HAR; failure retains protected HAR, trace, and screenshot artifacts.
+
+The first live failure identified two upstream gates: missing `Idempotency-Key`, then `gateway_price_catalog_not_found`. SignalOps now sends the required idempotency header, and after the AI Gateway price-catalog configuration propagated the smoke passed: `1 passed in 1.43s`. This smoke is now required after Syncratic-related Gateway deployments, AI Gateway policy/catalog changes, and before subscription production gates.
