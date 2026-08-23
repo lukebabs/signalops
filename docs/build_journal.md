@@ -9066,3 +9066,9 @@ Next-cycle priority:
 - The fallback currently covers Daily Overview, SRI, Risk/Reward, and Review Queue narratives and records `response_quality=deterministic_fallback_meta_answer` in Ask metadata.
 - Bumped the daily narrative prompt builder to `marketops.syncratic.daily_narrative_prompt.v2` so existing weak prompt-digest outputs are not treated as current.
 - Validation passed: `go test ./cmd/gateway ./internal/api ./internal/syncratic/userapi`, `npm --prefix web test -- --run src/api/syncratic.test.ts src/lib/syncratic.test.ts`, and `git diff --check`.
+
+### 2026-08-23 — Syncratic Ask malformed JSON fallback and QA refresh mode
+
+- Live Sector Rotation validation showed a second quality failure mode: the upstream returned JSON-looking text with malformed string boundaries/newlines, so SignalOps stored the raw JSON fragment instead of a sectioned explanation.
+- Extended the daily narrative quality gate to use deterministic fallback when the upstream answer looks like malformed JSON and cannot be parsed into the required response contract.
+- Updated the Syncratic Ask browser smoke to iterate the four daily narrative tabs. Normal mode still uses `Ask Syncratic AI`; controlled remediation can set `SIGNALOPS_SYNCRATIC_FORCE_REGENERATE=1` to click `Regenerate` through the UI without extracting or reusing browser tokens.

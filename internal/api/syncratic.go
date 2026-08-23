@@ -873,7 +873,7 @@ func applySyncraticAskResponse(insight storage.SyncraticInsightRecord, contextWi
 	summary := firstNonEmpty(asString(structured["executive_summary"]), asString(structured["summary"]), extractAskString(resp.Raw, "summary"), truncateForSummary(answer), insight.Summary)
 	title := firstNonEmpty(asString(structured["title"]), extractAskString(resp.Raw, "title"), insight.Title, fmt.Sprintf("%s Syncratic Ask explanation", contextWindow.SubjectSymbol))
 	action := firstNonEmpty(asString(structured["recommended_next_step"]), asString(structured["action"]), extractAskString(resp.Raw, "action"), "review")
-	if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) && syncraticAskAnswerIsMetaCommentary(answer) {
+	if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) && syncraticAskAnswerNeedsDeterministicFallback(answer, structured) {
 		fallback := deterministicDailyNarrativeFromContext(contextWindow)
 		if fallback.Explanation != "" {
 			answer = fallback.Explanation
@@ -901,6 +901,17 @@ type deterministicSyncraticNarrative struct {
 	Summary     string
 	Explanation string
 	Action      string
+}
+
+func syncraticAskAnswerNeedsDeterministicFallback(answer string, structured map[string]any) bool {
+	trimmed := strings.TrimSpace(answer)
+	if syncraticAskAnswerIsMetaCommentary(trimmed) {
+		return true
+	}
+	if len(structured) == 0 && (strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "```")) {
+		return true
+	}
+	return false
 }
 
 func syncraticAskAnswerIsMetaCommentary(answer string) bool {
