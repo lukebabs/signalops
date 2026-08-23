@@ -8,7 +8,7 @@
 
 marketops_weekend_permitted_job() {
   case "${1:-}" in
-    marketops-operations-monitor|signalops-storage-monitor|signalops-retention-governance|marketops-fmp-annual-financial)
+    marketops-operations-monitor|signalops-storage-monitor|signalops-retention-governance|marketops-retention-governance|marketops-fmp-annual-financial)
       return 0
       ;;
     *)

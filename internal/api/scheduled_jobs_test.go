@@ -64,6 +64,7 @@ func TestScheduledJobRunActionIsAllowlisted(t *testing.T) {
 		"marketops-intraday":             "scheduler-run-now:marketops-intraday",
 		"marketops-risk-reward":          "scheduler-run-now:marketops-risk-reward",
 		"signalops-retention-governance": "scheduler-run-now:signalops-retention-governance",
+		"marketops-retention-governance": "scheduler-run-now:marketops-retention-governance",
 	}
 	for jobID, expected := range cases {
 		action, ok := scheduledJobRunAction(jobID)

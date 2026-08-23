@@ -37,6 +37,7 @@ var scheduledJobDefinitions = []scheduledJobDefinition{
 	{"marketops-operations-monitor", "MarketOps operations monitor", "Hourly", "UTC", ""},
 	{"signalops-storage-monitor", "Persistent storage monitor", "Daily 02:00", "America/New_York", "scheduler-run-now:signalops-storage-monitor"},
 	{"signalops-retention-governance", "Retention governance (dry run)", "Daily 02:30", "America/New_York", "scheduler-run-now:signalops-retention-governance"},
+	{"marketops-retention-governance", "MarketOps subscriber activity retention (dry run)", "Manual dry run", "America/New_York", "scheduler-run-now:marketops-retention-governance"},
 }
 
 var errUnsupportedScheduledJob = errors.New("unsupported scheduled job")

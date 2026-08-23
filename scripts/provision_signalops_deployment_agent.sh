@@ -23,6 +23,7 @@ bridge_template="$repo_dir/deploy/systemd/signalops-deployment-agent-bridge.serv
 standalone_unit_templates=(
   signalops-storage-monitor.service.in
   signalops-retention-governance.service.in
+  signalops-marketops-retention-governance.service.in
 )
 standalone_timers=(
   signalops-storage-monitor.timer
@@ -77,7 +78,7 @@ visudo -cf "$temporary" >/dev/null
 install -m 0440 -o root -g root "$temporary" "$sudoers_file"
 
 printf 'Installed SignalOps deployment-control agent.\n'
-printf 'Installed standalone disabled units: signalops-storage-monitor.service, signalops-retention-governance.service.\n'
+printf 'Installed standalone disabled units: signalops-storage-monitor.service, signalops-retention-governance.service, signalops-marketops-retention-governance.service.\n'
 printf 'Enabled deployment-agent Unix socket bridge: signalops-deployment-agent-bridge.service.\n'
 printf 'Allowed operator: %s\n' "$operator"
-printf 'Available actions: render-cutover-env, scheduler-preflight, scheduler-intraday-run, scheduler-intraday-enable, scheduler-intraday-disable, scheduler-fmp-annual-enable, scheduler-fmp-annual-disable, scheduler-run-now:<job_id>, scheduler-status, operations-monitor-install, operations-monitor-run, operations-monitor-enable, operations-monitor-disable, watch-limits-stage, backup-run, restore-rehearsal-run, marketops-recovery-resume, marketops-postclose-systemd-reconcile, marketops-global-market-state-migration, subscriber-subscription-commerce-migration, subscriber-global-intraday-shadow-migration, subscriber-global-intraday-shadow-dry-run, subscriber-global-intraday-shadow-schedule-once, subscriber-global-eod-history-materialize, subscriber-qualified-warm-cohort-reconcile, marketops-fmp-annual-run, fmp-annual-entitlement-preflight, subscriber-pilot-ui-smoke, marketops-saf-projection-refresh, subscription-enforcement-canary, signalops-production-deploy, signalops-production-web-deploy, signalops-production-gateway-deploy, marketops-web-deploy\n'
+printf 'Available actions: render-cutover-env, scheduler-preflight, scheduler-intraday-run, scheduler-intraday-enable, scheduler-intraday-disable, scheduler-fmp-annual-enable, scheduler-fmp-annual-disable, scheduler-run-now:<job_id>, scheduler-status, operations-monitor-install, operations-monitor-run, operations-monitor-enable, operations-monitor-disable, watch-limits-stage, backup-run, restore-rehearsal-run, marketops-recovery-resume, marketops-postclose-systemd-reconcile, marketops-global-market-state-migration, subscriber-subscription-commerce-migration, subscriber-global-intraday-shadow-migration, subscriber-global-intraday-shadow-dry-run, subscriber-global-intraday-shadow-schedule-once, subscriber-global-eod-history-materialize, subscriber-qualified-warm-cohort-reconcile, marketops-fmp-annual-run, fmp-annual-entitlement-preflight, subscriber-pilot-ui-smoke, marketops-saf-projection-refresh, subscription-enforcement-canary, signalops-production-deploy, signalops-production-web-deploy, signalops-production-gateway-deploy, marketops-web-deploy, marketops-gateway-deploy, marketops-writer-cutover, scheduler-run-now:marketops-retention-governance\n'

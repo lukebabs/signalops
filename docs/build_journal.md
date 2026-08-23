@@ -9000,3 +9000,10 @@ Next-cycle priority:
 - Recorded the migration in `schema_migrations` at `2026-08-23 17:44:47 UTC`.
 - Verified `subscriber.user_activity_180d` exists for `tenant-local` and `tenant-pilot-b` with `retention_days=180`, `mode=dry_run`, and preservation rule `summarized_activity_before_detail_prune`.
 - Verified current activity row counts and candidate counts: `tenant-local` 78 rows / 0 candidates; `tenant-pilot-b` 135 rows / 0 candidates. No activity rows were deleted.
+
+### 2026-08-23 — Dedicated MarketOps subscriber activity retention runner
+
+- Added a dedicated MarketOps retention-governance Compose override and runner so `subscriber.user_activity_180d` executes against the dedicated MarketOps primary database instead of the shared SignalOps database.
+- Added `signalops-marketops-retention-governance.service.in` and the allowlisted Admin/deployment-agent job ID `marketops-retention-governance`.
+- Left the existing `signalops-retention-governance` path intact for shared/CyberOps retention.
+- Runtime activation is pending deployment-agent reprovisioning; `sudo -n ./scripts/provision_signalops_deployment_agent.sh adminalien` was blocked by the host sudo policy requiring an interactive password.

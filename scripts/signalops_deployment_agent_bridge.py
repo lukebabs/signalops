@@ -27,6 +27,7 @@ ALLOWED_JOB_IDS = {
     "marketops-operations-monitor",
     "signalops-storage-monitor",
     "signalops-retention-governance",
+    "marketops-retention-governance",
 }
 ACTION_PATTERN = re.compile(r"^scheduler-run-now:([a-z0-9-]+)$")
 

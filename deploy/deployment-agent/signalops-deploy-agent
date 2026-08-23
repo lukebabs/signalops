@@ -66,6 +66,9 @@ case "$action" in
       signalops-retention-governance)
         unit="signalops-retention-governance.service"
         ;;
+      marketops-retention-governance)
+        unit="signalops-marketops-retention-governance.service"
+        ;;
       *)
         printf 'Unsupported scheduled job: %s\n' "$job_id" >&2
         audit rejected
@@ -252,7 +255,8 @@ case "$action" in
       signalops-marketops-boundary-schedule@marketops-sri-holdings-refresh.service \
       signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service \
       signalops-storage-monitor.service \
-      signalops-retention-governance.service; do
+      signalops-retention-governance.service \
+      signalops-marketops-retention-governance.service; do
       load_state="$(systemctl show "$service" --property=LoadState --value 2>/dev/null || true)"
       active_state="$(systemctl show "$service" --property=ActiveState --value 2>/dev/null || true)"
       result="$(systemctl show "$service" --property=Result --value 2>/dev/null || true)"
