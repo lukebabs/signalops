@@ -385,6 +385,7 @@ export interface SyncraticAskSummary {
   responseConfidence: number;
   responseEvidenceCount: number;
   responseCitationCount: number;
+  responseQuality: string;
 }
 
 const EMPTY_ASK_SUMMARY: SyncraticAskSummary = {
@@ -409,6 +410,7 @@ const EMPTY_ASK_SUMMARY: SyncraticAskSummary = {
   responseConfidence: 0,
   responseEvidenceCount: 0,
   responseCitationCount: 0,
+  responseQuality: '',
 };
 
 // Read metrics.syncratic_ask off an insight (or any object carrying metrics).
@@ -442,6 +444,7 @@ export function summarizeSyncraticAsk(insight: unknown): SyncraticAskSummary {
     responseConfidence: asNumber(response.confidence),
     responseEvidenceCount: asNumber(response.evidence_count),
     responseCitationCount: asNumber(response.citation_count),
+    responseQuality: asString(ask.response_quality),
   };
 }
 
@@ -531,6 +534,80 @@ export const SYNCRATIC_ASK_BADGE_STYLES: Record<SyncraticAskBadge, string> = {
   ask_completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   ask_skipped: 'border-amber-200 bg-amber-50 text-amber-700',
   data_quality: 'border-red-200 bg-red-50 text-red-700',
+};
+
+export type SyncraticNarrativeQuality =
+  | 'clean_ai'
+  | 'deterministic_fallback'
+  | 'ask_skipped'
+  | 'data_quality_blocked'
+  | 'deterministic_context';
+
+export interface SyncraticNarrativeQualitySummary {
+  quality: SyncraticNarrativeQuality;
+  label: string;
+  description: string;
+  responseQuality: string;
+}
+
+export function classifySyncraticNarrativeQuality(
+  insight: unknown,
+  latestRoute?: SyncraticAskRouteSummary | null,
+): SyncraticNarrativeQualitySummary {
+  if (detectSyncraticDataQualityWarning(insight)) {
+    return narrativeQualitySummary('data_quality_blocked', '');
+  }
+  if (latestRoute && (latestRoute.askStatus === 'skipped' || latestRoute.updated === false)) {
+    return narrativeQualitySummary('ask_skipped', '');
+  }
+  const ask = summarizeSyncraticAsk(insight);
+  if (!ask.present) {
+    return narrativeQualitySummary('deterministic_context', '');
+  }
+  const responseQuality = ask.responseQuality.toLowerCase();
+  if (responseQuality.includes('deterministic_fallback')) {
+    return narrativeQualitySummary('deterministic_fallback', ask.responseQuality);
+  }
+  if (ask.askStatus === 'completed') {
+    return narrativeQualitySummary('clean_ai', ask.responseQuality);
+  }
+  return narrativeQualitySummary('deterministic_context', ask.responseQuality);
+}
+
+function narrativeQualitySummary(
+  quality: SyncraticNarrativeQuality,
+  responseQuality: string,
+): SyncraticNarrativeQualitySummary {
+  return {
+    quality,
+    responseQuality,
+    label: SYNCRATIC_NARRATIVE_QUALITY_LABELS[quality],
+    description: SYNCRATIC_NARRATIVE_QUALITY_DESCRIPTIONS[quality],
+  };
+}
+
+export const SYNCRATIC_NARRATIVE_QUALITY_LABELS: Record<SyncraticNarrativeQuality, string> = {
+  clean_ai: 'Clean AI narrative',
+  deterministic_fallback: 'Deterministic fallback',
+  ask_skipped: 'Skipped · unchanged',
+  data_quality_blocked: 'Data-quality blocked',
+  deterministic_context: 'Deterministic context',
+};
+
+export const SYNCRATIC_NARRATIVE_QUALITY_DESCRIPTIONS: Record<SyncraticNarrativeQuality, string> = {
+  clean_ai: 'Syncratic Ask completed and the response passed the quality guard without deterministic fallback.',
+  deterministic_fallback: 'The AI response was weak, malformed, or meta; SignalOps rendered a governed deterministic narrative from persisted evidence.',
+  ask_skipped: 'Ask did not rewrite the insight because prompt and evidence were unchanged.',
+  data_quality_blocked: 'Evidence quality blocked the narrative from being treated as a valid market thesis.',
+  deterministic_context: 'No completed Syncratic Ask enrichment is attached; this is deterministic context only.',
+};
+
+export const SYNCRATIC_NARRATIVE_QUALITY_STYLES: Record<SyncraticNarrativeQuality, string> = {
+  clean_ai: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200',
+  deterministic_fallback: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200',
+  ask_skipped: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200',
+  data_quality_blocked: 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200',
+  deterministic_context: 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300',
 };
 
 // Sanitized Ask action error mapping. The gateway already strips upstream Syncratic

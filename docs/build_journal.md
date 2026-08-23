@@ -9095,3 +9095,10 @@ Next-cycle priority:
 - SRI fallback now describes leadership pockets, improving/weakening posture, and laggards without exposing composite scores in the narrative.
 - Review Queue fallback now frames active triage items and expired-row noise without score/confidence recitation.
 - Updated the daily Ask prompt and Playwright quality gate to prefer relational natural language while keeping raw metrics available in artifacts/metadata for auditability.
+
+
+### 2026-08-23 — Syncratic Ask narrative-quality signal
+
+- Added a user-facing narrative-quality signal to Syncratic Ask surfaces so analysts can distinguish clean AI output, deterministic fallback, unchanged/skipped Ask actions, data-quality blocked narratives, and deterministic-only contexts.
+- The signal is derived from existing `metrics.syncratic_ask.response_quality`, data-quality warning detection, and the latest Ask route result; no new write path or provider call was introduced.
+- Rendered the quality chip on daily narrative cards, the insight detail header, and the Syncratic Ask metadata panel. Playwright now asserts the quality signal is visible during the Ask smoke.

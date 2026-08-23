@@ -22,6 +22,8 @@ import {
   summarizeSyncraticAskRouteResult,
   detectSyncraticDataQualityWarning,
   classifySyncraticInsightBadge,
+  classifySyncraticNarrativeQuality,
+  SYNCRATIC_NARRATIVE_QUALITY_STYLES,
   syncraticSeverityStyle,
   syncraticInsightStatusStyle,
   syncraticCurrentnessLabel,
@@ -80,6 +82,18 @@ function StatusLabel({ status }: { status: string }) {
 // G090 compact source/badge chip. Distinguishes deterministic SignalOps context
 // from Ask-enriched, and flags data-quality-blocked results so they never read
 // as a valid market thesis. Ask-skipped is transient (latest route result only).
+
+function SyncraticNarrativeQualityChip({ quality }: { quality: ReturnType<typeof classifySyncraticNarrativeQuality> }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-[11px] font-medium ${SYNCRATIC_NARRATIVE_QUALITY_STYLES[quality.quality]}`}
+      title={quality.description}
+    >
+      {quality.label}
+    </span>
+  );
+}
+
 function SyncraticBadgeChip({ badge }: { badge: ReturnType<typeof classifySyncraticInsightBadge> }) {
   return (
     <span
@@ -375,17 +389,21 @@ function SyncraticNarrativeWorkbench({
       {materialize.isError && <ErrorState error={materialize.error} />}
       {narratives.isLoading ? <LoadingState label="Loading Syncratic narratives..." /> : narratives.isError ? <ErrorState error={narratives.error} /> : latest.length ? (
         <div className="grid gap-3 lg:grid-cols-2">
-          {latest.map((insight) => (
+          {latest.map((insight) => {
+            const quality = classifySyncraticNarrativeQuality(insight);
+            return (
             <button key={insight.syncratic_insight_id} type="button" onClick={() => onInspect(insight.syncratic_insight_id)} className="rounded border border-gray-200 bg-gray-50 p-3 text-left hover:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-brand-500">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800 dark:bg-brand-950 dark:text-brand-200">{narrativeLabel(narrativeStrategy(insight))}</span>
+                <SyncraticNarrativeQualityChip quality={quality} />
                 <span className="text-[11px] text-gray-500 dark:text-gray-400">{formatUtc(insight.updated_at)}</span>
               </div>
               <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{insight.title}</div>
               <p className="mt-1 line-clamp-3 text-xs text-gray-600 dark:text-gray-300">{insight.summary || insight.explanation}</p>
               <div className="mt-2 text-[11px] text-brand-700 dark:text-brand-300">Inspect artifacts and context →</div>
             </button>
-          ))}
+          );
+          })}
         </div>
       ) : (
         <EmptyState message="No daily Syncratic narratives are available for this tab yet. Use Preview first, then Materialize + enqueue when the deterministic context looks eligible." />
@@ -431,6 +449,7 @@ function SyncraticInsightDetail({
     ? summarizeSyncraticAskRouteResult(askMutation.data.ask_result)
     : null;
   const badge = classifySyncraticInsightBadge(renderedInsight, latestRoute?.askStatus);
+  const narrativeQuality = classifySyncraticNarrativeQuality(renderedInsight, latestRoute);
 
   // Fetch the context window detail by context_window_id (read-only review).
   const contextWindow = useSyncraticContextWindow(renderedSummary.contextWindowId || null);
@@ -440,6 +459,7 @@ function SyncraticInsightDetail({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <SyncraticBadgeChip badge={badge} />
+        <SyncraticNarrativeQualityChip quality={narrativeQuality} />
         <SyncraticCurrentnessChip summary={renderedSummary} />
         <StatusLabel status={renderedSummary.status} />
         <SeverityLabel severity={renderedSummary.severity} />
@@ -502,7 +522,11 @@ function SyncraticInsightDetail({
 
       {ask.present && (
         <div className="rounded border border-brand-100 bg-brand-50/40 p-2">
-          <div className="mb-1 text-xs font-semibold text-gray-700">Syncratic Ask metadata</div>
+          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-700">
+            <span>Syncratic Ask metadata</span>
+            <SyncraticNarrativeQualityChip quality={narrativeQuality} />
+          </div>
+          <p className="mb-2 text-[11px] text-gray-600 dark:text-gray-300">{narrativeQuality.description}</p>
           <div className="grid grid-cols-2 gap-2">
             {([
               ['Ask status', ask.askStatus || '—'],

@@ -128,6 +128,9 @@ def test_syncratic_daily_narrative_ask_smoke(syncratic_page: Page, syncratic_con
         body = syncratic_page.locator("body")
         expect(body).to_contain_text(re.compile("Ask completed|Skipped"), timeout=60_000)
 
+        quality_chip = syncratic_page.get_by_text(re.compile("Clean AI narrative|Deterministic fallback|Skipped · unchanged|Data-quality blocked|Deterministic context")).first
+        expect(quality_chip).to_be_visible(timeout=30_000)
+
         explanation = syncratic_page.locator("p.whitespace-pre-wrap").first
         expect(explanation).to_be_visible(timeout=30_000)
         explanation_text = explanation.text_content() or ""
