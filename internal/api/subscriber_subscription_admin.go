@@ -331,7 +331,7 @@ func subscriberSubscriptionAdministrationResponse(snapshot storage.SubscriberSub
 	subjects := make([]map[string]any, 0, len(snapshot.SubjectSubscriptions))
 	for _, record := range snapshot.SubjectSubscriptions {
 		subjects = append(subjects, map[string]any{
-			"tenant_id": record.TenantID, "subject": record.Subject, "subscription_id": record.SubscriptionID,
+			"tenant_id": record.TenantID, "subject": record.Subject, "subject_display_name": record.SubjectDisplayName, "subject_email": record.SubjectEmail, "subscription_id": record.SubscriptionID,
 			"product_key": record.ProductKey, "display_name": record.DisplayName, "status": record.Status,
 			"trial_ends_at": record.TrialEndsAt, "current_period_ends_at": record.CurrentPeriodEndsAt,
 			"grace_ends_at": record.GraceEndsAt, "canceled_at": record.CanceledAt,
@@ -353,16 +353,16 @@ func subscriberSubscriptionAdministrationResponse(snapshot storage.SubscriberSub
 	seats := make([]map[string]any, 0, len(snapshot.Seats))
 	for _, record := range snapshot.Seats {
 		seats = append(seats, map[string]any{
-			"tenant_id": record.TenantID, "subject": record.Subject, "tenant_subscription_id": record.TenantSubscriptionID,
-			"seat_role": record.SeatRole, "status": record.Status, "assigned_by": record.AssignedBy,
+			"tenant_id": record.TenantID, "subject": record.Subject, "subject_display_name": record.SubjectDisplayName, "subject_email": record.SubjectEmail, "tenant_subscription_id": record.TenantSubscriptionID,
+			"seat_role": record.SeatRole, "status": record.Status, "assigned_by": record.AssignedBy, "assigned_by_display_name": record.AssignedByDisplayName, "assigned_by_email": record.AssignedByEmail,
 			"correlation_id": record.CorrelationID, "assigned_at": record.AssignedAt, "revoked_at": record.RevokedAt,
 		})
 	}
 	audit := make([]map[string]any, 0, len(snapshot.AuditEvents))
 	for _, record := range snapshot.AuditEvents {
 		audit = append(audit, map[string]any{
-			"audit_id": record.AuditID, "tenant_id": record.TenantID, "subject": record.Subject,
-			"subscription_id": record.SubscriptionID, "actor_subject": record.ActorSubject,
+			"audit_id": record.AuditID, "tenant_id": record.TenantID, "subject": record.Subject, "subject_display_name": record.SubjectDisplayName, "subject_email": record.SubjectEmail,
+			"subscription_id": record.SubscriptionID, "actor_subject": record.ActorSubject, "actor_display_name": record.ActorDisplayName, "actor_email": record.ActorEmail,
 			"event_type": record.EventType, "before_state": subscriptionJSON(record.BeforeStateJSON),
 			"after_state": subscriptionJSON(record.AfterStateJSON), "correlation_id": record.CorrelationID,
 			"occurred_at": record.OccurredAt,
