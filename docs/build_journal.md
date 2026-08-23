@@ -9014,3 +9014,12 @@ Next-cycle priority:
 - The run exposed a deployment-topology issue: the runner used the base MarketOps boundary Compose file without the pgBackRest overlay, which allowed `signalops-marketops-postgres-1` to run from `postgres:16-alpine` instead of `signalops-marketops-postgres-pgbackrest:16`.
 - Corrected the runner to pin Compose project `signalops` and include `compose.marketops-pgbackrest.yaml` so future retention runs preserve the dedicated MarketOps recovery overlay.
 - Runtime recovery action remains required to re-anchor the currently running MarketOps database containers to the pgBackRest images.
+
+### 2026-08-23 — MarketOps retention and pgBackRest runtime closure
+
+- Operator reprovisioned the deployment agent and installed `signalops-marketops-retention-governance.service`.
+- Re-ran `scripts/provision_marketops_pgbackrest.sh`; dedicated MarketOps pgBackRest provisioning completed and the shared backup timer remained disabled.
+- Verified `signalops-marketops-postgres-1` uses `signalops-marketops-postgres-pgbackrest:16` and `signalops-marketops-timescaledb-1` uses `signalops-marketops-timescaledb-pgbackrest:2.17.2-pg16`.
+- Verified `pgbackrest version` works in both dedicated MarketOps database containers.
+- Ran `sudo -n signalops-deploy-agent scheduler-run-now:marketops-retention-governance` after the runner overlay correction. The run succeeded for `tenant-local` and `tenant-pilot-b` with `candidate_rows=0` and `affected_rows=0`.
+- Verified the corrected retention run preserved the pgBackRest image overlay and recorded `marketops_scheduled_job_statuses.job_id='marketops-retention-governance'` as `succeeded`.
