@@ -83,9 +83,26 @@ Current production canary evidence:
 - The mapped canary updated tenant `tenant-pilot-b`, subject `2f437ac3-2cfc-4fe9-b943-198185b4797b`, to `status=active`, `provisioned_by=stripe-webhook`.
 - The mapped canary created `stripe_subscription_reconciled` audit evidence scoped to `tenant-pilot-b`.
 
-## Stripe Tax note
+## Stripe Tax readiness
 
-Before selling paid plans broadly, evaluate Stripe Tax and registrations. Do not assume tax is collected just because Billing is enabled; Stripe collects tax only after the required registrations and tax configuration are active.
+Operator-reported status as of 2026-08-23: Stripe Tax information has been configured in Stripe. Because SignalOps currently uses an admin-managed billing model, Stripe remains the operational surface for creating subscriptions and applying tax behavior. SignalOps records the resulting subscription state through mapped IDs and signed webhooks.
+
+Required Stripe-side controls before broad paid launch:
+
+- Tax Settings must have an active head office/origin address.
+- Tax registrations must be active in jurisdictions where collection is required. Adding a registration in Stripe records where the business is already registered; it is not a legal registration by itself.
+- Explorer and Professional Products must have an appropriate Stripe product tax code selected from Stripe's canonical tax-code list. Do not use `Nontaxable` unless that is the confirmed tax position.
+- Monthly and annual Prices must have the intended tax behavior.
+- Real Stripe-created subscriptions, invoices, or future Checkout Sessions must have `automatic_tax` enabled.
+- Customers must have enough valid address information for Stripe Tax to resolve tax location.
+
+Validation boundary:
+
+- The SignalOps webhook canaries prove signature verification, idempotent ledgering, unmatched subscription safety, mapped subscription reconciliation, and tenant-scoped audit evidence.
+- The SignalOps webhook canaries do not prove Stripe calculated or collected tax, because they use synthetic signed webhook payloads rather than real Stripe invoice calculation.
+- Before paid launch, validate one test-mode Explorer subscription and one test-mode Professional subscription from Stripe Dashboard and inspect the generated invoice tax results.
+
+Operational note: Stripe Tax calculates and collects tax when configured correctly, but filing/remittance remains an operational responsibility through Stripe filing products, filing partners, or manual processes. Confirm obligations with a tax advisor.
 
 ## Acceptance checks
 
@@ -96,4 +113,5 @@ Before selling paid plans broadly, evaluate Stripe Tax and registrations. Do not
 - A valid signed test webhook updates a mapped subscription after named approval.
 - An invalid signature returns `400`.
 - An unknown Stripe subscription event records as `unmatched` and creates no access.
+- Stripe Tax readiness has been validated in Stripe test mode for Explorer and Professional before broad paid launch.
 - Existing subscription enforcement and tenant-isolation smokes still pass.

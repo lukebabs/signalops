@@ -1,5 +1,23 @@
 # SignalOps Build Journal
 
+## 2026-08-23 — Stripe Tax configuration recorded
+
+Summary:
+
+- Operator reported Stripe Tax information is configured in Stripe.
+- Current SignalOps billing integration remains admin-managed: Stripe Dashboard creates products, prices, customers, subscriptions, and tax behavior; SignalOps maps Stripe IDs and reconciles signed webhook evidence.
+- No SignalOps code change is required for Tax while Checkout/customer portal remain out of scope.
+- Production tax readiness now depends on Stripe-side validation: active tax registration where collection is required, correct product tax code, price tax behavior, customer address quality, and `automatic_tax` enabled on real Stripe subscriptions or future Checkout Sessions.
+- The existing synthetic webhook canaries prove webhook signature/reconciliation behavior; they do not prove Stripe calculated or collected tax on a real invoice.
+
+Required validation before broad paid launch:
+
+- Create or inspect one Stripe test-mode Explorer subscription and one Professional subscription with `automatic_tax` enabled.
+- Confirm generated invoice line items show expected tax behavior for a customer address in a registered jurisdiction.
+- Confirm a customer address in an unregistered jurisdiction does not unexpectedly collect tax and that the result is understood.
+- Confirm product tax code is not `Nontaxable` and is appropriate for the subscription service.
+- Confirm tax reports/filing responsibility is assigned operationally because Stripe Tax calculates/collects but does not, by itself, complete all filing obligations.
+
 ## 2026-08-22 — Stripe mapped webhook reconciliation canary
 
 Summary:
