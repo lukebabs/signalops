@@ -9007,3 +9007,10 @@ Next-cycle priority:
 - Added `signalops-marketops-retention-governance.service.in` and the allowlisted Admin/deployment-agent job ID `marketops-retention-governance`.
 - Left the existing `signalops-retention-governance` path intact for shared/CyberOps retention.
 - Runtime activation is pending deployment-agent reprovisioning; `sudo -n ./scripts/provision_signalops_deployment_agent.sh adminalien` was blocked by the host sudo policy requiring an interactive password.
+
+### 2026-08-23 — MarketOps retention runner overlay correction
+
+- The first live `marketops-retention-governance` dry-run succeeded for `tenant-local` and `tenant-pilot-b` with 0 candidate rows and 0 affected rows.
+- The run exposed a deployment-topology issue: the runner used the base MarketOps boundary Compose file without the pgBackRest overlay, which allowed `signalops-marketops-postgres-1` to run from `postgres:16-alpine` instead of `signalops-marketops-postgres-pgbackrest:16`.
+- Corrected the runner to pin Compose project `signalops` and include `compose.marketops-pgbackrest.yaml` so future retention runs preserve the dedicated MarketOps recovery overlay.
+- Runtime recovery action remains required to re-anchor the currently running MarketOps database containers to the pgBackRest images.

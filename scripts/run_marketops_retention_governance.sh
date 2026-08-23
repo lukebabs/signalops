@@ -43,9 +43,11 @@ trap 'rm -f "$output_file"' EXIT
 
 compose_args=(
   docker compose
+  -p signalops
   --env-file "$runtime_env"
   -f "$root_dir/compose.yaml"
   -f "$root_dir/compose.marketops-boundary.yaml"
+  -f "$root_dir/compose.marketops-pgbackrest.yaml"
   -f "$root_dir/compose.marketops-scheduled-cutover.yaml"
   -f "$root_dir/compose.marketops-retention-governance.yaml"
   --profile marketops-retention-governance
