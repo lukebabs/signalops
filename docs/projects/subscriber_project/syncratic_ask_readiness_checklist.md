@@ -46,6 +46,11 @@ Out of scope:
 | Admin operational visibility | Admin Operations Health exposes a read-only `Syncratic Ask` freshness row with latest success/failure health and context detail. | Deployed and browser-validated on 2026-08-23. |
 | Worker data boundary | The background Syncratic worker claims durable jobs from the dedicated MarketOps repository when the MarketOps data boundary is configured. | Source-fixed on 2026-08-23 after queued jobs were found in the dedicated DB while the worker was polling the shared DB. |
 | Automatic Ask scope | Automatic worker Ask enrichment is limited to daily narrative contexts: Daily Overview, SRI, Risk/Reward, and Review Queue. Legacy per-asset contexts remain operator-triggered to avoid uncontrolled AI Gateway usage. | Source-fixed on 2026-08-23. |
+| Job lifecycle closure | Stale-digest and operator-triggered-only jobs complete with nullable insight/query refs, and completion failures are recorded as `job_completion_failed` instead of leaving rows leased indefinitely. | Source-fixed on 2026-08-23 after stale-digest jobs exposed an empty-string FK completion failure. |
+
+## Job completion lifecycle correction
+
+The readiness rerun exposed a second lifecycle issue: stale-digest daily jobs correctly skipped duplicate Ask calls, but completion passed empty insight/query identifiers. PostgreSQL treated the empty insight identifier as a real foreign-key value, so the completion update failed and the worker ignored that error. The source now stores empty completion identifiers as `NULL`, clears stale error fields on successful completion, and records a visible `job_completion_failed` status if a completion update ever fails again.
 
 ## Required validation command
 

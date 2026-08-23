@@ -78,3 +78,7 @@ The gateway now starts the Syncratic worker with the dedicated MarketOps reposit
 ## Claim-level cost control — 2026-08-23
 
 The durable Syncratic intelligence worker now claims only daily narrative jobs by joining `syncratic_intelligence_jobs` to `syncratic_context_windows` and requiring `subject_symbol=MARKETOPS` plus one of the four daily narrative strategies. This prevents legacy per-asset queued jobs from consuming AI Gateway capacity while preserving explicit per-asset Ask through the UI.
+
+## Completion lifecycle correction — 2026-08-23
+
+Stale-digest daily jobs are expected after a context window is rematerialized: the worker should close the obsolete job without making another AI Gateway call. Production validation showed those stale-digest jobs were remaining `running` because completion attempted to write an empty `syncratic_insight_id` into a nullable foreign-key column. The completion path now writes empty insight/query identifiers as SQL `NULL` and records any future completion-update error as `job_completion_failed` for operator visibility.

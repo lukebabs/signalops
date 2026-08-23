@@ -75,7 +75,7 @@ func (r *Repository) ClaimSyncraticIntelligenceJob(ctx context.Context, now time
 }
 
 func (r *Repository) CompleteSyncraticIntelligenceJob(ctx context.Context, jobID, insightID, askQueryID string, completedAt time.Time) error {
-	result, err := r.db.ExecContext(ctx, `UPDATE syncratic_intelligence_jobs SET status='completed', syncratic_insight_id=$2, ask_query_id=$3, completed_at=$4, lease_expires_at=NULL, updated_at=$4 WHERE job_id=$1`, strings.TrimSpace(jobID), strings.TrimSpace(insightID), strings.TrimSpace(askQueryID), completedAt.UTC())
+	result, err := r.db.ExecContext(ctx, `UPDATE syncratic_intelligence_jobs SET status='completed', syncratic_insight_id=NULLIF($2,''), ask_query_id=NULLIF($3,''), completed_at=$4, lease_expires_at=NULL, error_code=NULL, error_message=NULL, updated_at=$4 WHERE job_id=$1`, strings.TrimSpace(jobID), strings.TrimSpace(insightID), strings.TrimSpace(askQueryID), completedAt.UTC())
 	if err != nil {
 		return fmt.Errorf("complete syncratic intelligence job: %w", err)
 	}

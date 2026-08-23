@@ -43,11 +43,11 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 		return
 	}
 	if strings.TrimSpace(job.EvidenceDigest) != "" && strings.TrimSpace(contextWindow.EvidenceDigest) != "" && strings.TrimSpace(job.EvidenceDigest) != strings.TrimSpace(contextWindow.EvidenceDigest) {
-		_ = jobs.CompleteSyncraticIntelligenceJob(ctx, job.JobID, "", "", time.Now().UTC())
+		completeSyncraticIntelligenceJob(ctx, jobs, job.JobID, "", "")
 		return
 	}
 	if !syncraticWorkerShouldAutoAsk(contextWindow) {
-		_ = jobs.CompleteSyncraticIntelligenceJob(ctx, job.JobID, "", "", time.Now().UTC())
+		completeSyncraticIntelligenceJob(ctx, jobs, job.JobID, "", "")
 		return
 	}
 	if !syncraticContextHasAnalystEvidence(contextWindow) {
@@ -67,7 +67,7 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 			_ = jobs.FailSyncraticIntelligenceJob(ctx, job.JobID, "insight_persistence_failed", strings.TrimSpace(err.Error()), time.Now().UTC())
 			return
 		}
-		_ = jobs.CompleteSyncraticIntelligenceJob(ctx, job.JobID, insight.SyncraticInsightID, "", time.Now().UTC())
+		completeSyncraticIntelligenceJob(ctx, jobs, job.JobID, insight.SyncraticInsightID, "")
 		return
 	}
 	insightType := defaultSyncraticEODInsightType
@@ -85,8 +85,16 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 		_ = jobs.FailSyncraticIntelligenceJob(ctx, job.JobID, code, strings.TrimSpace(err.Error()), time.Now().UTC())
 		return
 	}
-	_ = jobs.CompleteSyncraticIntelligenceJob(ctx, job.JobID, insight.SyncraticInsightID, result.AskQueryID, time.Now().UTC())
+	completeSyncraticIntelligenceJob(ctx, jobs, job.JobID, insight.SyncraticInsightID, result.AskQueryID)
 }
+
+func completeSyncraticIntelligenceJob(ctx context.Context, jobs storage.SyncraticIntelligenceJobRepository, jobID, insightID, askQueryID string) {
+	completedAt := time.Now().UTC()
+	if err := jobs.CompleteSyncraticIntelligenceJob(ctx, jobID, insightID, askQueryID, completedAt); err != nil {
+		_ = jobs.FailSyncraticIntelligenceJob(ctx, jobID, "job_completion_failed", strings.TrimSpace(err.Error()), completedAt)
+	}
+}
+
 func syncraticContextHasAnalystEvidence(contextWindow storage.SyncraticContextWindowRecord) bool {
 	return len(contextWindow.MarketOpsEvidenceIDs)+len(contextWindow.SignalIDs)+len(contextWindow.AlertIDs)+len(contextWindow.ArtifactIDs)+
 		len(contextWindow.GraphProposalIDs)+len(contextWindow.LabelIDs)+len(contextWindow.MarketStateIDs)+len(contextWindow.StateTransitionIDs)+

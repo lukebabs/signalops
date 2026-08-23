@@ -9037,3 +9037,9 @@ Next-cycle priority:
 
 - Strengthened the Syncratic worker fix by scoping the repository claim query to `subject_symbol=MARKETOPS` and daily narrative strategies only.
 - This prevents the background worker from leasing legacy per-asset queued jobs before the in-process skip guard can run, preserving AI Gateway capacity and aligning automatic Ask with Daily Overview, SRI, Risk/Reward, and Review Queue only.
+
+### 2026-08-23 — Syncratic worker completion lifecycle correction
+
+- Root-caused stuck `running` Syncratic jobs to stale evidence-digest jobs that correctly skipped duplicate Ask calls but attempted completion with an empty `syncratic_insight_id`.
+- Updated job completion persistence to store empty insight/query refs as SQL `NULL`, clear stale error fields on success, and record `job_completion_failed` if completion persistence fails again.
+- Added focused unit coverage for completion-failure visibility.
