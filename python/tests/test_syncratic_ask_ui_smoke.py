@@ -90,10 +90,10 @@ def test_syncratic_daily_narrative_ask_smoke(syncratic_page: Page, syncratic_con
     force_regenerate = os.getenv("SIGNALOPS_SYNCRATIC_FORCE_REGENERATE", "").strip() == "1"
     ask_button_name = "Regenerate" if force_regenerate else "Ask Syncratic AI"
 
-    for tab_name in ["Daily Overview", "Sector Rotation", "Risk/Reward", "Review Queue"]:
+    for tab_name, card_name in [("Daily Overview", "Daily Overview"), ("Sector Rotation", "SRI"), ("Risk/Reward", "Risk/Reward"), ("Review Queue", "Review Queue")]:
         syncratic_page.get_by_role("button", name=tab_name, exact=True).click()
         expect(syncratic_page.get_by_role("heading", name=f"{tab_name} narratives")).to_be_visible(timeout=30_000)
-        card = syncratic_page.locator("button").filter(has_text="Inspect artifacts and context").first
+        card = syncratic_page.locator("button").filter(has_text=card_name).filter(has_text="Inspect artifacts and context").first
         expect(card).to_be_visible(timeout=30_000)
         card.click()
         expect(syncratic_page.get_by_text("Ask Syncratic AI").first).to_be_visible(timeout=30_000)

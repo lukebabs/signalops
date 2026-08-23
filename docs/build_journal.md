@@ -9072,3 +9072,9 @@ Next-cycle priority:
 - Live Sector Rotation validation showed a second quality failure mode: the upstream returned JSON-looking text with malformed string boundaries/newlines, so SignalOps stored the raw JSON fragment instead of a sectioned explanation.
 - Extended the daily narrative quality gate to use deterministic fallback when the upstream answer looks like malformed JSON and cannot be parsed into the required response contract.
 - Updated the Syncratic Ask browser smoke to iterate the four daily narrative tabs. Normal mode still uses `Ask Syncratic AI`; controlled remediation can set `SIGNALOPS_SYNCRATIC_FORCE_REGENERATE=1` to click `Regenerate` through the UI without extracting or reusing browser tokens.
+
+### 2026-08-23 — Syncratic Ask selected-card QA and raw-output guard
+
+- Corrected the multi-tab Syncratic Ask smoke to select the intended narrative card in each tab: Daily Overview, SRI, Risk/Reward, and Review Queue.
+- Extended the daily output quality gate to fallback when the persisted summary/title would otherwise show raw JSON fragments, `UNKNOWN`, or the default `MARKETOPS Syncratic context` title.
+- This closes the observed gap where the AI Gateway returned non-meta but still non-analyst-facing output.
