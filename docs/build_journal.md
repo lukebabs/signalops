@@ -8972,3 +8972,10 @@ Next-cycle priority:
 - Healthy state requires at least one completed Ask insight for the latest active daily narrative session and no newer failed Ask job; partial state exposes the latest Ask failure category and context-window id when available.
 - Updated the Subscription Administration browser smoke to require the `Syncratic Ask` freshness label and updated project docs/checklist accordingly.
 - Validation passed: `go test ./internal/api ./internal/storage/postgres`, `.venv/bin/python -m pytest -q python/tests/test_subscription_administration_ui_smoke.py --collect-only`, and `git diff --check`.
+
+## 2026-08-23 — Syncratic Ask operations-health deployment validation
+
+- Deployed the Gateway-only Syncratic Ask operations-health projection through `sudo -n signalops-deploy-agent signalops-production-gateway-deploy`.
+- The deployment returned `signalops_public_production_deploy_verified`; public `/readyz` returned `200` with `signalops-gateway`.
+- The deployment-agent bundled subscriber smoke encountered one transient Chromium `net::ERR_NETWORK_CHANGED` on initial navigation, so the slice-specific Admin smoke was used for closure.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed in 11.94s`, validating that Admin Operations Health renders the required `Syncratic Ask` freshness row.

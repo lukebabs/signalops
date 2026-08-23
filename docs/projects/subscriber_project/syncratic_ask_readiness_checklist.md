@@ -43,7 +43,7 @@ Out of scope:
 | Browser smoke | `scripts/run_syncratic_ask_ui_smoke.sh` logs in, opens `/marketops/syncratic`, selects a daily narrative, runs normal Ask, and validates the Ask response. | Passing: `1 passed in 1.43s`. |
 | Failure artifacts | HAR, Playwright trace, and screenshot are retained only on failure and remain protected outside Git. | Implemented by smoke script. |
 | Sanitized errors | Browser-visible errors do not expose raw prompts, tokens, secrets, API keys, or upstream response bodies. | Required release invariant. |
-| Admin operational visibility | Admin Operations Health exposes a read-only `Syncratic Ask` freshness row with latest success/failure health and context detail. | Implemented; requires deployment validation. |
+| Admin operational visibility | Admin Operations Health exposes a read-only `Syncratic Ask` freshness row with latest success/failure health and context detail. | Deployed and browser-validated on 2026-08-23. |
 
 ## Required validation command
 
@@ -88,4 +88,4 @@ Syncratic Ask is ready for controlled pilot QA when:
 4. Errors are sanitized and actionable.
 5. The release journal records the run result and any upstream blocker.
 
-The remaining production-hardening step is deployment validation that Administration renders the `Syncratic Ask` operations-health row in production and that the row reflects the latest completed Ask success or failure category without requiring shell access.
+Production deployment validation passed on 2026-08-23: Gateway deployed through the constrained deployment agent, public `/readyz` returned `200`, and `scripts/run_subscription_admin_ui_smoke.sh` passed with the `Syncratic Ask` Operations Health row included.

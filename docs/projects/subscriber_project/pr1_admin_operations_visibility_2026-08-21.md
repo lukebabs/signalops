@@ -202,3 +202,16 @@ The operations-health freshness table now includes a ninth row, `Syncratic Ask`.
 Healthy state means at least one completed Ask insight exists for the latest active daily narrative session and no newer failed Ask job supersedes that success. Partial state exposes the latest failure category and context-window id when available; missing state means no active daily narrative context exists.
 
 The Subscription Administration browser smoke now requires the `Syncratic Ask` label in the operations-health table.
+
+## Syncratic Ask live deployment evidence — 2026-08-23
+
+Gateway-only production deployment completed through the constrained deployment-agent action `signalops-production-gateway-deploy`; the action returned `signalops_public_production_deploy_verified`. Public `/readyz` returned `200` after deployment.
+
+The deployment-agent bundled subscriber smoke encountered one transient Chromium `net::ERR_NETWORK_CHANGED` on first navigation, matching previously observed browser-harness instability. The slice-specific acceptance check passed immediately after deployment:
+
+```text
+scripts/run_subscription_admin_ui_smoke.sh
+3 passed in 11.94s
+```
+
+This verifies the Admin Operations Health API and browser rendering include the `Syncratic Ask` freshness row.
