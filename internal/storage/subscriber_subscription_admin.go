@@ -89,6 +89,8 @@ type SubscriberSubscriptionAdministrationSnapshot struct {
 type SubscriberSubjectSubscriptionRecord struct {
 	TenantID             string
 	Subject              string
+	SubjectDisplayName   string
+	SubjectEmail         string
 	SubscriptionID       string
 	ProductKey           string
 	DisplayName          string
@@ -123,28 +125,36 @@ type SubscriberTenantSubscriptionRecord struct {
 }
 
 type SubscriberSubscriptionSeatRecord struct {
-	TenantID             string
-	Subject              string
-	TenantSubscriptionID string
-	SeatRole             string
-	Status               string
-	AssignedBy           string
-	CorrelationID        string
-	AssignedAt           time.Time
-	RevokedAt            *time.Time
+	TenantID              string
+	Subject               string
+	SubjectDisplayName    string
+	SubjectEmail          string
+	TenantSubscriptionID  string
+	SeatRole              string
+	Status                string
+	AssignedBy            string
+	AssignedByDisplayName string
+	AssignedByEmail       string
+	CorrelationID         string
+	AssignedAt            time.Time
+	RevokedAt             *time.Time
 }
 
 type SubscriberSubscriptionAuditEventRecord struct {
-	AuditID         string
-	TenantID        string
-	Subject         string
-	SubscriptionID  string
-	ActorSubject    string
-	EventType       string
-	BeforeStateJSON []byte
-	AfterStateJSON  []byte
-	CorrelationID   string
-	OccurredAt      time.Time
+	AuditID            string
+	TenantID           string
+	Subject            string
+	SubjectDisplayName string
+	SubjectEmail       string
+	SubscriptionID     string
+	ActorSubject       string
+	ActorDisplayName   string
+	ActorEmail         string
+	EventType          string
+	BeforeStateJSON    []byte
+	AfterStateJSON     []byte
+	CorrelationID      string
+	OccurredAt         time.Time
 }
 
 type SubscriberSubscriptionProductMutation struct {

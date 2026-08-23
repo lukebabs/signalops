@@ -186,12 +186,14 @@ FROM subscriber_subscription_products`
 
 func listSubscriberSubjectSubscriptionsTx(ctx context.Context, tx *sql.Tx, tenantID string) ([]storage.SubscriberSubjectSubscriptionRecord, error) {
 	rows, err := tx.QueryContext(ctx, `
-SELECT s.tenant_id, s.subject, s.subscription_id, s.product_key, p.display_name, s.status,
+SELECT s.tenant_id, s.subject, COALESCE(subject_identity.display_name, '') AS subject_display_name, COALESCE(subject_identity.email, '') AS subject_email,
+  s.subscription_id, s.product_key, p.display_name, s.status,
   s.trial_ends_at, s.current_period_ends_at, s.grace_ends_at, s.canceled_at,
   s.stripe_customer_id, s.stripe_subscription_id,
   s.provisioned_by, s.correlation_id, s.created_at, s.updated_at
 FROM subscriber_subject_subscriptions s
 JOIN subscriber_subscription_products p ON p.product_key=s.product_key
+LEFT JOIN subscriber_subscription_admin_identity_labels($1) subject_identity ON subject_identity.subject=s.subject
 WHERE s.tenant_id=$1
 ORDER BY s.updated_at DESC, s.subject`, tenantID)
 	if err != nil {
@@ -201,7 +203,7 @@ ORDER BY s.updated_at DESC, s.subject`, tenantID)
 	records := []storage.SubscriberSubjectSubscriptionRecord{}
 	for rows.Next() {
 		var record storage.SubscriberSubjectSubscriptionRecord
-		if err := rows.Scan(&record.TenantID, &record.Subject, &record.SubscriptionID, &record.ProductKey, &record.DisplayName, &record.Status, &record.TrialEndsAt, &record.CurrentPeriodEndsAt, &record.GraceEndsAt, &record.CanceledAt, &record.StripeCustomerID, &record.StripeSubscriptionID, &record.ProvisionedBy, &record.CorrelationID, &record.CreatedAt, &record.UpdatedAt); err != nil {
+		if err := rows.Scan(&record.TenantID, &record.Subject, &record.SubjectDisplayName, &record.SubjectEmail, &record.SubscriptionID, &record.ProductKey, &record.DisplayName, &record.Status, &record.TrialEndsAt, &record.CurrentPeriodEndsAt, &record.GraceEndsAt, &record.CanceledAt, &record.StripeCustomerID, &record.StripeSubscriptionID, &record.ProvisionedBy, &record.CorrelationID, &record.CreatedAt, &record.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan subject subscription: %w", err)
 		}
 		records = append(records, record)
@@ -236,11 +238,15 @@ ORDER BY s.updated_at DESC`, tenantID)
 
 func listSubscriberSubscriptionSeatsTx(ctx context.Context, tx *sql.Tx, tenantID string) ([]storage.SubscriberSubscriptionSeatRecord, error) {
 	rows, err := tx.QueryContext(ctx, `
-SELECT tenant_id, subject, tenant_subscription_id, seat_role, status, assigned_by,
-  correlation_id, assigned_at, revoked_at
-FROM subscriber_subscription_seats
-WHERE tenant_id=$1
-ORDER BY assigned_at DESC, subject`, tenantID)
+SELECT s.tenant_id, s.subject, COALESCE(subject_identity.display_name, '') AS subject_display_name, COALESCE(subject_identity.email, '') AS subject_email,
+  s.tenant_subscription_id, s.seat_role, s.status, s.assigned_by,
+  COALESCE(actor_identity.display_name, '') AS assigned_by_display_name, COALESCE(actor_identity.email, '') AS assigned_by_email,
+  s.correlation_id, s.assigned_at, s.revoked_at
+FROM subscriber_subscription_seats s
+LEFT JOIN subscriber_subscription_admin_identity_labels($1) subject_identity ON subject_identity.subject=s.subject
+LEFT JOIN subscriber_subscription_admin_identity_labels($1) actor_identity ON actor_identity.subject=s.assigned_by
+WHERE s.tenant_id=$1
+ORDER BY s.assigned_at DESC, s.subject`, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list subscription seats: %w", err)
 	}
@@ -248,7 +254,7 @@ ORDER BY assigned_at DESC, subject`, tenantID)
 	records := []storage.SubscriberSubscriptionSeatRecord{}
 	for rows.Next() {
 		var record storage.SubscriberSubscriptionSeatRecord
-		if err := rows.Scan(&record.TenantID, &record.Subject, &record.TenantSubscriptionID, &record.SeatRole, &record.Status, &record.AssignedBy, &record.CorrelationID, &record.AssignedAt, &record.RevokedAt); err != nil {
+		if err := rows.Scan(&record.TenantID, &record.Subject, &record.SubjectDisplayName, &record.SubjectEmail, &record.TenantSubscriptionID, &record.SeatRole, &record.Status, &record.AssignedBy, &record.AssignedByDisplayName, &record.AssignedByEmail, &record.CorrelationID, &record.AssignedAt, &record.RevokedAt); err != nil {
 			return nil, fmt.Errorf("scan subscription seat: %w", err)
 		}
 		records = append(records, record)
@@ -258,11 +264,14 @@ ORDER BY assigned_at DESC, subject`, tenantID)
 
 func listSubscriberSubscriptionAuditEventsTx(ctx context.Context, tx *sql.Tx, tenantID string) ([]storage.SubscriberSubscriptionAuditEventRecord, error) {
 	rows, err := tx.QueryContext(ctx, `
-SELECT audit_id, tenant_id, subject, subscription_id, actor_subject, event_type,
-  COALESCE(before_state, '{}'::jsonb), COALESCE(after_state, '{}'::jsonb), correlation_id, occurred_at
-FROM subscriber_subscription_audit_events
-WHERE tenant_id=$1
-ORDER BY occurred_at DESC
+SELECT a.audit_id, a.tenant_id, a.subject, COALESCE(subject_identity.display_name, '') AS subject_display_name, COALESCE(subject_identity.email, '') AS subject_email,
+  a.subscription_id, a.actor_subject, COALESCE(actor_identity.display_name, '') AS actor_display_name, COALESCE(actor_identity.email, '') AS actor_email,
+  a.event_type, COALESCE(a.before_state, '{}'::jsonb), COALESCE(a.after_state, '{}'::jsonb), a.correlation_id, a.occurred_at
+FROM subscriber_subscription_audit_events a
+LEFT JOIN subscriber_subscription_admin_identity_labels($1) subject_identity ON subject_identity.subject=a.subject
+LEFT JOIN subscriber_subscription_admin_identity_labels($1) actor_identity ON actor_identity.subject=a.actor_subject
+WHERE a.tenant_id=$1
+ORDER BY a.occurred_at DESC
 LIMIT 100`, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list subscription audit events: %w", err)
@@ -271,7 +280,7 @@ LIMIT 100`, tenantID)
 	records := []storage.SubscriberSubscriptionAuditEventRecord{}
 	for rows.Next() {
 		var record storage.SubscriberSubscriptionAuditEventRecord
-		if err := rows.Scan(&record.AuditID, &record.TenantID, &record.Subject, &record.SubscriptionID, &record.ActorSubject, &record.EventType, &record.BeforeStateJSON, &record.AfterStateJSON, &record.CorrelationID, &record.OccurredAt); err != nil {
+		if err := rows.Scan(&record.AuditID, &record.TenantID, &record.Subject, &record.SubjectDisplayName, &record.SubjectEmail, &record.SubscriptionID, &record.ActorSubject, &record.ActorDisplayName, &record.ActorEmail, &record.EventType, &record.BeforeStateJSON, &record.AfterStateJSON, &record.CorrelationID, &record.OccurredAt); err != nil {
 			return nil, fmt.Errorf("scan subscription audit event: %w", err)
 		}
 		records = append(records, record)

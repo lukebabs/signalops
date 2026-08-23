@@ -1,5 +1,25 @@
 # SignalOps Build Journal
 
+## 2026-08-23 — Subscription Admin identity labels
+
+Summary:
+
+- Fixed Subscription Administration tables that showed raw OIDC UUIDs as the only Subject/Actor value.
+- Preserved immutable UUIDs as the stored audit key and secondary UI text.
+- Added API response fields for subject/actor display name and email where identity evidence is available.
+- Added migration `000156_subscriber_admin_identity_labels` with a constrained security-definer function `subscriber_subscription_admin_identity_labels(text)`.
+- The function returns labels only for subjects already present in the requested Subscription Administration snapshot; the gateway does not receive direct `tenant_user_access` table access.
+- UI now renders email/name as primary text and UUID underneath for Subject subscriptions, Institutional seats, and Audit trail rows. Unknown service actors such as `stripe-webhook` still render as their stable actor key.
+
+Verification:
+
+- Targeted tests passed: `go test ./internal/storage/postgres ./internal/api`.
+- Web build passed: `npm --prefix web run build`.
+- Migration applied to dedicated MarketOps DB; `signalops_subscriber_gateway` has execute privilege on `subscriber_subscription_admin_identity_labels(text)`.
+- Function output verified for `tenant-pilot-b`, resolving `2f437ac3-2cfc-4fe9-b943-198185b4797b` to `testsignalops@syncratic.io`.
+- Safe production deploy passed: `signalops_public_production_deploy_verified` and deploy smoke `2 passed`.
+- Post-deploy checks passed: `/readyz`, `scripts/run_subscription_admin_ui_smoke.sh` (`3 passed`), and clean `scheduler-status`.
+
 ## 2026-08-23 — Stripe Tax configuration recorded
 
 Summary:
