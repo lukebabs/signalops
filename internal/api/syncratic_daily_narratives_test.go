@@ -124,3 +124,54 @@ func TestApplySyncraticAskResponseFallsBackWhenDailyAnswerIsMetaCommentary(t *te
 		t.Fatalf("fallback title = %q", updated.Title)
 	}
 }
+
+func TestDeterministicDailyNarrativeFallbackAddsContextualRead(t *testing.T) {
+	now := time.Now().UTC()
+	sriCtx := storage.SyncraticContextWindowRecord{
+		ContextWindowID:    "synctx-sri-contextual",
+		TenantID:           "tenant-local",
+		SubjectSymbol:      dailyNarrativeSubjectSymbol,
+		WindowStart:        time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC),
+		ContextStrategy:    dailyNarrativeStrategySRI,
+		SummaryMetricsJSON: []byte(`{"sections":{"sri":{"leaders":[{"segment_id":"sri_industry_biotech","rank":1,"state":"LEADING","composite_score":97.83},{"segment_id":"sri_sector_utilities","rank":16,"state":"LAGGING","composite_score":15.83}]}}}`),
+		EvidenceDigest:     "digest-sri-contextual",
+	}
+	sri := applySyncraticAskResponse(buildSyncraticDailyNarrativeInsight(sriCtx), sriCtx, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:sri", ContextEvidenceDigest: "digest-sri-contextual"}, userapi.AskResponse{QueryID: "ask-sri", Answer: "The prompt asks for a JSON narrative."}, now, now)
+	for _, required := range []string{"Contextual read", "biotech is the primary leadership pocket", "utilities sits at the bottom", "composite score"} {
+		if !strings.Contains(sri.Explanation, required) {
+			t.Fatalf("SRI fallback missing %q: %s", required, sri.Explanation)
+		}
+	}
+
+	rrCtx := storage.SyncraticContextWindowRecord{
+		ContextWindowID:    "synctx-rr-contextual",
+		TenantID:           "tenant-local",
+		SubjectSymbol:      dailyNarrativeSubjectSymbol,
+		WindowStart:        time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC),
+		ContextStrategy:    dailyNarrativeStrategyRiskReward,
+		SummaryMetricsJSON: []byte(`{"sections":{"risk_reward":{"breadth":{"bullish":13,"bearish":18,"neutral":101,"unavailable":0},"top_examples":[{"symbol":"WMT","direction":"bullish","score":50,"confidence":0.625,"risk_level":"medium"}]}}}`),
+		EvidenceDigest:     "digest-rr-contextual",
+	}
+	rr := applySyncraticAskResponse(buildSyncraticDailyNarrativeInsight(rrCtx), rrCtx, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:rr", ContextEvidenceDigest: "digest-rr-contextual"}, userapi.AskResponse{QueryID: "ask-rr", Answer: "The JSON provided contains breadth."}, now, now)
+	for _, required := range []string{"Contextual read", "Neutral assets represented 77%", "bearish skew by 5 assets", "WMT was bullish"} {
+		if !strings.Contains(rr.Explanation, required) {
+			t.Fatalf("Risk/Reward fallback missing %q: %s", required, rr.Explanation)
+		}
+	}
+
+	reviewCtx := storage.SyncraticContextWindowRecord{
+		ContextWindowID:    "synctx-review-contextual",
+		TenantID:           "tenant-local",
+		SubjectSymbol:      dailyNarrativeSubjectSymbol,
+		WindowStart:        time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC),
+		ContextStrategy:    dailyNarrativeStrategyReviewQueue,
+		SummaryMetricsJSON: []byte(`{"sections":{"review_queue":{"status_counts":{"active":15,"expired":285},"active_examples":[{"symbol":"BABA","direction":"downside","score":0.96,"confidence":0.93,"last_evaluated_date":"2026-08-21","summary":"BABA downside convergence"}]}}}`),
+		EvidenceDigest:     "digest-review-contextual",
+	}
+	review := applySyncraticAskResponse(buildSyncraticDailyNarrativeInsight(reviewCtx), reviewCtx, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:review", ContextEvidenceDigest: "digest-review-contextual"}, userapi.AskResponse{QueryID: "ask-review", Answer: "The instructions request a JSON object."}, now, now)
+	for _, required := range []string{"Contextual read", "Active opportunities represented 5%", "last evaluated 2026-08-21", "expired rows out of primary triage"} {
+		if !strings.Contains(review.Explanation, required) {
+			t.Fatalf("Review Queue fallback missing %q: %s", required, review.Explanation)
+		}
+	}
+}

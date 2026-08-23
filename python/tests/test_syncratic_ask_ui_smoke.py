@@ -117,3 +117,34 @@ def test_syncratic_daily_narrative_ask_smoke(syncratic_page: Page, syncratic_con
 
         body = syncratic_page.locator("body")
         expect(body).to_contain_text(re.compile("Ask completed|Skipped"), timeout=60_000)
+
+        explanation = syncratic_page.locator("p.whitespace-pre-wrap").first
+        expect(explanation).to_be_visible(timeout=30_000)
+        explanation_text = explanation.text_content() or ""
+        assert_contextual_narrative(tab_name, explanation_text)
+
+
+def assert_contextual_narrative(tab_name: str, text: str) -> None:
+    compact = " ".join(text.split())
+    lower = compact.lower()
+    assert len(compact) >= 350, f"{tab_name} narrative is too thin: {compact}"
+    for forbidden in [
+        "they specified",
+        "the json provided",
+        "the prompt",
+        "the instructions",
+        "main artifact here is the json",
+        "marketops syncratic context",
+    ]:
+        assert forbidden not in lower, f"{tab_name} narrative contains meta-output marker {forbidden!r}: {compact}"
+    assert "unknown" != lower.strip(), f"{tab_name} narrative rendered UNKNOWN"
+    assert re.search(r"\b20\d{2}-\d{2}-\d{2}\b", compact), f"{tab_name} narrative lacks a session or evaluation date: {compact}"
+
+    expected_by_tab = {
+        "Daily Overview": [r"Sector Rotation", r"Risk/Reward", r"Review Queue", r"Contextual read|What changed"],
+        "Sector Rotation": [r"rank", r"composite score", r"Top drivers", r"leadership|rotation"],
+        "Risk/Reward": [r"bullish", r"bearish", r"neutral", r"breadth"],
+        "Review Queue": [r"active", r"expired", r"last evaluated|current evaluation|triage", r"opportunit"],
+    }
+    for pattern in expected_by_tab[tab_name]:
+        assert re.search(pattern, compact, re.IGNORECASE), f"{tab_name} narrative missing contextual marker {pattern!r}: {compact}"

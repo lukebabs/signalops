@@ -967,7 +967,16 @@ func deterministicOverviewNarrative(session string, sections map[string]any) det
 	if len(parts) == 0 {
 		return deterministicSyncraticNarrative{}
 	}
-	return deterministicSyncraticNarrative{Title: "MarketOps daily overview · " + session, Summary: strings.Join(parts, " "), Explanation: "Executive summary:\n" + strings.Join(parts, " ") + "\n\nWhat changed:\n- " + strings.Join(parts, "\n- ") + "\n\nAnalyst follow-ups:\n- Inspect the focused SRI, Risk/Reward, and Review Queue narratives for artifact-level detail.\n- Treat this as explainability over persisted evidence, not a trading instruction.", Action: "review_focused_narratives"}
+	return deterministicSyncraticNarrative{
+		Title:   "MarketOps daily overview · " + session,
+		Summary: strings.Join(parts, " "),
+		Explanation: "Executive summary:\n" + strings.Join(parts, " ") +
+			"\n\nContextual read:\n- Sector leadership, Risk/Reward breadth, and active Review Queue pressure should be read together. A strong sector tape with mostly neutral Risk/Reward breadth is a focus signal for drill-down, not a broad confirmation signal." +
+			"\n\nWhat changed:\n- " + strings.Join(parts, "\n- ") +
+			"\n\nContradictions or weak evidence:\n- Overview synthesis is compacted from focused section summaries. Use the focused SRI, Risk/Reward, and Review Queue cards for artifact-level validation before escalating a hypothesis." +
+			"\n\nAnalyst follow-ups:\n- Inspect focused narratives for the concrete symbols, sectors, scores, and stale-evidence warnings behind this overview.\n- Treat this as explainability over persisted evidence, not a trading instruction.",
+		Action: "review_focused_narratives",
+	}
 }
 
 func deterministicSRINarrative(session string, section map[string]any) deterministicSyncraticNarrative {
@@ -978,19 +987,33 @@ func deterministicSRINarrative(session string, section map[string]any) determini
 	leaderTexts := []string{}
 	for _, item := range leaders {
 		m := mapFromAny(item)
-		leaderTexts = append(leaderTexts, fmt.Sprintf("%s ranked %s with state %s and composite score %s", asString(m["segment_id"]), formatJSONNumber(m["rank"]), asString(m["state"]), formatJSONNumber(m["composite_score"])))
+		leaderTexts = append(leaderTexts, fmt.Sprintf("%s ranked %s with state %s and composite score %s", humanizeSegment(asString(m["segment_id"])), formatJSONNumber(m["rank"]), asString(m["state"]), formatJSONNumber(m["composite_score"])))
 		if len(leaderTexts) >= 5 {
 			break
 		}
 	}
+	contextBullets := []string{}
+	if len(leaders) > 0 {
+		top := mapFromAny(leaders[0])
+		contextBullets = append(contextBullets, fmt.Sprintf("%s is the primary leadership pocket at rank %s with state %s and composite score %s", humanizeSegment(asString(top["segment_id"])), formatJSONNumber(top["rank"]), asString(top["state"]), formatJSONNumber(top["composite_score"])))
+	}
+	if len(leaders) >= 2 {
+		tail := mapFromAny(leaders[len(leaders)-1])
+		contextBullets = append(contextBullets, fmt.Sprintf("%s sits at the bottom of the sampled rotation table with state %s and score %s", humanizeSegment(asString(tail["segment_id"])), asString(tail["state"]), formatJSONNumber(tail["composite_score"])))
+	}
 	summary := "Sector Rotation leadership was concentrated in " + strings.Join(leaderTexts[:minInt(len(leaderTexts), 3)], "; ") + "."
-	return deterministicSyncraticNarrative{Title: "Sector Rotation daily overview · " + session, Summary: summary, Explanation: "Executive summary:\n" + summary + "\n\nTop drivers:\n- " + strings.Join(leaderTexts, "\n- ") + "\n\nContradictions or weak evidence:\n- Rank-change fields may be unavailable for some segments; treat missing rank-change as a data-quality limitation, not neutral evidence.\n\nAnalyst follow-ups:\n- Inspect the SRI progression chart for whether leadership is persistent or a one-session move.", Action: "review_sri_progression"}
+	return deterministicSyncraticNarrative{Title: "Sector Rotation daily overview · " + session, Summary: summary, Explanation: "Executive summary:\n" + summary + "\n\nContextual read:\n- " + strings.Join(contextBullets, "\n- ") + "\n\nTop drivers:\n- " + strings.Join(leaderTexts, "\n- ") + "\n\nContradictions or weak evidence:\n- Rank-change fields may be unavailable for some segments; treat missing rank-change as a data-quality limitation, not neutral evidence.\n\nAnalyst follow-ups:\n- Inspect the SRI progression chart for whether leadership is persistent or a one-session move.\n- Compare leading and lagging segments against watchlist holdings before treating rotation as actionable.", Action: "review_sri_progression"}
 }
 
 func deterministicRiskRewardNarrative(session string, section map[string]any) deterministicSyncraticNarrative {
 	breadth := mapFromAny(section["breadth"])
 	examples := sliceFromAny(section["top_examples"])
-	breadthText := fmt.Sprintf("Risk/Reward breadth was %s bullish, %s bearish, %s neutral, and %s unavailable", formatJSONNumber(breadth["bullish"]), formatJSONNumber(breadth["bearish"]), formatJSONNumber(breadth["neutral"]), formatJSONNumber(breadth["unavailable"]))
+	bullish := intFromAny(breadth["bullish"])
+	bearish := intFromAny(breadth["bearish"])
+	neutral := intFromAny(breadth["neutral"])
+	unavailable := intFromAny(breadth["unavailable"])
+	total := bullish + bearish + neutral + unavailable
+	breadthText := fmt.Sprintf("Risk/Reward breadth was %d bullish, %d bearish, %d neutral, and %d unavailable", bullish, bearish, neutral, unavailable)
 	drivers := []string{}
 	for _, item := range examples {
 		m := mapFromAny(item)
@@ -1000,23 +1023,41 @@ func deterministicRiskRewardNarrative(session string, section map[string]any) de
 		}
 	}
 	summary := breadthText + ". The strongest sampled drivers were " + strings.Join(drivers[:minInt(len(drivers), 3)], "; ") + "."
-	return deterministicSyncraticNarrative{Title: "Risk/Reward daily evolution · " + session, Summary: summary, Explanation: "Executive summary:\n" + summary + "\n\nWhat changed:\n- " + breadthText + ".\n\nTop drivers:\n- " + strings.Join(drivers, "\n- ") + "\n\nContradictions or weak evidence:\n- The breadth mix is still mostly neutral, so directional examples should be reviewed as a focused subset rather than a broad market call.\n\nAnalyst follow-ups:\n- Compare these symbols against Market State and Review Queue convergence before promoting any hypothesis.", Action: "compare_risk_reward_with_market_state"}
+	neutralShare := "unknown"
+	if total > 0 {
+		neutralShare = fmt.Sprintf("%.0f%%", 100*float64(neutral)/float64(total))
+	}
+	imbalance := "balanced"
+	switch {
+	case bullish > bearish:
+		imbalance = fmt.Sprintf("bullish skew by %d assets", bullish-bearish)
+	case bearish > bullish:
+		imbalance = fmt.Sprintf("bearish skew by %d assets", bearish-bullish)
+	}
+	return deterministicSyncraticNarrative{Title: "Risk/Reward daily evolution · " + session, Summary: summary, Explanation: "Executive summary:\n" + summary + "\n\nContextual read:\n- Neutral assets represented " + neutralShare + " of the selected universe, while directional breadth showed a " + imbalance + ". This means the highlighted symbols are focused exceptions inside a mostly neutral breadth profile.\n\nWhat changed:\n- " + breadthText + ".\n\nTop drivers:\n- " + strings.Join(drivers, "\n- ") + "\n\nContradictions or weak evidence:\n- The breadth mix is still mostly neutral, so directional examples should be reviewed as a focused subset rather than a broad market call.\n\nAnalyst follow-ups:\n- Compare these symbols against Market State and Review Queue convergence before promoting any hypothesis.", Action: "compare_risk_reward_with_market_state"}
 }
 
 func deterministicReviewQueueNarrative(session string, section map[string]any) deterministicSyncraticNarrative {
 	counts := mapFromAny(section["status_counts"])
 	examples := sliceFromAny(section["active_examples"])
-	countText := fmt.Sprintf("Review Queue held %s active and %s expired opportunities", formatJSONNumber(counts["active"]), formatJSONNumber(counts["expired"]))
+	activeCount := intFromAny(counts["active"])
+	expiredCount := intFromAny(counts["expired"])
+	totalCount := activeCount + expiredCount
+	countText := fmt.Sprintf("Review Queue held %d active and %d expired opportunities", activeCount, expiredCount)
 	drivers := []string{}
 	for _, item := range examples {
 		m := mapFromAny(item)
-		drivers = append(drivers, fmt.Sprintf("%s %s opportunity scored %s with confidence %s: %s", asString(m["symbol"]), asString(m["direction"]), formatJSONNumber(m["score"]), formatJSONNumber(m["confidence"]), asString(m["summary"])))
+		drivers = append(drivers, fmt.Sprintf("%s %s opportunity scored %s with confidence %s and was last evaluated %s: %s", asString(m["symbol"]), asString(m["direction"]), formatJSONNumber(m["score"]), formatJSONNumber(m["confidence"]), asString(m["last_evaluated_date"]), asString(m["summary"])))
 		if len(drivers) >= 6 {
 			break
 		}
 	}
+	activeShare := "unknown"
+	if totalCount > 0 {
+		activeShare = fmt.Sprintf("%.0f%%", 100*float64(activeCount)/float64(totalCount))
+	}
 	summary := countText + ". Active examples were led by " + strings.Join(drivers[:minInt(len(drivers), 3)], "; ") + "."
-	return deterministicSyncraticNarrative{Title: "Review Queue daily brief · " + session, Summary: summary, Explanation: "Executive summary:\n" + summary + "\n\nWhat changed:\n- " + countText + "; expired items should remain separated from current analyst work.\n\nTop drivers:\n- " + strings.Join(drivers, "\n- ") + "\n\nContradictions or weak evidence:\n- High expired volume can overwhelm the view; focus first on active opportunities with current evaluation dates.\n\nAnalyst follow-ups:\n- Inspect active opportunity details and suppress expired rows from primary triage unless reviewing historical performance.", Action: "review_active_opportunities"}
+	return deterministicSyncraticNarrative{Title: "Review Queue daily brief · " + session, Summary: summary, Explanation: "Executive summary:\n" + summary + "\n\nContextual read:\n- Active opportunities represented " + activeShare + " of the current queue sample, so analyst attention should stay on live items and keep expired rows out of primary triage.\n\nWhat changed:\n- " + countText + "; expired items should remain separated from current analyst work.\n\nTop drivers:\n- " + strings.Join(drivers, "\n- ") + "\n\nContradictions or weak evidence:\n- High expired volume can overwhelm the view; focus first on active opportunities with current evaluation dates.\n\nAnalyst follow-ups:\n- Inspect active opportunity details and suppress expired rows from primary triage unless reviewing historical performance.", Action: "review_active_opportunities"}
 }
 
 func mapFromAny(value any) map[string]any {
@@ -1048,6 +1089,31 @@ func formatJSONNumber(value any) string {
 	default:
 		return strings.TrimSpace(fmt.Sprintf("%v", typed))
 	}
+}
+
+func intFromAny(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case string:
+		var out int
+		if _, err := fmt.Sscanf(strings.TrimSpace(typed), "%d", &out); err == nil {
+			return out
+		}
+	}
+	return 0
+}
+
+func humanizeSegment(segment string) string {
+	text := strings.TrimSpace(segment)
+	text = strings.TrimPrefix(text, "sri_sector_")
+	text = strings.TrimPrefix(text, "sri_industry_")
+	text = strings.ReplaceAll(text, "_", " ")
+	return text
 }
 
 func minInt(a, b int) int {

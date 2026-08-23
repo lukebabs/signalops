@@ -9078,3 +9078,10 @@ Next-cycle priority:
 - Corrected the multi-tab Syncratic Ask smoke to select the intended narrative card in each tab: Daily Overview, SRI, Risk/Reward, and Review Queue.
 - Extended the daily output quality gate to fallback when the persisted summary/title would otherwise show raw JSON fragments, `UNKNOWN`, or the default `MARKETOPS Syncratic context` title.
 - This closes the observed gap where the AI Gateway returned non-meta but still non-analyst-facing output.
+
+
+### 2026-08-23 — Syncratic Ask contextual quality gate
+
+- Live review showed Syncratic Ask could now avoid raw/meta responses but still needed stronger analyst context in fallback output.
+- Enriched deterministic fallback narratives with contextual reads for SRI leadership/laggards, Risk/Reward neutrality and directional skew, and Review Queue active-vs-expired triage.
+- Expanded the Playwright Syncratic Ask smoke so HTTP 200 is not sufficient; the rendered explanation must include session/evaluation dates, tab-specific contextual markers, and no prompt/JSON meta-output.
