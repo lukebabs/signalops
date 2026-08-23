@@ -8964,3 +8964,11 @@ Next-cycle priority:
 - Captured the required controls: route availability, dedicated MarketOps database boundary, active context windows/insights, prompt compaction under the 4k-input/1k-output AI Gateway policy, provenance retention, idempotency, AI Gateway price-catalog configuration, browser smoke, protected failure artifacts, and sanitized errors.
 - Linked the checklist from the Subscriber Project README, automated browser acceptance document, and production-readiness path.
 - Recorded the remaining hardening item: expose Syncratic Ask operational health in Administration with latest success/failure, upstream category, and last successful context-window id.
+
+## 2026-08-23 — Syncratic Ask Admin operations-health row
+
+- Added a read-only `Syncratic Ask` row to the Administration MarketOps Operations Health `data_freshness` projection.
+- The row is sourced from active daily narrative context windows, completed Ask insight metrics, and failed/retryable Syncratic intelligence jobs in the dedicated MarketOps data plane. It performs no provider polling, no AI Gateway call, no enqueue, and no mutation.
+- Healthy state requires at least one completed Ask insight for the latest active daily narrative session and no newer failed Ask job; partial state exposes the latest Ask failure category and context-window id when available.
+- Updated the Subscription Administration browser smoke to require the `Syncratic Ask` freshness label and updated project docs/checklist accordingly.
+- Validation passed: `go test ./internal/api ./internal/storage/postgres`, `.venv/bin/python -m pytest -q python/tests/test_subscription_administration_ui_smoke.py --collect-only`, and `git diff --check`.

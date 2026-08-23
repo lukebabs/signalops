@@ -23,7 +23,7 @@ Production readiness is still blocked by expansion and recovery-evidence gaps. T
 | Scheduled jobs | Ready for pilot scope | `scheduler-status` returned clean after the August 21 post-close window. Daily post-close, Risk/Reward, recovery, SRI, holdings, and intraday completed successfully. Warm EOD returned governed `degraded` with `bounded_provider_gap`. |
 | Daily post-close | Closed for PR-0 | The August 21 post-close cycle completed without requiring stale-systemd reconciliation. |
 | FMP annual financial job | Active / observing | Option B selected and activated: weekly Saturday 02:30 ET recurring capture. Live scheduler status shows `signalops-marketops-boundary-fmp-annual-financial.timer active=active next=Sat 2026-08-29 06:30:00 UTC`. |
-| Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass, including the controlled Syncratic Ask live smoke after AI Gateway price-catalog propagation. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. Syncratic Ask readiness is tracked in [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md). |
+| Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass, including the controlled Syncratic Ask live smoke after AI Gateway price-catalog propagation. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. Syncratic Ask readiness is tracked in [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md), and Admin Operations Health now has a dedicated Syncratic Ask row pending deployment validation. |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. |
 | Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |
@@ -238,7 +238,7 @@ Move to the remaining PR-4/production-expansion work:
 - Public `/readyz` returned `200`.
 - Public `/admin/system` returned `200`.
 - `sudo -n signalops-deploy-agent scheduler-status` returned clean timer/service state.
-- PR-1 Admin freshness browser acceptance passed through Playwright: the test logs in as `luke@strategiclabs.io`, opens `/admin/system`, asserts the operations-health API response, and verifies all eight freshness labels render.
+- PR-1 Admin freshness browser acceptance passed through Playwright: the test logs in as `luke@strategiclabs.io`, opens `/admin/system`, asserts the operations-health API response, and verifies the required freshness labels render. The current contract includes nine rows after the Syncratic Ask operations-health extension.
 - The remaining time-gated acceptance item is the next natural post-close cycle at 2026-08-21 22:01:55 UTC, followed by recovery/SRI timers through the controlled post-close window.
 
 ## 2026-08-21 06:10 UTC freshness semantics correction

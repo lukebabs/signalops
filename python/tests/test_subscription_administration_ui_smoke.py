@@ -90,6 +90,7 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
         "Signal Assurance",
         "Intraday conditions",
         "FMP annual financials",
+        "Syncratic Ask",
     }
     with admin_page.expect_response(
         lambda response: response.request.method == "GET" and "/v1/administration/marketops/operations-health" in response.url,

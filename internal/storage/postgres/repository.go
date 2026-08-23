@@ -967,12 +967,60 @@ WITH asset_set AS (
   LEFT JOIN latest_fmp_workflow workflow ON true
   LEFT JOIN subscriber_global_annual_financial_tasks task ON task.workflow_id=workflow.workflow_id
   GROUP BY workflow.workflow_id,workflow.session_date,workflow.completed_at,workflow.updated_at
+), daily_syncratic_contexts AS (
+  SELECT context_window_id, window_start, window_end, updated_at
+  FROM syncratic_context_windows
+  WHERE tenant_id=$1
+    AND app_id='marketops'
+    AND domain='market_data'
+    AND use_case='daily_market_surveillance'
+    AND subject_symbol='MARKETOPS'
+    AND status='active'
+    AND context_strategy IN ('marketops_daily_overview_v1','marketops_sri_daily_v1','marketops_risk_reward_daily_v1','marketops_review_queue_daily_v1')
+), latest_syncratic_session AS (
+  SELECT max(window_start)::date AS session_date
+  FROM daily_syncratic_contexts
+), latest_syncratic_success AS (
+  SELECT ctx.context_window_id, insight.updated_at
+  FROM daily_syncratic_contexts ctx
+  JOIN syncratic_insights insight ON insight.context_window_id=ctx.context_window_id
+  WHERE ctx.window_start::date=(SELECT session_date FROM latest_syncratic_session)
+    AND insight.tenant_id=$1
+    AND insight.metrics->'syncratic_ask'->>'ask_status'='completed'
+  ORDER BY insight.updated_at DESC
+  LIMIT 1
+), latest_syncratic_failure AS (
+  SELECT context_window_id, updated_at, COALESCE(NULLIF(error_code,''), status) AS failure_code
+  FROM syncratic_intelligence_jobs
+  WHERE tenant_id=$1
+    AND app_id='marketops'
+    AND use_case='daily_market_surveillance'
+    AND status IN ('retryable_failed','failed')
+  ORDER BY updated_at DESC
+  LIMIT 1
+), syncratic_ask AS (
+  SELECT 'syncratic_ask'::text AS view_id, 'Syncratic Ask'::text AS label,
+    (SELECT session_date FROM latest_syncratic_session)::date AS latest_session_date,
+    NULLIF(GREATEST(
+      COALESCE((SELECT max(updated_at) FROM daily_syncratic_contexts WHERE window_start::date=(SELECT session_date FROM latest_syncratic_session)), '-infinity'::timestamptz),
+      COALESCE((SELECT updated_at FROM latest_syncratic_success), '-infinity'::timestamptz),
+      COALESCE((SELECT updated_at FROM latest_syncratic_failure), '-infinity'::timestamptz)
+    ), '-infinity'::timestamptz)::timestamptz AS latest_as_of,
+    CASE
+      WHEN (SELECT context_window_id FROM latest_syncratic_success) IS NOT NULL
+       AND (SELECT updated_at FROM latest_syncratic_failure) IS NULL THEN 1
+      WHEN (SELECT context_window_id FROM latest_syncratic_success) IS NOT NULL
+       AND (SELECT updated_at FROM latest_syncratic_success) >= (SELECT updated_at FROM latest_syncratic_failure) THEN 1
+      ELSE 0
+    END::integer AS row_count,
+    CASE WHEN (SELECT session_date FROM latest_syncratic_session) IS NULL THEN 0 ELSE 1 END::integer AS expected_count
 ), freshness AS (
   SELECT * FROM dashboard
   UNION ALL SELECT * FROM assets
   UNION ALL SELECT * FROM components
   UNION ALL SELECT * FROM intraday
   UNION ALL SELECT * FROM fmp
+  UNION ALL SELECT * FROM syncratic_ask
 ), assessed AS (
   SELECT view_id,label,latest_session_date,NULLIF(latest_as_of, '-infinity'::timestamptz) AS latest_as_of,row_count,COALESCE(expected_count,0) AS expected_count,
     CASE
@@ -985,14 +1033,17 @@ WITH asset_set AS (
 )
 SELECT view_id,label,latest_session_date,latest_as_of,row_count,expected_count,status,
   CASE
+    WHEN status='missing' AND view_id='syncratic_ask' THEN 'no daily narrative context windows available'
     WHEN status='missing' THEN 'no rows available'
     WHEN status='stale' THEN 'latest intraday snapshot is outside the live-market freshness window'
     WHEN status='partial' AND view_id='dashboard' THEN 'completed-session components are not aligned to one session'
     WHEN status='partial' AND view_id='assets' THEN 'not all active assets have current global EOD context for the latest completed session'
     WHEN status='partial' AND view_id='fmp_annual' THEN 'latest FMP annual workflow has incomplete or non-succeeded tasks'
+    WHEN status='partial' AND view_id='syncratic_ask' THEN COALESCE((SELECT 'latest Ask failure category=' || failure_code || '; context_window_id=' || context_window_id FROM latest_syncratic_failure), 'no completed Ask insight found for the latest daily narrative context')
     WHEN status='partial' THEN 'latest session has fewer rows than expected'
     WHEN view_id='assets' THEN 'selected assets with current Market State evidence; coverage activation history is separate'
     WHEN view_id='intraday' AND NOT (SELECT monitor_window FROM market_clock) THEN 'market idle; latest completed-session intraday evidence is used'
+    WHEN view_id='syncratic_ask' THEN COALESCE((SELECT 'last successful Ask context_window_id=' || context_window_id FROM latest_syncratic_success), 'no daily narrative context windows available')
     WHEN view_id IN ('sri','signal_assurance') THEN 'latest as-of is provenance/materialization time; session date is freshness authority'
     ELSE ''
   END AS reason
@@ -1006,6 +1057,7 @@ ORDER BY CASE view_id
   WHEN 'signal_assurance' THEN 6
   WHEN 'intraday' THEN 7
   WHEN 'fmp_annual' THEN 8
+  WHEN 'syncratic_ask' THEN 9
   ELSE 99 END`, strings.TrimSpace(tenantID))
 	if err != nil {
 		return nil, fmt.Errorf("list marketops operations freshness: %w", err)

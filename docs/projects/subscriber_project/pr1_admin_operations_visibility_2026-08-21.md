@@ -20,11 +20,12 @@ The freshness table covers:
 - Signal Assurance — latest matured SAF observation session and observation count.
 - Intraday conditions — latest tenant-local intraday snapshot timestamp and current 30-minute row count.
 - FMP annual financials — latest global annual-financial workflow completion against its task count.
+- Syncratic Ask — latest completed daily-narrative Ask success for the current governed context, with failure category/context detail when unhealthy.
 
 ## Status semantics
 
 - `current`: latest evidence exists and row/alignment checks pass.
-- `partial`: latest session has fewer rows than expected, Dashboard components are not aligned to one completed session, asset EOD coverage is incomplete, or the latest FMP annual workflow has incomplete/non-succeeded tasks.
+- `partial`: latest session has fewer rows than expected, Dashboard components are not aligned to one completed session, asset EOD coverage is incomplete, the latest FMP annual workflow has incomplete/non-succeeded tasks, or Syncratic Ask lacks a completed response for the latest daily context.
 - `stale`: intraday latest snapshot is outside the configured freshness window.
 - `missing`: no rows exist for that view.
 
@@ -65,7 +66,7 @@ After deploying Gateway and Web, verify:
 
 1. Admin Workbench loads MarketOps Operations Health.
 2. The new data freshness table is visible.
-3. Dashboard, Market State, Risk/Reward, SRI, SAF, and Intraday rows are present.
+3. Dashboard, Market State, Risk/Reward, SRI, SAF, Intraday, FMP annual financials, and Syncratic Ask rows are present.
 4. Dashboard is `current` only when completed-session components align.
 5. Failed/stale/partial states include a reason.
 6. Existing scheduled-job run-now buttons still use only constrained deployment-agent actions.
@@ -193,3 +194,11 @@ Intraday      2026-08-21  132 symbols  latest_snapshot=2026-08-21 22:15:00 UTC
 Scheduler/job-status evidence showed `marketops-daily-postclose`, `marketops-risk-reward`, `marketops-postclose-recovery`, `marketops-sri-refresh`, `marketops-sri-holdings-refresh`, and `marketops-intraday` succeeded for the acceptance window. `marketops-warm-eod` reported the expected governed `degraded` state for a bounded provider gap.
 
 PR-1 is closed for the current pilot-readiness path. FMP recurring activation remains tracked under PR-4, not PR-1.
+
+## Syncratic Ask operations-health extension — 2026-08-23
+
+The operations-health freshness table now includes a ninth row, `Syncratic Ask`. The row is read-only and sourced from persisted daily narrative context windows, completed Ask insight metrics, and failed/retryable Syncratic intelligence jobs. It does not call the AI Gateway, mutate context windows, or enqueue work.
+
+Healthy state means at least one completed Ask insight exists for the latest active daily narrative session and no newer failed Ask job supersedes that success. Partial state exposes the latest failure category and context-window id when available; missing state means no active daily narrative context exists.
+
+The Subscription Administration browser smoke now requires the `Syncratic Ask` label in the operations-health table.
