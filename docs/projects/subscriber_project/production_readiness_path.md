@@ -23,7 +23,7 @@ Production readiness is still blocked by expansion and recovery-evidence gaps. T
 | Scheduled jobs | Ready for pilot scope | `scheduler-status` returned clean after the August 21 post-close window. Daily post-close, Risk/Reward, recovery, SRI, holdings, and intraday completed successfully. Warm EOD returned governed `degraded` with `bounded_provider_gap`. |
 | Daily post-close | Closed for PR-0 | The August 21 post-close cycle completed without requiring stale-systemd reconciliation. |
 | FMP annual financial job | Active / observing | Option B selected and activated: weekly Saturday 02:30 ET recurring capture. Live scheduler status shows `signalops-marketops-boundary-fmp-annual-financial.timer active=active next=Sat 2026-08-29 06:30:00 UTC`. |
-| Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass, including the controlled Syncratic Ask live smoke after AI Gateway price-catalog propagation. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. |
+| Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass, including the controlled Syncratic Ask live smoke after AI Gateway price-catalog propagation. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. Syncratic Ask readiness is tracked in [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md). |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. |
 | Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |
@@ -217,7 +217,7 @@ Each production-readiness review should record:
 
 1. Git revision and working-tree status.
 2. Web, Gateway, dedicated MarketOps Postgres, and dedicated MarketOps Timescale container health.
-3. Public `/readyz` and the key MarketOps browser routes, including Syncratic Ask smoke when AI Gateway policy/catalog changed.
+3. Public `/readyz` and the key MarketOps browser routes, including the Syncratic Ask smoke when Syncratic code, Gateway deployment, or AI Gateway policy/catalog changed. Use [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md) as the control record.
 4. `sudo -n signalops-deploy-agent scheduler-status`.
 5. Latest completed market session and row counts for Dashboard, Assets, Market State, Risk/Reward, SRI, SAF, and FMP.
 6. Latest intraday snapshot and hot-symbol count during market hours.

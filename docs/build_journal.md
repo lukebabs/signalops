@@ -8957,3 +8957,10 @@ Next-cycle priority:
 - After the Syncratic AI Gateway price-catalog configuration propagated, reran the controlled production browser smoke with `scripts/run_syncratic_ask_ui_smoke.sh`.
 - Result: `1 passed in 1.43s`. This verifies `/marketops/syncratic` login, daily narrative selection, normal Ask (`force=false`), SignalOps `Idempotency-Key` forwarding, upstream AI Gateway acceptance, and valid Ask response rendering.
 - Syncratic Ask is now part of the production-readiness QA checklist after gateway deploys, after Syncratic AI Gateway policy/catalog changes, and before subscription production gates.
+
+## 2026-08-23 — Syncratic Ask readiness checklist
+
+- Added `docs/projects/subscriber_project/syncratic_ask_readiness_checklist.md` as the durable readiness control for Syncratic Ask.
+- Captured the required controls: route availability, dedicated MarketOps database boundary, active context windows/insights, prompt compaction under the 4k-input/1k-output AI Gateway policy, provenance retention, idempotency, AI Gateway price-catalog configuration, browser smoke, protected failure artifacts, and sanitized errors.
+- Linked the checklist from the Subscriber Project README, automated browser acceptance document, and production-readiness path.
+- Recorded the remaining hardening item: expose Syncratic Ask operational health in Administration with latest success/failure, upstream category, and last successful context-window id.
