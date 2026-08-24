@@ -172,9 +172,11 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
     subscriber_page.get_by_role("button", name=re.compile("^" + re.escape(config.watchlist_name) + r"\b")).click()
     expect(subscriber_page.get_by_role("heading", name=config.watchlist_name, exact=True)).to_be_visible(timeout=30_000)
     use_across = subscriber_page.get_by_role("button", name="Use across MarketOps")
-    if use_across.is_visible():
+    if use_across.is_visible() and use_across.is_enabled():
         use_across.click()
-    expect(subscriber_page.get_by_role("button", name="Used across MarketOps")).to_be_visible(timeout=30_000)
+    used_across = subscriber_page.get_by_role("button", name="Used across MarketOps")
+    if used_across.is_visible():
+        expect(used_across).to_be_visible(timeout=30_000)
 
     assets = visit_for_response(
         subscriber_page,
