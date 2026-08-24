@@ -9177,3 +9177,11 @@ Next-cycle priority:
 - Changed Dashboard narrative selection to reveal only a bounded summary snippet, with click-through to Syncratic Intelligence for the full narrative, provenance, and evidence workspace.
 - Added a right-side Market Intelligence reel using persisted intraday condition snapshots for the selected watchlist, matching the lightweight dynamic-reel pattern from the Market Intelligence view.
 - Updated the authenticated Playwright Dashboard regression to validate the 80/20 layout, right-rail reel, lower digest placement, snippet-only behavior, and Syncratic Intelligence click-through. Production Playwright validation passed.
+
+### 2026-08-24 — Dashboard to Syncratic Intelligence selected narrative deep link
+
+- Kept the Dashboard narrative digest intentionally lightweight: deterministic/snippet text remains the Dashboard-facing summary so load time and visual weight stay bounded.
+- Added selected narrative deep-linking from Dashboard to Syncratic Intelligence using `/marketops/syncratic?tab=...&insight_id=...`; the destination now opens the matching narrative tab and expands the selected full narrative/evidence workspace automatically.
+- This supports using both layers together: Dashboard shows the concise deterministic read, while Syncratic Intelligence exposes the persisted full Ask Explanation and metadata for the selected insight.
+- Updated authenticated Playwright coverage to verify a Risk/Reward Dashboard card opens Syncratic Intelligence with `tab=risk_reward`, a `synins_...` insight id, the full narrative panel, and Ask Explanation visible.
+- Validation passed: `npm --prefix web run build`, focused Syncratic web tests, deployment-agent web deploy smoke, `/readyz`, and production Playwright Dashboard regression.

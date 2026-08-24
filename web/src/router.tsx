@@ -287,7 +287,15 @@ const marketopsOpportunitiesRoute = createRoute({
 const marketopsSignalAssuranceRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assurance', component: () => <SubscriptionFeatureGate feature="signal_assurance_analytics" title="Signal Assurance Analytics"><MarketOpsSignalAssuranceRoute /></SubscriptionFeatureGate> });
 const marketopsSRIRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/sectors", component: MarketOpsSRIRoute });
 const marketopsBacktestsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/backtests', component: MarketOpsBacktestsRoute });
-const marketopsSyncraticRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/syncratic', component: MarketOpsSyncraticRoute });
+const marketopsSyncraticRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/marketops/syncratic',
+  validateSearch: (search: Record<string, unknown>): { tab?: string; insight_id?: string } => ({
+    tab: typeof search.tab === 'string' ? search.tab : undefined,
+    insight_id: typeof search.insight_id === 'string' ? search.insight_id : undefined,
+  }),
+  component: MarketOpsSyncraticRoute,
+});
 const marketopsAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/algorithms', component: () => <LegacyRedirect to="/admin/algorithms" /> });
 
 function CyberOpsIndexRouteComponent() {

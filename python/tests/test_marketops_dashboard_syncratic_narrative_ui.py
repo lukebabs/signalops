@@ -121,3 +121,9 @@ def test_dashboard_repositions_syncratic_digest_and_uses_snippet_clickthrough(
 
     with dashboard_page.expect_navigation(url=re.compile(re.escape(config.base_url) + r"/marketops/syncratic"), timeout=30_000):
         panel.get_by_role("button", name="Open Syncratic Intelligence").click()
+    expect(dashboard_page).to_have_url(re.compile(r"/marketops/syncratic\?.*tab=risk_reward"), timeout=30_000)
+    expect(dashboard_page).to_have_url(re.compile(r"/marketops/syncratic\?.*insight_id=synins_"), timeout=30_000)
+    expect(dashboard_page.get_by_role("heading", name="Syncratic Intelligence")).to_be_visible(timeout=30_000)
+    expect(dashboard_page.get_by_role("heading", name="Risk/Reward narratives")).to_be_visible(timeout=30_000)
+    expect(dashboard_page.get_by_text("Full Syncratic narrative")).to_be_visible(timeout=30_000)
+    expect(dashboard_page.get_by_text("Ask Explanation")).to_be_visible(timeout=30_000)

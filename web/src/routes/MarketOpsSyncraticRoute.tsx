@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearch } from '@tanstack/react-router';
 import { Sparkles, AlertTriangle, RefreshCw } from 'lucide-react';
 import {
   useSyncraticInsights,
@@ -59,6 +60,9 @@ const NARRATIVE_TABS = [
   { key: 'asset', label: 'Asset Drilldowns', strategy: '' },
 ] as const;
 type SyncraticSurfaceTab = typeof NARRATIVE_TABS[number]['key'];
+function normalizeSyncraticSurfaceTab(value: string | undefined): SyncraticSurfaceTab | null {
+  return NARRATIVE_TABS.some((tab) => tab.key === value) ? value as SyncraticSurfaceTab : null;
+}
 const DAILY_NARRATIVE_INSIGHT_TYPE = 'marketops.syncratic.daily_narrative.v1';
 const SYNCRATIC_EXPLAINABILITY_FEATURE = 'syncratic_explainability' as const;
 
@@ -122,13 +126,15 @@ function SyncraticCurrentnessChip({ summary }: { summary: ReturnType<typeof summ
 export function MarketOpsSyncraticRoute() {
   const TENANT_ID = useTenant();
   const { metadataFilter } = useAppProfile();
+  const search = useSearch({ strict: false }) as { tab?: string; insight_id?: string };
+  const requestedTab = normalizeSyncraticSurfaceTab(search.tab);
 
   const [status, setStatus] = useState<SyncraticInsightStatus | ''>('');
   const [subjectSymbol, setSubjectSymbol] = useState('');
   const [insightType, setInsightType] = useState('');
   const [limit, setLimit] = useState(50);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [surfaceTab, setSurfaceTab] = useState<SyncraticSurfaceTab>('daily');
+  const [surfaceTab, setSurfaceTab] = useState<SyncraticSurfaceTab>(requestedTab ?? 'daily');
 
   const insightsList = useSyncraticInsights({
     tenant_id: TENANT_ID,
@@ -157,6 +163,10 @@ export function MarketOpsSyncraticRoute() {
   );
 
   const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
+
+  useEffect(() => {
+    if (requestedTab && requestedTab !== surfaceTab) setSurfaceTab(requestedTab);
+  }, [requestedTab, surfaceTab]);
 
   return (
     <div className="space-y-3">
@@ -187,6 +197,7 @@ export function MarketOpsSyncraticRoute() {
         <SyncraticNarrativeWorkbench
           tenantId={TENANT_ID}
           selectedTab={surfaceTab}
+          deepLinkedInsightId={search.insight_id ?? null}
         />
       ) : (
         <>
@@ -338,15 +349,17 @@ export function MarketOpsSyncraticRoute() {
 function SyncraticNarrativeWorkbench({
   tenantId,
   selectedTab,
+  deepLinkedInsightId,
 }: {
   tenantId: string;
   selectedTab: Exclude<SyncraticSurfaceTab, 'asset'>;
+  deepLinkedInsightId: string | null;
 }) {
   const tab = NARRATIVE_TABS.find((item) => item.key === selectedTab) ?? NARRATIVE_TABS[0];
   const subscription = useSubscription();
   const canRunAsk = subscription.allows(SYNCRATIC_EXPLAINABILITY_FEATURE);
   const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [selectedNarrativeId, setSelectedNarrativeId] = useState<string | null>(null);
+  const [selectedNarrativeId, setSelectedNarrativeId] = useState<string | null>(deepLinkedInsightId);
   const materialize = useMaterializeSyncraticDailyNarratives();
   const narratives = useSyncraticInsights({
     tenant_id: tenantId,
@@ -367,8 +380,8 @@ function SyncraticNarrativeWorkbench({
   const strategies = tab.strategy ? [tab.strategy] : ['marketops_daily_overview_v1', 'marketops_sri_daily_v1', 'marketops_risk_reward_daily_v1', 'marketops_review_queue_daily_v1'];
 
   useEffect(() => {
-    setSelectedNarrativeId(null);
-  }, [selectedTab]);
+    setSelectedNarrativeId(deepLinkedInsightId);
+  }, [selectedTab, deepLinkedInsightId]);
 
   function run(dryRun: boolean) {
     if (!canRunAsk) return;

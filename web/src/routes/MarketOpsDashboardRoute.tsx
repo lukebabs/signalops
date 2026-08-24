@@ -208,7 +208,7 @@ export function MarketOpsDashboardRoute() {
               error={narrativesQ.isError ? narrativesQ.error : null}
               expandedNarrativeId={expandedNarrativeId}
               onToggleNarrative={(id) => setExpandedNarrativeId(expandedNarrativeId === id ? null : id)}
-              openSyncratic={() => void navigate({ to: "/marketops/syncratic" })}
+              openSyncratic={(insight) => void navigate({ to: "/marketops/syncratic", search: insight ? { tab: syncraticTabForInsight(insight), insight_id: insight.syncratic_insight_id } : {} })}
             />
           </main>
           <MarketIntelligenceReel
@@ -239,7 +239,7 @@ function DashboardSyncraticNarratives({
   error: unknown;
   expandedNarrativeId: string | null;
   onToggleNarrative: (insightId: string) => void;
-  openSyncratic: () => void;
+  openSyncratic: (insight?: SyncraticInsight) => void;
 }) {
   const cards = dashboardSyncraticNarrativeCards(narratives);
   const expandedCard = cards.find((card) => card.insight.syncratic_insight_id === expandedNarrativeId) ?? null;
@@ -257,7 +257,7 @@ function DashboardSyncraticNarratives({
         </div>
         <button
           type="button"
-          onClick={openSyncratic}
+          onClick={() => openSyncratic()}
           className="rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700"
         >
           Open Syncratic Intelligence
@@ -329,6 +329,14 @@ function insightStrategyTestId(insight: SyncraticInsight): string {
   return narrativeStrategy(insight).replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "unknown";
 }
 
+function syncraticTabForInsight(insight: SyncraticInsight): string {
+  const strategy = narrativeStrategy(insight);
+  if (strategy === "marketops_sri_daily_v1") return "sri";
+  if (strategy === "marketops_risk_reward_daily_v1") return "risk_reward";
+  if (strategy === "marketops_review_queue_daily_v1") return "review_queue";
+  return "daily";
+}
+
 function DashboardSyncraticFullNarrative({
   label,
   insight,
@@ -336,7 +344,7 @@ function DashboardSyncraticFullNarrative({
 }: {
   label: string;
   insight: SyncraticInsight;
-  openSyncratic: () => void;
+  openSyncratic: (insight?: SyncraticInsight) => void;
 }) {
   const summary = summarizeSyncraticInsight(insight);
   const quality = classifySyncraticNarrativeQuality(insight);
@@ -352,7 +360,7 @@ function DashboardSyncraticFullNarrative({
           </div>
           <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{summary.title || label}</div>
         </div>
-        <button type="button" onClick={openSyncratic} className="rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">Open Syncratic Intelligence</button>
+        <button type="button" onClick={() => openSyncratic(insight)} className="rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">Open Syncratic Intelligence</button>
       </div>
       <div className="mt-3">
         <div className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200">Summary snippet</div>
