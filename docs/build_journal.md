@@ -9149,3 +9149,10 @@ Next-cycle priority:
 
 - Updated the Dashboard Syncratic narrative expansion to explicitly surface the persisted Ask output as `Ask Explanation` when Syncratic Ask metadata is present.
 - Added the same generated-by-Syncratic-Ask cue used in the detailed workspace so analysts can distinguish Ask output from deterministic fallback outside Asset Drilldowns.
+
+
+### 2026-08-24 — Dashboard explainability-first narrative UX
+
+- Removed `Read Ask` language from the Dashboard narrative digest. The surface now presents the generated content as Syncratic explainability, not as an Ask artifact users must understand.
+- The Dashboard now shows one full explainability narrative by default when persisted narratives exist; cards act as selectors for which explanation is visible.
+- Updated helper copy to keep evidence provenance available without making the implementation mechanism the primary user-facing outcome.
