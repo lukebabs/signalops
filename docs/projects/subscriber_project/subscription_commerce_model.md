@@ -76,6 +76,10 @@ Migration `000160_subscriber_upgrade_interactions` adds the first product-led su
 
 Locked MarketOps feature gates now present contextual upgrade copy and route users to `/marketops/pricing`, preserving the source feature and return URL. The pricing page reads configured subscription products and Stripe price IDs from the existing subscription product API, and explicitly does not start Checkout. This slice captures upgrade intent and plan comparison only; entitlements still change only through governed administration or future webhook-confirmed Checkout.
 
+Production validation on 2026-08-24 confirmed this boundary with Playwright: tenant-pilot-b can view the pricing journey, Stripe Product/Price identifiers are visible as public catalog metadata, Checkout/Contact Sales controls remain disabled by design, and a tenant-scoped upgrade click records a `202` upgrade-interaction event. The platform subscription administrator can review that event in Administration > Subscriptions > Upgrade funnel after filtering to `tenant-pilot-b`.
+
+The Stripe webhook path remains authoritative for future automatic entitlement updates. The current canary evidence proves invalid signatures fail closed before persistence, while a valid signed synthetic event can be recorded as `unmatched` without creating access for unknown Stripe subscriptions.
+
 ## Stripe boundary
 
 Stripe will first be used as admin-managed billing evidence and signed webhook reconciliation. Later, Professional self-service checkout/billing portal can be added as a separate release. The intended state transition rules are:

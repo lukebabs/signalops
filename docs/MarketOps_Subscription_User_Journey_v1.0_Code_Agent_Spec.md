@@ -710,6 +710,20 @@ webhook
 entitlement update
 ```
 
+### 30.1 Implemented upgrade-intent gate — 2026-08-24
+
+The first implemented production-safe slice records upgrade intent without granting access. Locked-feature prompts and `/marketops/pricing` may record authenticated, tenant-scoped prompt/click events in `subscriber_upgrade_interactions`; Administration > Subscriptions > Upgrade funnel exposes those events for analyst/operator review.
+
+Current boundary:
+
+- Stripe Product and Price IDs are public catalog metadata and may be shown on the pricing page.
+- Checkout controls remain disabled by design until a separate Checkout Session endpoint is approved.
+- No entitlement may be granted from a frontend redirect, pricing click, or upgrade-interaction row.
+- Future automatic activation must be driven by a verified Stripe webhook or another authoritative subscription-state write.
+- Invalid Stripe webhook signatures must fail before persistence; valid unknown subscription events may be recorded as `unmatched` without creating access.
+
+Production evidence on 2026-08-24: Playwright verified the pilot Explorer pricing page, disabled Checkout boundary, upgrade-interaction persistence, tenant-filtered Admin Upgrade funnel visibility, Admin Webhook ledger visibility, invalid-signature fail-closed behavior, and one signed synthetic webhook canary recorded as `unmatched`.
+
 ---
 
 ## 31. Subscription Downgrade

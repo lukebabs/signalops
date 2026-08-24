@@ -25,7 +25,7 @@ Production readiness is still blocked by expansion and recovery-evidence gaps. T
 | FMP annual financial job | Active / observing | Option B selected and activated: weekly Saturday 02:30 ET recurring capture. Live scheduler status shows `signalops-marketops-boundary-fmp-annual-financial.timer active=active next=Sat 2026-08-29 06:30:00 UTC`. |
 | Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass, including the controlled Syncratic Ask live smoke after AI Gateway price-catalog propagation. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. Syncratic Ask readiness is tracked in [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md), and Admin Operations Health now has a dedicated Syncratic Ask row that passed production browser validation on 2026-08-23. |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
-| Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. |
+| Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. The `000160` upgrade-intent journey is validated: pricing renders configured Stripe catalog IDs, Checkout is disabled by design, upgrade interactions persist for tenant-pilot-b, Admin Upgrade funnel shows the event, and Stripe webhook fail-closed/signed-canary behavior is verified. |
 | Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |
 
 ## Production gates
@@ -61,6 +61,7 @@ These must close before wider pilot or paid production.
 These are required before expanding beyond tightly controlled users.
 
 4. **Subscription and access-control canaries**
+   - Current status: ready for configured QA identities, including the `000160` upgrade-intent closure. Playwright verified pilot Explorer pricing, Stripe price display, disabled Checkout boundary, authenticated upgrade-interaction persistence, tenant-filtered Admin Upgrade funnel evidence, and Stripe webhook ledger evidence. Self-service Checkout remains intentionally out of scope until a separate Checkout Session endpoint and webhook-confirmed entitlement gate are approved.
    - Re-run enforcement with tenant-local admin and tenant-pilot-b subscriber identities.
    - Validate Explorer, Professional, and Institutional entitlement behavior.
    - Validate cross-tenant denial, admin-only settings, tenant-default list behavior, and private-list ownership.

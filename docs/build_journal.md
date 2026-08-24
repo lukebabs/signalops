@@ -9200,3 +9200,12 @@ Next-cycle priority:
 - Updated `/admin/subscriptions` with an Upgrade funnel tab showing impressions, clicks, click-through rate, unique users, and searchable interaction rows.
 - Added `/marketops/pricing` to show configured Explorer, Professional, and Institutional plan positioning from subscription products while preserving source feature and return URL context for the future Checkout release.
 - Validation passed: `npm --prefix web run build`, focused Syncratic web tests, `go test ./internal/api ./internal/storage/postgres ./cmd/gateway`, and `git diff --check`.
+
+### 2026-08-24 — Subscription journey production validation closure
+
+- Applied and verified migration `000160_subscriber_upgrade_interactions` on the dedicated MarketOps database; the gateway role has `SELECT`/`INSERT` on `subscriber_upgrade_interactions` and execute access to `subscriber_subscription_admin_identity_labels(text)`.
+- Production Playwright validation covered the pilot Explorer pricing journey, configured Stripe price display, disabled Checkout boundary, authenticated upgrade-interaction persistence, Admin Upgrade funnel visibility for `tenant-pilot-b`, and Admin Webhook ledger evidence.
+- Validation exposed two runtime gaps and both were fixed: the public subscription product API now exposes non-secret Stripe product/price identifiers, and the upgrade-interaction endpoint is explicitly allowed for authenticated tenant-scoped subscribers without requiring a legacy SignalOps role.
+- Stripe webhook validation passed in both fail-closed and signed-canary modes: invalid signatures produced no persistent ledger write, and one signed synthetic `customer.subscription.updated` event recorded as `unmatched` without granting access.
+- Final production checks passed: targeted Go API tests, deployment-agent gateway deploy, subscriber UI smoke `2 passed`, Subscription Administration smoke `3 passed`, `/readyz` returned `200`, and gateway/web containers remained running.
+- Commit evidence: `26131f2 Fix subscription upgrade journey runtime access`.
