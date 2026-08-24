@@ -28,13 +28,13 @@ func (f *subscriberSubscriptionAPIFake) GetSubscriberEffectiveSubscription(_ con
 	return f.record, f.err
 }
 
-func TestSubscriberSubscriptionProductsExposeOnlyCommercialPolicy(t *testing.T) {
+func TestSubscriberSubscriptionProductsExposePublicCommercialCatalog(t *testing.T) {
 	fixture := newTestAuthFixture(t)
-	store := &subscriberSubscriptionAPIFake{products: []storage.SubscriberSubscriptionProductRecord{{ProductKey: "professional", BillingScope: "subject", DisplayName: "Professional", TrialDays: 7, FeaturePolicyJSON: []byte(`{"value_intelligence":true}`), LimitPolicyJSON: []byte(`{"private_watchlists":20}`), Revision: 1}}}
+	store := &subscriberSubscriptionAPIFake{products: []storage.SubscriberSubscriptionProductRecord{{ProductKey: "professional", BillingScope: "subject", DisplayName: "Professional", TrialDays: 7, StripeProductID: "prod_test", StripeMonthlyPriceID: "price_monthly", StripeAnnualPriceID: "price_annual", FeaturePolicyJSON: []byte(`{"value_intelligence":true}`), LimitPolicyJSON: []byte(`{"private_watchlists":20}`), Revision: 1}}}
 	router := NewRouter(RouterConfig{Auth: fixture.authCfg, SubscriberListsEnabled: true, SubscriberSubscriptionRepository: store})
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/subscription-products", nil), fixture.token(t, nil)))
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"professional"`) || strings.Contains(recorder.Body.String(), "stripe_") {
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"professional"`) || !strings.Contains(recorder.Body.String(), `"stripe_monthly_price_id":"price_monthly"`) {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }

@@ -246,6 +246,27 @@ func TestAuthEnabledRejectsCyberOpsLiveTrafficTenantMismatch(t *testing.T) {
 	}
 }
 
+func TestAuthEnabledAllowsSubscriberUpgradeInteractionWithoutSignalOpsRole(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	called := false
+	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		principal, ok := principalFromContext(r.Context())
+		if !ok || principal.TenantID != "tenant-pilot-b" || principal.Subject != "user-123" {
+			t.Fatalf("unexpected principal: %+v authenticated=%t", principal, ok)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}), fixture.authCfg)
+	token := fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b", "realm_access": map[string]any{"roles": []string{}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketops/subscriptions/upgrade-interactions", bytes.NewBufferString(`{"interaction_type":"prompt_clicked","required_tier":"professional"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusAccepted || !called {
+		t.Fatalf("status=%d called=%t body=%s", recorder.Code, called, recorder.Body.String())
+	}
+}
+
 func TestAuthEnabledRejectsMismatchedJSONBodyTenantBeforeHandler(t *testing.T) {
 	fixture := newTestAuthFixture(t)
 	called := false

@@ -338,6 +338,9 @@ func authorizedForRequest(r *http.Request, principal Principal) bool {
 	if isSubscriberSubscriptionAdministrationRequest(r) {
 		return isSubscriptionAdministrator(principal)
 	}
+	if isSubscriberUpgradeInteractionRequest(r) {
+		return strings.TrimSpace(principal.TenantID) != "" && strings.TrimSpace(principal.Subject) != ""
+	}
 	if allowsCrossTenantInitialProvisioning(r, principal) || allowsCrossTenantSubscriptionAdministration(r, principal) {
 		return true
 	}
@@ -399,6 +402,10 @@ func isAdministrationOperationsRequest(r *http.Request) bool {
 
 func isSubscriberSubscriptionAdministrationRequest(r *http.Request) bool {
 	return strings.HasPrefix(r.URL.Path, "/v1/administration/subscriptions")
+}
+
+func isSubscriberUpgradeInteractionRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/v1/marketops/subscriptions/upgrade-interactions"
 }
 
 func isSubscriberWatchlistRequest(r *http.Request) bool {

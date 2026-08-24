@@ -59,14 +59,17 @@ func registerSubscriberSubscriptionRoutes(mux *http.ServeMux, cfg RouterConfig) 
 
 func subscriptionProductResponse(product storage.SubscriberSubscriptionProductRecord) map[string]any {
 	return map[string]any{
-		"product_key":    product.ProductKey,
-		"billing_scope":  product.BillingScope,
-		"display_name":   product.DisplayName,
-		"is_free":        product.IsFree,
-		"trial_days":     product.TrialDays,
-		"feature_policy": subscriptionJSON(product.FeaturePolicyJSON),
-		"limit_policy":   subscriptionJSON(product.LimitPolicyJSON),
-		"revision":       product.Revision,
+		"product_key":             product.ProductKey,
+		"billing_scope":           product.BillingScope,
+		"display_name":            product.DisplayName,
+		"is_free":                 product.IsFree,
+		"trial_days":              product.TrialDays,
+		"stripe_product_id":       product.StripeProductID,
+		"stripe_monthly_price_id": product.StripeMonthlyPriceID,
+		"stripe_annual_price_id":  product.StripeAnnualPriceID,
+		"feature_policy":          subscriptionJSON(product.FeaturePolicyJSON),
+		"limit_policy":            subscriptionJSON(product.LimitPolicyJSON),
+		"revision":                product.Revision,
 	}
 }
 
