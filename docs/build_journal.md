@@ -9143,3 +9143,9 @@ Next-cycle priority:
 - Corrected the Syncratic Intelligence daily narrative interaction so Daily Overview, Sector Rotation, Risk/Reward, and Review Queue cards reveal the full persisted narrative inline instead of switching users into Asset Drilldowns.
 - Updated the Dashboard Syncratic narrative digest so cards expand to the full persisted `explanation` text, with compact summaries used only as fallback/supporting context.
 - Updated the Syncratic Ask browser smoke to assert the inline full-narrative flow rather than the prior Asset Drilldowns transition.
+
+
+### 2026-08-24 — Dashboard Ask Explanation label
+
+- Updated the Dashboard Syncratic narrative expansion to explicitly surface the persisted Ask output as `Ask Explanation` when Syncratic Ask metadata is present.
+- Added the same generated-by-Syncratic-Ask cue used in the detailed workspace so analysts can distinguish Ask output from deterministic fallback outside Asset Drilldowns.
