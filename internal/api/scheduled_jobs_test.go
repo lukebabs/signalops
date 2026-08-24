@@ -162,6 +162,16 @@ func TestScheduledJobStatusesPreferDatabaseStatus(t *testing.T) {
 func TestMarketOpsOperationsFreshnessResponses(t *testing.T) {
 	session := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
 	asOf := time.Date(2026, 8, 20, 22, 15, 0, 0, time.UTC)
+	completed := time.Date(2026, 8, 20, 22, 30, 0, 0, time.UTC)
+	jobs := []map[string]any{{
+		"job_id":          "marketops-risk-reward",
+		"label":           "MarketOps Risk/Reward post-close",
+		"schedule":        "Post-close completion stage",
+		"timezone":        "America/New_York",
+		"status":          "succeeded",
+		"completed_at":    completed.Format(time.RFC3339),
+		"run_now_enabled": true,
+	}}
 	rows := marketOpsOperationsFreshnessResponses([]storage.MarketOpsOperationsFreshnessRecord{{
 		ViewID:            "risk_reward",
 		Label:             "Risk/Reward",
@@ -170,11 +180,17 @@ func TestMarketOpsOperationsFreshnessResponses(t *testing.T) {
 		RowCount:          132,
 		ExpectedCount:     132,
 		Status:            "current",
-	}})
+	}}, jobs)
 	if len(rows) != 1 {
 		t.Fatalf("unexpected rows: %#v", rows)
 	}
 	if rows[0]["latest_session_date"] != "2026-08-20" || rows[0]["latest_as_of"] != "2026-08-20T22:15:00Z" || rows[0]["status"] != "current" {
 		t.Fatalf("unexpected freshness response: %#v", rows[0])
+	}
+	if rows[0]["dependency_job_id"] != "marketops-risk-reward" || rows[0]["dependency_status"] != "succeeded" || rows[0]["run_now_job_id"] != "marketops-risk-reward" || rows[0]["run_now_enabled"] != true {
+		t.Fatalf("freshness contract was not attached: %#v", rows[0])
+	}
+	if rows[0]["expected_freshness"] == "" || rows[0]["staleness_explanation"] == "" || rows[0]["next_step"] == "" {
+		t.Fatalf("freshness explanation fields missing: %#v", rows[0])
 	}
 }

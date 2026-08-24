@@ -9209,3 +9209,10 @@ Next-cycle priority:
 - Stripe webhook validation passed in both fail-closed and signed-canary modes: invalid signatures produced no persistent ledger write, and one signed synthetic `customer.subscription.updated` event recorded as `unmatched` without granting access.
 - Final production checks passed: targeted Go API tests, deployment-agent gateway deploy, subscriber UI smoke `2 passed`, Subscription Administration smoke `3 passed`, `/readyz` returned `200`, and gateway/web containers remained running.
 - Commit evidence: `26131f2 Fix subscription upgrade journey runtime access`.
+
+### 2026-08-24 — Admin Operations Health actionable contract
+
+- Added a deterministic Operations Health contract layer to `/v1/administration/marketops/operations-health` so each data-freshness row includes expected freshness semantics, producing dependency job, dependency status/schedule, latest evidence, coverage, staleness explanation, next-step guidance, and constrained run-now metadata.
+- Updated Admin System / MarketOps Operations Health to render the contract as an actionable control table. Run-now buttons remain limited to existing deployment-agent allowlist entries; unsupported refresh paths such as SAF projection remain status-only.
+- Added regression coverage for the API contract and Playwright coverage that asserts Dashboard, Risk/Reward, Intraday, and FMP rows expose contract fields and that the Admin UI renders Expected freshness, Dependency, Latest evidence, Why / next step, Run recovery, and Status only.
+- Validation passed: `go test ./internal/api`, `npm --prefix web run build`, gateway/web deployment through constrained deployment-agent actions, `/readyz`, subscriber pilot smoke, and Admin Operations Health Playwright/API smoke.

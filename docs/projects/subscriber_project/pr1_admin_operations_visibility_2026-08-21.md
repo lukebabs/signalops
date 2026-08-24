@@ -215,3 +215,58 @@ scripts/run_subscription_admin_ui_smoke.sh
 ```
 
 This verifies the Admin Operations Health API and browser rendering include the `Syncratic Ask` freshness row.
+
+## Actionable freshness contract extension — 2026-08-24
+
+Admin Operations Health now renders the data-freshness rows as an operational control contract rather than a raw status table.
+
+Each core row includes:
+
+- expected freshness semantics;
+- producing dependency job id and label;
+- dependency schedule/timezone and latest completed evidence where available;
+- latest session/as-of evidence;
+- row coverage against expected cohort size;
+- reason or deterministic staleness explanation;
+- next-step guidance;
+- constrained run-now action when the deployment-agent allowlist supports it.
+
+Action mapping is intentionally narrow:
+
+| View | Dependency/action boundary |
+| --- | --- |
+| Dashboard | Depends on `marketops-daily-postclose`; action uses `marketops-postclose-recovery`. |
+| Assets analytical coverage | Depends on `marketops-daily-postclose`; action uses `marketops-postclose-recovery`. |
+| Market State | Depends on `marketops-daily-postclose`; action uses `marketops-postclose-recovery`. |
+| Risk/Reward | Depends on and runs `marketops-risk-reward`. |
+| Sector Rotation Intelligence | Depends on and runs `marketops-sri-refresh`. |
+| Signal Assurance | Status-only; SAF projection refresh remains a named-approval deployment-agent action and is not exposed as generic run-now. |
+| Intraday conditions | Depends on and runs `marketops-intraday`. |
+| FMP annual financials | Depends on and runs `marketops-fmp-annual-financial`. |
+| Syncratic Ask | Status-only; narrative/Ask refresh is governed outside the generic scheduler run-now table. |
+
+Validation performed before deployment:
+
+```text
+go test ./internal/api
+npm --prefix web run build
+```
+
+Deployment and production validation:
+
+```text
+sudo -n signalops-deploy-agent marketops-gateway-deploy
+sudo -n signalops-deploy-agent marketops-web-deploy
+curl --max-time 10 -fsS https://signalops.syncratic.io/readyz
+{"service":"signalops-gateway","status":"ready","time":"2026-08-24T11:38:54Z"}
+
+sudo -n signalops-deploy-agent subscriber-pilot-ui-smoke
+..                                                                       [100%]
+2 passed in 6.49s
+
+scripts/run_subscription_admin_ui_smoke.sh -k test_marketops_admin_operations_health_freshness_rows
+...                                                                      [100%]
+3 passed in 4.00s
+```
+
+A first post-deploy subscriber smoke failed during the web/gateway restart window with `Failed to fetch`; the same constrained smoke passed after readiness returned. The failure is recorded as restart-window harness timing, not a persistent route or authorization failure.

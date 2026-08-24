@@ -150,34 +150,64 @@ export function SystemRoute() {
   />
 </div>
 {operationsDataFreshness.length ? (
-  <div className="overflow-x-auto rounded border border-gray-200 bg-white">
-    <table className="min-w-full divide-y divide-gray-200 text-xs">
-      <thead className="bg-gray-50 text-left text-gray-500">
+  <div className="overflow-x-auto rounded border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+    <table className="min-w-full divide-y divide-gray-200 text-xs dark:divide-slate-800">
+      <thead className="bg-gray-50 text-left text-gray-500 dark:bg-slate-900 dark:text-slate-300">
         <tr>
           <th className="px-2 py-1">View</th>
           <th className="px-2 py-1">Status</th>
-          <th className="px-2 py-1">Latest session</th>
-          <th className="px-2 py-1">Latest as-of</th>
-          <th className="px-2 py-1">Rows</th>
-          <th className="px-2 py-1">Reason</th>
+          <th className="px-2 py-1">Expected freshness</th>
+          <th className="px-2 py-1">Dependency</th>
+          <th className="px-2 py-1">Latest evidence</th>
+          <th className="px-2 py-1">Coverage</th>
+          <th className="px-2 py-1">Why / next step</th>
+          <th className="px-2 py-1">Action</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-gray-100">
-        {operationsDataFreshness.map((item: any) => (
-          <tr key={item.view_id}>
-            <td className="px-2 py-1 font-medium">{item.label}</td>
-            <td className="px-2 py-1"><StatusBadge status={item.status} /></td>
-            <td className="px-2 py-1 text-gray-600">{item.latest_session_date ?? "—"}</td>
-            <td className="px-2 py-1 text-gray-600">{formatUtc(item.latest_as_of)}</td>
-            <td className="px-2 py-1 text-gray-600">{String(item.row_count ?? 0)}{item.expected_count ? " / " + String(item.expected_count) : ""}</td>
-            <td className="px-2 py-1 text-gray-600">{item.reason || "—"}</td>
+      <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+        {operationsDataFreshness.map((item: any) => {
+          const rowJobId = item.run_now_job_id || item.dependency_job_id;
+          const rowPending = runScheduledJobNow.isPending && runScheduledJobNow.variables === rowJobId;
+          return (
+          <tr key={item.view_id} className="align-top">
+            <td className="px-2 py-2 font-medium text-gray-900 dark:text-slate-100">
+              {item.label}
+              <div className="mt-1 font-mono text-[10px] font-normal text-gray-400 dark:text-slate-500">{item.view_id}</div>
+            </td>
+            <td className="px-2 py-2"><StatusBadge status={item.status} /></td>
+            <td className="max-w-[220px] px-2 py-2 text-gray-600 dark:text-slate-300">{item.expected_freshness || "Defined by producing workflow."}</td>
+            <td className="max-w-[220px] px-2 py-2 text-gray-600 dark:text-slate-300">
+              <div className="font-medium text-gray-800 dark:text-slate-100">{item.dependency_label || item.dependency_job_id || "—"}</div>
+              {item.dependency_status ? <div className="mt-1"><StatusBadge status={item.dependency_status} /></div> : null}
+              <div className="mt-1 text-[10px] text-gray-500 dark:text-slate-400">{item.dependency_schedule || "—"}{item.dependency_timezone ? " · " + item.dependency_timezone : ""}</div>
+              {item.dependency_completed_at ? <div className="mt-1 text-[10px] text-gray-500 dark:text-slate-400">completed {formatUtc(item.dependency_completed_at)}</div> : null}
+            </td>
+            <td className="px-2 py-2 text-gray-600 dark:text-slate-300">
+              <div>{item.latest_session_date ?? "—"}</div>
+              <div className="text-[10px] text-gray-500 dark:text-slate-400">{formatUtc(item.latest_as_of)}</div>
+            </td>
+            <td className="px-2 py-2 text-gray-600 dark:text-slate-300">{String(item.row_count ?? 0)}{item.expected_count ? " / " + String(item.expected_count) : ""}</td>
+            <td className="max-w-[320px] px-2 py-2 text-gray-600 dark:text-slate-300">
+              <div>{item.staleness_explanation || item.reason || "—"}</div>
+              {item.next_step ? <div className="mt-1 text-[10px] font-medium text-gray-500 dark:text-slate-400">Next: {item.next_step}</div> : null}
+            </td>
+            <td className="px-2 py-2">
+              <button
+                type="button"
+                onClick={() => item.run_now_job_id ? runScheduledJobNow.mutate(item.run_now_job_id) : undefined}
+                disabled={rowPending || item.run_now_enabled !== true || !item.run_now_job_id}
+                className="whitespace-nowrap rounded border border-brand-300 bg-white px-2 py-1 text-[11px] font-medium text-brand-700 hover:bg-brand-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-brand-700 dark:bg-slate-950 dark:text-brand-200 dark:hover:bg-slate-900 dark:disabled:border-slate-700 dark:disabled:text-slate-500"
+              >
+                {item.run_now_enabled !== true || !item.run_now_job_id ? "Status only" : rowPending ? "Starting..." : (item.action_label || "Run now")}
+              </button>
+            </td>
           </tr>
-        ))}
+        )})}
       </tbody>
     </table>
   </div>
 ) : marketOpsOperationsHealth.isLoading ? null : (
-  <div className="rounded border border-gray-200 bg-white p-3 text-xs text-gray-500">No MarketOps data-freshness records available.</div>
+  <div className="rounded border border-gray-200 bg-white p-3 text-xs text-gray-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">No MarketOps data-freshness records available.</div>
 )}
 {marketOpsOperationsHealth.isError ? (
   <ErrorState error={marketOpsOperationsHealth.error} />

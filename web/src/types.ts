@@ -107,7 +107,7 @@ export interface SchedulerRunResponse {
 }
 
 export interface ScheduledJob { job_id:string; label:string; schedule:string; timezone:string; status:"pending"|"running"|"succeeded"|"failed"|string; started_at?:string; completed_at?:string; exit_code?:number; run_now_enabled?:boolean; reason?:string; detail?:unknown; updated_at?:string; }
-export interface MarketOpsDataFreshness { view_id:string; label:string; latest_session_date?:string; latest_as_of?:string; row_count:number; expected_count:number; status:string; reason?:string; }
+export interface MarketOpsDataFreshness { view_id:string; label:string; latest_session_date?:string; latest_as_of?:string; row_count:number; expected_count:number; status:string; reason?:string; expected_freshness?:string; dependency_job_id?:string; dependency_label?:string; dependency_status?:string; dependency_schedule?:string; dependency_timezone?:string; dependency_started_at?:string; dependency_completed_at?:string; dependency_exit_code?:string; run_now_job_id?:string; run_now_enabled?:boolean; action_label?:string; staleness_explanation?:string; next_step?:string; }
 export interface ScheduledJobsResponse { jobs: ScheduledJob[]; }
 export interface ScheduledJobRunNow { job_id:string; status:string; action:string; runner:string; started_at:string; output?:string; }
 export interface ScheduledJobRunNowResponse { run: ScheduledJobRunNow; }

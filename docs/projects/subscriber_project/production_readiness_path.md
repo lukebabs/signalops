@@ -2,7 +2,7 @@
 
 Status: controlled pilot-ready checkpoint advanced; PR-0 and PR-1 are closed after the August 21, 2026 ET post-close acceptance cycle. Syncratic Ask live smoke is now passing as a production-readiness QA control.
 
-Last reviewed: 2026-08-22.
+Last reviewed: 2026-08-24.
 
 ## Readiness position
 
@@ -71,11 +71,13 @@ These are required before expanding beyond tightly controlled users.
      - Subscription enforcement can be enabled, tested, and restored without residue.
 
 5. **Admin operations status control**
-   - Status: closed for the current pilot path after Admin Operations Health and Dashboard freshness browser smokes passed.
-   - Deployment-agent expansion is now installed: `scheduler-status` lists warm-EOD and FMP scheduled-service rows.
+   - Status: closed for the current pilot path after Admin Operations Health, Dashboard freshness, and the actionable freshness-contract browser smokes passed.
+   - Deployment-agent expansion is installed: `scheduler-status` lists warm-EOD, FMP, retention, storage, and core MarketOps scheduled-service rows.
    - Acceptance evidence:
      - Admin can see core job/data freshness without shell access.
-     - Run-now uses constrained deployment-agent actions, not broad shell access.
+     - Each core freshness row now exposes its expected freshness contract, producing dependency job, dependency status/schedule, latest evidence, coverage count, reason/next-step guidance, and only the constrained run-now action allowed for that view.
+     - Run-now uses constrained deployment-agent actions, not broad shell access. Unsupported actions, including SAF projection refresh, remain status-only in the UI.
+     - Production validation on 2026-08-24 passed: targeted Go API tests, web build, gateway/web deploy, `/readyz`, subscriber smoke, and Admin Operations Health Playwright/API smoke.
 
 6. **Backup and restore re-verification**
    - Run a current dedicated MarketOps pgBackRest backup and isolated restore rehearsal.
@@ -156,6 +158,12 @@ Implementation note — 2026-08-21:
 
 - The first source slice added read-only data-freshness visibility to the Administration operations-health API and Admin Workbench for Dashboard alignment, Market State, Risk/Reward, SRI, SAF, and Intraday.
 - The follow-on source slice added Assets analytical coverage and FMP annual financial workflow freshness. PR-1 source coverage is now complete. Browser acceptance is automated and passed through `scripts/run_subscription_admin_ui_smoke.sh`.
+
+Implementation note — 2026-08-24:
+
+- Admin Operations Health now includes an explicit freshness contract for each core view: expected freshness, dependency job, dependency status/schedule, latest evidence, coverage, reason/next-step explanation, and constrained action.
+- Actionability is intentionally bounded. Dashboard/Assets/Market State use the post-close recovery guard, Risk/Reward uses the Risk/Reward run-now action, SRI uses the SRI run-now action, Intraday uses the intraday monitor, and FMP uses the annual-financial action. SAF and Syncratic Ask remain status-only because their refresh paths require separate named approval or narrative-specific controls.
+- Production browser/API validation passed against `/admin/system` after gateway/web deployment.
 
 ### Sprint PR-2 — Harden access and subscriptions
 

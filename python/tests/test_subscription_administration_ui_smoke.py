@@ -104,10 +104,21 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
     assert isinstance(rows, list), "operations-health response did not include data_freshness rows"
     labels = {str(row.get("label", "")) for row in rows}
     assert expected_labels.issubset(labels), f"missing freshness rows: {sorted(expected_labels - labels)}"
+    by_label = {str(row.get("label", "")): row for row in rows}
+    for label in ["Dashboard", "Risk/Reward", "Intraday conditions", "FMP annual financials"]:
+        row = by_label[label]
+        assert row.get("expected_freshness"), f"{label} has no expected freshness contract"
+        assert row.get("dependency_job_id"), f"{label} has no dependency job contract"
+        assert row.get("staleness_explanation"), f"{label} has no freshness explanation"
+        assert row.get("next_step"), f"{label} has no next-step guidance"
+    assert by_label["Risk/Reward"].get("run_now_job_id") == "marketops-risk-reward"
+    assert by_label["Signal Assurance"].get("run_now_enabled") is False
 
     expect(admin_page.get_by_role("heading", name="MarketOps Operations Health")).to_be_visible(timeout=30_000)
     body = admin_page.locator("body")
     for label in sorted(expected_labels):
+        expect(body).to_contain_text(label, timeout=30_000)
+    for label in ["Expected freshness", "Dependency", "Latest evidence", "Why / next step", "Run recovery", "Status only"]:
         expect(body).to_contain_text(label, timeout=30_000)
 
 

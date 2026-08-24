@@ -243,15 +243,225 @@ func triggerScheduledJobRunNowViaSocket(ctx context.Context, jobID, action, sock
 	return result, nil
 }
 
-func marketOpsOperationsFreshnessResponses(records []storage.MarketOpsOperationsFreshnessRecord) []map[string]any {
+type marketOpsOperationsFreshnessContract struct {
+	ExpectedFreshness string
+	DependencyJobID   string
+	RunNowJobID       string
+	ActionLabel       string
+	NextStepCurrent   string
+	NextStepStale     string
+}
+
+func marketOpsOperationsFreshnessContractFor(record storage.MarketOpsOperationsFreshnessRecord) marketOpsOperationsFreshnessContract {
+	switch strings.TrimSpace(record.ViewID) {
+	case "dashboard":
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "After each completed trading day once post-close evidence is aligned.",
+			DependencyJobID:   "marketops-daily-postclose",
+			RunNowJobID:       "marketops-postclose-recovery",
+			ActionLabel:       "Run recovery",
+			NextStepCurrent:   "No action required. Dashboard evidence is aligned with the completed-session contract.",
+			NextStepStale:     "Run the post-close recovery guard, then recheck Dashboard, Market State, Risk/Reward, and Signal Assurance.",
+		}
+	case "assets", "assets_coverage":
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "After each completed trading day for the selected/default watchlist coverage contract.",
+			DependencyJobID:   "marketops-daily-postclose",
+			RunNowJobID:       "marketops-postclose-recovery",
+			ActionLabel:       "Run recovery",
+			NextStepCurrent:   "No action required. Selected/default watchlist coverage has completed-session evidence.",
+			NextStepStale:     "Run the post-close recovery guard and inspect incomplete MarketOps tasks for missed coverage activation.",
+		}
+	case "market_state":
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "After each completed trading day for every legacy-default asset.",
+			DependencyJobID:   "marketops-daily-postclose",
+			RunNowJobID:       "marketops-postclose-recovery",
+			ActionLabel:       "Run recovery",
+			NextStepCurrent:   "No action required. Market State is aligned with completed-session evidence.",
+			NextStepStale:     "Run the post-close recovery guard and confirm Market State materialization completed.",
+		}
+	case "risk_reward":
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "After each completed trading day after EOD baseline and Market State are available.",
+			DependencyJobID:   "marketops-risk-reward",
+			RunNowJobID:       "marketops-risk-reward",
+			ActionLabel:       "Run Risk/Reward",
+			NextStepCurrent:   "No action required. Risk/Reward breadth is current for the completed session.",
+			NextStepStale:     "Run the Risk/Reward post-close stage and verify breadth aligns to the legacy-default cohort.",
+		}
+	case "sri", "sector_rotation":
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "Weekday evening after issuer ETF evidence and sector ranking refresh complete.",
+			DependencyJobID:   "marketops-sri-refresh",
+			RunNowJobID:       "marketops-sri-refresh",
+			ActionLabel:       "Run SRI",
+			NextStepCurrent:   "No action required. Sector Rotation Intelligence has current ranking evidence.",
+			NextStepStale:     "Run SRI refresh, then run issuer-holdings refresh if holdings coverage is also stale.",
+		}
+	case "signal_assurance":
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "After completed-session signal outcomes are projected for the legacy-default viability cohort.",
+			DependencyJobID:   "marketops-daily-postclose",
+			RunNowJobID:       "",
+			ActionLabel:       "Status only",
+			NextStepCurrent:   "No action required. Signal Assurance rows are aligned with current completed-session evidence.",
+			NextStepStale:     "Use the constrained SAF projection refresh deployment-agent action under named approval; this action is intentionally not exposed as generic run-now.",
+		}
+	case "intraday", "intraday_conditions":
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "Every 15 minutes during the active MarketOps intraday window for hot watchlist assets.",
+			DependencyJobID:   "marketops-intraday",
+			RunNowJobID:       "marketops-intraday",
+			ActionLabel:       "Run intraday",
+			NextStepCurrent:   "No action required. Intraday snapshots are within the freshness window.",
+			NextStepStale:     "Run the intraday monitor and verify the dedicated MarketOps scheduler timers remain active.",
+		}
+	case "fmp_annual", "fmp_annual_financials":
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "Weekly continuation until all eligible warm-catalog assets have annual financial evidence.",
+			DependencyJobID:   "marketops-fmp-annual-financial",
+			RunNowJobID:       "marketops-fmp-annual-financial",
+			ActionLabel:       "Run FMP annual",
+			NextStepCurrent:   "No action required. Annual financial capture is complete for the qualified cohort.",
+			NextStepStale:     "Run FMP annual financial capture and inspect failed/ineligible symbols before expanding provider normalization.",
+		}
+	case "syncratic_ask":
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "After daily Syncratic narrative materialization has Ask-backed or deterministic explanation evidence.",
+			DependencyJobID:   "marketops-daily-postclose",
+			RunNowJobID:       "",
+			ActionLabel:       "Status only",
+			NextStepCurrent:   "No action required. Syncratic narrative evidence is available for current dashboard explainability.",
+			NextStepStale:     "Review Syncratic narrative materialization and AI Gateway validation before exposing stale explanations.",
+		}
+	default:
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "Defined by the producing MarketOps workflow.",
+			NextStepCurrent:   "No action required.",
+			NextStepStale:     "Inspect the producing workflow and scheduled-job ledger for this view.",
+		}
+	}
+}
+
+func scheduledJobRowsByID(rows []map[string]any) map[string]map[string]any {
+	byID := make(map[string]map[string]any, len(rows))
+	for _, row := range rows {
+		if jobID, ok := row["job_id"].(string); ok && jobID != "" {
+			byID[jobID] = row
+		}
+	}
+	return byID
+}
+
+func rowString(row map[string]any, key string) string {
+	if row == nil {
+		return ""
+	}
+	switch value := row[key].(type) {
+	case string:
+		return value
+	case fmt.Stringer:
+		return value.String()
+	default:
+		return ""
+	}
+}
+
+func rowBool(row map[string]any, key string) bool {
+	if row == nil {
+		return false
+	}
+	value, _ := row[key].(bool)
+	return value
+}
+
+func rowIntString(row map[string]any, key string) string {
+	if row == nil {
+		return ""
+	}
+	switch value := row[key].(type) {
+	case int:
+		return fmt.Sprintf("%d", value)
+	case int64:
+		return fmt.Sprintf("%d", value)
+	case float64:
+		return fmt.Sprintf("%.0f", value)
+	case string:
+		return value
+	default:
+		return ""
+	}
+}
+
+func marketOpsFreshnessStatusExplanation(record storage.MarketOpsOperationsFreshnessRecord, contract marketOpsOperationsFreshnessContract, dependency map[string]any) (string, string) {
+	status := strings.ToLower(strings.TrimSpace(record.Status))
+	reason := strings.TrimSpace(record.Reason)
+	jobStatus := rowString(dependency, "status")
+	jobReason := rowString(dependency, "reason")
+	if jobReason == "" {
+		jobReason = rowString(dependency, "error")
+	}
+	if jobReason == "" {
+		jobReason = rowString(dependency, "error_message")
+	}
+	nextStep := contract.NextStepCurrent
+	if status == "stale" || status == "partial" || status == "failed" || status == "missing" || status == "unavailable" || status == "pending" {
+		nextStep = contract.NextStepStale
+	}
+	if nextStep == "" {
+		nextStep = "Inspect the producing workflow and scheduled-job ledger for this view."
+	}
+	if reason != "" {
+		return reason, nextStep
+	}
+	if jobStatus == "failed" {
+		if jobReason != "" {
+			return "Producing job failed: " + jobReason, nextStep
+		}
+		return "Producing job failed; inspect the scheduled-job ledger for details.", nextStep
+	}
+	if status == "current" {
+		return "Latest evidence satisfies the configured MarketOps freshness contract.", nextStep
+	}
+	if status == "partial" {
+		return "Freshness evidence exists but coverage is incomplete against the expected cohort.", nextStep
+	}
+	if status == "stale" {
+		return "Latest evidence is outside the configured MarketOps freshness window.", nextStep
+	}
+	return "Freshness status is governed by the producing MarketOps workflow.", nextStep
+}
+
+func marketOpsOperationsFreshnessResponses(records []storage.MarketOpsOperationsFreshnessRecord, jobs []map[string]any) []map[string]any {
+	jobsByID := scheduledJobRowsByID(jobs)
 	out := make([]map[string]any, 0, len(records))
 	for _, record := range records {
+		contract := marketOpsOperationsFreshnessContractFor(record)
+		dependency := jobsByID[contract.DependencyJobID]
+		runNow := jobsByID[contract.RunNowJobID]
+		runNowEnabled := contract.RunNowJobID != "" && rowBool(runNow, "run_now_enabled")
+		explanation, nextStep := marketOpsFreshnessStatusExplanation(record, contract, dependency)
 		row := map[string]any{
-			"view_id":        record.ViewID,
-			"label":          record.Label,
-			"row_count":      record.RowCount,
-			"expected_count": record.ExpectedCount,
-			"status":         record.Status,
+			"view_id":                 record.ViewID,
+			"label":                   record.Label,
+			"row_count":               record.RowCount,
+			"expected_count":          record.ExpectedCount,
+			"status":                  record.Status,
+			"expected_freshness":      contract.ExpectedFreshness,
+			"dependency_job_id":       contract.DependencyJobID,
+			"dependency_label":        rowString(dependency, "label"),
+			"dependency_status":       rowString(dependency, "status"),
+			"dependency_schedule":     rowString(dependency, "schedule"),
+			"dependency_timezone":     rowString(dependency, "timezone"),
+			"dependency_started_at":   rowString(dependency, "started_at"),
+			"dependency_completed_at": rowString(dependency, "completed_at"),
+			"dependency_exit_code":    rowIntString(dependency, "exit_code"),
+			"run_now_job_id":          contract.RunNowJobID,
+			"run_now_enabled":         runNowEnabled,
+			"action_label":            contract.ActionLabel,
+			"staleness_explanation":   explanation,
+			"next_step":               nextStep,
 		}
 		if record.LatestSessionDate != nil {
 			row["latest_session_date"] = record.LatestSessionDate.UTC().Format("2006-01-02")
@@ -270,10 +480,11 @@ func marketOpsOperationsFreshnessResponses(records []storage.MarketOpsOperations
 const operationsHealthTaskStaleWindow = 2 * time.Hour
 
 func marketOpsOperationsHealth(ctx context.Context, repo storage.QueryRepository, tenantID string, now time.Time) (map[string]any, error) {
+	scheduledJobs := scheduledJobStatuses(ctx, repo)
 	result := map[string]any{
 		"generated_at":   now.Format(time.RFC3339),
 		"tenant_id":      tenantID,
-		"scheduled_jobs": scheduledJobStatuses(ctx, repo),
+		"scheduled_jobs": scheduledJobs,
 	}
 
 	taskSummary := map[string]any{
@@ -292,7 +503,7 @@ func marketOpsOperationsHealth(ctx context.Context, repo storage.QueryRepository
 		if err != nil {
 			return nil, err
 		}
-		freshness = marketOpsOperationsFreshnessResponses(records)
+		freshness = marketOpsOperationsFreshnessResponses(records, scheduledJobs)
 	}
 	result["data_freshness"] = freshness
 
