@@ -70,6 +70,12 @@ This governance surface still does not enable Stripe Checkout, tenant self-servi
 
 The first Stripe integration slice is admin-managed billing, documented in [Stripe Admin-Managed Billing](stripe_admin_managed_billing.md). It allows platform admins to map Stripe product/customer/subscription IDs and reconcile signed webhooks for known subscriptions only. It does not create a customer checkout path.
 
+## Upgrade journey foundation — 2026-08-24
+
+Migration `000160_subscriber_upgrade_interactions` adds the first product-led subscription journey ledger. The browser can record authenticated, tenant-scoped upgrade prompt impressions and clicks through `POST /v1/marketops/subscriptions/upgrade-interactions`. Records are RLS-protected in the dedicated MarketOps database and surfaced in Administration > Subscriptions > Upgrade funnel for source attribution, click-through review, and user-level context.
+
+Locked MarketOps feature gates now present contextual upgrade copy and route users to `/marketops/pricing`, preserving the source feature and return URL. The pricing page reads configured subscription products and Stripe price IDs from the existing subscription product API, and explicitly does not start Checkout. This slice captures upgrade intent and plan comparison only; entitlements still change only through governed administration or future webhook-confirmed Checkout.
+
 ## Stripe boundary
 
 Stripe will first be used as admin-managed billing evidence and signed webhook reconciliation. Later, Professional self-service checkout/billing portal can be added as a separate release. The intended state transition rules are:
@@ -94,7 +100,7 @@ Rollback is one configuration change to `false`. It removes commercial feature e
 
 ## Explicitly deferred work
 
-- Stripe Checkout, customer portal, retry/dead-letter handling, and billing telemetry beyond the admin-managed webhook ledger.
+- Stripe Checkout, customer portal, retry/dead-letter handling, and billing telemetry beyond the admin-managed webhook ledger and upgrade-intent ledger.
 - Tenant-facing seat-management UI, Stripe price editing, controlled commercial overrides beyond the platform-admin governance boundary, and customer self-service upgrade paths.
 - Research-report generation/storage, portfolio CSV ingestion, batch-screening UI, custom-universe selector, API-key lifecycle, and shared-tenant branding controls.
 - SRI discovery/detail response shaping beyond the current endpoint boundary.

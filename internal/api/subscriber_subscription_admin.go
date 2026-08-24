@@ -30,6 +30,21 @@ type subscriberSubscriptionSeatRequest struct {
 	Status        string `json:"status"`
 	CorrelationID string `json:"correlation_id"`
 }
+type subscriberUpgradeInteractionRequest struct {
+	InteractionType string          `json:"interaction_type"`
+	AppID           string          `json:"app_id"`
+	SourceFeature   string          `json:"source_feature"`
+	SourceRoute     string          `json:"source_route"`
+	SourceURL       string          `json:"source_url"`
+	AssetSymbol     string          `json:"asset_symbol"`
+	CurrentTier     string          `json:"current_tier"`
+	RequiredTier    string          `json:"required_tier"`
+	PromptVariant   string          `json:"prompt_variant"`
+	CTALabel        string          `json:"cta_label"`
+	CorrelationID   string          `json:"correlation_id"`
+	Metadata        json.RawMessage `json:"metadata"`
+}
+
 type subscriberSubscriptionProductPolicyRequest struct {
 	DisplayName   string          `json:"display_name"`
 	IsFree        bool            `json:"is_free"`
@@ -118,6 +133,35 @@ func registerSubscriberSubscriptionAdministrationRoutes(mux *http.ServeMux, cfg 
 		}
 		writeJSON(w, http.StatusOK, subscriberUserActivityResponse(snapshot))
 	})
+	mux.HandleFunc("POST /v1/marketops/subscriptions/upgrade-interactions", func(w http.ResponseWriter, r *http.Request) {
+		principal, authenticated := principalFromContext(r.Context())
+		if !authenticated || strings.TrimSpace(principal.TenantID) == "" || strings.TrimSpace(principal.Subject) == "" {
+			writeError(w, http.StatusForbidden, "upgrade_interaction_identity_required", "authenticated tenant-scoped identity is required")
+			return
+		}
+		var request subscriberUpgradeInteractionRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		metadata := request.Metadata
+		if len(metadata) == 0 {
+			metadata = json.RawMessage(`{}`)
+		}
+		if err := repository.RecordSubscriberUpgradeInteraction(r.Context(), storage.SubscriberUpgradeInteractionInput{
+			TenantID: strings.TrimSpace(principal.TenantID), Subject: strings.TrimSpace(principal.Subject),
+			AppID: firstNonEmpty(strings.TrimSpace(request.AppID), "marketops"), InteractionType: strings.TrimSpace(request.InteractionType),
+			SourceFeature: strings.TrimSpace(request.SourceFeature), SourceRoute: normalizeActivityRoutePath(strings.TrimSpace(request.SourceRoute)), SourceURL: strings.TrimSpace(request.SourceURL),
+			AssetSymbol: strings.TrimSpace(request.AssetSymbol), CurrentTier: strings.TrimSpace(request.CurrentTier), RequiredTier: strings.TrimSpace(request.RequiredTier),
+			PromptVariant: strings.TrimSpace(request.PromptVariant), CTALabel: strings.TrimSpace(request.CTALabel),
+			CorrelationID: subscriptionCorrelationID(r, request.CorrelationID), MetadataJSON: []byte(metadata),
+		}); err != nil {
+			writeSubscriberSubscriptionAdministrationError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "recorded"})
+	})
+
 	mux.HandleFunc("GET /v1/administration/subscriptions/products", func(w http.ResponseWriter, r *http.Request) {
 		_, ok := requireSubscriptionAdministrator(w, r)
 		if !ok {
@@ -397,7 +441,19 @@ func subscriberSubscriptionAdministrationResponse(snapshot storage.SubscriberSub
 			"error_message": record.ErrorMessage, "received_at": record.ReceivedAt, "processed_at": record.ProcessedAt,
 		})
 	}
-	return map[string]any{"tenant_id": snapshot.TenantID, "products": products, "subject_subscriptions": subjects, "tenant_subscriptions": contracts, "seats": seats, "audit_events": audit, "billing_webhook_events": webhooks}
+	upgradeInteractions := make([]map[string]any, 0, len(snapshot.UpgradeInteractions))
+	for _, record := range snapshot.UpgradeInteractions {
+		upgradeInteractions = append(upgradeInteractions, map[string]any{
+			"interaction_id": record.InteractionID, "tenant_id": record.TenantID, "subject": record.Subject,
+			"subject_display_name": record.SubjectDisplayName, "subject_email": record.SubjectEmail,
+			"app_id": record.AppID, "interaction_type": record.InteractionType, "source_feature": record.SourceFeature,
+			"source_route": record.SourceRoute, "source_url": record.SourceURL, "asset_symbol": record.AssetSymbol,
+			"current_tier": record.CurrentTier, "required_tier": record.RequiredTier, "prompt_variant": record.PromptVariant,
+			"cta_label": record.CTALabel, "correlation_id": record.CorrelationID, "metadata": subscriptionJSON(record.MetadataJSON),
+			"occurred_at": record.OccurredAt,
+		})
+	}
+	return map[string]any{"tenant_id": snapshot.TenantID, "products": products, "subject_subscriptions": subjects, "tenant_subscriptions": contracts, "seats": seats, "audit_events": audit, "billing_webhook_events": webhooks, "upgrade_interactions": upgradeInteractions}
 }
 
 func subscriptionAdministrationProductResponse(product storage.SubscriberSubscriptionProductRecord) map[string]any {

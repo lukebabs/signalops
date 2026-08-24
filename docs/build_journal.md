@@ -9191,3 +9191,12 @@ Next-cycle priority:
 - Removed the user-facing `Deterministic fallback` quality tag from Syncratic narrative surfaces.
 - Renamed the visible quality state to `Evidence-based narrative` and updated explanatory copy to avoid implementation-centric fallback language while preserving the internal quality classification for governance and tests.
 - Validation passed: `npm --prefix web run build`, focused Syncratic web tests, deployment-agent web deploy smoke, and production Dashboard/Syncratic Playwright regression.
+
+### 2026-08-24 — Subscription journey upgrade-intent foundation
+
+- Implemented the first production-safe slice of the MarketOps Subscription User Journey spec: contextual locked-feature upgrade UX, an authenticated upgrade-interaction ledger, a plan-comparison pricing route, and Admin upgrade-funnel visibility.
+- Added migration `000160_subscriber_upgrade_interactions` with tenant-scoped RLS, identity-label integration, source feature/route/asset/tier attribution, and prompt impression/click event types.
+- Added `POST /v1/marketops/subscriptions/upgrade-interactions` as a write-only subscriber endpoint. The endpoint records intent only; it does not create Stripe Checkout sessions or change entitlements.
+- Updated `/admin/subscriptions` with an Upgrade funnel tab showing impressions, clicks, click-through rate, unique users, and searchable interaction rows.
+- Added `/marketops/pricing` to show configured Explorer, Professional, and Institutional plan positioning from subscription products while preserving source feature and return URL context for the future Checkout release.
+- Validation passed: `npm --prefix web run build`, focused Syncratic web tests, `go test ./internal/api ./internal/storage/postgres ./cmd/gateway`, and `git diff --check`.

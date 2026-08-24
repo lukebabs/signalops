@@ -16,18 +16,19 @@ import (
 )
 
 type subscriberSubscriptionAdministrationFake struct {
-	snapshot         storage.SubscriberSubscriptionAdministrationSnapshot
-	product          storage.SubscriberSubscriptionProductMutation
-	productBilling   storage.SubscriberSubscriptionProductBillingMutation
-	subject          storage.SubscriberSubjectSubscriptionMutation
-	subjectBilling   storage.SubscriberSubjectSubscriptionBillingMutation
-	tenant           storage.SubscriberTenantSubscriptionMutation
-	tenantBilling    storage.SubscriberTenantSubscriptionBillingMutation
-	seat             storage.SubscriberSubscriptionSeatMutation
-	stripeWebhook    storage.SubscriberStripeWebhookMutation
-	activity         storage.SubscriberUserActivityRecordInput
-	activityFilter   storage.SubscriberUserActivityFilter
-	activitySnapshot storage.SubscriberUserActivitySnapshot
+	snapshot           storage.SubscriberSubscriptionAdministrationSnapshot
+	product            storage.SubscriberSubscriptionProductMutation
+	productBilling     storage.SubscriberSubscriptionProductBillingMutation
+	subject            storage.SubscriberSubjectSubscriptionMutation
+	subjectBilling     storage.SubscriberSubjectSubscriptionBillingMutation
+	tenant             storage.SubscriberTenantSubscriptionMutation
+	tenantBilling      storage.SubscriberTenantSubscriptionBillingMutation
+	seat               storage.SubscriberSubscriptionSeatMutation
+	stripeWebhook      storage.SubscriberStripeWebhookMutation
+	activity           storage.SubscriberUserActivityRecordInput
+	upgradeInteraction storage.SubscriberUpgradeInteractionInput
+	activityFilter     storage.SubscriberUserActivityFilter
+	activitySnapshot   storage.SubscriberUserActivitySnapshot
 }
 
 func (f *subscriberSubscriptionAdministrationFake) ListSubscriberSubscriptionAdministration(_ context.Context, filter storage.SubscriberSubscriptionAdministrationFilter) (storage.SubscriberSubscriptionAdministrationSnapshot, error) {
@@ -45,6 +46,10 @@ func (f *subscriberSubscriptionAdministrationFake) ListSubscriberUserActivity(_ 
 }
 func (f *subscriberSubscriptionAdministrationFake) RecordSubscriberUserActivity(_ context.Context, input storage.SubscriberUserActivityRecordInput) error {
 	f.activity = input
+	return nil
+}
+func (f *subscriberSubscriptionAdministrationFake) RecordSubscriberUpgradeInteraction(_ context.Context, input storage.SubscriberUpgradeInteractionInput) error {
+	f.upgradeInteraction = input
 	return nil
 }
 func (f *subscriberSubscriptionAdministrationFake) UpdateSubscriberSubscriptionProduct(_ context.Context, input storage.SubscriberSubscriptionProductMutation) error {
@@ -115,6 +120,7 @@ func TestSubscriberSubscriptionAdministrationListsTenantGovernanceSnapshot(t *te
 		TenantID:             "tenant-pilot-b",
 		Products:             []storage.SubscriberSubscriptionProductRecord{{ProductKey: "professional", BillingScope: "subject", DisplayName: "Professional", FeaturePolicyJSON: []byte(`{"value_intelligence":true}`), LimitPolicyJSON: []byte(`{"private_watchlists":20}`), Active: true, Revision: 2}},
 		SubjectSubscriptions: []storage.SubscriberSubjectSubscriptionRecord{{TenantID: "tenant-pilot-b", Subject: "pilot", SubscriptionID: "sub-1", ProductKey: "professional", DisplayName: "Professional", Status: "active"}},
+		UpgradeInteractions:  []storage.SubscriberUpgradeInteractionRecord{{InteractionID: "subupg-1", TenantID: "tenant-pilot-b", Subject: "pilot", InteractionType: "prompt_shown", SourceFeature: "value_intelligence", CurrentTier: "explorer", RequiredTier: "professional", OccurredAt: time.Now().UTC()}},
 	}}
 	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store})
 	request := httptest.NewRequest(http.MethodGet, "/v1/administration/subscriptions?tenant_id=tenant-pilot-b", nil)
@@ -192,6 +198,21 @@ func stripeTestSignature(body string, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write([]byte(fmt.Sprintf("%d.%s", timestamp, body)))
 	return fmt.Sprintf("t=%d,v1=%s", timestamp, hex.EncodeToString(mac.Sum(nil)))
+}
+
+func TestSubscriberUpgradeInteractionRecordsAuthenticatedPrincipalScope(t *testing.T) {
+	store := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store})
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketops/subscriptions/upgrade-interactions", strings.NewReader(`{"interaction_type":"prompt_clicked","source_feature":"value_intelligence","source_route":"/marketops/valuation","current_tier":"explorer","required_tier":"professional","prompt_variant":"contextual_route_gate_v1","cta_label":"View upgrade options","correlation_id":"upgrade-test"}`))
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-pilot-b", Subject: "pilot-sub", Roles: map[string]struct{}{roleViewer: {}}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202: %s", response.Code, response.Body.String())
+	}
+	if store.upgradeInteraction.TenantID != "tenant-pilot-b" || store.upgradeInteraction.Subject != "pilot-sub" || store.upgradeInteraction.InteractionType != "prompt_clicked" || store.upgradeInteraction.SourceFeature != "value_intelligence" || store.upgradeInteraction.RequiredTier != "professional" {
+		t.Fatalf("unexpected upgrade interaction: %+v", store.upgradeInteraction)
+	}
 }
 
 func TestSubscriberSessionActivityRecordsAuthenticatedPrincipalScope(t *testing.T) {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { api } from '../api/client';
 import { getAccessToken, useAuth, useTenant } from '../auth/session';
 import { hasSubscriptionAdministrator } from '../auth/claims';
-import type { SubscriberSubscriptionAdministrationResponse, SubscriberSubscriptionFeature, SubscriberSubscriptionProduct, SubscriberUserActivityResponse, SubscriberUserActivityEventRecord } from '../types';
+import type { SubscriberSubscriptionAdministrationResponse, SubscriberSubscriptionFeature, SubscriberSubscriptionProduct, SubscriberUserActivityResponse, SubscriberUserActivityEventRecord, SubscriberUpgradeInteractionRecord } from '../types';
 import { MetricTile } from '../components/MetricTile';
 import { StatusBadge } from '../components/StatusBadge';
 
@@ -11,7 +11,7 @@ type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'suspended' | 'ca
 type SeatRole = 'member' | 'tenant_admin';
 type SeatStatus = 'active' | 'revoked';
 type MutationResult = { kind: string; state: 'idle' | 'working' | 'success' | 'error'; message: string };
-type SubscriptionAdminTab = 'overview' | 'settings' | 'billing' | 'users' | 'activity' | 'audit' | 'webhooks';
+type SubscriptionAdminTab = 'overview' | 'settings' | 'billing' | 'users' | 'activity' | 'funnel' | 'audit' | 'webhooks';
 
 const subscriptionTabs: Array<{ key: SubscriptionAdminTab; label: string; description: string }> = [
   { key: 'overview', label: 'Overview', description: 'Current subscription posture and mapped billing summary.' },
@@ -19,6 +19,7 @@ const subscriptionTabs: Array<{ key: SubscriptionAdminTab; label: string; descri
   { key: 'billing', label: 'Stripe billing', description: 'Product, subject, and tenant Stripe mappings.' },
   { key: 'users', label: 'Users & seats', description: 'Subscriber enrollment, tenant contracts, Institutional seats, and selected-user activity.' },
   { key: 'activity', label: 'User activity', description: 'Searchable login, logout, feature-view, and mutation activity.' },
+  { key: 'funnel', label: 'Upgrade funnel', description: 'Contextual upgrade prompt impressions, clicks, and source attribution.' },
   { key: 'audit', label: 'Audit log', description: 'Searchable governance events for subscription changes.' },
   { key: 'webhooks', label: 'Webhook ledger', description: 'Searchable Stripe webhook processing evidence.' },
 ];
@@ -97,6 +98,7 @@ export function SubscriptionAdministrationRoute() {
   const [activeTab, setActiveTab] = useState<SubscriptionAdminTab>('overview');
   const [auditSearch, setAuditSearch] = useState('');
   const [activitySearch, setActivitySearch] = useState('');
+  const [funnelSearch, setFunnelSearch] = useState('');
   const [selectedActivitySubject, setSelectedActivitySubject] = useState('');
   const [webhookSearch, setWebhookSearch] = useState('');
 
@@ -192,6 +194,7 @@ export function SubscriptionAdministrationRoute() {
     {activeTab === 'billing' ? <section className="rounded border border-gray-200 bg-white p-4"><h2 className="text-sm font-semibold">Admin-managed Stripe billing</h2><p className="mt-1 text-xs text-gray-500">Map Stripe IDs created in Stripe Dashboard. This does not enable Checkout, customer portal, or automatic access creation from unknown Stripe events.</p><div className="mt-3"><ProductBillingMap products={snapshot?.products ?? []} selectedProductKey={editingProductKey} onSelectProduct={seedProductEditor} /></div><div className="mt-3 grid gap-4 xl:grid-cols-3"><form onSubmit={productBillingSubmit} className="space-y-2 rounded border border-gray-200 p-3"><h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Product mapping</h3><p className="text-[11px] text-gray-500">Selected product: {selectedProduct?.display_name ?? 'none selected'}. Choose a different tier from Configured Stripe products above.</p><Field label="Stripe product ID" value={stripeProductDraft} onChange={setStripeProductDraft} placeholder="prod_..." /><Field label="Monthly price ID" value={stripeMonthlyDraft} onChange={setStripeMonthlyDraft} placeholder="price_..." /><Field label="Annual price ID" value={stripeAnnualDraft} onChange={setStripeAnnualDraft} placeholder="price_..." /><button disabled={!editingProductKey || result.state === 'working'} className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50">Save product billing</button>{notice('product-billing')}</form><form onSubmit={subjectBillingSubmit} className="space-y-2 rounded border border-gray-200 p-3"><h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Subject Stripe mapping</h3><Field label="Tenant ID" value={subjectTenant} onChange={setSubjectTenant} /><Field label="OIDC subject" value={subject} onChange={setSubject} /><Field label="Stripe customer ID" value={subjectStripeCustomer} onChange={setSubjectStripeCustomer} placeholder="cus_..." /><Field label="Stripe subscription ID" value={subjectStripeSubscription} onChange={setSubjectStripeSubscription} placeholder="sub_..." /><Field label="Current period end" value={subjectPeriodEnd} onChange={setSubjectPeriodEnd} placeholder="2026-09-01T00:00:00Z" /><button disabled={!subject.trim() || !subjectStripeCustomer.trim() || !subjectStripeSubscription.trim() || result.state === 'working'} className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50">Save subject billing</button>{notice('subject-billing')}</form><form onSubmit={tenantBillingSubmit} className="space-y-2 rounded border border-gray-200 p-3"><h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Institutional Stripe mapping</h3><Field label="Tenant ID" value={tenant} onChange={setTenant} /><Field label="Stripe customer ID" value={tenantStripeCustomer} onChange={setTenantStripeCustomer} placeholder="cus_..." /><Field label="Stripe subscription ID" value={tenantStripeSubscription} onChange={setTenantStripeSubscription} placeholder="sub_..." /><Field label="Current period end" value={tenantPeriodEnd} onChange={setTenantPeriodEnd} placeholder="2026-09-01T00:00:00Z" /><button disabled={!tenant.trim() || !tenantStripeCustomer.trim() || !tenantStripeSubscription.trim() || result.state === 'working'} className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50">Save tenant billing</button>{notice('tenant-billing')}</form></div></section> : null}
     {activeTab === 'users' ? <div className="space-y-4"><section className="grid gap-4 lg:grid-cols-2"><ProvisionSubject subjectTenant={subjectTenant} setSubjectTenant={setSubjectTenant} subject={subject} setSubject={setSubject} subjectPlan={subjectPlan} setSubjectPlan={setSubjectPlan} subjectStatus={subjectStatus} setSubjectStatus={setSubjectStatus} onSubmit={subjectSubmit} disabled={result.state === 'working'} notice={notice('subject')} /><ProvisionTenant tenant={tenant} setTenant={setTenant} tenantStatus={tenantStatus} setTenantStatus={setTenantStatus} onSubmit={tenantSubmit} disabled={result.state === 'working'} notice={notice('tenant')} /><ProvisionSeat seatTenant={seatTenant} setSeatTenant={setSeatTenant} seatSubject={seatSubject} setSeatSubject={setSeatSubject} seatRole={seatRole} setSeatRole={setSeatRole} seatStatus={seatStatus} setSeatStatus={setSeatStatus} onSubmit={seatSubmit} disabled={result.state === 'working'} notice={notice('seat')} /></section><SubjectTables snapshot={snapshot} /><UserActivityDrilldown snapshot={snapshot} activity={activitySnapshot} selectedSubject={selectedActivitySubject} onSelectSubject={setSelectedActivitySubject} /></div> : null}
     {activeTab === 'activity' ? <UserActivityView activity={activitySnapshot} search={activitySearch} onSearch={setActivitySearch} /> : null}
+    {activeTab === 'funnel' ? <UpgradeFunnelView interactions={snapshot?.upgrade_interactions ?? []} search={funnelSearch} onSearch={setFunnelSearch} /> : null}
     {activeTab === 'audit' ? <AuditLogView snapshot={snapshot} search={auditSearch} onSearch={setAuditSearch} /> : null}
     {activeTab === 'webhooks' ? <WebhookLedgerView snapshot={snapshot} search={webhookSearch} onSearch={setWebhookSearch} /> : null}
   </div>;
@@ -221,6 +224,24 @@ function UserActivityView({ activity, search, onSearch }: { activity: Subscriber
   const events = filterActivityEvents(activity?.events ?? [], search);
   const summaries = filterActivitySummaries(activity, search);
   return <section className="space-y-4"><div className="flex flex-wrap items-end justify-between gap-3"><SectionTitle title="User activity" description="Operational visibility into login, logout, MarketOps feature views, and POST/PUT/DELETE API mutations. Payloads, tokens, cookies, and response bodies are intentionally excluded." /><Field label="Search user activity" value={search} onChange={onSearch} placeholder="email, user, feature, route, status…" /></div><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4"><MetricTile label="Active users in ledger" value={activity?.summaries.length ?? 0} /><MetricTile label="Recent events" value={activity?.events.length ?? 0} /><MetricTile label="Feature views" value={activity?.events.filter((event) => event.event_type === 'feature_view').length ?? 0} /><MetricTile label="Mutations" value={activity?.events.filter((event) => event.event_type === 'api_mutation').length ?? 0} /></div><Table title={`User summaries (${summaries.length})`} headers={['User', 'Last activity', 'Last login', 'Feature views', 'Mutations', 'Top feature']} rows={summaries.map((r) => [<IdentityCell subject={r.subject} displayName={r.subject_display_name} email={r.subject_email} />, formatDate(r.last_activity_at), formatDate(r.last_login_at), String(r.feature_view_count), <span>{r.mutation_count}{r.failed_mutation_count ? <span className="ml-1 text-red-700 dark:text-red-300">({r.failed_mutation_count} failed)</span> : null}</span>, r.top_feature_key || '—'])} empty="No user activity summaries match the search." /><ActivityEventTable events={events} title={`Activity events (${events.length})`} /></section>;
+}
+
+
+function UpgradeFunnelView({ interactions, search, onSearch }: { interactions: SubscriberUpgradeInteractionRecord[]; search: string; onSearch: (value: string) => void }) {
+  const rows = filterUpgradeInteractions(interactions, search);
+  const promptShown = interactions.filter((item) => item.interaction_type === 'prompt_shown').length;
+  const promptClicked = interactions.filter((item) => item.interaction_type === 'prompt_clicked').length;
+  const clickRate = promptShown ? `${Math.round((promptClicked / promptShown) * 100)}%` : '—';
+  return <section className="space-y-4"><div className="flex flex-wrap items-end justify-between gap-3"><SectionTitle title="Upgrade funnel" description="Contextual upgrade prompt evidence. This records intent only; it does not activate billing or entitlements." /><Field label="Search funnel" value={search} onChange={onSearch} placeholder="email, feature, tier, route, symbol…" /></div><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4"><MetricTile label="Prompt impressions" value={promptShown} /><MetricTile label="Prompt clicks" value={promptClicked} /><MetricTile label="Click-through" value={clickRate} /><MetricTile label="Unique users" value={new Set(interactions.map((item) => item.subject).filter(Boolean)).size} /></div><Table title={`Upgrade interactions (${rows.length})`} headers={['When', 'User', 'Interaction', 'Feature', 'Tier path', 'Asset', 'Route']} rows={rows.map((r) => [formatDate(r.occurred_at), <IdentityCell subject={r.subject} displayName={r.subject_display_name} email={r.subject_email} />, <span className="font-mono text-[11px] text-gray-700 dark:text-gray-300">{r.interaction_type}</span>, featureLabel(r.source_feature), `${r.current_tier || '—'} → ${r.required_tier}`, r.asset_symbol || '—', <span className="break-all font-mono text-[11px] text-gray-600 dark:text-gray-400">{r.source_route || '—'}</span>])} empty="No upgrade interactions match the current scope." /></section>;
+}
+
+function filterUpgradeInteractions(interactions: SubscriberUpgradeInteractionRecord[], search: string) {
+  const term = search.trim().toLowerCase();
+  return interactions.filter((record) => !term || [record.occurred_at, record.subject, record.subject_email, record.subject_display_name, record.interaction_type, record.source_feature, record.source_route, record.asset_symbol, record.current_tier, record.required_tier, record.correlation_id].join(' ').toLowerCase().includes(term));
+}
+
+function featureLabel(value: string) {
+  return value ? value.replace(/_/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase()) : '—';
 }
 
 function UserActivityDrilldown({ snapshot, activity, selectedSubject, onSelectSubject }: { snapshot: SubscriberSubscriptionAdministrationResponse | null; activity: SubscriberUserActivityResponse | null; selectedSubject: string; onSelectSubject: (value: string) => void }) {

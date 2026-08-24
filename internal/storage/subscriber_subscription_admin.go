@@ -13,6 +13,7 @@ type SubscriberSubscriptionAdministrationRepository interface {
 	ListSubscriberSubscriptionAdministration(context.Context, SubscriberSubscriptionAdministrationFilter) (SubscriberSubscriptionAdministrationSnapshot, error)
 	ListSubscriberUserActivity(context.Context, SubscriberUserActivityFilter) (SubscriberUserActivitySnapshot, error)
 	RecordSubscriberUserActivity(context.Context, SubscriberUserActivityRecordInput) error
+	RecordSubscriberUpgradeInteraction(context.Context, SubscriberUpgradeInteractionInput) error
 	UpdateSubscriberSubscriptionProduct(context.Context, SubscriberSubscriptionProductMutation) error
 	UpdateSubscriberSubscriptionProductBilling(context.Context, SubscriberSubscriptionProductBillingMutation) error
 	UpsertSubscriberSubjectSubscription(context.Context, SubscriberSubjectSubscriptionMutation) error
@@ -138,6 +139,47 @@ type SubscriberUserActivityRecordInput struct {
 	MetadataJSON  []byte
 }
 
+// SubscriberUpgradeInteractionRecord captures upgrade prompt impressions and
+// clicks for conversion attribution. It is deliberately separate from generic
+// user activity so analytics can distinguish research behavior from commerce UX.
+type SubscriberUpgradeInteractionRecord struct {
+	InteractionID      string
+	TenantID           string
+	Subject            string
+	SubjectDisplayName string
+	SubjectEmail       string
+	AppID              string
+	InteractionType    string
+	SourceFeature      string
+	SourceRoute        string
+	SourceURL          string
+	AssetSymbol        string
+	CurrentTier        string
+	RequiredTier       string
+	PromptVariant      string
+	CTALabel           string
+	CorrelationID      string
+	MetadataJSON       []byte
+	OccurredAt         time.Time
+}
+
+type SubscriberUpgradeInteractionInput struct {
+	TenantID        string
+	Subject         string
+	AppID           string
+	InteractionType string
+	SourceFeature   string
+	SourceRoute     string
+	SourceURL       string
+	AssetSymbol     string
+	CurrentTier     string
+	RequiredTier    string
+	PromptVariant   string
+	CTALabel        string
+	CorrelationID   string
+	MetadataJSON    []byte
+}
+
 type SubscriberSubscriptionAdministrationSnapshot struct {
 	TenantID             string
 	Products             []SubscriberSubscriptionProductRecord
@@ -146,6 +188,7 @@ type SubscriberSubscriptionAdministrationSnapshot struct {
 	Seats                []SubscriberSubscriptionSeatRecord
 	AuditEvents          []SubscriberSubscriptionAuditEventRecord
 	BillingWebhookEvents []SubscriberBillingWebhookEventRecord
+	UpgradeInteractions  []SubscriberUpgradeInteractionRecord
 }
 
 type SubscriberSubjectSubscriptionRecord struct {

@@ -49,6 +49,11 @@ func (r *Repository) ListSubscriberSubscriptionAdministration(ctx context.Contex
 			return err
 		}
 		snapshot.BillingWebhookEvents = webhooks
+		upgradeInteractions, err := listSubscriberUpgradeInteractionsTx(ctx, tx, tenantID, 100)
+		if err != nil {
+			return err
+		}
+		snapshot.UpgradeInteractions = upgradeInteractions
 		return nil
 	})
 	return snapshot, err

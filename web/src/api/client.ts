@@ -196,6 +196,7 @@ import type {
   SubscriberSubscriptionAdministrationResponse,
   SubscriberUserActivityResponse,
   SubscriberUserActivityRequest,
+  SubscriberUpgradeInteractionRequest,
   SubscriberSubscriptionProductUpdateRequest,
   SubscriberSubscriptionProductBillingRequest,
   SubscriberSubjectSubscriptionBillingRequest,
@@ -840,6 +841,8 @@ export const api = {
     get<SubscriberUserActivityResponse>("/v1/administration/subscriptions/activity", { tenant_id: tenantId, subject: filter.subject || undefined, q: filter.q || undefined, event_type: filter.event_type || undefined, limit: filter.limit ?? 200 }, "no-store"),
   recordSubscriberSessionActivity: (body: SubscriberUserActivityRequest) =>
     post<{ status: string }>("/v1/session/activity", body),
+  recordSubscriberUpgradeInteraction: (body: SubscriberUpgradeInteractionRequest) =>
+    post<{ status: string }>("/v1/marketops/subscriptions/upgrade-interactions", body),
   updateSubscriberSubscriptionProduct: (productKey: string, body: SubscriberSubscriptionProductUpdateRequest) =>
     put<{ status: string }>("/v1/administration/subscriptions/products/" + encodeURIComponent(productKey), body),
   updateSubscriberSubscriptionProductBilling: (productKey: string, body: SubscriberSubscriptionProductBillingRequest) =>

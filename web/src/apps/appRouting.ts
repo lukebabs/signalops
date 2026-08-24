@@ -59,6 +59,7 @@ export type AppRoutePath =
   | '/marketops/sectors'
   | '/marketops/backtests'
   | '/marketops/syncratic'
+  | '/marketops/pricing'
   | '/marketops/algorithms'
   | '/marketops/settings'
   | '/cyberops'
