@@ -606,15 +606,15 @@ function narrativeQualitySummary(
 
 export const SYNCRATIC_NARRATIVE_QUALITY_LABELS: Record<SyncraticNarrativeQuality, string> = {
   clean_ai: 'Clean AI narrative',
-  deterministic_fallback: 'Deterministic fallback',
+  deterministic_fallback: 'Evidence-based narrative',
   ask_skipped: 'Skipped · unchanged',
   data_quality_blocked: 'Data-quality blocked',
   deterministic_context: 'Deterministic context',
 };
 
 export const SYNCRATIC_NARRATIVE_QUALITY_DESCRIPTIONS: Record<SyncraticNarrativeQuality, string> = {
-  clean_ai: 'Syncratic Ask completed and the response passed the quality guard without deterministic fallback.',
-  deterministic_fallback: 'The AI response was weak, malformed, or meta; SignalOps rendered a governed deterministic narrative from persisted evidence.',
+  clean_ai: 'Syncratic Ask completed and the response passed the narrative quality guard.',
+  deterministic_fallback: 'SignalOps rendered a governed evidence-based narrative from persisted artifacts after quality review.',
   ask_skipped: 'Ask did not rewrite the insight because prompt and evidence were unchanged.',
   data_quality_blocked: 'Evidence quality blocked the narrative from being treated as a valid market thesis.',
   deterministic_context: 'No completed Syncratic Ask enrichment is attached; this is deterministic context only.',

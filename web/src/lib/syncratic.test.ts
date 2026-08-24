@@ -312,7 +312,7 @@ describe('classifySyncraticNarrativeQuality', () => {
       },
     });
     expect(q.quality).toBe('deterministic_fallback');
-    expect(q.description).toContain('governed deterministic narrative');
+    expect(q.description).toContain('governed evidence-based narrative');
   });
 
   it('classifies persisted prompt meta-output as deterministic fallback even when Ask metadata says completed', () => {
@@ -349,7 +349,7 @@ describe('classifySyncraticNarrativeQuality', () => {
 
   it('labels all quality states', () => {
     expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.clean_ai).toBe('Clean AI narrative');
-    expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.deterministic_fallback).toBe('Deterministic fallback');
+    expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.deterministic_fallback).toBe('Evidence-based narrative');
     expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.ask_skipped).toBe('Skipped · unchanged');
     expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.data_quality_blocked).toBe('Data-quality blocked');
     expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.deterministic_context).toBe('Deterministic context');

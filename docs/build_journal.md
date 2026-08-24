@@ -9185,3 +9185,9 @@ Next-cycle priority:
 - This supports using both layers together: Dashboard shows the concise deterministic read, while Syncratic Intelligence exposes the persisted full Ask Explanation and metadata for the selected insight.
 - Updated authenticated Playwright coverage to verify a Risk/Reward Dashboard card opens Syncratic Intelligence with `tab=risk_reward`, a `synins_...` insight id, the full narrative panel, and Ask Explanation visible.
 - Validation passed: `npm --prefix web run build`, focused Syncratic web tests, deployment-agent web deploy smoke, `/readyz`, and production Playwright Dashboard regression.
+
+### 2026-08-24 — Syncratic narrative quality label cleanup
+
+- Removed the user-facing `Deterministic fallback` quality tag from Syncratic narrative surfaces.
+- Renamed the visible quality state to `Evidence-based narrative` and updated explanatory copy to avoid implementation-centric fallback language while preserving the internal quality classification for governance and tests.
+- Validation passed: `npm --prefix web run build`, focused Syncratic web tests, deployment-agent web deploy smoke, and production Dashboard/Syncratic Playwright regression.
