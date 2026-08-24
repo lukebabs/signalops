@@ -20,6 +20,7 @@ import {
   compactNarrative,
   dashboardSyncraticNarrativeCards,
   DASHBOARD_DAILY_NARRATIVE_INSIGHT_TYPE,
+  fullExplainabilityNarrative,
 } from "../lib/marketopsDashboardSyncratic";
 import type {
   MarketOpsSignalOverviewMember,
@@ -328,7 +329,7 @@ function DashboardSyncraticFullNarrative({
   const summary = summarizeSyncraticInsight(insight);
   const quality = classifySyncraticNarrativeQuality(insight);
   const ask = summarizeSyncraticAsk(insight);
-  const narrative = compactNarrative(summary.explanation || summary.summary);
+  const narrative = fullExplainabilityNarrative(insight);
   const explanationLabel = ask.present ? "Syncratic Explainability" : "Deterministic Explainability";
   return (
     <div className="mt-3 rounded border border-brand-200 bg-brand-50/40 p-3 dark:border-brand-800 dark:bg-brand-950/20">
@@ -363,7 +364,7 @@ function DashboardSyncraticFullNarrative({
       </div>
       {summary.summary && summary.explanation && summary.summary !== summary.explanation ? (
         <p className="mt-2 text-xs leading-5 text-gray-600 dark:text-gray-300">
-          Summary: {compactNarrative(summary.summary)}
+          Summary: {summary.summary}
         </p>
       ) : null}
     </div>

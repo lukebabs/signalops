@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   compactNarrative,
   dashboardSyncraticNarrativeCards,
+  fullExplainabilityNarrative,
   DASHBOARD_DAILY_NARRATIVE_INSIGHT_TYPE,
 } from "./marketopsDashboardSyncratic";
 import type { SyncraticInsight } from "../types";
@@ -55,5 +56,13 @@ describe("dashboardSyncraticNarrativeCards", () => {
 
   it("compacts narrative whitespace for dashboard excerpts", () => {
     expect(compactNarrative("  Sector\nrotation   improved.  ")).toBe("Sector rotation improved.");
+  });
+
+  it("preserves full explainability line breaks for the expanded dashboard panel", () => {
+    const record = insight("marketops_risk_reward_daily_v1", "2026-08-21T20:00:00Z", "risk");
+    record.explanation = "Executive summary:\nSession date: 2026-08-21.\n\nTop drivers:\n- WMT is constructive.";
+
+    expect(fullExplainabilityNarrative(record)).toContain("Executive summary:\nSession date");
+    expect(fullExplainabilityNarrative(record)).toContain("Top drivers:\n- WMT");
   });
 });

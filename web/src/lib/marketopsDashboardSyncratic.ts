@@ -36,3 +36,12 @@ export function narrativeStrategy(insight: SyncraticInsight): string {
 export function compactNarrative(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
+
+
+export function fullExplainabilityNarrative(insight: SyncraticInsight): string {
+  return typeof insight.explanation === "string" && insight.explanation.trim()
+    ? insight.explanation
+    : typeof insight.summary === "string"
+      ? insight.summary
+      : "";
+}

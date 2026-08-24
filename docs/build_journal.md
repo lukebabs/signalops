@@ -9156,3 +9156,10 @@ Next-cycle priority:
 - Removed `Read Ask` language from the Dashboard narrative digest. The surface now presents the generated content as Syncratic explainability, not as an Ask artifact users must understand.
 - The Dashboard now shows one full explainability narrative by default when persisted narratives exist; cards act as selectors for which explanation is visible.
 - Updated helper copy to keep evidence provenance available without making the implementation mechanism the primary user-facing outcome.
+
+
+### 2026-08-24 — Dashboard full Syncratic response preservation
+
+- Updated the Dashboard expanded explainability panel to render the persisted Syncratic `explanation` verbatim instead of compacting whitespace.
+- This preserves the same structured response visible in Syncratic Intelligence, including Executive summary, Contextual read, What changed, Top drivers, contradictions, and analyst follow-ups.
+- Added helper coverage to ensure compact cards can still use collapsed excerpts while the expanded panel preserves full narrative line breaks.
