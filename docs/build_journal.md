@@ -9163,3 +9163,10 @@ Next-cycle priority:
 - Updated the Dashboard expanded explainability panel to render the persisted Syncratic `explanation` verbatim instead of compacting whitespace.
 - This preserves the same structured response visible in Syncratic Intelligence, including Executive summary, Contextual read, What changed, Top drivers, contradictions, and analyst follow-ups.
 - Added helper coverage to ensure compact cards can still use collapsed excerpts while the expanded panel preserves full narrative line breaks.
+
+### 2026-08-24 — Dashboard Syncratic explainability Playwright closure
+
+- Added an authenticated Playwright regression for the Dashboard Risk/Reward Syncratic explainability panel. The test selects the Risk/Reward narrative card and asserts the inline Dashboard panel contains the full structured narrative sections: Executive summary, Contextual read, Top drivers, and Analyst follow-ups.
+- Root cause: Syncratic Ask controls on the Syncratic Intelligence route did not pass `insight_type`, so Ask/Regenerate updated a generic context-window insight instead of the daily narrative insight consumed by the Dashboard.
+- Root cause hardening: empty/no-text Ask responses are now treated as unusable for daily narratives and trigger the deterministic daily narrative fallback instead of persisting `Syncratic Ask returned no textual explanation` as user-facing Dashboard content.
+- Deployed gateway and web, force-refreshed the daily narratives through the controlled Syncratic UI smoke, verified the persisted Risk/Reward row was repaired, and confirmed the Dashboard Playwright regression passes against production.

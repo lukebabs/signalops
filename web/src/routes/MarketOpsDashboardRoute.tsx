@@ -21,6 +21,7 @@ import {
   dashboardSyncraticNarrativeCards,
   DASHBOARD_DAILY_NARRATIVE_INSIGHT_TYPE,
   fullExplainabilityNarrative,
+  narrativeStrategy,
 } from "../lib/marketopsDashboardSyncratic";
 import type {
   MarketOpsSignalOverviewMember,
@@ -275,6 +276,7 @@ function DashboardSyncraticNarratives({
               <button
                 key={summary.insightId}
                 type="button"
+                data-testid={`dashboard-syncratic-card-${insightStrategyTestId(insight)}`}
                 onClick={() => onToggleNarrative(summary.insightId)}
                 className={`rounded border p-2 text-left hover:border-brand-300 hover:bg-brand-50 dark:hover:border-brand-500 dark:hover:bg-brand-950/30 ${expandedNarrativeId === summary.insightId ? "border-brand-300 bg-brand-50 dark:border-brand-500 dark:bg-brand-950/30" : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950"}` }
               >
@@ -317,6 +319,10 @@ function DashboardSyncraticNarratives({
   );
 }
 
+function insightStrategyTestId(insight: SyncraticInsight): string {
+  return narrativeStrategy(insight).replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "unknown";
+}
+
 function DashboardSyncraticFullNarrative({
   label,
   insight,
@@ -332,7 +338,7 @@ function DashboardSyncraticFullNarrative({
   const narrative = fullExplainabilityNarrative(insight);
   const explanationLabel = ask.present ? "Syncratic Explainability" : "Deterministic Explainability";
   return (
-    <div className="mt-3 rounded border border-brand-200 bg-brand-50/40 p-3 dark:border-brand-800 dark:bg-brand-950/20">
+    <div data-testid="dashboard-syncratic-explainability" className="mt-3 rounded border border-brand-200 bg-brand-50/40 p-3 dark:border-brand-800 dark:bg-brand-950/20">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="flex flex-wrap items-center gap-1.5">

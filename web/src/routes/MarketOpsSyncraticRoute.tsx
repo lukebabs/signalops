@@ -598,6 +598,7 @@ function SyncraticInsightDetail({
 
       <SyncraticAskControls
         contextWindowId={renderedSummary.contextWindowId}
+        insightType={renderedSummary.insightType}
         tenantId={tenantId}
         askMutation={askMutation}
       />
@@ -650,10 +651,12 @@ function SyncraticInsightDetail({
 // sanitized server-side and here (no raw prompt, tokens, or upstream bodies).
 function SyncraticAskControls({
   contextWindowId,
+  insightType,
   tenantId,
   askMutation,
 }: {
   contextWindowId: string;
+  insightType: string;
   tenantId: string;
   askMutation: ReturnType<typeof useAskSyncraticContextWindow>;
 }) {
@@ -666,7 +669,7 @@ function SyncraticAskControls({
     if (!canRunAsk) return;
     askMutation.mutate({
       contextWindowId,
-      request: { tenant_id: tenantId, max_prompt_bytes: 10000, force },
+      request: { tenant_id: tenantId, max_prompt_bytes: 10000, force, insight_type: insightType },
     });
   }
 

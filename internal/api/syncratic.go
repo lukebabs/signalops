@@ -851,7 +851,8 @@ func syncraticInsightForContextType(ctx context.Context, repo storage.QueryRepos
 }
 
 func syncraticAskAlreadyApplied(insight storage.SyncraticInsightRecord, meta syncraticAskPromptMeta) bool {
-	if syncraticAskAnswerIsMetaCommentary(strings.Join([]string{insight.Title, insight.Summary, insight.Explanation}, " ")) {
+	answer := strings.Join([]string{insight.Title, insight.Summary, insight.Explanation}, " ")
+	if syncraticAskAnswerIsMetaCommentary(answer) || syncraticAskAnswerIsNoTextFallback(answer) {
 		return false
 	}
 	metrics := jsonObjectOrEmpty(insight.MetricsJSON)
@@ -933,6 +934,9 @@ func syncraticAskGenericOutputNeedsDeterministicFallback(answer, summary, title 
 
 func syncraticAskOutputNeedsDeterministicFallback(answer, summary, title string, structured map[string]any) bool {
 	trimmed := strings.TrimSpace(answer)
+	if syncraticAskAnswerIsNoTextFallback(trimmed) {
+		return true
+	}
 	if syncraticAskAnswerIsMetaCommentary(trimmed) {
 		return true
 	}
@@ -962,6 +966,11 @@ func syncraticAskAnswerIsMetaCommentary(answer string) bool {
 		}
 	}
 	return false
+}
+
+func syncraticAskAnswerIsNoTextFallback(answer string) bool {
+	text := strings.ToLower(strings.TrimSpace(answer))
+	return strings.Contains(text, "syncratic ask returned no textual explanation")
 }
 
 func deterministicGenericSyncraticNarrativeFromContext(contextWindow storage.SyncraticContextWindowRecord) deterministicSyncraticNarrative {

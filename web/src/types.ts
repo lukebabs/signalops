@@ -2379,6 +2379,7 @@ export interface SyncraticAskRequest {
   tenant_id: string;
   max_prompt_bytes?: number;
   force?: boolean;
+  insight_type?: string;
 }
 
 // ask_status is "completed" (updated insight written) or "skipped"

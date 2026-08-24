@@ -105,6 +105,36 @@ func TestBuildSyncraticDailyNarrativeAskPromptCompactsLargeOverview(t *testing.T
 	}
 }
 
+func TestApplySyncraticAskResponseFallsBackWhenDailyAskReturnsNoText(t *testing.T) {
+	ctx := storage.SyncraticContextWindowRecord{
+		ContextWindowID:    "synctx-rr-empty-answer",
+		TenantID:           "tenant-local",
+		SubjectSymbol:      dailyNarrativeSubjectSymbol,
+		WindowStart:        time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC),
+		ContextStrategy:    dailyNarrativeStrategyRiskReward,
+		SummaryMetricsJSON: []byte(`{"sections":{"risk_reward":{"breadth":{"bullish":13,"bearish":18,"neutral":101,"unavailable":0},"top_examples":[{"symbol":"WMT","direction":"bullish","score":50,"confidence":0.625,"risk_level":"medium"},{"symbol":"SO","direction":"bullish","score":45,"confidence":0.625,"risk_level":"medium"}]}}}`),
+		EvidenceDigest:     "digest-rr-empty-answer",
+	}
+	insight := buildSyncraticDailyNarrativeInsight(ctx)
+	updated := applySyncraticAskResponse(insight, ctx, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:empty-answer", ContextEvidenceDigest: "digest-rr-empty-answer"}, userapi.AskResponse{QueryID: "ask-empty-answer"}, time.Now().UTC(), time.Now().UTC())
+	if strings.Contains(updated.Explanation, "Syncratic Ask returned no textual explanation") {
+		t.Fatalf("empty Ask answer should not be persisted as the Dashboard narrative: %s", updated.Explanation)
+	}
+	for _, required := range []string{"Executive summary", "Contextual read", "Risk/Reward breadth remains mostly neutral", "WMT is the clearest bullish exception", "Analyst follow-ups"} {
+		if !strings.Contains(updated.Explanation, required) {
+			t.Fatalf("fallback explanation missing %q: %s", required, updated.Explanation)
+		}
+	}
+	if syncraticAskAlreadyApplied(updated, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:empty-answer", ContextEvidenceDigest: "digest-rr-empty-answer"}) != true {
+		t.Fatalf("usable deterministic fallback with completed Ask metadata should be reusable")
+	}
+	bad := updated
+	bad.Explanation = "Syncratic Ask returned no textual explanation. Review deterministic evidence directly."
+	if syncraticAskAlreadyApplied(bad, syncraticAskPromptMeta{PromptBuilderVersion: dailyNarrativeAskPromptVersion, PromptDigest: "sha256:empty-answer", ContextEvidenceDigest: "digest-rr-empty-answer"}) {
+		t.Fatalf("no-text Ask fallback should not be treated as already applied")
+	}
+}
+
 func TestApplySyncraticAskResponseFallsBackWhenDailyAnswerIsMetaCommentary(t *testing.T) {
 	ctx := storage.SyncraticContextWindowRecord{
 		ContextWindowID:    "synctx-rr",
