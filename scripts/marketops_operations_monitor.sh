@@ -12,13 +12,15 @@ boundary_env="${SIGNALOPS_MARKETOPS_BOUNDARY_ENV:-/etc/signalops/marketops-bound
 state_dir="${SIGNALOPS_MARKETOPS_OPERATIONS_STATE_DIR:-/var/lib/signalops/marketops-operations}"
 max_backup_age="${MARKETOPS_OPERATIONS_MAX_BACKUP_AGE_SECONDS:-93600}"
 max_wal_age="${MARKETOPS_OPERATIONS_MAX_WAL_AGE_SECONDS:-1800}"
+max_wal_probe_wait="${MARKETOPS_OPERATIONS_MAX_WAL_PROBE_WAIT_SECONDS:-60}"
+wal_probe_interval="${MARKETOPS_OPERATIONS_WAL_PROBE_INTERVAL_SECONDS:-5}"
 max_restore_age="${MARKETOPS_OPERATIONS_MAX_RESTORE_AGE_SECONDS:-2678400}"
 max_repository_bytes="${MARKETOPS_OPERATIONS_MAX_REPOSITORY_BYTES:-107374182400}"
 max_activation_queue="${MARKETOPS_OPERATIONS_MAX_ACTIVATION_QUEUE:-1000}"
 max_activation_age="${MARKETOPS_OPERATIONS_MAX_ACTIVATION_AGE_SECONDS:-86400}"
 require_sri="${MARKETOPS_OPERATIONS_REQUIRE_SRI_TIMER:-false}"
 
-for value in "$max_backup_age" "$max_wal_age" "$max_restore_age" "$max_repository_bytes" "$max_activation_queue" "$max_activation_age"; do
+for value in "$max_backup_age" "$max_wal_age" "$max_wal_probe_wait" "$wal_probe_interval" "$max_restore_age" "$max_repository_bytes" "$max_activation_queue" "$max_activation_age"; do
   [[ "$value" =~ ^[0-9]+$ ]] || { printf 'Operational monitor thresholds must be non-negative integers.\n' >&2; exit 2; }
 done
 [[ -r "$config_path" && -r "$boundary_env" ]] || {
@@ -92,31 +94,55 @@ check_backup() {
 
 request_wal_archive() {
   local label="$1" query_function="$2"
+  # Low-write databases can sit exactly at a WAL segment boundary. In that
+  # state pg_switch_wal() alone may not create a new archivable segment, which
+  # makes a healthy pgBackRest archive look stale. Allocate one transaction id
+  # as an operational heartbeat, commit it in its own statement, then switch.
+  if ! "$query_function" "SELECT txid_current()" >/dev/null; then
+    record "wal_${label}" failed "WAL heartbeat unavailable"
+    return 1
+  fi
   if ! "$query_function" "SELECT pg_switch_wal()" >/dev/null; then
     record "wal_${label}" failed "pg_switch_wal unavailable"
     return 1
   fi
-  sleep 5
   return 0
 }
 
-check_wal() {
-  local label="$1" query_function="$2" age
+wal_age_seconds() {
+  local query_function="$1" age
   if ! age="$($query_function "SELECT COALESCE(floor(extract(epoch FROM now() - last_archived_time))::bigint,-1) FROM pg_stat_archiver")" || [[ ! "$age" =~ ^[0-9]+$ ]]; then
-    record "wal_${label}" failed "last archived WAL time unavailable"
-    return
+    return 1
   fi
-  if (( age > max_wal_age )); then
-    record "wal_${label}" failed "age_seconds=$age threshold_seconds=$max_wal_age"
-  else
-    record "wal_${label}" passed "age_seconds=$age"
-  fi
+  printf '%s' "$age"
+}
+
+check_wal_after_probe() {
+  local label="$1" query_function="$2" elapsed=0 age=""
+  request_wal_archive "$label" "$query_function" || return
+  while true; do
+    if age="$(wal_age_seconds "$query_function")"; then
+      if (( age <= max_wal_age )); then
+        record "wal_${label}" passed "age_seconds=$age probe_wait_seconds=$elapsed"
+        return
+      fi
+    else
+      record "wal_${label}" failed "last archived WAL time unavailable"
+      return
+    fi
+    if (( elapsed >= max_wal_probe_wait )); then
+      record "wal_${label}" failed "age_seconds=$age threshold_seconds=$max_wal_age probe_wait_seconds=$elapsed"
+      return
+    fi
+    sleep "$wal_probe_interval"
+    elapsed=$((elapsed + wal_probe_interval))
+  done
 }
 
 check_backup marketops-postgres marketops-primary
 check_backup marketops-timescaledb marketops-temporal
-request_wal_archive primary primary_sql && check_wal primary primary_sql
-request_wal_archive temporal temporal_sql && check_wal temporal temporal_sql
+check_wal_after_probe primary primary_sql
+check_wal_after_probe temporal temporal_sql
 
 credentials_result="$(systemctl show signalops-pgbackrest-credentials.service --property=Result --value 2>/dev/null || true)"
 if [[ "$credentials_result" == "failed" ]]; then

@@ -254,3 +254,41 @@ service=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.ser
 ```
 
 This closes the FMP annual recurring activation blocker. The next PR-4 evidence point is the first natural scheduled FMP annual run on Saturday, August 29, 2026 at 02:30 America/New_York, with Admin Operations Health expected to expose freshness, task coverage, and any degraded-symbol reasons.
+
+## Sixth slice implementation — operations-monitor WAL probe hardening
+
+The hourly MarketOps operations monitor produced avoidable failures on August 24, 2026 because the dedicated temporal database is low-write. The monitor called `pg_switch_wal()` and immediately evaluated `pg_stat_archiver`. When the temporal database was sitting at a WAL segment boundary, `pg_switch_wal()` alone did not create a new archivable segment, so the latest archived WAL timestamp remained stale even though pgBackRest and archive configuration were healthy.
+
+Root-cause evidence:
+
+```text
+failed wal_temporal age_seconds=5399 threshold_seconds=1800
+archive_mode=on
+archive_command=pgbackrest --stanza=marketops-temporal archive-push %p
+failed_count=0
+```
+
+Permanent source fix:
+
+- The monitor now performs a minimal committed WAL heartbeat with `SELECT txid_current()` before requesting `pg_switch_wal()`.
+- WAL freshness is checked through a bounded polling loop instead of a fixed 5-second sleep.
+- Defaults: `MARKETOPS_OPERATIONS_MAX_WAL_PROBE_WAIT_SECONDS=60`, `MARKETOPS_OPERATIONS_WAL_PROBE_INTERVAL_SECONDS=5`.
+- This still fails if archive freshness does not recover inside the bounded probe; it does not mask real archive failures.
+
+Validation evidence:
+
+```text
+bash -n scripts/marketops_operations_monitor.sh
+sudo -n signalops-deploy-agent scheduler-run-now:marketops-operations-monitor
+
+passed wal_temporal age_seconds=39 probe_wait_seconds=0
+MarketOps operations monitor passed.
+
+SELECT job_id,status,started_at,completed_at
+FROM marketops_scheduled_job_statuses
+WHERE job_id='marketops-operations-monitor';
+marketops-operations-monitor | succeeded | 2026-08-24 13:17:07+00 | 2026-08-24 13:17:09+00
+
+sudo -n signalops-deploy-agent scheduler-status
+# all tracked timers active and all tracked services result=success
+```

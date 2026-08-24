@@ -240,7 +240,7 @@ Move to the remaining PR-4/production-expansion work:
 
 1. Observe the first scheduled FMP annual run on Saturday, August 29, 2026 at 02:30 ET / 06:30 UTC and verify task coverage/degradation reporting.
 2. Decide whether to refresh PR-3 backup/restore evidence before wider paid pilot expansion.
-3. Continue monitor-cadence hardening so operations-monitor checks do not produce avoidable transient failures during long post-close/recovery windows.
+3. Continue observing monitor cadence through the August 24 post-close window. The temporal WAL false-failure root cause was fixed on 2026-08-24; the next proof point is that the hourly monitor remains clean through active post-close/recovery and SRI windows.
 
 ## 2026-08-21 05:17 UTC readiness update
 
@@ -298,3 +298,10 @@ service=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.ser
 - The deployment-agent bundled subscriber smoke hit one transient Chromium `net::ERR_NETWORK_CHANGED` during initial navigation; public readiness and the targeted Admin smoke were used as the slice-specific acceptance evidence.
 - Public `/readyz` returned `200` with service `signalops-gateway`.
 - `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed in 11.94s`. This validates the Administration Operations Health API/browser path and requires the `Syncratic Ask` freshness row.
+
+## 2026-08-24 operations-monitor WAL probe closure
+
+- Investigated repeated `marketops-operations-monitor` failures on August 24. The failure was `wal_temporal`: temporal archive age exceeded the 1800-second threshold even after the monitor requested a WAL switch.
+- Root cause: the dedicated temporal database is low-write and can sit at a WAL segment boundary. `pg_switch_wal()` alone may not create a new archivable segment in that state, so the monitor observed stale `pg_stat_archiver.last_archived_time` despite healthy pgBackRest configuration and zero archive failures.
+- Source fix: `scripts/marketops_operations_monitor.sh` now writes a minimal committed WAL heartbeat with `SELECT txid_current()` before `pg_switch_wal()` and polls archive freshness for up to 60 seconds.
+- Validation: `bash -n scripts/marketops_operations_monitor.sh`, `sudo -n signalops-deploy-agent scheduler-run-now:marketops-operations-monitor`, DB status `marketops-operations-monitor=succeeded` at `2026-08-24 13:17:09 UTC`, and `sudo -n signalops-deploy-agent scheduler-status` returned clean.

@@ -9216,3 +9216,9 @@ Next-cycle priority:
 - Updated Admin System / MarketOps Operations Health to render the contract as an actionable control table. Run-now buttons remain limited to existing deployment-agent allowlist entries; unsupported refresh paths such as SAF projection remain status-only.
 - Added regression coverage for the API contract and Playwright coverage that asserts Dashboard, Risk/Reward, Intraday, and FMP rows expose contract fields and that the Admin UI renders Expected freshness, Dependency, Latest evidence, Why / next step, Run recovery, and Status only.
 - Validation passed: `go test ./internal/api`, `npm --prefix web run build`, gateway/web deployment through constrained deployment-agent actions, `/readyz`, subscriber pilot smoke, and Admin Operations Health Playwright/API smoke.
+
+### 2026-08-24 — MarketOps operations monitor temporal WAL hardening
+
+- Fixed repeated `marketops-operations-monitor` failures caused by the low-write dedicated temporal database sitting at a WAL segment boundary. `pg_switch_wal()` alone did not always create a new archivable segment, so the monitor could report stale temporal WAL even with healthy pgBackRest configuration and no archive failures.
+- Updated `scripts/marketops_operations_monitor.sh` to issue a minimal committed WAL heartbeat with `SELECT txid_current()` before `pg_switch_wal()` and to poll archive freshness for a bounded 60 seconds instead of using a fixed 5-second sleep.
+- Live validation passed through the constrained deployment agent: `scheduler-run-now:marketops-operations-monitor` completed successfully, temporal WAL passed with `age_seconds=39 probe_wait_seconds=0`, DB status recorded `marketops-operations-monitor=succeeded`, and `scheduler-status` returned clean.
