@@ -35,7 +35,7 @@ def dashboard_page(browser: Browser, request: pytest.FixtureRequest) -> Page:
     artifact_dir.chmod(0o700)
     har_path = artifact_dir / f"{request.node.name}.har"
     screenshot_path = artifact_dir / f"{request.node.name}.png"
-    context = browser.new_context(record_har_path=str(har_path), record_har_mode="minimal")
+    context = browser.new_context(record_har_path=str(har_path), record_har_mode="minimal", viewport={"width": 1440, "height": 1200})
     page = context.new_page()
     try:
         yield page
@@ -81,41 +81,43 @@ def login(page: Page, config: DashboardNarrativeConfig) -> None:
     raise AssertionError("Dashboard Syncratic narrative smoke could not reach the Dashboard after retries")
 
 
-def test_dashboard_risk_reward_explainability_renders_full_structured_narrative(
+def test_dashboard_repositions_syncratic_digest_and_uses_snippet_clickthrough(
     dashboard_page: Page,
     config: DashboardNarrativeConfig,
 ) -> None:
     login(dashboard_page, config)
+    primary = dashboard_page.get_by_test_id("dashboard-primary-content")
+    reel = dashboard_page.get_by_test_id("dashboard-market-intelligence-reel")
     digest = dashboard_page.locator("section").filter(has_text="Syncratic narrative digest").first
+    expect(primary).to_be_visible(timeout=30_000)
+    expect(reel).to_be_visible(timeout=30_000)
+    expect(reel.get_by_text("Market Intelligence").first).to_be_visible(timeout=30_000)
     expect(digest).to_be_visible(timeout=30_000)
+
+    primary_box = primary.bounding_box()
+    reel_box = reel.bounding_box()
+    digest_box = digest.bounding_box()
+    assert primary_box and reel_box and digest_box, "Dashboard layout boxes were not available"
+    assert reel_box["x"] > primary_box["x"], "Market Intelligence reel was not positioned in the right rail"
+    assert digest_box["y"] > primary_box["y"] + 300, "Syncratic digest is still imposing near the top of the Dashboard"
+
+    panel = dashboard_page.get_by_test_id("dashboard-syncratic-explainability")
+    expect(panel).to_have_count(0)
 
     risk_reward_card = dashboard_page.get_by_test_id("dashboard-syncratic-card-marketops-risk-reward-daily-v1")
     expect(risk_reward_card).to_be_visible(timeout=30_000)
     risk_reward_card.click()
 
-    panel = dashboard_page.get_by_test_id("dashboard-syncratic-explainability")
+    expect(panel).to_be_visible(timeout=30_000)
     expect(panel.get_by_text("Risk/Reward").first).to_be_visible(timeout=30_000)
-    expect(panel.get_by_text("Syncratic Explainability").or_(panel.get_by_text("Deterministic Explainability")).first).to_be_visible(timeout=30_000)
-    explanation = panel.locator("p.whitespace-pre-wrap").first
-    expect(explanation).to_be_visible(timeout=30_000)
-
-    text = explanation.text_content() or ""
+    expect(panel.get_by_text("Summary snippet")).to_be_visible(timeout=30_000)
+    snippet = panel.locator("p").first
+    text = snippet.text_content() or ""
     compact = " ".join(text.split())
-    assert "Executive summary:" in text, compact
-    assert "Contextual read:" in text, compact
-    assert "Top drivers:" in text, compact
-    assert re.search(r"Analyst follow-ups?:", text), compact
-    assert "\n" in text, "Dashboard rendered the explainability as a compact single-line summary"
-    assert len(compact) >= 500, f"Dashboard explainability is too thin: {compact}"
+    assert "Risk/Reward breadth" in compact, compact
+    assert len(compact) < 700, f"Dashboard snippet is too long and behaves like a full narrative: {compact}"
+    for full_section in ["Contextual read:", "Top drivers:", "Analyst follow-ups:"]:
+        assert full_section not in text, f"Dashboard snippet leaked full narrative section {full_section!r}: {compact}"
 
-    lower = compact.lower()
-    for forbidden in [
-        "they want me",
-        "the task is to",
-        "the context includes",
-        "the prompt",
-        "the json provided",
-        "with score",
-        "confidence 0.",
-    ]:
-        assert forbidden not in lower, f"Dashboard explainability contains meta or raw metric output {forbidden!r}: {compact}"
+    with dashboard_page.expect_navigation(url=re.compile(re.escape(config.base_url) + r"/marketops/syncratic"), timeout=30_000):
+        panel.get_by_role("button", name="Open Syncratic Intelligence").click()

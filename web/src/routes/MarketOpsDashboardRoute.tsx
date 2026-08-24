@@ -3,13 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ThemedEChart as ReactECharts } from "../components/ThemedEChart";
 import { useTenant } from "../auth/session";
-import { useMarketOpsSignalOverview, useSyncraticInsights } from "../api/queries";
+import { useMarketOpsIntradayConditions, useMarketOpsSignalOverview, useSyncraticInsights } from "../api/queries";
 import { api } from "../api/client";
 import { LoadingState, EmptyState, ErrorState } from "../components/States";
 import { TechnicalScoreDistributionChart } from "../components/SignalOverviewAggregateCharts";
 import { formatUtc } from "../lib/format";
 import { MarketOpsWatchlistSelector, useMarketOpsWatchlistContext } from "../components/MarketOpsWatchlistContext";
-import { SyncraticExplainabilityCard } from "../components/SyncraticExplainabilityCard";
 import {
   classifySyncraticNarrativeQuality,
   summarizeSyncraticAsk,
@@ -20,7 +19,6 @@ import {
   compactNarrative,
   dashboardSyncraticNarrativeCards,
   DASHBOARD_DAILY_NARRATIVE_INSIGHT_TYPE,
-  fullExplainabilityNarrative,
   narrativeStrategy,
 } from "../lib/marketopsDashboardSyncratic";
 import type {
@@ -28,6 +26,7 @@ import type {
   MarketOpsSignalOverviewPoint,
   MarketOpsSignalOverviewResponse,
   MarketOpsSignalOverviewWindow,
+  MarketOpsIntradayConditionSnapshot,
   SyncraticInsight,
 } from "../types";
 
@@ -90,6 +89,7 @@ export function MarketOpsDashboardRoute() {
     status: "active",
     limit: 20,
   });
+  const intradayConditionsQ = useMarketOpsIntradayConditions(tenantId, "all_active");
   const data = query.data;
   const openAsset = (symbol: string) =>
     void navigate({ to: "/marketops/state", search: { symbol } });
@@ -128,92 +128,98 @@ export function MarketOpsDashboardRoute() {
       ) : !data ? (
         <EmptyState message="No persisted signal overview is available for this scope." />
       ) : (
-        <>
-          <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-            Watchlist assets {" "}
-            <strong className="text-gray-900 dark:text-gray-100">{data.asset_count}</strong>{watchlist.context?.list_name ? <> · {watchlist.context.list_name}</> : null} ·
-            generated {formatUtc(data.generated_at)} · select any chart segment
-            to inspect its represented assets.
-          </div>
-          <SyncraticExplainabilityCard
-            surface="Dashboard"
-            description="Ask Syncratic for a persisted daily overview that relates Risk/Reward breadth, sector posture, Review Queue pressure, and current watchlist evidence."
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,4fr)_minmax(260px,1fr)]">
+          <main data-testid="dashboard-primary-content" className="min-w-0 space-y-3">
+            <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+              Watchlist assets {" "}
+              <strong className="text-gray-900 dark:text-gray-100">{data.asset_count}</strong>{watchlist.context?.list_name ? <> · {watchlist.context.list_name}</> : null} ·
+              generated {formatUtc(data.generated_at)} · select any chart segment
+              to inspect its represented assets.
+            </div>
+            <div className="grid gap-3 xl:grid-cols-2">
+              <div className="order-1 min-w-0">
+                <Timeline
+                  title="Risk/Reward breadth"
+                  subtitle="Distinct assets by persisted EOD technical posture."
+                  points={data.risk_reward.points}
+                  onDrilldown={setDrilldown}
+                />
+                {drilldown?.title.startsWith("Risk/Reward breadth") ? (
+                  <AssetDrilldown
+                    drilldown={drilldown}
+                    onClose={() => setDrilldown(null)}
+                    openAsset={openAsset}
+                  />
+                ) : null}
+              </div>
+              <div className="order-3 min-w-0">
+                <TechnicalScoreDistributionChart
+                  data={data}
+                  onDrilldown={setDrilldown}
+                />
+                {drilldown?.title.startsWith("Technical score distribution") ? (
+                  <AssetDrilldown
+                    drilldown={drilldown}
+                    onClose={() => setDrilldown(null)}
+                    openAsset={openAsset}
+                  />
+                ) : null}
+              </div>
+              <div className="order-6 min-w-0 xl:col-span-2">
+                <ExhaustiveReversalQueue
+                  rows={reversalQ.data?.results ?? []}
+                  loading={reversalQ.isLoading}
+                />
+              </div>
+              <div className="order-2 min-w-0">
+                <OptionsFlowExtremes
+                  data={data.options_flow_extremes}
+                  onDrilldown={setDrilldown}
+                />
+                {drilldown?.title.startsWith("Options-flow extremes") ? (
+                  <AssetDrilldown
+                    drilldown={drilldown}
+                    onClose={() => setDrilldown(null)}
+                    openAsset={openAsset}
+                  />
+                ) : null}
+              </div>
+              <div className="order-4 min-w-0">
+                <Intraday data={data.intraday} onDrilldown={setDrilldown} />
+                {drilldown?.title.startsWith("Current intraday breadth") ? (
+                  <AssetDrilldown
+                    drilldown={drilldown}
+                    onClose={() => setDrilldown(null)}
+                    openAsset={openAsset}
+                  />
+                ) : null}
+              </div>
+              <div className="order-5 min-w-0 xl:col-span-2">
+                <UpcomingEarnings
+                  events={eventsQ.data?.events ?? []}
+                  loading={eventsQ.isLoading}
+                  onOpen={openAsset}
+                />
+              </div>
+            </div>
+            <DashboardSyncraticNarratives
+              narratives={narrativesQ.data?.syncratic_insights ?? []}
+              loading={narrativesQ.isLoading}
+              error={narrativesQ.isError ? narrativesQ.error : null}
+              expandedNarrativeId={expandedNarrativeId}
+              onToggleNarrative={(id) => setExpandedNarrativeId(expandedNarrativeId === id ? null : id)}
+              openSyncratic={() => void navigate({ to: "/marketops/syncratic" })}
+            />
+          </main>
+          <MarketIntelligenceReel
+            snapshots={intradayConditionsQ.data?.snapshots ?? []}
+            loading={intradayConditionsQ.isLoading}
+            error={intradayConditionsQ.isError ? intradayConditionsQ.error : null}
+            watchlist={watchlist}
+            openAsset={openAsset}
+            openReel={() => void navigate({ to: "/marketops/indicator-reel" })}
           />
-          <DashboardSyncraticNarratives
-            narratives={narrativesQ.data?.syncratic_insights ?? []}
-            loading={narrativesQ.isLoading}
-            error={narrativesQ.isError ? narrativesQ.error : null}
-            expandedNarrativeId={expandedNarrativeId}
-            onToggleNarrative={(id) => setExpandedNarrativeId(expandedNarrativeId === id ? null : id)}
-            openSyncratic={() => void navigate({ to: "/marketops/syncratic" })}
-          />
-          <div className="grid gap-3 xl:grid-cols-2">
-            <div className="order-1 min-w-0">
-              <Timeline
-                title="Risk/Reward breadth"
-                subtitle="Distinct assets by persisted EOD technical posture."
-                points={data.risk_reward.points}
-                onDrilldown={setDrilldown}
-              />
-              {drilldown?.title.startsWith("Risk/Reward breadth") ? (
-                <AssetDrilldown
-                  drilldown={drilldown}
-                  onClose={() => setDrilldown(null)}
-                  openAsset={openAsset}
-                />
-              ) : null}
-            </div>
-            <div className="order-3 min-w-0">
-              <TechnicalScoreDistributionChart
-                data={data}
-                onDrilldown={setDrilldown}
-              />
-              {drilldown?.title.startsWith("Technical score distribution") ? (
-                <AssetDrilldown
-                  drilldown={drilldown}
-                  onClose={() => setDrilldown(null)}
-                  openAsset={openAsset}
-                />
-              ) : null}
-            </div>
-            <div className="order-6 min-w-0 xl:col-span-2">
-              <ExhaustiveReversalQueue
-                rows={reversalQ.data?.results ?? []}
-                loading={reversalQ.isLoading}
-              />
-            </div>
-            <div className="order-2 min-w-0">
-              <OptionsFlowExtremes
-                data={data.options_flow_extremes}
-                onDrilldown={setDrilldown}
-              />
-              {drilldown?.title.startsWith("Options-flow extremes") ? (
-                <AssetDrilldown
-                  drilldown={drilldown}
-                  onClose={() => setDrilldown(null)}
-                  openAsset={openAsset}
-                />
-              ) : null}
-            </div>
-            <div className="order-4 min-w-0">
-              <Intraday data={data.intraday} onDrilldown={setDrilldown} />
-              {drilldown?.title.startsWith("Current intraday breadth") ? (
-                <AssetDrilldown
-                  drilldown={drilldown}
-                  onClose={() => setDrilldown(null)}
-                  openAsset={openAsset}
-                />
-              ) : null}
-            </div>
-            <div className="order-5 min-w-0 xl:col-span-2">
-              <UpcomingEarnings
-                events={eventsQ.data?.events ?? []}
-                loading={eventsQ.isLoading}
-                onOpen={openAsset}
-              />
-            </div>
-          </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -236,7 +242,7 @@ function DashboardSyncraticNarratives({
   openSyncratic: () => void;
 }) {
   const cards = dashboardSyncraticNarrativeCards(narratives);
-  const expandedCard = cards.find((card) => card.insight.syncratic_insight_id === expandedNarrativeId) ?? cards[0];
+  const expandedCard = cards.find((card) => card.insight.syncratic_insight_id === expandedNarrativeId) ?? null;
 
   return (
     <section className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
@@ -246,7 +252,7 @@ function DashboardSyncraticNarratives({
             Syncratic narrative digest
           </div>
           <p className="text-[11px] leading-5 text-gray-500 dark:text-gray-400">
-            Tenant/global MarketOps context. These cards summarize persisted daily narratives; selected-watchlist-specific narratives remain a follow-up scope.
+            Tenant/global MarketOps context. Select a card for a short summary snippet; open Syncratic Intelligence for the full narrative and evidence workspace.
           </p>
         </div>
         <button
@@ -296,7 +302,7 @@ function DashboardSyncraticNarratives({
                 </p>
                 <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400">
                   <span>Updated {formatUtc(summary.updatedAt)}</span>
-                  <span className="font-medium text-brand-700 dark:text-brand-300">{expandedCard?.insight.syncratic_insight_id === summary.insightId ? "Showing explanation" : "View explanation"}</span>
+                  <span className="font-medium text-brand-700 dark:text-brand-300">{expandedCard?.insight.syncratic_insight_id === summary.insightId ? "Showing snippet" : "View snippet"}</span>
                 </div>
               </button>
             );
@@ -334,9 +340,7 @@ function DashboardSyncraticFullNarrative({
 }) {
   const summary = summarizeSyncraticInsight(insight);
   const quality = classifySyncraticNarrativeQuality(insight);
-  const ask = summarizeSyncraticAsk(insight);
-  const narrative = fullExplainabilityNarrative(insight);
-  const explanationLabel = ask.present ? "Syncratic Explainability" : "Deterministic Explainability";
+  const snippet = snippetText(summary.summary || summary.explanation, 420);
   return (
     <div data-testid="dashboard-syncratic-explainability" className="mt-3 rounded border border-brand-200 bg-brand-50/40 p-3 dark:border-brand-800 dark:bg-brand-950/20">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -348,35 +352,99 @@ function DashboardSyncraticFullNarrative({
           </div>
           <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{summary.title || label}</div>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={openSyncratic} className="rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">Open evidence workspace</button>
-        </div>
+        <button type="button" onClick={openSyncratic} className="rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">Open Syncratic Intelligence</button>
       </div>
       <div className="mt-3">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{explanationLabel}</span>
-          {ask.present ? (
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">generated from the persisted MarketOps context window</span>
-          ) : null}
+        <div className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200">Summary snippet</div>
+        <p className="rounded border border-brand-200 bg-white p-3 text-sm leading-6 text-gray-800 dark:border-brand-800 dark:bg-gray-950 dark:text-gray-100">
+          {snippet || "Narrative exists, but no summary snippet is available."}
+        </p>
+        <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+          Dashboard intentionally shows only a bounded summary. Use Syncratic Intelligence for the full narrative, provenance, and evidence workspace.
         </div>
-        <p className={`whitespace-pre-wrap break-words rounded border p-3 text-sm leading-6 ${ask.present ? "border-brand-200 bg-brand-50 text-gray-800 dark:border-brand-800 dark:bg-brand-950/30 dark:text-gray-100" : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"}`}>
-          {narrative || "Narrative exists, but no explanation text is available."}
-        </p>
-        {ask.present ? (
-          <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-            SignalOps deterministic context and evidence references remain available in Syncratic Intelligence. This explanation is generated from persisted MarketOps evidence and should be treated as explainability, not a trading recommendation.
-          </div>
-        ) : null}
       </div>
-      {summary.summary && summary.explanation && summary.summary !== summary.explanation ? (
-        <p className="mt-2 text-xs leading-5 text-gray-600 dark:text-gray-300">
-          Summary: {summary.summary}
-        </p>
-      ) : null}
     </div>
   );
 }
 
+
+function snippetText(value: string, maxLength: number): string {
+  const compact = compactNarrative(value || "");
+  if (compact.length <= maxLength) return compact;
+  return compact.slice(0, maxLength).replace(/\s+\S*$/, "") + "…";
+}
+
+function MarketIntelligenceReel({
+  snapshots,
+  loading,
+  error,
+  watchlist,
+  openAsset,
+  openReel,
+}: {
+  snapshots: MarketOpsIntradayConditionSnapshot[];
+  loading: boolean;
+  error: unknown;
+  watchlist: ReturnType<typeof useMarketOpsWatchlistContext>;
+  openAsset: (symbol: string) => void;
+  openReel: () => void;
+}) {
+  const items = snapshots
+    .filter((snapshot) => !watchlist.available || watchlist.tickerSet.has(snapshot.ticker.toUpperCase()))
+    .flatMap((snapshot) =>
+      snapshot.conditions.map((condition) => ({ snapshot, condition })),
+    )
+    .sort(
+      (left, right) =>
+        Number(right.condition.score ?? 0) - Number(left.condition.score ?? 0) ||
+        String(right.snapshot.as_of_time).localeCompare(String(left.snapshot.as_of_time)) ||
+        left.snapshot.ticker.localeCompare(right.snapshot.ticker),
+    )
+    .slice(0, 10);
+  return (
+    <aside className="min-w-0 space-y-3 xl:sticky xl:top-3 xl:self-start" data-testid="dashboard-market-intelligence-reel">
+      <section className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Market Intelligence</div>
+            <p className="mt-1 text-[11px] leading-5 text-gray-500 dark:text-gray-400">Dynamic reel of current intraday conditions for the selected watchlist.</p>
+          </div>
+          <button type="button" onClick={openReel} className="shrink-0 rounded bg-brand-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-brand-700">Open</button>
+        </div>
+        {loading ? (
+          <div className="py-4 text-xs text-gray-500 dark:text-gray-400">Loading reel…</div>
+        ) : error ? (
+          <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">Market Intelligence is currently unavailable.</div>
+        ) : items.length ? (
+          <div className="mt-3 max-h-[760px] space-y-2 overflow-y-auto pr-1">
+            {items.map(({ snapshot, condition }) => (
+              <button
+                key={`${snapshot.snapshot_id}-${condition.key}`}
+                type="button"
+                onClick={() => openAsset(snapshot.ticker)}
+                className={`w-full rounded border p-2 text-left transition-colors hover:border-brand-300 ${condition.tone === "positive" ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30" : condition.tone === "negative" ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30" : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950"}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-mono text-xs font-semibold text-gray-900 dark:text-gray-100">{snapshot.ticker}</span>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400">{formatUtc(snapshot.as_of_time)}</span>
+                </div>
+                <div className="mt-1 text-xs font-semibold text-gray-800 dark:text-gray-100">{condition.title}</div>
+                <p className="mt-1 line-clamp-3 text-[11px] leading-5 text-gray-600 dark:text-gray-300">{condition.evidence || condition.interpretation}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
+                  <span>{snapshot.market_status.replace(/_/g, " ")}</span>
+                  <span>· score {Number(condition.score ?? 0).toFixed(1)}</span>
+                  {snapshot.stale ? <span className="text-amber-700 dark:text-amber-300">· stale</span> : null}
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3 rounded border border-gray-200 bg-gray-50 px-2 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300">No current intraday condition exceeds the reel threshold for this watchlist.</div>
+        )}
+      </section>
+    </aside>
+  );
+}
 
 function UpcomingEarnings({
   events,

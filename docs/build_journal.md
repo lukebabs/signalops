@@ -9170,3 +9170,10 @@ Next-cycle priority:
 - Root cause: Syncratic Ask controls on the Syncratic Intelligence route did not pass `insight_type`, so Ask/Regenerate updated a generic context-window insight instead of the daily narrative insight consumed by the Dashboard.
 - Root cause hardening: empty/no-text Ask responses are now treated as unusable for daily narratives and trigger the deterministic daily narrative fallback instead of persisting `Syncratic Ask returned no textual explanation` as user-facing Dashboard content.
 - Deployed gateway and web, force-refreshed the daily narratives through the controlled Syncratic UI smoke, verified the persisted Risk/Reward row was repaired, and confirmed the Dashboard Playwright regression passes against production.
+
+### 2026-08-24 — Dashboard 80/20 layout and Syncratic digest de-emphasis
+
+- Moved the Dashboard Syncratic narrative digest below the main dashboard content so it no longer imposes near the top of the page.
+- Changed Dashboard narrative selection to reveal only a bounded summary snippet, with click-through to Syncratic Intelligence for the full narrative, provenance, and evidence workspace.
+- Added a right-side Market Intelligence reel using persisted intraday condition snapshots for the selected watchlist, matching the lightweight dynamic-reel pattern from the Market Intelligence view.
+- Updated the authenticated Playwright Dashboard regression to validate the 80/20 layout, right-rail reel, lower digest placement, snippet-only behavior, and Syncratic Intelligence click-through. Production Playwright validation passed.
