@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Sparkles, AlertTriangle, RefreshCw } from 'lucide-react';
 import {
   useSyncraticInsights,
@@ -187,7 +187,6 @@ export function MarketOpsSyncraticRoute() {
         <SyncraticNarrativeWorkbench
           tenantId={TENANT_ID}
           selectedTab={surfaceTab}
-          onInspect={(id) => { setSelectedId(id); setSurfaceTab('asset'); }}
         />
       ) : (
         <>
@@ -339,16 +338,15 @@ export function MarketOpsSyncraticRoute() {
 function SyncraticNarrativeWorkbench({
   tenantId,
   selectedTab,
-  onInspect,
 }: {
   tenantId: string;
   selectedTab: Exclude<SyncraticSurfaceTab, 'asset'>;
-  onInspect: (insightId: string) => void;
 }) {
   const tab = NARRATIVE_TABS.find((item) => item.key === selectedTab) ?? NARRATIVE_TABS[0];
   const subscription = useSubscription();
   const canRunAsk = subscription.allows(SYNCRATIC_EXPLAINABILITY_FEATURE);
   const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedNarrativeId, setSelectedNarrativeId] = useState<string | null>(null);
   const materialize = useMaterializeSyncraticDailyNarratives();
   const narratives = useSyncraticInsights({
     tenant_id: tenantId,
@@ -363,7 +361,14 @@ function SyncraticNarrativeWorkbench({
     return all.filter((insight) => narrativeStrategy(insight) === tab.strategy);
   }, [narratives.data, tab.strategy]);
   const latest = filtered.slice().sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+  const selectedNarrativeDetail = useSyncraticInsight(selectedNarrativeId);
+  const selectedNarrative = selectedNarrativeDetail.data?.syncratic_insight ?? latest.find((insight) => insight.syncratic_insight_id === selectedNarrativeId) ?? null;
+  const selectedNarrativeSummary = selectedNarrative ? summarizeSyncraticInsight(selectedNarrative) : null;
   const strategies = tab.strategy ? [tab.strategy] : ['marketops_daily_overview_v1', 'marketops_sri_daily_v1', 'marketops_risk_reward_daily_v1', 'marketops_review_queue_daily_v1'];
+
+  useEffect(() => {
+    setSelectedNarrativeId(null);
+  }, [selectedTab]);
 
   function run(dryRun: boolean) {
     if (!canRunAsk) return;
@@ -398,22 +403,46 @@ function SyncraticNarrativeWorkbench({
       )}
       {materialize.isError && <ErrorState error={materialize.error} />}
       {narratives.isLoading ? <LoadingState label="Loading Syncratic narratives..." /> : narratives.isError ? <ErrorState error={narratives.error} /> : latest.length ? (
+        <div className="space-y-3">
         <div className="grid gap-3 lg:grid-cols-2">
           {latest.map((insight) => {
             const quality = classifySyncraticNarrativeQuality(insight);
             return (
-            <button key={insight.syncratic_insight_id} type="button" onClick={() => onInspect(insight.syncratic_insight_id)} className="rounded border border-gray-200 bg-gray-50 p-3 text-left hover:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-brand-500">
+            <button key={insight.syncratic_insight_id} type="button" onClick={() => setSelectedNarrativeId(selectedNarrativeId === insight.syncratic_insight_id ? null : insight.syncratic_insight_id)} className={`rounded border p-3 text-left hover:border-brand-300 dark:hover:border-brand-500 ${selectedNarrativeId === insight.syncratic_insight_id ? 'border-brand-300 bg-brand-50 dark:border-brand-500 dark:bg-brand-950/30' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950'}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800 dark:bg-brand-950 dark:text-brand-200">{narrativeLabel(narrativeStrategy(insight))}</span>
                 <SyncraticNarrativeQualityChip quality={quality} />
                 <span className="text-[11px] text-gray-500 dark:text-gray-400">{formatUtc(insight.updated_at)}</span>
               </div>
               <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{insight.title}</div>
-              <p className="mt-1 line-clamp-3 text-xs text-gray-600 dark:text-gray-300">{insight.summary || insight.explanation}</p>
-              <div className="mt-2 text-[11px] text-brand-700 dark:text-brand-300">Inspect artifacts and context →</div>
+              <p className="mt-1 line-clamp-3 text-xs text-gray-600 dark:text-gray-300">{insight.explanation || insight.summary}</p>
+              <div className="mt-2 text-[11px] text-brand-700 dark:text-brand-300">{selectedNarrativeId === insight.syncratic_insight_id ? 'Hide full narrative ↑' : 'Reveal full narrative ↓'}</div>
             </button>
           );
           })}
+        </div>
+        {selectedNarrativeId ? (
+          <div className="rounded border border-brand-200 bg-white p-3 dark:border-brand-800 dark:bg-gray-950">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">Full Syncratic narrative</div>
+              <button type="button" onClick={() => setSelectedNarrativeId(null)} className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Close</button>
+            </div>
+            {selectedNarrativeDetail.isLoading ? (
+              <LoadingState label="Loading full narrative..." />
+            ) : selectedNarrativeDetail.isError ? (
+              <ErrorState error={selectedNarrativeDetail.error} />
+            ) : selectedNarrative && selectedNarrativeSummary ? (
+              <SyncraticInsightDetail
+                key={selectedNarrativeId}
+                insight={selectedNarrative}
+                summary={selectedNarrativeSummary}
+                tenantId={tenantId}
+              />
+            ) : (
+              <EmptyState message="Selected Syncratic narrative is unavailable." />
+            )}
+          </div>
+        ) : null}
         </div>
       ) : (
         <EmptyState message="No daily Syncratic narratives are available for this tab yet. Use Preview first, then Materialize + enqueue when the deterministic context looks eligible." />

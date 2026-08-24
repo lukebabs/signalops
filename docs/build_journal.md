@@ -9136,3 +9136,10 @@ Next-cycle priority:
 - Kept the Dashboard read-only and bounded: one existing Syncratic insights query, no context-window detail fetches, no provider polling, and no Ask/Regenerate controls.
 - Labeled the digest as tenant/global MarketOps context while preserving selected-watchlist-specific narratives as a follow-up scope.
 - Added pure helper coverage for latest-per-strategy selection and compact narrative excerpts.
+
+
+### 2026-08-24 — Syncratic narrative reveal flow
+
+- Corrected the Syncratic Intelligence daily narrative interaction so Daily Overview, Sector Rotation, Risk/Reward, and Review Queue cards reveal the full persisted narrative inline instead of switching users into Asset Drilldowns.
+- Updated the Dashboard Syncratic narrative digest so cards expand to the full persisted `explanation` text, with compact summaries used only as fallback/supporting context.
+- Updated the Syncratic Ask browser smoke to assert the inline full-narrative flow rather than the prior Asset Drilldowns transition.

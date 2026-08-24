@@ -68,6 +68,7 @@ export function MarketOpsDashboardRoute() {
     title: string;
     members: MarketOpsSignalOverviewMember[];
   } | null>(null);
+  const [expandedNarrativeId, setExpandedNarrativeId] = useState<string | null>(null);
   const query = useMarketOpsSignalOverview(tenantId, "all_active", window);
   const reversalQ = useQuery({
     queryKey: ["marketops-eroc", tenantId],
@@ -139,6 +140,9 @@ export function MarketOpsDashboardRoute() {
             narratives={narrativesQ.data?.syncratic_insights ?? []}
             loading={narrativesQ.isLoading}
             error={narrativesQ.isError ? narrativesQ.error : null}
+            expandedNarrativeId={expandedNarrativeId}
+            onToggleNarrative={(id) => setExpandedNarrativeId(expandedNarrativeId === id ? null : id)}
+            onCloseNarrative={() => setExpandedNarrativeId(null)}
             openSyncratic={() => void navigate({ to: "/marketops/syncratic" })}
           />
           <div className="grid gap-3 xl:grid-cols-2">
@@ -218,14 +222,21 @@ function DashboardSyncraticNarratives({
   narratives,
   loading,
   error,
+  expandedNarrativeId,
+  onToggleNarrative,
+  onCloseNarrative,
   openSyncratic,
 }: {
   narratives: SyncraticInsight[];
   loading: boolean;
   error: unknown;
+  expandedNarrativeId: string | null;
+  onToggleNarrative: (insightId: string) => void;
+  onCloseNarrative: () => void;
   openSyncratic: () => void;
 }) {
   const cards = dashboardSyncraticNarrativeCards(narratives);
+  const expandedCard = cards.find((card) => card.insight.syncratic_insight_id === expandedNarrativeId);
 
   return (
     <section className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
@@ -259,13 +270,13 @@ function DashboardSyncraticNarratives({
           {cards.map(({ label: cardLabel, insight }) => {
             const summary = summarizeSyncraticInsight(insight);
             const quality = classifySyncraticNarrativeQuality(insight);
-            const text = compactNarrative(summary.summary || summary.explanation);
+            const text = compactNarrative(summary.explanation || summary.summary);
             return (
               <button
                 key={summary.insightId}
                 type="button"
-                onClick={openSyncratic}
-                className="rounded border border-gray-200 bg-gray-50 p-2 text-left hover:border-brand-300 hover:bg-brand-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-brand-500 dark:hover:bg-brand-950/30"
+                onClick={() => onToggleNarrative(summary.insightId)}
+                className={`rounded border p-2 text-left hover:border-brand-300 hover:bg-brand-50 dark:hover:border-brand-500 dark:hover:bg-brand-950/30 ${expandedNarrativeId === summary.insightId ? "border-brand-300 bg-brand-50 dark:border-brand-500 dark:bg-brand-950/30" : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950"}` }
               >
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800 dark:bg-brand-950 dark:text-brand-200">
@@ -281,8 +292,9 @@ function DashboardSyncraticNarratives({
                 <p className="mt-1 line-clamp-4 text-xs leading-5 text-gray-600 dark:text-gray-300">
                   {text || "Narrative exists, but no compact summary text is available."}
                 </p>
-                <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                  Updated {formatUtc(summary.updatedAt)}
+                <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                  <span>Updated {formatUtc(summary.updatedAt)}</span>
+                  <span className="font-medium text-brand-700 dark:text-brand-300">{expandedNarrativeId === summary.insightId ? "Hide" : "Read full"}</span>
                 </div>
               </button>
             );
@@ -293,7 +305,58 @@ function DashboardSyncraticNarratives({
           No Syncratic daily narratives are available yet. Open Syncratic Intelligence to inspect or materialize persisted context.
         </div>
       )}
+
+      {expandedCard ? (
+        <DashboardSyncraticFullNarrative
+          label={expandedCard.label}
+          insight={expandedCard.insight}
+          onClose={onCloseNarrative}
+          openSyncratic={openSyncratic}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function DashboardSyncraticFullNarrative({
+  label,
+  insight,
+  onClose,
+  openSyncratic,
+}: {
+  label: string;
+  insight: SyncraticInsight;
+  onClose: () => void;
+  openSyncratic: () => void;
+}) {
+  const summary = summarizeSyncraticInsight(insight);
+  const quality = classifySyncraticNarrativeQuality(insight);
+  const narrative = compactNarrative(summary.explanation || summary.summary);
+  return (
+    <div className="mt-3 rounded border border-brand-200 bg-brand-50/40 p-3 dark:border-brand-800 dark:bg-brand-950/20">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800 dark:bg-brand-950 dark:text-brand-200">{label}</span>
+            <span className={`rounded border px-1.5 py-0.5 text-[11px] font-medium ${SYNCRATIC_NARRATIVE_QUALITY_STYLES[quality.quality]}`}>{quality.label}</span>
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">Updated {formatUtc(summary.updatedAt)}</span>
+          </div>
+          <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{summary.title || label}</div>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={openSyncratic} className="rounded bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700">Open workspace</button>
+          <button type="button" onClick={onClose} className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900">Close</button>
+        </div>
+      </div>
+      <p className="mt-3 whitespace-pre-wrap break-words rounded border border-gray-200 bg-white p-3 text-sm leading-6 text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
+        {narrative || "Narrative exists, but no explanation text is available."}
+      </p>
+      {summary.summary && summary.explanation && summary.summary !== summary.explanation ? (
+        <p className="mt-2 text-xs leading-5 text-gray-600 dark:text-gray-300">
+          Summary: {compactNarrative(summary.summary)}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

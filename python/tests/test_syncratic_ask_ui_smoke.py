@@ -103,13 +103,10 @@ def test_syncratic_daily_narrative_ask_smoke(syncratic_page: Page, syncratic_con
     for tab_name, card_name in [("Daily Overview", "Daily Overview"), ("Sector Rotation", "SRI"), ("Risk/Reward", "Risk/Reward"), ("Review Queue", "Review Queue")]:
         syncratic_page.get_by_role("button", name=tab_name, exact=True).click()
         expect(syncratic_page.get_by_role("heading", name=f"{tab_name} narratives")).to_be_visible(timeout=30_000)
-        card = syncratic_page.locator("button").filter(has_text=card_name).filter(has_text="Inspect artifacts and context").first
+        card = syncratic_page.locator("button").filter(has_text=card_name).filter(has_text="Reveal full narrative").first
         expect(card).to_be_visible(timeout=30_000)
         card.click()
-        expect(syncratic_page.get_by_role("button", name="Asset Drilldowns", exact=True)).to_have_class(
-            re.compile("bg-brand-600"),
-            timeout=30_000,
-        )
+        expect(syncratic_page.get_by_text("Full Syncratic narrative").first).to_be_visible(timeout=30_000)
         expect(syncratic_page.get_by_text("Explain with Syncratic").first).to_be_visible(timeout=30_000)
         ask_button = syncratic_page.get_by_role("button", name=ask_button_name, exact=True).first
         expect(ask_button).to_be_visible(timeout=30_000)
