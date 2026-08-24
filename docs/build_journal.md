@@ -9222,3 +9222,10 @@ Next-cycle priority:
 - Fixed repeated `marketops-operations-monitor` failures caused by the low-write dedicated temporal database sitting at a WAL segment boundary. `pg_switch_wal()` alone did not always create a new archivable segment, so the monitor could report stale temporal WAL even with healthy pgBackRest configuration and no archive failures.
 - Updated `scripts/marketops_operations_monitor.sh` to issue a minimal committed WAL heartbeat with `SELECT txid_current()` before `pg_switch_wal()` and to poll archive freshness for a bounded 60 seconds instead of using a fixed 5-second sleep.
 - Live validation passed through the constrained deployment agent: `scheduler-run-now:marketops-operations-monitor` completed successfully, temporal WAL passed with `age_seconds=39 probe_wait_seconds=0`, DB status recorded `marketops-operations-monitor=succeeded`, and `scheduler-status` returned clean.
+
+### 2026-08-24 — Subscription user journey enrollment addendum
+
+- Added an enrollment and operational lifecycle workflow addendum to the MarketOps Subscription User Journey spec.
+- Captured the current implemented baseline: tier policy, pricing, upgrade intent, Admin Subscription Administration, signed Stripe webhook boundary, user activity logging, and controlled subscription enforcement canary evidence.
+- Documented remaining gaps across enrollment, lifecycle states, operational visibility, value progression, and Institutional lead/provisioning flow.
+- Defined the next recommended sprint: Subscriber Enrollment and Lifecycle Journey, with explicit acceptance criteria preserving webhook/admin-governed entitlement activation.

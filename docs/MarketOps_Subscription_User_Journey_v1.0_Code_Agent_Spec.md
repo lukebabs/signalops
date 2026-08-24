@@ -1916,5 +1916,206 @@ If MarketOps becomes part of the user's daily investment process, upgrades and r
 
 ---
 
-# End of Specification
 
+---
+
+## Addendum A — Enrollment and Operational Lifecycle Workflow
+
+Date: 2026-08-24
+Status: planning addendum for the next user-journey sprint
+
+### A.1 Current implemented baseline
+
+MarketOps currently has a production-safe subscription foundation, but not a complete self-service enrollment-to-paid-activation flow.
+
+Implemented baseline:
+
+- Explorer, Professional, and Institutional tier policy records exist.
+- Subscription Administration exposes tier settings, Stripe billing mappings, users/seats, upgrade funnel, webhook ledger, audit evidence, and user activity.
+- The pricing page renders configured Stripe product/price metadata.
+- Locked-feature prompts and pricing interactions persist authenticated, tenant-scoped upgrade-intent rows.
+- Stripe webhook handling is signed and fail-closed; valid unknown subscription events are recorded without granting access.
+- Admin-managed billing and subscription mapping are available for controlled provisioning.
+- Subscription enforcement canaries have validated Explorer, Professional, and Institutional behavior and safe restoration.
+- User activity logging exists for login, feature views, and mutating requests.
+
+### A.2 Enrollment gap
+
+The next sprint must close the gap between identity creation and a coherent MarketOps first-use experience.
+
+Current gaps:
+
+- New users do not yet have a guided first-run journey.
+- New users do not automatically receive a clearly explained default tier state.
+- New users do not receive a first watchlist/default-list explanation as part of onboarding.
+- Tenant/user assignment still depends on Keycloak/admin/backend provisioning rather than a visible enrollment workflow.
+- There is no explicit user-facing state for pending enrollment, active Explorer, active Professional, payment issue, cancellation, or downgrade scheduled.
+
+Required workflow:
+
+```text
+New identity / first login
+    ↓
+Resolve tenant and subject
+    ↓
+Resolve subscription lifecycle state
+    ↓
+Create or select default watchlist context
+    ↓
+Show first-use MarketOps orientation
+    ↓
+Record enrollment milestone
+    ↓
+Begin normal MarketOps research workflow
+```
+
+### A.3 Subscription lifecycle gap
+
+Checkout remains intentionally disabled until the lifecycle target state is explicit and webhook-confirmed activation is ready.
+
+Current gaps:
+
+- No Checkout Session endpoint exists.
+- No Stripe Customer Portal endpoint exists.
+- No complete return-to-context flow exists after successful checkout.
+- No automatic paid entitlement activation should occur from frontend redirects.
+- Payment-failure, cancellation, downgrade, renewal, and grace-period states are not fully surfaced to users.
+
+Required lifecycle states:
+
+- `enrollment_pending`
+- `explorer_active`
+- `professional_active`
+- `institutional_active`
+- `checkout_pending`
+- `payment_action_required`
+- `payment_failed`
+- `cancel_scheduled`
+- `downgrade_scheduled`
+- `canceled`
+- `admin_provisioned`
+- `webhook_pending_reconciliation`
+
+Authoritative activation rule:
+
+> No entitlement may be activated from a pricing click, frontend redirect, or upgrade-interaction row. Entitlement changes must come from a verified webhook reconciliation or an explicit admin-governed subscription mutation.
+
+### A.4 Operational-flow gap
+
+The user journey must be observable by administrators from enrollment through daily usage and upgrade interest.
+
+Admin should be able to answer:
+
+- Which users are enrolled?
+- Which tenant does each user belong to?
+- Which tier and lifecycle state is active?
+- Which users are blocked by entitlement limits?
+- Which users are repeatedly hitting Professional-value surfaces?
+- Which users have payment or webhook reconciliation issues?
+- Which users are active researchers versus inactive accounts?
+- Which watchlists/default lists govern each user’s MarketOps experience?
+
+Operational flow:
+
+```text
+User enrolls or is provisioned
+    ↓
+Admin sees subject + tenant + tier + lifecycle state
+    ↓
+User activity events accumulate
+    ↓
+Upgrade prompts and pricing clicks are attributed
+    ↓
+Checkout/webhook/admin changes update lifecycle state
+    ↓
+Admin can search, filter, and audit the full path
+```
+
+### A.5 Value progression gap
+
+The product should not push upgrade prompts generically. Upgrade timing should be derived from usage and research maturity.
+
+Signals to use for future Researcher-state scoring:
+
+- repeated logins across trading days;
+- repeated watchlist usage;
+- repeated locked-feature interactions;
+- Syncratic explainability usage;
+- Risk/Reward drill-down usage;
+- Signal Assurance drill-down usage;
+- Sector Rotation Intelligence follow-through;
+- Review Queue/opportunity investigation;
+- multiple assets monitored over time.
+
+Researcher-state objective:
+
+> Identify when an Explorer user has begun behaving like a serious researcher and present Professional upgrade context at the moment deeper intelligence would be useful.
+
+### A.6 Institutional journey gap
+
+Institutional remains Contact Sales, but the operational path needs structure.
+
+Required future workflow:
+
+```text
+Institutional CTA
+    ↓
+Lead capture with organization/use-case context
+    ↓
+Admin review
+    ↓
+Tenant provisioning
+    ↓
+Seat allocation
+    ↓
+Contract/quote mapping
+    ↓
+Institutional entitlement activation
+    ↓
+Tenant administrator manages users/seats
+```
+
+Institutional should not use generic public Checkout unless a later product decision explicitly changes that boundary.
+
+### A.7 Recommended next sprint
+
+Sprint name: Subscriber Enrollment and Lifecycle Journey
+
+Implementation order:
+
+1. Enrollment state foundation
+   - Add a durable enrollment/lifecycle state projection for each subject subscription.
+   - Surface the state in Subscription Administration users/seats views.
+   - Record first-login/first-enrollment milestone events.
+
+2. First-use MarketOps onboarding
+   - On first valid MarketOps access, resolve default watchlist context.
+   - Explain the user’s tier, default list, and available research workflow.
+   - Keep onboarding dismissible and non-blocking unless required data is missing.
+
+3. Checkout readiness boundary
+   - Define Checkout Session API contract but keep live Checkout disabled until explicit approval.
+   - Preserve return-to-context metadata from upgrade prompts.
+   - Require webhook-confirmed activation before entitlements change.
+
+4. Operational observability
+   - Add admin filters for lifecycle state, tier, activity recency, upgrade-interest source, and webhook/payment issues.
+   - Connect user activity, upgrade interactions, and subscription state into one user drill-down.
+
+### A.8 Acceptance criteria for the sprint
+
+The sprint is complete when:
+
+1. A newly provisioned user has a visible lifecycle state.
+2. First login creates or confirms the expected enrollment milestone.
+3. The user sees a coherent first-use MarketOps experience without needing admin explanation.
+4. The user’s default watchlist context is selected and explained.
+5. Upgrade prompts still record source context.
+6. Admin can search the user and see tier, lifecycle state, watchlist/default context, recent activity, and upgrade interest.
+7. Checkout remains disabled unless explicitly approved.
+8. No entitlement is granted without webhook-confirmed or admin-governed activation.
+9. Institutional remains Contact Sales with a structured lead/provisioning path documented.
+10. All enrollment, lifecycle, and upgrade events are auditable.
+
+
+# End of Specification
