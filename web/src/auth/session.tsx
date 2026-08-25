@@ -177,7 +177,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = useCallback(async () => {
     try {
       rememberRedirectPath('/marketops/dashboard');
-      await getUserManager().signinRedirect({ extraQueryParams: { kc_action: 'register' } });
+      const configuredURL = authConfig.signUpUrl.trim();
+      if (configuredURL) {
+        window.location.assign(configuredURL);
+        return;
+      }
+      setError('Account creation is not configured for this deployment. Use Sign in or contact support.');
     } catch (e) {
       setError(errMsg(e));
     }

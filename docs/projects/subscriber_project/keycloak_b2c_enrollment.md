@@ -8,8 +8,9 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 
 ## Runtime contract
 
-- Browser sign-in uses the existing OIDC Authorization Code + PKCE flow for `signalops-web`.
-- Browser sign-up uses the same OIDC client and callback, adding Keycloak `kc_action=register` to start the registration action without bypassing PKCE/state handling.
+- Browser sign-in uses the configured OIDC Authorization Code + PKCE client. Production must use a Keycloak client that actually exists in the live realm and has the `signalops-api` audience and tenant claim mappers.
+- Browser sign-up must be launched through the app/Gateway enrollment facade configured by `VITE_SIGNALOPS_AUTH_SIGNUP_URL`; the SPA must not deep-link directly to Keycloak with `kc_action=register`.
+- The production signup facade must live on the app/deployment host, for example `https://signalops.syncratic.io/auth/login?redirect=/marketops/dashboard`, not on `auth.syncratic.co`.
 - The gateway exposes `GET /v1/session/enrollment` for authenticated users before normal MarketOps access is complete.
 - The enrollment resolver reads the signed token subject, tenant, display identity, email, and `email_verified` claim.
 - Auto-enrollment is restricted to `SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID`, default `tenant-b2c`.
@@ -44,7 +45,7 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 
 ## UI behavior
 
-- Unauthenticated users see both **Sign in** and **Create account**.
+- Unauthenticated users always see **Sign in**. They see **Create account** only when `VITE_SIGNALOPS_AUTH_SIGNUP_URL` is configured for the deployment.
 - Authenticated users must resolve enrollment before the protected MarketOps router mounts.
 - Pending states show specific remediation language for email verification, tenant access, subscription setup, or watchlist setup.
 - Ready users enter the normal MarketOps Dashboard flow.
@@ -60,9 +61,9 @@ Run the enrollment smoke after the gateway/web deployment and after Keycloak reg
 The smoke is intentionally non-mutating:
 
 - It opens the public SignalOps entry point.
-- It verifies that the **Create account** action is visible.
-- It follows that action to the configured Keycloak host.
-- It asserts that the registration form or registration markers are visible.
+- It verifies that the **Create account** action is visible only when `VITE_SIGNALOPS_AUTH_SIGNUP_URL` is configured.
+- It follows that action to the configured app/Gateway enrollment facade.
+- It asserts that the flow reaches the governed registration/enrollment entry point without using a raw Keycloak `kc_action=register` URL.
 - It never submits the registration form and never creates a user.
 
 Useful overrides:
@@ -70,7 +71,8 @@ Useful overrides:
 ```bash
 SIGNALOPS_E2E_BASE_URL=https://signalops.syncratic.io
 SIGNALOPS_E2E_AUTH_HOST=auth.syncratic.co
-SIGNALOPS_E2E_CLIENT_ID=signalops-web
+SIGNALOPS_E2E_CLIENT_ID=<configured-live-client-id>
+VITE_SIGNALOPS_AUTH_SIGNUP_URL=https://signalops.syncratic.io/auth/login?redirect=/marketops/dashboard
 SIGNALOPS_E2E_ARTIFACT_DIR=/tmp/signalops-enrollment-e2e-artifacts
 ```
 
@@ -121,7 +123,7 @@ Live Keycloak was inspected through the `keycloak` container using `kcadm.sh`; n
 - realm role `signalops:viewer`;
 - user attribute `tenant_id=["tenant-b2c"]`.
 
-The `signalops-web` client has the required token mappers:
+The then-current `signalops-web` client had the required token mappers during the 2026-08-25 QA inspection:
 
 - `signalops-api-audience`, emitting `signalops-api` in the access token audience;
 - `tenant-id-from-user-attribute`, emitting the user `tenant_id` attribute into access/userinfo/introspection tokens.
@@ -132,6 +134,17 @@ Current realm-level public enrollment posture remains intentionally closed pendi
 
 - `registrationAllowed=false`;
 - `verifyEmail=false`.
+
+## HAR finding: registration entrypoint mismatch — 2026-08-25
+
+`har/auth.syncratic.co.har` showed a failed registration launch before any form submission, cookie capture, SMS MFA step, or successful callback. The primary failure was a raw Keycloak authorization request returning `400` with `client_id=signalops-web`, `redirect_uri=https://signalops.syncratic.io/auth/callback`, and `kc_action=register`. A separate `404` came from opening `/auth/login?redirect=/app/admin` on `auth.syncratic.co`; that route belongs on the app/Gateway host, not the raw Keycloak host.
+
+Operational conclusion: treat this as an auth entrypoint/client reconciliation problem, not an SMS MFA problem. Production must use exactly one of these controlled paths:
+
+1. Preferred: configure `VITE_SIGNALOPS_AUTH_SIGNUP_URL` to the app/Gateway facade URL and let that facade build the Keycloak request with the live Syncratic client.
+2. Alternative: reconcile a dedicated Keycloak `signalops-web` browser client with `https://signalops.syncratic.io/auth/callback`, web origin `https://signalops.syncratic.io`, PKCE, `signalops-api` audience, and `tenant_id` mapper before exposing direct OIDC registration.
+
+Until one path is verified in live browser smoke, public self-registration remains closed.
 
 The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke passed on 2026-08-25 using `SYNCRATIC_QA_CLIENT` / `SYNCRATIC_QA_PASS` mapped to the smoke variables. The already-provisioned QA account resolved to `tenant-b2c`, `marketops_ready`, `email_verified=true`, and `self_enrollment.eligible=true`. Under the production Option B policy, a new B2C account without a governed subscription must resolve to `subscription_missing` once subscription enforcement is enabled.
 

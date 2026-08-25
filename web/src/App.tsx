@@ -5,6 +5,7 @@ import { router } from './router';
 import { DashboardStreamBridge } from './components/DashboardStreamBridge';
 import { AuthProvider, useAuth } from './auth/session';
 import { AuthCallbackProcessor, LoginScreen, SilentRenewProcessor } from './auth/LoginScreen';
+import { authConfig } from './auth/config';
 import { ThemeProvider } from './theme/theme';
 import { MarketOpsWatchlistContextProvider } from "./components/MarketOpsWatchlistContext";
 import { UserActivityBridge } from './components/UserActivityBridge';
@@ -94,7 +95,7 @@ function RootGate() {
     return <LoginScreen loading />;
   }
   if (!session.authenticated) {
-    return <LoginScreen error={session.error} onSignIn={() => void session.signIn()} onSignUp={() => void session.signUp()} />;
+    return <LoginScreen error={session.error} onSignIn={() => void session.signIn()} onSignUp={authConfig.signUpUrl ? () => void session.signUp() : undefined} />;
   }
   return (
     <EnrollmentGate>

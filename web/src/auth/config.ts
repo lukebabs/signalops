@@ -8,6 +8,7 @@ export interface AuthConfig {
   clientId: string;
   audience: string;
   realm: string;
+  signUpUrl: string;
   idleTimeoutMinutes: number;
   renewBeforeExpirySeconds: number;
 }
@@ -31,6 +32,7 @@ export function resolveAuthConfig(env: Record<string, string | undefined>): Auth
     clientId: env.VITE_SIGNALOPS_AUTH_CLIENT_ID ?? 'signalops-web',
     audience: env.VITE_SIGNALOPS_AUTH_AUDIENCE ?? 'signalops-api',
     realm: env.VITE_SIGNALOPS_AUTH_REALM ?? 'syncratic',
+    signUpUrl: env.VITE_SIGNALOPS_AUTH_SIGNUP_URL ?? '',
     idleTimeoutMinutes: positiveInt(env.VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES, 30),
     renewBeforeExpirySeconds: positiveInt(env.VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS, 60),
   };

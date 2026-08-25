@@ -9236,3 +9236,10 @@ Next-cycle priority:
 - Captured operational rollout requirements: `BREVO_API` must be present, the provider-enabled Keycloak image must be rebuilt/redeployed, Compose must run `scripts/reconcile_keycloak_sms_mfa.sh` or Kubernetes must use the Helm `auth.smsMfa` hook, and new local users should receive `VERIFY_EMAIL`, `UPDATE_PASSWORD`, and `CONFIGURE_SMS_MFA`.
 - Captured the hard security rule that SignalOps must not set `phone_number_verified=true`; only the Keycloak SMS MFA provider may set it after successful verification. Required-action cancellation must not bypass phone verification when SMS MFA is required.
 - Added the Keycloak SPI upgrade warning: the SMS MFA provider is built against Keycloak `25.0.6`, so any Keycloak upgrade requires rebuilding and smoke-testing the provider before production traffic.
+
+### 2026-08-25 — Keycloak registration entrypoint HAR correction
+
+- Recorded the `auth.syncratic.co.har` finding: the failed public registration attempt returned `400` before form submission because the browser launched raw Keycloak with `client_id=signalops-web`, `redirect_uri=https://signalops.syncratic.io/auth/callback`, and `kc_action=register`; a separate `404` came from opening the app/Gateway `/auth/login` facade path on the raw Keycloak host.
+- Classified the failure as an auth client/entrypoint mismatch, not an SMS MFA failure. No successful callback, cookies, form post, or SMS MFA step was present in the HAR.
+- Updated the frontend registration contract so `Create account` is exposed only when `VITE_SIGNALOPS_AUTH_SIGNUP_URL` is configured, and the SPA no longer generates direct `kc_action=register` redirects. Normal sign-in remains the configured OIDC Authorization Code + PKCE flow.
+- Updated subscriber enrollment and browser-acceptance documentation: public self-registration must use an app/Gateway-hosted enrollment facade or a verified dedicated `signalops-web` Keycloak client before production exposure.
