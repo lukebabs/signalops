@@ -51,7 +51,7 @@ The post-registration resolver has a separate opt-in smoke:
 SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved ./scripts/run_keycloak_b2c_enrollment_authenticated_smoke.sh
 ```
 
-That check requires an existing B2C QA identity in `SIGNALOPS_B2C_WEB` and `SIGNALOPS_B2C_WEB_PASS`. It may exercise the gateway's idempotent B2C self-enrollment path for that subject, so it is not part of the default public-front-door smoke.
+That check requires an existing B2C QA identity in `SIGNALOPS_B2C_WEB` and `SIGNALOPS_B2C_WEB_PASS`. It may exercise the gateway's idempotent B2C self-enrollment path for that subject, so it is not part of the default public-front-door smoke. For an existing QA identity, the expected safe outcome is `self_enrollment.created=[]`, proving the user was routed through normal login/enrollment resolution rather than re-enrolled.
 
 ## Installation
 

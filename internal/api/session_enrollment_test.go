@@ -120,3 +120,26 @@ func TestSessionEnrollmentCanAutoActivateExplorerWhenExplicitlyEnabled(t *testin
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
+
+func TestSessionEnrollmentExistingB2CSubscriptionDoesNotReEnroll(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	accessRepo := &accessManagementTestRepository{subjectAccess: []storage.TenantUserAccessRecord{{TenantID: "tenant-b2c", Subject: "user-123", AppID: "marketops", Permission: "read"}}}
+	subscriptionRepo := &subscriberSubscriptionAPIFake{record: storage.SubscriberEffectiveSubscriptionRecord{TenantID: "tenant-b2c", Subject: "user-123", SubscriptionID: "sub-existing", Status: storage.SubscriberSubscriptionActive, Source: "subject", Product: storage.SubscriberSubscriptionProductRecord{ProductKey: "explorer", BillingScope: "subject", DisplayName: "Explorer", Active: true, FeaturePolicyJSON: []byte(`{"dashboard":true}`), LimitPolicyJSON: []byte(`{"private_watchlists":3}`), Revision: 1}}}
+	adminRepo := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, AccessRepository: accessRepo, SubscriberSubscriptionRepository: subscriptionRepo, SubscriberSubscriptionAdministrationRepository: adminRepo, SubscriberSubscriptionsEnabled: true, SubscriberB2CTenantID: "tenant-b2c"})
+	token := fixture.token(t, map[string]any{"tenant_id": "tenant-b2c", "email_verified": true})
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, "/v1/session/enrollment", nil), token))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"state":"marketops_ready"`) {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if accessRepo.upsertCount != 0 {
+		t.Fatalf("existing user was re-granted access: %d", accessRepo.upsertCount)
+	}
+	if adminRepo.subject.ProductKey != "" {
+		t.Fatalf("existing user was re-enrolled: %+v", adminRepo.subject)
+	}
+	if !strings.Contains(recorder.Body.String(), `"created":[]`) || strings.Contains(recorder.Body.String(), `"marketops_access"`) || strings.Contains(recorder.Body.String(), `"explorer_subscription"`) {
+		t.Fatalf("body=%s", recorder.Body.String())
+	}
+}

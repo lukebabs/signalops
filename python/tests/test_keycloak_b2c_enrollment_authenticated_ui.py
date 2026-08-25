@@ -25,6 +25,7 @@ class B2CEnrollmentConfig:
     tenant_id: str
     expected_state: str
     expected_can_self_enroll: bool
+    expected_created_actions: tuple[str, ...]
 
 
 def b2c_enrollment_config() -> B2CEnrollmentConfig:
@@ -39,6 +40,7 @@ def b2c_enrollment_config() -> B2CEnrollmentConfig:
         tenant_id=os.getenv("SIGNALOPS_E2E_B2C_TENANT_ID", "tenant-b2c").strip(),
         expected_state=os.getenv("SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE", "marketops_ready").strip(),
         expected_can_self_enroll=os.getenv("SIGNALOPS_E2E_EXPECT_CAN_SELF_ENROLL", "true").strip().lower() == "true",
+        expected_created_actions=tuple(action.strip() for action in os.getenv("SIGNALOPS_E2E_EXPECT_CREATED_ACTIONS", "").split(",") if action.strip()),
     )
 
 
@@ -100,6 +102,9 @@ def test_b2c_user_resolves_enrollment_state(b2c_page: Page) -> None:
     self_enrollment = payload.get("self_enrollment")
     assert isinstance(self_enrollment, dict), payload
     assert bool(self_enrollment.get("eligible", False)) is config.expected_can_self_enroll
+    created = self_enrollment.get("created")
+    assert isinstance(created, list), payload
+    assert tuple(str(action) for action in created) == config.expected_created_actions, payload
 
     if config.expected_state == "marketops_ready":
         expect(b2c_page.get_by_role("heading", name="MarketOps Dashboard")).to_be_visible(timeout=30_000)

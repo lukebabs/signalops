@@ -129,6 +129,8 @@ Current realm-level public enrollment posture remains intentionally closed pendi
 
 The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke passed on 2026-08-25 using `SYNCRATIC_QA_CLIENT` / `SYNCRATIC_QA_PASS` mapped to the smoke variables. The already-provisioned QA account resolved to `tenant-b2c`, `marketops_ready`, `email_verified=true`, and `self_enrollment.eligible=true`. Under the production Option B policy, a new B2C account without a governed subscription must resolve to `subscription_missing` once subscription enforcement is enabled.
 
+Existing-user safety validation is part of the smoke contract: an already-provisioned identity must return `self_enrollment.created=[]`. That proves the account is resolving through the login/enrollment path without creating a duplicate access grant or subscription enrollment.
+
 ## Deferred production work
 
 - Stripe Checkout and customer portal remain disabled until webhook-confirmed activation is implemented.
