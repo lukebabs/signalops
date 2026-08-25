@@ -9262,4 +9262,12 @@ Next-cycle priority:
 - Set `verifyEmail=true` so new registrants must verify email before the account can be used.
 - Added `/signalops/viewers` as a realm default group so self-registered users receive the minimum `signalops:viewer` role instead of becoming roleless accounts.
 - Verified non-mutatively with Playwright that `https://signalops.syncratic.io/auth/login?intent=register&redirect=/marketops/dashboard` now renders the Keycloak registration form with username, password, confirm password, email, first name, and last name fields.
-- Remaining gate: the running Keycloak container is still the base `quay.io/keycloak/keycloak:25.0` image and does not expose `CONFIGURE_SMS_MFA`; the provider-enabled SMS MFA image/reconcile step remains required. New registrants also still need governed `tenant_id=tenant-b2c` assignment before SignalOps can accept their token.
+- Follow-up update: the provider-enabled Keycloak image was deployed and the live `syncratic` realm now uses `syncratic-browser` with `syncratic-sms-otp-authenticator` set to `REQUIRED`; `CONFIGURE_SMS_MFA` is enabled and defaulted for new local registrations. New registrants still need governed `tenant_id=tenant-b2c` assignment before SignalOps can accept their token.
+
+### 2026-08-25 — Keycloak SMS MFA activation and tenant assignment gate
+
+- Verified the running Keycloak provider image loads the custom SMS MFA SPI (`syncratic-sms-otp-authenticator`) and required action (`CONFIGURE_SMS_MFA`) under Keycloak `25.0.6`.
+- Reconciled the live `syncratic` realm so `syncratic-browser` is the active browser flow and the SMS authenticator execution is `REQUIRED`.
+- Set `CONFIGURE_SMS_MFA` to `enabled=true` and `defaultAction=true`, causing new local registrations to receive the SMS MFA setup step.
+- Preserved the identity boundary: SignalOps does not mark `phone_number_verified=true`; only the Keycloak SMS provider does so after OTP verification.
+- Remaining tenant gate: self-registered users must receive `tenant_id=tenant-b2c` before SignalOps accepts their token. The proposed fast path is a Keycloak-provider change that assigns `tenant-b2c` after successful SMS verification only when no tenant attribute exists. Because this changes identity attributes, it requires explicit production approval before implementation.
