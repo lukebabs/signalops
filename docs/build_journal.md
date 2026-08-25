@@ -9229,3 +9229,10 @@ Next-cycle priority:
 - Captured the current implemented baseline: tier policy, pricing, upgrade intent, Admin Subscription Administration, signed Stripe webhook boundary, user activity logging, and controlled subscription enforcement canary evidence.
 - Documented remaining gaps across enrollment, lifecycle states, operational visibility, value progression, and Institutional lead/provisioning flow.
 - Defined the next recommended sprint: Subscriber Enrollment and Lifecycle Journey, with explicit acceptance criteria preserving webhook/admin-governed entitlement activation.
+
+### 2026-08-25 — Keycloak-owned SMS MFA registration handoff
+
+- Documented the SMS MFA boundary for the MarketOps subscription enrollment journey: SMS enrollment, OTP challenge, and phone verification are Keycloak-owned controls, while SignalOps only requests the `CONFIGURE_SMS_MFA` required action for new local users when `SMS_MFA_ENROLLMENT_POLICY=required_for_new_local_users`.
+- Captured operational rollout requirements: `BREVO_API` must be present, the provider-enabled Keycloak image must be rebuilt/redeployed, Compose must run `scripts/reconcile_keycloak_sms_mfa.sh` or Kubernetes must use the Helm `auth.smsMfa` hook, and new local users should receive `VERIFY_EMAIL`, `UPDATE_PASSWORD`, and `CONFIGURE_SMS_MFA`.
+- Captured the hard security rule that SignalOps must not set `phone_number_verified=true`; only the Keycloak SMS MFA provider may set it after successful verification. Required-action cancellation must not bypass phone verification when SMS MFA is required.
+- Added the Keycloak SPI upgrade warning: the SMS MFA provider is built against Keycloak `25.0.6`, so any Keycloak upgrade requires rebuilding and smoke-testing the provider before production traffic.

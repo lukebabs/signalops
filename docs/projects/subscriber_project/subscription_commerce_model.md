@@ -86,6 +86,8 @@ Public account creation now has an application-side enrollment resolver. Keycloa
 
 The resolver self-provisions only the configured B2C tenant, default `tenant-b2c`, and only after `email_verified=true`. Under the production Option B policy selected on 2026-08-25, registration is not a subscription activation event. The resolver may create identity/access scaffolding, but an active Explorer or Professional subscription must come from governed administration or verified Stripe webhook reconciliation. The legacy auto-Explorer behavior is behind `SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER=true` and defaults off.
 
+SMS MFA remains an identity-provider control. Keycloak owns SMS enrollment, phone verification, and login challenge through the custom `CONFIGURE_SMS_MFA` required action and `syncratic-sms-otp-authenticator`; SignalOps only requests the required action for new local users through `SMS_MFA_ENROLLMENT_POLICY=required_for_new_local_users` and must not mark phone numbers verified.
+
 See [Keycloak B2C Enrollment Flow](keycloak_b2c_enrollment.md).
 
 

@@ -14,6 +14,7 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 - The enrollment resolver reads the signed token subject, tenant, display identity, email, and `email_verified` claim.
 - Auto-enrollment is restricted to `SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID`, default `tenant-b2c`.
 - Verified B2C users may be idempotently provisioned with MarketOps read access and starter watchlist scaffolding, but production readiness requires an active subscription from governed administration or Stripe webhook reconciliation.
+- SMS MFA enrollment and login challenge are Keycloak-owned controls. SignalOps may request the `CONFIGURE_SMS_MFA` required action during enrollment, but it must not set `phone_number_verified=true`; only the Keycloak SMS MFA provider may do that after verification.
 - The resolver creates a tenant-default starter watchlist only when the B2C tenant has no readable list context.
 
 ## Guardrails
@@ -25,6 +26,8 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 - B2C Explorer auto-activation is disabled by default through `SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER=false`; enabling it is a controlled exception, not the production policy.
 - Enrollment calls are rate-limited in the gateway by a hashed tenant/subject/IP key.
 - Default public sign-ups must not receive operator, admin, subscription-admin, or tenant-provisioner roles.
+- Phone verification is blocking when SMS MFA is required. Registration or required-action cancellation must not bypass MFA setup.
+- The custom SMS MFA provider uses Brevo through `BREVO_API`; missing provider credentials must fail closed before production registration is opened.
 
 ## Keycloak configuration checklist
 
@@ -35,6 +38,9 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 5. Emit `email`, `email_verified`, `preferred_username`, and realm/client roles in the access token.
 6. Assign only the minimum viewer role for public registrations.
 7. Keep institutional and tenant-admin users on explicit admin provisioning paths.
+8. Install the custom SMS MFA provider image and reconcile the browser authentication flow with `syncratic-sms-otp-authenticator`.
+9. Configure the required action `CONFIGURE_SMS_MFA` and set `SMS_MFA_ENROLLMENT_POLICY=required_for_new_local_users` only after `BREVO_API` is present.
+10. New local users should receive `VERIFY_EMAIL`, `UPDATE_PASSWORD`, and `CONFIGURE_SMS_MFA`; future login SMS challenge should occur only after `sms_mfa_enabled=true` and `phone_number_verified=true`.
 
 ## UI behavior
 
@@ -130,6 +136,29 @@ Current realm-level public enrollment posture remains intentionally closed pendi
 The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke passed on 2026-08-25 using `SYNCRATIC_QA_CLIENT` / `SYNCRATIC_QA_PASS` mapped to the smoke variables. The already-provisioned QA account resolved to `tenant-b2c`, `marketops_ready`, `email_verified=true`, and `self_enrollment.eligible=true`. Under the production Option B policy, a new B2C account without a governed subscription must resolve to `subscription_missing` once subscription enforcement is enabled.
 
 Existing-user safety validation is part of the smoke contract: an already-provisioned identity must return `self_enrollment.created=[]`. That proves the account is resolving through the login/enrollment path without creating a duplicate access grant or subscription enrollment.
+
+
+## SMS MFA provider handoff — 2026-08-25
+
+SMS MFA is Keycloak-owned, not application-owned. The custom provider lives under `keycloak/sms-provider`, is built into the provider-enabled Keycloak image with `keycloak/Dockerfile`, and sends SMS OTP through Brevo using `BREVO_API`.
+
+SignalOps integration boundary:
+
+- Gateway may append `CONFIGURE_SMS_MFA` when `SMS_MFA_ENROLLMENT_POLICY=required_for_new_local_users`.
+- SignalOps must not directly set `phone_number_verified=true` or otherwise mark phone verification complete.
+- Phone verification must be completed by the Keycloak provider before `sms_mfa_enabled=true` and `phone_number_verified=true` allow future login SMS challenge.
+- The configured browser flow must include `syncratic-sms-otp-authenticator` after the user has enrolled SMS MFA.
+
+Operational rollout:
+
+1. Ensure `BREVO_API` is present in the Keycloak runtime secret source.
+2. Build and redeploy the provider-enabled Keycloak image.
+3. For Compose, run `scripts/reconcile_keycloak_sms_mfa.sh`; for Kubernetes, rely on the Helm hook exposed by `auth.smsMfa`.
+4. Create a new local-user registration smoke and confirm required actions include `VERIFY_EMAIL`, `UPDATE_PASSWORD`, and `CONFIGURE_SMS_MFA`.
+5. Complete registration with a real SMS-capable test number and confirm cancel/skip cannot bypass required-action setup.
+6. Sign in again after enrollment and confirm the SMS OTP challenge appears only for users with `sms_mfa_enabled=true` and `phone_number_verified=true`.
+
+Upgrade warning: the Keycloak SPI is built against Keycloak `25.0.6`. Keycloak marks these SPIs as internal, so any Keycloak version upgrade must rebuild the provider image and run a registration/login SMS MFA smoke before production traffic is allowed.
 
 ## Deferred production work
 

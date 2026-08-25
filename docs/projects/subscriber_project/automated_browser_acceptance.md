@@ -45,6 +45,8 @@ The public B2C enrollment entry point has its own credential-free smoke:
 
 This check verifies only the unauthenticated front door and Keycloak registration handoff. It does not submit the registration form, create a user, mutate Stripe state, or provision tenant access. Run it after Web/Gateway deployment and after Keycloak registration settings change.
 
+When SMS MFA is enabled, this smoke remains non-mutating and validates only that the registration handoff reaches Keycloak. A separate real-number Keycloak smoke is required to complete `CONFIGURE_SMS_MFA`, verify that cancel/skip cannot bypass required action setup, and confirm the subsequent login SMS OTP challenge. Do not automate or persist real phone numbers in repo artifacts.
+
 The post-registration resolver has a separate opt-in smoke:
 
 ```bash
