@@ -9279,3 +9279,9 @@ Next-cycle priority:
 - Root cause was Keycloak flow placement: `syncratic-sms-otp-authenticator` had been installed as a top-level `REQUIRED` execution before username/password even though the authenticator requires an identified user.
 - Corrected live Keycloak flow so the top-level SMS execution is `DISABLED` and a forms-subflow SMS execution is `REQUIRED` immediately after `Username Password Form`.
 - Verified normal login now renders the username field without the pre-submit error, and the non-mutating B2C registration Playwright smoke still passes.
+
+### 2026-08-25 — SignalOps-branded Keycloak enrollment forms
+
+- Polished the Keycloak-hosted SignalOps enrollment journey so registration, login, password setup, SMS enrollment, and error/continuation copy present as SignalOps Market Intelligence Access instead of generic Syncratic workspace access.
+- Added a dedicated SignalOps registration template with grouped account identity, personal details, security setup, and a clear enrollment note explaining that registration creates identity only; MarketOps access still requires email verification, SMS verification, tenant assignment, and subscription readiness.
+- Restarted Keycloak to clear mounted theme cache and verified with Playwright that the Create Account page shows SignalOps enrollment copy, username/email fields render, the normal login form shows SignalOps branding, and no pre-submit auth error appears.
