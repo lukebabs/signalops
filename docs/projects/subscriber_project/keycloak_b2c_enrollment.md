@@ -69,6 +69,27 @@ SIGNALOPS_E2E_ARTIFACT_DIR=/tmp/signalops-enrollment-e2e-artifacts
 
 Failure artifacts are retained under `SIGNALOPS_E2E_ARTIFACT_DIR`; successful runs remove the generated HAR.
 
+## Authenticated resolver smoke
+
+After a dedicated B2C QA account exists in Keycloak, run the authenticated resolver smoke:
+
+```bash
+SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved \
+SIGNALOPS_B2C_WEB=<existing-b2c-qa-email> \
+SIGNALOPS_B2C_WEB_PASS=<existing-b2c-qa-password> \
+./scripts/run_keycloak_b2c_enrollment_authenticated_smoke.sh
+```
+
+This test signs in through Keycloak, waits for `GET /v1/session/enrollment`, and asserts:
+
+- the response tenant is the configured B2C tenant, default `tenant-b2c`;
+- the enrollment state matches `SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE`, default `marketops_ready`;
+- `email_verified=true`;
+- `can_self_enroll=true`;
+- ready users reach the MarketOps Dashboard.
+
+The smoke does not create a Keycloak user and does not touch Stripe. If the supplied B2C QA subject is not already enrolled, the SignalOps resolver may perform its designed idempotent B2C self-enrollment mutations: MarketOps read access, Explorer subject subscription, and starter tenant-default watchlist if missing. That is why the runner requires `SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved`.
+
 ## Deferred production work
 
 - Stripe Checkout and customer portal remain disabled until webhook-confirmed activation is implemented.
