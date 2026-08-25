@@ -181,7 +181,7 @@ Live status on 2026-08-25:
 - The provider-enabled Keycloak image is running. Startup logs show `syncratic-sms-otp-authenticator` and `CONFIGURE_SMS_MFA` loaded under Keycloak `25.0.6`.
 - The live `syncratic` realm uses `syncratic-browser` as the browser flow. The flow contains `syncratic-sms-otp-authenticator` with requirement `REQUIRED`.
 - `CONFIGURE_SMS_MFA` is enabled and set as a default required action so new local registrations receive the SMS setup step.
-- The tenant assignment gate is separate: a new self-registered user still needs governed `tenant_id=tenant-b2c` assignment before SignalOps accepts the token. The preferred low-friction implementation is to assign `tenant-b2c` only after successful SMS verification and only when the user has no existing `tenant_id`; that security-sensitive change requires explicit production approval because it changes identity attributes in Keycloak.
+- The tenant assignment gate is now approved for implementation: the Keycloak SMS MFA provider assigns `tenant_id=tenant-b2c` only after successful SMS verification and only when the user has no existing `tenant_id`. Existing tenant-local, tenant-pilot-b, and other explicitly assigned users are not overwritten.
 
 Upgrade warning: the Keycloak SPI is built against Keycloak `25.0.6`. Keycloak marks these SPIs as internal, so any Keycloak version upgrade must rebuild the provider image and run a registration/login SMS MFA smoke before production traffic is allowed.
 

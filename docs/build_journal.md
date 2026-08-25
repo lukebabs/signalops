@@ -9270,4 +9270,5 @@ Next-cycle priority:
 - Reconciled the live `syncratic` realm so `syncratic-browser` is the active browser flow and the SMS authenticator execution is `REQUIRED`.
 - Set `CONFIGURE_SMS_MFA` to `enabled=true` and `defaultAction=true`, causing new local registrations to receive the SMS MFA setup step.
 - Preserved the identity boundary: SignalOps does not mark `phone_number_verified=true`; only the Keycloak SMS provider does so after OTP verification.
-- Remaining tenant gate: self-registered users must receive `tenant_id=tenant-b2c` before SignalOps accepts their token. The proposed fast path is a Keycloak-provider change that assigns `tenant-b2c` after successful SMS verification only when no tenant attribute exists. Because this changes identity attributes, it requires explicit production approval before implementation.
+- Tenant assignment approval received from `luke@strategiclabs.io`: the Keycloak SMS MFA provider may assign `tenant_id=tenant-b2c` after successful SMS verification only when no tenant attribute exists, without overwriting existing tenant assignments.
+- Rebuilt and restarted the provider-enabled Keycloak container after the approved provider change; verified the realm still uses `syncratic-browser`, `CONFIGURE_SMS_MFA` remains enabled/defaulted, and `syncratic-sms-otp-authenticator` remains `REQUIRED`.
