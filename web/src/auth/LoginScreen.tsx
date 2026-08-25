@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LogIn } from 'lucide-react';
+import { LogIn, UserPlus } from 'lucide-react';
 import syncraticPortalLogo from '../assets/syncratic-portal-logo.svg';
 import { LoadingState, ErrorState } from '../components/States';
 import { useAuth } from './session';
@@ -10,10 +10,12 @@ export function LoginScreen({
   loading,
   error,
   onSignIn,
+  onSignUp,
 }: {
   loading?: boolean;
   error?: string | null;
   onSignIn?: () => void;
+  onSignUp?: () => void;
 }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
@@ -37,6 +39,15 @@ export function LoginScreen({
             >
               <LogIn size={16} /> Sign in
             </button>
+            {onSignUp && (
+              <button
+                type="button"
+                onClick={onSignUp}
+                className="inline-flex w-full items-center justify-center gap-2 rounded border border-brand-200 bg-white px-3 py-2 text-sm text-brand-700 hover:bg-brand-50"
+              >
+                <UserPlus size={16} /> Create account
+              </button>
+            )}
           </>
         )}
       </div>

@@ -51,12 +51,15 @@ type AuthConfig struct {
 
 // Principal is the authenticated SignalOps operator context derived from a JWT.
 type Principal struct {
-	Subject    string
-	Actor      string
-	TenantID   string
-	Roles      map[string]struct{}
-	Access     map[string]string
-	SuperAdmin bool
+	Subject       string
+	Actor         string
+	PreferredName string
+	Email         string
+	EmailVerified bool
+	TenantID      string
+	Roles         map[string]struct{}
+	Access        map[string]string
+	SuperAdmin    bool
 }
 
 func principalFromContext(ctx context.Context) (Principal, bool) {
@@ -329,7 +332,7 @@ func requireInitialProvisioningTenant(w http.ResponseWriter, r *http.Request, re
 }
 
 func authorizedForRequest(r *http.Request, principal Principal) bool {
-	if isExperienceRequest(r) || isSessionActivityRequest(r) {
+	if isExperienceRequest(r) || isSessionActivityRequest(r) || isSessionEnrollmentRequest(r) {
 		return true
 	}
 	if isAdministrationOperationsRequest(r) {
@@ -388,6 +391,10 @@ func isExperienceRequest(r *http.Request) bool {
 
 func isSessionActivityRequest(r *http.Request) bool {
 	return r.Method == http.MethodPost && r.URL.Path == "/v1/session/activity"
+}
+
+func isSessionEnrollmentRequest(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/v1/session/enrollment"
 }
 
 func isAdministrationOperationsRequest(r *http.Request) bool {
@@ -542,7 +549,7 @@ func (v *authVerifier) verifyJWT(token string) (Principal, error) {
 	if actor == "" {
 		return Principal{}, errors.New("token subject is required")
 	}
-	return Principal{Subject: claims.Subject, Actor: actor, TenantID: claims.TenantID, Roles: claims.RoleSet(v.cfg.Audience)}, nil
+	return Principal{Subject: claims.Subject, Actor: actor, PreferredName: claims.PreferredUsername, Email: claims.Email, EmailVerified: claims.EmailVerified, TenantID: claims.TenantID, Roles: claims.RoleSet(v.cfg.Audience)}, nil
 }
 
 func sha256Sum(value string) []byte {
@@ -556,6 +563,7 @@ type jwtClaims struct {
 	Subject           string
 	PreferredUsername string
 	Email             string
+	EmailVerified     bool
 	TenantID          string
 	Audience          []string
 	ExpiresAt         int64
@@ -574,6 +582,7 @@ func decodeJWTClaims(payload []byte) (jwtClaims, error) {
 	_ = json.Unmarshal(raw["sub"], &claims.Subject)
 	_ = json.Unmarshal(raw["preferred_username"], &claims.PreferredUsername)
 	_ = json.Unmarshal(raw["email"], &claims.Email)
+	_ = json.Unmarshal(raw["email_verified"], &claims.EmailVerified)
 	_ = json.Unmarshal(raw["tenant_id"], &claims.TenantID)
 	claims.ExpiresAt = int64Claim(raw["exp"])
 	claims.NotBefore = int64Claim(raw["nbf"])

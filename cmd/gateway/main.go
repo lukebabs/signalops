@@ -71,7 +71,8 @@ func main() {
 		NotificationEncryptionKey:      cfg.NotificationEncryptionKey,
 		SubscriberListsEnabled:         cfg.SubscriberListsEnabled,
 		SubscriberSubscriptionsEnabled: cfg.SubscriberSubscriptionsEnabled,
-		SubscriberListsPilotTenants:    subscriberPilotTenants(cfg.SubscriberListsPilotTenants),
+		SubscriberListsPilotTenants:    subscriberPilotTenants(cfg.SubscriberListsPilotTenants, cfg.SubscriberB2CTenantID),
+		SubscriberB2CTenantID:          cfg.SubscriberB2CTenantID,
 		StripeWebhookSecret:            cfg.StripeWebhookSecret,
 	}
 	if cfg.SubscriberSubscriptionsEnabled && !cfg.SubscriberListsEnabled {
@@ -197,9 +198,14 @@ func main() {
 	logger.Info("signalops gateway stopped")
 }
 
-func subscriberPilotTenants(raw string) map[string]struct{} {
+func subscriberPilotTenants(raw string, extra ...string) map[string]struct{} {
 	values := map[string]struct{}{}
 	for _, value := range strings.Split(raw, ",") {
+		if tenantID := strings.TrimSpace(value); tenantID != "" {
+			values[tenantID] = struct{}{}
+		}
+	}
+	for _, value := range extra {
 		if tenantID := strings.TrimSpace(value); tenantID != "" {
 			values[tenantID] = struct{}{}
 		}

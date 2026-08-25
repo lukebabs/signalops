@@ -80,6 +80,15 @@ Production validation on 2026-08-24 confirmed this boundary with Playwright: ten
 
 The Stripe webhook path remains authoritative for future automatic entitlement updates. The current canary evidence proves invalid signatures fail closed before persistence, while a valid signed synthetic event can be recorded as `unmatched` without creating access for unknown Stripe subscriptions.
 
+## Keycloak B2C enrollment slice — 2026-08-25
+
+Public account creation now has an application-side enrollment resolver. Keycloak remains the identity provider and must emit a verified email, immutable subject, `tenant_id`, roles, and `signalops-api` audience. SignalOps then owns the MarketOps enrollment decision through `GET /v1/session/enrollment`.
+
+The resolver self-provisions only the configured B2C tenant, default `tenant-b2c`, and only after `email_verified=true`. It creates MarketOps read access and an active Explorer subject subscription idempotently. Professional and Institutional activation remain admin-governed or future webhook-confirmed flows; registration alone cannot grant paid analytical depth.
+
+See [Keycloak B2C Enrollment Flow](keycloak_b2c_enrollment.md).
+
+
 ## Stripe boundary
 
 Stripe will first be used as admin-managed billing evidence and signed webhook reconciliation. Later, Professional self-service checkout/billing portal can be added as a separate release. The intended state transition rules are:

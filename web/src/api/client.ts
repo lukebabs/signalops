@@ -41,6 +41,7 @@ import type {
   MarketOpsOperationsHealthResponse,
   AppProfilesResponse,
   SessionExperienceResponse,
+  SessionEnrollmentResponse,
   MarketOpsAssetsResponse,
   MarketOpsAsset,
   MarketOpsAssetBackfillJob,
@@ -574,6 +575,8 @@ export const api = {
   getAppProfiles: () => get<AppProfilesResponse>("/v1/app-profiles"),
   getSessionExperience: () =>
     get<SessionExperienceResponse>("/v1/session/experience"),
+  getSessionEnrollment: () =>
+    get<SessionEnrollmentResponse>("/v1/session/enrollment", undefined, "no-store"),
   // G071 MarketOps asset universe (read-only). tenant_id is a path segment;
   // active_only is serialized as the string the backend parses ("false" disables it).
   listMarketOpsAssets: (filter: MarketOpsAssetFilter = {}) =>

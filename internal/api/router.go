@@ -61,6 +61,7 @@ type RouterConfig struct {
 	SubscriberListsEnabled                         bool
 	SubscriberSubscriptionsEnabled                 bool
 	SubscriberListsPilotTenants                    map[string]struct{}
+	SubscriberB2CTenantID                          string
 	SubscriberWatchlistRepository                  storage.SubscriberWatchlistRepository
 	SubscriberCatalogRepository                    storage.SubscriberCatalogProjectionRepository
 	SubscriberEntitlementRepository                storage.SubscriberEntitlementRepository
@@ -92,6 +93,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	rawTopic := cfg.RawTopic
 	registerAccessManagementRoutes(mux, cfg)
 	registerSessionExperienceRoute(mux, cfg)
+	registerSessionEnrollmentRoute(mux, cfg)
 	registerMarketOpsValuationRoutes(mux, marketOpsConfig)
 	registerMarketOpsTaskRoutes(mux, marketOpsQueryRepository)
 	registerMarketOpsEROCRoutes(mux, marketOpsConfig)

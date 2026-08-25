@@ -30,6 +30,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 
 ## Document set
 
+- [Keycloak B2C enrollment flow](keycloak_b2c_enrollment.md): public sign-up, enrollment resolver, Explorer auto-provisioning, and guardrails.
 - [MarketOps Subscriber User Guide](marketops_subscriber_user_guide.md): user-centric guide for subscribers, tenant administrators, and platform administrators covering watchlists, freshness, subscription tiers, analytical surfaces, and support escalation.
 - [MarketOps Production Engineering Handbook](marketops_production_engineering_handbook.md): engineering/operator guide for production source-of-truth, scheduler controls, post-close completion, access/subscription controls, validation, and current open readiness items.
 - [Subscription Commerce Model](subscription_commerce_model.md): Explorer, Professional, and Institutional product decisions; tier enforcement, RBAC separation, Administration governance, Stripe boundary, rollout, and deferred work.

@@ -2117,5 +2117,20 @@ The sprint is complete when:
 9. Institutional remains Contact Sales with a structured lead/provisioning path documented.
 10. All enrollment, lifecycle, and upgrade events are auditable.
 
+### A.9 Implemented Keycloak B2C enrollment slice — 2026-08-25
+
+The first enrollment implementation reuses the existing Syncratic Keycloak realm and `signalops-web` OIDC client rather than creating a separate pending realm. The browser now exposes a Create account path that invokes Keycloak registration through the same Authorization Code + PKCE callback.
+
+SignalOps adds `GET /v1/session/enrollment` as the authenticated first-use resolver. It is intentionally reachable before normal MarketOps access grants are complete, while retaining tenant-claim validation and rate limiting. The resolver auto-provisions only verified users whose signed token tenant matches the configured B2C tenant, default `tenant-b2c`.
+
+For an eligible verified B2C user, the resolver idempotently creates or confirms:
+
+- MarketOps read access in `tenant_user_access`;
+- active Explorer subject subscription;
+- readable watchlist context, creating the B2C tenant starter list only if no list exists;
+- enrollment activity/audit evidence.
+
+Unverified users receive `email_verification_required` and no access is created. Non-B2C users receive explicit pending states for administrator-managed enrollment.
+
 
 # End of Specification

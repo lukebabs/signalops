@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { useEffect, type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
 import { DashboardStreamBridge } from './components/DashboardStreamBridge';
@@ -8,12 +8,51 @@ import { AuthCallbackProcessor, LoginScreen, SilentRenewProcessor } from './auth
 import { ThemeProvider } from './theme/theme';
 import { MarketOpsWatchlistContextProvider } from "./components/MarketOpsWatchlistContext";
 import { UserActivityBridge } from './components/UserActivityBridge';
+import { LoadingState, ErrorState } from './components/States';
+import { api } from './api/client';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 10_000, refetchOnWindowFocus: false, retry: false },
   },
 });
+
+
+function EnrollmentGate({ children }: { children: ReactNode }) {
+  const enrollment = useQuery({ queryKey: ['session', 'enrollment'], queryFn: () => api.getSessionEnrollment(), retry: false });
+  if (enrollment.isLoading) {
+    return <div className="min-h-screen bg-gray-50 p-6"><LoadingState label="Preparing MarketOps access…" /></div>;
+  }
+  if (enrollment.isError) {
+    return <div className="min-h-screen bg-gray-50 p-6"><ErrorState error={String((enrollment.error as Error)?.message ?? enrollment.error)} /></div>;
+  }
+  const state = enrollment.data?.state;
+  if (state && state !== 'marketops_ready') {
+    const copy: Record<string, { title: string; message: string }> = {
+      email_verification_required: { title: 'Verify your email to continue', message: 'Your Syncratic identity is authenticated, but MarketOps access is held until Keycloak confirms email verification.' },
+      tenant_access_missing: { title: 'MarketOps access is pending', message: 'Your identity does not yet have an approved MarketOps tenant grant.' },
+      subscription_missing: { title: 'Subscription setup is pending', message: 'Your MarketOps tier has not been provisioned yet.' },
+      watchlist_context_missing: { title: 'Watchlist setup is pending', message: 'Your tenant does not yet have a default or private watchlist context.' },
+    };
+    const content = copy[state] ?? { title: 'Enrollment is pending', message: 'Your account is authenticated, but MarketOps enrollment is not complete.' };
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+        <section className="w-full max-w-lg rounded border border-gray-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">SignalOps enrollment</p>
+          <h1 className="mt-2 text-xl font-semibold text-gray-900">{content.title}</h1>
+          <p className="mt-2 text-sm text-gray-600">{content.message}</p>
+          <dl className="mt-4 grid gap-2 text-xs text-gray-600">
+            <div className="flex justify-between gap-3"><dt>Tenant</dt><dd className="font-mono">{enrollment.data?.tenant_id}</dd></div>
+            <div className="flex justify-between gap-3"><dt>State</dt><dd className="font-mono">{state}</dd></div>
+            {enrollment.data?.email && <div className="flex justify-between gap-3"><dt>Email</dt><dd>{enrollment.data.email}</dd></div>}
+          </dl>
+          <button type="button" onClick={() => window.location.reload()} className="mt-5 rounded bg-brand-500 px-3 py-2 text-sm text-white hover:bg-brand-700">Check again</button>
+        </section>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
 
 function isCallbackRoute(): boolean {
   return typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/callback');
@@ -55,14 +94,14 @@ function RootGate() {
     return <LoginScreen loading />;
   }
   if (!session.authenticated) {
-    return <LoginScreen error={session.error} onSignIn={() => void session.signIn()} />;
+    return <LoginScreen error={session.error} onSignIn={() => void session.signIn()} onSignUp={() => void session.signUp()} />;
   }
   return (
-    <>
+    <EnrollmentGate>
       <DashboardStreamBridge />
       <UserActivityBridge />
       <MarketOpsWatchlistContextProvider><RouterProvider router={router} /></MarketOpsWatchlistContextProvider>
-    </>
+    </EnrollmentGate>
   );
 }
 

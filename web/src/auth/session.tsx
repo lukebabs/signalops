@@ -22,6 +22,7 @@ export interface SessionState {
   claims: AuthClaims | null;
   error: string | null;
   signIn: () => Promise<void>;
+  signUp: () => Promise<void>;
   finishCallback: () => Promise<string>;
   signOut: () => Promise<void>;
 }
@@ -173,6 +174,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const signUp = useCallback(async () => {
+    try {
+      rememberRedirectPath('/marketops/dashboard');
+      await getUserManager().signinRedirect({ extraQueryParams: { kc_action: 'register' } });
+    } catch (e) {
+      setError(errMsg(e));
+    }
+  }, []);
+
   // On success returns the path to restore; on failure it throws so the caller
   // (AuthCallbackProcessor) can surface the IdP/PKCE error.
   const finishCallback = useCallback(async () => {
@@ -213,10 +223,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       claims: mergeSessionClaims((user?.profile as AuthClaims | undefined) ?? null, user?.access_token),
       error,
       signIn,
+      signUp,
       finishCallback,
       signOut,
     }),
-    [user, loading, error, signIn, finishCallback, signOut],
+    [user, loading, error, signIn, signUp, finishCallback, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
