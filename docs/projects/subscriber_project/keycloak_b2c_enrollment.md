@@ -42,6 +42,33 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 - Pending states show specific remediation language for email verification, tenant access, subscription setup, or watchlist setup.
 - Ready users enter the normal MarketOps Dashboard flow.
 
+## Browser preflight
+
+Run the enrollment smoke after the gateway/web deployment and after Keycloak registration is enabled:
+
+```bash
+./scripts/run_keycloak_b2c_enrollment_ui_smoke.sh
+```
+
+The smoke is intentionally non-mutating:
+
+- It opens the public SignalOps entry point.
+- It verifies that the **Create account** action is visible.
+- It follows that action to the configured Keycloak host.
+- It asserts that the registration form or registration markers are visible.
+- It never submits the registration form and never creates a user.
+
+Useful overrides:
+
+```bash
+SIGNALOPS_E2E_BASE_URL=https://signalops.syncratic.io
+SIGNALOPS_E2E_AUTH_HOST=auth.syncratic.co
+SIGNALOPS_E2E_CLIENT_ID=signalops-web
+SIGNALOPS_E2E_ARTIFACT_DIR=/tmp/signalops-enrollment-e2e-artifacts
+```
+
+Failure artifacts are retained under `SIGNALOPS_E2E_ARTIFACT_DIR`; successful runs remove the generated HAR.
+
 ## Deferred production work
 
 - Stripe Checkout and customer portal remain disabled until webhook-confirmed activation is implemented.

@@ -35,6 +35,17 @@ are configured. A browser failure exits the post-close workflow with a distinct
 non-zero status and is therefore visible through the normal scheduled-job and
 administrator-notification controls.
 
+## Enrollment smoke
+
+The public B2C enrollment entry point has its own credential-free smoke:
+
+```bash
+./scripts/run_keycloak_b2c_enrollment_ui_smoke.sh
+```
+
+This check verifies only the unauthenticated front door and Keycloak registration handoff. It does not submit the registration form, create a user, mutate Stripe state, or provision tenant access. Run it after Web/Gateway deployment and after Keycloak registration settings change.
+
+
 ## Installation
 
 The repository pins the browser-test dependency in `python/requirements-e2e.txt`.
