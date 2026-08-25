@@ -9285,3 +9285,9 @@ Next-cycle priority:
 - Polished the Keycloak-hosted SignalOps enrollment journey so registration, login, password setup, SMS enrollment, and error/continuation copy present as SignalOps Market Intelligence Access instead of generic Syncratic workspace access.
 - Added a dedicated SignalOps registration template with grouped account identity, personal details, security setup, and a clear enrollment note explaining that registration creates identity only; MarketOps access still requires email verification, SMS verification, tenant assignment, and subscription readiness.
 - Restarted Keycloak to clear mounted theme cache and verified with Playwright that the Create Account page shows SignalOps enrollment copy, username/email fields render, the normal login form shows SignalOps branding, and no pre-submit auth error appears.
+
+### 2026-08-25 — SMS enrollment compliance disclosure
+
+- Added a visible SMS opt-in disclosure to the Keycloak `CONFIGURE_SMS_MFA` enrollment screen before the user sends a verification code.
+- Disclosure states message frequency may vary, standard message/data rates may apply, STOP/HELP instructions, and that mobile information will not be sold or shared with third parties for promotional or marketing purposes.
+- Mirrored the disclosure into the Helm Keycloak theme files, restarted Keycloak to reload mounted theme assets, verified the live container has the disclosure text, and re-ran the non-mutating B2C registration smoke plus login sanity check.
