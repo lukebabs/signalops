@@ -90,6 +90,21 @@ This test signs in through Keycloak, waits for `GET /v1/session/enrollment`, and
 
 The smoke does not create a Keycloak user and does not touch Stripe. If the supplied B2C QA subject is not already enrolled, the SignalOps resolver may perform its designed idempotent B2C self-enrollment mutations: MarketOps read access, Explorer subject subscription, and starter tenant-default watchlist if missing. That is why the runner requires `SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved`.
 
+The same browser test can validate an already-provisioned non-B2C QA account by explicitly overriding the expected tenant and self-enrollment state. For the current `SIGNALOPS_WEB` pilot account, use:
+
+```bash
+source scripts/lib/dotenv.sh
+load_dotenv .env
+SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved \
+SIGNALOPS_B2C_WEB="$SIGNALOPS_WEB" \
+SIGNALOPS_B2C_WEB_PASS="$SIGNALOPS_WEB_PASS" \
+SIGNALOPS_E2E_B2C_TENANT_ID=tenant-pilot-b \
+SIGNALOPS_E2E_EXPECT_CAN_SELF_ENROLL=false \
+./scripts/run_keycloak_b2c_enrollment_authenticated_smoke.sh
+```
+
+This proves the authenticated enrollment resolver and protected Dashboard entry work for the existing pilot account; it does not prove the B2C self-enrollment branch.
+
 ## Deferred production work
 
 - Stripe Checkout and customer portal remain disabled until webhook-confirmed activation is implemented.

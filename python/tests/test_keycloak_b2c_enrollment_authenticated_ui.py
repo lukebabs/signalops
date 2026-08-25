@@ -24,6 +24,7 @@ class B2CEnrollmentConfig:
     password: str = field(repr=False)
     tenant_id: str
     expected_state: str
+    expected_can_self_enroll: bool
 
 
 def b2c_enrollment_config() -> B2CEnrollmentConfig:
@@ -37,6 +38,7 @@ def b2c_enrollment_config() -> B2CEnrollmentConfig:
         password=password,
         tenant_id=os.getenv("SIGNALOPS_E2E_B2C_TENANT_ID", "tenant-b2c").strip(),
         expected_state=os.getenv("SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE", "marketops_ready").strip(),
+        expected_can_self_enroll=os.getenv("SIGNALOPS_E2E_EXPECT_CAN_SELF_ENROLL", "true").strip().lower() == "true",
     )
 
 
@@ -95,7 +97,7 @@ def test_b2c_user_resolves_enrollment_state(b2c_page: Page) -> None:
     assert payload.get("tenant_id") == config.tenant_id
     assert payload.get("state") == config.expected_state, payload
     assert payload.get("email_verified") is True
-    assert payload.get("can_self_enroll") is True
+    assert bool(payload.get("can_self_enroll", False)) is config.expected_can_self_enroll
 
     if config.expected_state == "marketops_ready":
         expect(b2c_page.get_by_role("heading", name="MarketOps Dashboard")).to_be_visible(timeout=30_000)
