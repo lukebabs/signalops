@@ -14,6 +14,8 @@ This slice connects Stripe as billing evidence and as the payment processor for 
 - Signed Stripe webhook endpoint at `POST /v1/billing/stripe/webhook`.
 - Idempotent webhook ledger in `subscriber_billing_webhook_events`.
 - Authenticated Checkout endpoint at `POST /v1/tenants/{tenant_id}/marketops/subscription/checkout`.
+- Pricing UI Checkout controls for Explorer and Professional.
+- Stripe return UX at `/marketops/subscription/return?session_id=...` with webhook-authoritative activation polling.
 - Opaque checkout ledger in `subscriber_checkout_sessions`.
 - Reconciliation for mapped Stripe subscription IDs and webhook-confirmed checkout references.
 - Admin UI visibility for billing mappings and webhook processing state.
@@ -121,4 +123,6 @@ Operational note: Stripe Tax calculates and collects tax when configured correct
 - Existing subscription enforcement and tenant-isolation smokes still pass.
 - Migration `000161_subscriber_stripe_checkout_sessions` is applied before enabling Checkout in production.
 - Checkout creates a Stripe Session with only opaque `checkout_ref` metadata and records the internal tenant/subject/product mapping in MarketOps.
-- A verified subscription webhook with that `checkout_ref` activates the subject subscription; redirect-only success does not grant access.
+- Pricing UI redirects only to the gateway-returned Stripe Checkout URL; it cannot submit arbitrary Price IDs.
+- The return page may show activation pending and poll the effective subscription endpoint, but redirect-only success does not grant access.
+- A verified subscription webhook with that `checkout_ref` activates the subject subscription.

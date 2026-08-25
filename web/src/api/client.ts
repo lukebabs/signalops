@@ -194,6 +194,8 @@ import type {
   SubscriberCatalogMembershipResult,
   SubscriberSubscriptionProductsResponse,
   SubscriberSubscriptionResponse,
+  SubscriberCheckoutRequest,
+  SubscriberCheckoutResponse,
   SubscriberSubscriptionAdministrationResponse,
   SubscriberUserActivityResponse,
   SubscriberUserActivityRequest,
@@ -856,6 +858,8 @@ export const api = {
     put<{ status: string }>("/v1/administration/subscriptions/tenant/billing", body),
   getSubscriberSubscription: (tenantId: string) =>
     get<SubscriberSubscriptionResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscription", undefined, "no-store"),
+  createSubscriberCheckoutSession: (tenantId: string, body: SubscriberCheckoutRequest) =>
+    post<SubscriberCheckoutResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscription/checkout", body),
   listSubscriberWatchlists: (tenantId: string) =>
     get<SubscriberWatchlistsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists", undefined, "no-store"),
   getSubscriberWatchlistContext: (tenantId: string) =>

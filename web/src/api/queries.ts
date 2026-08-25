@@ -460,13 +460,14 @@ export function useSessionExperience() {
   });
 }
 
-export function useSubscriberSubscription(tenantId: string) {
+export function useSubscriberSubscription(tenantId: string, options: { refetchIntervalMs?: number } = {}) {
   return useQuery({
     queryKey: queryKeys.subscriberSubscription(tenantId),
     queryFn: () => api.getSubscriberSubscription(tenantId),
     enabled: !!tenantId,
     staleTime: 60_000,
     retry: false,
+    refetchInterval: options.refetchIntervalMs,
   });
 }
 

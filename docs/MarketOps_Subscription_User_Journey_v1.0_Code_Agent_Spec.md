@@ -2153,6 +2153,8 @@ Security boundary:
 - Stripe Checkout is fail-closed unless a Stripe API key, success URL, cancel URL, and mapped product price are present at runtime.
 - MarketOps writes `subscriber_checkout_sessions` before entitlement activation, using an opaque `checkout_ref`.
 - Stripe receives the opaque `checkout_ref` and non-identity commerce metadata only. Tenant ID, subject, and SignalOps authorization data remain in the dedicated MarketOps database.
+- The Pricing UI can start Explorer/Professional Checkout only through the tenant-bound gateway endpoint and the gateway-selected Stripe Price mapping.
+- The return UX at `/marketops/subscription/return?session_id=...` polls the effective subscription state and communicates activation-pending status when the webhook has not landed.
 - A frontend redirect or returned Checkout Session ID does not grant access.
 - A verified Stripe subscription webhook must resolve the opaque `checkout_ref` and then activate or update the subject subscription.
 - Institutional remains Contact Sales and is not eligible for self-service Checkout.

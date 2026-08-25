@@ -102,6 +102,9 @@ const MarketOpsSyncraticRoute = lazy(() =>
 const MarketOpsPricingRoute = lazy(() =>
   import('./routes/MarketOpsPricingRoute').then((m) => ({ default: m.MarketOpsPricingRoute })),
 );
+const MarketOpsSubscriptionReturnRoute = lazy(() =>
+  import('./routes/MarketOpsSubscriptionReturnRoute').then((m) => ({ default: m.MarketOpsSubscriptionReturnRoute })),
+);
 const AccessManagementRoute = lazy(() => import('./routes/AccessManagementRoute').then((m) => ({ default: m.AccessManagementRoute })));
 const SubscriptionAdministrationRoute = lazy(() => import('./routes/SubscriptionAdministrationRoute').then((m) => ({ default: m.SubscriptionAdministrationRoute })));
 const AlgorithmsRoute = lazy(() =>
@@ -308,6 +311,14 @@ const marketopsPricingRoute = createRoute({
   }),
   component: MarketOpsPricingRoute,
 });
+const marketopsSubscriptionReturnRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/marketops/subscription/return',
+  validateSearch: (search: Record<string, unknown>): { session_id?: string } => ({
+    session_id: typeof search.session_id === 'string' ? search.session_id : undefined,
+  }),
+  component: MarketOpsSubscriptionReturnRoute,
+});
 const marketopsAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/algorithms', component: () => <LegacyRedirect to="/admin/algorithms" /> });
 
 function CyberOpsIndexRouteComponent() {
@@ -387,6 +398,7 @@ const routeTree = rootRoute.addChildren([
   marketopsBacktestsRoute,
   marketopsSyncraticRoute,
   marketopsPricingRoute,
+  marketopsSubscriptionReturnRoute,
   marketopsAlgorithmsRoute,
   cyberopsIndexRoute,
   cyberopsDashboardRoute,

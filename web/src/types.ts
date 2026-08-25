@@ -58,6 +58,8 @@ export interface SubscriberSubscriptionProduct { product_key:string; billing_sco
 export interface SubscriberEffectiveSubscription extends SubscriberSubscriptionProduct { subscription_id:string; status:"trialing"|"active"|"past_due"|"suspended"|"canceled"|string; source:"subject"|"tenant_seat"|string; seat_role?:string; trial_ends_at?:string; current_period_ends_at?:string; grace_ends_at?:string; canceled_at?:string; }
 export interface SubscriberSubscriptionProductsResponse { products:SubscriberSubscriptionProduct[]; }
 export interface SubscriberSubscriptionResponse { access_state:"active"|"unprovisioned"|string; enforcement_enabled:boolean; subscription:SubscriberEffectiveSubscription|null; }
+export interface SubscriberCheckoutRequest { product_key:"explorer"|"professional"|string; billing_period:"monthly"|"annual"|string; }
+export interface SubscriberCheckoutResponse { checkout_url:string; checkout_ref:string; stripe_session_id:string; }
 
 export type SessionEnrollmentState = "marketops_ready"|"email_verification_required"|"tenant_access_missing"|"subscription_missing"|"watchlist_context_missing"|string;
 export interface SessionEnrollmentResponse { state:SessionEnrollmentState; tenant_id:string; subject:string; email?:string; display_name?:string; email_verified:boolean; self_enrollment:{ eligible:boolean; created:string[] }; access:{ marketops?:string }; subscription:SubscriberEffectiveSubscription|null; watchlist_context:SubscriberWatchlistContext|null; }
