@@ -75,6 +75,9 @@ func main() {
 		SubscriberB2CTenantID:             cfg.SubscriberB2CTenantID,
 		SubscriberB2CAutoActivateExplorer: cfg.SubscriberB2CAutoActivateExplorer,
 		StripeWebhookSecret:               cfg.StripeWebhookSecret,
+		StripeAPIKey:                      cfg.StripeAPIKey,
+		StripeCheckoutSuccessURL:          cfg.StripeCheckoutSuccessURL,
+		StripeCheckoutCancelURL:           cfg.StripeCheckoutCancelURL,
 	}
 	if cfg.SubscriberSubscriptionsEnabled && !cfg.SubscriberListsEnabled {
 		logger.Error("subscription enforcement requires the subscriber catalog gateway database")

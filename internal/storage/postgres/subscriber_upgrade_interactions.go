@@ -44,9 +44,9 @@ func (r *Repository) RecordSubscriberUpgradeInteraction(ctx context.Context, inp
 		return errors.New("invalid subscriber upgrade interaction type")
 	}
 	switch input.RequiredTier {
-	case "professional", "institutional":
+	case "explorer", "professional", "institutional":
 	default:
-		return errors.New("subscriber upgrade interaction required_tier must be professional or institutional")
+		return errors.New("subscriber upgrade interaction required_tier must be explorer, professional, or institutional")
 	}
 	metadata := input.MetadataJSON
 	if len(metadata) == 0 {
@@ -71,6 +71,66 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb)
 			return fmt.Errorf("insert subscriber upgrade interaction: %w", err)
 		}
 		return nil
+	})
+}
+
+func (r *Repository) CreateSubscriberCheckoutSession(ctx context.Context, input storage.SubscriberCheckoutSessionInput) error {
+	input.CheckoutRef = strings.TrimSpace(input.CheckoutRef)
+	input.TenantID = strings.TrimSpace(input.TenantID)
+	input.Subject = strings.TrimSpace(input.Subject)
+	input.ProductKey = strings.ToLower(strings.TrimSpace(input.ProductKey))
+	input.BillingPeriod = strings.ToLower(strings.TrimSpace(input.BillingPeriod))
+	input.StripePriceID = strings.TrimSpace(input.StripePriceID)
+	input.StripeSessionID = strings.TrimSpace(input.StripeSessionID)
+	input.Status = strings.TrimSpace(input.Status)
+	input.ActorSubject = strings.TrimSpace(input.ActorSubject)
+	input.CorrelationID = strings.TrimSpace(input.CorrelationID)
+	if input.CheckoutRef == "" || !validSubscriberTenantID(input.TenantID) || input.Subject == "" || input.ActorSubject == "" {
+		return errors.New("invalid subscriber checkout session scope")
+	}
+	if input.ProductKey != "explorer" && input.ProductKey != "professional" {
+		return errors.New("subscriber checkout supports explorer or professional")
+	}
+	if input.BillingPeriod != "monthly" && input.BillingPeriod != "annual" {
+		return errors.New("subscriber checkout billing period must be monthly or annual")
+	}
+	if input.StripePriceID == "" {
+		return errors.New("subscriber checkout requires Stripe price ID")
+	}
+	if input.Status == "checkout_started" && input.StripeSessionID == "" {
+		return errors.New("subscriber checkout_started requires Stripe session ID")
+	}
+	if input.Status != "created" && input.Status != "checkout_started" && input.Status != "failed" {
+		return errors.New("invalid subscriber checkout session status")
+	}
+	return r.WithSubscriberTenantScope(ctx, input.TenantID, func(ctx context.Context, tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, `
+INSERT INTO subscriber_checkout_sessions
+  (checkout_ref, tenant_id, subject, product_key, billing_period, stripe_price_id,
+   stripe_session_id, status, checkout_url_returned, actor_subject, correlation_id)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+FROM subscriber_subscription_products p
+WHERE p.product_key=$4 AND p.billing_scope='subject' AND p.active=true
+ON CONFLICT (checkout_ref) DO UPDATE SET
+  stripe_session_id=COALESCE(NULLIF(EXCLUDED.stripe_session_id,''), subscriber_checkout_sessions.stripe_session_id),
+  status=EXCLUDED.status,
+  checkout_url_returned=EXCLUDED.checkout_url_returned,
+  correlation_id=EXCLUDED.correlation_id,
+  updated_at=now()`,
+			input.CheckoutRef, input.TenantID, input.Subject, input.ProductKey, input.BillingPeriod, input.StripePriceID,
+			input.StripeSessionID, input.Status, input.CheckoutURLReturned, input.ActorSubject, input.CorrelationID)
+		if err != nil {
+			return fmt.Errorf("insert subscriber checkout session: %w", err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return storage.ErrNotFound
+		}
+		return insertSubscriberSubscriptionAudit(ctx, tx, input.TenantID, input.Subject, input.ActorSubject, "stripe_checkout_started", input.CorrelationID,
+			fmt.Sprintf(`{"checkout_ref":%q,"product_key":%q,"billing_period":%q,"stripe_session_id":%q}`, input.CheckoutRef, input.ProductKey, input.BillingPeriod, input.StripeSessionID))
 	})
 }
 

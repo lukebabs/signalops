@@ -522,6 +522,13 @@ WHERE stripe_subscription_id=$1`, input.StripeSubscriptionID, input.Status, inpu
 			}
 		}
 	}
+	if matched == 0 && strings.TrimSpace(input.CheckoutRef) != "" && strings.TrimSpace(input.StripeSubscriptionID) != "" {
+		checkoutMatched, err := r.reconcileSubscriberCheckoutFromStripeWebhook(ctx, tx, input)
+		if err != nil {
+			return r.failSubscriberStripeWebhook(ctx, tx, input, err)
+		}
+		matched += checkoutMatched
+	}
 	status := "processed"
 	if matched == 0 {
 		status = "unmatched"
@@ -534,6 +541,66 @@ WHERE stripe_subscription_id=$1`, input.StripeSubscriptionID, input.Status, inpu
 		return storage.SubscriberBillingWebhookEventRecord{}, fmt.Errorf("read processed billing webhook event: %w", err)
 	}
 	return record, tx.Commit()
+}
+
+func (r *Repository) reconcileSubscriberCheckoutFromStripeWebhook(ctx context.Context, tx *sql.Tx, input storage.SubscriberStripeWebhookMutation) (int, error) {
+	checkoutRef := strings.TrimSpace(input.CheckoutRef)
+	if checkoutRef == "" {
+		return 0, nil
+	}
+	var tenantID, subject, productKey, billingPeriod, checkoutStatus string
+	if err := tx.QueryRowContext(ctx, `
+SELECT tenant_id, subject, product_key, billing_period, status
+FROM subscriber_checkout_sessions
+WHERE checkout_ref=$1`, checkoutRef).Scan(&tenantID, &subject, &productKey, &billingPeriod, &checkoutStatus); errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	} else if err != nil {
+		return 0, fmt.Errorf("read subscriber checkout session: %w", err)
+	}
+	if productKey != "explorer" && productKey != "professional" {
+		return 0, errors.New("subscriber checkout webhook referenced unsupported product")
+	}
+	if err := validSubscriberSubscriptionStatus(input.Status); err != nil {
+		return 0, err
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('signalops.tenant_id', $1, true)`, tenantID); err != nil {
+		return 0, fmt.Errorf("set subscriber checkout tenant scope: %w", err)
+	}
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO subscriber_subject_subscriptions
+  (subscription_id, tenant_id, subject, product_key, status, stripe_customer_id, stripe_subscription_id,
+   current_period_ends_at, grace_ends_at, canceled_at, provisioned_by, correlation_id)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'stripe-webhook', $11
+FROM subscriber_subscription_products p
+WHERE p.product_key=$4 AND p.billing_scope='subject' AND p.active=true
+ON CONFLICT (tenant_id, subject) DO UPDATE SET
+  product_key=EXCLUDED.product_key,
+  status=EXCLUDED.status,
+  stripe_customer_id=EXCLUDED.stripe_customer_id,
+  stripe_subscription_id=EXCLUDED.stripe_subscription_id,
+  current_period_ends_at=EXCLUDED.current_period_ends_at,
+  grace_ends_at=EXCLUDED.grace_ends_at,
+  canceled_at=EXCLUDED.canceled_at,
+  provisioned_by=EXCLUDED.provisioned_by,
+  correlation_id=EXCLUDED.correlation_id,
+  updated_at=now()`,
+		newSubscriberID("subjsub"), tenantID, subject, productKey, input.Status, input.StripeCustomerID, input.StripeSubscriptionID,
+		input.CurrentPeriodEndsAt, input.GraceEndsAt, input.CanceledAt, input.ProviderEventID)
+	if err != nil {
+		return 0, fmt.Errorf("upsert subject subscription from checkout webhook: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+UPDATE subscriber_checkout_sessions
+SET stripe_subscription_id=$2, status='webhook_processed', updated_at=now()
+WHERE checkout_ref=$1`, checkoutRef, input.StripeSubscriptionID); err != nil {
+		return 0, fmt.Errorf("mark subscriber checkout session processed: %w", err)
+	}
+	if err := insertSubscriberSubscriptionAudit(ctx, tx, tenantID, subject, "stripe-webhook", "stripe_checkout_subscription_activated", input.ProviderEventID,
+		fmt.Sprintf(`{"checkout_ref":%q,"product_key":%q,"billing_period":%q,"status":%q,"stripe_subscription_id":%q}`, checkoutRef, productKey, billingPeriod, input.Status, input.StripeSubscriptionID)); err != nil {
+		return 0, fmt.Errorf("insert subscriber checkout activation audit: %w", err)
+	}
+	_ = checkoutStatus
+	return 1, nil
 }
 
 func (r *Repository) failSubscriberStripeWebhook(ctx context.Context, tx *sql.Tx, input storage.SubscriberStripeWebhookMutation, cause error) (storage.SubscriberBillingWebhookEventRecord, error) {

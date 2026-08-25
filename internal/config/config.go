@@ -55,6 +55,9 @@ type Config struct {
 	SubscriberB2CTenantID             string
 	SubscriberB2CAutoActivateExplorer bool
 	StripeWebhookSecret               string
+	StripeAPIKey                      string
+	StripeCheckoutSuccessURL          string
+	StripeCheckoutCancelURL           string
 	MarketOpsDatabaseURL              string
 	MarketOpsTemporalDatabaseURL      string
 	// MarketOpsDataBoundaryRequired makes the dedicated MarketOps primary and
@@ -132,6 +135,9 @@ func Load() Config {
 		SubscriberB2CTenantID:             envOrDefault("SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID", defaultSubscriberB2CTenantID),
 		SubscriberB2CAutoActivateExplorer: envBool("SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER", defaultSubscriberB2CAutoActivateExplorer),
 		StripeWebhookSecret:               envOrDefault("STRIPE_WEBHOOK_SECRET", ""),
+		StripeAPIKey:                      envOrDefault("STRIPE_API_KEY", envOrDefault("STRIPE_RESTRICTED_API_KEY", "")),
+		StripeCheckoutSuccessURL:          envOrDefault("SIGNALOPS_STRIPE_CHECKOUT_SUCCESS_URL", "https://signalops.syncratic.io/marketops/subscription/return?session_id={CHECKOUT_SESSION_ID}"),
+		StripeCheckoutCancelURL:           envOrDefault("SIGNALOPS_STRIPE_CHECKOUT_CANCEL_URL", "https://signalops.syncratic.io/marketops/pricing"),
 		MarketOpsDatabaseURL:              envOrDefault("SIGNALOPS_MARKETOPS_DATABASE_URL", ""),
 		MarketOpsTemporalDatabaseURL:      envOrDefault("SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL", ""),
 		MarketOpsDataBoundaryRequired:     envBool("SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED", "false"),

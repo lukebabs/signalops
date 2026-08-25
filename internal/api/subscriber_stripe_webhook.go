@@ -28,20 +28,22 @@ type stripeWebhookEvent struct {
 }
 
 type stripeSubscriptionObject struct {
-	ID               string `json:"id"`
-	Customer         any    `json:"customer"`
-	Status           string `json:"status"`
-	CurrentPeriodEnd int64  `json:"current_period_end"`
-	TrialEnd         int64  `json:"trial_end"`
-	CanceledAt       int64  `json:"canceled_at"`
-	CancelAt         int64  `json:"cancel_at"`
+	ID               string            `json:"id"`
+	Metadata         map[string]string `json:"metadata"`
+	Customer         any               `json:"customer"`
+	Status           string            `json:"status"`
+	CurrentPeriodEnd int64             `json:"current_period_end"`
+	TrialEnd         int64             `json:"trial_end"`
+	CanceledAt       int64             `json:"canceled_at"`
+	CancelAt         int64             `json:"cancel_at"`
 }
 
 type stripeInvoiceObject struct {
-	ID           string `json:"id"`
-	Customer     any    `json:"customer"`
-	Subscription any    `json:"subscription"`
-	PeriodEnd    int64  `json:"period_end"`
+	ID           string            `json:"id"`
+	Metadata     map[string]string `json:"metadata"`
+	Customer     any               `json:"customer"`
+	Subscription any               `json:"subscription"`
+	PeriodEnd    int64             `json:"period_end"`
 }
 
 func registerSubscriberStripeWebhookRoutes(mux *http.ServeMux, cfg RouterConfig) {
@@ -142,6 +144,7 @@ func stripeWebhookMutation(payload []byte) (storage.SubscriberStripeWebhookMutat
 			mutation.GraceEndsAt = &grace
 		}
 		mutation.CanceledAt = unixPtr(firstPositiveInt64(object.CanceledAt, object.CancelAt))
+		mutation.CheckoutRef = strings.TrimSpace(object.Metadata["checkout_ref"])
 		if event.Type == "customer.subscription.deleted" {
 			mutation.Status = storage.SubscriberSubscriptionCanceled
 			if mutation.CanceledAt == nil {
@@ -157,6 +160,7 @@ func stripeWebhookMutation(payload []byte) (storage.SubscriberStripeWebhookMutat
 		mutation.StripeSubscriptionID = stripeStringID(object.Subscription)
 		mutation.StripeCustomerID = stripeStringID(object.Customer)
 		mutation.CurrentPeriodEndsAt = unixPtr(object.PeriodEnd)
+		mutation.CheckoutRef = strings.TrimSpace(object.Metadata["checkout_ref"])
 		if event.Type == "invoice.payment_failed" {
 			mutation.Status = storage.SubscriberSubscriptionPastDue
 			grace := time.Now().UTC().Add(7 * 24 * time.Hour)

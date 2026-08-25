@@ -53,7 +53,7 @@ Explorer retains dashboard/public-signal access, SRI rankings, and read-only per
 | Subscriber | Personal lists and the analytical features granted by the effective subscription. |
 | Data-plane worker | Global catalog/coverage/algorithm work only; no subscription administration or browser impersonation. |
 
-The Platform Subscription Admin API is implemented as a fail-closed, signed-role-only governance boundary for subject plans, Institutional contracts, seats, product/tier feature policy, limits, product active state, and audit visibility. Its controlled operator UI is in the Administration workbench at /admin/subscriptions, never in MarketOps. It is not a browser self-upgrade path. Stripe webhook reconciliation remains the next commerce integration slice.
+The Platform Subscription Admin API is implemented as a fail-closed, signed-role-only governance boundary for subject plans, Institutional contracts, seats, product/tier feature policy, limits, product active state, and audit visibility. Its controlled operator UI is in the Administration workbench at /admin/subscriptions, never in MarketOps. Browser self-service activation is allowed only through the webhook-confirmed Stripe Checkout path described below; direct plan mutation remains admin-only.
 
 
 ## Administration governance surface — 2026-08-19
@@ -74,7 +74,7 @@ The first Stripe integration slice is admin-managed billing, documented in [Stri
 
 Migration `000160_subscriber_upgrade_interactions` adds the first product-led subscription journey ledger. The browser can record authenticated, tenant-scoped upgrade prompt impressions and clicks through `POST /v1/marketops/subscriptions/upgrade-interactions`. Records are RLS-protected in the dedicated MarketOps database and surfaced in Administration > Subscriptions > Upgrade funnel for source attribution, click-through review, and user-level context.
 
-Locked MarketOps feature gates now present contextual upgrade copy and route users to `/marketops/pricing`, preserving the source feature and return URL. The pricing page reads configured subscription products and Stripe price IDs from the existing subscription product API, and explicitly does not start Checkout. This slice captures upgrade intent and plan comparison only; entitlements still change only through governed administration or future webhook-confirmed Checkout.
+Locked MarketOps feature gates now present contextual upgrade copy and route users to `/marketops/pricing`, preserving the source feature and return URL. The pricing page reads configured subscription products and Stripe price IDs from the existing subscription product API. Checkout is now implemented server-side as `POST /v1/tenants/{tenant_id}/marketops/subscription/checkout`, but it is fail-closed unless Stripe runtime configuration is present and product price IDs are mapped. Entitlements still change only through governed administration or verified Stripe webhook reconciliation; the frontend redirect never grants access.
 
 Production validation on 2026-08-24 confirmed this boundary with Playwright: tenant-pilot-b can view the pricing journey, Stripe Product/Price identifiers are visible as public catalog metadata, Checkout/Contact Sales controls remain disabled by design, and a tenant-scoped upgrade click records a `202` upgrade-interaction event. The platform subscription administrator can review that event in Administration > Subscriptions > Upgrade funnel after filtering to `tenant-pilot-b`.
 
@@ -91,9 +91,9 @@ See [Keycloak B2C Enrollment Flow](keycloak_b2c_enrollment.md).
 
 ## Stripe boundary
 
-Stripe will first be used as admin-managed billing evidence and signed webhook reconciliation. Later, Professional self-service checkout/billing portal can be added as a separate release. The intended state transition rules are:
+Stripe is used as billing evidence, signed webhook reconciliation, and constrained self-service Checkout for Explorer/Professional. Checkout starts from an authenticated tenant-scoped subject and writes an internal `subscriber_checkout_sessions` ledger row. Stripe receives only an opaque `checkout_ref` plus non-identity product/billing metadata; tenant ID, subject, and authorization state remain in the dedicated MarketOps database. The intended state transition rules are:
 
-1. Checkout/session correlation creates or updates a subject subscription.
+1. Checkout/session correlation creates a pending internal checkout record. A verified Stripe subscription webhook resolves the opaque checkout reference and creates or updates the subject subscription.
 2. A seven-day Professional trial grants access while `trialing`.
 3. A successful invoice retains `active`; `past_due` remains usable only for the seven-day grace window.
 4. Cancellation retains access through the paid period; subsequent access is removed by the effective-subscription resolver.
@@ -113,7 +113,7 @@ Rollback is one configuration change to `false`. It removes commercial feature e
 
 ## Explicitly deferred work
 
-- Stripe Checkout, customer portal, retry/dead-letter handling, and billing telemetry beyond the admin-managed webhook ledger and upgrade-intent ledger.
+- Stripe customer portal, checkout abandonment/expiration worker, retry/dead-letter handling, and billing telemetry beyond the checkout ledger, admin-managed webhook ledger, and upgrade-intent ledger.
 - Tenant-facing seat-management UI, Stripe price editing, controlled commercial overrides beyond the platform-admin governance boundary, and customer self-service upgrade paths.
 - Research-report generation/storage, portfolio CSV ingestion, batch-screening UI, custom-universe selector, API-key lifecycle, and shared-tenant branding controls.
 - SRI discovery/detail response shaping beyond the current endpoint boundary.

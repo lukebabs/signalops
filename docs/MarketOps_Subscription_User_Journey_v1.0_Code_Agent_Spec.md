@@ -2129,14 +2129,35 @@ The first enrollment implementation reuses the existing Syncratic Keycloak realm
 
 SignalOps adds `GET /v1/session/enrollment` as the authenticated first-use resolver. It is intentionally reachable before normal MarketOps access grants are complete, while retaining tenant-claim validation and rate limiting. The resolver auto-provisions only verified users whose signed token tenant matches the configured B2C tenant, default `tenant-b2c`.
 
-For an eligible verified B2C user, the resolver idempotently creates or confirms:
+For an eligible verified B2C user under the selected Option B policy, the resolver idempotently creates or confirms:
 
-- MarketOps read access in `tenant_user_access`;
-- active Explorer subject subscription;
+- MarketOps read/access scaffolding required to complete onboarding;
 - readable watchlist context, creating the B2C tenant starter list only if no list exists;
-- enrollment activity/audit evidence.
+- enrollment activity/audit evidence;
+- no active Explorer or Professional entitlement unless governed administration or verified Stripe webhook reconciliation has created it.
 
 Unverified users receive `email_verification_required` and no access is created. Non-B2C users receive explicit pending states for administrator-managed enrollment.
+
+### A.11 Implemented Stripe Checkout activation slice — 2026-08-25
+
+The backend Checkout path is now defined for Explorer and Professional only:
+
+```text
+POST /v1/tenants/{tenant_id}/marketops/subscription/checkout
+```
+
+The request is authenticated and tenant-bound. The caller supplies only `product_key` and `billing_period`; the gateway selects the Stripe Price ID from the centrally governed subscription product mapping. Browsers cannot submit arbitrary Stripe price IDs.
+
+Security boundary:
+
+- Stripe Checkout is fail-closed unless a Stripe API key, success URL, cancel URL, and mapped product price are present at runtime.
+- MarketOps writes `subscriber_checkout_sessions` before entitlement activation, using an opaque `checkout_ref`.
+- Stripe receives the opaque `checkout_ref` and non-identity commerce metadata only. Tenant ID, subject, and SignalOps authorization data remain in the dedicated MarketOps database.
+- A frontend redirect or returned Checkout Session ID does not grant access.
+- A verified Stripe subscription webhook must resolve the opaque `checkout_ref` and then activate or update the subject subscription.
+- Institutional remains Contact Sales and is not eligible for self-service Checkout.
+
+Operational implication: this closes the design gap between enrollment, upgrade intent, and paid activation, but production launch still requires migration `000161`, runtime Stripe key injection, test-mode Checkout validation, webhook validation, and browser return-to-context completion.
 
 
 # End of Specification

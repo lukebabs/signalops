@@ -27,6 +27,7 @@ type subscriberSubscriptionAdministrationFake struct {
 	stripeWebhook      storage.SubscriberStripeWebhookMutation
 	activity           storage.SubscriberUserActivityRecordInput
 	upgradeInteraction storage.SubscriberUpgradeInteractionInput
+	checkoutSession    storage.SubscriberCheckoutSessionInput
 	activityFilter     storage.SubscriberUserActivityFilter
 	activitySnapshot   storage.SubscriberUserActivitySnapshot
 }
@@ -50,6 +51,10 @@ func (f *subscriberSubscriptionAdministrationFake) RecordSubscriberUserActivity(
 }
 func (f *subscriberSubscriptionAdministrationFake) RecordSubscriberUpgradeInteraction(_ context.Context, input storage.SubscriberUpgradeInteractionInput) error {
 	f.upgradeInteraction = input
+	return nil
+}
+func (f *subscriberSubscriptionAdministrationFake) CreateSubscriberCheckoutSession(_ context.Context, input storage.SubscriberCheckoutSessionInput) error {
+	f.checkoutSession = input
 	return nil
 }
 func (f *subscriberSubscriptionAdministrationFake) UpdateSubscriberSubscriptionProduct(_ context.Context, input storage.SubscriberSubscriptionProductMutation) error {
@@ -165,7 +170,7 @@ func TestSubscriberSubscriptionAdministrationUpdatesProductBilling(t *testing.T)
 func TestSubscriberStripeWebhookRequiresValidSignature(t *testing.T) {
 	store := &subscriberSubscriptionAdministrationFake{}
 	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store, StripeWebhookSecret: "whsec_test"})
-	body := `{"id":"evt_1","type":"customer.subscription.updated","data":{"object":{"id":"sub_123","customer":"cus_123","status":"active","current_period_end":1800000000}}}`
+	body := `{"id":"evt_1","type":"customer.subscription.updated","data":{"object":{"id":"sub_123","customer":"cus_123","status":"active","current_period_end":1800000000,"metadata":{"checkout_ref":"subcheckout-test"}}}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/billing/stripe/webhook", strings.NewReader(body))
 	request.Header.Set("Stripe-Signature", stripeTestSignature(body, "whsec_test"))
 	response := httptest.NewRecorder()
@@ -173,7 +178,7 @@ func TestSubscriberStripeWebhookRequiresValidSignature(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
 	}
-	if store.stripeWebhook.ProviderEventID != "evt_1" || store.stripeWebhook.StripeSubscriptionID != "sub_123" || store.stripeWebhook.StripeCustomerID != "cus_123" || store.stripeWebhook.Status != storage.SubscriberSubscriptionActive {
+	if store.stripeWebhook.ProviderEventID != "evt_1" || store.stripeWebhook.StripeSubscriptionID != "sub_123" || store.stripeWebhook.StripeCustomerID != "cus_123" || store.stripeWebhook.Status != storage.SubscriberSubscriptionActive || store.stripeWebhook.CheckoutRef != "subcheckout-test" {
 		t.Fatalf("unexpected webhook mutation: %+v", store.stripeWebhook)
 	}
 }

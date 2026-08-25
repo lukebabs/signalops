@@ -14,6 +14,7 @@ type SubscriberSubscriptionAdministrationRepository interface {
 	ListSubscriberUserActivity(context.Context, SubscriberUserActivityFilter) (SubscriberUserActivitySnapshot, error)
 	RecordSubscriberUserActivity(context.Context, SubscriberUserActivityRecordInput) error
 	RecordSubscriberUpgradeInteraction(context.Context, SubscriberUpgradeInteractionInput) error
+	CreateSubscriberCheckoutSession(context.Context, SubscriberCheckoutSessionInput) error
 	UpdateSubscriberSubscriptionProduct(context.Context, SubscriberSubscriptionProductMutation) error
 	UpdateSubscriberSubscriptionProductBilling(context.Context, SubscriberSubscriptionProductBillingMutation) error
 	UpsertSubscriberSubjectSubscription(context.Context, SubscriberSubjectSubscriptionMutation) error
@@ -180,6 +181,20 @@ type SubscriberUpgradeInteractionInput struct {
 	MetadataJSON    []byte
 }
 
+type SubscriberCheckoutSessionInput struct {
+	CheckoutRef         string
+	TenantID            string
+	Subject             string
+	ProductKey          string
+	BillingPeriod       string
+	StripePriceID       string
+	StripeSessionID     string
+	Status              string
+	ActorSubject        string
+	CorrelationID       string
+	CheckoutURLReturned bool
+}
+
 type SubscriberSubscriptionAdministrationSnapshot struct {
 	TenantID             string
 	Products             []SubscriberSubscriptionProductRecord
@@ -289,6 +304,7 @@ type SubscriberStripeWebhookMutation struct {
 	ProviderEventID      string
 	EventType            string
 	PayloadJSON          []byte
+	CheckoutRef          string
 	StripeCustomerID     string
 	StripeSubscriptionID string
 	Status               string

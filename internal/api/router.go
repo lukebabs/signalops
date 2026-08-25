@@ -70,6 +70,10 @@ type RouterConfig struct {
 	SubscriberSubscriptionRepository               storage.SubscriberSubscriptionRepository
 	SubscriberSubscriptionAdministrationRepository storage.SubscriberSubscriptionAdministrationRepository
 	StripeWebhookSecret                            string
+	StripeAPIKey                                   string
+	StripeCheckoutSuccessURL                       string
+	StripeCheckoutCancelURL                        string
+	StripeCheckoutClient                           stripeCheckoutClient
 	MarketQuoteClient                              interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}

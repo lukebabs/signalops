@@ -1,10 +1,10 @@
 # Stripe Admin-Managed Billing
 
-Status: implementation slice added on 2026-08-22; migration `000155_subscriber_admin_stripe_billing` is applied, the Administration UI is live, `STRIPE_WEBHOOK_SECRET` is injected into the gateway runtime, and controlled signed-webhook validation has passed for both unmapped and mapped subscriptions.
+Status: admin-managed billing slice added on 2026-08-22 and self-service Checkout backend slice added on 2026-08-25. Migration `000155_subscriber_admin_stripe_billing` is applied; migration `000161_subscriber_stripe_checkout_sessions` adds the internal checkout ledger. The Administration UI is live, `STRIPE_WEBHOOK_SECRET` is injected into the gateway runtime, and controlled signed-webhook validation has passed for both unmapped and mapped subscriptions.
 
 ## Purpose
 
-This slice connects Stripe as billing evidence without enabling customer self-service checkout or a billing portal. Platform subscription administrators create and manage customers/subscriptions in Stripe Dashboard, then map Stripe IDs into SignalOps Subscription Administration. SignalOps remains authoritative for tenant binding, roles, tier policy, seats, and feature enforcement.
+This slice connects Stripe as billing evidence and as the payment processor for Explorer/Professional Checkout. SignalOps remains authoritative for tenant binding, subject identity, roles, tier policy, seats, and feature enforcement. Stripe receives only an opaque checkout reference for self-service activation; tenant and subject mapping stay in the dedicated MarketOps database. Institutional remains admin/contract managed.
 
 ## What is included
 
@@ -13,15 +13,16 @@ This slice connects Stripe as billing evidence without enabling customer self-se
 - Tenant-level Stripe mapping for Institutional contracts.
 - Signed Stripe webhook endpoint at `POST /v1/billing/stripe/webhook`.
 - Idempotent webhook ledger in `subscriber_billing_webhook_events`.
-- Reconciliation for mapped Stripe subscription IDs only.
+- Authenticated Checkout endpoint at `POST /v1/tenants/{tenant_id}/marketops/subscription/checkout`.
+- Opaque checkout ledger in `subscriber_checkout_sessions`.
+- Reconciliation for mapped Stripe subscription IDs and webhook-confirmed checkout references.
 - Admin UI visibility for billing mappings and webhook processing state.
 
 ## What is not included
 
-- Stripe Checkout.
 - Stripe billing portal.
-- Customer self-service upgrade/downgrade.
-- Automatic user, tenant, subject, or seat creation from Stripe.
+- Customer self-service downgrade/cancel/change-payment workflows.
+- Automatic user, tenant, or seat creation from Stripe.
 - Provider polling or MarketOps data entitlement changes.
 
 ## Webhook behavior
@@ -34,7 +35,7 @@ The gateway verifies the `Stripe-Signature` header using `STRIPE_WEBHOOK_SECRET`
 - `invoice.payment_succeeded`;
 - `invoice.payment_failed`.
 
-A known Stripe subscription ID updates the mapped subject or tenant subscription status and billing dates. An unknown Stripe subscription ID is retained as `unmatched`; it does not create access. Duplicate provider event IDs are idempotent and return the retained processing status.
+A known Stripe subscription ID updates the mapped subject or tenant subscription status and billing dates. A Stripe subscription with a known opaque `checkout_ref` activates or updates the stored subject subscription for Explorer/Professional. An unknown Stripe subscription ID/reference is retained as `unmatched`; it does not create access. Duplicate provider event IDs are idempotent and return the retained processing status.
 
 ## Operational flow
 
@@ -47,10 +48,13 @@ A known Stripe subscription ID updates the mapped subject or tenant subscription
 
 ## Production configuration
 
-Required before live webhook validation:
+Required before live webhook/Checkout validation:
 
 ```text
 STRIPE_WEBHOOK_SECRET=<Stripe endpoint signing secret>
+STRIPE_API_KEY=<restricted Stripe secret key with Checkout Session create/read scope>
+SIGNALOPS_STRIPE_CHECKOUT_SUCCESS_URL=https://signalops.syncratic.io/marketops/subscription/return?session_id={CHECKOUT_SESSION_ID}
+SIGNALOPS_STRIPE_CHECKOUT_CANCEL_URL=https://signalops.syncratic.io/marketops/pricing
 ```
 
 Use Stripe test mode first. The Stripe secret must be injected as a runtime secret and must not be committed to the repository.
@@ -115,3 +119,6 @@ Operational note: Stripe Tax calculates and collects tax when configured correct
 - An unknown Stripe subscription event records as `unmatched` and creates no access.
 - Stripe Tax readiness has been validated in Stripe test mode for Explorer and Professional before broad paid launch.
 - Existing subscription enforcement and tenant-isolation smokes still pass.
+- Migration `000161_subscriber_stripe_checkout_sessions` is applied before enabling Checkout in production.
+- Checkout creates a Stripe Session with only opaque `checkout_ref` metadata and records the internal tenant/subject/product mapping in MarketOps.
+- A verified subscription webhook with that `checkout_ref` activates the subject subscription; redirect-only success does not grant access.

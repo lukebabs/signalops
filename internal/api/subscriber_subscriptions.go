@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-// registerSubscriberSubscriptionRoutes exposes read-only commercial context.
-// Mutating billing, provisioning, and Stripe webhook routes remain disabled
-// until their dedicated workload credential and reconciliation worker land.
+// registerSubscriberSubscriptionRoutes exposes commercial product context and
+// constrained Stripe Checkout startup. Entitlement activation remains webhook-
+// authoritative after payment completion.
 func registerSubscriberSubscriptionRoutes(mux *http.ServeMux, cfg RouterConfig) {
 	mux.HandleFunc("GET /v1/marketops/subscription-products", func(w http.ResponseWriter, r *http.Request) {
 		repo := cfg.SubscriberSubscriptionRepository
@@ -28,6 +29,105 @@ func registerSubscriberSubscriptionRoutes(mux *http.ServeMux, cfg RouterConfig) 
 			response = append(response, subscriptionProductResponse(product))
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"products": response})
+	})
+
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/marketops/subscription/checkout", func(w http.ResponseWriter, r *http.Request) {
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		subject, ok := requireRequestSubject(w, r, "")
+		if !ok {
+			return
+		}
+		productRepo := cfg.SubscriberSubscriptionRepository
+		adminRepo := cfg.SubscriberSubscriptionAdministrationRepository
+		checkoutClient := resolveStripeCheckoutClient(cfg)
+		if productRepo == nil || adminRepo == nil {
+			writeError(w, http.StatusServiceUnavailable, "subscription_unavailable", "subscription storage is unavailable")
+			return
+		}
+		if checkoutClient == nil {
+			writeError(w, http.StatusServiceUnavailable, "stripe_checkout_disabled", "Stripe checkout is not configured")
+			return
+		}
+		var request struct {
+			ProductKey    string `json:"product_key"`
+			BillingPeriod string `json:"billing_period"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_checkout_request", "checkout request must be JSON")
+			return
+		}
+		productKey := strings.ToLower(strings.TrimSpace(request.ProductKey))
+		billingPeriod := normalizeStripeBillingPeriod(request.BillingPeriod)
+		if productKey != "explorer" && productKey != "professional" {
+			writeError(w, http.StatusBadRequest, "unsupported_subscription_product", "self-service checkout supports Explorer and Professional only")
+			return
+		}
+		if billingPeriod == "" {
+			writeError(w, http.StatusBadRequest, "unsupported_billing_period", "billing_period must be monthly or annual")
+			return
+		}
+		products, err := productRepo.ListSubscriberSubscriptionProducts(r.Context())
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "subscription_unavailable", "subscription products are unavailable")
+			return
+		}
+		var product storage.SubscriberSubscriptionProductRecord
+		found := false
+		for _, candidate := range products {
+			if candidate.ProductKey == productKey {
+				product = candidate
+				found = true
+				break
+			}
+		}
+		if !found || !product.Active || product.BillingScope != "subject" {
+			writeError(w, http.StatusConflict, "subscription_product_unavailable", "requested subscription product is unavailable")
+			return
+		}
+		priceID := stripeCheckoutPrice(product, billingPeriod)
+		if priceID == "" {
+			writeError(w, http.StatusConflict, "subscription_price_unmapped", "requested subscription price is not mapped to Stripe")
+			return
+		}
+		checkoutRef := newID("subcheckout")
+		correlationID := subscriptionCorrelationID(r, checkoutRef)
+		if err := adminRepo.CreateSubscriberCheckoutSession(r.Context(), storage.SubscriberCheckoutSessionInput{
+			CheckoutRef: checkoutRef, TenantID: tenantID, Subject: subject, ProductKey: productKey, BillingPeriod: billingPeriod,
+			StripePriceID: priceID, Status: "created", ActorSubject: subject, CorrelationID: correlationID,
+		}); err != nil {
+			writeError(w, http.StatusServiceUnavailable, "checkout_record_failed", "checkout session could not be recorded")
+			return
+		}
+		session, err := checkoutClient.CreateCheckoutSession(r.Context(), stripeCheckoutSessionRequest{
+			PriceID: priceID, SuccessURL: cfg.StripeCheckoutSuccessURL, CancelURL: cfg.StripeCheckoutCancelURL,
+			CheckoutRef: checkoutRef, ProductKey: productKey, BillingPeriod: billingPeriod,
+		})
+		if err != nil {
+			_ = adminRepo.CreateSubscriberCheckoutSession(r.Context(), storage.SubscriberCheckoutSessionInput{
+				CheckoutRef: checkoutRef, TenantID: tenantID, Subject: subject, ProductKey: productKey, BillingPeriod: billingPeriod,
+				StripePriceID: priceID, Status: "failed", ActorSubject: subject, CorrelationID: correlationID,
+			})
+			writeError(w, http.StatusServiceUnavailable, "stripe_checkout_failed", "Stripe checkout session could not be created")
+			return
+		}
+		if err := adminRepo.CreateSubscriberCheckoutSession(r.Context(), storage.SubscriberCheckoutSessionInput{
+			CheckoutRef: checkoutRef, TenantID: tenantID, Subject: subject, ProductKey: productKey, BillingPeriod: billingPeriod,
+			StripePriceID: priceID, StripeSessionID: session.ID, Status: "checkout_started", ActorSubject: subject,
+			CorrelationID: correlationID, CheckoutURLReturned: true,
+		}); err != nil {
+			writeError(w, http.StatusServiceUnavailable, "checkout_record_failed", "checkout session could not be recorded")
+			return
+		}
+		_ = adminRepo.RecordSubscriberUpgradeInteraction(r.Context(), storage.SubscriberUpgradeInteractionInput{
+			TenantID: tenantID, Subject: subject, AppID: "marketops", InteractionType: "checkout_started",
+			SourceFeature: "subscription_checkout", SourceRoute: r.URL.Path, CurrentTier: "", RequiredTier: productKey,
+			PromptVariant: "stripe_checkout_v1", CTALabel: "Start checkout", CorrelationID: correlationID,
+			MetadataJSON: []byte(`{"checkout_ref":"` + checkoutRef + `","billing_period":"` + billingPeriod + `"}`),
+		})
+		writeJSON(w, http.StatusOK, map[string]any{"checkout_url": session.URL, "checkout_ref": checkoutRef, "stripe_session_id": session.ID})
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/subscription", func(w http.ResponseWriter, r *http.Request) {
