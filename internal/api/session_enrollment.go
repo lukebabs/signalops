@@ -68,12 +68,6 @@ func registerSessionEnrollmentRoute(mux *http.ServeMux, cfg RouterConfig) {
 			writeError(w, http.StatusForbidden, "enrollment_identity_required", "authenticated tenant-scoped identity is required")
 			return
 		}
-		limiterKey := sessionEnrollmentRateLimitKey(r, principal)
-		if !defaultSessionEnrollmentLimiter.allow(limiterKey, time.Now().UTC()) {
-			writeError(w, http.StatusTooManyRequests, "enrollment_rate_limited", "too many enrollment attempts; retry later")
-			return
-		}
-
 		tenantID := strings.TrimSpace(principal.TenantID)
 		subject := strings.TrimSpace(principal.Subject)
 		b2cTenantID := strings.TrimSpace(cfg.SubscriberB2CTenantID)
@@ -89,6 +83,9 @@ func registerSessionEnrollmentRoute(mux *http.ServeMux, cfg RouterConfig) {
 			}
 			accessRecords = records
 			if !hasMarketOpsAccess(records) && canSelfEnroll && principal.EmailVerified {
+				if !allowSessionEnrollmentMutation(w, r, principal) {
+					return
+				}
 				record, err := cfg.AccessRepository.UpsertTenantUserAccess(r.Context(), storage.TenantUserAccessRecord{
 					TenantID: tenantID, Subject: subject, DisplayName: firstNonEmpty(principal.PreferredName, principal.Actor, principal.Email),
 					Email: principal.Email, AppID: "marketops", Permission: "read", GrantedBy: "self-enrollment",
@@ -115,6 +112,9 @@ func registerSessionEnrollmentRoute(mux *http.ServeMux, cfg RouterConfig) {
 		if cfg.SubscriberSubscriptionRepository != nil {
 			record, err := cfg.SubscriberSubscriptionRepository.GetSubscriberEffectiveSubscription(r.Context(), tenantID, subject)
 			if errors.Is(err, storage.ErrNotFound) && canSelfEnroll && cfg.SubscriberB2CAutoActivateExplorer && cfg.SubscriberSubscriptionAdministrationRepository != nil {
+				if !allowSessionEnrollmentMutation(w, r, principal) {
+					return
+				}
 				if err := cfg.SubscriberSubscriptionAdministrationRepository.UpsertSubscriberSubjectSubscription(r.Context(), storage.SubscriberSubjectSubscriptionMutation{
 					TenantID: tenantID, Subject: subject, ProductKey: "explorer", Status: "active", ActorSubject: "self-enrollment", CorrelationID: "session-enrollment",
 				}); err != nil {
@@ -141,6 +141,9 @@ func registerSessionEnrollmentRoute(mux *http.ServeMux, cfg RouterConfig) {
 		if subscriberWatchlistContextEnabled(cfg, tenantID) {
 			context, err := resolveSubscriberWatchlistContext(r, cfg, tenantID, subject)
 			if errors.Is(err, storage.ErrNotFound) && canSelfEnroll && cfg.SubscriberWatchlistRepository != nil {
+				if !allowSessionEnrollmentMutation(w, r, principal) {
+					return
+				}
 				_, createErr := cfg.SubscriberWatchlistRepository.CreateSubscriberTenantDefaultWatchlist(r.Context(), storage.SubscriberWatchlistCreateRequest{
 					TenantID: tenantID, ListName: "MarketOps Starter List", ActorSubject: "self-enrollment", CorrelationID: "session-enrollment", ProvenanceJSON: []byte(`{"source":"session_enrollment"}`),
 				})
@@ -171,6 +174,15 @@ func registerSessionEnrollmentRoute(mux *http.ServeMux, cfg RouterConfig) {
 		}
 		writeJSON(w, http.StatusOK, sessionEnrollmentResponse(principal, sessionEnrollmentStateReady, created, accessRecords, subscription, watchlistContext, canSelfEnroll))
 	})
+}
+
+func allowSessionEnrollmentMutation(w http.ResponseWriter, r *http.Request, principal Principal) bool {
+	limiterKey := sessionEnrollmentRateLimitKey(r, principal)
+	if !defaultSessionEnrollmentLimiter.allow(limiterKey, time.Now().UTC()) {
+		writeError(w, http.StatusTooManyRequests, "enrollment_rate_limited", "too many enrollment attempts; retry later")
+		return false
+	}
+	return true
 }
 
 func hasMarketOpsAccess(records []storage.TenantUserAccessRecord) bool {

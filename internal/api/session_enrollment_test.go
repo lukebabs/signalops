@@ -143,3 +143,20 @@ func TestSessionEnrollmentExistingB2CSubscriptionDoesNotReEnroll(t *testing.T) {
 		t.Fatalf("body=%s", recorder.Body.String())
 	}
 }
+
+func TestSessionEnrollmentExistingB2CSubscriptionBypassesMutationThrottle(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	accessRepo := &accessManagementTestRepository{subjectAccess: []storage.TenantUserAccessRecord{{TenantID: "tenant-b2c", Subject: "user-123", AppID: "marketops", Permission: "read"}}}
+	subscriptionRepo := &subscriberSubscriptionAPIFake{record: storage.SubscriberEffectiveSubscriptionRecord{TenantID: "tenant-b2c", Subject: "user-123", SubscriptionID: "sub-existing", Status: storage.SubscriberSubscriptionActive, Source: "subject", Product: storage.SubscriberSubscriptionProductRecord{ProductKey: "explorer", BillingScope: "subject", DisplayName: "Explorer", Active: true, FeaturePolicyJSON: []byte(`{"dashboard":true}`), LimitPolicyJSON: []byte(`{"private_watchlists":3}`), Revision: 1}}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, AccessRepository: accessRepo, SubscriberSubscriptionRepository: subscriptionRepo, SubscriberSubscriptionsEnabled: true, SubscriberB2CTenantID: "tenant-b2c"})
+	token := fixture.token(t, map[string]any{"tenant_id": "tenant-b2c", "email_verified": true})
+	for i := 0; i < 20; i++ {
+		recorder := httptest.NewRecorder()
+		req := withBearer(httptest.NewRequest(http.MethodGet, "/v1/session/enrollment", nil), token)
+		req.RemoteAddr = "198.51.100.24:1234"
+		router.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusOK || strings.Contains(recorder.Body.String(), "enrollment_rate_limited") {
+			t.Fatalf("attempt=%d status=%d body=%s", i, recorder.Code, recorder.Body.String())
+		}
+	}
+}
