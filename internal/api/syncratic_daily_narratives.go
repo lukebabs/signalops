@@ -401,11 +401,44 @@ func buildSyncraticDailyNarrativeAskPrompt(contextWindow storage.SyncraticContex
 		{LeaderLimit: 8, ExampleLimit: 8, RefSampleLimit: 12},
 		{LeaderLimit: 5, ExampleLimit: 5, RefSampleLimit: 6},
 		{LeaderLimit: 3, ExampleLimit: 3, RefSampleLimit: 3},
+		{LeaderLimit: 1, ExampleLimit: 1, RefSampleLimit: 1},
 	}
 	var lastPrompt string
 	var lastCaps map[string]int
 	for _, profile := range profiles {
 		caps := map[string]int{"max_prompt_bytes": maxPromptBytes, "max_section_leaders": profile.LeaderLimit, "max_section_examples": profile.ExampleLimit, "max_artifact_ref_samples_per_kind": profile.RefSampleLimit}
+		instructions := []string{
+			"Use only the supplied JSON context; do not retrieve documents or use external knowledge.",
+			"Write to the MarketOps analyst, not about the prompt, JSON, user request, or instructions.",
+			"Start with what changed or what matters in the completed session.",
+			"Separate observed facts, calculated metrics, inferred hypotheses, historical associations, governance state, and unknown future outcomes.",
+			"Write the analyst-facing narrative in relational natural language. Do not recite raw scores, confidence decimals, or metric fields unless a metric is essential to explain a data-quality issue.",
+			"Use phrases like leadership pocket, constructive exception, cautious skew, active triage item, and weak evidence when those relationships are supported by the supplied metrics.",
+			"Cite supplied artifact sample IDs for key claims and state when only counts are available because lineage was compacted.",
+			"Call out missing or stale evidence as data quality, not as neutral market evidence.",
+			"Keep expired Review Queue items separate from active items.",
+			"Do not provide trading instructions, price targets, portfolio allocation, or certainty claims.",
+		}
+		fieldRules := map[string]string{
+			"title":                           "Short analyst-facing title for the completed session.",
+			"executive_summary":               "Two to four sentences with the primary market interpretation in natural language; avoid raw score/confidence recitation.",
+			"what_changed":                    "Concrete movements, breadth, status counts, leaders, laggards, or refreshed evidence from the supplied context.",
+			"top_drivers":                     "Ranked drivers in relational language using supplied symbols, sectors, states, and artifact IDs where available; avoid raw score/confidence recitation.",
+			"contradictions_or_weak_evidence": "Data conflicts, stale rows, missing mappings, compacted lineage, or areas where the evidence is thin.",
+			"analyst_followups":               "Operational checks the analyst should run next; no trading instructions.",
+			"cited_artifacts":                 "Only IDs present in lineage_ref_summary or summary_metrics.",
+			"data_quality_warnings":           "Warnings supplied in quality_warnings, or an empty array.",
+		}
+		if maxPromptBytes <= 4800 {
+			instructions = []string{
+				"Use only supplied JSON; write analyst-facing market interpretation, not prompt analysis.",
+				"Use relational natural language; avoid raw score/confidence recitation unless needed for data quality.",
+				"Separate active items from expired/stale/missing evidence.",
+				"Return strict JSON with title, executive_summary, what_changed, top_drivers, contradictions_or_weak_evidence, analyst_followups, cited_artifacts, data_quality_warnings.",
+				"No trading instructions, price targets, allocations, or certainty claims.",
+			}
+			fieldRules = map[string]string{}
+		}
 		payload := map[string]any{
 			"prompt_builder_version": version,
 			"role":                   "MarketOps daily explainability layer over deterministic SignalOps evidence.",
@@ -417,18 +450,7 @@ func buildSyncraticDailyNarrativeAskPrompt(contextWindow storage.SyncraticContex
 				"gateway_input_token_budget": dailyNarrativeInputTokenBudget,
 				"local_prompt_byte_proxy":    maxPromptBytes,
 			},
-			"instructions": []string{
-				"Use only the supplied JSON context; do not retrieve documents or use external knowledge.",
-				"Write to the MarketOps analyst, not about the prompt, JSON, user request, or instructions.",
-				"Start with what changed or what matters in the completed session.",
-				"Separate observed facts, calculated metrics, inferred hypotheses, historical associations, governance state, and unknown future outcomes.",
-				"Write the analyst-facing narrative in relational natural language. Do not recite raw scores, confidence decimals, or metric fields unless a metric is essential to explain a data-quality issue.",
-				"Use phrases like leadership pocket, constructive exception, cautious skew, active triage item, and weak evidence when those relationships are supported by the supplied metrics.",
-				"Cite supplied artifact sample IDs for key claims and state when only counts are available because lineage was compacted.",
-				"Call out missing or stale evidence as data quality, not as neutral market evidence.",
-				"Keep expired Review Queue items separate from active items.",
-				"Do not provide trading instructions, price targets, portfolio allocation, or certainty claims.",
-			},
+			"instructions":          instructions,
 			"context_metadata":      map[string]any{"tenant_id": contextWindow.TenantID, "context_window_id": contextWindow.ContextWindowID, "subject": contextWindow.SubjectSymbol, "strategy": contextWindow.ContextStrategy, "session_date": contextWindow.WindowStart.UTC().Format("2006-01-02"), "evidence_digest": contextWindow.EvidenceDigest},
 			"summary_metrics":       compactDailyNarrativeSummary(contextWindow.ContextStrategy, contextWindow.SummaryMetricsJSON, profile),
 			"lineage_ref_summary":   compactDailyNarrativeLineage(contextWindow.LineageRefsJSON, profile.RefSampleLimit),
@@ -446,16 +468,7 @@ func buildSyncraticDailyNarrativeAskPrompt(contextWindow storage.SyncraticContex
 					"cited_artifacts",
 					"data_quality_warnings",
 				},
-				"field_rules": map[string]string{
-					"title":                           "Short analyst-facing title for the completed session.",
-					"executive_summary":               "Two to four sentences with the primary market interpretation in natural language; avoid raw score/confidence recitation.",
-					"what_changed":                    "Concrete movements, breadth, status counts, leaders, laggards, or refreshed evidence from the supplied context.",
-					"top_drivers":                     "Ranked drivers in relational language using supplied symbols, sectors, states, and artifact IDs where available; avoid raw score/confidence recitation.",
-					"contradictions_or_weak_evidence": "Data conflicts, stale rows, missing mappings, compacted lineage, or areas where the evidence is thin.",
-					"analyst_followups":               "Operational checks the analyst should run next; no trading instructions.",
-					"cited_artifacts":                 "Only IDs present in lineage_ref_summary or summary_metrics.",
-					"data_quality_warnings":           "Warnings supplied in quality_warnings, or an empty array.",
-				},
+				"field_rules": fieldRules,
 			},
 		}
 		raw, err := json.Marshal(payload)

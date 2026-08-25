@@ -512,6 +512,9 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
 	}
 	insightType := strings.TrimSpace(req.InsightType)
+	if insightType == "" && isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) {
+		insightType = dailyNarrativeInsightType
+	}
 	if insightType == "" && contextWindow.ContextStrategy == "market_state_session_v2" {
 		insightType = defaultSyncraticAskDrilldownType
 	}
@@ -959,7 +962,7 @@ func syncraticAskAnswerIsMetaCommentary(answer string) bool {
 	if text == "" {
 		return false
 	}
-	markers := []string{"the prompt", "the json", "json provided", "json from external context", "the user specified", "they specified", "the instructions", "context includes a json", "main artifact here is the json", "main goal is to generate", "they want me to", "the task is to", "the context includes", "provided external context", "caller-supplied external context"}
+	markers := []string{"the prompt", "the json", "json provided", "json from external context", "the user specified", "they specified", "the instructions", "context includes a json", "main artifact here is the json", "main goal is to generate", "they want me to", "the task is to", "the context includes", "provided external context", "caller-supplied external context", "main elements are", "context metadata", "summary metrics", "summary_metrics", "lineage references"}
 	for _, marker := range markers {
 		if strings.Contains(text, marker) {
 			return true

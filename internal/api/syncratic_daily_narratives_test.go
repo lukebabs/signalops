@@ -136,6 +136,10 @@ func TestApplySyncraticAskResponseFallsBackWhenDailyAskReturnsNoText(t *testing.
 }
 
 func TestApplySyncraticAskResponseFallsBackWhenDailyAnswerIsMetaCommentary(t *testing.T) {
+	if !syncraticAskAnswerIsMetaCommentary("The main elements are the context metadata, summary metrics, and lineage references. Looking at the summary_metrics, the key pattern is mixed.") {
+		t.Fatal("daily overview metadata commentary should force deterministic fallback")
+	}
+
 	ctx := storage.SyncraticContextWindowRecord{
 		ContextWindowID:    "synctx-rr",
 		TenantID:           "tenant-local",
