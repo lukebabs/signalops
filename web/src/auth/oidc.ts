@@ -6,8 +6,9 @@ function currentOrigin(): string {
   return typeof window !== 'undefined' ? window.location.origin : 'http://localhost:15173';
 }
 
-export function createUserManager(): UserManager {
-  return new UserManager({
+function userManagerSettings(registration = false) {
+  const issuer = authConfig.issuer.replace(/\/$/, '');
+  return {
     authority: authConfig.issuer,
     client_id: authConfig.clientId,
     redirect_uri: `${currentOrigin()}/auth/callback`,
@@ -19,15 +20,30 @@ export function createUserManager(): UserManager {
     extraQueryParams: { resource: authConfig.audience },
     automaticSilentRenew: false,
     loadUserInfo: true,
-  });
+    ...(registration ? { metadataSeed: { authorization_endpoint: `${issuer}/protocol/openid-connect/registrations` } } : {}),
+  };
+}
+
+export function createUserManager(): UserManager {
+  return new UserManager(userManagerSettings(false));
+}
+
+export function createRegistrationUserManager(): UserManager {
+  return new UserManager(userManagerSettings(true));
 }
 
 let singleton: UserManager | null = null;
+let registrationSingleton: UserManager | null = null;
 
 // Lazily create the UserManager (only when auth is enabled / a flow runs).
 export function getUserManager(): UserManager {
   if (!singleton) singleton = createUserManager();
   return singleton;
+}
+
+export function getRegistrationUserManager(): UserManager {
+  if (!registrationSingleton) registrationSingleton = createRegistrationUserManager();
+  return registrationSingleton;
 }
 
 // Remember the requested path across the IdP redirect so the callback can restore it.

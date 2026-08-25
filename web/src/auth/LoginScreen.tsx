@@ -3,7 +3,7 @@ import { LogIn, UserPlus } from 'lucide-react';
 import syncraticPortalLogo from '../assets/syncratic-portal-logo.svg';
 import { LoadingState, ErrorState } from '../components/States';
 import { useAuth } from './session';
-import { getUserManager, rememberRedirectPath, sanitizeRedirectPath } from './oidc';
+import { getRegistrationUserManager, getUserManager, rememberRedirectPath, sanitizeRedirectPath } from './oidc';
 
 // Compact sign-in screen reusing the shell visual language. One primary action (redirect to IdP).
 export function LoginScreen({
@@ -70,6 +70,11 @@ export function AuthLoginRedirectProcessor({ authenticated }: { authenticated: b
           return;
         }
         rememberRedirectPath(destination);
+        const intent = String(params.get('intent') ?? '').trim().toLowerCase();
+        if (intent === 'register' || intent === 'signup') {
+          await getRegistrationUserManager().signinRedirect();
+          return;
+        }
         await getUserManager().signinRedirect();
       } catch (e) {
         // eslint-disable-next-line no-console

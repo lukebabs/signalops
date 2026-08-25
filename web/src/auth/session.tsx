@@ -179,7 +179,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       rememberRedirectPath('/marketops/dashboard');
       const configuredURL = authConfig.signUpUrl.trim();
       if (configuredURL) {
-        window.location.assign(configuredURL);
+        const url = new URL(configuredURL, window.location.origin);
+        if (url.origin === window.location.origin && url.pathname === '/auth/login' && !url.searchParams.has('intent')) {
+          url.searchParams.set('intent', 'register');
+        }
+        window.location.assign(url.toString());
         return;
       }
       setError('Account creation is not configured for this deployment. Use Sign in or contact support.');

@@ -9249,3 +9249,9 @@ Next-cycle priority:
 - Implemented the SignalOps app-hosted `/auth/login` facade in the SPA. The facade reads the internal `redirect` query parameter, sanitizes it through the existing auth redirect guard, stores it as the post-login destination, and starts the normal OIDC Authorization Code + PKCE sign-in flow.
 - Authenticated users who open `/auth/login` are redirected directly to the sanitized destination instead of seeing the login screen or a not-found route. Auth-disabled local builds redirect to the supplied internal destination for developer ergonomics.
 - This closes the route-level gap identified by the HAR handoff: `/auth/login` is an app-hosted facade path on `signalops.syncratic.io`, not a Keycloak-hosted path on `auth.syncratic.co`.
+
+### 2026-08-25 — Create Account registration intent correction
+
+- Corrected the app-hosted Create Account path so the `/auth/login` facade supports `intent=register` and uses Keycloak's OIDC `registrations` endpoint while preserving the normal PKCE/state callback flow.
+- Create Account now appends `intent=register` automatically when the configured sign-up URL points at the same-origin `/auth/login` facade without an explicit intent. Sign in continues to use the normal authorization endpoint.
+- Live non-mutating probe showed Keycloak currently returns `Registration not allowed` for the registrations endpoint. That is now the remaining Keycloak realm policy gate; the frontend should no longer silently route Create Account to the generic sign-in form.
