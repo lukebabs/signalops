@@ -85,7 +85,7 @@ This test signs in through Keycloak, waits for `GET /v1/session/enrollment`, and
 - the response tenant is the configured B2C tenant, default `tenant-b2c`;
 - the enrollment state matches `SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE`, default `marketops_ready`;
 - `email_verified=true`;
-- `can_self_enroll=true`;
+- `self_enrollment.eligible=true`;
 - ready users reach the MarketOps Dashboard.
 
 The smoke does not create a Keycloak user and does not touch Stripe. If the supplied B2C QA subject is not already enrolled, the SignalOps resolver may perform its designed idempotent B2C self-enrollment mutations: MarketOps read access, Explorer subject subscription, and starter tenant-default watchlist if missing. That is why the runner requires `SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved`.
@@ -125,7 +125,7 @@ Current realm-level public enrollment posture remains intentionally closed pendi
 - `registrationAllowed=false`;
 - `verifyEmail=false`.
 
-The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke is ready to run once the B2C QA account password is supplied via `SIGNALOPS_B2C_WEB_PASS`.
+The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke passed on 2026-08-25 using `SYNCRATIC_QA_CLIENT` / `SYNCRATIC_QA_PASS` mapped to the smoke variables. The account resolved to `tenant-b2c`, `marketops_ready`, `email_verified=true`, and `self_enrollment.eligible=true`.
 
 ## Deferred production work
 

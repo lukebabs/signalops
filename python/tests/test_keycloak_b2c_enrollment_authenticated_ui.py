@@ -97,7 +97,9 @@ def test_b2c_user_resolves_enrollment_state(b2c_page: Page) -> None:
     assert payload.get("tenant_id") == config.tenant_id
     assert payload.get("state") == config.expected_state, payload
     assert payload.get("email_verified") is True
-    assert bool(payload.get("can_self_enroll", False)) is config.expected_can_self_enroll
+    self_enrollment = payload.get("self_enrollment")
+    assert isinstance(self_enrollment, dict), payload
+    assert bool(self_enrollment.get("eligible", False)) is config.expected_can_self_enroll
 
     if config.expected_state == "marketops_ready":
         expect(b2c_page.get_by_role("heading", name="MarketOps Dashboard")).to_be_visible(timeout=30_000)
