@@ -4,8 +4,9 @@ import { RouterProvider } from '@tanstack/react-router';
 import { router } from './router';
 import { DashboardStreamBridge } from './components/DashboardStreamBridge';
 import { AuthProvider, useAuth } from './auth/session';
-import { AuthCallbackProcessor, LoginScreen, SilentRenewProcessor } from './auth/LoginScreen';
+import { AuthCallbackProcessor, AuthLoginRedirectProcessor, LoginScreen, SilentRenewProcessor } from './auth/LoginScreen';
 import { authConfig } from './auth/config';
+import { sanitizeRedirectPath } from './auth/oidc';
 import { ThemeProvider } from './theme/theme';
 import { MarketOpsWatchlistContextProvider } from "./components/MarketOpsWatchlistContext";
 import { UserActivityBridge } from './components/UserActivityBridge';
@@ -55,6 +56,10 @@ function EnrollmentGate({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function isAuthLoginRoute(): boolean {
+  return typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/login');
+}
+
 function isCallbackRoute(): boolean {
   return typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/callback');
 }
@@ -78,12 +83,20 @@ function RootGate() {
   }, [session.authEnabled, session.loading, session.authenticated, qc]);
 
   if (!session.authEnabled) {
+    if (isAuthLoginRoute()) {
+      const params = new URLSearchParams(window.location.search);
+      window.location.replace(sanitizeRedirectPath(params.get('redirect') || '/marketops/dashboard'));
+      return <LoginScreen loading />;
+    }
     return (
       <>
         <DashboardStreamBridge />
         <MarketOpsWatchlistContextProvider><RouterProvider router={router} /></MarketOpsWatchlistContextProvider>
       </>
     );
+  }
+  if (isAuthLoginRoute()) {
+    return <AuthLoginRedirectProcessor authenticated={session.authenticated} />;
   }
   if (isCallbackRoute()) {
     return <AuthCallbackProcessor />;

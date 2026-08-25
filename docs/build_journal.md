@@ -9243,3 +9243,9 @@ Next-cycle priority:
 - Classified the failure as an auth client/entrypoint mismatch, not an SMS MFA failure. No successful callback, cookies, form post, or SMS MFA step was present in the HAR.
 - Updated the frontend registration contract so `Create account` is exposed only when `VITE_SIGNALOPS_AUTH_SIGNUP_URL` is configured, and the SPA no longer generates direct `kc_action=register` redirects. Normal sign-in remains the configured OIDC Authorization Code + PKCE flow.
 - Updated subscriber enrollment and browser-acceptance documentation: public self-registration must use an app/Gateway-hosted enrollment facade or a verified dedicated `signalops-web` Keycloak client before production exposure.
+
+### 2026-08-25 — App-hosted auth login facade implementation
+
+- Implemented the SignalOps app-hosted `/auth/login` facade in the SPA. The facade reads the internal `redirect` query parameter, sanitizes it through the existing auth redirect guard, stores it as the post-login destination, and starts the normal OIDC Authorization Code + PKCE sign-in flow.
+- Authenticated users who open `/auth/login` are redirected directly to the sanitized destination instead of seeing the login screen or a not-found route. Auth-disabled local builds redirect to the supplied internal destination for developer ergonomics.
+- This closes the route-level gap identified by the HAR handoff: `/auth/login` is an app-hosted facade path on `signalops.syncratic.io`, not a Keycloak-hosted path on `auth.syncratic.co`.

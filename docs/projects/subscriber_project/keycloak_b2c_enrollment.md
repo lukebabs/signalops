@@ -11,6 +11,7 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 - Browser sign-in uses the configured OIDC Authorization Code + PKCE client. Production must use a Keycloak client that actually exists in the live realm and has the `signalops-api` audience and tenant claim mappers.
 - Browser sign-up must be launched through the app/Gateway enrollment facade configured by `VITE_SIGNALOPS_AUTH_SIGNUP_URL`; the SPA must not deep-link directly to Keycloak with `kc_action=register`.
 - The production signup facade must live on the app/deployment host, for example `https://signalops.syncratic.io/auth/login?redirect=/marketops/dashboard`, not on `auth.syncratic.co`.
+- The SignalOps SPA implements `/auth/login` as the app-hosted facade: it sanitizes the internal `redirect` value, stores the post-login destination, and starts the configured OIDC sign-in flow.
 - The gateway exposes `GET /v1/session/enrollment` for authenticated users before normal MarketOps access is complete.
 - The enrollment resolver reads the signed token subject, tenant, display identity, email, and `email_verified` claim.
 - Auto-enrollment is restricted to `SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID`, default `tenant-b2c`.
