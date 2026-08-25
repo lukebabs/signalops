@@ -13,7 +13,7 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 - The gateway exposes `GET /v1/session/enrollment` for authenticated users before normal MarketOps access is complete.
 - The enrollment resolver reads the signed token subject, tenant, display identity, email, and `email_verified` claim.
 - Auto-enrollment is restricted to `SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID`, default `tenant-b2c`.
-- Verified B2C users are idempotently provisioned with MarketOps read access and an active Explorer subject subscription.
+- Verified B2C users may be idempotently provisioned with MarketOps read access and starter watchlist scaffolding, but production readiness requires an active subscription from governed administration or Stripe webhook reconciliation.
 - The resolver creates a tenant-default starter watchlist only when the B2C tenant has no readable list context.
 
 ## Guardrails
@@ -22,6 +22,7 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 - Missing `tenant_id` still fails before enrollment.
 - Unverified email returns `email_verification_required` and performs no provisioning.
 - Non-B2C tenants are never self-provisioned; they return the relevant pending state for administrator remediation.
+- B2C Explorer auto-activation is disabled by default through `SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER=false`; enabling it is a controlled exception, not the production policy.
 - Enrollment calls are rate-limited in the gateway by a hashed tenant/subject/IP key.
 - Default public sign-ups must not receive operator, admin, subscription-admin, or tenant-provisioner roles.
 
@@ -86,6 +87,7 @@ This test signs in through Keycloak, waits for `GET /v1/session/enrollment`, and
 - the enrollment state matches `SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE`, default `marketops_ready`;
 - `email_verified=true`;
 - `self_enrollment.eligible=true`;
+- for new B2C subjects without a governed subscription, `state=subscription_missing` when subscription enforcement is enabled.
 - ready users reach the MarketOps Dashboard.
 
 The smoke does not create a Keycloak user and does not touch Stripe. If the supplied B2C QA subject is not already enrolled, the SignalOps resolver may perform its designed idempotent B2C self-enrollment mutations: MarketOps read access, Explorer subject subscription, and starter tenant-default watchlist if missing. That is why the runner requires `SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved`.
@@ -125,7 +127,7 @@ Current realm-level public enrollment posture remains intentionally closed pendi
 - `registrationAllowed=false`;
 - `verifyEmail=false`.
 
-The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke passed on 2026-08-25 using `SYNCRATIC_QA_CLIENT` / `SYNCRATIC_QA_PASS` mapped to the smoke variables. The account resolved to `tenant-b2c`, `marketops_ready`, `email_verified=true`, and `self_enrollment.eligible=true`.
+The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke passed on 2026-08-25 using `SYNCRATIC_QA_CLIENT` / `SYNCRATIC_QA_PASS` mapped to the smoke variables. The already-provisioned QA account resolved to `tenant-b2c`, `marketops_ready`, `email_verified=true`, and `self_enrollment.eligible=true`. Under the production Option B policy, a new B2C account without a governed subscription must resolve to `subscription_missing` once subscription enforcement is enabled.
 
 ## Deferred production work
 

@@ -68,12 +68,13 @@ func main() {
 			JWKSURL:  cfg.AuthJWKSURL,
 			Audience: cfg.AuthAudience,
 		},
-		NotificationEncryptionKey:      cfg.NotificationEncryptionKey,
-		SubscriberListsEnabled:         cfg.SubscriberListsEnabled,
-		SubscriberSubscriptionsEnabled: cfg.SubscriberSubscriptionsEnabled,
-		SubscriberListsPilotTenants:    subscriberPilotTenants(cfg.SubscriberListsPilotTenants, cfg.SubscriberB2CTenantID),
-		SubscriberB2CTenantID:          cfg.SubscriberB2CTenantID,
-		StripeWebhookSecret:            cfg.StripeWebhookSecret,
+		NotificationEncryptionKey:         cfg.NotificationEncryptionKey,
+		SubscriberListsEnabled:            cfg.SubscriberListsEnabled,
+		SubscriberSubscriptionsEnabled:    cfg.SubscriberSubscriptionsEnabled,
+		SubscriberListsPilotTenants:       subscriberPilotTenants(cfg.SubscriberListsPilotTenants, cfg.SubscriberB2CTenantID),
+		SubscriberB2CTenantID:             cfg.SubscriberB2CTenantID,
+		SubscriberB2CAutoActivateExplorer: cfg.SubscriberB2CAutoActivateExplorer,
+		StripeWebhookSecret:               cfg.StripeWebhookSecret,
 	}
 	if cfg.SubscriberSubscriptionsEnabled && !cfg.SubscriberListsEnabled {
 		logger.Error("subscription enforcement requires the subscriber catalog gateway database")

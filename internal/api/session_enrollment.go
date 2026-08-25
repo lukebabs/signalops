@@ -114,7 +114,7 @@ func registerSessionEnrollmentRoute(mux *http.ServeMux, cfg RouterConfig) {
 		var subscription *storage.SubscriberEffectiveSubscriptionRecord
 		if cfg.SubscriberSubscriptionRepository != nil {
 			record, err := cfg.SubscriberSubscriptionRepository.GetSubscriberEffectiveSubscription(r.Context(), tenantID, subject)
-			if errors.Is(err, storage.ErrNotFound) && canSelfEnroll && cfg.SubscriberSubscriptionAdministrationRepository != nil {
+			if errors.Is(err, storage.ErrNotFound) && canSelfEnroll && cfg.SubscriberB2CAutoActivateExplorer && cfg.SubscriberSubscriptionAdministrationRepository != nil {
 				if err := cfg.SubscriberSubscriptionAdministrationRepository.UpsertSubscriberSubjectSubscription(r.Context(), storage.SubscriberSubjectSubscriptionMutation{
 					TenantID: tenantID, Subject: subject, ProductKey: "explorer", Status: "active", ActorSubject: "self-enrollment", CorrelationID: "session-enrollment",
 				}); err != nil {

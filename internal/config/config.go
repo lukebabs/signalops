@@ -8,24 +8,25 @@ import (
 )
 
 const (
-	defaultHTTPAddr                       = ":8080"
-	defaultBrokerProvider                 = "redpanda"
-	defaultBrokerBrokers                  = "redpanda:9092"
-	defaultEnvironment                    = "local"
-	defaultDatabaseURL                    = ""
-	defaultTemporalDatabaseURL            = ""
-	defaultAuthEnabled                    = "false"
-	defaultAuthIssuer                     = ""
-	defaultAuthRealm                      = ""
-	defaultAuthJWKSURL                    = ""
-	defaultAuthAudience                   = ""
-	defaultAuthClientID                   = ""
-	defaultNotificationEncryptionKey      = ""
-	defaultSubscriberListsEnabled         = "false"
-	defaultSubscriberSubscriptionsEnabled = "false"
-	defaultSubscriberListsPilotTenants    = ""
-	defaultSubscriberListsDatabaseURL     = ""
-	defaultSubscriberB2CTenantID          = "tenant-b2c"
+	defaultHTTPAddr                          = ":8080"
+	defaultBrokerProvider                    = "redpanda"
+	defaultBrokerBrokers                     = "redpanda:9092"
+	defaultEnvironment                       = "local"
+	defaultDatabaseURL                       = ""
+	defaultTemporalDatabaseURL               = ""
+	defaultAuthEnabled                       = "false"
+	defaultAuthIssuer                        = ""
+	defaultAuthRealm                         = ""
+	defaultAuthJWKSURL                       = ""
+	defaultAuthAudience                      = ""
+	defaultAuthClientID                      = ""
+	defaultNotificationEncryptionKey         = ""
+	defaultSubscriberListsEnabled            = "false"
+	defaultSubscriberSubscriptionsEnabled    = "false"
+	defaultSubscriberListsPilotTenants       = ""
+	defaultSubscriberListsDatabaseURL        = ""
+	defaultSubscriberB2CTenantID             = "tenant-b2c"
+	defaultSubscriberB2CAutoActivateExplorer = "false"
 )
 
 // Config contains process-level settings for SignalOps services.
@@ -48,13 +49,14 @@ type Config struct {
 	// It is deliberately independent from the catalog/watchlist foundation so
 	// the latter can remain live while subscriptions are provisioned and
 	// reconciled before any customer-facing capability is restricted.
-	SubscriberSubscriptionsEnabled bool
-	SubscriberListsPilotTenants    string
-	SubscriberListsDatabaseURL     string
-	SubscriberB2CTenantID          string
-	StripeWebhookSecret            string
-	MarketOpsDatabaseURL           string
-	MarketOpsTemporalDatabaseURL   string
+	SubscriberSubscriptionsEnabled    bool
+	SubscriberListsPilotTenants       string
+	SubscriberListsDatabaseURL        string
+	SubscriberB2CTenantID             string
+	SubscriberB2CAutoActivateExplorer bool
+	StripeWebhookSecret               string
+	MarketOpsDatabaseURL              string
+	MarketOpsTemporalDatabaseURL      string
 	// MarketOpsDataBoundaryRequired makes the dedicated MarketOps primary and
 	// temporal stores mandatory for processes that participate in the
 	// production data plane. It is rendered only in the protected cutover
@@ -110,28 +112,29 @@ func (c Config) ValidateMarketOpsDataBoundary() error {
 // Load reads configuration from environment variables.
 func Load() Config {
 	return Config{
-		HTTPAddr:                       envOrDefault("SIGNALOPS_HTTP_ADDR", defaultHTTPAddr),
-		BrokerProvider:                 envOrDefault("SIGNALOPS_BROKER_PROVIDER", defaultBrokerProvider),
-		BrokerBrokers:                  envOrDefault("SIGNALOPS_BROKER_BROKERS", defaultBrokerBrokers),
-		Environment:                    envOrDefault("SIGNALOPS_ENV", defaultEnvironment),
-		DatabaseURL:                    envOrDefault("SIGNALOPS_DATABASE_URL", defaultDatabaseURL),
-		TemporalDatabaseURL:            envOrDefault("SIGNALOPS_TEMPORAL_DATABASE_URL", defaultTemporalDatabaseURL),
-		AuthEnabled:                    envBool("SIGNALOPS_AUTH_ENABLED", defaultAuthEnabled),
-		AuthIssuer:                     envOrDefault("SIGNALOPS_AUTH_ISSUER", defaultAuthIssuer),
-		AuthRealm:                      envOrDefault("SIGNALOPS_AUTH_REALM", defaultAuthRealm),
-		AuthJWKSURL:                    envOrDefault("SIGNALOPS_AUTH_JWKS_URL", defaultAuthJWKSURL),
-		AuthAudience:                   envOrDefault("SIGNALOPS_AUTH_AUDIENCE", defaultAuthAudience),
-		AuthClientID:                   envOrDefault("SIGNALOPS_AUTH_CLIENT_ID", defaultAuthClientID),
-		NotificationEncryptionKey:      envOrDefault("SIGNALOPS_NOTIFICATION_ENCRYPTION_KEY", defaultNotificationEncryptionKey),
-		SubscriberListsEnabled:         envBool("SIGNALOPS_SUBSCRIBER_LISTS_ENABLED", defaultSubscriberListsEnabled),
-		SubscriberSubscriptionsEnabled: envBool("SIGNALOPS_SUBSCRIPTIONS_ENABLED", defaultSubscriberSubscriptionsEnabled),
-		SubscriberListsPilotTenants:    envOrDefault("SIGNALOPS_SUBSCRIBER_LISTS_PILOT_TENANTS", defaultSubscriberListsPilotTenants),
-		SubscriberListsDatabaseURL:     envOrDefault("SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL", defaultSubscriberListsDatabaseURL),
-		SubscriberB2CTenantID:          envOrDefault("SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID", defaultSubscriberB2CTenantID),
-		StripeWebhookSecret:            envOrDefault("STRIPE_WEBHOOK_SECRET", ""),
-		MarketOpsDatabaseURL:           envOrDefault("SIGNALOPS_MARKETOPS_DATABASE_URL", ""),
-		MarketOpsTemporalDatabaseURL:   envOrDefault("SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL", ""),
-		MarketOpsDataBoundaryRequired:  envBool("SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED", "false"),
+		HTTPAddr:                          envOrDefault("SIGNALOPS_HTTP_ADDR", defaultHTTPAddr),
+		BrokerProvider:                    envOrDefault("SIGNALOPS_BROKER_PROVIDER", defaultBrokerProvider),
+		BrokerBrokers:                     envOrDefault("SIGNALOPS_BROKER_BROKERS", defaultBrokerBrokers),
+		Environment:                       envOrDefault("SIGNALOPS_ENV", defaultEnvironment),
+		DatabaseURL:                       envOrDefault("SIGNALOPS_DATABASE_URL", defaultDatabaseURL),
+		TemporalDatabaseURL:               envOrDefault("SIGNALOPS_TEMPORAL_DATABASE_URL", defaultTemporalDatabaseURL),
+		AuthEnabled:                       envBool("SIGNALOPS_AUTH_ENABLED", defaultAuthEnabled),
+		AuthIssuer:                        envOrDefault("SIGNALOPS_AUTH_ISSUER", defaultAuthIssuer),
+		AuthRealm:                         envOrDefault("SIGNALOPS_AUTH_REALM", defaultAuthRealm),
+		AuthJWKSURL:                       envOrDefault("SIGNALOPS_AUTH_JWKS_URL", defaultAuthJWKSURL),
+		AuthAudience:                      envOrDefault("SIGNALOPS_AUTH_AUDIENCE", defaultAuthAudience),
+		AuthClientID:                      envOrDefault("SIGNALOPS_AUTH_CLIENT_ID", defaultAuthClientID),
+		NotificationEncryptionKey:         envOrDefault("SIGNALOPS_NOTIFICATION_ENCRYPTION_KEY", defaultNotificationEncryptionKey),
+		SubscriberListsEnabled:            envBool("SIGNALOPS_SUBSCRIBER_LISTS_ENABLED", defaultSubscriberListsEnabled),
+		SubscriberSubscriptionsEnabled:    envBool("SIGNALOPS_SUBSCRIPTIONS_ENABLED", defaultSubscriberSubscriptionsEnabled),
+		SubscriberListsPilotTenants:       envOrDefault("SIGNALOPS_SUBSCRIBER_LISTS_PILOT_TENANTS", defaultSubscriberListsPilotTenants),
+		SubscriberListsDatabaseURL:        envOrDefault("SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL", defaultSubscriberListsDatabaseURL),
+		SubscriberB2CTenantID:             envOrDefault("SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID", defaultSubscriberB2CTenantID),
+		SubscriberB2CAutoActivateExplorer: envBool("SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER", defaultSubscriberB2CAutoActivateExplorer),
+		StripeWebhookSecret:               envOrDefault("STRIPE_WEBHOOK_SECRET", ""),
+		MarketOpsDatabaseURL:              envOrDefault("SIGNALOPS_MARKETOPS_DATABASE_URL", ""),
+		MarketOpsTemporalDatabaseURL:      envOrDefault("SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL", ""),
+		MarketOpsDataBoundaryRequired:     envBool("SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED", "false"),
 	}
 }
 

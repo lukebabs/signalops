@@ -2117,6 +2117,12 @@ The sprint is complete when:
 9. Institutional remains Contact Sales with a structured lead/provisioning path documented.
 10. All enrollment, lifecycle, and upgrade events are auditable.
 
+### A.10 Option B enrollment-to-subscription policy — 2026-08-25
+
+The selected production policy is Option B: verified public identity registration does not automatically activate Explorer. A B2C subject may receive tenant-scoped identity/access scaffolding, but MarketOps readiness under subscription enforcement requires an active subscription created through governed subscription administration or verified Stripe webhook reconciliation.
+
+Implementation guardrail: `SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER` defaults to `false`. Setting it to `true` re-enables legacy Explorer auto-activation only as an explicit controlled exception.
+
 ### A.9 Implemented Keycloak B2C enrollment slice — 2026-08-25
 
 The first enrollment implementation reuses the existing Syncratic Keycloak realm and `signalops-web` OIDC client rather than creating a separate pending realm. The browser now exposes a Create account path that invokes Keycloak registration through the same Authorization Code + PKCE callback.

@@ -31,7 +31,7 @@ function EnrollmentGate({ children }: { children: ReactNode }) {
     const copy: Record<string, { title: string; message: string }> = {
       email_verification_required: { title: 'Verify your email to continue', message: 'Your Syncratic identity is authenticated, but MarketOps access is held until Keycloak confirms email verification.' },
       tenant_access_missing: { title: 'MarketOps access is pending', message: 'Your identity does not yet have an approved MarketOps tenant grant.' },
-      subscription_missing: { title: 'Subscription setup is pending', message: 'Your MarketOps tier has not been provisioned yet.' },
+      subscription_missing: { title: 'Choose a subscription to continue', message: 'Your Syncratic identity is verified, but MarketOps access requires an active Explorer, Professional, or Institutional subscription.' },
       watchlist_context_missing: { title: 'Watchlist setup is pending', message: 'Your tenant does not yet have a default or private watchlist context.' },
     };
     const content = copy[state] ?? { title: 'Enrollment is pending', message: 'Your account is authenticated, but MarketOps enrollment is not complete.' };

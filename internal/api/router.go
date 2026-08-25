@@ -62,6 +62,7 @@ type RouterConfig struct {
 	SubscriberSubscriptionsEnabled                 bool
 	SubscriberListsPilotTenants                    map[string]struct{}
 	SubscriberB2CTenantID                          string
+	SubscriberB2CAutoActivateExplorer              bool
 	SubscriberWatchlistRepository                  storage.SubscriberWatchlistRepository
 	SubscriberCatalogRepository                    storage.SubscriberCatalogProjectionRepository
 	SubscriberEntitlementRepository                storage.SubscriberEntitlementRepository

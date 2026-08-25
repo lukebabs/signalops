@@ -84,7 +84,7 @@ The Stripe webhook path remains authoritative for future automatic entitlement u
 
 Public account creation now has an application-side enrollment resolver. Keycloak remains the identity provider and must emit a verified email, immutable subject, `tenant_id`, roles, and `signalops-api` audience. SignalOps then owns the MarketOps enrollment decision through `GET /v1/session/enrollment`.
 
-The resolver self-provisions only the configured B2C tenant, default `tenant-b2c`, and only after `email_verified=true`. It creates MarketOps read access and an active Explorer subject subscription idempotently. Professional and Institutional activation remain admin-governed or future webhook-confirmed flows; registration alone cannot grant paid analytical depth.
+The resolver self-provisions only the configured B2C tenant, default `tenant-b2c`, and only after `email_verified=true`. Under the production Option B policy selected on 2026-08-25, registration is not a subscription activation event. The resolver may create identity/access scaffolding, but an active Explorer or Professional subscription must come from governed administration or verified Stripe webhook reconciliation. The legacy auto-Explorer behavior is behind `SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER=true` and defaults off.
 
 See [Keycloak B2C Enrollment Flow](keycloak_b2c_enrollment.md).
 
