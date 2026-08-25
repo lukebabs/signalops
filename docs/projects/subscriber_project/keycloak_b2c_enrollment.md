@@ -132,10 +132,13 @@ The then-current `signalops-web` client had the required token mappers during th
 
 The `signalops-api` client exists and is enabled as a bearer-only API client.
 
-Current realm-level public enrollment posture remains intentionally closed pending the final public-enrollment gate:
+Current realm-level public enrollment posture after the 2026-08-25 form enablement:
 
-- `registrationAllowed=false`;
-- `verifyEmail=false`.
+- `registrationAllowed=true`;
+- `verifyEmail=true`;
+- `/signalops/viewers` is configured as a default group for new registrants.
+
+This only renders and protects the Keycloak registration form. It does not complete production enrollment by itself: the running Keycloak image still lacks the `CONFIGURE_SMS_MFA` provider/action, and new registrants still need governed `tenant_id=tenant-b2c` assignment before SignalOps can accept their token.
 
 ## HAR finding: registration entrypoint mismatch — 2026-08-25
 

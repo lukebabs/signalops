@@ -9255,3 +9255,11 @@ Next-cycle priority:
 - Corrected the app-hosted Create Account path so the `/auth/login` facade supports `intent=register` and uses Keycloak's OIDC `registrations` endpoint while preserving the normal PKCE/state callback flow.
 - Create Account now appends `intent=register` automatically when the configured sign-up URL points at the same-origin `/auth/login` facade without an explicit intent. Sign in continues to use the normal authorization endpoint.
 - Live non-mutating probe showed Keycloak currently returns `Registration not allowed` for the registrations endpoint. That is now the remaining Keycloak realm policy gate; the frontend should no longer silently route Create Account to the generic sign-in form.
+
+### 2026-08-25 — Keycloak registration form enabled
+
+- Enabled public registration in the live `syncratic` Keycloak realm after confirming the SignalOps app-hosted Create Account path reached the Keycloak OIDC registrations endpoint.
+- Set `verifyEmail=true` so new registrants must verify email before the account can be used.
+- Added `/signalops/viewers` as a realm default group so self-registered users receive the minimum `signalops:viewer` role instead of becoming roleless accounts.
+- Verified non-mutatively with Playwright that `https://signalops.syncratic.io/auth/login?intent=register&redirect=/marketops/dashboard` now renders the Keycloak registration form with username, password, confirm password, email, first name, and last name fields.
+- Remaining gate: the running Keycloak container is still the base `quay.io/keycloak/keycloak:25.0` image and does not expose `CONFIGURE_SMS_MFA`; the provider-enabled SMS MFA image/reconcile step remains required. New registrants also still need governed `tenant_id=tenant-b2c` assignment before SignalOps can accept their token.
