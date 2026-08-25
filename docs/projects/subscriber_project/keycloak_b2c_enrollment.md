@@ -105,6 +105,28 @@ SIGNALOPS_E2E_EXPECT_CAN_SELF_ENROLL=false \
 
 This proves the authenticated enrollment resolver and protected Dashboard entry work for the existing pilot account; it does not prove the B2C self-enrollment branch.
 
+## Live Keycloak B2C QA evidence — 2026-08-25
+
+Live Keycloak was inspected through the `keycloak` container using `kcadm.sh`; no secrets or tokens were printed. The controlled B2C QA identity `luke.babarinde@gmail.com` now has:
+
+- `emailVerified=true`;
+- realm role `signalops:viewer`;
+- user attribute `tenant_id=["tenant-b2c"]`.
+
+The `signalops-web` client has the required token mappers:
+
+- `signalops-api-audience`, emitting `signalops-api` in the access token audience;
+- `tenant-id-from-user-attribute`, emitting the user `tenant_id` attribute into access/userinfo/introspection tokens.
+
+The `signalops-api` client exists and is enabled as a bearer-only API client.
+
+Current realm-level public enrollment posture remains intentionally closed pending the final public-enrollment gate:
+
+- `registrationAllowed=false`;
+- `verifyEmail=false`.
+
+The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke is ready to run once the B2C QA account password is supplied via `SIGNALOPS_B2C_WEB_PASS`.
+
 ## Deferred production work
 
 - Stripe Checkout and customer portal remain disabled until webhook-confirmed activation is implemented.
