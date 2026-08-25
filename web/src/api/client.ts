@@ -206,7 +206,7 @@ import type {
   SubscriberTenantSubscriptionBillingRequest,
 } from "../types";
 import { authConfig } from "../auth/config";
-import { getAccessToken } from "../auth/session";
+import * as authSession from "../auth/session";
 
 // Typed API error. Maps gateway error bodies {"error":<code>,"message":<text>}
 // plus network failures, so the UI can render endpoint + message.
@@ -253,8 +253,32 @@ export function buildUrl(
 // Bearer token attached to every request when auth is enabled and a token is held.
 // /healthz and /readyz stay usable unauthenticated because the token is absent until login.
 function authHeaders(): Record<string, string> {
-  const token = authConfig.authEnabled ? getAccessToken() : null;
+  const token = authConfig.authEnabled ? authSession.getAccessToken() : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function apiErrorFromResponse(res: Response, endpoint: string, fallbackCode = "http_error"): Promise<ApiError> {
+  let code = fallbackCode;
+  let message = res.statusText || `HTTP ${res.status}`;
+  try {
+    const body = await res.json();
+    if (body && typeof body.error === "string") code = body.error;
+    if (body && typeof body.message === "string") message = body.message;
+  } catch {
+    /* non-JSON error body */
+  }
+  return new ApiError(res.status, code, message, endpoint);
+}
+
+function isExpiredTokenError(error: ApiError): boolean {
+  return error.status === 401 && /token is expired|expired token|token expired/i.test(error.message);
+}
+
+async function throwApiError(error: ApiError): Promise<never> {
+  if (authConfig.authEnabled && isExpiredTokenError(error)) {
+    await authSession.redirectToSignInForExpiredSession?.();
+  }
+  throw error;
 }
 
 async function get<T>(
@@ -273,16 +297,7 @@ async function get<T>(
     throw new ApiError(0, "network_error", "Gateway unreachable", endpoint);
   }
   if (!res.ok) {
-    let code = "http_error";
-    let message = res.statusText || `HTTP ${res.status}`;
-    try {
-      const body = await res.json();
-      if (body && typeof body.error === "string") code = body.error;
-      if (body && typeof body.message === "string") message = body.message;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiError(res.status, code, message, endpoint);
+    await throwApiError(await apiErrorFromResponse(res, endpoint));
   }
   return (await res.json()) as T;
 }
@@ -309,17 +324,7 @@ async function post<T>(
     throw new ApiError(0, "network_error", "Gateway unreachable", endpoint);
   }
   if (!res.ok) {
-    let code = "http_error";
-    let message = res.statusText || `HTTP ${res.status}`;
-    try {
-      const errBody = await res.json();
-      if (errBody && typeof errBody.error === "string") code = errBody.error;
-      if (errBody && typeof errBody.message === "string")
-        message = errBody.message;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiError(res.status, code, message, endpoint);
+    await throwApiError(await apiErrorFromResponse(res, endpoint));
   }
   return (await res.json()) as T;
 }
@@ -336,12 +341,7 @@ async function put<T>(path: string, body?: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const value = await res.json();
-      message = value.message ?? message;
-    } catch {}
-    throw new ApiError(res.status, "http_error", message, endpoint);
+    await throwApiError(await apiErrorFromResponse(res, endpoint));
   }
   return (await res.json()) as T;
 }
@@ -353,7 +353,7 @@ async function del(path: string): Promise<void> {
     headers: { Accept: "application/json", ...authHeaders() },
   });
   if (!res.ok) {
-    throw new ApiError(res.status, "http_error", res.statusText, endpoint);
+    await throwApiError(await apiErrorFromResponse(res, endpoint));
   }
 }
 
@@ -374,17 +374,7 @@ async function patch<T>(path: string, body?: unknown): Promise<T> {
     throw new ApiError(0, "network_error", "Gateway unreachable", endpoint);
   }
   if (!res.ok) {
-    let code = "http_error";
-    let message = res.statusText || `HTTP ${res.status}`;
-    try {
-      const errBody = await res.json();
-      if (errBody && typeof errBody.error === "string") code = errBody.error;
-      if (errBody && typeof errBody.message === "string")
-        message = errBody.message;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiError(res.status, code, message, endpoint);
+    await throwApiError(await apiErrorFromResponse(res, endpoint));
   }
   return (await res.json()) as T;
 }

@@ -9291,3 +9291,10 @@ Next-cycle priority:
 - Added a visible SMS opt-in disclosure to the Keycloak `CONFIGURE_SMS_MFA` enrollment screen before the user sends a verification code.
 - Disclosure states message frequency may vary, standard message/data rates may apply, STOP/HELP instructions, and that mobile information will not be sold or shared with third parties for promotional or marketing purposes.
 - Mirrored the disclosure into the Helm Keycloak theme files, restarted Keycloak to reload mounted theme assets, verified the live container has the disclosure text, and re-ran the non-mutating B2C registration smoke plus login sanity check.
+
+### 2026-08-25 — Frontend expired-token fail-closed hardening
+
+- Fixed a frontend auth drift where manual silent-renew failure could leave a stale module-level access token attached to API calls, producing gateway `token is expired` responses while the user still appeared active in the UI.
+- Added a JWT `exp` safety check before returning the cached access token; expired or near-expired JWTs are cleared and no longer attached to API requests.
+- Added shared API-client handling for gateway expired-token responses: the app clears the local OIDC user and starts a clean sign-in redirect while preserving the current route.
+- Validation: targeted auth tests passed (`9 passed`), broader auth/MarketOps state tests passed (`31 passed`), production web build passed, web container was rebuilt/restarted, and `/marketops/dashboard` returned `200` with Playwright loading SignalOps.

@@ -32,14 +32,51 @@ const SessionContext = createContext<SessionState | null>(null);
 // Module-level access-token holder so the non-React api/client.ts can attach the
 // current Bearer token without React context. The provider updates it on user changes.
 let currentAccessToken: string | null = null;
+let expiredSessionRedirectInFlight = false;
+const TOKEN_EXPIRY_SAFETY_SECONDS = 10;
+
+function tokenExpiresWithin(token: string, windowSeconds: number): boolean {
+  const [, payload] = token.split('.');
+  if (!payload || typeof globalThis.atob !== 'function') return false;
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const parsed = JSON.parse(globalThis.atob(padded)) as { exp?: unknown };
+    if (typeof parsed.exp !== 'number') return false;
+    return parsed.exp <= Math.floor(Date.now() / 1000) + windowSeconds;
+  } catch {
+    return false;
+  }
+}
 
 export function getAccessToken(): string | null {
+  if (currentAccessToken && tokenExpiresWithin(currentAccessToken, TOKEN_EXPIRY_SAFETY_SECONDS)) {
+    currentAccessToken = null;
+    void redirectToSignInForExpiredSession();
+    return null;
+  }
   return currentAccessToken;
+}
+
+export async function redirectToSignInForExpiredSession(): Promise<void> {
+  if (!authConfig.authEnabled || expiredSessionRedirectInFlight) return;
+  expiredSessionRedirectInFlight = true;
+  currentAccessToken = null;
+  try {
+    const path = `${window.location.pathname}${window.location.search}`;
+    rememberRedirectPath(path);
+    const manager = getUserManager();
+    await manager.removeUser();
+    await manager.signinRedirect();
+  } catch {
+    expiredSessionRedirectInFlight = false;
+  }
 }
 
 // Test seam: set/clear the token holder without a provider.
 export function setAccessTokenForTest(token: string | null): void {
   currentAccessToken = token;
+  expiredSessionRedirectInFlight = false;
 }
 
 function errMsg(e: unknown): string {
@@ -102,7 +139,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const renewed = await manager.signinSilent();
         if (renewed) applyUser(renewed);
       } catch (e) {
-        if (!cancelled) setError(`Session renewal failed: ${errMsg(e)}`);
+        if (!cancelled) {
+          currentAccessToken = null;
+          userRef.current = null;
+          setUser(null);
+          setError(`Session renewal failed: ${errMsg(e)}`);
+          void redirectToSignInForExpiredSession();
+        }
       } finally {
         renewingRef.current = false;
       }
