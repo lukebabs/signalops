@@ -183,6 +183,13 @@ Live status on 2026-08-25:
 - `CONFIGURE_SMS_MFA` is enabled and set as a default required action so new local registrations receive the SMS setup step.
 - The tenant assignment gate is now approved for implementation: the Keycloak SMS MFA provider assigns `tenant_id=tenant-b2c` only after successful SMS verification and only when the user has no existing `tenant_id`. Existing tenant-local, tenant-pilot-b, and other explicitly assigned users are not overwritten.
 
+
+Flow placement correction on 2026-08-25:
+
+- The SMS login authenticator must not be top-level before username/password because it has `requiresUser() = true`.
+- The live `syncratic-browser` flow keeps any top-level SMS execution `DISABLED` and requires `syncratic-sms-otp-authenticator` inside `syncratic-browser forms` immediately after `Username Password Form`.
+- The app-hosted login facade was revalidated after the correction: the Keycloak username field is visible and the pre-submit `Invalid username or password` / incomplete-request error is gone.
+
 Upgrade warning: the Keycloak SPI is built against Keycloak `25.0.6`. Keycloak marks these SPIs as internal, so any Keycloak version upgrade must rebuild the provider image and run a registration/login SMS MFA smoke before production traffic is allowed.
 
 ## Deferred production work

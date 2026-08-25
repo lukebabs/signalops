@@ -9272,3 +9272,10 @@ Next-cycle priority:
 - Preserved the identity boundary: SignalOps does not mark `phone_number_verified=true`; only the Keycloak SMS provider does so after OTP verification.
 - Tenant assignment approval received from `luke@strategiclabs.io`: the Keycloak SMS MFA provider may assign `tenant_id=tenant-b2c` after successful SMS verification only when no tenant attribute exists, without overwriting existing tenant assignments.
 - Rebuilt and restarted the provider-enabled Keycloak container after the approved provider change; verified the realm still uses `syncratic-browser`, `CONFIGURE_SMS_MFA` remains enabled/defaulted, and `syncratic-sms-otp-authenticator` remains `REQUIRED`.
+
+### 2026-08-25 — Keycloak SMS MFA flow placement correction
+
+- Analyzed `auth.syncratic.co-01.har`: the SignalOps OIDC request had a valid `signalops-web` client, callback, PKCE, and audience parameters, but Keycloak returned a pre-submit login error. The separate `/auth/login` `404` was caused by opening the app/Gateway facade route on `auth.syncratic.co` instead of `signalops.syncratic.io`.
+- Root cause was Keycloak flow placement: `syncratic-sms-otp-authenticator` had been installed as a top-level `REQUIRED` execution before username/password even though the authenticator requires an identified user.
+- Corrected live Keycloak flow so the top-level SMS execution is `DISABLED` and a forms-subflow SMS execution is `REQUIRED` immediately after `Username Password Form`.
+- Verified normal login now renders the username field without the pre-submit error, and the non-mutating B2C registration Playwright smoke still passes.
