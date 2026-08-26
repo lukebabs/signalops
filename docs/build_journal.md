@@ -9305,3 +9305,11 @@ Next-cycle priority:
 - `scripts/marketops_global_dashboard_projection.sh` now materializes and verifies core Valuation Intelligence (`signalops.algorithms.valuation_composite_v3`), Distressed Opportunity Intelligence (`signalops.algorithms.distressed_opportunity_scoring_v3`), and EEOM for the exact completed session.
 - The gate now fails closed if global Valuation/DOSM/EEOM projections trail tenant-local source rows, preventing those views from drifting behind the global MarketOps evidence plane after post-close.
 - Validation: `bash -n scripts/marketops_global_dashboard_projection.sh scripts/marketops_daily_postclose.sh` passed; static assertions confirmed the new projection hooks and failure messages are present. Live DB execution still requires the next post-close run or an approved deployment-agent run-now action.
+
+### 2026-08-26 — Mobile subscriber readiness sprint framing
+
+- Created the Mobile User Readiness Sprint as a subscriber-facing production-readiness gate focused on primarily mobile MarketOps users.
+- Explicitly excluded Admin Workbench, Subscription Administration, and operator run-now controls from the mobile sprint; those remain desktop/operator scope unless separately approved.
+- Defined mobile journeys for login, watchlist-first navigation, daily market read, asset drilldown, SAF, SRI, Syncratic Intelligence, enrollment, and subscription pricing.
+- Defined the required mobile viewport matrix, routes, automation plan, remediation backlog, and PWA/native-app viability track.
+- Updated the Subscriber Project README, production-readiness path, and automated browser acceptance docs to make mobile subscriber readiness a formal PR-5 gate.

@@ -24,6 +24,7 @@ Production readiness is still blocked by expansion and recovery-evidence gaps. T
 | Daily post-close | Closed for PR-0 | The August 21 post-close cycle completed without requiring stale-systemd reconciliation. |
 | FMP annual financial job | Active / observing | Option B selected and activated: weekly Saturday 02:30 ET recurring capture. Live scheduler status shows `signalops-marketops-boundary-fmp-annual-financial.timer active=active next=Sat 2026-08-29 06:30:00 UTC`. |
 | Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass, including the controlled Syncratic Ask live smoke after AI Gateway price-catalog propagation. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. Syncratic Ask readiness is tracked in [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md), and Admin Operations Health now has a dedicated Syncratic Ask row that passed production browser validation on 2026-08-23. |
+| Mobile subscriber UX | Planned sprint | Subscriber mobile web is the production target for most users, but current evidence is not sufficient after recent watchlist, SAF, Syncratic, subscription, and enrollment changes. Admin/operator workflows are explicitly desktop scope. See [Mobile User Readiness Sprint](mobile_user_readiness_sprint.md). |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. The `000160` upgrade-intent journey is validated: pricing renders configured Stripe catalog IDs, Checkout is disabled by design, upgrade interactions persist for tenant-pilot-b, Admin Upgrade funnel shows the event, and Stripe webhook fail-closed/signed-canary behavior is verified. |
 | Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |
@@ -117,6 +118,15 @@ These are required before broader commercial production.
     - Acceptance:
       - Each runbook includes detection, owner, first response, recovery action, verification, and rollback criteria.
     - Current PR-4 evidence: `pr4_incident_runbooks_2026-08-21.md` defines all required response paths using constrained deployment-agent actions and dedicated MarketOps database evidence.
+
+11. **Mobile subscriber readiness**
+   - Status: planned sprint; Admin remains out of scope.
+   - The product must be validated for primarily mobile subscribers before paid production.
+   - Acceptance:
+     - Mobile Playwright suite validates subscriber routes at 375px and 430px widths.
+     - Dashboard, Watchlists, Assets, Market State, Value Intelligence, Distressed Opportunity Intelligence, Earnings Opportunity Intelligence, Opportunities, SRI, SAF, Syncratic, Pricing, and enrollment flows have no blocking mobile usability defects.
+     - No page-level horizontal overflow, clipped primary actions, unreadable chart labels, or inaccessible drilldown close/back controls.
+     - Admin Workbench and Subscription Administration remain desktop/operator workflows unless a separate sprint is approved.
 
 ## Efficient and secure path to production
 
@@ -220,6 +230,23 @@ Implementation note — 2026-08-21:
 
 - PR-4 starts with controls, not broader provider polling. The first implementation added a reusable MarketOps trading-calendar primitive and wired scheduled jobs to skip configured US market holidays as well as weekends, while preserving the explicit maintenance/FMP weekend allowlist.
 
+### Sprint PR-5 — Mobile subscriber readiness
+
+Status: planned.
+
+Scope:
+
+- Add a dedicated mobile browser acceptance suite for subscriber-facing MarketOps routes.
+- Remediate phone-width usability defects in Dashboard, Watchlists, Assets, Market State, Valuation/DOSM, EROC, EEOM, Opportunities, SRI, SAF, Syncratic, Pricing, and enrollment.
+- Keep Admin and operator controls desktop-scoped.
+- Preserve a future path to PWA/native app viability without starting native development.
+
+Exit:
+
+- The mobile suite passes in production against the configured subscriber QA identity at 375px and 430px widths.
+- Failure-only HAR/trace/screenshots are retained under the protected artifact policy.
+- Product readiness records subscriber mobile web as accepted or lists only non-blocking polish items.
+
 ## Standing readiness check
 
 Each production-readiness review should record:
@@ -233,6 +260,7 @@ Each production-readiness review should record:
 7. Subscription/access-control canary result.
 8. Backup label and restore rehearsal result.
 9. Open blockers classified as Ready, Partial, or Blocked.
+10. Mobile subscriber smoke result when user-facing layout, navigation, enrollment, Syncratic, SAF, SRI, Dashboard, Assets, or Pricing changed.
 
 ## Next recommended action
 

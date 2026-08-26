@@ -38,6 +38,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [Stripe Billing and Checkout](stripe_admin_managed_billing.md): controlled Stripe product/customer/subscription mapping, signed webhook reconciliation, and opaque-reference Explorer/Professional Checkout without customer portal.
 - [Subscriber User Activity Monitoring](subscriber_user_activity_monitoring.md): append-only login/logout/feature-view/mutation activity visibility in Subscription Administration, with privacy and retention boundaries.
 - [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md): production-readiness controls for prompt governance, AI Gateway policy/catalog alignment, idempotency, browser smoke validation, and failure handling.
+- [Mobile User Readiness Sprint](mobile_user_readiness_sprint.md): subscriber-facing mobile-web production gate, excluding Admin/operator workflows while preserving a path toward PWA/native-app viability.
 
 - [Global Catalog and Watchlist Roadmap](global_catalog_watchlists_roadmap.md): target architecture, data flow, options demand design, compatibility-first sprint plan, controls, and acceptance measures.
 - [Tenant-local legacy-default preservation — 2026-08-16](tenant_local_legacy_default_preservation_2026-08-16.md): audited, non-destructive preservation of the 132-symbol legacy tenant-default list through canonical global identities.

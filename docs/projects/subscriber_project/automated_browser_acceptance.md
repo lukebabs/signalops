@@ -131,6 +131,28 @@ This closes the **UX truthfulness** sub-gate only. It does not close the global 
 
 Run this suite after Gateway/Web deployment and before declaring a subscriber release accepted. Also run the controlled Syncratic Ask smoke after Gateway deployments that touch Syncratic, after Syncratic AI Gateway policy/catalog changes, and before subscription production gates. A passing browser smoke validates UX and authorization propagation; it does not replace the separate global analytical-data-plane, provider, scheduler, parity, or recovery gates.
 
+## Mobile subscriber acceptance
+
+The default subscriber smoke validates product correctness and authorization, but it is not sufficient for subscriber mobile production readiness.
+
+The Mobile User Readiness Sprint adds a separate mobile suite focused on phone-first subscriber use. Admin Workbench, Subscription Administration, and operator run-now controls remain out of scope for that suite.
+
+Target launcher:
+
+```bash
+./scripts/run_subscriber_mobile_ui_smoke.sh
+```
+
+Target suite:
+
+```bash
+.venv/bin/python -m pytest -q python/tests/test_subscriber_mobile_ui.py
+```
+
+The mobile suite must use the same protected QA identity and failure-only artifact policy as the subscriber smoke. It should run at 375px and 430px widths, assert no page-level horizontal overflow, verify primary subscriber routes, open and close representative drilldowns, and confirm Syncratic narrative detail is reachable from Dashboard.
+
+Required subscriber routes are defined in [Mobile User Readiness Sprint](mobile_user_readiness_sprint.md). A passing mobile smoke is required before declaring the subscriber web product ready for primarily mobile users.
+
 ## Global EROC reader acceptance — 2026-08-16
 
 After the controlled, algorithm-filtered materialization of 1,346 EROC v6 records, the pilot contract was strengthened to require a non-empty EROC result for a selected shared symbol and `data_scope = platform-global`. The named Gateway deployment and the isolated `tenant-pilot-b` smoke both passed. This proves the subscriber EROC route reads authorized global evidence rather than legacy tenant-local data.
