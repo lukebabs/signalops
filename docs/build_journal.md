@@ -9298,3 +9298,10 @@ Next-cycle priority:
 - Added a JWT `exp` safety check before returning the cached access token; expired or near-expired JWTs are cleared and no longer attached to API requests.
 - Added shared API-client handling for gateway expired-token responses: the app clears the local OIDC user and starts a clean sign-in redirect while preserving the current route.
 - Validation: targeted auth tests passed (`9 passed`), broader auth/MarketOps state tests passed (`31 passed`), production web build passed, web container was rebuilt/restarted, and `/marketops/dashboard` returned `200` with Playwright loading SignalOps.
+
+### 2026-08-26 — Global analytical projection parity expansion
+
+- Advanced Subscriber Project production blocker #3 by expanding the post-close global analytical data-plane projection gate.
+- `scripts/marketops_global_dashboard_projection.sh` now materializes and verifies core Valuation Intelligence (`signalops.algorithms.valuation_composite_v3`), Distressed Opportunity Intelligence (`signalops.algorithms.distressed_opportunity_scoring_v3`), and EEOM for the exact completed session.
+- The gate now fails closed if global Valuation/DOSM/EEOM projections trail tenant-local source rows, preventing those views from drifting behind the global MarketOps evidence plane after post-close.
+- Validation: `bash -n scripts/marketops_global_dashboard_projection.sh scripts/marketops_daily_postclose.sh` passed; static assertions confirmed the new projection hooks and failure messages are present. Live DB execution still requires the next post-close run or an approved deployment-agent run-now action.

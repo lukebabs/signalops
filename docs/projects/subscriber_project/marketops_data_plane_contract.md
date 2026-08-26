@@ -115,8 +115,13 @@ complete merely because the primary MarketOps tables contain the new session.
 for its exact completed session date:
 
 - options distributions;
-- Risk/Reward snapshots; and
-- Market State evidence.
+- Risk/Reward snapshots;
+- Market State evidence;
+- SAF matured outcome observations;
+- EROC valuation evidence;
+- core Valuation Intelligence evidence;
+- Distressed Opportunity Intelligence evidence; and
+- EEOM evidence.
 
 The parity-manifest worker accepts `--session-date YYYY-MM-DD`. The post-close
 projection passes that exact date, preventing a bounded newest-first run from

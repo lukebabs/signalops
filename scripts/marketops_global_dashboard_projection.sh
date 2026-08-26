@@ -34,6 +34,9 @@ project_kind risk_reward
 project_kind market_state
 project_kind outcome
 project_kind valuation signalops.algorithms.eroc_v6
+project_kind valuation signalops.algorithms.valuation_composite_v3
+project_kind valuation signalops.algorithms.distressed_opportunity_scoring_v3
+project_kind eeom
 
 options_source="$(marketops_primary_psql -Atc "SELECT count(*) FROM marketops_options_distribution_daily WHERE tenant_id='tenant-local' AND trade_date=DATE '$session_date' AND window_name='10_trade_days'" | tr -d '[:space:]')"
 options_global="$(marketops_primary_psql -Atc "SELECT count(*) FROM subscriber_gateway_global_options_distributions WHERE trade_date=DATE '$session_date' AND window_name='10_trade_days'" | tr -d '[:space:]')"
@@ -45,6 +48,10 @@ outcome_source="$(marketops_primary_psql -Atc "SELECT count(*) FROM marketops_si
 outcome_global="$(marketops_primary_psql -Atc "SELECT count(*) FROM subscriber_gateway_global_signal_assurance_observations WHERE source_type='opportunity' AND matured_session_date=DATE '$session_date'" | tr -d '[:space:]')"
 eroc_source="$(marketops_primary_psql -Atc "SELECT count(DISTINCT symbol) FROM marketops_valuation_results WHERE tenant_id='tenant-local' AND algorithm_id='signalops.algorithms.eroc_v6' AND session_date=DATE '$session_date'" | tr -d '[:space:]')"
 eroc_global="$(marketops_primary_psql -Atc "SELECT count(DISTINCT symbol) FROM subscriber_gateway_global_eroc_results WHERE session_date=DATE '$session_date'" | tr -d '[:space:]')"
+valuation_source="$(marketops_primary_psql -Atc "SELECT count(*) FROM marketops_valuation_results WHERE tenant_id='tenant-local' AND algorithm_id IN ('signalops.algorithms.valuation_composite_v3','signalops.algorithms.distressed_opportunity_scoring_v3') AND session_date=DATE '$session_date'" | tr -d '[:space:]')"
+valuation_global="$(marketops_primary_psql -Atc "SELECT count(*) FROM subscriber_gateway_global_valuation_results WHERE algorithm_id IN ('signalops.algorithms.valuation_composite_v3','signalops.algorithms.distressed_opportunity_scoring_v3') AND session_date=DATE '$session_date'" | tr -d '[:space:]')"
+eeom_source="$(marketops_primary_psql -Atc "SELECT count(*) FROM marketops_eeom_results WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date'" | tr -d '[:space:]')"
+eeom_global="$(marketops_primary_psql -Atc "SELECT count(*) FROM subscriber_gateway_global_eeom_results WHERE session_date=DATE '$session_date'" | tr -d '[:space:]')"
 
 (( options_global >= options_source )) || {
   printf 'global options projection incomplete: source=%s global=%s session=%s\n' "$options_source" "$options_global" "$session_date" >&2
@@ -66,4 +73,12 @@ eroc_global="$(marketops_primary_psql -Atc "SELECT count(DISTINCT symbol) FROM s
   printf 'global EROC projection incomplete: source=%s global=%s session=%s\n' "$eroc_source" "$eroc_global" "$session_date" >&2
   exit 10
 }
-printf 'global Dashboard evidence projection passed: session=%s options=%s risk_reward=%s market_state=%s saf_outcomes=%s eroc=%s\n' "$session_date" "$options_global" "$risk_global" "$state_global" "$outcome_global" "$eroc_global"
+(( valuation_global >= valuation_source )) || {
+  printf 'global valuation projection incomplete: source=%s global=%s session=%s\n' "$valuation_source" "$valuation_global" "$session_date" >&2
+  exit 11
+}
+(( eeom_global >= eeom_source )) || {
+  printf 'global EEOM projection incomplete: source=%s global=%s session=%s\n' "$eeom_source" "$eeom_global" "$session_date" >&2
+  exit 12
+}
+printf 'global Dashboard evidence projection passed: session=%s options=%s risk_reward=%s market_state=%s saf_outcomes=%s eroc=%s valuation=%s eeom=%s\n' "$session_date" "$options_global" "$risk_global" "$state_global" "$outcome_global" "$eroc_global" "$valuation_global" "$eeom_global"

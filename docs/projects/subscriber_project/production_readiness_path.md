@@ -291,6 +291,7 @@ service=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.ser
 - The post-close global projection script now includes a constrained `valuation` projection for `signalops.algorithms.eroc_v6` and fails the post-close gate if `subscriber_gateway_global_eroc_results` has fewer symbols than the tenant-local EROC source for that session.
 - The UI stale-evidence guard remains in place as a defensive presentation layer, but the pipeline now has a permanent EROC projection hook.
 - Remaining validation: observe the next natural trading-day post-close run and confirm EROC global projection advances through the standard parity manifest/materializer path.
+- 2026-08-26 source update: the post-close global projection gate now also materializes and verifies core Valuation Intelligence (`signalops.algorithms.valuation_composite_v3`), Distressed Opportunity Intelligence (`signalops.algorithms.distressed_opportunity_scoring_v3`), and EEOM evidence for the exact completed session. The gate fails closed if `subscriber_gateway_global_valuation_results` or `subscriber_gateway_global_eeom_results` trails the tenant-local source for that session. This makes Valuation/DOSM/EEOM part of the same global analytical data-plane parity contract as Market State, Risk/Reward, SAF outcomes, and EROC.
 
 ## 2026-08-23 Syncratic Ask operations-health deployment validation
 
