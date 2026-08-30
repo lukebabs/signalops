@@ -360,3 +360,26 @@ Remaining acceptance before marking this slice fully production-ready:
 2. Run `sudo -n signalops-deploy-agent marketops-fmp-systemd-reconcile`.
 3. Run `sudo -n signalops-deploy-agent scheduler-status` and confirm no failed service state remains.
 4. Continue the FMP annual task workflow until queued/running tasks are drained or classified as provider quota/no-data/terminal failure.
+
+
+## 2026-08-30 production-readiness update — FMP annual identity fix verified
+
+The FMP annual lifecycle blocker was reduced from scheduler failure to governed data-quality/provider exceptions.
+
+Root cause fixed:
+
+- Annual financial v2 evidence IDs did not include algorithm version/session identity, which caused collisions against earlier v1 immutable evidence when FMP returned unchanged payloads.
+- Annual VC/DOSM materialized evidence IDs did not include observation date, which caused cross-session collisions when valuation payloads repeated.
+
+Validation:
+
+- Targeted Go package tests passed for the FMP annual task worker, annual valuation materializer, and FMP adapter.
+- `sudo -n signalops-deploy-agent marketops-fmp-annual-run` completed successfully after the fixes.
+- `sudo -n signalops-deploy-agent scheduler-status` returned clean.
+- Public `/readyz` returned `200`.
+- Dedicated MarketOps evidence for `2026-08-28`: `1000` `fundamental_annual` v2 records, `879` annual VC records, and `879` annual DOSM records.
+
+Remaining FMP annual acceptance:
+
+- Review the six provider quota deferrals and one no-data symbol as governed data-quality/provider exceptions.
+- Keep the next recurring run scheduled for Saturday, September 5, 2026 at 06:30 UTC / 02:30 America/New_York.

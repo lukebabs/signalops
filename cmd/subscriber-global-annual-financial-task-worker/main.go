@@ -173,7 +173,8 @@ func outcome(e error, x task) (string, string, time.Time) {
 func save(c context.Context, d *sql.DB, x task, s time.Time, snap fmp.AnnualFinancialSnapshot, e error, st, cl string, next time.Time) error {
 	p, q, source, at := payload(x.symbol, snap, e)
 	fp := hash(string(p))
-	run := "subglobalannual-" + hash(x.asset + fp)[:24]
+	identitySeed := strings.Join([]string{x.asset, s.Format("2006-01-02"), algo, version, fp}, "\x1f")
+	run := "subglobalannual-" + hash(identitySeed)[:24]
 	tx, er := d.BeginTx(c, nil)
 	if er != nil {
 		return er
@@ -184,7 +185,7 @@ func save(c context.Context, d *sql.DB, x task, s time.Time, snap fmp.AnnualFina
 	if er != nil {
 		return er
 	}
-	_, er = tx.ExecContext(c, `INSERT INTO subscriber_global_marketops_evidence_records(global_evidence_id,evidence_run_id,global_asset_id,session_date,evidence_kind,algorithm_id,algorithm_version,quality_state,source_system,source_event_id,source_run_id,evidence_fingerprint,validation_contract_ref,immutable_baseline_ref,payload,provenance,observed_at)VALUES($1,$2,$3,$4,'fundamental_annual',$5,$6,$7,'fmp',$8,$2,$9,$10,$11,$12::jsonb,$13::jsonb,$14)ON CONFLICT DO NOTHING`, `subglobalannualrec-`+hash(x.asset + fp)[:24], run, x.asset, s, algo, version, q, source, fp, contract, baseline, string(p), string(prov), at)
+	_, er = tx.ExecContext(c, `INSERT INTO subscriber_global_marketops_evidence_records(global_evidence_id,evidence_run_id,global_asset_id,session_date,evidence_kind,algorithm_id,algorithm_version,quality_state,source_system,source_event_id,source_run_id,evidence_fingerprint,validation_contract_ref,immutable_baseline_ref,payload,provenance,observed_at)VALUES($1,$2,$3,$4,'fundamental_annual',$5,$6,$7,'fmp',$8,$2,$9,$10,$11,$12::jsonb,$13::jsonb,$14)ON CONFLICT DO NOTHING`, `subglobalannualrec-`+hash(identitySeed)[:24], run, x.asset, s, algo, version, q, source, fp, contract, baseline, string(p), string(prov), at)
 	if er != nil {
 		return er
 	}

@@ -9324,3 +9324,12 @@ Next-cycle priority:
 - FMP annual recovery evidence exists in the dedicated MarketOps database: `fundamental_annual` v2 evidence rows are being written, with current task state showing succeeded, queued, running, deferred-quota, and skipped-no-data buckets.
 - Added the source action `marketops-fmp-systemd-reconcile`. The action is intentionally constrained: it reads dedicated MarketOps DB evidence, requires the latest FMP annual workflow to be `succeeded` or `degraded`, requires at least one succeeded task and at least one v2 `fundamental_annual` evidence record for that session, then performs `systemctl daemon-reload` and resets only `signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service`.
 - Live activation still requires reprovisioning the root-owned deployment agent from this source. Until then, the installed agent cannot expose the new FMP reconcile action.
+
+
+### 2026-08-30 — FMP annual immutable identity collision fix
+
+- The first FMP annual continuation recovered the capture queue but exposed an immutable evidence identity bug: the v2 annual-financial task worker generated `evidence_run_id` and `global_evidence_id` from asset/payload only, allowing collisions with prior v1 evidence when provider payloads were unchanged.
+- Fixed the task-worker identity seed to include asset, session date, algorithm ID, algorithm version, and payload fingerprint. This preserves append-only v1/v2 history while allowing repeated provider payloads across versions.
+- The downstream annual valuation materializer then exposed the same class of cross-session collision for repeated valuation payloads. Fixed valuation run IDs to include algorithm version and anchor session date, and fixed valuation record IDs to include observation date.
+- Verification: targeted Go package tests passed; the governed FMP annual job reran successfully through the deployment agent; `scheduler-status` returned clean; public `/readyz` returned `200`.
+- Final dedicated MarketOps DB evidence for session `2026-08-28`: `fundamental_annual` v2 has `1000` records; annual Valuation Intelligence has `879` records; annual Distressed Opportunity Intelligence has `879` records. Workflow status is governed `degraded` with coverage `{"succeeded": 993, "deferred_quota": 6, "skipped_no_data": 1}`.

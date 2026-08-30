@@ -237,7 +237,7 @@ func appendOutput(ctx context.Context, db *sql.DB, results []resultCandidate, an
 		fingerprints = append(fingerprints, outputFingerprint(candidate, metric))
 	}
 	sort.Strings(fingerprints)
-	runID := "subglobalannualval-" + digest(algorithmID + "\x1f" + strings.Join(fingerprints, "\x1f"))[:24]
+	runID := "subglobalannualval-" + digest(algorithmID + "\x1f" + valuation.AnnualModelVersion + "\x1f" + anchor.Format("2006-01-02") + "\x1f" + strings.Join(fingerprints, "\x1f"))[:24]
 	provenance, _ := json.Marshal(map[string]any{"input_scope": "platform_global", "financial_evidence_kind": "fundamental_annual", "price_evidence_kind": "eod_bar", "profile": "annual_5y", "model_version": valuation.AnnualModelVersion})
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -268,7 +268,7 @@ func appendOutput(ctx context.Context, db *sql.DB, results []resultCandidate, an
  (global_evidence_id,evidence_run_id,global_asset_id,session_date,evidence_kind,algorithm_id,algorithm_version,quality_state,source_system,source_event_id,source_run_id,evidence_fingerprint,validation_contract_ref,immutable_baseline_ref,payload,provenance,observed_at)
  VALUES ($1,$2,$3,$4,'valuation',$5,$6,$7,'marketops',$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,now())
  ON CONFLICT (global_asset_id,session_date,evidence_kind,algorithm_id,algorithm_version,evidence_fingerprint) DO NOTHING`,
-			"subglobalannualvalrec-"+digest(candidate.source.globalAssetID + "\x1f" + algorithmID + "\x1f" + valuation.AnnualModelVersion + "\x1f" + fingerprint)[:24], runID, candidate.source.globalAssetID, observation,
+			"subglobalannualvalrec-"+digest(candidate.source.globalAssetID + "\x1f" + observation.Format("2006-01-02") + "\x1f" + algorithmID + "\x1f" + valuation.AnnualModelVersion + "\x1f" + fingerprint)[:24], runID, candidate.source.globalAssetID, observation,
 			algorithmID, valuation.AnnualModelVersion, quality, "annual-v4:"+candidate.source.symbol+":"+metric+":"+observation.Format("2006-01-02"), candidate.source.annualEvidenceID, fingerprint, annualValuationContract, annualBaseline, string(payload), string(provenance))
 		if err != nil {
 			return 0, fmt.Errorf("append %s %s result: %w", candidate.source.symbol, metric, err)
