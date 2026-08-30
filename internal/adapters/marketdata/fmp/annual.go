@@ -39,6 +39,7 @@ func (c *Client) GetAnnualFinancialSnapshot(ctx context.Context, ticker string) 
 	if ticker == "" {
 		return AnnualFinancialSnapshot{}, fmt.Errorf("ticker is required")
 	}
+	requestTicker := normalizeFMPRequestSymbol(ticker)
 	const limit = "5"
 	paths := []string{
 		"/stable/income-statement",
@@ -47,7 +48,7 @@ func (c *Client) GetAnnualFinancialSnapshot(ctx context.Context, ticker string) 
 		"/stable/ratios",
 		"/stable/key-metrics",
 	}
-	statementQuery := url.Values{"symbol": {ticker}, "period": {"annual"}, "limit": {limit}}
+	statementQuery := url.Values{"symbol": {requestTicker}, "period": {"annual"}, "limit": {limit}}
 	var income, balance, cash []json.RawMessage
 	if err := c.get(ctx, paths[0], statementQuery, &income); err != nil {
 		return AnnualFinancialSnapshot{}, err

@@ -383,3 +383,25 @@ Remaining FMP annual acceptance:
 
 - Review the six provider quota deferrals and one no-data symbol as governed data-quality/provider exceptions.
 - Keep the next recurring run scheduled for Saturday, September 5, 2026 at 06:30 UTC / 02:30 America/New_York.
+
+
+## 2026-08-30 production-readiness update — FMP class-share normalization verified
+
+The residual FMP annual exceptions were reduced from seven to one.
+
+Root cause fixed:
+
+- FMP expects common share-class request symbols with hyphen notation, while the MarketOps catalog keeps exchange-style dot notation. The adapter now converts dot notation to hyphen notation only at the FMP request boundary.
+
+Validation:
+
+- FMP adapter tests passed for annual and TTM fundamentals class-share normalization.
+- The seven known exception tasks were narrowly requeued for workflow `subglobalannualworkflow-20260828`.
+- `BF.A`, `BF.B`, `BRK.B`, `HEI.A`, `MOG.A`, and `MOG.B` succeeded after the adapter fix.
+- `BXBL` remains the only skipped symbol because FMP returned an empty annual-financial response.
+- Workflow coverage is now `999` succeeded and `1` skipped no-data.
+- `sudo -n signalops-deploy-agent scheduler-status` returned clean, and public `/readyz` returned `200`.
+
+Remaining FMP annual acceptance:
+
+- Decide whether `BXBL` should remain eligible with a provider no-data classification or be excluded/normalized through a separate catalog-governance policy.

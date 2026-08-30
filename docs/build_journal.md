@@ -9333,3 +9333,12 @@ Next-cycle priority:
 - The downstream annual valuation materializer then exposed the same class of cross-session collision for repeated valuation payloads. Fixed valuation run IDs to include algorithm version and anchor session date, and fixed valuation record IDs to include observation date.
 - Verification: targeted Go package tests passed; the governed FMP annual job reran successfully through the deployment agent; `scheduler-status` returned clean; public `/readyz` returned `200`.
 - Final dedicated MarketOps DB evidence for session `2026-08-28`: `fundamental_annual` v2 has `1000` records; annual Valuation Intelligence has `879` records; annual Distressed Opportunity Intelligence has `879` records. Workflow status is governed `degraded` with coverage `{"succeeded": 993, "deferred_quota": 6, "skipped_no_data": 1}`.
+
+
+### 2026-08-30 — FMP class-share symbol normalization closure
+
+- Investigated the seven remaining FMP annual exceptions after the annual identity fixes. Six were class-share symbols using MarketOps dot notation: `BF.A`, `BF.B`, `BRK.B`, `HEI.A`, `MOG.A`, and `MOG.B`. One symbol, `BXBL`, returned an empty FMP annual-financial response.
+- Added adapter-level FMP request-symbol normalization so class-share symbols are sent to FMP with hyphen notation while preserving the platform/catalog symbol in MarketOps evidence and UI identity. Example: `BRK.B` remains `BRK.B` in MarketOps but is requested from FMP as `BRK-B`.
+- Added FMP adapter tests covering annual and TTM fundamentals class-share normalization.
+- Requeued only the seven known exception tasks for workflow `subglobalannualworkflow-20260828` and reran the governed FMP annual worker through the deployment agent.
+- Verification: the six class-share symbols succeeded; `BXBL` remained a governed provider no-data exception; workflow coverage improved to `{"succeeded": 999, "skipped_no_data": 1}`; `scheduler-status` returned clean; public `/readyz` returned `200`.

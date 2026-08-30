@@ -98,23 +98,24 @@ func (c *Client) GetFundamentalSnapshot(ctx context.Context, ticker string) (Fun
 	if ticker == "" {
 		return FundamentalSnapshot{}, errors.New("ticker is required")
 	}
+	requestTicker := normalizeFMPRequestSymbol(ticker)
 	var income, cash, balance []statement
 	var annual []statement
 	var profiles []profile
 	paths := []string{"/stable/income-statement-ttm", "/stable/cash-flow-statement-ttm", "/stable/balance-sheet-statement-ttm", "/stable/profile", "/stable/income-statement"}
-	if err := c.get(ctx, paths[0], url.Values{"symbol": {ticker}}, &income); err != nil {
+	if err := c.get(ctx, paths[0], url.Values{"symbol": {requestTicker}}, &income); err != nil {
 		return FundamentalSnapshot{}, err
 	}
-	if err := c.get(ctx, paths[1], url.Values{"symbol": {ticker}}, &cash); err != nil {
+	if err := c.get(ctx, paths[1], url.Values{"symbol": {requestTicker}}, &cash); err != nil {
 		return FundamentalSnapshot{}, err
 	}
-	if err := c.get(ctx, paths[2], url.Values{"symbol": {ticker}}, &balance); err != nil {
+	if err := c.get(ctx, paths[2], url.Values{"symbol": {requestTicker}}, &balance); err != nil {
 		return FundamentalSnapshot{}, err
 	}
-	if err := c.get(ctx, paths[3], url.Values{"symbol": {ticker}}, &profiles); err != nil {
+	if err := c.get(ctx, paths[3], url.Values{"symbol": {requestTicker}}, &profiles); err != nil {
 		return FundamentalSnapshot{}, err
 	}
-	if err := c.get(ctx, paths[4], url.Values{"symbol": {ticker}, "period": {"annual"}, "limit": {"4"}}, &annual); err != nil {
+	if err := c.get(ctx, paths[4], url.Values{"symbol": {requestTicker}, "period": {"annual"}, "limit": {"4"}}, &annual); err != nil {
 		return FundamentalSnapshot{}, err
 	}
 	if len(income) == 0 || len(cash) == 0 || len(balance) == 0 || len(profiles) == 0 || len(annual) < 4 {
@@ -131,6 +132,15 @@ func (c *Client) GetFundamentalSnapshot(ctx context.Context, ticker string) (Fun
 	filing := latest(i.FilingDate, cf.FilingDate, b.FilingDate)
 	return FundamentalSnapshot{Ticker: ticker, FilingDate: filing, RevenueTTM: i.Revenue, Revenue3YAgo: annual[len(annual)-1].Revenue, NetIncomeTTM: i.NetIncome, EBITDATTM: i.EBITDA, OperatingIncomeTTM: i.OperatingIncome, OperatingCashFlowTTM: cf.OperatingCashFlow, CapitalExpendituresTTM: cf.CapitalExpenditure, TotalDebt: b.TotalDebt, Cash: b.Cash, Equity: b.Equity, InvestedCapital: b.TotalAssets - b.Cash, MarketCap: marketCap, EnterpriseValue: marketCap + b.TotalDebt - b.Cash, ProviderRequestIDs: paths}, nil
 }
+
+func normalizeFMPRequestSymbol(ticker string) string {
+	normalized := strings.ToUpper(strings.TrimSpace(ticker))
+	if normalized == "" {
+		return ""
+	}
+	return strings.ReplaceAll(normalized, ".", "-")
+}
+
 func (c *Client) get(ctx context.Context, path string, q url.Values, target any) error {
 	if err := c.waitForRequestSlot(ctx); err != nil {
 		return err
