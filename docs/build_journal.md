@@ -9313,3 +9313,14 @@ Next-cycle priority:
 - Defined mobile journeys for login, watchlist-first navigation, daily market read, asset drilldown, SAF, SRI, Syncratic Intelligence, enrollment, and subscription pricing.
 - Defined the required mobile viewport matrix, routes, automation plan, remediation backlog, and PWA/native-app viability track.
 - Updated the Subscriber Project README, production-readiness path, and automated browser acceptance docs to make mobile subscriber readiness a formal PR-5 gate.
+
+
+### 2026-08-30 — MarketOps deploy recovery and FMP annual reconcile control
+
+- Investigated `sudo -n signalops-deploy-agent marketops-gateway-deploy` failure. Root cause was stopped runtime dependencies after the raw compose/restart path: `signalops-marketops-postgres-1`, `signalops-marketops-timescaledb-1`, and the shared non-MarketOps temporal container `signalops-timescaledb-1` were not all running.
+- Restored the required data containers and reran the constrained gateway deployment. The deploy action returned `marketops_read_cutover_gateway_verified`, and Gateway startup logged that MarketOps reads are routed to the dedicated data boundary.
+- Restored the web/proxy container through `sudo -n signalops-deploy-agent marketops-web-deploy`. Public and local `/readyz` returned `200`, and the subscriber pilot UI smoke passed with `2 passed`.
+- Diagnosed the remaining scheduler red flag as stale systemd state for `marketops-fmp-annual-financial`, not an active Gateway/Web availability issue.
+- FMP annual recovery evidence exists in the dedicated MarketOps database: `fundamental_annual` v2 evidence rows are being written, with current task state showing succeeded, queued, running, deferred-quota, and skipped-no-data buckets.
+- Added the source action `marketops-fmp-systemd-reconcile`. The action is intentionally constrained: it reads dedicated MarketOps DB evidence, requires the latest FMP annual workflow to be `succeeded` or `degraded`, requires at least one succeeded task and at least one v2 `fundamental_annual` evidence record for that session, then performs `systemctl daemon-reload` and resets only `signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service`.
+- Live activation still requires reprovisioning the root-owned deployment agent from this source. Until then, the installed agent cannot expose the new FMP reconcile action.

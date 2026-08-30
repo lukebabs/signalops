@@ -334,3 +334,29 @@ service=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.ser
 - Root cause: the dedicated temporal database is low-write and can sit at a WAL segment boundary. `pg_switch_wal()` alone may not create a new archivable segment in that state, so the monitor observed stale `pg_stat_archiver.last_archived_time` despite healthy pgBackRest configuration and zero archive failures.
 - Source fix: `scripts/marketops_operations_monitor.sh` now writes a minimal committed WAL heartbeat with `SELECT txid_current()` before `pg_switch_wal()` and polls archive freshness for up to 60 seconds.
 - Validation: `bash -n scripts/marketops_operations_monitor.sh`, `sudo -n signalops-deploy-agent scheduler-run-now:marketops-operations-monitor`, DB status `marketops-operations-monitor=succeeded` at `2026-08-24 13:17:09 UTC`, and `sudo -n signalops-deploy-agent scheduler-status` returned clean.
+
+
+## 2026-08-30 production-readiness update — deploy recovery and FMP annual queue
+
+Status: application availability restored; FMP annual lifecycle remains partial until the queued annual-financial tasks drain or are explicitly classified.
+
+Evidence:
+
+- Gateway deploy recovered through the constrained deployment-agent path and returned `marketops_read_cutover_gateway_verified`.
+- Gateway startup evidence confirmed MarketOps reads use the dedicated MarketOps data boundary.
+- Web/proxy deploy recovered through `marketops-web-deploy`.
+- Public `/readyz` returned `200`.
+- Subscriber pilot UI smoke passed with `2 passed`.
+- FMP annual v2 evidence exists in the dedicated MarketOps database, but the task queue still contains queued/running/deferred work.
+
+Control update:
+
+- Added source action `marketops-fmp-systemd-reconcile` to avoid raw operator `systemctl daemon-reload` / `reset-failed` for the FMP annual service.
+- The action is DB-evidence-gated and resets only the FMP annual scheduler service after the dedicated MarketOps database proves an FMP annual workflow and v2 evidence records exist.
+
+Remaining acceptance before marking this slice fully production-ready:
+
+1. Reprovision the root-owned deployment agent from the current source.
+2. Run `sudo -n signalops-deploy-agent marketops-fmp-systemd-reconcile`.
+3. Run `sudo -n signalops-deploy-agent scheduler-status` and confirm no failed service state remains.
+4. Continue the FMP annual task workflow until queued/running tasks are drained or classified as provider quota/no-data/terminal failure.

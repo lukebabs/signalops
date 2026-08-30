@@ -120,6 +120,52 @@ case "$action" in
     systemctl reset-failed signalops-marketops-boundary-schedule@marketops-postclose-recovery.service
     audit success
     ;;
+  marketops-fmp-systemd-reconcile)
+    set -a
+    # shellcheck disable=SC1091
+    source /etc/signalops/marketops-cutover.env
+    set +a
+    export SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
+    export SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
+    cd "$repository_dir"
+    # shellcheck source=scripts/marketops_schedule_database.sh
+    source "$repository_dir/scripts/marketops_schedule_database.sh"
+    evidence="$(marketops_primary_psql -Atc "WITH latest AS (
+  SELECT workflow_id, session_date, status
+  FROM subscriber_global_annual_financial_workflows
+  ORDER BY session_date DESC, updated_at DESC
+  LIMIT 1
+), task_counts AS (
+  SELECT count(*) FILTER (WHERE task.status='succeeded') AS succeeded_tasks,
+         count(*) AS total_tasks
+  FROM subscriber_global_annual_financial_tasks task
+  JOIN latest ON latest.workflow_id=task.workflow_id
+), evidence_counts AS (
+  SELECT count(*) AS evidence_records
+  FROM subscriber_global_marketops_evidence_records record
+  JOIN subscriber_global_marketops_evidence_runs run ON run.evidence_run_id=record.evidence_run_id
+  JOIN latest ON latest.session_date=record.session_date
+  WHERE record.evidence_kind='fundamental_annual'
+    AND record.algorithm_id='marketops.fundamental_annual.fmp'
+    AND record.algorithm_version='v2'
+    AND run.source_scope='global_provider_capture'
+)
+SELECT COALESCE(latest.status,'') || '|' ||
+       COALESCE(latest.session_date::text,'') || '|' ||
+       COALESCE(task_counts.succeeded_tasks,0)::text || '|' ||
+       COALESCE(task_counts.total_tasks,0)::text || '|' ||
+       COALESCE(evidence_counts.evidence_records,0)::text
+FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
+    IFS='|' read -r workflow_status session_date succeeded_tasks total_tasks evidence_records <<< "$evidence"
+    case "$workflow_status" in succeeded|degraded) ;; *) printf 'refusing reconcile: marketops-fmp-annual-financial workflow status=%s\n' "${workflow_status:-missing}" >&2; audit failed; exit 4 ;; esac
+    [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { printf 'refusing reconcile: missing FMP annual workflow session\n' >&2; audit failed; exit 4; }
+    (( succeeded_tasks > 0 )) || { printf 'refusing reconcile: no succeeded FMP annual tasks for %s\n' "$session_date" >&2; audit failed; exit 4; }
+    (( evidence_records > 0 )) || { printf 'refusing reconcile: no v2 FMP annual evidence records for %s\n' "$session_date" >&2; audit failed; exit 4; }
+    systemctl daemon-reload
+    systemctl reset-failed signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service
+    printf 'marketops_fmp_systemd_reconcile_verified session_date=%s succeeded_tasks=%s total_tasks=%s evidence_records=%s\n' "$session_date" "$succeeded_tasks" "$total_tasks" "$evidence_records"
+    audit success
+    ;;
   marketops-sri-refresh-run)
     run systemctl start signalops-marketops-boundary-schedule@marketops-sri-refresh.service
     ;;

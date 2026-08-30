@@ -318,6 +318,12 @@ Recovery action:
   ```
 
 - For isolated symbol failures, keep the workflow degraded and review deferred symbols before retrying.
+- If the dedicated MarketOps database shows FMP annual evidence has recovered but systemd still carries a stale failed service result, use the constrained evidence-gated reconcile action after the deployment agent has been reprovisioned from current source:
+
+  ```bash
+  sudo -n signalops-deploy-agent marketops-fmp-systemd-reconcile
+  ```
+
 - Re-enable the timer after provider or data-quality correction:
 
   ```bash
