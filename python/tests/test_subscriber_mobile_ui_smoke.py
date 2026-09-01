@@ -79,6 +79,7 @@ def test_subscriber_mobile_core_journey(mobile_subscriber_page: Page, subscriber
         ("/marketops/assets", "Assets"),
         ("/marketops/sectors", "Sector Rotation Intelligence"),
         ("/marketops/opportunities", "Opportunities"),
+        ("/marketops/earnings", "Earnings Opportunity Intelligence"),
         ("/marketops/assurance", "Signal Assurance"),
         ("/marketops/syncratic", "Syncratic Intelligence"),
         ("/marketops/pricing", "Increase analytical depth"),
@@ -175,6 +176,24 @@ def test_subscriber_mobile_opportunities_drilldown(mobile_subscriber_page: Page,
         "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth"
     )
     assert overflow <= 8, f"Opportunities mobile drilldown has {overflow}px horizontal overflow"
+
+
+def test_subscriber_mobile_eeom_history_drilldown(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
+    login(mobile_subscriber_page, subscriber_config)
+    assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}/marketops/earnings", "Earnings Opportunity Intelligence")
+    row = mobile_subscriber_page.locator("[data-testid^='marketops-eeom-row-']").first
+    if row.is_visible(timeout=10_000):
+        expect(mobile_subscriber_page.get_by_test_id("marketops-eeom-current-table")).to_be_visible(timeout=30_000)
+        row.click()
+        history = mobile_subscriber_page.get_by_test_id("marketops-eeom-evolution-history")
+        expect(history).to_be_visible(timeout=30_000)
+        expect(history).to_contain_text("Earnings setup evolution", timeout=30_000)
+    else:
+        expect(mobile_subscriber_page.get_by_text("No point-in-time-known earnings events")).to_be_visible(timeout=30_000)
+    overflow = mobile_subscriber_page.evaluate(
+        "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth"
+    )
+    assert overflow <= 8, f"EEOM mobile drilldown has {overflow}px horizontal overflow"
 
 def test_subscriber_mobile_signal_assurance_drilldown(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
     login(mobile_subscriber_page, subscriber_config)

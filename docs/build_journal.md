@@ -1,3 +1,9 @@
+## 2026-09-01 — Mobile EEOM regression closure
+
+- Added Earnings Opportunity Intelligence to the subscriber mobile route gate.
+- Added mobile Playwright validation for EEOM current table behavior and the row-level `Earnings setup evolution` panel when data exists, while accepting the explicit empty state when the selected watchlist has no eligible earnings rows.
+- Production mobile Playwright result: `24 passed in 253.48s` across 375px, 390px, and 430px phone widths.
+
 ## 2026-09-01 — EEOM current/history boundary
 
 - Fixed Earnings Opportunity Intelligence drift where one ticker could appear twice with conflicting postures after provider earnings-event revisions.
