@@ -9407,3 +9407,11 @@ Next-cycle priority:
 - Extended `python/tests/test_subscriber_mobile_ui_smoke.py` to validate the Assets mobile card and inline drilldown across 375x812, 390x844, and 430x932 viewports.
 - Production web deploy completed through the constrained deployment agent and its smoke passed: `2 passed in 44.95s`.
 - Expanded mobile production validation passed after deployment: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `9 passed in 40.78s`.
+
+### 2026-09-01 — Mobile SAF card and drilldown design slice
+
+- Implemented mobile-first Signal Assurance rendering while preserving the desktop table contract.
+- `/marketops/assurance` now has mobile cards for confirmed assertions, effectiveness cohorts, and included observations; cohort and observation audit details expand inline with explicit close controls.
+- Extended `python/tests/test_subscriber_mobile_ui_smoke.py` to include the SAF route, daily progression chart, cohort card expansion, observation audit expansion, close behavior, and no page-level horizontal overflow across 375x812, 390x844, and 430x932 viewports.
+- Production web deploy completed through the constrained deployment agent and its smoke passed: `2 passed in 45.54s`.
+- Expanded mobile production validation passed after deployment: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `12 passed in 56.36s`.

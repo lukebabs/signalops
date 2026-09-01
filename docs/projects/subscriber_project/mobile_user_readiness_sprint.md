@@ -83,6 +83,7 @@ Acceptance:
 
 - SAF summary, 10/20-day filters, daily progression chart, and analyst drilldown are visible at phone width.
 - “Inspect observations” opens directly below the selected row/card and can be closed easily.
+- Initial production evidence exists: SAF route, daily progression, mobile cohort cards, observation cards, audit expansion, and close controls passed across 375px, 390px, and 430px viewports on 2026-09-01.
 - Chart labels remain legible or intentionally simplified on mobile.
 - Dark and light mode contrast is readable.
 

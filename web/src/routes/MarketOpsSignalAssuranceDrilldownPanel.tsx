@@ -5,7 +5,7 @@ import { api } from '../api/client';
 import { useTenant } from '../auth/session';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { formatPercent, formatUtc } from '../lib/format';
-import type { MarketOpsSignalAssuranceEffectivenessObservation } from '../types';
+import type { MarketOpsSignalAssuranceEffectiveness, MarketOpsSignalAssuranceEffectivenessObservation } from '../types';
 
 const pct = (value?: number) => value == null || !Number.isFinite(value) ? '-' : formatPercent(value);
 const label = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter: string) => letter.toUpperCase());
@@ -45,19 +45,12 @@ export function MarketOpsSignalAssuranceDrilldownPanel() {
       </label>
       <span className="pb-1 text-xs text-gray-500 dark:text-gray-400">Click a cohort row to expand observations inline.</span>
     </div>
-    {cohorts.isLoading ? <LoadingState label="Loading cohorts..." /> : cohorts.isError ? <ErrorState error={cohorts.error} /> : <div className="overflow-x-auto rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
-      <table className="min-w-full text-sm">
-        <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400"><tr><th className="px-3 py-2">Cohort</th><th className="px-3 py-2">Accuracy</th><th className="px-3 py-2">Sample</th><th className="px-3 py-2">State</th></tr></thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">{(cohorts.data?.effectiveness ?? []).map((row) => {
+    {cohorts.isLoading ? <LoadingState label="Loading cohorts..." /> : cohorts.isError ? <ErrorState error={cohorts.error} /> : <div className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
+      <div className="space-y-2 p-2 md:hidden" aria-label="Mobile Signal Assurance cohorts">
+        {(cohorts.data?.effectiveness ?? []).map((row) => {
           const open = cohort === row.dimension_value;
-          return <Fragment key={row.dimension_value}>
-            <tr role="button" tabIndex={0} onClick={() => chooseCohort(row.dimension_value)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') chooseCohort(row.dimension_value); }} className={open ? 'cursor-pointer bg-brand-50 text-gray-900 dark:bg-brand-950/30 dark:text-gray-100' : 'cursor-pointer text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800/70'}>
-              <td className="px-3 py-2 font-mono text-xs">{row.dimension_value}</td>
-              <td className="px-3 py-2 font-semibold">{pct(row.directional_accuracy)}</td>
-              <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">{row.directional_hits}/{row.sample_size}{row.exploratory ? ' - exploratory' : ''}</td>
-              <td className="px-3 py-2 text-xs font-medium text-brand-700 dark:text-brand-200">{open ? 'Expanded' : 'Click to inspect'}</td>
-            </tr>
-            {open ? <tr className="bg-brand-50/40 dark:bg-brand-950/20"><td colSpan={4} className="p-0"><ExpandedObservationCohort
+          return <CohortMobileCard key={row.dimension_value} row={row} open={open} onToggle={() => chooseCohort(row.dimension_value)}>
+            {open ? <ExpandedObservationCohort
               cohort={cohort}
               observations={observations.data?.observations ?? []}
               loading={observations.isLoading}
@@ -67,10 +60,37 @@ export function MarketOpsSignalAssuranceDrilldownPanel() {
               opportunity={opportunity}
               assertion={assertion}
               close={() => { setCohort(''); setSelected(null); }}
-            /></td></tr> : null}
-          </Fragment>;
-        })}</tbody>
-      </table>
+            /> : null}
+          </CohortMobileCard>;
+        })}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400"><tr><th className="px-3 py-2">Cohort</th><th className="px-3 py-2">Accuracy</th><th className="px-3 py-2">Sample</th><th className="px-3 py-2">State</th></tr></thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">{(cohorts.data?.effectiveness ?? []).map((row) => {
+            const open = cohort === row.dimension_value;
+            return <Fragment key={row.dimension_value}>
+              <tr role="button" tabIndex={0} onClick={() => chooseCohort(row.dimension_value)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') chooseCohort(row.dimension_value); }} className={open ? 'cursor-pointer bg-brand-50 text-gray-900 dark:bg-brand-950/30 dark:text-gray-100' : 'cursor-pointer text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800/70'}>
+                <td className="px-3 py-2 font-mono text-xs">{row.dimension_value}</td>
+                <td className="px-3 py-2 font-semibold">{pct(row.directional_accuracy)}</td>
+                <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">{row.directional_hits}/{row.sample_size}{row.exploratory ? ' - exploratory' : ''}</td>
+                <td className="px-3 py-2 text-xs font-medium text-brand-700 dark:text-brand-200">{open ? 'Expanded' : 'Click to inspect'}</td>
+              </tr>
+              {open ? <tr className="bg-brand-50/40 dark:bg-brand-950/20"><td colSpan={4} className="p-0"><ExpandedObservationCohort
+                cohort={cohort}
+                observations={observations.data?.observations ?? []}
+                loading={observations.isLoading}
+                error={observations.error}
+                selected={selected}
+                setSelected={setSelected}
+                opportunity={opportunity}
+                assertion={assertion}
+                close={() => { setCohort(''); setSelected(null); }}
+              /></td></tr> : null}
+            </Fragment>;
+          })}</tbody>
+        </table>
+      </div>
       {(cohorts.data?.effectiveness.length ?? 0) === 0 ? <EmptyState message="No cohorts match this evidence class." /> : null}
     </div>}
   </section>;
@@ -95,7 +115,16 @@ function ExpandedObservationCohort({ cohort, observations, loading, error, selec
       </div>
       <button type="button" onClick={(event) => { event.stopPropagation(); close(); }} className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800">Close observations</button>
     </div>
-    {loading ? <LoadingState label="Loading included observations..." /> : error ? <ErrorState error={error} /> : <div className="overflow-x-auto rounded border border-brand-200 bg-white dark:border-brand-900 dark:bg-gray-950">
+    {loading ? <LoadingState label="Loading included observations..." /> : error ? <ErrorState error={error} /> : <div className="rounded border border-brand-200 bg-white dark:border-brand-900 dark:bg-gray-950">
+      <div className="space-y-2 p-2 md:hidden" aria-label="Mobile Signal Assurance observations">
+        {observations.map((row) => {
+          const open = selected?.observation_id === row.observation_id;
+          return <ObservationMobileCard key={row.observation_id} row={row} open={open} onToggle={() => setSelected(open ? null : row)}>
+            {open ? <ObservationAudit selected={row} opportunity={opportunity} assertion={assertion} onClose={() => setSelected(null)} /> : null}
+          </ObservationMobileCard>;
+        })}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400"><tr><th className="px-3 py-2">Signal</th><th className="px-3 py-2">Origin</th><th className="px-3 py-2">Outcome</th><th className="px-3 py-2">Match</th><th className="px-3 py-2">Aligned move</th><th className="px-3 py-2">Benchmarks</th><th className="px-3 py-2">Audit</th></tr></thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">{observations.map((row) => {
@@ -114,6 +143,7 @@ function ExpandedObservationCohort({ cohort, observations, loading, error, selec
           </Fragment>;
         })}</tbody>
       </table>
+      </div>
       {observations.length === 0 ? <EmptyState message="No included observations in this cohort." /> : null}
     </div>}
   </section>;
@@ -137,4 +167,43 @@ function ObservationAudit({ selected, opportunity, assertion, onClose }: { selec
     <details open><summary className="cursor-pointer text-xs font-medium text-brand-700 dark:text-brand-200">Observation record</summary><pre className="mt-2 max-h-64 overflow-auto rounded bg-white p-2 text-[10px] text-gray-700 dark:bg-gray-950 dark:text-gray-200">{JSON.stringify(selected, null, 2)}</pre></details>
     {selected.evidence_source === 'LEGACY' ? opportunity.isLoading ? <LoadingState label="Loading opportunity provenance..." /> : opportunity.isError ? <ErrorState error={opportunity.error} /> : <details open><summary className="cursor-pointer text-xs font-medium text-brand-700 dark:text-brand-200">Opportunity provenance and source identifiers</summary><pre className="mt-2 max-h-80 overflow-auto rounded bg-white p-2 text-[10px] text-gray-700 dark:bg-gray-950 dark:text-gray-200">{JSON.stringify((opportunity.data as { opportunity?: unknown } | undefined)?.opportunity, null, 2)}</pre></details> : assertion.isLoading ? <LoadingState label="Loading assertion audit..." /> : assertion.isError ? <ErrorState error={assertion.error} /> : <details open><summary className="cursor-pointer text-xs font-medium text-brand-700 dark:text-brand-200">Assertion baseline, provenance, and validation contract</summary><pre className="mt-2 max-h-80 overflow-auto rounded bg-white p-2 text-[10px] text-gray-700 dark:bg-gray-950 dark:text-gray-200">{JSON.stringify((assertion.data as { assertion?: unknown } | undefined)?.assertion, null, 2)}</pre></details>}
   </section>;
+}
+
+
+function CohortMobileCard({ row, open, onToggle, children }: { row: MarketOpsSignalAssuranceEffectiveness; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return <article data-testid={`saf-mobile-cohort-${row.dimension_value}`} className={open ? 'rounded-lg border border-brand-300 bg-brand-50 p-3 dark:border-brand-700 dark:bg-brand-950/30' : 'rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900'}>
+    <button type="button" onClick={onToggle} aria-expanded={open} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">{row.dimension_value}</div>
+          <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">{row.evidence_source === 'SAF' ? 'SAF validated' : 'Historical outcome'} · {row.directional_hits}/{row.sample_size} matched{row.exploratory ? ' · exploratory' : ''}</div>
+        </div>
+        <span className="shrink-0 text-xs font-medium text-brand-700 dark:text-brand-200">{open ? 'Close' : 'Inspect'}</span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded border border-gray-100 bg-white p-2 dark:border-gray-800 dark:bg-gray-950"><div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Accuracy</div><div className="font-semibold text-gray-900 dark:text-gray-100">{pct(row.directional_accuracy)}</div></div>
+        <div className="rounded border border-gray-100 bg-white p-2 dark:border-gray-800 dark:bg-gray-950"><div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">95% interval</div><div className="font-semibold text-gray-900 dark:text-gray-100">{pct(row.accuracy_lower_bound)} - {pct(row.accuracy_upper_bound)}</div></div>
+      </div>
+    </button>
+    {children ? <div className="mt-3">{children}</div> : null}
+  </article>;
+}
+
+function ObservationMobileCard({ row, open, onToggle, children }: { row: MarketOpsSignalAssuranceEffectivenessObservation; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return <article data-testid={`saf-mobile-observation-${row.symbol}`} className={open ? 'rounded border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-800 dark:bg-yellow-950/30' : 'rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900'}>
+    <button type="button" onClick={onToggle} aria-expanded={open} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">{row.symbol}</div>
+          <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">{label(row.direction)} · {row.horizon_sessions} session{row.horizon_sessions === 1 ? '' : 's'} · {row.directional_hit ? 'Matched' : 'Missed'}</div>
+        </div>
+        <span className="shrink-0 text-xs font-medium text-brand-700 dark:text-brand-200">{open ? 'Hide audit' : 'Open audit'}</span>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+        <div><span className="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Aligned move</span><span className="font-semibold text-gray-900 dark:text-gray-100">{pct(row.directional_return)}</span></div>
+        <div><span className="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Outcome</span><span className="font-medium text-gray-900 dark:text-gray-100">{row.outcome_at ? formatUtc(row.outcome_at) : '-'}</span></div>
+      </div>
+    </button>
+    {children ? <div className="mt-3">{children}</div> : null}
+  </article>;
 }

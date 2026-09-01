@@ -78,6 +78,7 @@ def test_subscriber_mobile_core_journey(mobile_subscriber_page: Page, subscriber
         ("/marketops/watchlists", "Watchlists"),
         ("/marketops/assets", "Assets"),
         ("/marketops/sectors", "Sector Rotation Intelligence"),
+        ("/marketops/assurance", "Signal Assurance"),
         ("/marketops/syncratic", "Syncratic Intelligence"),
     ]
     for path, heading in routes:
@@ -102,6 +103,32 @@ def test_subscriber_mobile_assets_card_drilldown(mobile_subscriber_page: Page, s
         "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth"
     )
     assert overflow <= 8, f"Assets mobile drilldown has {overflow}px horizontal overflow"
+
+
+
+def test_subscriber_mobile_signal_assurance_drilldown(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
+    login(mobile_subscriber_page, subscriber_config)
+    assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}/marketops/assurance", "Signal Assurance")
+    expect(mobile_subscriber_page.get_by_role("heading", name="Analyst drill-down")).to_be_visible(timeout=30_000)
+    expect(mobile_subscriber_page.get_by_test_id("saf-daily-progression")).to_be_visible(timeout=30_000)
+    cohort = mobile_subscriber_page.locator("[data-testid^='saf-mobile-cohort-']").first
+    expect(cohort).to_be_visible(timeout=30_000)
+    expect(cohort).to_contain_text("Inspect", timeout=30_000)
+    cohort.get_by_role("button").first.click()
+    expect(cohort).to_contain_text("Close", timeout=30_000)
+    expect(cohort).to_contain_text("Included observations", timeout=30_000)
+    observation = cohort.locator("[data-testid^='saf-mobile-observation-']").first
+    expect(observation).to_be_visible(timeout=30_000)
+    observation.get_by_role("button").first.click()
+    expect(observation).to_contain_text("Observation audit", timeout=30_000)
+    close_audit = observation.get_by_role("button", name="Close audit")
+    expect(close_audit).to_be_visible(timeout=30_000)
+    close_audit.click()
+    expect(observation).not_to_contain_text("Observation audit", timeout=30_000)
+    overflow = mobile_subscriber_page.evaluate(
+        "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth"
+    )
+    assert overflow <= 8, f"SAF mobile drilldown has {overflow}px horizontal overflow"
 
 def test_subscriber_mobile_dashboard_syncratic_handoff(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
     login(mobile_subscriber_page, subscriber_config)
