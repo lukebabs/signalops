@@ -1,3 +1,9 @@
+## 2026-09-01 — EEOM current/history boundary
+
+- Fixed Earnings Opportunity Intelligence drift where one ticker could appear twice with conflicting postures after provider earnings-event revisions.
+- Default EEOM now shows one current row per ticker; historical point-in-time rows are preserved behind explicit history queries and displayed only after an analyst selects a row.
+- Added Go regression coverage and Playwright UI coverage for duplicate-free default EEOM plus row-level evolution visibility.
+
 ## 2026-08-23 — Stripe billing product selector controls product mapping
 
 - Changed the Subscription Administration Stripe billing tab so `Configured Stripe products` is the in-tab selector for the Product mapping form. Operators no longer need to switch to Tier settings to change which Stripe product mapping is being edited.

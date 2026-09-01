@@ -644,12 +644,18 @@ export const api = {
       {},
       "no-store",
     ),
-  getMarketOpsEEOM: (tenantId: string) =>
+  getMarketOpsEEOM: (
+    tenantId: string,
+    options: { symbol?: string; includeHistory?: boolean } = {},
+  ) =>
     get<any>(
       "/v1/tenants/" +
         encodeURIComponent(tenantId) +
         "/marketops/earnings-opportunities",
-      {},
+      {
+        ...(options.symbol ? { symbol: options.symbol } : {}),
+        ...(options.includeHistory ? { include_history: "true" } : {}),
+      },
       "no-store",
     ),
   getMarketOpsMaterialEvents: (tenantId: string, symbol?: string) =>

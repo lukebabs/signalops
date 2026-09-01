@@ -256,6 +256,12 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
             selected_eeom = [item for item in eeom_results if str(item.get("ticker", "")).upper() == config.shared_tickers[0]]
             if selected_eeom:
                 assert selected_eeom[0].get("data_scope") == "platform-global", f"{response.url} fell back from global EEOM"
+            first_eeom = next((item for item in eeom_results if str(item.get("ticker", "")).strip()), None)
+            if first_eeom:
+                ticker = str(first_eeom.get("ticker", "")).upper()
+                subscriber_page.get_by_test_id(f"marketops-eeom-row-{ticker}").click()
+                expect(subscriber_page.get_by_test_id("marketops-eeom-evolution-history")).to_be_visible(timeout=30_000)
+                expect(subscriber_page.get_by_test_id("marketops-eeom-evolution-history")).to_contain_text("Earnings setup evolution")
 
     state = visit_for_response(
         subscriber_page,

@@ -482,3 +482,36 @@ Evidence:
 Remaining acceptance:
 
 1. Observe the next natural post-close cycle and confirm freshness/readiness remains aligned with the canonical projections.
+
+## 2026-09-01 production-readiness update — EEOM current/history boundary
+
+Status: Earnings Opportunity Intelligence drift is fixed and the history boundary is explicit.
+
+Evidence:
+
+- Root cause: EEOM preserved point-in-time snapshots by earnings event ID, and provider event-date revisions could surface multiple rows for one canonical ticker in the default subscriber view. GTLB showed the failure mode: a newer `2026-09-01` bullish row and an older superseded `2026-09-02` bearish row.
+- Gateway/API fix: default EEOM responses collapse to one current row per ticker. Historical rows remain available only through explicit `include_history=true` / `history=true` requests.
+- Storage fix: tenant and subscriber-global EEOM readers deduplicate before `LIMIT`, preventing duplicate-heavy symbols from crowding out valid tickers.
+- UI fix: the default Earnings Opportunity Intelligence table remains current-only, while selecting a row reveals an `Earnings setup evolution` panel with the preserved point-in-time history for that asset.
+- Regression coverage: Go API tests validate the duplicate/conflicting-row collapse, and the subscriber Playwright smoke now asserts that the default EEOM response has no duplicate ticker rows and that the row-level evolution panel renders.
+- Deployment evidence: gateway was rebuilt/restarted after commit `6a82d3a`; Playwright closure passed after commit `6ffe07b`; the current web slice passes local Vitest and production build before deployment.
+
+Remaining acceptance:
+
+1. After the next natural post-close cycle, rerun the subscriber Playwright smoke to confirm current-only EEOM rows and history drill-down remain aligned with refreshed data.
+2. If analysts need more than the compact inline history, add a dedicated EEOM evolution route or chart rather than expanding the default table.
+
+## 2026-09-01 production-readiness update — remaining production gates
+
+Status: controlled pilot-ready; not broad paid-production ready.
+
+Remaining gated work:
+
+1. **Post-close data freshness proof** — validate the September 1, 2026 ET post-close cycle after warm EOD, daily post-close, recovery guard, SRI refresh, and SRI holdings refresh complete.
+2. **Subscription enforcement hardening** — rerun the temporary production enforcement canary when tier or gated-route behavior changes; keep automatic restoration to enforcement-off/pilot Explorer state for canaries.
+3. **Enrollment and SMS MFA** — complete a full Keycloak-owned registration/MFA smoke with the production branding/disclaimer path and confirm existing users are routed to login rather than duplicate enrollment.
+4. **Stripe billing** — validate one Stripe test-mode Explorer and one Professional subscription with automatic tax enabled, signed webhook reconciliation, and return-to-context behavior.
+5. **Operations health in Admin** — keep expanding Admin-visible freshness/job status so routine validation does not require shell access or HAR handoffs.
+6. **Mobile subscriber UX** — rerun the mobile Playwright suite after any Dashboard, Assets, EEOM, SAF, SRI, Syncratic Intelligence, Pricing, or enrollment layout change.
+7. **Recovery evidence** — PR-3 remains a deferred risk until a current dedicated MarketOps backup and isolated restore rehearsal is rerun against the present schema/runtime.
+
