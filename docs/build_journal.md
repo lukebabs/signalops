@@ -9376,3 +9376,9 @@ Next-cycle priority:
 - Extended canonical asset identity resolution beyond Valuation to Market State, EROC, EEOM, Material Events, Options distributions, Risk/Reward, Intraday Current State, Signal Assurance observations, and global evidence coverage.
 - Preserved all catalog rows and immutable evidence. The views now resolve source asset IDs through `subscriber_global_asset_identity_resolutions` and `subscriber_gateway_global_canonical_assets` before exposing user-facing symbols.
 - Verification: duplicate projected symbols returned `0` across the eight updated gateway views; no updated gateway view still used the old direct `subscriber_global_assets` evidence-record join; subscriber pilot Playwright smoke passed (`2 passed`).
+
+### 2026-09-01 — Deployment-agent render-cutover-env live closure
+
+- Reprovisioned deployment agent from the repaired source.
+- Verified `sudo -n signalops-deploy-agent render-cutover-env` now succeeds and renders `/etc/signalops/marketops-cutover.env`.
+- Verified `sudo -n signalops-deploy-agent scheduler-status` returns all tracked MarketOps timers active and all tracked services in `result=success`.

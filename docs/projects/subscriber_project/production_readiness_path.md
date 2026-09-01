@@ -424,8 +424,7 @@ Evidence:
 
 Remaining acceptance:
 
-1. Reprovision the deployment agent from the repaired source so the installed `render-cutover-env` action receives its `lib/marketops_boundary_env.sh` dependency.
-2. Monitor the remaining governed FMP no-data/partial-source exceptions; user-facing annual VC/DOSM projections now skip assets without usable annual data instead of displaying partial analytical rows.
+1. Monitor the remaining governed FMP no-data/partial-source exceptions; user-facing annual VC/DOSM projections now skip assets without usable annual data instead of displaying partial analytical rows.
 
 
 ## 2026-09-01 production-readiness update — catalog identity projection cleanup
@@ -443,8 +442,7 @@ Evidence:
 
 Remaining acceptance:
 
-1. Reprovision the deployment agent from the repaired source so `render-cutover-env` has its installed library dependency.
-2. Continue observing the next natural post-close cycle to confirm canonical projections remain aligned across Dashboard, Assets, Market State, Risk/Reward, SAF, EROC, EEOM, and Material Events.
+1. Continue observing the next natural post-close cycle to confirm canonical projections remain aligned across Dashboard, Assets, Market State, Risk/Reward, SAF, EROC, EEOM, and Material Events.
 
 
 ## 2026-09-01 production-readiness update — subscriber gateway canonical projection expansion
@@ -461,5 +459,19 @@ Evidence:
 
 Remaining acceptance:
 
-1. Reprovision the deployment agent from the repaired source to close the live `render-cutover-env` install gap.
-2. Observe the next natural post-close cycle and confirm freshness/readiness remains aligned with the canonical projections.
+1. Observe the next natural post-close cycle and confirm freshness/readiness remains aligned with the canonical projections.
+
+
+## 2026-09-01 production-readiness update — deployment-agent render closure
+
+Status: deployment-agent `render-cutover-env` live install gap is closed.
+
+Evidence:
+
+- Reprovisioned the root-owned deployment agent from the repaired source.
+- `sudo -n signalops-deploy-agent render-cutover-env` succeeded and rendered `/etc/signalops/marketops-cutover.env`.
+- `sudo -n signalops-deploy-agent scheduler-status` returned all tracked MarketOps timers active and all tracked services with `result=success`.
+
+Remaining acceptance:
+
+1. Observe the next natural post-close cycle and confirm freshness/readiness remains aligned with the canonical projections.
