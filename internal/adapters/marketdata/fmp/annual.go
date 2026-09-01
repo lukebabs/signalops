@@ -23,12 +23,12 @@ type AnnualFinancialSnapshot struct {
 }
 
 type AnnualFinancialPeriod struct {
-	FiscalYear string
-	PeriodEnd  time.Time
-	AcceptedAt time.Time
-	Income     json.RawMessage
-	Balance    json.RawMessage
-	CashFlow   json.RawMessage
+	FiscalYear string          `json:"FiscalYear"`
+	PeriodEnd  time.Time       `json:"PeriodEnd"`
+	AcceptedAt time.Time       `json:"AcceptedAt"`
+	Income     json.RawMessage `json:"Income"`
+	Balance    json.RawMessage `json:"Balance"`
+	CashFlow   json.RawMessage `json:"CashFlow"`
 }
 
 // GetAnnualFinancialSnapshot retrieves exactly five annual periods from each

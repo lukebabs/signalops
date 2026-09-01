@@ -14,15 +14,26 @@ func (r *Repository) ListSubscriberGlobalValuationResults(ctx context.Context, s
 	if len(symbols) == 0 {
 		return []storage.MarketOpsValuationResultRecord{}, nil
 	}
+	rowLimit := valuationLimit(limit)
+	if perSymbol := len(symbols) * 6; perSymbol > rowLimit {
+		rowLimit = perSymbol
+	}
 	rows, err := r.db.QueryContext(ctx, `
 SELECT result_id, snapshot_id, global_asset_id, symbol, session_date, algorithm_id,
   model_version, score, fair_value, classification, confidence, confidence_label,
   evaluation_status, eligible, result_json::text, created_at
-FROM subscriber_gateway_global_valuation_results
-WHERE upper(symbol) = ANY($1)
-  AND (NOT $2 OR eligible)
+FROM (
+  SELECT DISTINCT ON (upper(symbol), algorithm_id)
+    result_id, snapshot_id, global_asset_id, symbol, session_date, algorithm_id,
+    model_version, score, fair_value, classification, confidence, confidence_label,
+    evaluation_status, eligible, result_json, created_at
+  FROM subscriber_gateway_global_valuation_results
+  WHERE upper(symbol) = ANY($1)
+    AND (NOT $2 OR eligible)
+  ORDER BY upper(symbol), algorithm_id, session_date DESC, created_at DESC, result_id DESC
+) latest
 ORDER BY session_date DESC, score DESC, symbol ASC
-LIMIT $3`, pqArray(symbols), eligibleOnly, valuationLimit(limit))
+LIMIT $3`, pqArray(symbols), eligibleOnly, rowLimit)
 	if err != nil {
 		return nil, fmt.Errorf("list subscriber global valuation results: %w", err)
 	}

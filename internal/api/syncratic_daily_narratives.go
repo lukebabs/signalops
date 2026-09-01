@@ -275,7 +275,60 @@ func dailyNarrativeRiskReward(ctx context.Context, repo storage.QueryRepository,
 	if len(leaders) > 12 {
 		leaders = leaders[:12]
 	}
-	return map[string]any{"available": true, "latest_session_date": latest, "session_count": len(dates), "snapshot_count": len(items), "breadth": counts, "top_examples": leaders}, limitStrings(uniqueSorted(refs), 120), nil, nil
+	previous := ""
+	if len(dates) > 1 {
+		previous = dates[1]
+	}
+	changes := map[string]any{"previous_session_date": previous}
+	if previous != "" {
+		previousCounts := riskRewardBreadthCounts(byDate[previous])
+		delta := map[string]int{}
+		for key, value := range counts {
+			delta[key] = value - previousCounts[key]
+		}
+		changes["previous_breadth"] = previousCounts
+		changes["breadth_delta"] = delta
+		changes["new_directional_symbols"] = newRiskRewardDirectionalSymbols(byDate[latest], byDate[previous], 12)
+	}
+	return map[string]any{"available": true, "latest_session_date": latest, "session_count": len(dates), "snapshot_count": len(items), "breadth": counts, "top_examples": leaders, "evolution": changes}, limitStrings(uniqueSorted(refs), 120), nil, nil
+}
+
+func riskRewardBreadthCounts(items map[string]storage.MarketOpsRiskRewardSnapshotRecord) map[string]int {
+	counts := map[string]int{"bullish": 0, "bearish": 0, "neutral": 0, "unavailable": 0}
+	for _, item := range items {
+		dir := strings.ToLower(strings.TrimSpace(item.TechnicalDirection))
+		if _, ok := counts[dir]; !ok {
+			dir = "unavailable"
+		}
+		counts[dir]++
+	}
+	return counts
+}
+
+func newRiskRewardDirectionalSymbols(latest, previous map[string]storage.MarketOpsRiskRewardSnapshotRecord, limit int) []map[string]any {
+	out := []map[string]any{}
+	for symbol, item := range latest {
+		dir := strings.ToLower(strings.TrimSpace(item.TechnicalDirection))
+		if dir != "bullish" && dir != "bearish" {
+			continue
+		}
+		priorDir := strings.ToLower(strings.TrimSpace(previous[symbol].TechnicalDirection))
+		if priorDir == dir {
+			continue
+		}
+		out = append(out, map[string]any{"symbol": item.Symbol, "current_direction": item.TechnicalDirection, "previous_direction": priorDir, "score": item.TechnicalScore, "risk_level": item.RiskLevel})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		leftScore, rightScore := asFloat(out[i]["score"]), asFloat(out[j]["score"])
+		if leftScore != rightScore {
+			return leftScore > rightScore
+		}
+		return strings.ToUpper(fmt.Sprint(out[i]["symbol"])) < strings.ToUpper(fmt.Sprint(out[j]["symbol"]))
+	})
+	if limit > 0 && len(out) > limit {
+		return out[:limit]
+	}
+	return out
 }
 
 func dailyNarrativeSRI(ctx context.Context, repo storage.QueryRepository, tenantID string, start, end time.Time) (map[string]any, []string, []map[string]any, error) {
@@ -295,13 +348,31 @@ func dailyNarrativeSRI(ctx context.Context, repo storage.QueryRepository, tenant
 		return map[string]any{"available": false, "snapshot_count": 0}, nil, []map[string]any{{"code": "sri_evidence_missing", "blocking": false, "message": "No SRI snapshots were available for the narrative window."}}, nil
 	}
 	latestBySegment := map[string]storage.MarketOpsSRISnapshotRecord{}
+	byDateSegment := map[string]map[string]storage.MarketOpsSRISnapshotRecord{}
+	dateSet := map[string]struct{}{}
 	refs := []string{}
 	for _, item := range items {
 		refs = append(refs, item.SnapshotID)
+		date := item.SessionDate.UTC().Format("2006-01-02")
+		dateSet[date] = struct{}{}
+		if byDateSegment[date] == nil {
+			byDateSegment[date] = map[string]storage.MarketOpsSRISnapshotRecord{}
+		}
+		byDateSegment[date][item.SegmentID] = item
 		current, exists := latestBySegment[item.SegmentID]
 		if !exists || item.SessionDate.After(current.SessionDate) {
 			latestBySegment[item.SegmentID] = item
 		}
+	}
+	dates := mapKeys(dateSet)
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+	latestDate := ""
+	previousDate := ""
+	if len(dates) > 0 {
+		latestDate = dates[0]
+	}
+	if len(dates) > 1 {
+		previousDate = dates[1]
 	}
 	latest := []storage.MarketOpsSRISnapshotRecord{}
 	for _, item := range latestBySegment {
@@ -322,9 +393,17 @@ func dailyNarrativeSRI(ctx context.Context, repo storage.QueryRepository, tenant
 		if len(leaders) >= 16 {
 			break
 		}
-		leaders = append(leaders, map[string]any{"snapshot_id": item.SnapshotID, "segment_id": item.SegmentID, "session_date": item.SessionDate.UTC().Format("2006-01-02"), "state": item.State, "rank": nullableIntValue(item.Rank), "rank_change_5d": nullableIntValue(item.RankChange5D), "composite_score": nullableFloatValue(item.CompositeScore), "momentum_acceleration": nullableFloatValue(item.MomentumAcceleration), "quality_state": item.QualityState})
+		entry := map[string]any{"snapshot_id": item.SnapshotID, "segment_id": item.SegmentID, "session_date": item.SessionDate.UTC().Format("2006-01-02"), "state": item.State, "rank": nullableIntValue(item.Rank), "rank_change_5d": nullableIntValue(item.RankChange5D), "composite_score": nullableFloatValue(item.CompositeScore), "momentum_acceleration": nullableFloatValue(item.MomentumAcceleration), "quality_state": item.QualityState}
+		if previousDate != "" {
+			if previous, ok := byDateSegment[previousDate][item.SegmentID]; ok {
+				entry["previous_rank"] = nullableIntValue(previous.Rank)
+				entry["previous_state"] = previous.State
+			}
+		}
+		leaders = append(leaders, entry)
 	}
-	return map[string]any{"available": true, "snapshot_count": len(items), "latest_segments": len(latest), "leaders": leaders}, limitStrings(uniqueSorted(refs), 160), nil, nil
+	evolution := map[string]any{"latest_session_date": latestDate, "previous_session_date": previousDate, "session_count": len(dates)}
+	return map[string]any{"available": true, "snapshot_count": len(items), "latest_segments": len(latest), "leaders": leaders, "evolution": evolution}, limitStrings(uniqueSorted(refs), 160), nil, nil
 }
 
 func dailyNarrativeReviewQueue(ctx context.Context, repo storage.QueryRepository, tenantID string, start, end time.Time) (map[string]any, []string, []map[string]any, error) {
@@ -340,22 +419,47 @@ func dailyNarrativeReviewQueue(ctx context.Context, repo storage.QueryRepository
 	counts := map[string]int{}
 	active := []map[string]any{}
 	expired := 0
+	byDateStatus := map[string]map[string]int{}
+	dateSet := map[string]struct{}{}
 	for _, item := range items {
 		refs = append(refs, item.OpportunityID)
 		counts[item.LifecycleStatus]++
+		date := item.LastEvaluatedDate.UTC().Format("2006-01-02")
+		dateSet[date] = struct{}{}
+		if byDateStatus[date] == nil {
+			byDateStatus[date] = map[string]int{}
+		}
+		byDateStatus[date][item.LifecycleStatus]++
 		if item.LifecycleStatus == storage.MarketOpsOpportunityExpired {
 			expired++
 			continue
 		}
 		if len(active) < 20 {
-			active = append(active, map[string]any{"opportunity_id": item.OpportunityID, "symbol": item.Symbol, "direction": item.Direction, "status": item.LifecycleStatus, "score": item.OpportunityScore, "confidence": item.ConfidenceScore, "summary": truncateText(item.Summary, 220), "last_evaluated_date": item.LastEvaluatedDate.UTC().Format("2006-01-02")})
+			active = append(active, map[string]any{"opportunity_id": item.OpportunityID, "symbol": item.Symbol, "direction": item.Direction, "status": item.LifecycleStatus, "score": item.OpportunityScore, "confidence": item.ConfidenceScore, "summary": truncateText(item.Summary, 220), "last_evaluated_date": date})
 		}
 	}
 	warnings := []map[string]any{}
 	if len(items) == 0 {
 		warnings = append(warnings, map[string]any{"code": "review_queue_empty", "blocking": false, "message": "No Review Queue opportunities were available for the narrative window."})
 	}
-	return map[string]any{"available": len(items) > 0, "opportunity_count": len(items), "status_counts": counts, "expired_count": expired, "active_examples": active}, limitStrings(uniqueSorted(refs), 120), warnings, nil
+	dates := mapKeys(dateSet)
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+	latestDate := ""
+	previousDate := ""
+	if len(dates) > 0 {
+		latestDate = dates[0]
+	}
+	if len(dates) > 1 {
+		previousDate = dates[1]
+	}
+	evolution := map[string]any{"latest_session_date": latestDate, "previous_session_date": previousDate, "session_count": len(dates)}
+	if latestDate != "" {
+		evolution["latest_status_counts"] = byDateStatus[latestDate]
+	}
+	if previousDate != "" {
+		evolution["previous_status_counts"] = byDateStatus[previousDate]
+	}
+	return map[string]any{"available": len(items) > 0, "opportunity_count": len(items), "status_counts": counts, "expired_count": expired, "active_examples": active, "evolution": evolution}, limitStrings(uniqueSorted(refs), 120), warnings, nil
 }
 
 func buildSyncraticDailyNarrativeInsight(contextWindow storage.SyncraticContextWindowRecord) storage.SyncraticInsightRecord {
@@ -411,6 +515,7 @@ func buildSyncraticDailyNarrativeAskPrompt(contextWindow storage.SyncraticContex
 			"Use only the supplied JSON context; do not retrieve documents or use external knowledge.",
 			"Write to the MarketOps analyst, not about the prompt, JSON, user request, or instructions.",
 			"Start with what changed or what matters in the completed session.",
+			"When evolution fields are present, compare the latest session against the previous session before discussing individual examples.",
 			"Separate observed facts, calculated metrics, inferred hypotheses, historical associations, governance state, and unknown future outcomes.",
 			"Write the analyst-facing narrative in relational natural language. Do not recite raw scores, confidence decimals, or metric fields unless a metric is essential to explain a data-quality issue.",
 			"Use phrases like leadership pocket, constructive exception, cautious skew, active triage item, and weak evidence when those relationships are supported by the supplied metrics.",
