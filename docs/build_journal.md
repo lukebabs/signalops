@@ -9423,3 +9423,12 @@ Next-cycle priority:
 - Extended `python/tests/test_subscriber_mobile_ui_smoke.py` to validate the SRI route, ETF progression tab, inline open/close behavior, progression chart, ETF makeup state, available holdings cards, and no page-level horizontal overflow across 375x812, 390x844, and 430x932 viewports.
 - Production web deploy completed through `sudo -n signalops-deploy-agent marketops-web-deploy`; deploy smoke passed.
 - Expanded mobile production validation passed after deployment: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `15 passed in 127.35s`.
+
+### 2026-09-01 — Mobile PR-5 Opportunities, pricing, and enrollment expansion
+
+- Expanded `python/tests/test_subscriber_mobile_ui_smoke.py` to include `/marketops/opportunities` and `/marketops/pricing` in the required phone-width route matrix.
+- Added mobile Opportunities drilldown coverage: active opportunity queue selection, detail panel rendering, Why Now/Contributions visibility, Back-to-queue behavior, and no page-level horizontal overflow.
+- Added mobile Pricing coverage for Explorer, Professional, Institutional, Checkout status, and self-service checkout controls without starting Checkout.
+- Production mobile validation passed through the launcher: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `21 passed in 104.46s`.
+- Read-only Keycloak enrollment smoke passed separately: `.venv/bin/pytest python/tests/test_keycloak_b2c_enrollment_ui.py -q` returned `1 passed in 0.93s`; it reached registration without submitting data or creating a user.
+- Remaining PR-5 mobile evidence is gated-route behavior, which should use a fresh named subscription-enforcement canary because it temporarily changes production enforcement state.

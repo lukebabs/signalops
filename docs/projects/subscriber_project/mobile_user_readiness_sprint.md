@@ -16,7 +16,7 @@ This sprint turns mobile usability from an incidental responsive behavior into a
 
 The application already uses responsive layout primitives, card/detail patterns, scroll-contained tables, and some mobile-aware flows. Historical validation exists for older 375px views, but the current subscription product has changed materially since then: watchlists, global data-plane projections, SAF, Syncratic narratives, subscription gating, and B2C enrollment all changed the user journey.
 
-The first dedicated mobile acceptance slice now passes against production for the core subscriber read path at 375px, 390px, and 430px phone widths. The product is still not fully mobile-production-ready until gated routes, drilldowns, enrollment, and subscription flows are covered.
+The dedicated mobile acceptance suite now passes against production for the core subscriber read path plus Assets, SAF, SRI, Opportunities, pricing, and read-only enrollment coverage at 375px, 390px, and 430px phone widths. The remaining mobile-specific production evidence is gated-route behavior, which requires a controlled subscription-enforcement canary because it intentionally toggles production enforcement state.
 
 ## Non-goals
 
@@ -267,6 +267,6 @@ The sprint exits when:
 - mobile Playwright suite exists and passes against production with the configured subscriber QA identity;
 - screenshots or traces are retained as controlled evidence;
 - all required subscriber routes pass at 375px and 430px;
-- Dashboard, Assets, SAF, SRI, Opportunities, Syncratic, and enrollment flows have no blocking mobile usability issues;
+- Dashboard, Assets, SAF, SRI, Opportunities, Syncratic, pricing, and enrollment flows have no blocking mobile usability issues;
 - Admin remains explicitly documented as desktop/operator scope;
 - production readiness path records mobile subscriber readiness as closed or identifies only non-blocking follow-up polish.

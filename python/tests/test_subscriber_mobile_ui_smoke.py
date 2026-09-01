@@ -78,8 +78,10 @@ def test_subscriber_mobile_core_journey(mobile_subscriber_page: Page, subscriber
         ("/marketops/watchlists", "Watchlists"),
         ("/marketops/assets", "Assets"),
         ("/marketops/sectors", "Sector Rotation Intelligence"),
+        ("/marketops/opportunities", "Opportunities"),
         ("/marketops/assurance", "Signal Assurance"),
         ("/marketops/syncratic", "Syncratic Intelligence"),
+        ("/marketops/pricing", "Increase analytical depth"),
     ]
     for path, heading in routes:
         assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}{path}", heading)
@@ -153,6 +155,27 @@ def test_subscriber_mobile_sri_progression_and_makeup(mobile_subscriber_page: Pa
     )
     assert overflow <= 8, f"SRI mobile progression/makeup has {overflow}px horizontal overflow"
 
+
+def test_subscriber_mobile_opportunities_drilldown(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
+    login(mobile_subscriber_page, subscriber_config)
+    assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}/marketops/opportunities", "Opportunities")
+    queue_button = mobile_subscriber_page.locator("button").filter(has_text=re.compile(r"Score\s+")).first
+    if queue_button.is_visible(timeout=10_000):
+        queue_button.click()
+        expect(mobile_subscriber_page.get_by_text("Opportunity Detail")).to_be_visible(timeout=30_000)
+        expect(mobile_subscriber_page.get_by_text("Why now")).to_be_visible(timeout=30_000)
+        expect(mobile_subscriber_page.get_by_text("Contributions")).to_be_visible(timeout=30_000)
+        back = mobile_subscriber_page.get_by_role("button", name="Back to queue")
+        expect(back).to_be_visible(timeout=30_000)
+        back.click()
+        expect(mobile_subscriber_page.get_by_text("Opportunity Detail")).not_to_be_visible(timeout=30_000)
+    else:
+        expect(mobile_subscriber_page.get_by_text("No eligible opportunities in this scope")).to_be_visible(timeout=30_000)
+    overflow = mobile_subscriber_page.evaluate(
+        "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth"
+    )
+    assert overflow <= 8, f"Opportunities mobile drilldown has {overflow}px horizontal overflow"
+
 def test_subscriber_mobile_signal_assurance_drilldown(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
     login(mobile_subscriber_page, subscriber_config)
     assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}/marketops/assurance", "Signal Assurance")
@@ -176,6 +199,21 @@ def test_subscriber_mobile_signal_assurance_drilldown(mobile_subscriber_page: Pa
         "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth"
     )
     assert overflow <= 8, f"SAF mobile drilldown has {overflow}px horizontal overflow"
+
+
+def test_subscriber_mobile_pricing_cards(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
+    login(mobile_subscriber_page, subscriber_config)
+    assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}/marketops/pricing", "Increase analytical depth")
+    expect(mobile_subscriber_page.get_by_role("heading", name="Explorer")).to_be_visible(timeout=30_000)
+    expect(mobile_subscriber_page.get_by_role("heading", name="Professional")).to_be_visible(timeout=30_000)
+    expect(mobile_subscriber_page.get_by_role("heading", name="Institutional")).to_be_visible(timeout=30_000)
+    expect(mobile_subscriber_page.get_by_text("Checkout status")).to_be_visible(timeout=30_000)
+    monthly_buttons = mobile_subscriber_page.get_by_role("button", name=re.compile(r"Monthly Checkout"))
+    expect(monthly_buttons.first).to_be_visible(timeout=30_000)
+    overflow = mobile_subscriber_page.evaluate(
+        "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth"
+    )
+    assert overflow <= 8, f"Pricing mobile cards have {overflow}px horizontal overflow"
 
 def test_subscriber_mobile_dashboard_syncratic_handoff(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
     login(mobile_subscriber_page, subscriber_config)
