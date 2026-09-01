@@ -149,7 +149,7 @@ Committed suite:
 .venv/bin/python -m pytest -q python/tests/test_subscriber_mobile_ui_smoke.py
 ```
 
-The mobile suite uses the same protected QA identity and failure-only artifact policy as the subscriber smoke. The current committed slice runs at 375px, 390px, and 430px phone widths and verifies production login plus Dashboard, Watchlists, Assets, Sector Rotation, Syncratic Intelligence, and Dashboard-to-Syncratic handoff with no 404, watchlist-context error, or page-level horizontal overflow. Remaining expansion should add representative drilldowns, enrollment, subscription pricing, and gated-route behavior.
+The mobile suite uses the same protected QA identity and failure-only artifact policy as the subscriber smoke. The current committed slice runs at 375px, 390px, and 430px phone widths and verifies production login plus Dashboard, Watchlists, Assets, Sector Rotation, Syncratic Intelligence, Dashboard-to-Syncratic handoff, and Assets mobile card drilldown with no 404, watchlist-context error, or page-level horizontal overflow. Remaining expansion should add SAF/SRI/Opportunities drilldowns, enrollment, subscription pricing, and gated-route behavior.
 
 Required subscriber routes are defined in [Mobile User Readiness Sprint](mobile_user_readiness_sprint.md). A passing mobile smoke is required before declaring the subscriber web product ready for primarily mobile users.
 

@@ -295,17 +295,38 @@ export function MarketOpsAssetsRoute() {
       ) : query.isError ? (
         <ErrorState error={query.error} />
       ) : data.length ? (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-xs text-gray-500 md:hidden">Swipe horizontally to view all asset columns.</p>
-            <button type="button" onClick={resetColumnWidths} className="ml-auto text-xs text-brand-700 underline hover:text-brand-800">Reset column widths</button>
+        <div className="space-y-3">
+          <div className="space-y-2 md:hidden" aria-label="Mobile asset cards">
+            {sortedData.length ? sortedData.map((a) => (
+              <AssetMobileCard
+                key={a.ticker}
+                asset={a}
+                selected={selectedTicker === a.ticker}
+                onSelect={() => setSelectedTicker((current) => current === a.ticker ? null : a.ticker)}
+                tenantId={TENANT_ID}
+                quote={quoteMap.get(a.ticker.toUpperCase())}
+                condition={conditionMap.get(a.ticker.toUpperCase())}
+                riskReward={riskRewardMap.get(a.ticker.toUpperCase())}
+                sharedEOD={sharedEODContext(a)}
+                quotesRefreshedAt={quotesQ.data?.refreshed_at ?? null}
+                conditionsLoading={conditionsQ.isLoading}
+                conditionsError={conditionsQ.isError}
+                riskRewardLoading={riskRewardQ.isLoading}
+                riskRewardError={riskRewardQ.isError}
+                onClose={() => setSelectedTicker(null)}
+              />
+            )) : <div className="rounded border border-gray-200 bg-white p-4 text-center text-xs text-gray-500">No assets match the selected filters. <button type="button" onClick={() => setQuickFilters([])} className="text-brand-700 underline hover:text-brand-800">Clear filters</button></div>}
           </div>
-          <div
-            className="max-w-full overflow-x-auto rounded border border-gray-200 bg-white overscroll-x-contain"
-            role="region"
-            aria-label="Scrollable asset table"
-            tabIndex={0}
-          >
+          <div className="hidden space-y-1 md:block">
+            <div className="flex items-center justify-between px-1">
+              <button type="button" onClick={resetColumnWidths} className="ml-auto text-xs text-brand-700 underline hover:text-brand-800">Reset column widths</button>
+            </div>
+            <div
+              className="max-w-full overflow-x-auto rounded border border-gray-200 bg-white overscroll-x-contain"
+              role="region"
+              aria-label="Scrollable asset table"
+              tabIndex={0}
+            >
           <table className="table-fixed divide-y divide-gray-200 text-sm" style={{ width: totalColumnWidth }}>
             <colgroup><col style={{ width: ASSET_SELECTION_COLUMN_WIDTH }} />{(Object.keys(DEFAULT_ASSET_COLUMN_WIDTHS) as AssetColumnKey[]).map((key) => <col key={key} style={{ width: columnWidths[key] }} />)}</colgroup>
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
@@ -371,6 +392,7 @@ export function MarketOpsAssetsRoute() {
               )) : <tr><td colSpan={7} className="px-3 py-8 text-center text-xs text-gray-500">No assets match the selected filters. <button type="button" onClick={() => setQuickFilters([])} className="text-brand-700 underline hover:text-brand-800">Clear filters</button></td></tr>}
             </tbody>
           </table>
+            </div>
           </div>
         </div>
       ) : (
@@ -392,6 +414,34 @@ function PendingAssetCoveragePanel({ asset, onClose }: { asset: MarketOpsPending
 function SharedGlobalEODPanel({ context, onClose }: { context: SharedEODContext; onClose: () => void }) {
   return <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="font-semibold">Verified global EOD evidence</div><p className="mt-1 text-xs">Close {context.close == null ? "unavailable" : context.close.toFixed(2)} · session {context.sessionDate} · {context.provider} · {context.qualityState}.</p><p className="mt-2 text-xs text-emerald-800">Global Market State, intraday, Risk/Reward, and options evidence are not materialized yet. MarketOps does not substitute tenant-local results or imply a signal.</p></div><button type="button" onClick={onClose} className="text-xs text-emerald-800 underline">Close</button></div></div>;
 }
+
+function AssetMobileCard({ asset, selected, onSelect, tenantId, quote, condition, riskReward, sharedEOD, quotesRefreshedAt, conditionsLoading, conditionsError, riskRewardLoading, riskRewardError, onClose }: { asset: DisplayAsset; selected: boolean; onSelect: () => void; tenantId: string; quote?: MarketOpsAssetQuote; condition?: MarketOpsIntradayConditionSnapshot; riskReward?: MarketOpsRiskRewardSummary; sharedEOD?: SharedEODContext; quotesRefreshedAt: string | null; conditionsLoading: boolean; conditionsError: boolean; riskRewardLoading: boolean; riskRewardError: boolean; onClose: () => void }) {
+  return <article data-testid={`marketops-asset-mobile-card-${asset.ticker}`} className={selected ? "rounded-lg border border-brand-300 bg-brand-50 p-3 shadow-sm" : "rounded-lg border border-gray-200 bg-white p-3 shadow-sm"}>
+    <button type="button" onClick={onSelect} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-expanded={selected}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-sm font-semibold text-gray-900">{asset.ticker}</span>
+            <span className={asset.subscriberCoverage ? "rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800" : asset.universe_group.startsWith("subscriber_") ? "rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800" : "rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700"}>{asset.subscriberCoverage ? "Pending" : asset.universe_group.startsWith("subscriber_") ? "Shared" : "Tenant"}</span>
+          </div>
+          <div className="mt-1 truncate text-sm font-medium text-gray-900">{asset.display_name || asset.company || "—"}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500"><span>Rank {asset.rank}</span><span>{assetSectorLabel(asset)}</span><span>{asset.asset_type}</span></div>
+        </div>
+        <span className="shrink-0 text-xs font-medium text-brand-700">{selected ? "Close" : "Inspect"}</span>
+      </div>
+      <div className="mt-3 grid gap-2">
+        <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Current Market Data</div><MarketDataCell quote={quote} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
+        <div className="grid grid-cols-1 gap-2 min-[390px]:grid-cols-2">
+          <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Intraday</div><IntradayConditionsCell snapshot={condition} loading={conditionsLoading} error={conditionsError} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
+          <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Risk/Reward</div><RiskRewardCell summary={riskReward} loading={riskRewardLoading} error={riskRewardError} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
+        </div>
+        <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Updated</div><MarketDataUpdatedCell quote={quote} refreshedAt={quotesRefreshedAt} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
+      </div>
+    </button>
+    {selected ? <div className="mt-3">{asset.subscriberCoverage ? <PendingAssetCoveragePanel asset={asset.subscriberCoverage} onClose={onClose} /> : sharedEOD ? <SharedGlobalEODPanel context={sharedEOD} onClose={onClose} /> : <AssetOptionsPanel tenantId={tenantId} symbol={asset.ticker} onClose={onClose} />}</div> : null}
+  </article>;
+}
+
 
 function SortableAssetHeader({ label, sortKey, activeSort, onSort, width, onResize, title }: { label: string; sortKey: AssetColumnKey; activeSort: { key: AssetSortKey; direction: 'asc' | 'desc' }; onSort: (key: AssetColumnKey) => void; width: number; onResize: (event: React.PointerEvent<HTMLButtonElement>, key: AssetColumnKey) => void; title?: string }) {
   const active = activeSort.key === sortKey;

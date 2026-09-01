@@ -84,6 +84,25 @@ def test_subscriber_mobile_core_journey(mobile_subscriber_page: Page, subscriber
         assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}{path}", heading)
 
 
+
+
+def test_subscriber_mobile_assets_card_drilldown(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
+    login(mobile_subscriber_page, subscriber_config)
+    assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}/marketops/assets", "Assets")
+    first_symbol = subscriber_config.shared_tickers[0]
+    card = mobile_subscriber_page.get_by_test_id(f"marketops-asset-mobile-card-{first_symbol}")
+    expect(card).to_be_visible(timeout=30_000)
+    expect(card).to_contain_text("Inspect", timeout=30_000)
+    expect(card).to_contain_text("Current Market Data", timeout=30_000)
+    expect(card).to_contain_text("Intraday", timeout=30_000)
+    expect(card).to_contain_text("Risk/Reward", timeout=30_000)
+    card.get_by_role("button").first.click()
+    expect(card).to_contain_text("Close", timeout=30_000)
+    overflow = mobile_subscriber_page.evaluate(
+        "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth"
+    )
+    assert overflow <= 8, f"Assets mobile drilldown has {overflow}px horizontal overflow"
+
 def test_subscriber_mobile_dashboard_syncratic_handoff(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
     login(mobile_subscriber_page, subscriber_config)
     assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}/marketops/dashboard", "MarketOps Dashboard")

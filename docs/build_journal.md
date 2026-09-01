@@ -9399,3 +9399,11 @@ Next-cycle priority:
 - Added Dashboard-to-Syncratic handoff coverage so the mobile gate verifies that the Dashboard exposes `Open Syncratic Intelligence` and lands on `/marketops/syncratic` without horizontal overflow.
 - Added `scripts/run_subscriber_mobile_ui_smoke.sh`, using the same literal dotenv parser and protected pilot QA identity pattern as the existing subscriber smoke.
 - Production validation passed through the launcher: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `6 passed in 17.38s`.
+
+### 2026-09-01 — Mobile Assets card-first design slice
+
+- Implemented the first subscriber-facing mobile design remediation on `/marketops/assets`: phone view now renders asset cards instead of requiring the user to work through the desktop table.
+- Each mobile asset card exposes current market data, intraday state, Risk/Reward state, update provenance, and an inline inspect/close detail path while preserving the existing desktop resizable table.
+- Extended `python/tests/test_subscriber_mobile_ui_smoke.py` to validate the Assets mobile card and inline drilldown across 375x812, 390x844, and 430x932 viewports.
+- Production web deploy completed through the constrained deployment agent and its smoke passed: `2 passed in 44.95s`.
+- Expanded mobile production validation passed after deployment: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `9 passed in 40.78s`.
