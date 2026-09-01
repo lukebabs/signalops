@@ -288,6 +288,35 @@ func TestSubscriberEEOMUsesGlobalProjection(t *testing.T) {
 	}
 }
 
+func TestSubscriberEEOMCollapsesConflictingHistoricalRowsByTicker(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	earningsDateCurrent := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	earningsDateSuperseded := time.Date(2026, 9, 2, 0, 0, 0, 0, time.UTC)
+	repo := &subscriberGlobalEEOMFake{fakeQueryRepository: &fakeQueryRepository{}, results: []storage.MarketOpsEEOMResultRecord{
+		{ResultID: "aapl-new", TenantID: "platform-global", Symbol: "AAPL", EarningsEventID: "fmp-current", EarningsDate: earningsDateCurrent, SessionDate: time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC), ModelVersion: "eeom-v1", Score: 5.11, Posture: "bullish", Classification: "setup", EvidenceQuality: "complete", Eligible: true, ResultJSON: []byte("{}")},
+		{ResultID: "aapl-old", TenantID: "platform-global", Symbol: "AAPL", EarningsEventID: "fmp-superseded", EarningsDate: earningsDateSuperseded, SessionDate: time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC), ModelVersion: "eeom-v1", Score: 4.89, Posture: "bearish", Classification: "setup", EvidenceQuality: "partial", Eligible: true, ResultJSON: []byte("{}")},
+	}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-pilot-b": {}}, SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{}})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/earnings-opportunities?symbol=AAPL&start_date=2026-09-01&end_date=2026-09-30", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	results := response["results"].([]any)
+	if len(results) != 1 {
+		t.Fatalf("EEOM should collapse conflicting rows to one current row, got %#v", results)
+	}
+	result := results[0].(map[string]any)
+	if result["ticker"] != "AAPL" || result["posture"] != "bullish" || result["earnings_event_id"] != "fmp-current" {
+		t.Fatalf("EEOM returned superseded/conflicting row: %#v", result)
+	}
+}
+
 type subscriberGlobalMaterialEventFake struct {
 	*fakeQueryRepository
 	events  []storage.SubscriberGlobalMaterialEventRecord

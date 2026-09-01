@@ -15,14 +15,27 @@ func (r *Repository) ListSubscriberGlobalEEOMResults(ctx context.Context, symbol
 		return []storage.MarketOpsEEOMResultRecord{}, nil
 	}
 	rows, err := r.db.QueryContext(ctx, `
+WITH filtered AS (
+  SELECT result_id, global_asset_id, symbol, earnings_event_id, earnings_date,
+    session_date, model_version, score, posture, classification, evidence_quality,
+    eligible, result_json::text AS result_json, created_at
+  FROM subscriber_gateway_global_eeom_results
+  WHERE upper(symbol) = ANY($1)
+    AND ($2::date IS NULL OR earnings_date >= $2::date)
+    AND ($3::date IS NULL OR earnings_date <= $3::date)
+    AND (NOT $4 OR eligible)
+), ranked AS (
+  SELECT filtered.*, row_number() OVER (
+    PARTITION BY upper(symbol)
+    ORDER BY earnings_date ASC, session_date DESC, created_at DESC, score DESC, symbol ASC
+  ) AS current_rank
+  FROM filtered
+)
 SELECT result_id, global_asset_id, symbol, earnings_event_id, earnings_date,
   session_date, model_version, score, posture, classification, evidence_quality,
-  eligible, result_json::text, created_at
-FROM subscriber_gateway_global_eeom_results
-WHERE upper(symbol) = ANY($1)
-  AND ($2::date IS NULL OR earnings_date >= $2::date)
-  AND ($3::date IS NULL OR earnings_date <= $3::date)
-  AND (NOT $4 OR eligible)
+  eligible, result_json, created_at
+FROM ranked
+WHERE current_rank = 1
 ORDER BY earnings_date ASC, session_date DESC, score DESC, symbol ASC
 LIMIT $5`, pqArray(symbols), nullTime(f.StartDate), nullTime(f.EndDate), f.EligibleOnly, valuationLimit(f.Limit))
 	if err != nil {

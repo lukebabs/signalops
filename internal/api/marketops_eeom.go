@@ -48,6 +48,9 @@ func registerMarketOpsEEOMRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list EEOM results")
 			return
 		}
+		if !queryBool(r, "include_history") && !queryBool(r, "history") {
+			rows = currentEEOMRows(rows)
+		}
 		out := make([]map[string]any, 0, len(rows))
 		for _, x := range rows {
 			if subscriberWatchlistContextEnabled(cfg, tenantID) {
@@ -164,4 +167,60 @@ func recordedEventDate(payload map[string]any) time.Time {
 func eeomString(value any) string {
 	text, _ := value.(string)
 	return strings.TrimSpace(text)
+}
+
+func queryBool(r *http.Request, key string) bool {
+	return strings.EqualFold(r.URL.Query().Get(key), "true") || r.URL.Query().Get(key) == "1"
+}
+
+func currentEEOMRows(rows []storage.MarketOpsEEOMResultRecord) []storage.MarketOpsEEOMResultRecord {
+	if len(rows) < 2 {
+		return rows
+	}
+	best := map[string]storage.MarketOpsEEOMResultRecord{}
+	for _, row := range rows {
+		symbol := strings.ToUpper(strings.TrimSpace(row.Symbol))
+		if symbol == "" {
+			symbol = strings.ToUpper(strings.TrimSpace(row.ResultID))
+		}
+		if existing, ok := best[symbol]; !ok || preferCurrentEEOMRow(row, existing) {
+			best[symbol] = row
+		}
+	}
+	out := make([]storage.MarketOpsEEOMResultRecord, 0, len(best))
+	for _, row := range best {
+		out = append(out, row)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if !sameDay(out[i].EarningsDate, out[j].EarningsDate) {
+			return out[i].EarningsDate.Before(out[j].EarningsDate)
+		}
+		if !sameDay(out[i].SessionDate, out[j].SessionDate) {
+			return out[i].SessionDate.After(out[j].SessionDate)
+		}
+		if out[i].Score != out[j].Score {
+			return out[i].Score > out[j].Score
+		}
+		return out[i].Symbol < out[j].Symbol
+	})
+	return out
+}
+
+func preferCurrentEEOMRow(candidate, existing storage.MarketOpsEEOMResultRecord) bool {
+	if !sameDay(candidate.EarningsDate, existing.EarningsDate) {
+		return candidate.EarningsDate.Before(existing.EarningsDate)
+	}
+	if !sameDay(candidate.SessionDate, existing.SessionDate) {
+		return candidate.SessionDate.After(existing.SessionDate)
+	}
+	if !candidate.CreatedAt.Equal(existing.CreatedAt) {
+		return candidate.CreatedAt.After(existing.CreatedAt)
+	}
+	return candidate.Score > existing.Score
+}
+
+func sameDay(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }
