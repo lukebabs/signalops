@@ -9342,3 +9342,16 @@ Next-cycle priority:
 - Added FMP adapter tests covering annual and TTM fundamentals class-share normalization.
 - Requeued only the seven known exception tasks for workflow `subglobalannualworkflow-20260828` and reran the governed FMP annual worker through the deployment agent.
 - Verification: the six class-share symbols succeeded; `BXBL` remained a governed provider no-data exception; workflow coverage improved to `{"succeeded": 999, "skipped_no_data": 1}`; `scheduler-status` returned clean; public `/readyz` returned `200`.
+
+### 2026-09-01 — Annual valuation follow-up and tactical projection deduplication
+
+- Applied the corrected `000162_subscriber_global_valuation_tactical_projection` view to the dedicated MarketOps database after finding duplicate tactical posture rows caused by duplicate canonical-symbol catalog identities.
+- The projection now joins through one deterministic global asset per uppercase canonical symbol, preserving immutable source records while preventing duplicate UI/API projection rows.
+- Verification in the dedicated MarketOps database: latest tactical session `2026-08-31` returned `131` tactical rows, `0` duplicate symbol rows, and `max_rows_per_symbol=1`.
+- Started and observed the governed `marketops-fmp-annual-run` action for workflow `subglobalannualworkflow-20260901`; it completed `succeeded` with coverage `{"succeeded": 999, "skipped_no_data": 1}`.
+- Found the annual v4 `insufficient_data` root cause: the global EOD evidence plane stopped at `2026-08-14`, so annual valuation could not derive market cap from canonical close × shares.
+- Ran `subscriber-global-eod-history-materialize`, which verified `28390` total global EOD records, `999` covered assets, and inserted `10969` missing records through `2026-08-31`.
+- Reran the governed annual action after EOD catch-up; `2026-08-31` now has `997` annual VC rows, `997` annual DOSM rows, and `956` rows in each algorithm carrying `revenue_cagr_3y_annual`.
+- Verified AAPL annual DOSM v4 is complete with `revenue_cagr_3y_annual=0.01812535743479393` and `revenue_growth_score=2.3625071486958786`; NVDA, NOW, and SNOW also returned complete rows with CAGR/growth scores.
+- Playwright validation as `luke@strategiclabs.io` confirmed `/marketops/valuation` loads, the tenant-local valuation API returns platform-global annual/tactical evidence, and the rendered Valuation page shows Revenue Growth and Tactical Posture without `Unknown` labels.
+- Removed untracked `auth.syncratic.co-01.har` from the repo workspace so auth capture material is not accidentally committed.

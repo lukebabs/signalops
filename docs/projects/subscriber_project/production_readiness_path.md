@@ -405,3 +405,25 @@ Validation:
 Remaining FMP annual acceptance:
 
 - Decide whether `BXBL` should remain eligible with a provider no-data classification or be excluded/normalized through a separate catalog-governance policy.
+
+## 2026-09-01 production-readiness update — annual valuation and catalog hygiene follow-up
+
+Status: annual financial refresh completed successfully; global EOD catch-up and annual valuation rematerialization restored VC/DOSM revenue-growth evidence; tactical projection duplicate inflation is fixed.
+
+Evidence:
+
+- The corrected `000162_subscriber_global_valuation_tactical_projection` view was applied to the dedicated MarketOps database.
+- Tactical posture projection for the latest materialized valuation session now emits one row per canonical symbol: `131` rows for `2026-08-31`, with `0` duplicate symbol rows and `max_rows_per_symbol=1`.
+- The duplicate root cause was catalog identity drift: some canonical symbols exist more than once in `subscriber_global_assets`. The projection now deterministically selects one canonical global asset per uppercase symbol so downstream Valuation/DOSM cards are not inflated while the catalog is cleaned.
+- `marketops-fmp-annual-run` completed for workflow `subglobalannualworkflow-20260901` with coverage `{"succeeded": 999, "skipped_no_data": 1}`.
+- The stale global EOD evidence plane was the root cause for annual v4 `insufficient_data`: before catch-up, global `eod_bar` evidence stopped at `2026-08-14`, so the annual materializer could not derive market cap from close × shares.
+- `subscriber-global-eod-history-materialize` caught the global EOD plane up through `2026-08-31` for `999` assets and inserted `10969` missing EOD records.
+- Rerunning the governed annual action after EOD catch-up produced `997` annual VC rows and `997` annual DOSM rows for `2026-08-31`; `956` of each include `revenue_cagr_3y_annual`.
+- Browser/API validation as `luke@strategiclabs.io` confirmed `/marketops/valuation` loads, tenant-local valuation API returns platform-global AAPL annual DOSM v4 with CAGR and updated revenue-growth score, tactical posture is present, and the rendered page showed `Unknown` count `0`.
+- Raw compose execution remains intentionally constrained by protected MarketOps database secrets. The deployment-agent `render-cutover-env` action currently references a missing installed library path and must be repaired before it can replace all manual protected-env compose paths.
+
+Remaining acceptance:
+
+1. Open a catalog-governance cleanup slice to deduplicate `subscriber_global_assets` canonical symbols without deleting or rewriting immutable historical evidence.
+2. Repair and reprovision the deployment-agent `render-cutover-env` library dependency so protected production compose actions do not require raw operator commands.
+3. Decide whether the `9` partial annual valuation rows and the single FMP no-data asset should remain governed exceptions or move through a catalog-normalization/exclusion policy.
