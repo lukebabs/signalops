@@ -137,19 +137,19 @@ The default subscriber smoke validates product correctness and authorization, bu
 
 The Mobile User Readiness Sprint adds a separate mobile suite focused on phone-first subscriber use. Admin Workbench, Subscription Administration, and operator run-now controls remain out of scope for that suite.
 
-Target launcher:
+Committed launcher:
 
 ```bash
 ./scripts/run_subscriber_mobile_ui_smoke.sh
 ```
 
-Target suite:
+Committed suite:
 
 ```bash
 .venv/bin/python -m pytest -q python/tests/test_subscriber_mobile_ui_smoke.py
 ```
 
-The mobile suite uses the same protected QA identity and failure-only artifact policy as the subscriber smoke. The first committed slice runs at 390px phone width and verifies production login plus Dashboard, Watchlists, Assets, Sector Rotation, and Syncratic Intelligence with no 404, watchlist-context error, or page-level horizontal overflow. Remaining expansion should add 375px and 430px widths, representative drilldowns, enrollment, subscription pricing, and Syncratic Dashboard-to-detail navigation.
+The mobile suite uses the same protected QA identity and failure-only artifact policy as the subscriber smoke. The current committed slice runs at 375px, 390px, and 430px phone widths and verifies production login plus Dashboard, Watchlists, Assets, Sector Rotation, Syncratic Intelligence, and Dashboard-to-Syncratic handoff with no 404, watchlist-context error, or page-level horizontal overflow. Remaining expansion should add representative drilldowns, enrollment, subscription pricing, and gated-route behavior.
 
 Required subscriber routes are defined in [Mobile User Readiness Sprint](mobile_user_readiness_sprint.md). A passing mobile smoke is required before declaring the subscriber web product ready for primarily mobile users.
 

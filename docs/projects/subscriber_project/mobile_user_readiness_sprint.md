@@ -1,6 +1,6 @@
 # Subscriber Project — Mobile User Readiness Sprint
 
-Status: active production-readiness sprint; initial production mobile smoke passed on 2026-09-01.
+Status: active production-readiness sprint; initial production mobile smoke passed on 2026-09-01 and expanded to the required phone viewport matrix.
 
 Owner: MarketOps subscriber product and frontend engineering.
 
@@ -16,7 +16,7 @@ This sprint turns mobile usability from an incidental responsive behavior into a
 
 The application already uses responsive layout primitives, card/detail patterns, scroll-contained tables, and some mobile-aware flows. Historical validation exists for older 375px views, but the current subscription product has changed materially since then: watchlists, global data-plane projections, SAF, Syncratic narratives, subscription gating, and B2C enrollment all changed the user journey.
 
-The first dedicated mobile acceptance slice now passes against production for the core subscriber read path. The product is still not fully mobile-production-ready until the remaining viewport matrix, gated routes, drilldowns, enrollment, and subscription flows are covered.
+The first dedicated mobile acceptance slice now passes against production for the core subscriber read path at 375px, 390px, and 430px phone widths. The product is still not fully mobile-production-ready until gated routes, drilldowns, enrollment, and subscription flows are covered.
 
 ## Non-goals
 
@@ -177,13 +177,13 @@ Proposed file:
 python/tests/test_subscriber_mobile_ui_smoke.py
 ```
 
-Proposed launcher:
+Committed launcher:
 
 ```text
 scripts/run_subscriber_mobile_ui_smoke.sh
 ```
 
-The suite should use the existing real-OIDC QA identity and pre-seeded watchlist fixtures. It should retain failure-only HAR, trace, and screenshots under the protected artifact directory.
+The suite uses the existing real-OIDC QA identity and pre-seeded watchlist fixtures. It retains failure-only HAR, trace, and screenshots under the protected artifact directory.
 
 Core assertions:
 

@@ -9392,3 +9392,10 @@ Next-cycle priority:
 - Added `python/tests/test_subscriber_mobile_ui_smoke.py`, a read-only phone-width subscriber smoke that validates production login and the core subscriber routes: Dashboard, Watchlists, Assets, Sector Rotation, and Syncratic Intelligence.
 - Combined readiness validation passed against production: Admin freshness plus mobile subscriber smoke returned `2 passed in 4.07s`.
 - Updated the Subscriber Project production-readiness path, automated browser acceptance guide, and Mobile User Readiness Sprint to record that mobile has initial automated evidence while the broader PR-5 viewport/drilldown/enrollment matrix remains open.
+
+### 2026-09-01 — Mobile subscriber viewport and Syncratic handoff expansion
+
+- Expanded `python/tests/test_subscriber_mobile_ui_smoke.py` from one 390px smoke to the required phone viewport matrix: 375x812, 390x844, and 430x932.
+- Added Dashboard-to-Syncratic handoff coverage so the mobile gate verifies that the Dashboard exposes `Open Syncratic Intelligence` and lands on `/marketops/syncratic` without horizontal overflow.
+- Added `scripts/run_subscriber_mobile_ui_smoke.sh`, using the same literal dotenv parser and protected pilot QA identity pattern as the existing subscriber smoke.
+- Production validation passed through the launcher: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `6 passed in 17.38s`.

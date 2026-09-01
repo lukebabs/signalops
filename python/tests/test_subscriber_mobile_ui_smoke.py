@@ -8,6 +8,7 @@ overflow. Admin Workbench is excluded from this mobile gate.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -21,8 +22,13 @@ def subscriber_config() -> SubscriberUIConfig:
     return subscriber_ui_config()
 
 
+@pytest.fixture(params=[{"width": 375, "height": 812}, {"width": 390, "height": 844}, {"width": 430, "height": 932}], ids=["iphone-small", "iphone-standard", "iphone-large"])
+def mobile_viewport(request: pytest.FixtureRequest) -> dict[str, int]:
+    return request.param
+
+
 @pytest.fixture
-def mobile_subscriber_page(subscriber_config: SubscriberUIConfig, browser: Browser, request: pytest.FixtureRequest) -> Page:
+def mobile_subscriber_page(subscriber_config: SubscriberUIConfig, browser: Browser, request: pytest.FixtureRequest, mobile_viewport: dict[str, int]) -> Page:
     artifact_dir = Path(os.getenv("SIGNALOPS_E2E_ARTIFACT_DIR", "/tmp/signalops-e2e-artifacts"))
     artifact_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     artifact_dir.chmod(0o700)
@@ -31,7 +37,7 @@ def mobile_subscriber_page(subscriber_config: SubscriberUIConfig, browser: Brows
     trace_path = artifact_dir / f"{stem}.zip"
     screenshot_path = artifact_dir / f"{stem}.png"
     context = browser.new_context(
-        viewport={"width": 390, "height": 844},
+        viewport=mobile_viewport,
         is_mobile=True,
         has_touch=True,
         record_har_path=str(har_path),
@@ -76,3 +82,19 @@ def test_subscriber_mobile_core_journey(mobile_subscriber_page: Page, subscriber
     ]
     for path, heading in routes:
         assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}{path}", heading)
+
+
+def test_subscriber_mobile_dashboard_syncratic_handoff(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
+    login(mobile_subscriber_page, subscriber_config)
+    assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}/marketops/dashboard", "MarketOps Dashboard")
+    handoff = mobile_subscriber_page.get_by_role("link", name="Open Syncratic Intelligence").or_(
+        mobile_subscriber_page.get_by_role("button", name="Open Syncratic Intelligence")
+    ).first
+    expect(handoff).to_be_visible(timeout=30_000)
+    handoff.click()
+    expect(mobile_subscriber_page).to_have_url(re.compile(r"/marketops/syncratic"), timeout=30_000)
+    expect(mobile_subscriber_page.get_by_role("heading", name="Syncratic Intelligence")).to_be_visible(timeout=30_000)
+    overflow = mobile_subscriber_page.evaluate(
+        "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth"
+    )
+    assert overflow <= 8, f"Syncratic handoff destination has {overflow}px horizontal overflow at mobile viewport"
