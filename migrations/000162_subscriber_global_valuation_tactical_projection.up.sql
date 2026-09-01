@@ -57,7 +57,12 @@ SELECT DISTINCT ON (asset.global_asset_id, result.session_date, result.algorithm
   'marketops-dedicated-primary' AS immutable_baseline_ref,
   jsonb_build_object('source_table', 'marketops_valuation_results', 'tenant_id', result.tenant_id, 'projection', 'subscriber_gateway_global_valuation_results') AS provenance
 FROM marketops_valuation_results result
-JOIN subscriber_global_assets asset ON upper(asset.canonical_symbol) = upper(result.symbol)
+JOIN (
+  SELECT DISTINCT ON (upper(canonical_symbol)) global_asset_id, canonical_symbol
+  FROM subscriber_global_assets
+  WHERE canonical_symbol <> ''
+  ORDER BY upper(canonical_symbol), global_asset_id
+) asset ON upper(asset.canonical_symbol) = upper(result.symbol)
 WHERE result.tenant_id = 'tenant-local'
   AND result.algorithm_id = 'signalops.algorithms.tactical_market_posture_v1'
 ORDER BY asset.global_asset_id, result.session_date, result.algorithm_id, result.created_at DESC, result.result_id DESC
