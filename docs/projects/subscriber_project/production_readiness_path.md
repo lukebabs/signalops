@@ -424,7 +424,7 @@ Evidence:
 
 Remaining acceptance:
 
-1. Repair and reprovision the deployment-agent `render-cutover-env` library dependency so protected production compose actions do not require raw operator commands.
+1. Reprovision the deployment agent from the repaired source so the installed `render-cutover-env` action receives its `lib/marketops_boundary_env.sh` dependency.
 2. Monitor the remaining governed FMP no-data/partial-source exceptions; user-facing annual VC/DOSM projections now skip assets without usable annual data instead of displaying partial analytical rows.
 
 
@@ -444,4 +444,4 @@ Evidence:
 Remaining acceptance:
 
 1. Extend the same canonical projection pattern to any other subscriber global gateway views that still join directly to `subscriber_global_assets`.
-2. Repair and reprovision the deployment-agent `render-cutover-env` library dependency.
+2. Reprovision the deployment agent from the repaired source so `render-cutover-env` has its installed library dependency.

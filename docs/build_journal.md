@@ -9363,3 +9363,9 @@ Next-cycle priority:
 - Preserved all source catalog rows and immutable evidence records; no evidence rows were deleted, rewritten, or re-keyed.
 - Updated the annual valuation materializer so future runs append only eligible annual VC/DOSM results instead of writing partial `insufficient_data` analytical rows.
 - Verification: targeted Go tests passed for the annual valuation materializer and valuation package; dedicated MarketOps DB migration applied; projected canonical duplicate symbols returned `0`; projected partial annual v4 rows returned `0`.
+
+### 2026-09-01 — Deployment-agent render-cutover-env library source fix
+
+- Repaired the deployment-agent provisioner source so `scripts/lib/marketops_boundary_env.sh` is installed into `/usr/local/lib/signalops-deployment-agent/lib/` beside `render_marketops_cutover_env.sh`.
+- Verified `scripts/provision_signalops_deployment_agent.sh` passes `bash -n`.
+- Live reprovisioning is still operator-gated because passwordless sudo is granted to the installed `signalops-deploy-agent` binary, not to the provisioner script itself.

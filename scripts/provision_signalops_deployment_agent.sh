@@ -16,6 +16,7 @@ id "$operator" >/dev/null
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_agent="$repo_dir/deploy/deployment-agent/signalops-deploy-agent"
 source_renderer="$repo_dir/scripts/render_marketops_cutover_env.sh"
+source_marketops_boundary_env="$repo_dir/scripts/lib/marketops_boundary_env.sh"
 source_browser_smoke="$repo_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
 source_safe_deploy="$repo_dir/scripts/deploy_signalops_public_production.sh"
 source_bridge="$repo_dir/scripts/signalops_deployment_agent_bridge.py"
@@ -33,7 +34,7 @@ agent_dir=/usr/local/lib/signalops-deployment-agent
 agent_bin=/usr/local/sbin/signalops-deploy-agent
 sudoers_file=/etc/sudoers.d/signalops-deploy-agent
 
-[[ -x "$source_agent" && -x "$source_renderer" && -x "$source_browser_smoke" && -x "$source_safe_deploy" && -x "$source_bridge" && -r "$bridge_template" ]] || {
+[[ -x "$source_agent" && -x "$source_renderer" && -r "$source_marketops_boundary_env" && -x "$source_browser_smoke" && -x "$source_safe_deploy" && -x "$source_bridge" && -r "$bridge_template" ]] || {
   printf 'Deployment-agent source files are missing or not executable.\n' >&2
   exit 3
 }
@@ -57,6 +58,8 @@ trap 'rm -f "$temporary" "$agent_temporary"' EXIT
 sed "s|@REPOSITORY_DIR@|$repo_dir|g" "$source_agent" > "$agent_temporary"
 install -m 0750 -o root -g root "$agent_temporary" "$agent_bin"
 install -m 0750 -o root -g root "$source_renderer" "$agent_dir/render_marketops_cutover_env.sh"
+install -d -m 0750 -o root -g root "$agent_dir/lib"
+install -m 0640 -o root -g root "$source_marketops_boundary_env" "$agent_dir/lib/marketops_boundary_env.sh"
 install -m 0750 -o root -g root "$source_bridge" "$agent_dir/signalops_deployment_agent_bridge.py"
 bridge_rendered="$(mktemp /etc/systemd/system/.signalops-deployment-agent-bridge.XXXXXX)"
 sed "s|@AGENT_DIR@|$agent_dir|g" "$bridge_template" > "$bridge_rendered"
