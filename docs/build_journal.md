@@ -9415,3 +9415,11 @@ Next-cycle priority:
 - Extended `python/tests/test_subscriber_mobile_ui_smoke.py` to include the SAF route, daily progression chart, cohort card expansion, observation audit expansion, close behavior, and no page-level horizontal overflow across 375x812, 390x844, and 430x932 viewports.
 - Production web deploy completed through the constrained deployment agent and its smoke passed: `2 passed in 45.54s`.
 - Expanded mobile production validation passed after deployment: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `12 passed in 56.36s`.
+
+### 2026-09-01 — Mobile SRI ETF progression and makeup design slice
+
+- Implemented mobile-first Sector Rotation Intelligence ETF progression cards while preserving the existing desktop table.
+- Mobile ETF cards now open inline 60-session progression detail, expose the ETF makeup tab, render holdings as phone-readable cards when issuer data exists, and show an explicit unavailable state when a current holdings snapshot is absent.
+- Extended `python/tests/test_subscriber_mobile_ui_smoke.py` to validate the SRI route, ETF progression tab, inline open/close behavior, progression chart, ETF makeup state, available holdings cards, and no page-level horizontal overflow across 375x812, 390x844, and 430x932 viewports.
+- Production web deploy completed through `sudo -n signalops-deploy-agent marketops-web-deploy`; deploy smoke passed.
+- Expanded mobile production validation passed after deployment: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `15 passed in 127.35s`.

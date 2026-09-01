@@ -95,8 +95,9 @@ Acceptance:
 
 - SRI cards stack cleanly.
 - ETF progression charts use reduced x-axis density on mobile.
-- ETF makeup tab remains readable through summary + contained constituent table.
+- ETF makeup tab remains readable through mobile holdings cards and the desktop contained table remains preserved.
 - Segment and ETF filters wrap without forcing horizontal page scroll.
+- Initial production evidence exists: SRI route, ETF progression tab, inline detail open/close, progression chart, ETF makeup available/unavailable state, mobile holdings cards, and no page-level horizontal overflow passed across 375px, 390px, and 430px viewports on 2026-09-01.
 
 ### M6 — Syncratic Intelligence
 
@@ -220,7 +221,8 @@ Initial likely fixes:
 4. SRI
    - Reduce chart label density on phone.
    - Use card-first ETF progression.
-   - Keep ETF makeup as summary plus contained table.
+   - Keep ETF makeup as summary plus mobile holdings cards, with the desktop contained table preserved.
+   - Status: implemented and production-smoked across the required phone viewport matrix on 2026-09-01.
 
 5. Syncratic
    - Make full narrative destination obvious.

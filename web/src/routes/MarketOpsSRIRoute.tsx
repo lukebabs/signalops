@@ -147,7 +147,13 @@ function ETFMakeup({ makeup, loading, error }: { makeup?: MarketOpsSRIETFMakeupR
       <a href={snapshot.source_url} target="_blank" rel="noreferrer" className="rounded border border-brand-300 bg-white px-2 py-1 text-xs font-medium text-brand-800 hover:bg-brand-100">Issuer source ↗</a>
     </div>
     <dl className="mt-3 grid grid-cols-3 gap-2 rounded bg-white p-2 text-xs"><div><dt className="text-gray-500">Constituents</dt><dd className="font-semibold tabular-nums">{snapshot.holdings_count}</dd></div><div><dt className="text-gray-500">Reported weight</dt><dd className="font-semibold tabular-nums">{snapshot.total_weight.toFixed(2)}%</dd></div><div><dt className="text-gray-500">Top 10 weight</dt><dd className="font-semibold tabular-nums">{snapshot.top_ten_weight.toFixed(2)}%</dd></div></dl>
-    <div className="mt-3 max-w-full overflow-x-auto rounded border border-gray-200 bg-white overscroll-x-contain"><table className="min-w-[680px] divide-y divide-gray-200 text-xs"><thead className="bg-gray-50 text-left uppercase tracking-wide text-gray-500"><tr><th className="px-2 py-2">#</th><th className="px-2 py-2">Holding</th><th className="px-2 py-2">Ticker</th><th className="px-2 py-2 text-right">Weight</th><th className="px-2 py-2">Sector</th></tr></thead><tbody className="divide-y divide-gray-100">{makeup.holdings.map((holding) => <tr key={holding.rank}><td className="px-2 py-2 tabular-nums text-gray-500">{holding.rank}</td><td className="px-2 py-2 font-medium text-gray-900">{holding.name}</td><td className="px-2 py-2 font-mono text-gray-700">{holding.ticker || "—"}</td><td className="px-2 py-2 text-right font-semibold tabular-nums text-gray-900">{holding.weight.toFixed(2)}%</td><td className="px-2 py-2 text-gray-600">{holding.sector || "—"}</td></tr>)}</tbody></table></div>
+    <div className="mt-3 space-y-2 md:hidden" aria-label="Mobile ETF holdings">
+      {makeup.holdings.map((holding) => <article key={holding.rank} data-testid={`sri-mobile-holding-${holding.rank}`} className="rounded border border-gray-200 bg-white p-2 text-xs">
+        <div className="flex items-start justify-between gap-3"><div><div className="font-medium text-gray-900">{holding.name}</div><div className="mt-1 font-mono text-gray-600">{holding.ticker || "—"}</div></div><div className="text-right"><div className="text-[10px] uppercase tracking-wide text-gray-500">Weight</div><div className="font-semibold tabular-nums text-gray-900">{holding.weight.toFixed(2)}%</div></div></div>
+        <div className="mt-2 text-gray-600">#{holding.rank} · {holding.sector || "sector unavailable"}</div>
+      </article>)}
+    </div>
+    <div className="mt-3 hidden max-w-full overflow-x-auto rounded border border-gray-200 bg-white overscroll-x-contain md:block"><table className="min-w-[680px] divide-y divide-gray-200 text-xs"><thead className="bg-gray-50 text-left uppercase tracking-wide text-gray-500"><tr><th className="px-2 py-2">#</th><th className="px-2 py-2">Holding</th><th className="px-2 py-2">Ticker</th><th className="px-2 py-2 text-right">Weight</th><th className="px-2 py-2">Sector</th></tr></thead><tbody className="divide-y divide-gray-100">{makeup.holdings.map((holding) => <tr key={holding.rank}><td className="px-2 py-2 tabular-nums text-gray-500">{holding.rank}</td><td className="px-2 py-2 font-medium text-gray-900">{holding.name}</td><td className="px-2 py-2 font-mono text-gray-700">{holding.ticker || "—"}</td><td className="px-2 py-2 text-right font-semibold tabular-nums text-gray-900">{holding.weight.toFixed(2)}%</td><td className="px-2 py-2 text-gray-600">{holding.sector || "—"}</td></tr>)}</tbody></table></div>
     <p className="mt-2 text-[11px] text-brand-800">{makeup.evidence_note ?? "Current issuer-published representation only; it does not affect Sector Rotation Intelligence scores or reconstruct historical holdings."}</p>
   </section>;
 }
@@ -206,8 +212,16 @@ function ProgressionTab({ tenantId, snapshots }: { tenantId: string; snapshots: 
   if (!cards.length) return <EmptyState message="No scored primary ETF snapshots are ready for progression analysis." />;
   return <div className="space-y-3">
     <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600">{cards.length} primary ETFs · select an ETF row to reveal its persisted 60-session score progression or current issuer makeup. This is analytical context, not a rotation claim or recommendation.</div>
-    <div className="space-y-1">
-      <p className="px-1 text-xs text-gray-500 md:hidden">Swipe horizontally to view all ETF columns.</p>
+    <div className="space-y-3 md:hidden" aria-label="Mobile ETF progression cards">
+      {cards.map((item) => {
+        const isSelected = selected?.segment_id === item.segment_id;
+        return <article key={item.snapshot_id} data-testid={`sri-mobile-etf-card-${primaryETF(item)}`} className={isSelected ? "rounded-lg border border-brand-300 bg-brand-50 p-3 shadow-sm" : "rounded-lg border border-gray-200 bg-white p-3 shadow-sm"}>
+          <SnapshotCard item={item} selected={isSelected} onSelect={() => setSelected((current) => current?.segment_id === item.segment_id ? null : item)} />
+          {isSelected ? <div className="mt-3"><div ref={detailRef}><ETFDetail snapshot={item} history={historyQ.data?.snapshots ?? []} historyLoading={historyQ.isLoading} historyError={historyQ.isError ? historyQ.error : undefined} makeup={makeupQ.data} makeupLoading={makeupQ.isLoading} makeupError={makeupQ.isError ? makeupQ.error : undefined} /></div><button type="button" onClick={() => setSelected(null)} className="mt-2 rounded border border-brand-300 bg-white px-2 py-1 text-xs font-medium text-brand-800">Close ETF detail</button></div> : null}
+        </article>;
+      })}
+    </div>
+    <div className="hidden space-y-1 md:block">
       <div className="max-w-full overflow-x-auto rounded border border-gray-200 bg-white overscroll-x-contain" role="region" aria-label="Scrollable ETF progression table" tabIndex={0}>
         <table className="min-w-[980px] table-fixed divide-y divide-gray-200 text-sm">
           <colgroup><col className="w-16" /><col className="w-64" /><col className="w-28" /><col className="w-32" /><col className="w-72" /><col className="w-44" /><col className="w-32" /></colgroup>

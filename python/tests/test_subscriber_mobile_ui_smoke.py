@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import Browser, Page, expect
+from playwright.sync_api import Browser, Page, TimeoutError as PlaywrightTimeoutError, expect
 
 from test_subscriber_ui_smoke import SubscriberUIConfig, login, subscriber_ui_config
 
@@ -105,6 +105,53 @@ def test_subscriber_mobile_assets_card_drilldown(mobile_subscriber_page: Page, s
     assert overflow <= 8, f"Assets mobile drilldown has {overflow}px horizontal overflow"
 
 
+
+
+
+def test_subscriber_mobile_sri_progression_and_makeup(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
+    login(mobile_subscriber_page, subscriber_config)
+    assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}/marketops/sectors", "Sector Rotation Intelligence")
+    mobile_subscriber_page.get_by_role("tab", name="ETF progression").click()
+    cards = mobile_subscriber_page.locator("[data-testid^='sri-mobile-etf-card-']")
+    expect(cards.first).to_be_visible(timeout=30_000)
+
+    saw_available_holdings = False
+    saw_makeup_state = False
+    for index in range(min(cards.count(), 8)):
+        etf_card = cards.nth(index)
+        expect(etf_card).to_contain_text("Open 60-session progression", timeout=30_000)
+        etf_card.get_by_role("button").first.click()
+        expect(etf_card).to_contain_text("Detail open", timeout=30_000)
+        expect(etf_card.get_by_role("tab", name="Progression")).to_be_visible(timeout=30_000)
+        etf_card.get_by_role("tab", name="ETF makeup").click()
+
+        holding = etf_card.locator("[data-testid^='sri-mobile-holding-']").first
+        unavailable = etf_card.get_by_text("Current ETF makeup is not available")
+        try:
+            holding.wait_for(state="visible", timeout=10_000)
+            expect(holding).to_contain_text("Weight", timeout=30_000)
+            saw_available_holdings = True
+            saw_makeup_state = True
+        except PlaywrightTimeoutError:
+            try:
+                unavailable.wait_for(state="visible", timeout=10_000)
+                saw_makeup_state = True
+            except PlaywrightTimeoutError:
+                pass
+
+        close_detail = etf_card.get_by_role("button", name="Close ETF detail")
+        expect(close_detail).to_be_visible(timeout=30_000)
+        close_detail.click()
+        expect(etf_card).not_to_contain_text("ETF makeup", timeout=30_000)
+
+        if saw_available_holdings:
+            break
+
+    assert saw_makeup_state, "SRI mobile ETF detail did not expose holdings or an explicit unavailable makeup state"
+    overflow = mobile_subscriber_page.evaluate(
+        "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth"
+    )
+    assert overflow <= 8, f"SRI mobile progression/makeup has {overflow}px horizontal overflow"
 
 def test_subscriber_mobile_signal_assurance_drilldown(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
     login(mobile_subscriber_page, subscriber_config)
