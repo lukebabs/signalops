@@ -65,12 +65,7 @@ function normalizeSyncraticSurfaceTab(value: string | undefined): SyncraticSurfa
 }
 const DAILY_NARRATIVE_INSIGHT_TYPE = 'marketops.syncratic.daily_narrative.v1';
 const SYNCRATIC_EXPLAINABILITY_FEATURE = 'syncratic_explainability' as const;
-const NARRATIVE_WINDOW_OPTIONS = [
-  { key: 'latest', label: 'Latest trading day', sessions: 1 },
-  { key: '5d', label: 'Last 5 trading days', sessions: 5 },
-  { key: '10d', label: 'Last 10 trading days', sessions: 10 },
-] as const;
-type SyncraticNarrativeWindow = typeof NARRATIVE_WINDOW_OPTIONS[number]['key'];
+const RECENT_NARRATIVE_DATE_LIMIT = 5;
 
 
 // Fixed materialize defaults — the bounded form does not expose these.
@@ -366,7 +361,7 @@ function SyncraticNarrativeWorkbench({
   const canRunAsk = subscription.allows(SYNCRATIC_EXPLAINABILITY_FEATURE);
   const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [selectedNarrativeId, setSelectedNarrativeId] = useState<string | null>(deepLinkedInsightId);
-  const [narrativeWindow, setNarrativeWindow] = useState<SyncraticNarrativeWindow>('latest');
+  const [selectedNarrativeDate, setSelectedNarrativeDate] = useState('');
   const materialize = useMaterializeSyncraticDailyNarratives();
   const narratives = useSyncraticInsights({
     tenant_id: tenantId,
@@ -375,15 +370,19 @@ function SyncraticNarrativeWorkbench({
     status: 'active',
     limit: 200,
   });
-  const filtered = useMemo(() => {
+  const scopedNarratives = useMemo(() => {
     const all = narratives.data?.syncratic_insights ?? [];
-    const scoped = tab.strategy ? all.filter((insight) => narrativeStrategy(insight) === tab.strategy) : all;
-    const dates = Array.from(new Set(scoped.map(narrativeSessionDate).filter(Boolean))).sort().reverse();
-    const selectedOption = NARRATIVE_WINDOW_OPTIONS.find((option) => option.key === narrativeWindow) ?? NARRATIVE_WINDOW_OPTIONS[0];
-    const allowedDates = new Set(dates.slice(0, selectedOption.sessions));
-    if (allowedDates.size === 0) return scoped;
-    return scoped.filter((insight) => allowedDates.has(narrativeSessionDate(insight)));
-  }, [narratives.data, tab.strategy, narrativeWindow]);
+    return tab.strategy ? all.filter((insight) => narrativeStrategy(insight) === tab.strategy) : all;
+  }, [narratives.data, tab.strategy]);
+  const availableNarrativeDates = useMemo(
+    () => Array.from(new Set(scopedNarratives.map(narrativeSessionDate).filter(Boolean))).sort().reverse().slice(0, RECENT_NARRATIVE_DATE_LIMIT),
+    [scopedNarratives],
+  );
+  const activeNarrativeDate = selectedNarrativeDate || availableNarrativeDates[0] || '';
+  const filtered = useMemo(() => {
+    if (!activeNarrativeDate) return scopedNarratives;
+    return scopedNarratives.filter((insight) => narrativeSessionDate(insight) === activeNarrativeDate);
+  }, [scopedNarratives, activeNarrativeDate]);
   const latest = filtered.slice().sort((a, b) => {
     const dateCompare = narrativeSessionDate(b).localeCompare(narrativeSessionDate(a));
     if (dateCompare !== 0) return dateCompare;
@@ -400,7 +399,14 @@ function SyncraticNarrativeWorkbench({
 
   useEffect(() => {
     if (!deepLinkedInsightId) setSelectedNarrativeId(null);
-  }, [narrativeWindow, deepLinkedInsightId]);
+  }, [activeNarrativeDate, deepLinkedInsightId]);
+
+  useEffect(() => {
+    if (!availableNarrativeDates.length) return;
+    if (!selectedNarrativeDate || !availableNarrativeDates.includes(selectedNarrativeDate)) {
+      setSelectedNarrativeDate(availableNarrativeDates[0]);
+    }
+  }, [availableNarrativeDates, selectedNarrativeDate]);
 
   function run(dryRun: boolean) {
     if (!canRunAsk) return;
@@ -412,20 +418,21 @@ function SyncraticNarrativeWorkbench({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{tab.label} narratives</h2>
-          <p className="text-xs text-gray-600 dark:text-gray-300">Automated explainability over persisted MarketOps artifacts. Latest trading day is shown by default; multi-day windows expose session-to-session evolution.</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">Automated explainability over persisted MarketOps artifacts. The newest available trading day is shown by default; use the date selector to review one of the last five trading days.</p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs text-gray-600 dark:text-gray-300">
-            Narrative window
+            Narrative date
             <select
-              value={narrativeWindow}
-              onChange={(event) => setNarrativeWindow(event.target.value as SyncraticNarrativeWindow)}
-              className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-              aria-label="Narrative window"
+              value={activeNarrativeDate}
+              onChange={(event) => setSelectedNarrativeDate(event.target.value)}
+              disabled={!availableNarrativeDates.length}
+              className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              aria-label="Narrative date"
             >
-              {NARRATIVE_WINDOW_OPTIONS.map((option) => (
-                <option key={option.key} value={option.key}>{option.label}</option>
-              ))}
+              {availableNarrativeDates.length ? availableNarrativeDates.map((date) => (
+                <option key={date} value={date}>{date}</option>
+              )) : <option value="">No narratives</option>}
             </select>
           </label>
           <label className="text-xs text-gray-600 dark:text-gray-300">
