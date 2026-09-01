@@ -1,8 +1,8 @@
 # Subscriber Project — Production Readiness Path
 
-Status: controlled pilot-ready checkpoint advanced; PR-0 and PR-1 are closed after the August 21, 2026 ET post-close acceptance cycle. Syncratic Ask live smoke is now passing as a production-readiness QA control.
+Status: controlled pilot-ready checkpoint advanced; PR-0 and PR-1 are closed after the August 21, 2026 ET post-close acceptance cycle. The September 1, 2026 UTC follow-up confirms the latest completed-session data plane is current for the controlled pilot scope, and the first mobile subscriber smoke is now automated.
 
-Last reviewed: 2026-08-24.
+Last reviewed: 2026-09-01.
 
 ## Readiness position
 
@@ -12,19 +12,19 @@ The current platform has enough structure to keep validating with controlled ten
 
 Production readiness is still blocked by expansion and recovery-evidence gaps. The core operational-consistency loop for the tenant-local pilot scope has now passed one natural post-close acceptance cycle after the MarketOps database decoupling.
 
-## Current evidence snapshot — 2026-08-22
+## Current evidence snapshot — 2026-09-01
 
 | Area | Status | Evidence / gap |
 | --- | --- | --- |
-| Web and Gateway availability | Ready | Public `/readyz` returned `200`; Admin, access-control, and Dashboard freshness Playwright smokes passed. |
+| Web and Gateway availability | Ready | Admin Operations Health Playwright/API smoke and mobile subscriber Playwright smoke passed together on production: `2 passed in 4.07s`. |
 | Dedicated MarketOps data boundary | Ready | `signalops-marketops-postgres-1` and `signalops-marketops-timescaledb-1` were healthy. MarketOps is intended to read/write the dedicated MarketOps databases, not the old shared MarketOps tables. |
-| Completed-session global data | Ready for pilot scope | Market State and Risk/Reward showed 132/132 tenant-local symbols for the 2026-08-21 session; SRI showed 16/16 segments for 2026-08-21; SAF matured evidence remains governed by the configured maturation window. |
-| Intraday freshness | Ready / market-idle | Latest intraday snapshot was 2026-08-21 22:15 UTC with 132 tenant-local symbols. Saturday, August 22 has no EOD/intraday trading session. |
-| Scheduled jobs | Ready for pilot scope | `scheduler-status` returned clean after the August 21 post-close window. Daily post-close, Risk/Reward, recovery, SRI, holdings, and intraday completed successfully. Warm EOD returned governed `degraded` with `bounded_provider_gap`. |
-| Daily post-close | Closed for PR-0 | The August 21 post-close cycle completed without requiring stale-systemd reconciliation. |
-| FMP annual financial job | Active / observing | Option B selected and activated: weekly Saturday 02:30 ET recurring capture. Live scheduler status shows `signalops-marketops-boundary-fmp-annual-financial.timer active=active next=Sat 2026-08-29 06:30:00 UTC`. |
+| Completed-session global data | Ready for pilot scope | Dedicated MarketOps DB shows 2026-08-31 latest rows: Market State 132, Risk/Reward 132, SRI 16, SAF 99, Annual VC 988, Annual DOSM 988. |
+| Intraday freshness | Ready / market-idle | Latest intraday scheduled service result is success. Freshness remains governed by market-window semantics rather than requiring live snapshots outside the active monitor window. |
+| Scheduled jobs | Ready with governed warning | `scheduler-status` returned active timers and success results for tracked services. `marketops-warm-eod` remained governed `degraded` with `bounded_provider_gap`, while post-close, intraday, recovery, SRI, holdings, and FMP annual completed successfully. |
+| Daily post-close | Closed for PR-0 | The August 31 post-close cycle completed: `marketops-daily-postclose` succeeded at 2026-08-31 22:35:52 UTC and `marketops-postclose-recovery` succeeded at 2026-09-01 03:00:01 UTC. |
+| FMP annual financial job | Active / current | Latest governed annual run succeeded on 2026-09-01 UTC after global EOD catch-up. Current user-facing annual VC/DOSM output skips assets without usable annual data instead of projecting partial ineligible rows. |
 | Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass, including the controlled Syncratic Ask live smoke after AI Gateway price-catalog propagation. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. Syncratic Ask readiness is tracked in [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md), and Admin Operations Health now has a dedicated Syncratic Ask row that passed production browser validation on 2026-08-23. |
-| Mobile subscriber UX | Planned sprint | Subscriber mobile web is the production target for most users, but current evidence is not sufficient after recent watchlist, SAF, Syncratic, subscription, and enrollment changes. Admin/operator workflows are explicitly desktop scope. See [Mobile User Readiness Sprint](mobile_user_readiness_sprint.md). |
+| Mobile subscriber UX | Initial automated smoke passed / sprint open | `python/tests/test_subscriber_mobile_ui_smoke.py` validates production login and core subscriber routes at 390px phone width: Dashboard, Watchlists, Assets, Sector Rotation, and Syncratic Intelligence. The broader PR-5 mobile matrix and drilldown-specific checks remain open. |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. The `000160` upgrade-intent journey is validated: pricing renders configured Stripe catalog IDs, Checkout is disabled by design, upgrade interactions persist for tenant-pilot-b, Admin Upgrade funnel shows the event, and Stripe webhook fail-closed/signed-canary behavior is verified. |
 | Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |

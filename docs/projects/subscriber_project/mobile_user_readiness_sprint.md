@@ -1,6 +1,6 @@
 # Subscriber Project — Mobile User Readiness Sprint
 
-Status: planned production-readiness sprint.
+Status: active production-readiness sprint; initial production mobile smoke passed on 2026-09-01.
 
 Owner: MarketOps subscriber product and frontend engineering.
 
@@ -16,7 +16,7 @@ This sprint turns mobile usability from an incidental responsive behavior into a
 
 The application already uses responsive layout primitives, card/detail patterns, scroll-contained tables, and some mobile-aware flows. Historical validation exists for older 375px views, but the current subscription product has changed materially since then: watchlists, global data-plane projections, SAF, Syncratic narratives, subscription gating, and B2C enrollment all changed the user journey.
 
-The product is therefore not mobile-production-ready until current subscriber routes pass a dedicated mobile acceptance suite and the highest-friction views are remediated.
+The first dedicated mobile acceptance slice now passes against production for the core subscriber read path. The product is still not fully mobile-production-ready until the remaining viewport matrix, gated routes, drilldowns, enrollment, and subscription flows are covered.
 
 ## Non-goals
 
@@ -174,7 +174,7 @@ Add a dedicated mobile Playwright suite instead of overloading the desktop subsc
 Proposed file:
 
 ```text
-python/tests/test_subscriber_mobile_ui.py
+python/tests/test_subscriber_mobile_ui_smoke.py
 ```
 
 Proposed launcher:

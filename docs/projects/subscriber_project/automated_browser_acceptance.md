@@ -146,10 +146,10 @@ Target launcher:
 Target suite:
 
 ```bash
-.venv/bin/python -m pytest -q python/tests/test_subscriber_mobile_ui.py
+.venv/bin/python -m pytest -q python/tests/test_subscriber_mobile_ui_smoke.py
 ```
 
-The mobile suite must use the same protected QA identity and failure-only artifact policy as the subscriber smoke. It should run at 375px and 430px widths, assert no page-level horizontal overflow, verify primary subscriber routes, open and close representative drilldowns, and confirm Syncratic narrative detail is reachable from Dashboard.
+The mobile suite uses the same protected QA identity and failure-only artifact policy as the subscriber smoke. The first committed slice runs at 390px phone width and verifies production login plus Dashboard, Watchlists, Assets, Sector Rotation, and Syncratic Intelligence with no 404, watchlist-context error, or page-level horizontal overflow. Remaining expansion should add 375px and 430px widths, representative drilldowns, enrollment, subscription pricing, and Syncratic Dashboard-to-detail navigation.
 
 Required subscriber routes are defined in [Mobile User Readiness Sprint](mobile_user_readiness_sprint.md). A passing mobile smoke is required before declaring the subscriber web product ready for primarily mobile users.
 

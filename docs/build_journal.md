@@ -9382,3 +9382,13 @@ Next-cycle priority:
 - Reprovisioned deployment agent from the repaired source.
 - Verified `sudo -n signalops-deploy-agent render-cutover-env` now succeeds and renders `/etc/signalops/marketops-cutover.env`.
 - Verified `sudo -n signalops-deploy-agent scheduler-status` returns all tracked MarketOps timers active and all tracked services in `result=success`.
+
+### 2026-09-01 — Post-close validation and first mobile subscriber smoke
+
+- Completed the next post-close production-readiness validation after the MarketOps data-plane cleanup.
+- Admin Operations Health Playwright/API validation passed against production using the configured tenant-local admin identity: `python/tests/test_subscription_administration_ui_smoke.py::test_marketops_admin_operations_health_freshness_rows` returned `1 passed`.
+- Dedicated MarketOps DB evidence for the latest completed session `2026-08-31`: Market State `132`, Risk/Reward `132`, SRI `16`, SAF `99`, Annual VC `988`, and Annual DOSM `988`.
+- Scheduled-job status remained clean for post-close, intraday, recovery, SRI, holdings, and FMP annual; `marketops-warm-eod` retained the governed `degraded` state with reason `bounded_provider_gap`.
+- Added `python/tests/test_subscriber_mobile_ui_smoke.py`, a read-only phone-width subscriber smoke that validates production login and the core subscriber routes: Dashboard, Watchlists, Assets, Sector Rotation, and Syncratic Intelligence.
+- Combined readiness validation passed against production: Admin freshness plus mobile subscriber smoke returned `2 passed in 4.07s`.
+- Updated the Subscriber Project production-readiness path, automated browser acceptance guide, and Mobile User Readiness Sprint to record that mobile has initial automated evidence while the broader PR-5 viewport/drilldown/enrollment matrix remains open.
