@@ -465,7 +465,6 @@ function SyncraticNarrativeWorkbench({
                 <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800 dark:bg-brand-950 dark:text-brand-200">{narrativeLabel(narrativeStrategy(insight))}</span>
                 <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">{narrativeSessionDate(insight) || 'undated'}</span>
                 <SyncraticNarrativeQualityChip quality={quality} />
-                <span className="text-[11px] text-gray-500 dark:text-gray-400">{formatUtc(insight.updated_at)}</span>
               </div>
               <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{insight.title}</div>
               <p className="mt-1 line-clamp-3 text-xs text-gray-600 dark:text-gray-300">{insight.explanation || insight.summary}</p>
