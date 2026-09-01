@@ -154,72 +154,61 @@ running a second reverse proxy. The SignalOps overlay `compose.traefik.yaml`
 attaches the `web` service to the external Traefik network and adds Docker labels
 for the existing `websecure` entrypoint and `letsencrypt` certificate resolver.
 
-Required SignalOps env values:
+Required SignalOps env values for the production package:
 
 ```bash
 SIGNALOPS_PUBLIC_HOST=signalops.syncratic.io
 TRAEFIK_NETWORK=syncratic-core_syncratic_net
-COMPOSE_FILE=compose.yaml:compose.traefik.yaml
+COMPOSE_FILE=compose.yaml:compose.marketops-boundary.yaml:compose.marketops-read-cutover.yaml:compose.marketops-writer-cutover.yaml:compose.marketops-pgbackrest.yaml:compose.traefik.yaml
+SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD=<non-committed dedicated MarketOps primary password>
+SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD=<non-committed dedicated MarketOps temporal password>
+SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD=<non-committed dedicated subscriber gateway password>
+SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED=true
 ```
 
-`COMPOSE_FILE` is intentional for the public deployment. It makes a plain
-`docker compose up -d web` render the Traefik overlay by default, so rebuilds do
-not silently recreate `web` without router labels and produce a public 404.
+`COMPOSE_FILE` is intentional for the public production deployment. It makes a
+plain `docker compose up -d` render the public Traefik router, dedicated
+MarketOps database boundary, Gateway read cutover, continuous MarketOps writer
+cutover, and pgBackRest-capable database images by default. This prevents a
+normal restart from silently recreating `web` without router labels, `gateway`
+without dedicated MarketOps reads, or the dedicated databases without the
+recovery overlay.
+
+Before relying on plain Compose, run:
+
+```bash
+make compose-authority-validate
+```
+
+The verifier checks the implicit Compose graph, required non-committed secrets,
+Traefik labels, dedicated MarketOps URLs, boundary-required flag, and pgBackRest
+image overlays.
 
 The parent Syncratic core Traefik service must already be running and configured
 with its Let's Encrypt resolver credentials, including `LETSENCRYPT_EMAIL`,
 `GODADDY_API_KEY`, and `GODADDY_API_SECRET` in the parent stack. DNS for
 `SIGNALOPS_PUBLIC_HOST` must point at the same public edge used by Syncratic core.
 
-Start SignalOps with the edge overlay:
+Start or restart the production SignalOps package with plain Compose after the authority verifier passes:
 
 ```bash
-make deploy-web
-# equivalent to:
-# VITE_SIGNALOPS_AUTH_ENABLED=true docker compose -f compose.yaml -f compose.traefik.yaml up -d --build web
+make compose-authority-validate
+docker compose up -d --build
 ```
 
-`make deploy-web` rebuilds the `web` image **with frontend auth enabled** and
-**with the Traefik overlay applied** in one step. The deployment `.env` also sets
-`COMPOSE_FILE=compose.yaml:compose.traefik.yaml` so plain Compose operations keep
-Traefik labels attached. If `COMPOSE_FILE` is absent, a bare
-`docker compose up -d --build web` can recreate `web` without `traefik.*` labels,
-which **404s the public host**. Always keep `COMPOSE_FILE` set for this public
-deployment and prefer `make deploy-web` when rebuilding the public web image.
-
-For the decoupled MarketOps production topology, use the safer public production
-deploy target whenever `gateway` is included or when both public entrypoints are
-rebuilt together:
+Bounded service restarts use the same authority model:
 
 ```bash
-make deploy-production-dry-run
-sudo make deploy-production
-
-# Narrow variants when a bounded restart is required:
-sudo make deploy-production-web
-sudo make deploy-production-gateway
+docker compose up -d --build web
+docker compose up -d --build gateway
+docker compose up -d gateway normalizer signal-persister marketops-signal-assurance-registrar marketops-signal-assurance-outbox
 ```
 
-The same operation is available through the constrained deployment agent after the agent is re-provisioned from this repository:
-
-```bash
-sudo -n signalops-deploy-agent signalops-production-deploy
-
-# Narrow variants:
-sudo -n signalops-deploy-agent signalops-production-web-deploy
-sudo -n signalops-deploy-agent signalops-production-gateway-deploy
-```
-
-`make deploy-production` runs `scripts/deploy_signalops_public_production.sh`.
-The script always supplies the base Compose file, MarketOps boundary overlay,
-MarketOps read-cutover overlay, and Traefik overlay together. It validates the
-rendered Compose config before restarting services, then verifies the running
-`web` container still has the public Traefik labels, the running `gateway`
-container still has the dedicated MarketOps database environment, and local plus
-public `/readyz` endpoints respond. This is the preferred command after the
-MarketOps database decoupling because a plain `docker compose up -d --build` can
-recreate services without the protected cutover env or public router labels.
-
+The constrained deployment-agent actions remain available for audited run-now,
+canary, and operator controls, but they are no longer the only safe way to
+restart SignalOps. Any deployment-agent path that renders the MarketOps cutover
+environment must preserve the stable `SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD`
+from `.env` so it does not drift from the plain Compose runtime.
 
 Only the `web` service is exposed publicly. The web nginx container proxies API
 and SSE paths to the internal gateway, preserving same-origin browser behavior:

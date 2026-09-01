@@ -1,12 +1,16 @@
-# Read-only gateway cutover. The referenced file is root-owned and contains
-# the dedicated database URLs; it is intentionally not committed.
+# Gateway MarketOps read cutover. Values resolve from the Compose environment
+# so plain `docker compose up -d` can be the authoritative production restart
+# path once `.env` carries the required non-committed secrets. The deployment
+# agent may still render and pass /etc/signalops/marketops-cutover.env as an
+# additional env file, but this overlay does not require the compose client to
+# read that root-only file.
 services:
   gateway:
-    env_file:
-      - /etc/signalops/marketops-cutover.env
     environment:
+      SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED: ${SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED:-true}
+      SIGNALOPS_MARKETOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD:?set an injected MarketOps database secret}@marketops-postgres:5432/marketops?sslmode=disable}
+      SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD:?set an injected MarketOps temporal database secret}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable}
       # Subscriber lists and their subject-owned context are MarketOps data.
-      # The root-owned cutover environment injects this dedicated credential.
       SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL: postgres://signalops_subscriber_gateway_runtime:${SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD:?inject dedicated MarketOps subscriber gateway secret}@marketops-postgres:5432/marketops?sslmode=disable
       SIGNALOPS_SCHEDULE_RUNNER_SOCKET: /run/signalops/deployment-agent.sock
     volumes:

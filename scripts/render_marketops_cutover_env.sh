@@ -16,11 +16,20 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_boundary_env
 }
 
 load_marketops_boundary_env "$source_env"
-command -v openssl >/dev/null 2>&1 || {
-  printf "%s\n" "marketops_cutover_openssl_required" >&2
-  exit 3
-}
-subscriber_gateway_password="$(openssl rand -hex 32)"
+subscriber_gateway_password="${SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD:-}"
+if [[ ! "$subscriber_gateway_password" =~ ^[A-Fa-f0-9]{64}$ && -r "$output_env" ]]; then
+  existing_subscriber_gateway_password="$(grep -E "^SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD=" "$output_env" | tail -n 1 | cut -d= -f2- || true)"
+  if [[ "$existing_subscriber_gateway_password" =~ ^[A-Fa-f0-9]{64}$ ]]; then
+    subscriber_gateway_password="$existing_subscriber_gateway_password"
+  fi
+fi
+if [[ ! "$subscriber_gateway_password" =~ ^[A-Fa-f0-9]{64}$ ]]; then
+  command -v openssl >/dev/null 2>&1 || {
+    printf "%s\n" "marketops_cutover_openssl_required" >&2
+    exit 3
+  }
+  subscriber_gateway_password="$(openssl rand -hex 32)"
+fi
 [[ "$subscriber_gateway_password" =~ ^[A-Fa-f0-9]{64}$ ]] || {
   printf "%s\n" "marketops_cutover_subscriber_gateway_secret_generation_failed" >&2
   exit 3

@@ -9440,3 +9440,12 @@ Next-cycle priority:
 - Canary evidence: Explorer state blocked Value Intelligence with `402 subscription_feature_required`; Sector Rotation remained available; temporary Professional state unlocked Value Intelligence with API `200`; Signal Assurance remained gated for Professional with `402`; tenant-local Institutional/admin access remained valid.
 - The deployment-agent wrapper rebuilt/restarted Gateway for the enforcement window, then automatically restored enforcement off and returned the pilot state to Explorer.
 - Result: `subscription_enforcement_canary_verified` followed by `subscription_enforcement_canary_restored`. PR-5 mobile gated-route behavior is closed for the configured production QA identities.
+
+### 2026-09-01 — Docker Compose restart authority package
+
+- Reframed production restart authority so plain `docker compose up -d --build` uses the full SignalOps production graph from `.env`: base services, MarketOps boundary, Gateway read cutover, writer cutover, MarketOps pgBackRest database overlays, and Traefik public routing.
+- Updated `compose.marketops-read-cutover.yaml` and `compose.marketops-writer-cutover.yaml` to resolve dedicated MarketOps URLs from Compose variables instead of requiring the compose client to read the root-only cutover env file.
+- Added `scripts/verify_signalops_compose_authority.sh` plus `make compose-authority-validate` to fail if plain Compose omits public routing, dedicated MarketOps URLs, boundary-required flag, required secrets, or pgBackRest DB image overlays.
+- Fixed subscriber gateway credential drift: `scripts/render_marketops_cutover_env.sh`, read-cutover, and subscription canary paths now preserve the stable runtime `SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD` instead of generating a competing secret.
+- Updated the live, gitignored `.env` to include the full production `COMPOSE_FILE` and the missing MarketOps DB password keys without printing secret values.
+- Validation: `make compose-authority-validate` passed; plain `docker compose up -d --build` completed; DB containers were restored to pgBackRest images; Gateway/public `/readyz` returned ready; subscriber pilot UI smoke passed; scheduler status was restored to clean after a restart-overlapped intraday run was recovered, with latest intraday snapshot `2026-09-01 16:15:00+00` for 125 tenant-local symbols.

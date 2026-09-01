@@ -15,6 +15,16 @@ cutover_env=/etc/signalops/marketops-cutover.env
 canary_env="$(mktemp /tmp/signalops-subscription-canary.XXXXXX.env)"
 source "$repo_dir/scripts/lib/marketops_boundary_env.sh"
 
+export_runtime_subscriber_gateway_password() {
+  local line value
+  line="$(grep -E '^SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD=' "$runtime_env" | tail -n 1 || true)"
+  [[ -n "$line" ]] || return 0
+  value="${line#*=}"
+  if [[ "$value" =~ ^[A-Fa-f0-9]{64}$ ]]; then
+    export SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD="$value"
+  fi
+}
+
 base_compose=(docker compose --env-file "$runtime_env" --env-file "$cutover_env" -p signalops -f "$repo_dir/compose.yaml" -f "$repo_dir/compose.marketops-boundary.yaml" -f "$repo_dir/compose.marketops-read-cutover.yaml")
 canary_compose=(docker compose --env-file "$runtime_env" --env-file "$cutover_env" --env-file "$canary_env" -p signalops -f "$repo_dir/compose.yaml" -f "$repo_dir/compose.marketops-boundary.yaml" -f "$repo_dir/compose.marketops-read-cutover.yaml")
 
@@ -32,6 +42,7 @@ wait_for_gateway() {
 
 prepare_gateway_credentials() {
   load_marketops_boundary_env "$boundary_env"
+  export_runtime_subscriber_gateway_password
   "$repo_dir/scripts/render_marketops_cutover_env.sh" "$boundary_env" "$cutover_env"
   local subscriber_gateway_password
   subscriber_gateway_password="$(grep -E "^SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD=" "$cutover_env" | cut -d= -f2-)"

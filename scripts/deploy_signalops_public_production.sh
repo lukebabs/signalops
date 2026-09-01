@@ -12,16 +12,16 @@ required overlay:
   - compose.yaml
   - compose.marketops-boundary.yaml
   - compose.marketops-read-cutover.yaml
+  - compose.marketops-writer-cutover.yaml
+  - compose.marketops-pgbackrest.yaml
   - compose.traefik.yaml
 
 Defaults:
   services: gateway web
   env file: .env
-  cutover env: /etc/signalops/marketops-cutover.env
 
 Environment overrides:
   SIGNALOPS_PRODUCTION_ENV_FILE
-  SIGNALOPS_MARKETOPS_CUTOVER_ENV
   SIGNALOPS_COMPOSE_PROJECT
 USAGE
 }
@@ -55,7 +55,6 @@ env_value() {
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runtime_env="${SIGNALOPS_PRODUCTION_ENV_FILE:-$root_dir/.env}"
-cutover_env="${SIGNALOPS_MARKETOPS_CUTOVER_ENV:-/etc/signalops/marketops-cutover.env}"
 project="${SIGNALOPS_COMPOSE_PROJECT:-signalops}"
 dry_run=false
 build=true
@@ -91,6 +90,8 @@ for compose_file in \
   "$root_dir/compose.yaml" \
   "$root_dir/compose.marketops-boundary.yaml" \
   "$root_dir/compose.marketops-read-cutover.yaml" \
+  "$root_dir/compose.marketops-writer-cutover.yaml" \
+  "$root_dir/compose.marketops-pgbackrest.yaml" \
   "$root_dir/compose.traefik.yaml"
 do
   [[ -r "$compose_file" ]] || fail "Required Compose file is not readable: $compose_file"
@@ -104,11 +105,12 @@ traefik_network="$(env_value "$runtime_env" TRAEFIK_NETWORK || true)"
 compose=(
   docker compose
   --env-file "$runtime_env"
-  --env-file "$cutover_env"
   -p "$project"
   -f "$root_dir/compose.yaml"
   -f "$root_dir/compose.marketops-boundary.yaml"
   -f "$root_dir/compose.marketops-read-cutover.yaml"
+  -f "$root_dir/compose.marketops-writer-cutover.yaml"
+  -f "$root_dir/compose.marketops-pgbackrest.yaml"
   -f "$root_dir/compose.traefik.yaml"
 )
 
@@ -128,8 +130,6 @@ if [[ "$dry_run" == true ]]; then
   printf '  %s\n' "curl -fsS https://$public_host/readyz"
   exit 0
 fi
-
-[[ -r "$cutover_env" ]] || fail "MarketOps cutover env is not readable: $cutover_env. Run as root or use the deployment agent."
 
 "${compose[@]}" config --quiet
 "${up[@]}"

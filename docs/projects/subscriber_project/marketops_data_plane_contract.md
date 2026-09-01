@@ -71,6 +71,33 @@ transport is functional. Non-success systemd results such as `exit-code` are
 actionable failures.
 
 
+
+## Compose restart authority
+
+Plain `docker compose up -d` is the intended authority for restarting the
+SignalOps production package when the project `.env` contains the full
+production `COMPOSE_FILE` graph:
+
+```text
+compose.yaml:compose.marketops-boundary.yaml:compose.marketops-read-cutover.yaml:compose.marketops-writer-cutover.yaml:compose.marketops-pgbackrest.yaml:compose.traefik.yaml
+```
+
+The same `.env` must carry the non-committed MarketOps primary, MarketOps
+temporal, and subscriber gateway runtime passwords. This keeps the Compose
+client from depending on the root-only `/etc/signalops/marketops-cutover.env`
+for normal restarts while preserving the dedicated data boundary.
+
+`scripts/verify_signalops_compose_authority.sh` is the regression control. It
+fails if plain Compose would omit the public Traefik overlay, dedicated
+MarketOps stores, Gateway read cutover, writer cutover, boundary-required flag,
+or pgBackRest-capable database images.
+
+The subscriber gateway runtime password must be stable. The cutover renderer now
+reuses `SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD` from the runtime environment, or
+the existing cutover file, before generating a new value. Deployment-agent
+paths that alter the subscriber gateway DB role must therefore converge with
+plain Compose instead of creating an independent secret.
+
 ## August 19, 2026 recovery-control incident
 
 A controlled `restore-rehearsal-run` restarted the live dedicated MarketOps

@@ -12,6 +12,16 @@ source "$root_dir/scripts/lib/marketops_boundary_env.sh"
 boundary_env=/etc/signalops/marketops-boundary.env
 cutover_env=/etc/signalops/marketops-cutover.env
 runtime_env="${1:-${SIGNALOPS_PRODUCTION_ENV_FILE:-}}"
+
+export_runtime_subscriber_gateway_password() {
+  local line value
+  line="$(grep -E '^SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD=' "$runtime_env" | tail -n 1 || true)"
+  [[ -n "$line" ]] || return 0
+  value="${line#*=}"
+  if [[ "$value" =~ ^[A-Fa-f0-9]{64}$ ]]; then
+    export SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD="$value"
+  fi
+}
 [[ -r "$boundary_env" ]] || {
   printf 'Protected MarketOps boundary secret is not readable: %s\n' "$boundary_env" >&2
   exit 3
@@ -29,6 +39,7 @@ runtime_env="${1:-${SIGNALOPS_PRODUCTION_ENV_FILE:-}}"
 # definitions not selected by this gateway-only invocation. Parse only the two
 # required credentials as literal data; do not execute the secret file.
 load_marketops_boundary_env "$boundary_env"
+export_runtime_subscriber_gateway_password
 
 "$root_dir/scripts/render_marketops_cutover_env.sh" "$boundary_env" "$cutover_env"
 # The subscriber login is distinct from the primary application login. It is

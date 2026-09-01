@@ -9,7 +9,7 @@ COMPOSE ?= docker compose
 # `make deploy-web VITE_SIGNALOPS_AUTH_ENABLED=false` for an auth-disabled build.
 VITE_SIGNALOPS_AUTH_ENABLED ?= true
 
-.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-build-massive-puller docker-build-massive-scheduler docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate compose-storage-migrate compose-temporal-migrate compose-temporal-backfill deploy-web deploy-production deploy-production-dry-run deploy-production-web deploy-production-gateway
+.PHONY: docker-test docker-test-python docker-test-broker-integration docker-build docker-build-massive-puller docker-build-massive-scheduler docker-shell docker-validate-schemas compose-up compose-down compose-logs compose-ps compose-validate compose-authority-validate compose-storage-migrate compose-temporal-migrate compose-temporal-backfill deploy-web deploy-production deploy-production-dry-run deploy-production-web deploy-production-gateway
 
 docker-test:
 	docker run --rm \
@@ -74,6 +74,9 @@ compose-ps:
 
 compose-validate:
 	$(COMPOSE) config --quiet
+
+compose-authority-validate:
+	./scripts/verify_signalops_compose_authority.sh
 
 compose-storage-migrate:
 	$(COMPOSE) --profile storage run --rm postgres-migrate

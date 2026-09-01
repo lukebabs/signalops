@@ -3,20 +3,30 @@
 # existing configuration. Scheduler activation is separately controlled.
 services:
   normalizer:
-    env_file:
-      - /etc/signalops/marketops-cutover.env
+    environment:
+      SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED: ${SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED:-true}
+      SIGNALOPS_MARKETOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD:?set an injected MarketOps database secret}@marketops-postgres:5432/marketops?sslmode=disable}
+      SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD:?set an injected MarketOps temporal database secret}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable}
   signal-persister:
-    env_file:
-      - /etc/signalops/marketops-cutover.env
+    environment:
+      SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED: ${SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED:-true}
+      SIGNALOPS_MARKETOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD:?set an injected MarketOps database secret}@marketops-postgres:5432/marketops?sslmode=disable}
+      SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD:?set an injected MarketOps temporal database secret}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable}
   marketops-signal-assurance-registrar:
-    env_file:
-      - /etc/signalops/marketops-cutover.env
+    environment:
+      SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED: ${SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED:-true}
+      SIGNALOPS_MARKETOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD:?set an injected MarketOps database secret}@marketops-postgres:5432/marketops?sslmode=disable}
+      SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD:?set an injected MarketOps temporal database secret}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable}
   marketops-signal-assurance-outbox:
-    env_file:
-      - /etc/signalops/marketops-cutover.env
+    environment:
+      SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED: ${SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED:-true}
+      SIGNALOPS_MARKETOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD:?set an injected MarketOps database secret}@marketops-postgres:5432/marketops?sslmode=disable}
+      SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD:?set an injected MarketOps temporal database secret}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable}
   marketops-signal-assurance-worker:
-    env_file:
-      - /etc/signalops/marketops-cutover.env
+    environment:
+      SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED: ${SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED:-true}
+      SIGNALOPS_MARKETOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD:?set an injected MarketOps database secret}@marketops-postgres:5432/marketops?sslmode=disable}
+      SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:-postgres://signalops:${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD:?set an injected MarketOps temporal database secret}@marketops-timescaledb:5432/marketops_temporal?sslmode=disable}
 
 
   subscriber-global-marketops-parity-manifest:
