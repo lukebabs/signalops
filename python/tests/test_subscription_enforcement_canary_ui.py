@@ -41,7 +41,13 @@ def canary_context(browser: Browser, request: pytest.FixtureRequest) -> BrowserC
     artifact_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     artifact_dir.chmod(0o700)
     har_path = artifact_dir / f"{request.node.name}.har"
-    context = browser.new_context(record_har_path=str(har_path), record_har_mode="minimal")
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        is_mobile=True,
+        has_touch=True,
+        record_har_path=str(har_path),
+        record_har_mode="minimal",
+    )
     context.tracing.start(screenshots=True, snapshots=True, sources=True)
     try:
         yield context
@@ -60,13 +66,20 @@ def canary_context(browser: Browser, request: pytest.FixtureRequest) -> BrowserC
 def sign_in(page: Page, *, base_url: str, username: str, password: str, path: str, heading: str | re.Pattern[str]) -> None:
     page.goto(f"{base_url}{path}", wait_until="domcontentloaded")
     heading_locator = page.get_by_role("heading", name=heading)
-    if heading_locator.is_visible():
+    if heading_locator.is_visible(timeout=5_000):
         return
     sign_in_button = page.get_by_role("button", name="Sign in")
-    if sign_in_button.is_visible():
+    if sign_in_button.is_visible(timeout=5_000):
         sign_in_button.click()
+        if heading_locator.is_visible(timeout=5_000):
+            return
     username_input = page.locator("#username, input[name='username']").or_(page.get_by_role("textbox", name="Email or username")).first
-    username_input.wait_for(state="visible", timeout=30_000)
+    try:
+        username_input.wait_for(state="visible", timeout=30_000)
+    except Exception:
+        if heading_locator.is_visible(timeout=5_000):
+            return
+        raise
     username_input.fill(username)
     password_input = page.locator("#password, input[name='password']").or_(page.get_by_role("textbox", name="Password")).first
     password_input.fill(password)
@@ -94,20 +107,44 @@ def api(page: Page, path: str) -> tuple[int, dict[str, object]]:
 
 
 def set_pilot_plan(page: Page, config: dict[str, str], plan: str) -> None:
+    payload = {"tenant_id": PILOT_TENANT, "subject": PILOT_SUBJECT, "product_key": plan, "status": "active", "correlation_id": "subscription-enforcement-canary-" + plan}
+
+    def post_with_current_token() -> tuple[int, dict[str, object]] | None:
+        try:
+            token = bearer(page)
+        except Exception:
+            return None
+        response = page.evaluate(
+            """async ({token, payload}) => {
+              const response = await fetch("/v1/administration/subscriptions/subject", {method: "POST", headers: {Authorization: "Bearer " + token, "Content-Type": "application/json"}, body: JSON.stringify(payload)});
+              return {status: response.status, body: await response.json().catch(() => ({}))};
+            }""",
+            {"token": token, "payload": payload},
+        )
+        return int(response["status"]), response["body"]
+
+    result = post_with_current_token()
+    if result and result[0] == 200:
+        return
+
+    sign_in(page, base_url=config["base_url"], username=config["admin_username"], password=config["admin_password"], path="/admin/subscriptions", heading="Subscription Administration")
+    result = post_with_current_token()
+    if result and result[0] == 200:
+        return
+
+    users_tab = page.get_by_role("button", name="Users & seats")
+    if users_tab.is_visible(timeout=5_000):
+        users_tab.click()
+    tenant_filter = page.get_by_label("Tenant filter")
+    if tenant_filter.is_visible(timeout=5_000):
+        tenant_filter.fill(PILOT_TENANT)
     plan_heading = page.get_by_role("heading", name="Explorer or Professional subject plan")
-    if not plan_heading.is_visible():
-        sign_in(page, base_url=config["base_url"], username=config["admin_username"], password=config["admin_password"], path="/admin/subscriptions", heading="Subscription Administration")
+    expect(plan_heading).to_be_visible(timeout=30_000)
     form = plan_heading.locator("xpath=ancestor::form")
     expect(form).to_be_visible(timeout=30_000)
-    payload = {"tenant_id": PILOT_TENANT, "subject": PILOT_SUBJECT, "product_key": plan, "status": "active", "correlation_id": "subscription-enforcement-canary-" + plan}
-    response = page.evaluate(
-        """async ({token, payload}) => {
-          const response = await fetch("/v1/administration/subscriptions/subject", {method: "POST", headers: {Authorization: "Bearer " + token, "Content-Type": "application/json"}, body: JSON.stringify(payload)});
-          return {status: response.status, body: await response.json().catch(() => ({}))};
-        }""",
-        {"token": bearer(page), "payload": payload},
-    )
-    assert int(response["status"]) == 200, response["body"]
+    result = post_with_current_token()
+    assert result is not None, "admin bearer token is missing after sign-in"
+    assert result[0] == 200, result[1]
 
 
 def test_subscription_enforcement_three_tier_canary(canary_context: BrowserContext, browser: Browser, config: dict[str, str]) -> None:
@@ -123,19 +160,23 @@ def test_subscription_enforcement_three_tier_canary(canary_context: BrowserConte
     try:
         # Establish the known Explorer baseline before testing its lock behavior.
         set_pilot_plan(admin, config, "explorer")
-        sign_in(pilot, base_url=config["base_url"], username=config["pilot_username"], password=config["pilot_password"], path="/marketops/valuation", heading=re.compile("requires additional analytical depth"))
+        sign_in(pilot, base_url=config["base_url"], username=config["pilot_username"], password=config["pilot_password"], path="/marketops/valuation", heading=re.compile("Additional analytical depth available|Understand .* before going deeper|Validate .* at institutional depth", re.I))
         status, body = api(pilot, f"/v1/tenants/{PILOT_TENANT}/marketops/valuation?symbol=AAPL")
         assert status == 402 and body.get("error") == "subscription_feature_required"
         pilot.goto(f"{config['base_url']}/marketops/sectors", wait_until="domcontentloaded")
         expect(pilot.get_by_role("heading", name=re.compile("Sector Rotation Intelligence"))).to_be_visible(timeout=30_000)
+        overflow = pilot.evaluate("() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth")
+        assert overflow <= 8, f"Mobile public route has {overflow}px horizontal overflow while enforcement is enabled"
 
         set_pilot_plan(admin, config, "professional")
         pilot.goto(f"{config['base_url']}/marketops/valuation", wait_until="domcontentloaded")
         expect(pilot.get_by_role("heading", name="Value Intelligence & Distressed Opportunity Intelligence")).to_be_visible(timeout=30_000)
+        overflow = pilot.evaluate("() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth")
+        assert overflow <= 8, f"Mobile unlocked route has {overflow}px horizontal overflow while enforcement is enabled"
         status, _ = api(pilot, f"/v1/tenants/{PILOT_TENANT}/marketops/valuation?symbol=AAPL")
         assert status == 200
         pilot.goto(f"{config['base_url']}/marketops/assurance", wait_until="domcontentloaded")
-        expect(pilot.get_by_role("heading", name=re.compile("requires additional analytical depth"))).to_be_visible(timeout=30_000)
+        expect(pilot.get_by_role("heading", name=re.compile("Additional analytical depth available|Understand .* before going deeper|Validate .* at institutional depth", re.I))).to_be_visible(timeout=30_000)
         status, body = api(pilot, f"/v1/marketops/signal-assurance/effectiveness?tenant_id={PILOT_TENANT}")
         assert status == 402 and body.get("error") == "subscription_feature_required"
 

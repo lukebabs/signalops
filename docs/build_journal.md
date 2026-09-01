@@ -9432,3 +9432,11 @@ Next-cycle priority:
 - Production mobile validation passed through the launcher: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `21 passed in 104.46s`.
 - Read-only Keycloak enrollment smoke passed separately: `.venv/bin/pytest python/tests/test_keycloak_b2c_enrollment_ui.py -q` returned `1 passed in 0.93s`; it reached registration without submitting data or creating a user.
 - Remaining PR-5 mobile evidence is gated-route behavior, which should use a fresh named subscription-enforcement canary because it temporarily changes production enforcement state.
+
+### 2026-09-01 — Mobile PR-5 gated-route subscription canary closure
+
+- Ran the named temporary production subscription-enforcement canary approved by `luke@strategiclabs.io` for `tenant-pilot-b`.
+- Hardened `python/tests/test_subscription_enforcement_canary_ui.py` so the canary runs at a 390x844 mobile viewport and verifies no page-level horizontal overflow on public and unlocked subscriber routes while enforcement is enabled.
+- Canary evidence: Explorer state blocked Value Intelligence with `402 subscription_feature_required`; Sector Rotation remained available; temporary Professional state unlocked Value Intelligence with API `200`; Signal Assurance remained gated for Professional with `402`; tenant-local Institutional/admin access remained valid.
+- The deployment-agent wrapper rebuilt/restarted Gateway for the enforcement window, then automatically restored enforcement off and returned the pilot state to Explorer.
+- Result: `subscription_enforcement_canary_verified` followed by `subscription_enforcement_canary_restored`. PR-5 mobile gated-route behavior is closed for the configured production QA identities.

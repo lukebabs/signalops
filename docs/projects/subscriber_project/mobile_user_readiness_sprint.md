@@ -1,6 +1,6 @@
 # Subscriber Project — Mobile User Readiness Sprint
 
-Status: active production-readiness sprint; initial production mobile smoke passed on 2026-09-01 and expanded to the required phone viewport matrix.
+Status: closed for the configured production QA identities on 2026-09-01; ongoing work is limited to non-blocking polish or future native/PWA planning.
 
 Owner: MarketOps subscriber product and frontend engineering.
 
@@ -16,7 +16,7 @@ This sprint turns mobile usability from an incidental responsive behavior into a
 
 The application already uses responsive layout primitives, card/detail patterns, scroll-contained tables, and some mobile-aware flows. Historical validation exists for older 375px views, but the current subscription product has changed materially since then: watchlists, global data-plane projections, SAF, Syncratic narratives, subscription gating, and B2C enrollment all changed the user journey.
 
-The dedicated mobile acceptance suite now passes against production for the core subscriber read path plus Assets, SAF, SRI, Opportunities, pricing, and read-only enrollment coverage at 375px, 390px, and 430px phone widths. The remaining mobile-specific production evidence is gated-route behavior, which requires a controlled subscription-enforcement canary because it intentionally toggles production enforcement state.
+The dedicated mobile acceptance suite now passes against production for the core subscriber read path plus Assets, SAF, SRI, Opportunities, pricing, and read-only enrollment coverage at 375px, 390px, and 430px phone widths. The mobile gated-route evidence also passed through a controlled subscription-enforcement canary at 390px, including automatic restoration to enforcement-off and pilot Explorer state.
 
 ## Non-goals
 
@@ -121,6 +121,7 @@ Acceptance:
 - Duplicate existing-user registration routes to login/resolution rather than creating confusion.
 - Subscription pricing/upgrade prompts render as concise mobile cards.
 - Checkout activation remains governed by the approved Stripe boundary.
+- Temporary production enforcement canary verifies Explorer/Professional route gates on a mobile viewport and restores production state automatically.
 
 ## Acceptance viewport matrix
 
@@ -232,6 +233,13 @@ Initial likely fixes:
    - Verify SignalOps branding and SMS disclosure on phone.
    - Ensure duplicate-user routing is clear.
 
+## Production evidence — 2026-09-01
+
+- `./scripts/run_subscriber_mobile_ui_smoke.sh`: `21 passed in 104.46s`.
+- `.venv/bin/pytest python/tests/test_keycloak_b2c_enrollment_ui.py -q`: `1 passed in 0.93s`.
+- `sudo -n signalops-deploy-agent subscription-enforcement-canary`: `subscription_enforcement_canary_verified` followed by `subscription_enforcement_canary_restored`.
+- Gated-route canary coverage: Explorer blocks Value Intelligence, Sector Rotation remains available, Professional unlocks Value Intelligence, Signal Assurance remains Institutional-only, tenant-local Institutional/admin access remains valid, and the checked mobile routes did not introduce page-level horizontal overflow.
+
 ## Mobile app viability track
 
 This sprint should preserve a path toward a mobile app, but not start native development.
@@ -270,3 +278,5 @@ The sprint exits when:
 - Dashboard, Assets, SAF, SRI, Opportunities, Syncratic, pricing, and enrollment flows have no blocking mobile usability issues;
 - Admin remains explicitly documented as desktop/operator scope;
 - production readiness path records mobile subscriber readiness as closed or identifies only non-blocking follow-up polish.
+
+Current exit state: closed for the configured production QA identities. Future work should be opened as a new sprint if it expands to Admin mobile, PWA installability, native app packaging, push notifications, or additional device classes.

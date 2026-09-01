@@ -24,7 +24,7 @@ Production readiness is still blocked by expansion and recovery-evidence gaps. T
 | Daily post-close | Closed for PR-0 | The August 31 post-close cycle completed: `marketops-daily-postclose` succeeded at 2026-08-31 22:35:52 UTC and `marketops-postclose-recovery` succeeded at 2026-09-01 03:00:01 UTC. |
 | FMP annual financial job | Active / current | Latest governed annual run succeeded on 2026-09-01 UTC after global EOD catch-up. Current user-facing annual VC/DOSM output skips assets without usable annual data instead of projecting partial ineligible rows. |
 | Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass, including the controlled Syncratic Ask live smoke after AI Gateway price-catalog propagation. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. Syncratic Ask readiness is tracked in [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md), and Admin Operations Health now has a dedicated Syncratic Ask row that passed production browser validation on 2026-08-23. |
-| Mobile subscriber UX | Expanded automated smoke passed / canary-gated item open | `scripts/run_subscriber_mobile_ui_smoke.sh` validates production login and core subscriber routes at 375px, 390px, and 430px phone widths: Dashboard, Watchlists, Assets, Sector Rotation, Opportunities, Signal Assurance, Syncratic Intelligence, Pricing, Dashboard-to-Syncratic handoff, Assets mobile card drilldown, Opportunities mobile drilldown, SAF mobile drilldown, and SRI ETF progression/makeup drilldown. Read-only enrollment smoke also passed. Remaining mobile item is gated-route behavior, which requires a named subscription-enforcement canary. Latest result: mobile `21 passed in 104.46s`; enrollment `1 passed in 0.93s`. |
+| Mobile subscriber UX | Closed for configured QA identities | `scripts/run_subscriber_mobile_ui_smoke.sh` validates production login and core subscriber routes at 375px, 390px, and 430px phone widths: Dashboard, Watchlists, Assets, Sector Rotation, Opportunities, Signal Assurance, Syncratic Intelligence, Pricing, Dashboard-to-Syncratic handoff, Assets mobile card drilldown, Opportunities mobile drilldown, SAF mobile drilldown, and SRI ETF progression/makeup drilldown. Read-only enrollment smoke also passed. The named mobile gated-route subscription-enforcement canary passed and restored production state. Latest result: mobile `21 passed in 104.46s`; enrollment `1 passed in 0.93s`; canary `subscription_enforcement_canary_verified` then `subscription_enforcement_canary_restored`. |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. The `000160` upgrade-intent journey is validated: pricing renders configured Stripe catalog IDs, Checkout is disabled by design, upgrade interactions persist for tenant-pilot-b, Admin Upgrade funnel shows the event, and Stripe webhook fail-closed/signed-canary behavior is verified. |
 | Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |
@@ -232,7 +232,7 @@ Implementation note — 2026-08-21:
 
 ### Sprint PR-5 — Mobile subscriber readiness
 
-Status: planned.
+Status: closed for the configured production QA identities on 2026-09-01.
 
 Scope:
 
@@ -246,6 +246,12 @@ Exit:
 - The mobile suite passes in production against the configured subscriber QA identity at 375px and 430px widths.
 - Failure-only HAR/trace/screenshots are retained under the protected artifact policy.
 - Product readiness records subscriber mobile web as accepted or lists only non-blocking polish items.
+
+Closure evidence — 2026-09-01:
+
+- Mobile subscriber route/drilldown/pricing validation passed at 375x812, 390x844, and 430x932: `21 passed in 104.46s`.
+- Read-only Keycloak enrollment smoke passed: `1 passed in 0.93s`.
+- Named temporary production subscription-enforcement canary passed at mobile viewport and restored production state: Explorer denied Value Intelligence, Sector Rotation remained open, Professional unlocked Value Intelligence, Signal Assurance remained Institutional-only, tenant-local Institutional/admin access remained valid, and wrapper emitted `subscription_enforcement_canary_verified` followed by `subscription_enforcement_canary_restored`.
 
 ## Standing readiness check
 
