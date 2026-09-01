@@ -443,5 +443,23 @@ Evidence:
 
 Remaining acceptance:
 
-1. Extend the same canonical projection pattern to any other subscriber global gateway views that still join directly to `subscriber_global_assets`.
-2. Reprovision the deployment agent from the repaired source so `render-cutover-env` has its installed library dependency.
+1. Reprovision the deployment agent from the repaired source so `render-cutover-env` has its installed library dependency.
+2. Continue observing the next natural post-close cycle to confirm canonical projections remain aligned across Dashboard, Assets, Market State, Risk/Reward, SAF, EROC, EEOM, and Material Events.
+
+
+## 2026-09-01 production-readiness update — subscriber gateway canonical projection expansion
+
+Status: core subscriber global gateway projections now use canonical asset identity resolution.
+
+Evidence:
+
+- Applied migration `000164_subscriber_global_gateway_canonical_projection` to the dedicated MarketOps database.
+- Updated Market State, EROC, EEOM, Material Events, Options distributions, Risk/Reward, Intraday Current State, Signal Assurance observations, and global evidence coverage to resolve source asset IDs through the canonical projection.
+- No catalog rows or immutable evidence rows were deleted or rewritten.
+- Verification returned `0` duplicate projected symbols across all updated views.
+- Existing subscriber pilot Playwright smoke passed: `2 passed`.
+
+Remaining acceptance:
+
+1. Reprovision the deployment agent from the repaired source to close the live `render-cutover-env` install gap.
+2. Observe the next natural post-close cycle and confirm freshness/readiness remains aligned with the canonical projections.

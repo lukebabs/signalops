@@ -9369,3 +9369,10 @@ Next-cycle priority:
 - Repaired the deployment-agent provisioner source so `scripts/lib/marketops_boundary_env.sh` is installed into `/usr/local/lib/signalops-deployment-agent/lib/` beside `render_marketops_cutover_env.sh`.
 - Verified `scripts/provision_signalops_deployment_agent.sh` passes `bash -n`.
 - Live reprovisioning is still operator-gated because passwordless sudo is granted to the installed `signalops-deploy-agent` binary, not to the provisioner script itself.
+
+### 2026-09-01 — Subscriber gateway canonical projection expansion
+
+- Applied migration `000164_subscriber_global_gateway_canonical_projection` to the dedicated MarketOps database.
+- Extended canonical asset identity resolution beyond Valuation to Market State, EROC, EEOM, Material Events, Options distributions, Risk/Reward, Intraday Current State, Signal Assurance observations, and global evidence coverage.
+- Preserved all catalog rows and immutable evidence. The views now resolve source asset IDs through `subscriber_global_asset_identity_resolutions` and `subscriber_gateway_global_canonical_assets` before exposing user-facing symbols.
+- Verification: duplicate projected symbols returned `0` across the eight updated gateway views; no updated gateway view still used the old direct `subscriber_global_assets` evidence-record join; subscriber pilot Playwright smoke passed (`2 passed`).
