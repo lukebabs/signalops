@@ -232,8 +232,12 @@ func appendResults(ctx context.Context, db *sql.DB, results []resultCandidate, a
 }
 
 func appendOutput(ctx context.Context, db *sql.DB, results []resultCandidate, anchor time.Time, correlation, algorithmID, metric string) (int, error) {
-	fingerprints := make([]string, 0, len(results))
-	for _, candidate := range results {
+	appendable := appendableAnnualResults(results)
+	if len(appendable) == 0 {
+		return 0, nil
+	}
+	fingerprints := make([]string, 0, len(appendable))
+	for _, candidate := range appendable {
 		fingerprints = append(fingerprints, outputFingerprint(candidate, metric))
 	}
 	sort.Strings(fingerprints)
@@ -252,13 +256,10 @@ func appendOutput(ctx context.Context, db *sql.DB, results []resultCandidate, an
 		return 0, fmt.Errorf("append %s run: %w", metric, err)
 	}
 	inserted := 0
-	for _, candidate := range results {
+	for _, candidate := range appendable {
 		payload, score, fair, classification := outputPayload(candidate, metric)
 		fingerprint := digest(string(payload))
 		quality := "usable"
-		if !candidate.result.Eligible {
-			quality = "partial"
-		}
 		observation := anchor
 		if !candidate.source.priceSession.IsZero() {
 			observation = candidate.source.priceSession
@@ -283,6 +284,17 @@ func appendOutput(ctx context.Context, db *sql.DB, results []resultCandidate, an
 		return 0, err
 	}
 	return inserted, nil
+}
+
+func appendableAnnualResults(results []resultCandidate) []resultCandidate {
+	out := make([]resultCandidate, 0, len(results))
+	for _, candidate := range results {
+		if !candidate.result.Eligible {
+			continue
+		}
+		out = append(out, candidate)
+	}
+	return out
 }
 
 func outputPayload(candidate resultCandidate, metric string) ([]byte, float64, float64, string) {

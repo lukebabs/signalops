@@ -424,6 +424,24 @@ Evidence:
 
 Remaining acceptance:
 
-1. Open a catalog-governance cleanup slice to deduplicate `subscriber_global_assets` canonical symbols without deleting or rewriting immutable historical evidence.
-2. Repair and reprovision the deployment-agent `render-cutover-env` library dependency so protected production compose actions do not require raw operator commands.
-3. Decide whether the `9` partial annual valuation rows and the single FMP no-data asset should remain governed exceptions or move through a catalog-normalization/exclusion policy.
+1. Repair and reprovision the deployment-agent `render-cutover-env` library dependency so protected production compose actions do not require raw operator commands.
+2. Monitor the remaining governed FMP no-data/partial-source exceptions; user-facing annual VC/DOSM projections now skip assets without usable annual data instead of displaying partial analytical rows.
+
+
+## 2026-09-01 production-readiness update — catalog identity projection cleanup
+
+Status: duplicate canonical-symbol projection is governed without deleting catalog rows or rewriting immutable evidence.
+
+Evidence:
+
+- Applied migration `000163_subscriber_global_catalog_identity_projection` to the dedicated MarketOps database.
+- The existing `subscriber_global_asset_identity_resolutions` table already resolved all 100 duplicated canonical symbols to one canonical global asset ID per symbol.
+- Added `subscriber_gateway_global_canonical_assets` as the gateway-facing canonical catalog projection. It exposes one row per canonical symbol and classifies duplicate groups as `deduplicated`.
+- Updated `subscriber_gateway_global_valuation_results` to resolve valuation evidence through canonical asset identity before projection.
+- Annual v4 Valuation/DOSM projection now excludes ineligible or non-usable annual rows. Immutable partial evidence remains stored for audit, but assets without usable annual data are skipped in user-facing annual analytical output.
+- Verification: canonical projection returned `1402` canonical rows and `100` deduplicated rows, with `0` duplicate projected symbols. Existing `2026-08-31` annual DOSM evidence retained `9` partial records, while projected partial annual rows were `0`.
+
+Remaining acceptance:
+
+1. Extend the same canonical projection pattern to any other subscriber global gateway views that still join directly to `subscriber_global_assets`.
+2. Repair and reprovision the deployment-agent `render-cutover-env` library dependency.

@@ -9355,3 +9355,11 @@ Next-cycle priority:
 - Verified AAPL annual DOSM v4 is complete with `revenue_cagr_3y_annual=0.01812535743479393` and `revenue_growth_score=2.3625071486958786`; NVDA, NOW, and SNOW also returned complete rows with CAGR/growth scores.
 - Playwright validation as `luke@strategiclabs.io` confirmed `/marketops/valuation` loads, the tenant-local valuation API returns platform-global annual/tactical evidence, and the rendered Valuation page shows Revenue Growth and Tactical Posture without `Unknown` labels.
 - Removed untracked `auth.syncratic.co-01.har` from the repo workspace so auth capture material is not accidentally committed.
+
+### 2026-09-01 — Catalog identity projection cleanup
+
+- Accepted the policy decision to skip assets without usable annual data in user-facing annual VC/DOSM output.
+- Added migration `000163_subscriber_global_catalog_identity_projection`, which creates `subscriber_gateway_global_canonical_assets` and updates valuation projection to resolve source global asset IDs through canonical identity.
+- Preserved all source catalog rows and immutable evidence records; no evidence rows were deleted, rewritten, or re-keyed.
+- Updated the annual valuation materializer so future runs append only eligible annual VC/DOSM results instead of writing partial `insufficient_data` analytical rows.
+- Verification: targeted Go tests passed for the annual valuation materializer and valuation package; dedicated MarketOps DB migration applied; projected canonical duplicate symbols returned `0`; projected partial annual v4 rows returned `0`.
