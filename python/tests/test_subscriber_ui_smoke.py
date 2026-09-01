@@ -245,7 +245,15 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
             assert selected_valuation[0].get("data_scope") == "platform-global", f"{response.url} fell back from global valuation"
         if route == "earnings":
             eeom_results = payload.get("results")
-            selected_eeom = [item for item in eeom_results if str(item.get("ticker", "")).upper() == config.shared_tickers[0]] if isinstance(eeom_results, list) else []
+            assert isinstance(eeom_results, list), f"{response.url} returned malformed EEOM results"
+            seen_tickers: set[str] = set()
+            for item in eeom_results:
+                ticker = str(item.get("ticker", "")).upper()
+                if not ticker:
+                    continue
+                assert ticker not in seen_tickers, f"{response.url} returned duplicate EEOM row for {ticker}: {eeom_results}"
+                seen_tickers.add(ticker)
+            selected_eeom = [item for item in eeom_results if str(item.get("ticker", "")).upper() == config.shared_tickers[0]]
             if selected_eeom:
                 assert selected_eeom[0].get("data_scope") == "platform-global", f"{response.url} fell back from global EEOM"
 
