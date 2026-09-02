@@ -90,6 +90,7 @@ def test_create_account_reaches_keycloak_registration_without_submission(enrollm
 
     body = enrollment_page.locator("body")
     expect(body).not_to_contain_text(re.compile(r"page not found|invalid parameter|invalid request", re.I))
+    expect(body).not_to_contain_text(re.compile(r"sms|phone|otp|verification code|configure.*mfa", re.I))
 
     registration_markers = [
         enrollment_page.get_by_role("heading", name=re.compile(r"register|create account|sign up", re.I)),

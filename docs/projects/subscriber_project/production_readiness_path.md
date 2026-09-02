@@ -253,6 +253,7 @@ Closure evidence:
 - Latest regression rerun after the enrollment no-MFA policy update: `scripts/run_subscriber_mobile_ui_smoke.sh` returned `24 passed in 48.56s` on 2026-09-02.
 - Read-only Keycloak enrollment smoke passed: `1 passed` on 2026-09-02.
 - Authenticated B2C enrollment resolver smoke passed: `1 passed` on 2026-09-02, confirming the active production flow reaches the SignalOps enrollment resolver without SMS/MFA friction.
+- Enrollment production-polish rerun passed after removing stale SMS language from the Keycloak registration theme: read-only registration smoke `1 passed`; authenticated B2C resolver smoke `1 passed`.
 - Named temporary production subscription-enforcement canary passed at mobile viewport and restored production state: Explorer denied Value Intelligence, Sector Rotation remained open, Professional unlocked Value Intelligence, Signal Assurance remained Institutional-only, tenant-local Institutional/admin access remained valid, and wrapper emitted `subscription_enforcement_canary_verified` followed by `subscription_enforcement_canary_restored`.
 
 ## Standing readiness check

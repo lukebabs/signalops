@@ -9485,3 +9485,11 @@ Next-cycle priority:
 - Scope remained subscriber-facing mobile web only; Admin/operator workflows remain desktop-scoped.
 - Validation: `scripts/run_subscriber_mobile_ui_smoke.sh` passed against production using the configured tenant-pilot-b QA identity: `24 passed in 48.56s`.
 - Result: PR-5 mobile regression discipline remains closed for the current production QA identities.
+
+### 2026-09-02 — Enrollment production polish: no-SMS copy and existing-user resolver proof
+
+- Tightened the read-only Keycloak enrollment Playwright smoke so the initial registration page fails if it exposes SMS/phone/OTP/MFA friction copy during the current no-MFA enrollment phase.
+- The first production smoke correctly exposed stale Keycloak theme copy that still said users would secure the account with SMS and complete SMS verification.
+- Updated the live Keycloak theme source and packaged Helm theme copy in the parent Syncratic repository so public registration copy now describes email verification and workspace activation without SMS/MFA language.
+- Rebuilt/restarted only the Keycloak service; SignalOps Gateway/Web and MarketOps jobs were not restarted.
+- Validation: Keycloak OIDC discovery returned ready after restart; read-only enrollment registration smoke passed (`1 passed`); authenticated B2C enrollment resolver smoke passed (`1 passed`), confirming existing-user `created=[]` behavior and no SMS/MFA block before `/v1/session/enrollment`.

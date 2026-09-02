@@ -217,3 +217,14 @@ Deferred MFA rollout requirements:
 3. Enable `CONFIGURE_SMS_MFA` only for the selected cohort/flow.
 4. Run a dedicated Playwright registration/login SMS smoke with a real test number.
 5. Confirm rollback disables MFA without breaking ordinary login.
+
+## Production polish validation — 2026-09-02
+
+The read-only registration smoke was expanded to reject SMS/phone/OTP/MFA language on the initial public registration form while the product policy keeps MFA deferred. The first production run found stale Keycloak theme copy that still referenced SMS setup and SMS verification. The Compose theme source and Helm-packaged theme copy were corrected in the parent Syncratic repository, Keycloak was rebuilt/restarted, and the smoke passed.
+
+Current validated behavior:
+
+- Create Account reaches the Keycloak registration form for `signalops-web` without raw `kc_action=register` deep-linking.
+- The initial registration form does not advertise SMS/MFA as part of the current flow.
+- Existing B2C QA sign-in reaches `/v1/session/enrollment` without SMS/MFA friction.
+- Existing-user safety remains intact: the authenticated smoke expects no new self-enrollment mutations for an already-provisioned identity.
