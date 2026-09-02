@@ -9504,3 +9504,9 @@ Next-cycle priority:
 - Deployed Gateway through `sudo -n signalops-deploy-agent marketops-gateway-deploy`; built-in gateway cutover smoke and subscriber pilot smoke passed.
 - Validation: `go test ./internal/api` passed; Admin smoke passed (`3 passed, 1 skipped`); ACK-gated Admin run-now smoke passed (`1 passed`).
 - Source also updates deployment-agent `scheduler-status` to list `signalops-marketops-operations-monitor.timer` and `signalops-marketops-operations-monitor.service`, but installing that source update requires `sudo ./scripts/provision_signalops_deployment_agent.sh adminalien` because non-interactive sudo for provisioning is not available in this session.
+
+### 2026-09-02 — Deployment-agent operations monitor status closure
+
+- After host reprovisioning, verified the deployment-agent `scheduler-status` now includes `signalops-marketops-operations-monitor.timer` and `signalops-marketops-operations-monitor.service`.
+- Evidence: `sudo -n signalops-deploy-agent scheduler-status` returned the operations-monitor timer as `load=loaded active=active` with next run `2026-09-02 18:00:00 UTC`, and the service as `load=loaded active=inactive result=success`.
+- Result: the Admin Operations Health expansion handoff is closed; operations monitor run-now and status visibility are no longer shell-only for the configured admin workflow.
