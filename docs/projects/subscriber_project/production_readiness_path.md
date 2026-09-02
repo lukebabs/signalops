@@ -515,3 +515,21 @@ Remaining gated work:
 6. **Mobile subscriber UX** — rerun the mobile Playwright suite after any Dashboard, Assets, EEOM, SAF, SRI, Syncratic Intelligence, Pricing, or enrollment layout change.
 7. **Recovery evidence** — PR-3 remains a deferred risk until a current dedicated MarketOps backup and isolated restore rehearsal is rerun against the present schema/runtime.
 
+## 2026-09-02 production-readiness update — Sep 1 post-close validation and warm-EOD observability
+
+Status: September 1 post-close cycle completed; warm-EOD remains governed degraded, with detail persistence fixed for the next run.
+
+Evidence:
+
+- `scheduler-status` showed all tracked MarketOps timers active and tracked services inactive with `result=success`.
+- Dedicated MarketOps job status showed successful September 1/2 UTC completion for daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, intraday, and FMP annual financial.
+- `marketops-warm-eod` completed as `degraded` with `reason=bounded_provider_gap`; this is the governed no-bar gap state previously accepted for the 1,000-symbol warm cohort.
+- Observability gap: the warm-EOD status row had `detail={}`, so the Admin surface could not expose the specific normalized/expected/missing-symbol evidence.
+- Source fix: `scripts/marketops_scheduled_job.sh` now captures warm-EOD normalization output and persists structured detail for degraded/incomplete runs. This does not change provider polling, success/failure semantics, or the bounded-provider-gap policy.
+- Browser validation after the post-close cycle passed: `scripts/run_marketops_dashboard_freshness_ui_smoke.sh` returned `1 passed`; `scripts/run_subscriber_pilot_ui_smoke.sh` returned `2 passed`.
+
+Remaining acceptance:
+
+1. Let the next natural warm-EOD run execute and confirm `marketops_scheduled_job_statuses.detail` includes normalized, expected, missing, max_missing, session_date, and missing_symbols when the job is degraded.
+2. Continue treating repeated bounded provider gaps as governed degraded unless missing count exceeds policy or affects user-facing analytical freshness.
+

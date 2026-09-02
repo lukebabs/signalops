@@ -1,3 +1,11 @@
+## 2026-09-02 — Warm EOD degraded detail persistence
+
+- Investigated the only degraded scheduled job after the September 1 post-close cycle: `marketops-warm-eod`.
+- Confirmed the status is governed `degraded` with `reason=bounded_provider_gap`, not a scheduler failure.
+- Root gap was observability: the status row retained `reason=bounded_provider_gap` but persisted empty `detail`, which prevented Admin from showing normalized/expected/missing/session/missing-symbol evidence.
+- Updated the scheduled-job wrapper to capture warm-EOD normalization output and persist structured detail on degraded/incomplete runs while preserving exit-code semantics.
+- Post-close browser validation passed: Dashboard freshness smoke `1 passed`; subscriber pilot smoke `2 passed`.
+
 ## 2026-09-01 — Mobile EEOM regression closure
 
 - Added Earnings Opportunity Intelligence to the subscriber mobile route gate.

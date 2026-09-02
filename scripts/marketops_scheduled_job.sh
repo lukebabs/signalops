@@ -28,22 +28,31 @@ fi
 marketops_record_scheduled_job_status_or_warn "$run_id" "$job_id" "$schedule" "$timezone" "running" "$started_at" "" "" "" "{}" || true
 write_status_file "$(printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"running","started_at":"%s"}' "$job_id" "$schedule" "$timezone" "$started_at")"
 
+result_log="$(mktemp -t "signalops-${job_id}.XXXXXX.log")"
+cleanup_result_log() { rm -f "$result_log"; }
+trap cleanup_result_log EXIT
+run_and_capture() {
+  : >"$result_log"
+  "$@" > >(tee -a "$result_log") 2>&1
+}
+
 set +e
 if [[ "${SIGNALOPS_MARKETOPS_DATA_PLANE_PREFLIGHT_REQUIRED:-false}" == "true" || "${SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE:-}" == "marketops-postgres" ]]; then
-  "$root_dir/scripts/preflight_marketops_data_plane.sh"
+  run_and_capture "$root_dir/scripts/preflight_marketops_data_plane.sh"
   exit_code=$?
   if [[ "$exit_code" -eq 0 ]]; then
-    "$@"
+    run_and_capture "$@"
     exit_code=$?
   fi
 else
-  "$@"
+  run_and_capture "$@"
   exit_code=$?
 fi
 set -e
 completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 status="succeeded"
 reason=""
+detail_json="{}"
 process_exit_code="$exit_code"
 if [[ "$exit_code" -eq 10 ]]; then
   status="degraded"
@@ -52,8 +61,19 @@ if [[ "$exit_code" -eq 10 ]]; then
 elif [[ "$exit_code" -ne 0 ]]; then
   status="failed"
 fi
-marketops_record_scheduled_job_status_or_warn "$run_id" "$job_id" "$schedule" "$timezone" "$status" "$started_at" "$completed_at" "$exit_code" "$reason" "{}" || true
-write_status_file "$(printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"%s","reason":"%s","started_at":"%s","completed_at":"%s","exit_code":%s}' "$job_id" "$schedule" "$timezone" "$status" "$reason" "$started_at" "$completed_at" "$exit_code")"
+if [[ "$job_id" == "marketops-warm-eod" && "$exit_code" -eq 5 ]]; then
+  reason="normalization_incomplete"
+fi
+if [[ "$job_id" == "marketops-warm-eod" ]]; then
+  warm_line="$(grep -E 'warm EOD normalization (degraded|incomplete):' "$result_log" | tail -1 || true)"
+  if [[ "$warm_line" =~ normalized=([0-9]+)[[:space:]]expected=([0-9]+)[[:space:]]missing=([0-9]+)[[:space:]]max_missing=([0-9]+)[[:space:]]session=([0-9]{4}-[0-9]{2}-[0-9]{2})[[:space:]]symbols=([A-Z0-9.,_-]+) ]]; then
+    detail_json="$(printf '{"reason":"%s","normalized":%s,"expected":%s,"missing":%s,"max_missing":%s,"session_date":"%s","missing_symbols":"%s"}' "$reason" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}")"
+  elif [[ "$status" == "degraded" ]]; then
+    detail_json="$(printf '{"reason":"%s"}' "$reason")"
+  fi
+fi
+marketops_record_scheduled_job_status_or_warn "$run_id" "$job_id" "$schedule" "$timezone" "$status" "$started_at" "$completed_at" "$exit_code" "$reason" "$detail_json" || true
+write_status_file "$(printf '{"job_id":"%s","schedule":"%s","timezone":"%s","status":"%s","reason":"%s","started_at":"%s","completed_at":"%s","exit_code":%s,"detail":%s}' "$job_id" "$schedule" "$timezone" "$status" "$reason" "$started_at" "$completed_at" "$exit_code" "$detail_json")"
 
 # Governed daily/weekly completions and every job failure become administrator inbox
 # events. Recorder failure is non-blocking so it cannot conceal the job result.
