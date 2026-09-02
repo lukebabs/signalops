@@ -113,6 +113,12 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
         assert row.get("next_step"), f"{label} has no next-step guidance"
     assert by_label["Risk/Reward"].get("run_now_job_id") == "marketops-risk-reward"
     assert by_label["Signal Assurance"].get("run_now_enabled") is False
+    scheduled_jobs = payload.get("marketops_operations_health", {}).get("scheduled_jobs")
+    assert isinstance(scheduled_jobs, list), "operations-health response did not include scheduled_jobs rows"
+    scheduled_by_label = {str(row.get("label", "")): row for row in scheduled_jobs}
+    operations_monitor = scheduled_by_label.get("MarketOps operations monitor")
+    assert operations_monitor, "MarketOps operations monitor scheduled-job row is missing"
+    assert operations_monitor.get("run_now_enabled") is True, operations_monitor
 
     expect(admin_page.get_by_role("heading", name="MarketOps Operations Health")).to_be_visible(timeout=30_000)
     body = admin_page.locator("body")
@@ -120,6 +126,31 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
         expect(body).to_contain_text(label, timeout=30_000)
     for label in ["Expected freshness", "Dependency", "Latest evidence", "Why / next step", "Run recovery", "Status only"]:
         expect(body).to_contain_text(label, timeout=30_000)
+    operations_monitor_row = admin_page.get_by_role("row", name=re.compile(r"^MarketOps operations monitor\b"))
+    expect(operations_monitor_row).to_contain_text("Run now", timeout=30_000)
+
+
+def test_marketops_admin_can_run_operations_monitor_from_ui(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
+    if os.getenv("SIGNALOPS_ADMIN_RUN_NOW_SMOKE_ACK") != "approved":
+        pytest.skip("set SIGNALOPS_ADMIN_RUN_NOW_SMOKE_ACK=approved to run the live Admin run-now smoke")
+    login_marketops_admin(admin_page, admin_config)
+    operations_monitor_row = admin_page.get_by_role("row", name=re.compile(r"^MarketOps operations monitor\b"))
+    expect(operations_monitor_row).to_contain_text("Run now", timeout=30_000)
+    with admin_page.expect_response(
+        lambda response: response.request.method == "POST"
+        and "/v1/administration/scheduled-jobs/marketops-operations-monitor/run-now" in response.url,
+        timeout=30_000,
+    ) as response_info:
+        operations_monitor_row.get_by_role("button", name="Run now").click()
+    response = response_info.value
+    assert response.status == 202, f"{response.url} returned HTTP {response.status}: {response.text()}"
+    payload = response.json()
+    run = payload.get("run")
+    assert isinstance(run, dict), payload
+    assert run.get("job_id") == "marketops-operations-monitor", payload
+    assert run.get("action") == "scheduler-run-now:marketops-operations-monitor", payload
+    assert str(run.get("runner", "")).startswith("unix:") or "signalops-deploy-agent" in str(run.get("runner", "")), payload
+    expect(admin_page.locator("body")).not_to_contain_text("scheduled_job_start_failed")
 
 
 

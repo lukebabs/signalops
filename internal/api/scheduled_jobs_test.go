@@ -63,6 +63,7 @@ func TestScheduledJobRunActionIsAllowlisted(t *testing.T) {
 	cases := map[string]string{
 		"marketops-intraday":             "scheduler-run-now:marketops-intraday",
 		"marketops-risk-reward":          "scheduler-run-now:marketops-risk-reward",
+		"marketops-operations-monitor":   "scheduler-run-now:marketops-operations-monitor",
 		"signalops-retention-governance": "scheduler-run-now:signalops-retention-governance",
 		"marketops-retention-governance": "scheduler-run-now:marketops-retention-governance",
 	}
@@ -150,6 +151,9 @@ func TestScheduledJobStatusesPreferDatabaseStatus(t *testing.T) {
 		}
 		if job["status"] != "succeeded" || job["status_source"] != "database" || job["exit_code"] != 0 {
 			t.Fatalf("database status was not merged: %#v", job)
+		}
+		if job["run_now_enabled"] != true {
+			t.Fatalf("operations monitor should be runnable from Admin through the constrained deployment-agent action: %#v", job)
 		}
 		if job["checks"] != float64(8) {
 			t.Fatalf("database detail was not flattened: %#v", job)

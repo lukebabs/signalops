@@ -34,7 +34,7 @@ var scheduledJobDefinitions = []scheduledJobDefinition{
 	{"marketops-task-retry", "MarketOps governed task retry", "Weekdays every 15 minutes, 18:30-23:00", "America/New_York", "scheduler-run-now:marketops-task-retry"},
 	{"marketops-postclose-recovery", "MarketOps post-close recovery guard", "Weekdays every 15 minutes, 18:30-23:00", "America/New_York", "scheduler-run-now:marketops-postclose-recovery"},
 	{"marketops-risk-reward", "MarketOps Risk/Reward post-close", "Post-close completion stage", "America/New_York", "scheduler-run-now:marketops-risk-reward"},
-	{"marketops-operations-monitor", "MarketOps operations monitor", "Hourly", "UTC", ""},
+	{"marketops-operations-monitor", "MarketOps operations monitor", "Hourly", "UTC", "scheduler-run-now:marketops-operations-monitor"},
 	{"signalops-storage-monitor", "Persistent storage monitor", "Daily 02:00", "America/New_York", "scheduler-run-now:signalops-storage-monitor"},
 	{"signalops-retention-governance", "Retention governance (dry run)", "Daily 02:30", "America/New_York", "scheduler-run-now:signalops-retention-governance"},
 	{"marketops-retention-governance", "MarketOps subscriber activity retention (dry run)", "Manual dry run", "America/New_York", "scheduler-run-now:marketops-retention-governance"},

@@ -9493,3 +9493,14 @@ Next-cycle priority:
 - Updated the live Keycloak theme source and packaged Helm theme copy in the parent Syncratic repository so public registration copy now describes email verification and workspace activation without SMS/MFA language.
 - Rebuilt/restarted only the Keycloak service; SignalOps Gateway/Web and MarketOps jobs were not restarted.
 - Validation: Keycloak OIDC discovery returned ready after restart; read-only enrollment registration smoke passed (`1 passed`); authenticated B2C enrollment resolver smoke passed (`1 passed`), confirming existing-user `created=[]` behavior and no SMS/MFA block before `/v1/session/enrollment`.
+
+### 2026-09-02 — Admin Operations Health expansion: operations monitor run-now
+
+- Expanded the Administration Operations Health scheduled-job contract so `MarketOps operations monitor` is no longer shell-only/status-only. The Gateway now exposes it through the existing constrained deployment-agent action `scheduler-run-now:marketops-operations-monitor`.
+- Preserved the deployment-agent bridge boundary: Gateway uses the existing `scheduler-run-now:<job_id>` grammar rather than broadening the Unix-socket bridge action pattern.
+- Added API tests proving the operations monitor job is allowlisted and runnable from Admin while unsupported jobs remain rejected.
+- Added Admin Playwright coverage requiring the Operations Health API and UI to expose `MarketOps operations monitor` with a `Run now` control.
+- Added an ACK-gated Playwright click-through that starts the operations monitor through the Admin UI and verifies the run-now API returns `202` with the deployment-agent Unix-socket runner.
+- Deployed Gateway through `sudo -n signalops-deploy-agent marketops-gateway-deploy`; built-in gateway cutover smoke and subscriber pilot smoke passed.
+- Validation: `go test ./internal/api` passed; Admin smoke passed (`3 passed, 1 skipped`); ACK-gated Admin run-now smoke passed (`1 passed`).
+- Source also updates deployment-agent `scheduler-status` to list `signalops-marketops-operations-monitor.timer` and `signalops-marketops-operations-monitor.service`, but installing that source update requires `sudo ./scripts/provision_signalops_deployment_agent.sh adminalien` because non-interactive sudo for provisioning is not available in this session.
