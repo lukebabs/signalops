@@ -279,4 +279,4 @@ The sprint exits when:
 - Admin remains explicitly documented as desktop/operator scope;
 - production readiness path records mobile subscriber readiness as closed or identifies only non-blocking follow-up polish.
 
-Current exit state: closed for the configured production QA identities. Future work should be opened as a new sprint if it expands to Admin mobile, PWA installability, native app packaging, push notifications, or additional device classes.
+Current exit state: closed for the configured production QA identities. The latest post-enrollment-policy regression rerun on 2026-09-02 returned `24 passed in 48.56s`. Future work should be opened as a new sprint if it expands to Admin mobile, PWA installability, native app packaging, push notifications, or additional device classes.

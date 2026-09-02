@@ -247,10 +247,12 @@ Exit:
 - Failure-only HAR/trace/screenshots are retained under the protected artifact policy.
 - Product readiness records subscriber mobile web as accepted or lists only non-blocking polish items.
 
-Closure evidence — 2026-09-01:
+Closure evidence:
 
-- Mobile subscriber route/drilldown/pricing validation passed at 375x812, 390x844, and 430x932. The suite now includes Earnings Opportunity Intelligence route coverage and EEOM current/history drill-down behavior. Latest result: `24 passed in 253.48s` on 2026-09-01.
-- Read-only Keycloak enrollment smoke passed: `1 passed in 0.93s`.
+- Mobile subscriber route/drilldown/pricing validation passed at 375x812, 390x844, and 430x932. The suite includes Earnings Opportunity Intelligence route coverage and EEOM current/history drill-down behavior.
+- Latest regression rerun after the enrollment no-MFA policy update: `scripts/run_subscriber_mobile_ui_smoke.sh` returned `24 passed in 48.56s` on 2026-09-02.
+- Read-only Keycloak enrollment smoke passed: `1 passed` on 2026-09-02.
+- Authenticated B2C enrollment resolver smoke passed: `1 passed` on 2026-09-02, confirming the active production flow reaches the SignalOps enrollment resolver without SMS/MFA friction.
 - Named temporary production subscription-enforcement canary passed at mobile viewport and restored production state: Explorer denied Value Intelligence, Sector Rotation remained open, Professional unlocked Value Intelligence, Signal Assurance remained Institutional-only, tenant-local Institutional/admin access remained valid, and wrapper emitted `subscription_enforcement_canary_verified` followed by `subscription_enforcement_canary_restored`.
 
 ## Standing readiness check

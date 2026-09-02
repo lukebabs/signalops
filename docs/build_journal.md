@@ -9478,3 +9478,10 @@ Next-cycle priority:
 - Hardened the authenticated B2C enrollment Playwright smoke so any unexpected SMS/phone/OTP/MFA block fails with a direct diagnostic before the SignalOps enrollment resolver.
 - Updated the authenticated smoke runner to reuse the existing Syncratic QA credential variable names as a fallback for the B2C smoke identity.
 - Validation: `go test ./internal/api` passed; Python syntax check passed with bytecode redirected to `/tmp`; read-only Keycloak enrollment UI smoke passed (`1 passed`); authenticated B2C enrollment resolver Playwright smoke passed (`1 passed`).
+
+### 2026-09-02 — Mobile subscriber regression rerun after enrollment policy update
+
+- Reran the full subscriber mobile Playwright suite after the B2C enrollment no-MFA policy update.
+- Scope remained subscriber-facing mobile web only; Admin/operator workflows remain desktop-scoped.
+- Validation: `scripts/run_subscriber_mobile_ui_smoke.sh` passed against production using the configured tenant-pilot-b QA identity: `24 passed in 48.56s`.
+- Result: PR-5 mobile regression discipline remains closed for the current production QA identities.
