@@ -11,6 +11,9 @@ dotenv_path="${SIGNALOPS_E2E_ENV_FILE:-$repo_dir/.env}"
 source "$repo_dir/scripts/lib/dotenv.sh"
 load_dotenv "$dotenv_path"
 
+export SIGNALOPS_B2C_WEB="${SIGNALOPS_B2C_WEB:-${SYNCRATIC_QA_CLIENT:-}}"
+export SIGNALOPS_B2C_WEB_PASS="${SIGNALOPS_B2C_WEB_PASS:-${SYNCRATIC_QA_PASS:-}}"
+
 : "${SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK:?set SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved to run the authenticated B2C enrollment smoke}"
 if [[ "$SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK" != "approved" ]]; then
   printf 'Refusing authenticated B2C enrollment smoke: SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK must equal approved.\n' >&2

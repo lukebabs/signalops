@@ -9469,3 +9469,12 @@ Next-cycle priority:
 - Fixed subscriber gateway credential drift: `scripts/render_marketops_cutover_env.sh`, read-cutover, and subscription canary paths now preserve the stable runtime `SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD` instead of generating a competing secret.
 - Updated the live, gitignored `.env` to include the full production `COMPOSE_FILE` and the missing MarketOps DB password keys without printing secret values.
 - Validation: `make compose-authority-validate` passed; plain `docker compose up -d --build` completed; DB containers were restored to pgBackRest images; Gateway/public `/readyz` returned ready; subscriber pilot UI smoke passed; scheduler status was restored to clean after a restart-overlapped intraday run was recovered, with latest intraday snapshot `2026-09-01 16:15:00+00` for 125 tenant-local symbols.
+
+### 2026-09-02 — B2C enrollment no-MFA production posture
+
+- Reframed the B2C enrollment path to keep SMS MFA deferred for the current production phase. Enrollment should require Keycloak identity, email verification, tenant/subscription resolution, and SignalOps enrollment safeguards; it should not require phone/SMS verification by default.
+- Updated the Keycloak B2C enrollment runbook to document that `CONFIGURE_SMS_MFA` must not be a default required action for ordinary public registration and that `syncratic-sms-otp-authenticator` must not block normal browser login.
+- Updated the mobile user readiness sprint to treat SMS MFA as a deferred security capability, not a current mobile enrollment acceptance requirement.
+- Hardened the authenticated B2C enrollment Playwright smoke so any unexpected SMS/phone/OTP/MFA block fails with a direct diagnostic before the SignalOps enrollment resolver.
+- Updated the authenticated smoke runner to reuse the existing Syncratic QA credential variable names as a fallback for the B2C smoke identity.
+- Validation: `go test ./internal/api` passed; Python syntax check passed with bytecode redirected to `/tmp`; read-only Keycloak enrollment UI smoke passed (`1 passed`); authenticated B2C enrollment resolver Playwright smoke passed (`1 passed`).

@@ -87,11 +87,22 @@ def test_b2c_user_resolves_enrollment_state(b2c_page: Page) -> None:
     if sign_in.is_visible(timeout=10_000):
         sign_in.click()
 
-    with b2c_page.expect_response(
-        lambda response: response.request.method == "GET" and "/v1/session/enrollment" in response.url,
-        timeout=45_000,
-    ) as enrollment_info:
-        fill_keycloak_login(b2c_page, config)
+    try:
+        with b2c_page.expect_response(
+            lambda response: response.request.method == "GET" and "/v1/session/enrollment" in response.url,
+            timeout=45_000,
+        ) as enrollment_info:
+            fill_keycloak_login(b2c_page, config)
+    except PlaywrightTimeoutError:
+        body = b2c_page.locator("body")
+        visible_text = body.inner_text(timeout=5_000) if body.is_visible(timeout=5_000) else ""
+        current_url = b2c_page.url
+        if re.search(r"sms|phone|otp|verification code|configure.*mfa", visible_text, re.I) or "CONFIGURE_SMS_MFA" in current_url:
+            raise AssertionError(
+                "B2C enrollment was blocked by SMS/MFA friction before the SignalOps enrollment resolver. "
+                "Current production policy keeps SMS MFA deferred; disable default CONFIGURE_SMS_MFA for this flow."
+            ) from None
+        raise
 
     enrollment_response: Response = enrollment_info.value
     assert enrollment_response.status == 200, f"{enrollment_response.url} returned HTTP {enrollment_response.status}"

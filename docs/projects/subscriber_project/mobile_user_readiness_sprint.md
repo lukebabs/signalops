@@ -112,12 +112,12 @@ Acceptance:
 
 ### M7 — Enrollment and subscription path
 
-The mobile user can register, verify SMS MFA, sign in, and understand subscription limits.
+The mobile user can register, verify email, sign in, and understand subscription limits. SMS MFA is deferred from the current default enrollment path to avoid unnecessary friction.
 
 Acceptance:
 
 - App-hosted login/register path renders cleanly on phone.
-- Keycloak SMS MFA required-action screen displays SignalOps branding and compliance disclosure.
+- SMS MFA required-action UX is deferred; if enabled later, the screen must display SignalOps branding and compliance disclosure.
 - Duplicate existing-user registration routes to login/resolution rather than creating confusion.
 - Subscription pricing/upgrade prompts render as concise mobile cards.
 - Checkout activation remains governed by the approved Stripe boundary.
@@ -167,7 +167,7 @@ Enrollment routes:
 
 - app-hosted `/auth/login?redirect=/marketops/dashboard`
 - Keycloak registration form
-- Keycloak `CONFIGURE_SMS_MFA` required-action screen
+- Deferred Keycloak `CONFIGURE_SMS_MFA` required-action screen
 - subscription return/error path
 
 ## Automation plan
@@ -275,7 +275,7 @@ The sprint exits when:
 - mobile Playwright suite exists and passes against production with the configured subscriber QA identity;
 - screenshots or traces are retained as controlled evidence;
 - all required subscriber routes pass at 375px and 430px;
-- Dashboard, Assets, SAF, SRI, Opportunities, Syncratic, pricing, and enrollment flows have no blocking mobile usability issues;
+- Dashboard, Assets, SAF, SRI, Opportunities, Syncratic, pricing, and non-MFA enrollment flows have no blocking mobile usability issues;
 - Admin remains explicitly documented as desktop/operator scope;
 - production readiness path records mobile subscriber readiness as closed or identifies only non-blocking follow-up polish.
 
