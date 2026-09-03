@@ -520,7 +520,7 @@ Remaining gated work:
 
 ## 2026-09-02 production-readiness update — Sep 1 post-close validation and warm-EOD observability
 
-Status: September 1 post-close cycle completed; warm-EOD remains governed degraded, with detail persistence fixed for the next run.
+Status: September 1 post-close cycle completed; warm-EOD remains governed degraded, and the next natural run proved structured detail persistence.
 
 Evidence:
 
@@ -531,8 +531,13 @@ Evidence:
 - Source fix: `scripts/marketops_scheduled_job.sh` now captures warm-EOD normalization output and persists structured detail for degraded/incomplete runs. This does not change provider polling, success/failure semantics, or the bounded-provider-gap policy.
 - Browser validation after the post-close cycle passed: `scripts/run_marketops_dashboard_freshness_ui_smoke.sh` returned `1 passed`; `scripts/run_subscriber_pilot_ui_smoke.sh` returned `2 passed`.
 
-Remaining acceptance:
+Closure evidence — 2026-09-03:
 
-1. Let the next natural warm-EOD run execute and confirm `marketops_scheduled_job_statuses.detail` includes normalized, expected, missing, max_missing, session_date, and missing_symbols when the job is degraded.
-2. Continue treating repeated bounded provider gaps as governed degraded unless missing count exceeds policy or affects user-facing analytical freshness.
+- The next natural warm-EOD run persisted structured detail for the September 2, 2026 session: `status=degraded`, `reason=bounded_provider_gap`, `normalized=996`, `expected=1000`, `missing=4`, `max_missing=5`, `session_date=2026-09-02`, and `missing_symbols=AVB,CRNX,EQR,WBS`.
+- Admin Operations Health now renders a scheduled-job `Details` column, and the Admin Playwright smoke asserts the warm-EOD row exposes bounded-provider-gap details when the row is degraded.
+- Validation passed: web build, Python syntax check, `go test ./internal/api`, production web deploy with subscriber smoke `2 passed`, and Admin Playwright smoke `3 passed, 1 skipped`.
+
+Remaining policy:
+
+1. Continue treating repeated bounded provider gaps as governed degraded unless missing count exceeds policy or affects user-facing analytical freshness.
 

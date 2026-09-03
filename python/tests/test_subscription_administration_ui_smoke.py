@@ -119,6 +119,11 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
     operations_monitor = scheduled_by_label.get("MarketOps operations monitor")
     assert operations_monitor, "MarketOps operations monitor scheduled-job row is missing"
     assert operations_monitor.get("run_now_enabled") is True, operations_monitor
+    warm_eod = scheduled_by_label.get("MarketOps warm EOD baseline")
+    assert warm_eod, "MarketOps warm EOD scheduled-job row is missing"
+    if warm_eod.get("status") == "degraded":
+        for key in ["normalized", "expected", "missing", "max_missing", "session_date", "missing_symbols"]:
+            assert key in warm_eod, f"warm-EOD degraded detail missing {key}: {warm_eod}"
 
     expect(admin_page.get_by_role("heading", name="MarketOps Operations Health")).to_be_visible(timeout=30_000)
     body = admin_page.locator("body")
@@ -126,6 +131,10 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
         expect(body).to_contain_text(label, timeout=30_000)
     for label in ["Expected freshness", "Dependency", "Latest evidence", "Why / next step", "Run recovery", "Status only"]:
         expect(body).to_contain_text(label, timeout=30_000)
+    warm_eod_row = admin_page.get_by_role("row", name=re.compile(r"^MarketOps warm EOD baseline\b"))
+    expect(warm_eod_row).to_contain_text("bounded_provider_gap", timeout=30_000)
+    expect(warm_eod_row).to_contain_text("normalized", timeout=30_000)
+    expect(warm_eod_row).to_contain_text("missing", timeout=30_000)
     operations_monitor_row = admin_page.get_by_role("row", name=re.compile(r"^MarketOps operations monitor\b"))
     expect(operations_monitor_row).to_contain_text("Run now", timeout=30_000)
 

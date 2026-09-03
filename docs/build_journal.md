@@ -1,3 +1,11 @@
+## 2026-09-03 — Warm EOD degraded-detail closure
+
+- Verified the next natural `marketops-warm-eod` run after the detail-persistence fix. The September 2, 2026 session completed as governed `degraded` with `reason=bounded_provider_gap`.
+- Dedicated MarketOps evidence in `marketops_scheduled_job_statuses`: `started_at=2026-09-02 22:00:00+00`, `completed_at=2026-09-02 22:20:25+00`, `normalized=996`, `expected=1000`, `missing=4`, `max_missing=5`, `session_date=2026-09-02`, and `missing_symbols=AVB,CRNX,EQR,WBS`.
+- Added an Admin Operations Health `Details` column for scheduled jobs so bounded degraded states expose the exact normalized/expected/missing/session/symbol evidence instead of only showing status and timestamps.
+- Extended the Subscription Administration Playwright smoke to require the warm-EOD row and degraded-detail fields when warm EOD is in a governed degraded state.
+- Validation passed: `npm --prefix web run build`; Python syntax check for `python/tests/test_subscription_administration_ui_smoke.py`; `go test ./internal/api`; production web deploy through `sudo -n signalops-deploy-agent marketops-web-deploy` with subscriber smoke `2 passed`; Admin Playwright smoke `3 passed, 1 skipped`.
+
 ## 2026-09-02 — Warm EOD degraded detail persistence
 
 - Investigated the only degraded scheduled job after the September 1 post-close cycle: `marketops-warm-eod`.

@@ -15,6 +15,21 @@ const BASE_URL =
   (import.meta.env.VITE_SIGNALOPS_API_BASE_URL ?? '').replace(/\/+$/, '') ||
   '(same-origin via dev proxy)';
 
+
+function scheduledJobDetailSummary(job: any): string {
+  const parts: string[] = [];
+  if (job.reason) parts.push(String(job.reason));
+  if (job.normalized !== undefined || job.expected !== undefined) {
+    parts.push(`normalized ${job.normalized ?? "—"}/${job.expected ?? "—"}`);
+  }
+  if (job.missing !== undefined) {
+    parts.push(`missing ${job.missing}${job.max_missing !== undefined ? ` / max ${job.max_missing}` : ""}`);
+  }
+  if (job.session_date) parts.push(`session ${job.session_date}`);
+  if (job.missing_symbols) parts.push(`symbols ${job.missing_symbols}`);
+  return parts.length ? parts.join(" · ") : "—";
+}
+
 export function SystemRoute() {
   const isMarketops = useAppProfile().currentAppId === 'marketops';
   const healthz = useHealthz();
@@ -219,6 +234,7 @@ export function SystemRoute() {
           <th className="px-2 py-1">Job</th>
           <th className="px-2 py-1">Schedule</th>
           <th className="px-2 py-1">Status</th>
+          <th className="px-2 py-1">Details</th>
           <th className="px-2 py-1">Started</th>
           <th className="px-2 py-1">Completed</th>
           <th className="px-2 py-1">Exit code</th>
@@ -231,6 +247,7 @@ export function SystemRoute() {
             <td className="px-2 py-1 font-medium">{job.label}</td>
             <td className="px-2 py-1 text-gray-600">{job.schedule} · {job.timezone}</td>
             <td className="px-2 py-1"><StatusBadge status={job.status} /></td>
+            <td className="max-w-[360px] px-2 py-1 text-gray-600 dark:text-slate-300">{scheduledJobDetailSummary(job)}</td>
             <td className="px-2 py-1 text-gray-600">{formatUtc(job.started_at)}</td>
             <td className="px-2 py-1 text-gray-600">{formatUtc(job.completed_at)}</td>
             <td className="px-2 py-1 text-gray-600">{job.exit_code ?? "—"}</td>
@@ -248,7 +265,7 @@ export function SystemRoute() {
         ))}
         {operationsScheduledJobs.length === 0 ? (
           <tr>
-            <td className="px-2 py-1 text-gray-500" colSpan={7}>No schedule status records yet.</td>
+            <td className="px-2 py-1 text-gray-500" colSpan={8}>No schedule status records yet.</td>
           </tr>
         ) : null}
       </tbody>
