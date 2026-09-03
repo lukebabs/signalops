@@ -28,7 +28,7 @@ func registerSubscriberSubscriptionRoutes(mux *http.ServeMux, cfg RouterConfig) 
 		for _, product := range products {
 			response = append(response, subscriptionProductResponse(product))
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"products": response})
+		writeJSON(w, http.StatusOK, map[string]any{"products": response, "checkout_enabled": resolveStripeCheckoutClient(cfg) != nil})
 	})
 
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/marketops/subscription/checkout", func(w http.ResponseWriter, r *http.Request) {

@@ -33,6 +33,7 @@ export function MarketOpsPricingRoute() {
   const subscription = useSubscription();
   const productsQ = useQuery({ queryKey: ['subscriber-subscription-products'], queryFn: api.listSubscriberSubscriptionProducts, staleTime: 60_000 });
   const products = useMemo(() => (productsQ.data?.products ?? []).slice().sort(productSort), [productsQ.data?.products]);
+  const checkoutEnabled = Boolean(productsQ.data?.checkout_enabled);
   const sourceFeature = search.source_feature || '';
   const [workingKey, setWorkingKey] = useState<string>('');
   const [checkoutError, setCheckoutError] = useState<string>('');
@@ -66,17 +67,17 @@ export function MarketOpsPricingRoute() {
 
     {checkoutError ? <section className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"><span className="font-semibold">Checkout unavailable.</span> {checkoutError}</section> : null}
 
-    {productsQ.isLoading ? <p className="text-sm text-gray-500">Loading configured plans…</p> : productsQ.isError ? <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">Plan configuration is unavailable.</p> : <section className="grid gap-4 lg:grid-cols-3">{products.map((product) => <PlanCard key={product.product_key} product={product} current={subscription.subscription?.product_key === product.product_key} workingKey={workingKey} onCheckout={startCheckout} />)}</section>}
+    {productsQ.isLoading ? <p className="text-sm text-gray-500">Loading configured plans…</p> : productsQ.isError ? <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">Plan configuration is unavailable.</p> : <section className="grid gap-4 lg:grid-cols-3">{products.map((product) => <PlanCard key={product.product_key} product={product} current={subscription.subscription?.product_key === product.product_key} workingKey={workingKey} checkoutEnabled={checkoutEnabled} onCheckout={startCheckout} />)}</section>}
 
     <section className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
       <h2 className="text-sm font-semibold text-gray-950 dark:text-gray-50">Checkout status</h2>
-      <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">Explorer and Professional use Stripe Checkout. MarketOps records an internal checkout reference first; access changes only after the signed Stripe webhook confirms the subscription. A return from Stripe alone never grants access.</p>
+      <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">Explorer and Professional use Stripe Checkout. MarketOps records an internal checkout reference first; access changes only after the signed Stripe webhook confirms the subscription. A return from Stripe alone never grants access.</p>{!checkoutEnabled ? <p className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">Checkout is not yet enabled because the Gateway is missing a Stripe API key. Billing mappings can still be reviewed by administrators.</p> : null}
       {search.return_url ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Trigger context retained for post-activation return: <code className="break-all">{search.return_url}</code></p> : null}
     </section>
   </div>;
 }
 
-function PlanCard({ product, current, workingKey, onCheckout }: { product: SubscriberSubscriptionProduct; current: boolean; workingKey: string; onCheckout: (product: SubscriberSubscriptionProduct, billingPeriod: BillingPeriod) => void }) {
+function PlanCard({ product, current, workingKey, checkoutEnabled, onCheckout }: { product: SubscriberSubscriptionProduct; current: boolean; workingKey: string; checkoutEnabled: boolean; onCheckout: (product: SubscriberSubscriptionProduct, billingPeriod: BillingPeriod) => void }) {
   const info = tierPositioning[product.product_key] ?? { headline: product.display_name, description: '', bullets: [] };
   const institutional = product.product_key === 'institutional';
   const selfService = product.product_key === 'explorer' || product.product_key === 'professional';
@@ -97,8 +98,8 @@ function PlanCard({ product, current, workingKey, onCheckout }: { product: Subsc
     <ul className="mt-3 space-y-2 text-xs text-gray-700 dark:text-gray-200">{info.bullets.map((bullet) => <li key={bullet} className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" />{bullet}</li>)}</ul>
     <div className="mt-4 flex flex-wrap gap-2">
       {selfService ? <>
-        <button type="button" disabled={!monthlyMapped || Boolean(workingKey)} onClick={() => onCheckout(product, 'monthly')} className="inline-flex items-center gap-2 rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900"><CircleDollarSign size={15} /> {workingKey === `${product.product_key}:monthly` ? 'Opening…' : 'Monthly Checkout'}</button>
-        <button type="button" disabled={!annualMapped || Boolean(workingKey)} onClick={() => onCheckout(product, 'annual')} className="inline-flex items-center gap-2 rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-100"><CircleDollarSign size={15} /> {workingKey === `${product.product_key}:annual` ? 'Opening…' : 'Annual Checkout'}</button>
+        <button type="button" disabled={!checkoutEnabled || !monthlyMapped || Boolean(workingKey)} onClick={() => onCheckout(product, 'monthly')} className="inline-flex items-center gap-2 rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900"><CircleDollarSign size={15} /> {workingKey === `${product.product_key}:monthly` ? 'Opening…' : 'Monthly Checkout'}</button>
+        <button type="button" disabled={!checkoutEnabled || !annualMapped || Boolean(workingKey)} onClick={() => onCheckout(product, 'annual')} className="inline-flex items-center gap-2 rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-100"><CircleDollarSign size={15} /> {workingKey === `${product.product_key}:annual` ? 'Opening…' : 'Annual Checkout'}</button>
       </> : <a href="mailto:sales@syncratic.io?subject=MarketOps%20Institutional" className="inline-flex items-center gap-2 rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-gray-100 dark:text-gray-900"><Mail size={15} /> Contact Sales</a>}
     </div>
   </article>;

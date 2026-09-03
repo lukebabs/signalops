@@ -518,6 +518,25 @@ Remaining gated work:
 6. **Mobile subscriber UX** — rerun the mobile Playwright suite after any Dashboard, Assets, EEOM, SAF, SRI, Syncratic Intelligence, Pricing, or enrollment layout change.
 7. **Recovery evidence** — PR-3 remains a deferred risk until a current dedicated MarketOps backup and isolated restore rehearsal is rerun against the present schema/runtime.
 
+## 2026-09-03 production-readiness update — Stripe Checkout runtime readiness
+
+Status: Stripe product mappings and webhook runtime are present; Checkout start is intentionally blocked until a Stripe API key is injected into the Gateway runtime.
+
+Evidence:
+
+- Dedicated MarketOps database contains Explorer and Professional Stripe Product/Price mappings.
+- Running Gateway has `STRIPE_WEBHOOK_SECRET` and Checkout success/cancel URLs present.
+- Running Gateway has empty `STRIPE_API_KEY` and `STRIPE_RESTRICTED_API_KEY`, so Checkout startup returns `stripe_checkout_disabled` before any Stripe call.
+- Gateway now exposes `checkout_enabled` from `/v1/marketops/subscription-products`, and Pricing disables Checkout controls with an explicit warning when the key is absent.
+- Read-only Pricing readiness smoke passed: `scripts/run_stripe_checkout_readiness_ui_smoke.sh` returned `1 passed`.
+
+Remaining acceptance:
+
+1. Inject a restricted Stripe API key into Gateway runtime. Prefer `STRIPE_RESTRICTED_API_KEY`; `STRIPE_API_KEY` remains supported.
+2. Redeploy Gateway.
+3. Run `scripts/run_stripe_checkout_canary.sh` to create Checkout Sessions for Explorer monthly and Professional annual, verify returned Stripe Checkout URLs, and verify `subscriber_checkout_sessions` ledger rows.
+4. Complete one Stripe test-mode paid flow only after confirming Stripe Tax registrations/product tax codes/tax behavior in Stripe.
+
 ## 2026-09-02 production-readiness update — Sep 1 post-close validation and warm-EOD observability
 
 Status: September 1 post-close cycle completed; warm-EOD remains governed degraded, and the next natural run proved structured detail persistence.

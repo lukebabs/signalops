@@ -1,6 +1,6 @@
 # Stripe Admin-Managed Billing
 
-Status: admin-managed billing slice added on 2026-08-22 and self-service Checkout backend slice added on 2026-08-25. Migration `000155_subscriber_admin_stripe_billing` is applied; migration `000161_subscriber_stripe_checkout_sessions` adds the internal checkout ledger. The Administration UI is live, `STRIPE_WEBHOOK_SECRET` is injected into the gateway runtime, and controlled signed-webhook validation has passed for both unmapped and mapped subscriptions.
+Status: admin-managed billing slice added on 2026-08-22 and self-service Checkout backend slice added on 2026-08-25. Migration `000155_subscriber_admin_stripe_billing` is applied; migration `000161_subscriber_stripe_checkout_sessions` adds the internal checkout ledger. The Administration UI is live, `STRIPE_WEBHOOK_SECRET` is injected into the gateway runtime, and controlled signed-webhook validation has passed for both unmapped and mapped subscriptions. Product/price mappings are configured for Explorer and Professional; live Checkout start remains blocked until a non-empty `STRIPE_API_KEY` or `STRIPE_RESTRICTED_API_KEY` is injected into the Gateway runtime.
 
 ## Purpose
 
@@ -109,6 +109,26 @@ Validation boundary:
 - Before paid launch, validate one test-mode Explorer subscription and one test-mode Professional subscription from Stripe Dashboard and inspect the generated invoice tax results.
 
 Operational note: Stripe Tax calculates and collects tax when configured correctly, but filing/remittance remains an operational responsibility through Stripe filing products, filing partners, or manual processes. Confirm obligations with a tax advisor.
+
+## Checkout readiness evidence — 2026-09-03
+
+Production evidence on 2026-09-03:
+
+- Explorer product mapping: `prod_V7YY6OYlzF94MO`, monthly `price_1U7JRI9yvXTfstCXUvv6QZkr`, annual `price_1U7JRI9yvXTfstCXukjjXpJ1`.
+- Professional product mapping: `prod_V7YZToB4EPMh3e`, monthly `price_1U7JSP9yvXTfstCXmEktmULQ`, annual `price_1U7JSP9yvXTfstCXGujxKmPw`.
+- Gateway runtime has `STRIPE_WEBHOOK_SECRET` and Checkout return URLs present.
+- Gateway runtime has empty `STRIPE_API_KEY` and empty `STRIPE_RESTRICTED_API_KEY`; therefore `POST /v1/tenants/{tenant_id}/marketops/subscription/checkout` correctly fails closed with `stripe_checkout_disabled`.
+- `GET /v1/marketops/subscription-products` now returns `checkout_enabled` so the Pricing UI can disable Checkout controls when runtime configuration is incomplete.
+- Read-only Pricing readiness Playwright smoke passed and verified the UI disables Checkout controls while the API key is absent.
+
+To complete the real Checkout-start canary after adding the restricted Stripe key:
+
+```bash
+sudo -n signalops-deploy-agent marketops-gateway-deploy
+scripts/run_stripe_checkout_canary.sh
+```
+
+The canary creates Stripe Checkout Sessions only. It does not complete payment. Entitlement activation still requires a verified Stripe webhook containing the opaque `checkout_ref`.
 
 ## Acceptance checks
 

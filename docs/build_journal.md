@@ -1,3 +1,12 @@
+## 2026-09-03 — Stripe Checkout readiness hardening
+
+- Added a controlled Stripe Checkout startup canary: `scripts/run_stripe_checkout_canary.sh` plus `python/tests/test_stripe_checkout_canary_ui.py`. The canary authenticates as the tenant-pilot-b QA user, verifies Explorer/Professional Stripe mappings, starts Checkout Sessions through the Gateway, and verifies the opaque `subscriber_checkout_sessions` ledger without completing payment.
+- Ran the canary against production; it failed before touching Stripe with `stripe_checkout_disabled` because the running Gateway has empty `STRIPE_API_KEY` and `STRIPE_RESTRICTED_API_KEY`. `STRIPE_WEBHOOK_SECRET` and the Checkout return URLs are present.
+- Added Gateway `checkout_enabled` evidence to `GET /v1/marketops/subscription-products` so the browser can distinguish mapped products from runtime-ready Checkout.
+- Updated `/marketops/pricing` to disable Explorer/Professional Checkout buttons and show an explicit runtime warning when the Gateway is missing a Stripe API key.
+- Added read-only Pricing readiness smoke: `scripts/run_stripe_checkout_readiness_ui_smoke.sh` plus `python/tests/test_stripe_checkout_readiness_ui.py`; production result: `1 passed`.
+- Validation passed: `npm --prefix web run build`; Python syntax checks for the new Stripe tests; `go test ./internal/api`; Gateway deploy through `sudo -n signalops-deploy-agent marketops-gateway-deploy` with gateway cutover and subscriber smoke passing; subscriber pilot smoke rerun `2 passed`.
+
 ## 2026-09-03 — Warm EOD degraded-detail closure
 
 - Verified the next natural `marketops-warm-eod` run after the detail-persistence fix. The September 2, 2026 session completed as governed `degraded` with `reason=bounded_provider_gap`.

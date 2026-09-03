@@ -56,7 +56,7 @@ export type SubscriberSubscriptionFeature =
   | "historical_replay" | "strategy_validation" | "custom_universes" | "api" | "white_label";
 export interface SubscriberSubscriptionProduct { product_key:string; billing_scope:"subject"|"tenant"|string; display_name:string; is_free:boolean; trial_days:number; feature_policy:Partial<Record<SubscriberSubscriptionFeature, boolean>>; limit_policy:Record<string, number>; revision:number; active?:boolean; changed_by?:string; created_at?:string; updated_at?:string; stripe_product_id?:string; stripe_monthly_price_id?:string; stripe_annual_price_id?:string; }
 export interface SubscriberEffectiveSubscription extends SubscriberSubscriptionProduct { subscription_id:string; status:"trialing"|"active"|"past_due"|"suspended"|"canceled"|string; source:"subject"|"tenant_seat"|string; seat_role?:string; trial_ends_at?:string; current_period_ends_at?:string; grace_ends_at?:string; canceled_at?:string; }
-export interface SubscriberSubscriptionProductsResponse { products:SubscriberSubscriptionProduct[]; }
+export interface SubscriberSubscriptionProductsResponse { products:SubscriberSubscriptionProduct[]; checkout_enabled?:boolean; }
 export interface SubscriberSubscriptionResponse { access_state:"active"|"unprovisioned"|string; enforcement_enabled:boolean; subscription:SubscriberEffectiveSubscription|null; }
 export interface SubscriberCheckoutRequest { product_key:"explorer"|"professional"|string; billing_period:"monthly"|"annual"|string; }
 export interface SubscriberCheckoutResponse { checkout_url:string; checkout_ref:string; stripe_session_id:string; }

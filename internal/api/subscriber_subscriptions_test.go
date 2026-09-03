@@ -48,7 +48,7 @@ func TestSubscriberSubscriptionProductsExposePublicCommercialCatalog(t *testing.
 	router := NewRouter(RouterConfig{Auth: fixture.authCfg, SubscriberListsEnabled: true, SubscriberSubscriptionRepository: store})
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/subscription-products", nil), fixture.token(t, nil)))
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"professional"`) || !strings.Contains(recorder.Body.String(), `"stripe_monthly_price_id":"price_monthly"`) {
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"professional"`) || !strings.Contains(recorder.Body.String(), `"stripe_monthly_price_id":"price_monthly"`) || !strings.Contains(recorder.Body.String(), `"checkout_enabled":false`) {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
@@ -93,6 +93,17 @@ func TestSubscriberSubscriptionReportsWhenEnforcementIsEnabled(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-local/marketops/subscription", nil), fixture.token(t, nil)))
 	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"enforcement_enabled":true`) {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestSubscriberProductsReportsCheckoutEnabledWhenStripeClientConfigured(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	store := &subscriberSubscriptionAPIFake{products: []storage.SubscriberSubscriptionProductRecord{{ProductKey: "explorer", BillingScope: "subject", DisplayName: "Explorer", Active: true, FeaturePolicyJSON: []byte(`{}`), LimitPolicyJSON: []byte(`{}`), Revision: 1}}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, SubscriberListsEnabled: true, SubscriberSubscriptionRepository: store, StripeCheckoutClient: &subscriberCheckoutFake{session: stripeCheckoutSession{ID: "cs_test_123", URL: "https://checkout.stripe.com/c/pay/cs_test_123"}}})
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/subscription-products", nil), fixture.token(t, nil)))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"checkout_enabled":true`) {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
