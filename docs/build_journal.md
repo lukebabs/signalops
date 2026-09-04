@@ -1,3 +1,13 @@
+
+### 2026-09-04 — B2C enrollment tenant-local default correction
+
+- Investigated the new `luke.babarinde@gmail.com` enrollment report: email and SMS verification completed, login reached MarketOps Dashboard, but the dashboard had no data and no subscription option was shown.
+- Root cause: the running Gateway still exposed the old B2C enrollment posture (`SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID=tenant-b2c`, subscription enforcement off). That allowed the user to resolve as MarketOps-ready under a tenant without the mature tenant-local MarketOps default data plane.
+- Changed the SignalOps default B2C tenant to `tenant-local` in runtime config, `compose.yaml`, B2C enrollment tests, smoke runner defaults, and subscriber enrollment documentation.
+- Added a direct Pricing CTA when the authenticated enrollment resolver returns `subscription_missing`, so verified users have a clear subscription path instead of landing on a dead state.
+- Validation: `go test ./internal/config ./internal/api` passed; `npm --prefix web run build` passed; Python syntax check for the B2C authenticated smoke passed; production subscriber pilot Playwright smoke passed (`2 passed`).
+- Remaining live proof blocker: the authenticated B2C Playwright smoke cannot complete because Keycloak rejects the configured `luke.babarinde@gmail.com` QA credential with `Invalid username or password` before SignalOps receives `/v1/session/enrollment`. Correct the Keycloak account password or set `.env` to a valid B2C QA identity, then rerun `SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved SIGNALOPS_E2E_B2C_TENANT_ID=tenant-local scripts/run_keycloak_b2c_enrollment_authenticated_smoke.sh`.
+
 ## 2026-09-04 — Stripe Checkout-start canary closure
 
 - Reran the controlled Stripe Checkout startup canary after Stripe product tax-code configuration was corrected.

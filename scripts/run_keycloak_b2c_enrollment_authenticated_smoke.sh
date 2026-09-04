@@ -24,7 +24,7 @@ fi
 : "${SIGNALOPS_B2C_WEB_PASS:?SIGNALOPS_B2C_WEB_PASS must be set for the existing B2C QA account}"
 
 export SIGNALOPS_E2E_BASE_URL="${SIGNALOPS_E2E_BASE_URL:-https://signalops.syncratic.io}"
-export SIGNALOPS_E2E_B2C_TENANT_ID="${SIGNALOPS_E2E_B2C_TENANT_ID:-tenant-b2c}"
+export SIGNALOPS_E2E_B2C_TENANT_ID="${SIGNALOPS_E2E_B2C_TENANT_ID:-tenant-local}"
 export SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE="${SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE:-marketops_ready}"
 export SIGNALOPS_E2E_ARTIFACT_DIR="${SIGNALOPS_E2E_ARTIFACT_DIR:-/tmp/signalops-b2c-enrollment-e2e-artifacts}"
 

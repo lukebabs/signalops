@@ -25,7 +25,7 @@ const (
 	defaultSubscriberSubscriptionsEnabled    = "false"
 	defaultSubscriberListsPilotTenants       = ""
 	defaultSubscriberListsDatabaseURL        = ""
-	defaultSubscriberB2CTenantID             = "tenant-b2c"
+	defaultSubscriberB2CTenantID             = "tenant-local"
 	defaultSubscriberB2CAutoActivateExplorer = "false"
 )
 

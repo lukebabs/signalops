@@ -37,7 +37,7 @@ def b2c_enrollment_config() -> B2CEnrollmentConfig:
         base_url=os.getenv("SIGNALOPS_E2E_BASE_URL", "https://signalops.syncratic.io").rstrip("/"),
         username=username,
         password=password,
-        tenant_id=os.getenv("SIGNALOPS_E2E_B2C_TENANT_ID", "tenant-b2c").strip(),
+        tenant_id=os.getenv("SIGNALOPS_E2E_B2C_TENANT_ID", "tenant-local").strip(),
         expected_state=os.getenv("SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE", "marketops_ready").strip(),
         expected_can_self_enroll=os.getenv("SIGNALOPS_E2E_EXPECT_CAN_SELF_ENROLL", "true").strip().lower() == "true",
         expected_created_actions=tuple(action.strip() for action in os.getenv("SIGNALOPS_E2E_EXPECT_CREATED_ACTIONS", "").split(",") if action.strip()),
@@ -97,6 +97,11 @@ def test_b2c_user_resolves_enrollment_state(b2c_page: Page) -> None:
         body = b2c_page.locator("body")
         visible_text = body.inner_text(timeout=5_000) if body.is_visible(timeout=5_000) else ""
         current_url = b2c_page.url
+        if re.search(r"invalid username or password", visible_text, re.I):
+            raise AssertionError(
+                f"B2C enrollment smoke could not authenticate {config.username!r}; Keycloak returned invalid username or password. "
+                "Update SIGNALOPS_B2C_WEB/SIGNALOPS_B2C_WEB_PASS or SYNCRATIC_QA_CLIENT/SYNCRATIC_QA_PASS before rerunning."
+            ) from None
         if re.search(r"sms|phone|otp|verification code|configure.*mfa", visible_text, re.I) or "CONFIGURE_SMS_MFA" in current_url:
             raise AssertionError(
                 "B2C enrollment was blocked by SMS/MFA friction before the SignalOps enrollment resolver. "

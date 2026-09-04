@@ -2127,7 +2127,7 @@ Implementation guardrail: `SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER` defa
 
 The first enrollment implementation reuses the existing Syncratic Keycloak realm and `signalops-web` OIDC client rather than creating a separate pending realm. The browser now exposes a Create account path that invokes Keycloak registration through the same Authorization Code + PKCE callback.
 
-SignalOps adds `GET /v1/session/enrollment` as the authenticated first-use resolver. It is intentionally reachable before normal MarketOps access grants are complete, while retaining tenant-claim validation and rate limiting. The resolver auto-provisions only verified users whose signed token tenant matches the configured B2C tenant, default `tenant-b2c`.
+SignalOps adds `GET /v1/session/enrollment` as the authenticated first-use resolver. It is intentionally reachable before normal MarketOps access grants are complete, while retaining tenant-claim validation and rate limiting. The resolver auto-provisions only verified users whose signed token tenant matches the configured B2C tenant, default `tenant-local`.
 
 For an eligible verified B2C user under the selected Option B policy, the resolver idempotently creates or confirms:
 

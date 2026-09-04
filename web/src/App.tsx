@@ -48,7 +48,10 @@ function EnrollmentGate({ children }: { children: ReactNode }) {
             <div className="flex justify-between gap-3"><dt>State</dt><dd className="font-mono">{state}</dd></div>
             {enrollment.data?.email && <div className="flex justify-between gap-3"><dt>Email</dt><dd>{enrollment.data.email}</dd></div>}
           </dl>
-          <button type="button" onClick={() => window.location.reload()} className="mt-5 rounded bg-brand-500 px-3 py-2 text-sm text-white hover:bg-brand-700">Check again</button>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {state === 'subscription_missing' ? <button type="button" onClick={() => window.location.assign('/marketops/pricing')} className="rounded bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-700">View subscription options</button> : null}
+            <button type="button" onClick={() => window.location.reload()} className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Check again</button>
+          </div>
         </section>
       </div>
     );

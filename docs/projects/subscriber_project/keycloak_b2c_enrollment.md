@@ -15,7 +15,7 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 - Create Account uses the same facade with `intent=register`; that intent starts Keycloak's OIDC `registrations` endpoint while preserving PKCE/state callback handling. Keycloak must still have realm registration enabled before the registration form will render.
 - The gateway exposes `GET /v1/session/enrollment` for authenticated users before normal MarketOps access is complete.
 - The enrollment resolver reads the signed token subject, tenant, display identity, email, and `email_verified` claim.
-- Auto-enrollment is restricted to `SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID`, default `tenant-b2c`.
+- Auto-enrollment is restricted to `SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID`, default `tenant-local`.
 - Verified B2C users may be idempotently provisioned with MarketOps read access and starter watchlist scaffolding, but production readiness requires an active subscription from governed administration or Stripe webhook reconciliation.
 - SMS MFA enrollment and login challenge are Keycloak-owned controls, but they are not part of the current default enrollment gate. SignalOps must not request `CONFIGURE_SMS_MFA` for normal public registration until a later MFA rollout is explicitly approved. If SMS MFA is later enabled, SignalOps must not set `phone_number_verified=true`; only the Keycloak SMS MFA provider may do that after verification.
 - The resolver creates a tenant-default starter watchlist only when the B2C tenant has no readable list context.
@@ -93,7 +93,7 @@ SIGNALOPS_B2C_WEB_PASS=<existing-b2c-qa-password> \
 
 This test signs in through Keycloak, waits for `GET /v1/session/enrollment`, and asserts:
 
-- the response tenant is the configured B2C tenant, default `tenant-b2c`;
+- the response tenant is the configured B2C tenant, default `tenant-local`;
 - the enrollment state matches `SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE`, default `marketops_ready`;
 - `email_verified=true`;
 - `self_enrollment.eligible=true`;
@@ -123,7 +123,7 @@ Live Keycloak was inspected through the `keycloak` container using `kcadm.sh`; n
 
 - `emailVerified=true`;
 - realm role `signalops:viewer`;
-- user attribute `tenant_id=["tenant-b2c"]`.
+- user attribute `tenant_id=["tenant-local"]`.
 
 The then-current `signalops-web` client had the required token mappers during the 2026-08-25 QA inspection:
 
@@ -138,7 +138,7 @@ Current realm-level public enrollment posture after the 2026-08-25 form enableme
 - `verifyEmail=true`;
 - `/signalops/viewers` is configured as a default group for new registrants.
 
-This only renders and protects the Keycloak registration form. It does not complete production enrollment by itself: new registrants still need governed `tenant_id=tenant-b2c` assignment before SignalOps can accept their token. SMS MFA is not required for the current default enrollment path.
+This only renders and protects the Keycloak registration form. It does not complete production enrollment by itself: new registrants still need governed `tenant_id=tenant-local` assignment before SignalOps can accept their token. SMS MFA is not required for the current default enrollment path.
 
 ## HAR finding: registration entrypoint mismatch — 2026-08-25
 
@@ -151,7 +151,7 @@ Operational conclusion: treat this as an auth entrypoint/client reconciliation p
 
 Until one path is verified in live browser smoke, public self-registration remains closed.
 
-The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke passed on 2026-08-25 using `SYNCRATIC_QA_CLIENT` / `SYNCRATIC_QA_PASS` mapped to the smoke variables. The already-provisioned QA account resolved to `tenant-b2c`, `marketops_ready`, `email_verified=true`, and `self_enrollment.eligible=true`. Under the production Option B policy, a new B2C account without a governed subscription must resolve to `subscription_missing` once subscription enforcement is enabled.
+The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke passed on 2026-08-25 using `SYNCRATIC_QA_CLIENT` / `SYNCRATIC_QA_PASS` mapped to the smoke variables. The already-provisioned QA account resolved to `tenant-local`, `marketops_ready`, `email_verified=true`, and `self_enrollment.eligible=true`. Under the production Option B policy, a new B2C account without a governed subscription must resolve to `subscription_missing` once subscription enforcement is enabled.
 
 Existing-user safety validation is part of the smoke contract: an already-provisioned identity must return `self_enrollment.created=[]`. That proves the account is resolving through the login/enrollment path without creating a duplicate access grant or subscription enrollment.
 
@@ -181,7 +181,7 @@ Live status on 2026-08-25:
 - The provider-enabled Keycloak image is running. Startup logs show `syncratic-sms-otp-authenticator` and `CONFIGURE_SMS_MFA` loaded under Keycloak `25.0.6`.
 - The live `syncratic` realm uses `syncratic-browser` as the browser flow. The flow contains `syncratic-sms-otp-authenticator` with requirement `REQUIRED`.
 - Prior SMS MFA testing enabled `CONFIGURE_SMS_MFA` as a default required action. That setting should be disabled for the current production enrollment path because the product decision is to avoid MFA friction until a later gate.
-- Tenant assignment must not depend on SMS MFA for the current flow. B2C users need `tenant_id=tenant-b2c` through the governed Keycloak mapper/assignment path without overwriting existing tenant-local, tenant-pilot-b, or other explicitly assigned users.
+- Tenant assignment must not depend on SMS MFA for the current flow. B2C users need `tenant_id=tenant-local` through the governed Keycloak mapper/assignment path without overwriting existing tenant-local, tenant-pilot-b, or other explicitly assigned users.
 
 
 Flow placement correction on 2026-08-25:
