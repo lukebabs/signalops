@@ -37,7 +37,7 @@ import json, re, sys
 items = json.load(open(sys.argv[1]))
 for item in items:
     ref = item.get('checkout_ref', '')
-    if not re.fullmatch(r'subcheckout_[A-Za-z0-9_]+', ref):
+    if not re.fullmatch(r'subcheckout-[A-Za-z0-9_]+', ref):
         raise SystemExit(f'invalid checkout_ref {ref!r}')
     print(ref)
 PY

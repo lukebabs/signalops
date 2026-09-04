@@ -110,6 +110,23 @@ Validation boundary:
 
 Operational note: Stripe Tax calculates and collects tax when configured correctly, but filing/remittance remains an operational responsibility through Stripe filing products, filing partners, or manual processes. Confirm obligations with a tax advisor.
 
+## Checkout-start canary closure — 2026-09-04
+
+After correcting Stripe product tax-code configuration, the controlled live Checkout-start canary passed.
+
+Evidence:
+
+- `scripts/run_stripe_checkout_canary.sh` returned `1 passed` and `stripe_checkout_canary_verified sessions=2`.
+- Explorer monthly Checkout Session was created for `price_1UBkkF8w1ilrMHjMacm0rTny` with opaque reference `subcheckout-eca0827e65acdc76af3a9ece`.
+- Professional annual Checkout Session was created for `price_1UBkqT8w1ilrMHjMVdNVFLrq` with opaque reference `subcheckout-082a2ba58a4fe5d9b88434a3`.
+- Both internal checkout ledger rows are `checkout_started`, `checkout_url_returned=true`, and retain empty `stripe_subscription_id`; this confirms Checkout-start works and access is still webhook-authoritative.
+
+Remaining paid-flow acceptance:
+
+1. Complete one controlled Stripe test/live payment only when the business is ready to create a real subscription.
+2. Verify the signed Stripe webhook transitions the matching `checkout_ref` into an active subject subscription.
+3. Verify Stripe invoice tax output in Stripe Dashboard.
+
 ## Checkout readiness evidence — 2026-09-03
 
 Production evidence on 2026-09-03:

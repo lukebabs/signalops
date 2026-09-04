@@ -1,3 +1,11 @@
+## 2026-09-04 — Stripe Checkout-start canary closure
+
+- Reran the controlled Stripe Checkout startup canary after Stripe product tax-code configuration was corrected.
+- Stripe accepted live Checkout Session creation for Explorer monthly and Professional annual. The canary does not complete payment and does not grant access from redirect-only evidence.
+- Corrected the canary assertion to match the SignalOps opaque checkout reference format `subcheckout-...`.
+- Production canary passed: `scripts/run_stripe_checkout_canary.sh` returned `1 passed` and `stripe_checkout_canary_verified sessions=2 refs=subcheckout-eca0827e65acdc76af3a9ece,subcheckout-082a2ba58a4fe5d9b88434a3`.
+- Dedicated MarketOps ledger evidence shows both rows at `status=checkout_started`, `checkout_url_returned=true`, populated `cs_live_...` Stripe session IDs, and empty `stripe_subscription_id`, confirming no entitlement activation occurred without a verified webhook.
+
 ## 2026-09-03 — Stripe Checkout readiness hardening
 
 - Added a controlled Stripe Checkout startup canary: `scripts/run_stripe_checkout_canary.sh` plus `python/tests/test_stripe_checkout_canary_ui.py`. The canary authenticates as the tenant-pilot-b QA user, verifies Explorer/Professional Stripe mappings, starts Checkout Sessions through the Gateway, and verifies the opaque `subscriber_checkout_sessions` ledger without completing payment.

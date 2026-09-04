@@ -74,7 +74,7 @@ def api_post_checkout(page: Page, tenant_id: str, product_key: str, billing_peri
     checkout_ref = str(body.get("checkout_ref", ""))
     stripe_session_id = str(body.get("stripe_session_id", ""))
     assert checkout_url.startswith("https://checkout.stripe.com/"), body
-    assert checkout_ref.startswith("subcheckout_"), body
+    assert checkout_ref.startswith("subcheckout-"), body
     assert stripe_session_id.startswith("cs_"), body
     return {
         "product_key": product_key,

@@ -520,7 +520,7 @@ Remaining gated work:
 
 ## 2026-09-03 production-readiness update — Stripe Checkout runtime readiness
 
-Status: Stripe product mappings and webhook runtime are present; Checkout start is intentionally blocked until a Stripe API key is injected into the Gateway runtime.
+Status: Stripe Checkout-start is operational for Explorer monthly and Professional annual; full paid-flow activation remains gated on a controlled payment/webhook validation.
 
 Evidence:
 
@@ -530,12 +530,17 @@ Evidence:
 - Gateway now exposes `checkout_enabled` from `/v1/marketops/subscription-products`, and Pricing disables Checkout controls with an explicit warning when the key is absent.
 - Read-only Pricing readiness smoke passed: `scripts/run_stripe_checkout_readiness_ui_smoke.sh` returned `1 passed`.
 
+Closure evidence — 2026-09-04:
+
+- Stripe product/price IDs saved in Admin resolved under the live runtime key.
+- After Stripe product tax-code configuration was corrected, `scripts/run_stripe_checkout_canary.sh` passed and created two unpaid Checkout Sessions.
+- Dedicated MarketOps ledger rows show `checkout_started`, `checkout_url_returned=true`, populated Stripe session IDs, and empty `stripe_subscription_id`, proving Checkout-start without entitlement activation.
+
 Remaining acceptance:
 
-1. Inject a restricted Stripe API key into Gateway runtime. Prefer `STRIPE_RESTRICTED_API_KEY`; `STRIPE_API_KEY` remains supported.
-2. Redeploy Gateway.
-3. Run `scripts/run_stripe_checkout_canary.sh` to create Checkout Sessions for Explorer monthly and Professional annual, verify returned Stripe Checkout URLs, and verify `subscriber_checkout_sessions` ledger rows.
-4. Complete one Stripe test-mode paid flow only after confirming Stripe Tax registrations/product tax codes/tax behavior in Stripe.
+1. Complete one controlled paid-flow validation only when ready to create a real subscription.
+2. Verify the signed Stripe webhook reconciles the matching opaque `checkout_ref` to an active subject subscription.
+3. Verify Stripe invoice tax output in Stripe Dashboard.
 
 ## 2026-09-02 production-readiness update — Sep 1 post-close validation and warm-EOD observability
 
