@@ -75,6 +75,8 @@ type RouterConfig struct {
 	StripeCheckoutSuccessURL                       string
 	StripeCheckoutCancelURL                        string
 	StripeCheckoutClient                           stripeCheckoutClient
+	StripePortalReturnURL                          string
+	StripePortalClient                             stripePortalClient
 	MarketQuoteClient                              interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}

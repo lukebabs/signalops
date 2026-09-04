@@ -22,7 +22,7 @@ This slice connects Stripe as billing evidence and as the payment processor for 
 
 ## What is not included
 
-- Stripe billing portal.
+- Direct Stripe refund execution from SignalOps; refunds remain admin-reviewed and manually executed in Stripe Dashboard.
 - Customer self-service downgrade/cancel/change-payment workflows.
 - Automatic user, tenant, or seat creation from Stripe.
 - Provider polling or MarketOps data entitlement changes.

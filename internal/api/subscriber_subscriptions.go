@@ -130,6 +130,49 @@ func registerSubscriberSubscriptionRoutes(mux *http.ServeMux, cfg RouterConfig) 
 		writeJSON(w, http.StatusOK, map[string]any{"checkout_url": session.URL, "checkout_ref": checkoutRef, "stripe_session_id": session.ID})
 	})
 
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/marketops/subscription/portal", func(w http.ResponseWriter, r *http.Request) {
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		subject, ok := requireRequestSubject(w, r, "")
+		if !ok {
+			return
+		}
+		repo := cfg.SubscriberSubscriptionRepository
+		portalClient := resolveStripePortalClient(cfg)
+		if repo == nil {
+			writeError(w, http.StatusServiceUnavailable, "subscription_unavailable", "subscription storage is unavailable")
+			return
+		}
+		if portalClient == nil {
+			writeError(w, http.StatusServiceUnavailable, "stripe_portal_disabled", "Stripe customer portal is not configured")
+			return
+		}
+		subscription, err := repo.GetSubscriberEffectiveSubscription(r.Context(), tenantID, subject)
+		if errors.Is(err, storage.ErrNotFound) {
+			writeError(w, http.StatusConflict, "subscription_portal_unavailable", "an active subscription is required before opening the customer portal")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access is unavailable")
+			return
+		}
+		if strings.TrimSpace(subscription.StripeCustomerID) == "" {
+			writeError(w, http.StatusConflict, "subscription_portal_unavailable", "subscription is not backed by a Stripe customer")
+			return
+		}
+		session, err := portalClient.CreateBillingPortalSession(r.Context(), stripeBillingPortalSessionRequest{
+			CustomerID: subscription.StripeCustomerID,
+			ReturnURL:  cfg.StripePortalReturnURL,
+		})
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "stripe_portal_failed", "Stripe customer portal session could not be created")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"portal_url": session.URL, "stripe_session_id": session.ID})
+	})
+
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/subscription", func(w http.ResponseWriter, r *http.Request) {
 		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
 		if !ok {

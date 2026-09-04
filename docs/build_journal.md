@@ -1,3 +1,10 @@
+### 2026-09-04 — Stripe customer portal self-service path
+
+- Added a backend-created Stripe Customer Portal session endpoint at `POST /v1/tenants/{tenant_id}/marketops/subscription/portal`. The browser receives only the returned Stripe portal URL/session ID and never receives Stripe API keys.
+- Extended the effective subscription read model to include persisted Stripe customer/subscription IDs internally so the portal opens only for active Stripe-backed subscriptions. Manual/non-Stripe subscriptions fail closed with `subscription_portal_unavailable`.
+- Added `SIGNALOPS_STRIPE_PORTAL_RETURN_URL`, defaulting to `/marketops/pricing`, and exposed a subscriber-facing `Manage subscription in Stripe` control on Pricing for active subscriptions.
+- Subscription changes remain webhook-authoritative: Customer Portal redirects do not grant, revoke, or mutate SignalOps access until signed Stripe webhook reconciliation updates the local subscription state.
+
 ### 2026-09-04 — Admin-governed refund request workflow and identity-label cleanup
 
 - Added migration `000166_subscriber_refund_requests` to create an append-only tenant-scoped refund-request ledger in the dedicated MarketOps database. Subscribers can request a refund, but refund action remains admin-only.

@@ -34,17 +34,19 @@ type SubscriberSubscriptionProductRecord struct {
 }
 
 type SubscriberEffectiveSubscriptionRecord struct {
-	TenantID            string
-	Subject             string
-	SubscriptionID      string
-	Product             SubscriberSubscriptionProductRecord
-	Status              string
-	Source              string // subject or tenant_seat
-	SeatRole            string
-	TrialEndsAt         *time.Time
-	CurrentPeriodEndsAt *time.Time
-	GraceEndsAt         *time.Time
-	CanceledAt          *time.Time
+	TenantID             string
+	Subject              string
+	SubscriptionID       string
+	Product              SubscriberSubscriptionProductRecord
+	Status               string
+	Source               string // subject or tenant_seat
+	SeatRole             string
+	TrialEndsAt          *time.Time
+	CurrentPeriodEndsAt  *time.Time
+	GraceEndsAt          *time.Time
+	CanceledAt           *time.Time
+	StripeCustomerID     string
+	StripeSubscriptionID string
 }
 
 // SubscriberSubscriptionRepository deliberately carries commercial access only.

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSearch } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, CircleDollarSign, Mail } from 'lucide-react';
+import { CheckCircle2, CircleDollarSign, ExternalLink, Mail } from 'lucide-react';
 import { api } from '../api/client';
 import { useTenant } from '../auth/session';
 import { useSubscription } from '../subscriber/SubscriptionContext';
@@ -40,6 +40,7 @@ export function MarketOpsPricingRoute() {
   const [refundReason, setRefundReason] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
   const [refundResult, setRefundResult] = useState<{ state: 'idle' | 'working' | 'success' | 'error'; message: string }>({ state: 'idle', message: '' });
+  const [portalResult, setPortalResult] = useState<{ state: 'idle' | 'working' | 'error'; message: string }>({ state: 'idle', message: '' });
 
   async function startCheckout(product: SubscriberSubscriptionProduct, billingPeriod: BillingPeriod) {
     setCheckoutError('');
@@ -64,6 +65,16 @@ export function MarketOpsPricingRoute() {
       setRefundResult({ state: 'success', message: 'Refund request submitted. A subscription administrator will review it and take action in Stripe if approved.' });
     } catch (error) {
       setRefundResult({ state: 'error', message: error instanceof Error ? error.message : 'Refund request could not be submitted.' });
+    }
+  }
+
+  async function openCustomerPortal() {
+    setPortalResult({ state: 'working', message: 'Opening Stripe customer portal…' });
+    try {
+      const response = await api.createSubscriberPortalSession(tenantId);
+      window.location.assign(response.portal_url);
+    } catch (error) {
+      setPortalResult({ state: 'error', message: error instanceof Error ? error.message : 'Stripe customer portal could not be opened.' });
     }
   }
 
@@ -93,8 +104,15 @@ export function MarketOpsPricingRoute() {
     </section>
 
     {subscription.subscription ? <section className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-      <h2 className="text-sm font-semibold text-gray-950 dark:text-gray-50">Need billing help?</h2>
-      <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">Submit a refund request for administrator review. SignalOps records the request and notifies the Subscription Administration queue; an admin performs approved refunds in Stripe Dashboard.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-950 dark:text-gray-50">Need billing help?</h2>
+          <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">Manage active Stripe-backed subscriptions in the Stripe customer portal. Refunds remain admin-reviewed so billing exceptions stay controlled and auditable.</p>
+        </div>
+        <button type="button" disabled={portalResult.state === 'working'} onClick={openCustomerPortal} className="inline-flex items-center gap-2 rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-100"><ExternalLink size={15} /> {portalResult.state === 'working' ? 'Opening…' : 'Manage subscription in Stripe'}</button>
+      </div>
+      {portalResult.state === 'error' ? <p role="status" className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">{portalResult.message}</p> : null}
+      <p className="mt-4 text-xs leading-5 text-gray-600 dark:text-gray-300">Submit a refund request for administrator review. SignalOps records the request and notifies the Subscription Administration queue; an admin performs approved refunds in Stripe Dashboard.</p>
       <div className="mt-3 grid gap-2 md:grid-cols-[10rem_1fr_auto]">
         <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Amount requested, optional<input inputMode="decimal" value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} placeholder="24.99" className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" /></label>
         <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Reason<textarea value={refundReason} onChange={(event) => setRefundReason(event.target.value)} rows={2} placeholder="Briefly explain the billing issue." className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" /></label>

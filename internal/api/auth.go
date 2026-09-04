@@ -341,7 +341,7 @@ func authorizedForRequest(r *http.Request, principal Principal) bool {
 	if isSubscriberSubscriptionAdministrationRequest(r) {
 		return isSubscriptionAdministrator(principal)
 	}
-	if isSubscriberUpgradeInteractionRequest(r) || isSubscriberCheckoutRequest(r) {
+	if isSubscriberUpgradeInteractionRequest(r) || isSubscriberSubscriptionSelfServiceRequest(r) {
 		return strings.TrimSpace(principal.TenantID) != "" && strings.TrimSpace(principal.Subject) != ""
 	}
 	if allowsCrossTenantInitialProvisioning(r, principal) || allowsCrossTenantSubscriptionAdministration(r, principal) {
@@ -415,12 +415,15 @@ func isSubscriberUpgradeInteractionRequest(r *http.Request) bool {
 	return r.Method == http.MethodPost && r.URL.Path == "/v1/marketops/subscriptions/upgrade-interactions"
 }
 
-func isSubscriberCheckoutRequest(r *http.Request) bool {
+func isSubscriberSubscriptionSelfServiceRequest(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false
 	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	return len(parts) == 6 && parts[0] == "v1" && parts[1] == "tenants" && parts[3] == "marketops" && parts[4] == "subscription" && parts[5] == "checkout"
+	if len(parts) != 6 || parts[0] != "v1" || parts[1] != "tenants" || parts[3] != "marketops" || parts[4] != "subscription" {
+		return false
+	}
+	return parts[5] == "checkout" || parts[5] == "portal"
 }
 
 func isSubscriberWatchlistRequest(r *http.Request) bool {

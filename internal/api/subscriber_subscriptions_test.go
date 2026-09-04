@@ -25,6 +25,20 @@ func (f *subscriberCheckoutFake) CreateCheckoutSession(_ context.Context, reques
 	return f.session, nil
 }
 
+type subscriberPortalFake struct {
+	request stripeBillingPortalSessionRequest
+	session stripeBillingPortalSession
+	err     error
+}
+
+func (f *subscriberPortalFake) CreateBillingPortalSession(_ context.Context, request stripeBillingPortalSessionRequest) (stripeBillingPortalSession, error) {
+	f.request = request
+	if f.err != nil {
+		return stripeBillingPortalSession{}, f.err
+	}
+	return f.session, nil
+}
+
 type subscriberSubscriptionAPIFake struct {
 	products []storage.SubscriberSubscriptionProductRecord
 	record   storage.SubscriberEffectiveSubscriptionRecord
@@ -162,5 +176,58 @@ func TestSubscriberCheckoutRejectsUnmappedPrice(t *testing.T) {
 	router.ServeHTTP(response, request)
 	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "subscription_price_unmapped") {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestSubscriberPortalCreatesStripeCustomerPortalSession(t *testing.T) {
+	store := &subscriberSubscriptionAPIFake{record: storage.SubscriberEffectiveSubscriptionRecord{
+		TenantID:             "tenant-pilot-b",
+		Subject:              "pilot-sub",
+		SubscriptionID:       "sub-professional",
+		Status:               storage.SubscriberSubscriptionActive,
+		Source:               "subject",
+		StripeCustomerID:     "cus_test_123",
+		StripeSubscriptionID: "sub_test_123",
+		Product:              storage.SubscriberSubscriptionProductRecord{ProductKey: "professional", BillingScope: "subject", DisplayName: "Professional", Active: true, FeaturePolicyJSON: []byte(`{}`), LimitPolicyJSON: []byte(`{}`), Revision: 1},
+	}}
+	portal := &subscriberPortalFake{session: stripeBillingPortalSession{ID: "bps_test_123", URL: "https://billing.stripe.com/p/session/test"}}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionRepository: store, StripePortalClient: portal, StripePortalReturnURL: "https://signalops.syncratic.io/marketops/pricing"})
+	request := httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-pilot-b/marketops/subscription/portal", nil)
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-pilot-b", Subject: "pilot-sub", Roles: map[string]struct{}{roleViewer: {}}, Access: map[string]string{"marketops": "read"}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "billing.stripe.com") || !strings.Contains(response.Body.String(), "bps_test_123") {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if portal.request.CustomerID != "cus_test_123" || portal.request.ReturnURL != "https://signalops.syncratic.io/marketops/pricing" || store.tenant != "tenant-pilot-b" || store.subject != "pilot-sub" {
+		t.Fatalf("unexpected portal request=%+v tenant=%s subject=%s", portal.request, store.tenant, store.subject)
+	}
+}
+
+func TestSubscriberPortalFailsClosedWithoutStripeClient(t *testing.T) {
+	store := &subscriberSubscriptionAPIFake{record: storage.SubscriberEffectiveSubscriptionRecord{TenantID: "tenant-pilot-b", Subject: "pilot-sub", SubscriptionID: "sub-explorer", Status: storage.SubscriberSubscriptionActive, StripeCustomerID: "cus_test_123", Product: storage.SubscriberSubscriptionProductRecord{ProductKey: "explorer", BillingScope: "subject", DisplayName: "Explorer", Active: true, FeaturePolicyJSON: []byte(`{}`), LimitPolicyJSON: []byte(`{}`), Revision: 1}}}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionRepository: store})
+	request := httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-pilot-b/marketops/subscription/portal", nil)
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-pilot-b", Subject: "pilot-sub", Roles: map[string]struct{}{roleViewer: {}}, Access: map[string]string{"marketops": "read"}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), "stripe_portal_disabled") {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestSubscriberPortalFailsClosedWithoutStripeCustomer(t *testing.T) {
+	store := &subscriberSubscriptionAPIFake{record: storage.SubscriberEffectiveSubscriptionRecord{TenantID: "tenant-pilot-b", Subject: "pilot-sub", SubscriptionID: "sub-explorer", Status: storage.SubscriberSubscriptionActive, Product: storage.SubscriberSubscriptionProductRecord{ProductKey: "explorer", BillingScope: "subject", DisplayName: "Explorer", Active: true, FeaturePolicyJSON: []byte(`{}`), LimitPolicyJSON: []byte(`{}`), Revision: 1}}}
+	portal := &subscriberPortalFake{session: stripeBillingPortalSession{ID: "bps_test_123", URL: "https://billing.stripe.com/p/session/test"}}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionRepository: store, StripePortalClient: portal})
+	request := httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-pilot-b/marketops/subscription/portal", nil)
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-pilot-b", Subject: "pilot-sub", Roles: map[string]struct{}{roleViewer: {}}, Access: map[string]string{"marketops": "read"}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "subscription_portal_unavailable") {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if portal.request.CustomerID != "" {
+		t.Fatalf("portal should not be called without a Stripe customer: %+v", portal.request)
 	}
 }

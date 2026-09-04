@@ -14,7 +14,10 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-const stripeCheckoutEndpoint = "https://api.stripe.com/v1/checkout/sessions"
+const (
+	stripeCheckoutEndpoint      = "https://api.stripe.com/v1/checkout/sessions"
+	stripeBillingPortalEndpoint = "https://api.stripe.com/v1/billing_portal/sessions"
+)
 
 type stripeCheckoutClient interface {
 	CreateCheckoutSession(context.Context, stripeCheckoutSessionRequest) (stripeCheckoutSession, error)
@@ -34,7 +37,26 @@ type stripeCheckoutSession struct {
 	URL string `json:"url"`
 }
 
+type stripePortalClient interface {
+	CreateBillingPortalSession(context.Context, stripeBillingPortalSessionRequest) (stripeBillingPortalSession, error)
+}
+
+type stripeBillingPortalSessionRequest struct {
+	CustomerID string
+	ReturnURL  string
+}
+
+type stripeBillingPortalSession struct {
+	ID  string `json:"id"`
+	URL string `json:"url"`
+}
+
 type stripeHTTPCheckoutClient struct {
+	apiKey     string
+	httpClient *http.Client
+}
+
+type stripeHTTPPortalClient struct {
 	apiKey     string
 	httpClient *http.Client
 }
@@ -109,6 +131,65 @@ func resolveStripeCheckoutClient(cfg RouterConfig) stripeCheckoutClient {
 		return nil
 	}
 	return stripeHTTPCheckoutClient{apiKey: cfg.StripeAPIKey, httpClient: &http.Client{Timeout: 15 * time.Second}}
+}
+
+func (c stripeHTTPPortalClient) CreateBillingPortalSession(ctx context.Context, input stripeBillingPortalSessionRequest) (stripeBillingPortalSession, error) {
+	apiKey := strings.TrimSpace(c.apiKey)
+	if apiKey == "" {
+		return stripeBillingPortalSession{}, errors.New("stripe API key is not configured")
+	}
+	form := url.Values{}
+	form.Set("customer", strings.TrimSpace(input.CustomerID))
+	form.Set("return_url", strings.TrimSpace(input.ReturnURL))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, stripeBillingPortalEndpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return stripeBillingPortalSession{}, err
+	}
+	req.SetBasicAuth(apiKey, "")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "SignalOps/marketops-subscription-portal")
+	client := c.httpClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return stripeBillingPortalSession{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return stripeBillingPortalSession{}, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		var stripeErr struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		_ = json.Unmarshal(body, &stripeErr)
+		message := firstNonEmptyStripeValue(stripeErr.Error.Message, resp.Status)
+		return stripeBillingPortalSession{}, fmt.Errorf("stripe billing portal session rejected: %s", message)
+	}
+	var session stripeBillingPortalSession
+	if err := json.Unmarshal(body, &session); err != nil {
+		return stripeBillingPortalSession{}, err
+	}
+	if strings.TrimSpace(session.ID) == "" || strings.TrimSpace(session.URL) == "" {
+		return stripeBillingPortalSession{}, errors.New("stripe portal response missing session id or URL")
+	}
+	return session, nil
+}
+
+func resolveStripePortalClient(cfg RouterConfig) stripePortalClient {
+	if cfg.StripePortalClient != nil {
+		return cfg.StripePortalClient
+	}
+	if strings.TrimSpace(cfg.StripeAPIKey) == "" {
+		return nil
+	}
+	return stripeHTTPPortalClient{apiKey: cfg.StripeAPIKey, httpClient: &http.Client{Timeout: 15 * time.Second}}
 }
 
 func stripeCheckoutPrice(product storage.SubscriberSubscriptionProductRecord, billingPeriod string) string {

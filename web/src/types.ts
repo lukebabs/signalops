@@ -60,6 +60,7 @@ export interface SubscriberSubscriptionProductsResponse { products:SubscriberSub
 export interface SubscriberSubscriptionResponse { access_state:"active"|"unprovisioned"|string; enforcement_enabled:boolean; subscription:SubscriberEffectiveSubscription|null; }
 export interface SubscriberCheckoutRequest { product_key:"explorer"|"professional"|string; billing_period:"monthly"|"annual"|string; }
 export interface SubscriberCheckoutResponse { checkout_url:string; checkout_ref:string; stripe_session_id:string; }
+export interface SubscriberPortalResponse { portal_url:string; stripe_session_id:string; }
 
 export type SessionEnrollmentState = "marketops_ready"|"email_verification_required"|"tenant_access_missing"|"subscription_missing"|"watchlist_context_missing"|string;
 export interface SessionEnrollmentResponse { state:SessionEnrollmentState; tenant_id:string; subject:string; email?:string; display_name?:string; email_verified:boolean; self_enrollment:{ eligible:boolean; created:string[] }; access:{ marketops?:string }; subscription:SubscriberEffectiveSubscription|null; watchlist_context:SubscriberWatchlistContext|null; }

@@ -77,7 +77,9 @@ def test_stripe_checkout_readiness_state_matches_gateway(pricing_page: Page, pri
     assert int(subscription_response["status"]) == 200, subscription_response["body"]
     if subscription_response["body"].get("subscription"):
         expect(body).to_contain_text("Need billing help?", timeout=30_000)
+        expect(body).to_contain_text("Manage active Stripe-backed subscriptions in the Stripe customer portal", timeout=30_000)
         expect(body).to_contain_text("Submit a refund request for administrator review", timeout=30_000)
+        expect(pricing_page.get_by_role("button", name="Manage subscription in Stripe")).to_be_visible(timeout=30_000)
         expect(pricing_page.get_by_role("button", name="Request refund")).to_be_disabled()
 
     checkout_enabled = bool(product_response["body"].get("checkout_enabled"))

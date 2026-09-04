@@ -42,7 +42,7 @@ func (r *Repository) GetSubscriberEffectiveSubscription(ctx context.Context, ten
 	err := r.WithSubscriberTenantScope(ctx, tenantID, func(ctx context.Context, tx *sql.Tx) error {
 		row := tx.QueryRowContext(ctx, `
 SELECT s.tenant_id, s.subject, s.subscription_id, s.status, 'subject' AS source, '' AS seat_role,
-  s.trial_ends_at, s.current_period_ends_at, s.grace_ends_at, s.canceled_at,
+  s.trial_ends_at, s.current_period_ends_at, s.grace_ends_at, s.canceled_at, s.stripe_customer_id, s.stripe_subscription_id,
   p.product_key, p.billing_scope, p.display_name, p.is_free, p.trial_days,
   p.stripe_product_id, p.stripe_monthly_price_id, p.stripe_annual_price_id, p.monthly_display_price, p.annual_display_price,
   p.feature_policy, p.limit_policy, p.revision, p.active, p.changed_by, p.created_at, p.updated_at
@@ -59,7 +59,7 @@ LIMIT 1`, tenantID, subject)
 
 		row = tx.QueryRowContext(ctx, `
 SELECT s.tenant_id, seat.subject, s.subscription_id, s.status, 'tenant_seat' AS source, seat.seat_role,
-  NULL::timestamptz AS trial_ends_at, s.current_period_ends_at, s.grace_ends_at, s.canceled_at,
+  NULL::timestamptz AS trial_ends_at, s.current_period_ends_at, s.grace_ends_at, s.canceled_at, s.stripe_customer_id, s.stripe_subscription_id,
   p.product_key, p.billing_scope, p.display_name, p.is_free, p.trial_days,
   p.stripe_product_id, p.stripe_monthly_price_id, p.stripe_annual_price_id, p.monthly_display_price, p.annual_display_price,
   p.feature_policy, p.limit_policy, p.revision, p.active, p.changed_by, p.created_at, p.updated_at
@@ -86,7 +86,7 @@ type subscriberSubscriptionScanner interface {
 func scanEffectiveSubscriberSubscription(scanner subscriberSubscriptionScanner, result *storage.SubscriberEffectiveSubscriptionRecord) error {
 	return scanner.Scan(
 		&result.TenantID, &result.Subject, &result.SubscriptionID, &result.Status, &result.Source, &result.SeatRole,
-		&result.TrialEndsAt, &result.CurrentPeriodEndsAt, &result.GraceEndsAt, &result.CanceledAt,
+		&result.TrialEndsAt, &result.CurrentPeriodEndsAt, &result.GraceEndsAt, &result.CanceledAt, &result.StripeCustomerID, &result.StripeSubscriptionID,
 		&result.Product.ProductKey, &result.Product.BillingScope, &result.Product.DisplayName, &result.Product.IsFree, &result.Product.TrialDays,
 		&result.Product.StripeProductID, &result.Product.StripeMonthlyPriceID, &result.Product.StripeAnnualPriceID, &result.Product.MonthlyDisplayPrice, &result.Product.AnnualDisplayPrice,
 		&result.Product.FeaturePolicyJSON, &result.Product.LimitPolicyJSON, &result.Product.Revision, &result.Product.Active,

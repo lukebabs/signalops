@@ -79,6 +79,7 @@ func main() {
 		StripeAPIKey:                      cfg.StripeAPIKey,
 		StripeCheckoutSuccessURL:          cfg.StripeCheckoutSuccessURL,
 		StripeCheckoutCancelURL:           cfg.StripeCheckoutCancelURL,
+		StripePortalReturnURL:             cfg.StripePortalReturnURL,
 	}
 	if cfg.SubscriberSubscriptionsEnabled && !cfg.SubscriberListsEnabled {
 		logger.Error("subscription enforcement requires the subscriber catalog gateway database")

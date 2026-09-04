@@ -60,6 +60,7 @@ type Config struct {
 	StripeAPIKey                      string
 	StripeCheckoutSuccessURL          string
 	StripeCheckoutCancelURL           string
+	StripePortalReturnURL             string
 	MarketOpsDatabaseURL              string
 	MarketOpsTemporalDatabaseURL      string
 	// MarketOpsDataBoundaryRequired makes the dedicated MarketOps primary and
@@ -141,6 +142,7 @@ func Load() Config {
 		StripeAPIKey:                      envOrDefault("STRIPE_API_KEY", envOrDefault("STRIPE_RESTRICTED_API_KEY", "")),
 		StripeCheckoutSuccessURL:          envOrDefault("SIGNALOPS_STRIPE_CHECKOUT_SUCCESS_URL", "https://signalops.syncratic.io/marketops/subscription/return?session_id={CHECKOUT_SESSION_ID}"),
 		StripeCheckoutCancelURL:           envOrDefault("SIGNALOPS_STRIPE_CHECKOUT_CANCEL_URL", "https://signalops.syncratic.io/marketops/pricing"),
+		StripePortalReturnURL:             envOrDefault("SIGNALOPS_STRIPE_PORTAL_RETURN_URL", "https://signalops.syncratic.io/marketops/pricing"),
 		MarketOpsDatabaseURL:              envOrDefault("SIGNALOPS_MARKETOPS_DATABASE_URL", ""),
 		MarketOpsTemporalDatabaseURL:      envOrDefault("SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL", ""),
 		MarketOpsDataBoundaryRequired:     envBool("SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED", "false"),
