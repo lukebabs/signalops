@@ -183,6 +183,22 @@ func TestSubscriberStripeWebhookRequiresValidSignature(t *testing.T) {
 	}
 }
 
+func TestSubscriberStripeWebhookAcceptsCheckoutSessionCompleted(t *testing.T) {
+	store := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store, StripeWebhookSecret: "whsec_test"})
+	body := `{"id":"evt_checkout","type":"checkout.session.completed","data":{"object":{"id":"cs_live_123","customer":"cus_123","subscription":"sub_123","status":"complete","payment_status":"paid","metadata":{"checkout_ref":"subcheckout-test","product_key":"explorer","billing_period":"monthly"}}}}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/billing/stripe/webhook", strings.NewReader(body))
+	request.Header.Set("Stripe-Signature", stripeTestSignature(body, "whsec_test"))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
+	}
+	if store.stripeWebhook.ProviderEventID != "evt_checkout" || store.stripeWebhook.EventType != "checkout.session.completed" || store.stripeWebhook.StripeSubscriptionID != "sub_123" || store.stripeWebhook.StripeCustomerID != "cus_123" || store.stripeWebhook.Status != storage.SubscriberSubscriptionActive || store.stripeWebhook.CheckoutRef != "subcheckout-test" {
+		t.Fatalf("unexpected checkout webhook mutation: %+v", store.stripeWebhook)
+	}
+}
+
 func TestSubscriberStripeWebhookRejectsBadSignature(t *testing.T) {
 	store := &subscriberSubscriptionAdministrationFake{}
 	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store, StripeWebhookSecret: "whsec_test"})

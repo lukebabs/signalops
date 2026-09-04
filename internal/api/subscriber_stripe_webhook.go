@@ -46,6 +46,15 @@ type stripeInvoiceObject struct {
 	PeriodEnd    int64             `json:"period_end"`
 }
 
+type stripeCheckoutSessionWebhookObject struct {
+	ID            string            `json:"id"`
+	Metadata      map[string]string `json:"metadata"`
+	Customer      any               `json:"customer"`
+	Subscription  any               `json:"subscription"`
+	Status        string            `json:"status"`
+	PaymentStatus string            `json:"payment_status"`
+}
+
 func registerSubscriberStripeWebhookRoutes(mux *http.ServeMux, cfg RouterConfig) {
 	repository := cfg.SubscriberSubscriptionAdministrationRepository
 	if repository == nil {
@@ -130,6 +139,21 @@ func stripeWebhookMutation(payload []byte) (storage.SubscriberStripeWebhookMutat
 	}
 	mutation := storage.SubscriberStripeWebhookMutation{ProviderEventID: strings.TrimSpace(event.ID), EventType: strings.TrimSpace(event.Type), PayloadJSON: payload}
 	switch event.Type {
+	case "checkout.session.completed":
+		var object stripeCheckoutSessionWebhookObject
+		if err := json.Unmarshal(event.Data.Object, &object); err != nil {
+			return mutation, fmt.Errorf("invalid Stripe checkout session object: %w", err)
+		}
+		mutation.StripeSubscriptionID = stripeStringID(object.Subscription)
+		mutation.StripeCustomerID = stripeStringID(object.Customer)
+		mutation.CheckoutRef = strings.TrimSpace(object.Metadata["checkout_ref"])
+		if strings.TrimSpace(object.Status) == "complete" && strings.TrimSpace(object.PaymentStatus) == "paid" {
+			mutation.Status = storage.SubscriberSubscriptionActive
+		} else {
+			mutation.Status = storage.SubscriberSubscriptionPastDue
+			grace := time.Now().UTC().Add(7 * 24 * time.Hour)
+			mutation.GraceEndsAt = &grace
+		}
 	case "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
 		var object stripeSubscriptionObject
 		if err := json.Unmarshal(event.Data.Object, &object); err != nil {

@@ -1,6 +1,6 @@
 # Stripe Admin-Managed Billing
 
-Status: admin-managed billing slice added on 2026-08-22 and self-service Checkout backend slice added on 2026-08-25. Migration `000155_subscriber_admin_stripe_billing` is applied; migration `000161_subscriber_stripe_checkout_sessions` adds the internal checkout ledger. The Administration UI is live, `STRIPE_WEBHOOK_SECRET` is injected into the gateway runtime, and controlled signed-webhook validation has passed for both unmapped and mapped subscriptions. Product/price mappings are configured for Explorer and Professional; live Checkout start remains blocked until a non-empty `STRIPE_API_KEY` or `STRIPE_RESTRICTED_API_KEY` is injected into the Gateway runtime.
+Status: admin-managed billing slice added on 2026-08-22 and self-service Checkout backend slice added on 2026-08-25. Migration `000155_subscriber_admin_stripe_billing` is applied; migration `000161_subscriber_stripe_checkout_sessions` adds the internal checkout ledger. The Administration UI is live, `STRIPE_WEBHOOK_SECRET` and `STRIPE_RESTRICTED_API_KEY` are injected into the gateway runtime, controlled signed-webhook validation has passed for unmapped and mapped subscriptions, and the first real live Explorer Checkout payment has activated through webhook-authoritative reconciliation. Product/price mappings are configured for Explorer and Professional.
 
 ## Purpose
 
@@ -31,13 +31,14 @@ This slice connects Stripe as billing evidence and as the payment processor for 
 
 The gateway verifies the `Stripe-Signature` header using `STRIPE_WEBHOOK_SECRET`. Invalid signatures return `400` and are not persisted. Supported events are:
 
+- `checkout.session.completed`;
 - `customer.subscription.created`;
 - `customer.subscription.updated`;
 - `customer.subscription.deleted`;
 - `invoice.payment_succeeded`;
 - `invoice.payment_failed`.
 
-A known Stripe subscription ID updates the mapped subject or tenant subscription status and billing dates. A Stripe subscription with a known opaque `checkout_ref` activates or updates the stored subject subscription for Explorer/Professional. An unknown Stripe subscription ID/reference is retained as `unmatched`; it does not create access. Duplicate provider event IDs are idempotent and return the retained processing status.
+A known Stripe subscription ID updates the mapped subject or tenant subscription status and billing dates. A Stripe subscription event or completed Checkout Session with a known opaque `checkout_ref` activates or updates the stored subject subscription for Explorer/Professional. An unknown Stripe subscription ID/reference is retained as `unmatched`; it does not create access. Duplicate provider event IDs are idempotent and return the retained processing status.
 
 ## Operational flow
 
@@ -109,6 +110,22 @@ Validation boundary:
 - Before paid launch, validate one test-mode Explorer subscription and one test-mode Professional subscription from Stripe Dashboard and inspect the generated invoice tax results.
 
 Operational note: Stripe Tax calculates and collects tax when configured correctly, but filing/remittance remains an operational responsibility through Stripe filing products, filing partners, or manual processes. Confirm obligations with a tax advisor.
+
+
+## Real paid activation evidence — 2026-09-04
+
+A live Explorer monthly Checkout payment completed for session `cs_live_a1PXQR4g96ZkMkJFkiOJMVoSQhrES4u2mBRgJaxptYjCyqFkZlFLaICeIN`. Stripe returned `status=complete`, `payment_status=paid`, subscription `sub_1UBoUu8w1ilrMHjMPE6RGdBH`, customer `cus_VCCuc6id2ct0vu`, and metadata `checkout_ref=subcheckout-ac7ea41094f5498af111dfe7`.
+
+Root cause of the initial non-activation was operational, not payment failure: no live Stripe webhook endpoint was configured for SignalOps, so Stripe events did not reach the Gateway. The Gateway was also hardened to support `checkout.session.completed` directly, in addition to subscription and invoice events.
+
+Closure evidence:
+
+- Live Stripe webhook endpoint `we_1UBob38w1ilrMHjMGAiMODEs` was created for `https://signalops.syncratic.io/v1/billing/stripe/webhook` with subscription, invoice, and checkout-completed events enabled.
+- The endpoint signing secret was stored only in the gitignored runtime environment and loaded by the redeployed Gateway.
+- The real Stripe `customer.subscription.created` event `evt_1UBoUw8w1ilrMHjM3UOV9CAI` was replayed through the signed webhook endpoint and processed successfully.
+- `subscriber_checkout_sessions` moved `subcheckout-ac7ea41094f5498af111dfe7` to `webhook_processed` and recorded the Stripe subscription ID.
+- `subscriber_subject_subscriptions` now has the B2C subject active on Explorer with `provisioned_by=stripe-webhook`.
+- Authenticated B2C Playwright smoke passed with state `marketops_ready`, confirming the user no longer routes to Pricing after activation.
 
 ## Checkout-start canary closure — 2026-09-04
 

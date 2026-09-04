@@ -1,3 +1,12 @@
+### 2026-09-04 — Stripe webhook-authoritative paid activation closure
+
+- Investigated completed live Checkout Session `cs_live_a1PXQR4g96ZkMkJFkiOJMVoSQhrES4u2mBRgJaxptYjCyqFkZlFLaICeIN` after the user still routed to Pricing.
+- Root cause: Stripe had no live webhook endpoint configured for SignalOps, so the real Stripe events never reached `POST /v1/billing/stripe/webhook`; additionally, the Gateway did not yet accept `checkout.session.completed` as a supported webhook event type.
+- Created the live Stripe webhook endpoint for `https://signalops.syncratic.io/v1/billing/stripe/webhook` with subscription, invoice, and checkout-completed events enabled; updated the gitignored runtime webhook secret without exposing it.
+- Hardened the Gateway webhook parser to accept `checkout.session.completed` using the opaque `checkout_ref`, subscription ID, customer ID, and paid/complete state.
+- Replayed the real Stripe `customer.subscription.created` event payload through the signed webhook endpoint. The event processed as `processed`, the checkout ledger moved to `webhook_processed`, and the B2C subject subscription became `explorer active` with `provisioned_by=stripe-webhook`.
+- Validation: `go test ./internal/api ./internal/storage/postgres` passed; Gateway redeployed through the constrained deployment agent; gateway cutover and subscriber pilot smokes passed; authenticated B2C Playwright smoke passed with post-payment state `marketops_ready`.
+
 ### 2026-09-04 — Customer-facing subscription price display
 
 - Fixed the Pricing page so Explorer and Professional show customer-readable prices (`$24.99/mo`, `$249/yr`, `$99/mo`, `$999/yr`) instead of raw Stripe `price_...` identifiers.
