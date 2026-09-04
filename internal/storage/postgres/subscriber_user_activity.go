@@ -17,6 +17,8 @@ const maxSubscriberUserActivityLimit = 500
 func (r *Repository) RecordSubscriberUserActivity(ctx context.Context, input storage.SubscriberUserActivityRecordInput) error {
 	input.TenantID = strings.TrimSpace(input.TenantID)
 	input.Subject = strings.TrimSpace(input.Subject)
+	input.SubjectDisplayName = strings.TrimSpace(input.SubjectDisplayName)
+	input.SubjectEmail = strings.ToLower(strings.TrimSpace(input.SubjectEmail))
 	if input.AppID == "" {
 		input.AppID = "marketops"
 	}
@@ -53,6 +55,13 @@ func (r *Repository) RecordSubscriberUserActivity(ctx context.Context, input sto
 	if err := json.Unmarshal(metadata, &metadataObject); err != nil {
 		return errors.New("subscriber activity metadata must be a JSON object")
 	}
+	if input.SubjectDisplayName != "" {
+		metadataObject["subject_display_name"] = input.SubjectDisplayName
+	}
+	if input.SubjectEmail != "" {
+		metadataObject["subject_email"] = input.SubjectEmail
+	}
+	metadata, _ = json.Marshal(metadataObject)
 	return r.WithSubscriberTenantScope(ctx, input.TenantID, func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `
 INSERT INTO subscriber_user_activity_events
@@ -117,6 +126,14 @@ WITH filtered AS (
     AND ($5::timestamptz IS NULL OR occurred_at >= $5)
     AND ($6::timestamptz IS NULL OR occurred_at <= $6)
 ),
+activity_identity AS (
+  SELECT DISTINCT ON (subject) subject,
+    COALESCE(metadata->>'subject_display_name', '') AS display_name,
+    COALESCE(metadata->>'subject_email', '') AS email
+  FROM filtered
+  WHERE COALESCE(metadata->>'subject_display_name', '') <> '' OR COALESCE(metadata->>'subject_email', '') <> ''
+  ORDER BY subject, occurred_at DESC
+),
 top_features AS (
   SELECT DISTINCT ON (subject) subject, feature_key
   FROM (
@@ -128,8 +145,8 @@ top_features AS (
   ORDER BY subject, event_count DESC, last_seen DESC, feature_key
 )
 SELECT f.subject,
-  COALESCE(identity.display_name, '') AS subject_display_name,
-  COALESCE(identity.email, '') AS subject_email,
+  COALESCE(NULLIF(identity.display_name, ''), activity_identity.display_name, '') AS subject_display_name,
+  COALESCE(NULLIF(identity.email, ''), activity_identity.email, '') AS subject_email,
   max(f.occurred_at) AS last_activity_at,
   max(f.occurred_at) FILTER (WHERE f.event_type='login') AS last_login_at,
   max(f.occurred_at) FILTER (WHERE f.event_type='logout') AS last_logout_at,
@@ -140,8 +157,9 @@ SELECT f.subject,
   COALESCE(top_features.feature_key, '') AS top_feature_key
 FROM filtered f
 LEFT JOIN subscriber_subscription_admin_identity_labels($1) identity ON identity.subject=f.subject
+LEFT JOIN activity_identity ON activity_identity.subject=f.subject
 LEFT JOIN top_features ON top_features.subject=f.subject
-GROUP BY f.subject, identity.display_name, identity.email, top_features.feature_key
+GROUP BY f.subject, identity.display_name, identity.email, activity_identity.display_name, activity_identity.email, top_features.feature_key
 ORDER BY max(f.occurred_at) DESC, f.subject
 LIMIT 100`, filter.TenantID, filter.Subject, filter.EventType, filter.Query, filter.OccurredAtFrom, filter.OccurredAtTo)
 	if err != nil {
@@ -162,19 +180,28 @@ LIMIT 100`, filter.TenantID, filter.Subject, filter.EventType, filter.Query, fil
 func listSubscriberUserActivityEventsTx(ctx context.Context, tx *sql.Tx, filter storage.SubscriberUserActivityFilter, limit int) ([]storage.SubscriberUserActivityEventRecord, error) {
 	rows, err := tx.QueryContext(ctx, `
 SELECT e.activity_id, e.tenant_id, e.subject,
-  COALESCE(identity.display_name, '') AS subject_display_name,
-  COALESCE(identity.email, '') AS subject_email,
+  COALESCE(NULLIF(identity.display_name, ''), activity_identity.display_name, '') AS subject_display_name,
+  COALESCE(NULLIF(identity.email, ''), activity_identity.email, '') AS subject_email,
   e.app_id, e.event_type, e.feature_key, e.http_method, e.route_path,
   e.status_code, e.correlation_id, COALESCE(e.metadata, '{}'::jsonb), e.occurred_at
 FROM subscriber_user_activity_events e
 LEFT JOIN subscriber_subscription_admin_identity_labels($1) identity ON identity.subject=e.subject
+LEFT JOIN LATERAL (
+  SELECT COALESCE(metadata->>'subject_display_name', '') AS display_name,
+    COALESCE(metadata->>'subject_email', '') AS email
+  FROM subscriber_user_activity_events latest
+  WHERE latest.tenant_id=$1 AND latest.subject=e.subject
+    AND (COALESCE(latest.metadata->>'subject_display_name', '') <> '' OR COALESCE(latest.metadata->>'subject_email', '') <> '')
+  ORDER BY latest.occurred_at DESC
+  LIMIT 1
+) activity_identity ON true
 WHERE e.tenant_id=$1
   AND ($2='' OR e.subject=$2)
   AND ($3='' OR e.event_type=$3)
   AND ($4='' OR (
     lower(e.subject) LIKE '%' || lower($4) || '%'
-    OR lower(COALESCE(identity.email, '')) LIKE '%' || lower($4) || '%'
-    OR lower(COALESCE(identity.display_name, '')) LIKE '%' || lower($4) || '%'
+    OR lower(COALESCE(NULLIF(identity.email, ''), activity_identity.email, '')) LIKE '%' || lower($4) || '%'
+    OR lower(COALESCE(NULLIF(identity.display_name, ''), activity_identity.display_name, '')) LIKE '%' || lower($4) || '%'
     OR lower(e.feature_key) LIKE '%' || lower($4) || '%'
     OR lower(e.route_path) LIKE '%' || lower($4) || '%'
     OR lower(e.http_method) LIKE '%' || lower($4) || '%'

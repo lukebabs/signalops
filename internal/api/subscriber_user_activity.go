@@ -47,6 +47,7 @@ func registerSubscriberSessionActivityRoutes(mux *http.ServeMux, cfg RouterConfi
 		}
 		if err := repository.RecordSubscriberUserActivity(r.Context(), storage.SubscriberUserActivityRecordInput{
 			TenantID: strings.TrimSpace(principal.TenantID), Subject: strings.TrimSpace(principal.Subject),
+			SubjectDisplayName: strings.TrimSpace(principal.PreferredName), SubjectEmail: strings.TrimSpace(principal.Email),
 			AppID: firstNonEmpty(strings.TrimSpace(request.AppID), "marketops"), EventType: eventType,
 			FeatureKey: strings.TrimSpace(request.FeatureKey), RoutePath: normalizeActivityRoutePath(strings.TrimSpace(request.RoutePath)),
 			CorrelationID: subscriptionCorrelationID(r, request.CorrelationID), MetadataJSON: []byte(metadata),
@@ -107,7 +108,8 @@ func recordMarketOpsActivityMutation(r *http.Request, repository storage.Subscri
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_ = repository.RecordSubscriberUserActivity(ctx, storage.SubscriberUserActivityRecordInput{
-		TenantID: strings.TrimSpace(principal.TenantID), Subject: strings.TrimSpace(principal.Subject), AppID: "marketops",
+		TenantID: strings.TrimSpace(principal.TenantID), Subject: strings.TrimSpace(principal.Subject),
+		SubjectDisplayName: strings.TrimSpace(principal.PreferredName), SubjectEmail: strings.TrimSpace(principal.Email), AppID: "marketops",
 		EventType: "api_mutation", FeatureKey: activityFeatureKey(r.URL.Path), HTTPMethod: r.Method,
 		RoutePath: normalizeActivityRoutePath(r.URL.Path), StatusCode: statusCode,
 		CorrelationID: firstNonEmpty(headerValue(r, "X-Correlation-ID"), headerValue(r, "X-Request-ID")),

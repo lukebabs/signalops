@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
+from test_subscription_enforcement_canary_ui import bearer
+
 
 @pytest.fixture(scope="session")
 def admin_config() -> tuple[str, str, str]:
@@ -235,6 +237,24 @@ def test_subscription_administration_governance_surface(admin_page: Page, admin_
     expect(admin_page.get_by_label("Search user activity")).to_be_visible()
     expect(body).to_contain_text("Operational visibility into login, logout")
     expect(body).to_contain_text("Activity events")
+    activity_response = admin_page.evaluate(
+        """async (token) => {
+          const response = await fetch('/v1/administration/subscriptions/activity?tenant_id=tenant-local&limit=100', {headers: {Authorization: 'Bearer ' + token}});
+          return {status: response.status, body: await response.json().catch(() => ({}))};
+        }""",
+        bearer(admin_page),
+    )
+    assert int(activity_response["status"]) == 200, activity_response["body"]
+    labeled = [
+        item for item in activity_response["body"].get("summaries", [])
+        if item.get("subject_email") or item.get("subject_display_name")
+    ]
+    uuid_pattern = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+    for item in labeled:
+        label = item.get("subject_email") or item.get("subject_display_name")
+        expect(body).to_contain_text(label, timeout=30_000)
+        if uuid_pattern.match(str(item.get("subject", ""))):
+            expect(body).not_to_contain_text(item["subject"])
 
     admin_page.get_by_role("button", name="Audit log").click()
     expect(admin_page.get_by_label("Search audit log")).to_be_visible()

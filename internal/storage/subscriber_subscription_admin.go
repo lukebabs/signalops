@@ -130,16 +130,18 @@ type SubscriberUserActivityEventRecord struct {
 }
 
 type SubscriberUserActivityRecordInput struct {
-	TenantID      string
-	Subject       string
-	AppID         string
-	EventType     string
-	FeatureKey    string
-	HTTPMethod    string
-	RoutePath     string
-	StatusCode    int
-	CorrelationID string
-	MetadataJSON  []byte
+	TenantID           string
+	Subject            string
+	SubjectDisplayName string
+	SubjectEmail       string
+	AppID              string
+	EventType          string
+	FeatureKey         string
+	HTTPMethod         string
+	RoutePath          string
+	StatusCode         int
+	CorrelationID      string
+	MetadataJSON       []byte
 }
 
 // SubscriberUpgradeInteractionRecord captures upgrade prompt impressions and

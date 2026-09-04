@@ -1,3 +1,10 @@
+### 2026-09-04 — Subscription activity identity-label repair
+
+- Fixed User Activity rendering in Subscription Administration so activity summaries/events can show email/display name instead of raw OIDC subject UUIDs.
+- Root cause: activity rows were keyed by immutable subject, but label resolution depended on `tenant_user_access`; some activity-only rows had no usable label and older event rows did not inherit the latest known subject identity.
+- Gateway now records JWT-derived `subject_email` and `subject_display_name` into activity metadata for login/logout/feature-view/API mutation records, and activity queries fall back to the latest known activity identity for that subject.
+- Strengthened the Subscription Administration Playwright smoke to reject UUID-only rendering when a subject has a known label.
+
 ### 2026-09-04 — Stripe customer portal self-service path
 
 - Added a backend-created Stripe Customer Portal session endpoint at `POST /v1/tenants/{tenant_id}/marketops/subscription/portal`. The browser receives only the returned Stripe portal URL/session ID and never receives Stripe API keys.
