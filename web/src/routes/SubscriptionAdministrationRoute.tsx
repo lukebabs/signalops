@@ -319,8 +319,12 @@ function WebhookLedgerView({ snapshot, search, onSearch }: { snapshot: Subscribe
 
 function IdentityCell({ subject, displayName, email }: { subject?: string; displayName?: string; email?: string }) {
   const identifier = (subject ?? '').trim();
-  const primary = (email ?? '').trim() || (displayName ?? '').trim() || identifier || '—';
-  return <span className="block min-w-[12rem]" title={identifier && primary !== identifier ? identifier : undefined}><span className="block font-medium text-gray-900 dark:text-gray-100">{primary}</span>{displayName && email && displayName !== email ? <span className="block text-[11px] text-gray-500 dark:text-gray-400">{displayName}</span> : null}</span>;
+  const emailLabel = (email ?? '').trim();
+  const displayLabel = (displayName ?? '').trim();
+  const labeled = Boolean(emailLabel || displayLabel);
+  const suffix = identifier ? identifier.slice(-8) : '';
+  const primary = emailLabel || displayLabel || (identifier ? `Unlabeled user · ${suffix}` : '—');
+  return <span className="block min-w-[12rem]" title={identifier || undefined}><span className="block font-medium text-gray-900 dark:text-gray-100">{primary}</span>{labeled && displayLabel && emailLabel && displayLabel !== emailLabel ? <span className="block text-[11px] text-gray-500 dark:text-gray-400">{displayLabel}</span> : null}</span>;
 }
 
 function Table({ title, headers, rows, empty }: { title: string; headers: string[]; rows: ReactNode[][]; empty: string }) {

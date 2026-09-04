@@ -175,7 +175,8 @@ func registerSessionEnrollmentRoute(mux *http.ServeMux, cfg RouterConfig) {
 
 		if cfg.SubscriberSubscriptionAdministrationRepository != nil {
 			_ = cfg.SubscriberSubscriptionAdministrationRepository.RecordSubscriberUserActivity(r.Context(), storage.SubscriberUserActivityRecordInput{
-				TenantID: tenantID, Subject: subject, AppID: "marketops", EventType: "feature_view", FeatureKey: "enrollment", RoutePath: "/v1/session/enrollment", CorrelationID: "session-enrollment", MetadataJSON: []byte(`{"milestone":"resolved"}`),
+				TenantID: tenantID, Subject: subject, SubjectDisplayName: strings.TrimSpace(principal.PreferredName), SubjectEmail: strings.TrimSpace(principal.Email),
+				AppID: "marketops", EventType: "feature_view", FeatureKey: "enrollment", RoutePath: "/v1/session/enrollment", CorrelationID: "session-enrollment", MetadataJSON: []byte(`{"milestone":"resolved"}`),
 			})
 		}
 		writeJSON(w, http.StatusOK, sessionEnrollmentResponse(principal, sessionEnrollmentStateReady, created, accessRecords, subscription, watchlistContext, canSelfEnroll))

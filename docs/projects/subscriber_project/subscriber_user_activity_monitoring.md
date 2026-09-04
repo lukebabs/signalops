@@ -152,3 +152,30 @@ The shared `signalops-retention-governance` job remains scoped to the shared Sig
 - Admin run-now job ID: `marketops-retention-governance`
 
 This path runs `subscriber.user_activity_180d` for `tenant-local` and `tenant-pilot-b` against the dedicated MarketOps primary database. It records normal scheduled-job status under `marketops-retention-governance` and inserts dry-run rows into `retention_runs`.
+
+## Display identity-label ledger closure — 2026-09-04
+
+Migration `000167_subscriber_subject_identity_labels` adds a dedicated display-only identity-label ledger for subscriber activity.
+
+Purpose:
+
+- keep immutable subject UUIDs as the authoritative audit key;
+- avoid exposing raw UUIDs as the primary visible user label in Admin;
+- capture email/display-name labels from authenticated JWT activity going forward;
+- backfill labels from existing `tenant_user_access` and activity metadata where labels already exist;
+- preserve unlabeled historical subjects without fabricating identity.
+
+Rules:
+
+- The table is not an authorization source.
+- Email/display name are labels only and may change over time.
+- The Admin UI may render `Unlabeled user · <suffix>` when no trusted label exists.
+- Full immutable subject remains available in API/audit data and as traceable metadata for operators.
+
+Production evidence:
+
+- `000167_subscriber_subject_identity_labels` applied to the dedicated MarketOps database on `2026-09-04`.
+- Backfill created 6 label rows.
+- Gateway table access verified for `SELECT,INSERT,UPDATE`.
+- Subscription Admin Playwright smoke passed: `3 passed, 1 skipped`.
+- Subscriber pilot Playwright smoke passed: `2 passed`.

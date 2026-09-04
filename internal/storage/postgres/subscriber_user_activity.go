@@ -63,6 +63,21 @@ func (r *Repository) RecordSubscriberUserActivity(ctx context.Context, input sto
 	}
 	metadata, _ = json.Marshal(metadataObject)
 	return r.WithSubscriberTenantScope(ctx, input.TenantID, func(ctx context.Context, tx *sql.Tx) error {
+		if input.SubjectDisplayName != "" || input.SubjectEmail != "" {
+			_, err := tx.ExecContext(ctx, `
+INSERT INTO subscriber_subject_identity_labels
+  (tenant_id, subject, display_name, email, source, first_seen_at, last_seen_at, updated_at)
+VALUES ($1, $2, $3, $4, 'activity_jwt', now(), now(), now())
+ON CONFLICT (tenant_id, subject) DO UPDATE SET
+  display_name = CASE WHEN EXCLUDED.display_name <> '' THEN EXCLUDED.display_name ELSE subscriber_subject_identity_labels.display_name END,
+  email = CASE WHEN EXCLUDED.email <> '' THEN EXCLUDED.email ELSE subscriber_subject_identity_labels.email END,
+  source = EXCLUDED.source,
+  last_seen_at = now(),
+  updated_at = now()`, input.TenantID, input.Subject, input.SubjectDisplayName, input.SubjectEmail)
+			if err != nil {
+				return fmt.Errorf("upsert subscriber subject identity label: %w", err)
+			}
+		}
 		_, err := tx.ExecContext(ctx, `
 INSERT INTO subscriber_user_activity_events
   (activity_id, tenant_id, subject, app_id, event_type, feature_key, http_method, route_path, status_code, correlation_id, metadata)

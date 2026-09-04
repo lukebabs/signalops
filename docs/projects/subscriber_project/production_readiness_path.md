@@ -570,3 +570,20 @@ Remaining policy:
 ### 2026-09-04 Stripe Customer Portal closure
 
 Stripe Customer Portal self-service closes the customer-managed billing-session path for active Stripe-backed subscriptions. SignalOps creates portal sessions server-side, returns subscribers to Pricing, and relies on signed Stripe webhooks for any entitlement/status mutation. Manual/non-Stripe subscriptions fail closed instead of exposing a misleading self-service control.
+
+### 2026-09-04 Subscription Administration identity-label closure
+
+Status: closed for current production readiness scope.
+
+Evidence:
+
+- Added dedicated MarketOps migration `000167_subscriber_subject_identity_labels`.
+- Backfilled 6 existing subject labels from tenant access/activity evidence.
+- Gateway now records display-only identity labels from JWT activity without changing entitlement or ACL decisions.
+- Subscription Administration now avoids visible raw UUID dominance by rendering email/name when known and `Unlabeled user · <suffix>` when not known.
+- Production Playwright closure passed: subscription admin smoke `3 passed, 1 skipped`; subscriber pilot smoke `2 passed`.
+
+Residual policy:
+
+1. Historical subjects that never emitted email/name remain intentionally unlabeled until the user logs in again or an authorized identity source provides a label.
+2. Immutable subject UUID remains the authoritative audit key; labels are operator-readable presentation metadata only.

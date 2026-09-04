@@ -9619,3 +9619,12 @@ Next-cycle priority:
 - After host reprovisioning, verified the deployment-agent `scheduler-status` now includes `signalops-marketops-operations-monitor.timer` and `signalops-marketops-operations-monitor.service`.
 - Evidence: `sudo -n signalops-deploy-agent scheduler-status` returned the operations-monitor timer as `load=loaded active=active` with next run `2026-09-02 18:00:00 UTC`, and the service as `load=loaded active=inactive result=success`.
 - Result: the Admin Operations Health expansion handoff is closed; operations monitor run-now and status visibility are no longer shell-only for the configured admin workflow.
+
+### 2026-09-04 — Subscriber activity identity-label ledger closure
+
+- Added migration `000167_subscriber_subject_identity_labels` to create a dedicated, display-only subscriber subject identity-label ledger in the dedicated MarketOps database.
+- The ledger stores non-authoritative labels by immutable subject and tenant (`display_name`, `email`, source, first/last seen timestamps) and does not change access control, entitlement, subscription state, or audit subject identity.
+- Gateway activity writes now upsert labels from authenticated JWT claims while continuing to store the immutable subject on every event.
+- Subscription Administration now suppresses raw UUIDs in visible user cells when no label exists, rendering `Unlabeled user · <suffix>` while preserving the full subject in API data and tooltip audit trace.
+- Migration application evidence: `000167_subscriber_subject_identity_labels` applied to the dedicated MarketOps database at `2026-09-04 12:39:26 UTC`, backfilled 6 label rows, and verified gateway `SELECT,INSERT,UPDATE` access.
+- Production validation passed after gateway/web deployment: `scripts/run_subscription_admin_ui_smoke.sh` returned `3 passed, 1 skipped`; `scripts/run_subscriber_pilot_ui_smoke.sh` returned `2 passed`.
