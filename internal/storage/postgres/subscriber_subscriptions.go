@@ -13,7 +13,7 @@ import (
 func (r *Repository) ListSubscriberSubscriptionProducts(ctx context.Context) ([]storage.SubscriberSubscriptionProductRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT product_key, billing_scope, display_name, is_free, trial_days,
-  stripe_product_id, stripe_monthly_price_id, stripe_annual_price_id,
+  stripe_product_id, stripe_monthly_price_id, stripe_annual_price_id, monthly_display_price, annual_display_price,
   feature_policy, limit_policy, revision, active, changed_by, created_at, updated_at
 FROM subscriber_subscription_products
 WHERE active=true
@@ -44,7 +44,7 @@ func (r *Repository) GetSubscriberEffectiveSubscription(ctx context.Context, ten
 SELECT s.tenant_id, s.subject, s.subscription_id, s.status, 'subject' AS source, '' AS seat_role,
   s.trial_ends_at, s.current_period_ends_at, s.grace_ends_at, s.canceled_at,
   p.product_key, p.billing_scope, p.display_name, p.is_free, p.trial_days,
-  p.stripe_product_id, p.stripe_monthly_price_id, p.stripe_annual_price_id,
+  p.stripe_product_id, p.stripe_monthly_price_id, p.stripe_annual_price_id, p.monthly_display_price, p.annual_display_price,
   p.feature_policy, p.limit_policy, p.revision, p.active, p.changed_by, p.created_at, p.updated_at
 FROM subscriber_subject_subscriptions s
 JOIN subscriber_subscription_products p ON p.product_key=s.product_key
@@ -61,7 +61,7 @@ LIMIT 1`, tenantID, subject)
 SELECT s.tenant_id, seat.subject, s.subscription_id, s.status, 'tenant_seat' AS source, seat.seat_role,
   NULL::timestamptz AS trial_ends_at, s.current_period_ends_at, s.grace_ends_at, s.canceled_at,
   p.product_key, p.billing_scope, p.display_name, p.is_free, p.trial_days,
-  p.stripe_product_id, p.stripe_monthly_price_id, p.stripe_annual_price_id,
+  p.stripe_product_id, p.stripe_monthly_price_id, p.stripe_annual_price_id, p.monthly_display_price, p.annual_display_price,
   p.feature_policy, p.limit_policy, p.revision, p.active, p.changed_by, p.created_at, p.updated_at
 FROM subscriber_tenant_subscriptions s
 JOIN subscriber_subscription_seats seat ON seat.tenant_subscription_id=s.subscription_id
@@ -88,7 +88,7 @@ func scanEffectiveSubscriberSubscription(scanner subscriberSubscriptionScanner, 
 		&result.TenantID, &result.Subject, &result.SubscriptionID, &result.Status, &result.Source, &result.SeatRole,
 		&result.TrialEndsAt, &result.CurrentPeriodEndsAt, &result.GraceEndsAt, &result.CanceledAt,
 		&result.Product.ProductKey, &result.Product.BillingScope, &result.Product.DisplayName, &result.Product.IsFree, &result.Product.TrialDays,
-		&result.Product.StripeProductID, &result.Product.StripeMonthlyPriceID, &result.Product.StripeAnnualPriceID,
+		&result.Product.StripeProductID, &result.Product.StripeMonthlyPriceID, &result.Product.StripeAnnualPriceID, &result.Product.MonthlyDisplayPrice, &result.Product.AnnualDisplayPrice,
 		&result.Product.FeaturePolicyJSON, &result.Product.LimitPolicyJSON, &result.Product.Revision, &result.Product.Active,
 		&result.Product.ChangedBy, &result.Product.CreatedAt, &result.Product.UpdatedAt,
 	)
@@ -97,7 +97,7 @@ func scanEffectiveSubscriberSubscription(scanner subscriberSubscriptionScanner, 
 func scanSubscriberSubscriptionProduct(scanner subscriberSubscriptionScanner, product *storage.SubscriberSubscriptionProductRecord) error {
 	if err := scanner.Scan(
 		&product.ProductKey, &product.BillingScope, &product.DisplayName, &product.IsFree, &product.TrialDays,
-		&product.StripeProductID, &product.StripeMonthlyPriceID, &product.StripeAnnualPriceID,
+		&product.StripeProductID, &product.StripeMonthlyPriceID, &product.StripeAnnualPriceID, &product.MonthlyDisplayPrice, &product.AnnualDisplayPrice,
 		&product.FeaturePolicyJSON, &product.LimitPolicyJSON, &product.Revision, &product.Active, &product.ChangedBy,
 		&product.CreatedAt, &product.UpdatedAt,
 	); err != nil {

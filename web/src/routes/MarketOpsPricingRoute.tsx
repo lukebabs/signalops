@@ -93,7 +93,7 @@ function PlanCard({ product, current, workingKey, checkoutEnabled, onCheckout }:
     </div>
     <p className="mt-3 min-h-12 text-xs leading-5 text-gray-600 dark:text-gray-300">{info.description}</p>
     <div className="mt-3 rounded bg-gray-50 p-3 dark:bg-gray-950">
-      {institutional ? <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100"><Mail size={16} /> Contact Sales</div> : <div className="space-y-1"><PriceLine label="Monthly" value={shortStripePrice(product.stripe_monthly_price_id)} /><PriceLine label="Annual" value={shortStripePrice(product.stripe_annual_price_id)} /></div>}
+      {institutional ? <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100"><Mail size={16} /> Contact Sales</div> : <div className="space-y-1"><PriceLine label="Monthly" value={displayPrice(product.monthly_display_price, product.stripe_monthly_price_id)} /><PriceLine label="Annual" value={displayPrice(product.annual_display_price, product.stripe_annual_price_id)} /></div>}
     </div>
     <ul className="mt-3 space-y-2 text-xs text-gray-700 dark:text-gray-200">{info.bullets.map((bullet) => <li key={bullet} className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" />{bullet}</li>)}</ul>
     <div className="mt-4 flex flex-wrap gap-2">
@@ -109,8 +109,10 @@ function PriceLine({ label, value }: { label: string; value: string }) {
   return <div className="flex items-center justify-between gap-3 text-sm"><span className="text-gray-500 dark:text-gray-400">{label}</span><code className="text-xs text-gray-900 dark:text-gray-100">{value}</code></div>;
 }
 
-function shortStripePrice(value: string | undefined): string {
-  return value ? value : 'Not mapped';
+function displayPrice(displayValue: string | undefined, stripePriceId: string | undefined): string {
+  const value = (displayValue ?? '').trim();
+  if (value) return value;
+  return stripePriceId ? 'Price configured' : 'Not mapped';
 }
 
 function featureName(value: string): string {

@@ -296,6 +296,8 @@ type SubscriberSubscriptionProductBillingMutation struct {
 	StripeProductID      string
 	StripeMonthlyPriceID string
 	StripeAnnualPriceID  string
+	MonthlyDisplayPrice  string
+	AnnualDisplayPrice   string
 	ActorSubject         string
 	CorrelationID        string
 }

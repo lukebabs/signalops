@@ -167,6 +167,8 @@ func subscriptionProductResponse(product storage.SubscriberSubscriptionProductRe
 		"stripe_product_id":       product.StripeProductID,
 		"stripe_monthly_price_id": product.StripeMonthlyPriceID,
 		"stripe_annual_price_id":  product.StripeAnnualPriceID,
+		"monthly_display_price":   product.MonthlyDisplayPrice,
+		"annual_display_price":    product.AnnualDisplayPrice,
 		"feature_policy":          subscriptionJSON(product.FeaturePolicyJSON),
 		"limit_policy":            subscriptionJSON(product.LimitPolicyJSON),
 		"revision":                product.Revision,

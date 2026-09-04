@@ -22,6 +22,8 @@ type SubscriberSubscriptionProductRecord struct {
 	StripeProductID      string
 	StripeMonthlyPriceID string
 	StripeAnnualPriceID  string
+	MonthlyDisplayPrice  string
+	AnnualDisplayPrice   string
 	FeaturePolicyJSON    []byte
 	LimitPolicyJSON      []byte
 	Revision             int

@@ -2146,14 +2146,14 @@ The backend Checkout path is now defined for Explorer and Professional only:
 POST /v1/tenants/{tenant_id}/marketops/subscription/checkout
 ```
 
-The request is authenticated and tenant-bound. The caller supplies only `product_key` and `billing_period`; the gateway selects the Stripe Price ID from the centrally governed subscription product mapping. Browsers cannot submit arbitrary Stripe price IDs.
+The request is authenticated and tenant-bound. The caller supplies only `product_key` and `billing_period`; the gateway selects the Stripe Price ID from the centrally governed subscription product mapping. Browsers cannot submit arbitrary Stripe price IDs. Customer-facing Pricing renders governed display-price metadata from the subscription product catalog; Stripe Product/Price IDs remain billing authority and operational/Admin metadata.
 
 Security boundary:
 
 - Stripe Checkout is fail-closed unless a Stripe API key, success URL, cancel URL, and mapped product price are present at runtime.
 - MarketOps writes `subscriber_checkout_sessions` before entitlement activation, using an opaque `checkout_ref`.
 - Stripe receives the opaque `checkout_ref` and non-identity commerce metadata only. Tenant ID, subject, and SignalOps authorization data remain in the dedicated MarketOps database.
-- The Pricing UI can start Explorer/Professional Checkout only through the tenant-bound gateway endpoint and the gateway-selected Stripe Price mapping.
+- The Pricing UI can start Explorer/Professional Checkout only through the tenant-bound gateway endpoint and the gateway-selected Stripe Price mapping. It must show human-readable display prices to customers, not raw Stripe `price_...` identifiers.
 - The return UX at `/marketops/subscription/return?session_id=...` polls the effective subscription state and communicates activation-pending status when the webhook has not landed.
 - A frontend redirect or returned Checkout Session ID does not grant access.
 - A verified Stripe subscription webhook must resolve the opaque `checkout_ref` and then activate or update the subject subscription.

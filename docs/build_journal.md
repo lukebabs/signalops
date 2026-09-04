@@ -1,3 +1,12 @@
+### 2026-09-04 — Customer-facing subscription price display
+
+- Fixed the Pricing page so Explorer and Professional show customer-readable prices (`$24.99/mo`, `$249/yr`, `$99/mo`, `$999/yr`) instead of raw Stripe `price_...` identifiers.
+- Added migration `000165_subscriber_subscription_display_prices` to store governed monthly and annual display-price metadata on `subscriber_subscription_products` in the dedicated MarketOps database.
+- Kept Stripe Product/Price IDs as the server-side billing authority. Browsers still submit only `product_key` and `billing_period`; the Gateway selects the configured Stripe Price ID.
+- Updated Subscription Administration so operators can govern display prices alongside Stripe Product/Price mappings, with Stripe IDs remaining visible in Admin only.
+- Repaired the effective-subscription query path to include the new display-price columns so enrollment/subscription state continues to resolve after the schema change.
+- Validation: `go test ./internal/storage/postgres ./internal/api` passed; `npm --prefix web run build` passed; Gateway and Web were redeployed through the constrained deployment agent; Gateway cutover and subscriber pilot smokes passed; Pricing Playwright smoke passed and asserts no raw `price_` value is visible on the customer Pricing page.
+
 
 
 ### 2026-09-04 — Production readiness paperwork and subscription activation closure

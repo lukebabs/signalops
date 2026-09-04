@@ -136,8 +136,8 @@ func (r *Repository) UpdateSubscriberSubscriptionProductBilling(ctx context.Cont
 	result, err := tx.ExecContext(ctx, `
 UPDATE subscriber_subscription_products
 SET stripe_product_id=$2, stripe_monthly_price_id=$3, stripe_annual_price_id=$4,
-  changed_by=$5, revision=revision+1, updated_at=now()
-WHERE product_key=$1`, input.ProductKey, input.StripeProductID, input.StripeMonthlyPriceID, input.StripeAnnualPriceID, input.ActorSubject)
+  monthly_display_price=$5, annual_display_price=$6, changed_by=$7, revision=revision+1, updated_at=now()
+WHERE product_key=$1`, input.ProductKey, input.StripeProductID, input.StripeMonthlyPriceID, input.StripeAnnualPriceID, input.MonthlyDisplayPrice, input.AnnualDisplayPrice, input.ActorSubject)
 	if err != nil {
 		return fmt.Errorf("update subscription product billing: %w", err)
 	}
@@ -166,7 +166,7 @@ VALUES ($1, $2, '', $3, 'subscription_product_billing_updated', $4::jsonb, $5::j
 func listSubscriberSubscriptionProductsTx(ctx context.Context, tx *sql.Tx, activeOnly bool) ([]storage.SubscriberSubscriptionProductRecord, error) {
 	query := `
 SELECT product_key, billing_scope, display_name, is_free, trial_days,
-  stripe_product_id, stripe_monthly_price_id, stripe_annual_price_id,
+  stripe_product_id, stripe_monthly_price_id, stripe_annual_price_id, monthly_display_price, annual_display_price,
   feature_policy, limit_policy, revision, active, changed_by, created_at, updated_at
 FROM subscriber_subscription_products`
 	if activeOnly {

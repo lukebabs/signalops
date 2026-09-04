@@ -56,6 +56,17 @@ def test_stripe_checkout_readiness_state_matches_gateway(pricing_page: Page, pri
         bearer(pricing_page),
     )
     assert int(product_response["status"]) == 200, product_response["body"]
+    products = {item.get("product_key"): item for item in product_response["body"].get("products", [])}
+    assert products.get("explorer", {}).get("monthly_display_price") == "$24.99/mo"
+    assert products.get("explorer", {}).get("annual_display_price") == "$249/yr"
+    assert products.get("professional", {}).get("monthly_display_price") == "$99/mo"
+    assert products.get("professional", {}).get("annual_display_price") == "$999/yr"
+
+    body = pricing_page.locator("body")
+    for display_price in ["$24.99/mo", "$249/yr", "$99/mo", "$999/yr"]:
+        expect(body).to_contain_text(display_price, timeout=30_000)
+    expect(body).not_to_contain_text("price_")
+
     checkout_enabled = bool(product_response["body"].get("checkout_enabled"))
 
     monthly_buttons = pricing_page.get_by_role("button", name="Monthly Checkout")

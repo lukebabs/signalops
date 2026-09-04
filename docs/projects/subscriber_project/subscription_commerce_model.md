@@ -92,6 +92,8 @@ See [Keycloak B2C Enrollment Flow](keycloak_b2c_enrollment.md).
 
 
 ## Stripe boundary
+Customer-facing price display is separate from Stripe billing identifiers. `subscriber_subscription_products` stores monthly and annual display-price labels used by `/marketops/pricing`; Stripe Product and Price IDs remain the server-side billing authority selected by the Gateway from `product_key` plus `billing_period`. Admin may inspect and govern both values, but ordinary subscriber Pricing screens must not expose raw `price_...` identifiers.
+
 
 Stripe is used as billing evidence, signed webhook reconciliation, and constrained self-service Checkout for Explorer/Professional. Checkout starts from an authenticated tenant-scoped subject and writes an internal `subscriber_checkout_sessions` ledger row. Stripe receives only an opaque `checkout_ref` plus non-identity product/billing metadata; tenant ID, subject, and authorization state remain in the dedicated MarketOps database. The intended state transition rules are:
 

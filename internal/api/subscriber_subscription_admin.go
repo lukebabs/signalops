@@ -59,6 +59,8 @@ type subscriberSubscriptionProductBillingRequest struct {
 	StripeProductID      string `json:"stripe_product_id"`
 	StripeMonthlyPriceID string `json:"stripe_monthly_price_id"`
 	StripeAnnualPriceID  string `json:"stripe_annual_price_id"`
+	MonthlyDisplayPrice  string `json:"monthly_display_price"`
+	AnnualDisplayPrice   string `json:"annual_display_price"`
 	CorrelationID        string `json:"correlation_id"`
 }
 type subscriberSubjectSubscriptionBillingRequest struct {
@@ -465,5 +467,7 @@ func subscriptionAdministrationProductResponse(product storage.SubscriberSubscri
 	response["stripe_product_id"] = product.StripeProductID
 	response["stripe_monthly_price_id"] = product.StripeMonthlyPriceID
 	response["stripe_annual_price_id"] = product.StripeAnnualPriceID
+	response["monthly_display_price"] = product.MonthlyDisplayPrice
+	response["annual_display_price"] = product.AnnualDisplayPrice
 	return response
 }
