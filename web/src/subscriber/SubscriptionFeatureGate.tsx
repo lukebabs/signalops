@@ -82,7 +82,7 @@ function upgradeCopyForFeature(feature: SubscriberSubscriptionFeature, title: st
     case 'earnings_opportunity_intelligence':
       return { heading: 'Analyze the event setup before earnings arrive.', body: 'Professional adds earnings-event context across technical setup, risk/reward, valuation, sector behavior, and options positioning.' };
     case 'signal_assurance_analytics':
-      return { heading: 'Validate signal effectiveness at institutional depth.', body: 'Institutional adds Signal Assurance analytics, historical replay, portfolio-scale review, strategy validation, custom universes, and API workflows.' };
+      return { heading: 'Validate signal effectiveness at institutional depth.', body: 'Institutional adds Signal Assurance Analytics, Historical Replay, portfolio-scale review, Strategy Validation, Custom Universes, and API workflows.' };
     default:
       return { heading: `${title} requires deeper MarketOps access.`, body: 'This workflow answers the next research question after discovery. Upgrade options preserve your current research context and watchlists.' };
   }

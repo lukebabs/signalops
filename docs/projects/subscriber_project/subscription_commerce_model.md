@@ -10,9 +10,9 @@ MarketOps subscriptions increase analytical depth. They never sell a separate co
 
 | Plan | Commercial model | Analytical access | Watchlists |
 |---|---|---|---|
-| Explorer | Free, no card | Market dashboards, public signals, and Sector Rotation discovery | 3 private lists, 25 assets/list |
-| Professional | Stripe monthly or annual; 7-day trial | Explorer plus current validated Value Intelligence, Distressed Opportunity Intelligence, Earnings Opportunity Intelligence, detailed Sector Rotation, options signals, earnings calendar, and saved web/PDF research reports | 20 private lists, 100 assets/list |
-| Institutional | Tenant contract with assigned seats | Professional plus Signal Assurance analytics, portfolio analysis from CSV/manual uploads, batch screening, historical replay, strategy validation without customer-executable code, catalog-constrained custom universes, API access, and shared-tenant branding | Fair-use governed limits |
+| Explorer | Free, no card | Market Dashboards, Public Signals, and Sector Rotation discovery | 3 private lists, 25 assets/list |
+| Professional | Stripe monthly or annual; 7-day trial | Explorer plus current validated Value Intelligence, Distressed Opportunity Intelligence, Earnings Opportunity Intelligence, Sector Rotation Details, Options Signals, Earnings Calendar, and saved web/PDF Research Reports | 20 private lists, 100 assets/list |
+| Institutional | Tenant contract with assigned seats | Professional plus Signal Assurance Analytics, Portfolio Analysis from CSV/manual uploads, Batch Screening, Historical Replay, Strategy Validation without customer-executable code, catalog-constrained Custom Universes, API Access, and shared-tenant branding | Fair-use governed limits |
 
 Prices, currencies, Stripe price IDs, trials beyond the product default, and commercial copy are not hard-coded. They are provider/admin configuration so a pricing change does not require a deployment.
 
@@ -103,7 +103,7 @@ Stripe is used as billing evidence, signed webhook reconciliation, and constrain
 4. Cancellation retains access through the paid period; subsequent access is removed by the effective-subscription resolver.
 5. Every provider event is stored by immutable provider event ID before reconciliation, so a replay cannot double-grant or double-revoke access.
 
-Institutional contracts are provisioned through a tenant-admin workflow and seats—not Stripe Checkout. Portfolio analysis is CSV/manual only, with no broker credential collection in this phase.
+Institutional contracts are provisioned through a tenant-admin workflow and seats—not Stripe Checkout. Portfolio Analysis is CSV/manual only, with no broker credential collection in this phase.
 
 ## Rollout and rollback
 

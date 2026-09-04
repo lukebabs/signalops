@@ -9,17 +9,17 @@ import { BillingSupportPanel, featureName } from '../subscriber/SubscriptionPlan
 import type { SubscriberSubscriptionFeature } from '../types';
 
 const featureLabels: Partial<Record<SubscriberSubscriptionFeature, string>> = {
-  market_dashboards: 'Market dashboards',
-  public_signals: 'Public signals',
-  sector_rotation_discovery: 'Sector rotation discovery',
-  sector_rotation_detail: 'Sector rotation detail',
+  market_dashboards: 'Market Dashboards',
+  public_signals: 'Public Signals',
+  sector_rotation_discovery: 'Sector Rotation Discovery',
+  sector_rotation_detail: 'Sector Rotation Details',
   value_intelligence: 'Value Intelligence',
   distressed_opportunity_intelligence: 'Distressed Opportunity Intelligence',
   earnings_opportunity_intelligence: 'Earnings Opportunity Intelligence',
-  options_signals: 'Options signals',
-  signal_assurance_analytics: 'Signal Assurance analytics',
-  syncratic_explainability: 'Syncratic explainability',
-  historical_replay: 'Historical replay',
+  options_signals: 'Options Signals',
+  signal_assurance_analytics: 'Signal Assurance Analytics',
+  syncratic_explainability: 'Syncratic Explainability',
+  historical_replay: 'Historical Replay',
 };
 
 export function MarketOpsProfileRoute() {

@@ -9637,3 +9637,11 @@ Next-cycle priority:
 - Extracted shared subscription plan and billing panels so Pricing and Settings use the same Explorer/Professional/Institutional package presentation and Stripe Checkout/Portal/refund actions.
 - Header identity now links to Profile; MarketOps nav exposes Profile to subscribers and Tools only to operator/admin roles.
 - Validation passed: `go test ./internal/api ./internal/storage/postgres ./internal/config`, `npm --prefix web run build`, Python smoke syntax check, subscriber pilot Playwright smoke `3 passed`, subscription admin smoke `3 passed, 1 skipped`, and mobile subscriber smoke `24 passed`.
+
+### 2026-09-04 — Subscription feature label style normalization
+
+- Normalized visible subscription and entitlement labels to title-case product language across Profile, Pricing/Plan Cards, Subscription Administration, feature gates, Syncratic Intelligence, and current subscriber documentation.
+- Standardized the example inconsistency `Sector rotation detail` / `Sector Rotation Intelligence detail` to `Sector Rotation Details`.
+- Left older historical journal prose intact where it describes previous work rather than current UI copy.
+- Deployed the updated Web container through the constrained deployment agent.
+- Validation passed: `npm --prefix web run build`, subscriber pilot Playwright smoke `3 passed`, subscription admin smoke `3 passed, 1 skipped`, mobile subscriber smoke `24 passed`, and Python smoke syntax check.

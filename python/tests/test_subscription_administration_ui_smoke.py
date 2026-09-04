@@ -167,7 +167,7 @@ def test_marketops_admin_can_run_operations_monitor_from_ui(admin_page: Page, ad
 
 def test_subscription_administration_governance_surface(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
     expected_products = {"Explorer", "Professional", "Institutional"}
-    expected_features = {"Market dashboards", "Value Intelligence", "Distressed Opportunity Intelligence", "Earnings Opportunity Intelligence", "Signal Assurance analytics", "APIs", "White-label deployment"}
+    expected_features = {"Market Dashboards", "Value Intelligence", "Distressed Opportunity Intelligence", "Earnings Opportunity Intelligence", "Signal Assurance Analytics", "APIs", "White-Label Deployment"}
 
     with admin_page.expect_response(
         lambda response: response.request.method == "GET" and response.url.split("?", 1)[0].endswith("/v1/administration/subscriptions"),

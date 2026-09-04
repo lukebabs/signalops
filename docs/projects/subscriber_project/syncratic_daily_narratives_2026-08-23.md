@@ -32,7 +32,7 @@ The materializer does not call providers, alter algorithms, mutate lifecycle sta
 
 - Explorer: daily overview and public sector context can become the explainability entry point.
 - Professional: full SRI, Risk/Reward, Review Queue, EEOM, VC/DOSM narratives can be surfaced as analyst workflow accelerators.
-- Institutional: future extension should add Signal Assurance analytics, custom universes, portfolio contexts, historical replay summaries, and API access.
+- Institutional: future extension should add Signal Assurance Analytics, Custom Universes, Portfolio Contexts, Historical Replay summaries, and API Access.
 
 ## Validation
 

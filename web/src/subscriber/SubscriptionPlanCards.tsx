@@ -9,17 +9,17 @@ export const tierPositioning: Record<string, { headline: string; description: st
   explorer: {
     headline: 'Discover what deserves your attention.',
     description: 'Built for structured daily market discovery without professional research workflow complexity.',
-    bullets: ['Market dashboards', 'Public signals', 'Sector rotation discovery', 'Limited watchlists'],
+    bullets: ['Market Dashboards', 'Public Signals', 'Sector Rotation Discovery', 'Limited Watchlists'],
   },
   professional: {
     headline: 'Understand why opportunities matter.',
     description: 'Built for serious investors, analysts, and advisors who need deeper analytical context.',
-    bullets: ['Value Intelligence', 'Distressed Opportunity Intelligence', 'Earnings Opportunity Intelligence', 'Options signals', 'Detailed Sector Rotation', 'Research workflows'],
+    bullets: ['Value Intelligence', 'Distressed Opportunity Intelligence', 'Earnings Opportunity Intelligence', 'Options Signals', 'Sector Rotation Details', 'Research Workflows'],
   },
   institutional: {
     headline: 'Operationalize investment intelligence at scale.',
     description: 'Designed for investment teams that need governance, automation, portfolio-scale workflows, and integration.',
-    bullets: ['Signal Assurance analytics', 'Portfolio analysis', 'Batch screening', 'Historical replay', 'Custom universes', 'APIs and tenant controls'],
+    bullets: ['Signal Assurance Analytics', 'Portfolio Analysis', 'Batch Screening', 'Historical Replay', 'Custom Universes', 'APIs and Tenant Controls'],
   },
 };
 

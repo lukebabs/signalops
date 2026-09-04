@@ -8,7 +8,7 @@ Scope: subscriber-facing MarketOps mobile web. Administration, operator run-now 
 
 ## Purpose
 
-MarketOps subscribers are expected to be primarily mobile users. The product must therefore support a phone-first analyst journey for reading the market, reviewing watchlist intelligence, inspecting evidence, and using Syncratic explainability without requiring desktop layout assumptions.
+MarketOps subscribers are expected to be primarily mobile users. The product must therefore support a phone-first analyst journey for reading the market, reviewing watchlist intelligence, inspecting evidence, and using Syncratic Explainability without requiring desktop layout assumptions.
 
 This sprint turns mobile usability from an incidental responsive behavior into a formal production gate.
 

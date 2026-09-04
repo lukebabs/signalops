@@ -445,7 +445,7 @@ function SyncraticNarrativeWorkbench({
       </div>
       {!canRunAsk && subscription.enforcementEnabled && (
         <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
-          Explorer can review persisted Syncratic narratives. Interactive materialization, Ask, and Regenerate require Professional or Institutional Syncratic explainability.
+          Explorer can review persisted Syncratic narratives. Interactive materialization, Ask, and Regenerate require Professional or Institutional Syncratic Explainability.
         </div>
       )}
       {materialize.isSuccess && (
@@ -747,7 +747,7 @@ function SyncraticAskControls({
       </p>
       {!canRunAsk && subscription.enforcementEnabled && (
         <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
-          Interactive Ask requires Professional or Institutional Syncratic explainability. This persisted explanation remains available read-only.
+          Interactive Ask requires Professional or Institutional Syncratic Explainability. This persisted explanation remains available read-only.
         </div>
       )}
       <div className="flex flex-wrap gap-2">
@@ -999,7 +999,7 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
   if (!canMaterialize && subscription.enforcementEnabled) {
     return (
       <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
-        Explorer can inspect persisted Syncratic Intelligence. Bounded context materialization and Ask regeneration require Professional or Institutional Syncratic explainability.
+        Explorer can inspect persisted Syncratic Intelligence. Bounded context materialization and Ask regeneration require Professional or Institutional Syncratic Explainability.
       </div>
     );
   }

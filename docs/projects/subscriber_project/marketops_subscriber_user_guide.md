@@ -26,11 +26,11 @@ MarketOps subscriptions increase analytical depth rather than selling separate c
 
 | Tier | Intended access |
 |---|---|
-| Explorer | Market dashboards, public signals, sector rotation discovery, limited watchlists. |
-| Professional | Explorer plus Value Intelligence, Distressed Opportunity Intelligence, Earnings Opportunity Intelligence, detailed Sector Rotation, options signals, earnings calendar, and research reports. |
-| Institutional | Professional plus Signal Assurance analytics, portfolio analysis, batch screening, historical replay, strategy validation, custom universes, APIs, unlimited/governed watchlists, and white-label controls. |
+| Explorer | Market Dashboards, Public Signals, Sector Rotation Discovery, Limited Watchlists. |
+| Professional | Explorer plus Value Intelligence, Distressed Opportunity Intelligence, Earnings Opportunity Intelligence, Sector Rotation Details, Options Signals, Earnings Calendar, and Research Reports. |
+| Institutional | Professional plus Signal Assurance Analytics, Portfolio Analysis, Batch Screening, Historical Replay, Strategy Validation, Custom Universes, APIs, unlimited/governed watchlists, and White-Label Controls. |
 
-The gateway is authoritative. If a feature is outside the user’s tier, the browser may show it as locked and direct API access returns a subscription error.
+The gateway is authoritative. If a feature is outside the user’s tier, the browser may show it as locked and direct API Access returns a subscription error.
 
 ## Main user workflows
 

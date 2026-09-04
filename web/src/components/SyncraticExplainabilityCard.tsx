@@ -25,7 +25,7 @@ export function SyncraticExplainabilityCard({
 
   return (
     <section
-      aria-label={`${surface} Syncratic explainability`}
+      aria-label={`${surface} Syncratic Explainability`}
       className={`rounded border border-brand-200 bg-brand-50/70 text-brand-950 dark:border-brand-800 dark:bg-brand-950/30 dark:text-brand-100 ${compact ? 'p-2' : 'p-3'}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
