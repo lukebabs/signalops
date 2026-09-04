@@ -9645,3 +9645,9 @@ Next-cycle priority:
 - Left older historical journal prose intact where it describes previous work rather than current UI copy.
 - Deployed the updated Web container through the constrained deployment agent.
 - Validation passed: `npm --prefix web run build`, subscriber pilot Playwright smoke `3 passed`, subscription admin smoke `3 passed, 1 skipped`, mobile subscriber smoke `24 passed`, and Python smoke syntax check.
+
+### 2026-09-04 — Subscriber documentation current-state refresh
+
+- Refreshed the active Subscriber Project documentation to match the current production-readiness posture after Profile/Settings, Stripe Checkout/Portal/refund intake, first webhook-authoritative paid activation, and normalized feature-label work.
+- Corrected active docs that still implied Stripe Customer Portal was outstanding or SMS MFA was part of the current enrollment gate. Current enrollment remains Keycloak-owned and no-MFA by policy; SMS MFA requires a separate approved cohort rollout.
+- Updated production-readiness and browser-acceptance docs so mobile QA, Pricing/Stripe, Profile, Settings, and operational acceptance gates match the deployed surfaces.

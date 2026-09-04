@@ -117,11 +117,11 @@ Rollback is one configuration change to `false`. It removes commercial feature e
 
 ## Explicitly deferred work
 
-- Stripe customer portal, checkout abandonment/expiration worker, retry/dead-letter handling, and billing telemetry beyond the checkout ledger, admin-managed webhook ledger, and upgrade-intent ledger.
-- Tenant-facing seat-management UI, Stripe price editing, controlled commercial overrides beyond the platform-admin governance boundary, and customer self-service plan management beyond Checkout-start.
+- Checkout abandonment/expiration worker, retry/dead-letter handling, and billing telemetry beyond the checkout ledger, admin-managed webhook ledger, customer portal, refund-request ledger, and upgrade-intent ledger.
+- Tenant-facing seat-management UI, Stripe price editing, controlled commercial overrides beyond the platform-admin governance boundary, and customer self-service plan changes beyond Stripe Checkout/Portal handoff.
 - Research-report generation/storage, portfolio CSV ingestion, batch-screening UI, custom-universe selector, API-key lifecycle, and shared-tenant branding controls.
 - SRI discovery/detail response shaping beyond the current endpoint boundary.
-- Full production purchase activation remains gated on controlled paid-flow evidence: Checkout completion, signed webhook reconciliation, effective subscription activation, return-to-context behavior, and Stripe Tax invoice verification.
+- Broad production purchase rollout remains gated on repeated paid-flow evidence, Stripe Tax invoice verification, current backup/restore evidence, and operational readiness sign-off. First live Explorer activation through signed webhook reconciliation is retained as controlled evidence.
 
 
 ## User-facing subscription surfaces — 2026-09-04

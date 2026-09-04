@@ -10,7 +10,7 @@ The Subscriber Project is **controlled paid-pilot ready with first real paid act
 
 The current platform has enough structure to keep validating with controlled tenants and named approvals: dedicated MarketOps databases are live, web and gateway are serving, SAF viability analytics are visible, and the global-data projection work has advanced materially.
 
-Production readiness is still blocked by current backup/restore re-verification, Stripe Customer Portal/self-management, tax/invoice evidence review, and cleanup of known historical test artifacts. First real paid-flow activation evidence is now retained. The core operational-consistency loop for the tenant-local pilot scope has passed natural post-close acceptance after the MarketOps database decoupling.
+Production readiness is still blocked by current backup/restore re-verification, tax/invoice evidence review, and cleanup of known historical test artifacts. Stripe Customer Portal, refund intake, and first real paid-flow activation evidence are now retained. The core operational-consistency loop for the tenant-local pilot scope has passed natural post-close acceptance after the MarketOps database decoupling.
 
 ## Current evidence snapshot — 2026-09-04
 
@@ -120,10 +120,10 @@ These are required before broader commercial production.
     - Current PR-4 evidence: `pr4_incident_runbooks_2026-08-21.md` defines all required response paths using constrained deployment-agent actions and dedicated MarketOps database evidence.
 
 11. **Mobile subscriber readiness**
-   - Status: planned sprint; Admin remains out of scope.
-   - The product must be validated for primarily mobile subscribers before paid production.
+   - Status: closed for configured QA identities; Admin remains out of scope.
+   - The product must keep mobile subscriber regression coverage current before paid production.
    - Acceptance:
-     - Mobile Playwright suite validates subscriber routes at 375px and 430px widths.
+     - Mobile Playwright suite validates subscriber routes at 375px, 390px, and 430px widths.
      - Dashboard, Watchlists, Assets, Market State, Value Intelligence, Distressed Opportunity Intelligence, Earnings Opportunity Intelligence, Opportunities, SRI, SAF, Syncratic, Pricing, and enrollment flows have no blocking mobile usability defects.
      - No page-level horizontal overflow, clipped primary actions, unreadable chart labels, or inaccessible drilldown close/back controls.
      - Admin Workbench and Subscription Administration remain desktop/operator workflows unless a separate sprint is approved.
@@ -512,7 +512,7 @@ Remaining gated work:
 
 1. **Post-close data freshness proof** — validate the September 1, 2026 ET post-close cycle after warm EOD, daily post-close, recovery guard, SRI refresh, and SRI holdings refresh complete.
 2. **Subscription enforcement hardening** — rerun the temporary production enforcement canary when tier or gated-route behavior changes; keep automatic restoration to enforcement-off/pilot Explorer state for canaries.
-3. **Enrollment and SMS MFA** — complete a full Keycloak-owned registration/MFA smoke with the production branding/disclaimer path and confirm existing users are routed to login rather than duplicate enrollment.
+3. **Enrollment and deferred MFA posture** — keep the current Keycloak-owned no-MFA public enrollment path verified, confirm existing users are routed to login rather than duplicate enrollment, and require a separate approval/smoke before any SMS MFA cohort is enabled.
 4. **Stripe billing** — validate one Stripe test-mode Explorer and one Professional subscription with automatic tax enabled, signed webhook reconciliation, and return-to-context behavior.
 5. **Operations health in Admin** — keep expanding Admin-visible freshness/job status so routine validation does not require shell access or HAR handoffs. Current Sep 2 slice exposes `MarketOps operations monitor` as a constrained Admin run-now action, validates it through Playwright, and verifies the reprovisioned deployment-agent `scheduler-status` includes the operations-monitor timer/service.
 6. **Mobile subscriber UX** — rerun the mobile Playwright suite after any Dashboard, Assets, EEOM, SAF, SRI, Syncratic Intelligence, Pricing, or enrollment layout change.

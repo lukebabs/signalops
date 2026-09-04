@@ -47,7 +47,7 @@ This check verifies only the unauthenticated front door and governed registratio
 
 The expected production path is app-host first, for example `https://signalops.syncratic.io/auth/login?redirect=/marketops/dashboard`. The smoke must fail if the Create Account action deep-links directly to raw Keycloak with `kc_action=register`, or if `/auth/login` is opened on `auth.syncratic.co` instead of the app/Gateway host.
 
-When SMS MFA is enabled, this smoke remains non-mutating and validates only that the registration handoff reaches the governed entry point. A separate real-number Keycloak smoke is required to complete `CONFIGURE_SMS_MFA`, verify that cancel/skip cannot bypass required action setup, and confirm the subsequent login SMS OTP challenge. Do not automate or persist real phone numbers in repo artifacts.
+Current production enrollment is no-MFA by policy. The smoke must fail if the public registration path exposes SMS/phone/OTP/MFA friction copy or blocks before the SignalOps enrollment resolver. If SMS MFA is later enabled for an approved cohort, this smoke remains non-mutating and validates only that the registration handoff reaches the governed entry point. A separate real-number Keycloak smoke is required to complete `CONFIGURE_SMS_MFA`, verify that cancel/skip cannot bypass required action setup, and confirm the subsequent login SMS OTP challenge. Do not automate or persist real phone numbers in repo artifacts.
 
 The post-registration resolver has a separate opt-in smoke:
 

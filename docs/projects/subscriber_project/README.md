@@ -1,6 +1,6 @@
 # Subscriber Project
 
-Status: active implementation project. The global catalog and subscriber-list foundation are deployed behind controls; subscription commerce is implemented behind a default-off feature flag and awaits controlled activation evidence. Scheduled-job operations status is now stored in the dedicated MarketOps database; repo-local runtime JSON is retained only as ignored fallback/debug output.
+Status: active implementation project. The global catalog, subscriber-list foundation, user Profile/Settings flow, Stripe Checkout/Portal/refund-intake surfaces, and first webhook-authoritative paid activation evidence are deployed behind controlled production gates. Scheduled-job operations status is stored in the dedicated MarketOps database; repo-local runtime JSON is retained only as ignored fallback/debug output.
 
 ## Goal
 
@@ -122,13 +122,13 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 
 This project does not yet authorize:
 
-- A new public pricing, billing, payment, or account-provisioning implementation.
 - Historical reconstruction of every asset before the governed coverage policy exists.
 - An implied options-history depth or a claim that a configured 10-day window represents 10 captured trading sessions.
 - A promise that all catalog assets have options, intraday, fundamental, or complete historical coverage.
 - Per-user provider polling, duplicated storage, or implicit entitlement expansion.
+- Automated Stripe refund execution, Institutional self-service provisioning, or MFA enforcement without a separately approved gate.
 - Trading advice, recommendation, or a change to the research-only boundaries of MarketOps algorithms.
 
 ## Success definition
 
-A customer can find an entitled global asset, add it to a personal list, and see the same centrally calculated EOD MarketOps context that another entitled customer sees—while their private list membership remains inaccessible to other users and the system performs no duplicate market-data collection.
+A customer can register through Keycloak, resolve into the governed tenant-local B2C path, activate a subscription through webhook-authoritative Stripe evidence, manage profile/settings/billing/refund-intake from user-facing MarketOps surfaces, find an entitled global asset, add it to a personal list, and see the same centrally calculated EOD MarketOps context that another entitled customer sees—while private list membership remains inaccessible to other users and the system performs no duplicate market-data collection.
