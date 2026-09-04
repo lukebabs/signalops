@@ -27,6 +27,7 @@ const (
 	defaultSubscriberListsDatabaseURL        = ""
 	defaultSubscriberB2CTenantID             = "tenant-local"
 	defaultSubscriberB2CAutoActivateExplorer = "false"
+	defaultSubscriberB2CRequireSubscription  = "true"
 )
 
 // Config contains process-level settings for SignalOps services.
@@ -54,6 +55,7 @@ type Config struct {
 	SubscriberListsDatabaseURL        string
 	SubscriberB2CTenantID             string
 	SubscriberB2CAutoActivateExplorer bool
+	SubscriberB2CRequireSubscription  bool
 	StripeWebhookSecret               string
 	StripeAPIKey                      string
 	StripeCheckoutSuccessURL          string
@@ -134,6 +136,7 @@ func Load() Config {
 		SubscriberListsDatabaseURL:        envOrDefault("SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL", defaultSubscriberListsDatabaseURL),
 		SubscriberB2CTenantID:             envOrDefault("SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID", defaultSubscriberB2CTenantID),
 		SubscriberB2CAutoActivateExplorer: envBool("SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER", defaultSubscriberB2CAutoActivateExplorer),
+		SubscriberB2CRequireSubscription:  envBool("SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION", defaultSubscriberB2CRequireSubscription),
 		StripeWebhookSecret:               envOrDefault("STRIPE_WEBHOOK_SECRET", ""),
 		StripeAPIKey:                      envOrDefault("STRIPE_API_KEY", envOrDefault("STRIPE_RESTRICTED_API_KEY", "")),
 		StripeCheckoutSuccessURL:          envOrDefault("SIGNALOPS_STRIPE_CHECKOUT_SUCCESS_URL", "https://signalops.syncratic.io/marketops/subscription/return?session_id={CHECKOUT_SESSION_ID}"),

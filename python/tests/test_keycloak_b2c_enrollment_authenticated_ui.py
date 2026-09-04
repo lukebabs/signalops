@@ -38,7 +38,7 @@ def b2c_enrollment_config() -> B2CEnrollmentConfig:
         username=username,
         password=password,
         tenant_id=os.getenv("SIGNALOPS_E2E_B2C_TENANT_ID", "tenant-local").strip(),
-        expected_state=os.getenv("SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE", "marketops_ready").strip(),
+        expected_state=os.getenv("SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE", "subscription_missing").strip(),
         expected_can_self_enroll=os.getenv("SIGNALOPS_E2E_EXPECT_CAN_SELF_ENROLL", "true").strip().lower() == "true",
         expected_created_actions=tuple(action.strip() for action in os.getenv("SIGNALOPS_E2E_EXPECT_CREATED_ACTIONS", "").split(",") if action.strip()),
     )
@@ -124,5 +124,8 @@ def test_b2c_user_resolves_enrollment_state(b2c_page: Page) -> None:
 
     if config.expected_state == "marketops_ready":
         expect(b2c_page.get_by_role("heading", name="MarketOps Dashboard")).to_be_visible(timeout=30_000)
+    elif config.expected_state == "subscription_missing":
+        b2c_page.wait_for_url(re.compile(r"/marketops/pricing"), timeout=30_000)
+        expect(b2c_page.get_by_role("heading", name="Increase analytical depth when the research question requires it.")).to_be_visible(timeout=30_000)
     else:
         expect(b2c_page.locator("body")).to_contain_text(re.compile(config.expected_state.replace("_", " "), re.I))

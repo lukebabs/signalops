@@ -2129,7 +2129,7 @@ The first enrollment implementation reuses the existing Syncratic Keycloak realm
 
 SignalOps adds `GET /v1/session/enrollment` as the authenticated first-use resolver. It is intentionally reachable before normal MarketOps access grants are complete, while retaining tenant-claim validation and rate limiting. The resolver auto-provisions only verified users whose signed token tenant matches the configured B2C tenant, default `tenant-local`.
 
-For an eligible verified B2C user under the selected Option B policy, the resolver idempotently creates or confirms:
+For an eligible verified B2C user under the selected Option B policy, the resolver idempotently creates or confirms. Activation is separate from identity: with `SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION=true`, a self-enrolled user without an effective subscription resolves to `subscription_missing` and the UI routes to Pricing while preserving the tenant-local data-plane boundary:
 
 - MarketOps read/access scaffolding required to complete onboarding;
 - readable watchlist context, creating the B2C tenant starter list only if no list exists;

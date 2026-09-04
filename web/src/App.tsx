@@ -22,13 +22,30 @@ const queryClient = new QueryClient({
 
 function EnrollmentGate({ children }: { children: ReactNode }) {
   const enrollment = useQuery({ queryKey: ['session', 'enrollment'], queryFn: () => api.getSessionEnrollment(), retry: false });
+  const state = enrollment.data?.state;
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const pricingRoute = pathname.startsWith('/marketops/pricing') || pathname.startsWith('/marketops/subscription/return');
+  const shouldRedirectToPricing = state === 'subscription_missing' && !pricingRoute;
+
+  useEffect(() => {
+    if (shouldRedirectToPricing && typeof window !== 'undefined') {
+      window.location.replace('/marketops/pricing?source_feature=enrollment');
+    }
+  }, [shouldRedirectToPricing]);
+
   if (enrollment.isLoading) {
     return <div className="min-h-screen bg-gray-50 p-6"><LoadingState label="Preparing MarketOps access…" /></div>;
   }
   if (enrollment.isError) {
     return <div className="min-h-screen bg-gray-50 p-6"><ErrorState error={String((enrollment.error as Error)?.message ?? enrollment.error)} /></div>;
   }
-  const state = enrollment.data?.state;
+
+  if (state === 'subscription_missing' && pricingRoute) {
+    return <>{children}</>;
+  }
+  if (shouldRedirectToPricing) {
+    return <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950"><LoadingState label="Opening subscription options…" /></div>;
+  }
   if (state && state !== 'marketops_ready') {
     const copy: Record<string, { title: string; message: string }> = {
       email_verification_required: { title: 'Verify your email to continue', message: 'Your Syncratic identity is authenticated, but MarketOps access is held until Keycloak confirms email verification.' },
@@ -49,7 +66,7 @@ function EnrollmentGate({ children }: { children: ReactNode }) {
             {enrollment.data?.email && <div className="flex justify-between gap-3"><dt>Email</dt><dd>{enrollment.data.email}</dd></div>}
           </dl>
           <div className="mt-5 flex flex-wrap gap-2">
-            {state === 'subscription_missing' ? <button type="button" onClick={() => window.location.assign('/marketops/pricing')} className="rounded bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-700">View subscription options</button> : null}
+            {state === 'subscription_missing' ? <button type="button" onClick={() => window.location.assign('/marketops/pricing?source_feature=enrollment')} className="rounded bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-700">View subscription options</button> : null}
             <button type="button" onClick={() => window.location.reload()} className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Check again</button>
           </div>
         </section>

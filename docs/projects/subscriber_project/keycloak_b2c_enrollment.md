@@ -16,7 +16,7 @@ The existing Syncratic Keycloak login is reused for public MarketOps enrollment.
 - The gateway exposes `GET /v1/session/enrollment` for authenticated users before normal MarketOps access is complete.
 - The enrollment resolver reads the signed token subject, tenant, display identity, email, and `email_verified` claim.
 - Auto-enrollment is restricted to `SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID`, default `tenant-local`.
-- Verified B2C users may be idempotently provisioned with MarketOps read access and starter watchlist scaffolding, but production readiness requires an active subscription from governed administration or Stripe webhook reconciliation.
+- Verified B2C users may be idempotently provisioned with MarketOps read access and starter watchlist scaffolding, but production readiness requires an active subscription from governed administration or Stripe webhook reconciliation. `SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION=true` keeps this activation requirement independent from the broader paid-feature enforcement switch.
 - SMS MFA enrollment and login challenge are Keycloak-owned controls, but they are not part of the current default enrollment gate. SignalOps must not request `CONFIGURE_SMS_MFA` for normal public registration until a later MFA rollout is explicitly approved. If SMS MFA is later enabled, SignalOps must not set `phone_number_verified=true`; only the Keycloak SMS MFA provider may do that after verification.
 - The resolver creates a tenant-default starter watchlist only when the B2C tenant has no readable list context.
 
@@ -94,7 +94,7 @@ SIGNALOPS_B2C_WEB_PASS=<existing-b2c-qa-password> \
 This test signs in through Keycloak, waits for `GET /v1/session/enrollment`, and asserts:
 
 - the response tenant is the configured B2C tenant, default `tenant-local`;
-- the enrollment state matches `SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE`, default `marketops_ready`;
+- the enrollment state matches `SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE`, default `subscription_missing`;
 - `email_verified=true`;
 - `self_enrollment.eligible=true`;
 - for new B2C subjects without a governed subscription, `state=subscription_missing` when subscription enforcement is enabled.

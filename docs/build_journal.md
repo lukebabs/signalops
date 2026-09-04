@@ -1,4 +1,14 @@
 
+### 2026-09-04 — B2C subscription activation gate
+
+- Implemented an enrollment-only subscription activation gate for the tenant-local B2C path: `SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION`, default `true`.
+- The gate applies only to B2C users whose MarketOps access was created through `self-enrollment`; admin-granted tenant-local users are not forced into Pricing by this enrollment gate.
+- When a self-enrolled B2C user has MarketOps access but no effective subscription, `/v1/session/enrollment` now returns `subscription_missing` even if global `SIGNALOPS_SUBSCRIPTIONS_ENABLED` paid-feature enforcement remains off.
+- Updated the browser enrollment gate so `subscription_missing` users are routed to `/marketops/pricing?source_feature=enrollment`, and Pricing/Stripe return routes are allowed through the enrollment gate.
+- Stripe activation remains webhook-authoritative: Checkout start creates only checkout ledger evidence; access changes only after signed Stripe webhook reconciliation or governed Admin provisioning.
+- Updated authenticated B2C Playwright smoke defaults to expect `subscription_missing` and verify that the user reaches Pricing rather than the Dashboard without an active subscription.
+
+
 ### 2026-09-04 — B2C enrollment live Keycloak closure
 
 - Synced the Keycloak password for `luke.babarinde@gmail.com` / `lukebabarinde` to the existing `SYNCRATIC_QA_PASS` value in SignalOps `.env` after named approval. No secret values were printed.

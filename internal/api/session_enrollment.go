@@ -108,6 +108,12 @@ func registerSessionEnrollmentRoute(mux *http.ServeMux, cfg RouterConfig) {
 			return
 		}
 
+		requiresB2CSubscription := requiresB2CSubscriptionActivation(cfg, canSelfEnroll, accessRecords)
+		if requiresB2CSubscription && cfg.SubscriberSubscriptionRepository == nil {
+			writeError(w, http.StatusServiceUnavailable, "enrollment_subscription_unavailable", "subscription state could not be resolved")
+			return
+		}
+
 		var subscription *storage.SubscriberEffectiveSubscriptionRecord
 		if cfg.SubscriberSubscriptionRepository != nil {
 			record, err := cfg.SubscriberSubscriptionRepository.GetSubscriberEffectiveSubscription(r.Context(), tenantID, subject)
@@ -125,7 +131,7 @@ func registerSessionEnrollmentRoute(mux *http.ServeMux, cfg RouterConfig) {
 				record, err = cfg.SubscriberSubscriptionRepository.GetSubscriberEffectiveSubscription(r.Context(), tenantID, subject)
 			}
 			if errors.Is(err, storage.ErrNotFound) {
-				if cfg.SubscriberSubscriptionsEnabled {
+				if cfg.SubscriberSubscriptionsEnabled || requiresB2CSubscription {
 					writeJSON(w, http.StatusOK, sessionEnrollmentResponse(principal, sessionEnrollmentStateSubscriptionMissing, created, accessRecords, nil, nil, canSelfEnroll))
 					return
 				}
@@ -188,6 +194,18 @@ func allowSessionEnrollmentMutation(w http.ResponseWriter, r *http.Request, prin
 func hasMarketOpsAccess(records []storage.TenantUserAccessRecord) bool {
 	for _, record := range records {
 		if record.AppID == "marketops" && (record.Permission == "read" || record.Permission == "write") {
+			return true
+		}
+	}
+	return false
+}
+
+func requiresB2CSubscriptionActivation(cfg RouterConfig, canSelfEnroll bool, records []storage.TenantUserAccessRecord) bool {
+	if !cfg.SubscriberB2CRequireSubscription || !canSelfEnroll {
+		return false
+	}
+	for _, record := range records {
+		if record.AppID == "marketops" && (record.Permission == "read" || record.Permission == "write") && strings.TrimSpace(record.GrantedBy) == "self-enrollment" {
 			return true
 		}
 	}

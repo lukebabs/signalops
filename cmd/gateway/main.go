@@ -74,6 +74,7 @@ func main() {
 		SubscriberListsPilotTenants:       subscriberPilotTenants(cfg.SubscriberListsPilotTenants, cfg.SubscriberB2CTenantID),
 		SubscriberB2CTenantID:             cfg.SubscriberB2CTenantID,
 		SubscriberB2CAutoActivateExplorer: cfg.SubscriberB2CAutoActivateExplorer,
+		SubscriberB2CRequireSubscription:  cfg.SubscriberB2CRequireSubscription,
 		StripeWebhookSecret:               cfg.StripeWebhookSecret,
 		StripeAPIKey:                      cfg.StripeAPIKey,
 		StripeCheckoutSuccessURL:          cfg.StripeCheckoutSuccessURL,

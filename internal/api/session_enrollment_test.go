@@ -81,6 +81,41 @@ func TestSessionEnrollmentDoesNotRequireSubscriptionWhenEnforcementDisabled(t *t
 	}
 }
 
+func TestSessionEnrollmentRequiresSubscriptionForSelfEnrolledB2CWhenActivationGateEnabled(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	accessRepo := &accessManagementTestRepository{}
+	subscriptionRepo := &subscriberSubscriptionAPIFake{err: storage.ErrNotFound}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, AccessRepository: accessRepo, SubscriberSubscriptionRepository: subscriptionRepo, SubscriberB2CTenantID: "tenant-local", SubscriberB2CRequireSubscription: true})
+	token := fixture.token(t, map[string]any{"tenant_id": "tenant-local", "email_verified": true})
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, "/v1/session/enrollment", nil), token))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"state":"subscription_missing"`) {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if accessRepo.upsertCount != 1 || accessRepo.lastUpsert.GrantedBy != "self-enrollment" {
+		t.Fatalf("expected self-enrollment access grant, count=%d grant=%+v", accessRepo.upsertCount, accessRepo.lastUpsert)
+	}
+	if !strings.Contains(recorder.Body.String(), `"marketops_access"`) || strings.Contains(recorder.Body.String(), `"explorer_subscription"`) {
+		t.Fatalf("body=%s", recorder.Body.String())
+	}
+}
+
+func TestSessionEnrollmentActivationGateDoesNotBlockAdminGrantedTenantLocalAccess(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	accessRepo := &accessManagementTestRepository{subjectAccess: []storage.TenantUserAccessRecord{{TenantID: "tenant-local", Subject: "user-123", AppID: "marketops", Permission: "read", GrantedBy: "admin"}}}
+	subscriptionRepo := &subscriberSubscriptionAPIFake{err: storage.ErrNotFound}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, AccessRepository: accessRepo, SubscriberSubscriptionRepository: subscriptionRepo, SubscriberB2CTenantID: "tenant-local", SubscriberB2CRequireSubscription: true})
+	token := fixture.token(t, map[string]any{"tenant_id": "tenant-local", "email_verified": true})
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, "/v1/session/enrollment", nil), token))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"state":"marketops_ready"`) {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if accessRepo.upsertCount != 0 {
+		t.Fatalf("unexpected access regrant count=%d", accessRepo.upsertCount)
+	}
+}
+
 func TestSessionEnrollmentRequiresSubscriptionForB2CWhenEnforcementEnabled(t *testing.T) {
 	fixture := newTestAuthFixture(t)
 	accessRepo := &accessManagementTestRepository{}
