@@ -1,4 +1,17 @@
 
+### 2026-09-04 — B2C enrollment live Keycloak closure
+
+- Synced the Keycloak password for `luke.babarinde@gmail.com` / `lukebabarinde` to the existing `SYNCRATIC_QA_PASS` value in SignalOps `.env` after named approval. No secret values were printed.
+- Verified the password issue was resolved: the B2C Playwright failure moved from `Invalid username or password` to the next Keycloak gate.
+- Applied the approved current no-MFA enrollment posture in live Keycloak: `syncratic-browser forms` / `Syncratic SMS OTP` is `DISABLED`, and `CONFIGURE_SMS_MFA.defaultAction=false`.
+- Verified the live Keycloak settings after mutation.
+- Corrected the QA user profile path by ensuring the Gmail account has required profile fields and no pending required actions; Keycloak then allowed the login to reach SignalOps.
+- Verified the first successful resolver pass created `marketops_access` for subject `b31104bd-b53c-46a5-b17e-9876b2d551f8` under `tenant-local`.
+- Reran the authenticated B2C enrollment Playwright smoke and it passed idempotently with `created=[]`: `1 passed in 2.52s`.
+- Access evidence currently persists in the shared platform database `tenant_user_access`, not the dedicated MarketOps database. This is consistent with the current cross-app access-control boundary, but stale historical `tenant-b2c` self-enrollment rows remain for cleanup under a separate access-ledger hygiene gate.
+- Remaining source-drift risk: the parent Syncratic Keycloak `scripts/reconcile_keycloak_sms_mfa.sh` still represents the older SMS-required posture. Updating that script to default no-MFA was not performed because it is a persistent realm security-posture change and requires a separate explicit source-change approval.
+
+
 ### 2026-09-04 — B2C enrollment tenant-local default correction
 
 - Investigated the new `luke.babarinde@gmail.com` enrollment report: email and SMS verification completed, login reached MarketOps Dashboard, but the dashboard had no data and no subscription option was shown.
