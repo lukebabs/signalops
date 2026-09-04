@@ -587,3 +587,20 @@ Residual policy:
 
 1. Historical subjects that never emitted email/name remain intentionally unlabeled until the user logs in again or an authorized identity source provides a label.
 2. Immutable subject UUID remains the authoritative audit key; labels are operator-readable presentation metadata only.
+
+### 2026-09-04 User journey closure — Profile and user-centric Settings
+
+Status: closed for the current subscriber production-readiness scope.
+
+Evidence:
+
+- Added `/marketops/profile` as the user-facing account and enrollment view.
+- Replaced legacy `/marketops/settings` with user-centric tabs for account, subscription upgrade, billing/refunds, preferences, and watchlist defaults.
+- Moved legacy operational controls to `/marketops/tools`, visible only to operator/admin roles.
+- Reused existing subscription, checkout, portal, refund, enrollment, and watchlist-context APIs; no database migration was required.
+- Production Playwright closure passed: subscriber pilot `3 passed`, subscription admin `3 passed, 1 skipped`, mobile subscriber `24 passed`.
+
+Residual policy:
+
+1. Ordinary subscribers manage package depth through Settings/Profile/Pricing; they do not receive admin-style asset onboarding controls.
+2. Institutional tenant administration remains in Admin Subscription Administration, not the user Settings page.

@@ -36,6 +36,7 @@ export type AppRoutePath =
   | '/insights'
   | '/system'
   | '/marketops/dashboard'
+  | '/marketops/profile'
   | '/marketops/providers'
   | '/marketops/raw-events'
   | '/marketops/normalized'
@@ -62,6 +63,7 @@ export type AppRoutePath =
   | '/marketops/pricing'
   | '/marketops/algorithms'
   | '/marketops/settings'
+  | '/marketops/tools'
   | '/cyberops'
   | '/cyberops/dashboard'
   | '/cyberops/anomalies'
@@ -110,6 +112,7 @@ const CONSOLE_NAV: NavItem[] = [
 
 const MARKETOPS_NAV: NavItem[] = [
   { module: 'dashboard', to: '/marketops/dashboard', label: 'Dashboard' },
+  { module: 'profile', to: '/marketops/profile', label: 'Profile' },
   { module: 'symbols', to: '/marketops/assets', label: 'Assets' },
   { module: 'watchlists', to: '/marketops/watchlists', label: 'Watchlists' },
   { module: 'state', to: '/marketops/state', label: 'Market State' },
@@ -124,6 +127,7 @@ const MARKETOPS_NAV: NavItem[] = [
   { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Intelligence' },
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },
   { module: 'settings', to: '/marketops/settings', label: 'Settings' },
+  { module: 'tools', to: '/marketops/tools', label: 'Tools' },
 ];
 
 const CYBEROPS_NAV: NavItem[] = [

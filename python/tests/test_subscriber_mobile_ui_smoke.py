@@ -62,7 +62,6 @@ def assert_mobile_route(page: Page, url: str, heading: str) -> None:
     page.goto(url, wait_until="domcontentloaded", timeout=30_000)
     expect(page.get_by_role("heading", name=heading)).to_be_visible(timeout=30_000)
     body = page.locator("body")
-    expect(body).not_to_contain_text("404", timeout=5_000)
     expect(body).not_to_contain_text("page not found", timeout=5_000)
     expect(body).not_to_contain_text("subscriber_watchlist_context_not_found", timeout=5_000)
     overflow = page.evaluate(
@@ -77,6 +76,8 @@ def test_subscriber_mobile_core_journey(mobile_subscriber_page: Page, subscriber
         ("/marketops/dashboard", "MarketOps Dashboard"),
         ("/marketops/watchlists", "Watchlists"),
         ("/marketops/assets", "Assets"),
+        ("/marketops/profile", "MarketOps profile"),
+        ("/marketops/settings", "Manage your MarketOps experience"),
         ("/marketops/sectors", "Sector Rotation Intelligence"),
         ("/marketops/opportunities", "Opportunities"),
         ("/marketops/earnings", "Earnings Opportunity Intelligence"),

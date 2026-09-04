@@ -9628,3 +9628,12 @@ Next-cycle priority:
 - Subscription Administration now suppresses raw UUIDs in visible user cells when no label exists, rendering `Unlabeled user · <suffix>` while preserving the full subject in API data and tooltip audit trace.
 - Migration application evidence: `000167_subscriber_subject_identity_labels` applied to the dedicated MarketOps database at `2026-09-04 12:39:26 UTC`, backfilled 6 label rows, and verified gateway `SELECT,INSERT,UPDATE` access.
 - Production validation passed after gateway/web deployment: `scripts/run_subscription_admin_ui_smoke.sh` returned `3 passed, 1 skipped`; `scripts/run_subscriber_pilot_ui_smoke.sh` returned `2 passed`.
+
+### 2026-09-04 — MarketOps Profile and user-centric Settings
+
+- Added a dedicated MarketOps Profile route for subscriber identity, tenant, enrollment, subscription, feature access, watchlist context, limits, billing actions, refund request, and sign-out.
+- Reworked MarketOps Settings into user-centric Account, Subscription, Billing & refunds, Preferences, and Watchlist defaults tabs.
+- Moved legacy operational Settings controls into a privileged MarketOps Tools route so ordinary subscribers no longer see asset onboarding/backtest controls in Settings.
+- Extracted shared subscription plan and billing panels so Pricing and Settings use the same Explorer/Professional/Institutional package presentation and Stripe Checkout/Portal/refund actions.
+- Header identity now links to Profile; MarketOps nav exposes Profile to subscribers and Tools only to operator/admin roles.
+- Validation passed: `go test ./internal/api ./internal/storage/postgres ./internal/config`, `npm --prefix web run build`, Python smoke syntax check, subscriber pilot Playwright smoke `3 passed`, subscription admin smoke `3 passed, 1 skipped`, and mobile subscriber smoke `24 passed`.

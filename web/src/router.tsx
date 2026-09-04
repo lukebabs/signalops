@@ -52,6 +52,8 @@ const ReplayJobsRoute = lazy(() =>
   import('./routes/ReplayJobsRoute').then((m) => ({ default: m.ReplayJobsRoute })),
 );
 const MarketOpsSettingsRoute = lazy(() => import('./routes/MarketOpsSettingsRoute').then((m) => ({ default: m.MarketOpsSettingsRoute })));
+const MarketOpsProfileRoute = lazy(() => import('./routes/MarketOpsProfileRoute').then((m) => ({ default: m.MarketOpsProfileRoute })));
+const MarketOpsToolsRoute = lazy(() => import('./routes/MarketOpsToolsRoute').then((m) => ({ default: m.MarketOpsToolsRoute })));
 const MarketOpsAssetsRoute = lazy(() =>
   import('./routes/MarketOpsAssetsRoute').then((m) => ({ default: m.MarketOpsAssetsRoute })),
 );
@@ -251,7 +253,9 @@ const marketopsInsightsRoute = createRoute({ getParentRoute: () => rootRoute, pa
 const marketopsReplayRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/replay', component: () => <LegacyRedirect to="/admin/replay" /> });
 const marketopsPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/pipelines', component: () => <LegacyRedirect to="/admin/pipelines" /> });
 const marketopsHealthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/health', component: () => <LegacyRedirect to="/admin/system" /> });
-const marketOpsSettingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/settings', component: MarketOpsSettingsRoute });
+const marketOpsSettingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/settings', validateSearch: (search: Record<string, unknown>): { tab?: string } => ({ tab: typeof search.tab === 'string' ? search.tab : undefined }), component: MarketOpsSettingsRoute });
+const marketopsProfileRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/profile', component: MarketOpsProfileRoute });
+const marketopsToolsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/tools', component: MarketOpsToolsRoute });
 const marketopsAssetsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assets', component: MarketOpsAssetsRoute });
 const marketopsWatchlistsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/watchlists', component: MarketOpsWatchlistsRoute });
 const marketopsHypothesesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/hypotheses', component: MarketOpsHypothesesRoute });
@@ -384,7 +388,9 @@ const routeTree = rootRoute.addChildren([
   marketopsReplayRoute,
   marketopsPipelinesRoute,
   marketopsHealthRoute,
+  marketopsProfileRoute,
   marketOpsSettingsRoute,
+  marketopsToolsRoute,
   marketopsAssetsRoute,
   marketopsWatchlistsRoute,
   marketopsHypothesesRoute,

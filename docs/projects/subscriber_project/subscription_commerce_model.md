@@ -122,3 +122,14 @@ Rollback is one configuration change to `false`. It removes commercial feature e
 - Research-report generation/storage, portfolio CSV ingestion, batch-screening UI, custom-universe selector, API-key lifecycle, and shared-tenant branding controls.
 - SRI discovery/detail response shaping beyond the current endpoint boundary.
 - Full production purchase activation remains gated on controlled paid-flow evidence: Checkout completion, signed webhook reconciliation, effective subscription activation, return-to-context behavior, and Stripe Tax invoice verification.
+
+
+## User-facing subscription surfaces — 2026-09-04
+
+Subscription self-service now appears in three coordinated places:
+
+- **Profile** summarizes the active tier, source, status, feature policy, limit policy, and billing/refund actions for the signed-in user.
+- **Settings > Subscription** is the primary in-product upgrade surface for authenticated users.
+- **Pricing** remains the enrollment and gated-feature destination. It shares the same plan-card implementation as Settings to avoid package-description and price-display drift.
+
+All self-service changes continue to rely on Stripe Checkout and signed webhook activation. Returning from Stripe alone does not activate access.

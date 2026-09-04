@@ -131,3 +131,13 @@ Report these as product/operations issues:
 - A scheduled-job status is failed without a visible degraded/skip reason.
 - A market holiday or weekend produces unexpected EOD/intraday jobs.
 
+
+
+## Profile and Settings — 2026-09-04
+
+MarketOps now separates ordinary subscriber controls from operational tooling.
+
+- Use **Profile** to review identity, tenant, enrollment state, current subscription, feature access, watchlist context, limits, billing actions, and refund request options.
+- Use **Settings** for user-centric account, subscription upgrade, billing/refund, preference, and watchlist-default workflows.
+- Use **Pricing** when entering from enrollment or a locked feature prompt. Pricing and Settings use the same package presentation.
+- Operational asset onboarding and research backtest controls are no longer part of user Settings; they live in **MarketOps Tools** for operator/admin users.

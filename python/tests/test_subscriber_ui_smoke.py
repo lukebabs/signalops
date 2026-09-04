@@ -320,3 +320,33 @@ def test_subscriber_sri_uses_platform_global_projection(subscriber_page: Page) -
     history_payload = assert_watchlist_context(history, config)
     assert history_payload.get("data_scope") == "platform-global", f"{history.url} fell back from global SRI history"
     assert isinstance(history_payload.get("snapshots"), list) and history_payload["snapshots"], f"{history.url} returned no global SRI history"
+
+
+def test_subscriber_profile_and_user_settings(subscriber_page: Page) -> None:
+    config = subscriber_ui_config()
+    login(subscriber_page, config)
+
+    subscriber_page.goto(f"{config.base_url}/marketops/profile", wait_until="domcontentloaded")
+    expect(subscriber_page.get_by_role("heading", name="MarketOps profile")).to_be_visible(timeout=30_000)
+    expect(subscriber_page.get_by_text(config.tenant_id)).to_be_visible(timeout=30_000)
+    expect(subscriber_page.get_by_role("link", name="Upgrade package")).to_be_visible(timeout=30_000)
+    expect(subscriber_page.get_by_text("Feature access")).to_be_visible(timeout=30_000)
+    expect(subscriber_page.get_by_text("Watchlist and limits")).to_be_visible(timeout=30_000)
+
+    subscriber_page.goto(f"{config.base_url}/marketops/settings", wait_until="domcontentloaded")
+    expect(subscriber_page.get_by_role("heading", name="Manage your MarketOps experience")).to_be_visible(timeout=30_000)
+    expect(subscriber_page.get_by_role("tab", name="Account")).to_be_visible(timeout=30_000)
+    subscriber_page.get_by_role("tab", name="Subscription").click()
+    expect(subscriber_page.get_by_text("Your subscription depth")).to_be_visible(timeout=30_000)
+    expect(subscriber_page.get_by_text("Explorer")).to_be_visible(timeout=30_000)
+    subscriber_page.get_by_role("tab", name="Billing & refunds").click()
+    expect(subscriber_page.get_by_role("heading", name="Billing & refunds")).to_be_visible(timeout=30_000)
+    subscriber_page.get_by_role("tab", name="Preferences").click()
+    expect(subscriber_page.locator("main").get_by_label("Color theme")).to_be_visible(timeout=30_000)
+    subscriber_page.get_by_role("tab", name="Watchlist defaults").click()
+    expect(subscriber_page.get_by_text("Global catalog with tenant/user watchlist context")).to_be_visible(timeout=30_000)
+    expect(subscriber_page.locator("body")).not_to_contain_text("Analyst assets")
+
+    expect(subscriber_page.get_by_role("link", name="Tools")).not_to_be_visible(timeout=5_000)
+    subscriber_page.goto(f"{config.base_url}/marketops/tools", wait_until="domcontentloaded")
+    expect(subscriber_page.get_by_role("heading", name="MarketOps tools are restricted")).to_be_visible(timeout=30_000)
