@@ -54,6 +54,11 @@ func (r *Repository) ListSubscriberSubscriptionAdministration(ctx context.Contex
 			return err
 		}
 		snapshot.UpgradeInteractions = upgradeInteractions
+		refundRequests, err := listSubscriberRefundRequestsTx(ctx, tx, tenantID)
+		if err != nil {
+			return err
+		}
+		snapshot.RefundRequests = refundRequests
 		return nil
 	})
 	return snapshot, err
@@ -291,6 +296,162 @@ LIMIT 100`, tenantID)
 		records = append(records, record)
 	}
 	return records, rows.Err()
+}
+
+func listSubscriberRefundRequestsTx(ctx context.Context, tx *sql.Tx, tenantID string) ([]storage.SubscriberRefundRequestRecord, error) {
+	rows, err := tx.QueryContext(ctx, `
+SELECT r.refund_request_id, r.tenant_id, r.subject,
+  COALESCE(subject_identity.display_name, '') AS subject_display_name,
+  COALESCE(subject_identity.email, '') AS subject_email,
+  r.subscription_id, COALESCE(p.product_key, '') AS product_key, COALESCE(p.display_name, '') AS display_name,
+  r.stripe_customer_id, r.stripe_subscription_id, r.stripe_session_id,
+  r.requested_amount_cents, r.currency, r.reason, r.status, r.admin_note,
+  r.requested_at, r.updated_at, r.resolved_at, r.actor_subject,
+  COALESCE(actor_identity.display_name, '') AS actor_display_name,
+  COALESCE(actor_identity.email, '') AS actor_email,
+  r.correlation_id
+FROM subscriber_refund_requests r
+LEFT JOIN subscriber_subject_subscriptions s ON s.subscription_id=r.subscription_id AND s.tenant_id=r.tenant_id
+LEFT JOIN subscriber_subscription_products p ON p.product_key=s.product_key
+LEFT JOIN subscriber_subscription_admin_identity_labels($1) subject_identity ON subject_identity.subject=r.subject
+LEFT JOIN subscriber_subscription_admin_identity_labels($1) actor_identity ON actor_identity.subject=r.actor_subject
+WHERE r.tenant_id=$1
+ORDER BY CASE r.status WHEN 'requested' THEN 0 WHEN 'reviewing' THEN 1 ELSE 2 END, r.requested_at DESC
+LIMIT 100`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list refund requests: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.SubscriberRefundRequestRecord{}
+	for rows.Next() {
+		var record storage.SubscriberRefundRequestRecord
+		if err := rows.Scan(&record.RefundRequestID, &record.TenantID, &record.Subject, &record.SubjectDisplayName, &record.SubjectEmail, &record.SubscriptionID, &record.ProductKey, &record.DisplayName, &record.StripeCustomerID, &record.StripeSubscriptionID, &record.StripeSessionID, &record.RequestedAmountCents, &record.Currency, &record.Reason, &record.Status, &record.AdminNote, &record.RequestedAt, &record.UpdatedAt, &record.ResolvedAt, &record.ActorSubject, &record.ActorDisplayName, &record.ActorEmail, &record.CorrelationID); err != nil {
+			return nil, fmt.Errorf("scan refund request: %w", err)
+		}
+		records = append(records, record)
+	}
+	return records, rows.Err()
+}
+
+func (r *Repository) CreateSubscriberRefundRequest(ctx context.Context, input storage.SubscriberRefundRequestInput) (storage.SubscriberRefundRequestRecord, error) {
+	if err := validSubscriberRefundRequestInput(input); err != nil {
+		return storage.SubscriberRefundRequestRecord{}, err
+	}
+	var created storage.SubscriberRefundRequestRecord
+	err := r.WithSubscriberTenantScope(ctx, input.TenantID, func(ctx context.Context, tx *sql.Tx) error {
+		var subscriptionID, stripeCustomerID, stripeSubscriptionID, stripeSessionID string
+		if err := tx.QueryRowContext(ctx, `
+SELECT s.subscription_id, s.stripe_customer_id, s.stripe_subscription_id,
+  COALESCE((SELECT c.stripe_session_id FROM subscriber_checkout_sessions c WHERE c.stripe_subscription_id=s.stripe_subscription_id ORDER BY c.updated_at DESC LIMIT 1), '') AS stripe_session_id
+FROM subscriber_subject_subscriptions s
+WHERE s.tenant_id=$1 AND s.subject=$2 AND s.status IN ('active','trialing','past_due')
+ORDER BY s.updated_at DESC
+LIMIT 1`, input.TenantID, input.Subject).Scan(&subscriptionID, &stripeCustomerID, &stripeSubscriptionID, &stripeSessionID); errors.Is(err, sql.ErrNoRows) {
+			return storage.ErrNotFound
+		} else if err != nil {
+			return fmt.Errorf("read refundable subject subscription: %w", err)
+		}
+		refundID := newSubscriberID("subrefund")
+		_, err := tx.ExecContext(ctx, `
+INSERT INTO subscriber_refund_requests
+  (refund_request_id, tenant_id, subject, subscription_id, stripe_customer_id, stripe_subscription_id, stripe_session_id,
+   requested_amount_cents, currency, reason, status, actor_subject, correlation_id)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'requested',$3,$11)`, refundID, input.TenantID, input.Subject, subscriptionID, stripeCustomerID, stripeSubscriptionID, stripeSessionID, input.RequestedAmountCents, input.Currency, input.Reason, input.CorrelationID)
+		if err != nil {
+			return fmt.Errorf("insert refund request: %w", err)
+		}
+		if err := insertSubscriberSubscriptionAudit(ctx, tx, input.TenantID, input.Subject, input.Subject, "subscriber_refund_requested", input.CorrelationID,
+			fmt.Sprintf(`{"refund_request_id":%q,"subscription_id":%q,"reason":%q,"status":"requested"}`, refundID, subscriptionID, input.Reason)); err != nil {
+			return fmt.Errorf("insert refund request audit: %w", err)
+		}
+		records, err := listSubscriberRefundRequestsTx(ctx, tx, input.TenantID)
+		if err != nil {
+			return err
+		}
+		for _, record := range records {
+			if record.RefundRequestID == refundID {
+				created = record
+				return nil
+			}
+		}
+		return storage.ErrNotFound
+	})
+	return created, err
+}
+
+func (r *Repository) UpdateSubscriberRefundRequest(ctx context.Context, input storage.SubscriberRefundRequestMutation) (storage.SubscriberRefundRequestRecord, error) {
+	if err := validSubscriberRefundRequestMutation(input); err != nil {
+		return storage.SubscriberRefundRequestRecord{}, err
+	}
+	var updated storage.SubscriberRefundRequestRecord
+	err := r.WithSubscriberTenantScope(ctx, input.TenantID, func(ctx context.Context, tx *sql.Tx) error {
+		var before []byte
+		if err := tx.QueryRowContext(ctx, `SELECT to_jsonb(r)::text::jsonb FROM subscriber_refund_requests r WHERE tenant_id=$1 AND refund_request_id=$2`, input.TenantID, input.RefundRequestID).Scan(&before); errors.Is(err, sql.ErrNoRows) {
+			return storage.ErrNotFound
+		} else if err != nil {
+			return fmt.Errorf("read refund request: %w", err)
+		}
+		result, err := tx.ExecContext(ctx, `
+UPDATE subscriber_refund_requests
+SET status=$3, admin_note=$4, actor_subject=$5, updated_at=now(), resolved_at=CASE WHEN $3 IN ('approved_for_manual_refund','rejected','manual_refund_completed','closed') THEN now() ELSE NULL END, correlation_id=$6
+WHERE tenant_id=$1 AND refund_request_id=$2`, input.TenantID, input.RefundRequestID, input.Status, input.AdminNote, input.ActorSubject, input.CorrelationID)
+		if err != nil {
+			return fmt.Errorf("update refund request: %w", err)
+		}
+		rows, _ := result.RowsAffected()
+		if rows != 1 {
+			return storage.ErrNotFound
+		}
+		var subject string
+		var after []byte
+		if err := tx.QueryRowContext(ctx, `SELECT subject, to_jsonb(r)::text::jsonb FROM subscriber_refund_requests r WHERE tenant_id=$1 AND refund_request_id=$2`, input.TenantID, input.RefundRequestID).Scan(&subject, &after); err != nil {
+			return fmt.Errorf("read updated refund request: %w", err)
+		}
+		_, err = tx.ExecContext(ctx, `
+INSERT INTO subscriber_subscription_audit_events
+  (audit_id, tenant_id, subject, actor_subject, event_type, before_state, after_state, correlation_id)
+VALUES ($1,$2,$3,$4,'subscriber_refund_request_updated',$5::jsonb,$6::jsonb,$7)`, newSubscriberID("subaudit"), input.TenantID, subject, input.ActorSubject, string(before), string(after), input.CorrelationID)
+		if err != nil {
+			return fmt.Errorf("insert refund request update audit: %w", err)
+		}
+		records, err := listSubscriberRefundRequestsTx(ctx, tx, input.TenantID)
+		if err != nil {
+			return err
+		}
+		for _, record := range records {
+			if record.RefundRequestID == input.RefundRequestID {
+				updated = record
+				return nil
+			}
+		}
+		return storage.ErrNotFound
+	})
+	return updated, err
+}
+
+func validSubscriberRefundRequestInput(input storage.SubscriberRefundRequestInput) error {
+	if !validSubscriberTenantID(input.TenantID) || strings.TrimSpace(input.Subject) == "" {
+		return errors.New("invalid refund request scope")
+	}
+	if strings.TrimSpace(input.Reason) == "" {
+		return errors.New("refund request reason is required")
+	}
+	if input.RequestedAmountCents != nil && *input.RequestedAmountCents < 0 {
+		return errors.New("refund amount must be non-negative")
+	}
+	return nil
+}
+
+func validSubscriberRefundRequestMutation(input storage.SubscriberRefundRequestMutation) error {
+	if !validSubscriberTenantID(input.TenantID) || strings.TrimSpace(input.RefundRequestID) == "" || strings.TrimSpace(input.ActorSubject) == "" {
+		return errors.New("invalid refund request mutation")
+	}
+	switch strings.TrimSpace(input.Status) {
+	case "requested", "reviewing", "approved_for_manual_refund", "rejected", "manual_refund_completed", "closed":
+		return nil
+	default:
+		return errors.New("invalid refund request status")
+	}
 }
 
 func listSubscriberBillingWebhookEventsTx(ctx context.Context, tx *sql.Tx) ([]storage.SubscriberBillingWebhookEventRecord, error) {

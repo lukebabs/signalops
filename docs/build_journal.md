@@ -1,3 +1,13 @@
+### 2026-09-04 — Admin-governed refund request workflow and identity-label cleanup
+
+- Added migration `000166_subscriber_refund_requests` to create an append-only tenant-scoped refund-request ledger in the dedicated MarketOps database. Subscribers can request a refund, but refund action remains admin-only.
+- Added `POST /v1/tenants/{tenant_id}/marketops/subscription/refund-requests` for authenticated subscribers. The subscriber response intentionally returns only request ID/status/timestamps/amount metadata and does not expose Stripe customer, subscription, session, or internal subscription IDs.
+- Added `PUT /v1/administration/subscriptions/refund-requests/{refund_request_id}` for `signalops:subscription_admin` users to record admin disposition. The supported status model is `requested`, `reviewing`, `approved_for_manual_refund`, `rejected`, `manual_refund_completed`, and `closed`; actual money movement still occurs in Stripe Dashboard for this slice.
+- Expanded Subscription Administration with a `Refund requests` tab showing email-first subject identity, request reason, Stripe references, and admin status/note controls.
+- Repaired subscription admin identity-label coverage so labels can resolve from tenant access, subscription records, seats, audits, activity, upgrade interactions, and refund requests. Normal admin tables now render email/display name first and keep UUIDs only as hover/title context when a label exists.
+- Added a subscriber-facing refund request form to `/marketops/pricing` for active subscribers. The form creates a request for admin review and does not initiate Stripe refunds.
+- Validation: migration applied to `signalops-marketops-postgres-1`; grants verified for `signalops_subscriber_gateway`; `go test ./internal/api ./internal/storage/postgres`; `npm --prefix web run build`; gateway deploy via `sudo -n signalops-deploy-agent marketops-gateway-deploy`; web deploy via `sudo -n signalops-deploy-agent marketops-web-deploy`; Playwright admin smoke `3 passed, 1 skipped`; read-only pricing smoke `1 passed`.
+
 ### 2026-09-04 — Stripe webhook-authoritative paid activation closure
 
 - Investigated completed live Checkout Session `cs_live_a1PXQR4g96ZkMkJFkiOJMVoSQhrES4u2mBRgJaxptYjCyqFkZlFLaICeIN` after the user still routed to Pricing.

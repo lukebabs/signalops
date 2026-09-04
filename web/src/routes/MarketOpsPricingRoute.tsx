@@ -37,6 +37,9 @@ export function MarketOpsPricingRoute() {
   const sourceFeature = search.source_feature || '';
   const [workingKey, setWorkingKey] = useState<string>('');
   const [checkoutError, setCheckoutError] = useState<string>('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundResult, setRefundResult] = useState<{ state: 'idle' | 'working' | 'success' | 'error'; message: string }>({ state: 'idle', message: '' });
 
   async function startCheckout(product: SubscriberSubscriptionProduct, billingPeriod: BillingPeriod) {
     setCheckoutError('');
@@ -47,6 +50,20 @@ export function MarketOpsPricingRoute() {
     } catch (error) {
       setCheckoutError(error instanceof Error ? error.message : 'Checkout could not be started.');
       setWorkingKey('');
+    }
+  }
+
+  async function requestRefund() {
+    setRefundResult({ state: 'working', message: 'Submitting refund request…' });
+    try {
+      const cents = refundAmount.trim() ? Math.round(Number(refundAmount.trim()) * 100) : undefined;
+      if (cents !== undefined && (!Number.isFinite(cents) || cents < 0)) throw new Error('Refund amount must be a valid non-negative number.');
+      await api.createSubscriberRefundRequest(tenantId, { reason: refundReason.trim(), requested_amount_cents: cents, currency: 'usd', correlation_id: 'refund-request-' + Date.now() });
+      setRefundReason('');
+      setRefundAmount('');
+      setRefundResult({ state: 'success', message: 'Refund request submitted. A subscription administrator will review it and take action in Stripe if approved.' });
+    } catch (error) {
+      setRefundResult({ state: 'error', message: error instanceof Error ? error.message : 'Refund request could not be submitted.' });
     }
   }
 
@@ -74,6 +91,17 @@ export function MarketOpsPricingRoute() {
       <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">Explorer and Professional use Stripe Checkout. MarketOps records an internal checkout reference first; access changes only after the signed Stripe webhook confirms the subscription. A return from Stripe alone never grants access.</p>{!checkoutEnabled ? <p className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">Checkout is not yet enabled because the Gateway is missing a Stripe API key. Billing mappings can still be reviewed by administrators.</p> : null}
       {search.return_url ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Trigger context retained for post-activation return: <code className="break-all">{search.return_url}</code></p> : null}
     </section>
+
+    {subscription.subscription ? <section className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+      <h2 className="text-sm font-semibold text-gray-950 dark:text-gray-50">Need billing help?</h2>
+      <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">Submit a refund request for administrator review. SignalOps records the request and notifies the Subscription Administration queue; an admin performs approved refunds in Stripe Dashboard.</p>
+      <div className="mt-3 grid gap-2 md:grid-cols-[10rem_1fr_auto]">
+        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Amount requested, optional<input inputMode="decimal" value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} placeholder="24.99" className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" /></label>
+        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Reason<textarea value={refundReason} onChange={(event) => setRefundReason(event.target.value)} rows={2} placeholder="Briefly explain the billing issue." className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" /></label>
+        <button type="button" disabled={refundResult.state === 'working' || !refundReason.trim()} onClick={requestRefund} className="self-end rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900">{refundResult.state === 'working' ? 'Submitting…' : 'Request refund'}</button>
+      </div>
+      {refundResult.state !== 'idle' ? <p role="status" className={`mt-2 text-xs ${refundResult.state === 'error' ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>{refundResult.message}</p> : null}
+    </section> : null}
   </div>;
 }
 

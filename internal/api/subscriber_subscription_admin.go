@@ -85,6 +85,20 @@ type subscriberTenantSubscriptionBillingRequest struct {
 	CorrelationID        string `json:"correlation_id"`
 }
 
+type subscriberRefundRequestCreateRequest struct {
+	RequestedAmountCents *int   `json:"requested_amount_cents"`
+	Currency             string `json:"currency"`
+	Reason               string `json:"reason"`
+	CorrelationID        string `json:"correlation_id"`
+}
+
+type subscriberRefundRequestAdminMutationRequest struct {
+	TenantID      string `json:"tenant_id"`
+	Status        string `json:"status"`
+	AdminNote     string `json:"admin_note"`
+	CorrelationID string `json:"correlation_id"`
+}
+
 // registerSubscriberSubscriptionAdministrationRoutes provides the controlled
 // provisioning boundary for launch operations. It deliberately has no browser
 // self-service upgrade operation: a caller needs the dedicated platform role
@@ -162,6 +176,52 @@ func registerSubscriberSubscriptionAdministrationRoutes(mux *http.ServeMux, cfg 
 			return
 		}
 		writeJSON(w, http.StatusAccepted, map[string]string{"status": "recorded"})
+	})
+
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/marketops/subscription/refund-requests", func(w http.ResponseWriter, r *http.Request) {
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		subject, ok := requireRequestSubject(w, r, "")
+		if !ok {
+			return
+		}
+		var request subscriberRefundRequestCreateRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		record, err := repository.CreateSubscriberRefundRequest(r.Context(), storage.SubscriberRefundRequestInput{
+			TenantID: tenantID, Subject: subject, Reason: strings.TrimSpace(request.Reason), RequestedAmountCents: request.RequestedAmountCents,
+			Currency: firstNonEmpty(strings.ToLower(strings.TrimSpace(request.Currency)), "usd"), CorrelationID: subscriptionCorrelationID(r, request.CorrelationID),
+		})
+		if err != nil {
+			writeSubscriberSubscriptionAdministrationError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"status": "requested", "refund_request": subscriberRefundRequestPublicResponse(record)})
+	})
+
+	mux.HandleFunc("PUT /v1/administration/subscriptions/refund-requests/{refund_request_id}", func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := requireSubscriptionAdministrator(w, r)
+		if !ok {
+			return
+		}
+		var request subscriberRefundRequestAdminMutationRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		record, err := repository.UpdateSubscriberRefundRequest(r.Context(), storage.SubscriberRefundRequestMutation{
+			TenantID: strings.TrimSpace(request.TenantID), RefundRequestID: strings.TrimSpace(r.PathValue("refund_request_id")),
+			Status: strings.TrimSpace(request.Status), AdminNote: strings.TrimSpace(request.AdminNote), ActorSubject: actor, CorrelationID: subscriptionCorrelationID(r, request.CorrelationID),
+		})
+		if err != nil {
+			writeSubscriberSubscriptionAdministrationError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "refund_request": subscriberRefundRequestAdminResponse(record)})
 	})
 
 	mux.HandleFunc("GET /v1/administration/subscriptions/products", func(w http.ResponseWriter, r *http.Request) {
@@ -455,7 +515,34 @@ func subscriberSubscriptionAdministrationResponse(snapshot storage.SubscriberSub
 			"occurred_at": record.OccurredAt,
 		})
 	}
-	return map[string]any{"tenant_id": snapshot.TenantID, "products": products, "subject_subscriptions": subjects, "tenant_subscriptions": contracts, "seats": seats, "audit_events": audit, "billing_webhook_events": webhooks, "upgrade_interactions": upgradeInteractions}
+	refundRequests := make([]map[string]any, 0, len(snapshot.RefundRequests))
+	for _, record := range snapshot.RefundRequests {
+		refundRequests = append(refundRequests, subscriberRefundRequestAdminResponse(record))
+	}
+	return map[string]any{"tenant_id": snapshot.TenantID, "products": products, "subject_subscriptions": subjects, "tenant_subscriptions": contracts, "seats": seats, "audit_events": audit, "billing_webhook_events": webhooks, "upgrade_interactions": upgradeInteractions, "refund_requests": refundRequests}
+}
+
+func subscriberRefundRequestPublicResponse(record storage.SubscriberRefundRequestRecord) map[string]any {
+	return map[string]any{
+		"refund_request_id":      record.RefundRequestID,
+		"status":                 record.Status,
+		"requested_amount_cents": record.RequestedAmountCents,
+		"currency":               record.Currency,
+		"requested_at":           record.RequestedAt,
+		"updated_at":             record.UpdatedAt,
+	}
+}
+
+func subscriberRefundRequestAdminResponse(record storage.SubscriberRefundRequestRecord) map[string]any {
+	return map[string]any{
+		"refund_request_id": record.RefundRequestID, "tenant_id": record.TenantID, "subject": record.Subject,
+		"subject_display_name": record.SubjectDisplayName, "subject_email": record.SubjectEmail,
+		"subscription_id": record.SubscriptionID, "product_key": record.ProductKey, "display_name": record.DisplayName,
+		"stripe_customer_id": record.StripeCustomerID, "stripe_subscription_id": record.StripeSubscriptionID, "stripe_session_id": record.StripeSessionID,
+		"requested_amount_cents": record.RequestedAmountCents, "currency": record.Currency, "reason": record.Reason,
+		"status": record.Status, "admin_note": record.AdminNote, "requested_at": record.RequestedAt, "updated_at": record.UpdatedAt, "resolved_at": record.ResolvedAt,
+		"actor_subject": record.ActorSubject, "actor_display_name": record.ActorDisplayName, "actor_email": record.ActorEmail, "correlation_id": record.CorrelationID,
+	}
 }
 
 func subscriptionAdministrationProductResponse(product storage.SubscriberSubscriptionProductRecord) map[string]any {

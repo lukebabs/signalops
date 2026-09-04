@@ -27,6 +27,22 @@ This slice connects Stripe as billing evidence and as the payment processor for 
 - Automatic user, tenant, or seat creation from Stripe.
 - Provider polling or MarketOps data entitlement changes.
 
+
+## Refund request workflow — 2026-09-04
+
+Refunds are admin-governed. A subscriber can request a refund from `/marketops/pricing` after they have an effective subscription. SignalOps records the request in `subscriber_refund_requests` and surfaces it in Administration > Subscriptions > Refund requests. The request creates audit evidence and queue visibility; it does not move money.
+
+Current operational boundary:
+
+1. Subscriber submits reason and optional amount.
+2. Gateway resolves tenant and immutable OIDC subject from the authenticated token.
+3. Gateway creates a tenant-scoped refund-request row against the subscriber's active/trialing/past-due subject subscription.
+4. Subscriber receives only safe acknowledgement metadata: request ID, status, amount/currency, and timestamps. Stripe customer/subscription/session IDs are not returned to the subscriber.
+5. `signalops:subscription_admin` reviews the request in Admin Subscription.
+6. If approved, the admin executes the actual refund in Stripe Dashboard, then records the disposition in SignalOps as `manual_refund_completed` with a note/reference.
+
+The allowed status model is: `requested`, `reviewing`, `approved_for_manual_refund`, `rejected`, `manual_refund_completed`, and `closed`. This intentionally avoids a misleading `refunded` state until SignalOps owns a signed, idempotent Stripe refund executor and refund-webhook reconciliation path.
+
 ## Webhook behavior
 
 The gateway verifies the `Stripe-Signature` header using `STRIPE_WEBHOOK_SECRET`. Invalid signatures return `400` and are not persisted. Supported events are:

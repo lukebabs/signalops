@@ -23,6 +23,8 @@ type SubscriberSubscriptionAdministrationRepository interface {
 	UpdateSubscriberTenantSubscriptionBilling(context.Context, SubscriberTenantSubscriptionBillingMutation) error
 	UpsertSubscriberSubscriptionSeat(context.Context, SubscriberSubscriptionSeatMutation) error
 	ProcessSubscriberStripeWebhook(context.Context, SubscriberStripeWebhookMutation) (SubscriberBillingWebhookEventRecord, error)
+	CreateSubscriberRefundRequest(context.Context, SubscriberRefundRequestInput) (SubscriberRefundRequestRecord, error)
+	UpdateSubscriberRefundRequest(context.Context, SubscriberRefundRequestMutation) (SubscriberRefundRequestRecord, error)
 }
 
 type SubscriberSubjectSubscriptionMutation struct {
@@ -204,6 +206,7 @@ type SubscriberSubscriptionAdministrationSnapshot struct {
 	AuditEvents          []SubscriberSubscriptionAuditEventRecord
 	BillingWebhookEvents []SubscriberBillingWebhookEventRecord
 	UpgradeInteractions  []SubscriberUpgradeInteractionRecord
+	RefundRequests       []SubscriberRefundRequestRecord
 }
 
 type SubscriberSubjectSubscriptionRecord struct {
@@ -258,6 +261,50 @@ type SubscriberSubscriptionSeatRecord struct {
 	CorrelationID         string
 	AssignedAt            time.Time
 	RevokedAt             *time.Time
+}
+
+type SubscriberRefundRequestInput struct {
+	TenantID             string
+	Subject              string
+	Reason               string
+	RequestedAmountCents *int
+	Currency             string
+	CorrelationID        string
+}
+
+type SubscriberRefundRequestMutation struct {
+	TenantID        string
+	RefundRequestID string
+	Status          string
+	AdminNote       string
+	ActorSubject    string
+	CorrelationID   string
+}
+
+type SubscriberRefundRequestRecord struct {
+	RefundRequestID      string
+	TenantID             string
+	Subject              string
+	SubjectDisplayName   string
+	SubjectEmail         string
+	SubscriptionID       string
+	ProductKey           string
+	DisplayName          string
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	StripeSessionID      string
+	RequestedAmountCents *int
+	Currency             string
+	Reason               string
+	Status               string
+	AdminNote            string
+	RequestedAt          time.Time
+	UpdatedAt            time.Time
+	ResolvedAt           *time.Time
+	ActorSubject         string
+	ActorDisplayName     string
+	ActorEmail           string
+	CorrelationID        string
 }
 
 type SubscriberSubscriptionAuditEventRecord struct {

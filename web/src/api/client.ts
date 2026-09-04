@@ -197,6 +197,8 @@ import type {
   SubscriberCheckoutRequest,
   SubscriberCheckoutResponse,
   SubscriberSubscriptionAdministrationResponse,
+  SubscriberRefundRequestAdminMutationRequest,
+  SubscriberRefundRequestCreateRequest,
   SubscriberUserActivityResponse,
   SubscriberUserActivityRequest,
   SubscriberUpgradeInteractionRequest,
@@ -844,6 +846,10 @@ export const api = {
     post<{ status: string }>("/v1/session/activity", body),
   recordSubscriberUpgradeInteraction: (body: SubscriberUpgradeInteractionRequest) =>
     post<{ status: string }>("/v1/marketops/subscriptions/upgrade-interactions", body),
+  createSubscriberRefundRequest: (tenantId: string, body: SubscriberRefundRequestCreateRequest) =>
+    post<{ status: string; refund_request: Record<string, unknown> }>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscription/refund-requests", body),
+  updateSubscriberRefundRequest: (refundRequestId: string, body: SubscriberRefundRequestAdminMutationRequest) =>
+    put<{ status: string; refund_request: Record<string, unknown> }>("/v1/administration/subscriptions/refund-requests/" + encodeURIComponent(refundRequestId), body),
   updateSubscriberSubscriptionProduct: (productKey: string, body: SubscriberSubscriptionProductUpdateRequest) =>
     put<{ status: string }>("/v1/administration/subscriptions/products/" + encodeURIComponent(productKey), body),
   updateSubscriberSubscriptionProductBilling: (productKey: string, body: SubscriberSubscriptionProductBillingRequest) =>

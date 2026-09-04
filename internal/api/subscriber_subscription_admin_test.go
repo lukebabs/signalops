@@ -28,6 +28,8 @@ type subscriberSubscriptionAdministrationFake struct {
 	activity           storage.SubscriberUserActivityRecordInput
 	upgradeInteraction storage.SubscriberUpgradeInteractionInput
 	checkoutSession    storage.SubscriberCheckoutSessionInput
+	refundCreate       storage.SubscriberRefundRequestInput
+	refundUpdate       storage.SubscriberRefundRequestMutation
 	activityFilter     storage.SubscriberUserActivityFilter
 	activitySnapshot   storage.SubscriberUserActivitySnapshot
 }
@@ -89,6 +91,24 @@ func (f *subscriberSubscriptionAdministrationFake) UpsertSubscriberSubscriptionS
 func (f *subscriberSubscriptionAdministrationFake) ProcessSubscriberStripeWebhook(_ context.Context, input storage.SubscriberStripeWebhookMutation) (storage.SubscriberBillingWebhookEventRecord, error) {
 	f.stripeWebhook = input
 	return storage.SubscriberBillingWebhookEventRecord{ProviderEventID: input.ProviderEventID, EventType: input.EventType, ProcessingStatus: "processed"}, nil
+}
+func (f *subscriberSubscriptionAdministrationFake) CreateSubscriberRefundRequest(_ context.Context, input storage.SubscriberRefundRequestInput) (storage.SubscriberRefundRequestRecord, error) {
+	f.refundCreate = input
+	return storage.SubscriberRefundRequestRecord{
+		RefundRequestID: "subrefund-test", TenantID: input.TenantID, Subject: input.Subject, SubjectEmail: "pilot@example.com",
+		SubscriptionID: "sub-subscription-test", ProductKey: "explorer", DisplayName: "Explorer",
+		StripeCustomerID: "cus_secret", StripeSubscriptionID: "sub_secret", StripeSessionID: "cs_secret",
+		RequestedAmountCents: input.RequestedAmountCents, Currency: input.Currency, Reason: input.Reason, Status: "requested", RequestedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}, nil
+}
+func (f *subscriberSubscriptionAdministrationFake) UpdateSubscriberRefundRequest(_ context.Context, input storage.SubscriberRefundRequestMutation) (storage.SubscriberRefundRequestRecord, error) {
+	f.refundUpdate = input
+	return storage.SubscriberRefundRequestRecord{
+		RefundRequestID: input.RefundRequestID, TenantID: input.TenantID, Subject: "pilot-sub", SubjectEmail: "pilot@example.com",
+		SubscriptionID: "sub-subscription-test", ProductKey: "explorer", DisplayName: "Explorer",
+		StripeCustomerID: "cus_admin", StripeSubscriptionID: "sub_admin", StripeSessionID: "cs_admin",
+		Currency: "usd", Reason: "requested by customer", Status: input.Status, AdminNote: input.AdminNote, ActorSubject: input.ActorSubject, ActorEmail: "admin@example.com", RequestedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}, nil
 }
 
 func TestSubscriberSubscriptionAdministrationFailsClosedWithoutPlatformRole(t *testing.T) {
@@ -280,5 +300,63 @@ func TestMarketOpsMutationActivityCapturedBestEffort(t *testing.T) {
 	router.ServeHTTP(response, request)
 	if store.activity.TenantID != "tenant-local" || store.activity.Subject != "user-sub" || store.activity.EventType != "api_mutation" || store.activity.HTTPMethod != http.MethodPost || store.activity.FeatureKey != "subscriber" || store.activity.RoutePath != "/v1/tenants/{tenant}/marketops/subscriber/private-lists" {
 		t.Fatalf("unexpected captured activity: %+v; response=%d %s", store.activity, response.Code, response.Body.String())
+	}
+}
+
+func TestSubscriberRefundRequestCreatesSafeSubscriberRecord(t *testing.T) {
+	amount := 2499
+	store := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store})
+	request := httptest.NewRequest(http.MethodPost, "/v1/tenants/tenant-pilot-b/marketops/subscription/refund-requests", strings.NewReader(`{"requested_amount_cents":2499,"currency":"USD","reason":"I meant to choose annual","correlation_id":"refund-create-test"}`))
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-pilot-b", Subject: "pilot-sub", Roles: map[string]struct{}{roleViewer: {}}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202: %s", response.Code, response.Body.String())
+	}
+	if store.refundCreate.TenantID != "tenant-pilot-b" || store.refundCreate.Subject != "pilot-sub" || store.refundCreate.Currency != "usd" || store.refundCreate.Reason == "" || store.refundCreate.CorrelationID != "refund-create-test" {
+		t.Fatalf("unexpected refund create mutation: %+v", store.refundCreate)
+	}
+	if store.refundCreate.RequestedAmountCents == nil || *store.refundCreate.RequestedAmountCents != amount {
+		t.Fatalf("unexpected requested amount: %+v", store.refundCreate.RequestedAmountCents)
+	}
+	body := response.Body.String()
+	for _, forbidden := range []string{"cus_secret", "sub_secret", "cs_secret", "stripe_customer_id", "stripe_subscription_id", "stripe_session_id", "subscription_id"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("subscriber refund response leaked %q: %s", forbidden, body)
+		}
+	}
+}
+
+func TestSubscriberRefundRequestAdminUpdateRequiresRole(t *testing.T) {
+	store := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store})
+	request := httptest.NewRequest(http.MethodPut, "/v1/administration/subscriptions/refund-requests/subrefund-test", strings.NewReader(`{"tenant_id":"tenant-pilot-b","status":"reviewing","admin_note":"Checking Stripe payment record"}`))
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-pilot-b", Subject: "pilot-sub", Roles: map[string]struct{}{roleViewer: {}}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", response.Code)
+	}
+	if store.refundUpdate.RefundRequestID != "" {
+		t.Fatal("non-admin refund mutation reached repository")
+	}
+}
+
+func TestSubscriberRefundRequestAdminUpdateRecordsDisposition(t *testing.T) {
+	store := &subscriberSubscriptionAdministrationFake{}
+	router := NewRouter(RouterConfig{SubscriberListsEnabled: true, SubscriberSubscriptionAdministrationRepository: store})
+	request := httptest.NewRequest(http.MethodPut, "/v1/administration/subscriptions/refund-requests/subrefund-test", strings.NewReader(`{"tenant_id":"tenant-pilot-b","status":"approved_for_manual_refund","admin_note":"Refund must be executed in Stripe Dashboard","correlation_id":"refund-admin-test"}`))
+	request = request.WithContext(context.WithValue(request.Context(), authContextKey{}, Principal{TenantID: "tenant-local", Subject: "subscription-admin", Roles: map[string]struct{}{roleSubscriptionAdmin: {}}}))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
+	}
+	if store.refundUpdate.TenantID != "tenant-pilot-b" || store.refundUpdate.RefundRequestID != "subrefund-test" || store.refundUpdate.Status != "approved_for_manual_refund" || store.refundUpdate.ActorSubject != "subscription-admin" || store.refundUpdate.CorrelationID != "refund-admin-test" {
+		t.Fatalf("unexpected refund update mutation: %+v", store.refundUpdate)
+	}
+	if !strings.Contains(response.Body.String(), "cus_admin") || !strings.Contains(response.Body.String(), "pilot@example.com") {
+		t.Fatalf("admin response missing operational details: %s", response.Body.String())
 	}
 }

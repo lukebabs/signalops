@@ -67,6 +67,19 @@ def test_stripe_checkout_readiness_state_matches_gateway(pricing_page: Page, pri
         expect(body).to_contain_text(display_price, timeout=30_000)
     expect(body).not_to_contain_text("price_")
 
+    subscription_response = pricing_page.evaluate(
+        """async ({tenantId, token}) => {
+          const response = await fetch(`/v1/tenants/${tenantId}/marketops/subscription`, {headers: {Authorization: "Bearer " + token}});
+          return {status: response.status, body: await response.json().catch(() => ({}))};
+        }""",
+        {"tenantId": pricing_config.tenant_id, "token": bearer(pricing_page)},
+    )
+    assert int(subscription_response["status"]) == 200, subscription_response["body"]
+    if subscription_response["body"].get("subscription"):
+        expect(body).to_contain_text("Need billing help?", timeout=30_000)
+        expect(body).to_contain_text("Submit a refund request for administrator review", timeout=30_000)
+        expect(pricing_page.get_by_role("button", name="Request refund")).to_be_disabled()
+
     checkout_enabled = bool(product_response["body"].get("checkout_enabled"))
 
     monthly_buttons = pricing_page.get_by_role("button", name="Monthly Checkout")

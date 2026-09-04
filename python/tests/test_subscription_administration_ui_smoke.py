@@ -176,6 +176,14 @@ def test_subscription_administration_governance_surface(admin_page: Page, admin_
     assert response.status == 200, f"{response.url} returned HTTP {response.status}"
     payload = response.json()
     products = payload.get("products")
+    subject_email_pairs = []
+    for collection_name in ["subject_subscriptions", "seats", "audit_events", "upgrade_interactions", "refund_requests"]:
+        for item in payload.get(collection_name, []) or []:
+            subject = str(item.get("subject", ""))
+            email = str(item.get("subject_email", ""))
+            if subject and email and subject != email:
+                subject_email_pairs.append((subject, email))
+
     assert isinstance(products, list) and len(products) >= 3, "subscription administration did not return product policy rows"
     product_names = {str(product.get("display_name", "")) for product in products}
     assert expected_products.issubset(product_names), f"missing product tiers: {sorted(expected_products - product_names)}"
@@ -209,9 +217,19 @@ def test_subscription_administration_governance_surface(admin_page: Page, admin_
     expect(body).to_contain_text("Subject Stripe mapping")
     expect(body).to_contain_text("Institutional Stripe mapping")
 
+    admin_page.get_by_role("button", name="Refund requests").click()
+    expect(admin_page.get_by_label("Search refunds")).to_be_visible()
+    expect(body).to_contain_text("Refund request queue")
+    expect(body).to_contain_text("execute any approved refund in Stripe Dashboard")
+    expect(body).to_contain_text("Manual Stripe action")
+
     admin_page.get_by_role("button", name="Users & seats").click()
     for label in ["Explorer or Professional subject plan", "Institutional tenant contract", "Institutional seat", "Subject subscriptions", "Institutional contracts", "Institutional seats", "Selected user activity"]:
         expect(body).to_contain_text(label, timeout=30_000)
+    if subject_email_pairs:
+        subject, email = subject_email_pairs[0]
+        expect(body).to_contain_text(email, timeout=30_000)
+        expect(body).not_to_contain_text(subject)
 
     admin_page.get_by_role("button", name="User activity").click()
     expect(admin_page.get_by_label("Search user activity")).to_be_visible()
