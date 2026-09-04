@@ -100,7 +100,7 @@ This test signs in through Keycloak, waits for `GET /v1/session/enrollment`, and
 - for new B2C subjects without a governed subscription, `state=subscription_missing` when subscription enforcement is enabled.
 - ready users reach the MarketOps Dashboard.
 
-The smoke does not create a Keycloak user and does not touch Stripe. If the supplied B2C QA subject is not already enrolled, the SignalOps resolver may perform its designed idempotent B2C self-enrollment mutations: MarketOps read access, Explorer subject subscription, and starter tenant-default watchlist if missing. That is why the runner requires `SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved`.
+The smoke does not create a Keycloak user and does not touch Stripe. If the supplied B2C QA subject is not already enrolled, the SignalOps resolver may perform its designed idempotent B2C self-enrollment mutations: MarketOps read access and starter tenant-default watchlist if missing. Explorer subscription activation is not automatic under the current Option B policy; a missing subscription resolves to `subscription_missing`. That is why the runner requires `SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved`.
 
 The same browser test can validate an already-provisioned non-B2C QA account by explicitly overriding the expected tenant and self-enrollment state. For the current `SIGNALOPS_WEB` pilot account, use:
 
@@ -151,7 +151,7 @@ Operational conclusion: treat this as an auth entrypoint/client reconciliation p
 
 Until one path is verified in live browser smoke, public self-registration remains closed.
 
-The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke passed on 2026-08-25 using `SYNCRATIC_QA_CLIENT` / `SYNCRATIC_QA_PASS` mapped to the smoke variables. The already-provisioned QA account resolved to `tenant-local`, `marketops_ready`, `email_verified=true`, and `self_enrollment.eligible=true`. Under the production Option B policy, a new B2C account without a governed subscription must resolve to `subscription_missing` once subscription enforcement is enabled.
+The existing `.env` pilot browser smoke still validates the authenticated resolver for `tenant-pilot-b`. The true B2C self-enrollment browser smoke passed on 2026-08-25 using `SYNCRATIC_QA_CLIENT` / `SYNCRATIC_QA_PASS` mapped to the smoke variables. On 2026-09-04, the deployed B2C activation gate was validated with `SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION=true`: the QA account resolved to `tenant-local`, returned `subscription_missing` without an effective subscription, and routed to Pricing while broad `SIGNALOPS_SUBSCRIPTIONS_ENABLED` enforcement remained off.
 
 Existing-user safety validation is part of the smoke contract: an already-provisioned identity must return `self_enrollment.created=[]`. That proves the account is resolving through the login/enrollment path without creating a duplicate access grant or subscription enrollment.
 
@@ -162,10 +162,11 @@ SMS MFA is Keycloak-owned, not application-owned. The custom provider lives unde
 
 SignalOps integration boundary:
 
-- Gateway may append `CONFIGURE_SMS_MFA` when `SMS_MFA_ENROLLMENT_POLICY=required_for_new_local_users`.
+- Current production enrollment posture is no-MFA: Gateway must not append `CONFIGURE_SMS_MFA` for ordinary B2C registration unless a later MFA rollout is explicitly approved.
+- If that future rollout is approved, Gateway may append `CONFIGURE_SMS_MFA` only through the governed `SMS_MFA_ENROLLMENT_POLICY=required_for_new_local_users` path.
 - SignalOps must not directly set `phone_number_verified=true` or otherwise mark phone verification complete.
 - Phone verification must be completed by the Keycloak provider before `sms_mfa_enabled=true` and `phone_number_verified=true` allow future login SMS challenge.
-- The configured browser flow must include `syncratic-sms-otp-authenticator` after the user has enrolled SMS MFA.
+- The configured browser flow must include `syncratic-sms-otp-authenticator` only after the user has enrolled SMS MFA and the MFA rollout has been approved.
 
 Operational rollout:
 
@@ -194,7 +195,7 @@ Upgrade warning: the Keycloak SPI is built against Keycloak `25.0.6`. Keycloak m
 
 ## Deferred production work
 
-- Stripe Checkout and customer portal remain disabled until webhook-confirmed activation is implemented.
+- Stripe Checkout-start is available for Explorer and Professional only when server-side Stripe runtime configuration and product/price mappings are present. The customer portal remains deferred. Checkout return is activation-pending evidence only; webhook-confirmed activation remains required before access changes.
 - Durable enrollment lifecycle projection beyond the current subscription/access/activity ledgers remains a later enhancement.
 - Cross-replica distributed rate limiting should be added if more than one gateway replica serves enrollment traffic.
 

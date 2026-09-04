@@ -1,6 +1,6 @@
 # MarketOps Subscription Commerce Model
 
-Status: foundation deployed and verified on 2026-08-17; Administration governance for enrolled users, tenant contracts, seats, tier policy, limits, and audit visibility was added on 2026-08-19. Commercial activation remains deliberately disabled until controlled activation evidence is retained. See [release evidence](subscription_commerce_foundation_release_evidence_2026-08-17.md).
+Status: foundation deployed and verified on 2026-08-17; Administration governance for enrolled users, tenant contracts, seats, tier policy, limits, and audit visibility was added on 2026-08-19. Self-service Explorer/Professional Checkout-start is now implemented and guarded by server-side Stripe configuration; entitlement activation remains deliberately webhook-authoritative until controlled paid-flow evidence is retained. See [release evidence](subscription_commerce_foundation_release_evidence_2026-08-17.md).
 
 ## Product intent
 
@@ -66,9 +66,9 @@ The Administration workbench now exposes a real governance view rather than only
 - product-policy mutation for feature alignment and limits, with revision increment and audit evidence;
 - tenant-scoped subscription audit trail for provisioning and policy changes.
 
-This governance surface still does not enable Stripe Checkout, tenant self-service upgrades, provider polling, or subscription enforcement by itself. Enforcement remains controlled by `SIGNALOPS_SUBSCRIPTIONS_ENABLED`, and the gateway remains authoritative for feature checks.
+This governance surface does not enable provider polling or broad subscription enforcement by itself. Enforcement remains controlled by `SIGNALOPS_SUBSCRIPTIONS_ENABLED`, while B2C enrollment activation is separately controlled by `SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION`. The gateway remains authoritative for feature checks.
 
-The first Stripe integration slice is admin-managed billing, documented in [Stripe Admin-Managed Billing](stripe_admin_managed_billing.md). It allows platform admins to map Stripe product/customer/subscription IDs and reconcile signed webhooks for known subscriptions only. It does not create a customer checkout path.
+The first Stripe integration slice was admin-managed billing, documented in [Stripe Admin-Managed Billing](stripe_admin_managed_billing.md). The current commerce path extends that foundation with constrained browser Checkout-start for Explorer and Professional. The browser can request a Checkout Session, but it cannot grant access; only governed administration or verified Stripe webhook reconciliation can activate a subscription.
 
 ## Upgrade journey foundation — 2026-08-24
 
@@ -76,7 +76,7 @@ Migration `000160_subscriber_upgrade_interactions` adds the first product-led su
 
 Locked MarketOps feature gates now present contextual upgrade copy and route users to `/marketops/pricing`, preserving the source feature and return URL. The pricing page reads configured subscription products and Stripe price IDs from the existing subscription product API. Explorer and Professional plan cards now start server-created Stripe Checkout through `POST /v1/tenants/{tenant_id}/marketops/subscription/checkout`; the endpoint remains fail-closed unless Stripe runtime configuration is present and product price IDs are mapped. The Stripe return page `/marketops/subscription/return?session_id=...` polls effective subscription state and explicitly treats the redirect as activation-pending evidence only. Entitlements still change only through governed administration or verified Stripe webhook reconciliation; the frontend redirect never grants access.
 
-Production validation on 2026-08-24 confirmed this boundary with Playwright: tenant-pilot-b can view the pricing journey, Stripe Product/Price identifiers are visible as public catalog metadata, Checkout/Contact Sales controls remain disabled by design, and a tenant-scoped upgrade click records a `202` upgrade-interaction event. The platform subscription administrator can review that event in Administration > Subscriptions > Upgrade funnel after filtering to `tenant-pilot-b`.
+Production validation on 2026-09-04 confirmed this boundary with Playwright: tenant-pilot-b can view the pricing journey, Stripe Product/Price identifiers are visible as public catalog metadata, Checkout readiness renders correctly, and the authenticated B2C flow routes `subscription_missing` users to Pricing. Earlier upgrade-interaction evidence remains available in Administration > Subscriptions > Upgrade funnel after filtering to the relevant tenant.
 
 The Stripe webhook path remains authoritative for future automatic entitlement updates. The current canary evidence proves invalid signatures fail closed before persistence, while a valid signed synthetic event can be recorded as `unmatched` without creating access for unknown Stripe subscriptions.
 
@@ -86,7 +86,7 @@ Public account creation now has an application-side enrollment resolver. Keycloa
 
 The resolver self-provisions only the configured B2C tenant, default `tenant-local`, and only after `email_verified=true`. Under the production Option B policy selected on 2026-08-25, registration is not a subscription activation event. The resolver may create identity/access scaffolding, but an active Explorer or Professional subscription must come from governed administration or verified Stripe webhook reconciliation. The activation gate is controlled by `SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION`, default `true`, so self-enrolled B2C users without an effective subscription resolve to `subscription_missing` and are routed to Pricing even if broader paid-feature enforcement remains off. The legacy auto-Explorer behavior is behind `SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER=true` and defaults off.
 
-SMS MFA remains an identity-provider control. Keycloak owns SMS enrollment, phone verification, and login challenge through the custom `CONFIGURE_SMS_MFA` required action and `syncratic-sms-otp-authenticator`; SignalOps only requests the required action for new local users through `SMS_MFA_ENROLLMENT_POLICY=required_for_new_local_users` and must not mark phone numbers verified.
+SMS MFA remains an identity-provider control, but it is deferred for the current low-friction enrollment phase. Keycloak owns SMS enrollment, phone verification, and login challenge through the custom `CONFIGURE_SMS_MFA` required action and `syncratic-sms-otp-authenticator` when MFA is later approved. SignalOps must not request SMS MFA for ordinary public registration in the current phase and must never mark phone numbers verified.
 
 See [Keycloak B2C Enrollment Flow](keycloak_b2c_enrollment.md).
 
@@ -116,7 +116,7 @@ Rollback is one configuration change to `false`. It removes commercial feature e
 ## Explicitly deferred work
 
 - Stripe customer portal, checkout abandonment/expiration worker, retry/dead-letter handling, and billing telemetry beyond the checkout ledger, admin-managed webhook ledger, and upgrade-intent ledger.
-- Tenant-facing seat-management UI, Stripe price editing, controlled commercial overrides beyond the platform-admin governance boundary, and customer self-service upgrade paths.
+- Tenant-facing seat-management UI, Stripe price editing, controlled commercial overrides beyond the platform-admin governance boundary, and customer self-service plan management beyond Checkout-start.
 - Research-report generation/storage, portfolio CSV ingestion, batch-screening UI, custom-universe selector, API-key lifecycle, and shared-tenant branding controls.
 - SRI discovery/detail response shaping beyond the current endpoint boundary.
-- A production purchase flow. There is no hidden self-service billing path in this release.
+- Full production purchase activation remains gated on controlled paid-flow evidence: Checkout completion, signed webhook reconciliation, effective subscription activation, return-to-context behavior, and Stripe Tax invoice verification.

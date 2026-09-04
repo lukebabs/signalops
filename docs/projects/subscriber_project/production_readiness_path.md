@@ -1,22 +1,22 @@
 # Subscriber Project — Production Readiness Path
 
-Status: controlled pilot-ready checkpoint advanced; PR-0 and PR-1 are closed after the August 21, 2026 ET post-close acceptance cycle. The September 1, 2026 UTC follow-up confirms the latest completed-session data plane is current for the controlled pilot scope, and the first mobile subscriber smoke is now automated.
+Status: controlled paid-pilot readiness is advanced but not complete. PR-0, PR-1, PR-2, PR-4, and PR-5 are closed for the configured QA identities. The September 4, 2026 UTC follow-up confirms the tenant-local B2C enrollment path, no-MFA enrollment posture, Pricing/Stripe readiness surface, and enrollment-only subscription activation gate are deployed and tested.
 
-Last reviewed: 2026-09-01.
+Last reviewed: 2026-09-04.
 
 ## Readiness position
 
-The Subscriber Project is **controlled pilot-ready**, not full external production-ready.
+The Subscriber Project is **controlled paid-pilot ready for configured QA identities**, not full external production-ready.
 
 The current platform has enough structure to keep validating with controlled tenants and named approvals: dedicated MarketOps databases are live, web and gateway are serving, SAF viability analytics are visible, and the global-data projection work has advanced materially.
 
-Production readiness is still blocked by expansion and recovery-evidence gaps. The core operational-consistency loop for the tenant-local pilot scope has now passed one natural post-close acceptance cycle after the MarketOps database decoupling.
+Production readiness is still blocked by paid-flow activation evidence, current backup/restore re-verification, and cleanup of known historical test artifacts. The core operational-consistency loop for the tenant-local pilot scope has passed natural post-close acceptance after the MarketOps database decoupling.
 
-## Current evidence snapshot — 2026-09-01
+## Current evidence snapshot — 2026-09-04
 
 | Area | Status | Evidence / gap |
 | --- | --- | --- |
-| Web and Gateway availability | Ready | Admin Operations Health Playwright/API smoke passed on production, and the expanded mobile subscriber launcher passed separately: `6 passed in 17.38s`. |
+| Web and Gateway availability | Ready | Gateway and Web were rebuilt/restarted through constrained deployment-agent actions after the B2C activation gate. Built-in gateway smoke passed: `marketops_read_cutover_gateway_verified`; subscriber pilot UI smoke passed: `2 passed`. |
 | Dedicated MarketOps data boundary | Ready | `signalops-marketops-postgres-1` and `signalops-marketops-timescaledb-1` were healthy. MarketOps is intended to read/write the dedicated MarketOps databases, not the old shared MarketOps tables. |
 | Completed-session global data | Ready for pilot scope | Dedicated MarketOps DB shows 2026-08-31 latest rows: Market State 132, Risk/Reward 132, SRI 16, SAF 99, Annual VC 988, Annual DOSM 988. |
 | Intraday freshness | Ready / market-idle | Latest intraday scheduled service result is success. Freshness remains governed by market-window semantics rather than requiring live snapshots outside the active monitor window. |
@@ -26,7 +26,7 @@ Production readiness is still blocked by expansion and recovery-evidence gaps. T
 | Deployment automation | Mostly ready | Production route checks and constrained Playwright smokes now pass, including the controlled Syncratic Ask live smoke after AI Gateway price-catalog propagation. PR-1 Admin freshness acceptance corrected the false `/marketops/admin` check to the real `/admin/system` route. Syncratic Ask readiness is tracked in [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md), and Admin Operations Health now has a dedicated Syncratic Ask row that passed production browser validation on 2026-08-23. |
 | Mobile subscriber UX | Closed for configured QA identities | `scripts/run_subscriber_mobile_ui_smoke.sh` validates production login and core subscriber routes at 375px, 390px, and 430px phone widths: Dashboard, Watchlists, Assets, Sector Rotation, Opportunities, Signal Assurance, Syncratic Intelligence, Pricing, Dashboard-to-Syncratic handoff, Assets mobile card drilldown, Opportunities mobile drilldown, SAF mobile drilldown, and SRI ETF progression/makeup drilldown. Read-only enrollment smoke also passed. The named mobile gated-route subscription-enforcement canary passed and restored production state. Latest result: mobile `24 passed in 253.48s` on 2026-09-01 after adding EEOM current/history regression coverage; enrollment `1 passed in 0.93s`; canary `subscription_enforcement_canary_verified` then `subscription_enforcement_canary_restored`. |
 | SAF operational viability | Pilot-ready | SAF progression chart, 10/20-day filters, and inline drill-down are live. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
-| Subscription/access controls | Ready for configured QA identities | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. The `000160` upgrade-intent journey is validated: pricing renders configured Stripe catalog IDs, Checkout is disabled by design, upgrade interactions persist for tenant-pilot-b, Admin Upgrade funnel shows the event, and Stripe webhook fail-closed/signed-canary behavior is verified. |
+| Subscription/access controls | Ready for configured QA identities / paid activation partial | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. B2C users now remain in `tenant-local`; self-enrolled subjects without an effective subscription resolve to `subscription_missing` and route to Pricing. Pricing reads the configured Stripe product catalog, Checkout-start is operational when Stripe runtime config is present, and redirects remain activation-pending until signed webhook reconciliation updates the subscription. |
 | Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |
 
 ## Production gates
@@ -62,7 +62,7 @@ These must close before wider pilot or paid production.
 These are required before expanding beyond tightly controlled users.
 
 4. **Subscription and access-control canaries**
-   - Current status: ready for configured QA identities, including the `000160` upgrade-intent closure. Playwright verified pilot Explorer pricing, Stripe price display, disabled Checkout boundary, authenticated upgrade-interaction persistence, tenant-filtered Admin Upgrade funnel evidence, and Stripe webhook ledger evidence. Self-service Checkout remains intentionally out of scope until a separate Checkout Session endpoint and webhook-confirmed entitlement gate are approved.
+   - Current status: ready for configured QA identities, including the `000160` upgrade-intent closure and the September 4 B2C activation-gate closure. Playwright verified pilot Explorer pricing, Stripe price display, authenticated upgrade-interaction persistence, tenant-filtered Admin Upgrade funnel evidence, Stripe webhook fail-closed/signed-canary behavior, Checkout-start readiness, and B2C subscription-missing routing.
    - Re-run enforcement with tenant-local admin and tenant-pilot-b subscriber identities.
    - Validate Explorer, Professional, and Institutional entitlement behavior.
    - Validate cross-tenant denial, admin-only settings, tenant-default list behavior, and private-list ownership.
@@ -273,12 +273,12 @@ Each production-readiness review should record:
 
 ## Next recommended action
 
-Move to the remaining PR-4/production-expansion work:
+Move to the remaining paid-pilot production work:
 
-1. Observe the first scheduled FMP annual run on Saturday, August 29, 2026 at 02:30 ET / 06:30 UTC and verify task coverage/degradation reporting.
-2. Decide whether to refresh PR-3 backup/restore evidence before wider paid pilot expansion.
-3. Run a named subscription-enforcement canary if mobile gated-route behavior must be closed as part of PR-5 rather than accepted through the prior PR-2 desktop/API canary evidence.
-3. Continue observing monitor cadence through the August 24 post-close window. The temporal WAL false-failure root cause was fixed on 2026-08-24; the next proof point is that the hourly monitor remains clean through active post-close/recovery and SRI windows.
+1. Complete one controlled Stripe paid-flow validation only when ready to create a real subscription: Checkout success, signed webhook reconciliation, effective subscription activation, and return-to-context behavior.
+2. Refresh PR-3 backup/restore evidence before broader paid pilot expansion.
+3. Decide whether to keep historical `tenant-b2c` test access rows as retained audit evidence or archive them through a governed cleanup path.
+4. Harden the parent Keycloak SMS/MFA reconcile source so future auth deployments preserve the current no-MFA enrollment posture unless MFA is explicitly re-approved.
 
 ## 2026-08-21 05:17 UTC readiness update
 

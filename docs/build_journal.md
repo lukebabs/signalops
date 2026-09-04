@@ -1,4 +1,13 @@
 
+
+### 2026-09-04 — Production readiness paperwork and subscription activation closure
+
+- Reconciled the Subscriber Project production-readiness path with the current September 4 state: controlled paid-pilot readiness is advanced for configured QA identities, but full external production remains blocked by paid-flow activation evidence, current backup/restore re-verification, and historical test-artifact hygiene.
+- Updated the readiness snapshot to include the deployed tenant-local B2C activation gate: self-enrolled B2C users without an effective subscription now resolve to `subscription_missing` and route to Pricing while broad `SIGNALOPS_SUBSCRIPTIONS_ENABLED` enforcement remains off.
+- Updated the subscription commerce model to reflect the current Checkout-start boundary: Explorer and Professional can start server-created Stripe Checkout when runtime Stripe configuration is present, but the redirect never grants access; entitlement activation remains governed by signed Stripe webhook reconciliation or platform administration.
+- Clarified the current enrollment posture: SMS MFA is Keycloak-owned but deferred for the low-friction public-registration phase; future source reconciliation must preserve no-MFA enrollment unless MFA is explicitly re-approved.
+- Recorded the remaining production-readiness work as controlled paid-flow validation, PR-3 backup/restore refresh, historical `tenant-b2c` audit-row disposition, and parent Keycloak SMS/MFA reconcile hardening.
+
 ### 2026-09-04 — B2C subscription activation gate
 
 - Implemented an enrollment-only subscription activation gate for the tenant-local B2C path: `SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION`, default `true`.
