@@ -183,7 +183,8 @@ func historicalAssuranceDataSelection() map[string]any {
 func effectivenessObservationResponses(values []storage.SignalAssuranceEffectivenessObservationRecord) []map[string]any {
 	out := make([]map[string]any, 0, len(values))
 	for _, x := range values {
-		item := map[string]any{"evidence_source": x.EvidenceSource, "observation_id": x.ObservationID, "reference_id": x.ReferenceID, "symbol": x.Symbol, "signal_type": x.SignalType, "direction": x.Direction, "algorithm": x.Algorithm, "algorithm_version": x.AlgorithmVersion, "state": x.State, "evaluation_mode": x.EvaluationMode, "horizon_sessions": x.HorizonSessions, "signal_score": x.SignalScore, "confidence": x.Confidence, "directional_hit": x.DirectionalHit, "absolute_return": x.AbsoluteReturn, "directional_return": x.DirectionalReturn, "relative_return": x.RelativeReturn, "sector_relative_return": x.SectorRelativeReturn, "mfe": x.MFE, "mae": x.MAE, "calculation_version": x.CalculationVersion, "calculation_run_id": x.CalculationRunID, "broad_market_benchmark_state": x.BroadMarketBenchmarkState, "sector_benchmark_state": x.SectorBenchmarkState}
+		assessment := signalassurance.AssessUsefulnessObservation(signalassurance.UsefulnessObservationInput{EvidenceSource: x.EvidenceSource, State: x.State, Direction: x.Direction, HorizonSessions: x.HorizonSessions, DirectionalHit: x.DirectionalHit, DirectionalReturn: x.DirectionalReturn, RelativeReturn: x.RelativeReturn, SectorRelativeReturn: x.SectorRelativeReturn, MFE: x.MFE, MAE: x.MAE})
+		item := map[string]any{"evidence_source": x.EvidenceSource, "observation_id": x.ObservationID, "reference_id": x.ReferenceID, "symbol": x.Symbol, "signal_type": x.SignalType, "direction": x.Direction, "algorithm": x.Algorithm, "algorithm_version": x.AlgorithmVersion, "state": x.State, "evaluation_mode": x.EvaluationMode, "horizon_sessions": x.HorizonSessions, "signal_score": x.SignalScore, "confidence": x.Confidence, "directional_hit": x.DirectionalHit, "absolute_return": x.AbsoluteReturn, "directional_return": x.DirectionalReturn, "relative_return": x.RelativeReturn, "sector_relative_return": x.SectorRelativeReturn, "mfe": x.MFE, "mae": x.MAE, "calculation_version": x.CalculationVersion, "calculation_run_id": x.CalculationRunID, "broad_market_benchmark_state": x.BroadMarketBenchmarkState, "sector_benchmark_state": x.SectorBenchmarkState, "usefulness_lifecycle_state": assessment.LifecycleState, "usefulness_score": assessment.Score, "usefulness_score_components": assessment.Components, "usefulness_policy_version": assessment.PolicyVersion, "time_to_materialization_sessions": assessment.TimeToMaterializationSessions}
 		if x.OriginAt != nil {
 			item["origin_at"] = x.OriginAt.UTC().Format("2006-01-02T15:04:05Z")
 		}
@@ -196,40 +197,45 @@ func effectivenessObservationResponses(values []storage.SignalAssuranceEffective
 }
 
 type signalAssuranceEffectivenessDTO struct {
-	EvidenceSource                 string   `json:"evidence_source"`
-	Dimension                      string   `json:"dimension"`
-	DimensionValue                 string   `json:"dimension_value"`
-	SampleSize                     int      `json:"sample_size"`
-	DirectionalHits                int      `json:"directional_hits"`
-	MaterializedCount              int      `json:"materialized_count"`
-	InvalidatedCount               int      `json:"invalidated_count"`
-	ExpiredCount                   int      `json:"expired_count"`
-	CensoredCount                  int      `json:"censored_count"`
-	ExcludedCount                  int      `json:"excluded_count"`
-	DirectionalAccuracy            *float64 `json:"directional_accuracy,omitempty"`
-	AccuracyLowerBound             *float64 `json:"accuracy_lower_bound,omitempty"`
-	AccuracyUpperBound             *float64 `json:"accuracy_upper_bound,omitempty"`
-	MaterializationRate            *float64 `json:"materialization_rate,omitempty"`
-	AverageReturn                  *float64 `json:"average_return,omitempty"`
-	AverageRelativeReturn          *float64 `json:"average_relative_return,omitempty"`
-	AverageSectorRelativeReturn    *float64 `json:"average_sector_relative_return,omitempty"`
-	BroadMarketBenchmarkSampleSize int      `json:"broad_market_benchmark_sample_size"`
-	SectorBenchmarkSampleSize      int      `json:"sector_benchmark_sample_size"`
-	AverageMFE                     *float64 `json:"average_mfe,omitempty"`
-	AverageMAE                     *float64 `json:"average_mae,omitempty"`
-	Exploratory                    bool     `json:"exploratory"`
-	AsOf                           string   `json:"as_of"`
-	ViabilityState                 string   `json:"viability_state"`
-	ViabilityReasons               []string `json:"viability_reasons"`
-	ViabilityPolicyVersion         string   `json:"viability_policy_version"`
-	MetricDefinitionVersion        string   `json:"metric_definition_version"`
+	EvidenceSource                 string             `json:"evidence_source"`
+	Dimension                      string             `json:"dimension"`
+	DimensionValue                 string             `json:"dimension_value"`
+	SampleSize                     int                `json:"sample_size"`
+	DirectionalHits                int                `json:"directional_hits"`
+	MaterializedCount              int                `json:"materialized_count"`
+	InvalidatedCount               int                `json:"invalidated_count"`
+	ExpiredCount                   int                `json:"expired_count"`
+	CensoredCount                  int                `json:"censored_count"`
+	ExcludedCount                  int                `json:"excluded_count"`
+	DirectionalAccuracy            *float64           `json:"directional_accuracy,omitempty"`
+	AccuracyLowerBound             *float64           `json:"accuracy_lower_bound,omitempty"`
+	AccuracyUpperBound             *float64           `json:"accuracy_upper_bound,omitempty"`
+	MaterializationRate            *float64           `json:"materialization_rate,omitempty"`
+	AverageReturn                  *float64           `json:"average_return,omitempty"`
+	AverageRelativeReturn          *float64           `json:"average_relative_return,omitempty"`
+	AverageSectorRelativeReturn    *float64           `json:"average_sector_relative_return,omitempty"`
+	BroadMarketBenchmarkSampleSize int                `json:"broad_market_benchmark_sample_size"`
+	SectorBenchmarkSampleSize      int                `json:"sector_benchmark_sample_size"`
+	AverageMFE                     *float64           `json:"average_mfe,omitempty"`
+	AverageMAE                     *float64           `json:"average_mae,omitempty"`
+	AverageUsefulnessScore         *float64           `json:"average_usefulness_score,omitempty"`
+	UsefulnessLifecycleState       string             `json:"usefulness_lifecycle_state"`
+	UsefulnessScoreComponents      map[string]float64 `json:"usefulness_score_components"`
+	UsefulnessPolicyVersion        string             `json:"usefulness_policy_version"`
+	Exploratory                    bool               `json:"exploratory"`
+	AsOf                           string             `json:"as_of"`
+	ViabilityState                 string             `json:"viability_state"`
+	ViabilityReasons               []string           `json:"viability_reasons"`
+	ViabilityPolicyVersion         string             `json:"viability_policy_version"`
+	MetricDefinitionVersion        string             `json:"metric_definition_version"`
 }
 
 func effectivenessResponses(values []storage.SignalAssuranceEffectivenessRecord) []signalAssuranceEffectivenessDTO {
 	out := make([]signalAssuranceEffectivenessDTO, 0, len(values))
 	for _, x := range values {
 		assessment := signalassurance.AssessViability(x)
-		out = append(out, signalAssuranceEffectivenessDTO{EvidenceSource: x.EvidenceSource, Dimension: x.Dimension, DimensionValue: x.DimensionValue, SampleSize: x.SampleSize, DirectionalHits: x.DirectionalHits, MaterializedCount: x.MaterializedCount, InvalidatedCount: x.InvalidatedCount, ExpiredCount: x.ExpiredCount, CensoredCount: x.CensoredCount, ExcludedCount: x.ExcludedCount, DirectionalAccuracy: x.DirectionalAccuracy, AccuracyLowerBound: x.AccuracyLowerBound, AccuracyUpperBound: x.AccuracyUpperBound, MaterializationRate: x.MaterializationRate, AverageReturn: x.AverageReturn, AverageRelativeReturn: x.AverageRelativeReturn, AverageSectorRelativeReturn: x.AverageSectorRelativeReturn, BroadMarketBenchmarkSampleSize: x.BroadMarketBenchmarkSampleSize, SectorBenchmarkSampleSize: x.SectorBenchmarkSampleSize, AverageMFE: x.AverageMFE, AverageMAE: x.AverageMAE, Exploratory: x.Exploratory, ViabilityState: assessment.State, ViabilityReasons: assessment.Reasons, ViabilityPolicyVersion: signalassurance.ViabilityPolicyVersion, AsOf: x.AsOf.UTC().Format("2006-01-02T15:04:05Z"), MetricDefinitionVersion: x.MetricDefinitionVersion})
+		usefulness := signalassurance.AssessUsefulnessEffectiveness(x)
+		out = append(out, signalAssuranceEffectivenessDTO{EvidenceSource: x.EvidenceSource, Dimension: x.Dimension, DimensionValue: x.DimensionValue, SampleSize: x.SampleSize, DirectionalHits: x.DirectionalHits, MaterializedCount: x.MaterializedCount, InvalidatedCount: x.InvalidatedCount, ExpiredCount: x.ExpiredCount, CensoredCount: x.CensoredCount, ExcludedCount: x.ExcludedCount, DirectionalAccuracy: x.DirectionalAccuracy, AccuracyLowerBound: x.AccuracyLowerBound, AccuracyUpperBound: x.AccuracyUpperBound, MaterializationRate: x.MaterializationRate, AverageReturn: x.AverageReturn, AverageRelativeReturn: x.AverageRelativeReturn, AverageSectorRelativeReturn: x.AverageSectorRelativeReturn, BroadMarketBenchmarkSampleSize: x.BroadMarketBenchmarkSampleSize, SectorBenchmarkSampleSize: x.SectorBenchmarkSampleSize, AverageMFE: x.AverageMFE, AverageMAE: x.AverageMAE, AverageUsefulnessScore: usefulness.Score, UsefulnessLifecycleState: usefulness.LifecycleState, UsefulnessScoreComponents: usefulness.Components, UsefulnessPolicyVersion: usefulness.PolicyVersion, Exploratory: x.Exploratory, ViabilityState: assessment.State, ViabilityReasons: assessment.Reasons, ViabilityPolicyVersion: signalassurance.ViabilityPolicyVersion, AsOf: x.AsOf.UTC().Format("2006-01-02T15:04:05Z"), MetricDefinitionVersion: x.MetricDefinitionVersion})
 	}
 	return out
 }

@@ -13,6 +13,7 @@ import type { MarketOpsSignalAssuranceEffectiveness, MarketOpsSignalAssuranceEff
 export const SAF_OPERATIONAL_CUTOFF_DATE = '2026-08-20';
 
 const pct = (value?: number) => value == null || !Number.isFinite(value) ? '-' : formatPercent(value);
+const score = (value?: number) => value == null || !Number.isFinite(value) ? '-' : `${value.toFixed(1)}/10`;
 const label = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter: string) => letter.toUpperCase());
 
 export function MarketOpsSignalAssuranceEffectivenessPanel() {
@@ -80,7 +81,7 @@ export function MarketOpsSignalAssuranceEffectivenessPanel() {
         <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left dark:bg-gray-800 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400"><tr>
-              <th className="px-3 py-2">Evidence</th><th className="px-3 py-2">Cohort</th><th className="px-3 py-2">Accuracy</th><th className="px-3 py-2">95% interval</th><th className="px-3 py-2">Matured sample</th><th className="px-3 py-2">Coverage</th><th className="px-3 py-2">Return & benchmarks</th><th className="px-3 py-2">Viability</th>
+              <th className="px-3 py-2">Evidence</th><th className="px-3 py-2">Cohort</th><th className="px-3 py-2">Accuracy</th><th className="px-3 py-2">95% interval</th><th className="px-3 py-2">Matured sample</th><th className="px-3 py-2">Coverage</th><th className="px-3 py-2">Return & benchmarks</th><th className="px-3 py-2">Usefulness</th><th className="px-3 py-2">Viability</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">{rows.map((row) => <tr key={`${row.evidence_source}:${row.dimension_value}`}>
               <td className="px-3 py-2 text-xs font-medium">{row.evidence_source === 'SAF' ? 'SAF validated' : 'Historical outcome'}</td>
@@ -90,6 +91,7 @@ export function MarketOpsSignalAssuranceEffectivenessPanel() {
               <td className="px-3 py-2 text-xs">{row.directional_hits}/{row.sample_size}</td>
               <td className="px-3 py-2 text-xs">{row.censored_count ? `${row.censored_count} active` : 'terminal'}{row.excluded_count ? ` - ${row.excluded_count} excluded` : ''}</td>
               <td className="px-3 py-2 text-xs">{pct(row.average_return)}<div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">SPY excess {pct(row.average_relative_return)} · sector excess {pct(row.average_sector_relative_return)}</div><div className="text-[11px] text-gray-500 dark:text-gray-400">coverage: SPY {row.broad_market_benchmark_sample_size}/{row.sample_size} · sector {row.sector_benchmark_sample_size}/{row.sample_size}</div></td>
+              <td className="px-3 py-2 text-xs"><div className="font-semibold text-gray-900 dark:text-gray-100">{score(row.average_usefulness_score)}</div><div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{label(row.usefulness_lifecycle_state || 'confirmed')} · {row.usefulness_policy_version || 'saf_usefulness.v1'}</div></td>
               <ViabilityCell row={row} />
             </tr>)}</tbody>
           </table>
@@ -275,5 +277,5 @@ function ViabilityCell({ row }: { row: MarketOpsSignalAssuranceEffectiveness }) 
 }
 
 function SummaryCard({ row }: { row: MarketOpsSignalAssuranceEffectiveness }) {
-  return <div className="rounded border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"><div className="text-xs font-medium text-gray-500 dark:text-gray-400">{row.evidence_source === 'SAF' ? 'SAF validated performance' : 'Historical outcome evidence'}</div><div className="mt-1 text-2xl font-semibold">{pct(row.directional_accuracy)}</div><div className="mt-1 text-xs text-gray-600 dark:text-gray-400">{row.directional_hits}/{row.sample_size} matured directional observations - 95% interval {pct(row.accuracy_lower_bound)} - {pct(row.accuracy_upper_bound)}</div><div className="mt-2 text-xs font-medium text-gray-700 dark:text-gray-300">{label(row.viability_state)}</div><div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{row.viability_reasons[0]}</div><div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">{row.censored_count} active/censored - {row.excluded_count} excluded - as of {formatUtc(row.as_of)}</div></div>;
+  return <div className="rounded border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"><div className="text-xs font-medium text-gray-500 dark:text-gray-400">{row.evidence_source === 'SAF' ? 'SAF validated performance' : 'Historical outcome evidence'}</div><div className="mt-1 text-2xl font-semibold">{pct(row.directional_accuracy)}</div><div className="mt-1 text-xs text-gray-600 dark:text-gray-400">{row.directional_hits}/{row.sample_size} matured directional observations - 95% interval {pct(row.accuracy_lower_bound)} - {pct(row.accuracy_upper_bound)}</div><div className="mt-2 rounded border border-brand-200 bg-white p-2 text-xs dark:border-brand-800 dark:bg-gray-950"><div className="font-semibold text-gray-900 dark:text-gray-100">Usefulness {score(row.average_usefulness_score)}</div><div className="mt-1 text-[11px] text-gray-600 dark:text-gray-400">{label(row.usefulness_lifecycle_state || 'confirmed')} · {row.usefulness_policy_version || 'saf_usefulness.v1'}</div></div><div className="mt-2 text-xs font-medium text-gray-700 dark:text-gray-300">{label(row.viability_state)}</div><div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{row.viability_reasons[0]}</div><div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">{row.censored_count} active/censored - {row.excluded_count} excluded - as of {formatUtc(row.as_of)}</div></div>;
 }

@@ -8,6 +8,7 @@ import { formatPercent, formatUtc } from '../lib/format';
 import type { MarketOpsSignalAssuranceEffectiveness, MarketOpsSignalAssuranceEffectivenessObservation } from '../types';
 
 const pct = (value?: number) => value == null || !Number.isFinite(value) ? '-' : formatPercent(value);
+const score = (value?: number) => value == null || !Number.isFinite(value) ? '-' : `${value.toFixed(1)}/10`;
 const label = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter: string) => letter.toUpperCase());
 
 export function MarketOpsSignalAssuranceDrilldownPanel() {
@@ -126,7 +127,7 @@ function ExpandedObservationCohort({ cohort, observations, loading, error, selec
       </div>
       <div className="hidden overflow-x-auto md:block">
       <table className="min-w-full text-sm">
-        <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400"><tr><th className="px-3 py-2">Signal</th><th className="px-3 py-2">Origin</th><th className="px-3 py-2">Outcome</th><th className="px-3 py-2">Match</th><th className="px-3 py-2">Aligned move</th><th className="px-3 py-2">Benchmarks</th><th className="px-3 py-2">Audit</th></tr></thead>
+        <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500 dark:bg-gray-800 dark:text-gray-400"><tr><th className="px-3 py-2">Signal</th><th className="px-3 py-2">Origin</th><th className="px-3 py-2">Outcome</th><th className="px-3 py-2">Lifecycle</th><th className="px-3 py-2">Usefulness</th><th className="px-3 py-2">Aligned move</th><th className="px-3 py-2">Benchmarks</th><th className="px-3 py-2">Audit</th></tr></thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">{observations.map((row) => {
           const open = selected?.observation_id === row.observation_id;
           return <Fragment key={row.observation_id}>
@@ -134,12 +135,13 @@ function ExpandedObservationCohort({ cohort, observations, loading, error, selec
               <td className="px-3 py-2"><div className="font-mono font-semibold">{row.symbol}</div><div className="text-xs text-gray-500 dark:text-gray-400">{label(row.direction)} - {row.horizon_sessions} session{row.horizon_sessions === 1 ? '' : 's'}</div></td>
               <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">{row.origin_at ? formatUtc(row.origin_at) : '-'}</td>
               <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">{row.outcome_at ? formatUtc(row.outcome_at) : '-'}</td>
-              <td className={row.directional_hit ? 'px-3 py-2 text-xs font-semibold text-green-700 dark:text-green-300' : 'px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-300'}>{row.directional_hit ? 'Matched' : 'Missed'}</td>
-              <td className="px-3 py-2 text-xs">{pct(row.directional_return)}</td>
+              <td className="px-3 py-2 text-xs font-semibold text-gray-900 dark:text-gray-100"><div>{label(row.usefulness_lifecycle_state || (row.directional_hit ? 'materialized' : 'expired'))}</div><div className="mt-1 text-[11px] font-normal text-gray-500 dark:text-gray-400">{row.directional_hit ? 'Directional match' : 'Not an automatic miss'}</div></td>
+              <td className="px-3 py-2 text-xs"><div className="font-semibold text-gray-900 dark:text-gray-100">{score(row.usefulness_score)}</div><div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{row.time_to_materialization_sessions ? `${row.time_to_materialization_sessions} sessions to materialize` : row.usefulness_policy_version || 'saf_usefulness.v1'}</div></td>
+              <td className="px-3 py-2 text-xs">{pct(row.directional_return)}<div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">MFE {pct(row.mfe)} · MAE {pct(row.mae)}</div></td>
               <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400"><div>SPY: {row.broad_market_benchmark_state || 'not recorded'}</div><div>Sector: {row.sector_benchmark_state || 'not recorded'}</div></td>
               <td className="px-3 py-2 text-xs font-medium text-brand-700 dark:text-brand-200">{open ? 'Hide audit' : 'Open audit'}</td>
             </tr>
-            {open ? <tr className="bg-yellow-50/40 dark:bg-yellow-950/20"><td colSpan={7} className="p-0"><ObservationAudit selected={row} opportunity={opportunity} assertion={assertion} onClose={() => setSelected(null)} /></td></tr> : null}
+            {open ? <tr className="bg-yellow-50/40 dark:bg-yellow-950/20"><td colSpan={8} className="p-0"><ObservationAudit selected={row} opportunity={opportunity} assertion={assertion} onClose={() => setSelected(null)} /></td></tr> : null}
           </Fragment>;
         })}</tbody>
       </table>
@@ -162,6 +164,8 @@ function ObservationAudit({ selected, opportunity, assertion, onClose }: { selec
       <div><dt className="text-gray-500 dark:text-gray-400">Signal score</dt><dd className="font-medium text-gray-900 dark:text-gray-100">{pct(selected.signal_score)}</dd></div>
       <div><dt className="text-gray-500 dark:text-gray-400">Confidence</dt><dd className="font-medium text-gray-900 dark:text-gray-100">{pct(selected.confidence)}</dd></div>
       <div><dt className="text-gray-500 dark:text-gray-400">Raw return</dt><dd className="font-medium text-gray-900 dark:text-gray-100">{pct(selected.absolute_return)}</dd></div>
+      <div><dt className="text-gray-500 dark:text-gray-400">Usefulness</dt><dd className="font-medium text-gray-900 dark:text-gray-100">{label(selected.usefulness_lifecycle_state || 'confirmed')} · {score(selected.usefulness_score)}</dd></div>
+      <div><dt className="text-gray-500 dark:text-gray-400">Path</dt><dd className="font-medium text-gray-900 dark:text-gray-100">MFE {pct(selected.mfe)} · MAE {pct(selected.mae)}</dd></div>
       <div><dt className="text-gray-500 dark:text-gray-400">Calculation</dt><dd className="font-mono text-gray-900 dark:text-gray-100">{selected.calculation_version || '-'}</dd></div>
     </dl>
     <details open><summary className="cursor-pointer text-xs font-medium text-brand-700 dark:text-brand-200">Observation record</summary><pre className="mt-2 max-h-64 overflow-auto rounded bg-white p-2 text-[10px] text-gray-700 dark:bg-gray-950 dark:text-gray-200">{JSON.stringify(selected, null, 2)}</pre></details>
@@ -195,12 +199,13 @@ function ObservationMobileCard({ row, open, onToggle, children }: { row: MarketO
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">{row.symbol}</div>
-          <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">{label(row.direction)} · {row.horizon_sessions} session{row.horizon_sessions === 1 ? '' : 's'} · {row.directional_hit ? 'Matched' : 'Missed'}</div>
+          <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">{label(row.direction)} · {row.horizon_sessions} session{row.horizon_sessions === 1 ? '' : 's'} · {label(row.usefulness_lifecycle_state || (row.directional_hit ? 'materialized' : 'developing'))}</div>
         </div>
         <span className="shrink-0 text-xs font-medium text-brand-700 dark:text-brand-200">{open ? 'Hide audit' : 'Open audit'}</span>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
         <div><span className="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Aligned move</span><span className="font-semibold text-gray-900 dark:text-gray-100">{pct(row.directional_return)}</span></div>
+        <div><span className="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Usefulness</span><span className="font-semibold text-gray-900 dark:text-gray-100">{score(row.usefulness_score)}</span></div>
         <div><span className="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Outcome</span><span className="font-medium text-gray-900 dark:text-gray-100">{row.outcome_at ? formatUtc(row.outcome_at) : '-'}</span></div>
       </div>
     </button>

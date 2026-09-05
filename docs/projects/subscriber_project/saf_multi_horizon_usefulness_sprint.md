@@ -1,6 +1,6 @@
 # SAF-2 — Multi-Horizon Signal Usefulness Sprint
 
-Status: planned execution sprint.
+Status: first implementation slice source-ready; production migration/deploy remains gated.
 
 Last updated: 2026-09-05.
 
@@ -145,6 +145,16 @@ Required experience:
 - No provider polling is required for the initial materializer if existing MarketOps evidence is sufficient.
 - No historical evidence, assertion baseline, or algorithm output is deleted or restated.
 - Playwright validates the SAF Tools path, default 10-day window, max 20-day window, row drill-down, and lifecycle language.
+
+## Implementation slice 1 — 2026-09-05
+
+The first source implementation adds deterministic SAF-2 usefulness semantics without rewriting historical evidence:
+
+- `saf_usefulness.v1` scoring and lifecycle classification are computed from existing immutable SAF/outcome metrics.
+- Existing effectiveness and observation APIs now expose usefulness lifecycle state, score, score components, policy version, and time-to-materialization where inferable.
+- The Signal Assurance Tools UI shows usefulness in summary cards, effectiveness rows, observation rows, mobile cards, and audit drill-downs.
+- Migration `000168_subscriber_global_saf_usefulness_policy` records the versioned policy contract only; it does not poll providers or mutate assertion/outcome evidence.
+- Regression coverage includes the required rule that a one-day adverse bullish observation is developing or adverse-warning, not an automatic miss.
 
 ## Deferred work
 

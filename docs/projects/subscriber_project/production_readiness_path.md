@@ -28,7 +28,7 @@ Production readiness is still blocked by current backup/restore re-verification,
 | SAF operational viability | Pilot-ready | SAF moved to MarketOps Tools as a privileged operational tab. The view excludes outcomes before August 20, 2026 because the pre-cutoff sample was too small, defaults to the last 10 trading days, and caps the operational chart window at 20 trading days. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Ready for configured QA identities / first paid activation closed | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. B2C users remain in `tenant-local`; self-enrolled subjects without an effective subscription resolve to `subscription_missing` and route to Pricing. Pricing reads the configured Stripe product catalog, displays governed human-readable prices instead of raw Stripe Price IDs, Checkout-start is operational, and the first live Explorer monthly payment reconciled through a signed webhook into `explorer active` with B2C browser state `marketops_ready`. Admin-governed refund intake is now live: users can request refunds, admins triage/record disposition, and actual refund execution remains in Stripe Dashboard. Stripe Customer Portal self-service is implemented for active Stripe-backed subscriptions, with webhook-authoritative entitlement updates retained. |
 | Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |
-| SAF multi-horizon usefulness | Planned enhancement | SAF is currently pilot-ready as an operational viability view. The next sprint is [SAF-2 multi-horizon signal usefulness](saf_multi_horizon_usefulness_sprint.md), which will prevent misleading one-day hit/miss interpretation by tracking developing/materialized/invalidated/expired/censored states across 1/5/10/20 trading-day horizons with MFE, MAE, time-to-materialization, and benchmark-relative evidence. |
+| SAF multi-horizon usefulness | Source-ready / gated deploy | SAF is currently pilot-ready as an operational viability view. [SAF-2 multi-horizon signal usefulness](saf_multi_horizon_usefulness_sprint.md) now has source support for lifecycle/usefulness projection across existing evidence, with migration `000168` recording the `saf_usefulness.v1` policy contract. Production activation requires applying the migration and deploying gateway/web. |
 
 ## Production gates
 
@@ -259,7 +259,7 @@ Closure evidence:
 
 ### Sprint SAF-2 — Multi-horizon signal usefulness
 
-Status: planned.
+Status: first source slice implemented; production migration/deploy remains gated.
 
 Scope:
 

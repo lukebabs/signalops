@@ -69,6 +69,8 @@ def test_signal_assurance_tools_view_honors_operational_cutoff(browser: Browser,
         expect(page.get_by_label("Window")).to_contain_text("Last 10 trading days", timeout=30_000)
         expect(page.get_by_label("Window")).to_contain_text("Last 20 trading days", timeout=30_000)
         expect(page.get_by_label("Window")).not_to_contain_text("All observations")
+        expect(page.locator("body")).to_contain_text("Usefulness", timeout=30_000)
+        expect(page.locator("body")).to_contain_text("saf_usefulness.v1", timeout=30_000)
         expect(page.locator("body")).not_to_contain_text("Aug 19")
     finally:
         page.context.close()
