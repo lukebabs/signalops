@@ -4,11 +4,22 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lukebabs/signalops/internal/marketops/signalassurance"
 	"github.com/lukebabs/signalops/internal/storage"
 	"github.com/lukebabs/signalops/internal/subscriber/eodrevisionpolicy"
 )
+
+const marketOpsSignalAssuranceOperationalCutoffDate = "2026-08-20"
+
+func signalAssuranceOperationalCutoff() *time.Time {
+	value, err := time.Parse("2006-01-02", marketOpsSignalAssuranceOperationalCutoffDate)
+	if err != nil {
+		return nil
+	}
+	return &value
+}
 
 func signalAssuranceObservationLimit(r *http.Request) int {
 	value := strings.TrimSpace(r.URL.Query().Get("limit"))
@@ -39,7 +50,7 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, cfg
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
 		}
-		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), Limit: queryLimit(r, 100)}
+		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), OutcomeNotBefore: signalAssuranceOperationalCutoff(), Limit: queryLimit(r, 100)}
 		watchlistContext, global, allowed := subscriberGlobalSignalAssuranceContext(w, r, cfg, tenantID)
 		if !allowed {
 			return
@@ -60,7 +71,7 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, cfg
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to calculate signal assurance effectiveness")
 			return
 		}
-		response := map[string]any{"effectiveness": effectivenessResponses(rows), "minimum_ranked_sample": 30, "evidence_source_note": "LEGACY records are historical outcome evidence and are not SAF-validated assertions.", "data_selection": historicalAssuranceDataSelection()}
+		response := map[string]any{"effectiveness": effectivenessResponses(rows), "minimum_ranked_sample": 30, "evidence_source_note": "LEGACY records are historical outcome evidence and are not SAF-validated assertions.", "data_selection": historicalAssuranceDataSelection(), "operational_cutoff_date": marketOpsSignalAssuranceOperationalCutoffDate}
 		if global {
 			response["data_scope"] = "platform-global"
 			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
@@ -78,7 +89,7 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, cfg
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id and dimension_value are required")
 			return
 		}
-		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), DimensionValue: dimensionValue, Limit: signalAssuranceObservationLimit(r)}
+		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), Dimension: strings.TrimSpace(r.URL.Query().Get("dimension")), DimensionValue: dimensionValue, OutcomeNotBefore: signalAssuranceOperationalCutoff(), Limit: signalAssuranceObservationLimit(r)}
 		watchlistContext, global, allowed := subscriberGlobalSignalAssuranceContext(w, r, cfg, tenantID)
 		if !allowed {
 			return
@@ -99,7 +110,7 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, cfg
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list signal assurance effectiveness observations")
 			return
 		}
-		response := map[string]any{"observations": effectivenessObservationResponses(rows), "evidence_source_note": "LEGACY observations are historical outcome evidence and are not SAF-validated assertions.", "data_selection": historicalAssuranceDataSelection()}
+		response := map[string]any{"observations": effectivenessObservationResponses(rows), "evidence_source_note": "LEGACY observations are historical outcome evidence and are not SAF-validated assertions.", "data_selection": historicalAssuranceDataSelection(), "operational_cutoff_date": marketOpsSignalAssuranceOperationalCutoffDate}
 		if global {
 			response["data_scope"] = "platform-global"
 			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
@@ -116,7 +127,7 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, cfg
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
 		}
-		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode")))}
+		filter := storage.SignalAssuranceEffectivenessFilter{TenantID: tenantID, EvidenceSource: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evidence_source"))), EvaluationMode: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("evaluation_mode"))), OutcomeNotBefore: signalAssuranceOperationalCutoff()}
 		watchlistContext, global, allowed := subscriberGlobalSignalAssuranceContext(w, r, cfg, tenantID)
 		if !allowed {
 			return
@@ -137,7 +148,7 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, cfg
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to calculate signal assurance recommendations")
 			return
 		}
-		response := map[string]any{"recommendations": recommendationResponses(rows), "minimum_ranked_sample": 30, "data_selection": historicalAssuranceDataSelection()}
+		response := map[string]any{"recommendations": recommendationResponses(rows), "minimum_ranked_sample": 30, "data_selection": historicalAssuranceDataSelection(), "operational_cutoff_date": marketOpsSignalAssuranceOperationalCutoffDate}
 		if global {
 			response["data_scope"] = "platform-global"
 			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)

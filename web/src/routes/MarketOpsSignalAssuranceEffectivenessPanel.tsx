@@ -10,6 +10,8 @@ import { formatPercent, formatUtc } from '../lib/format';
 import { marketOpsTrailingTradingDays } from '../lib/marketopsTradingCalendar';
 import type { MarketOpsSignalAssuranceEffectiveness, MarketOpsSignalAssuranceEffectivenessObservation } from '../types';
 
+export const SAF_OPERATIONAL_CUTOFF_DATE = '2026-08-20';
+
 const pct = (value?: number) => value == null || !Number.isFinite(value) ? '-' : formatPercent(value);
 const label = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter: string) => letter.toUpperCase());
 
@@ -48,7 +50,7 @@ export function MarketOpsSignalAssuranceEffectivenessPanel() {
         <div>
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Effectiveness & viability</h2>
           <p className="max-w-3xl text-xs text-gray-500 dark:text-gray-400">
-            Benchmark coverage is shown first so unresolved sector mapping is explicit. Directional accuracy is one input, not a performance claim. Viability is a read-only research gate:
+            Benchmark coverage is shown first so unresolved sector mapping is explicit. Directional accuracy is one input, not a performance claim. The operational view excludes outcomes before August 20, 2026 because the pre-cutoff sample was too small for useful viability interpretation. Viability is a read-only research gate:
             insufficient evidence, missing benchmarks, or adverse outcome profiles cannot be treated as a pass.
           </p>
         </div>
@@ -108,7 +110,7 @@ export function MarketOpsSignalAssuranceDailyProgressionPanel() {
   const tenantId = useTenant();
   const [source, setSource] = useState('LEGACY');
   const [mode, setMode] = useState('');
-  const [windowDays, setWindowDays] = useState('all');
+  const [windowDays, setWindowDays] = useState('10');
   const progression = useQuery({
     queryKey: ['saf-effectiveness-daily-progression', tenantId, source, mode],
     queryFn: () => api.listMarketOpsSignalAssuranceEffectivenessObservations(tenantId, source, 'overall', 'all', mode, 1500),
@@ -119,7 +121,7 @@ export function MarketOpsSignalAssuranceDailyProgressionPanel() {
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Daily progression</h2>
-        <p className="max-w-3xl text-xs text-gray-500 dark:text-gray-400">Track SAF viability over time by outcome date. This makes daily hit-rate drift, cumulative accuracy, sample depth, and aligned-return trend visible without opening raw observations first.</p>
+        <p className="max-w-3xl text-xs text-gray-500 dark:text-gray-400">Track SAF viability over time by outcome date. Default view is the last 10 trading days; the maximum operational window is 20 trading days. Outcomes before August 20, 2026 are excluded because the sample was too small for useful viability interpretation.</p>
       </div>
       <RefreshButton onClick={() => void progression.refetch()} loading={progression.isFetching} />
     </div>
@@ -136,7 +138,7 @@ export function MarketOpsSignalAssuranceDailyProgressionPanel() {
       </label>
       <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Window
         <select value={windowDays} onChange={(event) => setWindowDays(event.target.value)} className="mt-1 block rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100">
-          <option value="all">All observations</option><option value="10">Last 10 trading days</option><option value="20">Last 20 trading days</option>
+          <option value="10">Last 10 trading days</option><option value="20">Last 20 trading days</option>
         </select>
       </label>
     </div>
@@ -162,18 +164,19 @@ type DailyProgressionPoint = {
 const finite = (value?: number): value is number => value != null && Number.isFinite(value);
 const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : undefined;
 const sourceLabel = (source: string) => source === 'SAF' ? 'SAF validated' : 'Historical outcome';
-const windowLabel = (windowDays: string) => windowDays === '10' ? 'last 10 trading days' : windowDays === '20' ? 'last 20 trading days' : 'all observations';
+const windowLabel = (windowDays: string) => windowDays === '20' ? 'last 20 trading days' : 'last 10 trading days';
 
 
 function filterObservationsByTradingWindow(observations: MarketOpsSignalAssuranceEffectivenessObservation[], windowDays: string): MarketOpsSignalAssuranceEffectivenessObservation[] {
+  const afterCutoff = observations.filter((observation) => observation.outcome_at && observation.outcome_at.slice(0, 10) >= SAF_OPERATIONAL_CUTOFF_DATE);
   const days = Number(windowDays);
-  if (!Number.isFinite(days) || days <= 0) return observations;
-  const dated = observations.filter((observation) => observation.outcome_at).sort((left, right) => String(right.outcome_at).localeCompare(String(left.outcome_at)));
+  if (!Number.isFinite(days) || days <= 0) return afterCutoff;
+  const dated = afterCutoff.filter((observation) => observation.outcome_at).sort((left, right) => String(right.outcome_at).localeCompare(String(left.outcome_at)));
   const latest = dated[0]?.outcome_at?.slice(0, 10);
-  if (!latest) return observations;
+  if (!latest) return afterCutoff;
   const tradingDays = marketOpsTrailingTradingDays(latest, days);
   const allowed = new Set(tradingDays);
-  return observations.filter((observation) => observation.outcome_at && allowed.has(observation.outcome_at.slice(0, 10)));
+  return afterCutoff.filter((observation) => observation.outcome_at && allowed.has(observation.outcome_at.slice(0, 10)));
 }
 
 function buildDailyProgression(observations: MarketOpsSignalAssuranceEffectivenessObservation[]): DailyProgressionPoint[] {

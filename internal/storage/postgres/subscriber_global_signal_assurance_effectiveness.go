@@ -19,6 +19,7 @@ func (r *Repository) ListSubscriberGlobalSignalAssuranceEffectiveness(ctx contex
 	if err != nil {
 		return nil, err
 	}
+	values = filterEffectivenessObservationsByOutcomeStart(values, f.OutcomeNotBefore)
 	return aggregateEffectiveness(values, normalizedEffectivenessDimension(f.Dimension)), nil
 }
 
@@ -33,6 +34,7 @@ func (r *Repository) ListSubscriberGlobalSignalAssuranceEffectivenessObservation
 	}
 	dimension := normalizedEffectivenessDimension(f.Dimension)
 	out := make([]storage.SignalAssuranceEffectivenessObservationRecord, 0, len(values))
+	values = filterEffectivenessObservationsByOutcomeStart(values, f.OutcomeNotBefore)
 	for _, value := range values {
 		if dimensionValue(value, dimension) != cohort {
 			continue

@@ -49,6 +49,7 @@ func (r *Repository) ListSignalAssuranceEffectiveness(ctx context.Context, f sto
 		}
 		observations = append(observations, values...)
 	}
+	observations = filterEffectivenessObservationsByOutcomeStart(observations, f.OutcomeNotBefore)
 	return aggregateEffectiveness(observations, normalizedEffectivenessDimension(f.Dimension)), nil
 }
 func (r *Repository) ListSignalAssuranceEffectivenessObservations(ctx context.Context, f storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessObservationRecord, error) {
@@ -75,6 +76,7 @@ func (r *Repository) ListSignalAssuranceEffectivenessObservations(ctx context.Co
 			}
 		}
 	}
+	values = filterEffectivenessObservationsByOutcomeStart(values, f.OutcomeNotBefore)
 	sort.Slice(values, func(i, j int) bool {
 		if values[i].outcomeAt == nil {
 			return false
@@ -186,6 +188,27 @@ func (r *Repository) listLegacyEffectivenessObservations(ctx context.Context, f 
 	}
 	return out, rows.Err()
 }
+
+func filterEffectivenessObservationsByOutcomeStart(values []effectivenessObservation, cutoff *time.Time) []effectivenessObservation {
+	if cutoff == nil {
+		return values
+	}
+	out := make([]effectivenessObservation, 0, len(values))
+	for _, value := range values {
+		effectiveAt := value.outcomeAt
+		if effectiveAt == nil {
+			effectiveAt = value.originAt
+		}
+		if effectiveAt == nil {
+			continue
+		}
+		if !effectiveAt.Before(*cutoff) {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
 func effectivenessObservationIncluded(x effectivenessObservation) bool {
 	terminal := x.source == "LEGACY" || x.state == storage.SignalAssertionMaterialized || x.state == storage.SignalAssertionInvalidated || x.state == storage.SignalAssertionExpired || x.state == storage.SignalAssertionSuperseded || x.state == storage.SignalAssertionClosed
 	return terminal && x.complete
@@ -279,7 +302,7 @@ func signalAssuranceRecommendations(f storage.SignalAssuranceEffectivenessFilter
 	dimensions := []string{"algorithm_version", "signal_type", "confidence_band"}
 	out := []storage.SignalAssuranceRecommendationRecord{}
 	for _, dimension := range dimensions {
-		rows, err := list(storage.SignalAssuranceEffectivenessFilter{TenantID: f.TenantID, EvidenceSource: f.EvidenceSource, EvaluationMode: f.EvaluationMode, Dimension: dimension})
+		rows, err := list(storage.SignalAssuranceEffectivenessFilter{TenantID: f.TenantID, EvidenceSource: f.EvidenceSource, EvaluationMode: f.EvaluationMode, Dimension: dimension, OutcomeNotBefore: f.OutcomeNotBefore})
 		if err != nil {
 			return nil, err
 		}

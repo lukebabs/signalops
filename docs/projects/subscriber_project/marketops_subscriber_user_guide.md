@@ -92,7 +92,7 @@ Weekend example: Saturday should not produce a new EOD or intraday date. Fridayâ
 | Earnings Opportunity Intelligence | Earnings-event opportunity evidence. |
 | Sector Rotation Intelligence | ETF/sector progression and makeup intelligence. |
 | Market Structure Intelligence | Market state, intraday conditions, and structural context. |
-| Signal Assurance | Historical viability and benchmark analysis of signal outcomes. |
+| Signal Assurance | Operator/institutional viability workbench for benchmark analysis of signal outcomes. The operational view excludes pre-August 20, 2026 outcomes, defaults to 10 trading days, and caps the chart window at 20 trading days. |
 
 ## Tenant administrator workflows
 
@@ -140,4 +140,4 @@ MarketOps now separates ordinary subscriber controls from operational tooling.
 - Use **Profile** to review identity, tenant, enrollment state, current subscription, feature access, watchlist context, limits, billing actions, and refund request options.
 - Use **Settings** for user-centric account, subscription upgrade, billing/refund, preference, and watchlist-default workflows.
 - Use **Pricing** when entering from enrollment or a locked feature prompt. Pricing and Settings use the same package presentation.
-- Operational asset onboarding and research backtest controls are no longer part of user Settings; they live in **MarketOps Tools** for operator/admin users.
+- Operational asset onboarding, research backtest controls, and the Signal Assurance operational workbench are no longer part of user Settings or normal subscriber navigation; they live in **MarketOps Tools** for operator/admin users.

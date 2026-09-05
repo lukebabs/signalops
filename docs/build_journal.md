@@ -9651,3 +9651,10 @@ Next-cycle priority:
 - Refreshed the active Subscriber Project documentation to match the current production-readiness posture after Profile/Settings, Stripe Checkout/Portal/refund intake, first webhook-authoritative paid activation, and normalized feature-label work.
 - Corrected active docs that still implied Stripe Customer Portal was outstanding or SMS MFA was part of the current enrollment gate. Current enrollment remains Keycloak-owned and no-MFA by policy; SMS MFA requires a separate approved cohort rollout.
 - Updated production-readiness and browser-acceptance docs so mobile QA, Pricing/Stripe, Profile, Settings, and operational acceptance gates match the deployed surfaces.
+
+### 2026-09-05 — Signal Assurance operational cutoff and Tools placement
+
+- Moved the Signal Assurance operational workbench under MarketOps Tools as a privileged tab while preserving the existing `/marketops/assurance` compatibility route.
+- Removed Signal Assurance from normal MarketOps navigation so it no longer presents as a default subscriber surface.
+- Added a non-destructive operational cutoff of August 20, 2026 to SAF effectiveness, observation, and recommendation calculations. Immutable pre-cutoff evidence remains stored; it is excluded from the operational viability view because the sample size was too small.
+- Set SAF daily progression to default to the last 10 trading days and limited the UI window selector to 10 or 20 trading days.

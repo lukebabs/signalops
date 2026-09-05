@@ -122,7 +122,6 @@ const MARKETOPS_NAV: NavItem[] = [
   { module: 'eroc', to: '/marketops/eroc', label: 'Exhaustive Reversal', subscriptionFeature: 'distressed_opportunity_intelligence' },
   { module: 'earnings', to: '/marketops/earnings', label: 'Earnings Opportunity Intelligence', subscriptionFeature: 'earnings_opportunity_intelligence' },
   { module: 'opportunities', to: '/marketops/opportunities', label: 'Opportunities' },
-  { module: 'assurance', to: '/marketops/assurance', label: 'Signal Assurance', subscriptionFeature: 'signal_assurance_analytics' },
   { module: 'sectors', to: '/marketops/sectors', label: 'Sector Rotation Intelligence' },
   { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Intelligence' },
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },

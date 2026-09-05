@@ -175,12 +175,13 @@ type SignalAssuranceEvaluationFilter struct {
 }
 
 type SignalAssuranceEffectivenessFilter struct {
-	TenantID       string
-	EvidenceSource string
-	EvaluationMode string
-	Dimension      string
-	DimensionValue string
-	Limit          int
+	TenantID         string
+	EvidenceSource   string
+	EvaluationMode   string
+	Dimension        string
+	DimensionValue   string
+	OutcomeNotBefore *time.Time
+	Limit            int
 }
 
 type SignalAssuranceEffectivenessRecord struct {
