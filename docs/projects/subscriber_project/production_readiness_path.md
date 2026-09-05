@@ -28,6 +28,7 @@ Production readiness is still blocked by current backup/restore re-verification,
 | SAF operational viability | Pilot-ready | SAF moved to MarketOps Tools as a privileged operational tab. The view excludes outcomes before August 20, 2026 because the pre-cutoff sample was too small, defaults to the last 10 trading days, and caps the operational chart window at 20 trading days. Historical viability is currently strongest for the tenant-local 132-asset legacy cohort and should continue maturing naturally unless a separate backtest gate is approved. |
 | Subscription/access controls | Ready for configured QA identities / first paid activation closed | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. B2C users remain in `tenant-local`; self-enrolled subjects without an effective subscription resolve to `subscription_missing` and route to Pricing. Pricing reads the configured Stripe product catalog, displays governed human-readable prices instead of raw Stripe Price IDs, Checkout-start is operational, and the first live Explorer monthly payment reconciled through a signed webhook into `explorer active` with B2C browser state `marketops_ready`. Admin-governed refund intake is now live: users can request refunds, admins triage/record disposition, and actual refund execution remains in Stripe Dashboard. Stripe Customer Portal self-service is implemented for active Stripe-backed subscriptions, with webhook-authoritative entitlement updates retained. |
 | Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |
+| SAF multi-horizon usefulness | Planned enhancement | SAF is currently pilot-ready as an operational viability view. The next sprint is [SAF-2 multi-horizon signal usefulness](saf_multi_horizon_usefulness_sprint.md), which will prevent misleading one-day hit/miss interpretation by tracking developing/materialized/invalidated/expired/censored states across 1/5/10/20 trading-day horizons with MFE, MAE, time-to-materialization, and benchmark-relative evidence. |
 
 ## Production gates
 
@@ -255,6 +256,24 @@ Closure evidence:
 - Authenticated B2C enrollment resolver smoke passed: `1 passed` on 2026-09-02, confirming the active production flow reaches the SignalOps enrollment resolver without SMS/MFA friction.
 - Enrollment production-polish rerun passed after removing stale SMS language from the Keycloak registration theme: read-only registration smoke `1 passed`; authenticated B2C resolver smoke `1 passed`.
 - Named temporary production subscription-enforcement canary passed at mobile viewport and restored production state: Explorer denied Value Intelligence, Sector Rotation remained open, Professional unlocked Value Intelligence, Signal Assurance remained Institutional-only, tenant-local Institutional/admin access remained valid, and wrapper emitted `subscription_enforcement_canary_verified` followed by `subscription_enforcement_canary_restored`.
+
+### Sprint SAF-2 — Multi-horizon signal usefulness
+
+Status: planned.
+
+Scope:
+
+- Reframe SAF outcome interpretation from one-day hit/miss into lifecycle-based usefulness.
+- Evaluate confirmed assertions across 1, 5, 10, and 20 trading-session horizons.
+- Add versioned `saf_usefulness.v1` scoring from directional resolution, favorable/adverse excursion, benchmark-relative performance, timeliness, and persistence.
+- Keep the tenant-local 132 legacy cohort as the first execution scope and preserve the August 20, 2026 operational cutoff.
+
+Exit:
+
+- Signal Assurance can show whether a confirmed assertion is developing, materialized, outperformed, under adverse warning, invalidated, expired, or censored.
+- A one-day adverse move after bullish confirmation is not automatically represented as a miss unless the validation contract is explicitly invalidated.
+- MFE, MAE, time-to-materialization, benchmark coverage, sector coverage, and exclusion reasons are visible in the analyst drill-down.
+- The implementation remains immutable, versioned, and free of provider polling unless a separate data gap requires an approved provider run.
 
 ## Standing readiness check
 

@@ -27,6 +27,7 @@ SAF MUST be explainable.
 
 SAF MUST support historical replay and live production evaluation using the same evaluation logic.
 
+
 ### 1.1 v1.1 Normative Decisions
 
 This revision makes SAF an extension of the existing MarketOps forward-outcome capability, not a second competing outcome ledger. `marketops_signal_outcomes` remains the immutable, horizon-specific forward-outcome record for existing research workflows. SAF owns the assertion lifecycle, resolved validation contract, repeatable evaluation history, and assurance aggregates. A SAF evaluation may project a compatible fixed-horizon result into `marketops_signal_outcomes`; it MUST NOT write a second independent outcome for the same `(tenant_id, source_type, source_id, horizon_sessions, calculation_version)`.
@@ -34,6 +35,19 @@ This revision makes SAF an extension of the existing MarketOps forward-outcome c
 SAF identifiers and foreign keys use the repository's canonical `TEXT` IDs. They MUST NOT introduce UUID-only keys for signals, tenants, or assets.
 
 The source `signal.v1` event is immutable for SAF purposes. Because that schema forbids undeclared fields, publishers MUST NOT add SAF fields to it. Eligible confirmed signals are instead emitted through the versioned internal `marketops.signal.assurance.eligible.v1` event defined in Section 32, which references a signal already persisted in `signal_ledger` before assertion registration.
+
+### 1.2 SAF-2 Subscriber Project Enhancement
+
+The Subscriber Project records a planned SAF-2 execution sprint for multi-horizon signal usefulness. The sprint does not replace this specification; it operationalizes the existing SAF principles for the tenant-local legacy cohort and the MarketOps Tools analyst experience.
+
+SAF-2 makes the following interpretation explicit:
+
+- one completed-session adverse movement after confirmation is diagnostic evidence, not a default miss;
+- a confirmed assertion must be evaluated through its versioned validation contract and fixed trading-session horizons;
+- usefulness must consider materialization, maximum favorable excursion, maximum adverse excursion, time-to-materialization, broad-market-relative return, sector-relative return, persistence, and explicit coverage gaps;
+- lifecycle states such as `developing`, `materialized`, `adverse_warning`, `invalidated`, `expired`, and `censored` must remain visible alongside any simplified hit/miss labels.
+
+The execution plan is maintained at `docs/projects/subscriber_project/saf_multi_horizon_usefulness_sprint.md`.
 
 ---
 

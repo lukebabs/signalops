@@ -2,6 +2,8 @@
 
 Status: active. This is a read-only research-governance sprint. It does not create investment recommendations, alter algorithm thresholds, or enable automated actions.
 
+Current enhancement path: SAF-2 is planned under the Subscriber Project as a multi-horizon signal-usefulness sprint. It keeps this viability sprint’s no-drift and research-only posture while making the analyst view more useful: assertions will be evaluated across 1/5/10/20 trading-day horizons with lifecycle states, maximum favorable excursion, maximum adverse excursion, time-to-materialization, and benchmark-relative evidence. The sprint explicitly prevents one-day post-confirmation movement from being treated as the default success/failure decision. See `../subscriber_project/saf_multi_horizon_usefulness_sprint.md`.
+
 ## Primary cohort
 
 The primary SAF viability cohort is the preserved `tenant-local` **MarketOps Legacy Default** list of 132 assets. It is deliberately not the wider 1,000-symbol warm-EOD universe.
