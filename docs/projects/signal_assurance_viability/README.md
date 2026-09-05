@@ -197,3 +197,18 @@ The remediation updates `scripts/marketops_global_dashboard_projection.sh` to ma
 ### SAF currentness closure — 2026-08-21
 
 The currentness gap was closed by promoting matured opportunity outcomes into the subscriber/global evidence projection and appending missing `saf_benchmark.v4` benchmark rows. The key correction is lifecycle-aware parity: outcomes may be first observed as pending and later mature under the same source id, so manifest exclusion is now based on the full source fingerprint. The live projection now includes 132 SAF-eligible observations for matured session `2026-08-20`; benchmark v4 coverage is current through `2026-08-20`. This refresh used existing MarketOps rows only and made no provider requests.
+
+
+### SAF-2 benchmark refresh closure — 2026-09-05
+
+After the multi-horizon usefulness UI/API deployment, the constrained `marketops-saf-projection-refresh` action refreshed post-cutoff benchmark evidence from already-stored MarketOps rows. The refresh closed the broad-market `not_recorded` gap for matured observations on or after `2026-08-20`:
+
+- latest matured session: `2026-09-04`;
+- matured observations: `1,438`;
+- broad-market matched: `908`;
+- sector matched: `624`;
+- broad-market `not_recorded`: `0`;
+- sector `not_recorded`: `0`;
+- sector `sector_unmapped`: `284`.
+
+The remaining sector gap is an explicit catalog-normalization backlog. It does not change historical outcomes, does not infer sectors, and does not count missing evidence as either a hit or a miss. Production SAF Playwright validation passed after the refresh.

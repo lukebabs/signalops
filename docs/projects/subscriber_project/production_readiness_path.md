@@ -623,3 +623,21 @@ Residual policy:
 
 1. Ordinary subscribers manage package depth through Settings/Profile/Pricing; they do not receive admin-style asset onboarding controls.
 2. Institutional tenant administration remains in Admin Subscription Administration, not the user Settings page.
+
+
+### 2026-09-05 SAF-2 usefulness and benchmark-readiness closure
+
+Status: closed for the current Signal Assurance production-readiness slice.
+
+Evidence:
+
+- `000168_subscriber_global_saf_usefulness_policy` is applied to the dedicated MarketOps database.
+- SAF Tools now defaults to the 10-trading-day usefulness window, supports the 20-trading-day maximum standard window, and exposes `saf_usefulness.v1` lifecycle/evidence fields.
+- Post-cutoff benchmark refresh completed through `marketops-saf-projection-refresh` with no provider polling.
+- Current post-cutoff projection evidence: latest matured session `2026-09-04`, `1,438` matured observations, `0` broad-market `not_recorded`, `0` sector `not_recorded`, and `284` explicit `sector_unmapped` catalog gaps.
+- Production SAF Playwright smoke passed after refresh: `python/tests/test_signal_assurance_benchmark_ui_smoke.py` returned `1 passed`.
+
+Residual policy:
+
+1. Remaining `sector_unmapped` rows are catalog-governance work, not SAF materialization failures.
+2. Formal SAF-confirmed assertions remain dependent on prospective algorithm registrations with immutable baseline/provenance; usefulness over legacy outcomes is research evidence, not a claim of production alpha.

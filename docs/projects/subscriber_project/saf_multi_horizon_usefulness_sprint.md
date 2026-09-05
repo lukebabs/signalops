@@ -173,3 +173,17 @@ The first source implementation adds deterministic SAF-2 usefulness semantics wi
 - Algorithm threshold calibration from usefulness evidence.
 - Admin-facing degradation alerts for rolling SAF usefulness decay.
 - Historical replay beyond the current operational cutoff.
+
+
+## Benchmark refresh closure — 2026-09-05
+
+The post-cutoff SAF benchmark projection was refreshed after the SAF-2 deployment so the operational view no longer shows missing broad-market benchmark evidence for current matured observations.
+
+Evidence:
+
+- `marketops-saf-projection-refresh` ran through the constrained deployment-agent action and used existing MarketOps rows only. It made no provider polling request.
+- `subscriber_global_saf_benchmark_observations` for `saf_benchmark.v4` now contains `1,716` matched rows and `284` `sector_unmapped` rows.
+- `subscriber_gateway_global_signal_assurance_observations` for matured observations on or after `2026-08-20` now reports latest matured session `2026-09-04`, `1,438` observations, `908` broad-market matches, `624` sector matches, `0` broad-market `not_recorded`, and `0` sector `not_recorded`.
+- The remaining `284` sector gaps are explicit `sector_unmapped` catalog-normalization gaps. They are not materializer failures and are not treated as zero-return, pass, or fail evidence.
+- Production SAF Playwright smoke passed after the refresh: `python/tests/test_signal_assurance_benchmark_ui_smoke.py` returned `1 passed`.
+- Source hardening: the SAF benchmark materializer now prioritizes observations missing the requested calculation version before rows that already have complete benchmark coverage. This prevents a fixed row limit from repeatedly reprocessing already-covered observations while newer post-cutoff observations remain uncovered.
