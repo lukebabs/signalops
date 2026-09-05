@@ -20,6 +20,7 @@ import (
 	"github.com/lukebabs/signalops/internal/appmeta"
 	marketopsbacktest "github.com/lukebabs/signalops/internal/marketops/backtest"
 	"github.com/lukebabs/signalops/internal/storage"
+	"github.com/lukebabs/signalops/internal/subscriber/eodrevisionpolicy"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
 
@@ -41,20 +42,42 @@ var supportedDashboardStreamChannels = map[string]struct{}{
 
 // RouterConfig contains process-local API wiring options.
 type RouterConfig struct {
-	ServiceName                  string
-	MarketOpsBacktestRunner      func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
-	Auth                         AuthConfig
-	Publisher                    broker.Publisher
-	RawTopic                     string
-	Environment                  string
-	QueryRepository              storage.QueryRepository
-	AccessRepository             storage.TenantUserAccessRepository
-	CyberOpsConnectRepository    storage.CyberOpsConnectRepository
-	PlatformDefinitionRepository storage.PlatformPrimitiveDefinitionRepository
-	PublishRepository            storage.PublishRepository
-	SyncraticAskClient           syncraticAskClient
-	NotificationEncryptionKey    string
-	MarketQuoteClient            interface {
+	ServiceName             string
+	MarketOpsBacktestRunner func(context.Context, storage.MarketOpsBacktestRepository, marketopsbacktest.Config) (marketopsbacktest.Result, error)
+	Auth                    AuthConfig
+	Publisher               broker.Publisher
+	RawTopic                string
+	Environment             string
+	QueryRepository         storage.QueryRepository
+	// MarketOpsQueryRepository is an optional, app-scoped repository. When configured,
+	// only MarketOps routes use it; shared platform and CyberOps routes remain shared.
+	MarketOpsQueryRepository                       storage.QueryRepository
+	AccessRepository                               storage.TenantUserAccessRepository
+	CyberOpsConnectRepository                      storage.CyberOpsConnectRepository
+	PlatformDefinitionRepository                   storage.PlatformPrimitiveDefinitionRepository
+	PublishRepository                              storage.PublishRepository
+	SyncraticAskClient                             syncraticAskClient
+	NotificationEncryptionKey                      string
+	SubscriberListsEnabled                         bool
+	SubscriberSubscriptionsEnabled                 bool
+	SubscriberListsPilotTenants                    map[string]struct{}
+	SubscriberB2CTenantID                          string
+	SubscriberB2CAutoActivateExplorer              bool
+	SubscriberB2CRequireSubscription               bool
+	SubscriberWatchlistRepository                  storage.SubscriberWatchlistRepository
+	SubscriberCatalogRepository                    storage.SubscriberCatalogProjectionRepository
+	SubscriberEntitlementRepository                storage.SubscriberEntitlementRepository
+	SubscriberCatalogMembershipRepository          storage.SubscriberCatalogMembershipRepository
+	SubscriberSubscriptionRepository               storage.SubscriberSubscriptionRepository
+	SubscriberSubscriptionAdministrationRepository storage.SubscriberSubscriptionAdministrationRepository
+	StripeWebhookSecret                            string
+	StripeAPIKey                                   string
+	StripeCheckoutSuccessURL                       string
+	StripeCheckoutCancelURL                        string
+	StripeCheckoutClient                           stripeCheckoutClient
+	StripePortalReturnURL                          string
+	StripePortalClient                             stripePortalClient
+	MarketQuoteClient                              interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}
 }
@@ -65,6 +88,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		cfg.Auth.AccessResolver = cfg.AccessRepository
 	}
 	mux := http.NewServeMux()
+	marketOpsQueryRepository := cfg.QueryRepository
+	if cfg.MarketOpsQueryRepository != nil {
+		marketOpsQueryRepository = cfg.MarketOpsQueryRepository
+	}
+	marketOpsConfig := cfg
+	marketOpsConfig.QueryRepository = marketOpsQueryRepository
 	serviceName := cfg.ServiceName
 	if serviceName == "" {
 		serviceName = "signalops"
@@ -72,18 +101,29 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	rawTopic := cfg.RawTopic
 	registerAccessManagementRoutes(mux, cfg)
 	registerSessionExperienceRoute(mux, cfg)
-	registerMarketOpsValuationRoutes(mux, cfg)
-	registerMarketOpsTaskRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsEROCRoutes(mux, cfg)
-	registerMarketOpsEEOMRoutes(mux, cfg)
-	registerMarketOpsSignalAssuranceRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsSignalAssuranceEffectivenessRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsSRIRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsSRIAssetContextRoute(mux, cfg.QueryRepository)
+	registerSessionEnrollmentRoute(mux, cfg)
+	registerMarketOpsValuationRoutes(mux, marketOpsConfig)
+	registerMarketOpsTaskRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsEROCRoutes(mux, marketOpsConfig)
+	registerMarketOpsEEOMRoutes(mux, marketOpsConfig)
+	registerMarketOpsSignalAssuranceRoutes(mux, marketOpsConfig)
+	registerMarketOpsSignalAssuranceEffectivenessRoutes(mux, marketOpsConfig)
+	registerMarketOpsSRIRoutes(mux, marketOpsConfig)
+	registerMarketOpsSRIAssetContextRoute(mux, marketOpsQueryRepository)
 	registerStorageMonitorRoutes(mux, cfg.QueryRepository)
 	registerRetentionGovernanceRoutes(mux, cfg.QueryRepository)
 	registerAdministrationNotificationRoutes(mux, cfg)
 	registerAdministrationSMTPRoutes(mux, cfg)
+	if cfg.SubscriberListsEnabled {
+		registerSubscriberWatchlistRoutes(mux, cfg)
+		registerSubscriberWatchlistContextRoutes(mux, cfg)
+		registerSubscriberCatalogRoutes(mux, cfg)
+		registerSubscriberCatalogMembershipRoutes(mux, cfg)
+		registerSubscriberSubscriptionRoutes(mux, cfg)
+		registerSubscriberSubscriptionAdministrationRoutes(mux, cfg)
+		registerSubscriberStripeWebhookRoutes(mux, cfg)
+		registerSubscriberSessionActivityRoutes(mux, cfg)
+	}
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{
@@ -102,7 +142,37 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/administration/scheduled-jobs", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"jobs": scheduledJobStatuses()})
+		writeJSON(w, http.StatusOK, map[string]any{"jobs": scheduledJobStatuses(r.Context(), marketOpsQueryRepository)})
+	})
+
+	mux.HandleFunc("POST /v1/administration/scheduled-jobs/{job_id}/run-now", func(w http.ResponseWriter, r *http.Request) {
+		result, err := triggerScheduledJobRunNow(r.Context(), r.PathValue("job_id"), time.Now().UTC())
+		if err != nil {
+			if errors.Is(err, errUnsupportedScheduledJob) {
+				writeError(w, http.StatusNotFound, "scheduled_job_not_found", "scheduled job is not allowlisted for manual execution")
+				return
+			}
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "scheduled_job_start_failed", "message": "failed to start scheduled job", "run": result})
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"run": result})
+	})
+
+	mux.HandleFunc("GET /v1/administration/marketops/operations-health", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, marketOpsConfig.QueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		health, err := marketOpsOperationsHealth(r.Context(), repo, tenantID, time.Now().UTC())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to load marketops operations health")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"marketops_operations_health": health})
 	})
 
 	mux.HandleFunc("GET /v1/scheduler/runs", func(w http.ResponseWriter, r *http.Request) {
@@ -136,8 +206,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListReplayJobs(r.Context(), storage.ReplayJobFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: tenantID, SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), SourceKind: strings.TrimSpace(r.URL.Query().Get("source_kind")),
 			Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
@@ -158,6 +232,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, req.TenantID)
+		if !ok {
+			return
+		}
+		req.TenantID = tenantID
 		record, err := replayJobRecordFromRequest(req, replayActor(r, req.RequestedBy), time.Now().UTC())
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_replay_job", err.Error())
@@ -175,9 +254,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetReplayJob(r.Context(), r.PathValue("replay_job_id"))
 		if err != nil {
 			writeQueryError(w, err, "replay_job_not_found", "replay job not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "replay_job_not_found", "replay job not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"replay_job": replayJobResponse(record)})
@@ -193,6 +280,19 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		existing, err := repo.GetReplayJob(r.Context(), r.PathValue("replay_job_id"))
+		if err != nil {
+			writeQueryError(w, err, "replay_job_not_found", "replay job not found")
+			return
+		}
+		if tenantID != "" && existing.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "replay_job_not_found", "replay job not found")
+			return
+		}
 		record, err := repo.CancelReplayJob(r.Context(), r.PathValue("replay_job_id"), lifecycleActor(r, req.Actor), time.Now().UTC(), firstNonEmpty(req.Reason, req.Note), nil)
 		if err != nil {
 			writeQueryError(w, err, "replay_job_not_found", "replay job not found")
@@ -206,7 +306,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		now := time.Now().UTC()
 		counts, err := repo.CountReplayJobsByStatus(r.Context(), tenantID)
 		if err != nil {
@@ -248,8 +351,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListRawEventLedger(r.Context(), storage.RawEventLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")),
+			TenantID: tenantID,
 			AppID:    strings.TrimSpace(r.URL.Query().Get("app_id")),
 			Domain:   strings.TrimSpace(r.URL.Query().Get("domain")),
 			UseCase:  strings.TrimSpace(r.URL.Query().Get("use_case")),
@@ -269,9 +376,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetRawEventLedger(r.Context(), r.PathValue("event_id"))
 		if err != nil {
 			writeQueryError(w, err, "raw_event_not_found", "raw event not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "raw_event_not_found", "raw event not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"raw_event": rawEventResponse(record)})
@@ -282,8 +397,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListNormalizedEventLedger(r.Context(), storage.RawEventLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -298,9 +417,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetNormalizedEventLedger(r.Context(), r.PathValue("event_id"))
 		if err != nil {
 			writeQueryError(w, err, "normalized_event_not_found", "normalized event not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "normalized_event_not_found", "normalized event not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"normalized_event": normalizedEventResponse(record)})
@@ -311,8 +438,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListSignalLedger(r.Context(), storage.SignalLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")),
 			Severity: strings.TrimSpace(r.URL.Query().Get("severity")), Limit: queryLimit(r, 50),
 		})
@@ -328,16 +459,28 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetSignalLedger(r.Context(), r.PathValue("signal_id"))
 		if err != nil {
 			writeQueryError(w, err, "signal_not_found", "signal not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "signal_not_found", "signal not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"signal": signalResponse(record)})
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-coverage", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -355,7 +498,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_coverage_filter", "window_end must be after window_start")
 			return
 		}
-		filter := storage.MarketOpsBacktestCoverageFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: firstNonEmptyBacktestValue(r.URL.Query().Get("app_id"), "marketops"), Domain: firstNonEmptyBacktestValue(r.URL.Query().Get("domain"), "market_data"), UseCase: firstNonEmptyBacktestValue(r.URL.Query().Get("use_case"), "daily_market_surveillance"), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), SourceAdapter: strings.TrimSpace(r.URL.Query().Get("source_adapter")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Symbols: querySymbols(r), WindowStart: windowStart, WindowEnd: windowEnd, Limit: queryLimit(r, 100)}
+		filter := storage.MarketOpsBacktestCoverageFilter{TenantID: tenantID, AppID: firstNonEmptyBacktestValue(r.URL.Query().Get("app_id"), "marketops"), Domain: firstNonEmptyBacktestValue(r.URL.Query().Get("domain"), "market_data"), UseCase: firstNonEmptyBacktestValue(r.URL.Query().Get("use_case"), "daily_market_surveillance"), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), SourceAdapter: strings.TrimSpace(r.URL.Query().Get("source_adapter")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Symbols: querySymbols(r), WindowStart: windowStart, WindowEnd: windowEnd, Limit: queryLimit(r, 100)}
 		if filter.TenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_coverage_filter", "tenant_id is required")
 			return
@@ -369,7 +512,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-campaigns", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -379,6 +522,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req marketOpsBacktestCampaignCreateRequest
 		if err := decoder.Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		runner := cfg.MarketOpsBacktestRunner
@@ -444,11 +590,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-campaigns", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestCampaigns(r.Context(), storage.MarketOpsBacktestCampaignFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestCampaigns(r.Context(), storage.MarketOpsBacktestCampaignFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest campaigns")
 			return
@@ -457,7 +607,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-campaigns/{campaign_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -466,17 +620,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "backtest_campaign_not_found", "MarketOps backtest campaign not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "backtest_campaign_not_found", "MarketOps backtest campaign not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"backtest_campaign": marketOpsBacktestCampaignResponse(record)})
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtests", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		req, err := readMarketOpsBacktestCreateRequest(w, r)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		backtestCfg, err := marketOpsBacktestConfigFromRequest(req, replayActor(r, req.RequestedBy))
@@ -502,12 +663,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtests", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
 		records, err := repo.ListMarketOpsBacktestRuns(r.Context(), storage.MarketOpsBacktestRunFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -518,13 +683,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-calibration-summaries", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		var req marketOpsBacktestCalibrationSummaryCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		filter := marketOpsBacktestRunFilterFromCalibrationRequest(req)
@@ -559,12 +727,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-summaries", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
 		records, err := repo.ListMarketOpsBacktestCalibrationSummaries(r.Context(), storage.MarketOpsBacktestCalibrationSummaryFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -575,7 +747,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-summaries/{summary_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -584,17 +760,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "calibration_summary_not_found", "MarketOps backtest calibration summary not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "calibration_summary_not_found", "MarketOps backtest calibration summary not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"calibration_summary": marketOpsBacktestCalibrationSummaryResponse(record)})
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-calibration-baselines", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		var req marketOpsBacktestCalibrationBaselineCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.SummaryID) == "" {
@@ -629,12 +812,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-baselines", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
 		records, err := repo.ListMarketOpsBacktestCalibrationBaselines(r.Context(), storage.MarketOpsBacktestCalibrationBaselineFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -645,7 +832,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-baselines/{baseline_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -654,17 +845,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "calibration_baseline_not_found", "MarketOps backtest calibration baseline not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "calibration_baseline_not_found", "MarketOps backtest calibration baseline not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"calibration_baseline": marketOpsBacktestCalibrationBaselineResponse(record)})
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-calibration-comparisons", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		var req marketOpsBacktestCalibrationComparisonCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.BaselineID) == "" || strings.TrimSpace(req.CandidateSummaryID) == "" {
@@ -716,12 +914,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-comparisons", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
 		records, err := repo.ListMarketOpsBacktestCalibrationComparisons(r.Context(), storage.MarketOpsBacktestCalibrationComparisonFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50),
+			TenantID: tenantID, BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest calibration comparisons")
@@ -731,7 +933,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-comparisons/{comparison_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -740,17 +946,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "calibration_comparison_not_found", "MarketOps backtest calibration comparison not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "calibration_comparison_not_found", "MarketOps backtest calibration comparison not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"calibration_comparison": marketOpsBacktestCalibrationComparisonResponse(record)})
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-promotion-candidates", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		var req marketOpsBacktestPromotionCandidateCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.BaselineID) == "" || strings.TrimSpace(req.ComparisonID) == "" {
@@ -834,11 +1047,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-promotion-candidates", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestPromotionCandidates(r.Context(), storage.MarketOpsBacktestPromotionCandidateFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), ComparisonID: strings.TrimSpace(r.URL.Query().Get("comparison_id")), EvaluationID: strings.TrimSpace(r.URL.Query().Get("evaluation_id")), RunID: strings.TrimSpace(r.URL.Query().Get("run_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), ReadinessStatus: strings.TrimSpace(r.URL.Query().Get("readiness_status")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestPromotionCandidates(r.Context(), storage.MarketOpsBacktestPromotionCandidateFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), ComparisonID: strings.TrimSpace(r.URL.Query().Get("comparison_id")), EvaluationID: strings.TrimSpace(r.URL.Query().Get("evaluation_id")), RunID: strings.TrimSpace(r.URL.Query().Get("run_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), ReadinessStatus: strings.TrimSpace(r.URL.Query().Get("readiness_status")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest promotion candidates")
 			return
@@ -847,7 +1064,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-promotion-candidates/{candidate_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -856,17 +1077,34 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "promotion_candidate_not_found", "MarketOps backtest promotion candidate not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "promotion_candidate_not_found", "MarketOps backtest promotion candidate not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"promotion_candidate": marketOpsBacktestPromotionCandidateResponse(record)})
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-promotion-candidates/{candidate_id}/decision", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		var req marketOpsBacktestPromotionCandidateDecisionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		candidate, err := repo.GetMarketOpsBacktestPromotionCandidate(r.Context(), r.PathValue("candidate_id"))
+		if err != nil {
+			writeQueryError(w, err, "promotion_candidate_not_found", "MarketOps promotion candidate not found")
+			return
+		}
+		if tenantID != "" && candidate.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "promotion_candidate_not_found", "MarketOps promotion candidate not found")
 			return
 		}
 		if !marketOpsBacktestPromotionCandidateDecisionStatusAllowed(req.Status) {
@@ -886,13 +1124,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-calibration-readiness", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		var req marketOpsBacktestCalibrationReadinessCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.BaselineID) == "" || strings.TrimSpace(req.ComparisonID) == "" {
@@ -983,11 +1224,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-readiness", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestCalibrationReadiness(r.Context(), storage.MarketOpsBacktestCalibrationReadinessFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), ComparisonID: strings.TrimSpace(r.URL.Query().Get("comparison_id")), EvaluationID: strings.TrimSpace(r.URL.Query().Get("evaluation_id")), CandidateID: strings.TrimSpace(r.URL.Query().Get("candidate_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), ReadinessStatus: strings.TrimSpace(r.URL.Query().Get("readiness_status")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestCalibrationReadiness(r.Context(), storage.MarketOpsBacktestCalibrationReadinessFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), BaselineID: strings.TrimSpace(r.URL.Query().Get("baseline_id")), ComparisonID: strings.TrimSpace(r.URL.Query().Get("comparison_id")), EvaluationID: strings.TrimSpace(r.URL.Query().Get("evaluation_id")), CandidateID: strings.TrimSpace(r.URL.Query().Get("candidate_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), ReadinessStatus: strings.TrimSpace(r.URL.Query().Get("readiness_status")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps calibration readiness snapshots")
 			return
@@ -996,7 +1241,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-calibration-readiness/{readiness_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -1005,15 +1254,22 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "calibration_readiness_not_found", "MarketOps calibration readiness not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "calibration_readiness_not_found", "MarketOps calibration readiness not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"calibration_readiness": marketOpsBacktestCalibrationReadinessResponse(record)})
 	})
 
 	mux.HandleFunc("GET /v1/marketops/intelligence/cohort-runs", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_cohort_filter", "tenant_id is required")
 			return
@@ -1031,11 +1287,14 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/intelligence/cohort-runs/{run_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_cohort_filter", "tenant_id is required")
 			return
@@ -1058,11 +1317,14 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/intelligence/readiness", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_readiness_filter", "tenant_id is required")
 			return
@@ -1081,7 +1343,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/syncratic/context-windows/{context_window_id}/ask", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1094,10 +1356,30 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
+		contextWindow, err := repo.GetSyncraticContextWindow(r.Context(), r.PathValue("context_window_id"))
+		if err != nil {
+			writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
+			return
+		}
+		if req.TenantID != "" && contextWindow.TenantID != req.TenantID {
+			if _, authenticated := principalFromContext(r.Context()); authenticated {
+				writeError(w, http.StatusNotFound, "context_window_not_found", "Syncratic context window not found")
+			} else {
+				writeError(w, http.StatusBadRequest, "syncratic_ask_invalid", "tenant_id does not match context window")
+			}
+			return
+		}
 		insight, result, err := enrichSyncraticInsightWithAsk(r.Context(), repo, cfg.SyncraticAskClient, r.PathValue("context_window_id"), req)
 		if err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
 				writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
+				return
+			}
+			if strings.Contains(err.Error(), "context_requires_chunking") {
+				writeError(w, http.StatusBadRequest, "context_requires_chunking", err.Error())
 				return
 			}
 			if strings.Contains(err.Error(), "syncratic ask failed") {
@@ -1115,13 +1397,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/syncratic/context-windows", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		var req syncraticContextWindowCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		var record storage.SyncraticContextWindowRecord
@@ -1162,11 +1447,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/syncratic/context-windows", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		records, err := repo.ListSyncraticContextWindows(r.Context(), storage.SyncraticContextWindowFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), ContextStrategy: strings.TrimSpace(r.URL.Query().Get("context_strategy")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListSyncraticContextWindows(r.Context(), storage.SyncraticContextWindowFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), ContextStrategy: strings.TrimSpace(r.URL.Query().Get("context_strategy")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list Syncratic context windows")
 			return
@@ -1175,7 +1464,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/syncratic/context-windows/{context_window_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -1184,11 +1477,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "context_window_not_found", "Syncratic context window not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"context_window": syncraticContextWindowResponse(record)})
 	})
 
 	mux.HandleFunc("POST /v1/syncratic/insights", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -1197,13 +1494,20 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
 		contextWindow, err := repo.GetSyncraticContextWindow(r.Context(), req.ContextWindowID)
 		if err != nil {
 			writeQueryError(w, err, "context_window_not_found", "Syncratic context window not found")
 			return
 		}
 		if strings.TrimSpace(req.TenantID) != "" && strings.TrimSpace(req.TenantID) != contextWindow.TenantID {
-			writeError(w, http.StatusBadRequest, "invalid_insight", "tenant_id does not match context window")
+			if _, authenticated := principalFromContext(r.Context()); authenticated {
+				writeError(w, http.StatusNotFound, "context_window_not_found", "Syncratic context window not found")
+			} else {
+				writeError(w, http.StatusBadRequest, "invalid_insight", "tenant_id does not match context window")
+			}
 			return
 		}
 		record := buildSyncraticInsight(contextWindow, req.InsightType, req.BuilderVersion)
@@ -1220,11 +1524,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/syncratic/insights", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		filter := storage.SyncraticInsightFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), ContextWindowID: strings.TrimSpace(r.URL.Query().Get("context_window_id")), InsightType: strings.TrimSpace(r.URL.Query().Get("insight_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		filter := storage.SyncraticInsightFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), ContextWindowID: strings.TrimSpace(r.URL.Query().Get("context_window_id")), InsightType: strings.TrimSpace(r.URL.Query().Get("insight_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)}
 		records, err := repo.ListSyncraticInsights(r.Context(), filter)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list Syncratic insights")
@@ -1239,13 +1547,21 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/syncratic/insights/{syncratic_insight_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
 		record, err := repo.GetSyncraticInsight(r.Context(), r.PathValue("syncratic_insight_id"))
 		if err != nil {
 			writeQueryError(w, err, "syncratic_insight_not_found", "Syncratic insight not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "syncratic_insight_not_found", "Syncratic insight not found")
 			return
 		}
 		relatedInsights, err := repo.ListSyncraticInsights(r.Context(), storage.SyncraticInsightFilter{TenantID: record.TenantID, AppID: record.AppID, Domain: record.Domain, UseCase: record.UseCase, SubjectSymbol: record.SubjectSymbol, Limit: 5000})
@@ -1262,14 +1578,42 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"syncratic_insight": syncraticInsightResponseWithCurrentness(record, currentness[record.SyncraticInsightID])})
 	})
 
+	mux.HandleFunc("POST /v1/syncratic/daily-narratives/materialize", func(w http.ResponseWriter, r *http.Request) {
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		var req syncraticDailyNarrativeMaterializeRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
+		result, err := materializeSyncraticDailyNarratives(r.Context(), repo, req)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "daily_narrative_materialize_failed", err.Error())
+			return
+		}
+		status := http.StatusCreated
+		if req.DryRun {
+			status = http.StatusOK
+		}
+		writeJSON(w, status, map[string]any{"daily_narrative_materialization": result})
+	})
+
 	mux.HandleFunc("POST /v1/syncratic/materialize", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		var req syncraticMaterializeRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		result, err := materializeSyncraticContexts(r.Context(), repo, req)
@@ -1285,7 +1629,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtests/{run_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -1294,15 +1642,23 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "backtest_run_not_found", "MarketOps backtest run not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "backtest_run_not_found", "MarketOps backtest run not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"backtest_run": marketOpsBacktestRunResponse(record)})
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtests/{run_id}/signals", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestSignals(r.Context(), storage.MarketOpsBacktestSignalFilter{RunID: r.PathValue("run_id"), TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestSignals(r.Context(), storage.MarketOpsBacktestSignalFilter{RunID: r.PathValue("run_id"), TenantID: tenantID, SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest signals")
 			return
@@ -1311,11 +1667,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtests/{run_id}/graph-proposals", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		filter := storage.MarketOpsBacktestGraphProposalFilter{RunID: r.PathValue("run_id"), TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50)}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		filter := storage.MarketOpsBacktestGraphProposalFilter{RunID: r.PathValue("run_id"), TenantID: tenantID, SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50)}
 		records, err := repo.ListMarketOpsBacktestGraphProposals(r.Context(), filter)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest graph proposals")
@@ -1330,12 +1690,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/dsm/artifacts", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
 		records, err := repo.ListMarketOpsDSMArtifacts(r.Context(), storage.MarketOpsDSMArtifactFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), Limit: queryLimit(r, 50),
 		})
 		if err != nil {
@@ -1346,7 +1710,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/dsm/artifacts/{artifact_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -1355,20 +1723,28 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "artifact_not_found", "MarketOps DSM artifact not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "artifact_not_found", "MarketOps DSM artifact not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"artifact": marketOpsDSMArtifactResponse(record)})
 	})
 
-	mux.HandleFunc("GET /v1/marketops/graph-proposals", marketOpsGraphProposalListHandler(cfg.QueryRepository))
-	mux.HandleFunc("GET /v1/marketops/graph-proposals/{proposal_id}", marketOpsGraphProposalGetHandler(cfg.QueryRepository))
-	mux.HandleFunc("POST /v1/marketops/graph-proposals/{proposal_id}/decision", marketOpsGraphProposalDecisionHandler(cfg.QueryRepository))
+	mux.HandleFunc("GET /v1/marketops/graph-proposals", marketOpsGraphProposalListHandler(marketOpsQueryRepository))
+	mux.HandleFunc("GET /v1/marketops/graph-proposals/{proposal_id}", marketOpsGraphProposalGetHandler(marketOpsQueryRepository))
+	mux.HandleFunc("POST /v1/marketops/graph-proposals/{proposal_id}/decision", marketOpsGraphProposalDecisionHandler(marketOpsQueryRepository))
 
 	mux.HandleFunc("GET /v1/marketops/dsm/graph-proposals", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
 		records, err := repo.ListMarketOpsDSMGraphProposals(r.Context(), storage.MarketOpsDSMGraphProposalFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")),
 			ArtifactID: strings.TrimSpace(r.URL.Query().Get("artifact_id")), SignalID: strings.TrimSpace(r.URL.Query().Get("signal_id")), SignalType: strings.TrimSpace(r.URL.Query().Get("signal_type")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")),
 			CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), Status: strings.TrimSpace(r.URL.Query().Get("status")), ProposalSource: storage.MarketOpsGraphProposalSourceDSMSignal, Limit: queryLimit(r, 50),
 		})
@@ -1380,7 +1756,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/dsm/graph-proposals/{proposal_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -1393,11 +1773,19 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"graph_proposal": marketOpsDSMGraphProposalResponse(record)})
 	})
 
 	mux.HandleFunc("POST /v1/marketops/dsm/graph-proposals/{proposal_id}/decision", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -1409,6 +1797,13 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
 			}
 			return
+		}
+		if tenantID != "" && existing.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps DSM graph proposal not found")
+			return
+		}
+		if tenantID == "" {
+			tenantID = strings.TrimSpace(existing.TenantID)
 		}
 		var req graphProposalDecisionRequest
 		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, defaultMaxRawEventBytes))
@@ -1423,7 +1818,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			return
 		}
 		record, err := repo.MutateMarketOpsDSMGraphProposal(r.Context(), storage.MarketOpsDSMGraphProposalMutation{
-			ProposalID: r.PathValue("proposal_id"), Status: status, ReviewedBy: lifecycleActor(r, req.Actor), DecisionNote: strings.TrimSpace(req.Note), DecidedAt: time.Now().UTC(),
+			ProposalID: r.PathValue("proposal_id"), TenantID: tenantID, Status: status, ReviewedBy: lifecycleActor(r, req.Actor), DecisionNote: strings.TrimSpace(req.Note), DecidedAt: time.Now().UTC(),
 		})
 		if err != nil {
 			if strings.Contains(err.Error(), "status") {
@@ -1437,13 +1832,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-evaluations", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		var req marketOpsBacktestEvaluationCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" || strings.TrimSpace(req.RunID) == "" {
@@ -1497,11 +1895,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-evaluations", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestEvaluations(r.Context(), storage.MarketOpsBacktestEvaluationFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), RunID: strings.TrimSpace(r.URL.Query().Get("run_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestEvaluations(r.Context(), storage.MarketOpsBacktestEvaluationFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), RunID: strings.TrimSpace(r.URL.Query().Get("run_id")), DetectorID: strings.TrimSpace(r.URL.Query().Get("detector_id")), Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Recommendation: strings.TrimSpace(r.URL.Query().Get("recommendation")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps backtest evaluations")
 			return
@@ -1510,7 +1912,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-evaluations/{evaluation_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
@@ -1519,17 +1925,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeQueryError(w, err, "backtest_evaluation_not_found", "MarketOps backtest evaluation not found")
 			return
 		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "backtest_evaluation_not_found", "MarketOps backtest evaluation not found")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"backtest_evaluation": marketOpsBacktestEvaluationResponse(record)})
 	})
 
 	mux.HandleFunc("POST /v1/marketops/backtest-evaluation-labels/sync", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
 		var req marketOpsBacktestEvaluationLabelSyncRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		if strings.TrimSpace(req.TenantID) == "" {
@@ -1570,11 +1983,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-evaluation-labels", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsBacktestEvaluationLabels(r.Context(), storage.MarketOpsBacktestEvaluationLabelFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceProposalID: strings.TrimSpace(r.URL.Query().Get("source_proposal_id")), ArtifactID: strings.TrimSpace(r.URL.Query().Get("artifact_id")), SignalID: strings.TrimSpace(r.URL.Query().Get("signal_id")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), DecisionStatus: strings.TrimSpace(r.URL.Query().Get("decision_status")), Label: strings.TrimSpace(r.URL.Query().Get("label")), LabelSource: strings.TrimSpace(r.URL.Query().Get("label_source")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsBacktestEvaluationLabels(r.Context(), storage.MarketOpsBacktestEvaluationLabelFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceProposalID: strings.TrimSpace(r.URL.Query().Get("source_proposal_id")), ArtifactID: strings.TrimSpace(r.URL.Query().Get("artifact_id")), SignalID: strings.TrimSpace(r.URL.Query().Get("signal_id")), SubjectSymbol: strings.TrimSpace(r.URL.Query().Get("subject_symbol")), CandidateType: strings.TrimSpace(r.URL.Query().Get("candidate_type")), DecisionStatus: strings.TrimSpace(r.URL.Query().Get("decision_status")), Label: strings.TrimSpace(r.URL.Query().Get("label")), LabelSource: strings.TrimSpace(r.URL.Query().Get("label_source")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps evaluation labels")
 			return
@@ -1583,13 +2000,21 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/marketops/backtest-evaluation-labels/{label_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
+		if !ok {
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
 			return
 		}
 		record, err := repo.GetMarketOpsBacktestEvaluationLabel(r.Context(), r.PathValue("label_id"))
 		if err != nil {
 			writeQueryError(w, err, "evaluation_label_not_found", "MarketOps evaluation label not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "evaluation_label_not_found", "MarketOps evaluation label not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"evaluation_label": marketOpsBacktestEvaluationLabelResponse(record)})
@@ -1600,8 +2025,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListAlertLedger(r.Context(), storage.AlertLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), Severity: strings.TrimSpace(r.URL.Query().Get("severity")),
 			Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
@@ -1617,9 +2046,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetAlertLedger(r.Context(), r.PathValue("alert_id"))
 		if err != nil {
 			writeQueryError(w, err, "alert_not_found", "alert not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "alert_not_found", "alert not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"alert": alertResponse(record)})
@@ -1634,8 +2071,12 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListInsightLedger(r.Context(), storage.InsightLedgerFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), UseCase: strings.TrimSpace(r.URL.Query().Get("use_case")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			Dataset: strings.TrimSpace(r.URL.Query().Get("dataset")), InsightType: strings.TrimSpace(r.URL.Query().Get("insight_type")),
 			Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50),
 		})
@@ -1651,9 +2092,17 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetInsightLedger(r.Context(), r.PathValue("insight_id"))
 		if err != nil {
 			writeQueryError(w, err, "insight_not_found", "insight not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "insight_not_found", "insight not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"insight": insightResponse(record)})
@@ -1668,7 +2117,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		sourceID := strings.TrimSpace(r.URL.Query().Get("source_id"))
 		key := strings.TrimSpace(r.URL.Query().Get("idempotency_key"))
 		if tenantID == "" || sourceID == "" || key == "" {
@@ -1678,6 +2130,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		record, err := repo.GetIdempotencyRecord(r.Context(), tenantID, sourceID, key)
 		if err != nil {
 			writeQueryError(w, err, "idempotency_not_found", "idempotency record not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "idempotency_not_found", "idempotency record not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"idempotency": idempotencyResponse(record)})
@@ -1691,6 +2147,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		var req algorithmDefinitionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
 			return
 		}
 		record := algorithmDefinitionRecord(req)
@@ -1711,7 +2170,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1729,7 +2191,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1752,6 +2217,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		if !bindRequestTenant(w, r, &req.TenantID) {
+			return
+		}
 		record := algorithmExecutionRequestRecord(req, replayActor(r, req.RequestedBy))
 		if err := repo.UpsertAlgorithmExecutionRequest(r.Context(), record); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_execution_request", err.Error())
@@ -1770,7 +2238,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1788,7 +2259,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1812,7 +2286,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1830,7 +2307,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1848,7 +2328,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1866,7 +2349,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1884,7 +2370,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1902,7 +2391,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1920,7 +2412,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1938,7 +2433,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -1989,7 +2487,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2012,10 +2513,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
-		tenantID := strings.TrimSpace(req.TenantID)
-		if tenantID == "" {
-			tenantID = strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if !bindRequestTenantFromBodyOrQuery(w, r, &req.TenantID) {
+			return
 		}
+		tenantID := req.TenantID
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2044,10 +2545,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
-		tenantID := strings.TrimSpace(req.TenantID)
-		if tenantID == "" {
-			tenantID = strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		if !bindRequestTenantFromBodyOrQuery(w, r, &req.TenantID) {
+			return
 		}
+		tenantID := req.TenantID
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "invalid_algorithm_filter", "tenant_id is required")
 			return
@@ -2274,27 +2775,75 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
-		if tenantID == "" {
-			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+		if !ok {
 			return
 		}
 		universeGroup := strings.TrimSpace(r.URL.Query().Get("universe_group"))
 		activeOnly := !strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("active_only")), "false")
-		assets, err := repo.ListMarketOpsAssets(r.Context(), tenantID, universeGroup, activeOnly, queryLimit(r, 50))
+		assets, err := repo.ListMarketOpsAssets(r.Context(), tenantID, universeGroup, activeOnly, 200)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps assets")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"assets": marketOpsAssetResponses(assets)})
+		response := map[string]any{}
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			visible := make([]storage.MarketOpsAssetRecord, 0, len(assets))
+			visibleTickers := map[string]struct{}{}
+			for _, asset := range assets {
+				if _, allowed := watchlistContext.Tickers[strings.ToUpper(asset.Ticker)]; allowed {
+					visible = append(visible, asset)
+					visibleTickers[strings.ToUpper(asset.Ticker)] = struct{}{}
+				}
+			}
+			pending := make([]map[string]any, 0)
+			currentByTicker := map[string]storage.SubscriberCurrentEODContextRecord{}
+			if currentEODReader, available := any(marketOpsQueryRepository).(storage.SubscriberCurrentEODContextBatchRepository); available {
+				symbols := make([]string, 0, len(watchlistContext.Items))
+				for _, item := range watchlistContext.Items {
+					if _, alreadyVisible := visibleTickers[strings.ToUpper(item.Ticker)]; !alreadyVisible {
+						symbols = append(symbols, item.Ticker)
+					}
+				}
+				currents, currentErr := currentEODReader.ListSubscriberCurrentEODContexts(r.Context(), symbols)
+				if currentErr != nil {
+					writeError(w, http.StatusInternalServerError, "query_failed", "failed to load shared MarketOps EOD context")
+					return
+				}
+				for _, current := range currents {
+					currentByTicker[strings.ToUpper(current.Symbol)] = current
+				}
+			}
+			for _, item := range watchlistContext.Items {
+				ticker := strings.ToUpper(item.Ticker)
+				if _, alreadyVisible := visibleTickers[ticker]; alreadyVisible {
+					continue
+				}
+				if current, found := currentByTicker[ticker]; found {
+					visible = append(visible, subscriberWatchlistCurrentEODAsset(tenantID, item, len(visible)+1, current))
+					visibleTickers[ticker] = struct{}{}
+					continue
+				}
+				pending = append(pending, map[string]any{"ticker": item.Ticker, "company": item.CompanyName, "coverage_state": item.CoverageState, "coverage_mode": item.CoverageMode, "eligibility_status": item.EligibilityStatus})
+			}
+			assets = visible
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+			response["pending_assets"] = pending
+		}
+		response["assets"] = marketOpsAssetResponses(assets)
+		writeJSON(w, http.StatusOK, response)
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/quotes", func(w http.ResponseWriter, r *http.Request) {
-		reader, ok := any(cfg.QueryRepository).(interface {
+		reader, ok := any(marketOpsQueryRepository).(interface {
 			ListMarketOpsAssetQuotes(context.Context, storage.MarketOpsAssetQuoteFilter) ([]storage.MarketOpsAssetQuoteRecord, error)
 		})
 		if !ok {
@@ -2322,7 +2871,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"quotes": quotes, "refreshed_at": refreshed, "cache_backed": true})
 	})
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/intraday-conditions", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2350,7 +2899,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/intraday-conditions", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2373,7 +2922,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/coverage", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2392,7 +2941,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/distribution", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2412,7 +2961,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/{symbol}/options/chain", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2436,7 +2985,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/options/captures", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2477,7 +3026,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	})
 
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/options/captures/{capture_id}", func(w http.ResponseWriter, r *http.Request) {
-		repo, ok := requireQueryRepository(w, cfg.QueryRepository)
+		repo, ok := requireQueryRepository(w, marketOpsQueryRepository)
 		if !ok {
 			return
 		}
@@ -2518,6 +3067,24 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
+		}
+
+		tenantID, ok := requireRequestTenant(w, r, jsonStringField(fields, "tenant_id"))
+		if !ok {
+			return
+		}
+		if _, authenticated := principalFromContext(r.Context()); authenticated {
+			rawTenant, err := json.Marshal(tenantID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "tenant_scope_failed", "failed to encode authenticated tenant scope")
+				return
+			}
+			fields["tenant_id"] = rawTenant
+			payload, err = json.Marshal(fields)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "tenant_scope_failed", "failed to encode authenticated event payload")
+				return
+			}
 		}
 
 		eventID := firstNonEmpty(headerValue(r, "X-SignalOps-Event-ID"), jsonStringField(fields, "event_id"), newID("evt"))
@@ -2572,22 +3139,22 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		})
 	})
 
-	registerMarketOpsMarketStateRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsHypothesisRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsAlgorithmAdjudicationRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsQuantitativeSeriesRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsAssetAlgorithmObservationRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsSignalOverviewRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsAssetManagementRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsOpportunityRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsOutcomeRoutes(mux, cfg.QueryRepository)
-	registerMarketOpsAlgorithmEvaluationRoutes(mux, cfg.QueryRepository)
+	registerMarketOpsMarketStateRoutes(mux, marketOpsConfig)
+	registerMarketOpsHypothesisRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsAlgorithmAdjudicationRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsQuantitativeSeriesRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsAssetAlgorithmObservationRoutes(mux, marketOpsConfig)
+	registerMarketOpsSignalOverviewRoutes(mux, marketOpsConfig)
+	registerMarketOpsAssetManagementRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsOpportunityRoutes(mux, marketOpsConfig)
+	registerMarketOpsOutcomeRoutes(mux, marketOpsQueryRepository)
+	registerMarketOpsAlgorithmEvaluationRoutes(mux, marketOpsQueryRepository)
 
 	registerCyberOpsConnectRoutes(mux, cfg)
 	registerCyberOpsTrafficRoutes(mux, cfg.QueryRepository)
 	registerCyberOpsIoTRoutes(mux, cfg.QueryRepository)
 	registerCyberOpsLifecycleRoutes(mux, cfg.QueryRepository)
-	return authMiddleware(mux, cfg.Auth)
+	return authMiddleware(subscriberUserActivityMiddleware(subscriptionFeatureMiddleware(mux, cfg), cfg), cfg.Auth)
 }
 
 type rawIngestFields struct {
@@ -3421,6 +3988,19 @@ func alertLifecycleHandler(cfg RouterConfig, status string, action string) http.
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		existing, err := repo.GetAlertLedger(r.Context(), r.PathValue("alert_id"))
+		if err != nil {
+			writeQueryError(w, err, "alert_not_found", "alert not found")
+			return
+		}
+		if tenantID != "" && existing.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "alert_not_found", "alert not found")
+			return
+		}
 		actor := lifecycleActor(r, req.Actor)
 		metadata, err := lifecycleMetadata(action, actor, req)
 		if err != nil {
@@ -3447,6 +4027,19 @@ func insightLifecycleHandler(cfg RouterConfig, status string, action string) htt
 		req, err := readLifecycleMutationRequest(w, r)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		existing, err := repo.GetInsightLedger(r.Context(), r.PathValue("insight_id"))
+		if err != nil {
+			writeQueryError(w, err, "insight_not_found", "insight not found")
+			return
+		}
+		if tenantID != "" && existing.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "insight_not_found", "insight not found")
 			return
 		}
 		actor := lifecycleActor(r, req.Actor)
@@ -3507,7 +4100,7 @@ func marketOpsBacktestConfigFromRequest(req marketOpsBacktestCreateRequest, acto
 		SourceID: strings.TrimSpace(req.SourceID), SourceAdapter: strings.TrimSpace(req.SourceAdapter), Dataset: strings.TrimSpace(req.Dataset),
 		DetectorID: strings.TrimSpace(req.DetectorID), DetectorVersion: strings.TrimSpace(req.DetectorVersion), RequestedBy: actor,
 		WindowStart: windowStart.UTC(), WindowEnd: windowEnd.UTC(), Symbols: cleanSymbols(req.Symbols), MaxRecords: maxRecords, BatchSize: batchSize,
-		AutoAcceptConfidence: req.AutoAcceptConfidence, PythonBin: pythonBin,
+		AutoAcceptConfidence: req.AutoAcceptConfidence, PythonBin: pythonBin, EODDataSelectionContext: eodrevisionpolicy.HistoricalAssurance,
 	}
 	if strings.TrimSpace(cfg.TenantID) == "" {
 		return marketopsbacktest.Config{}, errors.New("tenant_id is required")
@@ -3758,6 +4351,9 @@ func replayJobRecordFromRequest(req replayJobCreateRequest, actor string, now ti
 }
 
 func replayActor(r *http.Request, requestedBy string) string {
+	if principal, authenticated := principalFromContext(r.Context()); authenticated {
+		return firstNonEmpty(strings.TrimSpace(principal.Actor), strings.TrimSpace(principal.Subject), "operator-authenticated")
+	}
 	return firstNonEmpty(strings.TrimSpace(r.Header.Get("X-SignalOps-Actor")), strings.TrimSpace(requestedBy), "operator-local")
 }
 
@@ -4016,6 +4612,29 @@ func marketOpsIntradayConditionSnapshotResponse(record storage.MarketOpsIntraday
 	source := any(map[string]any{})
 	_ = json.Unmarshal(record.SourcePayloadJSON, &source)
 	return map[string]any{"snapshot_id": record.SnapshotID, "ticker": record.Symbol, "as_of_time": record.AsOfTime, "market_status": record.MarketStatus, "stale": record.Stale || time.Since(record.AsOfTime) > 30*time.Minute, "conditions": conditions, "source": source, "created_at": record.CreatedAt}
+}
+
+// subscriberWatchlistCurrentEODAsset is a tenant-authorized projection over an
+// already-selected global EOD observation. It creates no tenant-local asset,
+// provider request, or duplicate evidence.
+func subscriberWatchlistCurrentEODAsset(tenantID string, item storage.SubscriberWatchlistItemRecord, rank int, current storage.SubscriberCurrentEODContextRecord) storage.MarketOpsAssetRecord {
+	metadata, _ := json.Marshal(map[string]any{
+		"global_asset_id":           item.GlobalAssetID,
+		"coverage_state":            item.CoverageState,
+		"coverage_mode":             item.CoverageMode,
+		"current_eod_session_date":  current.SessionDate.Format("2006-01-02"),
+		"current_eod_close":         current.Close,
+		"current_eod_as_of_time":    current.AsOfTime,
+		"current_eod_quality_state": current.QualityState,
+		"current_eod_provider":      current.Provider,
+	})
+	ticker := strings.ToUpper(strings.TrimSpace(item.Ticker))
+	return storage.MarketOpsAssetRecord{
+		TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "subscriber_watchlist", SourceID: "subscriber_global_eod", UniverseGroup: "subscriber_watchlist_current_eod", Rank: rank,
+		Ticker: ticker, TickerKey: strings.ToLower(ticker), Company: item.CompanyName, CompanyKey: strings.ToLower(item.CompanyName), DisplayName: item.CompanyName,
+		AssetType: item.AssetType, Exchange: item.Exchange, Sector: item.Sector, SectorKey: strings.ToLower(item.Sector), IsActive: true, MetadataJSON: metadata,
+		CreatedAt: item.AddedAt, UpdatedAt: current.AsOfTime,
+	}
 }
 
 func marketOpsAssetResponses(records []storage.MarketOpsAssetRecord) []marketOpsAssetDTO {

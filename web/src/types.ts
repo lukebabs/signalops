@@ -19,17 +19,72 @@ export interface HealthResponse {
 export interface MarketOpsSignalAssuranceAssertion { assertion_id: string; tenant_id: string; asset_id: string; symbol: string; signal_id: string; signal_type: string; direction: string; state: string; evaluation_mode: string; evaluation_run_id?: string; validation_contract_id: string; validation_contract_version: string; confidence?: number; baseline_snapshot: unknown; baseline_provenance: unknown; confirmed_at: string; transition_sequence: number; }
 export interface MarketOpsSignalAssuranceAssertionsResponse { assertions: MarketOpsSignalAssuranceAssertion[]; }
 export interface MarketOpsSignalAssuranceAssertionFilter { tenant_id?: string; state?: string; evaluation_mode?: string; symbol?: string; limit?: number; }
-export interface MarketOpsSignalAssuranceEvaluation { evaluation_id: string; assertion_id: string; evaluation_session_date: string; input_completeness: string; trading_days_active: number; absolute_return?: number; benchmark_relative_return?: number; mfe?: number; mae?: number; materialization_condition_met: boolean; invalidation_condition_met: boolean; evaluation_version: string; }
+export interface MarketOpsSignalAssuranceEvaluation { evaluation_id: string; assertion_id: string; evaluation_session_date: string; input_completeness: string; trading_days_active: number; absolute_return?: number; benchmark_relative_return?: number; sector_relative_return?: number; mfe?: number; mae?: number; materialization_condition_met: boolean; invalidation_condition_met: boolean; evaluation_version: string; }
 export interface MarketOpsSignalAssuranceEvaluationsResponse { evaluations: MarketOpsSignalAssuranceEvaluation[]; }
-export interface MarketOpsSignalAssuranceEffectiveness { evidence_source: string; dimension: string; dimension_value: string; sample_size: number; directional_hits: number; materialized_count: number; invalidated_count: number; expired_count: number; censored_count: number; excluded_count: number; directional_accuracy?: number; accuracy_lower_bound?: number; accuracy_upper_bound?: number; materialization_rate?: number; average_return?: number; average_relative_return?: number; average_mfe?: number; average_mae?: number; exploratory: boolean; as_of: string; metric_definition_version: string; }
-export interface MarketOpsSignalAssuranceEffectivenessResponse { effectiveness: MarketOpsSignalAssuranceEffectiveness[]; minimum_ranked_sample: number; evidence_source_note: string; }
-export interface MarketOpsSignalAssuranceEffectivenessObservation { evidence_source: string; observation_id: string; reference_id: string; symbol: string; signal_type: string; direction: string; algorithm: string; algorithm_version: string; state: string; evaluation_mode?: string; horizon_sessions: number; signal_score?: number; confidence?: number; directional_hit?: boolean; absolute_return?: number; directional_return?: number; relative_return?: number; mfe?: number; mae?: number; origin_at?: string; outcome_at?: string; calculation_version?: string; calculation_run_id?: string; }
-export interface MarketOpsSignalAssuranceEffectivenessObservationsResponse { observations: MarketOpsSignalAssuranceEffectivenessObservation[]; evidence_source_note: string; }
+export interface MarketOpsSignalAssuranceEffectiveness { evidence_source: string; dimension: string; dimension_value: string; sample_size: number; directional_hits: number; materialized_count: number; invalidated_count: number; expired_count: number; censored_count: number; excluded_count: number; directional_accuracy?: number; accuracy_lower_bound?: number; accuracy_upper_bound?: number; materialization_rate?: number; average_return?: number; average_relative_return?: number; average_sector_relative_return?: number; broad_market_benchmark_sample_size: number; sector_benchmark_sample_size: number; average_mfe?: number; average_mae?: number; average_usefulness_score?: number; usefulness_lifecycle_state: string; usefulness_score_components: Record<string, number>; usefulness_policy_version: string; exploratory: boolean; viability_state: string; viability_reasons: string[]; viability_policy_version: string; as_of: string; metric_definition_version: string; }
+export interface MarketOpsSignalAssuranceEffectivenessResponse { effectiveness: MarketOpsSignalAssuranceEffectiveness[]; minimum_ranked_sample: number; evidence_source_note: string; operational_cutoff_date?: string; data_scope?: string; watchlist_context?: SubscriberWatchlistContext; }
+export interface MarketOpsSignalAssuranceEffectivenessObservation { evidence_source: string; observation_id: string; reference_id: string; symbol: string; signal_type: string; direction: string; algorithm: string; algorithm_version: string; state: string; evaluation_mode?: string; horizon_sessions: number; signal_score?: number; confidence?: number; directional_hit?: boolean; absolute_return?: number; directional_return?: number; relative_return?: number; sector_relative_return?: number; broad_market_benchmark_state?: string; sector_benchmark_state?: string; mfe?: number; mae?: number; usefulness_lifecycle_state?: string; usefulness_score?: number; usefulness_score_components?: Record<string, number>; usefulness_policy_version?: string; time_to_materialization_sessions?: number; origin_at?: string; outcome_at?: string; calculation_version?: string; calculation_run_id?: string; }
+export interface MarketOpsSignalAssuranceEffectivenessObservationsResponse { observations: MarketOpsSignalAssuranceEffectivenessObservation[]; evidence_source_note: string; operational_cutoff_date?: string; }
 export interface MarketOpsSignalAssuranceAssertionResponse { assertion: MarketOpsSignalAssuranceAssertion; }
 export interface MarketOpsSignalAssuranceRecommendation { recommendation_id: string; evidence_source: string; dimension: string; dimension_value: string; priority: string; kind: string; summary: string; sample_size: number; directional_accuracy?: number; accuracy_upper_bound?: number; metric_definition_version: string; as_of: string; }
-export interface MarketOpsSRISnapshot { snapshot_id:string; segment_id:string; session_date:string; as_of:string; state:string; composite_score?:number; relative_strength_score?:number; momentum_score?:number; momentum_acceleration?:number; rank?:number; rank_change_5d?:number; evidence_quality?:number; quality_state:string; quality_flags:unknown; components:unknown; input_provenance:unknown; algorithm_version:string; configuration_version:string; }
+export interface MarketOpsSRISnapshot { snapshot_id:string; segment_id:string; primary_etf?:string; session_date:string; as_of:string; state:string; composite_score?:number; relative_strength_score?:number; momentum_score?:number; momentum_acceleration?:number; rank?:number; rank_change_5d?:number; evidence_quality?:number; quality_state:string; quality_flags:unknown; components:unknown; input_provenance:unknown; algorithm_version:string; configuration_version:string; }
 export interface MarketOpsSRIRankingsResponse { snapshots: MarketOpsSRISnapshot[]; research_only:boolean; evidence_note:string; }
-export interface MarketOpsSignalAssuranceRecommendationsResponse { recommendations: MarketOpsSignalAssuranceRecommendation[]; minimum_ranked_sample: number; }
+export interface MarketOpsSRIHistoryResponse { snapshots: MarketOpsSRISnapshot[]; research_only:boolean; }
+export interface MarketOpsSRIETFMakeupSnapshot { snapshot_id:string; fund_name:string; effective_date:string; retrieved_at:string; source:string; source_url:string; holdings_count:number; total_weight:number; top_ten_weight:number; }
+export interface MarketOpsSRIETFMakeupHolding { rank:number; ticker:string; name:string; identifier:string; sedol:string; sector:string; currency:string; weight:number; shares_held:number; }
+export interface MarketOpsSRIETFMakeupResponse { segment_id:string; etf_symbol?:string; availability:"available"|"unavailable"|"not_configured"; reason?:string; snapshot?:MarketOpsSRIETFMakeupSnapshot; holdings:MarketOpsSRIETFMakeupHolding[]; research_only:boolean; evidence_note?:string; }
+export interface MarketOpsSignalAssuranceRecommendationsResponse { recommendations: MarketOpsSignalAssuranceRecommendation[]; minimum_ranked_sample: number; operational_cutoff_date?: string; }
+
+export type SubscriberWatchlistKind = "tenant_default" | "private";
+export interface SubscriberWatchlist { list_id: string; tenant_id: string; list_kind: SubscriberWatchlistKind; owner_subject: string; list_name: string; created_at: string; updated_at: string; }
+export interface SubscriberWatchlistItem { tenant_id: string; list_id: string; list_kind: SubscriberWatchlistKind; list_name: string; global_asset_id: string; ticker: string; company_name: string; asset_type: string; exchange: string; sector: string; eligibility_status: string; coverage_state: string; coverage_mode: string; added_at: string; }
+export interface SubscriberWatchlistsResponse { lists: SubscriberWatchlist[]; }
+export interface SubscriberWatchlistItemsResponse { items: SubscriberWatchlistItem[]; }
+export interface SubscriberWatchlistCreateRequest { list_name: string; correlation_id?: string; provenance?: unknown; }
+export type SubscriberWatchlistContextMode = "list" | "all";
+export interface SubscriberWatchlistContext { selection_mode: SubscriberWatchlistContextMode; list_id: string; list_name: string; selection_source: string; lists: SubscriberWatchlist[]; items: SubscriberWatchlistItem[]; member_count: number; }
+export interface SubscriberWatchlistContextRequest { selection_mode: SubscriberWatchlistContextMode; list_id?: string; provenance?: unknown; }
+export interface SubscriberCatalogAsset { global_asset_id:string; ticker:string; company_name:string; asset_type:string; exchange:string; sector:string; eligibility_status:string; coverage_state:string; coverage_mode:string; }
+export interface SubscriberCatalogResponse { assets: SubscriberCatalogAsset[]; }
+export interface SubscriberCatalogMembershipResult { membership: SubscriberWatchlistItem; activation_state:string; }
+
+export type SubscriberSubscriptionFeature =
+  | "market_dashboards" | "public_signals" | "sector_rotation_discovery"
+  | "value_intelligence" | "distressed_opportunity_intelligence" | "earnings_opportunity_intelligence"
+  | "sector_rotation_detail" | "options_signals" | "earnings_calendar" | "research_reports"
+  | "syncratic_explainability" | "signal_assurance_analytics" | "portfolio_analysis" | "batch_screening"
+  | "historical_replay" | "strategy_validation" | "custom_universes" | "api" | "white_label";
+export interface SubscriberSubscriptionProduct { product_key:string; billing_scope:"subject"|"tenant"|string; display_name:string; is_free:boolean; trial_days:number; feature_policy:Partial<Record<SubscriberSubscriptionFeature, boolean>>; limit_policy:Record<string, number>; revision:number; active?:boolean; changed_by?:string; created_at?:string; updated_at?:string; stripe_product_id?:string; stripe_monthly_price_id?:string; stripe_annual_price_id?:string; monthly_display_price?:string; annual_display_price?:string; }
+export interface SubscriberEffectiveSubscription extends SubscriberSubscriptionProduct { subscription_id:string; status:"trialing"|"active"|"past_due"|"suspended"|"canceled"|string; source:"subject"|"tenant_seat"|string; seat_role?:string; trial_ends_at?:string; current_period_ends_at?:string; grace_ends_at?:string; canceled_at?:string; }
+export interface SubscriberSubscriptionProductsResponse { products:SubscriberSubscriptionProduct[]; checkout_enabled?:boolean; }
+export interface SubscriberSubscriptionResponse { access_state:"active"|"unprovisioned"|string; enforcement_enabled:boolean; subscription:SubscriberEffectiveSubscription|null; }
+export interface SubscriberCheckoutRequest { product_key:"explorer"|"professional"|string; billing_period:"monthly"|"annual"|string; }
+export interface SubscriberCheckoutResponse { checkout_url:string; checkout_ref:string; stripe_session_id:string; }
+export interface SubscriberPortalResponse { portal_url:string; stripe_session_id:string; }
+
+export type SessionEnrollmentState = "marketops_ready"|"email_verification_required"|"tenant_access_missing"|"subscription_missing"|"watchlist_context_missing"|string;
+export interface SessionEnrollmentResponse { state:SessionEnrollmentState; tenant_id:string; subject:string; email?:string; display_name?:string; email_verified:boolean; self_enrollment:{ eligible:boolean; created:string[] }; access:{ marketops?:string }; subscription:SubscriberEffectiveSubscription|null; watchlist_context:SubscriberWatchlistContext|null; }
+export interface SubscriberSubjectSubscriptionAdminRecord { tenant_id:string; subject:string; subject_display_name?:string; subject_email?:string; subscription_id:string; product_key:string; display_name:string; status:string; trial_ends_at?:string; current_period_ends_at?:string; grace_ends_at?:string; canceled_at?:string; stripe_customer_id?:string; stripe_subscription_id?:string; provisioned_by:string; correlation_id:string; created_at:string; updated_at:string; }
+export interface SubscriberTenantSubscriptionAdminRecord { tenant_id:string; subscription_id:string; product_key:string; display_name:string; status:string; current_period_ends_at?:string; grace_ends_at?:string; canceled_at?:string; stripe_customer_id?:string; stripe_subscription_id?:string; provisioned_by:string; correlation_id:string; created_at:string; updated_at:string; }
+export interface SubscriberSubscriptionSeatAdminRecord { tenant_id:string; subject:string; subject_display_name?:string; subject_email?:string; tenant_subscription_id:string; seat_role:string; status:string; assigned_by:string; assigned_by_display_name?:string; assigned_by_email?:string; correlation_id:string; assigned_at:string; revoked_at?:string; }
+export interface SubscriberSubscriptionAuditAdminRecord { audit_id:string; tenant_id:string; subject:string; subject_display_name?:string; subject_email?:string; subscription_id:string; actor_subject:string; actor_display_name?:string; actor_email?:string; event_type:string; before_state:Record<string, unknown>; after_state:Record<string, unknown>; correlation_id:string; occurred_at:string; }
+export interface SubscriberBillingWebhookAdminRecord { provider_event_id:string; event_type:string; processing_status:string; error_message?:string; received_at:string; processed_at?:string; }
+export type SubscriberRefundRequestStatus = "requested"|"reviewing"|"approved_for_manual_refund"|"rejected"|"manual_refund_completed"|"closed"|string;
+export interface SubscriberRefundRequestAdminRecord { refund_request_id:string; tenant_id:string; subject:string; subject_display_name?:string; subject_email?:string; subscription_id:string; product_key:string; display_name:string; stripe_customer_id?:string; stripe_subscription_id?:string; stripe_session_id?:string; requested_amount_cents?:number; currency:string; reason:string; status:SubscriberRefundRequestStatus; admin_note?:string; requested_at:string; updated_at:string; resolved_at?:string; actor_subject?:string; actor_display_name?:string; actor_email?:string; correlation_id?:string; }
+export interface SubscriberRefundRequestAdminMutationRequest { tenant_id:string; status:SubscriberRefundRequestStatus; admin_note?:string; correlation_id?:string; }
+export interface SubscriberRefundRequestCreateRequest { requested_amount_cents?:number; currency?:string; reason:string; correlation_id?:string; }
+export interface SubscriberUserActivitySummaryRecord { subject:string; subject_display_name?:string; subject_email?:string; last_activity_at?:string; last_login_at?:string; last_logout_at?:string; login_count:number; feature_view_count:number; mutation_count:number; failed_mutation_count:number; top_feature_key?:string; }
+export interface SubscriberUserActivityEventRecord { activity_id:string; tenant_id:string; subject:string; subject_display_name?:string; subject_email?:string; app_id:string; event_type:string; feature_key?:string; http_method?:string; route_path?:string; status_code:number; correlation_id?:string; metadata?:Record<string, unknown>; occurred_at:string; }
+export interface SubscriberUserActivityResponse { tenant_id:string; summaries:SubscriberUserActivitySummaryRecord[]; events:SubscriberUserActivityEventRecord[]; }
+export interface SubscriberUserActivityRequest { event_type:"login"|"logout"|"feature_view"; app_id?:string; feature_key?:string; route_path?:string; correlation_id?:string; metadata?:Record<string, unknown>; }
+export type SubscriberUpgradeInteractionType = "prompt_shown"|"prompt_clicked"|"checkout_started"|"contact_sales_clicked";
+export interface SubscriberUpgradeInteractionRecord { interaction_id:string; tenant_id:string; subject:string; subject_display_name?:string; subject_email?:string; app_id:string; interaction_type:SubscriberUpgradeInteractionType|string; source_feature:string; source_route:string; source_url?:string; asset_symbol?:string; current_tier?:string; required_tier:string; prompt_variant?:string; cta_label?:string; correlation_id?:string; metadata?:Record<string, unknown>; occurred_at:string; }
+export interface SubscriberUpgradeInteractionRequest { interaction_type:SubscriberUpgradeInteractionType; app_id?:string; source_feature:string; source_route:string; source_url?:string; asset_symbol?:string; current_tier?:string; required_tier:"professional"|"institutional"; prompt_variant?:string; cta_label?:string; correlation_id?:string; metadata?:Record<string, unknown>; }
+export interface SubscriberSubscriptionAdministrationResponse { tenant_id:string; products:SubscriberSubscriptionProduct[]; subject_subscriptions:SubscriberSubjectSubscriptionAdminRecord[]; tenant_subscriptions:SubscriberTenantSubscriptionAdminRecord[]; seats:SubscriberSubscriptionSeatAdminRecord[]; audit_events:SubscriberSubscriptionAuditAdminRecord[]; billing_webhook_events:SubscriberBillingWebhookAdminRecord[]; upgrade_interactions?:SubscriberUpgradeInteractionRecord[]; refund_requests?:SubscriberRefundRequestAdminRecord[]; }
+export interface SubscriberSubscriptionProductUpdateRequest { display_name:string; is_free:boolean; trial_days:number; feature_policy:Partial<Record<SubscriberSubscriptionFeature, boolean>>; limit_policy:Record<string, number>; active:boolean; correlation_id?:string; }
+export interface SubscriberSubscriptionProductBillingRequest { stripe_product_id:string; stripe_monthly_price_id:string; stripe_annual_price_id:string; monthly_display_price?:string; annual_display_price?:string; correlation_id?:string; }
+export interface SubscriberSubjectSubscriptionBillingRequest { tenant_id:string; subject:string; stripe_customer_id:string; stripe_subscription_id:string; status:string; current_period_ends_at?:string; grace_ends_at?:string; canceled_at?:string; correlation_id?:string; }
+export interface SubscriberTenantSubscriptionBillingRequest { tenant_id:string; stripe_customer_id:string; stripe_subscription_id:string; status:string; current_period_ends_at?:string; grace_ends_at?:string; canceled_at?:string; correlation_id?:string; }
 
 export interface SchedulerRun {
   run_id: string;
@@ -61,8 +116,37 @@ export interface SchedulerRunResponse {
   run: SchedulerRun;
 }
 
-export interface ScheduledJob { job_id:string; label:string; schedule:string; timezone:string; status:"pending"|"running"|"succeeded"|"failed"|string; started_at?:string; completed_at?:string; exit_code?:number; }
+export interface ScheduledJob { job_id:string; label:string; schedule:string; timezone:string; status:"pending"|"running"|"succeeded"|"failed"|string; started_at?:string; completed_at?:string; exit_code?:number; run_now_enabled?:boolean; reason?:string; detail?:unknown; updated_at?:string; }
+export interface MarketOpsDataFreshness { view_id:string; label:string; latest_session_date?:string; latest_as_of?:string; row_count:number; expected_count:number; status:string; reason?:string; expected_freshness?:string; dependency_job_id?:string; dependency_label?:string; dependency_status?:string; dependency_schedule?:string; dependency_timezone?:string; dependency_started_at?:string; dependency_completed_at?:string; dependency_exit_code?:string; run_now_job_id?:string; run_now_enabled?:boolean; action_label?:string; staleness_explanation?:string; next_step?:string; }
 export interface ScheduledJobsResponse { jobs: ScheduledJob[]; }
+export interface ScheduledJobRunNow { job_id:string; status:string; action:string; runner:string; started_at:string; output?:string; }
+export interface ScheduledJobRunNowResponse { run: ScheduledJobRunNow; }
+
+export interface MarketOpsOperationsHealthTaskSummary {
+  tenant_id: string;
+  status_counts: Record<string, number>;
+  total_count: number;
+  incomplete_count: number;
+  stale_incomplete_count: number;
+  stale_threshold_minutes: number;
+  latest_session_date?: string;
+  latest_update?: string;
+  available: boolean;
+  error?: string;
+}
+
+export interface MarketOpsOperationsHealth {
+  generated_at: string;
+  tenant_id: string;
+  scheduled_jobs: ScheduledJob[];
+  data_freshness: MarketOpsDataFreshness[];
+  marketops_tasks: MarketOpsOperationsHealthTaskSummary;
+  replay_status: ReplayOperationsStatus;
+}
+
+export interface MarketOpsOperationsHealthResponse {
+  marketops_operations_health: MarketOpsOperationsHealth;
+}
 export interface StorageStore { store_id:string; observed_at?:string; used_bytes?:number; capacity_bytes?:number; free_bytes?:number; usage_percent?:number; status:string; detail?:unknown; message?:string; }
 export interface StorageOverviewResponse { stores:StorageStore[]; }
 export interface StorageComponent { store_id:string; component_kind:string; component_name:string; app_id:string; domain:string; attribution_method:"exact"|"estimated"|"shared"|"unattributed"; physical_bytes:number; attributed_bytes:number; observed_at:string; metadata?:unknown; }
@@ -619,8 +703,11 @@ export interface MarketOpsAsset {
   updated_at: string;
 }
 
+export interface MarketOpsPendingAsset { ticker: string; company: string; coverage_state: string; coverage_mode: string; eligibility_status: string; }
 export interface MarketOpsAssetsResponse {
   assets: MarketOpsAsset[];
+  pending_assets?: MarketOpsPendingAsset[];
+  watchlist_context?: SubscriberWatchlistContext;
 }
 export interface MarketOpsAssetCreateRequest { ticker:string; company?:string; sector?:string; industry?:string; }
 export interface MarketOpsAssetDisplayNameRequest { universe_group: string; display_name: string; }
@@ -653,7 +740,7 @@ export interface MarketOpsAssetQuotesResponse {
 export type MarketOpsValuationOutput = { score:number; fair_value:number; classification:string; algorithm_id:string; trace:{ raw_metrics?:Record<string,number>; component_scores?:Record<string,number>; confidence?:number; confidence_label?:string; confidence_reasons?:string[]; data_profile?:string; growth_status?:string; } };
 export type MarketOpsTacticalPosture = { posture:'constructive'|'neutral'|'caution'|string; overlay:number; algorithm_id:string; session_date:string; technical_components?:Record<string,number>; feature_observation_ids?:string[]; };
 export type MarketOpsValuationRow = { ticker:string; trade_date:string; eligible:boolean; evaluation_status:string; confidence:number; confidence_label:string; model_version:string; data_profile?:string; growth_status?:string; vc?:MarketOpsValuationOutput; dosm?:MarketOpsValuationOutput; tactical?:MarketOpsTacticalPosture; tactical_vc?:MarketOpsValuationOutput; tactical_dosm?:MarketOpsValuationOutput; };
-export interface MarketOpsValuationResponse { results:MarketOpsValuationRow[]; research_only:true; }
+export interface MarketOpsValuationResponse { results:MarketOpsValuationRow[]; research_only:true; watchlist_context?: SubscriberWatchlistContext; }
 
 export interface MarketOpsIntradayCondition {
   key: string; title: string; tone: "positive" | "negative" | "neutral" | string; score: number; evidence: string; interpretation: string; analyst_question: string;
@@ -2207,6 +2294,33 @@ export interface SyncraticMaterializationResult {
   decisions: SyncraticMaterializationDecision[];
 }
 
+
+export interface SyncraticDailyNarrativeMaterializeRequest {
+  tenant_id: string;
+  session_date?: string;
+  strategies?: string[];
+  enqueue_briefs?: boolean;
+  dry_run?: boolean;
+}
+
+export interface SyncraticDailyNarrativeMaterializationResult {
+  tenant_id: string;
+  session_date: string;
+  context_builder_version: string;
+  dry_run: boolean;
+  materialized_context_windows: number;
+  materialized_insights: number;
+  skipped_unchanged: number;
+  context_window_ids: string[];
+  syncratic_insight_ids: string[];
+  queued_job_ids: string[];
+  decisions: SyncraticMaterializationDecision[];
+}
+
+export interface SyncraticDailyNarrativeMaterializationResponse {
+  daily_narrative_materialization: SyncraticDailyNarrativeMaterializationResult;
+}
+
 export interface SyncraticInsightsResponse {
   syncratic_insights: SyncraticInsight[];
 }
@@ -2278,6 +2392,7 @@ export interface SyncraticAskRequest {
   tenant_id: string;
   max_prompt_bytes?: number;
   force?: boolean;
+  insight_type?: string;
 }
 
 // ask_status is "completed" (updated insight written) or "skipped"
@@ -2696,8 +2811,11 @@ export interface MarketOpsSignalOverviewMember { ticker:string; label:string; sc
 export interface MarketOpsSignalOverviewCategory { key:string; count:number; members:MarketOpsSignalOverviewMember[]; }
 export interface MarketOpsSignalOverviewCoverage { eligible:number; insufficient_inputs:number; unprocessed:number; }
 export interface MarketOpsSignalOverviewPoint { trade_date:string; categories:MarketOpsSignalOverviewCategory[]; coverage?:MarketOpsSignalOverviewCoverage; }
-export interface MarketOpsSignalOverviewResponse { generated_at:string; universe_group:string; window:MarketOpsSignalOverviewWindow; asset_count:number; risk_reward:{points:MarketOpsSignalOverviewPoint[]}; hypotheses:{points:MarketOpsSignalOverviewPoint[]}; options_flow_extremes:{as_of:string;categories:MarketOpsSignalOverviewCategory[];coverage:{eligible:number;insufficient_activity:number;unusable_ratio:number;missing_or_stale:number}}; intraday:{as_of_time?:string;categories:MarketOpsSignalOverviewCategory[]}; }
-export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; risk_reward?:MarketOpsRiskRewardResponse; }
+export interface MarketOpsSignalOverviewResponse { generated_at:string; universe_group:string; window:MarketOpsSignalOverviewWindow; asset_count:number; risk_reward:{points:MarketOpsSignalOverviewPoint[]}; hypotheses:{points:MarketOpsSignalOverviewPoint[]}; options_flow_extremes:{as_of:string;categories:MarketOpsSignalOverviewCategory[];coverage:{eligible:number;insufficient_activity:number;unusable_ratio:number;missing_or_stale:number}}; intraday:{as_of_time?:string;categories:MarketOpsSignalOverviewCategory[]}; watchlist_context?: SubscriberWatchlistContext; }
+export type MarketOpsCurrentEODContext = { symbol:string; session_date:string; open?:number; high?:number; low?:number; close?:number; volume?:number; vwap?:number; provider:string; usage_context:"current_market_context"; selected_observation_role:"global_reobservation"; policy_version:string; payload_fingerprint:string; source_event_id:string; source_run_id:string; algorithm_version:string; quality_state:string; as_of_time:string; };
+export type MarketOpsEODRevisionDelta = { session_date:string; field_name:string; initial_value?:number; revised_value?:number; delta_class:"unchanged"|"provider_revision"; materiality:"informational"|"review_required"; initial_observed_at:string; revised_observed_at:string; initial_source_event_id:string; revised_source_event_id:string; initial_source_run_id:string; revised_source_run_id:string; initial_payload_fingerprint:string; revised_payload_fingerprint:string; initial_algorithm_version:string; revised_algorithm_version:string; };
+export type MarketOpsEODRevisionReview = { available:boolean; usage_context:"revision_review"; initial_observation_role:"initial_tenant_local_capture"; revised_observation_role:"global_reobservation"; review_required_count?:number; deltas:MarketOpsEODRevisionDelta[]; };
+export interface MarketOpsAssetAlgorithmObservationsResponse { symbol:string; eod_zscores:MarketOpsEODZScore[]; other_outputs:AlgorithmResult[]; risk_reward?:MarketOpsRiskRewardResponse; current_eod_context?:MarketOpsCurrentEODContext | null; eod_revision_review?:MarketOpsEODRevisionReview; }
 
 
 export type CyberOpsTrafficWindow = "1h" | "24h" | "7d";

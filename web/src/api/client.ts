@@ -3,6 +3,7 @@ import type {
   SchedulerRunsResponse,
   SchedulerRunResponse,
   ScheduledJobsResponse,
+  ScheduledJobRunNowResponse,
   AdministrationNotificationsResponse,
   AdministrationSMTPSettingsResponse,
   AdministrationSMTPSettingsRequest,
@@ -37,8 +38,10 @@ import type {
   ReplayJobCreateRequest,
   ReplayJobCancelRequest,
   ReplayOperationsStatusResponse,
+  MarketOpsOperationsHealthResponse,
   AppProfilesResponse,
   SessionExperienceResponse,
+  SessionEnrollmentResponse,
   MarketOpsAssetsResponse,
   MarketOpsAsset,
   MarketOpsAssetBackfillJob,
@@ -146,6 +149,8 @@ import type {
   SyncraticInsightFilter,
   SyncraticContextWindowFilter,
   SyncraticMaterializeRequest,
+  SyncraticDailyNarrativeMaterializeRequest,
+  SyncraticDailyNarrativeMaterializationResponse,
   SyncraticAskRequest,
   SyncraticAskResponse,
   AlgorithmDefinitionFilter,
@@ -177,9 +182,34 @@ import type {
   MarketOpsSignalAssuranceAssertionResponse,
   MarketOpsSignalAssuranceRecommendationsResponse,
   MarketOpsSRIRankingsResponse,
+  MarketOpsSRIHistoryResponse,
+  MarketOpsSRIETFMakeupResponse,
+  SubscriberWatchlistsResponse,
+  SubscriberWatchlistItemsResponse,
+  SubscriberWatchlistCreateRequest,
+  SubscriberWatchlistContext,
+  SubscriberWatchlistContextRequest,
+  SubscriberWatchlist,
+  SubscriberCatalogResponse,
+  SubscriberCatalogMembershipResult,
+  SubscriberSubscriptionProductsResponse,
+  SubscriberSubscriptionResponse,
+  SubscriberPortalResponse,
+  SubscriberCheckoutRequest,
+  SubscriberCheckoutResponse,
+  SubscriberSubscriptionAdministrationResponse,
+  SubscriberRefundRequestAdminMutationRequest,
+  SubscriberRefundRequestCreateRequest,
+  SubscriberUserActivityResponse,
+  SubscriberUserActivityRequest,
+  SubscriberUpgradeInteractionRequest,
+  SubscriberSubscriptionProductUpdateRequest,
+  SubscriberSubscriptionProductBillingRequest,
+  SubscriberSubjectSubscriptionBillingRequest,
+  SubscriberTenantSubscriptionBillingRequest,
 } from "../types";
 import { authConfig } from "../auth/config";
-import { getAccessToken } from "../auth/session";
+import * as authSession from "../auth/session";
 
 // Typed API error. Maps gateway error bodies {"error":<code>,"message":<text>}
 // plus network failures, so the UI can render endpoint + message.
@@ -226,8 +256,32 @@ export function buildUrl(
 // Bearer token attached to every request when auth is enabled and a token is held.
 // /healthz and /readyz stay usable unauthenticated because the token is absent until login.
 function authHeaders(): Record<string, string> {
-  const token = authConfig.authEnabled ? getAccessToken() : null;
+  const token = authConfig.authEnabled ? authSession.getAccessToken() : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function apiErrorFromResponse(res: Response, endpoint: string, fallbackCode = "http_error"): Promise<ApiError> {
+  let code = fallbackCode;
+  let message = res.statusText || `HTTP ${res.status}`;
+  try {
+    const body = await res.json();
+    if (body && typeof body.error === "string") code = body.error;
+    if (body && typeof body.message === "string") message = body.message;
+  } catch {
+    /* non-JSON error body */
+  }
+  return new ApiError(res.status, code, message, endpoint);
+}
+
+function isExpiredTokenError(error: ApiError): boolean {
+  return error.status === 401 && /token is expired|expired token|token expired/i.test(error.message);
+}
+
+async function throwApiError(error: ApiError): Promise<never> {
+  if (authConfig.authEnabled && isExpiredTokenError(error)) {
+    await authSession.redirectToSignInForExpiredSession?.();
+  }
+  throw error;
 }
 
 async function get<T>(
@@ -246,16 +300,7 @@ async function get<T>(
     throw new ApiError(0, "network_error", "Gateway unreachable", endpoint);
   }
   if (!res.ok) {
-    let code = "http_error";
-    let message = res.statusText || `HTTP ${res.status}`;
-    try {
-      const body = await res.json();
-      if (body && typeof body.error === "string") code = body.error;
-      if (body && typeof body.message === "string") message = body.message;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiError(res.status, code, message, endpoint);
+    await throwApiError(await apiErrorFromResponse(res, endpoint));
   }
   return (await res.json()) as T;
 }
@@ -282,17 +327,7 @@ async function post<T>(
     throw new ApiError(0, "network_error", "Gateway unreachable", endpoint);
   }
   if (!res.ok) {
-    let code = "http_error";
-    let message = res.statusText || `HTTP ${res.status}`;
-    try {
-      const errBody = await res.json();
-      if (errBody && typeof errBody.error === "string") code = errBody.error;
-      if (errBody && typeof errBody.message === "string")
-        message = errBody.message;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiError(res.status, code, message, endpoint);
+    await throwApiError(await apiErrorFromResponse(res, endpoint));
   }
   return (await res.json()) as T;
 }
@@ -309,12 +344,7 @@ async function put<T>(path: string, body?: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const value = await res.json();
-      message = value.message ?? message;
-    } catch {}
-    throw new ApiError(res.status, "http_error", message, endpoint);
+    await throwApiError(await apiErrorFromResponse(res, endpoint));
   }
   return (await res.json()) as T;
 }
@@ -326,7 +356,7 @@ async function del(path: string): Promise<void> {
     headers: { Accept: "application/json", ...authHeaders() },
   });
   if (!res.ok) {
-    throw new ApiError(res.status, "http_error", res.statusText, endpoint);
+    await throwApiError(await apiErrorFromResponse(res, endpoint));
   }
 }
 
@@ -347,17 +377,7 @@ async function patch<T>(path: string, body?: unknown): Promise<T> {
     throw new ApiError(0, "network_error", "Gateway unreachable", endpoint);
   }
   if (!res.ok) {
-    let code = "http_error";
-    let message = res.statusText || `HTTP ${res.status}`;
-    try {
-      const errBody = await res.json();
-      if (errBody && typeof errBody.error === "string") code = errBody.error;
-      if (errBody && typeof errBody.message === "string")
-        message = errBody.message;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiError(res.status, code, message, endpoint);
+    await throwApiError(await apiErrorFromResponse(res, endpoint));
   }
   return (await res.json()) as T;
 }
@@ -369,6 +389,10 @@ export const api = {
     get<SchedulerRunsResponse>("/v1/scheduler/runs", { limit }),
   listScheduledJobs: () =>
     get<ScheduledJobsResponse>("/v1/administration/scheduled-jobs"),
+  runScheduledJobNow: (jobId: string) =>
+    post<ScheduledJobRunNowResponse>(`/v1/administration/scheduled-jobs/${encodeURIComponent(jobId)}/run-now`, {}),
+  getMarketOpsOperationsHealth: (tenantId: string) =>
+    get<MarketOpsOperationsHealthResponse>("/v1/administration/marketops/operations-health", { tenant_id: tenantId }),
   listMarketOpsTasks: (tenantId: string) =>
     get<{ tasks: any[] }>(
       "/v1/administration/marketops/tasks",
@@ -546,6 +570,8 @@ export const api = {
   getAppProfiles: () => get<AppProfilesResponse>("/v1/app-profiles"),
   getSessionExperience: () =>
     get<SessionExperienceResponse>("/v1/session/experience"),
+  getSessionEnrollment: () =>
+    get<SessionEnrollmentResponse>("/v1/session/enrollment", undefined, "no-store"),
   // G071 MarketOps asset universe (read-only). tenant_id is a path segment;
   // active_only is serialized as the string the backend parses ("false" disables it).
   listMarketOpsAssets: (filter: MarketOpsAssetFilter = {}) =>
@@ -621,12 +647,18 @@ export const api = {
       {},
       "no-store",
     ),
-  getMarketOpsEEOM: (tenantId: string) =>
+  getMarketOpsEEOM: (
+    tenantId: string,
+    options: { symbol?: string; includeHistory?: boolean } = {},
+  ) =>
     get<any>(
       "/v1/tenants/" +
         encodeURIComponent(tenantId) +
         "/marketops/earnings-opportunities",
-      {},
+      {
+        ...(options.symbol ? { symbol: options.symbol } : {}),
+        ...(options.includeHistory ? { include_history: "true" } : {}),
+      },
       "no-store",
     ),
   getMarketOpsMaterialEvents: (tenantId: string, symbol?: string) =>
@@ -799,14 +831,60 @@ export const api = {
     get<MarketOpsSignalAssuranceEvaluationsResponse>(`/v1/marketops/signal-assurance/assertions/${encodeURIComponent(assertionId)}/evaluations`, { tenant_id: tenantId, limit: 100 }),
   getMarketOpsSignalAssuranceEffectiveness: (tenantId: string, evidenceSource = "", dimension = "overall", evaluationMode = "") =>
     get<MarketOpsSignalAssuranceEffectivenessResponse>("/v1/marketops/signal-assurance/effectiveness", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, dimension: dimension || undefined, evaluation_mode: evaluationMode || undefined }),
-  listMarketOpsSignalAssuranceEffectivenessObservations: (tenantId: string, evidenceSource: string, dimension: string, dimensionValue: string, evaluationMode = "") =>
-    get<MarketOpsSignalAssuranceEffectivenessObservationsResponse>("/v1/marketops/signal-assurance/effectiveness/observations", { tenant_id: tenantId, evidence_source: evidenceSource, dimension, dimension_value: dimensionValue, evaluation_mode: evaluationMode || undefined, limit: 200 }),
+  listMarketOpsSignalAssuranceEffectivenessObservations: (tenantId: string, evidenceSource: string, dimension: string, dimensionValue: string, evaluationMode = "", limit = 200) =>
+    get<MarketOpsSignalAssuranceEffectivenessObservationsResponse>("/v1/marketops/signal-assurance/effectiveness/observations", { tenant_id: tenantId, evidence_source: evidenceSource, dimension, dimension_value: dimensionValue, evaluation_mode: evaluationMode || undefined, limit }),
   getMarketOpsSignalAssuranceAssertion: (assertionId: string, tenantId: string) =>
     get<MarketOpsSignalAssuranceAssertionResponse>(`/v1/marketops/signal-assurance/assertions/${encodeURIComponent(assertionId)}`, { tenant_id: tenantId }),
   getMarketOpsSignalAssuranceRecommendations: (tenantId: string, evidenceSource = "", evaluationMode = "") =>
     get<MarketOpsSignalAssuranceRecommendationsResponse>("/v1/marketops/signal-assurance/recommendations", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, evaluation_mode: evaluationMode || undefined }),
+  listSubscriberSubscriptionProducts: () =>
+    get<SubscriberSubscriptionProductsResponse>("/v1/marketops/subscription-products", undefined, "no-store"),
+  getSubscriberSubscriptionAdministration: (tenantId: string) =>
+    get<SubscriberSubscriptionAdministrationResponse>("/v1/administration/subscriptions", { tenant_id: tenantId }, "no-store"),
+  getSubscriberUserActivity: (tenantId: string, filter: { subject?: string; q?: string; event_type?: string; limit?: number } = {}) =>
+    get<SubscriberUserActivityResponse>("/v1/administration/subscriptions/activity", { tenant_id: tenantId, subject: filter.subject || undefined, q: filter.q || undefined, event_type: filter.event_type || undefined, limit: filter.limit ?? 200 }, "no-store"),
+  recordSubscriberSessionActivity: (body: SubscriberUserActivityRequest) =>
+    post<{ status: string }>("/v1/session/activity", body),
+  recordSubscriberUpgradeInteraction: (body: SubscriberUpgradeInteractionRequest) =>
+    post<{ status: string }>("/v1/marketops/subscriptions/upgrade-interactions", body),
+  createSubscriberRefundRequest: (tenantId: string, body: SubscriberRefundRequestCreateRequest) =>
+    post<{ status: string; refund_request: Record<string, unknown> }>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscription/refund-requests", body),
+  updateSubscriberRefundRequest: (refundRequestId: string, body: SubscriberRefundRequestAdminMutationRequest) =>
+    put<{ status: string; refund_request: Record<string, unknown> }>("/v1/administration/subscriptions/refund-requests/" + encodeURIComponent(refundRequestId), body),
+  updateSubscriberSubscriptionProduct: (productKey: string, body: SubscriberSubscriptionProductUpdateRequest) =>
+    put<{ status: string }>("/v1/administration/subscriptions/products/" + encodeURIComponent(productKey), body),
+  updateSubscriberSubscriptionProductBilling: (productKey: string, body: SubscriberSubscriptionProductBillingRequest) =>
+    put<{ status: string }>("/v1/administration/subscriptions/products/" + encodeURIComponent(productKey) + "/billing", body),
+  updateSubscriberSubjectSubscriptionBilling: (body: SubscriberSubjectSubscriptionBillingRequest) =>
+    put<{ status: string }>("/v1/administration/subscriptions/subject/billing", body),
+  updateSubscriberTenantSubscriptionBilling: (body: SubscriberTenantSubscriptionBillingRequest) =>
+    put<{ status: string }>("/v1/administration/subscriptions/tenant/billing", body),
+  getSubscriberSubscription: (tenantId: string) =>
+    get<SubscriberSubscriptionResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscription", undefined, "no-store"),
+  createSubscriberCheckoutSession: (tenantId: string, body: SubscriberCheckoutRequest) =>
+    post<SubscriberCheckoutResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscription/checkout", body),
+  createSubscriberPortalSession: (tenantId: string) =>
+    post<SubscriberPortalResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscription/portal", {}),
+  listSubscriberWatchlists: (tenantId: string) =>
+    get<SubscriberWatchlistsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists", undefined, "no-store"),
+  getSubscriberWatchlistContext: (tenantId: string) =>
+    get<SubscriberWatchlistContext>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/watchlist-context", undefined, "no-store"),
+  setSubscriberWatchlistContext: (tenantId: string, body: SubscriberWatchlistContextRequest) =>
+    put<SubscriberWatchlistContext>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/watchlist-context", body),
+  listSubscriberWatchlistItems: (tenantId: string, listId: string) =>
+    get<SubscriberWatchlistItemsResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists/" + encodeURIComponent(listId) + "/items", undefined, "no-store"),
+  createSubscriberPrivateWatchlist: (tenantId: string, body: SubscriberWatchlistCreateRequest) =>
+    post<{ list: SubscriberWatchlist }>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/private-lists", body),
+  searchSubscriberCatalog: (tenantId: string, query: string) =>
+    get<SubscriberCatalogResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/catalog", { q: query, limit: 20 }, "no-store"),
+  addSubscriberPrivateCatalogMembership: (tenantId: string, listId: string, globalAssetId: string) =>
+    post<SubscriberCatalogMembershipResult>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists/" + encodeURIComponent(listId) + "/catalog-memberships", { global_asset_id: globalAssetId, correlation_id: "subscriber-catalog-ui" }),
   getMarketOpsSRIRankings: (tenantId: string, segmentType = "", state = "") =>
     get<MarketOpsSRIRankingsResponse>("/v1/marketops/sectors/rankings", { tenant_id: tenantId, segment_type: segmentType || undefined, state: state || undefined }),
+  getMarketOpsSRIHistory: (tenantId: string, segmentId: string, limit = 60) =>
+    get<MarketOpsSRIHistoryResponse>("/v1/marketops/sectors/" + encodeURIComponent(segmentId) + "/history", { tenant_id: tenantId, limit }),
+  getMarketOpsSRIETFMakeup: (tenantId: string, segmentId: string, limit = 25) =>
+    get<MarketOpsSRIETFMakeupResponse>("/v1/marketops/sectors/" + encodeURIComponent(segmentId) + "/makeup", { tenant_id: tenantId, limit }),
   // G139 MarketOps Opportunities workbench (read-only). Opportunity list/detail
   // plus supporting linked-record reads (hypothesis-evaluations, hypotheses,
   // evidence, market-state lineage). research_only / eligible / triggered /
@@ -1395,6 +1473,11 @@ export const api = {
   materializeSyncraticContexts: (request: SyncraticMaterializeRequest) =>
     post<SyncraticMaterializationResponse>(
       "/v1/syncratic/materialize",
+      request,
+    ),
+  materializeSyncraticDailyNarratives: (request: SyncraticDailyNarrativeMaterializeRequest) =>
+    post<SyncraticDailyNarrativeMaterializationResponse>(
+      "/v1/syncratic/daily-narratives/materialize",
       request,
     ),
   // G090 operator-triggered Syncratic Ask enrichment over an existing context

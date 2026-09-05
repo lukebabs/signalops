@@ -40,7 +40,7 @@ make compose-down
 - `redpanda`: default Kafka-compatible broker.
 - `redpanda-console`: local broker UI on `http://localhost:18080`.
 - `topic-bootstrap`: one-shot topic creation job.
-- `postgres`: relational system-of-record store on `localhost:15432` for scheduler runs, provider usage, idempotency, catalogs, lifecycle state, and operational metadata.
+- `postgres`: relational system-of-record store on `localhost:15432` for generic SignalOps scheduler runs, provider usage, idempotency, catalogs, lifecycle state, and operational metadata. In the dedicated production MarketOps boundary, MarketOps scheduled-job operational status is stored in `marketops-postgres` through `marketops_scheduled_job_statuses` and `marketops_scheduled_job_runs`.
 - `timescaledb`: temporal/replay store on `localhost:15433` for raw events, normalized events, signal observations, feature/window data, and market-data history.
 - `gateway`: SignalOps gateway on `http://localhost:18000`.
 - `normalizer`: Go worker that consumes `signalops.local.raw.v1`, publishes `signalops.local.normalized.v1`, and persists normalized lineage.
@@ -105,7 +105,7 @@ SignalOps keeps PostgreSQL and TimescaleDB as separate logical roles. PostgreSQL
 
 In local Compose these roles run as two services:
 
-- `postgres` / `SIGNALOPS_DATABASE_URL`: scheduler runs, provider usage, idempotency, catalogs, alert/insight lifecycle state, and operational metadata.
+- `postgres` / `SIGNALOPS_DATABASE_URL`: generic SignalOps scheduler runs, provider usage, idempotency, catalogs, alert/insight lifecycle state, and operational metadata. MarketOps production operations that have crossed the dedicated-boundary gate use `SIGNALOPS_MARKETOPS_DATABASE_URL` for MarketOps data and scheduler-status state.
 - `timescaledb` / `SIGNALOPS_TEMPORAL_DATABASE_URL`: `raw_event_ledger`, `normalized_event_ledger`, `signal_ledger`, and market-data temporal history hypertables.
 
 Apply migrations separately:
@@ -116,6 +116,8 @@ make compose-temporal-migrate
 ```
 
 If `SIGNALOPS_TEMPORAL_DATABASE_URL` is empty, services fall back to the relational DSN for compatibility with single-Postgres deployments and existing tests.
+
+Dedicated MarketOps deployments add `marketops-postgres` and `marketops-timescaledb` through the MarketOps boundary Compose overlays. `SIGNALOPS_MARKETOPS_DATABASE_URL` and `SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL` are rendered into protected root-owned environment files, not committed `.env` files. The Admin scheduled-jobs view reads MarketOps status from `marketops_scheduled_job_statuses`; local `runtime/scheduled-jobs/` files are ignored fallback/debug artifacts.
 
 For an existing deployment, apply temporal migrations and backfill or replay existing raw/normalized/signal rows before redeploying services with `SIGNALOPS_TEMPORAL_DATABASE_URL` enabled. Without that step, new temporal writes go to TimescaleDB but historical rows that only exist in relational PostgreSQL will not appear in temporal-backed query endpoints.
 
@@ -152,38 +154,61 @@ running a second reverse proxy. The SignalOps overlay `compose.traefik.yaml`
 attaches the `web` service to the external Traefik network and adds Docker labels
 for the existing `websecure` entrypoint and `letsencrypt` certificate resolver.
 
-Required SignalOps env values:
+Required SignalOps env values for the production package:
 
 ```bash
 SIGNALOPS_PUBLIC_HOST=signalops.syncratic.io
 TRAEFIK_NETWORK=syncratic-core_syncratic_net
-COMPOSE_FILE=compose.yaml:compose.traefik.yaml
+COMPOSE_FILE=compose.yaml:compose.marketops-boundary.yaml:compose.marketops-read-cutover.yaml:compose.marketops-writer-cutover.yaml:compose.marketops-pgbackrest.yaml:compose.traefik.yaml
+SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD=<non-committed dedicated MarketOps primary password>
+SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD=<non-committed dedicated MarketOps temporal password>
+SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD=<non-committed dedicated subscriber gateway password>
+SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED=true
 ```
 
-`COMPOSE_FILE` is intentional for the public deployment. It makes a plain
-`docker compose up -d web` render the Traefik overlay by default, so rebuilds do
-not silently recreate `web` without router labels and produce a public 404.
+`COMPOSE_FILE` is intentional for the public production deployment. It makes a
+plain `docker compose up -d` render the public Traefik router, dedicated
+MarketOps database boundary, Gateway read cutover, continuous MarketOps writer
+cutover, and pgBackRest-capable database images by default. This prevents a
+normal restart from silently recreating `web` without router labels, `gateway`
+without dedicated MarketOps reads, or the dedicated databases without the
+recovery overlay.
+
+Before relying on plain Compose, run:
+
+```bash
+make compose-authority-validate
+```
+
+The verifier checks the implicit Compose graph, required non-committed secrets,
+Traefik labels, dedicated MarketOps URLs, boundary-required flag, and pgBackRest
+image overlays.
 
 The parent Syncratic core Traefik service must already be running and configured
 with its Let's Encrypt resolver credentials, including `LETSENCRYPT_EMAIL`,
 `GODADDY_API_KEY`, and `GODADDY_API_SECRET` in the parent stack. DNS for
 `SIGNALOPS_PUBLIC_HOST` must point at the same public edge used by Syncratic core.
 
-Start SignalOps with the edge overlay:
+Start or restart the production SignalOps package with plain Compose after the authority verifier passes:
 
 ```bash
-make deploy-web
-# equivalent to:
-# VITE_SIGNALOPS_AUTH_ENABLED=true docker compose -f compose.yaml -f compose.traefik.yaml up -d --build web
+make compose-authority-validate
+docker compose up -d --build
 ```
 
-`make deploy-web` rebuilds the `web` image **with frontend auth enabled** and
-**with the Traefik overlay applied** in one step. The deployment `.env` also sets
-`COMPOSE_FILE=compose.yaml:compose.traefik.yaml` so plain Compose operations keep
-Traefik labels attached. If `COMPOSE_FILE` is absent, a bare
-`docker compose up -d --build web` can recreate `web` without `traefik.*` labels,
-which **404s the public host**. Always keep `COMPOSE_FILE` set for this public
-deployment and prefer `make deploy-web` when rebuilding the public web image.
+Bounded service restarts use the same authority model:
+
+```bash
+docker compose up -d --build web
+docker compose up -d --build gateway
+docker compose up -d gateway normalizer signal-persister marketops-signal-assurance-registrar marketops-signal-assurance-outbox
+```
+
+The constrained deployment-agent actions remain available for audited run-now,
+canary, and operator controls, but they are no longer the only safe way to
+restart SignalOps. Any deployment-agent path that renders the MarketOps cutover
+environment must preserve the stable `SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD`
+from `.env` so it does not drift from the plain Compose runtime.
 
 Only the `web` service is exposed publicly. The web nginx container proxies API
 and SSE paths to the internal gateway, preserving same-origin browser behavior:
@@ -389,7 +414,7 @@ The selected-asset view reads `GET /v1/tenants/{tenant_id}/marketops/assets/{sym
 
 ### Browser session inactivity and renewal
 
-The browser session is inactivity-based, not a fixed access-token lifetime. `VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES` defaults to `30`; pointer, keyboard, scroll, touch, and browser-focus activity keep the local session active. While it remains active, the SPA renews a token that is within `VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS` (default `300`) of expiry. After the configured inactivity period the SPA clears its local user/token and requires a new sign-in flow.
+The browser session is inactivity-based, not a fixed access-token lifetime. `VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES` defaults to `30`; pointer, keyboard, scroll, touch, and browser-focus activity keep the local session active. While it remains active, the SPA renews a token that is within `VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS` (default `60`) of expiry. After the configured inactivity period the SPA clears its local user/token and requires a new sign-in flow.
 
 `signalops-web` uses refresh-token renewal when the provider grants a refresh token; otherwise it falls back to the OIDC iframe callback at `${public_origin}/auth/silent-renew`. Register that exact redirect URI for the `signalops-web` Keycloak client, in addition to `${public_origin}/auth/callback` and the public-origin logout redirect. The IdP's own maximum session/idle limits remain authoritative and can still require sign-in when they are stricter than the browser setting.
 
@@ -399,7 +424,7 @@ The browser session is inactivity-based, not a fixed access-token lifetime. `VIT
 
 ### MarketOps strategic and tactical algorithm sequence
 
-Weekly FMP-backed VC/DOSM snapshots provide strategic context; daily Tactical Market Posture and Exhaustive Reversal provide post-close technical context. The daily sequence completes Risk/Reward, retention, tactical posture, Exhaustive Reversal, same-session convergence refresh, and a rolling 45-calendar-day outcome-maturity sweep before the universal completion gate. The governed post-close workflow then refreshes the research-only SRI Foundation from canonical ETF EOD prices; its price-led ranks do not create signals or trade recommendations. All outputs are research-only and deterministic. The authoritative logic, score meaning, expected analyst outcomes, limits, registry IDs, and UI surfaces are documented in `docs/use_cases/marketops/daily_market_surveillance/algorithms/marketops_algorithm_catalog_v1.md`.
+Weekly FMP-backed VC/DOSM snapshots provide strategic context; daily Tactical Market Posture and Exhaustive Reversal provide post-close technical context. The daily sequence completes Risk/Reward, retention, tactical posture, Exhaustive Reversal, same-session convergence refresh, and a rolling 45-calendar-day outcome-maturity sweep before the universal completion gate. A separate governed SRI job runs weekdays at 20:07 America/New_York, after extended-session processing. It reconciles the dedicated ETF registry to one completed EOD session before refreshing the research-only SRI Foundation; its price-led ranks do not create signals or trade recommendations. A separate governed 20:20 America/New_York job collects current issuer-published State Street ETF makeup for the supported SRI primary ETFs; it is representational only and cannot change SRI scores. See `docs/use_cases/marketops/daily_market_surveillance/operations/sri_etf_makeup.md` for coverage, provenance, schedule, and operating controls. All outputs are research-only and deterministic. The authoritative logic, score meaning, expected analyst outcomes, limits, registry IDs, and UI surfaces are documented in `docs/use_cases/marketops/daily_market_surveillance/algorithms/marketops_algorithm_catalog_v1.md`.
 
 ### Operating timezone
 

@@ -881,6 +881,226 @@ ON CONFLICT (tenant_id, primitive_type, definition_key, version) DO UPDATE SET
 	return nil
 }
 
+func (r *Repository) ListMarketOpsOperationsFreshness(ctx context.Context, tenantID string) ([]storage.MarketOpsOperationsFreshnessRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+WITH asset_set AS (
+  SELECT upper(ticker) AS symbol
+  FROM marketops_universal_assets
+  WHERE tenant_id=$1 AND is_active
+), expected AS (
+  SELECT count(DISTINCT symbol)::integer AS selected_assets
+  FROM asset_set
+), assets AS (
+  SELECT 'assets'::text AS view_id, 'Assets analytical coverage'::text AS label,
+    max(state.session_date)::date AS latest_session_date,
+    max(state.as_of_time)::timestamptz AS latest_as_of,
+    count(DISTINCT asset.symbol) FILTER (
+      WHERE state.session_date=(SELECT max(session_date) FROM subscriber_gateway_global_market_states)
+    )::integer AS row_count,
+    (SELECT selected_assets FROM expected) AS expected_count
+  FROM asset_set asset
+  LEFT JOIN subscriber_gateway_global_market_states state
+    ON upper(state.symbol)=asset.symbol
+), components AS (
+  SELECT 'market_state'::text AS view_id, 'Market State'::text AS label,
+    max(session_date)::date AS latest_session_date, max(as_of_time)::timestamptz AS latest_as_of,
+    count(*) FILTER (WHERE session_date=(SELECT max(session_date) FROM subscriber_gateway_global_market_states))::integer AS row_count,
+    (SELECT selected_assets FROM expected) AS expected_count
+  FROM subscriber_gateway_global_market_states
+  UNION ALL
+  SELECT 'risk_reward', 'Risk/Reward',
+    max(session_date)::date, max(observed_at)::timestamptz,
+    count(*) FILTER (WHERE session_date=(SELECT max(session_date) FROM subscriber_gateway_global_risk_reward_snapshots))::integer,
+    (SELECT selected_assets FROM expected)
+  FROM subscriber_gateway_global_risk_reward_snapshots
+  UNION ALL
+  SELECT 'sri', 'Sector Rotation Intelligence',
+    max(session_date)::date, max(as_of_time)::timestamptz,
+    count(*) FILTER (WHERE session_date=(SELECT max(session_date) FROM subscriber_gateway_global_sri_snapshots))::integer,
+    (SELECT count(*)::integer FROM subscriber_gateway_global_sri_segments WHERE active AND segment_type <> 'benchmark')
+  FROM subscriber_gateway_global_sri_snapshots
+  UNION ALL
+  SELECT 'signal_assurance', 'Signal Assurance',
+    max(matured_session_date)::date, max(observed_at)::timestamptz,
+    count(*) FILTER (WHERE matured_session_date=(SELECT max(matured_session_date) FROM subscriber_gateway_global_signal_assurance_observations))::integer,
+    NULL::integer
+  FROM subscriber_gateway_global_signal_assurance_observations
+), latest_completed AS (
+  SELECT max(latest_session_date)::date AS session_date
+  FROM components
+  WHERE view_id IN ('market_state','risk_reward')
+), dashboard AS (
+  SELECT 'dashboard'::text AS view_id, 'Dashboard'::text AS label,
+    min(latest_session_date)::date AS latest_session_date,
+    max(latest_as_of)::timestamptz AS latest_as_of,
+    count(*) FILTER (WHERE latest_session_date IS NOT NULL AND latest_session_date=(SELECT min(latest_session_date) FROM components WHERE latest_session_date IS NOT NULL))::integer AS row_count,
+    count(*)::integer AS expected_count
+  FROM components
+), market_clock AS (
+  SELECT (
+    EXTRACT(ISODOW FROM (now() AT TIME ZONE 'America/New_York')) BETWEEN 1 AND 5
+    AND (now() AT TIME ZONE 'America/New_York')::time >= TIME '09:30'
+    AND (now() AT TIME ZONE 'America/New_York')::time <= TIME '20:00'
+  ) AS monitor_window
+), intraday AS (
+  SELECT 'intraday'::text AS view_id, 'Intraday conditions'::text AS label,
+    max(as_of_time)::date AS latest_session_date, max(as_of_time)::timestamptz AS latest_as_of,
+    CASE
+      WHEN (SELECT monitor_window FROM market_clock) THEN count(DISTINCT symbol) FILTER (WHERE as_of_time >= now() - interval '30 minutes')::integer
+      ELSE count(DISTINCT symbol) FILTER (WHERE as_of_time::date=(SELECT session_date FROM latest_completed))::integer
+    END AS row_count,
+    (SELECT selected_assets FROM expected) AS expected_count
+  FROM marketops_intraday_condition_snapshots
+  WHERE tenant_id=$1
+), latest_fmp_workflow AS (
+  SELECT workflow_id,session_date,completed_at,updated_at
+  FROM subscriber_global_annual_financial_workflows
+  ORDER BY session_date DESC
+  LIMIT 1
+), fmp AS (
+  SELECT 'fmp_annual'::text AS view_id, 'FMP annual financials'::text AS label,
+    workflow.session_date::date AS latest_session_date,
+    CASE WHEN workflow.workflow_id IS NULL THEN NULL::timestamptz ELSE GREATEST(COALESCE(workflow.completed_at, '-infinity'::timestamptz), COALESCE(max(task.completed_at), '-infinity'::timestamptz), workflow.updated_at)::timestamptz END AS latest_as_of,
+    count(task.task_id) FILTER (WHERE task.status='succeeded')::integer AS row_count,
+    count(task.task_id)::integer AS expected_count
+  FROM (SELECT 1) seed
+  LEFT JOIN latest_fmp_workflow workflow ON true
+  LEFT JOIN subscriber_global_annual_financial_tasks task ON task.workflow_id=workflow.workflow_id
+  GROUP BY workflow.workflow_id,workflow.session_date,workflow.completed_at,workflow.updated_at
+), daily_syncratic_contexts AS (
+  SELECT context_window_id, window_start, window_end, updated_at
+  FROM syncratic_context_windows
+  WHERE tenant_id=$1
+    AND app_id='marketops'
+    AND domain='market_data'
+    AND use_case='daily_market_surveillance'
+    AND subject_symbol='MARKETOPS'
+    AND status='active'
+    AND context_strategy IN ('marketops_daily_overview_v1','marketops_sri_daily_v1','marketops_risk_reward_daily_v1','marketops_review_queue_daily_v1')
+), latest_syncratic_session AS (
+  SELECT max(window_start)::date AS session_date
+  FROM daily_syncratic_contexts
+), latest_syncratic_success AS (
+  SELECT ctx.context_window_id, insight.updated_at
+  FROM daily_syncratic_contexts ctx
+  JOIN syncratic_insights insight ON insight.context_window_id=ctx.context_window_id
+  WHERE ctx.window_start::date=(SELECT session_date FROM latest_syncratic_session)
+    AND insight.tenant_id=$1
+    AND insight.metrics->'syncratic_ask'->>'ask_status'='completed'
+  ORDER BY insight.updated_at DESC
+  LIMIT 1
+), latest_syncratic_failure AS (
+  SELECT context_window_id, updated_at, COALESCE(NULLIF(error_code,''), status) AS failure_code
+  FROM syncratic_intelligence_jobs
+  WHERE tenant_id=$1
+    AND app_id='marketops'
+    AND use_case='daily_market_surveillance'
+    AND status IN ('retryable_failed','failed')
+  ORDER BY updated_at DESC
+  LIMIT 1
+), syncratic_ask AS (
+  SELECT 'syncratic_ask'::text AS view_id, 'Syncratic Ask'::text AS label,
+    (SELECT session_date FROM latest_syncratic_session)::date AS latest_session_date,
+    NULLIF(GREATEST(
+      COALESCE((SELECT max(updated_at) FROM daily_syncratic_contexts WHERE window_start::date=(SELECT session_date FROM latest_syncratic_session)), '-infinity'::timestamptz),
+      COALESCE((SELECT updated_at FROM latest_syncratic_success), '-infinity'::timestamptz),
+      COALESCE((SELECT updated_at FROM latest_syncratic_failure), '-infinity'::timestamptz)
+    ), '-infinity'::timestamptz)::timestamptz AS latest_as_of,
+    CASE
+      WHEN (SELECT context_window_id FROM latest_syncratic_success) IS NOT NULL
+       AND (SELECT updated_at FROM latest_syncratic_failure) IS NULL THEN 1
+      WHEN (SELECT context_window_id FROM latest_syncratic_success) IS NOT NULL
+       AND (SELECT updated_at FROM latest_syncratic_success) >= (SELECT updated_at FROM latest_syncratic_failure) THEN 1
+      ELSE 0
+    END::integer AS row_count,
+    CASE WHEN (SELECT session_date FROM latest_syncratic_session) IS NULL THEN 0 ELSE 1 END::integer AS expected_count
+), freshness AS (
+  SELECT * FROM dashboard
+  UNION ALL SELECT * FROM assets
+  UNION ALL SELECT * FROM components
+  UNION ALL SELECT * FROM intraday
+  UNION ALL SELECT * FROM fmp
+  UNION ALL SELECT * FROM syncratic_ask
+), assessed AS (
+  SELECT view_id,label,latest_session_date,NULLIF(latest_as_of, '-infinity'::timestamptz) AS latest_as_of,row_count,COALESCE(expected_count,0) AS expected_count,
+    CASE
+      WHEN latest_session_date IS NULL AND NULLIF(latest_as_of, '-infinity'::timestamptz) IS NULL THEN 'missing'
+      WHEN view_id='intraday' AND (SELECT monitor_window FROM market_clock) AND latest_as_of < now() - interval '45 minutes' THEN 'stale'
+      WHEN expected_count IS NOT NULL AND expected_count > 0 AND row_count < expected_count THEN 'partial'
+      ELSE 'current'
+    END AS status
+  FROM freshness
+)
+SELECT view_id,label,latest_session_date,latest_as_of,row_count,expected_count,status,
+  CASE
+    WHEN status='missing' AND view_id='syncratic_ask' THEN 'no daily narrative context windows available'
+    WHEN status='missing' THEN 'no rows available'
+    WHEN status='stale' THEN 'latest intraday snapshot is outside the live-market freshness window'
+    WHEN status='partial' AND view_id='dashboard' THEN 'completed-session components are not aligned to one session'
+    WHEN status='partial' AND view_id='assets' THEN 'not all active assets have current global EOD context for the latest completed session'
+    WHEN status='partial' AND view_id='fmp_annual' THEN 'latest FMP annual workflow has incomplete or non-succeeded tasks'
+    WHEN status='partial' AND view_id='syncratic_ask' THEN COALESCE((SELECT 'latest Ask failure category=' || failure_code || '; context_window_id=' || context_window_id FROM latest_syncratic_failure), 'no completed Ask insight found for the latest daily narrative context')
+    WHEN status='partial' THEN 'latest session has fewer rows than expected'
+    WHEN view_id='assets' THEN 'selected assets with current Market State evidence; coverage activation history is separate'
+    WHEN view_id='intraday' AND NOT (SELECT monitor_window FROM market_clock) THEN 'market idle; latest completed-session intraday evidence is used'
+    WHEN view_id='syncratic_ask' THEN COALESCE((SELECT 'last successful Ask context_window_id=' || context_window_id FROM latest_syncratic_success), 'no daily narrative context windows available')
+    WHEN view_id IN ('sri','signal_assurance') THEN 'latest as-of is provenance/materialization time; session date is freshness authority'
+    ELSE ''
+  END AS reason
+FROM assessed
+ORDER BY CASE view_id
+  WHEN 'dashboard' THEN 1
+  WHEN 'assets' THEN 2
+  WHEN 'market_state' THEN 3
+  WHEN 'risk_reward' THEN 4
+  WHEN 'sri' THEN 5
+  WHEN 'signal_assurance' THEN 6
+  WHEN 'intraday' THEN 7
+  WHEN 'fmp_annual' THEN 8
+  WHEN 'syncratic_ask' THEN 9
+  ELSE 99 END`, strings.TrimSpace(tenantID))
+	if err != nil {
+		return nil, fmt.Errorf("list marketops operations freshness: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.MarketOpsOperationsFreshnessRecord{}
+	for rows.Next() {
+		var record storage.MarketOpsOperationsFreshnessRecord
+		if err := rows.Scan(&record.ViewID, &record.Label, &record.LatestSessionDate, &record.LatestAsOf, &record.RowCount, &record.ExpectedCount, &record.Status, &record.Reason); err != nil {
+			return nil, fmt.Errorf("scan marketops operations freshness: %w", err)
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list marketops operations freshness rows: %w", err)
+	}
+	return records, nil
+}
+
+func (r *Repository) ListMarketOpsScheduledJobStatuses(ctx context.Context) ([]storage.MarketOpsScheduledJobStatusRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT job_id, schedule, timezone, status, reason, started_at, completed_at, exit_code,
+  COALESCE(detail, '{}'::jsonb)::text, runner, updated_at
+FROM marketops_scheduled_job_statuses
+ORDER BY job_id`)
+	if err != nil {
+		return nil, fmt.Errorf("list marketops scheduled job statuses: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.MarketOpsScheduledJobStatusRecord{}
+	for rows.Next() {
+		record, err := scanMarketOpsScheduledJobStatus(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list marketops scheduled job status rows: %w", err)
+	}
+	return records, nil
+}
+
 func (r *Repository) ListSchedulerRuns(ctx context.Context, limit int) ([]storage.SchedulerRunRecord, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT run_id, tenant_id, source_id, source_adapter, COALESCE(array_to_json(datasets), '[]'::json)::text,
@@ -1878,6 +2098,10 @@ type catalogPipelineScanner interface {
 	Scan(dest ...any) error
 }
 
+type marketOpsScheduledJobStatusScanner interface {
+	Scan(dest ...any) error
+}
+
 type catalogRuleScanner interface {
 	Scan(dest ...any) error
 }
@@ -1888,6 +2112,42 @@ type platformPrimitiveDefinitionScanner interface {
 
 type marketOpsAssetScanner interface {
 	Scan(dest ...any) error
+}
+
+func scanMarketOpsScheduledJobStatus(scanner marketOpsScheduledJobStatusScanner) (storage.MarketOpsScheduledJobStatusRecord, error) {
+	var record storage.MarketOpsScheduledJobStatusRecord
+	var startedAt, completedAt sql.NullTime
+	var exitCode sql.NullInt32
+	var detailJSON string
+	if err := scanner.Scan(
+		&record.JobID,
+		&record.Schedule,
+		&record.Timezone,
+		&record.Status,
+		&record.Reason,
+		&startedAt,
+		&completedAt,
+		&exitCode,
+		&detailJSON,
+		&record.Runner,
+		&record.UpdatedAt,
+	); err != nil {
+		return storage.MarketOpsScheduledJobStatusRecord{}, mapScanError("scan marketops scheduled job status", err)
+	}
+	if startedAt.Valid {
+		t := startedAt.Time
+		record.StartedAt = &t
+	}
+	if completedAt.Valid {
+		t := completedAt.Time
+		record.CompletedAt = &t
+	}
+	if exitCode.Valid {
+		code := int(exitCode.Int32)
+		record.ExitCode = &code
+	}
+	record.DetailJSON = []byte(detailJSON)
+	return record, nil
 }
 
 func scanSchedulerRun(scanner schedulerScanner) (storage.SchedulerRunRecord, error) {

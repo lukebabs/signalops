@@ -19,6 +19,7 @@ import (
 var governedSuccessJobs = map[string]bool{
 	"marketops-daily-postclose":      true,
 	"marketops-fmp-continuation":     true,
+	"marketops-fmp-annual-financial": true,
 	"signalops-storage-monitor":      true,
 	"signalops-retention-governance": true,
 }

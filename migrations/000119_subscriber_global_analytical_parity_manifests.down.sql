@@ -1,0 +1,7 @@
+REVOKE ALL ON subscriber_global_marketops_legacy_parity_source FROM signalops_subscriber_global_eod;
+REVOKE ALL ON subscriber_global_marketops_legacy_parity_runs, subscriber_global_marketops_legacy_parity_manifest_entries FROM signalops_subscriber_global_eod;
+REVOKE ALL ON marketops_feature_observations, marketops_market_states, marketops_valuation_results,
+  marketops_eeom_results, signal_assertions, marketops_signal_outcomes FROM signalops_subscriber_migrator;
+DROP VIEW IF EXISTS subscriber_global_marketops_legacy_parity_source;
+DROP TABLE IF EXISTS subscriber_global_marketops_legacy_parity_manifest_entries;
+DROP TABLE IF EXISTS subscriber_global_marketops_legacy_parity_runs;

@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS subscriber_global_ranking_snapshot_entries;
+DROP TABLE IF EXISTS subscriber_global_ranking_snapshots;

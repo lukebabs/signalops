@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rsa"
@@ -8,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"math/big"
 	"net/http"
 	"strings"
@@ -25,6 +27,8 @@ const (
 	// roleAdmin remains accepted while existing SignalOps role mappings migrate.
 	rolePlatformSuperAdmin = "super_admin"
 	roleAdmin              = "signalops:admin"
+	roleTenantProvisioner  = "signalops:tenant_provisioner"
+	roleSubscriptionAdmin  = "signalops:subscription_admin"
 )
 
 type authContextKey struct{}
@@ -47,12 +51,15 @@ type AuthConfig struct {
 
 // Principal is the authenticated SignalOps operator context derived from a JWT.
 type Principal struct {
-	Subject    string
-	Actor      string
-	TenantID   string
-	Roles      map[string]struct{}
-	Access     map[string]string
-	SuperAdmin bool
+	Subject       string
+	Actor         string
+	PreferredName string
+	Email         string
+	EmailVerified bool
+	TenantID      string
+	Roles         map[string]struct{}
+	Access        map[string]string
+	SuperAdmin    bool
 }
 
 func principalFromContext(ctx context.Context) (Principal, bool) {
@@ -101,11 +108,20 @@ func authMiddleware(next http.Handler, cfg AuthConfig) http.Handler {
 			writeError(w, http.StatusForbidden, "missing_tenant_claim", "token must include tenant_id")
 			return
 		}
-		if !tenantMatchesRequest(r, principal.TenantID) {
+		principal.SuperAdmin = isSuperAdmin(principal)
+		if !allowsCrossTenantInitialProvisioning(r, principal) && !allowsCrossTenantSubscriptionAdministration(r, principal) && !tenantMatchesRequest(r, principal.TenantID) {
 			writeError(w, http.StatusForbidden, "tenant_mismatch", "request tenant does not match token tenant")
 			return
 		}
-		principal.SuperAdmin = isSuperAdmin(principal)
+		bodyTenant, bodyTenantDeclared, bodyErr := requestBodyTenant(r)
+		if bodyErr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_tenant_scope", bodyErr.Error())
+			return
+		}
+		if !allowsCrossTenantInitialProvisioning(r, principal) && !allowsCrossTenantSubscriptionAdministration(r, principal) && bodyTenantDeclared && bodyTenant != "" && bodyTenant != principal.TenantID {
+			writeError(w, http.StatusForbidden, "tenant_mismatch", "request tenant does not match token tenant")
+			return
+		}
 		if cfg.AccessResolver != nil {
 			grants, grantErr := cfg.AccessResolver.ListTenantUserAccessForSubject(r.Context(), principal.TenantID, principal.Subject)
 			if grantErr != nil {
@@ -129,8 +145,148 @@ func isSuperAdmin(principal Principal) bool {
 	return hasAnyRole(principal, rolePlatformSuperAdmin, roleAdmin)
 }
 
+func isSubscriptionAdministrator(principal Principal) bool {
+	return isSuperAdmin(principal) || hasAnyRole(principal, roleSubscriptionAdmin)
+}
+
 func isPublicRoute(r *http.Request) bool {
+	if r.Method == http.MethodPost && r.URL.Path == "/v1/billing/stripe/webhook" {
+		return true
+	}
 	return r.Method == http.MethodGet && (r.URL.Path == "/healthz" || r.URL.Path == "/readyz")
+}
+
+// requestTenant resolves a tenant-bearing handler input against the authenticated
+// principal. In authenticated mode the principal is authoritative: an omitted
+// handler value inherits the claim and a conflicting value is rejected. Local
+// mode retains the supplied value for existing development workflows.
+func requestTenant(r *http.Request, requestedTenant string) (string, error) {
+	requestedTenant = strings.TrimSpace(requestedTenant)
+	principal, authenticated := principalFromContext(r.Context())
+	if !authenticated {
+		return requestedTenant, nil
+	}
+	principalTenant := strings.TrimSpace(principal.TenantID)
+	if principalTenant == "" {
+		return "", errors.New("authenticated principal is missing tenant scope")
+	}
+	if requestedTenant != "" && requestedTenant != principalTenant {
+		return "", errors.New("request tenant does not match authenticated principal")
+	}
+	return principalTenant, nil
+}
+
+func requireRequestTenant(w http.ResponseWriter, r *http.Request, requestedTenant string) (string, bool) {
+	tenantID, err := requestTenant(r, requestedTenant)
+	if err != nil {
+		writeError(w, http.StatusForbidden, "tenant_mismatch", err.Error())
+		return "", false
+	}
+	return tenantID, true
+}
+
+func bindRequestTenant(w http.ResponseWriter, r *http.Request, tenantID *string) bool {
+	resolved, ok := requireRequestTenant(w, r, *tenantID)
+	if !ok {
+		return false
+	}
+	*tenantID = resolved
+	return true
+}
+
+func bindRequestTenantFromBodyOrQuery(w http.ResponseWriter, r *http.Request, tenantID *string) bool {
+	if strings.TrimSpace(*tenantID) == "" {
+		*tenantID = r.URL.Query().Get("tenant_id")
+	}
+	return bindRequestTenant(w, r, tenantID)
+}
+
+// requestSubject resolves a subject-owned resource scope against the authenticated
+// principal. Authenticated callers may omit the subject (which then inherits the
+// immutable token subject), but may not act as a different subject. Local mode
+// preserves the supplied value for development workflows.
+func requestSubject(r *http.Request, requestedSubject string) (string, error) {
+	requestedSubject = strings.TrimSpace(requestedSubject)
+	principal, authenticated := principalFromContext(r.Context())
+	if !authenticated {
+		return requestedSubject, nil
+	}
+	subject := strings.TrimSpace(principal.Subject)
+	if subject == "" {
+		return "", errors.New("authenticated principal is missing subject identity")
+	}
+	if requestedSubject != "" && requestedSubject != subject {
+		return "", errors.New("request subject does not match authenticated principal")
+	}
+	return subject, nil
+}
+
+func requireRequestSubject(w http.ResponseWriter, r *http.Request, requestedSubject string) (string, bool) {
+	subject, err := requestSubject(r, requestedSubject)
+	if err != nil {
+		writeError(w, http.StatusForbidden, "subject_mismatch", err.Error())
+		return "", false
+	}
+	return subject, true
+}
+
+// requireTenantAdministrator is the reusable server-side guard for future
+// tenant-default list administration. The existing SignalOps admin roles are
+// the current tenant-administrator primitive; a future tenant-admin role may
+// extend this check without changing list handlers.
+func requireTenantAdministrator(w http.ResponseWriter, r *http.Request) bool {
+	principal, authenticated := principalFromContext(r.Context())
+	if !authenticated {
+		return true
+	}
+	if !isSuperAdmin(principal) {
+		writeError(w, http.StatusForbidden, "tenant_admin_required", "tenant administrator role is required")
+		return false
+	}
+	return true
+}
+
+const maxTenantScopeInspectionBytes = 8 * 1024 * 1024
+
+// requestBodyTenant returns a top-level JSON tenant_id without consuming the
+// downstream handler body. The bounded inspection applies only to JSON or
+// content-type-unspecified mutation requests; other handlers retain their own
+// payload validation behavior.
+func requestBodyTenant(r *http.Request) (string, bool, error) {
+	if r.Body == nil || r.ContentLength == 0 {
+		return "", false, nil
+	}
+	contentType := strings.ToLower(r.Header.Get("Content-Type"))
+	if contentType != "" && !strings.Contains(contentType, "json") {
+		return "", false, nil
+	}
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+	default:
+		return "", false, nil
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxTenantScopeInspectionBytes+1))
+	if err != nil {
+		return "", false, errors.New("unable to read request body for tenant scope")
+	}
+	if len(body) > maxTenantScopeInspectionBytes {
+		return "", false, errors.New("request body exceeds tenant-scope inspection limit")
+	}
+	_ = r.Body.Close()
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &fields); err != nil {
+		return "", false, nil
+	}
+	rawTenant, declared := fields["tenant_id"]
+	if !declared || string(rawTenant) == "null" {
+		return "", false, nil
+	}
+	var tenantID string
+	if err := json.Unmarshal(rawTenant, &tenantID); err != nil {
+		return "", false, errors.New("request tenant_id must be a string")
+	}
+	return strings.TrimSpace(tenantID), true, nil
 }
 
 func tenantMatchesRequest(r *http.Request, tenantID string) bool {
@@ -156,8 +312,39 @@ func tenantFromPath(path string) string {
 	return rest[:idx]
 }
 
+// allowsCrossTenantInitialProvisioning permits one dedicated provisioning endpoint only.
+// It never grants cross-tenant access to subscriber or MarketOps data routes.
+func allowsCrossTenantInitialProvisioning(r *http.Request, principal Principal) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/v1/administration/tenant-provisioning/access" && hasAnyRole(principal, roleTenantProvisioner)
+}
+
+func allowsCrossTenantSubscriptionAdministration(r *http.Request, principal Principal) bool {
+	return strings.HasPrefix(r.URL.Path, "/v1/administration/subscriptions") && isSubscriptionAdministrator(principal)
+}
+
+func requireInitialProvisioningTenant(w http.ResponseWriter, r *http.Request, requestedTenant string) (string, bool) {
+	tenant := strings.TrimSpace(requestedTenant)
+	principal, authenticated := principalFromContext(r.Context())
+	if authenticated && hasAnyRole(principal, roleTenantProvisioner) && tenant != "" && tenant != strings.TrimSpace(principal.TenantID) {
+		return tenant, true
+	}
+	return requireRequestTenant(w, r, tenant)
+}
+
 func authorizedForRequest(r *http.Request, principal Principal) bool {
-	if isExperienceRequest(r) {
+	if isExperienceRequest(r) || isSessionActivityRequest(r) || isSessionEnrollmentRequest(r) {
+		return true
+	}
+	if isAdministrationOperationsRequest(r) {
+		return isSubscriptionAdministrator(principal)
+	}
+	if isSubscriberSubscriptionAdministrationRequest(r) {
+		return isSubscriptionAdministrator(principal)
+	}
+	if isSubscriberUpgradeInteractionRequest(r) || isSubscriberSubscriptionSelfServiceRequest(r) {
+		return strings.TrimSpace(principal.TenantID) != "" && strings.TrimSpace(principal.Subject) != ""
+	}
+	if allowsCrossTenantInitialProvisioning(r, principal) || allowsCrossTenantSubscriptionAdministration(r, principal) {
 		return true
 	}
 	if principal.SuperAdmin {
@@ -168,6 +355,14 @@ func authorizedForRequest(r *http.Request, principal Principal) bool {
 		permission := principal.Access[app]
 		if permission == "" {
 			return false
+		}
+		// Subscriber watchlists are tenant-scoped user preferences. A MarketOps
+		// read grant is sufficient for a subscriber to manage their own private
+		// list; tenant-default mutations retain their handler-level administrator
+		// requirement. This avoids granting broad MarketOps write access merely
+		// to create or edit a personal watchlist.
+		if isSubscriberWatchlistRequest(r) {
+			return permission == "read" || permission == "write"
 		}
 		return r.Method == http.MethodGet || permission == "write"
 	}
@@ -192,6 +387,47 @@ func appScopeForRequest(r *http.Request) string {
 
 func isExperienceRequest(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/v1/session/experience"
+}
+
+func isSessionActivityRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/v1/session/activity"
+}
+
+func isSessionEnrollmentRequest(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/v1/session/enrollment"
+}
+
+func isAdministrationOperationsRequest(r *http.Request) bool {
+	if r.URL.Path == "/v1/administration/scheduled-jobs" {
+		return true
+	}
+	if strings.HasPrefix(r.URL.Path, "/v1/administration/scheduled-jobs/") {
+		return true
+	}
+	return strings.HasPrefix(r.URL.Path, "/v1/administration/marketops/")
+}
+
+func isSubscriberSubscriptionAdministrationRequest(r *http.Request) bool {
+	return strings.HasPrefix(r.URL.Path, "/v1/administration/subscriptions")
+}
+
+func isSubscriberUpgradeInteractionRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == "/v1/marketops/subscriptions/upgrade-interactions"
+}
+
+func isSubscriberSubscriptionSelfServiceRequest(r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		return false
+	}
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if len(parts) != 6 || parts[0] != "v1" || parts[1] != "tenants" || parts[3] != "marketops" || parts[4] != "subscription" {
+		return false
+	}
+	return parts[5] == "checkout" || parts[5] == "portal"
+}
+
+func isSubscriberWatchlistRequest(r *http.Request) bool {
+	return strings.Contains(r.URL.Path, "/marketops/subscriber/")
 }
 
 func isPlatformRegistryMutationRoute(r *http.Request) bool {
@@ -324,7 +560,7 @@ func (v *authVerifier) verifyJWT(token string) (Principal, error) {
 	if actor == "" {
 		return Principal{}, errors.New("token subject is required")
 	}
-	return Principal{Subject: claims.Subject, Actor: actor, TenantID: claims.TenantID, Roles: claims.RoleSet(v.cfg.Audience)}, nil
+	return Principal{Subject: claims.Subject, Actor: actor, PreferredName: claims.PreferredUsername, Email: claims.Email, EmailVerified: claims.EmailVerified, TenantID: claims.TenantID, Roles: claims.RoleSet(v.cfg.Audience)}, nil
 }
 
 func sha256Sum(value string) []byte {
@@ -338,6 +574,7 @@ type jwtClaims struct {
 	Subject           string
 	PreferredUsername string
 	Email             string
+	EmailVerified     bool
 	TenantID          string
 	Audience          []string
 	ExpiresAt         int64
@@ -356,6 +593,7 @@ func decodeJWTClaims(payload []byte) (jwtClaims, error) {
 	_ = json.Unmarshal(raw["sub"], &claims.Subject)
 	_ = json.Unmarshal(raw["preferred_username"], &claims.PreferredUsername)
 	_ = json.Unmarshal(raw["email"], &claims.Email)
+	_ = json.Unmarshal(raw["email_verified"], &claims.EmailVerified)
 	_ = json.Unmarshal(raw["tenant_id"], &claims.TenantID)
 	claims.ExpiresAt = int64Claim(raw["exp"])
 	claims.NotBefore = int64Claim(raw["nbf"])

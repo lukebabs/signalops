@@ -42,6 +42,14 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 		_ = jobs.FailSyncraticIntelligenceJob(ctx, job.JobID, "context_window_not_found", strings.TrimSpace(err.Error()), time.Now().UTC())
 		return
 	}
+	if strings.TrimSpace(job.EvidenceDigest) != "" && strings.TrimSpace(contextWindow.EvidenceDigest) != "" && strings.TrimSpace(job.EvidenceDigest) != strings.TrimSpace(contextWindow.EvidenceDigest) {
+		completeSyncraticIntelligenceJob(ctx, jobs, job.JobID, "", "")
+		return
+	}
+	if !syncraticWorkerShouldAutoAsk(contextWindow) {
+		completeSyncraticIntelligenceJob(ctx, jobs, job.JobID, "", "")
+		return
+	}
 	if !syncraticContextHasAnalystEvidence(contextWindow) {
 		insight, err := syncraticInsightForContextType(ctx, repo, contextWindow, defaultSyncraticEODInsightType)
 		if err != nil {
@@ -59,19 +67,41 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 			_ = jobs.FailSyncraticIntelligenceJob(ctx, job.JobID, "insight_persistence_failed", strings.TrimSpace(err.Error()), time.Now().UTC())
 			return
 		}
-		_ = jobs.CompleteSyncraticIntelligenceJob(ctx, job.JobID, insight.SyncraticInsightID, "", time.Now().UTC())
+		completeSyncraticIntelligenceJob(ctx, jobs, job.JobID, insight.SyncraticInsightID, "")
 		return
 	}
-	insight, result, err := enrichSyncraticInsightWithAsk(ctx, repo, askClient, job.ContextWindowID, syncraticAskRequest{TenantID: job.TenantID, PromptBuilderVersion: "marketops.syncratic.eod_overview_prompt.v1", IncludeRecordDetails: true, InsightType: defaultSyncraticEODInsightType})
+	insightType := defaultSyncraticEODInsightType
+	promptVersion := "marketops.syncratic.eod_overview_prompt.v1"
+	if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) {
+		insightType = dailyNarrativeInsightType
+		promptVersion = dailyNarrativeAskPromptVersion
+	}
+	insight, result, err := enrichSyncraticInsightWithAsk(ctx, repo, askClient, job.ContextWindowID, syncraticAskRequest{TenantID: job.TenantID, PromptBuilderVersion: promptVersion, IncludeRecordDetails: true, InsightType: insightType})
 	if err != nil {
 		code := "syncratic_ask_failed"
-		if errors.Is(err, storage.ErrNotFound) { code = "context_window_not_found" }
+		if errors.Is(err, storage.ErrNotFound) {
+			code = "context_window_not_found"
+		}
 		_ = jobs.FailSyncraticIntelligenceJob(ctx, job.JobID, code, strings.TrimSpace(err.Error()), time.Now().UTC())
 		return
 	}
-	_ = jobs.CompleteSyncraticIntelligenceJob(ctx, job.JobID, insight.SyncraticInsightID, result.AskQueryID, time.Now().UTC())
+	completeSyncraticIntelligenceJob(ctx, jobs, job.JobID, insight.SyncraticInsightID, result.AskQueryID)
 }
+
+func completeSyncraticIntelligenceJob(ctx context.Context, jobs storage.SyncraticIntelligenceJobRepository, jobID, insightID, askQueryID string) {
+	completedAt := time.Now().UTC()
+	if err := jobs.CompleteSyncraticIntelligenceJob(ctx, jobID, insightID, askQueryID, completedAt); err != nil {
+		_ = jobs.FailSyncraticIntelligenceJob(ctx, jobID, "job_completion_failed", strings.TrimSpace(err.Error()), completedAt)
+	}
+}
+
 func syncraticContextHasAnalystEvidence(contextWindow storage.SyncraticContextWindowRecord) bool {
 	return len(contextWindow.MarketOpsEvidenceIDs)+len(contextWindow.SignalIDs)+len(contextWindow.AlertIDs)+len(contextWindow.ArtifactIDs)+
-		len(contextWindow.GraphProposalIDs)+len(contextWindow.LabelIDs) > 0
+		len(contextWindow.GraphProposalIDs)+len(contextWindow.LabelIDs)+len(contextWindow.MarketStateIDs)+len(contextWindow.StateTransitionIDs)+
+		len(contextWindow.HypothesisEvaluationIDs)+len(contextWindow.OpportunityIDs)+len(contextWindow.OutcomeIDs)+len(contextWindow.CalibrationSummaryIDs) > 0 ||
+		(isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) && len(contextWindow.SummaryMetricsJSON) > 2)
+}
+
+func syncraticWorkerShouldAutoAsk(contextWindow storage.SyncraticContextWindowRecord) bool {
+	return isDailyNarrativeContextStrategy(contextWindow.ContextStrategy)
 }

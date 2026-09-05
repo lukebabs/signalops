@@ -1,0 +1,11 @@
+[Unit]
+Description=Reconcile SignalOps SRI ETF sources after extended-session processing
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 20:07:00 America/New_York
+Persistent=true
+AccuracySec=1s
+Unit=signalops-marketops-sri-refresh.service
+
+[Install]
+WantedBy=timers.target

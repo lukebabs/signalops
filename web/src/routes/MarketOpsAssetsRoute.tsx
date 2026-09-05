@@ -30,9 +30,10 @@ import {
   type MarketOpsOptionsBucketEntry,
 } from '../lib/marketopsOptions';
 import { useTenant } from '../auth/session';
-import type { AlgorithmResult, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOpsIntradayConditionSnapshot, MarketOpsRiskRewardSummary } from "../types";
+import type { AlgorithmResult, MarketOpsAsset, MarketOpsAssetQuote, MarketOpsEODZScore, MarketOpsIntradayConditionSnapshot, MarketOpsPendingAsset, MarketOpsRiskRewardSummary } from "../types";
 import { MARKETOPS_ASSET_QUICK_FILTERS, matchesAllMarketOpsAssetQuickFilters, matchesMarketOpsAssetQuickFilter, toggleMarketOpsAssetQuickFilter, type MarketOpsAssetQuickFilter } from '../lib/marketopsAssetQuickFilters';
 import { sortableTableHeaderButtonClass } from '../components/SortableTableHeader';
+import { MarketOpsWatchlistSelector, useMarketOpsWatchlistContext } from "../components/MarketOpsWatchlistContext";
 
 // Read-only MarketOps asset universe (G071 frontend) + G128 per-asset options
 // intelligence panel. The universe table is backend data only; selecting a row
@@ -48,6 +49,33 @@ const ASSET_COLUMN_WIDTHS_KEY = 'signalops.marketops.assets.column-widths.v1';
 const ASSET_SELECTION_COLUMN_WIDTH = 44;
 const DEFAULT_ASSET_COLUMN_WIDTHS: Record<AssetColumnKey, number> = { rank: 70, asset: 290, market: 220, intraday: 230, riskReward: 170, updated: 205 };
 
+type DisplayAsset = MarketOpsAsset & { subscriberCoverage?: MarketOpsPendingAsset };
+
+type SharedEODContext = { sessionDate: string; close?: number; provider: string; qualityState: string; asOfTime?: string };
+
+function sharedEODContext(asset: MarketOpsAsset): SharedEODContext | undefined {
+  if (asset.source_id !== "subscriber_global_eod" || !asset.metadata || typeof asset.metadata !== "object") return undefined;
+  const metadata = asset.metadata as Record<string, unknown>;
+  const sessionDate = typeof metadata.current_eod_session_date === "string" ? metadata.current_eod_session_date : "";
+  if (!sessionDate) return undefined;
+  return {
+    sessionDate,
+    close: typeof metadata.current_eod_close === "number" && Number.isFinite(metadata.current_eod_close) ? metadata.current_eod_close : undefined,
+    provider: typeof metadata.current_eod_provider === "string" ? metadata.current_eod_provider : "provider unavailable",
+    qualityState: typeof metadata.current_eod_quality_state === "string" ? metadata.current_eod_quality_state : "quality unavailable",
+    asOfTime: typeof metadata.current_eod_as_of_time === "string" ? metadata.current_eod_as_of_time : undefined,
+  };
+}
+
+function subscriberPendingDisplayAsset(tenantId: string, asset: MarketOpsPendingAsset, rank: number): DisplayAsset {
+  const ticker = asset.ticker.toUpperCase();
+  return {
+    tenant_id: tenantId, app_id: "marketops", domain: "market_data", use_case: "subscriber_watchlist", source_id: "subscriber_global_catalog", universe_group: "subscriber_pending", rank, ticker, ticker_key: ticker.toLowerCase(),
+    company: asset.company, display_name: asset.company, display_sector: "", company_key: asset.company.toLowerCase(), asset_type: "common_stock", exchange: "", sector: "", sector_key: "", industry: "", industry_key: "",
+    is_active: true, metadata: { coverage_state: asset.coverage_state, coverage_mode: asset.coverage_mode, eligibility_status: asset.eligibility_status }, created_at: "", updated_at: "", subscriberCoverage: asset,
+  };
+}
+
 function assetRowKey(asset: { universe_group: string; ticker: string }): string {
   return asset.universe_group + ":" + asset.ticker;
 }
@@ -58,6 +86,7 @@ function assetSectorLabel(asset: { display_sector?: string; sector?: string }): 
 
 export function MarketOpsAssetsRoute() {
   const TENANT_ID = useTenant();
+  const watchlist = useMarketOpsWatchlistContext();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [editSelectedAssetKey, setEditSelectedAssetKey] = useState<string | null>(null);
   const [displayNameInput, setDisplayNameInput] = useState('');
@@ -90,8 +119,18 @@ export function MarketOpsAssetsRoute() {
     limit: 200,
   });
 
-  // The API is canonical and already deduplicated by the universal registry.
-  const data = query.data?.assets ?? [];
+  // Ready rows come from the canonical MarketOps projection. A selected
+  // watchlist member remains visible while central coverage is warming; it is
+  // not silently dropped simply because no legacy tenant-universe row exists.
+  const readyData = query.data?.assets ?? [];
+  const pendingAssets = query.data?.pending_assets ?? [];
+  const data = useMemo<DisplayAsset[]>(() => {
+    const visible = readyData as DisplayAsset[];
+    const readyTickers = new Set(visible.map((asset) => asset.ticker.toUpperCase()));
+    return visible.concat(pendingAssets
+      .filter((asset) => !readyTickers.has(asset.ticker.toUpperCase()))
+      .map((asset, index) => subscriberPendingDisplayAsset(TENANT_ID, asset, visible.length + index + 1)));
+  }, [TENANT_ID, pendingAssets, readyData]);
   const quotesQ = useMarketOpsAssetQuotes(TENANT_ID, "all_active");
   const quoteMap = new Map((quotesQ.data?.quotes ?? []).map((q) => [q.ticker.toUpperCase(), q]));
   const conditionsQ = useMarketOpsIntradayConditions(TENANT_ID, "all_active");
@@ -232,9 +271,11 @@ export function MarketOpsAssetsRoute() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Assets</h1>
-          <p className="text-xs text-gray-500">Tenant {TENANT_ID} · universal market universe · {data.length} assets</p>
+          <p className="text-xs text-gray-500">Tenant {TENANT_ID} · {watchlist.context?.selection_mode === "all" ? "all my watchlists" : watchlist.context?.list_name ?? "market universe"} · {data.length} listed · {readyData.length} ready</p>
         </div>
-      </div>
+      </div><MarketOpsWatchlistSelector />
+
+      {pendingAssets.length ? <section data-testid="marketops-pending-coverage" className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><div className="font-semibold">Coverage in progress</div><p className="mt-1">These selected watchlist assets remain in the table so the list is complete. Their central EOD evidence is not ready yet, so MarketOps does not invent a quote, score, or signal.</p><div className="mt-2 flex flex-wrap gap-2">{pendingAssets.map(asset => <span key={asset.ticker} className="rounded border border-amber-200 bg-white px-2 py-1"><span className="font-mono font-semibold">{asset.ticker}</span> · {asset.coverage_state}</span>)}</div></section> : null}
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" aria-label="Asset quick filters">
         {MARKETOPS_ASSET_QUICK_FILTERS.map((filter) => {
@@ -254,17 +295,38 @@ export function MarketOpsAssetsRoute() {
       ) : query.isError ? (
         <ErrorState error={query.error} />
       ) : data.length ? (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-xs text-gray-500 md:hidden">Swipe horizontally to view all asset columns.</p>
-            <button type="button" onClick={resetColumnWidths} className="ml-auto text-xs text-brand-700 underline hover:text-brand-800">Reset column widths</button>
+        <div className="space-y-3">
+          <div className="space-y-2 md:hidden" aria-label="Mobile asset cards">
+            {sortedData.length ? sortedData.map((a) => (
+              <AssetMobileCard
+                key={a.ticker}
+                asset={a}
+                selected={selectedTicker === a.ticker}
+                onSelect={() => setSelectedTicker((current) => current === a.ticker ? null : a.ticker)}
+                tenantId={TENANT_ID}
+                quote={quoteMap.get(a.ticker.toUpperCase())}
+                condition={conditionMap.get(a.ticker.toUpperCase())}
+                riskReward={riskRewardMap.get(a.ticker.toUpperCase())}
+                sharedEOD={sharedEODContext(a)}
+                quotesRefreshedAt={quotesQ.data?.refreshed_at ?? null}
+                conditionsLoading={conditionsQ.isLoading}
+                conditionsError={conditionsQ.isError}
+                riskRewardLoading={riskRewardQ.isLoading}
+                riskRewardError={riskRewardQ.isError}
+                onClose={() => setSelectedTicker(null)}
+              />
+            )) : <div className="rounded border border-gray-200 bg-white p-4 text-center text-xs text-gray-500">No assets match the selected filters. <button type="button" onClick={() => setQuickFilters([])} className="text-brand-700 underline hover:text-brand-800">Clear filters</button></div>}
           </div>
-          <div
-            className="max-w-full overflow-x-auto rounded border border-gray-200 bg-white overscroll-x-contain"
-            role="region"
-            aria-label="Scrollable asset table"
-            tabIndex={0}
-          >
+          <div className="hidden space-y-1 md:block">
+            <div className="flex items-center justify-between px-1">
+              <button type="button" onClick={resetColumnWidths} className="ml-auto text-xs text-brand-700 underline hover:text-brand-800">Reset column widths</button>
+            </div>
+            <div
+              className="max-w-full overflow-x-auto rounded border border-gray-200 bg-white overscroll-x-contain"
+              role="region"
+              aria-label="Scrollable asset table"
+              tabIndex={0}
+            >
           <table className="table-fixed divide-y divide-gray-200 text-sm" style={{ width: totalColumnWidth }}>
             <colgroup><col style={{ width: ASSET_SELECTION_COLUMN_WIDTH }} />{(Object.keys(DEFAULT_ASSET_COLUMN_WIDTHS) as AssetColumnKey[]).map((key) => <col key={key} style={{ width: columnWidths[key] }} />)}</colgroup>
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
@@ -281,11 +343,11 @@ export function MarketOpsAssetsRoute() {
             <tbody className="divide-y divide-gray-100">
               {sortedData.length ? sortedData.map((a) => (
                 <Fragment key={a.ticker}>
-                <tr
+                <tr data-testid={`marketops-asset-row-${a.ticker}`}
                   onClick={() => setSelectedTicker((current) => current === a.ticker ? null : a.ticker)}
                   className={`cursor-pointer align-top hover:bg-gray-50 ${selectedTicker === a.ticker ? 'bg-brand-50' : ''}`}
                 >
-                  <td className="px-2 py-2 text-center"><input type="checkbox" checked={editSelectedAssetKey === assetRowKey(a)} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} onChange={() => toggleAssetEditSelection(a)} aria-label={"Select " + a.ticker + " for display-name and sector editing"} title="Select this asset to edit its display name and sector" className="h-4 w-4 rounded border-gray-300 text-brand-700 focus:ring-brand-600" /></td>
+                  <td className="px-2 py-2 text-center">{a.subscriberCoverage ? <span className="text-[10px] text-amber-700" title="Subscriber watchlist metadata cannot be edited through the legacy tenant-universe editor.">Pending</span> : a.universe_group.startsWith("subscriber_") ? <span className="text-[10px] text-emerald-700" title="Verified shared EOD context is centrally governed and cannot be edited through the legacy tenant-universe editor.">Shared</span> : <input type="checkbox" checked={editSelectedAssetKey === assetRowKey(a)} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} onChange={() => toggleAssetEditSelection(a)} aria-label={"Select " + a.ticker + " for display-name and sector editing"} title="Select this asset to edit its display name and sector" className="h-4 w-4 rounded border-gray-300 text-brand-700 focus:ring-brand-600" />}</td>
                   <td className="px-3 py-2 text-xs text-gray-500">{a.rank}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-start gap-2">
@@ -309,20 +371,20 @@ export function MarketOpsAssetsRoute() {
                         {editSelectedAssetKey === assetRowKey(a) && displaySectorError ? <div className="mt-1 text-[10px] text-red-700">{displaySectorError}</div> : null}
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span>{a.asset_type}</span>
-                          <Link to="/marketops/state" search={{ symbol: a.ticker }} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} className="text-brand-700 underline hover:text-brand-800">Open Market State</Link>
+                          {sharedEODContext(a) || a.subscriberCoverage ? <span title={a.subscriberCoverage ? "Central coverage is pending; no Market State exists yet." : "This shared row has verified global EOD only. Global Market State is not materialized yet."} className="text-gray-500">{a.subscriberCoverage ? "Coverage pending" : "Global evidence pending"}</span> : <Link to="/marketops/state" search={{ symbol: a.ticker }} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} className="text-brand-700 underline hover:text-brand-800">Open Market State</Link>}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <MarketDataCell quote={quoteMap.get(a.ticker.toUpperCase())} />
-                  <IntradayConditionsCell snapshot={conditionMap.get(a.ticker.toUpperCase())} loading={conditionsQ.isLoading} error={conditionsQ.isError} />
-                  <RiskRewardCell summary={riskRewardMap.get(a.ticker.toUpperCase())} loading={riskRewardQ.isLoading} error={riskRewardQ.isError} />
-                  <MarketDataUpdatedCell quote={quoteMap.get(a.ticker.toUpperCase())} refreshedAt={quotesQ.data?.refreshed_at ?? null} />
+                  <MarketDataCell quote={quoteMap.get(a.ticker.toUpperCase())} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
+                  <IntradayConditionsCell snapshot={conditionMap.get(a.ticker.toUpperCase())} loading={conditionsQ.isLoading} error={conditionsQ.isError} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
+                  <RiskRewardCell summary={riskRewardMap.get(a.ticker.toUpperCase())} loading={riskRewardQ.isLoading} error={riskRewardQ.isError} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
+                  <MarketDataUpdatedCell quote={quoteMap.get(a.ticker.toUpperCase())} refreshedAt={quotesQ.data?.refreshed_at ?? null} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
                 </tr>
                 {selectedTicker === a.ticker ? (
                   <tr className="bg-brand-50">
                     <td colSpan={7} className="p-3">
-                      <AssetOptionsPanel tenantId={TENANT_ID} symbol={selectedTicker} onClose={() => setSelectedTicker(null)} />
+                      {a.subscriberCoverage ? <PendingAssetCoveragePanel asset={a.subscriberCoverage} onClose={() => setSelectedTicker(null)} /> : sharedEODContext(a) ? <SharedGlobalEODPanel context={sharedEODContext(a)!} onClose={() => setSelectedTicker(null)} /> : <AssetOptionsPanel tenantId={TENANT_ID} symbol={selectedTicker} onClose={() => setSelectedTicker(null)} />}
                     </td>
                   </tr>
                 ) : null}
@@ -330,6 +392,7 @@ export function MarketOpsAssetsRoute() {
               )) : <tr><td colSpan={7} className="px-3 py-8 text-center text-xs text-gray-500">No assets match the selected filters. <button type="button" onClick={() => setQuickFilters([])} className="text-brand-700 underline hover:text-brand-800">Clear filters</button></td></tr>}
             </tbody>
           </table>
+            </div>
           </div>
         </div>
       ) : (
@@ -344,6 +407,42 @@ export function MarketOpsAssetsRoute() {
     </div>
   );
 }
+function PendingAssetCoveragePanel({ asset, onClose }: { asset: MarketOpsPendingAsset; onClose: () => void }) {
+  return <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="font-semibold">{asset.ticker} is in the selected watchlist</div><p className="mt-1 text-xs">Central MarketOps coverage is {asset.coverage_state}. Until it is ready, this asset remains visible without fabricated market data, scores, or signals.</p><div className="mt-2 text-xs text-amber-800">Eligibility {asset.eligibility_status} · coverage mode {asset.coverage_mode}</div></div><button type="button" onClick={onClose} className="text-xs text-amber-800 underline">Close</button></div></div>;
+}
+
+function SharedGlobalEODPanel({ context, onClose }: { context: SharedEODContext; onClose: () => void }) {
+  return <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="font-semibold">Verified global EOD evidence</div><p className="mt-1 text-xs">Close {context.close == null ? "unavailable" : context.close.toFixed(2)} · session {context.sessionDate} · {context.provider} · {context.qualityState}.</p><p className="mt-2 text-xs text-emerald-800">Global Market State, intraday, Risk/Reward, and options evidence are not materialized yet. MarketOps does not substitute tenant-local results or imply a signal.</p></div><button type="button" onClick={onClose} className="text-xs text-emerald-800 underline">Close</button></div></div>;
+}
+
+function AssetMobileCard({ asset, selected, onSelect, tenantId, quote, condition, riskReward, sharedEOD, quotesRefreshedAt, conditionsLoading, conditionsError, riskRewardLoading, riskRewardError, onClose }: { asset: DisplayAsset; selected: boolean; onSelect: () => void; tenantId: string; quote?: MarketOpsAssetQuote; condition?: MarketOpsIntradayConditionSnapshot; riskReward?: MarketOpsRiskRewardSummary; sharedEOD?: SharedEODContext; quotesRefreshedAt: string | null; conditionsLoading: boolean; conditionsError: boolean; riskRewardLoading: boolean; riskRewardError: boolean; onClose: () => void }) {
+  return <article data-testid={`marketops-asset-mobile-card-${asset.ticker}`} className={selected ? "rounded-lg border border-brand-300 bg-brand-50 p-3 shadow-sm" : "rounded-lg border border-gray-200 bg-white p-3 shadow-sm"}>
+    <button type="button" onClick={onSelect} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" aria-expanded={selected}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-sm font-semibold text-gray-900">{asset.ticker}</span>
+            <span className={asset.subscriberCoverage ? "rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800" : asset.universe_group.startsWith("subscriber_") ? "rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800" : "rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700"}>{asset.subscriberCoverage ? "Pending" : asset.universe_group.startsWith("subscriber_") ? "Shared" : "Tenant"}</span>
+          </div>
+          <div className="mt-1 truncate text-sm font-medium text-gray-900">{asset.display_name || asset.company || "—"}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500"><span>Rank {asset.rank}</span><span>{assetSectorLabel(asset)}</span><span>{asset.asset_type}</span></div>
+        </div>
+        <span className="shrink-0 text-xs font-medium text-brand-700">{selected ? "Close" : "Inspect"}</span>
+      </div>
+      <div className="mt-3 grid gap-2">
+        <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Current Market Data</div><MarketDataCell quote={quote} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
+        <div className="grid grid-cols-1 gap-2 min-[390px]:grid-cols-2">
+          <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Intraday</div><IntradayConditionsCell snapshot={condition} loading={conditionsLoading} error={conditionsError} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
+          <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Risk/Reward</div><RiskRewardCell summary={riskReward} loading={riskRewardLoading} error={riskRewardError} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
+        </div>
+        <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Updated</div><MarketDataUpdatedCell quote={quote} refreshedAt={quotesRefreshedAt} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
+      </div>
+    </button>
+    {selected ? <div className="mt-3">{asset.subscriberCoverage ? <PendingAssetCoveragePanel asset={asset.subscriberCoverage} onClose={onClose} /> : sharedEOD ? <SharedGlobalEODPanel context={sharedEOD} onClose={onClose} /> : <AssetOptionsPanel tenantId={tenantId} symbol={asset.ticker} onClose={onClose} />}</div> : null}
+  </article>;
+}
+
+
 function SortableAssetHeader({ label, sortKey, activeSort, onSort, width, onResize, title }: { label: string; sortKey: AssetColumnKey; activeSort: { key: AssetSortKey; direction: 'asc' | 'desc' }; onSort: (key: AssetColumnKey) => void; width: number; onResize: (event: React.PointerEvent<HTMLButtonElement>, key: AssetColumnKey) => void; title?: string }) {
   const active = activeSort.key === sortKey;
   return <th className="relative px-3 py-2" style={{ width }} aria-sort={active ? (activeSort.direction === "asc" ? "ascending" : "descending") : "none"} title={title}><button type="button" onClick={() => onSort(sortKey)} className={sortableTableHeaderButtonClass}>{label}<span aria-hidden="true" className={active ? "text-brand-700" : "text-gray-300"}>{active ? (activeSort.direction === "asc" ? "↑" : "↓") : "↕"}</span></button><button type="button" aria-label={"Resize " + label + " column"} onPointerDown={(event) => onResize(event, sortKey)} className="absolute right-0 top-0 h-full w-2 cursor-col-resize touch-none border-r border-transparent hover:border-brand-500" /></th>;
@@ -358,6 +457,17 @@ function AlgorithmResultLine({ result }: { result: AlgorithmResult }) {
   const putCall = rawValue != null && rawValue > 0 ? featureKey === "call_put_volume_ratio" ? 1 / rawValue : featureKey === "put_call_volume_ratio" ? rawValue : null : null;
   const sentiment = putCall == null ? null : putCall < 1 ? "bullish · calls elevated" : putCall > 1 ? "bearish · puts elevated" : "neutral";
   return <div className="border-t border-violet-100 pt-1 first:border-t-0 first:pt-0"><div className="text-xs font-medium text-violet-900">{result.algorithm_id.replace("signalops.algorithms.", "").replace(/_/g, " ")} · {feature} · {result.severity}</div><div className="text-[11px] text-gray-600">Score {result.score.toFixed(2)} · confidence {(result.confidence * 100).toFixed(0)}% · {formatUtc(result.created_at)}</div>{putCall != null ? <div className={putCall < 1 ? "text-[11px] text-green-700" : putCall > 1 ? "text-[11px] text-red-700" : "text-[11px] text-gray-600"}>Put/call volume {putCall.toFixed(2)} · {sentiment}</div> : null}{quality ? <div className="text-[11px] text-gray-500">Options-ratio quality: {quality}</div> : null}</div>;
+}
+
+function CurrentEODContextPanel({ context }: { context: NonNullable<import("../types").MarketOpsAssetAlgorithmObservationsResponse["current_eod_context"]> }) {
+  const number = (value: number | undefined, digits = 2) => value == null ? "—" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
+  return <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-[11px] text-emerald-900"><div className="flex items-center justify-between gap-2"><div className="font-semibold uppercase tracking-wide">Current verified EOD</div><div className="text-[10px]">{context.provider} · {context.session_date}</div></div><p className="mt-1 text-emerald-800">Latest verified provider revision for live context; separate from historical assurance and backtests.</p><div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-4"><span>Open {number(context.open)}</span><span>High {number(context.high)}</span><span>Low {number(context.low)}</span><span>Close {number(context.close)}</span><span>VWAP {number(context.vwap, 4)}</span><span>Volume {number(context.volume, 0)}</span></div><div className="mt-2 text-[10px] text-emerald-700">As of {formatUtc(context.as_of_time)} · {context.selected_observation_role} · {context.policy_version}</div></div>;
+}
+
+function RevisionReviewPanel({ review }: { review: NonNullable<import("../types").MarketOpsAssetAlgorithmObservationsResponse["eod_revision_review"]> }) {
+  const number = (value: number | undefined, field: string) => value == null ? "—" : value.toLocaleString(undefined, { maximumFractionDigits: field === "volume" ? 0 : 4 });
+  if (!review.available) return <div className="rounded border border-slate-200 bg-slate-50 p-2 text-[11px] text-slate-600"><div className="font-semibold uppercase tracking-wide">Provider revision review</div><div className="mt-1">No immutable initial-versus-revised EOD comparison is available for this asset.</div></div>;
+  return <div className="rounded border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-950"><div className="flex flex-wrap items-center justify-between gap-2"><div className="font-semibold uppercase tracking-wide">Provider revision review</div><span className={review.review_required_count ? "rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900" : "rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-700"}>{review.review_required_count ?? 0} review required</span></div><p className="mt-1 text-amber-900">Immutable initial capture compared with a later provider re-observation. This review does not alter historical assurance or backtests.</p><div className="mt-2 grid gap-2 sm:grid-cols-2">{review.deltas.map((delta) => <div key={delta.session_date + "-" + delta.field_name} className={delta.materiality === "review_required" ? "rounded border border-amber-300 bg-white p-2" : "rounded border border-slate-200 bg-white p-2"}><div className="flex items-center justify-between gap-2"><span className="font-semibold capitalize">{delta.field_name}</span><span className={delta.materiality === "review_required" ? "text-[10px] font-semibold text-amber-800" : "text-[10px] text-slate-600"}>{delta.materiality.replace(/_/g, " ")}</span></div><div className="mt-1 grid grid-cols-2 gap-2 text-xs"><div><span className="block text-[10px] text-slate-500">Initial</span>{number(delta.initial_value, delta.field_name)}</div><div><span className="block text-[10px] text-slate-500">Revised</span>{number(delta.revised_value, delta.field_name)}</div></div><div className="mt-1 text-[10px] text-slate-500">{delta.session_date} · observed {formatUtc(delta.initial_observed_at)} → {formatUtc(delta.revised_observed_at)}</div><details className="mt-1 text-[10px] text-slate-600"><summary className="cursor-pointer">Audit provenance</summary><div className="mt-1 break-all">Initial {delta.initial_source_event_id || delta.initial_source_run_id || "—"} · {delta.initial_payload_fingerprint || "no fingerprint"}</div><div className="mt-1 break-all">Revised {delta.revised_source_event_id || delta.revised_source_run_id || "—"} · {delta.revised_payload_fingerprint || "no fingerprint"}</div></details></div>)}</div></div>;
 }
 
 function QuantitativeCorroborationPanel({ eod, loading, error }: { eod: MarketOpsEODZScore[]; loading: boolean; error: boolean }) {
@@ -376,7 +486,9 @@ function AlgorithmEvidencePanel({ results, loading, error }: { results: Algorith
   return <div className="rounded border border-violet-100 bg-violet-50 p-2"><div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-violet-700">Algorithm evidence</div><p className="mb-2 text-[11px] text-violet-700">The five most recent raw platform observations, retained for deeper analysis. The selected EOD z-score is intentionally excluded.</p>{loading ? <div className="text-xs text-gray-500">Loading algorithm evidence…</div> : error ? <div className="text-xs text-red-700">Algorithm evidence is unavailable.</div> : dates.length ? <div className="space-y-3">{dates.map((date) => <div key={date}><div className="text-[10px] font-semibold text-violet-700">{date}</div><div className="space-y-2">{grouped[date].map((result) => <AlgorithmResultLine key={result.algorithm_result_id} result={result} />)}</div></div>)}</div> : <div className="text-xs text-gray-500">No additional platform outputs are available for this asset.</div>}</div>;
 }
 
-function RiskRewardCell({ summary, loading, error }: { summary?: MarketOpsRiskRewardSummary; loading: boolean; error: boolean }) {
+function RiskRewardCell({ summary, loading, error, sharedEOD, pending }: { summary?: MarketOpsRiskRewardSummary; loading: boolean; error: boolean; sharedEOD?: SharedEODContext; pending?: boolean }) {
+  if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; no Risk/Reward evidence is available.">Coverage pending<div className="text-[10px]">Risk/Reward unavailable</div></td>;
+  if (sharedEOD) return <td className="px-3 py-2 text-xs text-slate-600" title="Verified global EOD exists, but global Risk/Reward evidence has not been materialized.">Global EOD only<div className="text-[10px] text-slate-500">Risk/Reward pending</div></td>;
   if (error && !summary) return <td className="px-3 py-2 text-xs text-red-700" title="The persisted post-close Risk/Reward summary could not be loaded. This does not indicate an asset-level signal.">Risk/Reward unavailable</td>;
   if (loading && !summary) return <td className="px-3 py-2 text-xs text-gray-500" title="Loading the latest persisted post-close technical Risk/Reward analysis.">Loading EOD analysis…</td>;
   if (!summary) return <td className="px-3 py-2 text-xs text-gray-500" title="No persisted post-close Risk/Reward analysis is available yet. The scheduled EOD algorithm will populate this after its first completed run.">Awaiting EOD analysis</td>;
@@ -391,7 +503,9 @@ function RiskRewardCell({ summary, loading, error }: { summary?: MarketOpsRiskRe
   return <td className="px-3 py-2 text-xs" title={title}><div className={`font-medium ${tone}`}>{direction} · {score}</div><div className={`text-[10px] ${evolutionTone}`}>{evolution}</div></td>;
 }
 
-function IntradayConditionsCell({ snapshot, loading, error }: { snapshot?: MarketOpsIntradayConditionSnapshot; loading: boolean; error: boolean }) {
+function IntradayConditionsCell({ snapshot, loading, error, sharedEOD, pending }: { snapshot?: MarketOpsIntradayConditionSnapshot; loading: boolean; error: boolean; sharedEOD?: SharedEODContext; pending?: boolean }) {
+  if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; no intraday evidence is available.">Coverage pending<div className="text-[10px]">Intraday unavailable</div></td>;
+  if (sharedEOD) return <td className="px-3 py-2 text-xs text-slate-600" title="No global intraday monitor snapshot has been materialized for this shared asset.">Global EOD only<div className="text-[10px] text-slate-500">Intraday pending</div></td>;
   if (error && !snapshot) return <td className="px-3 py-2 text-xs text-red-700" title="The persisted intraday-condition request failed; this does not mean monitoring has not run.">Monitor data unavailable</td>;
   if (loading && !snapshot) return <td className="px-3 py-2 text-xs text-gray-500" title="Loading the latest persisted 15-minute condition snapshot.">Loading monitor…</td>;
   if (!snapshot) return <td className="px-3 py-2 text-xs text-gray-500" title="No persisted 15-minute condition snapshot is available yet.">Awaiting monitor</td>;
@@ -400,7 +514,9 @@ function IntradayConditionsCell({ snapshot, loading, error }: { snapshot?: Marke
   return <td className="px-3 py-2 text-xs"><div className="space-y-1">{top.map((item) => <div key={item.key} title={item.evidence + " " + item.interpretation} className={item.tone === "positive" ? "cursor-help text-green-700" : item.tone === "negative" ? "cursor-help text-red-700" : "cursor-help text-gray-700"}>{item.title}</div>)}{snapshot.conditions.length > 2 ? <div className="text-[10px] text-gray-500">+{snapshot.conditions.length - 2} more</div> : null}<div className="text-[10px] text-gray-400">{snapshot.stale ? "Stale" : "15m monitor"}</div></div></td>;
 }
 
-function MarketDataCell({ quote }: { quote?: MarketOpsAssetQuote }) {
+function MarketDataCell({ quote, sharedEOD, pending }: { quote?: MarketOpsAssetQuote; sharedEOD?: SharedEODContext; pending?: boolean }) {
+  if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; no completed-session close is available.">Coverage pending<div className="text-[10px]">No central close yet</div></td>;
+  if (sharedEOD) return <td className="px-3 py-2 text-xs text-emerald-800" title={"Verified global completed-session EOD from " + sharedEOD.provider + "; quality " + sharedEOD.qualityState + "."}><div className="font-medium">{sharedEOD.close == null ? "Close unavailable" : sharedEOD.close.toFixed(2)} <span className="rounded bg-emerald-100 px-1 text-[9px] font-medium text-emerald-700">Global EOD</span></div><div className="text-[10px] text-emerald-700">{sharedEOD.sessionDate} · {sharedEOD.provider}</div></td>;
   if (quote?.price == null) {
     return <td className="px-3 py-2 text-xs text-gray-500" title="No delayed intraday aggregate or completed daily close is currently available from the market-data provider.">Unavailable</td>;
   }
@@ -429,7 +545,9 @@ function MarketDataCell({ quote }: { quote?: MarketOpsAssetQuote }) {
   );
 }
 
-function MarketDataUpdatedCell({ quote, refreshedAt }: { quote?: MarketOpsAssetQuote; refreshedAt?: string | null }) {
+function MarketDataUpdatedCell({ quote, refreshedAt, sharedEOD, pending }: { quote?: MarketOpsAssetQuote; refreshedAt?: string | null; sharedEOD?: SharedEODContext; pending?: boolean }) {
+  if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; there is no completed-session timestamp yet.">Coverage pending</td>;
+  if (sharedEOD) return <td className="px-3 py-2 text-xs text-emerald-800" title={"Verified global EOD observation from " + sharedEOD.provider + "."}>Global EOD · {sharedEOD.sessionDate}</td>;
   if (quote?.market_status === 'end_of_day') {
     const sessionDate = quote.timestamp ? quote.timestamp.slice(0, 10) : 'latest session';
     return <td className="px-3 py-2 text-xs text-gray-600" title={`Latest completed daily close for ${sessionDate}. The quote view was last refreshed ${refreshedAt ? formatUtc(refreshedAt) : 'recently'}.`}>EOD · {sessionDate}</td>;
@@ -509,6 +627,8 @@ export function AssetOptionsPanel({
         <QuantitativeSeriesChart points={seriesQ.data?.points ?? []} window={seriesWindow} onWindowChange={setSeriesWindow} loading={seriesQ.isLoading} error={seriesQ.isError} />
 
         <QuantitativeCorroborationPanel eod={corroborationQ.data?.eod_zscores ?? []} loading={corroborationQ.isLoading} error={corroborationQ.isError} />
+        {corroborationQ.data?.current_eod_context ? <CurrentEODContextPanel context={corroborationQ.data.current_eod_context} /> : <div className="rounded border border-slate-200 bg-slate-50 p-2 text-[11px] text-slate-600"><span className="font-semibold uppercase tracking-wide">Current verified EOD</span><div className="mt-1">No usable global re-observation is available for this tenant asset.</div></div>}
+        {corroborationQ.data?.eod_revision_review ? <RevisionReviewPanel review={corroborationQ.data.eod_revision_review} /> : null}
         {adjudicationsQ.data?.algorithm_adjudications.length ? <div className="rounded border border-violet-200 bg-white p-2 text-[11px] text-violet-800"><div className="font-semibold uppercase">Independent adjudication</div>{adjudicationsQ.data.algorithm_adjudications.slice(0,4).map((item) => <div key={item.adjudication_id} className="mt-1"><span className={item.verdict === "confirmed" ? "font-medium text-green-700" : item.verdict === "contradicted" ? "font-medium text-red-700" : "font-medium text-gray-600"}>{item.verdict}</span> · {item.hypothesis_key} · confidence {(item.confidence * 100).toFixed(0)}%</div>)}</div> : hypothesisQ.data?.hypothesis_evaluations.length ? <div className="rounded border border-violet-100 bg-white p-2 text-[11px] text-violet-800">Triggered hypotheses await independent platform adjudication.</div> : null}
         <div className="rounded border border-blue-100 bg-blue-50 p-2"><div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">Latest intraday condition</div><p className="mb-2 text-[11px] text-blue-700">Latest 15-minute price-action monitor result; separate from end-of-day Market State hypotheses.</p>{intradayQ.isLoading ? <div className="text-xs text-gray-500">Loading intraday snapshots…</div> : intradayQ.isError ? <div className="text-xs text-red-700">Intraday snapshots are unavailable.</div> : intradayQ.data?.snapshots.length ? <div className="space-y-2">{intradayQ.data.snapshots.slice(0, 1).map((snapshot) => <div key={snapshot.snapshot_id} className="border-t border-blue-100 pt-1 first:border-t-0 first:pt-0"><div className="text-[10px] text-gray-500">{formatUtc(snapshot.as_of_time)} · {snapshot.market_status}</div>{snapshot.conditions.length ? snapshot.conditions.map((item) => <div key={item.key} className="mt-1 text-xs"><span className={item.tone === "positive" ? "font-medium text-green-700" : item.tone === "negative" ? "font-medium text-red-700" : "font-medium text-gray-700"}>{item.title}</span><div className="text-gray-600">{item.evidence}</div><div className="text-gray-500">{item.interpretation}</div></div>) : <div className="text-xs text-gray-500">No condition exceeded the monitor threshold.</div>}</div>)}</div> : <div className="text-xs text-gray-500">No persisted intraday snapshot yet.</div>}</div>
       </>}

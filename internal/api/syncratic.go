@@ -20,7 +20,7 @@ const (
 	defaultSyncraticInsightType      = "marketops.syncratic.multi_event_context"
 	defaultSyncraticEODInsightType   = "marketops.syncratic.eod_overview.v1"
 	defaultSyncraticAskDrilldownType = "marketops.syncratic.ask_drilldown.v1"
-	defaultSyncraticAskPromptVersion = "marketops.syncratic.ask_prompt.v1"
+	defaultSyncraticAskPromptVersion = "marketops.syncratic.ask_prompt.v2"
 	defaultSyncraticAskScope         = "tenant"
 )
 
@@ -336,13 +336,21 @@ func buildSyncraticContextWindowWithLedger(ctx context.Context, repo storage.Que
 		return storage.SyncraticContextWindowRecord{}, err
 	}
 	promotions, err := repo.ListMarketOpsBacktestPromotionCandidates(ctx, storage.MarketOpsBacktestPromotionCandidateFilter{TenantID: tenantID, AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", Limit: maxSyncraticArtifacts})
-	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
+	if err != nil {
+		return storage.SyncraticContextWindowRecord{}, err
+	}
 	states, err := repo.ListMarketOpsMarketStates(ctx, storage.MarketOpsMarketStateFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: 1})
-	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
+	if err != nil {
+		return storage.SyncraticContextWindowRecord{}, err
+	}
 	transitions, err := repo.ListMarketOpsStateTransitions(ctx, storage.MarketOpsStateTransitionFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: maxSyncraticTransitions})
-	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
+	if err != nil {
+		return storage.SyncraticContextWindowRecord{}, err
+	}
 	evidence, err := repo.ListMarketOpsEvidence(ctx, storage.MarketOpsEvidenceFilter{TenantID: tenantID, AppID: "marketops", Symbol: subjectSymbol, SessionStart: windowStart, SessionEnd: windowEnd, Limit: maxSyncraticMarketEvidence})
-	if err != nil { return storage.SyncraticContextWindowRecord{}, err }
+	if err != nil {
+		return storage.SyncraticContextWindowRecord{}, err
+	}
 	if err != nil {
 		return storage.SyncraticContextWindowRecord{}, err
 	}
@@ -422,17 +430,27 @@ func buildSyncraticContextWindowWithLedger(ctx context.Context, repo storage.Que
 	record.LabelIDs = uniqueSorted(record.LabelIDs)
 	for _, state := range states {
 		record.MarketStateIDs = append(record.MarketStateIDs, state.MarketStateID)
-		if state.QualityState != "" && state.QualityState != "complete" { record.QualityWarningsJSON = mustJSON([]map[string]string{{"kind": "market_state_quality", "value": state.QualityState}}) }
+		if state.QualityState != "" && state.QualityState != "complete" {
+			record.QualityWarningsJSON = mustJSON([]map[string]string{{"kind": "market_state_quality", "value": state.QualityState}})
+		}
 	}
-	for _, transition := range transitions { record.StateTransitionIDs = append(record.StateTransitionIDs, transition.TransitionID) }
-	for _, item := range evidence { record.MarketOpsEvidenceIDs = append(record.MarketOpsEvidenceIDs, item.EvidenceID) }
+	for _, transition := range transitions {
+		record.StateTransitionIDs = append(record.StateTransitionIDs, transition.TransitionID)
+	}
+	for _, item := range evidence {
+		record.MarketOpsEvidenceIDs = append(record.MarketOpsEvidenceIDs, item.EvidenceID)
+	}
 	record.MarketStateIDs = uniqueSorted(record.MarketStateIDs)
 	record.StateTransitionIDs = uniqueSorted(record.StateTransitionIDs)
 	record.MarketOpsEvidenceIDs = uniqueSorted(record.MarketOpsEvidenceIDs)
 	stateSummary := make([]map[string]any, 0, len(states))
-	for _, state := range states { stateSummary = append(stateSummary, map[string]any{"market_state_id": state.MarketStateID, "quality_state": state.QualityState, "completeness_ratio": state.CompletenessRatio, "eligible_hypotheses": state.EligibleHypotheses, "state_payload": json.RawMessage(jsonOrDefault(state.StatePayloadJSON, `{}`))}) }
+	for _, state := range states {
+		stateSummary = append(stateSummary, map[string]any{"market_state_id": state.MarketStateID, "quality_state": state.QualityState, "completeness_ratio": state.CompletenessRatio, "eligible_hypotheses": state.EligibleHypotheses, "state_payload": json.RawMessage(jsonOrDefault(state.StatePayloadJSON, `{}`))})
+	}
 	eodEvidence := make([]map[string]any, 0, len(evidence))
-	for _, item := range evidence { eodEvidence = append(eodEvidence, map[string]any{"evidence_id": item.EvidenceID, "type": item.EvidenceType, "domain": item.Domain, "direction": item.Direction, "statement": item.Statement, "magnitude": item.Magnitude, "quality_score": item.QualityScore, "payload": json.RawMessage(jsonOrDefault(item.EvidencePayloadJSON, `{}`))}) }
+	for _, item := range evidence {
+		eodEvidence = append(eodEvidence, map[string]any{"evidence_id": item.EvidenceID, "type": item.EvidenceType, "domain": item.Domain, "direction": item.Direction, "statement": item.Statement, "magnitude": item.Magnitude, "quality_score": item.QualityScore, "payload": json.RawMessage(jsonOrDefault(item.EvidencePayloadJSON, `{}`))})
+	}
 	record.SignalTypes = setKeys(signalTypeSet)
 	record.DetectorIDs = setKeys(detectors)
 	metrics := map[string]any{"signal_count": len(record.SignalIDs), "alert_count": len(record.AlertIDs), "evidence_retention": map[string]any{"signals": map[string]int{"available": availableSignals, "included": len(record.SignalIDs), "omitted": max(0, availableSignals-len(record.SignalIDs))}, "alerts": map[string]int{"available": availableAlerts, "included": len(record.AlertIDs), "omitted": max(0, availableAlerts-len(record.AlertIDs))}}, "event_count": len(record.EventIDs), "artifact_count": len(record.ArtifactIDs), "graph_proposal_count": len(record.GraphProposalIDs), "label_count": len(record.LabelIDs), "market_state": stateSummary, "market_evidence": eodEvidence, "subject_symbol": subjectSymbol, "context_strategy": strategy}
@@ -440,7 +458,9 @@ func buildSyncraticContextWindowWithLedger(ctx context.Context, repo storage.Que
 	record.BaselineRefsJSON = []byte(`[]`)
 	record.EvaluationRefsJSON = []byte(`[]`)
 	record.PromotionCandidateRefsJSON = mustJSON(promotionRefs)
-	if len(record.QualityWarningsJSON) == 0 { record.QualityWarningsJSON = []byte(`[]`) }
+	if len(record.QualityWarningsJSON) == 0 {
+		record.QualityWarningsJSON = []byte(`[]`)
+	}
 	record.IdempotencyKey = syncraticMaterializationKey(tenantID, record.UseCase, strategy, subjectSymbol, record.WindowStart, record.WindowEnd, builderVersion)
 	record.EvidenceDigest = syncraticEvidenceDigest(record)
 	record.ContextWindowID = stableSyncraticID("synctx", record.IdempotencyKey)
@@ -479,6 +499,8 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 	var promptMeta syncraticAskPromptMeta
 	if contextWindow.ContextStrategy == marketStateContextStrategy {
 		prompt, promptMeta, err = buildMarketStateAskPrompt(contextWindow, req)
+	} else if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) {
+		prompt, promptMeta, err = buildSyncraticDailyNarrativeAskPrompt(contextWindow, req)
 	} else {
 		signalDetails, missingSignalDetails, detailErr := syncraticAskSignalDetails(ctx, repo, contextWindow, 5)
 		if detailErr != nil {
@@ -490,7 +512,12 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
 	}
 	insightType := strings.TrimSpace(req.InsightType)
-	if insightType == "" && contextWindow.ContextStrategy == "market_state_session_v2" { insightType = defaultSyncraticAskDrilldownType }
+	if insightType == "" && isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) {
+		insightType = dailyNarrativeInsightType
+	}
+	if insightType == "" && contextWindow.ContextStrategy == "market_state_session_v2" {
+		insightType = defaultSyncraticAskDrilldownType
+	}
 	insight, err := syncraticInsightForContextType(ctx, repo, contextWindow, insightType)
 	if err != nil {
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
@@ -502,9 +529,11 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 	question := "Interpret this deterministic SignalOps MarketOps context window for an operator. Rank the strongest drivers, explain why the cluster matters now, call out contradictions or weak evidence, and recommend next checks using only the caller-supplied external context."
 	if contextWindow.ContextStrategy == marketStateContextStrategy {
 		question = marketStateAskQuestion(contextWindow)
+	} else if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) {
+		question = "Return only the requested JSON daily narrative for this bounded deterministic MarketOps context. Interpret the supplied evidence for an analyst; do not describe the prompt, JSON, or instructions."
 	}
 	includeRefs := false
-	directReasoning := true
+	directReasoning := false
 	graphEnabled := false
 	keeEnabled := false
 	askResp, err := askClient.Ask(ctx, userapi.AskRequest{
@@ -516,6 +545,7 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 		DirectReasoning: &directReasoning,
 		GraphEnabled:    &graphEnabled,
 		KEEEnabled:      &keeEnabled,
+		IdempotencyKey:  syncraticAskIdempotencyKey(contextWindow, promptMeta, req.Force, started),
 		ExternalContext: &userapi.AskExternalContext{Items: []userapi.AskExternalContextItem{{Title: "SignalOps MarketOps context window " + contextWindow.ContextWindowID, SourceID: contextWindow.ContextWindowID, Text: prompt}}},
 	})
 	if err != nil {
@@ -531,6 +561,14 @@ func enrichSyncraticInsightWithAsk(ctx context.Context, repo storage.QueryReposi
 		return storage.SyncraticInsightRecord{}, syncraticAskResult{}, err
 	}
 	return stored, syncraticAskResult{ContextWindowID: contextWindow.ContextWindowID, SyncraticInsightID: stored.SyncraticInsightID, AskQueryID: askResp.QueryID, AskStatus: "completed", PromptDigest: promptMeta.PromptDigest, Updated: true, PromptBuilderVersion: promptMeta.PromptBuilderVersion}, nil
+}
+
+func syncraticAskIdempotencyKey(contextWindow storage.SyncraticContextWindowRecord, meta syncraticAskPromptMeta, force bool, started time.Time) string {
+	parts := []string{"signalops", "syncratic-ask", contextWindow.ContextWindowID, strings.TrimPrefix(meta.PromptDigest, "sha256:")}
+	if force {
+		parts = append(parts, "force", started.Format("20060102T150405.000000000Z"))
+	}
+	return strings.Join(parts, "-")
 }
 
 type syncraticAskPromptMeta struct {
@@ -758,6 +796,7 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 		"role":                   "MarketOps surveillance reasoning layer over deterministic SignalOps evidence.",
 		"instructions": []string{
 			"Use only the supplied JSON context; do not retrieve documents or use external knowledge.",
+			"Write analyst-facing narrative in relational natural language. Do not describe what the user wants, what the task is, what the prompt says, or what the context contains.",
 			"Do not restate counts or IDs as the main explanation. Interpret the strongest evidence.",
 			"Rank top drivers only when analysis_mode is market_interpretation_allowed.",
 			"Explain why the combined signal cluster matters for the operator now.",
@@ -774,7 +813,7 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 		"output_contract": []string{
 			"title: concise finding, not the context_window_id",
 			"summary: one sentence stating the operator-relevant pattern",
-			"top_drivers: if analysis_mode=data_quality_blocked, write none; otherwise ranked bullets with signal_id, type, severity, confidence, key metrics, and why it matters",
+			"top_drivers: if analysis_mode=data_quality_blocked or evidence is empty, write none; otherwise ranked relational bullets explaining strongest drivers in natural language with cited evidence IDs",
 			"explanation: synthesize the cluster; do not merely list signal names",
 			"quality_warnings: put first when subject_mismatch_hints exist; state that affected evidence cannot support the context subject",
 			"recommendation: action one of observe, review, escalate, no_action plus next checks",
@@ -785,7 +824,7 @@ func buildSyncraticAskPrompt(contextWindow storage.SyncraticContextWindowRecord,
 	if err != nil {
 		return "", syncraticAskPromptMeta{}, err
 	}
-	prompt := "You are a non-human MarketOps reasoning client. Produce operator-useful interpretation, not a generic summary. If analysis_mode is data_quality_blocked, lead with DATA QUALITY WARNING, do not infer that one ticker impacts another, do not describe market impact, and make the recommendation about evidence remediation rather than trading/market action. Use only the JSON context below. Return the requested fields and cite evidence IDs.\nCONTEXT_JSON:\n" + string(raw)
+	prompt := "You are a non-human MarketOps reasoning client. Produce operator-useful interpretation, not a generic summary. Do not describe the request, task, prompt, JSON, external context, or what the user wants. If analysis_mode is data_quality_blocked, lead with DATA QUALITY WARNING, do not infer that one ticker impacts another, do not describe market impact, and make the recommendation about evidence remediation rather than trading/market action. Use only the JSON context below. Return the requested fields and cite evidence IDs.\nCONTEXT_JSON:\n" + string(raw)
 	if len(prompt) > maxPromptBytes {
 		return "", syncraticAskPromptMeta{}, fmt.Errorf("prompt exceeds max_prompt_bytes")
 	}
@@ -815,6 +854,10 @@ func syncraticInsightForContextType(ctx context.Context, repo storage.QueryRepos
 }
 
 func syncraticAskAlreadyApplied(insight storage.SyncraticInsightRecord, meta syncraticAskPromptMeta) bool {
+	answer := strings.Join([]string{insight.Title, insight.Summary, insight.Explanation}, " ")
+	if syncraticAskAnswerIsMetaCommentary(answer) || syncraticAskAnswerIsNoTextFallback(answer) {
+		return false
+	}
 	metrics := jsonObjectOrEmpty(insight.MetricsJSON)
 	ask, ok := metrics["syncratic_ask"].(map[string]any)
 	if !ok {
@@ -824,27 +867,630 @@ func syncraticAskAlreadyApplied(insight storage.SyncraticInsightRecord, meta syn
 }
 
 func applySyncraticAskResponse(insight storage.SyncraticInsightRecord, contextWindow storage.SyncraticContextWindowRecord, meta syncraticAskPromptMeta, resp userapi.AskResponse, started, completed time.Time) storage.SyncraticInsightRecord {
+	structured := syncraticAskStructuredPayload(resp)
 	answer := strings.TrimSpace(resp.Answer)
-	if answer == "" && len(resp.Raw) > 0 {
-		var raw map[string]any
-		if json.Unmarshal(resp.Raw, &raw) == nil {
-			answer = firstNonEmpty(asString(raw["answer"]), asString(raw["explanation"]), asString(raw["summary"]))
-		}
+	if rendered := renderSyncraticAskStructuredExplanation(structured); rendered != "" {
+		answer = rendered
+	} else if answer == "" {
+		answer = firstNonEmpty(asString(structured["answer"]), asString(structured["explanation"]), asString(structured["executive_summary"]), asString(structured["summary"]))
 	}
 	if answer == "" {
 		answer = "Syncratic Ask returned no textual explanation. Review deterministic evidence directly."
 	}
+	responseQuality := "llm_answer"
+	summary := firstNonEmpty(asString(structured["executive_summary"]), asString(structured["summary"]), extractAskString(resp.Raw, "summary"), truncateForSummary(answer), insight.Summary)
+	title := firstNonEmpty(asString(structured["title"]), extractAskString(resp.Raw, "title"), insight.Title, fmt.Sprintf("%s Syncratic Ask explanation", contextWindow.SubjectSymbol))
+	action := firstNonEmpty(asString(structured["recommended_next_step"]), asString(structured["action"]), extractAskString(resp.Raw, "action"), "review")
+	if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) && syncraticAskOutputNeedsDeterministicFallback(answer, summary, title, structured) {
+		fallback := deterministicDailyNarrativeFromContext(contextWindow)
+		if fallback.Explanation != "" {
+			answer = fallback.Explanation
+			summary = firstNonEmpty(fallback.Summary, summary)
+			title = firstNonEmpty(fallback.Title, title)
+			action = firstNonEmpty(fallback.Action, action)
+			responseQuality = "deterministic_fallback_meta_answer"
+		}
+	} else if !isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) && syncraticAskGenericOutputNeedsDeterministicFallback(answer, summary, title, contextWindow) {
+		fallback := deterministicGenericSyncraticNarrativeFromContext(contextWindow)
+		if fallback.Explanation != "" {
+			answer = fallback.Explanation
+			summary = firstNonEmpty(fallback.Summary, summary)
+			title = firstNonEmpty(fallback.Title, title)
+			action = firstNonEmpty(fallback.Action, action)
+			responseQuality = fallback.ResponseQuality
+		}
+	}
 	insight.Explanation = answer
-	insight.Summary = firstNonEmpty(extractAskString(resp.Raw, "summary"), truncateForSummary(answer), insight.Summary)
-	insight.Title = firstNonEmpty(extractAskString(resp.Raw, "title"), insight.Title, fmt.Sprintf("%s Syncratic Ask explanation", contextWindow.SubjectSymbol))
+	insight.Summary = summary
+	insight.Title = title
 	if resp.Confidence > 0 {
 		insight.Confidence = float64(resp.Confidence)
 	}
 	metrics := jsonObjectOrEmpty(insight.MetricsJSON)
-	metrics["syncratic_ask"] = map[string]any{"enabled": true, "ask_query_id": resp.QueryID, "ask_status": "completed", "prompt_builder_version": meta.PromptBuilderVersion, "prompt_digest": meta.PromptDigest, "context_window_id": contextWindow.ContextWindowID, "context_evidence_digest": meta.ContextEvidenceDigest, "request_scope": defaultSyncraticAskScope, "request_k": 1, "direct_reasoning": true, "graph_enabled": false, "kee_enabled": false, "included_record_details": meta.IncludedRecordDetails, "prompt_bytes": meta.PromptBytes, "caps": meta.Caps, "response": map[string]any{"confidence": resp.Confidence, "evidence_count": resp.EvidenceCount, "citation_count": len(resp.Citations)}, "started_at": started.Format(time.RFC3339Nano), "completed_at": completed.Format(time.RFC3339Nano), "latency_ms": completed.Sub(started).Milliseconds()}
+	metrics["syncratic_ask"] = map[string]any{"enabled": true, "ask_query_id": resp.QueryID, "ask_status": "completed", "prompt_builder_version": meta.PromptBuilderVersion, "prompt_digest": meta.PromptDigest, "context_window_id": contextWindow.ContextWindowID, "context_evidence_digest": meta.ContextEvidenceDigest, "request_scope": defaultSyncraticAskScope, "request_k": 1, "direct_reasoning": false, "graph_enabled": false, "kee_enabled": false, "included_record_details": meta.IncludedRecordDetails, "prompt_bytes": meta.PromptBytes, "caps": meta.Caps, "response_quality": responseQuality, "response": map[string]any{"confidence": resp.Confidence, "evidence_count": resp.EvidenceCount, "citation_count": len(resp.Citations)}, "started_at": started.Format(time.RFC3339Nano), "completed_at": completed.Format(time.RFC3339Nano), "latency_ms": completed.Sub(started).Milliseconds()}
 	insight.MetricsJSON = mustJSON(metrics)
-	insight.RecommendationJSON = mustJSON(map[string]any{"action": firstNonEmpty(extractAskString(resp.Raw, "action"), "review"), "source": "syncratic_ask", "reason": "LLM-generated explanation over a bounded deterministic SignalOps context window", "ask_query_id": resp.QueryID, "prompt_digest": meta.PromptDigest})
+	insight.RecommendationJSON = mustJSON(map[string]any{"action": action, "source": "syncratic_ask", "reason": "LLM-generated explanation over a bounded deterministic SignalOps context window", "ask_query_id": resp.QueryID, "prompt_digest": meta.PromptDigest})
 	return insight
+}
+
+type deterministicSyncraticNarrative struct {
+	Title           string
+	Summary         string
+	Explanation     string
+	Action          string
+	ResponseQuality string
+}
+
+func syncraticAskGenericOutputNeedsDeterministicFallback(answer, summary, title string, contextWindow storage.SyncraticContextWindowRecord) bool {
+	if syncraticAskAnswerIsMetaCommentary(strings.Join([]string{answer, summary, title}, " ")) {
+		return true
+	}
+	if syncraticContextEvidenceCount(contextWindow) == 0 {
+		return true
+	}
+	trimmedSummary := strings.TrimSpace(summary)
+	if trimmedSummary == "UNKNOWN" || strings.HasPrefix(trimmedSummary, "{") || strings.HasPrefix(trimmedSummary, "```") {
+		return true
+	}
+	return false
+}
+
+func syncraticAskOutputNeedsDeterministicFallback(answer, summary, title string, structured map[string]any) bool {
+	trimmed := strings.TrimSpace(answer)
+	if syncraticAskAnswerIsNoTextFallback(trimmed) {
+		return true
+	}
+	if syncraticAskAnswerIsMetaCommentary(trimmed) {
+		return true
+	}
+	if len(structured) == 0 && (strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "```")) {
+		return true
+	}
+	summaryText := strings.TrimSpace(summary)
+	titleText := strings.TrimSpace(title)
+	if summaryText == "UNKNOWN" || strings.HasPrefix(summaryText, "{") || strings.HasPrefix(summaryText, "```") {
+		return true
+	}
+	if titleText == "MARKETOPS Syncratic context" {
+		return true
+	}
+	return false
+}
+
+func syncraticAskAnswerIsMetaCommentary(answer string) bool {
+	text := strings.ToLower(strings.TrimSpace(answer))
+	if text == "" {
+		return false
+	}
+	markers := []string{"the prompt", "the json", "json provided", "json from external context", "the user specified", "they specified", "the instructions", "context includes a json", "main artifact here is the json", "main goal is to generate", "they want me to", "the task is to", "the context includes", "provided external context", "caller-supplied external context", "main elements are", "context metadata", "summary metrics", "summary_metrics", "lineage references"}
+	for _, marker := range markers {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func syncraticAskAnswerIsNoTextFallback(answer string) bool {
+	text := strings.ToLower(strings.TrimSpace(answer))
+	return strings.Contains(text, "syncratic ask returned no textual explanation")
+}
+
+func deterministicGenericSyncraticNarrativeFromContext(contextWindow storage.SyncraticContextWindowRecord) deterministicSyncraticNarrative {
+	symbol := firstNonEmpty(strings.TrimSpace(contextWindow.SubjectSymbol), strings.TrimSpace(contextWindow.SubjectID), "the selected asset")
+	session := contextWindow.WindowStart.UTC().Format("2006-01-02")
+	evidenceCount := syncraticContextEvidenceCount(contextWindow)
+	if evidenceCount == 0 {
+		summary := fmt.Sprintf("%s does not have enough persisted Syncratic evidence in this context window for an analyst-facing market interpretation.", symbol)
+		return deterministicSyncraticNarrative{
+			Title:           fmt.Sprintf("%s Syncratic evidence gap", symbol),
+			Summary:         summary,
+			Explanation:     "DATA QUALITY WARNING:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- The context window contains no supporting signals, alerts, events, artifacts, market-state evidence, opportunities, or outcomes. Because the evidence set is empty, Syncratic Ask cannot responsibly identify strongest drivers, explain a cluster, or infer opportunity posture for this asset.\n\nWeak evidence:\n- The prior response described the request structure rather than persisted MarketOps evidence. That is not a valid analyst narrative.\n\nAnalyst follow-ups:\n- Rematerialize the Syncratic context after Market State, Risk/Reward, Review Queue, or signal evidence exists for this asset.\n- Review asset-to-evidence mapping if the asset should already have current persisted MarketOps evidence.",
+			Action:          "rematerialize_or_review_mapping",
+			ResponseQuality: "deterministic_fallback_empty_context",
+		}
+	}
+	parts := []string{}
+	if len(contextWindow.SignalIDs) > 0 {
+		parts = append(parts, fmt.Sprintf("%d signal reference(s)", len(contextWindow.SignalIDs)))
+	}
+	if len(contextWindow.AlertIDs) > 0 {
+		parts = append(parts, fmt.Sprintf("%d alert reference(s)", len(contextWindow.AlertIDs)))
+	}
+	if len(contextWindow.MarketStateIDs)+len(contextWindow.MarketOpsEvidenceIDs) > 0 {
+		parts = append(parts, "market-state evidence")
+	}
+	if len(contextWindow.OpportunityIDs) > 0 {
+		parts = append(parts, "Review Queue opportunity evidence")
+	}
+	if len(parts) == 0 {
+		parts = append(parts, fmt.Sprintf("%d persisted evidence reference(s)", evidenceCount))
+	}
+	summary := fmt.Sprintf("%s has a bounded Syncratic context with %s, but the AI response was not usable as analyst prose.", symbol, strings.Join(parts, ", "))
+	return deterministicSyncraticNarrative{
+		Title:           fmt.Sprintf("%s Syncratic evidence review", symbol),
+		Summary:         summary,
+		Explanation:     "Executive summary:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- The available context is sufficient for evidence review, but the generated response described the prompt/request instead of interpreting persisted MarketOps evidence. SignalOps therefore preserved a deterministic evidence-first fallback.\n\nAnalyst follow-ups:\n- Inspect the cited context window and underlying evidence references before using this as an asset-level thesis.\n- Regenerate after richer Market State, Risk/Reward, Review Queue, or signal evidence is available if a deeper narrative is needed.",
+		Action:          "review_context_evidence",
+		ResponseQuality: "deterministic_fallback_meta_answer",
+	}
+}
+
+func syncraticContextEvidenceCount(contextWindow storage.SyncraticContextWindowRecord) int {
+	return len(contextWindow.MarketStateIDs) +
+		len(contextWindow.StateTransitionIDs) +
+		len(contextWindow.MarketOpsEvidenceIDs) +
+		len(contextWindow.HypothesisEvaluationIDs) +
+		len(contextWindow.OpportunityIDs) +
+		len(contextWindow.OutcomeIDs) +
+		len(contextWindow.CalibrationSummaryIDs) +
+		len(contextWindow.AlertIDs) +
+		len(contextWindow.SignalIDs) +
+		len(contextWindow.EventIDs) +
+		len(contextWindow.ArtifactIDs) +
+		len(contextWindow.GraphProposalIDs) +
+		len(contextWindow.LabelIDs)
+}
+
+func deterministicDailyNarrativeFromContext(contextWindow storage.SyncraticContextWindowRecord) deterministicSyncraticNarrative {
+	root := jsonObjectOrEmpty(contextWindow.SummaryMetricsJSON)
+	sections := mapFromAny(root["sections"])
+	session := contextWindow.WindowStart.UTC().Format("2006-01-02")
+	switch contextWindow.ContextStrategy {
+	case dailyNarrativeStrategySRI:
+		return deterministicSRINarrative(session, mapFromAny(sections["sri"]))
+	case dailyNarrativeStrategyRiskReward:
+		return deterministicRiskRewardNarrative(session, mapFromAny(sections["risk_reward"]))
+	case dailyNarrativeStrategyReviewQueue:
+		return deterministicReviewQueueNarrative(session, mapFromAny(sections["review_queue"]))
+	case dailyNarrativeStrategyOverview:
+		return deterministicOverviewNarrative(session, sections)
+	default:
+		return deterministicSyncraticNarrative{}
+	}
+}
+
+func deterministicOverviewNarrative(session string, sections map[string]any) deterministicSyncraticNarrative {
+	sri := deterministicSRINarrative(session, mapFromAny(sections["sri"]))
+	rr := deterministicRiskRewardNarrative(session, mapFromAny(sections["risk_reward"]))
+	review := deterministicReviewQueueNarrative(session, mapFromAny(sections["review_queue"]))
+	parts := []string{}
+	for _, item := range []deterministicSyncraticNarrative{sri, rr, review} {
+		if item.Summary != "" {
+			parts = append(parts, item.Summary)
+		}
+	}
+	if len(parts) == 0 {
+		return deterministicSyncraticNarrative{}
+	}
+	return deterministicSyncraticNarrative{
+		Title:   "MarketOps daily overview · " + session,
+		Summary: strings.Join(parts, " "),
+		Explanation: "Executive summary:\nSession date: " + session + ". " + strings.Join(parts, " ") +
+			"\n\nContextual read:\n- Sector leadership, Risk/Reward breadth, and active Review Queue pressure should be read together. A strong sector tape with mostly neutral Risk/Reward breadth is a focus signal for drill-down, not a broad confirmation signal." +
+			"\n\nWhat changed:\n- " + strings.Join(parts, "\n- ") +
+			"\n\nContradictions or weak evidence:\n- Overview synthesis is compacted from focused section summaries. Use the focused SRI, Risk/Reward, and Review Queue cards for artifact-level validation before escalating a hypothesis." +
+			"\n\nAnalyst follow-ups:\n- Inspect focused narratives for the concrete symbols, sectors, scores, and stale-evidence warnings behind this overview.\n- Treat this as explainability over persisted evidence, not a trading instruction.",
+		Action: "review_focused_narratives",
+	}
+}
+
+func deterministicSRINarrative(session string, section map[string]any) deterministicSyncraticNarrative {
+	leaders := sliceFromAny(section["leaders"])
+	if len(leaders) == 0 {
+		return deterministicSyncraticNarrative{}
+	}
+	leaderTexts := []string{}
+	for idx, item := range leaders {
+		m := mapFromAny(item)
+		leaderTexts = append(leaderTexts, sriLeaderNarrative(idx, m, len(leaders)))
+		if len(leaderTexts) >= 5 {
+			break
+		}
+	}
+	contextBullets := []string{}
+	if len(leaders) > 0 {
+		top := mapFromAny(leaders[0])
+		contextBullets = append(contextBullets, fmt.Sprintf("%s is the primary leadership pocket in the sampled rotation table and remains in a %s posture", humanizeSegment(asString(top["segment_id"])), naturalState(asString(top["state"]))))
+	}
+	if len(leaders) >= 2 {
+		tail := mapFromAny(leaders[len(leaders)-1])
+		contextBullets = append(contextBullets, fmt.Sprintf("%s is the weakest sampled pocket and should be treated as a laggard until its rotation posture improves", humanizeSegment(asString(tail["segment_id"]))))
+	}
+	summary := "Sector Rotation leadership was concentrated in " + strings.Join(topSegments(leaders, 3), ", ") + "."
+	return deterministicSyncraticNarrative{Title: "Sector Rotation daily overview · " + session, Summary: summary, Explanation: "Executive summary:\nSession date: " + session + ". " + summary + " The section reads as a leadership map rather than a market-wide recommendation.\n\nContextual read:\n- " + strings.Join(contextBullets, "\n- ") + "\n\nTop drivers:\n- " + strings.Join(leaderTexts, "\n- ") + "\n\nContradictions or weak evidence:\n- Rank-change fields may be unavailable for some segments; treat missing rank-change as a data-quality limitation, not neutral evidence.\n\nAnalyst follow-ups:\n- Inspect the SRI progression chart for whether leadership is persistent or a one-session move.\n- Compare leading and lagging segments against watchlist holdings before treating rotation as actionable.", Action: "review_sri_progression"}
+}
+
+func deterministicRiskRewardNarrative(session string, section map[string]any) deterministicSyncraticNarrative {
+	breadth := mapFromAny(section["breadth"])
+	examples := sliceFromAny(section["top_examples"])
+	bullish := intFromAny(breadth["bullish"])
+	bearish := intFromAny(breadth["bearish"])
+	neutral := intFromAny(breadth["neutral"])
+	unavailable := intFromAny(breadth["unavailable"])
+	total := bullish + bearish + neutral + unavailable
+	breadthText := naturalBreadthText(bullish, bearish, neutral, unavailable)
+	drivers := []string{}
+	for idx, item := range examples {
+		m := mapFromAny(item)
+		drivers = append(drivers, riskRewardDriverNarrative(idx, m))
+		if len(drivers) >= 6 {
+			break
+		}
+	}
+	driverSummary := "No representative directional exceptions were available in the bounded sample."
+	if len(drivers) > 0 {
+		driverSummary = "The strongest sampled exceptions were " + strings.Join(drivers[:minInt(len(drivers), 3)], "; ") + "."
+	}
+	summary := breadthText + " " + driverSummary
+	neutralContext := naturalNeutralContext(neutral, total)
+	imbalance := naturalDirectionalImbalance(bullish, bearish)
+	return deterministicSyncraticNarrative{Title: "Risk/Reward daily evolution · " + session, Summary: summary, Explanation: "Executive summary:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- " + neutralContext + " Directional breadth showed " + imbalance + ", so the named symbols should be treated as focused exceptions inside the broader monitored group.\n\nWhat changed:\n- " + breadthText + "\n\nTop drivers:\n- " + strings.Join(drivers, "\n- ") + "\n\nContradictions or weak evidence:\n- The breadth mix is still mostly neutral, so directional examples should be reviewed as a focused subset rather than a broad market call.\n\nAnalyst follow-ups:\n- Compare these symbols against Market State and Review Queue convergence before promoting any hypothesis.", Action: "compare_risk_reward_with_market_state"}
+}
+
+func deterministicReviewQueueNarrative(session string, section map[string]any) deterministicSyncraticNarrative {
+	counts := mapFromAny(section["status_counts"])
+	examples := sliceFromAny(section["active_examples"])
+	activeCount := intFromAny(counts["active"])
+	expiredCount := intFromAny(counts["expired"])
+	totalCount := activeCount + expiredCount
+	countText := naturalReviewQueueText(activeCount, expiredCount)
+	drivers := []string{}
+	for _, item := range examples {
+		m := mapFromAny(item)
+		drivers = append(drivers, reviewQueueDriverNarrative(m))
+		if len(drivers) >= 6 {
+			break
+		}
+	}
+	driverSummary := "No active examples were available for current triage."
+	if len(drivers) > 0 {
+		driverSummary = "Active examples were led by " + strings.Join(drivers[:minInt(len(drivers), 3)], "; ") + "."
+	}
+	activeShare := naturalActiveShare(activeCount, totalCount)
+	summary := countText + " " + driverSummary
+	return deterministicSyncraticNarrative{Title: "Review Queue daily brief · " + session, Summary: summary, Explanation: "Executive summary:\nSession date: " + session + ". " + summary + "\n\nContextual read:\n- " + activeShare + ", so analyst attention should stay on live items and keep expired rows out of primary triage.\n\nWhat changed:\n- " + countText + "; expired items should remain separated from current analyst work.\n\nTop drivers:\n- " + strings.Join(drivers, "\n- ") + "\n\nContradictions or weak evidence:\n- High expired volume can overwhelm the view; focus first on active opportunities with current evaluation dates.\n\nAnalyst follow-ups:\n- Inspect active opportunity details and suppress expired rows from primary triage unless reviewing historical performance.", Action: "review_active_opportunities"}
+}
+
+func topSegments(items []any, limit int) []string {
+	out := []string{}
+	for _, item := range items {
+		segment := humanizeSegment(asString(mapFromAny(item)["segment_id"]))
+		if segment != "" {
+			out = append(out, segment)
+		}
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out
+}
+
+func sriLeaderNarrative(index int, item map[string]any, total int) string {
+	segment := humanizeSegment(asString(item["segment_id"]))
+	state := naturalState(asString(item["state"]))
+	switch {
+	case index == 0:
+		return fmt.Sprintf("%s is leading the monitored rotation group and currently has the clearest leadership posture", segment)
+	case index <= 2:
+		return fmt.Sprintf("%s remains near the top of the rotation stack with a %s posture", segment, state)
+	case index >= total-2:
+		return fmt.Sprintf("%s is still in the weaker part of the rotation stack and needs confirmation before it can be treated as improving", segment)
+	default:
+		return fmt.Sprintf("%s is in the middle of the rotation stack, which makes it more of a monitoring candidate than a leadership signal", segment)
+	}
+}
+
+func naturalState(state string) string {
+	switch strings.ToUpper(strings.TrimSpace(state)) {
+	case "LEADING":
+		return "leading"
+	case "IMPROVING":
+		return "improving"
+	case "WEAKENING":
+		return "weakening"
+	case "LAGGING":
+		return "lagging"
+	case "NEUTRAL":
+		return "neutral"
+	default:
+		return "unclassified"
+	}
+}
+
+func naturalBreadthText(bullish, bearish, neutral, unavailable int) string {
+	switch {
+	case neutral > bullish+bearish:
+		return "Risk/Reward breadth remains mostly neutral across the monitored group."
+	case bullish > bearish:
+		return "Risk/Reward breadth leans constructive, with bullish reads outnumbering bearish reads."
+	case bearish > bullish:
+		return "Risk/Reward breadth leans cautious, with bearish reads outnumbering bullish reads."
+	case unavailable > 0:
+		return "Risk/Reward breadth is mixed, with some assets still unavailable for evaluation."
+	default:
+		return "Risk/Reward breadth is balanced across the monitored group."
+	}
+}
+
+func naturalNeutralContext(neutral, total int) string {
+	if total <= 0 {
+		return "The selected universe does not yet have enough breadth coverage for a reliable contextual read."
+	}
+	share := float64(neutral) / float64(total)
+	switch {
+	case share >= 0.70:
+		return "Most monitored assets are still neutral, which limits broad directional conviction."
+	case share >= 0.45:
+		return "A meaningful portion of the monitored group remains neutral, so directional signals are still selective."
+	default:
+		return "Neutral conditions are no longer dominating the monitored group, so directional breadth deserves closer review."
+	}
+}
+
+func naturalDirectionalImbalance(bullish, bearish int) string {
+	diff := bullish - bearish
+	switch {
+	case diff >= 10:
+		return "a clear bullish tilt"
+	case diff > 0:
+		return "a modest bullish tilt"
+	case diff <= -10:
+		return "a clear bearish tilt"
+	case diff < 0:
+		return "a modest bearish tilt"
+	default:
+		return "a balanced directional profile"
+	}
+}
+
+func riskRewardDriverNarrative(index int, item map[string]any) string {
+	symbol := asString(item["symbol"])
+	direction := strings.ToLower(asString(item["direction"]))
+	if direction == "" {
+		direction = "directional"
+	}
+	leadIn := "is a monitored"
+	if index == 0 {
+		leadIn = "is the clearest"
+	}
+	return fmt.Sprintf("%s %s %s exception in the group and is showing a possible %s opportunity; evidence looks %s with a %s risk posture", symbol, leadIn, direction, direction, naturalEvidenceTone(floatFromAny(item["confidence"])), naturalRiskTone(asString(item["risk_level"])))
+}
+
+func naturalEvidenceTone(confidence float64) string {
+	switch {
+	case confidence >= 0.75:
+		return "well supported"
+	case confidence >= 0.55:
+		return "constructive but still worth confirming"
+	case confidence > 0:
+		return "early and needs more confirmation"
+	default:
+		return "unclear from the bounded sample"
+	}
+}
+
+func naturalRiskTone(risk string) string {
+	switch strings.ToLower(strings.TrimSpace(risk)) {
+	case "low":
+		return "lower"
+	case "medium":
+		return "manageable but not clean"
+	case "high":
+		return "elevated"
+	default:
+		return "unclassified"
+	}
+}
+
+func naturalReviewQueueText(active, expired int) string {
+	switch {
+	case active > 0 && expired > active:
+		return "Review Queue is dominated by expired items, but there are still active opportunities that need current triage."
+	case active > expired:
+		return "Review Queue is primarily active, so the current triage set should drive analyst attention."
+	case active > 0:
+		return "Review Queue has a small active set that should be separated from historical or expired noise."
+	default:
+		return "Review Queue has no active opportunities in the bounded sample."
+	}
+}
+
+func naturalActiveShare(active, total int) string {
+	if total <= 0 {
+		return "The queue does not have enough current items to form a triage view"
+	}
+	share := float64(active) / float64(total)
+	switch {
+	case share >= 0.50:
+		return "Active opportunities make up a substantial part of the queue"
+	case share >= 0.10:
+		return "Active opportunities are present but still a minority of the queue"
+	case active > 0:
+		return "Active opportunities are a small minority of the queue"
+	default:
+		return "The queue is effectively historical for this window"
+	}
+}
+
+func reviewQueueDriverNarrative(item map[string]any) string {
+	symbol := asString(item["symbol"])
+	direction := strings.ToLower(asString(item["direction"]))
+	if direction == "" {
+		direction = "directional"
+	}
+	when := asString(item["last_evaluated_date"])
+	if when == "" {
+		when = "the current window"
+	}
+	summary := asString(item["summary"])
+	if summary != "" {
+		return fmt.Sprintf("%s remains an active %s review item last evaluated %s; the persisted summary points to %s", symbol, direction, when, summary)
+	}
+	return fmt.Sprintf("%s remains an active %s review item last evaluated %s", symbol, direction, when)
+}
+
+func mapFromAny(value any) map[string]any {
+	m, _ := value.(map[string]any)
+	if m == nil {
+		return map[string]any{}
+	}
+	return m
+}
+
+func sliceFromAny(value any) []any {
+	items, _ := value.([]any)
+	return items
+}
+
+func formatJSONNumber(value any) string {
+	switch typed := value.(type) {
+	case float64:
+		if typed == float64(int64(typed)) {
+			return fmt.Sprintf("%d", int64(typed))
+		}
+		return fmt.Sprintf("%.2f", typed)
+	case int:
+		return fmt.Sprintf("%d", typed)
+	case int64:
+		return fmt.Sprintf("%d", typed)
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", typed))
+	}
+}
+
+func floatFromAny(value any) float64 {
+	switch typed := value.(type) {
+	case float64:
+		return typed
+	case int:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	case string:
+		var out float64
+		if _, err := fmt.Sscanf(strings.TrimSpace(typed), "%f", &out); err == nil {
+			return out
+		}
+	}
+	return 0
+}
+
+func intFromAny(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case string:
+		var out int
+		if _, err := fmt.Sscanf(strings.TrimSpace(typed), "%d", &out); err == nil {
+			return out
+		}
+	}
+	return 0
+}
+
+func humanizeSegment(segment string) string {
+	text := strings.TrimSpace(segment)
+	text = strings.TrimPrefix(text, "sri_sector_")
+	text = strings.TrimPrefix(text, "sri_industry_")
+	text = strings.ReplaceAll(text, "_", " ")
+	return text
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func syncraticAskStructuredPayload(resp userapi.AskResponse) map[string]any {
+	for _, candidate := range []string{resp.Answer, string(resp.Raw)} {
+		if payload := parseSyncraticAskStructuredPayload(candidate); len(payload) > 0 {
+			return payload
+		}
+	}
+	return map[string]any{}
+}
+
+func parseSyncraticAskStructuredPayload(raw string) map[string]any {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	raw = strings.TrimPrefix(raw, "```json")
+	raw = strings.TrimPrefix(raw, "```")
+	raw = strings.TrimSuffix(raw, "```")
+	raw = strings.TrimSpace(raw)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return nil
+	}
+	if answer := asString(payload["answer"]); strings.HasPrefix(strings.TrimSpace(answer), "{") {
+		if nested := parseSyncraticAskStructuredPayload(answer); len(nested) > 0 {
+			return nested
+		}
+	}
+	return payload
+}
+
+func renderSyncraticAskStructuredExplanation(payload map[string]any) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	sections := []struct {
+		key   string
+		label string
+	}{
+		{key: "executive_summary", label: "Executive summary"},
+		{key: "what_changed", label: "What changed"},
+		{key: "top_drivers", label: "Top drivers"},
+		{key: "contradictions_or_weak_evidence", label: "Contradictions or weak evidence"},
+		{key: "analyst_followups", label: "Analyst follow-ups"},
+		{key: "cited_artifacts", label: "Cited artifacts"},
+		{key: "data_quality_warnings", label: "Data quality warnings"},
+	}
+	parts := []string{}
+	for _, section := range sections {
+		if rendered := renderSyncraticAskValue(payload[section.key]); rendered != "" {
+			parts = append(parts, section.label+":\n"+rendered)
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func renderSyncraticAskValue(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(typed)
+	case []any:
+		lines := []string{}
+		for _, item := range typed {
+			if rendered := renderSyncraticAskValue(item); rendered != "" {
+				lines = append(lines, "- "+rendered)
+			}
+		}
+		return strings.Join(lines, "\n")
+	case map[string]any:
+		if text := firstNonEmpty(asString(typed["summary"]), asString(typed["description"]), asString(typed["text"]), asString(typed["reason"])); text != "" {
+			return text
+		}
+		raw, err := json.Marshal(typed)
+		if err != nil {
+			return ""
+		}
+		return string(raw)
+	default:
+		return strings.TrimSpace(fmt.Sprintf("%v", typed))
+	}
 }
 
 func extractAskString(raw json.RawMessage, key string) string {
@@ -921,12 +1567,16 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 	if req.EnqueueBriefs && !req.DryRun {
 		var ok bool
 		jobs, ok = repo.(storage.SyncraticIntelligenceJobRepository)
-		if !ok { return syncraticMaterializeResponse{}, fmt.Errorf("syncratic intelligence queue is unavailable") }
+		if !ok {
+			return syncraticMaterializeResponse{}, fmt.Errorf("syncratic intelligence queue is unavailable")
+		}
 	}
 	sessionDate := windowEnd.UTC()
 	if strings.TrimSpace(req.SessionDate) != "" {
 		parsed, err := time.Parse("2006-01-02", strings.TrimSpace(req.SessionDate))
-		if err != nil { return syncraticMaterializeResponse{}, fmt.Errorf("session_date must be YYYY-MM-DD") }
+		if err != nil {
+			return syncraticMaterializeResponse{}, fmt.Errorf("session_date must be YYYY-MM-DD")
+		}
 		sessionDate = parsed
 	}
 	ledger, err := loadSyncraticContextLedger(ctx, repo, tenantID, windowStart, windowEnd, req.SignalLimit, req.AlertLimit)
@@ -1021,7 +1671,9 @@ func materializeSyncraticContexts(ctx context.Context, repo storage.QueryReposit
 		}
 		if jobs != nil {
 			job := storage.SyncraticIntelligenceJobRecord{JobID: stableSyncraticID("synjob", tenantID, contextWindow.ContextWindowID, contextWindow.EvidenceDigest), TenantID: tenantID, AppID: "marketops", UseCase: "daily_market_surveillance", SubjectSymbol: contextWindow.SubjectSymbol, SessionDate: sessionDate, ContextWindowID: contextWindow.ContextWindowID, EvidenceDigest: contextWindow.EvidenceDigest, MaxAttempts: 3}
-			if err := jobs.UpsertSyncraticIntelligenceJob(ctx, job); err != nil { return resp, err }
+			if err := jobs.UpsertSyncraticIntelligenceJob(ctx, job); err != nil {
+				return resp, err
+			}
 			resp.QueuedJobIDs = append(resp.QueuedJobIDs, job.JobID)
 		}
 		plannedContextWindows++

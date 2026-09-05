@@ -1,5 +1,5 @@
 // Pure app-routing helpers. No React, no DOM — fully unit-testable.
-import type { AppProfile } from '../types';
+import type { AppProfile, SubscriberSubscriptionFeature } from '../types';
 
 // All frontend route paths used by app nav/selector. Must stay a subset of the
 // routes registered in router.tsx so TanStack Router's typed <Link to=... />
@@ -21,6 +21,7 @@ export type AppRoutePath =
   | '/admin/access'
   | '/admin/system'
   | '/admin/storage'
+  | '/admin/subscriptions'
   | '/'
   | '/runs'
   | '/raw-events'
@@ -35,6 +36,7 @@ export type AppRoutePath =
   | '/insights'
   | '/system'
   | '/marketops/dashboard'
+  | '/marketops/profile'
   | '/marketops/providers'
   | '/marketops/raw-events'
   | '/marketops/normalized'
@@ -46,6 +48,7 @@ export type AppRoutePath =
   | '/marketops/pipelines'
   | '/marketops/health'
   | '/marketops/assets'
+  | '/marketops/watchlists'
   | '/marketops/hypotheses'
   | '/marketops/indicator-reel'
   | '/marketops/state'
@@ -57,8 +60,10 @@ export type AppRoutePath =
   | '/marketops/sectors'
   | '/marketops/backtests'
   | '/marketops/syncratic'
+  | '/marketops/pricing'
   | '/marketops/algorithms'
   | '/marketops/settings'
+  | '/marketops/tools'
   | '/cyberops'
   | '/cyberops/dashboard'
   | '/cyberops/anomalies'
@@ -73,6 +78,7 @@ export interface NavItem {
   module: string;
   to: AppRoutePath;
   label: string;
+  subscriptionFeature?: SubscriberSubscriptionFeature;
 }
 
 // Detect the active app from its route prefix. Every other path (including "/"
@@ -101,24 +107,26 @@ export function defaultRouteForApp(profile: AppProfile): AppRoutePath {
 }
 
 const CONSOLE_NAV: NavItem[] = [
-  { module: 'dashboard', to: '/admin/dashboard', label: 'Dashboard' }, { module: 'runs', to: '/admin/runs', label: 'Runs' }, { module: 'raw_events', to: '/admin/raw-events', label: 'Raw Events' }, { module: 'normalized', to: '/admin/normalized-events', label: 'Normalized' }, { module: 'idempotency', to: '/admin/idempotency', label: 'Idempotency' }, { module: 'sources', to: '/admin/sources', label: 'Sources' }, { module: 'pipelines', to: '/admin/pipelines', label: 'Pipelines' }, { module: 'rules', to: '/admin/rules', label: 'Rules' }, { module: 'replay', to: '/admin/replay', label: 'Replay' }, { module: 'signals', to: '/admin/signals', label: 'Signals' }, { module: 'alerts', to: '/admin/alerts', label: 'Alerts' }, { module: 'insights', to: '/admin/insights', label: 'Insights' }, { module: 'algorithms', to: '/admin/algorithms', label: 'Algorithms' }, { module: 'access', to: '/admin/access', label: 'Access' }, { module: 'storage', to: '/admin/storage', label: 'Storage' }, { module: 'health', to: '/admin/system', label: 'System' },
+  { module: 'dashboard', to: '/admin/dashboard', label: 'Dashboard' }, { module: 'runs', to: '/admin/runs', label: 'Runs' }, { module: 'raw_events', to: '/admin/raw-events', label: 'Raw Events' }, { module: 'normalized', to: '/admin/normalized-events', label: 'Normalized' }, { module: 'idempotency', to: '/admin/idempotency', label: 'Idempotency' }, { module: 'sources', to: '/admin/sources', label: 'Sources' }, { module: 'pipelines', to: '/admin/pipelines', label: 'Pipelines' }, { module: 'rules', to: '/admin/rules', label: 'Rules' }, { module: 'replay', to: '/admin/replay', label: 'Replay' }, { module: 'signals', to: '/admin/signals', label: 'Signals' }, { module: 'alerts', to: '/admin/alerts', label: 'Alerts' }, { module: 'insights', to: '/admin/insights', label: 'Insights' }, { module: 'algorithms', to: '/admin/algorithms', label: 'Algorithms' }, { module: 'access', to: '/admin/access', label: 'Access' }, { module: 'storage', to: '/admin/storage', label: 'Storage' }, { module: 'health', to: '/admin/system', label: 'System' }, { module: 'subscriptions', to: '/admin/subscriptions', label: 'Subscriptions' },
 ];
 
 const MARKETOPS_NAV: NavItem[] = [
   { module: 'dashboard', to: '/marketops/dashboard', label: 'Dashboard' },
+  { module: 'profile', to: '/marketops/profile', label: 'Profile' },
   { module: 'symbols', to: '/marketops/assets', label: 'Assets' },
+  { module: 'watchlists', to: '/marketops/watchlists', label: 'Watchlists' },
   { module: 'state', to: '/marketops/state', label: 'Market State' },
   { module: 'indicator_reel', to: '/marketops/indicator-reel', label: 'Market Intelligence' },
   { module: 'review', to: '/marketops/review', label: 'Review Queue' },
-  { module: 'valuation', to: '/marketops/valuation', label: 'Valuation & DOSM' },
-  { module: 'eroc', to: '/marketops/eroc', label: 'Exhaustive Reversal' },
-  { module: 'earnings', to: '/marketops/earnings', label: 'Earnings Opportunities' },
+  { module: 'valuation', to: '/marketops/valuation', label: 'Value & Distressed Opportunity Intelligence', subscriptionFeature: 'value_intelligence' },
+  { module: 'eroc', to: '/marketops/eroc', label: 'Exhaustive Reversal', subscriptionFeature: 'distressed_opportunity_intelligence' },
+  { module: 'earnings', to: '/marketops/earnings', label: 'Earnings Opportunity Intelligence', subscriptionFeature: 'earnings_opportunity_intelligence' },
   { module: 'opportunities', to: '/marketops/opportunities', label: 'Opportunities' },
-  { module: 'assurance', to: '/marketops/assurance', label: 'Signal Assurance' },
-  { module: 'sectors', to: '/marketops/sectors', label: 'Sector Intelligence' },
-  { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Insights' },
+  { module: 'sectors', to: '/marketops/sectors', label: 'Sector Rotation Intelligence' },
+  { module: 'syncratic', to: '/marketops/syncratic', label: 'Syncratic Intelligence' },
   { module: 'insights', to: '/marketops/insights', label: 'Insights' },
   { module: 'settings', to: '/marketops/settings', label: 'Settings' },
+  { module: 'tools', to: '/marketops/tools', label: 'Tools' },
 ];
 
 const CYBEROPS_NAV: NavItem[] = [

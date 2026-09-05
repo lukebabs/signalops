@@ -1,0 +1,12 @@
+[Unit]
+Description=SignalOps MarketOps post-close outage recovery guard
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+Environment=MARKETOPS_DAILY_ACKNOWLEDGE_WRITES=true
+Environment=MARKETOPS_DAILY_ACTOR=systemd-postclose-recovery
+ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh marketops-postclose-recovery "Weekdays every 15 minutes, 18:30-23:00" America/New_York @WORKDIR@/scripts/marketops_postclose_recovery.sh
+TimeoutStartSec=3h
+Nice=10

@@ -19,14 +19,22 @@ type signalOverviewMember struct {
 	AsOf   string   `json:"as_of"`
 }
 
-func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, repo storage.QueryRepository) {
+func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	repo := cfg.QueryRepository
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/signal-overview", func(w http.ResponseWriter, r *http.Request) {
 		reader, ok := any(repo).(storage.MarketOpsSignalOverviewRepository)
 		if !ok {
 			writeError(w, http.StatusNotImplemented, "signal_overview_unavailable", "signal overview is unavailable")
 			return
 		}
-		tenant := strings.TrimSpace(r.PathValue("tenant_id"))
+		tenant, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenant)
+		if !ok {
+			return
+		}
 		group := strings.TrimSpace(r.URL.Query().Get("universe_group"))
 		if group == "" || group == signalOverviewAllActive {
 			group = ""
@@ -45,16 +53,90 @@ func registerMarketOpsSignalOverviewRoutes(mux *http.ServeMux, repo storage.Quer
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to build signal overview")
 			return
 		}
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			inputs.Assets = filterMarketOpsSignalOverviewAssets(inputs.Assets, watchlistContext.Tickers)
+			available := make(map[string]struct{}, len(inputs.Assets))
+			for _, asset := range inputs.Assets {
+				available[strings.ToUpper(asset.Ticker)] = struct{}{}
+			}
+			if currentReader, supported := any(repo).(storage.SubscriberCurrentEODContextBatchRepository); supported {
+				symbols := make([]string, 0, len(watchlistContext.Items))
+				for _, item := range watchlistContext.Items {
+					symbols = append(symbols, item.Ticker)
+				}
+				currents, currentErr := currentReader.ListSubscriberCurrentEODContexts(r.Context(), symbols)
+				if currentErr != nil {
+					writeError(w, http.StatusInternalServerError, "query_failed", "failed to load shared MarketOps EOD context")
+					return
+				}
+				currentByTicker := make(map[string]storage.SubscriberCurrentEODContextRecord, len(currents))
+				for _, current := range currents {
+					currentByTicker[strings.ToUpper(current.Symbol)] = current
+				}
+				for _, item := range watchlistContext.Items {
+					ticker := strings.ToUpper(item.Ticker)
+					if _, present := available[ticker]; present {
+						continue
+					}
+					if current, found := currentByTicker[ticker]; found {
+						inputs.Assets = append(inputs.Assets, subscriberWatchlistCurrentEODAsset(tenant, item, len(inputs.Assets)+1, current))
+						available[ticker] = struct{}{}
+					}
+				}
+			}
+		}
 		var snapshots []storage.MarketOpsRiskRewardSnapshotRecord
-		if snapshotReader, ok := any(repo).(storage.MarketOpsRiskRewardSnapshotRepository); ok {
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			if globalReader, supported := any(repo).(storage.SubscriberGlobalRiskRewardSnapshotRepository); supported {
+				symbols := make([]string, 0, len(watchlistContext.Tickers))
+				for ticker := range watchlistContext.Tickers {
+					symbols = append(symbols, ticker)
+				}
+				snapshots, err = globalReader.ListSubscriberGlobalRiskRewardSnapshots(r.Context(), symbols, time.Now().UTC().AddDate(0, 0, -days*3), 20000)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "query_failed", "failed to load global risk/reward history")
+					return
+				}
+			}
+		} else if snapshotReader, supported := any(repo).(storage.MarketOpsRiskRewardSnapshotRepository); supported {
 			snapshots, err = snapshotReader.ListMarketOpsRiskRewardSnapshots(r.Context(), storage.MarketOpsRiskRewardSnapshotFilter{TenantID: tenant, SessionStart: time.Now().UTC().AddDate(0, 0, -days*3), Limit: 20000})
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "query_failed", "failed to load risk/reward history")
 				return
 			}
 		}
-		writeJSON(w, http.StatusOK, buildMarketOpsSignalOverview(inputs, group, window, days, snapshots))
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			if globalOptions, supported := any(repo).(storage.SubscriberGlobalOptionsDistributionRepository); supported {
+				symbols := make([]string, 0, len(watchlistContext.Tickers))
+				for ticker := range watchlistContext.Tickers {
+					symbols = append(symbols, ticker)
+				}
+				inputs.OptionsDistributions, err = globalOptions.ListSubscriberGlobalOptionsDistributions(r.Context(), symbols, time.Now().UTC().AddDate(0, 0, -days*3), 20000)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "query_failed", "failed to load global options history")
+					return
+				}
+			}
+		}
+		response := buildMarketOpsSignalOverview(inputs, group, window, days, snapshots)
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
+}
+
+// filterMarketOpsSignalOverviewAssets scopes an aggregate to already authorized
+// list members. The underlying MarketOps evidence remains platform data; this
+// only changes the tenant-facing projection.
+func filterMarketOpsSignalOverviewAssets(assets []storage.MarketOpsAssetRecord, tickers map[string]struct{}) []storage.MarketOpsAssetRecord {
+	visible := make([]storage.MarketOpsAssetRecord, 0, len(assets))
+	for _, asset := range assets {
+		if _, allowed := tickers[strings.ToUpper(asset.Ticker)]; allowed {
+			visible = append(visible, asset)
+		}
+	}
+	return visible
 }
 
 func signalOverviewWindow(value string) (string, int) {

@@ -5,10 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
+  # shellcheck source=lib/dotenv.sh
+  source "$ROOT_DIR/scripts/lib/dotenv.sh"
+  load_dotenv "$ROOT_DIR/.env"
 fi
 
 api_key="${SIGNALOPS_MASSIVE_API_KEY:-}"

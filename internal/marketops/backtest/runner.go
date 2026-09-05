@@ -15,28 +15,30 @@ import (
 	"github.com/lukebabs/signalops/internal/marketops/dsm"
 	"github.com/lukebabs/signalops/internal/signals"
 	"github.com/lukebabs/signalops/internal/storage"
+	"github.com/lukebabs/signalops/internal/subscriber/eodrevisionpolicy"
 	"github.com/lukebabs/signalops/pkg/broker"
 )
 
 type Config struct {
-	RunID                string
-	TenantID             string
-	AppID                string
-	Domain               string
-	UseCase              string
-	SourceID             string
-	SourceAdapter        string
-	Dataset              string
-	DetectorID           string
-	DetectorVersion      string
-	RequestedBy          string
-	WindowStart          time.Time
-	WindowEnd            time.Time
-	Symbols              []string
-	MaxRecords           int
-	BatchSize            int
-	AutoAcceptConfidence float64
-	PythonBin            string
+	RunID                   string
+	TenantID                string
+	AppID                   string
+	Domain                  string
+	UseCase                 string
+	SourceID                string
+	SourceAdapter           string
+	Dataset                 string
+	DetectorID              string
+	DetectorVersion         string
+	RequestedBy             string
+	WindowStart             time.Time
+	WindowEnd               time.Time
+	Symbols                 []string
+	MaxRecords              int
+	BatchSize               int
+	AutoAcceptConfidence    float64
+	PythonBin               string
+	EODDataSelectionContext eodrevisionpolicy.UsageContext
 }
 
 type Metrics struct {
@@ -201,8 +203,19 @@ func Run(ctx context.Context, repo storage.MarketOpsBacktestRepository, cfg Conf
 	if err := cfg.validate(); err != nil {
 		return Result{}, err
 	}
-	filters, _ := json.Marshal(map[string]any{"symbols": cfg.Symbols, "max_records": cfg.MaxRecords})
-	params, _ := json.Marshal(map[string]any{"detector_id": cfg.DetectorID, "detector_version": cfg.DetectorVersion, "auto_accept_confidence": cfg.AutoAcceptConfidence})
+	selection, err := cfg.historicalEODSelection()
+	if err != nil {
+		return Result{}, err
+	}
+	selectionProvenance := map[string]any{
+		"usage_context":             string(selection.UsageContext),
+		"selected_observation_role": string(selection.SelectedObservationRole),
+		"policy_version":            selection.PolicyVersion,
+		"as_of_policy":              "initial_capture",
+		"restatement":               "disabled",
+	}
+	filters, _ := json.Marshal(map[string]any{"symbols": cfg.Symbols, "max_records": cfg.MaxRecords, "eod_data_selection": selectionProvenance})
+	params, _ := json.Marshal(map[string]any{"detector_id": cfg.DetectorID, "detector_version": cfg.DetectorVersion, "auto_accept_confidence": cfg.AutoAcceptConfidence, "eod_data_selection": selectionProvenance})
 	now := time.Now().UTC()
 	runRecord := storage.MarketOpsBacktestRunRecord{
 		RunID: cfg.RunID, TenantID: cfg.TenantID, AppID: cfg.AppID, Domain: cfg.Domain, UseCase: cfg.UseCase,
@@ -243,6 +256,9 @@ func pythonEnv(env []string) []string {
 }
 
 func (cfg Config) withDefaults() Config {
+	if cfg.EODDataSelectionContext == "" {
+		cfg.EODDataSelectionContext = eodrevisionpolicy.HistoricalAssurance
+	}
 	if strings.TrimSpace(cfg.AppID) == "" {
 		cfg.AppID = "marketops"
 	}
@@ -280,6 +296,17 @@ func (cfg Config) withDefaults() Config {
 		cfg.Symbols[i] = strings.ToUpper(strings.TrimSpace(symbol))
 	}
 	return cfg
+}
+
+func (cfg Config) historicalEODSelection() (eodrevisionpolicy.Selection, error) {
+	selection, err := eodrevisionpolicy.SelectionFor(cfg.EODDataSelectionContext)
+	if err != nil {
+		return eodrevisionpolicy.Selection{}, err
+	}
+	if selection.SelectedObservationRole != eodrevisionpolicy.InitialCapture {
+		return eodrevisionpolicy.Selection{}, errors.New("marketops backtests require the historical_assurance EOD context")
+	}
+	return selection, nil
 }
 
 func (cfg Config) validate() error {

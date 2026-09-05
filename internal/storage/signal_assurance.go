@@ -120,6 +120,7 @@ type SignalAssertionEvaluationRecord struct {
 	AbsoluteReturn              *float64
 	BenchmarkReturn             *float64
 	BenchmarkRelativeReturn     *float64
+	SectorRelativeReturn        *float64
 	MFE                         *float64
 	MAE                         *float64
 	MaterializationConditionMet bool
@@ -174,36 +175,40 @@ type SignalAssuranceEvaluationFilter struct {
 }
 
 type SignalAssuranceEffectivenessFilter struct {
-	TenantID       string
-	EvidenceSource string
-	EvaluationMode string
-	Dimension      string
-	DimensionValue string
-	Limit          int
+	TenantID         string
+	EvidenceSource   string
+	EvaluationMode   string
+	Dimension        string
+	DimensionValue   string
+	OutcomeNotBefore *time.Time
+	Limit            int
 }
 
 type SignalAssuranceEffectivenessRecord struct {
-	EvidenceSource          string
-	Dimension               string
-	DimensionValue          string
-	SampleSize              int
-	DirectionalHits         int
-	MaterializedCount       int
-	InvalidatedCount        int
-	ExpiredCount            int
-	CensoredCount           int
-	ExcludedCount           int
-	DirectionalAccuracy     *float64
-	AccuracyLowerBound      *float64
-	AccuracyUpperBound      *float64
-	MaterializationRate     *float64
-	AverageReturn           *float64
-	AverageRelativeReturn   *float64
-	AverageMFE              *float64
-	AverageMAE              *float64
-	Exploratory             bool
-	AsOf                    time.Time
-	MetricDefinitionVersion string
+	EvidenceSource                 string
+	Dimension                      string
+	DimensionValue                 string
+	SampleSize                     int
+	DirectionalHits                int
+	MaterializedCount              int
+	InvalidatedCount               int
+	ExpiredCount                   int
+	CensoredCount                  int
+	ExcludedCount                  int
+	DirectionalAccuracy            *float64
+	AccuracyLowerBound             *float64
+	AccuracyUpperBound             *float64
+	MaterializationRate            *float64
+	AverageReturn                  *float64
+	AverageRelativeReturn          *float64
+	AverageSectorRelativeReturn    *float64
+	BroadMarketBenchmarkSampleSize int
+	SectorBenchmarkSampleSize      int
+	AverageMFE                     *float64
+	AverageMAE                     *float64
+	Exploratory                    bool
+	AsOf                           time.Time
+	MetricDefinitionVersion        string
 }
 
 type SignalAssuranceRecommendationRecord struct {
@@ -226,29 +231,32 @@ type SignalAssuranceRecommendationRecord struct {
 // immutable source record: an SAF assertion or the historical opportunity.
 // Consumers use it to retrieve the existing, read-only audit/provenance view.
 type SignalAssuranceEffectivenessObservationRecord struct {
-	EvidenceSource     string
-	ObservationID      string
-	ReferenceID        string
-	Symbol             string
-	SignalType         string
-	Direction          string
-	Algorithm          string
-	AlgorithmVersion   string
-	State              string
-	EvaluationMode     string
-	HorizonSessions    int
-	SignalScore        *float64
-	Confidence         *float64
-	DirectionalHit     *bool
-	AbsoluteReturn     *float64
-	DirectionalReturn  *float64
-	RelativeReturn     *float64
-	MFE                *float64
-	MAE                *float64
-	OriginAt           *time.Time
-	OutcomeAt          *time.Time
-	CalculationVersion string
-	CalculationRunID   string
+	EvidenceSource            string
+	ObservationID             string
+	ReferenceID               string
+	Symbol                    string
+	SignalType                string
+	Direction                 string
+	Algorithm                 string
+	AlgorithmVersion          string
+	State                     string
+	EvaluationMode            string
+	HorizonSessions           int
+	SignalScore               *float64
+	Confidence                *float64
+	DirectionalHit            *bool
+	AbsoluteReturn            *float64
+	DirectionalReturn         *float64
+	RelativeReturn            *float64
+	SectorRelativeReturn      *float64
+	MFE                       *float64
+	MAE                       *float64
+	OriginAt                  *time.Time
+	OutcomeAt                 *time.Time
+	CalculationVersion        string
+	CalculationRunID          string
+	BroadMarketBenchmarkState string
+	SectorBenchmarkState      string
 }
 
 type SignalAssuranceEffectivenessRepository interface {

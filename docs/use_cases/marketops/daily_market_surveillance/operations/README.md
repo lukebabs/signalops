@@ -56,4 +56,5 @@ Current recurring validations:
 
 ## Sector Rotation Intelligence
 
-- `sector_rotation_intelligence.md`: Foundation SRI scope, price-history readiness, deterministic scoring, post-close execution, verification, and explicit research-only boundary.
+- [sri_etf_makeup.md](sri_etf_makeup.md): Complete data-source, coverage, provenance, API, UI, scheduling, verification, troubleshooting, and governance guide for current issuer-published ETF makeup.
+- `sector_rotation_intelligence.md`: Foundation SRI scope, price-history readiness, deterministic scoring, independent 20:07 ET ETF reconciliation, free current issuer-holdings snapshots at 20:20 ET, verification, and explicit research-only boundary.

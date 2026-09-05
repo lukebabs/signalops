@@ -31,6 +31,7 @@ func run(ctx context.Context) error {
 	session := flag.String("session-date", "", "completed date")
 	days := flag.Int("window-days", 30, "maximum earnings horizon")
 	dry := flag.Bool("dry-run", false, "calculate only")
+	eventsOnly := flag.Bool("events-only", false, "persist calendar events without recalculating EEOM scores")
 	flag.Parse()
 	if app.DatabaseURL == "" || app.TemporalDatabaseURL == "" {
 		return fmt.Errorf("both database URLs are required")
@@ -67,7 +68,20 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("fetch FMP earnings calendar: %w", err)
 	}
-	written, projected := 0, 0
+	var globalRun storage.SubscriberGlobalMarketOpsEvidenceRun
+	if !*dry {
+		provenance, _ := json.Marshal(map[string]any{"provider": "fmp", "calendar_retrieved_at": retrievedAt.Format(time.RFC3339), "request_count": calendarClient.Calls(), "scope": "platform-global"})
+		globalRun, err = repo.RecordSubscriberGlobalMarketOpsEvidenceRun(ctx, storage.SubscriberGlobalMarketOpsEvidenceRun{
+			EvidenceKind: "material_event", AlgorithmID: "market_data.fmp.earnings_calendar", AlgorithmVersion: "1.0.0", SourceScope: "global_provider_capture",
+			SessionStartDate: asof, SessionEndDate: asof, InputManifestFingerprint: "sha256:" + stable("fmp-earnings-calendar", asof.Format("2006-01-02"), retrievedAt.Format(time.RFC3339), fmt.Sprintf("%d", len(events))),
+			ValidationContractRef: "docs/projects/subscriber_project/global_catalog_watchlists_roadmap.md#material-events-global-reader", ImmutableBaselineRef: "fmp-earnings-calendar-v1",
+			ProvenanceJSON: provenance, CorrelationID: "marketops-eeom-calendar-" + asof.Format("20060102"), RecordedAt: retrievedAt,
+		})
+		if err != nil {
+			return fmt.Errorf("record global material-events capture run: %w", err)
+		}
+	}
+	written, projected, globalProjected := 0, 0, 0
 	for _, event := range events {
 		symbol := strings.ToUpper(event.Symbol)
 		if !active[symbol] {
@@ -83,12 +97,31 @@ func run(ctx context.Context) error {
 		}
 		eventID := "fmp_earnings_" + stable(*tenant, symbol, event.Date)
 		if !*dry {
+			globalAssetID, resolveErr := repo.ResolveSubscriberGlobalCanonicalAssetID(ctx, symbol)
+			if resolveErr != nil {
+				return fmt.Errorf("resolve global asset for FMP earnings event %s: %w", symbol, resolveErr)
+			}
+			globalEventID := "fmp_earnings_" + stable("fmp", symbol, event.Date)
+			globalPayload, _ := json.Marshal(earningsEventPayload(symbol, date, retrievedAt, event))
+			globalProvenance, _ := json.Marshal(map[string]any{"provider": "fmp", "provider_event_key": globalEventID, "calendar_retrieved_at": retrievedAt.Format(time.RFC3339), "source_adapter": "market_data.fmp"})
+			_, appendErr := repo.AppendSubscriberGlobalMarketOpsEvidence(ctx, storage.SubscriberGlobalMarketOpsEvidenceRecord{
+				EvidenceRunID: globalRun.EvidenceRunID, GlobalAssetID: globalAssetID, SessionDate: asof, EvidenceKind: "material_event", AlgorithmID: "market_data.fmp.earnings_calendar", AlgorithmVersion: "1.0.0",
+				QualityState: "usable", SourceSystem: "fmp", SourceEventID: globalEventID, SourceRunID: globalRun.EvidenceRunID,
+				EvidenceFingerprint: "sha256:" + stable(globalEventID, string(globalPayload)), ValidationContractRef: globalRun.ValidationContractRef, ImmutableBaselineRef: globalRun.ImmutableBaselineRef,
+				PayloadJSON: globalPayload, ProvenanceJSON: globalProvenance, ObservedAt: retrievedAt,
+			})
+			if appendErr != nil {
+				return fmt.Errorf("append global FMP earnings event %s: %w", symbol, appendErr)
+			}
+			globalProjected++
+			// The tenant-local event is a temporary feature-materialization cache.
+			// Subscriber-facing Material Events reads only the global projection.
 			if err := repo.UpsertNormalizedEventLedger(ctx, normalizedEarningsEvent(*tenant, symbol, eventID, date, retrievedAt, event)); err != nil {
 				return fmt.Errorf("persist FMP earnings event %s: %w", symbol, err)
 			}
 			projected++
 		}
-		if d < 0 {
+		if *eventsOnly || d < 0 {
 			continue
 		}
 		result, calcErr := calculate(ctx, repo, *tenant, symbol, asof, date, d, nil)
@@ -104,7 +137,7 @@ func run(ctx context.Context) error {
 		}
 		written++
 	}
-	fmt.Printf("eeom completed provider=fmp calendar_events=%d projected_events=%d results=%d fmp_calls=%d dry_run=%t\n", len(events), projected, written, calendarClient.Calls(), *dry)
+	fmt.Printf("eeom completed provider=fmp calendar_events=%d projected_events=%d global_projected_events=%d results=%d fmp_calls=%d dry_run=%t events_only=%t\n", len(events), projected, globalProjected, written, calendarClient.Calls(), *dry, *eventsOnly)
 	return nil
 }
 func earningsEventPayload(symbol string, date, retrievedAt time.Time, event fmp.EarningsCalendarRecord) map[string]any {

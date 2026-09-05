@@ -5,6 +5,7 @@ import {
   displayIdentity,
   hasRole,
   hasPlatformAdmin,
+  hasSubscriptionAdministrator,
   mergeSessionClaims,
   rolesFromClaims,
   tenantFromClaims,
@@ -41,6 +42,12 @@ describe('auth claims', () => {
   it('uses access-token realm roles for UI authorization', () => {
     const token = ['header', btoa(JSON.stringify({ realm_access: { roles: ['super_admin'] } })), 'signature'].join('.');
     expect(hasPlatformAdmin(mergeSessionClaims(claims({ preferred_username: 'lukeb' }), token))).toBe(true);
+  });
+
+  it('recognizes the dedicated subscription administrator role without granting general platform administration', () => {
+    const subscriptionAdmin = claims({ realm_access: { roles: ['signalops:subscription_admin'] } });
+    expect(hasSubscriptionAdministrator(subscriptionAdmin)).toBe(true);
+    expect(hasPlatformAdmin(subscriptionAdmin)).toBe(false);
   });
 
   it('viewers can read but cannot mutate; operators/admins can mutate', () => {

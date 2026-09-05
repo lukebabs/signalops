@@ -46,7 +46,7 @@ describe('MarketOps assets API client (G071)', () => {
 
     const url = String(fetchMock.mock.calls[0][0]);
     expect(url).toContain('/v1/tenants/tenant-local/marketops/assets');
-    expect(url).toContain('universe_group=top50_megacap');
+    expect(url).toContain('universe_group=all_active');
     expect(url).toContain('active_only=true');
     expect(url).toContain('limit=50');
   });

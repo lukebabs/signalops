@@ -1,0 +1,4 @@
+REVOKE ALL ON FUNCTION subscriber_add_private_catalog_membership(text,text,text,text) FROM signalops_subscriber_gateway;
+DROP FUNCTION IF EXISTS subscriber_add_private_catalog_membership(text,text,text,text);
+DROP POLICY IF EXISTS subscriber_watchlist_audit_catalog_owner_insert ON subscriber_watchlist_audit;
+DROP POLICY IF EXISTS subscriber_watchlist_memberships_catalog_owner_insert ON subscriber_watchlist_memberships;

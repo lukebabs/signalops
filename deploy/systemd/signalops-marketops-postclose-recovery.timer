@@ -1,0 +1,10 @@
+[Unit]
+Description=Check incomplete MarketOps post-close sessions after disruption
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 18:30/15:00 America/New_York
+Persistent=true
+Unit=signalops-marketops-postclose-recovery.service
+
+[Install]
+WantedBy=timers.target

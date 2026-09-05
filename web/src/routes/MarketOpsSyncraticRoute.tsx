@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearch } from '@tanstack/react-router';
 import { Sparkles, AlertTriangle, RefreshCw } from 'lucide-react';
 import {
   useSyncraticInsights,
   useSyncraticInsight,
   useSyncraticContextWindow,
   useMaterializeSyncraticContexts,
+  useMaterializeSyncraticDailyNarratives,
   useAskSyncraticContextWindow,
 } from '../api/queries';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
@@ -21,6 +23,8 @@ import {
   summarizeSyncraticAskRouteResult,
   detectSyncraticDataQualityWarning,
   classifySyncraticInsightBadge,
+  classifySyncraticNarrativeQuality,
+  SYNCRATIC_NARRATIVE_QUALITY_STYLES,
   syncraticSeverityStyle,
   syncraticInsightStatusStyle,
   syncraticCurrentnessLabel,
@@ -35,6 +39,7 @@ import {
   SYNCRATIC_ASK_BADGE_STYLES,
 } from '../lib/syncratic';
 import { useTenant } from '../auth/session';
+import { useSubscription } from '../subscriber/SubscriptionContext';
 import { useAppProfile } from '../apps/AppProfileContext';
 import type { SyncraticInsight, SyncraticContextWindow, SyncraticInsightStatus, SyncraticMaterializeRequest } from '../types';
 
@@ -47,6 +52,21 @@ const STATUSES: (SyncraticInsightStatus | '')[] = [
   'superseded',
 ];
 const LIMITS = [25, 50, 100, 200];
+const NARRATIVE_TABS = [
+  { key: 'daily', label: 'Daily Overview', strategy: '' },
+  { key: 'sri', label: 'Sector Rotation', strategy: 'marketops_sri_daily_v1' },
+  { key: 'risk_reward', label: 'Risk/Reward', strategy: 'marketops_risk_reward_daily_v1' },
+  { key: 'review_queue', label: 'Review Queue', strategy: 'marketops_review_queue_daily_v1' },
+  { key: 'asset', label: 'Asset Drilldowns', strategy: '' },
+] as const;
+type SyncraticSurfaceTab = typeof NARRATIVE_TABS[number]['key'];
+function normalizeSyncraticSurfaceTab(value: string | undefined): SyncraticSurfaceTab | null {
+  return NARRATIVE_TABS.some((tab) => tab.key === value) ? value as SyncraticSurfaceTab : null;
+}
+const DAILY_NARRATIVE_INSIGHT_TYPE = 'marketops.syncratic.daily_narrative.v1';
+const SYNCRATIC_EXPLAINABILITY_FEATURE = 'syncratic_explainability' as const;
+const RECENT_NARRATIVE_DATE_LIMIT = 5;
+
 
 // Fixed materialize defaults — the bounded form does not expose these.
 const MATERIALIZE_UNIVERSE_GROUP = 'top50_megacap';
@@ -69,6 +89,18 @@ function StatusLabel({ status }: { status: string }) {
 // G090 compact source/badge chip. Distinguishes deterministic SignalOps context
 // from Ask-enriched, and flags data-quality-blocked results so they never read
 // as a valid market thesis. Ask-skipped is transient (latest route result only).
+
+function SyncraticNarrativeQualityChip({ quality }: { quality: ReturnType<typeof classifySyncraticNarrativeQuality> }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-[11px] font-medium ${SYNCRATIC_NARRATIVE_QUALITY_STYLES[quality.quality]}`}
+      title={quality.description}
+    >
+      {quality.label}
+    </span>
+  );
+}
+
 function SyncraticBadgeChip({ badge }: { badge: ReturnType<typeof classifySyncraticInsightBadge> }) {
   return (
     <span
@@ -95,12 +127,15 @@ function SyncraticCurrentnessChip({ summary }: { summary: ReturnType<typeof summ
 export function MarketOpsSyncraticRoute() {
   const TENANT_ID = useTenant();
   const { metadataFilter } = useAppProfile();
+  const search = useSearch({ strict: false }) as { tab?: string; insight_id?: string };
+  const requestedTab = normalizeSyncraticSurfaceTab(search.tab);
 
   const [status, setStatus] = useState<SyncraticInsightStatus | ''>('');
   const [subjectSymbol, setSubjectSymbol] = useState('');
   const [insightType, setInsightType] = useState('');
   const [limit, setLimit] = useState(50);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [surfaceTab, setSurfaceTab] = useState<SyncraticSurfaceTab>(requestedTab ?? 'daily');
 
   const insightsList = useSyncraticInsights({
     tenant_id: TENANT_ID,
@@ -130,17 +165,43 @@ export function MarketOpsSyncraticRoute() {
 
   const inputCls = 'rounded border border-gray-300 px-2 py-1 text-sm';
 
+  useEffect(() => {
+    if (requestedTab && requestedTab !== surfaceTab) setSurfaceTab(requestedTab);
+  }, [requestedTab, surfaceTab]);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Sparkles size={18} className="text-brand-700" />
         <div>
-          <h1 className="text-lg font-semibold">Syncratic Insights</h1>
-          <p className="text-xs text-gray-500">
-            Multi-record pattern explanations over bounded evidence windows · not event-level alerts
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Syncratic Intelligence</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Evidence-grounded Ask narratives over persisted MarketOps context windows
           </p>
         </div>
       </div>
+
+      <div className="flex flex-wrap gap-2 rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
+        {NARRATIVE_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setSurfaceTab(tab.key)}
+            className={`rounded px-3 py-1.5 text-xs font-medium ${surfaceTab === tab.key ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {surfaceTab !== 'asset' ? (
+        <SyncraticNarrativeWorkbench
+          tenantId={TENANT_ID}
+          selectedTab={surfaceTab}
+          deepLinkedInsightId={search.insight_id ?? null}
+        />
+      ) : (
+        <>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <MetricTile label="Insights" value={data.length} hint={insightsList.isError ? 'unreachable' : undefined} />
@@ -280,8 +341,192 @@ export function MarketOpsSyncraticRoute() {
           ) : null}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
+}
+
+function SyncraticNarrativeWorkbench({
+  tenantId,
+  selectedTab,
+  deepLinkedInsightId,
+}: {
+  tenantId: string;
+  selectedTab: Exclude<SyncraticSurfaceTab, 'asset'>;
+  deepLinkedInsightId: string | null;
+}) {
+  const tab = NARRATIVE_TABS.find((item) => item.key === selectedTab) ?? NARRATIVE_TABS[0];
+  const subscription = useSubscription();
+  const canRunAsk = subscription.allows(SYNCRATIC_EXPLAINABILITY_FEATURE);
+  const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedNarrativeId, setSelectedNarrativeId] = useState<string | null>(deepLinkedInsightId);
+  const [selectedNarrativeDate, setSelectedNarrativeDate] = useState('');
+  const materialize = useMaterializeSyncraticDailyNarratives();
+  const narratives = useSyncraticInsights({
+    tenant_id: tenantId,
+    subject_symbol: 'MARKETOPS',
+    insight_type: DAILY_NARRATIVE_INSIGHT_TYPE,
+    status: 'active',
+    limit: 200,
+  });
+  const scopedNarratives = useMemo(() => {
+    const all = narratives.data?.syncratic_insights ?? [];
+    return tab.strategy ? all.filter((insight) => narrativeStrategy(insight) === tab.strategy) : all;
+  }, [narratives.data, tab.strategy]);
+  const availableNarrativeDates = useMemo(
+    () => Array.from(new Set(scopedNarratives.map(narrativeSessionDate).filter(Boolean))).sort().reverse().slice(0, RECENT_NARRATIVE_DATE_LIMIT),
+    [scopedNarratives],
+  );
+  const activeNarrativeDate = selectedNarrativeDate || availableNarrativeDates[0] || '';
+  const filtered = useMemo(() => {
+    if (!activeNarrativeDate) return scopedNarratives;
+    return scopedNarratives.filter((insight) => narrativeSessionDate(insight) === activeNarrativeDate);
+  }, [scopedNarratives, activeNarrativeDate]);
+  const latest = filtered.slice().sort((a, b) => {
+    const dateCompare = narrativeSessionDate(b).localeCompare(narrativeSessionDate(a));
+    if (dateCompare !== 0) return dateCompare;
+    return String(b.updated_at).localeCompare(String(a.updated_at));
+  });
+  const selectedNarrativeDetail = useSyncraticInsight(selectedNarrativeId);
+  const selectedNarrative = selectedNarrativeDetail.data?.syncratic_insight ?? latest.find((insight) => insight.syncratic_insight_id === selectedNarrativeId) ?? null;
+  const selectedNarrativeSummary = selectedNarrative ? summarizeSyncraticInsight(selectedNarrative) : null;
+  const strategies = tab.strategy ? [tab.strategy] : ['marketops_daily_overview_v1', 'marketops_sri_daily_v1', 'marketops_risk_reward_daily_v1', 'marketops_review_queue_daily_v1'];
+
+  useEffect(() => {
+    setSelectedNarrativeId(deepLinkedInsightId);
+  }, [selectedTab, deepLinkedInsightId]);
+
+  useEffect(() => {
+    if (!deepLinkedInsightId) setSelectedNarrativeId(null);
+  }, [activeNarrativeDate, deepLinkedInsightId]);
+
+  useEffect(() => {
+    if (!availableNarrativeDates.length) return;
+    if (!selectedNarrativeDate || !availableNarrativeDates.includes(selectedNarrativeDate)) {
+      setSelectedNarrativeDate(availableNarrativeDates[0]);
+    }
+  }, [availableNarrativeDates, selectedNarrativeDate]);
+
+  function run(dryRun: boolean) {
+    if (!canRunAsk) return;
+    materialize.mutate({ tenant_id: tenantId, session_date: sessionDate, strategies, enqueue_briefs: !dryRun, dry_run: dryRun });
+  }
+
+  return (
+    <section className="space-y-3 rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{tab.label} narratives</h2>
+          <p className="text-xs text-gray-600 dark:text-gray-300">Automated explainability over persisted MarketOps artifacts. The newest available trading day is shown by default; use the date selector to review one of the last five trading days.</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-xs text-gray-600 dark:text-gray-300">
+            Narrative date
+            <select
+              value={activeNarrativeDate}
+              onChange={(event) => setSelectedNarrativeDate(event.target.value)}
+              disabled={!availableNarrativeDates.length}
+              className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              aria-label="Narrative date"
+            >
+              {availableNarrativeDates.length ? availableNarrativeDates.map((date) => (
+                <option key={date} value={date}>{date}</option>
+              )) : <option value="">No narratives</option>}
+            </select>
+          </label>
+          <label className="text-xs text-gray-600 dark:text-gray-300">
+            Session date
+            <input type="date" value={sessionDate} onChange={(event) => setSessionDate(event.target.value)} className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" />
+          </label>
+          <button type="button" onClick={() => run(true)} disabled={materialize.isPending || !canRunAsk} className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Preview</button>
+          <button type="button" onClick={() => run(false)} disabled={materialize.isPending || !canRunAsk} className="rounded bg-brand-600 px-2.5 py-1 text-xs text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">Materialize + enqueue</button>
+        </div>
+      </div>
+      {!canRunAsk && subscription.enforcementEnabled && (
+        <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+          Explorer can review persisted Syncratic narratives. Interactive materialization, Ask, and Regenerate require Professional or Institutional Syncratic Explainability.
+        </div>
+      )}
+      {materialize.isSuccess && (
+        <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+          {materialize.data.daily_narrative_materialization.dry_run ? 'Preview complete' : 'Materialization complete'} · {materialize.data.daily_narrative_materialization.materialized_insights} insight(s) · {materialize.data.daily_narrative_materialization.skipped_unchanged} unchanged · {materialize.data.daily_narrative_materialization.queued_job_ids.length} Ask job(s) queued
+        </div>
+      )}
+      {materialize.isError && <ErrorState error={materialize.error} />}
+      {narratives.isLoading ? <LoadingState label="Loading Syncratic narratives..." /> : narratives.isError ? <ErrorState error={narratives.error} /> : latest.length ? (
+        <div className="space-y-3">
+        <div className="grid gap-3 lg:grid-cols-2">
+          {latest.map((insight) => {
+            const quality = classifySyncraticNarrativeQuality(insight);
+            return (
+            <button key={insight.syncratic_insight_id} type="button" onClick={() => setSelectedNarrativeId(selectedNarrativeId === insight.syncratic_insight_id ? null : insight.syncratic_insight_id)} className={`rounded border p-3 text-left hover:border-brand-300 dark:hover:border-brand-500 ${selectedNarrativeId === insight.syncratic_insight_id ? 'border-brand-300 bg-brand-50 dark:border-brand-500 dark:bg-brand-950/30' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950'}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800 dark:bg-brand-950 dark:text-brand-200">{narrativeLabel(narrativeStrategy(insight))}</span>
+                <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">{narrativeSessionDate(insight) || 'undated'}</span>
+                <SyncraticNarrativeQualityChip quality={quality} />
+              </div>
+              <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{insight.title}</div>
+              <p className="mt-1 line-clamp-3 text-xs text-gray-600 dark:text-gray-300">{insight.explanation || insight.summary}</p>
+              <div className="mt-2 text-[11px] text-brand-700 dark:text-brand-300">{selectedNarrativeId === insight.syncratic_insight_id ? 'Hide full narrative ↑' : 'Reveal full narrative ↓'}</div>
+            </button>
+          );
+          })}
+        </div>
+        {selectedNarrativeId ? (
+          <div className="rounded border border-brand-200 bg-white p-3 dark:border-brand-800 dark:bg-gray-950">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">Full Syncratic narrative</div>
+              <button type="button" onClick={() => setSelectedNarrativeId(null)} className="rounded border border-gray-300 px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Close</button>
+            </div>
+            {selectedNarrativeDetail.isLoading ? (
+              <LoadingState label="Loading full narrative..." />
+            ) : selectedNarrativeDetail.isError ? (
+              <ErrorState error={selectedNarrativeDetail.error} />
+            ) : selectedNarrative && selectedNarrativeSummary ? (
+              <SyncraticInsightDetail
+                key={selectedNarrativeId}
+                insight={selectedNarrative}
+                summary={selectedNarrativeSummary}
+                tenantId={tenantId}
+              />
+            ) : (
+              <EmptyState message="Selected Syncratic narrative is unavailable." />
+            )}
+          </div>
+        ) : null}
+        </div>
+      ) : (
+        <EmptyState message="No daily Syncratic narratives are available for this tab yet. Use Preview first, then Materialize + enqueue when the deterministic context looks eligible." />
+      )}
+    </section>
+  );
+}
+
+
+function narrativeSessionDate(insight: SyncraticInsight): string {
+  const metrics = insight.metrics;
+  if (metrics && typeof metrics === 'object') {
+    const value = (metrics as Record<string, unknown>).session_date;
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  }
+  const titleMatch = typeof insight.title === 'string' ? insight.title.match(/\d{4}-\d{2}-\d{2}/) : null;
+  return titleMatch?.[0] ?? '';
+}
+
+function narrativeStrategy(insight: SyncraticInsight): string {
+  const metrics = insight.metrics;
+  if (!metrics || typeof metrics !== 'object') return '';
+  const value = (metrics as Record<string, unknown>).strategy;
+  return typeof value === 'string' ? value : '';
+}
+
+function narrativeLabel(strategy: string): string {
+  if (strategy === 'marketops_sri_daily_v1') return 'SRI';
+  if (strategy === 'marketops_risk_reward_daily_v1') return 'Risk/Reward';
+  if (strategy === 'marketops_review_queue_daily_v1') return 'Review Queue';
+  if (strategy === 'marketops_daily_overview_v1') return 'Daily Overview';
+  return 'Narrative';
 }
 
 function SyncraticInsightDetail({
@@ -293,33 +538,39 @@ function SyncraticInsightDetail({
   summary: ReturnType<typeof summarizeSyncraticInsight>;
   tenantId: string;
 }) {
-  // Fetch the context window detail by context_window_id (read-only review).
-  const contextWindow = useSyncraticContextWindow(summary.contextWindowId || null);
-  const cwSummary = contextWindow.data ? summarizeSyncraticContextWindow(contextWindow.data.context_window) : null;
-
-  // G090 Ask enrichment state. `ask` is read from persisted metrics; `askMutation`
-  // carries the latest operator-triggered route result (transient skip/success).
+  // G090 Ask enrichment state. `ask` is read from the newest available
+  // insight. When Ask returns an updated insight, render it immediately instead
+  // of waiting for invalidated list/detail queries to refresh.
   const askMutation = useAskSyncraticContextWindow();
-  const ask = summarizeSyncraticAsk(insight);
-  const dataQuality = detectSyncraticDataQualityWarning(insight);
+  const mutationInsight = askMutation.data?.syncratic_insight;
+  const renderedInsight = mutationInsight?.context_window_id === insight.context_window_id ? mutationInsight : insight;
+  const renderedSummary = renderedInsight === insight ? summary : summarizeSyncraticInsight(renderedInsight);
+  const ask = summarizeSyncraticAsk(renderedInsight);
+  const dataQuality = detectSyncraticDataQualityWarning(renderedInsight);
   const latestRoute = askMutation.data?.ask_result
     ? summarizeSyncraticAskRouteResult(askMutation.data.ask_result)
     : null;
-  const badge = classifySyncraticInsightBadge(insight, latestRoute?.askStatus);
+  const badge = classifySyncraticInsightBadge(renderedInsight, latestRoute?.askStatus);
+  const narrativeQuality = classifySyncraticNarrativeQuality(renderedInsight, latestRoute);
+
+  // Fetch the context window detail by context_window_id (read-only review).
+  const contextWindow = useSyncraticContextWindow(renderedSummary.contextWindowId || null);
+  const cwSummary = contextWindow.data ? summarizeSyncraticContextWindow(contextWindow.data.context_window) : null;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <SyncraticBadgeChip badge={badge} />
-        <SyncraticCurrentnessChip summary={summary} />
-        <StatusLabel status={summary.status} />
-        <SeverityLabel severity={summary.severity} />
-        <span className="text-xs text-gray-600">conf {summary.confidence.toFixed(2)}</span>
-        <code className="break-all text-xs text-gray-700">{summary.insightId}</code>
-        <CopyButton value={summary.insightId} />
-        {!summary.isCurrent && summary.supersededBySyncraticInsightId && (
+        <SyncraticNarrativeQualityChip quality={narrativeQuality} />
+        <SyncraticCurrentnessChip summary={renderedSummary} />
+        <StatusLabel status={renderedSummary.status} />
+        <SeverityLabel severity={renderedSummary.severity} />
+        <span className="text-xs text-gray-600">conf {renderedSummary.confidence.toFixed(2)}</span>
+        <code className="break-all text-xs text-gray-700">{renderedSummary.insightId}</code>
+        <CopyButton value={renderedSummary.insightId} />
+        {!renderedSummary.isCurrent && renderedSummary.supersededBySyncraticInsightId && (
           <span className="text-[11px] text-gray-500">
-            superseded by {shortSyncraticId(summary.supersededBySyncraticInsightId)}
+            superseded by {shortSyncraticId(renderedSummary.supersededBySyncraticInsightId)}
           </span>
         )}
       </div>
@@ -337,10 +588,10 @@ function SyncraticInsightDetail({
       )}
 
       <div>
-        <div className="text-sm font-medium text-gray-900">{summary.title}</div>
-        {summary.summary && <div className="mt-0.5 text-xs text-gray-600">{summary.summary}</div>}
+        <div className="text-sm font-medium text-gray-900">{renderedSummary.title}</div>
+        {renderedSummary.summary && <div className="mt-0.5 text-xs text-gray-600">{renderedSummary.summary}</div>}
       </div>
-      {summary.explanation && (
+      {renderedSummary.explanation && (
         <div>
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-gray-700">
@@ -361,7 +612,7 @@ function SyncraticInsightDetail({
                   : 'border-gray-200 bg-gray-50 text-gray-700'
             }`}
           >
-            {summary.explanation}
+            {renderedSummary.explanation}
           </p>
           {ask.present && (
             <div className="mt-0.5 text-[11px] text-gray-500">
@@ -373,7 +624,11 @@ function SyncraticInsightDetail({
 
       {ask.present && (
         <div className="rounded border border-brand-100 bg-brand-50/40 p-2">
-          <div className="mb-1 text-xs font-semibold text-gray-700">Syncratic Ask metadata</div>
+          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-700">
+            <span>Syncratic Ask metadata</span>
+            <SyncraticNarrativeQualityChip quality={narrativeQuality} />
+          </div>
+          <p className="mb-2 text-[11px] text-gray-600 dark:text-gray-300">{narrativeQuality.description}</p>
           <div className="grid grid-cols-2 gap-2">
             {([
               ['Ask status', ask.askStatus || '—'],
@@ -405,38 +660,39 @@ function SyncraticInsightDetail({
       )}
 
       <SyncraticAskControls
-        contextWindowId={summary.contextWindowId}
+        contextWindowId={renderedSummary.contextWindowId}
+        insightType={renderedSummary.insightType}
         tenantId={tenantId}
         askMutation={askMutation}
       />
 
       <div className="grid grid-cols-2 gap-2 text-sm">
-        <div><div className="text-xs text-gray-500">Type</div><div className="break-all text-xs">{summary.insightType || '—'}</div></div>
-        <div><div className="text-xs text-gray-500">Confidence</div><div>{summary.confidence.toFixed(2)}</div></div>
-        <div><div className="text-xs text-gray-500">Subject</div><div className="break-all text-xs">{summary.subjectSymbol || summary.subjectId || '—'}</div></div>
-        <div><div className="text-xs text-gray-500">Builder</div><div className="break-all text-xs font-mono">{summary.builderVersion || '—'}</div></div>
-        <div><div className="text-xs text-gray-500">Created</div><div className="text-xs">{formatUtc(summary.createdAt)}</div></div>
-        <div><div className="text-xs text-gray-500">Updated</div><div className="text-xs">{formatUtc(summary.updatedAt)}</div></div>
+        <div><div className="text-xs text-gray-500">Type</div><div className="break-all text-xs">{renderedSummary.insightType || '—'}</div></div>
+        <div><div className="text-xs text-gray-500">Confidence</div><div>{renderedSummary.confidence.toFixed(2)}</div></div>
+        <div><div className="text-xs text-gray-500">Subject</div><div className="break-all text-xs">{renderedSummary.subjectSymbol || renderedSummary.subjectId || '—'}</div></div>
+        <div><div className="text-xs text-gray-500">Builder</div><div className="break-all text-xs font-mono">{renderedSummary.builderVersion || '—'}</div></div>
+        <div><div className="text-xs text-gray-500">Created</div><div className="text-xs">{formatUtc(renderedSummary.createdAt)}</div></div>
+        <div><div className="text-xs text-gray-500">Updated</div><div className="text-xs">{formatUtc(renderedSummary.updatedAt)}</div></div>
       </div>
 
       {/* Evidence references grouped by type (read-only ids — no new routing). */}
       <div className="space-y-2">
-        <SyncraticEvidenceList label="Supporting alerts" ids={summary.supportingAlertIds} />
-        <SyncraticEvidenceList label="Supporting signals" ids={summary.supportingSignalIds} />
-        <SyncraticEvidenceList label="Supporting events" ids={summary.supportingEventIds} />
-        <SyncraticEvidenceList label="Supporting artifacts" ids={summary.supportingArtifactIds} />
-        <SyncraticEvidenceList label="Related graph proposals" ids={summary.relatedGraphProposalIds} />
-        <SyncraticEvidenceList label="Related labels" ids={summary.relatedLabelIds} />
+        <SyncraticEvidenceList label="Supporting alerts" ids={renderedSummary.supportingAlertIds} />
+        <SyncraticEvidenceList label="Supporting signals" ids={renderedSummary.supportingSignalIds} />
+        <SyncraticEvidenceList label="Supporting events" ids={renderedSummary.supportingEventIds} />
+        <SyncraticEvidenceList label="Supporting artifacts" ids={renderedSummary.supportingArtifactIds} />
+        <SyncraticEvidenceList label="Related graph proposals" ids={renderedSummary.relatedGraphProposalIds} />
+        <SyncraticEvidenceList label="Related labels" ids={renderedSummary.relatedLabelIds} />
       </div>
 
-      <JsonViewer label="Metrics" value={insight.metrics} />
-      <JsonViewer label="Recommendation" value={insight.recommendation} />
+      <JsonViewer label="Metrics" value={renderedInsight.metrics} />
+      <JsonViewer label="Recommendation" value={renderedInsight.recommendation} />
 
       {/* Context window detail rendered in the same panel. */}
       <div className="rounded border border-gray-200 bg-gray-50 p-2">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs font-semibold text-gray-700">Context Window</div>
-          {summary.contextWindowId && <CopyButton value={summary.contextWindowId} />}
+          {renderedSummary.contextWindowId && <CopyButton value={renderedSummary.contextWindowId} />}
         </div>
         {contextWindow.isLoading ? (
           <p className="text-xs text-gray-500">Loading context window...</p>
@@ -458,32 +714,42 @@ function SyncraticInsightDetail({
 // sanitized server-side and here (no raw prompt, tokens, or upstream bodies).
 function SyncraticAskControls({
   contextWindowId,
+  insightType,
   tenantId,
   askMutation,
 }: {
   contextWindowId: string;
+  insightType: string;
   tenantId: string;
   askMutation: ReturnType<typeof useAskSyncraticContextWindow>;
 }) {
+  const subscription = useSubscription();
+  const canRunAsk = subscription.allows(SYNCRATIC_EXPLAINABILITY_FEATURE);
   if (!contextWindowId || !tenantId) return null;
-  const disabled = askMutation.isPending;
+  const disabled = askMutation.isPending || !canRunAsk;
 
   function trigger(force: boolean) {
+    if (!canRunAsk) return;
     askMutation.mutate({
       contextWindowId,
-      request: { tenant_id: tenantId, max_prompt_bytes: 4800, force },
+      request: { tenant_id: tenantId, max_prompt_bytes: 10000, force, insight_type: insightType },
     });
   }
 
   return (
-    <div className="rounded border border-gray-200 bg-white p-2">
-      <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-gray-700">
-        <Sparkles size={12} /> Ask Syncratic AI
+    <div className="rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
+      <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-gray-700 dark:text-gray-200">
+        <Sparkles size={12} /> Explain with Syncratic
       </div>
-      <p className="mb-2 text-[11px] text-gray-500">
-        Exploratory analyst drill-down over the official EOD context. It never changes the official daily overview.
+      <p className="mb-2 text-[11px] text-gray-500 dark:text-gray-400">
+        Analyst drill-down over the official persisted context. It never changes official daily state or polls providers.
         Ask sends force=false; Regenerate sends force=true.
       </p>
+      {!canRunAsk && subscription.enforcementEnabled && (
+        <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+          Interactive Ask requires Professional or Institutional Syncratic Explainability. This persisted explanation remains available read-only.
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -491,7 +757,7 @@ function SyncraticAskControls({
           disabled={disabled}
           className="inline-flex items-center gap-1 rounded bg-brand-500 px-2.5 py-1 text-xs text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Sparkles size={12} /> {disabled ? 'Asking…' : 'Ask Syncratic AI'}
+          <Sparkles size={12} /> {askMutation.isPending ? 'Asking…' : 'Explain with Syncratic'}
         </button>
         <button
           type="button"
@@ -629,6 +895,8 @@ function SyncraticEvidenceList({ label, ids }: { label: string; ids: string[] })
 // Bounded, operator-triggered materialization. Never runs automatically on page
 // load. Caps are shown before submit; skip counters render as normal outcomes.
 function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
+  const subscription = useSubscription();
+  const canMaterialize = subscription.allows(SYNCRATIC_EXPLAINABILITY_FEATURE);
   const materialize = useMaterializeSyncraticContexts();
   // Default window: last five days, UTC wall-clock.
   const [windowStart, setWindowStart] = useState(() => {
@@ -728,8 +996,16 @@ function SyncraticMaterializeForm({ tenantId }: { tenantId: string }) {
     result.materialized_insights === 0 &&
     result.skipped_unchanged > 0;
 
+  if (!canMaterialize && subscription.enforcementEnabled) {
+    return (
+      <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+        Explorer can inspect persisted Syncratic Intelligence. Bounded context materialization and Ask regeneration require Professional or Institutional Syncratic Explainability.
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={onPreview} className="rounded border border-gray-200 bg-white p-3" aria-label="Materialize Syncratic contexts">
+    <form onSubmit={onPreview} className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" aria-label="Materialize Syncratic contexts">
       <div className="mb-2 flex items-center gap-1 text-sm font-semibold text-gray-900">
         <Sparkles size={14} /> Materialize Contexts
         <span className="ml-1 text-xs font-normal text-gray-500">

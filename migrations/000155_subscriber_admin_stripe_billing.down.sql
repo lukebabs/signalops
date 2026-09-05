@@ -1,0 +1,12 @@
+DROP POLICY IF EXISTS subscriber_tenant_subscriptions_stripe_reconcile_update ON subscriber_tenant_subscriptions;
+DROP POLICY IF EXISTS subscriber_tenant_subscriptions_stripe_reconcile_select ON subscriber_tenant_subscriptions;
+DROP POLICY IF EXISTS subscriber_subject_subscriptions_stripe_reconcile_update ON subscriber_subject_subscriptions;
+DROP POLICY IF EXISTS subscriber_subject_subscriptions_stripe_reconcile_select ON subscriber_subject_subscriptions;
+
+REVOKE ALL ON subscriber_billing_webhook_events FROM signalops_subscriber_gateway;
+DROP INDEX IF EXISTS idx_subscriber_billing_webhook_events_received;
+ALTER TABLE subscriber_billing_webhook_events
+  DROP CONSTRAINT IF EXISTS subscriber_billing_webhook_events_processing_status_check;
+ALTER TABLE subscriber_billing_webhook_events
+  ADD CONSTRAINT subscriber_billing_webhook_events_processing_status_check
+  CHECK (processing_status IN ('received', 'processed', 'failed'));

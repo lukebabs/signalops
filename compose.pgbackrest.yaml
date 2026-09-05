@@ -1,0 +1,16 @@
+# Production-only PostgreSQL backup override.
+#
+# Run with:
+#   SIGNALOPS_PGBACKREST_CONFIG_PATH=/etc/signalops/pgbackrest.conf \
+#   docker compose -f compose.yaml -f compose.pgbackrest.yaml up -d --build postgres
+#
+# The config file is deliberately outside this checkout because it holds the
+# temporary assumed-role credentials and repository cipher passphrase.
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: deploy/postgres/pgbackrest.Dockerfile
+    image: signalops-postgres-pgbackrest:16
+    volumes:
+      - ${SIGNALOPS_PGBACKREST_CONFIG_PATH:?set to the root-owned rendered pgBackRest configuration}:/etc/pgbackrest/pgbackrest.conf:ro

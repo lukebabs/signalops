@@ -1,4 +1,853 @@
+### 2026-09-04 — Subscription activity identity-label repair
+
+- Fixed User Activity rendering in Subscription Administration so activity summaries/events can show email/display name instead of raw OIDC subject UUIDs.
+- Root cause: activity rows were keyed by immutable subject, but label resolution depended on `tenant_user_access`; some activity-only rows had no usable label and older event rows did not inherit the latest known subject identity.
+- Gateway now records JWT-derived `subject_email` and `subject_display_name` into activity metadata for login/logout/feature-view/API mutation records, and activity queries fall back to the latest known activity identity for that subject.
+- Strengthened the Subscription Administration Playwright smoke to reject UUID-only rendering when a subject has a known label.
+
+### 2026-09-04 — Stripe customer portal self-service path
+
+- Added a backend-created Stripe Customer Portal session endpoint at `POST /v1/tenants/{tenant_id}/marketops/subscription/portal`. The browser receives only the returned Stripe portal URL/session ID and never receives Stripe API keys.
+- Extended the effective subscription read model to include persisted Stripe customer/subscription IDs internally so the portal opens only for active Stripe-backed subscriptions. Manual/non-Stripe subscriptions fail closed with `subscription_portal_unavailable`.
+- Added `SIGNALOPS_STRIPE_PORTAL_RETURN_URL`, defaulting to `/marketops/pricing`, and exposed a subscriber-facing `Manage subscription in Stripe` control on Pricing for active subscriptions.
+- Subscription changes remain webhook-authoritative: Customer Portal redirects do not grant, revoke, or mutate SignalOps access until signed Stripe webhook reconciliation updates the local subscription state.
+
+### 2026-09-04 — Admin-governed refund request workflow and identity-label cleanup
+
+- Added migration `000166_subscriber_refund_requests` to create an append-only tenant-scoped refund-request ledger in the dedicated MarketOps database. Subscribers can request a refund, but refund action remains admin-only.
+- Added `POST /v1/tenants/{tenant_id}/marketops/subscription/refund-requests` for authenticated subscribers. The subscriber response intentionally returns only request ID/status/timestamps/amount metadata and does not expose Stripe customer, subscription, session, or internal subscription IDs.
+- Added `PUT /v1/administration/subscriptions/refund-requests/{refund_request_id}` for `signalops:subscription_admin` users to record admin disposition. The supported status model is `requested`, `reviewing`, `approved_for_manual_refund`, `rejected`, `manual_refund_completed`, and `closed`; actual money movement still occurs in Stripe Dashboard for this slice.
+- Expanded Subscription Administration with a `Refund requests` tab showing email-first subject identity, request reason, Stripe references, and admin status/note controls.
+- Repaired subscription admin identity-label coverage so labels can resolve from tenant access, subscription records, seats, audits, activity, upgrade interactions, and refund requests. Normal admin tables now render email/display name first and keep UUIDs only as hover/title context when a label exists.
+- Added a subscriber-facing refund request form to `/marketops/pricing` for active subscribers. The form creates a request for admin review and does not initiate Stripe refunds.
+- Validation: migration applied to `signalops-marketops-postgres-1`; grants verified for `signalops_subscriber_gateway`; `go test ./internal/api ./internal/storage/postgres`; `npm --prefix web run build`; gateway deploy via `sudo -n signalops-deploy-agent marketops-gateway-deploy`; web deploy via `sudo -n signalops-deploy-agent marketops-web-deploy`; Playwright admin smoke `3 passed, 1 skipped`; read-only pricing smoke `1 passed`.
+
+### 2026-09-04 — Stripe webhook-authoritative paid activation closure
+
+- Investigated completed live Checkout Session `cs_live_a1PXQR4g96ZkMkJFkiOJMVoSQhrES4u2mBRgJaxptYjCyqFkZlFLaICeIN` after the user still routed to Pricing.
+- Root cause: Stripe had no live webhook endpoint configured for SignalOps, so the real Stripe events never reached `POST /v1/billing/stripe/webhook`; additionally, the Gateway did not yet accept `checkout.session.completed` as a supported webhook event type.
+- Created the live Stripe webhook endpoint for `https://signalops.syncratic.io/v1/billing/stripe/webhook` with subscription, invoice, and checkout-completed events enabled; updated the gitignored runtime webhook secret without exposing it.
+- Hardened the Gateway webhook parser to accept `checkout.session.completed` using the opaque `checkout_ref`, subscription ID, customer ID, and paid/complete state.
+- Replayed the real Stripe `customer.subscription.created` event payload through the signed webhook endpoint. The event processed as `processed`, the checkout ledger moved to `webhook_processed`, and the B2C subject subscription became `explorer active` with `provisioned_by=stripe-webhook`.
+- Validation: `go test ./internal/api ./internal/storage/postgres` passed; Gateway redeployed through the constrained deployment agent; gateway cutover and subscriber pilot smokes passed; authenticated B2C Playwright smoke passed with post-payment state `marketops_ready`.
+
+### 2026-09-04 — Customer-facing subscription price display
+
+- Fixed the Pricing page so Explorer and Professional show customer-readable prices (`$24.99/mo`, `$249/yr`, `$99/mo`, `$999/yr`) instead of raw Stripe `price_...` identifiers.
+- Added migration `000165_subscriber_subscription_display_prices` to store governed monthly and annual display-price metadata on `subscriber_subscription_products` in the dedicated MarketOps database.
+- Kept Stripe Product/Price IDs as the server-side billing authority. Browsers still submit only `product_key` and `billing_period`; the Gateway selects the configured Stripe Price ID.
+- Updated Subscription Administration so operators can govern display prices alongside Stripe Product/Price mappings, with Stripe IDs remaining visible in Admin only.
+- Repaired the effective-subscription query path to include the new display-price columns so enrollment/subscription state continues to resolve after the schema change.
+- Validation: `go test ./internal/storage/postgres ./internal/api` passed; `npm --prefix web run build` passed; Gateway and Web were redeployed through the constrained deployment agent; Gateway cutover and subscriber pilot smokes passed; Pricing Playwright smoke passed and asserts no raw `price_` value is visible on the customer Pricing page.
+
+
+
+### 2026-09-04 — Production readiness paperwork and subscription activation closure
+
+- Reconciled the Subscriber Project production-readiness path with the current September 4 state: controlled paid-pilot readiness is advanced for configured QA identities, but full external production remains blocked by paid-flow activation evidence, current backup/restore re-verification, and historical test-artifact hygiene.
+- Updated the readiness snapshot to include the deployed tenant-local B2C activation gate: self-enrolled B2C users without an effective subscription now resolve to `subscription_missing` and route to Pricing while broad `SIGNALOPS_SUBSCRIPTIONS_ENABLED` enforcement remains off.
+- Updated the subscription commerce model to reflect the current Checkout-start boundary: Explorer and Professional can start server-created Stripe Checkout when runtime Stripe configuration is present, but the redirect never grants access; entitlement activation remains governed by signed Stripe webhook reconciliation or platform administration.
+- Clarified the current enrollment posture: SMS MFA is Keycloak-owned but deferred for the low-friction public-registration phase; future source reconciliation must preserve no-MFA enrollment unless MFA is explicitly re-approved.
+- Recorded the remaining production-readiness work as controlled paid-flow validation, PR-3 backup/restore refresh, historical `tenant-b2c` audit-row disposition, and parent Keycloak SMS/MFA reconcile hardening.
+
+### 2026-09-04 — B2C subscription activation gate
+
+- Implemented an enrollment-only subscription activation gate for the tenant-local B2C path: `SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION`, default `true`.
+- The gate applies only to B2C users whose MarketOps access was created through `self-enrollment`; admin-granted tenant-local users are not forced into Pricing by this enrollment gate.
+- When a self-enrolled B2C user has MarketOps access but no effective subscription, `/v1/session/enrollment` now returns `subscription_missing` even if global `SIGNALOPS_SUBSCRIPTIONS_ENABLED` paid-feature enforcement remains off.
+- Updated the browser enrollment gate so `subscription_missing` users are routed to `/marketops/pricing?source_feature=enrollment`, and Pricing/Stripe return routes are allowed through the enrollment gate.
+- Stripe activation remains webhook-authoritative: Checkout start creates only checkout ledger evidence; access changes only after signed Stripe webhook reconciliation or governed Admin provisioning.
+- Updated authenticated B2C Playwright smoke defaults to expect `subscription_missing` and verify that the user reaches Pricing rather than the Dashboard without an active subscription.
+
+
+### 2026-09-04 — B2C enrollment live Keycloak closure
+
+- Synced the Keycloak password for `luke.babarinde@gmail.com` / `lukebabarinde` to the existing `SYNCRATIC_QA_PASS` value in SignalOps `.env` after named approval. No secret values were printed.
+- Verified the password issue was resolved: the B2C Playwright failure moved from `Invalid username or password` to the next Keycloak gate.
+- Applied the approved current no-MFA enrollment posture in live Keycloak: `syncratic-browser forms` / `Syncratic SMS OTP` is `DISABLED`, and `CONFIGURE_SMS_MFA.defaultAction=false`.
+- Verified the live Keycloak settings after mutation.
+- Corrected the QA user profile path by ensuring the Gmail account has required profile fields and no pending required actions; Keycloak then allowed the login to reach SignalOps.
+- Verified the first successful resolver pass created `marketops_access` for subject `b31104bd-b53c-46a5-b17e-9876b2d551f8` under `tenant-local`.
+- Reran the authenticated B2C enrollment Playwright smoke and it passed idempotently with `created=[]`: `1 passed in 2.52s`.
+- Access evidence currently persists in the shared platform database `tenant_user_access`, not the dedicated MarketOps database. This is consistent with the current cross-app access-control boundary, but stale historical `tenant-b2c` self-enrollment rows remain for cleanup under a separate access-ledger hygiene gate.
+- Remaining source-drift risk: the parent Syncratic Keycloak `scripts/reconcile_keycloak_sms_mfa.sh` still represents the older SMS-required posture. Updating that script to default no-MFA was not performed because it is a persistent realm security-posture change and requires a separate explicit source-change approval.
+
+
+### 2026-09-04 — B2C enrollment tenant-local default correction
+
+- Investigated the new `luke.babarinde@gmail.com` enrollment report: email and SMS verification completed, login reached MarketOps Dashboard, but the dashboard had no data and no subscription option was shown.
+- Root cause: the running Gateway still exposed the old B2C enrollment posture (`SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID=tenant-b2c`, subscription enforcement off). That allowed the user to resolve as MarketOps-ready under a tenant without the mature tenant-local MarketOps default data plane.
+- Changed the SignalOps default B2C tenant to `tenant-local` in runtime config, `compose.yaml`, B2C enrollment tests, smoke runner defaults, and subscriber enrollment documentation.
+- Added a direct Pricing CTA when the authenticated enrollment resolver returns `subscription_missing`, so verified users have a clear subscription path instead of landing on a dead state.
+- Validation: `go test ./internal/config ./internal/api` passed; `npm --prefix web run build` passed; Python syntax check for the B2C authenticated smoke passed; production subscriber pilot Playwright smoke passed (`2 passed`).
+- Remaining live proof blocker: the authenticated B2C Playwright smoke cannot complete because Keycloak rejects the configured `luke.babarinde@gmail.com` QA credential with `Invalid username or password` before SignalOps receives `/v1/session/enrollment`. Correct the Keycloak account password or set `.env` to a valid B2C QA identity, then rerun `SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved SIGNALOPS_E2E_B2C_TENANT_ID=tenant-local scripts/run_keycloak_b2c_enrollment_authenticated_smoke.sh`.
+
+## 2026-09-04 — Stripe Checkout-start canary closure
+
+- Reran the controlled Stripe Checkout startup canary after Stripe product tax-code configuration was corrected.
+- Stripe accepted live Checkout Session creation for Explorer monthly and Professional annual. The canary does not complete payment and does not grant access from redirect-only evidence.
+- Corrected the canary assertion to match the SignalOps opaque checkout reference format `subcheckout-...`.
+- Production canary passed: `scripts/run_stripe_checkout_canary.sh` returned `1 passed` and `stripe_checkout_canary_verified sessions=2 refs=subcheckout-eca0827e65acdc76af3a9ece,subcheckout-082a2ba58a4fe5d9b88434a3`.
+- Dedicated MarketOps ledger evidence shows both rows at `status=checkout_started`, `checkout_url_returned=true`, populated `cs_live_...` Stripe session IDs, and empty `stripe_subscription_id`, confirming no entitlement activation occurred without a verified webhook.
+
+## 2026-09-03 — Stripe Checkout readiness hardening
+
+- Added a controlled Stripe Checkout startup canary: `scripts/run_stripe_checkout_canary.sh` plus `python/tests/test_stripe_checkout_canary_ui.py`. The canary authenticates as the tenant-pilot-b QA user, verifies Explorer/Professional Stripe mappings, starts Checkout Sessions through the Gateway, and verifies the opaque `subscriber_checkout_sessions` ledger without completing payment.
+- Ran the canary against production; it failed before touching Stripe with `stripe_checkout_disabled` because the running Gateway has empty `STRIPE_API_KEY` and `STRIPE_RESTRICTED_API_KEY`. `STRIPE_WEBHOOK_SECRET` and the Checkout return URLs are present.
+- Added Gateway `checkout_enabled` evidence to `GET /v1/marketops/subscription-products` so the browser can distinguish mapped products from runtime-ready Checkout.
+- Updated `/marketops/pricing` to disable Explorer/Professional Checkout buttons and show an explicit runtime warning when the Gateway is missing a Stripe API key.
+- Added read-only Pricing readiness smoke: `scripts/run_stripe_checkout_readiness_ui_smoke.sh` plus `python/tests/test_stripe_checkout_readiness_ui.py`; production result: `1 passed`.
+- Validation passed: `npm --prefix web run build`; Python syntax checks for the new Stripe tests; `go test ./internal/api`; Gateway deploy through `sudo -n signalops-deploy-agent marketops-gateway-deploy` with gateway cutover and subscriber smoke passing; subscriber pilot smoke rerun `2 passed`.
+
+## 2026-09-03 — Warm EOD degraded-detail closure
+
+- Verified the next natural `marketops-warm-eod` run after the detail-persistence fix. The September 2, 2026 session completed as governed `degraded` with `reason=bounded_provider_gap`.
+- Dedicated MarketOps evidence in `marketops_scheduled_job_statuses`: `started_at=2026-09-02 22:00:00+00`, `completed_at=2026-09-02 22:20:25+00`, `normalized=996`, `expected=1000`, `missing=4`, `max_missing=5`, `session_date=2026-09-02`, and `missing_symbols=AVB,CRNX,EQR,WBS`.
+- Added an Admin Operations Health `Details` column for scheduled jobs so bounded degraded states expose the exact normalized/expected/missing/session/symbol evidence instead of only showing status and timestamps.
+- Extended the Subscription Administration Playwright smoke to require the warm-EOD row and degraded-detail fields when warm EOD is in a governed degraded state.
+- Validation passed: `npm --prefix web run build`; Python syntax check for `python/tests/test_subscription_administration_ui_smoke.py`; `go test ./internal/api`; production web deploy through `sudo -n signalops-deploy-agent marketops-web-deploy` with subscriber smoke `2 passed`; Admin Playwright smoke `3 passed, 1 skipped`.
+
+## 2026-09-02 — Warm EOD degraded detail persistence
+
+- Investigated the only degraded scheduled job after the September 1 post-close cycle: `marketops-warm-eod`.
+- Confirmed the status is governed `degraded` with `reason=bounded_provider_gap`, not a scheduler failure.
+- Root gap was observability: the status row retained `reason=bounded_provider_gap` but persisted empty `detail`, which prevented Admin from showing normalized/expected/missing/session/missing-symbol evidence.
+- Updated the scheduled-job wrapper to capture warm-EOD normalization output and persist structured detail on degraded/incomplete runs while preserving exit-code semantics.
+- Post-close browser validation passed: Dashboard freshness smoke `1 passed`; subscriber pilot smoke `2 passed`.
+
+## 2026-09-01 — Mobile EEOM regression closure
+
+- Added Earnings Opportunity Intelligence to the subscriber mobile route gate.
+- Added mobile Playwright validation for EEOM current table behavior and the row-level `Earnings setup evolution` panel when data exists, while accepting the explicit empty state when the selected watchlist has no eligible earnings rows.
+- Production mobile Playwright result: `24 passed in 253.48s` across 375px, 390px, and 430px phone widths.
+
+## 2026-09-01 — EEOM current/history boundary
+
+- Fixed Earnings Opportunity Intelligence drift where one ticker could appear twice with conflicting postures after provider earnings-event revisions.
+- Default EEOM now shows one current row per ticker; historical point-in-time rows are preserved behind explicit history queries and displayed only after an analyst selects a row.
+- Added Go regression coverage and Playwright UI coverage for duplicate-free default EEOM plus row-level evolution visibility.
+
+## 2026-08-23 — Stripe billing product selector controls product mapping
+
+- Changed the Subscription Administration Stripe billing tab so `Configured Stripe products` is the in-tab selector for the Product mapping form. Operators no longer need to switch to Tier settings to change which Stripe product mapping is being edited.
+- Added browser-smoke coverage that selects Professional and Explorer from the Stripe product list and verifies the Product mapping context follows the selection.
+- Build validation passed with `npm --prefix web run build`; production smoke is expected after web redeploy because the smoke targets the live site.
+
+## 2026-08-23 — Subscription Administration System-style presentation refresh
+
+- Reworked Subscription Administration presentation to follow the Admin System visual pattern: compact header, metric tiles, lighter tab selector, flatter operational tables, and clearer section headings.
+- Preserved the existing administration boundaries and API behavior: no provider polling, no subscription mutations, no migration, and no tenant-specific market-data copies.
+- Verified with `npm --prefix web run build` and `scripts/run_subscription_admin_ui_smoke.sh` (`3 passed`).
+
 # SignalOps Build Journal
+
+## 2026-08-23 — Subscription Administration tabbed operations layout
+
+Summary:
+
+- Refactored Subscription Administration from one dense page into operational tabs: Overview, Tier settings, Stripe billing, Users & seats, Audit log, and Webhook ledger.
+- Separated tier/entitlement settings from operational enrollment and billing functions.
+- Added a read-only Stripe product map so Explorer and Professional product/price mappings are visible side by side instead of only through the selected edit form.
+- Added searchable Audit log and Webhook ledger views for active operator search across actors, subjects, event types, correlations, provider event IDs, statuses, and errors.
+- Preserved immutable OIDC UUIDs as secondary identity evidence while rendering available email/name labels as primary display text.
+
+Verification:
+
+- Web build passed: `npm --prefix web run build`.
+- Subscription Admin Playwright smoke was updated to navigate the tabbed interface. Live smoke must be rerun after deploying the new web bundle.
+
+## 2026-08-23 — Subscription Admin identity labels
+
+Summary:
+
+- Fixed Subscription Administration tables that showed raw OIDC UUIDs as the only Subject/Actor value.
+- Preserved immutable UUIDs as the stored audit key and secondary UI text.
+- Added API response fields for subject/actor display name and email where identity evidence is available.
+- Added migration `000156_subscriber_admin_identity_labels` with a constrained security-definer function `subscriber_subscription_admin_identity_labels(text)`.
+- The function returns labels only for subjects already present in the requested Subscription Administration snapshot; the gateway does not receive direct `tenant_user_access` table access.
+- UI now renders email/name as primary text and UUID underneath for Subject subscriptions, Institutional seats, and Audit trail rows. Unknown service actors such as `stripe-webhook` still render as their stable actor key.
+
+Verification:
+
+- Targeted tests passed: `go test ./internal/storage/postgres ./internal/api`.
+- Web build passed: `npm --prefix web run build`.
+- Migration applied to dedicated MarketOps DB; `signalops_subscriber_gateway` has execute privilege on `subscriber_subscription_admin_identity_labels(text)`.
+- Function output verified for `tenant-pilot-b`, resolving `2f437ac3-2cfc-4fe9-b943-198185b4797b` to `testsignalops@syncratic.io`.
+- Safe production deploy passed: `signalops_public_production_deploy_verified` and deploy smoke `2 passed`.
+- Post-deploy checks passed: `/readyz`, `scripts/run_subscription_admin_ui_smoke.sh` (`3 passed`), and clean `scheduler-status`.
+
+## 2026-08-23 — Stripe Tax configuration recorded
+
+Summary:
+
+- Operator reported Stripe Tax information is configured in Stripe.
+- Current SignalOps billing integration remains admin-managed: Stripe Dashboard creates products, prices, customers, subscriptions, and tax behavior; SignalOps maps Stripe IDs and reconciles signed webhook evidence.
+- No SignalOps code change is required for Tax while Checkout/customer portal remain out of scope.
+- Production tax readiness now depends on Stripe-side validation: active tax registration where collection is required, correct product tax code, price tax behavior, customer address quality, and `automatic_tax` enabled on real Stripe subscriptions or future Checkout Sessions.
+- The existing synthetic webhook canaries prove webhook signature/reconciliation behavior; they do not prove Stripe calculated or collected tax on a real invoice.
+
+Required validation before broad paid launch:
+
+- Create or inspect one Stripe test-mode Explorer subscription and one Professional subscription with `automatic_tax` enabled.
+- Confirm generated invoice line items show expected tax behavior for a customer address in a registered jurisdiction.
+- Confirm a customer address in an unregistered jurisdiction does not unexpectedly collect tax and that the result is understood.
+- Confirm product tax code is not `Nontaxable` and is appropriate for the subscription service.
+- Confirm tax reports/filing responsibility is assigned operationally because Stripe Tax calculates/collects but does not, by itself, complete all filing obligations.
+
+## 2026-08-22 — Stripe mapped webhook reconciliation canary
+
+Summary:
+
+- Ran the approved persistent mapped Stripe webhook canary for tenant `tenant-pilot-b` and pilot subject `2f437ac3-2cfc-4fe9-b943-198185b4797b`.
+- The canary used mapped Stripe IDs `cus_signalops_mapped_canary_20260822` and `sub_signalops_mapped_canary_20260822`.
+- Fixed the production reconciliation path so Stripe webhooks can update mapped subscriptions while preserving tenant-scoped audit evidence under RLS.
+- Root causes corrected:
+  - Stripe webhook reconciliation inserted audit evidence without setting the matched tenant scope.
+  - The audit insert ran while the reconciliation cursor was still open.
+  - PostgreSQL could not infer one webhook audit parameter type without explicit text casts.
+- Gateway was redeployed through the constrained deployment agent after the fix.
+
+Verification:
+
+- `sudo -n signalops-deploy-agent signalops-production-gateway-deploy` returned `signalops_public_production_deploy_verified` and deployment smoke `2 passed`.
+- `SIGNALOPS_STRIPE_CANARY_SUBSCRIPTION_ID=sub_signalops_mapped_canary_20260822 SIGNALOPS_STRIPE_CANARY_CUSTOMER_ID=cus_signalops_mapped_canary_20260822 scripts/run_stripe_webhook_canary.sh --allow-persistent-ledger` returned `{"event_type":"customer.subscription.updated","provider_event_id":"evt_signalops_canary_1787425181","status":"processed"}`.
+- Database verification found one processed webhook ledger row for `evt_signalops_canary_1787425181`.
+- Database verification found the pilot subject subscription updated to `status=active`, `provisioned_by=stripe-webhook`, and `correlation_id=evt_signalops_canary_1787425181`.
+- Database verification found one `stripe_subscription_reconciled` audit row scoped to `tenant-pilot-b`.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed`.
+
+## 2026-08-22 — Stripe persistent unmapped webhook canary
+
+Summary:
+
+- Ran one signed persistent Stripe webhook canary using intentionally unmapped subscription ID `sub_signalops_unmapped_canary_20260822`.
+- Gateway accepted the signed event and persisted one billing webhook ledger row.
+- The webhook resolved to `unmatched`, proving an unknown Stripe subscription does not create SignalOps access.
+
+Verification:
+
+- `scripts/run_stripe_webhook_canary.sh --allow-persistent-ledger` returned provider event `evt_signalops_canary_1787423866` with status `unmatched`.
+- Database verification found one unmatched `subscriber_billing_webhook_events` row for the canary subscription ID.
+- Database verification found `0` subject subscription matches and `0` tenant subscription matches for the canary subscription ID.
+
+## 2026-08-22 — Stripe Explorer and Professional product mapping
+
+Summary:
+
+- Mapped Stripe Product and Price IDs for the active self-service billing tiers through the Subscription Administration API.
+- Explorer mapped to Product `prod_V7YY6OYlzF94MO`, monthly Price `price_1U7JRI9yvXTfstCXUvv6QZkr`, and annual Price `price_1U7JRI9yvXTfstCXukjjXpJ1`.
+- Professional mapped to Product `prod_V7YZToB4EPMh3e`, monthly Price `price_1U7JSP9yvXTfstCXmEktmULQ`, and annual Price `price_1U7JSP9yvXTfstCXGujxKmPw`.
+- Institutional remains Contact Sales with no public Price mapping.
+
+Verification:
+
+- Admin API mapping script returned `stripe_product_mappings_verified` for `explorer` and `professional`.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed`.
+
+## 2026-08-22 — Stripe webhook runtime secret wiring
+
+Summary:
+
+- Root cause: `.env` contained `STRIPE_WEBHOOK_SECRET`, but `compose.yaml` did not pass it into the gateway container. The deployed webhook endpoint therefore remained in `stripe_webhook_disabled` state.
+- Added `STRIPE_WEBHOOK_SECRET` to the gateway compose environment.
+- Extended the safe production deploy verification to fail when `.env` defines `STRIPE_WEBHOOK_SECRET` but the gateway container does not receive it.
+- Redeployed gateway and confirmed `STRIPE_WEBHOOK_SECRET` is present in the container without printing the secret value.
+
+Verification:
+
+- `bash -n scripts/deploy_signalops_public_production.sh`
+- `git diff --check`
+- `sudo -n signalops-deploy-agent signalops-production-gateway-deploy`
+- `curl -fsS https://signalops.syncratic.io/readyz`
+- `scripts/run_stripe_webhook_canary.sh` → `{"persistent_ledger_write": false, "status": "rejected_invalid_signature"}`
+
+## 2026-08-22 — Stripe webhook canary operational preflight
+
+Summary:
+
+- Added `scripts/run_stripe_webhook_canary.sh` for Stripe webhook readiness checks. Default mode is non-mutating and verifies fail-closed behavior without writing a webhook ledger row.
+- Documented the persistent valid-signature canary path behind explicit approval because it creates or reuses one Stripe webhook ledger row.
+- Production preflight result: `stripe_webhook_disabled`; the endpoint is deployed, but `STRIPE_WEBHOOK_SECRET` is not configured in the running gateway environment.
+- Added a Stripe Tax note to the billing documentation before broad paid-plan launch.
+
+Verification:
+
+- `bash -n scripts/run_stripe_webhook_canary.sh`
+- `scripts/run_stripe_webhook_canary.sh` → `{"persistent_ledger_write": false, "status": "stripe_webhook_disabled"}`
+
+## 2026-08-22 — Admin-managed Stripe billing foundation
+
+Summary:
+
+- Added migration `000155_subscriber_admin_stripe_billing` to grant the gateway controlled billing-webhook ledger access, extend webhook processing states with `unmatched`, and allow Stripe reconciliation policies for mapped subscription IDs.
+- Added admin-only product, subject, and tenant Stripe billing mapping endpoints under Subscription Administration.
+- Added signed Stripe webhook endpoint `POST /v1/billing/stripe/webhook` using `STRIPE_WEBHOOK_SECRET`; invalid signatures fail before persistence, and unknown Stripe subscriptions are recorded without creating access.
+- Extended the Administration Subscription UI with product/subject/tenant Stripe mapping forms and a webhook ledger.
+- Documented the admin-managed billing boundary separately from future Checkout/customer-portal work.
+
+Verification:
+
+- `go test ./internal/api ./internal/storage/postgres`
+- `npm --prefix web run build`
+- `bash -n scripts/apply_subscriber_subscription_commerce_migration.sh`
+- `000155_subscriber_admin_stripe_billing` applied to dedicated MarketOps database at `2026-08-22 16:10:11 UTC`; gateway webhook ledger access verified and public webhook ledger read denied.
+- Deployed updated gateway and web containers; live route chunk includes `Admin-managed Stripe billing`.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed with Stripe UI assertions: `3 passed`.
+
+## 2026-08-22 — Subscriber production documentation split
+
+Summary:
+
+- Added a user-centric MarketOps Subscriber User Guide for pilot users, tenant administrators, and platform administrators.
+- Added a production engineering handbook that consolidates source-of-truth, scheduler/job controls, post-close completion, EROC projection acceptance, access/subscription controls, and readiness validation.
+- Linked both documents from the Subscriber Project index so future project work can update user-facing and engineering-facing documentation separately.
+
+Files changed:
+
+- `docs/projects/subscriber_project/marketops_subscriber_user_guide.md`
+- `docs/projects/subscriber_project/marketops_production_engineering_handbook.md`
+- `docs/projects/subscriber_project/README.md`
+
+## 2026-08-22 — EROC global projection catch-up and permanent post-close hook
+
+Summary:
+
+- Root cause: the EROC algorithm was current in `marketops_valuation_results`, but `subscriber_gateway_global_eroc_results` stopped advancing after `2026-08-14` because post-close did not project `valuation` evidence into the subscriber global evidence store.
+- Performed an append-only dedicated MarketOps catch-up for `2026-08-17` through `2026-08-21`: 660 EROC records, 132 symbols per trading session, no provider polling, no source-row mutation.
+- Extended `scripts/marketops_global_dashboard_projection.sh` so the existing post-close global projection gate now materializes only `signalops.algorithms.eroc_v6` valuation evidence and verifies global EROC symbol coverage against the tenant-local source for the same session.
+
+Evidence:
+
+```text
+source_eroc 2026-08-21 132
+global_eroc 2026-08-21 132
+source_eroc 2026-08-20 132
+global_eroc 2026-08-20 132
+source_eroc 2026-08-19 132
+global_eroc 2026-08-19 132
+source_eroc 2026-08-18 132
+global_eroc 2026-08-18 132
+source_eroc 2026-08-17 132
+global_eroc 2026-08-17 132
+```
+
+Verification:
+
+- `bash -n scripts/marketops_global_dashboard_projection.sh scripts/marketops_daily_postclose.sh`
+- Read-only dedicated MarketOps DB source/global EROC coverage comparison.
+
+Remaining:
+
+- Confirm the first natural trading-day post-close after this change appends EROC through the standard parity manifest/materializer path.
+
+## 2026-08-22 — Review Queue stale EROC evidence guard
+
+Summary:
+
+- Root-caused the Review Queue showing an Aug 14 last signal to stale EROC projection data.
+- Dedicated MarketOps DB evidence showed `subscriber_gateway_global_eroc_results` latest session is `2026-08-14`, while active opportunities and Risk/Reward are current through `2026-08-21`.
+- Updated Review Queue composition so EROC reversal rows are admitted only when their trade date matches the latest evidence date across the queue's sources. This prevents stale EROC rows from dominating an item's last-evidence timestamp while fresher opportunity/RiskReward/alert evidence exists.
+
+Evidence:
+
+```text
+eroc          latest=2026-08-14 latest_rows=132
+opportunities latest=2026-08-21 latest_rows=45
+risk_reward   latest=2026-08-21 latest_rows=132
+```
+
+Files changed:
+
+- `web/src/routes/MarketOpsReviewQueueRoute.tsx`
+- `docs/build_journal.md`
+
+Verification:
+
+- `npm --prefix web run build`
+
+Remaining:
+
+- EROC projection catch-up and permanent post-close materialization hook were completed later on 2026-08-22; next validation is the first natural trading-day post-close run.
+
+## 2026-08-22 — FMP annual recurring timer activated
+
+Summary:
+
+- Closed the deployment-agent reprovision blocker and activated the selected FMP annual recurring schedule.
+- Live `scheduler-status` now includes the warm-EOD and FMP annual scheduled-service rows.
+- FMP annual financial timer is active with next run at Saturday, August 29, 2026 06:30 UTC / 02:30 America/New_York.
+
+Evidence:
+
+```text
+timer=signalops-marketops-boundary-fmp-annual-financial.timer load=loaded active=active next=Sat 2026-08-29 06:30:00 UTC
+service=signalops-marketops-boundary-schedule@marketops-warm-eod.service load=loaded active=inactive result=success
+service=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service load=loaded active=inactive result=success
+```
+
+Files changed:
+
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/projects/subscriber_project/pr0_pr1_postclose_closure_evidence_2026-08-22.md`
+- `docs/projects/subscriber_project/pr4_production_expansion_controls_2026-08-21.md`
+- `docs/build_journal.md`
+
+Next evidence point:
+
+- Observe the first natural FMP annual run on Saturday, August 29, 2026 at 02:30 ET and verify Admin Operations Health reflects coverage/degradation status.
+
+## 2026-08-22T06:15:00Z
+
+Summary:
+
+- Closed the PR-0/PR-1 post-close acceptance loop using the Friday, August 21, 2026 ET completed-session evidence.
+- Verified the live scheduler/status path after the recent runs and confirmed the current operations monitor run-now check succeeded.
+- Added durable closure evidence for PR-0/PR-1 and updated the production-readiness path.
+
+Files changed:
+
+- `docs/projects/subscriber_project/pr0_scheduler_reconcile_evidence_2026-08-21.md`
+- `docs/projects/subscriber_project/pr0_pr1_postclose_closure_evidence_2026-08-22.md`
+- `docs/projects/subscriber_project/pr1_admin_operations_visibility_2026-08-21.md`
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- The August 21 post-close cycle was the time-gated acceptance point for closing PR-0 and PR-1 after the MarketOps database decoupling and operations-freshness fixes.
+
+Evidence:
+
+- Public `/readyz` returned `200`.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed`.
+- `scripts/run_subscriber_access_control_ui_smoke.sh` passed: `1 passed`.
+- `scripts/run_marketops_dashboard_freshness_ui_smoke.sh` passed: `1 passed`.
+- `sudo -n signalops-deploy-agent scheduler-status` returned clean tracked service state.
+- Dedicated MarketOps job-status rows showed daily post-close, Risk/Reward, post-close recovery, SRI refresh, SRI holdings refresh, and intraday succeeded for the August 21 acceptance window.
+- Warm EOD reported governed `degraded` with `bounded_provider_gap`, matching the new bounded provider-gap policy.
+- Market State and Risk/Reward aligned to the 2026-08-21 session with 132 symbols; SRI aligned to 16 segments; intraday had 132 symbols at `2026-08-21 22:15:00 UTC`.
+
+Remaining:
+
+- Reprovision the root-owned deployment agent from source commit `571f34a`; the attempted non-interactive install returned `sudo: a password is required`.
+- Activate the selected FMP annual Saturday 02:30 ET recurring timer after deployment-agent reprovision.
+- PR-3 backup/restore re-verification remains deferred by accepted product risk.
+
+## 2026-08-21T07:05:00Z
+
+Summary:
+
+- Extended PR-1 Admin operations freshness with Assets coverage and FMP annual financial workflow rows.
+- Assets coverage now compares active tenant-local symbols to active global `eod_baseline` coverage.
+- FMP annual financials now reports the latest global annual workflow task completion, and returns an explicit `missing` row when no workflow exists.
+
+Files changed:
+
+- `internal/storage/postgres/repository.go`
+- `docs/projects/subscriber_project/pr1_admin_operations_visibility_2026-08-21.md`
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- PR-1 exit requires administrators to see Assets and FMP freshness in the same operations-health view as Dashboard, Market State, Risk/Reward, SRI, SAF, and Intraday.
+
+Verification performed:
+
+- `gofmt -w internal/storage/postgres/repository.go`
+- `go test ./internal/api ./internal/storage/postgres`
+- `npm --prefix web run build`
+
+Next step:
+
+- Deploy Gateway/Web and browser-verify that Admin Workbench shows all eight freshness rows.
+
+## 2026-08-21T06:45:00Z
+
+Summary:
+
+- Deployed the PR-1 Admin operations visibility slice through `sudo -n signalops-deploy-agent signalops-production-deploy`.
+- Production deployment reported `signalops_public_production_deploy_verified`.
+- Public `/readyz`, `/marketops/watchlists`, and `/admin/system` returned `200`.
+- `scheduler-status` remained clean after deployment.
+- The bundled subscriber smoke failed once on the known browser/auth harness path, then passed on one constrained retry: `2 passed in 5.83s`.
+
+Files changed:
+
+- `docs/projects/subscriber_project/pr1_admin_operations_visibility_2026-08-21.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- PR-1 deployment evidence needs to distinguish successful production deployment and route health from transient browser-smoke instability.
+
+Verification performed:
+
+- `sudo -n signalops-deploy-agent signalops-production-deploy`
+- `curl https://signalops.syncratic.io/readyz` returned `200`
+- `curl https://signalops.syncratic.io/marketops/watchlists` returned `200`
+- `curl https://signalops.syncratic.io/admin/system` returned `200`
+- `sudo -n signalops-deploy-agent scheduler-status` returned clean
+- `sudo -n signalops-deploy-agent subscriber-pilot-ui-smoke` returned `2 passed` on retry
+
+Next step:
+
+- Browser-verify the Admin Workbench data-freshness table with `luke@strategiclabs.io`, then add Assets and FMP freshness rows before PR-1 exit.
+
+## 2026-08-21T06:20:00Z
+
+Summary:
+
+- Started PR-1 Admin operations visibility with a read-only data-freshness slice.
+- Added backend freshness records for Dashboard alignment, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, and Intraday conditions.
+- Added Admin Workbench rendering for the freshness table and removed the redundant legacy scheduled-jobs table from that section.
+
+Files changed:
+
+- `internal/storage/storage.go`
+- `internal/storage/postgres/repository.go`
+- `internal/api/scheduled_jobs.go`
+- `internal/api/scheduled_jobs_test.go`
+- `web/src/types.ts`
+- `web/src/routes/SystemRoute.tsx`
+- `docs/projects/subscriber_project/pr1_admin_operations_visibility_2026-08-21.md`
+- `docs/projects/subscriber_project/README.md`
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- Production readiness requires administrators to see whether each MarketOps view is fresh and aligned without shell access or manual SQL. This slice exposes that status from the dedicated MarketOps data plane without adding a mutation path.
+
+Verification performed:
+
+- `gofmt -w internal/storage/storage.go internal/storage/postgres/repository.go internal/api/scheduled_jobs.go internal/api/scheduled_jobs_test.go`
+- `go test ./internal/api ./internal/storage/postgres`
+- `npm --prefix web run build`
+
+Next step:
+
+- Deploy Gateway and Web, then verify Admin Workbench shows the data-freshness table for Dashboard, Market State, Risk/Reward, SRI, SAF, and Intraday.
+
+## 2026-08-21T05:55:00Z
+
+Summary:
+
+- Recorded live PR-0 scheduler reconcile evidence after the deployment-control agent was reprovisioned.
+- `scheduler-status` returned clean service state: daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, storage monitor, and retention governance all showed `result=success`.
+- Active timers remained loaded and active for MarketOps intraday, daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, and warm EOD.
+
+Files changed:
+
+- `docs/projects/subscriber_project/pr0_scheduler_reconcile_evidence_2026-08-21.md`
+- `docs/projects/subscriber_project/README.md`
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- PR-0 needs durable evidence that the stale failed systemd state was cleared through the approved, DB-evidence-gated deployment-agent action rather than by weakening scheduler-status.
+
+Verification performed:
+
+- Operator-provided live output from `sudo -n signalops-deploy-agent scheduler-status` showed `marketops-daily-postclose` as `active=inactive result=success`.
+
+Next step:
+
+- Wait for the next eligible post-close cycle and verify it exits successfully without requiring another reconcile action.
+
+## 2026-08-21T05:35:00Z
+
+Summary:
+
+- Added the approved constrained deployment-agent action `marketops-postclose-systemd-reconcile`.
+- The action may reset stale failed post-close systemd state only after dedicated MarketOps DB status verifies post-close completion evidence.
+- The action refuses to run unless `marketops-daily-postclose` is `succeeded` or `degraded`, `marketops-postclose-recovery` is `succeeded` or `degraded`, `marketops-risk-reward` is `succeeded`, and `marketops-sri-refresh` is `succeeded`, `degraded`, or explicitly `recovery_needed`.
+
+Files changed:
+
+- `deploy/deployment-agent/signalops-deploy-agent`
+- `scripts/provision_signalops_deployment_agent.sh`
+- `docs/build_journal.md`
+- `docs/projects/subscriber_project/production_readiness_path.md`
+
+Rationale:
+
+- PR-0 should not weaken `scheduler-status` by ignoring failed systemd units. The safer control is an explicit, audit-logged reconcile action that clears stale unit failure only when the authoritative MarketOps DB proves recovery has already validated the completed session.
+
+Verification performed:
+
+- `bash -n deploy/deployment-agent/signalops-deploy-agent`
+- `bash -n scripts/provision_signalops_deployment_agent.sh`
+- `git diff --check`
+
+Next step:
+
+- Re-provision the root-owned deployment agent, run `sudo -n signalops-deploy-agent marketops-postclose-systemd-reconcile`, then verify `sudo -n signalops-deploy-agent scheduler-status` returns clean.
+
+## 2026-08-21T05:00:00Z
+
+Summary:
+
+- Saved the Subscriber Project production-readiness checklist as an active project control.
+- Recorded the current readiness position as controlled pilot-ready, not full external production-ready.
+- Defined a secure path to production around scheduler consistency, Admin operations visibility, subscription/access-control hardening, backup/restore rehearsal, FMP lifecycle, trading-calendar correctness, and subscriber administration.
+
+Files changed:
+
+- `docs/projects/subscriber_project/production_readiness_path.md`
+- `docs/projects/subscriber_project/README.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- The project needs a durable readiness source of truth that can be checked repeatedly instead of relying on ad hoc chat summaries.
+- The near-term production blocker is operational consistency: every MarketOps job must complete or expose an actionable failure while every view reads the same dedicated MarketOps data plane.
+
+Verification performed:
+
+- Documentation-only change.
+
+Next step:
+
+- Start Sprint PR-0 by fixing the daily post-close failure semantics/root cause and verifying `scheduler-status` returns clean after the next eligible run.
+
+## 2026-08-19T14:20:00Z
+
+Summary:
+
+- Root-caused MarketOps intraday and operations monitor failures to data-plane recovery-control gaps.
+- Added restart policies to continuous MarketOps writer services.
+- Removed live database rebuild/recreate behavior from routine pgBackRest backup and isolated restore rehearsal paths.
+- Hardened operations monitor WAL freshness and systemd result classification.
+- Updated writer-cutover preflight to tolerate dedicated-only target tables and prevent false aborts during authoritative dedicated-store validation.
+
+Files changed:
+
+- `compose.yaml`
+- `scripts/marketops_pgbackrest_backup.sh`
+- `scripts/marketops_pgbackrest_restore_rehearsal.sh`
+- `scripts/marketops_operations_monitor.sh`
+- `scripts/preflight_marketops_writer_cutover.sh`
+- `docs/projects/subscriber_project/marketops_data_plane_contract.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- A restore rehearsal at `2026-08-19T03:24:37Z` restarted the live dedicated MarketOps PostgreSQL container. The SAF outbox received a connection reset and exited; without a restart policy, the required data-plane service stayed down until the intraday preflight blocked provider work.
+
+Verification performed:
+
+- `bash -n scripts/marketops_pgbackrest_backup.sh`
+- `bash -n scripts/marketops_pgbackrest_restore_rehearsal.sh`
+- `bash -n scripts/marketops_operations_monitor.sh`
+- `docker compose config --quiet`
+- `git diff --check`
+
+Next step:
+
+- Writer cutover was rerun after fixing dedicated-only table handling; the runtime reconciled 286 shared temporal signal rows and verified continuous writers on the dedicated boundary.
+
+## 2026-08-19T06:00:00Z
+
+Summary:
+
+- Added a safe public production deploy command for the decoupled MarketOps topology.
+- Added Makefile wrappers and deployment-agent actions for full, dry-run, web-only, and gateway-only production deploys.
+- Documented why plain Compose rebuilds are unsafe after MarketOps database decoupling.
+
+Files changed:
+
+- `scripts/deploy_signalops_public_production.sh`
+- `Makefile`
+- `docs/deployment.md`
+- `deploy/deployment-agent/signalops-deploy-agent`
+- `scripts/provision_signalops_deployment_agent.sh`
+- `docs/build_journal.md`
+
+Rationale:
+
+- Public deploys must consistently include the MarketOps boundary, MarketOps read-cutover, and Traefik overlays so Gateway keeps dedicated MarketOps data access and Web keeps public routing labels.
+
+Verification performed:
+
+- `bash -n scripts/deploy_signalops_public_production.sh`
+- `bash -n deploy/deployment-agent/signalops-deploy-agent`
+- `bash -n scripts/provision_signalops_deployment_agent.sh`
+- `make deploy-production-dry-run`
+- `make -n deploy-production`
+- `git diff --check`
+
+Next step:
+
+- Re-provision the deployment agent, then use `sudo -n signalops-deploy-agent signalops-production-deploy` for the next approved production gateway/web restart.
+
+## 2026-08-19T05:25:48Z
+
+Summary:
+
+- Ran the approved temporary production subscription enforcement canary through the constrained deployment agent.
+- Verified Explorer, Professional, and Institutional subscription enforcement behavior.
+- Verified automatic restoration to enforcement-off and pilot Explorer state.
+
+Files changed:
+
+- `docs/projects/subscriber_project/subscription_commerce_foundation_release_evidence_2026-08-17.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- Permanent commercial enforcement requires retained evidence that tier enforcement works and restores cleanly before any durable activation decision.
+
+Verification performed:
+
+- `sudo -n signalops-deploy-agent subscription-enforcement-canary` completed successfully.
+- Canary UI/API matrix returned `1 passed`.
+- Gateway environment after restoration reported `SIGNALOPS_SUBSCRIPTIONS_ENABLED=false`.
+- Public `/readyz` returned healthy.
+- Database verification showed the controlled `tenant-pilot-b` pilot subject restored to active Explorer.
+
+Next step:
+
+- The remaining operations hardening item is a safe deploy command/Make target that always includes the required MarketOps and Traefik overlays.
+
+## 2026-08-19T05:05:33Z
+
+Summary:
+
+- Recorded live browser validation for Subscription Administration governance.
+- Confirmed the public route was restored after recreating `web` with `compose.traefik.yaml`.
+- Closed the outstanding item requiring `luke@strategiclabs.io` validation on `tenant-local`.
+
+Files changed:
+
+- `docs/projects/subscriber_project/subscription_commerce_foundation_release_evidence_2026-08-17.md`
+- `docs/build_journal.md`
+
+Rationale:
+
+- The subscription governance slice needs retained browser evidence before it can be considered operationally closed.
+
+Verification performed:
+
+- User validation: `#1 is solid!` for Subscription Administration governance.
+- Public `/readyz` returned 200 after Traefik labels were restored.
+
+Next step:
+
+- Add a safe deploy command/Make target that always includes the required MarketOps and Traefik overlays.
+
+## 2026-08-19T04:48:13Z
+
+Summary:
+
+- Expanded Subscription Administration from provisioning-only forms into a governance console.
+- Added signed platform-admin API reads for tenant-scoped subject subscriptions, Institutional contracts, seats, product policies, and audit events.
+- Added signed product/tier policy mutation for feature policy, limits, active state, display name, and trial days with revision/audit persistence.
+- Updated the Admin UI to show enrolled users, tenant contracts/seats, tier capability policy, limits, and audit history.
+
+Files changed:
+
+- `internal/api/subscriber_subscription_admin.go`
+- `internal/api/subscriber_subscription_admin_test.go`
+- `internal/storage/subscriber_subscription_admin.go`
+- `internal/storage/postgres/subscriber_subscription_admin.go`
+- `web/src/routes/SubscriptionAdministrationRoute.tsx`
+- `web/src/api/client.ts`
+- `web/src/types.ts`
+- `docs/projects/subscriber_project/subscription_commerce_model.md`
+- `docs/projects/subscriber_project/subscription_commerce_foundation_release_evidence_2026-08-17.md`
+
+Rationale:
+
+- A subscription administration surface must govern enrolled users and tier-entitlement policy. Blind provisioning forms are insufficient for production operations because administrators need current enrollment state, product-policy revision, limits, seats, and audit evidence before enabling commercial enforcement.
+
+Verification performed:
+
+- `go test ./internal/api ./internal/storage/postgres`
+- `npm --prefix web run build`
+- `git diff --check`
+
+Next step:
+
+- Deploy Gateway and Web, then validate `/admin/subscriptions` with `luke@strategiclabs.io` against `tenant-local` before any production enforcement decision.
+
+## 2026-08-19T04:24:47Z
+
+Summary:
+
+- Moved MarketOps scheduled-job operational status from repository-local runtime JSON to the dedicated MarketOps primary database.
+- Added the current-status and run-history tables through migration `000154_marketops_scheduled_job_statuses`.
+- Seeded existing ignored runtime status into the database for continuity.
+- Updated Gateway/Admin status reads to prefer the MarketOps database and retain file fallback only for outage/debug visibility.
+- Updated the scheduler wrappers and systemd templates so MarketOps status writes use the protected MarketOps cutover environment.
+
+Files changed:
+
+- `migrations/000154_marketops_scheduled_job_statuses.*.sql`
+- `internal/api/scheduled_jobs.go`
+- `internal/api/router.go`
+- `internal/storage/storage.go`
+- `internal/storage/postgres/`
+- `scripts/marketops_schedule_database.sh`
+- `scripts/marketops_scheduled_job.sh`
+- `scripts/marketops_postclose_recovery.sh`
+- `deploy/systemd/`
+- `deploy/deployment-agent/signalops-deploy-agent`
+- `scripts/signalops_deployment_agent_bridge.py`
+- `web/src/routes/SystemRoute.tsx`
+- `web/src/types.ts`
+- `docs/projects/subscriber_project/`
+
+Rationale:
+
+- Runtime status belongs in the MarketOps database now that MarketOps has a dedicated data boundary. Keeping operational state in tracked or semi-tracked repository paths creates ambiguity and weakens recovery evidence.
+
+Verification performed:
+
+- Applied migration `000154_marketops_scheduled_job_statuses` to `signalops-marketops-postgres-1`.
+- Seeded 13 current status rows and 11 run-history rows.
+- Verified `marketops-operations-monitor` wrote a fresh DB-backed success row from `2026-08-19 04:16:18 UTC` to `2026-08-19 04:16:20 UTC`.
+- Ran shell syntax checks, Go focused tests, web build, Gateway deployment, readiness check, and subscriber pilot UI smoke (`2 passed`).
+- Pushed commit `5b0871f` to `origin/subscribers`.
+
+Next step:
+
+- Reinstall any remaining scheduled systemd units from the current repository if their installed environment is found to omit the MarketOps cutover file; otherwise continue the next sprint backlog from DB-backed operational status.
+
+## 2026-08-15T20:35:00Z
+
+Summary:
+
+- Added the dedicated MarketOps read-cutover verification and a data-only allowlisted boundary-secret loader.
+- Added a non-trading-day scheduler guard: market-data jobs skip weekends while three explicit maintenance jobs remain allowed.
+
+Files changed:
+
+- `scripts/deploy_marketops_read_cutover.sh`
+- `scripts/render_marketops_cutover_env.sh`
+- `scripts/lib/marketops_boundary_env.sh`
+- `scripts/lib/dotenv.sh` and the scheduled EOD/recovery entry points
+- `scripts/lib/marketops_trading_calendar.sh`
+- `scripts/marketops_scheduled_job.sh`
+- `deploy/systemd/signalops-marketops-fmp-continuation.timer`
+- `docs/projects/subscriber_project/marketops_single_source_weekend_controls_2026-08-15.md`
+
+Rationale:
+
+- The live dashboard was reading the shared store while completed MarketOps writes reached the dedicated store, leaving dashboard dates stale.
+- Saturday must not trigger EOD, intraday, or other market-data workflows.
+- The scheduled EOD and recovery path must parse `.env` as data, never execute it as shell code.
+
+Verification performed:
+
+- Shell syntax validation passed.
+- A disposable Saturday proof recorded EOD dispatch as skipped and permitted the explicit operations-monitor maintenance dispatch.
+
+Next step:
+
+- Deploy the Gateway read-cutover with its protected production environment and verify the dedicated data source before any scheduler resume.
+
 
 This journal is the ongoing record of SignalOps build progress. Entries are
 append-only unless correcting factual errors. All timestamps are UTC.
@@ -7912,3 +8761,900 @@ Rationale and expected outcome:
 - Reconciled Exhaustive Reversal to 115/115 active assets for the latest persisted session; prior July 31 coverage was 60 assets.
 - Reconciled Current Intraday Breadth for 115 assets. 93 completed-close snapshots are fresh and 22 are retained as provider-stale/unavailable; no stale provider record is relabeled as live data.
 - Changed MarketOps Dashboard default breadth window from 60 to 10 trading days, keeping 30 and 60 trading days as analyst-selectable context windows.
+
+
+## 2026-08-14 — Subscriber Project next-cycle backlog and sprint boundary
+
+Summary:
+
+- Closed the dedicated MarketOps data-boundary and recovery gate: MarketOps reads and continuous writers use the dedicated boundary; encrypted pgBackRest recovery points, WAL archiving, and isolated offline restore rehearsals have been verified. The legacy shared backup timer remains disabled.
+- Enabled the controlled SRI refresh cadence: weekday completed-session reconciliation runs at 20:07 America/New_York and the State Street issuer-holdings refresh follows at 20:20 America/New_York. The first scheduled-run evidence remains to be reviewed.
+- The global-catalog, tenant-aware authorization, entitlement, default/private-list, watchlist projection, and controlled canary foundations are no longer the principal implementation blockers.
+
+Outstanding work is organized into independently releasable next-cycle sprints. None of these items changes the completed boundary or recovery evidence without a separately approved change.
+
+### N1 — Production observability and recovery operations
+
+- Add actionable monitoring and alert delivery for dedicated backup age, WAL archive lag/failure, repository capacity, credential-refresh failure, restore-rehearsal age, SRI scheduler failure, and coverage/queue degradation.
+- Establish recurring restore-rehearsal cadence and evidence retention. A networked point-in-time recovery exercise remains a distinct, separately approved test; the completed rehearsal validates isolated physical recovery without network egress.
+- Set and document S3 repository lifecycle/retention policy alongside the configured pgBackRest retention policy; document recovery of Keycloak configuration and deployment secrets as companion continuity procedures.
+- Resolve the host `Too many open files` systemd directory-watch warning without weakening the active scheduler or recovery controls.
+
+Exit gate: alerts are delivered to an accountable operator, at least one scheduled job and one scheduled backup are evidenced, and the recurring recovery checklist is owned and executable.
+
+### N2 — Pilot acceptance and subscriber operating model
+
+- Complete pilot-tenant acceptance for tenant-default/private-list management, first-custom-list defaulting, watchlist selection across MarketOps views, authorization-negative cases, and cold-asset coverage-state presentation.
+- Define the production tenant lifecycle: approved tenant provisioning, tenant administrator responsibilities, entitlement/tier changes, support/audit workflow, and criteria for pilot-to-general-availability expansion.
+- Keep tenant isolation and centrally shared intelligence explicit: tenants own memberships and preferences, while global assets, market data, and algorithm evidence remain single-copy platform records.
+
+Exit gate: a pilot tenant can be provisioned, administered, supported, and deprovisioned through an auditable documented workflow without cross-tenant disclosure.
+
+### N3 — Catalog coverage and centrally governed scale
+
+- Operationalize the exchange-listed US common-stock catalog refresh and governance reconciliation.
+- Formalize the top-1,000 hot EOD coverage policy, budget/deadline/quality metrics, and expansion evidence.
+- Complete and observe the cold-asset path: authorized list membership creates one globally deduplicated activation request, central processing warms the asset, and all entitled viewers receive the same resulting evidence without browser provider calls.
+- Decide and document capacity/entitlement controls for catalog search, activation, and enrichment demand.
+
+Exit gate: coverage expansion demonstrates one collection and one canonical algorithm result per globally covered symbol/session, including symbols requested by more than one tenant.
+
+### N4 — Provider revision and market-data quality governance
+
+- Review the immutable provider-revision observations and field-level deltas; approve, revise, or reject the policy that permits newer provider evidence to supersede legacy canonical selection.
+- Confirm scheduled SRI price and holdings results, freshness, provider provenance, and failure handling after their first controlled execution.
+- Maintain truthful degraded, deferred, warming, and provider-gap states rather than translating absence of evidence into neutral or directional conclusions.
+
+Exit gate: canonical-selection policy is approved and its rollout/rollback decision has auditable evidence.
+
+### N5 — Deferred enrichment and algorithm roadmap
+
+- Integrate FMP annual fundamentals and ratios when prioritized; retain the current bounded TTM profile until a validated richer-history path exists.
+- Continue SAF effectiveness accumulation and calibration only from matured, provenance-complete evidence.
+- Re-open the S6 options-demand/capture canary only with a new named approval now that recovery evidence is complete; evaluate its result before any cohort expansion. No broad options capture is implied by this backlog entry.
+
+Exit gate: each enrichment has a named provider budget, readiness/coverage contract, rollout cohort, and rollback path.
+
+### N6 — Documentation and release governance
+
+- Reconcile historical sprint documents whose temporary pending or partially provisioned language has been superseded by deployed boundary, recovery, and canary evidence.
+- Maintain one release checklist that links tenant acceptance, provider approvals, operational alerts, recovery evidence, and each controlled expansion decision.
+
+Next-cycle priority:
+
+1. N1 production observability and recovery operations.
+2. N2 pilot acceptance and subscriber operating model.
+3. N3 catalog coverage scale, with N4 policy review required before canonical-provider behavior expands.
+4. N5 only through separate provider/capture approvals.
+
+
+## 2026-08-14 — Watchlist-governed MarketOps projection correction
+
+- Corrected the Assets presentation so every member of the selected subscriber watchlist remains visible. A member whose central coverage is still warming is shown as a truthful coverage-in-progress row rather than being dropped from the table and presented only as a disconnected pending notice.
+- The initial context remains the earliest private list created by the authenticated subject; when that user has no private list, the tenant default is selected. A deliberately saved list selection remains available through the shared selector.
+- The Dashboard now uses that same shared watchlist selector and the signal-overview API scopes its aggregate asset set server-side for enabled pilot tenants. Dashboard no longer offers a competing legacy-universe selector.
+- This is a presentation and tenant-projection correction. It does not relabel a cold/global-shadow asset as analytically ready: quotes, scores, signals, and detail remain withheld until centrally persisted evidence is available.
+
+
+## 2026-08-14 — Pilot watchlist shared-EOD projection
+
+- Verified the pilot watchlist contains 12 memberships: the tenant default has ten seeded symbols and the first private list contains AAPL and NVDA.
+- Verified the dedicated shared EOD canary has usable immutable baseline observations only for AAPL and NVDA, both for the 2026-08-12 completed session. The other selected symbols remain `active` catalog references in shadow mode, but do not yet have shared EOD evidence.
+- Updated the authorized projection so a selected member with verified shared EOD context is visible to its tenant without creating a tenant-local asset copy. Asset detail and Dashboard coverage expose that central evidence; unobserved members remain explicitly pending.
+- Algorithm-derived Dashboard breadth remains withheld until the global algorithm pipeline materializes its own outputs. A raw shared EOD observation is not represented as a Risk/Reward score, hypothesis, options signal, or recommendation.
+
+
+## 2026-08-15 — Global analytical evidence materialization foundation
+
+- Added migration `000122_subscriber_global_legacy_evidence_materialization` and the controlled `subscriber-global-marketops-evidence-materializer`.
+- The runner requires `--execute` and an immutable mapped parity-manifest run. It appends globally identified legacy evidence with exact source fingerprints and provenance; it makes no provider request, rewrites no legacy record, and creates no tenant-local projection.
+- The coverage projection can identify materialized central evidence, but remains metadata-only. Dashboard, EROC, Material Events, Valuation, EEOM, Market State, SAF, SRI, intraday, and Risk/Reward require separate type-specific parity, freshness, authorization, and browser gates before their global records are displayed.
+
+
+## 2026-08-15 — Warm EOD history scope aligned to existing analyst backfill
+
+- The centrally governed warm tier will not request five years of price history. Its one-time initial-history policy matches the existing analyst watchlist default: rewind 50 weekdays from a selected completed-session end date and include that end date (at most 51 weekday observations before market holidays).
+- This is equity EOD only: it has no options or intraday capture path and must be invoked as a one-time controlled run rather than installed as recurring schedule.
+- The global analytical-evidence materialization, type-specific parity, freshness, authorization, and browser gates remain mandatory before subscriber views consume the retained history.
+
+
+## 2026-08-15 — Global analytical-evidence materialization bootstrap
+
+- Packaged the restricted `subscriber-global-marketops-parity-manifest` and `subscriber-global-marketops-evidence-materializer` workloads in the dedicated MarketOps Compose topology. Their runtime database URL comes only from the protected cutover environment.
+- Materialized the five immutable, fully mapped 2026-08-14 parity manifests through `signalops_subscriber_global_eod`: EEOM 75, feature vectors 250, Market State 250, valuation 250, and outcomes 250—**1,075 global evidence records** total. No provider was called and no tenant-local source record was changed.
+- Each resulting evidence run is append-only, `legacy_materialized`, `legacy_materialization`, and retains its parity-run/fingerprint provenance. Re-running the EEOM manifest inserted zero additional records, demonstrating idempotency.
+- These records remain metadata-only until each type-specific read projection proves parity, freshness, authorization, and browser acceptance. The materialization bootstrap therefore advances the production blocker but does not close it.
+
+
+## 2026-08-15 — Incremental global evidence materialization
+
+- Corrected the parity-manifest source selection to exclude legacy records that already have a mapped immutable manifest entry. This allows each bounded run to advance through previously unseen evidence rather than repeatedly creating the bootstrap batch. Unmapped and ambiguous records remain eligible for a future remapping review.
+- Focused Go tests passed for both restricted runners. A live provider-free feature-vector batch proved the behavior: it selected the next 1,000 fully mapped records after the original 250 and appended all 1,000 under restricted-role provenance.
+- The global feature-vector ledger now contains 1,250 immutable records across 101 materialization runs. This remains a ledger/provenance advance only; analytical read projection and freshness gates are still closed.
+
+
+## 2026-08-15 — Current Market State global-evidence batch
+
+- Added deterministic `--newest-first` selection to the restricted parity runner. This is a bounded catch-up control, not a change to source data, and keeps historical oldest-first imports available for later audit work.
+- Materialized a 1,000-record newest-first Market State manifest after a restricted-role preflight: it includes 132 records for the 2026-08-14 completed session and coverage back through 2026-08-05.
+- The imported Market State records are all `partial`, matching their retained source quality. No Market State or Dashboard projection is enabled from this batch: currentness alone does not override completeness, parity, authorization, or browser gates.
+
+
+## 2026-08-19 — Subscriber Project N1 control-plane closure and pgBackRest blocker
+
+- Restored the normal non-manual operations path with the constrained deployment agent and root-owned Unix-socket bridge. Admin run-now was verified through the live Gateway for `signalops-storage-monitor`, returning `202 accepted` via `unix:/run/signalops/deployment-agent.sock`.
+- Verified scheduler status, Gateway readiness, and subscriber pilot browser smoke. The smoke test was hardened for transient Chromium `net::ERR_NETWORK_CHANGED` during OIDC redirect.
+- Operations monitor still fails truthfully on recovery freshness: stale pgBackRest service path, missing fresh restore stamp, aged WAL/backup evidence, and two aged coverage-activation requests.
+- The root cause is deployment-control drift: the installed MarketOps pgBackRest unit points at `/tmp/signalops-marketops-recovery-release`, and backup/restore now execute in containers without `pgbackrest` in `$PATH`.
+- Closing the remaining N1 recovery loop requires explicit approval for a production recovery-control fix that may recreate the dedicated MarketOps database containers under the pgBackRest image overlay and reinstall the root-owned backup unit from the current repository path.
+
+
+## 2026-08-19 — N1 recovery-control execution evidence
+
+- Applied and pushed `2e4224d`, which reasserts the pgBackRest Compose overlay before MarketOps backup and restore rehearsal and adds a deployment-agent source guard for stale pgBackRest systemd units.
+- Ran the controlled restore rehearsal through the deployment agent: both `marketops-primary` and `marketops-temporal` restored into isolated containers and accepted validation queries.
+- Ran the controlled pgBackRest backup: primary and temporal diff backups completed successfully and archived WAL.
+- Reran the operations monitor: backup age, repository size, WAL freshness, credentials, pgBackRest scheduler result, intraday scheduler result, and restore rehearsal all passed. The monitor now has one remaining actionable failure: two stale AAPL/NVDA coverage-activation queue rows whose global EOD coverage is already active.
+- The live systemd backup unit still needs root-owned re-anchoring from the current repo path for permanence; direct `sudo -n ./scripts/install_marketops_pgbackrest_system_timer.sh` still requires a password.
+
+
+## 2026-08-19 — N1 monitor pass after activation queue reconciliation
+
+- Reconciled the two stale `tenant-pilot-b` AAPL/NVDA coverage-activation requests to `active` under explicit approval. The guarded update required active global `eod_baseline` coverage, exact tenant/private-list origin, exact symbols, and exactly two rows updated. No provider polling was performed; provenance records approval and correlation `n1-coverage-activation-reconcile-20260819`.
+- Verified open activation requests are now zero.
+- Reran `signalops-marketops-operations-monitor.service`; it passed at 2026-08-19 03:43 UTC. Backup freshness, WAL freshness, repository size, credentials, scheduler checks, restore rehearsal, and coverage queue are all passing.
+- Reprovisioned the deployment agent and verified the live root-owned `signalops-marketops-pgbackrest.service` ExecStart is re-anchored to the current repository path. The latest controlled backup exited `status=0` from `2026-08-19 03:48:33 UTC` to `2026-08-19 03:49:40 UTC`.
+- Reran `sudo -n signalops-deploy-agent operations-monitor-run`; it exited successfully after the re-anchor. Scheduler status shows active MarketOps intraday, post-close, post-close recovery, SRI, holdings, and warm-EOD timers with latest one-shot results successful. N1 has no remaining blocker from the 2026-08-19 recovery-control loop.
+
+
+## 2026-08-19 — MarketOps scheduled-job status moved to database
+
+- Added migration `000154_marketops_scheduled_job_statuses` to store latest scheduled-job status and append-only run history in the dedicated MarketOps primary.
+- Applied `000154` live to the dedicated MarketOps primary at `2026-08-19 04:12:38 UTC`, then seeded 13 latest job statuses and 11 historical run rows from the existing local fallback JSON.
+- Updated the scheduled-job wrapper and Risk/Reward recovery status writer to persist status to MarketOps PostgreSQL first. Repo-local JSON remains only as ignored fallback/debug output and is no longer source-controlled.
+- Fixed the operations-monitor systemd template to load the protected MarketOps cutover environment only for status persistence, without changing its monitoring command. A controlled run at `2026-08-19 04:16:18 UTC` wrote `marketops-operations-monitor` status `succeeded` with runner `systemd` into `marketops_scheduled_job_statuses`.
+- Updated the Administration scheduled-jobs API to read DB-backed status through the MarketOps repository, with file fallback during transition. The UI now marks jobs without a safe run-now action as status-only instead of exposing a failing button.
+
+
+## 2026-08-21 — Post-close SRI deferral and recovery timer correction
+
+- Root cause analysis for repeated post-close failures found that `marketops-daily-postclose` exited `10` after universal/Risk-Reward completion because the inline normalized-only SRI refresh was not complete yet. The separate SRI refresh timer later materialized all 16 platform-global segments at 20:07 ET, so the failure was sequencing, not missing EOD/Risk-Reward evidence.
+- Corrected `marketops_daily_postclose.sh` so SRI pending at the post-close boundary records `marketops-sri-refresh` as `recovery_needed` with `deferred_to_sri_refresh_timer` instead of failing the whole post-close job.
+- Corrected `marketops_postclose_recovery.sh` so universal completion plus pending SRI marks Risk/Reward succeeded and leaves SRI as the separately visible deferred job state.
+- Fixed the root cause in the recovery timer definition: `18:30/15:00` only fired at 18:30 and 18:45 ET in production. The source timer now uses explicit 18:30/18:45, 19:00-22:45, and 23:00 ET calendar entries.
+- Validation: `bash -n` passed for the edited scripts, `systemd-analyze calendar` accepted the corrected timer expressions, and the installed deployment-agent recovery run for the 2026-08-20 session updated `marketops-postclose-recovery` and `marketops-risk-reward` to `succeeded` in the MarketOps DB. A second recovery run wrote `marketops-daily-postclose` as `degraded` with `recovery_guard_verified_completion_after_prior_failed`, preserving the original failed run history while making the latest Admin status truthful. Remaining runtime action: install the corrected root-owned timer file with a narrowly approved scheduler-timer deployment.
+
+## 2026-08-21 — SAF date freshness projection gap
+
+- Investigated stale/recent-date absence in the Signal Assurance UI. Live SAF assertion tables remain empty: `signal_assertions`, `signal_assertion_evaluations`, and `signal_assurance_registration_inbox` each have 0 rows, so the UI currently relies on the subscriber/global historical outcome projection.
+- Root cause: `marketops_signal_outcomes` has matured opportunity outcomes through 2026-08-20, but `subscriber_gateway_global_signal_assurance_observations` stopped at 2026-08-14 because `scripts/marketops_global_dashboard_projection.sh` only projected options, Risk/Reward, and Market State after post-close; it omitted outcome evidence.
+- Code fix staged: post-close global projection now materializes `outcome` evidence and verifies the SAF outcome projection count for the session. A constrained deployment-agent action `marketops-saf-projection-refresh` was added in repo to compute the latest matured outcome date, run the projection, and append missing `saf_benchmark.v4` rows idempotently.
+- Runtime status: live provisioning of the new root-owned deployment-agent action requires explicit approval because it expands the persistent privileged allowlist. No provider polling is required for the refresh; it uses existing MarketOps outcome/evidence rows only.
+
+
+## 2026-08-21 — SAF projection refresh closure evidence
+
+- Ran the approved constrained deployment-agent action `marketops-saf-projection-refresh` after provisioning the action. The first run exposed the deeper source-lifecycle issue: opportunity outcomes can be manifested while pending and later mature under the same `outcome_id`, so the parity selector must de-duplicate by payload fingerprint, not record id alone.
+- Fixed `subscriber-global-marketops-parity-manifest` so `outcome` session filtering matches `matured_session_date` and prior-manifest filtering uses the exact computed source fingerprint. This allows pending-to-matured lifecycle rows to be re-manifested without duplicating unchanged source payloads.
+- Fixed `marketops_global_dashboard_projection.sh` so its SAF outcome verification matches the projection contract: matured opportunity rows with `direction IN ('upside','downside')` and non-null `directional_hit`.
+- Fixed the SAF benchmark materializer to clamp oversized `--max-observations` values to the governed 500-row cap; this preserved safety while allowing the already-installed constrained action to complete.
+- Runtime closure: `subscriber_gateway_global_signal_assurance_observations` now exposes 132 eligible observations for matured session `2026-08-20` across 80 symbols. `saf_benchmark.v4` now has 224 broad-market matched rows and sector coverage through `2026-08-20` (`188` sector matched, `36` sector unmapped). No provider polling was performed.
+
+## 2026-08-21 — PR-1 Admin operations freshness extension deployed
+
+- Deployed commit `41e3110`, adding explicit Admin Workbench freshness rows for Assets coverage and FMP annual financials.
+- Verified public production routes after deployment: `/readyz` returned `200` and `/admin/system` returned `200`.
+- Verified scheduler state after deployment: MarketOps intraday, post-close, post-close recovery, SRI refresh, SRI holdings refresh, and warm-EOD timers are loaded and active; latest one-shot scheduler services remain successful. The FMP annual timer remains intentionally inactive until a recurring cadence is approved.
+- Reran the constrained production subscriber UI smoke; it passed with `2 passed in 5.60s`.
+- Automated PR-1 browser acceptance now passes through `scripts/run_subscription_admin_ui_smoke.sh`: Playwright logs in as `luke@strategiclabs.io`, opens `/admin/system`, waits for the operations-health API response, asserts the eight required `data_freshness` labels, and confirms they render in the browser. Result: `2 passed in 2.29s`.
+
+
+## 2026-08-21 — PR-1 Playwright Admin freshness acceptance
+
+- Added an explicit Playwright assertion to `python/tests/test_subscription_administration_ui_smoke.py` for MarketOps Operations Health freshness rows.
+- Corrected the acceptance route from `/marketops/admin` to `/admin/system`; `/marketops/admin` returned the SPA shell but rendered Not Found for the authenticated user.
+- The test verifies both the API payload and browser-rendered labels for Dashboard, Assets coverage, Market State, Risk/Reward, Sector Rotation Intelligence, Signal Assurance, Intraday conditions, and FMP annual financials.
+- Fixed the existing Subscription Administration smoke to use an exact heading match for `Institutional seat`.
+- Verification: `scripts/run_subscription_admin_ui_smoke.sh` returned `2 passed in 2.29s`; public `/admin/system` returned `200`.
+
+## 2026-08-21 — PR-2 read-only tenant-isolation smoke
+
+- Started PR-2 access/subscription hardening with a non-mutating Playwright/API smoke: `python/tests/test_subscriber_access_control_ui.py` plus `scripts/run_subscriber_access_control_ui_smoke.sh`.
+- The smoke uses the configured tenant-pilot-b subscriber and tenant-local administrator identities. It proves same-tenant positive reads and cross-tenant `403 tenant_mismatch` denial for subscriber lists and MarketOps signal overview.
+- It also proves the pilot subscriber cannot access Subscription Administration (`403 insufficient_role`) while the platform subscription administrator can read tenant-local and tenant-pilot-b subscription snapshots through the explicitly controlled administration boundary.
+- Verification passed: `scripts/run_subscriber_access_control_ui_smoke.sh` returned `1 passed in 3.55s`; `go test ./internal/api ./internal/storage/postgres` passed; `bash -n scripts/run_subscriber_access_control_ui_smoke.sh` passed.
+- The temporary subscription-enforcement canary was not run in this slice because it mutates enforcement state and pilot plan state; it requires fresh named approval.
+
+## 2026-08-21 — PR-2 subscription-enforcement canary
+
+- Ran the named approved constrained production action `sudo -n signalops-deploy-agent subscription-enforcement-canary`.
+- The action temporarily enabled gateway subscription enforcement, ran the tier canary, and restored gateway enforcement off plus pilot Explorer state.
+- Canary result: `subscription_enforcement_canary_enabled`, Playwright `1 passed in 3.90s`, `subscription_enforcement_canary_verified`, and `subscription_enforcement_canary_restored`.
+- Post-restore verification passed: `/readyz` returned `200`, `/admin/system` returned `200`, `scheduler-status` returned clean, `scripts/run_subscriber_access_control_ui_smoke.sh` returned `1 passed in 3.64s`, and `scripts/run_subscription_admin_ui_smoke.sh` returned `2 passed in 2.20s`.
+- Direct `sudo docker exec` environment inspection was not passwordlessly available, so restoration evidence relies on the canary restoration marker plus behavioral route/scheduler/browser checks.
+
+## 2026-08-21 — PR-2 closure evidence
+
+- Closed PR-2 for the configured production QA identities.
+- Strengthened `python/tests/test_subscriber_access_control_ui.py` to decode the live browser JWT and verify returned private lists have `owner_subject` equal to the signed token `sub`. The pilot identity is required to have a private list; the tenant-local admin path verifies no foreign private owner is returned if private lists are present.
+- Strengthened `python/tests/test_subscription_administration_ui_smoke.py` to verify the Subscription Administration governance surface and API snapshot: Explorer, Professional, Institutional products; feature and limit policies; revisions; subject subscriptions; tenant contracts; seats; audit trail; and entitlement labels.
+- Validation passed: `scripts/run_subscriber_access_control_ui_smoke.sh` returned `1 passed in 3.62s`; `scripts/run_subscription_admin_ui_smoke.sh` returned `3 passed in 3.06s`; `go test ./internal/api ./internal/storage/postgres` passed; shell syntax checks for the PR-2 runners passed.
+- No irreversible production private-list mutation was introduced. Future evidence can add a second same-tenant adversarial identity, but current PR-2 closure rests on live owner-subject projection plus existing source/API subject-binding tests.
+
+## 2026-08-21 — PR-4 production expansion controls started
+
+- Recorded product decision to defer PR-3 current backup/restore rehearsal. Prior dedicated pgBackRest backup and isolated restore evidence remains useful, but PR-3 is not marked closed because it is not current after PR-1/PR-2 changes.
+- Started PR-4 around FMP annual lifecycle, trading-calendar correctness, subscriber administration operationalization, and incident runbooks.
+- Current source review found `marketops-fmp-annual-financial` already has an Admin-visible job, deployment-agent run-now target, Saturday schedule hook, and task-level degraded/failure isolation. The recurring timer remains a separate enablement decision.
+- Current calendar guard is weekend-only via `scripts/lib/marketops_trading_calendar.sh`; first PR-4 implementation target is a reusable MarketOps US market-session calendar with explicit holiday handling.
+
+## 2026-08-21 — PR-4 trading-calendar guard
+
+- Added explicit 2026/2027 US market-holiday handling to `scripts/lib/marketops_trading_calendar.sh`, with `marketops_is_trading_day` and `marketops_non_trading_reason` helpers.
+- Updated `scripts/marketops_scheduled_job.sh` to skip non-maintenance jobs on weekends and configured market holidays, recording reasons such as `non_trading_day:market_holiday`.
+- Preserved the maintenance/FMP weekend allowlist so storage/retention/operations-monitor and `marketops-fmp-annual-financial` can still run on weekends by explicit policy.
+- Added `scripts/test_marketops_trading_calendar.sh`; validation passed with `marketops_trading_calendar_tests_passed`. Syntax checks passed for the calendar helper, scheduler wrapper, and test script. Admin browser smoke still passed with `3 passed in 3.20s`.
+
+## 2026-08-21 — PR-4 SAF UI trading-day filter alignment
+
+- Added `web/src/lib/marketopsTradingCalendar.ts` with the same 2026/2027 US market-holiday set used by the MarketOps scheduler guard.
+- Updated SAF daily progression 10/20-day filters to exclude configured market holidays, not just weekends.
+- Added `web/src/lib/marketopsTradingCalendar.test.ts` to prove regular sessions, weekends, market holidays, and trailing trading-day selection.
+- Validation passed: targeted calendar test, full web Vitest suite (`37` files, `440` tests), and production web build.
+
+## 2026-08-21 — PR-4 FMP annual recurring cadence selected
+
+- Selected Option B for FMP annual financial enrichment: governed weekly recurring capture at Saturday 02:30 America/New_York.
+- Added constrained deployment-agent actions `scheduler-fmp-annual-enable` and `scheduler-fmp-annual-disable` so recurring activation can be controlled without broad manual `systemctl` access.
+- Updated scheduler installer help/no-op messaging to include `--enable-fmp-annual` consistently.
+- Live activation still requires deploying/reprovisioning the deployment agent and then running `sudo -n signalops-deploy-agent scheduler-fmp-annual-enable`, followed by `scheduler-status` verification.
+
+## 2026-08-21 — PR-4 incident runbooks added
+
+- Added `docs/projects/subscriber_project/pr4_incident_runbooks_2026-08-21.md` with operator response paths for stale dashboard/freshness drift, failed post-close, provider outage, access-control/subscription regression, failed deployment smoke/post-login 404, backup/restore concern, and FMP annual financial degradation.
+- Each runbook records detection, owner, first response, recovery action, verification, and rollback criteria.
+- The runbooks explicitly prefer constrained deployment-agent actions and dedicated MarketOps database evidence over manual shell intervention or broad provider polling.
+
+## 2026-08-21 — PR-4 FMP annual live activation blocked by installed-agent version
+
+- Verified scheduler baseline through `sudo -n signalops-deploy-agent scheduler-status`; FMP annual timer remained `loaded active=inactive next=n/a` while other production timers remained clean.
+- Attempted `sudo -n signalops-deploy-agent scheduler-fmp-annual-enable`; the installed root-owned deployment agent returned `Unsupported deployment-agent action`, confirming the source change has not yet been reprovisioned onto the host.
+- Attempted passwordless reprovision with `sudo -n ./scripts/provision_signalops_deployment_agent.sh adminalien`; host sudo required an interactive password.
+- No timer state changed. Required operator action is to run the reprovision command once with sudo, then use the new constrained `scheduler-fmp-annual-enable` action and verify `scheduler-status`.
+
+## 2026-08-21 — Production readiness pause checkpoint
+
+- Paused active implementation at the controlled pilot-ready checkpoint pending the natural post-close acceptance window for the Friday, August 21, 2026 ET trading session.
+- Clarified that SRI refresh and SRI holdings refresh occur after midnight UTC on Saturday, August 22, 2026, but still belong to the August 21 ET trading-session acceptance window. August 22 is not a separate EOD trading day.
+- Post-window acceptance requires `sudo -n signalops-deploy-agent scheduler-status` plus alignment checks for Dashboard, Assets coverage, Market State, Risk/Reward, SRI, SAF, and Admin Operations Health without manual reconcile.
+- FMP annual recurring activation remains source-ready but live-inactive until the deployment agent is reprovisioned and the constrained `scheduler-fmp-annual-enable` action is installed.
+
+## 2026-08-21 — Operations freshness semantics corrected
+
+- Investigated the apparent stale Aug 20 Admin Operations Health rows. The 132-asset tenant-local Dashboard, Market State, Risk/Reward, SRI, SAF, and intraday evidence were present for Aug 20; the real failed scheduled job was warm EOD for the broader 1000-asset cohort.
+- Root cause: `marketops-warm-eod` normalized 997/1000 symbols for Aug 20 and exited hard-failed because of a small set of provider no-bar responses.
+- Updated warm EOD to return degraded for bounded provider gaps (`MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS`, default `5`) and updated the scheduler wrapper to record `degraded` while exiting cleanly for exit code `10`.
+- Added warm EOD to Admin scheduled jobs and to the deployment-agent source scheduler-status service list. The installed deployment-agent binary still requires reprovisioning before this source status-list change is live.
+- Corrected Admin Operations Health freshness semantics: `Assets analytical coverage` now uses current Market State coverage; intraday is no longer stale after-hours when completed-session evidence is present; SRI/SAF rows explain provenance/materialization timestamps.
+- Validated changed SQL directly against the dedicated MarketOps database. Live result: Assets analytical coverage, Dashboard, Market State, Risk/Reward, SRI, SAF, and Intraday were current for Aug 20; FMP annual remained partial at 993/1000.
+- Deployed gateway through the constrained deployment agent. Validation passed: deployment smoke `2 passed`, `/readyz` returned `200`, Subscription/Admin smoke `3 passed`, and subscriber access-control smoke `1 passed`.
+
+## 2026-08-23 — Subscriber user activity monitoring source slice
+
+- Added migration `000157_subscriber_user_activity_ledger` for an append-only `subscriber_user_activity_events` ledger in the dedicated MarketOps database, protected by tenant-scoped RLS and constrained gateway grants.
+- Added authenticated `POST /v1/session/activity` for browser login/logout/feature-view beacons. Tenant and subject are always derived from the signed token.
+- Added gateway best-effort capture for MarketOps `POST`, `PUT`, and `DELETE` routes under `/v1/tenants/{tenant}/marketops/*`, including normalized route, coarse feature key, status code, and correlation ID. Payloads, tokens, cookies, and provider data are not recorded.
+- Added `GET /v1/administration/subscriptions/activity` for subscription administrators, plus Subscription Administration UI support through a new User activity tab and a selected-user drilldown under Users & seats.
+- Updated browser smoke coverage to assert the Activity tab and selected-user drilldown.
+- Validation passed: `go test ./internal/api ./internal/storage/postgres` and `npm --prefix web run build`.
+
+## 2026-08-23 — Subscriber user activity monitoring production activation
+
+- Applied `000157_subscriber_user_activity_ledger` to the dedicated MarketOps database and verified the migration ledger, activity table existence, forced RLS, gateway `SELECT,INSERT` table access, and identity-label function access.
+- Rebuilt/restarted gateway through the constrained deployment agent. The gateway build ran the full Go test stage and deployment smoke passed.
+- Rebuilt/restarted web through the constrained deployment agent. The first smoke exposed a real frontend placement bug: `UserActivityBridge` was mounted above `RouterProvider` while using TanStack `useLocation`, preventing authenticated Watchlists rendering.
+- Fixed `UserActivityBridge` to track browser path changes without router context, committed/pushed the fix, and redeployed web. The final deployment-agent web smoke passed: `2 passed`.
+- Ran Subscription Administration browser smoke. The first run exposed a test predicate issue because `/v1/administration/subscriptions/activity` matched the base subscription snapshot predicate; tightened the predicate to the exact base endpoint. Final result: `3 passed`.
+- Verified live activity capture: `subscriber_user_activity_events` contained `login` and `feature_view` events, latest observed at `2026-08-23 07:04:01 UTC`.
+
+## 2026-08-23 — Syncratic daily narrative production materialization
+
+- Ran the controlled production Syncratic daily narrative materialization for tenant-local using the latest completed MarketOps session, `2026-08-21`.
+- Initial execution exposed a post-decoupling routing defect: `/v1/syncratic/*` routes still used the shared primary repository, so daily SRI reads failed on missing `subscriber_gateway_global_sri_snapshots` even though MarketOps data belongs in the dedicated MarketOps database.
+- Restored the missing dedicated MarketOps SRI gateway views/grants by rerunning the already-applied idempotent `000132_subscriber_global_sri_foundation` and `000133_subscriber_global_sri_gateway_runtime_grant` SQL against the dedicated MarketOps DB.
+- Patched Syncratic routes to use `MarketOpsQueryRepository` when the MarketOps database boundary is configured. This keeps MarketOps Syncratic context windows, insights, Ask jobs, and source artifact reads in the dedicated MarketOps database.
+- Fixed daily narrative materialization telemetry to count object-shaped artifact refs and fixed nondeterministic Risk/Reward leader ordering so unchanged evidence digests remain stable across repeated runs. Added a Syncratic worker stale-digest guard so obsolete queued jobs are completed without calling Ask, and changed the post-close Syncratic runner invocation to build before run.
+- Production materialization read-back for `2026-08-21`: Daily Overview `400` artifact refs, SRI `160`, Risk/Reward `120`, Review Queue `120`; all four context windows and insights are active.
+- Final authenticated idempotency check returned `skipped_unchanged=4`, `materialized_context_windows=0`, `materialized_insights=0`, and `queued_jobs=0`.
+- Validation passed: `go test ./internal/api`, Syncratic frontend tests (`56` tests), gateway deployment smoke (`2 passed`), `/readyz=200`, and `/marketops/syncratic=200`.
+
+## 2026-08-23 — Syncratic Ask chunked prompt strategy
+
+- Chose prompt chunking/compaction over broadly raising Syncratic AI Gateway policy. The earlier `4800` byte UI cap was a stricter byte cap than the actual `4000` input-token gateway policy, but the correct durable strategy is to avoid cramming full Daily Overview lineage into a single prompt.
+- Updated daily narrative Ask prompt construction to send compact section summaries plus artifact totals and capped citation samples. Full provenance remains stored in `syncratic_context_windows.lineage_refs`.
+- Daily narrative Ask now defaults to a conservative `10000`-byte prompt proxy, while the UI requests `10000`, to fit the current Syncratic AI Gateway `4000` input-token policy. If compaction still cannot fit, the backend returns `context_requires_chunking` and the UI shows a chunking-specific message.
+
+## 2026-08-23 — Syncratic Ask live smoke and idempotency gate
+
+- Added a controlled Playwright smoke for `/marketops/syncratic` that logs in with the tenant-local QA identity, opens a daily narrative context, clicks normal Ask (`force=false`), and verifies the `/v1/syncratic/context-windows/{id}/ask` response shape without retaining HAR artifacts on success.
+- Live smoke reached the SignalOps Ask endpoint but failed before the fix with `502 syncratic_ask_failed`. A minimal upstream probe from the gateway container showed the Syncratic AI Gateway rejected requests without `Idempotency-Key` using `400 idempotency_key_required`.
+- Patched the Syncratic user API client to send `Idempotency-Key` and wired SignalOps Ask calls to generate stable idempotency keys from context window id + prompt digest; explicit Regenerate includes a timestamp suffix.
+- A follow-up upstream probe with `Idempotency-Key` advanced to `503 gateway_price_catalog_not_found`, confirming the next blocker is Syncratic AI Gateway price-catalog policy/configuration rather than SignalOps prompt size or browser auth.
+
+## 2026-08-23 — Syncratic Ask live smoke closure
+
+- After the Syncratic AI Gateway price-catalog configuration propagated, reran the controlled production browser smoke with `scripts/run_syncratic_ask_ui_smoke.sh`.
+- Result: `1 passed in 1.43s`. This verifies `/marketops/syncratic` login, daily narrative selection, normal Ask (`force=false`), SignalOps `Idempotency-Key` forwarding, upstream AI Gateway acceptance, and valid Ask response rendering.
+- Syncratic Ask is now part of the production-readiness QA checklist after gateway deploys, after Syncratic AI Gateway policy/catalog changes, and before subscription production gates.
+
+## 2026-08-23 — Syncratic Ask readiness checklist
+
+- Added `docs/projects/subscriber_project/syncratic_ask_readiness_checklist.md` as the durable readiness control for Syncratic Ask.
+- Captured the required controls: route availability, dedicated MarketOps database boundary, active context windows/insights, prompt compaction under the 4k-input/1k-output AI Gateway policy, provenance retention, idempotency, AI Gateway price-catalog configuration, browser smoke, protected failure artifacts, and sanitized errors.
+- Linked the checklist from the Subscriber Project README, automated browser acceptance document, and production-readiness path.
+- Recorded the remaining hardening item: expose Syncratic Ask operational health in Administration with latest success/failure, upstream category, and last successful context-window id.
+
+## 2026-08-23 — Syncratic Ask Admin operations-health row
+
+- Added a read-only `Syncratic Ask` row to the Administration MarketOps Operations Health `data_freshness` projection.
+- The row is sourced from active daily narrative context windows, completed Ask insight metrics, and failed/retryable Syncratic intelligence jobs in the dedicated MarketOps data plane. It performs no provider polling, no AI Gateway call, no enqueue, and no mutation.
+- Healthy state requires at least one completed Ask insight for the latest active daily narrative session and no newer failed Ask job; partial state exposes the latest Ask failure category and context-window id when available.
+- Updated the Subscription Administration browser smoke to require the `Syncratic Ask` freshness label and updated project docs/checklist accordingly.
+- Validation passed: `go test ./internal/api ./internal/storage/postgres`, `.venv/bin/python -m pytest -q python/tests/test_subscription_administration_ui_smoke.py --collect-only`, and `git diff --check`.
+
+## 2026-08-23 — Syncratic Ask operations-health deployment validation
+
+- Deployed the Gateway-only Syncratic Ask operations-health projection through `sudo -n signalops-deploy-agent signalops-production-gateway-deploy`.
+- The deployment returned `signalops_public_production_deploy_verified`; public `/readyz` returned `200` with `signalops-gateway`.
+- The deployment-agent bundled subscriber smoke encountered one transient Chromium `net::ERR_NETWORK_CHANGED` on initial navigation, so the slice-specific Admin smoke was used for closure.
+- `scripts/run_subscription_admin_ui_smoke.sh` passed: `3 passed in 11.94s`, validating that Admin Operations Health renders the required `Syncratic Ask` freshness row.
+
+## 2026-08-23 — MarketOps subscription user journey specification
+
+- Added `docs/MarketOps_Subscription_User_Journey_v1.0_Code_Agent_Spec.md` as the product/UX source for the subscription journey.
+- The spec defines Visitor, Explorer, Researcher, Professional, and Institutional lifecycle states; Daily Active Researchers as the north-star metric; contextual upgrade triggers; Stripe checkout/webhook expectations; entitlement UX rules; admin requirements; and phased acceptance criteria.
+- Linked the spec from the Subscriber Project document set so implementation work can reference it alongside the commerce model, billing, activity monitoring, and production-readiness documents.
+
+## 2026-08-23 — Subscriber activity retention policy foundation
+
+- Added migration `000158_subscriber_user_activity_retention_policy` to seed `subscriber.user_activity_180d` for `tenant-local` and `tenant-pilot-b` in `dry_run` mode.
+- Wired the retention governor to map that policy to `subscriber_user_activity_events.occurred_at`, preserving tenant scope and avoiding payload/receipt expansion.
+- Added a focused retention-governor unit test for the subscriber activity target.
+- Updated Subscriber Project readiness and user-activity documentation: retention candidate counting is ready through existing Retention Governance, while deletion/enforcement remains a separate explicit approval gate.
+- Validation passed: `gofmt`, `bash -n scripts/marketops_scheduled_job.sh`, `git diff --check`, and `go test ./cmd/retention-governor ./internal/api ./internal/storage/postgres`.
+
+## 2026-08-23 — Migration 000158 applied
+
+- Applied `000158_subscriber_user_activity_retention_policy` directly to the dedicated MarketOps database through the running `signalops-marketops-postgres-1` container after non-root access to `/etc/signalops/marketops-boundary.env` was denied and `sudo -n` required a password.
+- Recorded the migration in `schema_migrations` at `2026-08-23 17:44:47 UTC`.
+- Verified `subscriber.user_activity_180d` exists for `tenant-local` and `tenant-pilot-b` with `retention_days=180`, `mode=dry_run`, and preservation rule `summarized_activity_before_detail_prune`.
+- Verified current activity row counts and candidate counts: `tenant-local` 78 rows / 0 candidates; `tenant-pilot-b` 135 rows / 0 candidates. No activity rows were deleted.
+
+### 2026-08-23 — Dedicated MarketOps subscriber activity retention runner
+
+- Added a dedicated MarketOps retention-governance Compose override and runner so `subscriber.user_activity_180d` executes against the dedicated MarketOps primary database instead of the shared SignalOps database.
+- Added `signalops-marketops-retention-governance.service.in` and the allowlisted Admin/deployment-agent job ID `marketops-retention-governance`.
+- Left the existing `signalops-retention-governance` path intact for shared/CyberOps retention.
+- Runtime activation is pending deployment-agent reprovisioning; `sudo -n ./scripts/provision_signalops_deployment_agent.sh adminalien` was blocked by the host sudo policy requiring an interactive password.
+
+### 2026-08-23 — MarketOps retention runner overlay correction
+
+- The first live `marketops-retention-governance` dry-run succeeded for `tenant-local` and `tenant-pilot-b` with 0 candidate rows and 0 affected rows.
+- The run exposed a deployment-topology issue: the runner used the base MarketOps boundary Compose file without the pgBackRest overlay, which allowed `signalops-marketops-postgres-1` to run from `postgres:16-alpine` instead of `signalops-marketops-postgres-pgbackrest:16`.
+- Corrected the runner to pin Compose project `signalops` and include `compose.marketops-pgbackrest.yaml` so future retention runs preserve the dedicated MarketOps recovery overlay.
+- Runtime recovery action remains required to re-anchor the currently running MarketOps database containers to the pgBackRest images.
+
+### 2026-08-23 — MarketOps retention and pgBackRest runtime closure
+
+- Operator reprovisioned the deployment agent and installed `signalops-marketops-retention-governance.service`.
+- Re-ran `scripts/provision_marketops_pgbackrest.sh`; dedicated MarketOps pgBackRest provisioning completed and the shared backup timer remained disabled.
+- Verified `signalops-marketops-postgres-1` uses `signalops-marketops-postgres-pgbackrest:16` and `signalops-marketops-timescaledb-1` uses `signalops-marketops-timescaledb-pgbackrest:2.17.2-pg16`.
+- Verified `pgbackrest version` works in both dedicated MarketOps database containers.
+- Ran `sudo -n signalops-deploy-agent scheduler-run-now:marketops-retention-governance` after the runner overlay correction. The run succeeded for `tenant-local` and `tenant-pilot-b` with `candidate_rows=0` and `affected_rows=0`.
+- Verified the corrected retention run preserved the pgBackRest image overlay and recorded `marketops_scheduled_job_statuses.job_id='marketops-retention-governance'` as `succeeded`.
+
+### 2026-08-23 — Syncratic Ask readiness worker boundary fix
+
+- Reran Syncratic Ask readiness validation. Backend regressions passed, web Syncratic tests passed, and the live Playwright Ask smoke passed with `1 passed in 4.34s`.
+- Verified active daily narrative contexts exist for Daily Overview, SRI, Risk/Reward, and Review Queue on tenant-local.
+- Found queued `syncratic_intelligence_jobs` in the dedicated MarketOps database while the gateway worker was polling the shared SignalOps repository.
+- Updated the gateway to start the Syncratic worker with the dedicated MarketOps repository when configured.
+- Constrained automatic worker Ask calls to daily narrative contexts only so the fix does not trigger uncontrolled per-asset AI Gateway usage.
+- Latest completed Ask metadata showed `prompt_bytes=4396`, under the local 10k-byte guard used for the governed 4k-input-token AI Gateway policy.
+
+### 2026-08-23 — Syncratic worker daily-narrative claim boundary
+
+- Strengthened the Syncratic worker fix by scoping the repository claim query to `subject_symbol=MARKETOPS` and daily narrative strategies only.
+- This prevents the background worker from leasing legacy per-asset queued jobs before the in-process skip guard can run, preserving AI Gateway capacity and aligning automatic Ask with Daily Overview, SRI, Risk/Reward, and Review Queue only.
+
+### 2026-08-23 — Syncratic worker completion lifecycle correction
+
+- Root-caused stuck `running` Syncratic jobs to stale evidence-digest jobs that correctly skipped duplicate Ask calls but attempted completion with an empty `syncratic_insight_id`.
+- Updated job completion persistence to store empty insight/query refs as SQL `NULL`, clear stale error fields on success, and record `job_completion_failed` if completion persistence fails again.
+- Added focused unit coverage for completion-failure visibility.
+
+### 2026-08-23 — Syncratic Ask readiness production closure
+
+- Deployed the Syncratic worker completion lifecycle fix through `sudo -n signalops-deploy-agent marketops-gateway-deploy`.
+- Deployment evidence: `marketops_read_cutover_gateway_verified`, bundled `subscriber_pilot_ui_smoke_verified`, and public `/readyz` returned ready.
+- Reconciled existing backlog without provider polling or AI Gateway calls: 300 legacy per-asset automatic Ask jobs completed with `auto_ask_scope_retired`; 4 stale-digest daily jobs completed with `stale_evidence_digest_superseded`.
+- Verified no queued/running tenant-local Syncratic jobs remained and `./scripts/run_syncratic_ask_ui_smoke.sh` passed with `1 passed in 1.50s`.
+
+### 2026-08-23 — Syncratic Ask response-quality correction
+
+- Root-caused weak Syncratic Ask output to prompt/response-contract ambiguity: the AI response described the prompt and JSON payload instead of producing analyst-facing interpretation.
+- Tightened daily narrative prompts to require strict JSON, prohibit discussion of the prompt/JSON/instructions, and define field-level expectations for `executive_summary`, `what_changed`, `top_drivers`, `contradictions_or_weak_evidence`, `analyst_followups`, cited artifacts, and data-quality warnings.
+- Disabled `direct_reasoning` on SignalOps Ask requests so the user-facing answer does not invite reasoning/meta-output from the AI Gateway path.
+- Added structured-response parsing so JSON answers are rendered into sectioned analyst explanations instead of being stored as raw JSON or generic text.
+- Validation passed: `go test ./cmd/gateway ./internal/api ./internal/syncratic/userapi`, `npm --prefix web test -- --run src/api/syncratic.test.ts src/lib/syncratic.test.ts`, and `git diff --check`.
+
+### 2026-08-23 — Syncratic Ask deterministic quality fallback
+
+- Live validation showed the AI Gateway could still return prompt/JSON meta-commentary even after the stricter v2 prompt contract.
+- Added a SignalOps quality gate for daily narratives: if the upstream answer describes the prompt, JSON, user request, or instructions, SignalOps replaces the persisted explanation with a deterministic analyst narrative built from the same persisted `syncratic_context_windows.summary_metrics` evidence.
+- The fallback currently covers Daily Overview, SRI, Risk/Reward, and Review Queue narratives and records `response_quality=deterministic_fallback_meta_answer` in Ask metadata.
+- Bumped the daily narrative prompt builder to `marketops.syncratic.daily_narrative_prompt.v2` so existing weak prompt-digest outputs are not treated as current.
+- Validation passed: `go test ./cmd/gateway ./internal/api ./internal/syncratic/userapi`, `npm --prefix web test -- --run src/api/syncratic.test.ts src/lib/syncratic.test.ts`, and `git diff --check`.
+
+### 2026-08-23 — Syncratic Ask malformed JSON fallback and QA refresh mode
+
+- Live Sector Rotation validation showed a second quality failure mode: the upstream returned JSON-looking text with malformed string boundaries/newlines, so SignalOps stored the raw JSON fragment instead of a sectioned explanation.
+- Extended the daily narrative quality gate to use deterministic fallback when the upstream answer looks like malformed JSON and cannot be parsed into the required response contract.
+- Updated the Syncratic Ask browser smoke to iterate the four daily narrative tabs. Normal mode still uses `Ask Syncratic AI`; controlled remediation can set `SIGNALOPS_SYNCRATIC_FORCE_REGENERATE=1` to click `Regenerate` through the UI without extracting or reusing browser tokens.
+
+### 2026-08-23 — Syncratic Ask selected-card QA and raw-output guard
+
+- Corrected the multi-tab Syncratic Ask smoke to select the intended narrative card in each tab: Daily Overview, SRI, Risk/Reward, and Review Queue.
+- Extended the daily output quality gate to fallback when the persisted summary/title would otherwise show raw JSON fragments, `UNKNOWN`, or the default `MARKETOPS Syncratic context` title.
+- This closes the observed gap where the AI Gateway returned non-meta but still non-analyst-facing output.
+
+
+### 2026-08-23 — Syncratic Ask contextual quality gate
+
+- Live review showed Syncratic Ask could now avoid raw/meta responses but still needed stronger analyst context in fallback output.
+- Enriched deterministic fallback narratives with contextual reads for SRI leadership/laggards, Risk/Reward neutrality and directional skew, and Review Queue active-vs-expired triage.
+- Expanded the Playwright Syncratic Ask smoke so HTTP 200 is not sufficient; the rendered explanation must include session/evaluation dates, tab-specific contextual markers, and no prompt/JSON meta-output.
+- Fixed the Syncratic Ask detail panel to render the refreshed insight returned by the Ask mutation immediately, avoiding stale pre-mutation prose after a successful Regenerate action.
+
+
+### 2026-08-23 — Syncratic Ask relational prose refinement
+
+- Refined Syncratic Ask daily narrative output so analyst-facing prose describes relationships rather than reciting raw metrics.
+- Risk/Reward drivers now read as monitored bullish/bearish exceptions, possible opportunities, evidence tone, and risk posture instead of score/confidence fields.
+- SRI fallback now describes leadership pockets, improving/weakening posture, and laggards without exposing composite scores in the narrative.
+- Review Queue fallback now frames active triage items and expired-row noise without score/confidence recitation.
+- Updated the daily Ask prompt and Playwright quality gate to prefer relational natural language while keeping raw metrics available in artifacts/metadata for auditability.
+
+
+### 2026-08-23 — Syncratic Ask narrative-quality signal
+
+- Added a user-facing narrative-quality signal to Syncratic Ask surfaces so analysts can distinguish clean AI output, deterministic fallback, unchanged/skipped Ask actions, data-quality blocked narratives, and deterministic-only contexts.
+- The signal is derived from existing `metrics.syncratic_ask.response_quality`, data-quality warning detection, and the latest Ask route result; no new write path or provider call was introduced.
+- Rendered the quality chip on daily narrative cards, the insight detail header, and the Syncratic Ask metadata panel. Playwright now asserts the quality signal is visible during the Ask smoke.
+
+
+### 2026-08-23 — Syncratic Ask asset-level meta-output guard
+
+- Root-caused the reported `synins_2fdbd7f1dba593f0a88a2c87` response to the generic asset-level Ask path, not the daily narrative path. The affected PANW context used `market_state_session_v2` and carried zero persisted evidence references, but the upstream response was still stored as `llm_answer`.
+- Added a generic Syncratic Ask quality gate for non-daily contexts: prompt/task/context meta-commentary and empty evidence windows now produce a deterministic data-quality fallback instead of persisting upstream meta text.
+- Prevented unchanged prompt/evidence skips from preserving prior meta-commentary by forcing regeneration when the stored title, summary, or explanation contains known meta-output markers.
+- Bumped the generic Ask prompt builder to `marketops.syncratic.ask_prompt.v2` and tightened the prompt/output contract to require analyst-facing relational prose, not request or context descriptions.
+- Validation passed: `go test ./cmd/gateway ./internal/api ./internal/syncratic/userapi`.
+
+
+### 2026-08-23 — Syncratic Ask exposure and subscription boundary
+
+- Exposed Syncratic Ask as Syncratic Intelligence rather than a generic chatbot: Dashboard, Sector Rotation, Review Queue, and Signal Assurance now include contextual entry cards that route analysts into the persisted Syncratic workspace.
+- Added `syncratic_explainability` as the subscription feature for interactive Ask, Regenerate, and Syncratic context materialization/enqueue actions. Explorer remains read-only for persisted deterministic/public narratives; Professional and Institutional receive interactive explainability.
+- Added server-side subscription enforcement for `POST /v1/syncratic/materialize`, `POST /v1/syncratic/daily-narratives/materialize`, and `POST /v1/syncratic/context-windows/{id}/ask`; Syncratic read APIs remain available.
+- Added migration `000159_subscriber_syncratic_explainability_feature` to update existing subscription product policies.
+- Validation passed: `go test ./internal/subscriber/subscription ./internal/api ./cmd/gateway`, focused Syncratic web tests, and `npm --prefix web run build`.
+
+
+### 2026-08-23 — Syncratic Intelligence smoke and stale-meta guard
+
+- Post-deploy Playwright found the renamed Syncratic workspace heading and older persisted daily narrative rows containing `They specified...` meta-output.
+- Updated the browser smoke to target `Syncratic Intelligence` and extended backend/frontend narrative quality detectors to treat `They specified...` as meta-output.
+- The UI now downgrades stale completed Ask rows containing prompt/task meta-language from `Clean AI narrative` to deterministic fallback quality pending regeneration.
+- Validation passed: `go test ./internal/api ./internal/syncratic/userapi`, focused Syncratic web tests, and `npm --prefix web run build`.
+
+
+### 2026-08-23 — Dashboard Syncratic narrative digest
+
+- Surfaced actual persisted Syncratic daily narratives on the MarketOps Dashboard as compact digest cards for Daily Overview, Sector Rotation, Risk/Reward, and Review Queue.
+- Kept the Dashboard read-only and bounded: one existing Syncratic insights query, no context-window detail fetches, no provider polling, and no Ask/Regenerate controls.
+- Labeled the digest as tenant/global MarketOps context while preserving selected-watchlist-specific narratives as a follow-up scope.
+- Added pure helper coverage for latest-per-strategy selection and compact narrative excerpts.
+
+
+### 2026-08-24 — Syncratic narrative reveal flow
+
+- Corrected the Syncratic Intelligence daily narrative interaction so Daily Overview, Sector Rotation, Risk/Reward, and Review Queue cards reveal the full persisted narrative inline instead of switching users into Asset Drilldowns.
+- Updated the Dashboard Syncratic narrative digest so cards expand to the full persisted `explanation` text, with compact summaries used only as fallback/supporting context.
+- Updated the Syncratic Ask browser smoke to assert the inline full-narrative flow rather than the prior Asset Drilldowns transition.
+
+
+### 2026-08-24 — Dashboard Ask Explanation label
+
+- Updated the Dashboard Syncratic narrative expansion to explicitly surface the persisted Ask output as `Ask Explanation` when Syncratic Ask metadata is present.
+- Added the same generated-by-Syncratic-Ask cue used in the detailed workspace so analysts can distinguish Ask output from deterministic fallback outside Asset Drilldowns.
+
+
+### 2026-08-24 — Dashboard explainability-first narrative UX
+
+- Removed `Read Ask` language from the Dashboard narrative digest. The surface now presents the generated content as Syncratic explainability, not as an Ask artifact users must understand.
+- The Dashboard now shows one full explainability narrative by default when persisted narratives exist; cards act as selectors for which explanation is visible.
+- Updated helper copy to keep evidence provenance available without making the implementation mechanism the primary user-facing outcome.
+
+
+### 2026-08-24 — Dashboard full Syncratic response preservation
+
+- Updated the Dashboard expanded explainability panel to render the persisted Syncratic `explanation` verbatim instead of compacting whitespace.
+- This preserves the same structured response visible in Syncratic Intelligence, including Executive summary, Contextual read, What changed, Top drivers, contradictions, and analyst follow-ups.
+- Added helper coverage to ensure compact cards can still use collapsed excerpts while the expanded panel preserves full narrative line breaks.
+
+### 2026-08-24 — Dashboard Syncratic explainability Playwright closure
+
+- Added an authenticated Playwright regression for the Dashboard Risk/Reward Syncratic explainability panel. The test selects the Risk/Reward narrative card and asserts the inline Dashboard panel contains the full structured narrative sections: Executive summary, Contextual read, Top drivers, and Analyst follow-ups.
+- Root cause: Syncratic Ask controls on the Syncratic Intelligence route did not pass `insight_type`, so Ask/Regenerate updated a generic context-window insight instead of the daily narrative insight consumed by the Dashboard.
+- Root cause hardening: empty/no-text Ask responses are now treated as unusable for daily narratives and trigger the deterministic daily narrative fallback instead of persisting `Syncratic Ask returned no textual explanation` as user-facing Dashboard content.
+- Deployed gateway and web, force-refreshed the daily narratives through the controlled Syncratic UI smoke, verified the persisted Risk/Reward row was repaired, and confirmed the Dashboard Playwright regression passes against production.
+
+### 2026-08-24 — Dashboard 80/20 layout and Syncratic digest de-emphasis
+
+- Moved the Dashboard Syncratic narrative digest below the main dashboard content so it no longer imposes near the top of the page.
+- Changed Dashboard narrative selection to reveal only a bounded summary snippet, with click-through to Syncratic Intelligence for the full narrative, provenance, and evidence workspace.
+- Added a right-side Market Intelligence reel using persisted intraday condition snapshots for the selected watchlist, matching the lightweight dynamic-reel pattern from the Market Intelligence view.
+- Updated the authenticated Playwright Dashboard regression to validate the 80/20 layout, right-rail reel, lower digest placement, snippet-only behavior, and Syncratic Intelligence click-through. Production Playwright validation passed.
+
+### 2026-08-24 — Dashboard to Syncratic Intelligence selected narrative deep link
+
+- Kept the Dashboard narrative digest intentionally lightweight: deterministic/snippet text remains the Dashboard-facing summary so load time and visual weight stay bounded.
+- Added selected narrative deep-linking from Dashboard to Syncratic Intelligence using `/marketops/syncratic?tab=...&insight_id=...`; the destination now opens the matching narrative tab and expands the selected full narrative/evidence workspace automatically.
+- This supports using both layers together: Dashboard shows the concise deterministic read, while Syncratic Intelligence exposes the persisted full Ask Explanation and metadata for the selected insight.
+- Updated authenticated Playwright coverage to verify a Risk/Reward Dashboard card opens Syncratic Intelligence with `tab=risk_reward`, a `synins_...` insight id, the full narrative panel, and Ask Explanation visible.
+- Validation passed: `npm --prefix web run build`, focused Syncratic web tests, deployment-agent web deploy smoke, `/readyz`, and production Playwright Dashboard regression.
+
+### 2026-08-24 — Syncratic narrative quality label cleanup
+
+- Removed the user-facing `Deterministic fallback` quality tag from Syncratic narrative surfaces.
+- Renamed the visible quality state to `Evidence-based narrative` and updated explanatory copy to avoid implementation-centric fallback language while preserving the internal quality classification for governance and tests.
+- Validation passed: `npm --prefix web run build`, focused Syncratic web tests, deployment-agent web deploy smoke, and production Dashboard/Syncratic Playwright regression.
+
+### 2026-08-24 — Subscription journey upgrade-intent foundation
+
+- Implemented the first production-safe slice of the MarketOps Subscription User Journey spec: contextual locked-feature upgrade UX, an authenticated upgrade-interaction ledger, a plan-comparison pricing route, and Admin upgrade-funnel visibility.
+- Added migration `000160_subscriber_upgrade_interactions` with tenant-scoped RLS, identity-label integration, source feature/route/asset/tier attribution, and prompt impression/click event types.
+- Added `POST /v1/marketops/subscriptions/upgrade-interactions` as a write-only subscriber endpoint. The endpoint records intent only; it does not create Stripe Checkout sessions or change entitlements.
+- Updated `/admin/subscriptions` with an Upgrade funnel tab showing impressions, clicks, click-through rate, unique users, and searchable interaction rows.
+- Added `/marketops/pricing` to show configured Explorer, Professional, and Institutional plan positioning from subscription products while preserving source feature and return URL context for the future Checkout release.
+- Validation passed: `npm --prefix web run build`, focused Syncratic web tests, `go test ./internal/api ./internal/storage/postgres ./cmd/gateway`, and `git diff --check`.
+
+### 2026-08-24 — Subscription journey production validation closure
+
+- Applied and verified migration `000160_subscriber_upgrade_interactions` on the dedicated MarketOps database; the gateway role has `SELECT`/`INSERT` on `subscriber_upgrade_interactions` and execute access to `subscriber_subscription_admin_identity_labels(text)`.
+- Production Playwright validation covered the pilot Explorer pricing journey, configured Stripe price display, disabled Checkout boundary, authenticated upgrade-interaction persistence, Admin Upgrade funnel visibility for `tenant-pilot-b`, and Admin Webhook ledger evidence.
+- Validation exposed two runtime gaps and both were fixed: the public subscription product API now exposes non-secret Stripe product/price identifiers, and the upgrade-interaction endpoint is explicitly allowed for authenticated tenant-scoped subscribers without requiring a legacy SignalOps role.
+- Stripe webhook validation passed in both fail-closed and signed-canary modes: invalid signatures produced no persistent ledger write, and one signed synthetic `customer.subscription.updated` event recorded as `unmatched` without granting access.
+- Final production checks passed: targeted Go API tests, deployment-agent gateway deploy, subscriber UI smoke `2 passed`, Subscription Administration smoke `3 passed`, `/readyz` returned `200`, and gateway/web containers remained running.
+- Commit evidence: `26131f2 Fix subscription upgrade journey runtime access`.
+
+### 2026-08-24 — Admin Operations Health actionable contract
+
+- Added a deterministic Operations Health contract layer to `/v1/administration/marketops/operations-health` so each data-freshness row includes expected freshness semantics, producing dependency job, dependency status/schedule, latest evidence, coverage, staleness explanation, next-step guidance, and constrained run-now metadata.
+- Updated Admin System / MarketOps Operations Health to render the contract as an actionable control table. Run-now buttons remain limited to existing deployment-agent allowlist entries; unsupported refresh paths such as SAF projection remain status-only.
+- Added regression coverage for the API contract and Playwright coverage that asserts Dashboard, Risk/Reward, Intraday, and FMP rows expose contract fields and that the Admin UI renders Expected freshness, Dependency, Latest evidence, Why / next step, Run recovery, and Status only.
+- Validation passed: `go test ./internal/api`, `npm --prefix web run build`, gateway/web deployment through constrained deployment-agent actions, `/readyz`, subscriber pilot smoke, and Admin Operations Health Playwright/API smoke.
+
+### 2026-08-24 — MarketOps operations monitor temporal WAL hardening
+
+- Fixed repeated `marketops-operations-monitor` failures caused by the low-write dedicated temporal database sitting at a WAL segment boundary. `pg_switch_wal()` alone did not always create a new archivable segment, so the monitor could report stale temporal WAL even with healthy pgBackRest configuration and no archive failures.
+- Updated `scripts/marketops_operations_monitor.sh` to issue a minimal committed WAL heartbeat with `SELECT txid_current()` before `pg_switch_wal()` and to poll archive freshness for a bounded 60 seconds instead of using a fixed 5-second sleep.
+- Live validation passed through the constrained deployment agent: `scheduler-run-now:marketops-operations-monitor` completed successfully, temporal WAL passed with `age_seconds=39 probe_wait_seconds=0`, DB status recorded `marketops-operations-monitor=succeeded`, and `scheduler-status` returned clean.
+
+### 2026-08-24 — Subscription user journey enrollment addendum
+
+- Added an enrollment and operational lifecycle workflow addendum to the MarketOps Subscription User Journey spec.
+- Captured the current implemented baseline: tier policy, pricing, upgrade intent, Admin Subscription Administration, signed Stripe webhook boundary, user activity logging, and controlled subscription enforcement canary evidence.
+- Documented remaining gaps across enrollment, lifecycle states, operational visibility, value progression, and Institutional lead/provisioning flow.
+- Defined the next recommended sprint: Subscriber Enrollment and Lifecycle Journey, with explicit acceptance criteria preserving webhook/admin-governed entitlement activation.
+
+### 2026-08-25 — Keycloak-owned SMS MFA registration handoff
+
+- Documented the SMS MFA boundary for the MarketOps subscription enrollment journey: SMS enrollment, OTP challenge, and phone verification are Keycloak-owned controls, while SignalOps only requests the `CONFIGURE_SMS_MFA` required action for new local users when `SMS_MFA_ENROLLMENT_POLICY=required_for_new_local_users`.
+- Captured operational rollout requirements: `BREVO_API` must be present, the provider-enabled Keycloak image must be rebuilt/redeployed, Compose must run `scripts/reconcile_keycloak_sms_mfa.sh` or Kubernetes must use the Helm `auth.smsMfa` hook, and new local users should receive `VERIFY_EMAIL`, `UPDATE_PASSWORD`, and `CONFIGURE_SMS_MFA`.
+- Captured the hard security rule that SignalOps must not set `phone_number_verified=true`; only the Keycloak SMS MFA provider may set it after successful verification. Required-action cancellation must not bypass phone verification when SMS MFA is required.
+- Added the Keycloak SPI upgrade warning: the SMS MFA provider is built against Keycloak `25.0.6`, so any Keycloak upgrade requires rebuilding and smoke-testing the provider before production traffic.
+
+### 2026-08-25 — Keycloak registration entrypoint HAR correction
+
+- Recorded the `auth.syncratic.co.har` finding: the failed public registration attempt returned `400` before form submission because the browser launched raw Keycloak with `client_id=signalops-web`, `redirect_uri=https://signalops.syncratic.io/auth/callback`, and `kc_action=register`; a separate `404` came from opening the app/Gateway `/auth/login` facade path on the raw Keycloak host.
+- Classified the failure as an auth client/entrypoint mismatch, not an SMS MFA failure. No successful callback, cookies, form post, or SMS MFA step was present in the HAR.
+- Updated the frontend registration contract so `Create account` is exposed only when `VITE_SIGNALOPS_AUTH_SIGNUP_URL` is configured, and the SPA no longer generates direct `kc_action=register` redirects. Normal sign-in remains the configured OIDC Authorization Code + PKCE flow.
+- Updated subscriber enrollment and browser-acceptance documentation: public self-registration must use an app/Gateway-hosted enrollment facade or a verified dedicated `signalops-web` Keycloak client before production exposure.
+
+### 2026-08-25 — App-hosted auth login facade implementation
+
+- Implemented the SignalOps app-hosted `/auth/login` facade in the SPA. The facade reads the internal `redirect` query parameter, sanitizes it through the existing auth redirect guard, stores it as the post-login destination, and starts the normal OIDC Authorization Code + PKCE sign-in flow.
+- Authenticated users who open `/auth/login` are redirected directly to the sanitized destination instead of seeing the login screen or a not-found route. Auth-disabled local builds redirect to the supplied internal destination for developer ergonomics.
+- This closes the route-level gap identified by the HAR handoff: `/auth/login` is an app-hosted facade path on `signalops.syncratic.io`, not a Keycloak-hosted path on `auth.syncratic.co`.
+
+### 2026-08-25 — Create Account registration intent correction
+
+- Corrected the app-hosted Create Account path so the `/auth/login` facade supports `intent=register` and uses Keycloak's OIDC `registrations` endpoint while preserving the normal PKCE/state callback flow.
+- Create Account now appends `intent=register` automatically when the configured sign-up URL points at the same-origin `/auth/login` facade without an explicit intent. Sign in continues to use the normal authorization endpoint.
+- Live non-mutating probe showed Keycloak currently returns `Registration not allowed` for the registrations endpoint. That is now the remaining Keycloak realm policy gate; the frontend should no longer silently route Create Account to the generic sign-in form.
+
+### 2026-08-25 — Keycloak registration form enabled
+
+- Enabled public registration in the live `syncratic` Keycloak realm after confirming the SignalOps app-hosted Create Account path reached the Keycloak OIDC registrations endpoint.
+- Set `verifyEmail=true` so new registrants must verify email before the account can be used.
+- Added `/signalops/viewers` as a realm default group so self-registered users receive the minimum `signalops:viewer` role instead of becoming roleless accounts.
+- Verified non-mutatively with Playwright that `https://signalops.syncratic.io/auth/login?intent=register&redirect=/marketops/dashboard` now renders the Keycloak registration form with username, password, confirm password, email, first name, and last name fields.
+- Follow-up update: the provider-enabled Keycloak image was deployed and the live `syncratic` realm now uses `syncratic-browser` with `syncratic-sms-otp-authenticator` set to `REQUIRED`; `CONFIGURE_SMS_MFA` is enabled and defaulted for new local registrations. New registrants still need governed `tenant_id=tenant-b2c` assignment before SignalOps can accept their token.
+
+### 2026-08-25 — Keycloak SMS MFA activation and tenant assignment gate
+
+- Verified the running Keycloak provider image loads the custom SMS MFA SPI (`syncratic-sms-otp-authenticator`) and required action (`CONFIGURE_SMS_MFA`) under Keycloak `25.0.6`.
+- Reconciled the live `syncratic` realm so `syncratic-browser` is the active browser flow and the SMS authenticator execution is `REQUIRED`.
+- Set `CONFIGURE_SMS_MFA` to `enabled=true` and `defaultAction=true`, causing new local registrations to receive the SMS MFA setup step.
+- Preserved the identity boundary: SignalOps does not mark `phone_number_verified=true`; only the Keycloak SMS provider does so after OTP verification.
+- Tenant assignment approval received from `luke@strategiclabs.io`: the Keycloak SMS MFA provider may assign `tenant_id=tenant-b2c` after successful SMS verification only when no tenant attribute exists, without overwriting existing tenant assignments.
+- Rebuilt and restarted the provider-enabled Keycloak container after the approved provider change; verified the realm still uses `syncratic-browser`, `CONFIGURE_SMS_MFA` remains enabled/defaulted, and `syncratic-sms-otp-authenticator` remains `REQUIRED`.
+
+### 2026-08-25 — Keycloak SMS MFA flow placement correction
+
+- Analyzed `auth.syncratic.co-01.har`: the SignalOps OIDC request had a valid `signalops-web` client, callback, PKCE, and audience parameters, but Keycloak returned a pre-submit login error. The separate `/auth/login` `404` was caused by opening the app/Gateway facade route on `auth.syncratic.co` instead of `signalops.syncratic.io`.
+- Root cause was Keycloak flow placement: `syncratic-sms-otp-authenticator` had been installed as a top-level `REQUIRED` execution before username/password even though the authenticator requires an identified user.
+- Corrected live Keycloak flow so the top-level SMS execution is `DISABLED` and a forms-subflow SMS execution is `REQUIRED` immediately after `Username Password Form`.
+- Verified normal login now renders the username field without the pre-submit error, and the non-mutating B2C registration Playwright smoke still passes.
+
+### 2026-08-25 — SignalOps-branded Keycloak enrollment forms
+
+- Polished the Keycloak-hosted SignalOps enrollment journey so registration, login, password setup, SMS enrollment, and error/continuation copy present as SignalOps Market Intelligence Access instead of generic Syncratic workspace access.
+- Added a dedicated SignalOps registration template with grouped account identity, personal details, security setup, and a clear enrollment note explaining that registration creates identity only; MarketOps access still requires email verification, SMS verification, tenant assignment, and subscription readiness.
+- Restarted Keycloak to clear mounted theme cache and verified with Playwright that the Create Account page shows SignalOps enrollment copy, username/email fields render, the normal login form shows SignalOps branding, and no pre-submit auth error appears.
+
+### 2026-08-25 — SMS enrollment compliance disclosure
+
+- Added a visible SMS opt-in disclosure to the Keycloak `CONFIGURE_SMS_MFA` enrollment screen before the user sends a verification code.
+- Disclosure states message frequency may vary, standard message/data rates may apply, STOP/HELP instructions, and that mobile information will not be sold or shared with third parties for promotional or marketing purposes.
+- Mirrored the disclosure into the Helm Keycloak theme files, restarted Keycloak to reload mounted theme assets, verified the live container has the disclosure text, and re-ran the non-mutating B2C registration smoke plus login sanity check.
+
+### 2026-08-25 — Frontend expired-token fail-closed hardening
+
+- Fixed a frontend auth drift where manual silent-renew failure could leave a stale module-level access token attached to API calls, producing gateway `token is expired` responses while the user still appeared active in the UI.
+- Added a JWT `exp` safety check before returning the cached access token; expired or near-expired JWTs are cleared and no longer attached to API requests.
+- Added shared API-client handling for gateway expired-token responses: the app clears the local OIDC user and starts a clean sign-in redirect while preserving the current route.
+- Validation: targeted auth tests passed (`9 passed`), broader auth/MarketOps state tests passed (`31 passed`), production web build passed, web container was rebuilt/restarted, and `/marketops/dashboard` returned `200` with Playwright loading SignalOps.
+
+### 2026-08-26 — Global analytical projection parity expansion
+
+- Advanced Subscriber Project production blocker #3 by expanding the post-close global analytical data-plane projection gate.
+- `scripts/marketops_global_dashboard_projection.sh` now materializes and verifies core Valuation Intelligence (`signalops.algorithms.valuation_composite_v3`), Distressed Opportunity Intelligence (`signalops.algorithms.distressed_opportunity_scoring_v3`), and EEOM for the exact completed session.
+- The gate now fails closed if global Valuation/DOSM/EEOM projections trail tenant-local source rows, preventing those views from drifting behind the global MarketOps evidence plane after post-close.
+- Validation: `bash -n scripts/marketops_global_dashboard_projection.sh scripts/marketops_daily_postclose.sh` passed; static assertions confirmed the new projection hooks and failure messages are present. Live DB execution still requires the next post-close run or an approved deployment-agent run-now action.
+
+### 2026-08-26 — Mobile subscriber readiness sprint framing
+
+- Created the Mobile User Readiness Sprint as a subscriber-facing production-readiness gate focused on primarily mobile MarketOps users.
+- Explicitly excluded Admin Workbench, Subscription Administration, and operator run-now controls from the mobile sprint; those remain desktop/operator scope unless separately approved.
+- Defined mobile journeys for login, watchlist-first navigation, daily market read, asset drilldown, SAF, SRI, Syncratic Intelligence, enrollment, and subscription pricing.
+- Defined the required mobile viewport matrix, routes, automation plan, remediation backlog, and PWA/native-app viability track.
+- Updated the Subscriber Project README, production-readiness path, and automated browser acceptance docs to make mobile subscriber readiness a formal PR-5 gate.
+
+
+### 2026-08-30 — MarketOps deploy recovery and FMP annual reconcile control
+
+- Investigated `sudo -n signalops-deploy-agent marketops-gateway-deploy` failure. Root cause was stopped runtime dependencies after the raw compose/restart path: `signalops-marketops-postgres-1`, `signalops-marketops-timescaledb-1`, and the shared non-MarketOps temporal container `signalops-timescaledb-1` were not all running.
+- Restored the required data containers and reran the constrained gateway deployment. The deploy action returned `marketops_read_cutover_gateway_verified`, and Gateway startup logged that MarketOps reads are routed to the dedicated data boundary.
+- Restored the web/proxy container through `sudo -n signalops-deploy-agent marketops-web-deploy`. Public and local `/readyz` returned `200`, and the subscriber pilot UI smoke passed with `2 passed`.
+- Diagnosed the remaining scheduler red flag as stale systemd state for `marketops-fmp-annual-financial`, not an active Gateway/Web availability issue.
+- FMP annual recovery evidence exists in the dedicated MarketOps database: `fundamental_annual` v2 evidence rows are being written, with current task state showing succeeded, queued, running, deferred-quota, and skipped-no-data buckets.
+- Added the source action `marketops-fmp-systemd-reconcile`. The action is intentionally constrained: it reads dedicated MarketOps DB evidence, requires the latest FMP annual workflow to be `succeeded` or `degraded`, requires at least one succeeded task and at least one v2 `fundamental_annual` evidence record for that session, then performs `systemctl daemon-reload` and resets only `signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service`.
+- Live activation still requires reprovisioning the root-owned deployment agent from this source. Until then, the installed agent cannot expose the new FMP reconcile action.
+
+
+### 2026-08-30 — FMP annual immutable identity collision fix
+
+- The first FMP annual continuation recovered the capture queue but exposed an immutable evidence identity bug: the v2 annual-financial task worker generated `evidence_run_id` and `global_evidence_id` from asset/payload only, allowing collisions with prior v1 evidence when provider payloads were unchanged.
+- Fixed the task-worker identity seed to include asset, session date, algorithm ID, algorithm version, and payload fingerprint. This preserves append-only v1/v2 history while allowing repeated provider payloads across versions.
+- The downstream annual valuation materializer then exposed the same class of cross-session collision for repeated valuation payloads. Fixed valuation run IDs to include algorithm version and anchor session date, and fixed valuation record IDs to include observation date.
+- Verification: targeted Go package tests passed; the governed FMP annual job reran successfully through the deployment agent; `scheduler-status` returned clean; public `/readyz` returned `200`.
+- Final dedicated MarketOps DB evidence for session `2026-08-28`: `fundamental_annual` v2 has `1000` records; annual Valuation Intelligence has `879` records; annual Distressed Opportunity Intelligence has `879` records. Workflow status is governed `degraded` with coverage `{"succeeded": 993, "deferred_quota": 6, "skipped_no_data": 1}`.
+
+
+### 2026-08-30 — FMP class-share symbol normalization closure
+
+- Investigated the seven remaining FMP annual exceptions after the annual identity fixes. Six were class-share symbols using MarketOps dot notation: `BF.A`, `BF.B`, `BRK.B`, `HEI.A`, `MOG.A`, and `MOG.B`. One symbol, `BXBL`, returned an empty FMP annual-financial response.
+- Added adapter-level FMP request-symbol normalization so class-share symbols are sent to FMP with hyphen notation while preserving the platform/catalog symbol in MarketOps evidence and UI identity. Example: `BRK.B` remains `BRK.B` in MarketOps but is requested from FMP as `BRK-B`.
+- Added FMP adapter tests covering annual and TTM fundamentals class-share normalization.
+- Requeued only the seven known exception tasks for workflow `subglobalannualworkflow-20260828` and reran the governed FMP annual worker through the deployment agent.
+- Verification: the six class-share symbols succeeded; `BXBL` remained a governed provider no-data exception; workflow coverage improved to `{"succeeded": 999, "skipped_no_data": 1}`; `scheduler-status` returned clean; public `/readyz` returned `200`.
+
+### 2026-09-01 — Annual valuation follow-up and tactical projection deduplication
+
+- Applied the corrected `000162_subscriber_global_valuation_tactical_projection` view to the dedicated MarketOps database after finding duplicate tactical posture rows caused by duplicate canonical-symbol catalog identities.
+- The projection now joins through one deterministic global asset per uppercase canonical symbol, preserving immutable source records while preventing duplicate UI/API projection rows.
+- Verification in the dedicated MarketOps database: latest tactical session `2026-08-31` returned `131` tactical rows, `0` duplicate symbol rows, and `max_rows_per_symbol=1`.
+- Started and observed the governed `marketops-fmp-annual-run` action for workflow `subglobalannualworkflow-20260901`; it completed `succeeded` with coverage `{"succeeded": 999, "skipped_no_data": 1}`.
+- Found the annual v4 `insufficient_data` root cause: the global EOD evidence plane stopped at `2026-08-14`, so annual valuation could not derive market cap from canonical close × shares.
+- Ran `subscriber-global-eod-history-materialize`, which verified `28390` total global EOD records, `999` covered assets, and inserted `10969` missing records through `2026-08-31`.
+- Reran the governed annual action after EOD catch-up; `2026-08-31` now has `997` annual VC rows, `997` annual DOSM rows, and `956` rows in each algorithm carrying `revenue_cagr_3y_annual`.
+- Verified AAPL annual DOSM v4 is complete with `revenue_cagr_3y_annual=0.01812535743479393` and `revenue_growth_score=2.3625071486958786`; NVDA, NOW, and SNOW also returned complete rows with CAGR/growth scores.
+- Playwright validation as `luke@strategiclabs.io` confirmed `/marketops/valuation` loads, the tenant-local valuation API returns platform-global annual/tactical evidence, and the rendered Valuation page shows Revenue Growth and Tactical Posture without `Unknown` labels.
+- Removed untracked `auth.syncratic.co-01.har` from the repo workspace so auth capture material is not accidentally committed.
+
+### 2026-09-01 — Catalog identity projection cleanup
+
+- Accepted the policy decision to skip assets without usable annual data in user-facing annual VC/DOSM output.
+- Added migration `000163_subscriber_global_catalog_identity_projection`, which creates `subscriber_gateway_global_canonical_assets` and updates valuation projection to resolve source global asset IDs through canonical identity.
+- Preserved all source catalog rows and immutable evidence records; no evidence rows were deleted, rewritten, or re-keyed.
+- Updated the annual valuation materializer so future runs append only eligible annual VC/DOSM results instead of writing partial `insufficient_data` analytical rows.
+- Verification: targeted Go tests passed for the annual valuation materializer and valuation package; dedicated MarketOps DB migration applied; projected canonical duplicate symbols returned `0`; projected partial annual v4 rows returned `0`.
+
+### 2026-09-01 — Deployment-agent render-cutover-env library source fix
+
+- Repaired the deployment-agent provisioner source so `scripts/lib/marketops_boundary_env.sh` is installed into `/usr/local/lib/signalops-deployment-agent/lib/` beside `render_marketops_cutover_env.sh`.
+- Verified `scripts/provision_signalops_deployment_agent.sh` passes `bash -n`.
+- Live reprovisioning is still operator-gated because passwordless sudo is granted to the installed `signalops-deploy-agent` binary, not to the provisioner script itself.
+
+### 2026-09-01 — Subscriber gateway canonical projection expansion
+
+- Applied migration `000164_subscriber_global_gateway_canonical_projection` to the dedicated MarketOps database.
+- Extended canonical asset identity resolution beyond Valuation to Market State, EROC, EEOM, Material Events, Options distributions, Risk/Reward, Intraday Current State, Signal Assurance observations, and global evidence coverage.
+- Preserved all catalog rows and immutable evidence. The views now resolve source asset IDs through `subscriber_global_asset_identity_resolutions` and `subscriber_gateway_global_canonical_assets` before exposing user-facing symbols.
+- Verification: duplicate projected symbols returned `0` across the eight updated gateway views; no updated gateway view still used the old direct `subscriber_global_assets` evidence-record join; subscriber pilot Playwright smoke passed (`2 passed`).
+
+### 2026-09-01 — Deployment-agent render-cutover-env live closure
+
+- Reprovisioned deployment agent from the repaired source.
+- Verified `sudo -n signalops-deploy-agent render-cutover-env` now succeeds and renders `/etc/signalops/marketops-cutover.env`.
+- Verified `sudo -n signalops-deploy-agent scheduler-status` returns all tracked MarketOps timers active and all tracked services in `result=success`.
+
+### 2026-09-01 — Post-close validation and first mobile subscriber smoke
+
+- Completed the next post-close production-readiness validation after the MarketOps data-plane cleanup.
+- Admin Operations Health Playwright/API validation passed against production using the configured tenant-local admin identity: `python/tests/test_subscription_administration_ui_smoke.py::test_marketops_admin_operations_health_freshness_rows` returned `1 passed`.
+- Dedicated MarketOps DB evidence for the latest completed session `2026-08-31`: Market State `132`, Risk/Reward `132`, SRI `16`, SAF `99`, Annual VC `988`, and Annual DOSM `988`.
+- Scheduled-job status remained clean for post-close, intraday, recovery, SRI, holdings, and FMP annual; `marketops-warm-eod` retained the governed `degraded` state with reason `bounded_provider_gap`.
+- Added `python/tests/test_subscriber_mobile_ui_smoke.py`, a read-only phone-width subscriber smoke that validates production login and the core subscriber routes: Dashboard, Watchlists, Assets, Sector Rotation, and Syncratic Intelligence.
+- Combined readiness validation passed against production: Admin freshness plus mobile subscriber smoke returned `2 passed in 4.07s`.
+- Updated the Subscriber Project production-readiness path, automated browser acceptance guide, and Mobile User Readiness Sprint to record that mobile has initial automated evidence while the broader PR-5 viewport/drilldown/enrollment matrix remains open.
+
+### 2026-09-01 — Mobile subscriber viewport and Syncratic handoff expansion
+
+- Expanded `python/tests/test_subscriber_mobile_ui_smoke.py` from one 390px smoke to the required phone viewport matrix: 375x812, 390x844, and 430x932.
+- Added Dashboard-to-Syncratic handoff coverage so the mobile gate verifies that the Dashboard exposes `Open Syncratic Intelligence` and lands on `/marketops/syncratic` without horizontal overflow.
+- Added `scripts/run_subscriber_mobile_ui_smoke.sh`, using the same literal dotenv parser and protected pilot QA identity pattern as the existing subscriber smoke.
+- Production validation passed through the launcher: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `6 passed in 17.38s`.
+
+### 2026-09-01 — Mobile Assets card-first design slice
+
+- Implemented the first subscriber-facing mobile design remediation on `/marketops/assets`: phone view now renders asset cards instead of requiring the user to work through the desktop table.
+- Each mobile asset card exposes current market data, intraday state, Risk/Reward state, update provenance, and an inline inspect/close detail path while preserving the existing desktop resizable table.
+- Extended `python/tests/test_subscriber_mobile_ui_smoke.py` to validate the Assets mobile card and inline drilldown across 375x812, 390x844, and 430x932 viewports.
+- Production web deploy completed through the constrained deployment agent and its smoke passed: `2 passed in 44.95s`.
+- Expanded mobile production validation passed after deployment: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `9 passed in 40.78s`.
+
+### 2026-09-01 — Mobile SAF card and drilldown design slice
+
+- Implemented mobile-first Signal Assurance rendering while preserving the desktop table contract.
+- `/marketops/assurance` now has mobile cards for confirmed assertions, effectiveness cohorts, and included observations; cohort and observation audit details expand inline with explicit close controls.
+- Extended `python/tests/test_subscriber_mobile_ui_smoke.py` to include the SAF route, daily progression chart, cohort card expansion, observation audit expansion, close behavior, and no page-level horizontal overflow across 375x812, 390x844, and 430x932 viewports.
+- Production web deploy completed through the constrained deployment agent and its smoke passed: `2 passed in 45.54s`.
+- Expanded mobile production validation passed after deployment: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `12 passed in 56.36s`.
+
+### 2026-09-01 — Mobile SRI ETF progression and makeup design slice
+
+- Implemented mobile-first Sector Rotation Intelligence ETF progression cards while preserving the existing desktop table.
+- Mobile ETF cards now open inline 60-session progression detail, expose the ETF makeup tab, render holdings as phone-readable cards when issuer data exists, and show an explicit unavailable state when a current holdings snapshot is absent.
+- Extended `python/tests/test_subscriber_mobile_ui_smoke.py` to validate the SRI route, ETF progression tab, inline open/close behavior, progression chart, ETF makeup state, available holdings cards, and no page-level horizontal overflow across 375x812, 390x844, and 430x932 viewports.
+- Production web deploy completed through `sudo -n signalops-deploy-agent marketops-web-deploy`; deploy smoke passed.
+- Expanded mobile production validation passed after deployment: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `15 passed in 127.35s`.
+
+### 2026-09-01 — Mobile PR-5 Opportunities, pricing, and enrollment expansion
+
+- Expanded `python/tests/test_subscriber_mobile_ui_smoke.py` to include `/marketops/opportunities` and `/marketops/pricing` in the required phone-width route matrix.
+- Added mobile Opportunities drilldown coverage: active opportunity queue selection, detail panel rendering, Why Now/Contributions visibility, Back-to-queue behavior, and no page-level horizontal overflow.
+- Added mobile Pricing coverage for Explorer, Professional, Institutional, Checkout status, and self-service checkout controls without starting Checkout.
+- Production mobile validation passed through the launcher: `./scripts/run_subscriber_mobile_ui_smoke.sh` returned `21 passed in 104.46s`.
+- Read-only Keycloak enrollment smoke passed separately: `.venv/bin/pytest python/tests/test_keycloak_b2c_enrollment_ui.py -q` returned `1 passed in 0.93s`; it reached registration without submitting data or creating a user.
+- Remaining PR-5 mobile evidence is gated-route behavior, which should use a fresh named subscription-enforcement canary because it temporarily changes production enforcement state.
+
+### 2026-09-01 — Mobile PR-5 gated-route subscription canary closure
+
+- Ran the named temporary production subscription-enforcement canary approved by `luke@strategiclabs.io` for `tenant-pilot-b`.
+- Hardened `python/tests/test_subscription_enforcement_canary_ui.py` so the canary runs at a 390x844 mobile viewport and verifies no page-level horizontal overflow on public and unlocked subscriber routes while enforcement is enabled.
+- Canary evidence: Explorer state blocked Value Intelligence with `402 subscription_feature_required`; Sector Rotation remained available; temporary Professional state unlocked Value Intelligence with API `200`; Signal Assurance remained gated for Professional with `402`; tenant-local Institutional/admin access remained valid.
+- The deployment-agent wrapper rebuilt/restarted Gateway for the enforcement window, then automatically restored enforcement off and returned the pilot state to Explorer.
+- Result: `subscription_enforcement_canary_verified` followed by `subscription_enforcement_canary_restored`. PR-5 mobile gated-route behavior is closed for the configured production QA identities.
+
+### 2026-09-01 — Docker Compose restart authority package
+
+- Reframed production restart authority so plain `docker compose up -d --build` uses the full SignalOps production graph from `.env`: base services, MarketOps boundary, Gateway read cutover, writer cutover, MarketOps pgBackRest database overlays, and Traefik public routing.
+- Updated `compose.marketops-read-cutover.yaml` and `compose.marketops-writer-cutover.yaml` to resolve dedicated MarketOps URLs from Compose variables instead of requiring the compose client to read the root-only cutover env file.
+- Added `scripts/verify_signalops_compose_authority.sh` plus `make compose-authority-validate` to fail if plain Compose omits public routing, dedicated MarketOps URLs, boundary-required flag, required secrets, or pgBackRest DB image overlays.
+- Fixed subscriber gateway credential drift: `scripts/render_marketops_cutover_env.sh`, read-cutover, and subscription canary paths now preserve the stable runtime `SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD` instead of generating a competing secret.
+- Updated the live, gitignored `.env` to include the full production `COMPOSE_FILE` and the missing MarketOps DB password keys without printing secret values.
+- Validation: `make compose-authority-validate` passed; plain `docker compose up -d --build` completed; DB containers were restored to pgBackRest images; Gateway/public `/readyz` returned ready; subscriber pilot UI smoke passed; scheduler status was restored to clean after a restart-overlapped intraday run was recovered, with latest intraday snapshot `2026-09-01 16:15:00+00` for 125 tenant-local symbols.
+
+### 2026-09-02 — B2C enrollment no-MFA production posture
+
+- Reframed the B2C enrollment path to keep SMS MFA deferred for the current production phase. Enrollment should require Keycloak identity, email verification, tenant/subscription resolution, and SignalOps enrollment safeguards; it should not require phone/SMS verification by default.
+- Updated the Keycloak B2C enrollment runbook to document that `CONFIGURE_SMS_MFA` must not be a default required action for ordinary public registration and that `syncratic-sms-otp-authenticator` must not block normal browser login.
+- Updated the mobile user readiness sprint to treat SMS MFA as a deferred security capability, not a current mobile enrollment acceptance requirement.
+- Hardened the authenticated B2C enrollment Playwright smoke so any unexpected SMS/phone/OTP/MFA block fails with a direct diagnostic before the SignalOps enrollment resolver.
+- Updated the authenticated smoke runner to reuse the existing Syncratic QA credential variable names as a fallback for the B2C smoke identity.
+- Validation: `go test ./internal/api` passed; Python syntax check passed with bytecode redirected to `/tmp`; read-only Keycloak enrollment UI smoke passed (`1 passed`); authenticated B2C enrollment resolver Playwright smoke passed (`1 passed`).
+
+### 2026-09-02 — Mobile subscriber regression rerun after enrollment policy update
+
+- Reran the full subscriber mobile Playwright suite after the B2C enrollment no-MFA policy update.
+- Scope remained subscriber-facing mobile web only; Admin/operator workflows remain desktop-scoped.
+- Validation: `scripts/run_subscriber_mobile_ui_smoke.sh` passed against production using the configured tenant-pilot-b QA identity: `24 passed in 48.56s`.
+- Result: PR-5 mobile regression discipline remains closed for the current production QA identities.
+
+### 2026-09-02 — Enrollment production polish: no-SMS copy and existing-user resolver proof
+
+- Tightened the read-only Keycloak enrollment Playwright smoke so the initial registration page fails if it exposes SMS/phone/OTP/MFA friction copy during the current no-MFA enrollment phase.
+- The first production smoke correctly exposed stale Keycloak theme copy that still said users would secure the account with SMS and complete SMS verification.
+- Updated the live Keycloak theme source and packaged Helm theme copy in the parent Syncratic repository so public registration copy now describes email verification and workspace activation without SMS/MFA language.
+- Rebuilt/restarted only the Keycloak service; SignalOps Gateway/Web and MarketOps jobs were not restarted.
+- Validation: Keycloak OIDC discovery returned ready after restart; read-only enrollment registration smoke passed (`1 passed`); authenticated B2C enrollment resolver smoke passed (`1 passed`), confirming existing-user `created=[]` behavior and no SMS/MFA block before `/v1/session/enrollment`.
+
+### 2026-09-02 — Admin Operations Health expansion: operations monitor run-now
+
+- Expanded the Administration Operations Health scheduled-job contract so `MarketOps operations monitor` is no longer shell-only/status-only. The Gateway now exposes it through the existing constrained deployment-agent action `scheduler-run-now:marketops-operations-monitor`.
+- Preserved the deployment-agent bridge boundary: Gateway uses the existing `scheduler-run-now:<job_id>` grammar rather than broadening the Unix-socket bridge action pattern.
+- Added API tests proving the operations monitor job is allowlisted and runnable from Admin while unsupported jobs remain rejected.
+- Added Admin Playwright coverage requiring the Operations Health API and UI to expose `MarketOps operations monitor` with a `Run now` control.
+- Added an ACK-gated Playwright click-through that starts the operations monitor through the Admin UI and verifies the run-now API returns `202` with the deployment-agent Unix-socket runner.
+- Deployed Gateway through `sudo -n signalops-deploy-agent marketops-gateway-deploy`; built-in gateway cutover smoke and subscriber pilot smoke passed.
+- Validation: `go test ./internal/api` passed; Admin smoke passed (`3 passed, 1 skipped`); ACK-gated Admin run-now smoke passed (`1 passed`).
+- Source also updates deployment-agent `scheduler-status` to list `signalops-marketops-operations-monitor.timer` and `signalops-marketops-operations-monitor.service`, but installing that source update requires `sudo ./scripts/provision_signalops_deployment_agent.sh adminalien` because non-interactive sudo for provisioning is not available in this session.
+
+### 2026-09-02 — Deployment-agent operations monitor status closure
+
+- After host reprovisioning, verified the deployment-agent `scheduler-status` now includes `signalops-marketops-operations-monitor.timer` and `signalops-marketops-operations-monitor.service`.
+- Evidence: `sudo -n signalops-deploy-agent scheduler-status` returned the operations-monitor timer as `load=loaded active=active` with next run `2026-09-02 18:00:00 UTC`, and the service as `load=loaded active=inactive result=success`.
+- Result: the Admin Operations Health expansion handoff is closed; operations monitor run-now and status visibility are no longer shell-only for the configured admin workflow.
+
+### 2026-09-04 — Subscriber activity identity-label ledger closure
+
+- Added migration `000167_subscriber_subject_identity_labels` to create a dedicated, display-only subscriber subject identity-label ledger in the dedicated MarketOps database.
+- The ledger stores non-authoritative labels by immutable subject and tenant (`display_name`, `email`, source, first/last seen timestamps) and does not change access control, entitlement, subscription state, or audit subject identity.
+- Gateway activity writes now upsert labels from authenticated JWT claims while continuing to store the immutable subject on every event.
+- Subscription Administration now suppresses raw UUIDs in visible user cells when no label exists, rendering `Unlabeled user · <suffix>` while preserving the full subject in API data and tooltip audit trace.
+- Migration application evidence: `000167_subscriber_subject_identity_labels` applied to the dedicated MarketOps database at `2026-09-04 12:39:26 UTC`, backfilled 6 label rows, and verified gateway `SELECT,INSERT,UPDATE` access.
+- Production validation passed after gateway/web deployment: `scripts/run_subscription_admin_ui_smoke.sh` returned `3 passed, 1 skipped`; `scripts/run_subscriber_pilot_ui_smoke.sh` returned `2 passed`.
+
+### 2026-09-04 — MarketOps Profile and user-centric Settings
+
+- Added a dedicated MarketOps Profile route for subscriber identity, tenant, enrollment, subscription, feature access, watchlist context, limits, billing actions, refund request, and sign-out.
+- Reworked MarketOps Settings into user-centric Account, Subscription, Billing & refunds, Preferences, and Watchlist defaults tabs.
+- Moved legacy operational Settings controls into a privileged MarketOps Tools route so ordinary subscribers no longer see asset onboarding/backtest controls in Settings.
+- Extracted shared subscription plan and billing panels so Pricing and Settings use the same Explorer/Professional/Institutional package presentation and Stripe Checkout/Portal/refund actions.
+- Header identity now links to Profile; MarketOps nav exposes Profile to subscribers and Tools only to operator/admin roles.
+- Validation passed: `go test ./internal/api ./internal/storage/postgres ./internal/config`, `npm --prefix web run build`, Python smoke syntax check, subscriber pilot Playwright smoke `3 passed`, subscription admin smoke `3 passed, 1 skipped`, and mobile subscriber smoke `24 passed`.
+
+### 2026-09-04 — Subscription feature label style normalization
+
+- Normalized visible subscription and entitlement labels to title-case product language across Profile, Pricing/Plan Cards, Subscription Administration, feature gates, Syncratic Intelligence, and current subscriber documentation.
+- Standardized the example inconsistency `Sector rotation detail` / `Sector Rotation Intelligence detail` to `Sector Rotation Details`.
+- Left older historical journal prose intact where it describes previous work rather than current UI copy.
+- Deployed the updated Web container through the constrained deployment agent.
+- Validation passed: `npm --prefix web run build`, subscriber pilot Playwright smoke `3 passed`, subscription admin smoke `3 passed, 1 skipped`, mobile subscriber smoke `24 passed`, and Python smoke syntax check.
+
+### 2026-09-04 — Subscriber documentation current-state refresh
+
+- Refreshed the active Subscriber Project documentation to match the current production-readiness posture after Profile/Settings, Stripe Checkout/Portal/refund intake, first webhook-authoritative paid activation, and normalized feature-label work.
+- Corrected active docs that still implied Stripe Customer Portal was outstanding or SMS MFA was part of the current enrollment gate. Current enrollment remains Keycloak-owned and no-MFA by policy; SMS MFA requires a separate approved cohort rollout.
+- Updated production-readiness and browser-acceptance docs so mobile QA, Pricing/Stripe, Profile, Settings, and operational acceptance gates match the deployed surfaces.
+
+### 2026-09-05 — Signal Assurance operational cutoff and Tools placement
+
+- Moved the Signal Assurance operational workbench under MarketOps Tools as a privileged tab while preserving the existing `/marketops/assurance` compatibility route.
+- Removed Signal Assurance from normal MarketOps navigation so it no longer presents as a default subscriber surface.
+- Added a non-destructive operational cutoff of August 20, 2026 to SAF effectiveness, observation, and recommendation calculations. Immutable pre-cutoff evidence remains stored; it is excluded from the operational viability view because the sample size was too small.
+- Set SAF daily progression to default to the last 10 trading days and limited the UI window selector to 10 or 20 trading days.

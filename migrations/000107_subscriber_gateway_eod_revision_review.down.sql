@@ -1,0 +1,2 @@
+REVOKE ALL ON subscriber_gateway_eod_revision_review FROM signalops_subscriber_gateway;
+DROP VIEW IF EXISTS subscriber_gateway_eod_revision_review;

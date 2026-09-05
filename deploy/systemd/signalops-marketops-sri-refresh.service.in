@@ -1,0 +1,13 @@
+[Unit]
+Description=SignalOps MarketOps SRI ETF reconciliation and scoring
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+Environment=MARKETOPS_SRI_TIMEZONE=America/New_York
+ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh marketops-sri-refresh "Weekdays 20:07" America/New_York @WORKDIR@/scripts/marketops_sri_refresh.sh
+TimeoutStartSec=1h
+Nice=10
+[Install]
+WantedBy=default.target

@@ -1,0 +1,2 @@
+-- The prior unqualified function is intentionally not restored: it is unsafe
+-- for pg_dump data-only restores with an empty search_path.

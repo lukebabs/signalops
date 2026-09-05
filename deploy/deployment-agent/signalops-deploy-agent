@@ -1,0 +1,327 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Installed root-owned by provision_signalops_deployment_agent.sh.  This is an
+# allowlisted control surface, not a general deployment shell.
+root_dir=/usr/local/lib/signalops-deployment-agent
+repository_dir=@REPOSITORY_DIR@
+action="${1:-}"
+actor="${SUDO_USER:-unknown}"
+
+[[ "$#" -eq 1 ]] || {
+  printf 'Usage: signalops-deploy-agent <action>\n' >&2
+  exit 2
+}
+
+audit() {
+  logger -p authpriv.notice -t signalops-deploy-agent \
+    "actor=${actor} action=${action} result=$1"
+}
+
+run() {
+  "$@"
+  audit success
+}
+
+ensure_marketops_pgbackrest_unit() {
+  local expected="$repository_dir/scripts/marketops_pgbackrest_backup.sh"
+  local actual
+  actual="$(systemctl show signalops-marketops-pgbackrest.service --property=ExecStart --value 2>/dev/null || true)"
+  if [[ "$actual" != *"$expected"* ]]; then
+    "$repository_dir/scripts/install_marketops_pgbackrest_system_timer.sh"
+  fi
+}
+
+case "$action" in
+  render-cutover-env)
+    run "$root_dir/render_marketops_cutover_env.sh"
+    ;;
+  scheduler-preflight)
+    run systemctl start signalops-marketops-boundary-schedule@preflight.service
+    ;;
+  scheduler-intraday-run)
+    run systemctl start signalops-marketops-boundary-schedule@marketops-intraday.service
+    ;;
+  scheduler-intraday-enable)
+    run systemctl enable --now signalops-marketops-boundary-intraday.timer
+    ;;
+  scheduler-intraday-disable)
+    run systemctl disable --now signalops-marketops-boundary-intraday.timer
+    ;;
+  scheduler-run-now:*)
+    job_id="${action#scheduler-run-now:}"
+    case "$job_id" in
+      marketops-warm-eod|marketops-daily-postclose|marketops-sri-refresh|marketops-sri-holdings-refresh|marketops-intraday|marketops-fmp-continuation|marketops-fmp-annual-financial|marketops-task-retry|marketops-postclose-recovery)
+        unit="signalops-marketops-boundary-schedule@${job_id}.service"
+        ;;
+      marketops-risk-reward)
+        unit="signalops-marketops-boundary-schedule@marketops-postclose-recovery.service"
+        ;;
+      marketops-operations-monitor)
+        unit="signalops-marketops-operations-monitor.service"
+        ;;
+      signalops-storage-monitor)
+        unit="signalops-storage-monitor.service"
+        ;;
+      signalops-retention-governance)
+        unit="signalops-retention-governance.service"
+        ;;
+      marketops-retention-governance)
+        unit="signalops-marketops-retention-governance.service"
+        ;;
+      *)
+        printf 'Unsupported scheduled job: %s\n' "$job_id" >&2
+        audit rejected
+        exit 2
+        ;;
+    esac
+    run systemctl start --no-block "$unit"
+    ;;
+  operations-monitor-install)
+    run "$repository_dir/scripts/install_marketops_operations_monitor.sh"
+    ;;
+  operations-monitor-run)
+    run systemctl start signalops-marketops-operations-monitor.service
+    ;;
+  operations-monitor-enable)
+    run systemctl enable --now signalops-marketops-operations-monitor.timer
+    ;;
+  operations-monitor-disable)
+    run systemctl disable --now signalops-marketops-operations-monitor.timer
+    ;;
+  watch-limits-stage)
+    run "$repository_dir/scripts/provision_signalops_systemd_watch_limits.sh"
+    ;;
+  marketops-recovery-resume)
+    systemctl enable --now signalops-marketops-boundary-daily-postclose.timer signalops-marketops-boundary-postclose-recovery.timer signalops-marketops-boundary-sri-refresh.timer signalops-marketops-boundary-sri-holdings-refresh.timer
+    systemctl start signalops-marketops-boundary-schedule@marketops-daily-postclose.service
+    audit success
+    ;;
+  marketops-postclose-status-reconcile)
+    run systemctl start signalops-marketops-boundary-schedule@marketops-postclose-recovery.service
+    ;;
+  marketops-postclose-systemd-reconcile)
+    set -a
+    # shellcheck disable=SC1091
+    source /etc/signalops/marketops-cutover.env
+    set +a
+    export SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
+    export SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
+    cd "$repository_dir"
+    # shellcheck source=scripts/marketops_schedule_database.sh
+    source "$repository_dir/scripts/marketops_schedule_database.sh"
+    evidence="$(marketops_primary_psql -Atc "SELECT COALESCE(max(status) FILTER (WHERE job_id='marketops-daily-postclose'),'') || '|' || COALESCE(max(status) FILTER (WHERE job_id='marketops-postclose-recovery'),'') || '|' || COALESCE(max(status) FILTER (WHERE job_id='marketops-risk-reward'),'') || '|' || COALESCE(max(status) FILTER (WHERE job_id='marketops-sri-refresh'),'') FROM marketops_scheduled_job_statuses WHERE job_id IN ('marketops-daily-postclose','marketops-postclose-recovery','marketops-risk-reward','marketops-sri-refresh');" | tr -d '[:space:]')"
+    IFS='|' read -r daily_status recovery_status risk_status sri_status <<< "$evidence"
+    case "$daily_status" in succeeded|degraded) ;; *) printf 'refusing reconcile: marketops-daily-postclose status=%s\n' "${daily_status:-missing}" >&2; audit failed; exit 4 ;; esac
+    case "$recovery_status" in succeeded|degraded) ;; *) printf 'refusing reconcile: marketops-postclose-recovery status=%s\n' "${recovery_status:-missing}" >&2; audit failed; exit 4 ;; esac
+    case "$risk_status" in succeeded) ;; *) printf 'refusing reconcile: marketops-risk-reward status=%s\n' "${risk_status:-missing}" >&2; audit failed; exit 4 ;; esac
+    case "$sri_status" in succeeded|recovery_needed|degraded) ;; *) printf 'refusing reconcile: marketops-sri-refresh status=%s\n' "${sri_status:-missing}" >&2; audit failed; exit 4 ;; esac
+    systemctl reset-failed signalops-marketops-boundary-schedule@marketops-daily-postclose.service
+    systemctl reset-failed signalops-marketops-boundary-schedule@marketops-postclose-recovery.service
+    audit success
+    ;;
+  marketops-fmp-systemd-reconcile)
+    set -a
+    # shellcheck disable=SC1091
+    source /etc/signalops/marketops-cutover.env
+    set +a
+    export SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
+    export SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
+    cd "$repository_dir"
+    # shellcheck source=scripts/marketops_schedule_database.sh
+    source "$repository_dir/scripts/marketops_schedule_database.sh"
+    evidence="$(marketops_primary_psql -Atc "WITH latest AS (
+  SELECT workflow_id, session_date, status
+  FROM subscriber_global_annual_financial_workflows
+  ORDER BY session_date DESC, updated_at DESC
+  LIMIT 1
+), task_counts AS (
+  SELECT count(*) FILTER (WHERE task.status='succeeded') AS succeeded_tasks,
+         count(*) AS total_tasks
+  FROM subscriber_global_annual_financial_tasks task
+  JOIN latest ON latest.workflow_id=task.workflow_id
+), evidence_counts AS (
+  SELECT count(*) AS evidence_records
+  FROM subscriber_global_marketops_evidence_records record
+  JOIN subscriber_global_marketops_evidence_runs run ON run.evidence_run_id=record.evidence_run_id
+  JOIN latest ON latest.session_date=record.session_date
+  WHERE record.evidence_kind='fundamental_annual'
+    AND record.algorithm_id='marketops.fundamental_annual.fmp'
+    AND record.algorithm_version='v2'
+    AND run.source_scope='global_provider_capture'
+)
+SELECT COALESCE(latest.status,'') || '|' ||
+       COALESCE(latest.session_date::text,'') || '|' ||
+       COALESCE(task_counts.succeeded_tasks,0)::text || '|' ||
+       COALESCE(task_counts.total_tasks,0)::text || '|' ||
+       COALESCE(evidence_counts.evidence_records,0)::text
+FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
+    IFS='|' read -r workflow_status session_date succeeded_tasks total_tasks evidence_records <<< "$evidence"
+    case "$workflow_status" in succeeded|degraded) ;; *) printf 'refusing reconcile: marketops-fmp-annual-financial workflow status=%s\n' "${workflow_status:-missing}" >&2; audit failed; exit 4 ;; esac
+    [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { printf 'refusing reconcile: missing FMP annual workflow session\n' >&2; audit failed; exit 4; }
+    (( succeeded_tasks > 0 )) || { printf 'refusing reconcile: no succeeded FMP annual tasks for %s\n' "$session_date" >&2; audit failed; exit 4; }
+    (( evidence_records > 0 )) || { printf 'refusing reconcile: no v2 FMP annual evidence records for %s\n' "$session_date" >&2; audit failed; exit 4; }
+    systemctl daemon-reload
+    systemctl reset-failed signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service
+    printf 'marketops_fmp_systemd_reconcile_verified session_date=%s succeeded_tasks=%s total_tasks=%s evidence_records=%s\n' "$session_date" "$succeeded_tasks" "$total_tasks" "$evidence_records"
+    audit success
+    ;;
+  marketops-sri-refresh-run)
+    run systemctl start signalops-marketops-boundary-schedule@marketops-sri-refresh.service
+    ;;
+  marketops-warm-eod-enable)
+    run "$repository_dir/scripts/install_marketops_boundary_scheduler.sh" "$repository_dir/.env" "adminalien" --enable-warm-eod
+    ;;
+  marketops-global-market-state-migration)
+    run "$repository_dir/scripts/apply_marketops_migration_000125.sh" "$repository_dir/.env"
+    ;;
+  subscriber-subscription-commerce-migration)
+    run "$repository_dir/scripts/apply_subscriber_subscription_commerce_migration.sh" "$repository_dir/.env"
+    ;;
+  subscriber-global-intraday-shadow-migration)
+    run "$repository_dir/scripts/apply_subscriber_global_intraday_shadow_capture_migration.sh" "$repository_dir/.env"
+    ;;
+  subscriber-global-intraday-shadow-dry-run)
+    run "$repository_dir/scripts/run_subscriber_global_intraday_shadow_capture_dry_run.sh"
+    ;;
+  subscriber-global-intraday-shadow-schedule-once)
+    run "$repository_dir/scripts/schedule_subscriber_global_intraday_shadow_capture_once.sh"
+    ;;
+  subscriber-global-eod-history-materialize)
+    run "$repository_dir/scripts/materialize_subscriber_global_eod_history.sh" "$repository_dir/.env"
+    ;;
+  fmp-annual-entitlement-preflight)
+    run "$repository_dir/scripts/preflight_subscriber_global_annual_financial.sh" "$repository_dir/.env"
+    ;;
+  marketops-fmp-annual-run)
+    run systemctl start signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service
+    ;;
+  scheduler-fmp-annual-enable)
+    run systemctl enable --now signalops-marketops-boundary-fmp-annual-financial.timer
+    ;;
+  scheduler-fmp-annual-disable)
+    run systemctl disable --now signalops-marketops-boundary-fmp-annual-financial.timer
+    ;;
+  subscriber-qualified-warm-cohort-reconcile)
+    run "$repository_dir/scripts/reconcile_subscriber_qualified_warm_cohort.sh" "$repository_dir/.env"
+    ;;
+  marketops-saf-projection-refresh)
+    set -a
+    source /etc/signalops/marketops-cutover.env
+    set +a
+    export SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
+    export SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
+    export SIGNALOPS_MARKETOPS_TEMPORAL_DB_SERVICE=marketops-timescaledb
+    export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE=marketops_temporal
+    cd "$repository_dir"
+    source "$repository_dir/scripts/marketops_schedule_database.sh"
+    session_date="$(marketops_primary_psql -Atc "SELECT max(matured_session_date) FROM marketops_signal_outcomes WHERE tenant_id='tenant-local' AND source_type='opportunity' AND outcome_status='matured';" | tr -d '[:space:]')"
+    [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || {
+      printf 'No matured SAF outcome session is available.\n' >&2
+      audit failed
+      exit 3
+    }
+    "$repository_dir/scripts/marketops_global_dashboard_projection.sh" "$session_date"
+    marketops_compose --profile subscriber-global-evidence run --rm --build subscriber-global-saf-benchmark-materializer --execute --calculation-version saf_benchmark.v4 --max-observations 500 --correlation-id "saf-benchmark-incremental-$session_date"
+    audit success
+    ;;
+  subscriber-pilot-ui-smoke)
+    [[ "$actor" =~ ^[a-z_][a-z0-9_-]*$ && "$actor" != "unknown" ]] || {
+      printf "%s\n" "subscriber_pilot_ui_smoke_operator_invalid" >&2
+      exit 2
+    }
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
+  subscription-enforcement-canary)
+    run "$repository_dir/scripts/run_subscription_enforcement_canary.sh" "$actor"
+    ;;
+  signalops-production-deploy)
+    "$repository_dir/scripts/deploy_signalops_public_production.sh"
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
+  signalops-production-web-deploy)
+    "$repository_dir/scripts/deploy_signalops_public_production.sh" --web-only
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
+  signalops-production-gateway-deploy)
+    "$repository_dir/scripts/deploy_signalops_public_production.sh" --gateway-only
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
+  marketops-web-deploy)
+    run make -C "$repository_dir" deploy-web
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
+  marketops-gateway-deploy)
+    "$repository_dir/scripts/deploy_marketops_read_cutover.sh" "$repository_dir/.env"
+    run runuser -u "$actor" -- env "HOME=/home/$actor" "PLAYWRIGHT_BROWSERS_PATH=/home/$actor/.cache/ms-playwright" \
+      "$repository_dir/scripts/run_subscriber_pilot_ui_smoke.sh"
+    ;;
+  marketops-writer-cutover)
+    systemctl stop signalops-marketops-boundary-schedule@marketops-daily-postclose.service signalops-marketops-boundary-schedule@marketops-postclose-recovery.service || true
+    run "$repository_dir/scripts/deploy_marketops_writer_cutover.sh" --dedicated-authoritative "$repository_dir/.env"
+    ;;
+  backup-run)
+    ensure_marketops_pgbackrest_unit
+    run systemctl start signalops-marketops-pgbackrest.service
+    ;;
+  restore-rehearsal-run)
+    run "$repository_dir/scripts/marketops_pgbackrest_restore_rehearsal.sh"
+    ;;
+  scheduler-status)
+    failed=0
+    printf 'SignalOps scheduler status\n'
+    for timer in \
+      signalops-marketops-boundary-intraday.timer \
+      signalops-marketops-boundary-daily-postclose.timer \
+      signalops-marketops-boundary-postclose-recovery.timer \
+      signalops-marketops-boundary-sri-refresh.timer \
+      signalops-marketops-boundary-sri-holdings-refresh.timer \
+      signalops-marketops-boundary-warm-eod.timer \
+      signalops-marketops-boundary-fmp-annual-financial.timer \
+      signalops-marketops-operations-monitor.timer; do
+      load_state="$(systemctl show "$timer" --property=LoadState --value 2>/dev/null || true)"
+      active_state="$(systemctl show "$timer" --property=ActiveState --value 2>/dev/null || true)"
+      next_elapse="$(systemctl show "$timer" --property=NextElapseUSecRealtime --value 2>/dev/null || true)"
+      printf 'timer=%s load=%s active=%s next=%s\n' "$timer" "${load_state:-unknown}" "${active_state:-unknown}" "${next_elapse:-n/a}"
+      if [[ "$load_state" == "not-found" || "$active_state" == "failed" ]]; then
+        failed=1
+      fi
+    done
+    for service in \
+      signalops-marketops-boundary-schedule@preflight.service \
+      signalops-marketops-boundary-schedule@marketops-intraday.service \
+      signalops-marketops-boundary-schedule@marketops-daily-postclose.service \
+      signalops-marketops-boundary-schedule@marketops-postclose-recovery.service \
+      signalops-marketops-boundary-schedule@marketops-warm-eod.service \
+      signalops-marketops-boundary-schedule@marketops-sri-refresh.service \
+      signalops-marketops-boundary-schedule@marketops-sri-holdings-refresh.service \
+      signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service \
+      signalops-marketops-operations-monitor.service \
+      signalops-storage-monitor.service \
+      signalops-retention-governance.service \
+      signalops-marketops-retention-governance.service; do
+      load_state="$(systemctl show "$service" --property=LoadState --value 2>/dev/null || true)"
+      active_state="$(systemctl show "$service" --property=ActiveState --value 2>/dev/null || true)"
+      result="$(systemctl show "$service" --property=Result --value 2>/dev/null || true)"
+      printf 'service=%s load=%s active=%s result=%s\n' "$service" "${load_state:-unknown}" "${active_state:-unknown}" "${result:-unknown}"
+      if [[ "$load_state" == "not-found" || "$active_state" == "failed" || "$result" == "failed" ]]; then
+        failed=1
+      fi
+    done
+    if (( failed )); then
+      audit failed
+      exit 3
+    fi
+    audit success
+    ;;
+  *)
+    printf 'Unsupported deployment-agent action: %s\n' "$action" >&2
+    audit rejected
+    exit 2
+    ;;
+esac
