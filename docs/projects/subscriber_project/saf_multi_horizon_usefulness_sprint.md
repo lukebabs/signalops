@@ -1,6 +1,6 @@
 # SAF-2 — Multi-Horizon Signal Usefulness Sprint
 
-Status: first implementation slice source-ready; production migration/deploy remains gated.
+Status: first implementation slice deployed to production; monitor naturally maturing evidence.
 
 Last updated: 2026-09-05.
 
@@ -155,6 +155,16 @@ The first source implementation adds deterministic SAF-2 usefulness semantics wi
 - The Signal Assurance Tools UI shows usefulness in summary cards, effectiveness rows, observation rows, mobile cards, and audit drill-downs.
 - Migration `000168_subscriber_global_saf_usefulness_policy` records the versioned policy contract only; it does not poll providers or mutate assertion/outcome evidence.
 - Regression coverage includes the required rule that a one-day adverse bullish observation is developing or adverse-warning, not an automatic miss.
+
+## Production deployment evidence — 2026-09-05
+
+- Migration `000168_subscriber_global_saf_usefulness_policy` applied to the dedicated MarketOps database and recorded in `schema_migrations` at `2026-09-05 04:20:05 UTC`.
+- Gateway and Web were rebuilt/restarted through constrained deployment-agent actions.
+- Gateway build executed the full in-container Go test suite before restart.
+- Focused local validation passed: `go test ./internal/marketops/signalassurance ./internal/api ./internal/storage/postgres`.
+- Web build passed: `npm --prefix web run build`.
+- Production SAF Playwright smoke passed: `python/tests/test_signal_assurance_benchmark_ui_smoke.py` verified the Tools view, August 20 cutoff, 10/20 trading-day filters, and `saf_usefulness.v1` visibility.
+- Standard subscriber pilot Playwright wrapper passed on rerun: `scripts/run_subscriber_pilot_ui_smoke.sh` returned `3 passed`.
 
 ## Deferred work
 
