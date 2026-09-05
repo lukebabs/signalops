@@ -641,3 +641,22 @@ Residual policy:
 
 1. Remaining `sector_unmapped` rows are catalog-governance work, not SAF materialization failures.
 2. Formal SAF-confirmed assertions remain dependent on prospective algorithm registrations with immutable baseline/provenance; usefulness over legacy outcomes is research evidence, not a claim of production alpha.
+
+
+### 2026-09-05 SAF catalog-sector reconciliation follow-up
+
+Status: source implemented and database migrations applied; final v5 refresh pending host deployment-agent reprovisioning.
+
+Evidence:
+
+- Root cause: post-cutoff `sector_unmapped` rows were driven by duplicate global asset identities. Some current observations resolved to blank-sector `companies.csv` identities while same-symbol governed identities already carried sector metadata.
+- `000169_subscriber_global_saf_sector_reconciliation` applied to the dedicated MarketOps database and reconciled the affected catalog sectors without provider polling.
+- `000170_subscriber_global_saf_identity_convergence` applied and converged same-symbol identities; affected-symbol ambiguity is now `0 / 43`.
+- `000171_subscriber_global_saf_benchmark_v5_projection` applied and updates the live projection to prefer immutable `saf_benchmark.v5` rows.
+- The deployment-agent source now targets `saf_benchmark.v5` for `marketops-saf-projection-refresh`.
+
+Remaining operator step:
+
+1. Reprovision the deployment agent with `sudo ./scripts/provision_signalops_deployment_agent.sh adminalien`.
+2. Run `sudo -n signalops-deploy-agent marketops-saf-projection-refresh`.
+3. Verify post-cutoff SAF sector `not_recorded=0` and sector `sector_unmapped` materially falls after v5 rows are appended.

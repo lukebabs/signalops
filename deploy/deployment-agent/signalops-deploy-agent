@@ -222,7 +222,7 @@ FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
       exit 3
     }
     "$repository_dir/scripts/marketops_global_dashboard_projection.sh" "$session_date"
-    marketops_compose --profile subscriber-global-evidence run --rm --build subscriber-global-saf-benchmark-materializer --execute --calculation-version saf_benchmark.v4 --max-observations 500 --correlation-id "saf-benchmark-incremental-$session_date"
+    marketops_compose --profile subscriber-global-evidence run --rm --build subscriber-global-saf-benchmark-materializer --execute --calculation-version saf_benchmark.v5 --max-observations 500 --correlation-id "saf-benchmark-incremental-$session_date"
     audit success
     ;;
   subscriber-pilot-ui-smoke)

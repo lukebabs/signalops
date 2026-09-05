@@ -187,3 +187,21 @@ Evidence:
 - The remaining `284` sector gaps are explicit `sector_unmapped` catalog-normalization gaps. They are not materializer failures and are not treated as zero-return, pass, or fail evidence.
 - Production SAF Playwright smoke passed after the refresh: `python/tests/test_signal_assurance_benchmark_ui_smoke.py` returned `1 passed`.
 - Source hardening: the SAF benchmark materializer now prioritizes observations missing the requested calculation version before rows that already have complete benchmark coverage. This prevents a fixed row limit from repeatedly reprocessing already-covered observations while newer post-cutoff observations remain uncovered.
+
+
+## Sector reconciliation follow-up — 2026-09-05
+
+The first post-cutoff benchmark refresh exposed that `sector_unmapped` was primarily a catalog identity problem, not missing market evidence. Many SAF observations resolved to duplicate `companies.csv` global asset identities with blank sector metadata while same-symbol governed identities already carried sector metadata.
+
+Implemented source changes:
+
+- `000169_subscriber_global_saf_sector_reconciliation` adds governed sector reconciliation for the affected SAF symbols without deleting assets or rewriting evidence.
+- `000170_subscriber_global_saf_identity_convergence` converges same-symbol identity resolutions to one sector-bearing canonical asset to remove parity ambiguity.
+- `000171_subscriber_global_saf_benchmark_v5_projection` makes the live SAF observation projection prefer immutable `saf_benchmark.v5` rows over v4-v1 rows and uses deterministic benchmark selectors.
+- The constrained `marketops-saf-projection-refresh` deployment-agent action now targets `saf_benchmark.v5` for future operational refreshes.
+
+Live state:
+
+- `000169`, `000170`, and `000171` were applied to the dedicated MarketOps database on `2026-09-05`.
+- Identity ambiguity for the 43 affected symbols was reduced to zero.
+- The currently installed deployment-agent still needs to be reprovisioned on the host before the constrained refresh action will run v5. Reprovisioning requires interactive sudo on the host.
