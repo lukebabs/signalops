@@ -99,7 +99,7 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("assume SAF benchmark writer role: %w", err)
 	}
 	defer primary.ExecContext(context.Background(), "RESET ROLE")
-	items, err := loadObservations(ctx, primary, *limit)
+	items, err := loadObservations(ctx, primary, *limit, *calculationVersion)
 	if err != nil {
 		return err
 	}
@@ -155,13 +155,20 @@ func run(ctx context.Context, args []string) error {
 	return nil
 }
 
-func loadObservations(ctx context.Context, db *sql.DB, limit int) ([]observation, error) {
+func loadObservations(ctx context.Context, db *sql.DB, limit int, calculationVersion string) ([]observation, error) {
 	rows, err := db.QueryContext(ctx, `SELECT observation_id, observation.global_asset_id, observation.symbol, COALESCE(asset.sector,''), observation.direction, origin_session_date, matured_session_date, forward_return
 FROM subscriber_gateway_global_signal_assurance_observations observation
 JOIN subscriber_global_assets asset ON asset.global_asset_id=observation.global_asset_id
 JOIN subscriber_global_saf_benchmark_legacy_default_members() member ON member.global_asset_id=observation.global_asset_id
 WHERE matured_session_date IS NOT NULL AND forward_return IS NOT NULL
-ORDER BY matured_session_date, observation_id LIMIT $1`, limit)
+ORDER BY CASE WHEN EXISTS (
+  SELECT 1 FROM subscriber_global_saf_benchmark_observations existing
+  WHERE existing.source_observation_id = observation.observation_id
+    AND existing.calculation_version = $2
+    AND existing.benchmark_kind IN ('broad_market','sector')
+  GROUP BY existing.source_observation_id
+  HAVING count(DISTINCT existing.benchmark_kind) = 2
+) THEN 1 ELSE 0 END, matured_session_date, observation_id LIMIT $1`, limit, calculationVersion)
 	if err != nil {
 		return nil, fmt.Errorf("load legacy SAF observations: %w", err)
 	}
