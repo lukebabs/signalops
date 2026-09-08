@@ -205,3 +205,18 @@ Live state:
 - `000169`, `000170`, and `000171` were applied to the dedicated MarketOps database on `2026-09-05`.
 - Identity ambiguity for the 43 affected symbols was reduced to zero.
 - The currently installed deployment-agent still needs to be reprovisioned on the host before the constrained refresh action will run v5. Reprovisioning requires interactive sudo on the host.
+
+
+## Legacy-sector reconciliation closure — 2026-09-08
+
+The host deployment-agent was reprovisioned and `marketops-saf-projection-refresh` was rerun against `saf_benchmark.v5`. The fixed legacy SAF cohort now has complete sector benchmark coverage.
+
+Evidence:
+
+- `saf_benchmark.v5` rows were appended from existing MarketOps data only; no provider polling was performed.
+- Post-cutoff projection remains current through matured session `2026-09-04`.
+- Declared legacy SAF cohort: `1,084` post-cutoff observations.
+- Legacy cohort sector-unmapped count: `0`.
+- Outside-legacy sector-unmapped count: `236`; this is outside the declared 132-asset SAF viability scope and remains separate catalog-governance backlog.
+- Aggregate post-cutoff projection: `1,438` observations, `1,320` broad-market matches, `1,084` sector matches, `0` broad `not_recorded`, `0` sector `not_recorded`.
+- Final SAF Playwright smoke passed: `python/tests/test_signal_assurance_benchmark_ui_smoke.py` returned `1 passed`.

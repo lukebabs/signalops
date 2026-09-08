@@ -660,3 +660,23 @@ Remaining operator step:
 1. Reprovision the deployment agent with `sudo ./scripts/provision_signalops_deployment_agent.sh adminalien`.
 2. Run `sudo -n signalops-deploy-agent marketops-saf-projection-refresh`.
 3. Verify post-cutoff SAF sector `not_recorded=0` and sector `sector_unmapped` materially falls after v5 rows are appended.
+
+
+### 2026-09-08 SAF legacy-sector closure
+
+Status: closed for the declared tenant-local legacy SAF production-readiness scope.
+
+Evidence:
+
+- Host deployment-agent was reprovisioned and the constrained `marketops-saf-projection-refresh` action now runs `saf_benchmark.v5`.
+- Additional bounded refresh batches appended v5 benchmark rows without provider polling.
+- Migration `000172_subscriber_global_saf_legacy_sector_residual_convergence` closed the final `LOW`/`UNP` legacy residual identity gaps.
+- Legacy SAF cohort post-cutoff sector-unmapped count is now `0`.
+- Overall post-cutoff projection remains current through `2026-09-04`, with `0` broad-market `not_recorded` and `0` sector `not_recorded`.
+- The remaining `236` sector-unmapped observations are outside the declared legacy cohort and must not be blended into the SAF viability scope.
+- Final SAF Playwright smoke passed: `1 passed`.
+
+Residual policy:
+
+1. Keep the 132-asset legacy SAF cohort separate from the wider global catalog.
+2. Treat outside-cohort sector gaps as catalog-governance backlog, not as SAF readiness blockers for the declared legacy viability view.
