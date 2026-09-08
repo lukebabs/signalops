@@ -6,7 +6,7 @@ After=network-online.target
 Type=oneshot
 WorkingDirectory=@WORKDIR@
 Environment=MARKETOPS_SRI_TIMEZONE=America/New_York
-ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh marketops-sri-holdings-refresh "Weekdays 20:20" America/New_York @WORKDIR@/scripts/marketops_sri_holdings_refresh.sh
+ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh marketops-sri-holdings-refresh "Weekdays 17:20" America/New_York @WORKDIR@/scripts/marketops_sri_holdings_refresh.sh
 TimeoutStartSec=20m
 Nice=10
 

@@ -4,7 +4,7 @@ Use `scripts/marketops_daily_postclose.sh` for one governed MarketOps session. T
 
 ## Safety Contract
 
-- Same-session writes are blocked before 18:00 in `America/New_York`.
+- Same-session writes are blocked before 16:30 in `America/New_York`.
 - `--write` requires `MARKETOPS_DAILY_ACKNOWLEDGE_WRITES=true`.
 - A non-blocking file lock rejects overlapping runs.
 - Equity acquisition attempts the Top 50 with exactly 50 provider requests, no retries, and at most 50 built/published events.
@@ -70,7 +70,7 @@ Install the user timer:
 scripts/install_marketops_daily_user_timer.sh
 ```
 
-The installer builds the three pinned workflow images before enabling the timer. The timer runs at exactly 18:01:55 `America/New_York`, Monday through Friday, with one-second timer accuracy and no randomized delay. `Persistent=true` starts a missed invocation when the user service manager resumes; before 18:00 the script resolves the most recent completed weekday rather than using an incomplete current session. For execution while the user is logged out, an administrator must enable linger:
+The installer builds the three pinned workflow images before enabling the timer. The timer runs at exactly 16:30:00 `America/New_York`, Monday through Friday, with one-second timer accuracy and no randomized delay. `Persistent=true` starts a missed invocation when the user service manager resumes; before 16:30 the script resolves the most recent completed weekday rather than using an incomplete current session. For execution while the user is logged out, an administrator must enable linger:
 
 ```bash
 loginctl enable-linger "$USER"

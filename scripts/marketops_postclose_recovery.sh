@@ -2,6 +2,8 @@
 set -euo pipefail
 # shellcheck source=marketops_schedule_database.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_database.sh"
+# shellcheck source=lib/marketops_trading_calendar.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_trading_calendar.sh"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -36,13 +38,13 @@ recovery_lock="${MARKETOPS_POSTCLOSE_RECOVERY_LOCK_FILE:-/tmp/signalops-marketop
 
 if [[ -z "$session_date" ]]; then
   session_date="$(TZ="$timezone" date '+%F')"
-  if [[ "$(TZ="$timezone" date '+%H%M%S')" -lt 180000 ]]; then
-    session_date="$(TZ="$timezone" date -d "$session_date -1 day" '+%F')"
+  if [[ "$(TZ="$timezone" date '+%H%M%S')" -lt 164500 ]]; then
+    session_date="$(marketops_previous_trading_day "$timezone" "$session_date")"
   fi
 fi
 [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { printf 'invalid session date: %s\n' "$session_date" >&2; exit 2; }
 [[ "$(date -u -d "$session_date" '+%F' 2>/dev/null)" == "$session_date" ]] || { printf 'invalid session date: %s\n' "$session_date" >&2; exit 2; }
-(( $(TZ="$timezone" date -d "$session_date" '+%u') <= 5 )) || { printf 'session date must be a weekday: %s\n' "$session_date" >&2; exit 2; }
+marketops_is_trading_day "$timezone" "$session_date" || { printf 'session date must be a trading day: %s\n' "$session_date" >&2; exit 2; }
 
 for command in docker flock date mkdir mv; do
   command -v "$command" >/dev/null 2>&1 || { printf 'required command not found: %s\n' "$command" >&2; exit 2; }
@@ -99,7 +101,7 @@ write_sri_status() {
   now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   run_id="marketops-sri-refresh-${session_date}-recovery"
   detail_json="$(printf '{"session_date":"%s","expected_segments":%s,"detail":"%s","deferred_from":"marketops-postclose-recovery"}' "$session_date" "$sri_expected" "$detail")"
-  marketops_record_scheduled_job_status_or_warn "$run_id" "marketops-sri-refresh" "Weekdays 20:07" "$timezone" "$status" "$now" "$now" "0" "$detail" "$detail_json" || true
+  marketops_record_scheduled_job_status_or_warn "$run_id" "marketops-sri-refresh" "Weekdays 17:05" "$timezone" "$status" "$now" "$now" "0" "$detail" "$detail_json" || true
 }
 
 write_daily_recovery_status() {
@@ -113,7 +115,7 @@ write_daily_recovery_status() {
   detail="recovery_guard_verified_completion_after_prior_${prior_status}"
   run_id="marketops-daily-postclose-${session_date}-recovery-verified"
   detail_json="$(printf '{"session_date":"%s","prior_status":"%s","detail":"%s","verified_by":"marketops-postclose-recovery"}' "$session_date" "$prior_status" "$detail")"
-  marketops_record_scheduled_job_status_or_warn "$run_id" "marketops-daily-postclose" "Weekdays 18:01:55" "$timezone" "degraded" "$now" "$now" "0" "$detail" "$detail_json" || true
+  marketops_record_scheduled_job_status_or_warn "$run_id" "marketops-daily-postclose" "Weekdays 16:30" "$timezone" "degraded" "$now" "$now" "0" "$detail" "$detail_json" || true
 }
 
 if completion_output="$(./scripts/marketops_universal_completion_gate.sh "$session_date" "$active_symbols" "$expected" 2>&1)"; then
@@ -169,7 +171,7 @@ write_risk_status "recovering" "starting bounded recovery attempt $attempts of $
 printf 'post-close recovery: starting attempt %s of %s for %s\n' "$attempts" "$max_attempts" "$session_date"
 
 export MARKETOPS_DAILY_ACKNOWLEDGE_WRITES=true
-bash ./scripts/marketops_scheduled_job.sh marketops-daily-postclose "Weekdays 18:01:55" "$timezone" ./scripts/marketops_daily_postclose.sh --date "$session_date" --write
+bash ./scripts/marketops_scheduled_job.sh marketops-daily-postclose "Weekdays 16:30" "$timezone" ./scripts/marketops_daily_postclose.sh --date "$session_date" --write
 
 risk_counts="$(marketops_primary_psql -Atc "SELECT (SELECT count(DISTINCT result_payload->>'symbol') FROM algorithm_results WHERE tenant_id='tenant-local' AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1' AND (result_payload->>'observation_time')::date=DATE '$session_date') || '|' || (SELECT count(DISTINCT symbol) FROM marketops_risk_reward_snapshots WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date');" | compact)"
 IFS='|' read -r risk_results risk_snapshots <<< "$risk_counts"

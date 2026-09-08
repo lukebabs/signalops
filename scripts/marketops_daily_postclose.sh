@@ -2,6 +2,8 @@
 set -euo pipefail
 # shellcheck source=marketops_schedule_database.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_database.sh"
+# shellcheck source=lib/marketops_trading_calendar.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_trading_calendar.sh"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -96,17 +98,14 @@ now_session_date="$(TZ="$timezone" date '+%F')"
 local_clock="$(TZ="$timezone" date '+%H%M%S')"
 if [[ -z "$session_date" ]]; then
   session_date="$now_session_date"
-  if [[ "$local_clock" -lt 180000 ]]; then
-    session_date="$(TZ="$timezone" date -d "$now_session_date -1 day" '+%F')"
-    while (( $(TZ="$timezone" date -d "$session_date" '+%u') > 5 )); do
-      session_date="$(TZ="$timezone" date -d "$session_date -1 day" '+%F')"
-    done
+  if [[ "$local_clock" -lt 163000 ]]; then
+    session_date="$(marketops_previous_trading_day "$timezone" "$now_session_date")"
   fi
 fi
 [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { printf 'invalid session date: %s\n' "$session_date" >&2; exit 2; }
 [[ "$(date -u -d "$session_date" '+%F' 2>/dev/null)" == "$session_date" ]] || { printf 'invalid session date: %s\n' "$session_date" >&2; exit 2; }
-weekday="$(date -u -d "$session_date" '+%u')"
-((weekday <= 5)) || { printf 'session date must be a weekday: %s\n' "$session_date" >&2; exit 2; }
+marketops_is_trading_day "$timezone" "$session_date" || { printf 'session date must be a trading day: %s\n' "$session_date" >&2; exit 2; }
+weekday="$(TZ="$timezone" date -d "$session_date" '+%u')"
 if ! $plan_mode && [[ "$session_date" > "$now_session_date" ]]; then
   printf 'session date is in the future: %s\n' "$session_date" >&2
   exit 2
@@ -119,8 +118,8 @@ if $write_mode && ! $plan_mode; then
   }
   if [[ "$session_date" == "$now_session_date" ]]; then
     local_time="$(TZ="$timezone" date '+%H%M%S')"
-    [[ "$local_time" -ge 180000 ]] || {
-      printf 'same-session writes are blocked before 18:00:00 %s\n' "$timezone" >&2
+    [[ "$local_time" -ge 163000 ]] || {
+      printf 'same-session writes are blocked before 16:30:00 %s\n' "$timezone" >&2
       exit 2
     }
   fi
@@ -523,7 +522,7 @@ if $write_mode; then
     now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     detail="deferred_to_sri_refresh_timer"
     detail_json="$(printf '{"session_date":"%s","detail":"%s","deferred_from":"marketops-daily-postclose"}' "$session_date" "$detail")"
-    marketops_record_scheduled_job_status_or_warn "marketops-sri-refresh-${session_date}-deferred" "marketops-sri-refresh" "Weekdays 20:07" "$timezone" "recovery_needed" "$now" "$now" "0" "$detail" "$detail_json" || true
+    marketops_record_scheduled_job_status_or_warn "marketops-sri-refresh-${session_date}-deferred" "marketops-sri-refresh" "Weekdays 17:05" "$timezone" "recovery_needed" "$now" "$now" "0" "$detail" "$detail_json" || true
     log "SRI completed-session materialization deferred session=$session_date reason=$detail"
   fi
   if [[ -n "${SIGNALOPS_WEB:-}" && -n "${SIGNALOPS_WEB_PASS:-}" ]]; then

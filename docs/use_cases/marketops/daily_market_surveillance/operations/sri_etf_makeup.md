@@ -157,8 +157,8 @@ The user-level systemd timer signalops-marketops-sri-holdings-refresh.timer is e
 
 | Job | Schedule | Time zone | Purpose |
 |---|---|---|---|
-| marketops-sri-refresh | Weekdays 20:07 | America/New_York | Reconcile SRI prices and calculate the price-led foundation. |
-| marketops-sri-holdings-refresh | Weekdays 20:20 | America/New_York | Refresh supported current issuer ETF makeup snapshots. |
+| marketops-sri-refresh | Weekdays 17:05 | America/New_York | Reconcile SRI prices and calculate the price-led foundation. |
+| marketops-sri-holdings-refresh | Weekdays 17:20 | America/New_York | Refresh supported current issuer ETF makeup snapshots. |
 
 The 13-minute ordering is intentional. Holdings collection is independent of price scoring, but runs after it so the analyst experience sees a completed SRI score before a matching current representation layer is refreshed.
 

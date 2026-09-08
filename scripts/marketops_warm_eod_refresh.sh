@@ -6,6 +6,8 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_database.sh"
 # shellcheck source=marketops_coverage_tiers.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_coverage_tiers.sh"
+# shellcheck source=lib/marketops_trading_calendar.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_trading_calendar.sh"
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root_dir"
@@ -33,10 +35,10 @@ max_missing_symbols="${MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS:-5}"
 lock_file="${MARKETOPS_WARM_EOD_LOCK_FILE:-/tmp/signalops-marketops-warm-eod.lock}"
 if [[ -z "$session_date" ]]; then
   session_date="$(TZ="$timezone" date '+%F')"
-  [[ "$(TZ="$timezone" date '+%H%M%S')" -ge 180000 ]] || session_date="$(TZ="$timezone" date -d "$session_date -1 day" '+%F')"
+  [[ "$(TZ="$timezone" date '+%H%M%S')" -ge 162000 ]] || session_date="$(marketops_previous_trading_day "$timezone" "$session_date")"
 fi
 [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ && "$(date -u -d "$session_date" '+%F' 2>/dev/null)" == "$session_date" ]] || { printf 'invalid session date: %s\n' "$session_date" >&2; exit 2; }
-(( $(date -u -d "$session_date" '+%u') <= 5 )) || { printf 'session date must be a weekday: %s\n' "$session_date" >&2; exit 2; }
+marketops_is_trading_day "$timezone" "$session_date" || { printf 'session date must be a trading day: %s\n' "$session_date" >&2; exit 2; }
 [[ "$batch_size" =~ ^[1-9][0-9]*$ && "$batch_size" -le 250 ]] || { printf 'MARKETOPS_WARM_EOD_BATCH_SIZE must be 1 through 250\n' >&2; exit 2; }
 [[ "$normalization_timeout" =~ ^[1-9][0-9]*$ && "$normalization_poll" =~ ^[1-9][0-9]*$ && "$max_missing_symbols" =~ ^[0-9]+$ ]] || { printf 'warm EOD normalization settings must be positive integers\n' >&2; exit 2; }
 if $write_mode && [[ "${MARKETOPS_WARM_EOD_ACKNOWLEDGE_WRITES:-false}" != "true" ]]; then printf 'warm EOD write mode requires MARKETOPS_WARM_EOD_ACKNOWLEDGE_WRITES=true\n' >&2; exit 2; fi

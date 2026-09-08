@@ -18,17 +18,17 @@ case "$job_id" in
     printf 'Dedicated scheduler preflight passed: primary=%s temporal=%s\n' "$primary" "$temporal"
     ;;
   marketops-daily-postclose)
-    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 18:01:55" America/New_York ./scripts/marketops_daily_postclose.sh --write
+    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 16:30" America/New_York ./scripts/marketops_daily_postclose.sh --write
     ;;
   marketops-warm-eod)
     export MARKETOPS_WARM_EOD_ACKNOWLEDGE_WRITES=true
-    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 18:00" America/New_York ./scripts/marketops_warm_eod_refresh.sh --write
+    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 16:20" America/New_York ./scripts/marketops_warm_eod_refresh.sh --write
     ;;
   marketops-sri-refresh)
-    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 20:07" America/New_York ./scripts/marketops_sri_refresh.sh
+    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 17:05" America/New_York ./scripts/marketops_sri_refresh.sh
     ;;
   marketops-sri-holdings-refresh)
-    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 20:20" America/New_York ./scripts/marketops_sri_holdings_refresh.sh
+    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays 17:20" America/New_York ./scripts/marketops_sri_holdings_refresh.sh
     ;;
   marketops-intraday)
     exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays every 15 minutes, 09:30-20:00" America/New_York ./scripts/marketops_intraday_monitor.sh
@@ -40,10 +40,10 @@ case "$job_id" in
     exec ./scripts/marketops_scheduled_job.sh "$job_id" "Saturday 02:30" America/New_York ./scripts/marketops_annual_financial_task_worker.sh
     ;;
   marketops-task-retry)
-    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays every 15 minutes, 18:30-23:00" America/New_York ./scripts/marketops_tactical_retry.sh
+    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays every 15 minutes, 16:45-20:00" America/New_York ./scripts/marketops_tactical_retry.sh
     ;;
   marketops-postclose-recovery)
-    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays every 15 minutes, 18:30-23:00" America/New_York ./scripts/marketops_postclose_recovery.sh
+    exec ./scripts/marketops_scheduled_job.sh "$job_id" "Weekdays every 15 minutes, 16:45-20:00" America/New_York ./scripts/marketops_postclose_recovery.sh
     ;;
   *)
     printf 'Unknown MarketOps scheduled job: %s\n' "$job_id" >&2

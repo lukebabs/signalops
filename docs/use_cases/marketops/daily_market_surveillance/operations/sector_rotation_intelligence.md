@@ -64,7 +64,7 @@ The state does not assert capital flow, constituent breadth, rotation in/out, fu
 
 ## Daily execution
 
-SRI is independent of the active-asset post-close workflow. A dedicated weekday 20:07 America/New_York job first reconciles the 24 versioned registry ETFs and benchmarks to one completed EOD session, waits for canonical normalization, and only then invokes the runner. The registry is seeded idempotently and the runner upserts deterministic snapshots. A missing source ETF fails the job closed; it never publishes a stale session as current.
+SRI is independent of the active-asset post-close workflow. A dedicated weekday 17:05 America/New_York job first reconciles the 24 versioned registry ETFs and benchmarks to one completed EOD session, waits for canonical normalization, and only then invokes the runner. The registry is seeded idempotently and the runner upserts deterministic snapshots. A missing source ETF fails the job closed; it never publishes a stale session as current.
 
 Manual execution:
 
@@ -103,7 +103,7 @@ Run a collection manually with:
 
     docker compose --profile marketops-daily run --rm marketops-sri-holdings-runner --tenant-id tenant-local
 
-The independent weekday marketops-sri-holdings-refresh timer runs at 20:20 America/New_York, after SRI scoring. A source failure is reported as a failed governed job; the prior immutable snapshot remains visible rather than being replaced with fabricated data.
+The independent weekday marketops-sri-holdings-refresh timer runs at 17:20 America/New_York, after SRI scoring. A source failure is reported as a failed governed job; the prior immutable snapshot remains visible rather than being replaced with fabricated data.
 
 ## Verification and troubleshooting
 

@@ -53,6 +53,18 @@ marketops_is_trading_day() {
   ! marketops_is_weekend "$timezone" "$date_value" && ! marketops_is_market_holiday "$date_value"
 }
 
+marketops_previous_trading_day() {
+  local timezone="${1:-America/New_York}" date_value="${2:-}"
+  [[ -n "$date_value" ]] || date_value="$(marketops_today "$timezone")"
+  local candidate
+  candidate="$(TZ="$timezone" date -d "$date_value -1 day" '+%F')"
+  while ! marketops_is_trading_day "$timezone" "$candidate"; do
+    candidate="$(TZ="$timezone" date -d "$candidate -1 day" '+%F')"
+  done
+  printf '%s
+' "$candidate"
+}
+
 marketops_non_trading_reason() {
   local timezone="${1:-America/New_York}" date_value="${2:-}"
   if [[ -z "$date_value" ]]; then

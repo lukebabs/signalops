@@ -10,14 +10,14 @@ The primary post-close service remains the authoritative scheduled workflow. The
 
 ## Recovery behavior
 
-The signalops-marketops-postclose-recovery timer runs on weekdays every 15 minutes from 18:30 through 23:00 America/New_York. The timer uses explicit calendar entries for 18:30/18:45, 19:00-22:45, and 23:00 because a compact `18:30/15:00` expression only fired twice in production.
+The signalops-marketops-postclose-recovery timer runs on weekdays every 15 minutes from 16:45 through 20:00 America/New_York. The timer uses explicit calendar entries for 16:45, 17:00-19:45, and 20:00 because a compact `18:30/15:00` expression only fired twice in production.
 
 For the current completed session it:
 
 1. derives the active canonical universe and runs the existing universal completion gate;
 2. records a marketops-risk-reward stage status with current result/snapshot counts;
 3. exits without work when the gate has passed;
-4. records SRI as `recovery_needed` instead of failing Risk/Reward recovery when only SRI is pending its dedicated 20:07 ET refresh;
+4. records SRI as `recovery_needed` instead of failing Risk/Reward recovery when only SRI is pending its dedicated 17:05 ET refresh;
 5. defers when the primary post-close service or its lock is active;
 6. otherwise launches the same idempotent post-close workflow for that explicit session date;
 7. reruns the completion gate and clears its attempt state only after success.

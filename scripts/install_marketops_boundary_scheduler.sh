@@ -84,15 +84,15 @@ systemctl daemon-reload
 printf 'Installed dedicated scheduler dispatcher: %s\n' "$unit"
 if "$enable_sri"; then
   systemctl enable --now "${sri_timers[@]}"
-  printf "Enabled controlled SRI refresh timers: weekdays 20:07 and 20:20 America/New_York.\n"
+  printf "Enabled controlled SRI refresh timers: weekdays 17:05 and 17:20 America/New_York.\n"
 fi
 if "$enable_market_data"; then
   systemctl enable --now "${market_data_timers[@]}"
-  printf "Enabled controlled MarketOps timers: intraday every 15 minutes 09:30-20:00, post-close 18:01:55, and bounded recovery from 18:30 America/New_York.\n"
+  printf "Enabled controlled MarketOps timers: intraday every 15 minutes 09:30-20:00, post-close 16:30, and bounded recovery from 16:45 America/New_York.\n"
 fi
 if "$enable_warm_eod"; then
   systemctl enable --now "${warm_eod_timers[@]}"
-  printf "Enabled centrally governed warm EOD acquisition: weekdays 18:00 America/New_York.\n"
+  printf "Enabled centrally governed warm EOD acquisition: weekdays 16:20 America/New_York.\n"
 fi
 if "$enable_annual_fmp"; then systemctl enable --now "${annual_fmp_timers[@]}"; printf "Enabled governed FMP annual financial capture: Saturdays 02:30 America/New_York.\n"; fi
 if ! "$enable_sri" && ! "$enable_market_data" && ! "$enable_warm_eod" && ! "$enable_annual_fmp"; then

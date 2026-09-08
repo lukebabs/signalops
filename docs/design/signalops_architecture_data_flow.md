@@ -176,7 +176,7 @@ MarketOps applies the shared platform to a centrally managed active asset univer
 Active asset universe (Top 50 + analyst watchlist)
                  |
                  v
-Weekday post-close scheduler, 18:01:55 America/New_York
+Weekday post-close scheduler, 16:30 America/New_York
                  |
                  v
 Massive equity aggregate puller ------------------------------+
@@ -212,7 +212,7 @@ and opportunity/outcome lineage         (Python platform layer)
 
 `marketops_asset_universe` is the durable asset catalog. The central `marketops_universal_assets` projection combines active Top 50 and analyst-watchlist assets for scheduled pipelines while preserving the source universe group needed for cache and lineage joins.
 
-The governed post-close workflow is scheduled on trading weekdays at 18:01:55 ET. It plans the active universe, acquires bounded equity EOD aggregates, writes canonical raw events, and requires normalized same-session coverage before dependent research stages proceed. A provider or normalization failure does not quietly shrink the intended scope.
+The governed post-close workflow is scheduled on trading weekdays at 16:30 ET. It plans the active universe, acquires bounded equity EOD aggregates, writes canonical raw events, and requires normalized same-session coverage before dependent research stages proceed. A provider or normalization failure does not quietly shrink the intended scope.
 
 Missing or failed equity pulls enter the reconciliation path. Reconciliation tasks are claimed and processed sequentially with bounded provider attempts, explicit status, and normalization confirmation. Analyst-requested historical backfills use a separate sequential worker and retain their own job status, requested/completed sessions, provider counts, and errors.
 

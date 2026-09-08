@@ -9658,3 +9658,9 @@ Next-cycle priority:
 - Removed Signal Assurance from normal MarketOps navigation so it no longer presents as a default subscriber surface.
 - Added a non-destructive operational cutoff of August 20, 2026 to SAF effectiveness, observation, and recommendation calculations. Immutable pre-cutoff evidence remains stored; it is excluded from the operational viability view because the sample size was too small.
 - Set SAF daily progression to default to the last 10 trading days and limited the UI window selector to 10 or 20 trading days.
+## 2026-09-08T18:05:00Z
+
+- Replanned the MarketOps after-EOD scheduler window from the prior 18:00-20:20 ET cadence to the approved balanced post-market cadence: warm EOD 16:20 ET, daily post-close 16:30 ET, recovery/task retry 16:45-20:00 ET, SRI 17:05 ET, and SRI holdings 17:20 ET.
+- Source changes preserve intraday, Saturday FMP annual, deployment-agent run-now controls, weekend/non-trading-day guards, and explicit recovery calendar entries.
+- The same-session write guard now aligns to the new daily post-close readiness floor and blocks current-session writes before 16:30 ET.
+- Tightened warm EOD, daily post-close, and post-close recovery session-date selection to use the shared market-holiday calendar; this prevents a post-holiday catch-up from targeting a closed session such as Labor Day 2026-09-07.

@@ -2,7 +2,9 @@
 Description=Check incomplete MarketOps post-close sessions after disruption
 
 [Timer]
-OnCalendar=Mon..Fri *-*-* 18:30/15:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 16:45:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 17..19:00,15,30,45:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 20:00:00 America/New_York
 Persistent=true
 Unit=signalops-marketops-postclose-recovery.service
 

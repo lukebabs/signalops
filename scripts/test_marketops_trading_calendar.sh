@@ -33,6 +33,13 @@ assert_non_trading 2026-09-07 market_holiday
 assert_non_trading 2026-11-26 market_holiday
 assert_non_trading 2027-07-05 market_holiday
 
+previous_before_labor_day="$(marketops_previous_trading_day America/New_York 2026-09-08)"
+if [[ "$previous_before_labor_day" != "2026-09-04" ]]; then
+  printf 'expected previous trading day before 2026-09-08 to be 2026-09-04, got %s
+' "$previous_before_labor_day" >&2
+  exit 1
+fi
+
 marketops_weekend_permitted_job marketops-fmp-annual-financial
 ! marketops_weekend_permitted_job marketops-daily-postclose
 
