@@ -308,7 +308,8 @@ def test_subscriber_sri_uses_platform_global_projection(subscriber_page: Page) -
     segment_id = snapshots[0].get("segment_id")
     assert isinstance(segment_id, str) and segment_id, f"{rankings.url} returned an invalid SRI segment"
 
-    subscriber_page.get_by_role("tab", name="ETF progression").click()
+    expect(subscriber_page.get_by_text("ETF Progression", exact=True)).to_be_visible(timeout=30_000)
+    expect(subscriber_page.get_by_role("tab", name="Rankings")).to_have_count(0)
     row = subscriber_page.locator("tr[aria-expanded]").first
     with subscriber_page.expect_response(
         lambda response: response.request.method == "GET" and f"/v1/marketops/sectors/{segment_id}/history?" in response.url,

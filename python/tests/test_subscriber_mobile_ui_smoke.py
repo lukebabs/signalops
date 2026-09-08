@@ -115,7 +115,8 @@ def test_subscriber_mobile_assets_card_drilldown(mobile_subscriber_page: Page, s
 def test_subscriber_mobile_sri_progression_and_makeup(mobile_subscriber_page: Page, subscriber_config: SubscriberUIConfig) -> None:
     login(mobile_subscriber_page, subscriber_config)
     assert_mobile_route(mobile_subscriber_page, f"{subscriber_config.base_url}/marketops/sectors", "Sector Rotation Intelligence")
-    mobile_subscriber_page.get_by_role("tab", name="ETF progression").click()
+    expect(mobile_subscriber_page.get_by_text("ETF Progression", exact=True)).to_be_visible(timeout=30_000)
+    expect(mobile_subscriber_page.get_by_role("tab", name="Rankings")).to_have_count(0)
     cards = mobile_subscriber_page.locator("[data-testid^='sri-mobile-etf-card-']")
     expect(cards.first).to_be_visible(timeout=30_000)
 

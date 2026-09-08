@@ -9,7 +9,6 @@ import { SyncraticExplainabilityCard } from "../components/SyncraticExplainabili
 import { formatPercent } from "../lib/format";
 import type { MarketOpsSRIETFMakeupResponse, MarketOpsSRISnapshot } from "../types";
 
-type Tab = "rankings" | "progression";
 type MetricKey = "composite_score" | "relative_strength_score" | "momentum_score" | "momentum_acceleration";
 type IndicatorTone = { accent: string; badge: string; dot: string; text: string; chart: string };
 
@@ -89,11 +88,6 @@ function SnapshotCard({ item, onSelect, selected }: { item: MarketOpsSRISnapshot
     return <article className={"rounded border border-gray-200 border-l-4 bg-white p-3 shadow-sm " + tone.accent}>{body}<details className="mt-3"><summary className="cursor-pointer text-xs font-medium text-brand-700">Method and inputs</summary><pre className="mt-2 max-h-48 overflow-auto rounded bg-gray-50 p-2 text-[10px] text-gray-700">{JSON.stringify({ components: item.components, quality_flags: item.quality_flags, input_provenance: item.input_provenance, algorithm_version: item.algorithm_version }, null, 2)}</pre></details></article>;
   }
   return <button type="button" onClick={onSelect} aria-pressed={selected} className={"w-full rounded border border-gray-200 border-l-4 bg-white p-3 text-left shadow-sm transition hover:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500 " + tone.accent + (selected ? " ring-2 ring-brand-500" : "")}>{body}<div className="mt-3 text-xs font-medium text-brand-700">{selected ? "Detail open" : "Open 60-session progression"}</div></button>;
-}
-
-function RankingsTab({ snapshots, type, state }: { snapshots: MarketOpsSRISnapshot[]; type: string; state: string }) {
-  const filtered = snapshots.filter((item) => (!type || item.segment_id.includes("_" + type + "_")) && (!state || item.state === state));
-  return <>{filtered.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{filtered.map((item) => <SnapshotCard key={item.snapshot_id} item={item} />)}</div> : <EmptyState message="No Sector Rotation Intelligence snapshots match the current filters." />}</>;
 }
 
 function ProgressionChart({ snapshot, history }: { snapshot: MarketOpsSRISnapshot; history: MarketOpsSRISnapshot[] }) {
@@ -258,16 +252,13 @@ function ProgressionTab({ tenantId, snapshots }: { tenantId: string; snapshots: 
 
 export function MarketOpsSRIRoute() {
   const tenantId = useTenant();
-  const [tab, setTab] = useState<Tab>("rankings");
-  const [type, setType] = useState("");
-  const [state, setState] = useState("");
   const rankingsQ = useQuery({ queryKey: ["marketops-sri-rankings", tenantId], queryFn: () => api.getMarketOpsSRIRankings(tenantId), staleTime: 30_000 });
   const legend = ["LEADING", "IMPROVING", "NEUTRAL", "WEAKENING", "LAGGING"];
   const refresh = () => void rankingsQ.refetch();
 
   return <div className="space-y-3">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 className="text-lg font-semibold">Sector Rotation Intelligence</h1><p className="max-w-3xl text-xs text-gray-500">Research-only, price-led market-segment context. This foundation ranks relative strength and momentum; it does not claim rotation, breadth, diffusion, flows, or a trade recommendation.</p></div>
+      <div><h1 className="text-lg font-semibold">Sector Rotation Intelligence</h1><p className="max-w-3xl text-xs text-gray-500">Research-only, price-led market-segment context. ETF Progression is the primary view for relative strength, momentum, issuer makeup, and persisted sector evolution.</p></div>
       <RefreshButton onClick={refresh} loading={rankingsQ.isFetching} />
     </div>
 
@@ -276,22 +267,16 @@ export function MarketOpsSRIRoute() {
       description="Use Syncratic to explain which sector groups are leading, improving, weakening, or lagging, and why that rotation context matters relative to the prior session."
     />
 
-    <div role="tablist" aria-label="Sector Rotation Intelligence views" className="flex border-b border-gray-200">
-      <button role="tab" aria-selected={tab === "rankings"} onClick={() => setTab("rankings")} className={"border-b-2 px-3 py-2 text-sm font-medium " + (tab === "rankings" ? "border-brand-600 text-brand-700" : "border-transparent text-gray-600 hover:text-gray-900")}>Rankings</button>
-      <button role="tab" aria-selected={tab === "progression"} onClick={() => setTab("progression")} className={"border-b-2 px-3 py-2 text-sm font-medium " + (tab === "progression" ? "border-brand-600 text-brand-700" : "border-transparent text-gray-600 hover:text-gray-900")}>ETF progression</button>
+    <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+      <h2 className="text-sm font-semibold text-gray-900">ETF Progression</h2>
+      <p className="mt-1">Select an ETF to reveal persisted progression charts and current issuer makeup. The former Ranking tab was removed because this table already carries rank, score, state, momentum, quality, and source-session context.</p>
     </div>
-
-    {tab === "rankings" ? <div className="flex flex-wrap gap-3 rounded border border-gray-200 bg-gray-50 p-3">
-      <label className="text-xs font-medium text-gray-700">Segment<select value={type} onChange={(event) => setType(event.target.value)} className="mt-1 block rounded border border-gray-300 bg-white px-2 py-1.5 text-sm"><option value="">All types</option><option value="sector">Sectors</option><option value="industry">Industries</option></select></label>
-      <label className="text-xs font-medium text-gray-700">Context<select value={state} onChange={(event) => setState(event.target.value)} className="mt-1 block rounded border border-gray-300 bg-white px-2 py-1.5 text-sm"><option value="">All states</option><option value="LEADING">Leading</option><option value="IMPROVING">Improving</option><option value="NEUTRAL">Neutral</option><option value="WEAKENING">Weakening</option><option value="LAGGING">Lagging</option></select></label>
-      <div className="self-end pb-1 text-xs text-gray-500">Score: <span className="font-medium text-emerald-700">75+ strong</span> · <span className="font-medium text-sky-700">60+ positive</span> · <span className="font-medium text-amber-700">&lt;40 weak</span></div>
-    </div> : null}
 
     <div aria-label="Sector Rotation Intelligence context color legend" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600"><span className="font-medium text-gray-700">Context legend:</span>{legend.map((item) => { const tone = stateTone(item); return <span key={item} className="inline-flex items-center gap-1"><i aria-hidden className={"h-2 w-2 rounded-full " + tone.dot} />{title(item)}</span>; })}</div>
 
     {rankingsQ.isLoading ? <LoadingState label="Loading sector context..." /> : rankingsQ.isError ? <ErrorState error={rankingsQ.error} /> : <>
       <p className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">{rankingsQ.data?.evidence_note}</p>
-      {tab === "rankings" ? <RankingsTab snapshots={rankingsQ.data?.snapshots ?? []} type={type} state={state} /> : <ProgressionTab tenantId={tenantId} snapshots={rankingsQ.data?.snapshots ?? []} />}
+      <ProgressionTab tenantId={tenantId} snapshots={rankingsQ.data?.snapshots ?? []} />
     </>}
   </div>;
 }
