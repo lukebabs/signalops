@@ -64,6 +64,9 @@ def test_signal_assurance_tools_view_honors_operational_cutoff(browser: Browser,
         dimensions = {str(row.get("dimension_value", "")) for row in rows}
         assert all(dimension for dimension in dimensions), dimensions
         expect(page.get_by_role("heading", name="Signal Assurance")).to_be_visible(timeout=30_000)
+        expect(page.get_by_test_id("saf-operational-readiness")).to_be_visible(timeout=30_000)
+        expect(page.get_by_test_id("saf-operational-readiness")).to_contain_text("Prospective SAF readiness", timeout=30_000)
+        expect(page.get_by_test_id("saf-operational-readiness")).to_contain_text("Live contracts", timeout=30_000)
         expect(page.locator("body")).to_contain_text("last 10 trading days", timeout=30_000)
         expect(page.locator("body")).to_contain_text("August 20, 2026", timeout=30_000)
         expect(page.get_by_label("Window")).to_contain_text("Last 10 trading days", timeout=30_000)
