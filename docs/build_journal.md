@@ -9664,3 +9664,13 @@ Next-cycle priority:
 - Source changes preserve intraday, Saturday FMP annual, deployment-agent run-now controls, weekend/non-trading-day guards, and explicit recovery calendar entries.
 - The same-session write guard now aligns to the new daily post-close readiness floor and blocks current-session writes before 16:30 ET.
 - Tightened warm EOD, daily post-close, and post-close recovery session-date selection to use the shared market-holiday calendar; this prevents a post-holiday catch-up from targeting a closed session such as Labor Day 2026-09-07.
+
+### 2026-09-08 — MarketOps missed-schedule catch-up and retry idempotency
+
+- Ran the missed MarketOps post-close schedules for the September 8, 2026 session after the earlier schedule/calendar fix.
+- Warm EOD completed as a bounded provider-gap degradation: 995/1000 normalized; missing symbols were APGE, AVB, CRNX, EQR, and WBS.
+- Daily post-close completed successfully after rebuilding the MarketOps intelligence cohort runner with retry-safe run-id handling. Risk/reward was verified at 132/132 for the tenant-local legacy cohort.
+- SRI refresh, SRI holdings refresh, post-close recovery, and operations monitor all completed successfully for the catch-up window.
+- Fixed the retry drift where `marketops-intelligence-cohort-runner` rejected an existing cohort `run_id` before reaching the repository-layer immutable-scope upsert guard. Retries now rely on the existing scoped idempotent upsert instead of failing on identical replays.
+- Remaining live-host action: install/reload the updated systemd timer unit files with interactive sudo or a newly provisioned deployment-agent installer action. Source already contains the new 16:20/16:30/17:05/17:20 ET schedule, but the currently installed timer files still show the prior 18:00+ ET cadence until host unit files are refreshed.
+
