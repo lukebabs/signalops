@@ -47,14 +47,26 @@ def benchmark_coverage_response(response: Response) -> bool:
     )
 
 
+def readiness_response(response: Response) -> bool:
+    return (
+        response.request.method == "GET"
+        and "/v1/marketops/signal-assurance/readiness?" in response.url
+    )
+
+
 def test_signal_assurance_tools_view_honors_operational_cutoff(browser: Browser, config: tuple[str, str, str]) -> None:
     base_url, _, _ = config
     page = browser.new_page()
     try:
         login(page, config)
         expect(page.get_by_label("MarketOps tools sections")).to_be_visible(timeout=30_000)
-        with page.expect_response(benchmark_coverage_response, timeout=30_000) as response_info:
-            page.get_by_role("button", name=re.compile("Signal Assurance")).click()
+        with page.expect_response(readiness_response, timeout=30_000) as readiness_info:
+            with page.expect_response(benchmark_coverage_response, timeout=30_000) as response_info:
+                page.get_by_role("button", name=re.compile("Signal Assurance")).click()
+        readiness = readiness_info.value
+        assert readiness.status == 200, f"{readiness.url} returned HTTP {readiness.status}"
+        readiness_payload: dict[str, Any] = readiness.json()
+        assert readiness_payload.get("readiness", {}).get("live_contract_count", 0) >= 2, readiness_payload
         response = response_info.value
         assert response.status == 200, f"{response.url} returned HTTP {response.status}"
         payload: dict[str, Any] = response.json()
