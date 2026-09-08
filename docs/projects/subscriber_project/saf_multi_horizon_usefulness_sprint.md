@@ -220,3 +220,26 @@ Evidence:
 - Outside-legacy sector-unmapped count: `236`; this is outside the declared 132-asset SAF viability scope and remains separate catalog-governance backlog.
 - Aggregate post-cutoff projection: `1,438` observations, `1,320` broad-market matches, `1,084` sector matches, `0` broad `not_recorded`, `0` sector `not_recorded`.
 - Final SAF Playwright smoke passed: `python/tests/test_signal_assurance_benchmark_ui_smoke.py` returned `1 passed`.
+
+## SAF prospective assertion readiness — 2026-09-08
+
+The next enhancement moved SAF closer to formal prospective assertions without manufacturing historical assertions or rewriting legacy outcome evidence.
+
+Implemented controls:
+
+- Added migration `000173_marketops_signal_assurance_live_contracts` to seed active LIVE validation contracts for `signalops.algorithm.change_point_candidate` bullish and bearish directional confirmations under `signalops.algorithms.ruptures_change_point_v1` / `v1`.
+- The contracts use `live-default-v1`, 1/5/10/20 trading-day evaluation windows, a 20-session horizon, and explicit `prospective_only` metadata.
+- Added read-only SAF operational readiness reporting so operators can see whether contracts, materializations, and assertions are aligned.
+- Added the readiness panel to MarketOps Tools → Signal Assurance.
+
+Production evidence after applying the migration to the dedicated MarketOps database:
+
+- `000173_marketops_signal_assurance_live_contracts` recorded in `schema_migrations` at `2026-09-08 03:20:18 UTC`.
+- Active live SAF contracts: `2`.
+- Existing succeeded materializations: `1`.
+- Directional materializations eligible for SAF assertion registration: `0`.
+- Non-directional materializations: `1`. This remains intentionally blocked because SAF requires bullish/bearish direction, validation contract reference, immutable baseline, and provenance.
+
+Interpretation:
+
+SAF is now contract-ready for future directional algorithm confirmations. It still has no formal production SAF assertions because the current materialized algorithm signal does not carry a normalized bullish/bearish direction. The legacy 132-asset effectiveness view remains research evidence and must not be described as SAF-confirmed assertion evidence.

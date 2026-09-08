@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { useMarketOpsSignalAssuranceAssertions } from '../api/queries';
+import { useMarketOpsSignalAssuranceAssertions, useMarketOpsSignalAssuranceReadiness } from '../api/queries';
 import { useTenant } from '../auth/session';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { RefreshButton } from '../components/RefreshButton';
@@ -8,7 +8,7 @@ import { SyncraticExplainabilityCard } from '../components/SyncraticExplainabili
 import { formatUtc } from '../lib/format';
 import { MarketOpsSignalAssuranceDrilldownPanel } from './MarketOpsSignalAssuranceDrilldownPanel';
 import { MarketOpsSignalAssuranceDailyProgressionPanel, MarketOpsSignalAssuranceEffectivenessPanel } from './MarketOpsSignalAssuranceEffectivenessPanel';
-import type { MarketOpsSignalAssuranceAssertion } from '../types';
+import type { MarketOpsSignalAssuranceAssertion, MarketOpsSignalAssuranceReadiness } from '../types';
 
 const title = (value: string) => value.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (letter: string) => letter.toUpperCase());
 const tone = (state: string) => state === 'MATERIALIZED' ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300' : state === 'INVALIDATED' ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300' : state === 'EXPIRED' ? 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300' : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200';
@@ -21,6 +21,7 @@ export function MarketOpsSignalAssuranceRoute() {
   const [selectedAssertionId, setSelectedAssertionId] = useState<string | null>(null);
   const filter = useMemo(() => ({ tenant_id: tenantId, symbol: symbol.trim().toUpperCase() || undefined, evaluation_mode: mode || undefined, state: state || undefined, limit: 100 }), [tenantId, symbol, mode, state]);
   const assertions = useMarketOpsSignalAssuranceAssertions(filter);
+  const readiness = useMarketOpsSignalAssuranceReadiness(tenantId);
   const active = Boolean(symbol || mode || state);
   const clear = () => { setSymbol(''); setMode(''); setState(''); };
 
@@ -38,6 +39,8 @@ export function MarketOpsSignalAssuranceRoute() {
       surface="Signal Assurance"
       description="Use Syncratic to explain signal viability trends, strongest/weakest algorithm evidence, and where confirmation quality suggests calibration work."
     />
+
+    <SignalAssuranceReadinessPanel readiness={readiness.data?.readiness} loading={readiness.isLoading} />
 
     <MarketOpsSignalAssuranceDrilldownPanel />
     <MarketOpsSignalAssuranceDailyProgressionPanel />
@@ -94,4 +97,32 @@ function SignalAssuranceMobileCard({ assertion, selected, onToggle }: { assertio
     </button>
     {selected ? <div className="mt-3 rounded border border-brand-200 bg-white p-3 dark:border-brand-900 dark:bg-gray-950"><div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Baseline and provenance</h3><p className="mt-1 text-xs text-gray-600 dark:text-gray-400">Immutable baseline used to confirm this SAF assertion.</p></div><button type="button" onClick={onToggle} className="shrink-0 rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-200">Close</button></div><pre className="mt-2 max-h-72 overflow-auto rounded bg-gray-50 p-2 text-[10px] text-gray-700 dark:bg-gray-900 dark:text-gray-200">{JSON.stringify({ baseline_snapshot: assertion.baseline_snapshot, baseline_provenance: assertion.baseline_provenance }, null, 2)}</pre></div> : null}
   </article>;
+}
+
+function SignalAssuranceReadinessPanel({ readiness, loading }: { readiness?: MarketOpsSignalAssuranceReadiness; loading: boolean }) {
+  const blocked = readiness?.readiness_state === 'blocked';
+  return <section data-testid="saf-operational-readiness" className={blocked ? "rounded border border-amber-300 bg-amber-50 p-3 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" : "rounded border border-emerald-300 bg-emerald-50 p-3 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"}>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 className="text-sm font-semibold">Prospective SAF readiness</h2>
+        <p className="mt-1 max-w-3xl text-xs opacity-90">Read-only operational check for whether confirmed algorithm materializations can become formal SAF assertions. This does not create assertions or rewrite historical outcome evidence.</p>
+      </div>
+      <span className="rounded border border-current px-2 py-1 text-xs font-semibold">{loading ? 'Loading' : title(readiness?.readiness_state || 'unknown')}</span>
+    </div>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <ReadinessMetric label="Live contracts" value={readiness?.live_contract_count ?? 0} />
+      <ReadinessMetric label="SAF assertions" value={readiness?.assertion_count ?? 0} helper={`${readiness?.live_assertion_count ?? 0} live · ${readiness?.research_assertion_count ?? 0} research`} />
+      <ReadinessMetric label="Succeeded materializations" value={readiness?.succeeded_materialization_count ?? 0} helper={`${readiness?.directional_materialization_count ?? 0} directional`} />
+      <ReadinessMetric label="Blocked candidates" value={(readiness?.non_directional_materialization_count ?? 0) + (readiness?.contract_blocked_materialization_count ?? 0)} helper="missing direction or contract" />
+    </div>
+    {readiness?.readiness_reasons?.length ? <ul className="mt-3 list-disc space-y-1 pl-5 text-xs">{readiness.readiness_reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul> : <p className="mt-3 text-xs">The current SAF contract layer is ready for future directional algorithm confirmations.</p>}
+  </section>;
+}
+
+function ReadinessMetric({ label, value, helper }: { label: string; value: number; helper?: string }) {
+  return <div className="rounded border border-white/70 bg-white/70 p-2 dark:border-white/10 dark:bg-black/20">
+    <div className="text-[11px] font-semibold uppercase tracking-wide opacity-75">{label}</div>
+    <div className="mt-1 text-xl font-semibold">{value}</div>
+    {helper ? <div className="mt-1 text-[11px] opacity-75">{helper}</div> : null}
+  </div>;
 }

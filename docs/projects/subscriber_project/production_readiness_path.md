@@ -680,3 +680,19 @@ Residual policy:
 
 1. Keep the 132-asset legacy SAF cohort separate from the wider global catalog.
 2. Treat outside-cohort sector gaps as catalog-governance backlog, not as SAF readiness blockers for the declared legacy viability view.
+
+### 2026-09-08 SAF prospective assertion readiness
+
+Status: source and database migration completed for the first prospective SAF readiness slice.
+
+What changed:
+
+- Added active LIVE validation contracts for the current governed change-point candidate materialization family, both bullish and bearish.
+- Added a read-only SAF readiness API and Tools UI panel that reports contract counts, assertion counts, succeeded materializations, directional eligibility, and explicit blockers.
+- No historical SAF assertion backfill, provider polling, or outcome restatement was performed.
+
+Current state:
+
+- SAF contract layer is ready for future directional algorithm confirmations.
+- Formal SAF-confirmed assertions remain at `0` because the only existing succeeded algorithm materialization is non-directional.
+- Next production path is to ensure future algorithm materialization proposals include normalized bullish/bearish direction and immutable baseline/provenance before publishing LIVE SAF eligible events.

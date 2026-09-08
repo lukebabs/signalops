@@ -226,6 +226,25 @@ type SignalAssuranceRecommendationRecord struct {
 	AsOf                    time.Time
 }
 
+type SignalAssuranceOperationalReadinessRecord struct {
+	TenantID                            string
+	ActiveContractCount                 int
+	LiveContractCount                   int
+	ResearchContractCount               int
+	AssertionCount                      int
+	LiveAssertionCount                  int
+	ResearchAssertionCount              int
+	SucceededMaterializationCount       int
+	DirectionalMaterializationCount     int
+	NonDirectionalMaterializationCount  int
+	ContractCoveredMaterializationCount int
+	ContractBlockedMaterializationCount int
+	LatestMaterializationAt             *time.Time
+	LatestAssertionAt                   *time.Time
+	ReadinessState                      string
+	ReadinessReasons                    []string
+}
+
 // SignalAssuranceEffectivenessObservationRecord is one terminal, complete
 // observation included in an effectiveness cohort. ReferenceID identifies the
 // immutable source record: an SAF assertion or the historical opportunity.
@@ -270,6 +289,7 @@ type SignalAssuranceQueryRepository interface {
 	GetSignalAssuranceAssertion(context.Context, string, string) (SignalAssertionRecord, error)
 	ListSignalAssuranceEvaluations(context.Context, SignalAssuranceEvaluationFilter) ([]SignalAssertionEvaluationRecord, error)
 	GetSignalValidationContract(context.Context, string) (SignalValidationContractRecord, error)
+	GetSignalAssuranceOperationalReadiness(context.Context, string) (SignalAssuranceOperationalReadinessRecord, error)
 	SignalAssuranceEffectivenessRepository
 }
 

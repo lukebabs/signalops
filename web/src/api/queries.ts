@@ -137,6 +137,7 @@ export const queryKeys = {
   marketOpsOptionsChain: (tenantId: string, symbol: string, filter: MarketOpsOptionsChainFilter) =>
     ['marketops-options-chain', tenantId, symbol, filter] as const,
   marketOpsOpportunities: (filter: MarketOpsOpportunityFilter) => ['marketops-opportunities', filter] as const,
+  marketOpsSignalAssuranceReadiness: (tenantId: string) => ['marketops-signal-assurance-readiness', tenantId] as const,
   marketOpsSignalAssuranceAssertions: (filter: MarketOpsSignalAssuranceAssertionFilter) => ['marketops-signal-assurance-assertions', filter] as const,
   marketOpsSignalAssuranceEvaluations: (assertionId: string, tenantId: string) => ['marketops-signal-assurance-evaluations', assertionId, tenantId] as const,
   marketOpsOpportunity: (opportunityId: string, tenantId: string) =>
@@ -550,6 +551,10 @@ export function useMarketOpsOptionsChain(
     enabled: !!tenantId && !!symbol && !!filter.trade_date,
     staleTime: 5 * 60 * 1000,
   });
+}
+
+export function useMarketOpsSignalAssuranceReadiness(tenantId: string) {
+  return useQuery({ queryKey: queryKeys.marketOpsSignalAssuranceReadiness(tenantId), queryFn: () => api.getMarketOpsSignalAssuranceReadiness(tenantId), enabled: !!tenantId, staleTime: 30 * 1000, refetchInterval: 60 * 1000 });
 }
 
 export function useMarketOpsSignalAssuranceAssertions(filter: MarketOpsSignalAssuranceAssertionFilter = { tenant_id: 'tenant-local', limit: 100 }) {

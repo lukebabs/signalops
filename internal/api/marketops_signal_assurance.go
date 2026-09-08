@@ -13,6 +13,18 @@ func registerMarketOpsSignalAssuranceRoutes(mux *http.ServeMux, cfg RouterConfig
 	if !ok {
 		return
 	}
+	mux.HandleFunc("GET /v1/marketops/signal-assurance/readiness", func(w http.ResponseWriter, r *http.Request) {
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		record, err := query.GetSignalAssuranceOperationalReadiness(r.Context(), tenantID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to load signal assurance readiness")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"readiness": signalAssuranceReadinessResponse(record)})
+	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/assertions", func(w http.ResponseWriter, r *http.Request) {
 		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
 		if !ok {
@@ -61,6 +73,36 @@ func registerMarketOpsSignalAssuranceRoutes(mux *http.ServeMux, cfg RouterConfig
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"evaluations": evaluationResponses(records)})
 	})
+}
+
+type signalAssuranceReadinessDTO struct {
+	TenantID                            string   `json:"tenant_id"`
+	ReadinessState                      string   `json:"readiness_state"`
+	ReadinessReasons                    []string `json:"readiness_reasons"`
+	ActiveContractCount                 int      `json:"active_contract_count"`
+	LiveContractCount                   int      `json:"live_contract_count"`
+	ResearchContractCount               int      `json:"research_contract_count"`
+	AssertionCount                      int      `json:"assertion_count"`
+	LiveAssertionCount                  int      `json:"live_assertion_count"`
+	ResearchAssertionCount              int      `json:"research_assertion_count"`
+	SucceededMaterializationCount       int      `json:"succeeded_materialization_count"`
+	DirectionalMaterializationCount     int      `json:"directional_materialization_count"`
+	NonDirectionalMaterializationCount  int      `json:"non_directional_materialization_count"`
+	ContractCoveredMaterializationCount int      `json:"contract_covered_materialization_count"`
+	ContractBlockedMaterializationCount int      `json:"contract_blocked_materialization_count"`
+	LatestMaterializationAt             string   `json:"latest_materialization_at,omitempty"`
+	LatestAssertionAt                   string   `json:"latest_assertion_at,omitempty"`
+}
+
+func signalAssuranceReadinessResponse(x storage.SignalAssuranceOperationalReadinessRecord) signalAssuranceReadinessDTO {
+	response := signalAssuranceReadinessDTO{TenantID: x.TenantID, ReadinessState: x.ReadinessState, ReadinessReasons: x.ReadinessReasons, ActiveContractCount: x.ActiveContractCount, LiveContractCount: x.LiveContractCount, ResearchContractCount: x.ResearchContractCount, AssertionCount: x.AssertionCount, LiveAssertionCount: x.LiveAssertionCount, ResearchAssertionCount: x.ResearchAssertionCount, SucceededMaterializationCount: x.SucceededMaterializationCount, DirectionalMaterializationCount: x.DirectionalMaterializationCount, NonDirectionalMaterializationCount: x.NonDirectionalMaterializationCount, ContractCoveredMaterializationCount: x.ContractCoveredMaterializationCount, ContractBlockedMaterializationCount: x.ContractBlockedMaterializationCount}
+	if x.LatestMaterializationAt != nil {
+		response.LatestMaterializationAt = x.LatestMaterializationAt.UTC().Format("2006-01-02T15:04:05Z")
+	}
+	if x.LatestAssertionAt != nil {
+		response.LatestAssertionAt = x.LatestAssertionAt.UTC().Format("2006-01-02T15:04:05Z")
+	}
+	return response
 }
 
 type signalAssuranceAssertionDTO struct {

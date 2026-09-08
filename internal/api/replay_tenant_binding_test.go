@@ -244,6 +244,10 @@ func (r *signalAssuranceTenantBindingRepository) GetSignalValidationContract(con
 	return storage.SignalValidationContractRecord{}, storage.ErrNotFound
 }
 
+func (r *signalAssuranceTenantBindingRepository) GetSignalAssuranceOperationalReadiness(context.Context, string) (storage.SignalAssuranceOperationalReadinessRecord, error) {
+	return storage.SignalAssuranceOperationalReadinessRecord{}, nil
+}
+
 func (r *signalAssuranceTenantBindingRepository) ListSignalAssuranceEffectiveness(_ context.Context, filter storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessRecord, error) {
 	r.lastEffectivenessFilter = filter
 	return []storage.SignalAssuranceEffectivenessRecord{}, nil

@@ -176,6 +176,7 @@ import type {
   AlgorithmSignalMaterializationFilter,
   MarketOpsSignalAssuranceAssertionsResponse,
   MarketOpsSignalAssuranceAssertionFilter,
+  MarketOpsSignalAssuranceReadinessResponse,
   MarketOpsSignalAssuranceEvaluationsResponse,
   MarketOpsSignalAssuranceEffectivenessResponse,
   MarketOpsSignalAssuranceEffectivenessObservationsResponse,
@@ -825,6 +826,8 @@ export const api = {
         limit: filter.limit ?? 500,
       },
     ),
+  getMarketOpsSignalAssuranceReadiness: (tenantId: string) =>
+    get<MarketOpsSignalAssuranceReadinessResponse>("/v1/marketops/signal-assurance/readiness", { tenant_id: tenantId }, "no-store"),
   listMarketOpsSignalAssuranceAssertions: (filter: MarketOpsSignalAssuranceAssertionFilter = {}) =>
     get<MarketOpsSignalAssuranceAssertionsResponse>("/v1/marketops/signal-assurance/assertions", { tenant_id: filter.tenant_id, state: filter.state || undefined, evaluation_mode: filter.evaluation_mode || undefined, symbol: filter.symbol || undefined, limit: filter.limit ?? 100 }),
   listMarketOpsSignalAssuranceEvaluations: (assertionId: string, tenantId: string) =>
