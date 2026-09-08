@@ -696,3 +696,24 @@ Current state:
 - SAF contract layer is ready for future directional algorithm confirmations.
 - Formal SAF-confirmed assertions remain at `0` because the only existing succeeded algorithm materialization is non-directional.
 - Next production path is to ensure future algorithm materialization proposals include normalized bullish/bearish direction and immutable baseline/provenance before publishing LIVE SAF eligible events.
+
+### 2026-09-08 SaaS Kubernetes platform architecture decision
+
+Status: accepted target architecture documented.
+
+Decision:
+
+- SignalOps will move toward one SaaS platform with independently scalable Kubernetes operational planes.
+- Signal-Connect is part of SignalOps as the ingestion subsystem, but it receives its own operational plane/namespace because ingestion has separate scaling, security, rate-limit, and failure characteristics.
+- The target namespace model is `signalops-app`, `signalops-connect`, `signalops-marketops`, `signalops-cyberops`, `signalops-identity`, `signalops-data`, and `signalops-observability`.
+- The driver is SaaS scalability and operational isolation, not easiest deployment.
+
+Production-readiness impact:
+
+1. Add explicit gateway DB pool limits and PgBouncer before horizontal API scaling.
+2. Convert host scheduled jobs to K8s CronJobs with equivalent guardrails and completion evidence.
+3. Define service accounts, secrets, and NetworkPolicies per operational plane.
+4. Treat Keycloak as HA identity infrastructure with source-reconciled realm/client configuration.
+5. Build cross-plane observability before production cutover.
+6. Run load tests before publishing concurrency limits.
+7. Preserve Docker Compose as current production authority until a K8s staging/parity gate is explicitly approved.

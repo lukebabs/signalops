@@ -32,6 +32,13 @@ The shared SignalOps database remains for non-MarketOps platform/CyberOps data a
 9. Recovery actions use constrained deployment-agent commands, not broad manual shell intervention.
 10. Every production readiness change is documented, committed, and pushed.
 
+
+## SaaS Kubernetes target
+
+The accepted SaaS production target is documented in [SignalOps SaaS Kubernetes Platform Architecture](saas_kubernetes_platform_architecture.md). Signal-Connect is treated as the SignalOps ingestion subsystem, not as a separate product boundary. For scale and blast-radius control, the target architecture separates operational planes into namespaces: `signalops-app`, `signalops-connect`, `signalops-marketops`, `signalops-cyberops`, `signalops-identity`, `signalops-data`, and `signalops-observability`.
+
+This changes the production-readiness emphasis from easy deployment to independently scalable, observable, and secure operation. Docker Compose remains the current authority for this host until a separate K8s staging/parity gate is approved.
+
 ## Scheduler and job model
 
 Current controlled timers:
