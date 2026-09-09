@@ -10,7 +10,7 @@ The Subscriber Project is **controlled paid-pilot ready with first real paid act
 
 The current platform has enough structure to keep validating with controlled tenants and named approvals: dedicated MarketOps databases are live, web and gateway are serving, SAF viability analytics are visible, and the global-data projection work has advanced materially.
 
-Infrastructure planning has resumed with a source-derived Kubernetes workload inventory and a non-applied base scaffold for namespaces, service accounts, and default-deny NetworkPolicies. This is planning/build groundwork only; Docker Compose remains the live production authority until a separate K8s staging/parity gate is approved.
+Infrastructure planning has resumed with a source-derived Kubernetes workload inventory and a non-applied base scaffold for namespaces, service accounts, NetworkPolicies, and OpenBao-backed secret projection. This is planning/build groundwork only; Docker Compose remains the live production authority until a separate K8s staging/parity gate is approved.
 
 Production readiness is still blocked by current backup/restore re-verification, tax/invoice evidence review, and cleanup of known historical test artifacts. Stripe Customer Portal, refund intake, and first real paid-flow activation evidence are now retained. The core operational-consistency loop for the tenant-local pilot scope has passed natural post-close acceptance after the MarketOps database decoupling.
 

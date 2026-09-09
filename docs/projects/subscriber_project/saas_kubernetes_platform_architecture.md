@@ -119,7 +119,9 @@ If databases/broker are self-hosted in Kubernetes, they should still be treated 
 
 ## Source-derived workload inventory
 
-The first infrastructure build artifact is [SignalOps Kubernetes Workload Inventory](kubernetes_workload_inventory.md). It classifies the current all-profile Compose topology into target planes, K8s workload kinds, statefulness, exposed ports, dependencies, and secret/config key classes. The initial Kubernetes base scaffold lives under `deploy/kubernetes/base` and currently contains namespaces, per-plane service accounts, default-deny NetworkPolicies, first-pass allow NetworkPolicies, and a planning-only secret-class policy.
+The first infrastructure build artifact is [SignalOps Kubernetes Workload Inventory](kubernetes_workload_inventory.md). It classifies the current all-profile Compose topology into target planes, K8s workload kinds, statefulness, exposed ports, dependencies, and secret/config key classes. The initial Kubernetes base scaffold lives under `deploy/kubernetes/base` and currently contains namespaces, per-plane service accounts, default-deny NetworkPolicies, first-pass allow NetworkPolicies, and an OpenBao-backed secret projection scaffold.
+
+OpenBao is the selected Kubernetes secret backend. SignalOps will use Vault-compatible OpenBao KV v2 paths and Kubernetes-auth roles per operational plane. Workloads should consume OpenBao Agent Injector-projected secret files through workload-specific annotations and per-plane Kubernetes auth roles rather than broad `.env` injection.
 
 ## Initial migration path from Docker Compose
 

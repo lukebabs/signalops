@@ -31,3 +31,11 @@ resources:
   - network-policies/signalops-marketops-default-deny.yaml
   - network-policies/signalops-observability-default-deny.yaml
   - secrets/secret-class-policy.yaml
+  - secrets/openbao/openbao-agent-injection-policy.yaml
+  - secrets/openbao/signalops-app-secret-reader.yaml
+  - secrets/openbao/signalops-connect-secret-reader.yaml
+  - secrets/openbao/signalops-cyberops-secret-reader.yaml
+  - secrets/openbao/signalops-data-secret-reader.yaml
+  - secrets/openbao/signalops-identity-secret-reader.yaml
+  - secrets/openbao/signalops-marketops-secret-reader.yaml
+  - secrets/openbao/signalops-observability-secret-reader.yaml

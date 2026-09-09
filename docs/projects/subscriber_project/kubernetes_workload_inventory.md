@@ -115,4 +115,4 @@ The base scaffold now includes first-pass allow NetworkPolicies for:
 - Signal-Connect and CyberOps egress to data/broker and DNS;
 - observability scrape egress to platform namespaces.
 
-The scaffold also adds a planning-only secret-class policy. No runtime secrets are committed. The next gate is to choose the production secret backend, preferably External Secrets Operator with managed secret storage for SaaS operation.
+OpenBao is selected as the production secret backend. The scaffold includes one OpenBao secret-reader service account per SignalOps plane and a planning Agent Injector policy for app, connect, marketops, cyberops, identity, data, and observability secret classes. No runtime secrets are committed. Read-only cluster evidence confirmed the `openbao` namespace and `openbao-agent-injector-svc`; External Secrets Operator CRDs are not installed, so the next gate is OpenBao KV/auth policy validation before adding workload-specific injector annotations.

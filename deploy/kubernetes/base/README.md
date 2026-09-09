@@ -2,7 +2,7 @@
 
 Status: initial infrastructure scaffold; not yet a deployment target.
 
-This base establishes the accepted SaaS operational planes before individual workloads are converted from Compose. It intentionally creates only namespaces, service accounts, and default-deny NetworkPolicies. Workload Deployments, CronJobs, Services, Ingress, Secrets, and data-plane migrations are separate gates.
+This base establishes the accepted SaaS operational planes before individual workloads are converted from Compose. It intentionally creates only namespaces, service accounts, NetworkPolicies, and non-secret policy ConfigMaps. Workload Deployments, CronJobs, Services, Ingress, Secrets, and data-plane migrations are separate gates.
 
 ## Planes
 
@@ -34,11 +34,11 @@ The scaffold uses standard Kubernetes NetworkPolicy. Standard NetworkPolicy cann
 
 ## Secret-class strategy
 
-`secrets/secret-class-policy.yaml` is intentionally a ConfigMap, not a Secret. It records the required secret boundaries until the production secret backend is selected. The preferred SaaS path is External Secrets Operator backed by AWS Secrets Manager or equivalent managed secret storage.
+`secrets/secret-class-policy.yaml` is intentionally a ConfigMap, not a Secret. It records the required secret boundaries for the selected OpenBao backend. The current cluster has OpenBao Agent Injector, so workload conversion should use injector annotations and per-plane OpenBao Kubernetes auth roles.
 
 ## Next steps
 
-1. Select the production secret backend and replace the policy ConfigMap with ExternalSecret, SealedSecret, or SOPS-managed secret manifests.
+1. Validate OpenBao KV mount, Kubernetes auth mount, and per-plane roles/policies; then add workload-specific injector annotations during Deployment/CronJob conversion.
 2. Add Traefik IngressRoute or standard Ingress manifests for `signalops.syncratic.io` web, `/v1/*`, `/auth/*`, and Stripe webhook routing.
 3. Convert `web` and `gateway` first as stateless app-plane Deployments with probes and DB pool caps.
 4. Convert MarketOps scheduled jobs to CronJobs with `concurrencyPolicy: Forbid` and DB-backed completion evidence.

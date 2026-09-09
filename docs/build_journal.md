@@ -9685,7 +9685,15 @@ Next-cycle priority:
 ### 2026-09-09 — Kubernetes network and secret-class scaffold
 
 - Added first-pass Kubernetes allow NetworkPolicies on top of the default-deny base: Traefik-to-app ingress, gateway egress to identity/data/public HTTPS, app-to-Keycloak ingress, platform-plane access to data boundaries, MarketOps provider/data egress, Connect/CyberOps data egress, and observability scrape egress.
-- Added a planning-only secret-class policy under `deploy/kubernetes/base/secrets`. No runtime secrets are committed; this documents per-plane secret boundaries until External Secrets Operator, Sealed Secrets, or SOPS is selected.
+- Added a planning-only secret-class policy under `deploy/kubernetes/base/secrets`. No runtime secrets are committed; this documents per-plane secret boundaries and was later aligned to the selected OpenBao Agent Injector model.
 - Documented the Traefik namespace label requirement and the standard NetworkPolicy limitation around FQDN egress. Provider egress is currently modeled as public TCP/443 excluding private RFC1918 ranges; a Cilium/FQDN policy can tighten this later.
 - Validated the expanded base with `kubectl kustomize deploy/kubernetes/base`; render succeeded with only the existing local k3s config permission warnings.
+
+### 2026-09-09 — OpenBao selected for Kubernetes secret management
+
+- Selected OpenBao as the SignalOps Kubernetes secret backend because it already exists in the cluster and provides Vault-compatible secret management.
+- Added non-secret OpenBao scaffolding under `deploy/kubernetes/base/secrets/openbao`: one secret-reader service account per SignalOps operational plane and a planning Agent Injector policy for app, connect, marketops, cyberops, identity, data, and observability secret classes.
+- Updated the secret-class policy and Subscriber Project architecture/readiness documentation to treat OpenBao as the selected backend. Workloads will consume OpenBao Agent Injector-projected secret files rather than receiving broad `.env` injection.
+- Validated the Kustomize render. The base now renders 7 Namespaces, 29 ServiceAccounts, 15 NetworkPolicies, and 2 ConfigMaps. Local k3s config permission warnings remain unrelated to manifest validity.
+- No OpenBao secret values, tokens, policies, or live cluster mutations were committed. Live workload conversion requires a separate staging gate after verifying OpenBao KV mount, Kubernetes auth roles, policies, and injector annotations.
 
