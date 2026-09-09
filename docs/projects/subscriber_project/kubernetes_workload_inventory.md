@@ -99,6 +99,20 @@ Generated from the current Compose topology with all profiles enabled. Secret va
 ## Known gaps before K8s staging
 
 - Identity and observability are target planes but are not fully represented in this Compose package.
-- NetworkPolicy, PodDisruptionBudget, resource requests/limits, HorizontalPodAutoscaler, and secret-provider strategy are not yet scaffolded.
+- PodDisruptionBudget, resource requests/limits, HorizontalPodAutoscaler, Traefik route manifests, and concrete secret-provider manifests are not yet scaffolded. Default-deny plus first-pass allow NetworkPolicies and secret-class policy documentation are now present under `deploy/kubernetes/base`.
 - The live host still needs the updated MarketOps systemd timer files installed/reloaded so scheduler status displays the same 16:20/16:30/17:05/17:20 ET cadence now present in source.
 - Backup/restore evidence for the final K8s data-plane topology remains a separate gate.
+
+## Network and secret scaffold — 2026-09-09
+
+The base scaffold now includes first-pass allow NetworkPolicies for:
+
+- Traefik ingress into `signalops-app` web/gateway pods;
+- gateway egress to identity, data, DNS, and approved public HTTPS APIs;
+- app-to-Keycloak ingress in `signalops-identity`;
+- platform-plane ingress into `signalops-data` database/broker boundary pods;
+- MarketOps egress to data/broker, DNS, and provider HTTPS;
+- Signal-Connect and CyberOps egress to data/broker and DNS;
+- observability scrape egress to platform namespaces.
+
+The scaffold also adds a planning-only secret-class policy. No runtime secrets are committed. The next gate is to choose the production secret backend, preferably External Secrets Operator with managed secret storage for SaaS operation.

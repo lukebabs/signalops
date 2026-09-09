@@ -15,6 +15,14 @@ resources:
   - rbac/signalops-identity-serviceaccounts.yaml
   - rbac/signalops-marketops-serviceaccounts.yaml
   - rbac/signalops-observability-serviceaccounts.yaml
+  - network-policies/app-allow-gateway-egress.yaml
+  - network-policies/app-allow-traefik-ingress.yaml
+  - network-policies/connect-allow-data-egress.yaml
+  - network-policies/cyberops-allow-data-egress.yaml
+  - network-policies/data-allow-platform-ingress.yaml
+  - network-policies/identity-allow-app-ingress.yaml
+  - network-policies/marketops-allow-data-and-provider-egress.yaml
+  - network-policies/observability-allow-scrape-egress.yaml
   - network-policies/signalops-app-default-deny.yaml
   - network-policies/signalops-connect-default-deny.yaml
   - network-policies/signalops-cyberops-default-deny.yaml
@@ -22,3 +30,4 @@ resources:
   - network-policies/signalops-identity-default-deny.yaml
   - network-policies/signalops-marketops-default-deny.yaml
   - network-policies/signalops-observability-default-deny.yaml
+  - secrets/secret-class-policy.yaml

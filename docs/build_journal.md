@@ -9682,3 +9682,10 @@ Next-cycle priority:
 - Validated the scaffold with `kubectl kustomize deploy/kubernetes/base`; render succeeded. Local k3s config emitted permission warnings for `/etc/rancher/k3s/config.yaml.d/90-syncratic-cilium.yaml`, but manifest rendering completed.
 - Docker Compose remains the live production authority. The K8s scaffold is planning/build groundwork and must not be applied to production until explicit staging/parity and data-plane gates are approved.
 
+### 2026-09-09 — Kubernetes network and secret-class scaffold
+
+- Added first-pass Kubernetes allow NetworkPolicies on top of the default-deny base: Traefik-to-app ingress, gateway egress to identity/data/public HTTPS, app-to-Keycloak ingress, platform-plane access to data boundaries, MarketOps provider/data egress, Connect/CyberOps data egress, and observability scrape egress.
+- Added a planning-only secret-class policy under `deploy/kubernetes/base/secrets`. No runtime secrets are committed; this documents per-plane secret boundaries until External Secrets Operator, Sealed Secrets, or SOPS is selected.
+- Documented the Traefik namespace label requirement and the standard NetworkPolicy limitation around FQDN egress. Provider egress is currently modeled as public TCP/443 excluding private RFC1918 ranges; a Cilium/FQDN policy can tighten this later.
+- Validated the expanded base with `kubectl kustomize deploy/kubernetes/base`; render succeeded with only the existing local k3s config permission warnings.
+
