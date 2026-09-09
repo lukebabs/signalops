@@ -9697,3 +9697,11 @@ Next-cycle priority:
 - Validated the Kustomize render. The base now renders 7 Namespaces, 29 ServiceAccounts, 15 NetworkPolicies, and 2 ConfigMaps. Local k3s config permission warnings remain unrelated to manifest validity.
 - No OpenBao secret values, tokens, policies, or live cluster mutations were committed. Live workload conversion requires a separate staging gate after verifying OpenBao KV mount, Kubernetes auth roles, policies, and injector annotations.
 
+
+### 2026-09-09 — OpenBao HA added as Kubernetes secret-management gate
+
+- Updated the Kubernetes/OpenBao documentation to reflect the platform decision to build OpenBao in HA mode before SignalOps production workloads consume injected secrets.
+- Added HA acceptance requirements: active/standby health evidence, durable storage and snapshot/restore, unseal or auto-unseal ownership, Agent Injector availability, per-plane Kubernetes auth roles, cross-plane policy denial, and audit logging.
+- Added `scripts/verify_openbao_ha_readiness.sh` for a read-only Kubernetes surface check covering namespace, services, injector deployment/webhook, annotation prefix, and ready server pod count.
+- No live OpenBao configuration, policies, tokens, or secret values were changed or committed.
+- Initial read-only verifier run did not pass: current cluster showed `statefulset/openbao` as `0/1` ready and only `openbao-0` present as a non-injector server pod. This confirms HA build-out remains open before SignalOps workload cutover.

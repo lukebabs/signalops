@@ -39,7 +39,7 @@ The accepted SaaS production target is documented in [SignalOps SaaS Kubernetes 
 
 This changes the production-readiness emphasis from easy deployment to independently scalable, observable, and secure operation. Docker Compose remains the current authority for this host until a separate K8s staging/parity gate is approved.
 
-The initial K8s scaffold is source-controlled under `deploy/kubernetes/base`, and the Compose-derived workload inventory is maintained in [SignalOps Kubernetes Workload Inventory](kubernetes_workload_inventory.md). OpenBao is selected for Kubernetes secret management through Vault-compatible Agent Injector file projection. These artifacts are not live deployment authority yet.
+The initial K8s scaffold is source-controlled under `deploy/kubernetes/base`, and the Compose-derived workload inventory is maintained in [SignalOps Kubernetes Workload Inventory](kubernetes_workload_inventory.md). OpenBao is selected for Kubernetes secret management through Vault-compatible Agent Injector file projection. OpenBao must be HA, observable, audited, and snapshot/restore rehearsed before MarketOps workloads are cut over to it. These artifacts are not live deployment authority yet.
 
 ## Scheduler and job model
 

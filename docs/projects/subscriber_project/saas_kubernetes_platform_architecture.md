@@ -123,6 +123,8 @@ The first infrastructure build artifact is [SignalOps Kubernetes Workload Invent
 
 OpenBao is the selected Kubernetes secret backend. SignalOps will use Vault-compatible OpenBao KV v2 paths and Kubernetes-auth roles per operational plane. Workloads should consume OpenBao Agent Injector-projected secret files through workload-specific annotations and per-plane Kubernetes auth roles rather than broad `.env` injection.
 
+OpenBao must be operated in HA mode before SignalOps production workloads depend on it. The accepted HA posture is a fault-tolerant OpenBao server topology, durable storage with tested snapshot/restore, explicit unseal or auto-unseal recovery ownership, injector availability checks, audit logging, and per-plane Kubernetes auth roles that prevent cross-plane secret reads.
+
 ## Initial migration path from Docker Compose
 
 1. Produce a compose-to-K8s workload inventory for web, gateway, Signal-Connect, MarketOps workers, CyberOps workers, Keycloak, broker, databases, and observability.
