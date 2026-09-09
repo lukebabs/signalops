@@ -39,6 +39,8 @@ The accepted SaaS production target is documented in [SignalOps SaaS Kubernetes 
 
 This changes the production-readiness emphasis from easy deployment to independently scalable, observable, and secure operation. Docker Compose remains the current authority for this host until a separate K8s staging/parity gate is approved.
 
+The initial K8s scaffold is source-controlled under `deploy/kubernetes/base`, and the Compose-derived workload inventory is maintained in [SignalOps Kubernetes Workload Inventory](kubernetes_workload_inventory.md). These artifacts are not live deployment authority yet.
+
 ## Scheduler and job model
 
 Current controlled timers:

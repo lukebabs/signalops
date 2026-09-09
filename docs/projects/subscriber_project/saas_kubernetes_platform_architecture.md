@@ -117,6 +117,10 @@ For production SaaS, managed services are preferred where available:
 
 If databases/broker are self-hosted in Kubernetes, they should still be treated as the `signalops-data` plane with separate operational ownership, backups, and disaster-recovery tests.
 
+## Source-derived workload inventory
+
+The first infrastructure build artifact is [SignalOps Kubernetes Workload Inventory](kubernetes_workload_inventory.md). It classifies the current all-profile Compose topology into target planes, K8s workload kinds, statefulness, exposed ports, dependencies, and secret/config key classes. The initial Kubernetes base scaffold lives under `deploy/kubernetes/base` and currently contains namespaces, per-plane service accounts, and default-deny NetworkPolicies only.
+
 ## Initial migration path from Docker Compose
 
 1. Produce a compose-to-K8s workload inventory for web, gateway, Signal-Connect, MarketOps workers, CyberOps workers, Keycloak, broker, databases, and observability.

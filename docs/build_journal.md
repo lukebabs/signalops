@@ -9674,3 +9674,11 @@ Next-cycle priority:
 - Fixed the retry drift where `marketops-intelligence-cohort-runner` rejected an existing cohort `run_id` before reaching the repository-layer immutable-scope upsert guard. Retries now rely on the existing scoped idempotent upsert instead of failing on identical replays.
 - Remaining live-host action: install/reload the updated systemd timer unit files with interactive sudo or a newly provisioned deployment-agent installer action. Source already contains the new 16:20/16:30/17:05/17:20 ET schedule, but the currently installed timer files still show the prior 18:00+ ET cadence until host unit files are refreshed.
 
+### 2026-09-09 — SaaS Kubernetes infrastructure build resumed
+
+- Verified the September 8 MarketOps scheduler catch-up evidence before resuming infrastructure work: daily post-close, Risk/Reward, SRI, SRI holdings, post-close recovery, and operations monitor succeeded; warm EOD remained degraded only by the bounded provider gap of 995/1000 normalized symbols.
+- Generated `docs/projects/subscriber_project/kubernetes_workload_inventory.md` from the all-profile Compose topology using non-secret placeholder values. The inventory classifies 60 workloads by target plane, K8s kind, statefulness, exposure, dependencies, profiles, and secret/config key classes.
+- Added the initial non-applied Kubernetes base scaffold under `deploy/kubernetes/base`: seven target namespaces, per-plane service accounts, default-deny NetworkPolicies, kustomization, and README.
+- Validated the scaffold with `kubectl kustomize deploy/kubernetes/base`; render succeeded. Local k3s config emitted permission warnings for `/etc/rancher/k3s/config.yaml.d/90-syncratic-cilium.yaml`, but manifest rendering completed.
+- Docker Compose remains the live production authority. The K8s scaffold is planning/build groundwork and must not be applied to production until explicit staging/parity and data-plane gates are approved.
+

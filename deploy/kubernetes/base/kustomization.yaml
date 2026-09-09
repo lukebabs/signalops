@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespaces/signalops-app.yaml
+  - namespaces/signalops-connect.yaml
+  - namespaces/signalops-cyberops.yaml
+  - namespaces/signalops-data.yaml
+  - namespaces/signalops-identity.yaml
+  - namespaces/signalops-marketops.yaml
+  - namespaces/signalops-observability.yaml
+  - rbac/signalops-app-serviceaccounts.yaml
+  - rbac/signalops-connect-serviceaccounts.yaml
+  - rbac/signalops-cyberops-serviceaccounts.yaml
+  - rbac/signalops-data-serviceaccounts.yaml
+  - rbac/signalops-identity-serviceaccounts.yaml
+  - rbac/signalops-marketops-serviceaccounts.yaml
+  - rbac/signalops-observability-serviceaccounts.yaml
+  - network-policies/signalops-app-default-deny.yaml
+  - network-policies/signalops-connect-default-deny.yaml
+  - network-policies/signalops-cyberops-default-deny.yaml
+  - network-policies/signalops-data-default-deny.yaml
+  - network-policies/signalops-identity-default-deny.yaml
+  - network-policies/signalops-marketops-default-deny.yaml
+  - network-policies/signalops-observability-default-deny.yaml
