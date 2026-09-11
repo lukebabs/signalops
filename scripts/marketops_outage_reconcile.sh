@@ -69,6 +69,12 @@ export MARKETOPS_POSTCLOSE_RECOVERY_LOCK_FILE="$lock_dir/postclose-recovery.lock
 export MARKETOPS_SRI_LOCK_FILE="$lock_dir/sri-refresh.lock"
 export MARKETOPS_SRI_HOLDINGS_LOCK_FILE="$lock_dir/sri-holdings.lock"
 
+# Outage catch-up runs against completed historical sessions. Keep the same
+# provider-gap tolerance as the normal warm EOD path, but avoid waiting the full
+# scheduled-job normalization window when the only remaining gap is a bounded
+# provider no-bar set.
+export MARKETOPS_WARM_EOD_NORMALIZATION_TIMEOUT_SECONDS="${MARKETOPS_OUTAGE_WARM_EOD_NORMALIZATION_TIMEOUT_SECONDS:-120}"
+
 export MARKETOPS_WARM_EOD_ACKNOWLEDGE_WRITES=true
 bash "$ROOT_DIR/scripts/marketops_scheduled_job.sh" marketops-warm-eod "Outage catch-up for completed trading day" "$timezone" \
   "$ROOT_DIR/scripts/marketops_warm_eod_refresh.sh" --date "$session_date" --write
