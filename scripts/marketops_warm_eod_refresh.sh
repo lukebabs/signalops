@@ -8,6 +8,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_databas
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_coverage_tiers.sh"
 # shellcheck source=lib/marketops_trading_calendar.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_trading_calendar.sh"
+# shellcheck source=lib/marketops_locks.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_locks.sh"
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root_dir"
@@ -32,7 +34,7 @@ batch_size="${MARKETOPS_WARM_EOD_BATCH_SIZE:-100}"
 normalization_timeout="${MARKETOPS_WARM_EOD_NORMALIZATION_TIMEOUT_SECONDS:-900}"
 normalization_poll="${MARKETOPS_WARM_EOD_NORMALIZATION_POLL_SECONDS:-10}"
 max_missing_symbols="${MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS:-10}"
-lock_file="${MARKETOPS_WARM_EOD_LOCK_FILE:-/tmp/signalops-marketops-warm-eod.lock}"
+lock_file="${MARKETOPS_WARM_EOD_LOCK_FILE:-$(marketops_runtime_lock_file warm-eod)}"
 if [[ -z "$session_date" ]]; then
   session_date="$(TZ="$timezone" date '+%F')"
   [[ "$(TZ="$timezone" date '+%H%M%S')" -ge 162000 ]] || session_date="$(marketops_previous_trading_day "$timezone" "$session_date")"

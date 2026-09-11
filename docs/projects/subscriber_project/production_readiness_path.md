@@ -2,7 +2,7 @@
 
 Status: controlled paid-pilot readiness is advanced but not complete. PR-0, PR-1, PR-2, PR-4, and PR-5 are closed for the configured QA identities. The September 4, 2026 UTC follow-up confirms the tenant-local B2C enrollment path, no-MFA enrollment posture, Pricing/Stripe readiness surface, and enrollment-only subscription activation gate are deployed and tested.
 
-Last reviewed: 2026-09-04.
+Last reviewed: 2026-09-11.
 
 ## Readiness position
 
@@ -12,7 +12,7 @@ The current platform has enough structure to keep validating with controlled ten
 
 Infrastructure planning has resumed with a source-derived Kubernetes workload inventory and a non-applied base scaffold for namespaces, service accounts, NetworkPolicies, and OpenBao-backed secret projection. OpenBao HA is now a formal K8s dependency: production workload cutover requires active/standby health evidence, injector health, audit logging, per-plane Kubernetes auth roles, and snapshot/restore evidence. The read-only Kubernetes surface check is `scripts/verify_openbao_ha_readiness.sh`; authenticated OpenBao policy/seal/audit validation remains a separate gate. This is planning/build groundwork only; Docker Compose remains the live production authority until a separate K8s staging/parity gate is approved.
 
-Production readiness is still blocked by current backup/restore re-verification, tax/invoice evidence review, and cleanup of known historical test artifacts. Stripe Customer Portal, refund intake, and first real paid-flow activation evidence are now retained. The core operational-consistency loop for the tenant-local pilot scope has passed natural post-close acceptance after the MarketOps database decoupling.
+Production readiness is still blocked by current backup/restore re-verification, tax/invoice evidence review, cleanup of known historical test artifacts, and post-outage reconciliation closure for missed trading sessions. Stripe Customer Portal, refund intake, and first real paid-flow activation evidence are now retained. The core operational-consistency loop for the tenant-local pilot scope has passed natural post-close acceptance after the MarketOps database decoupling, and the September 9 outage recovery is being hardened around shared runtime locks, governed degraded statuses, and session-aware historical projections.
 
 ## Current evidence snapshot — 2026-09-04
 
@@ -31,6 +31,7 @@ Production readiness is still blocked by current backup/restore re-verification,
 | Subscription/access controls | Ready for configured QA identities / first paid activation closed | PR-2 closed tenant isolation, private-list owner projection, tier-enforcement canary, restoration, and Subscription Administration governance-surface browser evidence. B2C users remain in `tenant-local`; self-enrolled subjects without an effective subscription resolve to `subscription_missing` and route to Pricing. Pricing reads the configured Stripe product catalog, displays governed human-readable prices instead of raw Stripe Price IDs, Checkout-start is operational, and the first live Explorer monthly payment reconciled through a signed webhook into `explorer active` with B2C browser state `marketops_ready`. Admin-governed refund intake is now live: users can request refunds, admins triage/record disposition, and actual refund execution remains in Stripe Dashboard. Stripe Customer Portal self-service is implemented for active Stripe-backed subscriptions, with webhook-authoritative entitlement updates retained. |
 | Backup/restore | Deferred risk | Dedicated pgBackRest backup and isolated restore rehearsal previously passed. PR-3 current re-verification is intentionally deferred by product decision and remains a known readiness risk. |
 | SAF multi-horizon usefulness | Deployed first slice | SAF is currently pilot-ready as an operational viability view. [SAF-2 multi-horizon signal usefulness](saf_multi_horizon_usefulness_sprint.md) is deployed for deterministic lifecycle/usefulness projection over existing evidence. Migration `000168` records the `saf_usefulness.v1` policy contract; the production SAF Playwright smoke passed after gateway/web deployment. |
+| Outage reconciliation | In progress / hardening | September 9, 2026 recovery exposed fixed `/tmp` lock ownership drift in scheduled scripts and a historical EEOM projection defect. Runtime locks now use a shared helper, notification recording accepts governed non-binary job statuses, and migration `000174_subscriber_global_eeom_historical_projection` restores session-aware EEOM projection. Warm EOD recovered as governed degraded `995/1000`; historical options reconstruction remains bounded by provider contract-activity dates. |
 
 ## Production gates
 
@@ -52,6 +53,10 @@ These must close before wider pilot or paid production.
    - Acceptance:
      - Intraday, EOD, Risk/Reward, SRI, SAF projection, FMP annual, operations monitor, retention governance, and storage monitor all report through the same status layer.
      - Failed jobs expose root cause and recovery action without requiring HAR files or manual log archaeology.
+   - September 11 hardening note:
+     - Scheduled scripts must use the shared MarketOps runtime lock helper instead of fixed `/tmp` lock paths so deployment-agent, systemd, and manual recovery contexts cannot block one another through stale lock ownership.
+     - Recovery visibility must treat `degraded`, `recovery_needed`, `recovering`, and `skipped` as governed statuses, not notification-recorder failures.
+     - Historical projections must key by session date where the UI needs point-in-time recovery evidence.
 
 3. **Deployment smoke must be trustworthy**
    - Fix the deployment-agent web smoke false-positive `404`.

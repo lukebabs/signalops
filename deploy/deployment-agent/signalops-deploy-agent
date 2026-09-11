@@ -222,6 +222,46 @@ FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
   subscriber-qualified-warm-cohort-reconcile)
     run "$repository_dir/scripts/reconcile_subscriber_qualified_warm_cohort.sh" "$repository_dir/.env"
     ;;
+
+  marketops-global-dashboard-projection:*)
+    session_date="${action#marketops-global-dashboard-projection:}"
+    [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || {
+      printf 'Usage: signalops-deploy-agent marketops-global-dashboard-projection:YYYY-MM-DD
+' >&2
+      audit rejected
+      exit 2
+    }
+    set -a
+    # shellcheck disable=SC1091
+    source /etc/signalops/marketops-cutover.env
+    set +a
+    export SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
+    export SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
+    export SIGNALOPS_MARKETOPS_TEMPORAL_DB_SERVICE=marketops-timescaledb
+    export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE=marketops_temporal
+    export SIGNALOPS_ACTOR=subscriber-global-eod-reconciler
+    cd "$repository_dir"
+    run "$repository_dir/scripts/marketops_global_dashboard_projection.sh" "$session_date"
+    ;;
+  marketops-sri-refresh:*)
+    session_date="${action#marketops-sri-refresh:}"
+    [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || {
+      printf 'Usage: signalops-deploy-agent marketops-sri-refresh:YYYY-MM-DD
+' >&2
+      audit rejected
+      exit 2
+    }
+    set -a
+    # shellcheck disable=SC1091
+    source /etc/signalops/marketops-cutover.env
+    set +a
+    export SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
+    export SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
+    export SIGNALOPS_MARKETOPS_TEMPORAL_DB_SERVICE=marketops-timescaledb
+    export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE=marketops_temporal
+    cd "$repository_dir"
+    run "$repository_dir/scripts/marketops_scheduled_job.sh" marketops-sri-refresh "Dated outage catch-up SRI refresh" America/New_York "$repository_dir/scripts/marketops_sri_refresh.sh" --date "$session_date"
+    ;;
   marketops-saf-projection-refresh)
     set -a
     source /etc/signalops/marketops-cutover.env

@@ -2,6 +2,8 @@
 set -euo pipefail
 # shellcheck source=marketops_schedule_database.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_database.sh"
+# shellcheck source=lib/marketops_locks.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_locks.sh"
 # shellcheck source=lib/marketops_trading_calendar.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_trading_calendar.sh"
 
@@ -31,8 +33,8 @@ timezone="${MARKETOPS_DAILY_TIMEZONE:-America/New_York}"
 max_attempts="${MARKETOPS_POSTCLOSE_RECOVERY_MAX_ATTEMPTS:-2}"
 state_dir="${MARKETOPS_POSTCLOSE_RECOVERY_STATE_DIR:-$ROOT_DIR/runtime/postclose-recovery}"
 status_dir="${SIGNALOPS_SCHEDULE_STATUS_DIR:-$ROOT_DIR/runtime/scheduled-jobs}"
-daily_lock="${MARKETOPS_DAILY_LOCK_FILE:-/tmp/signalops-marketops-daily.lock}"
-recovery_lock="${MARKETOPS_POSTCLOSE_RECOVERY_LOCK_FILE:-/tmp/signalops-marketops-postclose-recovery.lock}"
+daily_lock="${MARKETOPS_DAILY_LOCK_FILE:-$(marketops_runtime_lock_file daily-postclose)}"
+recovery_lock="${MARKETOPS_POSTCLOSE_RECOVERY_LOCK_FILE:-$(marketops_runtime_lock_file postclose-recovery)}"
 
 [[ "$max_attempts" =~ ^[1-9][0-9]*$ ]] || { printf 'MARKETOPS_POSTCLOSE_RECOVERY_MAX_ATTEMPTS must be a positive integer\n' >&2; exit 2; }
 

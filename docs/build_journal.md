@@ -1,3 +1,14 @@
+### 2026-09-11 — MarketOps outage reconciliation hardening
+
+- Investigated the September 9, 2026 outage catch-up after the first controlled reconciliation failed on `/tmp/signalops-marketops-warm-eod.lock: Permission denied`.
+- Root cause: several MarketOps scheduled scripts still used fixed `/tmp/signalops-marketops-*.lock` paths. After the MarketOps database decoupling, jobs may run under deployment-agent, systemd, or manual operator contexts; fixed `/tmp` locks can be left owned by a different execution context and block later recovery.
+- Added a shared MarketOps runtime lock helper that prefers `/run/signalops/marketops-locks` and falls back to a per-user `/tmp/signalops-marketops-locks-*` directory. Warm EOD, daily post-close, post-close recovery, SRI refresh, and SRI holdings refresh now use the shared helper.
+- Expanded the administration notification recorder status model so governed scheduler states such as `degraded`, `recovery_needed`, `recovering`, and `skipped` are first-class notifications rather than recorder failures. The deployed image must be rebuilt before this visibility fix is active in production.
+- Added migration `000174_subscriber_global_eeom_historical_projection` to repair the global EEOM projection view. The view now includes `session_date` in the current-row identity so historical catch-up sessions are not hidden by newer earnings-event rows for the same asset/event pair.
+- Applied `000174` to the dedicated MarketOps database and verified September 9 EEOM projection rows are visible again.
+- Current outage-reconciliation evidence: warm EOD for September 9 completed as governed `degraded` with `bounded_provider_gap`, normalized `995/1000`, missing `APGE, AVB, CRNX, EQR, WBS`; core per-symbol daily algorithms are completing successfully under correlation `daily-evidence-20260909`.
+- Known recovery boundary: historical options chain capture cannot always be reconstructed after the fact when the provider reports contract activity dates after the requested catch-up date. Same-day post-close capture remains the authoritative path for options evidence.
+
 ### 2026-09-04 — Subscription activity identity-label repair
 
 - Fixed User Activity rendering in Subscription Administration so activity summaries/events can show email/display name instead of raw OIDC subject UUIDs.

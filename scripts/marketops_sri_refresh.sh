@@ -2,6 +2,8 @@
 set -euo pipefail
 # shellcheck source=marketops_schedule_database.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_database.sh"
+# shellcheck source=lib/marketops_locks.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_locks.sh"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -37,7 +39,7 @@ fi
 timezone="${MARKETOPS_SRI_TIMEZONE:-America/New_York}"
 normalization_timeout="${MARKETOPS_SRI_NORMALIZATION_TIMEOUT_SECONDS:-600}"
 normalization_poll="${MARKETOPS_SRI_NORMALIZATION_POLL_SECONDS:-5}"
-lock_file="${MARKETOPS_SRI_LOCK_FILE:-/tmp/signalops-marketops-sri-refresh.lock}"
+lock_file="${MARKETOPS_SRI_LOCK_FILE:-$(marketops_runtime_lock_file sri-refresh)}"
 symbols="IBB,IGV,KBE,KRE,OIH,QQQ,RSP,SKYY,SMH,SOXX,SPY,XBI,XLB,XLC,XLE,XLF,XLI,XLK,XLP,XLRE,XLU,XLV,XLY,XOP"
 
 if [[ -z "$session_date" ]]; then session_date="$(TZ="$timezone" date '+%F')"; fi

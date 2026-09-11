@@ -4,6 +4,8 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_database.sh"
 # shellcheck source=lib/marketops_trading_calendar.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_trading_calendar.sh"
+# shellcheck source=lib/marketops_locks.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_locks.sh"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -71,7 +73,7 @@ actor="${MARKETOPS_DAILY_ACTOR:-systemd-postclose}"
 # Per-run options capacity is enforced by run_options_batches; no universe cap applies.
 provider_batch_size="${MARKETOPS_DAILY_PROVIDER_BATCH_SIZE:-50}"
 option_symbols="${MARKETOPS_DAILY_OPTION_SYMBOLS:-NVDA,AAPL,GOOGL,MSFT,AMZN,TSM,SPCX,AVGO,TSLA,META,MU,BRK.B,LLY,JPM,AMD,WMT,ASML,V,JNJ,INTC,XOM,TCEHY,MA,AMAT,ABBV,CSCO,CAT,LRCX,BAC,COST,ORCL,GE,UNH,KO,MS,HD,PG,ARM,HSBC,CVX,NFLX,PLTR,MRK,GS,GEV,PM,RY,BABA,NVS,PANW}"
-lock_file="${MARKETOPS_DAILY_LOCK_FILE:-/tmp/signalops-marketops-daily.lock}"
+lock_file="${MARKETOPS_DAILY_LOCK_FILE:-$(marketops_runtime_lock_file daily-postclose)}"
 
 log() {
   printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*"
