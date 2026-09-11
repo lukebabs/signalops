@@ -9713,3 +9713,9 @@ Next-cycle priority:
 - Started bounded run-now catch-up for warm EOD, daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, SAF projection, and operations monitor. The latest run materialized `daily-evidence-20260910` while older missed-day recovery required a date-targeted action.
 - Added `scripts/marketops_outage_reconcile.sh` and deployment-agent action `marketops-outage-reconcile:YYYY-MM-DD` so a specific missed completed trading day can be reconciled through the root-owned allowlisted control surface instead of raw shell commands.
 - The dated action validates trading-day eligibility and runs warm EOD, daily post-close, post-close recovery, SRI, SRI holdings, global dashboard projection, and SAF benchmark projection using the existing locks/status wrappers.
+
+### 2026-09-11 — Warm EOD bounded provider-gap tolerance adjusted
+
+- Sep 10 outage catch-up proved the warm-EOD data path was healthy but failed strict completion at `994/1000` because six provider no-bar symbols exceeded the previous default tolerance of five.
+- Aligned the default warm-EOD missing-symbol tolerance with the accepted “skip assets without data” policy by increasing `MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS` default from `5` to `10`.
+- This keeps the run visible as governed `degraded` with missing-symbol detail instead of marking the whole 1000-symbol warm cohort as failed for a small provider no-bar gap.

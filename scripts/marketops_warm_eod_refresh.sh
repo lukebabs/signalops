@@ -31,7 +31,7 @@ timezone="${MARKETOPS_WARM_EOD_TIMEZONE:-America/New_York}"
 batch_size="${MARKETOPS_WARM_EOD_BATCH_SIZE:-100}"
 normalization_timeout="${MARKETOPS_WARM_EOD_NORMALIZATION_TIMEOUT_SECONDS:-900}"
 normalization_poll="${MARKETOPS_WARM_EOD_NORMALIZATION_POLL_SECONDS:-10}"
-max_missing_symbols="${MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS:-5}"
+max_missing_symbols="${MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS:-10}"
 lock_file="${MARKETOPS_WARM_EOD_LOCK_FILE:-/tmp/signalops-marketops-warm-eod.lock}"
 if [[ -z "$session_date" ]]; then
   session_date="$(TZ="$timezone" date '+%F')"

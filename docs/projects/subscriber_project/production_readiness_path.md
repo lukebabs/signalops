@@ -571,7 +571,7 @@ Evidence:
 
 - `scheduler-status` showed all tracked MarketOps timers active and tracked services inactive with `result=success`.
 - Dedicated MarketOps job status showed successful September 1/2 UTC completion for daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, intraday, and FMP annual financial.
-- `marketops-warm-eod` completed as `degraded` with `reason=bounded_provider_gap`; this is the governed no-bar gap state previously accepted for the 1,000-symbol warm cohort.
+- `marketops-warm-eod` completed as `degraded` with `reason=bounded_provider_gap`; this is the governed no-bar gap state previously accepted for the 1,000-symbol warm cohort. Sep 11 outage recovery raised the default bounded no-bar tolerance to 10 symbols so small provider gaps remain degraded rather than hard-failed.
 - Observability gap: the warm-EOD status row had `detail={}`, so the Admin surface could not expose the specific normalized/expected/missing-symbol evidence.
 - Source fix: `scripts/marketops_scheduled_job.sh` now captures warm-EOD normalization output and persists structured detail for degraded/incomplete runs. This does not change provider polling, success/failure semantics, or the bounded-provider-gap policy.
 - Browser validation after the post-close cycle passed: `scripts/run_marketops_dashboard_freshness_ui_smoke.sh` returned `1 passed`; `scripts/run_subscriber_pilot_ui_smoke.sh` returned `2 passed`.
