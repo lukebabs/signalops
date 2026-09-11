@@ -529,8 +529,21 @@ if $write_mode; then
   fi
   if [[ -n "${SIGNALOPS_WEB:-}" && -n "${SIGNALOPS_WEB_PASS:-}" ]]; then
     log "subscriber pilot browser acceptance started"
-    ./scripts/run_subscriber_pilot_ui_smoke.sh || exit 11
-    log "subscriber pilot browser acceptance passed"
+    qa_operator="${SIGNALOPS_QA_OPERATOR:-${SUDO_USER:-}}"
+    browser_acceptance="passed"
+    if [[ "${EUID:-$(id -u)}" -eq 0 && -n "$qa_operator" && "$qa_operator" != "root" && "$qa_operator" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+      qa_home="$(getent passwd "$qa_operator" | cut -d: -f6)"
+      if [[ -n "$qa_home" && -d "$qa_home/.cache/ms-playwright" ]]; then
+        runuser -u "$qa_operator" -- env "HOME=$qa_home" "PLAYWRIGHT_BROWSERS_PATH=$qa_home/.cache/ms-playwright" \
+          ./scripts/run_subscriber_pilot_ui_smoke.sh || exit 11
+      else
+        browser_acceptance="skipped"
+        log "subscriber pilot browser acceptance skipped: Playwright browser cache missing for operator=$qa_operator"
+      fi
+    else
+      ./scripts/run_subscriber_pilot_ui_smoke.sh || exit 11
+    fi
+    log "subscriber pilot browser acceptance $browser_acceptance"
   else
     log "subscriber pilot browser acceptance skipped: QA identity is not configured"
   fi

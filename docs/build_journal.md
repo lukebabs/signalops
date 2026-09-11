@@ -8,6 +8,7 @@
 - Applied `000174` to the dedicated MarketOps database and verified September 9 EEOM projection rows are visible again.
 - Current outage-reconciliation evidence: warm EOD for September 9 completed as governed `degraded` with `bounded_provider_gap`, normalized `995/1000`, missing `APGE, AVB, CRNX, EQR, WBS`; core per-symbol daily algorithms are completing successfully under correlation `daily-evidence-20260909`.
 - Known recovery boundary: historical options chain capture cannot always be reconstructed after the fact when the provider reports contract activity dates after the requested catch-up date. Same-day post-close capture remains the authoritative path for options evidence.
+- Follow-up hardening: the daily post-close browser acceptance gate now runs Playwright under the approved operator account/cache when invoked by root, preventing data-plane jobs from being marked failed solely because `/root/.cache/ms-playwright` is not populated.
 
 ### 2026-09-04 — Subscription activity identity-label repair
 
