@@ -28,7 +28,10 @@ endpoint="${base_url%/}/v2/aggs/ticker/${symbol}/range/1/day/${observation_date}
 
 printf 'Massive credential preflight: symbol=%s date=%s endpoint=%s\n' "$symbol" "$observation_date" "${base_url%/}/v2/aggs/ticker/..."
 
-status="$(curl -sS -o /tmp/marketops_massive_preflight_body.json -w '%{http_code}' --get "$endpoint" --data-urlencode "apiKey=$api_key")"
+body_file="$(mktemp -t marketops_massive_preflight_body.XXXXXX.json)"
+cleanup_body_file() { rm -f "$body_file"; }
+trap cleanup_body_file EXIT
+status="$(curl -sS -o "$body_file" -w '%{http_code}' --get "$endpoint" --data-urlencode "apiKey=$api_key")"
 case "$status" in
   2*)
     printf 'Massive credential preflight passed with HTTP %s.\n' "$status"
