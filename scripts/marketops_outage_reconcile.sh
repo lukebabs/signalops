@@ -61,6 +61,14 @@ fi
 
 printf '%s outage reconciliation started session=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$session_date"
 
+lock_dir="${MARKETOPS_OUTAGE_RECONCILE_LOCK_DIR:-/run/signalops/marketops-outage-reconcile}"
+mkdir -p "$lock_dir"
+export MARKETOPS_WARM_EOD_LOCK_FILE="$lock_dir/warm-eod.lock"
+export MARKETOPS_DAILY_LOCK_FILE="$lock_dir/daily-postclose.lock"
+export MARKETOPS_POSTCLOSE_RECOVERY_LOCK_FILE="$lock_dir/postclose-recovery.lock"
+export MARKETOPS_SRI_LOCK_FILE="$lock_dir/sri-refresh.lock"
+export MARKETOPS_SRI_HOLDINGS_LOCK_FILE="$lock_dir/sri-holdings.lock"
+
 export MARKETOPS_WARM_EOD_ACKNOWLEDGE_WRITES=true
 bash "$ROOT_DIR/scripts/marketops_scheduled_job.sh" marketops-warm-eod "Outage catch-up for completed trading day" "$timezone" \
   "$ROOT_DIR/scripts/marketops_warm_eod_refresh.sh" --date "$session_date" --write

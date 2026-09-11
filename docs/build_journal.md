@@ -9719,3 +9719,9 @@ Next-cycle priority:
 - Sep 10 outage catch-up proved the warm-EOD data path was healthy but failed strict completion at `994/1000` because six provider no-bar symbols exceeded the previous default tolerance of five.
 - Aligned the default warm-EOD missing-symbol tolerance with the accepted “skip assets without data” policy by increasing `MARKETOPS_WARM_EOD_MAX_MISSING_SYMBOLS` default from `5` to `10`.
 - This keeps the run visible as governed `degraded` with missing-symbol detail instead of marking the whole 1000-symbol warm cohort as failed for a small provider no-bar gap.
+
+### 2026-09-11 — Outage reconciler lock isolation
+
+- First live run of `marketops-outage-reconcile:2026-09-09` failed before provider work because existing `/tmp/signalops-marketops-*.lock` files were owned by the non-root scheduler user and not writable by the root-owned deployment-agent action.
+- Updated the outage reconciler to use a dedicated root-owned lock directory, `/run/signalops/marketops-outage-reconcile`, for warm-EOD, daily post-close, post-close recovery, SRI refresh, and SRI holdings locks.
+- This preserves normal scheduler locks while allowing the bounded deployment-agent catch-up path to run without broadening file permissions or deleting historical `/tmp` lock files.
