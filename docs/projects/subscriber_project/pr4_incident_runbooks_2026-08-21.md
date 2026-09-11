@@ -352,3 +352,33 @@ Record:
 - Final verification result.
 - Any disabled timers or feature flags.
 - Follow-up work item if the incident exposed a product or architectural gap.
+
+
+## Host outage missed trading-day reconciliation
+
+Use this when the server was unavailable during one or more completed trading-day MarketOps windows and the regular timers did not run.
+
+Recovery order:
+
+1. Confirm timers are active:
+
+   ```bash
+   sudo -n signalops-deploy-agent scheduler-status
+   ```
+
+2. If backup recovery points are stale, refresh the bounded pgBackRest recovery point first:
+
+   ```bash
+   sudo -n signalops-deploy-agent backup-run
+   sudo -n signalops-deploy-agent scheduler-run-now:marketops-operations-monitor
+   ```
+
+3. For each missed completed trading day, run the constrained dated action:
+
+   ```bash
+   sudo -n signalops-deploy-agent marketops-outage-reconcile:YYYY-MM-DD
+   ```
+
+The dated action validates the date, rejects weekends/holidays/future sessions, and then runs warm EOD, daily post-close, post-close recovery, SRI, SRI holdings, global dashboard projection, and SAF benchmark projection using the existing status wrappers and locks.
+
+Do not run raw provider or post-close scripts manually unless the deployment-agent action itself is unavailable and a named operator approves the break-glass path.

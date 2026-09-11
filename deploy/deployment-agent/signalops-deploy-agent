@@ -97,6 +97,23 @@ case "$action" in
     systemctl start signalops-marketops-boundary-schedule@marketops-daily-postclose.service
     audit success
     ;;
+  marketops-outage-reconcile:*)
+    session_date="${action#marketops-outage-reconcile:}"
+    [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || {
+      printf 'Usage: signalops-deploy-agent marketops-outage-reconcile:YYYY-MM-DD\n' >&2
+      audit rejected
+      exit 2
+    }
+    set -a
+    # shellcheck disable=SC1091
+    source /etc/signalops/marketops-cutover.env
+    set +a
+    export SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
+    export SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
+    export SIGNALOPS_MARKETOPS_TEMPORAL_DB_SERVICE=marketops-timescaledb
+    export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE=marketops_temporal
+    run "$repository_dir/scripts/marketops_outage_reconcile.sh" --date "$session_date" --write
+    ;;
   marketops-postclose-status-reconcile)
     run systemctl start signalops-marketops-boundary-schedule@marketops-postclose-recovery.service
     ;;

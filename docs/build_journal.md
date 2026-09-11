@@ -9705,3 +9705,11 @@ Next-cycle priority:
 - Added `scripts/verify_openbao_ha_readiness.sh` for a read-only Kubernetes surface check covering namespace, services, injector deployment/webhook, annotation prefix, and ready server pod count.
 - No live OpenBao configuration, policies, tokens, or secret values were changed or committed.
 - Initial read-only verifier run did not pass: current cluster showed `statefulset/openbao` as `0/1` ready and only `openbao-0` present as a non-injector server pod. This confirms HA build-out remains open before SignalOps workload cutover.
+
+### 2026-09-11 — MarketOps outage reconciliation control
+
+- After a two-day server outage, scheduler status showed all MarketOps timers active again, but the operations monitor initially failed because MarketOps pgBackRest recovery points were stale while WAL and scheduler checks were healthy.
+- Ran the bounded deployment-agent recovery-point refresh and restarted the operations monitor; the operations monitor returned to success.
+- Started bounded run-now catch-up for warm EOD, daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, SAF projection, and operations monitor. The latest run materialized `daily-evidence-20260910` while older missed-day recovery required a date-targeted action.
+- Added `scripts/marketops_outage_reconcile.sh` and deployment-agent action `marketops-outage-reconcile:YYYY-MM-DD` so a specific missed completed trading day can be reconciled through the root-owned allowlisted control surface instead of raw shell commands.
+- The dated action validates trading-day eligibility and runs warm EOD, daily post-close, post-close recovery, SRI, SRI holdings, global dashboard projection, and SAF benchmark projection using the existing locks/status wrappers.
