@@ -1,0 +1,369 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: marketops-intraday
+  namespace: signalops-marketops
+  labels:
+    app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+    app.kubernetes.io/component: scheduled-worker
+    signalops.syncratic.io/plane: marketops
+    signalops.syncratic.io/job-id: marketops-intraday
+spec:
+  schedule: "*/15 9-20 * * 1-5"
+  timeZone: "America/New_York"
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+            app.kubernetes.io/component: scheduled-worker
+            app.kubernetes.io/part-of: signalops
+            signalops.syncratic.io/plane: marketops
+            signalops.syncratic.io/stage: staging
+            signalops.syncratic.io/production-cutover-allowed: "false"
+            signalops.syncratic.io/job-id: marketops-intraday
+          annotations:
+            vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/role: "signalops-marketops"
+            vault.hashicorp.com/tls-skip-verify: "true"
+            vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
+            vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
+              {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MASSIVE_BASE_URL='{{ .Data.data.SIGNALOPS_MASSIVE_BASE_URL }}'
+              export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
+              export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
+              export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              {{- end }}
+        spec:
+          serviceAccountName: signalops-marketops-provider-worker
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: signalops-ghcr-pull
+          containers:
+            - name: marketops-job
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging
+              imagePullPolicy: IfNotPresent
+              args:
+                - marketops-intraday
+              env:
+                - name: SIGNALOPS_ENV
+                  value: kubernetes-staging
+                - name: SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED
+                  value: "true"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 750m
+                  memory: 512Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: marketops-sri-refresh
+  namespace: signalops-marketops
+  labels:
+    app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+    app.kubernetes.io/component: scheduled-worker
+    signalops.syncratic.io/plane: marketops
+    signalops.syncratic.io/job-id: marketops-sri-refresh
+spec:
+  schedule: "5 17 * * 1-5"
+  timeZone: "America/New_York"
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+            app.kubernetes.io/component: scheduled-worker
+            app.kubernetes.io/part-of: signalops
+            signalops.syncratic.io/plane: marketops
+            signalops.syncratic.io/stage: staging
+            signalops.syncratic.io/production-cutover-allowed: "false"
+            signalops.syncratic.io/job-id: marketops-sri-refresh
+          annotations:
+            vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/role: "signalops-marketops"
+            vault.hashicorp.com/tls-skip-verify: "true"
+            vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
+            vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
+              {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MASSIVE_BASE_URL='{{ .Data.data.SIGNALOPS_MASSIVE_BASE_URL }}'
+              export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
+              export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
+              export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              {{- end }}
+        spec:
+          serviceAccountName: signalops-marketops-analytics-worker
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: signalops-ghcr-pull
+          containers:
+            - name: marketops-job
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging
+              imagePullPolicy: IfNotPresent
+              args:
+                - marketops-sri-refresh
+              env:
+                - name: SIGNALOPS_ENV
+                  value: kubernetes-staging
+                - name: SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED
+                  value: "true"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 750m
+                  memory: 512Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: marketops-sri-holdings-refresh
+  namespace: signalops-marketops
+  labels:
+    app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+    app.kubernetes.io/component: scheduled-worker
+    signalops.syncratic.io/plane: marketops
+    signalops.syncratic.io/job-id: marketops-sri-holdings-refresh
+spec:
+  schedule: "20 17 * * 1-5"
+  timeZone: "America/New_York"
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+            app.kubernetes.io/component: scheduled-worker
+            app.kubernetes.io/part-of: signalops
+            signalops.syncratic.io/plane: marketops
+            signalops.syncratic.io/stage: staging
+            signalops.syncratic.io/production-cutover-allowed: "false"
+            signalops.syncratic.io/job-id: marketops-sri-holdings-refresh
+          annotations:
+            vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/role: "signalops-marketops"
+            vault.hashicorp.com/tls-skip-verify: "true"
+            vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
+            vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
+              {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MASSIVE_BASE_URL='{{ .Data.data.SIGNALOPS_MASSIVE_BASE_URL }}'
+              export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
+              export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
+              export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              {{- end }}
+        spec:
+          serviceAccountName: signalops-marketops-provider-worker
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: signalops-ghcr-pull
+          containers:
+            - name: marketops-job
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging
+              imagePullPolicy: IfNotPresent
+              args:
+                - marketops-sri-holdings-refresh
+              env:
+                - name: SIGNALOPS_ENV
+                  value: kubernetes-staging
+                - name: SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED
+                  value: "true"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 750m
+                  memory: 512Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: marketops-fmp-annual-financial
+  namespace: signalops-marketops
+  labels:
+    app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+    app.kubernetes.io/component: scheduled-worker
+    signalops.syncratic.io/plane: marketops
+    signalops.syncratic.io/job-id: marketops-fmp-annual-financial
+spec:
+  schedule: "30 2 * * 6"
+  timeZone: "America/New_York"
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 7200
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+            app.kubernetes.io/component: scheduled-worker
+            app.kubernetes.io/part-of: signalops
+            signalops.syncratic.io/plane: marketops
+            signalops.syncratic.io/stage: staging
+            signalops.syncratic.io/production-cutover-allowed: "false"
+            signalops.syncratic.io/job-id: marketops-fmp-annual-financial
+          annotations:
+            vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/role: "signalops-marketops"
+            vault.hashicorp.com/tls-skip-verify: "true"
+            vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
+            vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
+              {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MASSIVE_BASE_URL='{{ .Data.data.SIGNALOPS_MASSIVE_BASE_URL }}'
+              export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
+              export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
+              export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              {{- end }}
+        spec:
+          serviceAccountName: signalops-marketops-provider-worker
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: signalops-ghcr-pull
+          containers:
+            - name: marketops-job
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging
+              imagePullPolicy: IfNotPresent
+              args:
+                - marketops-fmp-annual-financial
+              env:
+                - name: SIGNALOPS_ENV
+                  value: kubernetes-staging
+                - name: SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED
+                  value: "true"
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 256Mi
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: marketops-saf-benchmark
+  namespace: signalops-marketops
+  labels:
+    app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+    app.kubernetes.io/component: scheduled-worker
+    signalops.syncratic.io/plane: marketops
+    signalops.syncratic.io/job-id: marketops-saf-benchmark
+spec:
+  schedule: "45 18 * * 1-5"
+  timeZone: "America/New_York"
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+            app.kubernetes.io/component: scheduled-worker
+            app.kubernetes.io/part-of: signalops
+            signalops.syncratic.io/plane: marketops
+            signalops.syncratic.io/stage: staging
+            signalops.syncratic.io/production-cutover-allowed: "false"
+            signalops.syncratic.io/job-id: marketops-saf-benchmark
+          annotations:
+            vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/role: "signalops-marketops"
+            vault.hashicorp.com/tls-skip-verify: "true"
+            vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
+            vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
+              {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MASSIVE_BASE_URL='{{ .Data.data.SIGNALOPS_MASSIVE_BASE_URL }}'
+              export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
+              export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
+              export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              {{- end }}
+        spec:
+          serviceAccountName: signalops-marketops-saf-worker
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: signalops-ghcr-pull
+          containers:
+            - name: marketops-job
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging
+              imagePullPolicy: IfNotPresent
+              args:
+                - marketops-saf-benchmark
+              env:
+                - name: SIGNALOPS_ENV
+                  value: kubernetes-staging
+                - name: SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED
+                  value: "true"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 750m
+                  memory: 512Mi

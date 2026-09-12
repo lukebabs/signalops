@@ -397,3 +397,21 @@ ENTRYPOINT ["/signalops-subscriber-global-eod-shadow-planner"]
 FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-intraday-shadow-capture
 COPY --from=build /out/signalops-subscriber-global-intraday-shadow-capture /signalops-subscriber-global-intraday-shadow-capture
 ENTRYPOINT ["/signalops-subscriber-global-intraday-shadow-capture"]
+FROM debian:bookworm-slim AS marketops-k8s-job-runner
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends bash ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=build /out/signalops-marketops-intraday-monitor /usr/local/bin/signalops-marketops-intraday-monitor
+COPY --from=build /out/signalops-marketops-sri-runner /usr/local/bin/signalops-marketops-sri-runner
+COPY --from=build /out/signalops-marketops-sri-holdings-runner /usr/local/bin/signalops-marketops-sri-holdings-runner
+COPY --from=build /out/signalops-subscriber-global-annual-financial-task-worker /usr/local/bin/signalops-subscriber-global-annual-financial-task-worker
+COPY --from=build /out/signalops-subscriber-global-saf-benchmark-materializer /usr/local/bin/signalops-subscriber-global-saf-benchmark-materializer
+COPY scripts/k8s_marketops_job_entrypoint.sh /usr/local/bin/signalops-k8s-marketops-job
+
+RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job
+
+ENTRYPOINT ["/usr/local/bin/signalops-k8s-marketops-job"]

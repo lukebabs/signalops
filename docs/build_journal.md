@@ -9855,4 +9855,11 @@ Next-cycle priority:
 - Added staging-only `allow-web-gateway-proxy-egress` and `allow-web-gateway-proxy-ingress` policies so web can resolve/reach gateway and gateway can accept proxy traffic from web on TCP 8080.
 - Final smoke passed: web and gateway rolled out in `signalops-app`, Playwright verified the SignalOps SPA route and web-proxied gateway `/healthz` and `/readyz`, no provider polling or production cutover occurred, and staging Deployments scaled back to `0/0`.
 - Authenticated staging UX parity remains a separate gate because localhost port-forward cannot satisfy the live Keycloak production callback redirect.
+### 2026-09-12 — K8S-3 MarketOps suspended CronJob scaffold prepared
+
+- Added a `marketops-k8s-job-runner` Dockerfile target so Kubernetes jobs do not reuse host Docker Compose scheduler wrappers.
+- Added `scripts/k8s_marketops_job_entrypoint.sh`, which sources the OpenBao-injected runtime file and dispatches to direct compiled MarketOps worker binaries.
+- Added suspended staging CronJobs for intraday, SRI refresh, SRI holdings refresh, FMP annual financials, and SAF benchmark materialization. All are `suspend: true`, `concurrencyPolicy: Forbid`, deadline-bound, and labelled `production-cutover-allowed=false`.
+- Added a staging-only OpenBao egress NetworkPolicy for MarketOps job pods and `scripts/verify_k8s_marketops_scheduled_jobs_manifests.sh`.
+- Validation passed: the `marketops-k8s-job-runner` image target built locally, and the manifest verifier rendered 5 suspended CronJobs, 1 NetworkPolicy, 0 Secrets, 0 Services, 0 Deployments, and 0 StatefulSets with server-side dry-run only. No live Kubernetes schedule was enabled.
 
