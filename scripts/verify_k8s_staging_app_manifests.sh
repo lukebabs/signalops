@@ -37,7 +37,7 @@ networkpolicies="$(count_kind NetworkPolicy)"
 [[ "$statefulsets" -eq 0 ]] || fail "expected 0 StatefulSets, found ${statefulsets}"
 [[ "$secrets" -eq 0 ]] || fail "expected 0 Kubernetes Secrets, found ${secrets}"
 [[ "$configmaps" -eq 1 ]] || fail "expected 1 ConfigMap, found ${configmaps}"
-[[ "$networkpolicies" -eq 2 ]] || fail "expected 2 NetworkPolicies, found ${networkpolicies}"
+[[ "$networkpolicies" -eq 4 ]] || fail "expected 4 NetworkPolicies, found ${networkpolicies}"
 
 printf '%s
 ' "$rendered" | grep -q 'signalops.syncratic.io/production-cutover-allowed: "false"' || fail "production cutover false label missing"
@@ -59,6 +59,10 @@ printf '%s
 ' "$rendered" | grep -q 'SIGNALOPS_MARKETOPS_DATABASE_MAX_OPEN_CONNS' || fail "MarketOps DB pool cap env missing"
 printf '%s
 ' "$rendered" | grep -q 'signalops-gateway.signalops-app.svc.cluster.local:8080' || fail "Kubernetes-native web gateway upstream missing"
+printf '%s
+' "$rendered" | grep -q 'name: allow-web-gateway-proxy-egress' || fail "web-to-gateway egress policy missing"
+printf '%s
+' "$rendered" | grep -q 'name: allow-web-gateway-proxy-ingress' || fail "gateway ingress from web policy missing"
 printf '%s
 ' "$rendered" | grep -q 'wget -qO- --timeout=2 http://127.0.0.1:8080/' || fail "web in-container readiness probe missing"
 

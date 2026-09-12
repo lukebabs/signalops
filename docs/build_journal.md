@@ -9847,3 +9847,12 @@ Next-cycle priority:
 - Added the full Syncratic token-auth runtime keys to the OpenBao injection template after gateway startup reached the dedicated data boundary and then failed on missing `SYNCRATIC_TOKEN_URL`.
 - Final bounded smoke passed: `signalops_k8s_staging_gateway_runtime_smoke_verified`, `gateway_ready=true`, `healthz=true`, `readyz=true`, `provider_polling=false`, `scaled_back_to_zero=true`.
 - Removed the temporary local runtime env file after execution and confirmed staging `signalops-web` and `signalops-gateway` Deployments are back at `0/0`. Docker Compose remains production authority.
+### 2026-09-12 — K8S-2 staging app parity smoke closed
+
+- Added `scripts/run_k8s_staging_app_parity_smoke.sh` and `python/tests/test_k8s_staging_app_parity.py` to make staging app parity repeatable through a bounded localhost port-forward.
+- The first run exposed a local port collision with Redpanda Console; the smoke now auto-selects a free localhost port and waits for explicit kubectl forwarding evidence before launching Playwright.
+- The next run proved the SPA shell served through the staging web Deployment, then exposed a missing NetworkPolicy path from web nginx to gateway.
+- Added staging-only `allow-web-gateway-proxy-egress` and `allow-web-gateway-proxy-ingress` policies so web can resolve/reach gateway and gateway can accept proxy traffic from web on TCP 8080.
+- Final smoke passed: web and gateway rolled out in `signalops-app`, Playwright verified the SignalOps SPA route and web-proxied gateway `/healthz` and `/readyz`, no provider polling or production cutover occurred, and staging Deployments scaled back to `0/0`.
+- Authenticated staging UX parity remains a separate gate because localhost port-forward cannot satisfy the live Keycloak production callback redirect.
+

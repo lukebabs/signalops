@@ -5,9 +5,11 @@ resources:
   - gateway-service.yaml
   - gateway-allow-runtime-smoke-postgres-egress.yaml
   - runtime-smoke-postgres-allow-signalops-gateway-ingress.yaml
+  - gateway-allow-web-proxy-ingress.yaml
   - web-deployment.yaml
   - web-nginx-config.yaml
   - web-service.yaml
+  - web-allow-gateway-proxy-egress.yaml
 labels:
   - includeSelectors: false
     pairs:
