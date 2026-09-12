@@ -1,6 +1,6 @@
 # Kubernetes/OpenBao staging cutover gate
 
-Status: active production-readiness gate; single-node OpenBao staging exception approved; no production workload cutover approved.
+Status: active production-readiness gate; single-node OpenBao path approved for staging and initial production planning; no production workload cutover approved.
 
 Recorded: 2026-09-12.
 
@@ -22,7 +22,7 @@ The verifier also surfaced k3s config permission warnings for `/etc/rancher/k3s/
 
 ## Approved single-node staging exception
 
-Product approved a narrow option-B exception so K8s staging mechanics can continue while OpenBao HA is still being built.
+Product approved option B as the operating posture: K8s staging mechanics and initial production planning can continue with single-node OpenBao while true HA is built as resilience hardening.
 
 The exception allows `scripts/verify_openbao_ha_readiness.sh --allow-single-node-staging` to pass when at least one OpenBao server pod is ready. This mode is explicitly non-production and emits `mode=single_node_staging_exception` with `production_cutover_allowed=false`.
 
@@ -52,7 +52,8 @@ This exception does not permit:
 - production DNS/ingress switch;
 - production provider polling from Kubernetes;
 - production secret migration as a restart-critical dependency;
-- declaring OpenBao HA ready.
+- declaring OpenBao HA ready;
+- treating absence of OpenBao HA as a launch blocker when backup/restore and recovery controls are current.
 
 ## Entry requirements
 
@@ -175,6 +176,6 @@ Acceptance:
 
 ## Current blocker
 
-The immediate production blocker is OpenBao HA evidence. The default verifier requires at least three ready non-injector OpenBao server pods. If the intended production topology is a different fault-tolerant model, update the verifier and architecture documents with that explicit design before production workload conversion.
+The immediate OpenBao requirement is not HA by itself; it is recoverability. Production planning may continue with one OpenBao server pod when the following controls are current: encrypted backups or snapshots, documented seal/unseal recovery, restore rehearsal, per-plane policies, audit logging, and a rollback path that keeps Docker Compose/systemd available until Kubernetes cutover is explicitly approved.
 
-For now, the approved single-node staging exception allows K8S-1 non-production scaffolding and injector tests to proceed, but it does not reduce the production HA requirement.
+True OpenBao HA remains the preferred resilience target and should be added through extra nodes or an equivalent topology, but it is no longer documented as a production launch blocker by default. The verifier remains useful to measure that hardening target.

@@ -9962,3 +9962,9 @@ Next-cycle priority:
 - Published immutable private GHCR image `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:5012610ac808`; Docker build executed the full Go test suite successfully.
 - The approved provider smoke initially exposed staging schema gaps and then passed with run id `k8s-provider-cronjob-fmp-20260912T220410Z`: scheduler status `succeeded`, runner `kubernetes-provider-cronjob-smoke`, dry-run `false`, AAPL task `succeeded`, `attempt_count=1`, `max_attempts=1`, and one correlated FMP annual evidence record.
 - Cleanup verified all staged MarketOps CronJobs restored to `suspend=true` and no Jobs remained in `signalops-marketops`. Docker Compose/systemd remains production scheduler authority.
+
+### 2026-09-12 — OpenBao HA reframed as resilience hardening, not launch blocker
+
+- Updated Subscriber Project production-readiness documentation to reflect the product decision that OpenBao HA should not be treated as a production limitation by itself.
+- Production planning may continue with single-node OpenBao when backup/restore, seal/unseal recovery, audit logging, per-plane policies, and rollback controls are current.
+- True OpenBao HA remains the preferred resilience target and the verifier remains useful to measure that hardening target, but the launch gate is now recoverability and controlled rollback rather than three ready OpenBao pods by default.
