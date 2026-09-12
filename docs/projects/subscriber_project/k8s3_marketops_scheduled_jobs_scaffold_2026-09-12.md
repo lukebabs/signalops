@@ -96,9 +96,9 @@ applied=false
 
 ## Remaining gates before K8S scheduler activation
 
-1. Publish `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging` and verify private GHCR pull.
+1. Publish `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging` and verify private GHCR pull. Current attempt is blocked because the available GHCR token can read existing packages but cannot push/create this package.
 2. Provision the OpenBao `signalops-marketops` staging runtime path with non-production values and prove app-plane denial.
-3. Run a suspended-CronJob apply/list smoke that proves the CronJobs remain suspended in-cluster.
+3. Suspended-CronJob apply/list smoke is closed: five CronJobs are present in `signalops-marketops`, all suspended, with zero Jobs and zero Pods created.
 4. Add a non-provider dry-run Job for one worker where supported.
 5. Build DB-backed scheduler-completion parity so Admin Operations Health can read K8S job status exactly as it reads host/systemd status today.
 6. Only after the above, request a named approval to unsuspend one staging CronJob with no provider polling.

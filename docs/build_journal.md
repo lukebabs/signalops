@@ -9862,4 +9862,10 @@ Next-cycle priority:
 - Added suspended staging CronJobs for intraday, SRI refresh, SRI holdings refresh, FMP annual financials, and SAF benchmark materialization. All are `suspend: true`, `concurrencyPolicy: Forbid`, deadline-bound, and labelled `production-cutover-allowed=false`.
 - Added a staging-only OpenBao egress NetworkPolicy for MarketOps job pods and `scripts/verify_k8s_marketops_scheduled_jobs_manifests.sh`.
 - Validation passed: the `marketops-k8s-job-runner` image target built locally, and the manifest verifier rendered 5 suspended CronJobs, 1 NetworkPolicy, 0 Secrets, 0 Services, 0 Deployments, and 0 StatefulSets with server-side dry-run only. No live Kubernetes schedule was enabled.
+### 2026-09-12 — K8S-3 suspended CronJob apply smoke passed
+
+- Added `scripts/publish_k8s_marketops_job_runner_image.sh` to make GHCR publication of the dedicated MarketOps K8S job-runner repeatable. The image build succeeded, but GHCR push failed with `permission_denied: token provided does not match expected scopes`, so publication remains blocked on package write/create permission for `syncratic-inc`.
+- Added `scripts/run_k8s_marketops_suspended_cronjob_apply_smoke.sh` to apply the staging MarketOps scheduled-job overlay and prove the CronJobs remain suspended.
+- Live K8S validation passed in `signalops-marketops`: 5 CronJobs applied, all `suspend=true`, all `concurrencyPolicy=Forbid`, zero Jobs created, zero Pods created, provider polling false, and production cutover false.
+- Docker Compose/systemd remains the production scheduler authority; K8S CronJobs are staged as suspended objects only.
 
