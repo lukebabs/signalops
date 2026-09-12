@@ -42,6 +42,10 @@ printf '%s
 printf '%s
 ' "$rendered" | grep -q 'signalops/data/k8s/app/signalops-gateway-runtime-staging' || fail "staging OpenBao secret path missing"
 printf '%s
+' "$rendered" | grep -q 'imagePullSecrets:' || fail "imagePullSecrets missing"
+printf '%s
+' "$rendered" | grep -q 'name: signalops-ghcr-pull' || fail "GHCR pull secret reference missing"
+printf '%s
 ' "$rendered" | grep -q 'image: ghcr.io/syncratic-inc/signalops-gateway:staging' || fail "GHCR staging gateway image missing"
 printf '%s
 ' "$rendered" | grep -q 'image: ghcr.io/syncratic-inc/signalops-web:staging' || fail "GHCR staging web image missing"

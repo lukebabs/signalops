@@ -1,6 +1,6 @@
 # K8S-2 staging app manifest evidence
 
-Status: manifest gate complete; staging workload apply mechanics exercised; GHCR images published; deployments scaled back to zero pending private-registry pull credentials or package visibility decision.
+Status: manifest gate complete; staging workload apply mechanics exercised; GHCR images published; deployments scaled back to zero pending a corrected private-registry pull credential.
 
 Recorded: 2026-09-12.
 
@@ -118,7 +118,7 @@ applied=false
 
 ## Next step
 
-Before running K8S-2 workload readiness, resolve GHCR image-pull access. The OpenBao app role/path prerequisite is complete, and images now point to `ghcr.io/syncratic-inc/signalops-*`:
+Before running K8S-2 workload readiness, resolve GHCR image-pull access. The first supplied `GHCR_KEY` authenticated as `lukebabs` but could not read either private package and produced `403 Forbidden` in Kubernetes. The OpenBao app role/path prerequisite is complete, and images now point to `ghcr.io/syncratic-inc/signalops-*`:
 
 - OpenBao Kubernetes auth role: `signalops-app`;
 - bound service accounts: `signalops-gateway`, `signalops-web`, and `signalops-app-secret-reader` in `signalops-app`;

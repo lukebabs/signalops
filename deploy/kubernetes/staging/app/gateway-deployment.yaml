@@ -41,6 +41,8 @@ spec:
           {{- end }}
     spec:
       serviceAccountName: signalops-gateway
+      imagePullSecrets:
+        - name: signalops-ghcr-pull
       terminationGracePeriodSeconds: 30
       containers:
         - name: gateway

@@ -22,6 +22,8 @@ spec:
         signalops.syncratic.io/stage: staging
     spec:
       serviceAccountName: signalops-web
+      imagePullSecrets:
+        - name: signalops-ghcr-pull
       terminationGracePeriodSeconds: 15
       containers:
         - name: web

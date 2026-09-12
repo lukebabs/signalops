@@ -104,7 +104,7 @@ Acceptance:
 
 ### Stage K8S-2 — Stateless app parity
 
-Status: OpenBao app role/path verified, staging workload apply mechanics exercised, and GHCR staging images published on 2026-09-12. OpenBao injection/protocol and app egress are corrected; readiness is blocked on GHCR package visibility or a scoped image-pull credential. Deployments are scaled to zero pending that handoff. See [K8S-2 staging app manifest evidence](k8s2_staging_app_manifest_evidence_2026-09-12.md) and [K8S-2 GHCR image publication evidence](k8s2_ghcr_image_publication_evidence_2026-09-12.md).
+Status: OpenBao app role/path verified, staging workload apply mechanics exercised, and GHCR staging images published on 2026-09-12. OpenBao injection/protocol and app egress are corrected; readiness is blocked on a corrected scoped GHCR image-pull credential because packages will remain private. Deployments are scaled to zero pending that handoff. See [K8S-2 staging app manifest evidence](k8s2_staging_app_manifest_evidence_2026-09-12.md) and [K8S-2 GHCR image publication evidence](k8s2_ghcr_image_publication_evidence_2026-09-12.md).
 
 Convert only `web` and `gateway` into staging Kubernetes Deployments behind non-production hostnames.
 
@@ -120,7 +120,7 @@ This must emit `openbao_signalops_app_staging_verified` with `cross_plane_denied
 
 Acceptance:
 
-- staging images are published to GHCR and the cluster can pull them through public visibility or a scoped image-pull credential;
+- staging images are published to GHCR and the cluster can pull them through a scoped private image-pull credential;
 - web and gateway pods use OpenBao-injected files or scoped environment projection;
 - readiness/liveness probes pass;
 - gateway DB pool caps are explicit;

@@ -47,3 +47,28 @@ Choose one image-pull strategy before K8S-2 readiness can close:
 2. Keep GHCR packages private and provision a scoped Kubernetes `imagePullSecret`/registry credential path, preferably managed through OpenBao or the platform secret pipeline.
 
 For production SaaS posture, the preferred option is private GHCR packages with a narrowly scoped pull credential.
+
+
+## Private pull credential attempt
+
+A `GHCR_KEY` value was supplied through the local `.env` file and used to create `signalops-ghcr-pull` in the `signalops-app` namespace. The staging manifests were updated to reference that pull secret.
+
+The token owner lookup returned `lukebabs`, so the username was not the blocker. A direct host-side manifest check using the supplied token returned `denied` for both images, and Kubernetes returned authenticated `403 Forbidden` while pulling both private GHCR images.
+
+Current blocker: the supplied `GHCR_KEY` does not have package-read access to the private Syncratic GHCR packages, or it has not been authorized for the `syncratic-inc` organization/packages. The token must be replaced or re-authorized before staging pods can pull private images.
+
+Validation helper added:
+
+```bash
+scripts/verify_ghcr_pull_token.sh .env
+```
+
+Expected success marker after the token is corrected:
+
+```text
+signalops_ghcr_pull_token_verified
+registry=ghcr.io
+user=<token-owner>
+packages=signalops-web,signalops-gateway
+permission=read
+```

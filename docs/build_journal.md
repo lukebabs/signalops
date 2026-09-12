@@ -9803,3 +9803,11 @@ Next-cycle priority:
 - Published digests: web `sha256:a25a9a504c12526315de4fb97f0381c39f45c8ce0b21aa3ebe9dafcc92957f6a`; gateway `sha256:d387af5dd8d4bece4b1bc33c9cfd4fef034091c7b01dfdb5146705ef422b1034`.
 - Updated staging Kubernetes manifests and verifier to require GHCR image references instead of local-only Docker tags.
 - A bounded staging pull smoke reached GHCR but received `401 Unauthorized`, so K8S-2 readiness now depends on either public GHCR package visibility or a scoped cluster image-pull credential. The staging Deployments were scaled back to zero and production remained on Docker Compose.
+
+### 2026-09-12 — Private GHCR pull credential wired, token access blocked
+
+- Created the staging `signalops-ghcr-pull` image-pull secret from `GHCR_KEY` in `.env` and updated staging web/gateway manifests to reference it.
+- The bounded pull smoke confirmed Kubernetes used the credential path, but GHCR returned authenticated `403 Forbidden` for both private images.
+- Host-side manifest validation with the same token also returned `denied`, while token owner lookup returned `lukebabs`; the blocker is package read authorization, not username mismatch.
+- Added `scripts/verify_ghcr_pull_token.sh` so the corrected token can be validated before another Kubernetes rollout smoke.
+- Staging Deployments remain scaled to zero; Docker Compose remains production authority.
