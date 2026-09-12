@@ -108,6 +108,16 @@ Status: manifest gate complete on 2026-09-12; workloads are not applied. See [K8
 
 Convert only `web` and `gateway` into staging Kubernetes Deployments behind non-production hostnames.
 
+Pre-apply OpenBao role/path proof:
+
+```bash
+export BAO_TOKEN='<openbao-admin-token>'
+scripts/provision_openbao_signalops_app_staging.sh
+unset BAO_TOKEN
+```
+
+This must emit `openbao_signalops_app_staging_verified` with `cross_plane_denied=true` before staging pods are applied.
+
 Acceptance:
 
 - web and gateway pods use OpenBao-injected files or scoped environment projection;

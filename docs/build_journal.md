@@ -9775,3 +9775,10 @@ Next-cycle priority:
 - Added `scripts/verify_k8s_staging_app_manifests.sh`; validation passed with 2 Services, 2 Deployments, 0 Ingresses, 0 CronJobs, 0 Jobs, 0 StatefulSets, 0 Secrets, `production_cutover_allowed=false`, and server-side dry-run success.
 - Next blocker before applying staging app pods: create and verify the OpenBao `signalops-app` staging role/path with non-production test values and cross-plane denial evidence.
 
+### 2026-09-12 — K8S-2 OpenBao app role handoff prepared
+
+- Added `scripts/provision_openbao_signalops_app_staging.sh` to configure and verify the staging-only OpenBao app role/path once an OpenBao admin token is supplied through environment.
+- The script uses the OpenBao CLI inside `openbao/openbao-0`, writes placeholder-only values to `signalops/data/k8s/app/signalops-gateway-runtime-staging`, proves `signalops-app` can read that path, and proves a `signalops-marketops` deny-proof role cannot read it.
+- Validated script syntax and fail-closed behavior when no `BAO_TOKEN`, `VAULT_TOKEN`, or `OPENBAO_TOKEN` is set. No OpenBao mutation was performed because no admin token was available in the execution environment.
+- K8S-2 staging app pods remain unapplied until `openbao_signalops_app_staging_verified` evidence is captured.
+
