@@ -9968,3 +9968,10 @@ Next-cycle priority:
 - Updated Subscriber Project production-readiness documentation to reflect the product decision that OpenBao HA should not be treated as a production limitation by itself.
 - Production planning may continue with single-node OpenBao when backup/restore, seal/unseal recovery, audit logging, per-plane policies, and rollback controls are current.
 - True OpenBao HA remains the preferred resilience target and the verifier remains useful to measure that hardening target, but the launch gate is now recoverability and controlled rollback rather than three ready OpenBao pods by default.
+
+### 2026-09-12 — PR-3 backup/restore refresh closed
+
+- Ran `sudo -n signalops-deploy-agent backup-run`; the constrained backup action completed successfully without exposing secret-bearing output.
+- Ran `sudo -n signalops-deploy-agent restore-rehearsal-run`; isolated restore rehearsal passed for both `marketops-primary` and `marketops-temporal`, and each restored database started and accepted a validation query.
+- Ran `sudo -n signalops-deploy-agent operations-monitor-run`; it exited successfully after the restore rehearsal. Scheduler status then showed all tracked MarketOps timers active and `signalops-marketops-operations-monitor.service` result `success`.
+- Added `docs/projects/subscriber_project/pr3_backup_restore_refresh_evidence_2026-09-12.md` and updated production-readiness references so backup/restore is current evidence rather than a deferred risk for this cycle.

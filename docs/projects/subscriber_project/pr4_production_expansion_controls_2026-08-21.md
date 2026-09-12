@@ -4,7 +4,7 @@ Status: started.
 
 ## Decision boundary
 
-PR-3 backup/restore rehearsal is intentionally deferred by product decision. Prior dedicated MarketOps pgBackRest backup and isolated restore rehearsal evidence remains useful, but it is not current after the latest PR-1/PR-2 changes. This is accepted as a known readiness risk, not closed recovery evidence.
+PR-3 backup/restore rehearsal was refreshed on 2026-09-12 through constrained deployment-agent actions. Dedicated MarketOps backup completed, isolated restore rehearsal passed for `marketops-primary` and `marketops-temporal`, and the operations monitor exited successfully. Recovery evidence is current for this cycle.
 
 PR-4 now focuses on production expansion controls that can be improved without widening provider polling or tenant access.
 

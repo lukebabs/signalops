@@ -111,6 +111,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [Production backup and restore runbook](production_backup_restore_runbook.md): procurement inputs, encrypted PostgreSQL/PITR backup procedure, restore sequence, and acceptance evidence required before production pilot enablement.
 - [N1 production observability and recovery](n1_production_observability_recovery.md): dedicated-boundary health checks, alert delivery, recovery cadence, and host-watch remediation.
 - [N1 closure evidence — 2026-08-19](n1_closure_evidence_2026-08-19.md): deployment-agent/Admin run-now closure, activation-queue reconciliation, and pgBackRest recovery-control re-anchor verification.
+- [PR-3 backup/restore refresh evidence — 2026-09-12](pr3_backup_restore_refresh_evidence_2026-09-12.md): fresh constrained backup, isolated restore rehearsal, operations-monitor pass, and scheduler status evidence for the dedicated MarketOps data boundary.
 - [MarketOps scheduled-job status database migration — 2026-08-19](marketops_scheduled_job_status_database_2026-08-19.md): DB-backed scheduler-status source of truth, fallback boundary, and live verification.
 - [Production readiness path](production_readiness_path.md): current readiness snapshot, production blockers, P0/P1/P2 gates, and the secure sprint path to production.
 - [September 2026 outage reconciliation closure](outage_reconciliation_closure_2026-09-12.md): closure evidence for the September outage recovery, accepted options-chain provider-evidence gap, and operator verification query.
