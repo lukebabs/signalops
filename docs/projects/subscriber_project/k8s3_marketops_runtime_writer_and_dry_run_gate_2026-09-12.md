@@ -87,6 +87,34 @@ production_cutover_allowed=false
 applied=false
 ```
 
+## Refreshed job-runner image publication
+
+After the dry-run entrypoint change was committed, the dedicated MarketOps K8S job-runner image was republished to private GHCR:
+
+```text
+signalops_k8s_marketops_job_runner_publish_verified
+registry=ghcr.io
+user=lukebabs
+image=ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner
+source_tag=b4e653dd1cce
+staging_tag=staging
+permission=write
+```
+
+The `signalops-marketops` namespace then pulled the refreshed `staging` image through the private `signalops-ghcr-pull` secret without executing a worker:
+
+```text
+signalops_k8s_marketops_job_runner_pull_smoke_verified
+namespace=signalops-marketops
+registry=ghcr.io
+image=ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging
+secret=signalops-ghcr-pull
+pod_succeeded=true
+worker_executed=false
+provider_polling=false
+production_cutover_allowed=false
+```
+
 ## Current blocker
 
 The protected runtime-file probe for:
@@ -120,4 +148,4 @@ provider_polling=false
 production_cutover_allowed=false
 ```
 
-Only after that passes should the image be republished with the dry-run entrypoint change and the staged CronJob path move toward DB-backed scheduler-completion parity.
+The image has already been republished with the dry-run entrypoint change. After the dry-run Job passes, the staged CronJob path can move toward DB-backed scheduler-completion parity.

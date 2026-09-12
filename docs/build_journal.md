@@ -9890,3 +9890,10 @@ Next-cycle priority:
 - Updated the K8S job entrypoint so intraday, FMP annual, and SAF benchmark jobs can dispatch with their existing dry-run contracts. SRI jobs remain unchanged because those runners do not yet expose a dry-run contract.
 - Added `docs/projects/subscriber_project/k8s3_marketops_runtime_env_template.md` and evidence in `k8s3_marketops_runtime_writer_and_dry_run_gate_2026-09-12.md`.
 - Validation passed: shell syntax, `git diff --check`, and the K8S MarketOps suspended-CronJob manifest verifier. Live runtime write and dry-run Job execution remain blocked until `/etc/signalops/openbao-signalops-marketops-staging-runtime.env` exists with approved non-production `.svc` values and is readable in the execution context.
+
+### 2026-09-12 — K8S-3 dry-run job-runner image refreshed
+
+- Republished `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner` after committing the dry-run entrypoint gate.
+- Publication passed with source tag `b4e653dd1cce` and refreshed `staging` tag.
+- Reran the MarketOps namespace pull smoke; Kubernetes pulled the refreshed private image through `signalops-ghcr-pull`, executed only the echo override, and deleted the pod. Worker execution false, provider polling false, production cutover false.
+- The next K8S-3 blocker remains the protected non-production runtime file and one explicit pod-level dry-run Job.
