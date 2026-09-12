@@ -8,7 +8,7 @@ Last updated: 2026-09-12.
 
 This plan turns the broader Kubernetes production-cutover work into an executable parity gate. It keeps Docker Compose/systemd as the production authority while Kubernetes proves the same application, data, scheduler, identity, ingestion, rollback, and observability behavior under controlled staging conditions.
 
-OpenBao HA is not a production blocker by itself. The production requirement is recoverability and control: backup/restore, seal/unseal recovery, audit logging, per-plane policies, CA trust, and rollback. True OpenBao HA remains a resilience-hardening target.
+OpenBao HA is not a production blocker by itself. The production requirement is recoverability and control: backup/restore, seal/unseal recovery, audit logging, per-plane policies, CA trust, and rollback. True OpenBao HA remains a resilience-hardening target. The Kubernetes platform target now includes a service mesh; see [K8S service mesh architecture decision](k8s_service_mesh_architecture.md).
 
 ## Current executable verifier
 
@@ -30,7 +30,7 @@ compose_systemd_production_authority=true
 pending_authenticated_keycloak_k8s_parity=true
 pending_broader_marketops_scheduler_parity=true
 pending_signal_connect_ingestion_shadow=true
-pending_ingress_dns_cutover_plan=true
+pending_service_mesh_ingress_dns_cutover_plan=true
 pending_capacity_load_validation=true
 ```
 
@@ -91,16 +91,16 @@ Acceptance:
 - Connect cannot read app, identity, MarketOps, or CyberOps secrets;
 - no production detector or MarketOps consumer switches until shadow evidence passes.
 
-### Gate D — ingress/DNS and rollback proposal
+### Gate D — service mesh, ingress/DNS, and rollback proposal
 
 This gate prepares but does not execute the traffic move.
 
 Acceptance:
 
-- target ingress controller and hostnames documented;
+- target Gateway API / Envoy-Istio ingress mode and hostnames documented;
 - Keycloak redirect URIs and web origins include the target K8S hostnames;
 - Stripe webhook endpoint behavior is validated for the K8S route;
-- rollback path returns traffic to Docker Compose/systemd without data loss;
+- rollback path returns traffic from mesh/Gateway API to Docker Compose/systemd without data loss;
 - backup/restore evidence is current;
 - cutover can be performed as a small timed window with clear abort criteria.
 
@@ -149,6 +149,6 @@ proven_scheduler_parity=no_provider_and_one_provider_fmp_smoke
 pending_authenticated_keycloak_k8s_parity=true
 pending_broader_marketops_scheduler_parity=true
 pending_signal_connect_ingestion_shadow=true
-pending_ingress_dns_cutover_plan=true
+pending_service_mesh_ingress_dns_cutover_plan=true
 pending_capacity_load_validation=true
 ```

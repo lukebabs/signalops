@@ -8,7 +8,7 @@ SignalOps will be operated as one SaaS platform with multiple independently scal
 
 Signal-Connect is not a separate product boundary. Signal-Connect is the SignalOps ingestion subsystem. It should be deployed as a first-class SignalOps platform plane because ingestion has different scaling, security, rate-limit, and failure characteristics from browser/API traffic and MarketOps analytical jobs.
 
-The design objective is not easiest deployment. The design objective is scalable, secure, observable production operation.
+The design objective is not easiest deployment. The design objective is scalable, secure, observable production operation. Because Syncratic-core is also moving into k3s, the accepted target now includes a service-mesh layer for platform-scale traffic policy, mTLS, telemetry, canary routing, and rollback control. See [K8S service mesh architecture decision](k8s_service_mesh_architecture.md).
 
 ## Target namespace model
 
@@ -93,7 +93,7 @@ Default posture should be deny-by-default between namespaces, then explicitly al
 Required high-level flows:
 
 ```text
-Browser -> Ingress -> signalops-app/web,gateway
+Browser -> Gateway API / Envoy-Istio ingress -> signalops-app/web,gateway
 signalops-app/gateway -> signalops-identity/keycloak
 signalops-app/gateway -> signalops-data/pgbouncer
 signalops-connect/* -> broker/data boundary
@@ -138,7 +138,7 @@ The executable staging path is defined in [Kubernetes/OpenBao staging cutover ga
 7. Stand up K8s staging with production-like Keycloak, broker, database, and observability wiring.
 8. Run parity checks between Docker production and K8s staging for Dashboard, Assets, Market State, Risk/Reward, EROC, EEOM, SRI, SAF, Syncratic Intelligence, subscriptions, and enrollment.
 9. Run load tests and set supported concurrency from measured p95/p99 latency, DB saturation, queue lag, and error rate.
-10. Cut over through ingress/DNS only after rollback and restore evidence exists.
+10. Cut over through Gateway API / mesh ingress and DNS only after rollback, restore, authenticated parity, and capacity evidence exists.
 
 ## Production-readiness implications
 
@@ -147,11 +147,11 @@ This architecture adds the following production-readiness work:
 - explicit gateway database pool limits;
 - PgBouncer or equivalent connection pooling;
 - namespace-aware RBAC and service accounts;
-- namespace-aware NetworkPolicies;
+- namespace-aware NetworkPolicies plus mesh traffic policy;
 - K8s CronJob conversion for MarketOps schedules;
 - Keycloak HA and source-reconciled realm/client configuration;
 - broker partition/retention/DLQ policy;
-- observability dashboards and alerts across all planes;
+- mesh-aware observability dashboards and alerts across all planes;
 - load testing before publishing concurrency limits;
 - disaster-recovery rehearsal under the K8s topology.
 

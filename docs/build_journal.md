@@ -9988,3 +9988,9 @@ Next-cycle priority:
 - Corrected `scripts/verify_k8s_base_scaffold.sh` so base K8S-1 counts exclude intentional staging NetworkPolicies, ConfigMaps, and pods introduced by later K8S-2/K8S-3 gates.
 - Current proven K8S state: base scaffold verified, app manifest guard verified, MarketOps jobs/data manifest guards verified, OpenBao CA trust verified, and backup/restore current as of 2026-09-12.
 - Remaining K8S cutover gates are authenticated Keycloak app parity, broader MarketOps scheduler parity, Signal-Connect ingestion shadow, ingress/DNS rollback proposal, and capacity/load validation.
+
+### 2026-09-12 — Service mesh target accepted for k3s platform
+
+- Documented the product/platform decision that Syncratic-core and SignalOps should target a service-mesh setup on k3s rather than a simple ingress-only production edge.
+- Added `docs/projects/subscriber_project/k8s_service_mesh_architecture.md` with Gateway API / Envoy-Istio as the preferred target, Istio ambient as the first candidate, and sidecar/fallback options gated behind Mesh-0.
+- Updated Kubernetes architecture and cutover parity docs so ingress/DNS planning becomes a service-mesh/Gateway API rollback gate. Traefik remains the current Compose-era production edge and rollback reference until mesh staging parity is proven.

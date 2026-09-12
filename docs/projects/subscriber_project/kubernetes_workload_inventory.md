@@ -99,7 +99,7 @@ Generated from the current Compose topology with all profiles enabled. Secret va
 ## Known gaps before K8s staging
 
 - Identity and observability are target planes but are not fully represented in this Compose package.
-- PodDisruptionBudget, resource requests/limits, HorizontalPodAutoscaler, Traefik route manifests, and concrete secret-provider manifests are not yet scaffolded. Default-deny plus first-pass allow NetworkPolicies and secret-class policy documentation are now present under `deploy/kubernetes/base`.
+- PodDisruptionBudget, resource requests/limits, HorizontalPodAutoscaler, Gateway API / mesh route manifests, and concrete secret-provider manifests are not yet scaffolded. Default-deny plus first-pass allow NetworkPolicies and secret-class policy documentation are now present under `deploy/kubernetes/base`.
 - The live host still needs the updated MarketOps systemd timer files installed/reloaded so scheduler status displays the same 16:20/16:30/17:05/17:20 ET cadence now present in source.
 - Backup/restore evidence for the final K8s data-plane topology remains a separate gate.
 
@@ -107,7 +107,7 @@ Generated from the current Compose topology with all profiles enabled. Secret va
 
 The base scaffold now includes first-pass allow NetworkPolicies for:
 
-- Traefik ingress into `signalops-app` web/gateway pods;
+- Gateway API / Envoy-Istio mesh ingress into `signalops-app` web/gateway pods, with Traefik retained as the current Compose-era rollback/reference edge until mesh parity is proven;
 - gateway egress to identity, data, DNS, and approved public HTTPS APIs;
 - app-to-Keycloak ingress in `signalops-identity`;
 - platform-plane ingress into `signalops-data` database/broker boundary pods;

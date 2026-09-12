@@ -24,10 +24,10 @@ This base establishes the accepted SaaS operational planes before individual wor
 
 ## Ingress and network policy assumptions
 
-The production Kubernetes edge should use Traefik. The namespace running Traefik must carry this label before `allow-traefik-to-web-and-gateway` can admit traffic:
+The target production Kubernetes edge should use Gateway API with an Envoy/Istio mesh ingress. The current base scaffold still includes a Traefik-compatible allow policy because Traefik is the Compose-era production edge and remains a rollback/reference path until the mesh gate lands. The namespace running the active edge gateway must carry the matching ingress-plane label before app ingress can admit traffic:
 
 ```yaml
-signalops.syncratic.io/ingress-plane: traefik
+signalops.syncratic.io/ingress-plane: traefik  # current rollback/reference edge; mesh gate will add envoy/istio label support
 ```
 
 The scaffold uses standard Kubernetes NetworkPolicy. Standard NetworkPolicy cannot restrict egress by DNS name, so MarketOps provider/API egress is modeled as outbound TCP/443 to public IP space while excluding private RFC1918 ranges. If the production cluster uses Cilium, Calico Enterprise, or another policy engine with FQDN controls, replace this with explicit FQDN egress for Massive, FMP, Stripe, Syncratic AI Gateway, and other approved providers.
@@ -39,7 +39,7 @@ The scaffold uses standard Kubernetes NetworkPolicy. Standard NetworkPolicy cann
 ## Next steps
 
 1. Validate OpenBao KV mount, Kubernetes auth mount, and per-plane roles/policies; then add workload-specific injector annotations during Deployment/CronJob conversion.
-2. Add Traefik IngressRoute or standard Ingress manifests for `signalops.syncratic.io` web, `/v1/*`, `/auth/*`, and Stripe webhook routing.
+2. Add a Mesh-0 implementation plan for Gateway API with Envoy/Istio ingress, then add staging Gateway/VirtualService or equivalent route manifests for `signalops.syncratic.io` web, `/v1/*`, `/auth/*`, and Stripe webhook routing.
 3. Convert `web` and `gateway` first as stateless app-plane Deployments with probes and DB pool caps.
 4. Convert MarketOps scheduled jobs to CronJobs with `concurrencyPolicy: Forbid` and DB-backed completion evidence.
 
