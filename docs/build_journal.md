@@ -9920,3 +9920,11 @@ Next-cycle priority:
 - Added a temporary runtime-smoke env helper for approved non-production validation; it creates only minimal runtime-smoke DB objects and never prints secret values.
 - The final bounded K8S dry-run used immutable validation tag `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:k8s-status-parity-20260912c` and run id `k8s-status-parity-20260912T202200Z`. Evidence returned `scheduler_status_parity=verified`, `provider_polling=false`, and `production_cutover_allowed=false`.
 - Cleanup verified no dry-run Job/Pod remained, temporary NetworkPolicies were removed, and `/tmp/signalops-openbao-marketops-runtime-staging.env` was deleted. Docker Compose/systemd remains production scheduler authority.
+
+### 2026-09-12 — K8S-3 dedicated MarketOps staging database gate closed
+
+- Added staging-only dedicated MarketOps data services in Kubernetes: `marketops-postgres-staging` and `marketops-timescaledb-staging` in `signalops-data`.
+- Added a manifest verifier that proves the staging data overlay renders exactly two Services and two StatefulSets, with zero committed Secrets, zero Jobs/CronJobs, zero Ingress, disposable `local-path` storage, and `production-cutover-allowed=false` labels.
+- Added a bounded gate runner that creates runtime Kubernetes Secrets only if missing, seeds only the minimal scheduler-parity schema and one synthetic warm asset row, writes a temporary no-print runtime env file, updates the OpenBao MarketOps staging path, runs the non-provider Kubernetes dry-run job, verifies scheduler-status parity in the dedicated staging MarketOps primary DB, and removes temporary dry-run resources.
+- Fixed two gate defects: SQL seed input now uses `kubectl exec -i`, and the OpenBao MarketOps runtime writer now carries `SIGNALOPS_K8S_STATUS_DATABASE_URL` so worker status cannot fall back to an unintended database.
+- Live evidence passed with run id `k8s-dedicated-db-parity-20260912T202846Z`: `scheduler_status_parity=verified`, `provider_polling=false`, and `production_cutover_allowed=false`. Temporary dry-run Job/Pod resources were removed; the dedicated non-production DB pods remain running for subsequent K8S gates.

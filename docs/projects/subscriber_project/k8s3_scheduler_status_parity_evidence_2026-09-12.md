@@ -76,8 +76,8 @@ Post-run cleanup verified:
 
 Scheduler-status parity is no longer the blocker. Before any CronJob can be unsuspended, the next gates are:
 
-1. create or select dedicated non-production SignalOps/MarketOps database services instead of reusing runtime-smoke;
-2. publish job-runner images with immutable commit tags after this gate is committed;
+1. dedicated non-production MarketOps database services — closed by [K8S-3 dedicated staging database gate](k8s3_dedicated_staging_database_gate_2026-09-12.md);
+2. publish job-runner images with immutable commit tags after the dedicated staging database gate is committed;
 3. remove staging-only TLS skip-verify by installing/proving proper OpenBao CA trust;
 4. run a one-CronJob unsuspend test with no provider polling and automatic resuspension;
 5. only after that, request a separate named approval for any provider-enabled Kubernetes schedule test.
