@@ -44,7 +44,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: gateway
-          image: signalops-gateway:staging
+          image: ghcr.io/syncratic-inc/signalops-gateway:staging
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-ec"]
           args:

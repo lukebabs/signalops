@@ -1,6 +1,6 @@
 # K8S-2 staging app manifest evidence
 
-Status: manifest gate complete; staging workload apply mechanics exercised and scaled back to zero pending image publication/import.
+Status: manifest gate complete; staging workload apply mechanics exercised; GHCR images published; deployments scaled back to zero pending private-registry pull credentials or package visibility decision.
 
 Recorded: 2026-09-12.
 
@@ -118,11 +118,11 @@ applied=false
 
 ## Next step
 
-Before running K8S-2 workload readiness, publish/import staging images into the Kubernetes runtime or point the manifests at an approved staging registry image. The OpenBao app role/path prerequisite is complete:
+Before running K8S-2 workload readiness, resolve GHCR image-pull access. The OpenBao app role/path prerequisite is complete, and images now point to `ghcr.io/syncratic-inc/signalops-*`:
 
 - OpenBao Kubernetes auth role: `signalops-app`;
 - bound service accounts: `signalops-gateway`, `signalops-web`, and `signalops-app-secret-reader` in `signalops-app`;
 - readable path: `signalops/data/k8s/app/signalops-gateway-runtime-staging`;
 - cross-plane denial proof from another plane role.
 
-Only after image publication/import should the staging `web` and `gateway` pods be scaled above zero and tested through `/healthz`, `/readyz`, and Playwright smokes against a non-production hostname or port-forward.
+Only after GHCR package visibility or a scoped image-pull credential is configured should the staging `web` and `gateway` pods be scaled above zero and tested through `/healthz`, `/readyz`, and Playwright smokes against a non-production hostname or port-forward. See [K8S-2 GHCR image publication evidence](k8s2_ghcr_image_publication_evidence_2026-09-12.md).

@@ -42,9 +42,9 @@ printf '%s
 printf '%s
 ' "$rendered" | grep -q 'signalops/data/k8s/app/signalops-gateway-runtime-staging' || fail "staging OpenBao secret path missing"
 printf '%s
-' "$rendered" | grep -q 'image: signalops-gateway:staging' || fail "staging gateway image missing"
+' "$rendered" | grep -q 'image: ghcr.io/syncratic-inc/signalops-gateway:staging' || fail "GHCR staging gateway image missing"
 printf '%s
-' "$rendered" | grep -q 'image: signalops-web:staging' || fail "staging web image missing"
+' "$rendered" | grep -q 'image: ghcr.io/syncratic-inc/signalops-web:staging' || fail "GHCR staging web image missing"
 printf '%s
 ' "$rendered" | grep -q 'SIGNALOPS_DATABASE_MAX_OPEN_CONNS' || fail "gateway DB pool cap env missing"
 printf '%s

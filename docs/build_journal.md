@@ -9795,3 +9795,11 @@ Next-cycle priority:
 - Corrected the staging gateway OpenBao injector annotations to use `https://openbao.openbao.svc:8200`; OpenBao server logs showed the first injected agent attempted HTTP against an HTTPS-only service.
 - Verified the base scaffold now has 16 NetworkPolicies and still has 0 workload pods after scaling the non-production staging Deployments back to zero.
 - Remaining K8S-2 blocker: staging images must be published to an approved registry or imported into k3s containerd before pods can become ready. Docker Compose remains production authority and `production_cutover_allowed=false`.
+
+### 2026-09-12 — K8S-2 GHCR staging images published
+
+- Published `signalops-web` and `signalops-gateway` staging images to GitHub Container Registry under `ghcr.io/syncratic-inc`.
+- Immutable source tag: `53e773731939`; stable staging tags were also pushed.
+- Published digests: web `sha256:a25a9a504c12526315de4fb97f0381c39f45c8ce0b21aa3ebe9dafcc92957f6a`; gateway `sha256:d387af5dd8d4bece4b1bc33c9cfd4fef034091c7b01dfdb5146705ef422b1034`.
+- Updated staging Kubernetes manifests and verifier to require GHCR image references instead of local-only Docker tags.
+- A bounded staging pull smoke reached GHCR but received `401 Unauthorized`, so K8S-2 readiness now depends on either public GHCR package visibility or a scoped cluster image-pull credential. The staging Deployments were scaled back to zero and production remained on Docker Compose.
