@@ -88,6 +88,7 @@ describe('navForApp (G067)', () => {
     expect(labels).not.toContain('Providers');
     expect(labels).not.toContain('Health');
     expect(labels).not.toContain('Algorithms');
+    expect(labels).not.toContain('Insights');
     // Every marketops nav entry targets a /marketops/* route.
     expect(nav.every((n) => n.to.startsWith('/marketops/'))).toBe(true);
   });

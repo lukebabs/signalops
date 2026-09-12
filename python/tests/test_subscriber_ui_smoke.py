@@ -216,6 +216,8 @@ def test_subscriber_watchlist_context_and_global_coverage(subscriber_page: Page)
         "/marketops/assets/signal-overview",
     )
     expect(subscriber_page.get_by_role("heading", name="MarketOps Dashboard")).to_be_visible(timeout=30_000)
+    expect(subscriber_page.locator("nav").get_by_text("Insights", exact=True)).to_have_count(0)
+    expect(subscriber_page.locator("nav").get_by_text("Syncratic Intelligence", exact=True)).to_have_count(1)
     assert_selected_watchlist(subscriber_page, config)
     assert_watchlist_context(dashboard, config)
     expect(subscriber_page.locator("body")).not_to_contain_text("Shared EOD coverage")
