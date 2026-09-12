@@ -1,6 +1,6 @@
 # K8S-2 staging app manifest evidence
 
-Status: manifest gate complete; staging workload apply mechanics exercised; GHCR images published; private image pulls verified; web runtime readiness verified; gateway runtime readiness blocked on placeholder OpenBao database values; deployments scaled back to zero.
+Status: K8S-2 staging app runtime gate complete under the approved non-production single-node OpenBao exception; web and gateway runtime readiness verified; deployments scaled back to zero.
 
 Recorded: 2026-09-12.
 
@@ -137,7 +137,7 @@ The staging Deployments were scaled back to zero after the bounded smoke.
 
 ## Gateway runtime blocker
 
-The gateway image pull and OpenBao injection path are verified, but the injected runtime file still contains placeholder-only database endpoints such as `postgres.staging.invalid`. When scaled above zero, the gateway exits while trying to connect to that unresolved database host. This is the remaining K8S-2 blocker. Closing it requires an approved OpenBao runtime update with reachable staging database dependencies or explicit non-production database endpoints. No production workload authority, DNS, provider polling, or production secret migration is allowed by the current evidence.
+The gateway image pull and OpenBao injection path are verified. The placeholder database blocker was closed for staging by writing non-production runtime values to the OpenBao staging path and proving gateway `/healthz` and `/readyz` inside the pod. No production workload authority, DNS, provider polling, or production secret migration was performed.
 
 ## Known warnings
 
@@ -152,7 +152,7 @@ Before running K8S-2 workload readiness, replace placeholder-only OpenBao runtim
 - readable path: `signalops/data/k8s/app/signalops-gateway-runtime-staging`;
 - cross-plane denial proof from another plane role.
 
-Only after runtime values are approved should the staging `gateway` pod be scaled above zero and tested through `/healthz`, `/readyz`, and Playwright smokes against a non-production hostname or port-forward. The `web` pod static-runtime path has been verified, but full app parity still depends on the gateway runtime path. See [K8S-2 GHCR image publication evidence](k8s2_ghcr_image_publication_evidence_2026-09-12.md).
+The K8S-2 staging app runtime gate is now closed for pod-level web and gateway readiness. The next Kubernetes gate is app parity through a non-production hostname or port-forward, followed by MarketOps worker/CronJob staging conversion. Production cutover remains blocked until OpenBao HA, production-grade CA trust, app parity, data-plane parity, scheduler parity, and rollback evidence are complete. See [K8S-2 GHCR image publication evidence](k8s2_ghcr_image_publication_evidence_2026-09-12.md).
 
 ## Gateway runtime smoke action prepared
 
@@ -175,3 +175,32 @@ The action delegates to `scripts/run_k8s_staging_gateway_runtime_smoke.sh`, whic
 - scales staging workloads back to zero on exit.
 
 The current `.env` contains `OPENBAO_ADMIN_TOKEN`, but it does not contain the required non-production SignalOps temporal and MarketOps primary/temporal database URLs or the explicit non-production approval marker. Therefore the runtime writer correctly fails closed until the protected staging runtime env file is supplied. See [K8S-2 gateway staging runtime environment template](k8s2_gateway_runtime_env_template.md).
+
+## Gateway runtime readiness evidence
+
+After the bounded approval, the OpenBao app staging runtime path was updated with non-production runtime values sourced from the existing `syncratic-runtime-smoke` Postgres service and SignalOps `.env` secret keys. Secret values were not printed. The writer rejected placeholder/local/production-like DB hosts and required Kubernetes service DNS names.
+
+Initial gateway attempts exposed two real staging gaps and both were corrected:
+
+- app namespace egress and smoke namespace ingress needed a matched policy pair for `signalops-gateway` to reach the non-production Postgres service on 5432;
+- Syncratic Ask startup required the full Syncratic token-auth runtime key set, not only `SYNCRATIC_API_BASE_URL` and `SYNCRATIC_CLIENT_SECRET`.
+
+Final bounded smoke evidence:
+
+```text
+openbao_signalops_app_runtime_staging_verified
+cross_plane_denied=true
+secret_values=non_production_runtime_supplied
+production_cutover_allowed=false
+
+signalops_k8s_staging_gateway_runtime_smoke_verified
+namespace=signalops-app
+gateway_ready=true
+healthz=true
+readyz=true
+provider_polling=false
+production_cutover_allowed=false
+scaled_back_to_zero=true
+```
+
+The temporary local runtime file used for the smoke was removed after execution. Final staging state was confirmed at `signalops-web 0/0` and `signalops-gateway 0/0`.

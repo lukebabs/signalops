@@ -11,7 +11,9 @@ spec:
   type: ClusterIP
   selector:
     app.kubernetes.io/name: signalops-web
+    app.kubernetes.io/part-of: signalops
     signalops.syncratic.io/stage: staging
+    signalops.syncratic.io/production-cutover-allowed: "false"
   ports:
     - name: http
       port: 8080

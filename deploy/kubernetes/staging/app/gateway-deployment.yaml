@@ -12,14 +12,18 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: signalops-gateway
+      app.kubernetes.io/part-of: signalops
       signalops.syncratic.io/stage: staging
+      signalops.syncratic.io/production-cutover-allowed: "false"
   template:
     metadata:
       labels:
         app.kubernetes.io/name: signalops-gateway
         app.kubernetes.io/component: gateway
+        app.kubernetes.io/part-of: signalops
         signalops.syncratic.io/plane: app
         signalops.syncratic.io/stage: staging
+        signalops.syncratic.io/production-cutover-allowed: "false"
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "signalops-app"
@@ -37,7 +41,14 @@ spec:
           export STRIPE_RESTRICTED_API_KEY="{{ .Data.data.STRIPE_RESTRICTED_API_KEY }}"
           export STRIPE_WEBHOOK_SECRET="{{ .Data.data.STRIPE_WEBHOOK_SECRET }}"
           export SYNCRATIC_API_BASE_URL="{{ .Data.data.SYNCRATIC_API_BASE_URL }}"
+          export SYNCRATIC_AUTH_MODE="{{ .Data.data.SYNCRATIC_AUTH_MODE }}"
+          export SYNCRATIC_TOKEN_URL="{{ .Data.data.SYNCRATIC_TOKEN_URL }}"
+          export SYNCRATIC_TOKEN_GRANT="{{ .Data.data.SYNCRATIC_TOKEN_GRANT }}"
+          export SYNCRATIC_CLIENT_ID="{{ .Data.data.SYNCRATIC_CLIENT_ID }}"
           export SYNCRATIC_CLIENT_SECRET="{{ .Data.data.SYNCRATIC_CLIENT_SECRET }}"
+          export SYNCRATIC_USERNAME="{{ .Data.data.SYNCRATIC_USERNAME }}"
+          export SYNCRATIC_PASSWORD="{{ .Data.data.SYNCRATIC_PASSWORD }}"
+          export SYNCRATIC_TOKEN_AUDIENCE="{{ .Data.data.SYNCRATIC_TOKEN_AUDIENCE }}"
           {{- end }}
     spec:
       serviceAccountName: signalops-gateway

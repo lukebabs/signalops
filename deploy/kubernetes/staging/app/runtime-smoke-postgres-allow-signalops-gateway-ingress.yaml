@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-signalops-gateway-to-postgres
+  namespace: syncratic-runtime-smoke
+  labels:
+    app.kubernetes.io/name: signalops-gateway
+    app.kubernetes.io/component: gateway
+    signalops.syncratic.io/plane: app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: syncratic-phase1
+      app.kubernetes.io/instance: syncratic-refactor-smoke
+      app.kubernetes.io/component: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: signalops-app
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signalops-gateway
+              app.kubernetes.io/part-of: signalops
+              signalops.syncratic.io/stage: staging
+              signalops.syncratic.io/production-cutover-allowed: "false"
+      ports:
+        - protocol: TCP
+          port: 5432

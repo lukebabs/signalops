@@ -3,11 +3,13 @@ kind: Kustomization
 resources:
   - gateway-deployment.yaml
   - gateway-service.yaml
+  - gateway-allow-runtime-smoke-postgres-egress.yaml
+  - runtime-smoke-postgres-allow-signalops-gateway-ingress.yaml
   - web-deployment.yaml
   - web-nginx-config.yaml
   - web-service.yaml
 labels:
-  - includeSelectors: true
+  - includeSelectors: false
     pairs:
       app.kubernetes.io/part-of: signalops
       signalops.syncratic.io/stage: staging

@@ -9837,3 +9837,13 @@ Next-cycle priority:
 - Added a bounded deployment-agent action, `k8s-staging-gateway-runtime-smoke`, that writes the approved runtime path, applies the staging overlay, runs one gateway readiness smoke, and scales staging workloads back to zero.
 - Added a no-secret operator template for `/etc/signalops/openbao-signalops-app-staging-runtime.env`.
 - Validation passed: shell syntax and staging manifest verifier. The live write/smoke did not run because the current `.env` has `OPENBAO_ADMIN_TOKEN` but lacks the required non-production SignalOps temporal and MarketOps database URLs plus the explicit non-production approval marker.
+
+### 2026-09-12 — K8S-2 gateway runtime readiness verified
+
+- Used the approved OpenBao app staging runtime path update to write non-production runtime values for `signalops/data/k8s/app/signalops-gateway-runtime-staging` without printing secret values.
+- Reused the existing `syncratic-runtime-smoke` Postgres service for pod-level gateway startup pings and retained `production_cutover_allowed=false`.
+- Added a matched staging-only NetworkPolicy pair: `signalops-app/signalops-gateway` egress to the smoke Postgres pod on 5432 and `syncratic-runtime-smoke` ingress from that gateway pod only.
+- Corrected Kustomize selector handling by making SignalOps selectors explicit and stopping global selector mutation from contaminating external smoke Postgres selectors.
+- Added the full Syncratic token-auth runtime keys to the OpenBao injection template after gateway startup reached the dedicated data boundary and then failed on missing `SYNCRATIC_TOKEN_URL`.
+- Final bounded smoke passed: `signalops_k8s_staging_gateway_runtime_smoke_verified`, `gateway_ready=true`, `healthz=true`, `readyz=true`, `provider_polling=false`, `scaled_back_to_zero=true`.
+- Removed the temporary local runtime env file after execution and confirmed staging `signalops-web` and `signalops-gateway` Deployments are back at `0/0`. Docker Compose remains production authority.

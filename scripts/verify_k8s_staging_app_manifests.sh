@@ -27,6 +27,7 @@ jobs="$(count_kind Job)"
 statefulsets="$(count_kind StatefulSet)"
 secrets="$(count_kind Secret)"
 configmaps="$(count_kind ConfigMap)"
+networkpolicies="$(count_kind NetworkPolicy)"
 
 [[ "$services" -eq 2 ]] || fail "expected 2 Services, found ${services}"
 [[ "$deployments" -eq 2 ]] || fail "expected 2 Deployments, found ${deployments}"
@@ -36,6 +37,7 @@ configmaps="$(count_kind ConfigMap)"
 [[ "$statefulsets" -eq 0 ]] || fail "expected 0 StatefulSets, found ${statefulsets}"
 [[ "$secrets" -eq 0 ]] || fail "expected 0 Kubernetes Secrets, found ${secrets}"
 [[ "$configmaps" -eq 1 ]] || fail "expected 1 ConfigMap, found ${configmaps}"
+[[ "$networkpolicies" -eq 2 ]] || fail "expected 2 NetworkPolicies, found ${networkpolicies}"
 
 printf '%s
 ' "$rendered" | grep -q 'signalops.syncratic.io/production-cutover-allowed: "false"' || fail "production cutover false label missing"
@@ -72,6 +74,7 @@ jobs=${jobs}
 statefulsets=${statefulsets}
 secrets=${secrets}
 configmaps=${configmaps}
+networkpolicies=${networkpolicies}
 openbao_secret_path=signalops/data/k8s/app/signalops-gateway-runtime-staging
 production_cutover_allowed=false
 applied=false
