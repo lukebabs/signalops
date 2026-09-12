@@ -3,11 +3,44 @@ set -euo pipefail
 
 OPENBAO_NAMESPACE="${OPENBAO_NAMESPACE:-openbao}"
 MIN_SERVER_PODS="${OPENBAO_MIN_SERVER_PODS:-3}"
+ALLOW_SINGLE_NODE_STAGING="false"
 
 fail() {
   echo "openbao_ha_readiness_failed: $*" >&2
   exit 1
 }
+
+usage() {
+  cat <<EOF
+Usage: $0 [--allow-single-node-staging]
+
+Verifies the OpenBao Kubernetes surface expected by SignalOps.
+
+Default mode enforces the production HA gate: at least ${MIN_SERVER_PODS} ready
+non-injector OpenBao server pods.
+
+--allow-single-node-staging allows exactly the documented non-production staging
+exception: at least one ready server pod is accepted, and the output is clearly
+marked single_node_staging_exception. This must not be used to approve
+production workload cutover.
+EOF
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --allow-single-node-staging)
+      ALLOW_SINGLE_NODE_STAGING="true"
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      fail "unknown argument: $arg"
+      ;;
+  esac
+done
 
 info() {
   echo "$*"
@@ -34,7 +67,13 @@ pod_lines="$(kubectl get pods -n "$OPENBAO_NAMESPACE" --no-headers || true)"
 
 server_ready_count="$(printf '%s\n' "$pod_lines" | awk '!/injector/ && $2 ~ /^[0-9]+\/[0-9]+$/ { split($2,a,"/"); if (a[1] == a[2] && $3 == "Running") c++ } END { print c+0 }')"
 if [[ "$server_ready_count" -lt "$MIN_SERVER_PODS" ]]; then
-  fail "ready OpenBao server pods ${server_ready_count}/${MIN_SERVER_PODS}; HA gate requires at least ${MIN_SERVER_PODS} ready non-injector server pods"
+  if [[ "$ALLOW_SINGLE_NODE_STAGING" == "true" && "$server_ready_count" -ge 1 ]]; then
+    readiness_mode="single_node_staging_exception"
+  else
+    fail "ready OpenBao server pods ${server_ready_count}/${MIN_SERVER_PODS}; HA gate requires at least ${MIN_SERVER_PODS} ready non-injector server pods"
+  fi
+else
+  readiness_mode="production_ha"
 fi
 
 webhook_prefix="$(kubectl get mutatingwebhookconfiguration openbao-agent-injector-cfg -o jsonpath='{.webhooks[0].name}')"
@@ -43,12 +82,15 @@ if [[ "$webhook_prefix" != *"vault.hashicorp.com"* ]]; then
 fi
 
 cat <<EOF
-openbao_ha_readiness_surface_verified
+openbao_readiness_surface_verified
+mode=${readiness_mode}
+production_cutover_allowed=false
 namespace=${OPENBAO_NAMESPACE}
 server_ready_pods=${server_ready_count}
+required_production_server_pods=${MIN_SERVER_PODS}
 injector_available_replicas=${injector_available}
 services=openbao,openbao-active,openbao-standby,openbao-agent-injector-svc
 webhook=${webhook_prefix}
 annotation_prefix=vault.hashicorp.com
-note=This verifies the Kubernetes HA/injector surface only. OpenBao seal state, storage snapshots, audit devices, policies, and Kubernetes auth roles still require authenticated OpenBao validation.
+note=This verifies the Kubernetes OpenBao/injector surface only. Single-node staging mode is not production HA. OpenBao seal state, storage snapshots, audit devices, policies, and Kubernetes auth roles still require authenticated OpenBao validation.
 EOF

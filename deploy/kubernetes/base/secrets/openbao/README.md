@@ -38,7 +38,15 @@ After building OpenBao HA, run the repository verifier from the SignalOps worksp
 scripts/verify_openbao_ha_readiness.sh
 ```
 
-The verifier checks the Kubernetes namespace, expected OpenBao services, Agent Injector deployment, injector webhook, and minimum ready OpenBao server pod count. It does not authenticate to OpenBao and therefore does not prove seal state, storage snapshots, audit devices, policies, or Kubernetes auth roles.
+For the approved non-production staging exception only, the verifier may be run as:
+
+```bash
+scripts/verify_openbao_ha_readiness.sh --allow-single-node-staging
+```
+
+Single-node staging mode requires at least one ready OpenBao server pod and emits `production_cutover_allowed=false`. It is suitable only for staging injector mechanics with non-production test secrets. It does not satisfy the production HA gate.
+
+The verifier checks the Kubernetes namespace, expected OpenBao services, Agent Injector deployment, injector webhook, and ready OpenBao server pod count. It does not authenticate to OpenBao and therefore does not prove seal state, storage snapshots, audit devices, policies, or Kubernetes auth roles.
 
 ## Remote secret path convention
 

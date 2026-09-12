@@ -9746,3 +9746,16 @@ Next-cycle priority:
 - Updated the Subscriber Project README, SaaS Kubernetes architecture, and production readiness path to keep Docker Compose as production authority until OpenBao HA and staging/parity gates pass.
 - No Kubernetes manifests were applied and no production workload authority changed.
 
+### 2026-09-12 — Single-node OpenBao staging exception approved
+
+- Product selected the non-production option-B path for Kubernetes/OpenBao work while the OpenBao cluster still has only one ready server pod.
+- Updated `scripts/verify_openbao_ha_readiness.sh` with `--allow-single-node-staging`. Default mode still enforces the production HA requirement of at least three ready non-injector server pods. The staging exception requires at least one ready server pod and emits `production_cutover_allowed=false`.
+- Updated the Kubernetes/OpenBao staging gate and OpenBao scaffold docs to permit only non-production namespace, NetworkPolicy, service-account, injector, and staging app-parity work under the exception.
+- No production workload cutover, DNS change, provider polling, or production secret authority migration is permitted by this exception.
+
+### 2026-09-12 — Single-node OpenBao staging verifier passed
+
+- Ran `scripts/verify_openbao_ha_readiness.sh --allow-single-node-staging` against the live cluster.
+- The verifier passed in `single_node_staging_exception` mode with one ready OpenBao server pod, one available injector replica, the expected OpenBao services, and `vault.hashicorp.com` injector annotation prefix.
+- The verifier output explicitly retained `production_cutover_allowed=false`; production workload cutover remains blocked until the default HA verifier passes with at least three ready non-injector OpenBao server pods and authenticated OpenBao controls are proven.
+

@@ -1,6 +1,6 @@
 # Kubernetes/OpenBao staging cutover gate
 
-Status: active production-readiness gate; no production workload cutover approved.
+Status: active production-readiness gate; single-node OpenBao staging exception approved; no production workload cutover approved.
 
 Recorded: 2026-09-12.
 
@@ -20,14 +20,52 @@ openbao_ha_readiness_failed: ready OpenBao server pods 1/3; HA gate requires at 
 
 The verifier also surfaced k3s config permission warnings for `/etc/rancher/k3s/config.yaml.d/90-syncratic-cilium.yaml`. Those warnings did not prevent the cluster query, but they should be cleaned up before relying on automated K8s checks in CI or deployment agents.
 
+## Approved single-node staging exception
+
+Product approved a narrow option-B exception so K8s staging mechanics can continue while OpenBao HA is still being built.
+
+The exception allows `scripts/verify_openbao_ha_readiness.sh --allow-single-node-staging` to pass when at least one OpenBao server pod is ready. This mode is explicitly non-production and emits `mode=single_node_staging_exception` with `production_cutover_allowed=false`.
+
+Validation on 2026-09-12 passed in staging-exception mode:
+
+```text
+openbao_readiness_surface_verified
+mode=single_node_staging_exception
+production_cutover_allowed=false
+namespace=openbao
+server_ready_pods=1
+required_production_server_pods=3
+injector_available_replicas=1
+webhook=vault.hashicorp.com
+```
+
+This exception permits only:
+
+- non-production namespace/service-account/network-policy staging;
+- OpenBao injector mechanics using non-production test secrets;
+- staging `web`/`gateway` manifests behind non-production hostnames;
+- parity-test preparation that does not move production traffic or production secret authority.
+
+This exception does not permit:
+
+- production workload cutover;
+- production DNS/ingress switch;
+- production provider polling from Kubernetes;
+- production secret migration as a restart-critical dependency;
+- declaring OpenBao HA ready.
+
 ## Entry requirements
 
 Before deploying any SignalOps workload into Kubernetes staging, verify:
 
-1. OpenBao HA surface passes:
+1. OpenBao readiness surface passes in the intended mode:
 
    ```bash
+   # Production HA gate
    scripts/verify_openbao_ha_readiness.sh
+
+   # Approved non-production staging exception only
+   scripts/verify_openbao_ha_readiness.sh --allow-single-node-staging
    ```
 
 2. OpenBao authenticated controls are proven by an operator without exposing secrets:
@@ -122,4 +160,6 @@ Acceptance:
 
 ## Current blocker
 
-The immediate blocker is OpenBao HA evidence. The current verifier requires at least three ready non-injector OpenBao server pods. If the intended production topology is a different fault-tolerant model, update the verifier and architecture documents with that explicit design before staging workload conversion.
+The immediate production blocker is OpenBao HA evidence. The default verifier requires at least three ready non-injector OpenBao server pods. If the intended production topology is a different fault-tolerant model, update the verifier and architecture documents with that explicit design before production workload conversion.
+
+For now, the approved single-node staging exception allows K8S-1 non-production scaffolding and injector tests to proceed, but it does not reduce the production HA requirement.
