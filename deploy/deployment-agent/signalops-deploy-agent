@@ -332,6 +332,9 @@ FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
   k8s-staging-gateway-runtime-smoke)
     run "$repository_dir/scripts/run_k8s_staging_gateway_runtime_smoke.sh"
     ;;
+  k8s-marketops-non-provider-dry-run)
+    run "$repository_dir/scripts/run_k8s_marketops_non_provider_dry_run_job.sh"
+    ;;
   scheduler-status)
     failed=0
     printf 'SignalOps scheduler status\n'

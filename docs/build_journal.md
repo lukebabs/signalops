@@ -9897,3 +9897,10 @@ Next-cycle priority:
 - Publication passed with source tag `b4e653dd1cce` and refreshed `staging` tag.
 - Reran the MarketOps namespace pull smoke; Kubernetes pulled the refreshed private image through `signalops-ghcr-pull`, executed only the echo override, and deleted the pod. Worker execution false, provider polling false, production cutover false.
 - The next K8S-3 blocker remains the protected non-production runtime file and one explicit pod-level dry-run Job.
+
+### 2026-09-12 — K8S-3 deployment-agent dry-run gate action prepared
+
+- Added `k8s-marketops-non-provider-dry-run` to the root-owned deployment-agent source and installer action list.
+- The action is intentionally narrow: it runs only `scripts/run_k8s_marketops_non_provider_dry_run_job.sh`; it is not added to the Admin run-now Unix-socket bridge.
+- Local fail-closed validation passed: without `/etc/signalops/openbao-signalops-marketops-staging-runtime.env`, the script exits before writing OpenBao runtime values or creating a Kubernetes Job.
+- The installed host agent must be reprovisioned before `sudo -n signalops-deploy-agent k8s-marketops-non-provider-dry-run` is available live. The runtime file remains the blocker for actual dry-run pod execution.

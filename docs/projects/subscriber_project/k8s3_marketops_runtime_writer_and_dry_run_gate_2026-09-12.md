@@ -115,6 +115,25 @@ provider_polling=false
 production_cutover_allowed=false
 ```
 
+
+## Deployment-agent action prepared
+
+The deployment agent now has a narrow action for this gate:
+
+```bash
+sudo -n signalops-deploy-agent k8s-marketops-non-provider-dry-run
+```
+
+The action runs only `scripts/run_k8s_marketops_non_provider_dry_run_job.sh`. It is not exposed through the Admin run-now bridge because it is an infrastructure staging gate, not a user-facing operations-health action.
+
+Local fail-closed proof before reprovisioning/installing the action:
+
+```text
+signalops_k8s_marketops_non_provider_dry_run_job_failed: runtime env file is missing or unreadable: /etc/signalops/openbao-signalops-marketops-staging-runtime.env
+```
+
+No Kubernetes Job was created in this failure path.
+
 ## Current blocker
 
 The protected runtime-file probe for:
