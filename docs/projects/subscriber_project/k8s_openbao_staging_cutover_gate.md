@@ -89,6 +89,8 @@ Before deploying any SignalOps workload into Kubernetes staging, verify:
 
 ### Stage K8S-1 — Secret and namespace foundation
 
+Status: completed on 2026-09-12 under the approved single-node OpenBao staging exception. See [K8S-1 OpenBao staging foundation evidence](k8s1_openbao_staging_foundation_evidence_2026-09-12.md).
+
 Apply only the namespace, service-account, NetworkPolicy, and non-secret OpenBao annotation scaffolds to a staging cluster or staging namespace set.
 
 Acceptance:

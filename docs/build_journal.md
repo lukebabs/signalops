@@ -9759,3 +9759,11 @@ Next-cycle priority:
 - The verifier passed in `single_node_staging_exception` mode with one ready OpenBao server pod, one available injector replica, the expected OpenBao services, and `vault.hashicorp.com` injector annotation prefix.
 - The verifier output explicitly retained `production_cutover_allowed=false`; production workload cutover remains blocked until the default HA verifier passes with at least three ready non-injector OpenBao server pods and authenticated OpenBao controls are proven.
 
+### 2026-09-12 — K8S-1 OpenBao staging foundation applied
+
+- Applied the non-secret SignalOps Kubernetes base scaffold under the approved single-node OpenBao staging exception.
+- The first server-side dry run exposed the expected dry-run ordering limitation where namespaced resources fail before dry-run-created namespaces exist. Applied only the seven empty `signalops-*` namespaces first, reran the full server-side dry run successfully, then applied the full base.
+- Verified the applied foundation with `scripts/verify_k8s_base_scaffold.sh`: 7 namespaces, 29 service accounts, 15 NetworkPolicies, 2 non-secret policy ConfigMaps, and 0 workload pods.
+- No SignalOps Deployments, StatefulSets, Jobs, CronJobs, Ingresses, production Secrets, provider polling, DNS changes, or production workload cutover were applied. Docker Compose remains production authority.
+- `kubectl` continues to emit the existing k3s Cilium config permission warning; it did not block render, dry run, apply, or verification.
+
