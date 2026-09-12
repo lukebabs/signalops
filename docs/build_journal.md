@@ -9953,3 +9953,12 @@ Next-cycle priority:
 - Corrected the smoke harness to preserve the selected CronJob job-id argument after the temporary dry-run patch.
 - Final smoke passed with run id `k8s-cronjob-unsuspend-20260912T214635Z`: exactly one Job was created, the CronJob was resuspended, the worker exited successfully, DB-backed scheduler parity was verified, provider polling stayed false, and production cutover stayed false.
 - Post-smoke cleanup verified all staged MarketOps CronJobs restored to `suspend=true` and no smoke Jobs remained in `signalops-marketops`. Docker Compose/systemd remains production scheduler authority.
+
+### 2026-09-12 — K8S-3 provider-enabled CronJob smoke closed
+
+- Added an explicit `--max-retries` control to the annual FMP task-worker and passed `MARKETOPS_FMP_ANNUAL_MAX_RETRIES` through the Kubernetes MarketOps job entrypoint. Default behavior remains equivalent to the prior retry posture; the approved smoke forced zero retries.
+- Added `--correlation-id` support to the task-worker path so provider evidence can be tied to the Kubernetes smoke run id.
+- Added `scripts/run_k8s_marketops_provider_cronjob_smoke.sh`, constrained to the staged `marketops-fmp-annual-financial` CronJob, one asset, one Job execution, immediate resuspend, no production traffic cutover, and automatic cleanup.
+- Published immutable private GHCR image `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:5012610ac808`; Docker build executed the full Go test suite successfully.
+- The approved provider smoke initially exposed staging schema gaps and then passed with run id `k8s-provider-cronjob-fmp-20260912T220410Z`: scheduler status `succeeded`, runner `kubernetes-provider-cronjob-smoke`, dry-run `false`, AAPL task `succeeded`, `attempt_count=1`, `max_attempts=1`, and one correlated FMP annual evidence record.
+- Cleanup verified all staged MarketOps CronJobs restored to `suspend=true` and no Jobs remained in `signalops-marketops`. Docker Compose/systemd remains production scheduler authority.

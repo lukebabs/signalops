@@ -92,6 +92,13 @@ CREATE TABLE IF NOT EXISTS public.subscriber_global_warm_eod_assets (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.subscriber_global_warm_eod_assets
+  ADD COLUMN IF NOT EXISTS priority integer NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS market_status text NOT NULL DEFAULT 'active',
+  ADD COLUMN IF NOT EXISTS coverage_status text NOT NULL DEFAULT 'active',
+  ADD COLUMN IF NOT EXISTS as_of_date date NOT NULL DEFAULT CURRENT_DATE,
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+
 CREATE TABLE IF NOT EXISTS public.subscriber_global_assets (
   global_asset_id text PRIMARY KEY,
   canonical_symbol text NOT NULL,
@@ -218,15 +225,16 @@ SET canonical_symbol = EXCLUDED.canonical_symbol,
     updated_at = EXCLUDED.updated_at;
 
 INSERT INTO public.subscriber_global_warm_eod_assets (
-  global_asset_id, canonical_symbol, asset_name, market_status, coverage_status, as_of_date, updated_at
+  global_asset_id, canonical_symbol, asset_name, market_status, coverage_status, as_of_date, priority, updated_at
 ) VALUES (
-  'k8s-staging-aapl', 'AAPL', 'Apple Inc.', 'active', 'active', CURRENT_DATE, now()
+  'k8s-staging-aapl', 'AAPL', 'Apple Inc.', 'active', 'active', CURRENT_DATE, 1, now()
 ) ON CONFLICT (global_asset_id) DO UPDATE
 SET canonical_symbol = EXCLUDED.canonical_symbol,
     asset_name = EXCLUDED.asset_name,
     market_status = EXCLUDED.market_status,
     coverage_status = EXCLUDED.coverage_status,
     as_of_date = EXCLUDED.as_of_date,
+    priority = EXCLUDED.priority,
     updated_at = EXCLUDED.updated_at;
 
 GRANT USAGE ON SCHEMA public TO signalops_subscriber_global_eod;
@@ -366,7 +374,7 @@ exit_code="$(kubectl get pod "$pod" -n "$NAMESPACE" -o jsonpath='{.status.contai
 }
 
 logs="$(kubectl logs -n "$NAMESPACE" "$pod" -c marketops-job)"
-echo "$logs" | grep -q 'warm_assets=1' || fail "one-asset boundary missing from worker logs"
+echo "$logs" | grep -q 'processed=1' || fail "one-asset processing boundary missing from worker logs"
 echo "$logs" | grep -q 'fmp_calls=1' || fail "expected exactly one FMP provider call"
 echo "$logs" | grep -q 'correlation_id=' || fail "provider evidence correlation missing from worker logs"
 if echo "$logs" | grep -q 'dry_run=true'; then
@@ -375,6 +383,9 @@ fi
 
 status_line="$(kubectl exec -n "$DATA_NAMESPACE" "$PRIMARY_POD" -- env PGPASSWORD="$primary_password" psql -h 127.0.0.1 -U "$PRIMARY_USER" -d "$PRIMARY_DATABASE" -Atc "SELECT status || '|' || runner || '|' || COALESCE(exit_code::text,'') || '|' || COALESCE((detail->>'dry_run'),'') FROM marketops_scheduled_job_runs WHERE run_id='${RUN_ID}'")"
 [[ "$status_line" == "succeeded|kubernetes-provider-cronjob-smoke|0|false" ]] || fail "DB-backed scheduler status parity mismatch: ${status_line:-empty}"
+
+attempt_line="$(kubectl exec -n "$DATA_NAMESPACE" "$PRIMARY_POD" -- env PGPASSWORD="$primary_password" psql -h 127.0.0.1 -U "$PRIMARY_USER" -d "$PRIMARY_DATABASE" -Atc "SELECT symbol || '|' || status || '|' || attempt_count::text || '|' || max_attempts::text FROM subscriber_global_annual_financial_tasks WHERE workflow_id='subglobalannualworkflow-' || to_char(COALESCE(NULLIF('${MARKETOPS_SESSION_DATE:-}','')::date, CASE WHEN EXTRACT(ISODOW FROM now() AT TIME ZONE 'UTC')=6 THEN ((now() AT TIME ZONE 'UTC')::date - 1) WHEN EXTRACT(ISODOW FROM now() AT TIME ZONE 'UTC')=7 THEN ((now() AT TIME ZONE 'UTC')::date - 2) ELSE (now() AT TIME ZONE 'UTC')::date END), 'YYYYMMDD') AND global_asset_id='k8s-staging-aapl' ORDER BY updated_at DESC LIMIT 1")"
+[[ "$attempt_line" == "AAPL|succeeded|1|1" ]] || fail "one-attempt/no-retry DB boundary mismatch: ${attempt_line:-empty}"
 
 record_count="$(kubectl exec -n "$DATA_NAMESPACE" "$PRIMARY_POD" -- env PGPASSWORD="$primary_password" psql -h 127.0.0.1 -U "$PRIMARY_USER" -d "$PRIMARY_DATABASE" -Atc "SELECT count(*) FROM subscriber_global_marketops_evidence_records rec JOIN subscriber_global_marketops_evidence_runs run ON run.evidence_run_id=rec.evidence_run_id WHERE run.correlation_id='${RUN_ID}' AND run.evidence_kind='fundamental_annual' AND rec.global_asset_id='k8s-staging-aapl'")"
 [[ "$record_count" =~ ^[0-9]+$ ]] || fail "could not read evidence record count"
