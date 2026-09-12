@@ -9975,3 +9975,16 @@ Next-cycle priority:
 - Ran `sudo -n signalops-deploy-agent restore-rehearsal-run`; isolated restore rehearsal passed for both `marketops-primary` and `marketops-temporal`, and each restored database started and accepted a validation query.
 - Ran `sudo -n signalops-deploy-agent operations-monitor-run`; it exited successfully after the restore rehearsal. Scheduler status then showed all tracked MarketOps timers active and `signalops-marketops-operations-monitor.service` result `success`.
 - Added `docs/projects/subscriber_project/pr3_backup_restore_refresh_evidence_2026-09-12.md` and updated production-readiness references so backup/restore is current evidence rather than a deferred risk for this cycle.
+
+### 2026-09-12 — K8S production cutover parity plan added
+
+- Added `scripts/verify_k8s_production_cutover_readiness.sh` as a non-cutover readiness report for Kubernetes production migration. The verifier renders base/app/MarketOps manifests, checks no Ingress is introduced, confirms `production-cutover-allowed=false`, rejects OpenBao `tls-skip-verify`, and delegates to existing K8S manifest verifiers.
+- Added `docs/projects/subscriber_project/k8s_production_cutover_parity_plan.md` to make the remaining Kubernetes cutover gates explicit: authenticated Keycloak app parity, broader MarketOps scheduler parity, Signal-Connect ingestion shadow, ingress/DNS rollback proposal, and capacity/load validation.
+- Updated production-readiness and architecture docs to keep OpenBao HA as resilience hardening while preserving recoverability, policy, audit, and rollback as the production gate.
+
+### 2026-09-12 — K8S production cutover readiness report passed
+
+- Ran `scripts/verify_k8s_production_cutover_readiness.sh`; it passed as a non-cutover report and retained `production_cutover_allowed=false`.
+- Corrected `scripts/verify_k8s_base_scaffold.sh` so base K8S-1 counts exclude intentional staging NetworkPolicies, ConfigMaps, and pods introduced by later K8S-2/K8S-3 gates.
+- Current proven K8S state: base scaffold verified, app manifest guard verified, MarketOps jobs/data manifest guards verified, OpenBao CA trust verified, and backup/restore current as of 2026-09-12.
+- Remaining K8S cutover gates are authenticated Keycloak app parity, broader MarketOps scheduler parity, Signal-Connect ingestion shadow, ingress/DNS rollback proposal, and capacity/load validation.

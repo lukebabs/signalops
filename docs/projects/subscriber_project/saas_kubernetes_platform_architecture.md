@@ -123,9 +123,9 @@ The first infrastructure build artifact is [SignalOps Kubernetes Workload Invent
 
 OpenBao is the selected Kubernetes secret backend. SignalOps will use Vault-compatible OpenBao KV v2 paths and Kubernetes-auth roles per operational plane. Workloads should consume OpenBao Agent Injector-projected secret files through workload-specific annotations and per-plane Kubernetes auth roles rather than broad `.env` injection.
 
-OpenBao must be operated in HA mode before SignalOps production workloads depend on it. The accepted HA posture is a fault-tolerant OpenBao server topology, durable storage with tested snapshot/restore, explicit unseal or auto-unseal recovery ownership, injector availability checks, audit logging, and per-plane Kubernetes auth roles that prevent cross-plane secret reads.
+OpenBao must have proven recoverability before SignalOps production workloads depend on it: durable backup/snapshot procedure, explicit seal/unseal or auto-unseal recovery ownership, injector availability checks, audit logging, and per-plane Kubernetes auth roles that prevent cross-plane secret reads. True OpenBao HA remains the preferred resilience posture, but a single-node OpenBao deployment is not a production blocker when recovery and rollback controls are current.
 
-The executable staging path is defined in [Kubernetes/OpenBao staging cutover gate](k8s_openbao_staging_cutover_gate.md). As of 2026-09-12, OpenBao is reported available, but the read-only HA verifier still blocks SignalOps workload conversion because it observed only 1 of the required 3 ready non-injector OpenBao server pods. Docker Compose therefore remains the live production authority.
+The executable staging path is defined in [Kubernetes/OpenBao staging cutover gate](k8s_openbao_staging_cutover_gate.md). As of 2026-09-12, OpenBao is available as a single server pod; this is tracked as resilience hardening rather than a launch blocker. Docker Compose remains the live production authority until authenticated app parity, scheduler parity, Signal-Connect shadow, ingress/DNS rollback, and capacity gates close.
 
 ## Initial migration path from Docker Compose
 

@@ -33,9 +33,9 @@ pod_count=0
 
 for ns in "${namespaces[@]}"; do
   service_account_count=$((service_account_count + $(kubectl get serviceaccount -n "$ns" --no-headers 2>/dev/null | awk '$1 != "default" { c++ } END { print c+0 }')))
-  network_policy_count=$((network_policy_count + $(kubectl get networkpolicy -n "$ns" --no-headers 2>/dev/null | wc -l | tr -d ' ')))
-  policy_configmap_count=$((policy_configmap_count + $(kubectl get configmap -n "$ns" --no-headers 2>/dev/null | awk '$1 ~ /^signalops-/ { c++ } END { print c+0 }')))
-  pod_count=$((pod_count + $(kubectl get pods -n "$ns" --no-headers 2>/dev/null | wc -l | tr -d ' ')))
+  network_policy_count=$((network_policy_count + $(kubectl get networkpolicy -n "$ns" -l 'signalops.syncratic.io/stage!=staging' --no-headers 2>/dev/null | wc -l | tr -d ' ')))
+  policy_configmap_count=$((policy_configmap_count + $(kubectl get configmap -n "$ns" -l 'signalops.syncratic.io/stage!=staging' --no-headers 2>/dev/null | awk '$1 ~ /^signalops-/ { c++ } END { print c+0 }')))
+  pod_count=$((pod_count + $(kubectl get pods -n "$ns" -l 'signalops.syncratic.io/stage!=staging' --no-headers 2>/dev/null | wc -l | tr -d ' ')))
 done
 
 if [[ "$service_account_count" -ne "$expected_service_accounts" ]]; then
@@ -51,7 +51,7 @@ if [[ "$policy_configmap_count" -ne "$expected_policy_configmaps" ]]; then
 fi
 
 if [[ "$pod_count" -ne 0 ]]; then
-  fail "expected zero SignalOps workload pods in K8S-1 scaffold, found ${pod_count}"
+  fail "expected zero non-staging SignalOps workload pods in K8S-1 scaffold, found ${pod_count}"
 fi
 
 cat <<EOF
