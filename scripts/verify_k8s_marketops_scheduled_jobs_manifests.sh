@@ -53,6 +53,14 @@ printf '%s
 printf '%s
 ' "$rendered" | grep -q 'vault.hashicorp.com/role: signalops-marketops' || fail "OpenBao marketops role missing"
 printf '%s
+' "$rendered" | grep -q 'vault.hashicorp.com/tls-secret: signalops-openbao-ca' || fail "OpenBao CA trust secret annotation missing"
+printf '%s
+' "$rendered" | grep -q 'vault.hashicorp.com/ca-cert: /vault/tls/ca.crt' || fail "OpenBao CA cert path annotation missing"
+if printf '%s
+' "$rendered" | grep -q 'vault.hashicorp.com/tls-skip-verify'; then
+  fail "tls-skip-verify must not be present in MarketOps staging CronJobs"
+fi
+printf '%s
 ' "$rendered" | grep -q 'image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging' || fail "staging job-runner image missing"
 printf '%s
 ' "$rendered" | grep -q 'SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED' || fail "data-boundary env guard missing"

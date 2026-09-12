@@ -9935,3 +9935,13 @@ Next-cycle priority:
 - GHCR publication passed for `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner` with immutable source tag `6488950e98df`; the mutable `staging` tag was refreshed.
 - Bounded Kubernetes pull smoke passed against the immutable tag in `signalops-marketops`: pod succeeded, worker execution false, provider polling false, and production cutover false.
 - K8S-3 remaining blockers are now OpenBao CA trust and one separately approved CronJob unsuspend/resuspend smoke with no provider polling.
+
+### 2026-09-12 — K8S-3 OpenBao CA trust gate closed
+
+- Verified that `openbao/openbao-root-ca` alone does not validate the current OpenBao server certificate because the server leaf is issued by `Syncratic Core Intermediate CA`.
+- Reused the established platform bundle `syncratic-connect/syncratic-openbao-ca`, which validates the current OpenBao server certificate chain.
+- Added `scripts/provision_signalops_openbao_ca_trust.sh` to copy that public CA bundle into `signalops-app` and `signalops-marketops` as `signalops-openbao-ca` containing only `ca.crt`.
+- Replaced staging OpenBao injector `tls-skip-verify` annotations with `tls-secret=signalops-openbao-ca` and `ca-cert=/vault/tls/ca.crt` in the staging gateway, suspended MarketOps CronJobs, and the one-shot dry-run harness.
+- Hardened app and MarketOps K8S manifest verifiers to fail if `vault.hashicorp.com/tls-skip-verify` reappears.
+- Reran the dedicated MarketOps staging DB dry-run with immutable image `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df`; evidence returned `scheduler_status_parity=verified`, `provider_polling=false`, and `production_cutover_allowed=false`.
+- K8S-3 remaining blocker is now the separately approved one-CronJob unsuspend/resuspend smoke with no provider polling.

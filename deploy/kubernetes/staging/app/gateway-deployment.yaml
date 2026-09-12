@@ -28,7 +28,8 @@ spec:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "signalops-app"
         vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
-        vault.hashicorp.com/tls-skip-verify: "true"
+        vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+        vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
         vault.hashicorp.com/agent-inject-secret-signalops-gateway-runtime.env: "signalops/data/k8s/app/signalops-gateway-runtime-staging"
         vault.hashicorp.com/agent-inject-template-signalops-gateway-runtime.env: |
           {{- with secret "signalops/data/k8s/app/signalops-gateway-runtime-staging" -}}

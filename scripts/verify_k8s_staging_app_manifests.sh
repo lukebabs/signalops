@@ -44,6 +44,14 @@ printf '%s
 printf '%s
 ' "$rendered" | grep -q 'vault.hashicorp.com/agent-inject: "true"' || fail "OpenBao injector annotation missing"
 printf '%s
+' "$rendered" | grep -q 'vault.hashicorp.com/tls-secret: signalops-openbao-ca' || fail "OpenBao CA trust secret annotation missing"
+printf '%s
+' "$rendered" | grep -q 'vault.hashicorp.com/ca-cert: /vault/tls/ca.crt' || fail "OpenBao CA cert path annotation missing"
+if printf '%s
+' "$rendered" | grep -q 'vault.hashicorp.com/tls-skip-verify'; then
+  fail "tls-skip-verify must not be present in staging app manifests"
+fi
+printf '%s
 ' "$rendered" | grep -q 'signalops/data/k8s/app/signalops-gateway-runtime-staging' || fail "staging OpenBao secret path missing"
 printf '%s
 ' "$rendered" | grep -q 'imagePullSecrets:' || fail "imagePullSecrets missing"

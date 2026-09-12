@@ -157,6 +157,6 @@ production_cutover_allowed=false
 
 Dedicated non-production MarketOps data services are no longer the blocker. The remaining K8S-3 gates are:
 
-1. remove staging-only OpenBao TLS skip-verify by installing/proving production-grade CA trust;
+1. OpenBao CA trust — closed by [K8S-3 OpenBao CA trust gate](k8s3_openbao_ca_trust_gate_2026-09-12.md);
 2. run one approved CronJob unsuspend/resuspend smoke with no provider polling;
 3. only after that, request a separate named approval for any provider-enabled Kubernetes schedule test.

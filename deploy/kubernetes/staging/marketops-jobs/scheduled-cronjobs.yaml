@@ -33,7 +33,8 @@ spec:
           annotations:
             vault.hashicorp.com/agent-inject: "true"
             vault.hashicorp.com/role: "signalops-marketops"
-            vault.hashicorp.com/tls-skip-verify: "true"
+            vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+            vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
@@ -107,7 +108,8 @@ spec:
           annotations:
             vault.hashicorp.com/agent-inject: "true"
             vault.hashicorp.com/role: "signalops-marketops"
-            vault.hashicorp.com/tls-skip-verify: "true"
+            vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+            vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
@@ -181,7 +183,8 @@ spec:
           annotations:
             vault.hashicorp.com/agent-inject: "true"
             vault.hashicorp.com/role: "signalops-marketops"
-            vault.hashicorp.com/tls-skip-verify: "true"
+            vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+            vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
@@ -255,7 +258,8 @@ spec:
           annotations:
             vault.hashicorp.com/agent-inject: "true"
             vault.hashicorp.com/role: "signalops-marketops"
-            vault.hashicorp.com/tls-skip-verify: "true"
+            vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+            vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
@@ -329,7 +333,8 @@ spec:
           annotations:
             vault.hashicorp.com/agent-inject: "true"
             vault.hashicorp.com/role: "signalops-marketops"
-            vault.hashicorp.com/tls-skip-verify: "true"
+            vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+            vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}

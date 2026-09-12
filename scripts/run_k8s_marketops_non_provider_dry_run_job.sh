@@ -9,6 +9,8 @@ SECRET_PATH="${MARKETOPS_SECRET_PATH:-signalops/data/k8s/marketops/marketops-wor
 OPENBAO_ADDR="${OPENBAO_ADDR:-https://openbao.openbao.svc:8200}"
 RUN_ID="${SIGNALOPS_K8S_MARKETOPS_DRY_RUN_RUN_ID:-${JOB_NAME}-$(date -u +%Y%m%dT%H%M%SZ)}"
 RUNTIME_SMOKE_NAMESPACE="${SIGNALOPS_K8S_RUNTIME_SMOKE_NAMESPACE:-syncratic-runtime-smoke}"
+OPENBAO_TLS_SECRET="${SIGNALOPS_OPENBAO_CA_SECRET:-signalops-openbao-ca}"
+OPENBAO_CA_CERT="${SIGNALOPS_OPENBAO_CA_CERT:-/vault/tls/ca.crt}"
 
 fail() {
   echo "signalops_k8s_marketops_non_provider_dry_run_job_failed: $*" >&2
@@ -139,7 +141,8 @@ spec:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "signalops-marketops"
         vault.hashicorp.com/service: "${OPENBAO_ADDR}"
-        vault.hashicorp.com/tls-skip-verify: "true"
+        vault.hashicorp.com/tls-secret: "${OPENBAO_TLS_SECRET}"
+        vault.hashicorp.com/ca-cert: "${OPENBAO_CA_CERT}"
         vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "${SECRET_PATH}"
         vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
           {{- with secret "${SECRET_PATH}" -}}
