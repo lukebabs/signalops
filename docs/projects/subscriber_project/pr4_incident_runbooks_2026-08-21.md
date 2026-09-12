@@ -382,3 +382,12 @@ Recovery order:
 The dated action validates the date, rejects weekends/holidays/future sessions, and then runs warm EOD, daily post-close, post-close recovery, SRI, SRI holdings, global dashboard projection, and SAF benchmark projection using the existing status wrappers and locks.
 
 Do not run raw provider or post-close scripts manually unless the deployment-agent action itself is unavailable and a named operator approves the break-glass path.
+
+Validation and evidence boundaries:
+
+- After the action, run the Dashboard freshness and Admin Operations Health Playwright smokes.
+- Confirm the global dashboard projection for the affected date.
+- If valuation/DOSM source evidence exists but subscriber/global projection is missing, rerun the governed projection/materializer path and preserve actual source-session provenance.
+- If options capture records are failed/no-data and no `marketops_options_chain_daily` rows exist for the session, record `provider_evidence_missing`. Do not create distribution or feature rows without source chain evidence.
+- If SAF rows are absent because no source outcomes matured on the exact session, record `not_matured`. Do not infer SAF observations from adjacent dates.
+

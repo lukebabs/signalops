@@ -261,10 +261,11 @@ func appendOutput(ctx context.Context, db *sql.DB, results []resultCandidate, an
 		fingerprint := digest(string(payload))
 		quality := "usable"
 		observation := anchor
+		priceSession := ""
 		if !candidate.source.priceSession.IsZero() {
-			observation = candidate.source.priceSession
+			priceSession = candidate.source.priceSession.Format("2006-01-02")
 		}
-		provenance, _ := json.Marshal(map[string]any{"annual_financial_evidence_id": candidate.source.annualEvidenceID, "annual_financial_fingerprint": candidate.source.annualFingerprint, "eod_price_evidence_id": candidate.source.priceEvidenceID, "eod_price_fingerprint": candidate.source.priceFingerprint, "annual_available_at": candidate.annualAvailableAt.UTC().Format(time.RFC3339Nano)})
+		provenance, _ := json.Marshal(map[string]any{"annual_financial_evidence_id": candidate.source.annualEvidenceID, "annual_financial_fingerprint": candidate.source.annualFingerprint, "eod_price_evidence_id": candidate.source.priceEvidenceID, "eod_price_fingerprint": candidate.source.priceFingerprint, "eod_price_session_date": priceSession, "annual_available_at": candidate.annualAvailableAt.UTC().Format(time.RFC3339Nano)})
 		result, err := tx.ExecContext(ctx, `INSERT INTO subscriber_global_marketops_evidence_records
  (global_evidence_id,evidence_run_id,global_asset_id,session_date,evidence_kind,algorithm_id,algorithm_version,quality_state,source_system,source_event_id,source_run_id,evidence_fingerprint,validation_contract_ref,immutable_baseline_ref,payload,provenance,observed_at)
  VALUES ($1,$2,$3,$4,'valuation',$5,$6,$7,'marketops',$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,now())

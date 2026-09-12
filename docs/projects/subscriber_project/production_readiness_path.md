@@ -724,3 +724,26 @@ Production-readiness impact:
 5. Build cross-plane observability before production cutover.
 6. Run load tests before publishing concurrency limits.
 7. Preserve Docker Compose as current production authority until a K8s staging/parity gate is explicitly approved.
+
+### 2026-09-12 outage reconciliation closure — Sep 9 recoverable evidence
+
+Status: partially closed with explicit evidence boundaries.
+
+Evidence:
+
+- Production Playwright validation passed after reconciliation: Dashboard freshness smoke returned `1 passed`; Admin Operations Health returned `3 passed, 1 skipped`.
+- Dedicated scheduler status is healthy: all MarketOps timers are active for the next eligible trading-day cadence, and tracked services report `success`.
+- The Sep 9, 2026 ET recoverable valuation/DOSM gap was closed without provider polling by repairing the subscriber global annual valuation materializer to anchor outage catch-up rows to the requested session date while preserving the actual source price session in provenance.
+- The Sep 9 global dashboard projection now reports `risk_reward=132`, `market_state=132`, `eroc=132`, `valuation=1980`, and `eeom=8`.
+- `scripts/marketops_global_dashboard_projection.sh` now recognizes v4 annual VC/DOSM algorithms when asserting valuation coverage, so future projections do not regress to the old v3-only coverage check.
+
+Explicit boundaries:
+
+1. Sep 9 options remain unavailable because the capture ledger contains failed/no-data capture records and there are no persisted option-chain rows for that session. Without source option-chain evidence, the system must not manufacture distributions or feature rows.
+2. Sep 9 SAF remains unavailable because no source outcomes matured exactly on that session. Matured outcomes exist on nearby sessions, but SAF projection remains source-date truthful.
+3. Sep 10 options show the same failed/no-data capture boundary. This should be tracked as outage/provider-evidence loss, not projection drift.
+
+Next readiness action:
+
+- Add an Admin Operations Health detail state that separates `recovered`, `provider_evidence_missing`, and `not_matured` so future outage review can distinguish a broken pipeline from truthful missing evidence.
+
