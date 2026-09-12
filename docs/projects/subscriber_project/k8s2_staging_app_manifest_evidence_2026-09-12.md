@@ -1,6 +1,6 @@
 # K8S-2 staging app manifest evidence
 
-Status: manifest gate complete; staging workload apply mechanics exercised; GHCR images published; private image pulls verified; deployments scaled back to zero pending runtime-readiness configuration.
+Status: manifest gate complete; staging workload apply mechanics exercised; GHCR images published; private image pulls verified; web runtime readiness verified; gateway runtime readiness blocked on placeholder OpenBao database values; deployments scaled back to zero.
 
 Recorded: 2026-09-12.
 
@@ -44,6 +44,7 @@ cronjobs=0
 jobs=0
 statefulsets=0
 secrets=0
+configmaps=1
 openbao_secret_path=signalops/data/k8s/app/signalops-gateway-runtime-staging
 production_cutover_allowed=false
 applied=false
@@ -52,6 +53,7 @@ applied=false
 The server-side dry run would create only:
 
 ```text
+configmap/signalops-web-nginx-staging
 service/signalops-gateway
 deployment.apps/signalops-gateway
 service/signalops-web
@@ -107,10 +109,35 @@ cronjobs=0
 jobs=0
 statefulsets=0
 secrets=0
+configmaps=1
 openbao_secret_path=signalops/data/k8s/app/signalops-gateway-runtime-staging
 production_cutover_allowed=false
 applied=false
 ```
+
+## Web runtime readiness evidence
+
+After private GHCR pull access was verified, the staging web Deployment still failed availability because the Docker Compose nginx configuration was being reused in Kubernetes and kubelet HTTP probes were timing out through the host/network-policy path. The staging overlay now mounts a Kubernetes-native nginx ConfigMap and uses in-container localhost exec probes:
+
+```text
+configmap/signalops-web-nginx-staging configured
+deployment "signalops-web" successfully rolled out
+```
+
+Direct in-pod smoke evidence confirmed the SPA is served from the private GHCR image:
+
+```text
+<title>SignalOps</title>
+<script type="module" crossorigin src="/assets/index-BZAC9GHh.js"></script>
+```
+
+The web ConfigMap keeps `/v1/`, `/healthz`, and `/readyz` pointed at the Kubernetes Service DNS name `signalops-gateway.signalops-app.svc.cluster.local:8080`, with lazy DNS resolution through the cluster resolver `10.43.0.10`. This closes the web runtime/probe portion of K8S-2.
+
+The staging Deployments were scaled back to zero after the bounded smoke.
+
+## Gateway runtime blocker
+
+The gateway image pull and OpenBao injection path are verified, but the injected runtime file still contains placeholder-only database endpoints such as `postgres.staging.invalid`. When scaled above zero, the gateway exits while trying to connect to that unresolved database host. This is the remaining K8S-2 blocker. Closing it requires an approved OpenBao runtime update with reachable staging database dependencies or explicit non-production database endpoints. No production workload authority, DNS, provider polling, or production secret migration is allowed by the current evidence.
 
 ## Known warnings
 
@@ -125,4 +152,4 @@ Before running K8S-2 workload readiness, replace placeholder-only OpenBao runtim
 - readable path: `signalops/data/k8s/app/signalops-gateway-runtime-staging`;
 - cross-plane denial proof from another plane role.
 
-Only after runtime values are approved should the staging `web` and `gateway` pods be scaled above zero and tested through `/healthz`, `/readyz`, and Playwright smokes against a non-production hostname or port-forward. See [K8S-2 GHCR image publication evidence](k8s2_ghcr_image_publication_evidence_2026-09-12.md).
+Only after runtime values are approved should the staging `gateway` pod be scaled above zero and tested through `/healthz`, `/readyz`, and Playwright smokes against a non-production hostname or port-forward. The `web` pod static-runtime path has been verified, but full app parity still depends on the gateway runtime path. See [K8S-2 GHCR image publication evidence](k8s2_ghcr_image_publication_evidence_2026-09-12.md).

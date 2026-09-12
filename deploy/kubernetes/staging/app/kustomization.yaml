@@ -4,6 +4,7 @@ resources:
   - gateway-deployment.yaml
   - gateway-service.yaml
   - web-deployment.yaml
+  - web-nginx-config.yaml
   - web-service.yaml
 labels:
   - includeSelectors: true

@@ -9819,3 +9819,12 @@ Next-cycle priority:
 - Reran the bounded staging pull smoke; Kubernetes successfully pulled both private GHCR images for `signalops-web:staging` and `signalops-gateway:staging`.
 - The registry gate is closed. The remaining K8S-2 blocker is runtime readiness: web probes timed out and gateway entered restart/backoff after OpenBao injection, consistent with placeholder-only OpenBao runtime values and no approved staging DB dependencies yet.
 - Staging Deployments were scaled back to zero; Docker Compose remains production authority.
+
+### 2026-09-12 — K8S-2 web runtime readiness verified
+
+- Hardened the staging SignalOps web Deployment for Kubernetes by mounting a staging-only nginx ConfigMap instead of relying on the Docker Compose nginx upstream configuration.
+- Switched web readiness/liveness to in-container localhost exec probes to avoid false negatives from host/kubelet probe paths under the current network-policy/Cilium posture.
+- Applied the staging app overlay, restarted only the staging web pod, and verified `deployment "signalops-web" successfully rolled out`.
+- Captured direct in-pod SPA evidence with `kubectl exec ... wget http://127.0.0.1:8080/`, confirming the private GHCR web image serves SignalOps.
+- Scaled staging web/gateway Deployments back to zero after the bounded smoke.
+- K8S-2 full app readiness remains blocked only on gateway runtime values: the OpenBao staging path is still placeholder-only and points at unresolved database hosts such as `postgres.staging.invalid`. Docker Compose remains production authority and `production_cutover_allowed=false`.
