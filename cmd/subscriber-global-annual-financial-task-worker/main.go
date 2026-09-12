@@ -40,6 +40,8 @@ func run(ctx context.Context, args []string) error {
 	u := f.String("database-url", os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL"), "dedicated primary URL")
 	d := f.String("session-date", "", "completed session")
 	n := f.Int("max-assets", 1000, "warm asset limit")
+	maxRetries := f.Int("max-retries", 2, "maximum retry attempts per transient FMP call")
+	correlationID := f.String("correlation-id", "", "operator correlation id")
 	dry := f.Bool("dry-run", false, "no writes")
 	exec := f.Bool("execute", false, "write")
 	if err := f.Parse(args); err != nil {
@@ -47,6 +49,9 @@ func run(ctx context.Context, args []string) error {
 	}
 	if *dry == *exec || strings.TrimSpace(*u) == "" || *n < 1 || *n > 1000 {
 		return errors.New("pass one mode, database URL, and 1-1000 assets")
+	}
+	if *maxRetries < 0 || *maxRetries > 9 {
+		return errors.New("max-retries must be between 0 and 9")
 	}
 	s, err := session(*d)
 	if err != nil {
@@ -69,7 +74,11 @@ func run(ctx context.Context, args []string) error {
 		fmt.Printf("dry_run=true warm_assets=%d session_date=%s\n", c, s.Format("2006-01-02"))
 		return err
 	}
-	if err = seed(ctx, db, s, *n); err != nil {
+	correlation := strings.TrimSpace(*correlationID)
+	if correlation == "" {
+		correlation = "subscriber-global-annual-financial-" + s.Format("20060102")
+	}
+	if err = seed(ctx, db, s, *n, *maxRetries+1); err != nil {
 		return err
 	}
 	cfg := fmp.LoadClientConfigFromEnv()
@@ -90,7 +99,7 @@ func run(ctx context.Context, args []string) error {
 		for _, x := range items {
 			snap, e := c.GetAnnualFinancialSnapshot(ctx, x.symbol)
 			st, cl, next := outcome(e, x)
-			if err = save(ctx, db, x, s, snap, e, st, cl, next); err != nil {
+			if err = save(ctx, db, x, s, snap, e, st, cl, next, correlation); err != nil {
 				return err
 			}
 			processed++
@@ -120,13 +129,13 @@ func session(v string) (time.Time, error) {
 	return d, nil
 }
 func wid(s time.Time) string { return "subglobalannualworkflow-" + s.Format("20060102") }
-func seed(c context.Context, d *sql.DB, s time.Time, n int) error {
+func seed(c context.Context, d *sql.DB, s time.Time, n int, maxAttempts int) error {
 	w := wid(s)
 	_, e := d.ExecContext(c, `INSERT INTO subscriber_global_annual_financial_workflows(workflow_id,session_date,status,started_at)VALUES($1,$2,'running',now()) ON CONFLICT(session_date) DO UPDATE SET status=CASE WHEN subscriber_global_annual_financial_workflows.status='succeeded' THEN 'succeeded' ELSE 'running' END`, w, s)
 	if e != nil {
 		return e
 	}
-	_, e = d.ExecContext(c, `INSERT INTO subscriber_global_annual_financial_tasks(task_id,workflow_id,global_asset_id,symbol,status) SELECT 'subglobalannualtask-'||substr(md5(global_asset_id||$1),1,24),$2,global_asset_id,canonical_symbol,'queued' FROM subscriber_global_warm_eod_assets ORDER BY priority LIMIT $3 ON CONFLICT(workflow_id,global_asset_id) DO NOTHING`, s.Format("2006-01-02"), w, n)
+	_, e = d.ExecContext(c, `INSERT INTO subscriber_global_annual_financial_tasks(task_id,workflow_id,global_asset_id,symbol,status,max_attempts) SELECT 'subglobalannualtask-'||substr(md5(global_asset_id||$1),1,24),$2,global_asset_id,canonical_symbol,'queued',$4 FROM subscriber_global_warm_eod_assets ORDER BY priority LIMIT $3 ON CONFLICT(workflow_id,global_asset_id) DO UPDATE SET max_attempts=EXCLUDED.max_attempts,status=CASE WHEN subscriber_global_annual_financial_tasks.status='succeeded' THEN 'succeeded' ELSE 'queued' END,next_attempt_at=now(),updated_at=now()`, s.Format("2006-01-02"), w, n, maxAttempts)
 	return e
 }
 func claim(c context.Context, d *sql.DB, s time.Time, n int) ([]task, error) {
@@ -170,7 +179,7 @@ func outcome(e error, x task) (string, string, time.Time) {
 	}
 	return "skipped_no_data", "provider_no_data", time.Time{}
 }
-func save(c context.Context, d *sql.DB, x task, s time.Time, snap fmp.AnnualFinancialSnapshot, e error, st, cl string, next time.Time) error {
+func save(c context.Context, d *sql.DB, x task, s time.Time, snap fmp.AnnualFinancialSnapshot, e error, st, cl string, next time.Time, correlation string) error {
 	p, q, source, at := payload(x.symbol, snap, e)
 	fp := hash(string(p))
 	identitySeed := strings.Join([]string{x.asset, s.Format("2006-01-02"), algo, version, fp}, "\x1f")
@@ -181,7 +190,7 @@ func save(c context.Context, d *sql.DB, x task, s time.Time, snap fmp.AnnualFina
 	}
 	defer tx.Rollback()
 	prov, _ := json.Marshal(map[string]any{"provider": "fmp", "task_id": x.id, "attempt": x.attempt})
-	_, er = tx.ExecContext(c, `INSERT INTO subscriber_global_marketops_evidence_runs(evidence_run_id,evidence_kind,algorithm_id,algorithm_version,execution_mode,source_scope,session_start_date,session_end_date,input_manifest_fingerprint,validation_contract_ref,immutable_baseline_ref,provenance,recorded_by,recorded_at)VALUES($1,'fundamental_annual',$2,$3,'provider_capture','global_provider_capture',$4,$4,$5,$6,$7,$8::jsonb,$9,now())ON CONFLICT DO NOTHING`, run, algo, version, s, "sha256:"+fp, contract, baseline, string(prov), worker)
+	_, er = tx.ExecContext(c, `INSERT INTO subscriber_global_marketops_evidence_runs(evidence_run_id,evidence_kind,algorithm_id,algorithm_version,execution_mode,source_scope,session_start_date,session_end_date,input_manifest_fingerprint,validation_contract_ref,immutable_baseline_ref,provenance,recorded_by,correlation_id,recorded_at)VALUES($1,'fundamental_annual',$2,$3,'provider_capture','global_provider_capture',$4,$4,$5,$6,$7,$8::jsonb,$9,$10,now())ON CONFLICT DO NOTHING`, run, algo, version, s, "sha256:"+fp, contract, baseline, string(prov), worker, correlation)
 	if er != nil {
 		return er
 	}

@@ -57,7 +57,7 @@ set +a
 [[ "${SIGNALOPS_K8S_MARKETOPS_PROVIDER_CRONJOB_APPROVED:-true}" == "true" ]] || fail "set SIGNALOPS_K8S_MARKETOPS_PROVIDER_CRONJOB_APPROVED=true"
 [[ -n "${OPENBAO_ADMIN_TOKEN:-}" ]] || fail "OPENBAO_ADMIN_TOKEN is required in ${ENV_FILE}"
 [[ -n "${SIGNALOPS_FMP_API_KEY:-}" ]] || fail "SIGNALOPS_FMP_API_KEY is required in ${ENV_FILE}"
-[[ -n "${SIGNALOPS_FMP_BASE_URL:-}" ]] || fail "SIGNALOPS_FMP_BASE_URL is required in ${ENV_FILE}"
+SIGNALOPS_FMP_BASE_URL="${SIGNALOPS_FMP_BASE_URL:-https://financialmodelingprep.com}"
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_dir"
@@ -89,6 +89,15 @@ CREATE TABLE IF NOT EXISTS public.subscriber_global_warm_eod_assets (
   market_status text NOT NULL DEFAULT 'active',
   coverage_status text NOT NULL DEFAULT 'active',
   as_of_date date NOT NULL DEFAULT CURRENT_DATE,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.subscriber_global_assets (
+  global_asset_id text PRIMARY KEY,
+  canonical_symbol text NOT NULL,
+  asset_name text,
+  priority integer NOT NULL DEFAULT 1,
+  created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -132,6 +141,41 @@ CREATE TABLE IF NOT EXISTS public.subscriber_global_marketops_evidence_records (
   UNIQUE (global_asset_id, session_date, evidence_kind, algorithm_id, algorithm_version, evidence_fingerprint)
 );
 
+
+CREATE TABLE IF NOT EXISTS public.subscriber_global_annual_financial_workflows (
+  workflow_id text PRIMARY KEY,
+  session_date date NOT NULL UNIQUE,
+  status text NOT NULL CHECK (status IN ('queued','running','succeeded','degraded','failed')),
+  schedule_job_id text NOT NULL DEFAULT 'marketops-fmp-annual-financial',
+  coverage jsonb NOT NULL DEFAULT '{}'::jsonb,
+  failure_class text NOT NULL DEFAULT '',
+  error_message text NOT NULL DEFAULT '',
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.subscriber_global_annual_financial_tasks (
+  task_id text PRIMARY KEY,
+  workflow_id text NOT NULL REFERENCES public.subscriber_global_annual_financial_workflows(workflow_id) ON DELETE CASCADE,
+  global_asset_id text NOT NULL REFERENCES public.subscriber_global_assets(global_asset_id) ON DELETE RESTRICT,
+  symbol text NOT NULL,
+  status text NOT NULL CHECK (status IN ('queued','running','retry_scheduled','succeeded','skipped_no_data','blocked_entitlement','deferred_quota','failed_terminal')),
+  attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  max_attempts integer NOT NULL DEFAULT 3 CHECK (max_attempts BETWEEN 1 AND 10),
+  next_attempt_at timestamptz NOT NULL DEFAULT now(),
+  lease_expires_at timestamptz,
+  failure_class text NOT NULL DEFAULT '',
+  provider_status integer,
+  error_message text NOT NULL DEFAULT '',
+  result jsonb NOT NULL DEFAULT '{}'::jsonb,
+  completed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (workflow_id, global_asset_id)
+);
+
 CREATE TABLE IF NOT EXISTS public.marketops_scheduled_job_statuses (
   job_id text PRIMARY KEY,
   schedule text,
@@ -163,6 +207,16 @@ CREATE TABLE IF NOT EXISTS public.marketops_scheduled_job_runs (
   detail jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
+INSERT INTO public.subscriber_global_assets (
+  global_asset_id, canonical_symbol, asset_name, priority, updated_at
+) VALUES (
+  'k8s-staging-aapl', 'AAPL', 'Apple Inc.', 1, now()
+) ON CONFLICT (global_asset_id) DO UPDATE
+SET canonical_symbol = EXCLUDED.canonical_symbol,
+    asset_name = EXCLUDED.asset_name,
+    priority = EXCLUDED.priority,
+    updated_at = EXCLUDED.updated_at;
+
 INSERT INTO public.subscriber_global_warm_eod_assets (
   global_asset_id, canonical_symbol, asset_name, market_status, coverage_status, as_of_date, updated_at
 ) VALUES (
@@ -177,6 +231,9 @@ SET canonical_symbol = EXCLUDED.canonical_symbol,
 
 GRANT USAGE ON SCHEMA public TO signalops_subscriber_global_eod;
 GRANT SELECT ON public.subscriber_global_warm_eod_assets TO signalops_subscriber_global_eod;
+GRANT SELECT ON public.subscriber_global_assets TO signalops_subscriber_global_eod;
+GRANT SELECT, INSERT, UPDATE ON public.subscriber_global_annual_financial_workflows TO signalops_subscriber_global_eod;
+GRANT SELECT, INSERT, UPDATE ON public.subscriber_global_annual_financial_tasks TO signalops_subscriber_global_eod;
 GRANT SELECT, INSERT, UPDATE ON public.subscriber_global_marketops_evidence_runs TO signalops_subscriber_global_eod;
 GRANT SELECT, INSERT, UPDATE ON public.subscriber_global_marketops_evidence_records TO signalops_subscriber_global_eod;
 GRANT SELECT, INSERT, UPDATE ON public.marketops_scheduled_job_statuses TO signalops_subscriber_global_eod;
