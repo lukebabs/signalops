@@ -391,3 +391,9 @@ Validation and evidence boundaries:
 - If options capture records are failed/no-data and no `marketops_options_chain_daily` rows exist for the session, record `provider_evidence_missing`. Do not create distribution or feature rows without source chain evidence.
 - If SAF rows are absent because no source outcomes matured on the exact session, record `not_matured`. Do not infer SAF observations from adjacent dates.
 
+Accepted outage gap policy:
+
+- If a missed trading-day options capture has failed/no-data capture rows and no persisted option-chain evidence, operators may close the incident as an accepted provider-evidence gap after product approval.
+- The accepted state must remain visible as `provider_evidence_missing`; it must not be reclassified as recovered, current, bullish, bearish, neutral, or zero.
+- Reconstructing historical options from per-contract historical endpoints requires a separately scoped sprint and approval.
+

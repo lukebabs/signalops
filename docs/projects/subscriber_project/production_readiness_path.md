@@ -771,3 +771,18 @@ Production-readiness impact:
 - Operators can now distinguish recoverable projection drift from unrecoverable provider/source-evidence gaps in the Admin UI/API.
 - The Sep 9/Sep 10 options gaps remain truthful historical source gaps, not active production blockers for the scheduler path.
 
+### 2026-09-12 accepted provider-evidence gap closure — Sep 9/Sep 10 options
+
+Status: closed by product decision.
+
+Decision:
+
+- The Sep 9 and Sep 10, 2026 options gaps are accepted as truthful provider/source-evidence gaps caused by the outage window.
+- SignalOps will not attempt to reconstruct those sessions through the current Massive option-chain snapshot endpoint because that endpoint is current-snapshot oriented and does not provide an equivalent whole-chain historical replay for those exact sessions.
+- The system will preserve the failed/no-data capture ledger entries and expose `provider_evidence_missing` in Admin Operations Health instead of manufacturing distributions or option-derived features.
+
+Production-readiness impact:
+
+- This accepted gap is no longer a production blocker for the scheduler or Dashboard readiness path.
+- A future historical options reconstruction sprint may be opened if the business later wants contract-level historical reconstruction from per-contract aggregates/open-close/quotes, but that would be a separate data contract and provider-cost decision.
+
