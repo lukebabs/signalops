@@ -9945,3 +9945,11 @@ Next-cycle priority:
 - Hardened app and MarketOps K8S manifest verifiers to fail if `vault.hashicorp.com/tls-skip-verify` reappears.
 - Reran the dedicated MarketOps staging DB dry-run with immutable image `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df`; evidence returned `scheduler_status_parity=verified`, `provider_polling=false`, and `production_cutover_allowed=false`.
 - K8S-3 remaining blocker is now the separately approved one-CronJob unsuspend/resuspend smoke with no provider polling.
+### 2026-09-12 — K8S-3 CronJob unsuspend/resuspend smoke closed
+
+- Added `scripts/run_k8s_marketops_cronjob_unsuspend_smoke.sh` to exercise one staged MarketOps CronJob through the Kubernetes controller while keeping provider polling disabled and production cutover false.
+- First smoke exposed an OpenBao injector protocol drift: staged CronJobs had CA trust annotations but no explicit `vault.hashicorp.com/service`, so the injector defaulted to HTTP and the OpenBao agent received connection resets.
+- Fixed all staged MarketOps CronJobs to use `vault.hashicorp.com/service=https://openbao.openbao.svc:8200` and hardened `scripts/verify_k8s_marketops_scheduled_jobs_manifests.sh` to require that annotation while continuing to reject `tls-skip-verify`.
+- Corrected the smoke harness to preserve the selected CronJob job-id argument after the temporary dry-run patch.
+- Final smoke passed with run id `k8s-cronjob-unsuspend-20260912T214635Z`: exactly one Job was created, the CronJob was resuspended, the worker exited successfully, DB-backed scheduler parity was verified, provider polling stayed false, and production cutover stayed false.
+- Post-smoke cleanup verified all staged MarketOps CronJobs restored to `suspend=true` and no smoke Jobs remained in `signalops-marketops`. Docker Compose/systemd remains production scheduler authority.

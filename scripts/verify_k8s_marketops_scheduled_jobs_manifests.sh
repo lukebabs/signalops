@@ -53,6 +53,8 @@ printf '%s
 printf '%s
 ' "$rendered" | grep -q 'vault.hashicorp.com/role: signalops-marketops' || fail "OpenBao marketops role missing"
 printf '%s
+' "$rendered" | grep -q 'vault.hashicorp.com/service: https://openbao.openbao.svc:8200' || fail "OpenBao HTTPS service annotation missing"
+printf '%s
 ' "$rendered" | grep -q 'vault.hashicorp.com/tls-secret: signalops-openbao-ca' || fail "OpenBao CA trust secret annotation missing"
 printf '%s
 ' "$rendered" | grep -q 'vault.hashicorp.com/ca-cert: /vault/tls/ca.crt' || fail "OpenBao CA cert path annotation missing"
