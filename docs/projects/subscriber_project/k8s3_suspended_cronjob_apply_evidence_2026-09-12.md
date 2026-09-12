@@ -78,7 +78,8 @@ They are intentionally not runnable as production replacements yet. The image ta
 ## Remaining K8S-3 gates
 
 1. GHCR job-runner publication is closed for `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging`.
-2. Refresh or verify the Kubernetes `signalops-ghcr-pull` secret in `signalops-marketops` can read the new package before any pod-level dry-run.
-3. Provision `signalops/data/k8s/marketops/marketops-worker-runtime-staging` in OpenBao with non-production values and cross-plane denial evidence.
-4. Run one explicit non-provider dry-run Job after the image and runtime path are available.
-5. Build scheduler-completion parity before any CronJob is unsuspended.
+2. `signalops-marketops` pull-secret and image pull smoke are closed; the temporary pod succeeded and was removed.
+3. Placeholder-only OpenBao MarketOps staging role/path and app-plane denial proof are closed.
+4. Replace placeholder values with approved non-production runtime values before any worker dry-run.
+5. Run one explicit non-provider dry-run Job after the non-production runtime path is available.
+6. Build scheduler-completion parity before any CronJob is unsuspended.

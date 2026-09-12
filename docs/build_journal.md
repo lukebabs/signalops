@@ -9874,4 +9874,11 @@ Next-cycle priority:
 - Publication passed for `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner` with source tag `826d9d01d6bc` and stable `staging` tag.
 - Revalidated the suspended CronJob manifests and inspected the in-cluster CronJobs: all five remain `SUSPEND=True`, `ACTIVE=0`, `LAST SCHEDULE=<none>`, and reference `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging`.
 - No Jobs or Pods were created; Docker Compose/systemd remains the live production scheduler authority.
+### 2026-09-12 — K8S-3 MarketOps image pull and OpenBao staging closed
+
+- Added `scripts/run_k8s_marketops_job_runner_pull_smoke.sh`, which refreshes the `signalops-marketops` GHCR pull secret, runs a temporary pod using `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging`, overrides the entrypoint to an echo command, and deletes the pod after success.
+- Pull smoke passed: image pulled in `signalops-marketops`, pod exited successfully, worker execution false, provider polling false, and production cutover false. Follow-up pod listing confirmed no temporary job-runner pods remained.
+- Added `scripts/provision_openbao_signalops_marketops_staging.sh` and provisioned placeholder-only OpenBao path `signalops/k8s/marketops/marketops-worker-runtime-staging` for the `signalops-marketops` role.
+- Cross-plane denial passed: MarketOps service accounts can read the MarketOps staging path, while the app role cannot.
+- All five MarketOps K8S CronJobs remain suspended with `ACTIVE=0` and `LAST SCHEDULE=<none>`.
 
