@@ -397,3 +397,7 @@ Accepted outage gap policy:
 - The accepted state must remain visible as `provider_evidence_missing`; it must not be reclassified as recovered, current, bullish, bearish, neutral, or zero.
 - Reconstructing historical options from per-contract historical endpoints requires a separately scoped sprint and approval.
 
+September 2026 closure note:
+
+- The September outage reconciliation item is closed with an accepted provider-evidence gap. See [September 2026 outage reconciliation closure](outage_reconciliation_closure_2026-09-12.md).
+- Follow-on production-readiness work should monitor the next natural post-close cycles, but should not reopen this incident solely because missed options-chain rows remain unavailable.
