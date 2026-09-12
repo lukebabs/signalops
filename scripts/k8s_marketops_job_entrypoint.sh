@@ -18,12 +18,22 @@ fi
 export SIGNALOPS_ENV="${SIGNALOPS_ENV:-kubernetes-staging}"
 export SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED="${SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED:-true}"
 
+mode_flag="--execute"
+if [[ "${MARKETOPS_K8S_DRY_RUN:-false}" == "true" ]]; then
+  mode_flag="--dry-run"
+fi
+
 case "$job_id" in
   marketops-intraday)
-    exec signalops-marketops-intraday-monitor \
-      --tenant-id "${MARKETOPS_INTRADAY_TENANT_ID:-tenant-local}" \
-      --universe-group "${MARKETOPS_INTRADAY_UNIVERSE_GROUP:-all_active}" \
+    intraday_args=(
+      --tenant-id "${MARKETOPS_INTRADAY_TENANT_ID:-tenant-local}"
+      --universe-group "${MARKETOPS_INTRADAY_UNIVERSE_GROUP:-all_active}"
       --max-symbols "${MARKETOPS_INTRADAY_MAX_SYMBOLS:-200}"
+    )
+    if [[ "$mode_flag" == "--dry-run" ]]; then
+      intraday_args+=(--dry-run)
+    fi
+    exec signalops-marketops-intraday-monitor "${intraday_args[@]}"
     ;;
   marketops-sri-refresh)
     exec signalops-marketops-sri-runner \
@@ -37,13 +47,13 @@ case "$job_id" in
     ;;
   marketops-fmp-annual-financial)
     exec signalops-subscriber-global-annual-financial-task-worker \
-      --execute \
+      "$mode_flag" \
       --max-assets "${MARKETOPS_FMP_ANNUAL_MAX_ASSETS:-1000}" \
       --session-date "${MARKETOPS_SESSION_DATE:-}"
     ;;
   marketops-saf-benchmark)
     exec signalops-subscriber-global-saf-benchmark-materializer \
-      --execute \
+      "$mode_flag" \
       --max-observations "${MARKETOPS_SAF_BENCHMARK_MAX_OBSERVATIONS:-500}" \
       --calculation-version "${MARKETOPS_SAF_BENCHMARK_CALCULATION_VERSION:-saf_benchmark.k8s_staging}" \
       --correlation-id "${MARKETOPS_SAF_BENCHMARK_CORRELATION_ID:-k8s-staging-cronjob}"

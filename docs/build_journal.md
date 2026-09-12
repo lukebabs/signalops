@@ -9882,3 +9882,11 @@ Next-cycle priority:
 - Cross-plane denial passed: MarketOps service accounts can read the MarketOps staging path, while the app role cannot.
 - All five MarketOps K8S CronJobs remain suspended with `ACTIVE=0` and `LAST SCHEDULE=<none>`.
 
+### 2026-09-12 — K8S-3 MarketOps runtime writer and dry-run gate prepared
+
+- Added `scripts/provision_openbao_signalops_marketops_runtime_staging.sh`, a fail-closed runtime writer for `signalops/data/k8s/marketops/marketops-worker-runtime-staging`.
+- The writer requires explicit non-production approval, rejects placeholder `.invalid` hosts, localhost, Docker Compose service names, and production-like host fragments, and requires PostgreSQL hosts to be Kubernetes `.svc` service DNS names.
+- Added `scripts/run_k8s_marketops_non_provider_dry_run_job.sh`, which will run one bounded `marketops-fmp-annual-financial` dry-run Job with `MARKETOPS_FMP_ANNUAL_MAX_ASSETS=1` only after the runtime writer succeeds.
+- Updated the K8S job entrypoint so intraday, FMP annual, and SAF benchmark jobs can dispatch with their existing dry-run contracts. SRI jobs remain unchanged because those runners do not yet expose a dry-run contract.
+- Added `docs/projects/subscriber_project/k8s3_marketops_runtime_env_template.md` and evidence in `k8s3_marketops_runtime_writer_and_dry_run_gate_2026-09-12.md`.
+- Validation passed: shell syntax, `git diff --check`, and the K8S MarketOps suspended-CronJob manifest verifier. Live runtime write and dry-run Job execution remain blocked until `/etc/signalops/openbao-signalops-marketops-staging-runtime.env` exists with approved non-production `.svc` values and is readable in the execution context.
