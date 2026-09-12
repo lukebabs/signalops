@@ -9904,3 +9904,12 @@ Next-cycle priority:
 - The action is intentionally narrow: it runs only `scripts/run_k8s_marketops_non_provider_dry_run_job.sh`; it is not added to the Admin run-now Unix-socket bridge.
 - Local fail-closed validation passed: without `/etc/signalops/openbao-signalops-marketops-staging-runtime.env`, the script exits before writing OpenBao runtime values or creating a Kubernetes Job.
 - The installed host agent must be reprovisioned before `sudo -n signalops-deploy-agent k8s-marketops-non-provider-dry-run` is available live. The runtime file remains the blocker for actual dry-run pod execution.
+
+### 2026-09-12 — K8S-3 non-provider dry-run Job gate passed
+
+- Created a temporary operator-owned runtime file under `/tmp` from the existing non-production `syncratic-runtime-smoke` PostgreSQL secret, rewritten to the full Kubernetes `.svc.cluster.local` service hostname. Secret values were not printed, and the temporary file was removed after the gate.
+- Prepared only the minimum dry-run DB objects in the runtime-smoke database: `signalops_subscriber_global_eod`, `subscriber_global_warm_eod_assets`, one synthetic `AAPL` warm asset row, and a SELECT grant.
+- OpenBao MarketOps runtime write passed with `cross_plane_denied=true`, `secret_values=non_production_runtime_supplied`, and `production_cutover_allowed=false`.
+- First pod attempt exposed an injector protocol gap: the OpenBao agent attempted HTTP against the HTTPS-only OpenBao service. The harness now pins `vault.hashicorp.com/service=https://openbao.openbao.svc:8200` with staging-only TLS skip-verify, matching the earlier K8S-2 gateway staging fix.
+- Second pod attempt proved the worker completed with `dry_run=true warm_assets=1 session_date=2026-09-11`, while the injected sidecar kept the Kubernetes Job active. The harness now uses the `marketops-job` container terminated exit code plus dry-run log marker as the success condition.
+- Final gate passed: `signalops_k8s_marketops_non_provider_dry_run_job_verified`, `provider_polling=false`, `production_cutover_allowed=false`. The one-shot Job and temporary NetworkPolicies were removed after success.

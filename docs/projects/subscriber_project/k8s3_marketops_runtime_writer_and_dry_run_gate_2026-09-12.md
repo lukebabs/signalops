@@ -1,6 +1,6 @@
 # K8S-3 MarketOps Runtime Writer and Dry-Run Gate — 2026-09-12
 
-Status: source package prepared and validated. Live OpenBao runtime write and pod dry-run execution remain blocked until the protected non-production runtime file is present and readable to the operator context.
+Status: closed for one non-provider Kubernetes Job dry-run against the non-production runtime-smoke database. Production cutover remains blocked.
 
 ## What changed
 
@@ -134,9 +134,82 @@ signalops_k8s_marketops_non_provider_dry_run_job_failed: runtime env file is mis
 
 No Kubernetes Job was created in this failure path.
 
+
+## Live dry-run gate passed
+
+With explicit permission to create the runtime file, the gate used a temporary operator-owned runtime file at:
+
+```text
+/tmp/signalops-openbao-marketops-runtime-staging.env
+```
+
+The file was populated from the existing non-production `syncratic-runtime-smoke` PostgreSQL secret, rewritten to the Kubernetes service DNS host:
+
+```text
+syncratic-refactor-smoke-syncratic-phase1-postgres.syncratic-runtime-smoke.svc.cluster.local
+```
+
+Secret values were not printed. The temporary file was removed after the gate completed.
+
+The runtime-smoke database was prepared with only the minimum dry-run objects needed by the FMP annual worker dry-run path:
+
+- role `signalops_subscriber_global_eod`;
+- table `subscriber_global_warm_eod_assets`;
+- one synthetic warm asset row for `AAPL`;
+- `SELECT` grant for the dry-run role.
+
+OpenBao runtime write passed:
+
+```text
+openbao_signalops_marketops_runtime_staging_verified
+mount=signalops
+marketops_role=signalops-marketops
+marketops_namespace=signalops-marketops
+marketops_service_account=signalops-marketops-provider-worker
+secret_path=signalops/k8s/marketops/marketops-worker-runtime-staging
+deny_role=signalops-app
+deny_namespace=signalops-app
+cross_plane_denied=true
+secret_values=non_production_runtime_supplied
+production_cutover_allowed=false
+```
+
+The first pod run exposed the same OpenBao injector protocol issue seen earlier in K8S-2: the injected agent attempted HTTP against an HTTPS-only OpenBao service. The dry-run harness now pins the injector to:
+
+```text
+vault.hashicorp.com/service=https://openbao.openbao.svc:8200
+vault.hashicorp.com/tls-skip-verify=true
+```
+
+This is staging-only and must be replaced with proper CA trust before production workload cutover.
+
+The second run showed the MarketOps worker completed successfully while the OpenBao sidecar kept the Kubernetes Job active. The harness now treats the `marketops-job` container exit code plus dry-run log marker as authoritative.
+
+Final successful gate output:
+
+```text
+signalops_k8s_marketops_non_provider_dry_run_job_verified
+namespace=signalops-marketops
+image=ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging
+job=signalops-marketops-non-provider-dry-run
+job_id=marketops-fmp-annual-financial
+dry_run=true
+max_assets=1
+provider_polling=false
+production_cutover_allowed=false
+```
+
+Cleanup evidence:
+
+```text
+No resources found in signalops-marketops namespace.
+temporary_policy_absent=signalops-marketops/allow-marketops-k8s-dry-run-runtime-smoke-postgres-egress
+temporary_policy_absent=syncratic-runtime-smoke/allow-marketops-k8s-dry-run-to-postgres
+```
+
 ## Current blocker
 
-The protected runtime-file probe for:
+The default protected runtime-file path remains unresolved for future repeatability:
 
 ```text
 /etc/signalops/openbao-signalops-marketops-staging-runtime.env
@@ -148,11 +221,11 @@ could not run in this session because passwordless sudo was not available for th
 sudo: a password is required
 ```
 
-The file contents were not printed or inferred. The dry-run Job was not started.
+For this gate, an explicit temporary runtime file under `/tmp` was used and removed after success. The default `/etc` path still requires either passwordless deployment-agent handling or operator creation for future repeatability.
 
 ## Next gate
 
-Provide the protected runtime file using the template in `k8s3_marketops_runtime_env_template.md`, then run:
+Move from the runtime-smoke database to dedicated non-production SignalOps/MarketOps database services, then run:
 
 ```bash
 scripts/run_k8s_marketops_non_provider_dry_run_job.sh /etc/signalops/openbao-signalops-marketops-staging-runtime.env
@@ -167,4 +240,4 @@ provider_polling=false
 production_cutover_allowed=false
 ```
 
-The image has already been republished with the dry-run entrypoint change. After the dry-run Job passes, the staged CronJob path can move toward DB-backed scheduler-completion parity.
+The image has already been republished with the dry-run entrypoint change, and the dry-run Job passed. The staged CronJob path can now move toward DB-backed scheduler-completion parity.

@@ -7,6 +7,7 @@ IMAGE="${SIGNALOPS_MARKETOPS_K8S_JOB_RUNNER_IMAGE:-ghcr.io/syncratic-inc/signalo
 JOB_NAME="${SIGNALOPS_K8S_MARKETOPS_DRY_RUN_JOB_NAME:-signalops-marketops-non-provider-dry-run}"
 SECRET_PATH="${MARKETOPS_SECRET_PATH:-signalops/data/k8s/marketops/marketops-worker-runtime-staging}"
 OPENBAO_ADDR="${OPENBAO_ADDR:-https://openbao.openbao.svc:8200}"
+RUNTIME_SMOKE_NAMESPACE="${SIGNALOPS_K8S_RUNTIME_SMOKE_NAMESPACE:-syncratic-runtime-smoke}"
 
 fail() {
   echo "signalops_k8s_marketops_non_provider_dry_run_job_failed: $*" >&2
@@ -27,10 +28,93 @@ repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 "$repo_dir/scripts/provision_openbao_signalops_marketops_runtime_staging.sh" "$ENV_FILE" >/dev/null
 
 kubectl get namespace "$NAMESPACE" >/dev/null || fail "namespace missing: ${NAMESPACE}"
+kubectl get namespace "$RUNTIME_SMOKE_NAMESPACE" >/dev/null || fail "namespace missing: ${RUNTIME_SMOKE_NAMESPACE}"
 kubectl delete job "$JOB_NAME" -n "$NAMESPACE" --ignore-not-found --wait=true >/dev/null
 
 job_yaml="$(mktemp -t signalops-marketops-dry-run-job.XXXXXX.yaml)"
-trap 'kubectl delete job "$JOB_NAME" -n "$NAMESPACE" --ignore-not-found --wait=false >/dev/null 2>&1 || true; rm -f "$job_yaml"' EXIT
+policy_yaml="$(mktemp -t signalops-marketops-dry-run-policy.XXXXXX.yaml)"
+cleanup() {
+  kubectl delete job "$JOB_NAME" -n "$NAMESPACE" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  kubectl delete networkpolicy allow-marketops-k8s-dry-run-runtime-smoke-postgres-egress -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete networkpolicy allow-marketops-k8s-dry-run-to-postgres -n "$RUNTIME_SMOKE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+  rm -f "$job_yaml" "$policy_yaml"
+}
+trap cleanup EXIT
+cat >"$policy_yaml" <<EOF
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-marketops-k8s-dry-run-runtime-smoke-postgres-egress
+  namespace: ${NAMESPACE}
+  labels:
+    app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+    app.kubernetes.io/component: non-provider-dry-run
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: marketops
+    signalops.syncratic.io/stage: staging
+    signalops.syncratic.io/production-cutover-allowed: "false"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+      app.kubernetes.io/component: non-provider-dry-run
+      app.kubernetes.io/part-of: signalops
+      signalops.syncratic.io/production-cutover-allowed: "false"
+      signalops.syncratic.io/stage: staging
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ${RUNTIME_SMOKE_NAMESPACE}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: postgres
+              app.kubernetes.io/instance: syncratic-refactor-smoke
+              app.kubernetes.io/name: syncratic-phase1
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-marketops-k8s-dry-run-to-postgres
+  namespace: ${RUNTIME_SMOKE_NAMESPACE}
+  labels:
+    app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+    app.kubernetes.io/component: non-provider-dry-run
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: marketops
+    signalops.syncratic.io/stage: staging
+    signalops.syncratic.io/production-cutover-allowed: "false"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: postgres
+      app.kubernetes.io/instance: syncratic-refactor-smoke
+      app.kubernetes.io/name: syncratic-phase1
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ${NAMESPACE}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+              app.kubernetes.io/component: non-provider-dry-run
+              app.kubernetes.io/part-of: signalops
+              signalops.syncratic.io/production-cutover-allowed: "false"
+              signalops.syncratic.io/stage: staging
+      ports:
+        - protocol: TCP
+          port: 5432
+EOF
+kubectl apply -f "$policy_yaml" >/dev/null
+
 cat >"$job_yaml" <<EOF
 apiVersion: batch/v1
 kind: Job
@@ -52,6 +136,8 @@ spec:
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "signalops-marketops"
+        vault.hashicorp.com/service: "${OPENBAO_ADDR}"
+        vault.hashicorp.com/tls-skip-verify: "true"
         vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "${SECRET_PATH}"
         vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
           {{- with secret "${SECRET_PATH}" -}}
@@ -95,22 +181,39 @@ spec:
               memory: 256Mi
 EOF
 kubectl apply -f "$job_yaml" >/dev/null
-kubectl wait --for=condition=complete "job/${JOB_NAME}" -n "$NAMESPACE" --timeout=180s >/dev/null || {
-  kubectl describe job "$JOB_NAME" -n "$NAMESPACE" >&2 || true
-  pods="$(kubectl get pods -n "$NAMESPACE" -l job-name="$JOB_NAME" -o name 2>/dev/null || true)"
-  if [[ -n "$pods" ]]; then
-    kubectl logs -n "$NAMESPACE" $pods --all-containers=true >&2 || true
-  fi
-  fail "dry-run job did not complete"
+pod=""
+for _ in $(seq 1 120); do
+  pod="$(kubectl get pods -n "$NAMESPACE" -l job-name="$JOB_NAME" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  [[ -n "$pod" ]] || { sleep 1; continue; }
+  exit_code="$(kubectl get pod "$pod" -n "$NAMESPACE" -o jsonpath='{.status.containerStatuses[?(@.name=="marketops-job")].state.terminated.exitCode}' 2>/dev/null || true)"
+  waiting_reason="$(kubectl get pod "$pod" -n "$NAMESPACE" -o jsonpath='{.status.containerStatuses[?(@.name=="marketops-job")].state.waiting.reason}' 2>/dev/null || true)"
+  case "$exit_code" in
+    0) break ;;
+    '') ;;
+    *) kubectl logs -n "$NAMESPACE" "$pod" -c marketops-job >&2 || true; fail "dry-run worker exited ${exit_code}" ;;
+  esac
+  [[ "$waiting_reason" == "ImagePullBackOff" || "$waiting_reason" == "ErrImagePull" || "$waiting_reason" == "CreateContainerConfigError" ]] && {
+    kubectl describe pod "$pod" -n "$NAMESPACE" >&2 || true
+    fail "dry-run worker waiting reason ${waiting_reason}"
+  }
+  sleep 1
+done
+[[ -n "$pod" ]] || fail "dry-run pod was not created"
+exit_code="$(kubectl get pod "$pod" -n "$NAMESPACE" -o jsonpath='{.status.containerStatuses[?(@.name=="marketops-job")].state.terminated.exitCode}' 2>/dev/null || true)"
+[[ "$exit_code" == "0" ]] || {
+  kubectl describe pod "$pod" -n "$NAMESPACE" >&2 || true
+  kubectl logs -n "$NAMESPACE" "$pod" -c vault-agent-init --tail=80 >&2 || true
+  kubectl logs -n "$NAMESPACE" "$pod" -c marketops-job --tail=80 >&2 || true
+  fail "dry-run worker did not terminate successfully; exit_code=${exit_code:-missing}"
 }
-
-pods="$(kubectl get pods -n "$NAMESPACE" -l job-name="$JOB_NAME" -o name)"
-logs="$(kubectl logs -n "$NAMESPACE" $pods --all-containers=true)"
+logs="$(kubectl logs -n "$NAMESPACE" "$pod" -c marketops-job)"
 [[ "$logs" == *"dry_run"* || "$logs" == *"--dry-run"* || "$logs" == *"DRY"* ]] || fail "dry-run evidence marker missing from job logs"
 
 kubectl delete job "$JOB_NAME" -n "$NAMESPACE" --wait=true >/dev/null
+kubectl delete networkpolicy allow-marketops-k8s-dry-run-runtime-smoke-postgres-egress -n "$NAMESPACE" --ignore-not-found >/dev/null
+kubectl delete networkpolicy allow-marketops-k8s-dry-run-to-postgres -n "$RUNTIME_SMOKE_NAMESPACE" --ignore-not-found >/dev/null
 trap - EXIT
-rm -f "$job_yaml"
+rm -f "$job_yaml" "$policy_yaml"
 
 cat <<EOF
 signalops_k8s_marketops_non_provider_dry_run_job_verified
