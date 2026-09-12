@@ -93,17 +93,21 @@ spec:
             - name: SIGNALOPS_MARKETOPS_DATABASE_MAX_IDLE_CONNS
               value: "5"
           readinessProbe:
-            httpGet:
-              path: /readyz
-              port: http
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - python3 -c "from urllib.request import urlopen; urlopen('http://127.0.0.1:8080/readyz', timeout=2).read()"
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 6
           livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - python3 -c "from urllib.request import urlopen; urlopen('http://127.0.0.1:8080/healthz', timeout=2).read()"
             initialDelaySeconds: 20
             periodSeconds: 20
             timeoutSeconds: 3

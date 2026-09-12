@@ -153,3 +153,25 @@ Before running K8S-2 workload readiness, replace placeholder-only OpenBao runtim
 - cross-plane denial proof from another plane role.
 
 Only after runtime values are approved should the staging `gateway` pod be scaled above zero and tested through `/healthz`, `/readyz`, and Playwright smokes against a non-production hostname or port-forward. The `web` pod static-runtime path has been verified, but full app parity still depends on the gateway runtime path. See [K8S-2 GHCR image publication evidence](k8s2_ghcr_image_publication_evidence_2026-09-12.md).
+
+## Gateway runtime smoke action prepared
+
+A constrained gateway runtime smoke path has been added for the approved operation:
+
+```text
+sudo -n signalops-deploy-agent k8s-staging-gateway-runtime-smoke
+```
+
+The action delegates to `scripts/run_k8s_staging_gateway_runtime_smoke.sh`, which:
+
+- reads `/etc/signalops/openbao-signalops-app-staging-runtime.env`;
+- writes only the existing OpenBao app staging path `signalops/data/k8s/app/signalops-gateway-runtime-staging`;
+- rejects missing approval marker `SIGNALOPS_K8S_STAGING_RUNTIME_NON_PRODUCTION_APPROVED=true`;
+- rejects placeholder, localhost, Docker Compose, and production-like database hosts;
+- requires database hosts to be Kubernetes service DNS names containing `.svc`;
+- applies the staging app overlay;
+- scales `signalops-gateway` only for a bounded readiness smoke;
+- verifies gateway `/healthz` and `/readyz` from inside the gateway container;
+- scales staging workloads back to zero on exit.
+
+The current `.env` contains `OPENBAO_ADMIN_TOKEN`, but it does not contain the required non-production SignalOps temporal and MarketOps primary/temporal database URLs or the explicit non-production approval marker. Therefore the runtime writer correctly fails closed until the protected staging runtime env file is supplied. See [K8S-2 gateway staging runtime environment template](k8s2_gateway_runtime_env_template.md).

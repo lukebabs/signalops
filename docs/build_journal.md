@@ -9828,3 +9828,12 @@ Next-cycle priority:
 - Captured direct in-pod SPA evidence with `kubectl exec ... wget http://127.0.0.1:8080/`, confirming the private GHCR web image serves SignalOps.
 - Scaled staging web/gateway Deployments back to zero after the bounded smoke.
 - K8S-2 full app readiness remains blocked only on gateway runtime values: the OpenBao staging path is still placeholder-only and points at unresolved database hosts such as `postgres.staging.invalid`. Docker Compose remains production authority and `production_cutover_allowed=false`.
+
+### 2026-09-12 — K8S-2 gateway runtime smoke action prepared
+
+- Added a constrained OpenBao runtime writer for `signalops/data/k8s/app/signalops-gateway-runtime-staging`.
+- The writer accepts `BAO_TOKEN`, `VAULT_TOKEN`, `OPENBAO_TOKEN`, or `OPENBAO_ADMIN_TOKEN`, but fails closed unless `SIGNALOPS_K8S_STAGING_RUNTIME_NON_PRODUCTION_APPROVED=true` is present.
+- Added safety guards that reject placeholder `.invalid`, localhost, Docker Compose, and production-like database hosts; runtime DB hosts must be Kubernetes service DNS names containing `.svc`.
+- Added a bounded deployment-agent action, `k8s-staging-gateway-runtime-smoke`, that writes the approved runtime path, applies the staging overlay, runs one gateway readiness smoke, and scales staging workloads back to zero.
+- Added a no-secret operator template for `/etc/signalops/openbao-signalops-app-staging-runtime.env`.
+- Validation passed: shell syntax and staging manifest verifier. The live write/smoke did not run because the current `.env` has `OPENBAO_ADMIN_TOKEN` but lacks the required non-production SignalOps temporal and MarketOps database URLs plus the explicit non-production approval marker.

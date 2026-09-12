@@ -329,6 +329,9 @@ FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
   restore-rehearsal-run)
     run "$repository_dir/scripts/marketops_pgbackrest_restore_rehearsal.sh"
     ;;
+  k8s-staging-gateway-runtime-smoke)
+    run "$repository_dir/scripts/run_k8s_staging_gateway_runtime_smoke.sh"
+    ;;
   scheduler-status)
     failed=0
     printf 'SignalOps scheduler status\n'
