@@ -23,42 +23,160 @@ if [[ "${MARKETOPS_K8S_DRY_RUN:-false}" == "true" ]]; then
   mode_flag="--dry-run"
 fi
 
+started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+run_id="${MARKETOPS_K8S_RUN_ID:-${job_id}-k8s-$(date -u +%Y%m%dT%H%M%SZ)}"
+schedule_label="${MARKETOPS_K8S_SCHEDULE_LABEL:-Kubernetes staging suspended CronJob}"
+timezone_label="${MARKETOPS_K8S_TIMEZONE:-UTC}"
+runner_label="${MARKETOPS_K8S_RUNNER_ID:-kubernetes}"
+status_database_url="${SIGNALOPS_K8S_STATUS_DATABASE_URL:-${SIGNALOPS_MARKETOPS_DATABASE_URL:-${SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL:-}}}"
+status_required="${SIGNALOPS_K8S_STATUS_RECORDING_REQUIRED:-true}"
+
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+record_status() {
+  local status="$1"
+  local completed_at="${2:-}"
+  local exit_code="${3:-}"
+  local reason="${4:-}"
+
+  if [[ -z "$status_database_url" ]]; then
+    [[ "$status_required" != "true" ]] || fail "status database URL is required for Kubernetes scheduled-job parity"
+    echo "warning: skipping Kubernetes job status record because status database URL is empty" >&2
+    return 0
+  fi
+  command -v psql >/dev/null 2>&1 || {
+    [[ "$status_required" != "true" ]] || fail "psql is required for Kubernetes scheduled-job parity"
+    echo "warning: skipping Kubernetes job status record because psql is unavailable" >&2
+    return 0
+  }
+
+  psql "$status_database_url" -q -v ON_ERROR_STOP=1 \
+    -v run_id="$run_id" \
+    -v job_id="$job_id" \
+    -v schedule="$schedule_label" \
+    -v timezone="$timezone_label" \
+    -v status="$status" \
+    -v started_at="$started_at" \
+    -v completed_at="$completed_at" \
+    -v exit_code="$exit_code" \
+    -v reason="$reason" \
+    -v mode="$mode_flag" \
+    -v dry_run="$dry_run_json" \
+    -v runner="$runner_label" <<'SQL'
+WITH upsert_status AS (
+  INSERT INTO marketops_scheduled_job_statuses (
+    job_id, schedule, timezone, status, reason, started_at, completed_at,
+    exit_code, detail, runner, updated_at
+  ) VALUES (
+    :'job_id', :'schedule', :'timezone', :'status', COALESCE(:'reason',''),
+    NULLIF(:'started_at','')::timestamptz,
+    NULLIF(:'completed_at','')::timestamptz,
+    NULLIF(:'exit_code','')::integer,
+    jsonb_build_object('mode', :'mode', 'dry_run', (:'dry_run')::boolean),
+    COALESCE(:'runner',''), now()
+  )
+  ON CONFLICT (job_id) DO UPDATE SET
+    schedule = EXCLUDED.schedule,
+    timezone = EXCLUDED.timezone,
+    status = EXCLUDED.status,
+    reason = EXCLUDED.reason,
+    started_at = EXCLUDED.started_at,
+    completed_at = EXCLUDED.completed_at,
+    exit_code = EXCLUDED.exit_code,
+    detail = EXCLUDED.detail,
+    runner = EXCLUDED.runner,
+    updated_at = now()
+  RETURNING 1
+)
+INSERT INTO marketops_scheduled_job_runs (
+  run_id, job_id, schedule, timezone, status, reason, started_at, completed_at,
+  exit_code, detail, runner, updated_at
+) VALUES (
+  :'run_id', :'job_id', :'schedule', :'timezone', :'status', COALESCE(:'reason',''),
+  NULLIF(:'started_at','')::timestamptz,
+  NULLIF(:'completed_at','')::timestamptz,
+  NULLIF(:'exit_code','')::integer,
+  jsonb_build_object('mode', :'mode', 'dry_run', (:'dry_run')::boolean),
+  COALESCE(:'runner',''), now()
+)
+ON CONFLICT (run_id) DO UPDATE SET
+  status = EXCLUDED.status,
+  reason = EXCLUDED.reason,
+  completed_at = EXCLUDED.completed_at,
+  exit_code = EXCLUDED.exit_code,
+  detail = EXCLUDED.detail,
+  runner = EXCLUDED.runner,
+  updated_at = now();
+SQL
+}
+
+command_args=()
 case "$job_id" in
   marketops-intraday)
-    intraday_args=(
+    command_args=(
+      signalops-marketops-intraday-monitor
       --tenant-id "${MARKETOPS_INTRADAY_TENANT_ID:-tenant-local}"
       --universe-group "${MARKETOPS_INTRADAY_UNIVERSE_GROUP:-all_active}"
       --max-symbols "${MARKETOPS_INTRADAY_MAX_SYMBOLS:-200}"
     )
     if [[ "$mode_flag" == "--dry-run" ]]; then
-      intraday_args+=(--dry-run)
+      command_args+=(--dry-run)
     fi
-    exec signalops-marketops-intraday-monitor "${intraday_args[@]}"
     ;;
   marketops-sri-refresh)
-    exec signalops-marketops-sri-runner \
-      --tenant-id "${SIGNALOPS_SRI_OUTPUT_TENANT_ID:-platform-global}" \
-      --input-tenant-id "${SIGNALOPS_SRI_INPUT_TENANT_ID:-tenant-local}" \
+    command_args=(
+      signalops-marketops-sri-runner
+      --tenant-id "${SIGNALOPS_SRI_OUTPUT_TENANT_ID:-platform-global}"
+      --input-tenant-id "${SIGNALOPS_SRI_INPUT_TENANT_ID:-tenant-local}"
       --as-of "${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"
+    )
     ;;
   marketops-sri-holdings-refresh)
-    exec signalops-marketops-sri-holdings-runner \
+    command_args=(
+      signalops-marketops-sri-holdings-runner
       --tenant-id "${SIGNALOPS_SRI_OUTPUT_TENANT_ID:-platform-global}"
+    )
     ;;
   marketops-fmp-annual-financial)
-    exec signalops-subscriber-global-annual-financial-task-worker \
-      "$mode_flag" \
-      --max-assets "${MARKETOPS_FMP_ANNUAL_MAX_ASSETS:-1000}" \
+    command_args=(
+      signalops-subscriber-global-annual-financial-task-worker
+      "$mode_flag"
+      --max-assets "${MARKETOPS_FMP_ANNUAL_MAX_ASSETS:-1000}"
       --session-date "${MARKETOPS_SESSION_DATE:-}"
+    )
     ;;
   marketops-saf-benchmark)
-    exec signalops-subscriber-global-saf-benchmark-materializer \
-      "$mode_flag" \
-      --max-observations "${MARKETOPS_SAF_BENCHMARK_MAX_OBSERVATIONS:-500}" \
-      --calculation-version "${MARKETOPS_SAF_BENCHMARK_CALCULATION_VERSION:-saf_benchmark.k8s_staging}" \
+    command_args=(
+      signalops-subscriber-global-saf-benchmark-materializer
+      "$mode_flag"
+      --max-observations "${MARKETOPS_SAF_BENCHMARK_MAX_OBSERVATIONS:-500}"
+      --calculation-version "${MARKETOPS_SAF_BENCHMARK_CALCULATION_VERSION:-saf_benchmark.k8s_staging}"
       --correlation-id "${MARKETOPS_SAF_BENCHMARK_CORRELATION_ID:-k8s-staging-cronjob}"
+    )
     ;;
   *)
     fail "unsupported MarketOps Kubernetes job id: $job_id"
     ;;
 esac
+
+dry_run_json=false
+if [[ "$mode_flag" == "--dry-run" ]]; then
+  dry_run_json=true
+fi
+record_status "running" "" "" ""
+
+set +e
+"${command_args[@]}"
+exit_code=$?
+set -e
+
+completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+status="succeeded"
+reason=""
+if [[ "$exit_code" -ne 0 ]]; then
+  status="failed"
+fi
+record_status "$status" "$completed_at" "$exit_code" "$reason"
+exit "$exit_code"

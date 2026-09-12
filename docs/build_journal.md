@@ -9913,3 +9913,10 @@ Next-cycle priority:
 - First pod attempt exposed an injector protocol gap: the OpenBao agent attempted HTTP against the HTTPS-only OpenBao service. The harness now pins `vault.hashicorp.com/service=https://openbao.openbao.svc:8200` with staging-only TLS skip-verify, matching the earlier K8S-2 gateway staging fix.
 - Second pod attempt proved the worker completed with `dry_run=true warm_assets=1 session_date=2026-09-11`, while the injected sidecar kept the Kubernetes Job active. The harness now uses the `marketops-job` container terminated exit code plus dry-run log marker as the success condition.
 - Final gate passed: `signalops_k8s_marketops_non_provider_dry_run_job_verified`, `provider_polling=false`, `production_cutover_allowed=false`. The one-shot Job and temporary NetworkPolicies were removed after success.
+### 2026-09-12 — K8S-3 scheduler status parity gate closed
+
+- Extended the dedicated Kubernetes MarketOps job runner so worker pods record DB-backed scheduler evidence into `marketops_scheduled_job_statuses` and `marketops_scheduled_job_runs` with `runner=kubernetes`, run id, schedule label, timestamps, terminal status, exit code, and dry-run detail.
+- Added `postgresql-client` to the `marketops-k8s-job-runner` image and changed the publisher to no-cache builds for this target after validation exposed a stale wrapper-layer risk on mutable tags.
+- Added a temporary runtime-smoke env helper for approved non-production validation; it creates only minimal runtime-smoke DB objects and never prints secret values.
+- The final bounded K8S dry-run used immutable validation tag `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:k8s-status-parity-20260912c` and run id `k8s-status-parity-20260912T202200Z`. Evidence returned `scheduler_status_parity=verified`, `provider_polling=false`, and `production_cutover_allowed=false`.
+- Cleanup verified no dry-run Job/Pod remained, temporary NetworkPolicies were removed, and `/tmp/signalops-openbao-marketops-runtime-staging.env` was deleted. Docker Compose/systemd remains production scheduler authority.

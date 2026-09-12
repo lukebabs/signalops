@@ -400,7 +400,7 @@ ENTRYPOINT ["/signalops-subscriber-global-intraday-shadow-capture"]
 FROM debian:bookworm-slim AS marketops-k8s-job-runner
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash ca-certificates \
+    && apt-get install -y --no-install-recommends bash ca-certificates postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

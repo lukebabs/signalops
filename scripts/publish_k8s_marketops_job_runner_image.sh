@@ -46,7 +46,7 @@ source_tag="$(git rev-parse --short=12 HEAD)"
 local_tag="signalops-marketops-k8s-job-runner:${source_tag}"
 
 printf '%s' "$GHCR_KEY" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
-docker build --target marketops-k8s-job-runner -t "$local_tag" . >/dev/null
+docker build --no-cache --target marketops-k8s-job-runner -t "$local_tag" . >/dev/null
 docker tag "$local_tag" "${IMAGE_NAME}:${source_tag}"
 docker tag "$local_tag" "${IMAGE_NAME}:staging"
 docker push "${IMAGE_NAME}:${source_tag}" >/dev/null

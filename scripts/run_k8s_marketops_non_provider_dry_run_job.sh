@@ -7,6 +7,7 @@ IMAGE="${SIGNALOPS_MARKETOPS_K8S_JOB_RUNNER_IMAGE:-ghcr.io/syncratic-inc/signalo
 JOB_NAME="${SIGNALOPS_K8S_MARKETOPS_DRY_RUN_JOB_NAME:-signalops-marketops-non-provider-dry-run}"
 SECRET_PATH="${MARKETOPS_SECRET_PATH:-signalops/data/k8s/marketops/marketops-worker-runtime-staging}"
 OPENBAO_ADDR="${OPENBAO_ADDR:-https://openbao.openbao.svc:8200}"
+RUN_ID="${SIGNALOPS_K8S_MARKETOPS_DRY_RUN_RUN_ID:-${JOB_NAME}-$(date -u +%Y%m%dT%H%M%SZ)}"
 RUNTIME_SMOKE_NAMESPACE="${SIGNALOPS_K8S_RUNTIME_SMOKE_NAMESPACE:-syncratic-runtime-smoke}"
 
 fail() {
@@ -23,6 +24,7 @@ source "$ENV_FILE"
 set +a
 
 [[ "${SIGNALOPS_K8S_MARKETOPS_DRY_RUN_APPROVED:-}" == "true" ]] || fail "set SIGNALOPS_K8S_MARKETOPS_DRY_RUN_APPROVED=true in the runtime env file"
+[[ "$RUN_ID" =~ ^[A-Za-z0-9._:-]+$ ]] || fail "run id contains unsupported characters"
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 "$repo_dir/scripts/provision_openbao_signalops_marketops_runtime_staging.sh" "$ENV_FILE" >/dev/null
@@ -172,6 +174,14 @@ spec:
               value: "true"
             - name: MARKETOPS_FMP_ANNUAL_MAX_ASSETS
               value: "1"
+            - name: MARKETOPS_K8S_RUN_ID
+              value: "${RUN_ID}"
+            - name: MARKETOPS_K8S_SCHEDULE_LABEL
+              value: "Kubernetes one-shot non-provider dry-run"
+            - name: MARKETOPS_K8S_TIMEZONE
+              value: "UTC"
+            - name: MARKETOPS_K8S_RUNNER_ID
+              value: "kubernetes"
           resources:
             requests:
               cpu: 50m
@@ -209,6 +219,28 @@ exit_code="$(kubectl get pod "$pod" -n "$NAMESPACE" -o jsonpath='{.status.contai
 logs="$(kubectl logs -n "$NAMESPACE" "$pod" -c marketops-job)"
 [[ "$logs" == *"dry_run"* || "$logs" == *"--dry-run"* || "$logs" == *"DRY"* ]] || fail "dry-run evidence marker missing from job logs"
 
+if [[ "${SIGNALOPS_K8S_STATUS_PARITY_VERIFY:-true}" == "true" ]]; then
+  status_sql="SELECT status || '|' || runner || '|' || COALESCE(exit_code::text,'') || '|' || COALESCE((detail->>'dry_run'),'') FROM marketops_scheduled_job_runs WHERE run_id='${RUN_ID}'"
+  if command -v psql >/dev/null 2>&1 && psql --version >/dev/null 2>&1; then
+    status_line="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "$status_sql")"
+  else
+    pg_pod="${SIGNALOPS_K8S_RUNTIME_SMOKE_POSTGRES_POD:-syncratic-refactor-smoke-syncratic-phase1-postgres-0}"
+    pg_fields="$(python3 - <<'PYDB'
+import os
+from urllib.parse import urlparse, unquote
+url = os.environ.get('SIGNALOPS_MARKETOPS_DATABASE_URL', '')
+parsed = urlparse(url)
+if not parsed.scheme.startswith('postgres') or not parsed.username or parsed.password is None or not parsed.path.strip('/'):
+    raise SystemExit('invalid database URL for runtime-smoke verification')
+print('|'.join([unquote(parsed.username), unquote(parsed.password), parsed.path.strip('/')]))
+PYDB
+)" || fail "could not parse runtime-smoke database URL for status verification"
+    IFS='|' read -r pg_user pg_password pg_database <<<"$pg_fields"
+    status_line="$(kubectl exec -n "$RUNTIME_SMOKE_NAMESPACE" "$pg_pod" -- env PGPASSWORD="$pg_password" psql -h 127.0.0.1 -U "$pg_user" -d "$pg_database" -Atc "$status_sql")"
+  fi
+  [[ "$status_line" == "succeeded|kubernetes|0|true" ]] || fail "DB-backed scheduler status parity mismatch: ${status_line:-empty}"
+fi
+
 kubectl delete job "$JOB_NAME" -n "$NAMESPACE" --wait=true >/dev/null
 kubectl delete networkpolicy allow-marketops-k8s-dry-run-runtime-smoke-postgres-egress -n "$NAMESPACE" --ignore-not-found >/dev/null
 kubectl delete networkpolicy allow-marketops-k8s-dry-run-to-postgres -n "$RUNTIME_SMOKE_NAMESPACE" --ignore-not-found >/dev/null
@@ -223,6 +255,8 @@ job=${JOB_NAME}
 job_id=marketops-fmp-annual-financial
 dry_run=true
 max_assets=1
+run_id=${RUN_ID}
+scheduler_status_parity=verified
 provider_polling=false
 production_cutover_allowed=false
 EOF

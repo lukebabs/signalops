@@ -66,11 +66,13 @@ marketops-sri-holdings-refresh   SUSPEND=True   ACTIVE=0   LAST SCHEDULE=<none>
 marketops-sri-refresh            SUSPEND=True   ACTIVE=0   LAST SCHEDULE=<none>
 ```
 
-## Remaining K8S-3 gates
+## K8S-3 follow-up gates
 
-1. Replace placeholder-only OpenBao MarketOps runtime values with approved non-production Kubernetes service DNS values.
-2. Run the guarded runtime writer added in `scripts/provision_openbao_signalops_marketops_runtime_staging.sh`; it fails closed unless the runtime file contains non-production `.svc` database hosts and explicit approval.
-3. Run one explicit non-provider dry-run Job with `scripts/run_k8s_marketops_non_provider_dry_run_job.sh`.
-4. Republish the job-runner image after dry-run entrypoint changes are committed.
-5. Add DB-backed scheduler-completion parity before any CronJob can be unsuspended.
-6. Only after those gates, request named approval for one suspended-to-active staging CronJob test with no provider polling.
+Runtime writer, non-provider dry-run execution, and DB-backed scheduler-completion parity are now closed in [K8S-3 scheduler status parity evidence — 2026-09-12](k8s3_scheduler_status_parity_evidence_2026-09-12.md).
+
+Remaining before any CronJob can be unsuspended:
+
+1. publish an immutable commit-tagged job-runner image after the scheduler-parity source is committed;
+2. create or select dedicated non-production SignalOps/MarketOps database services rather than reusing runtime-smoke;
+3. replace staging-only OpenBao TLS skip-verify with proper CA trust;
+4. request named approval for one suspended-to-active staging CronJob test with no provider polling and automatic resuspension.
