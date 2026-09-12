@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signalops-gateway
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-gateway
+    app.kubernetes.io/component: gateway
+    signalops.syncratic.io/plane: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-gateway
+      signalops.syncratic.io/stage: staging
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signalops-gateway
+        app.kubernetes.io/component: gateway
+        signalops.syncratic.io/plane: app
+        signalops.syncratic.io/stage: staging
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "signalops-app"
+        vault.hashicorp.com/agent-inject-secret-signalops-gateway-runtime.env: "signalops/data/k8s/app/signalops-gateway-runtime-staging"
+        vault.hashicorp.com/agent-inject-template-signalops-gateway-runtime.env: |
+          {{- with secret "signalops/data/k8s/app/signalops-gateway-runtime-staging" -}}
+          export SIGNALOPS_DATABASE_URL="{{ .Data.data.SIGNALOPS_DATABASE_URL }}"
+          export SIGNALOPS_TEMPORAL_DATABASE_URL="{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}"
+          export SIGNALOPS_MARKETOPS_DATABASE_URL="{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}"
+          export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL="{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}"
+          export SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL="{{ .Data.data.SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL }}"
+          export SIGNALOPS_NOTIFICATION_ENCRYPTION_KEY="{{ .Data.data.SIGNALOPS_NOTIFICATION_ENCRYPTION_KEY }}"
+          export STRIPE_RESTRICTED_API_KEY="{{ .Data.data.STRIPE_RESTRICTED_API_KEY }}"
+          export STRIPE_WEBHOOK_SECRET="{{ .Data.data.STRIPE_WEBHOOK_SECRET }}"
+          export SYNCRATIC_API_BASE_URL="{{ .Data.data.SYNCRATIC_API_BASE_URL }}"
+          export SYNCRATIC_CLIENT_SECRET="{{ .Data.data.SYNCRATIC_CLIENT_SECRET }}"
+          {{- end }}
+    spec:
+      serviceAccountName: signalops-gateway
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: gateway
+          image: signalops-gateway:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              test -s /vault/secrets/signalops-gateway-runtime.env
+              . /vault/secrets/signalops-gateway-runtime.env
+              exec signalops-gateway
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SIGNALOPS_HTTP_ADDR
+              value: ":8080"
+            - name: SIGNALOPS_ENV
+              value: "k8s-staging"
+            - name: SIGNALOPS_AUTH_ENABLED
+              value: "true"
+            - name: SIGNALOPS_AUTH_ISSUER
+              value: "https://auth.syncratic.co/realms/syncratic"
+            - name: SIGNALOPS_AUTH_REALM
+              value: "syncratic"
+            - name: SIGNALOPS_AUTH_JWKS_URL
+              value: "https://auth.syncratic.co/realms/syncratic/protocol/openid-connect/certs"
+            - name: SIGNALOPS_AUTH_AUDIENCE
+              value: "signalops-api"
+            - name: SIGNALOPS_AUTH_CLIENT_ID
+              value: "signalops-web"
+            - name: SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED
+              value: "true"
+            - name: SIGNALOPS_SUBSCRIBER_LISTS_ENABLED
+              value: "true"
+            - name: SIGNALOPS_SUBSCRIPTIONS_ENABLED
+              value: "true"
+            - name: SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID
+              value: "tenant-local"
+            - name: SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION
+              value: "true"
+            - name: SIGNALOPS_DATABASE_MAX_OPEN_CONNS
+              value: "20"
+            - name: SIGNALOPS_DATABASE_MAX_IDLE_CONNS
+              value: "5"
+            - name: SIGNALOPS_MARKETOPS_DATABASE_MAX_OPEN_CONNS
+              value: "20"
+            - name: SIGNALOPS_MARKETOPS_DATABASE_MAX_IDLE_CONNS
+              value: "5"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi

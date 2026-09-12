@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signalops-web
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-web
+    app.kubernetes.io/component: web
+    signalops.syncratic.io/plane: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-web
+      signalops.syncratic.io/stage: staging
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signalops-web
+        app.kubernetes.io/component: web
+        signalops.syncratic.io/plane: app
+        signalops.syncratic.io/stage: staging
+    spec:
+      serviceAccountName: signalops-web
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: web
+          image: signalops-web:staging
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

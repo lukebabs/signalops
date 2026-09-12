@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: signalops-web
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-web
+    app.kubernetes.io/component: web
+    signalops.syncratic.io/plane: app
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: signalops-web
+    signalops.syncratic.io/stage: staging
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

@@ -9767,3 +9767,11 @@ Next-cycle priority:
 - No SignalOps Deployments, StatefulSets, Jobs, CronJobs, Ingresses, production Secrets, provider polling, DNS changes, or production workload cutover were applied. Docker Compose remains production authority.
 - `kubectl` continues to emit the existing k3s Cilium config permission warning; it did not block render, dry run, apply, or verification.
 
+### 2026-09-12 — K8S-2 staging app manifests prepared
+
+- Added staging-only Kubernetes manifests under `deploy/kubernetes/staging/app` for `signalops-web` and `signalops-gateway` Deployments and ClusterIP Services.
+- The gateway Deployment uses OpenBao Agent Injector annotations for `signalops/data/k8s/app/signalops-gateway-runtime-staging`, sources the injected runtime file before starting, keeps the dedicated MarketOps data-boundary requirement enabled, and declares explicit app/MarketOps DB pool-cap environment variables.
+- The staging app overlay is intentionally separate from the base scaffold and was not applied. It defines no Ingress, Kubernetes Secret, Job, CronJob, StatefulSet, provider polling path, or production DNS change.
+- Added `scripts/verify_k8s_staging_app_manifests.sh`; validation passed with 2 Services, 2 Deployments, 0 Ingresses, 0 CronJobs, 0 Jobs, 0 StatefulSets, 0 Secrets, `production_cutover_allowed=false`, and server-side dry-run success.
+- Next blocker before applying staging app pods: create and verify the OpenBao `signalops-app` staging role/path with non-production test values and cross-plane denial evidence.
+

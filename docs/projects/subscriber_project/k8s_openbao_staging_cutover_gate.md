@@ -104,6 +104,8 @@ Acceptance:
 
 ### Stage K8S-2 — Stateless app parity
 
+Status: manifest gate complete on 2026-09-12; workloads are not applied. See [K8S-2 staging app manifest evidence](k8s2_staging_app_manifest_evidence_2026-09-12.md).
+
 Convert only `web` and `gateway` into staging Kubernetes Deployments behind non-production hostnames.
 
 Acceptance:
