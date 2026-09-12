@@ -290,6 +290,15 @@ func marketOpsOperationsFreshnessContractFor(record storage.MarketOpsOperationsF
 			NextStepCurrent:   "No action required. Risk/Reward breadth is current for the completed session.",
 			NextStepStale:     "Run the Risk/Reward post-close stage and verify breadth aligns to the legacy-default cohort.",
 		}
+	case "options_intelligence", "options":
+		return marketOpsOperationsFreshnessContract{
+			ExpectedFreshness: "After each completed trading day when bounded options capture produces source chain evidence.",
+			DependencyJobID:   "marketops-daily-postclose",
+			RunNowJobID:       "marketops-postclose-recovery",
+			ActionLabel:       "Run recovery",
+			NextStepCurrent:   "No action required. Options distribution evidence is available for the completed session.",
+			NextStepStale:     "Review options capture status. If provider evidence is missing, do not synthesize distributions; retry only under the provider/recovery policy.",
+		}
 	case "sri", "sector_rotation":
 		return marketOpsOperationsFreshnessContract{
 			ExpectedFreshness: "Weekday evening after issuer ETF evidence and sector ranking refresh complete.",
@@ -406,7 +415,7 @@ func marketOpsFreshnessStatusExplanation(record storage.MarketOpsOperationsFresh
 		jobReason = rowString(dependency, "error_message")
 	}
 	nextStep := contract.NextStepCurrent
-	if status == "stale" || status == "partial" || status == "failed" || status == "missing" || status == "unavailable" || status == "pending" {
+	if status == "stale" || status == "partial" || status == "failed" || status == "missing" || status == "unavailable" || status == "pending" || status == "provider_evidence_missing" || status == "not_matured" {
 		nextStep = contract.NextStepStale
 	}
 	if nextStep == "" {

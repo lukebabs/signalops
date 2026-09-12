@@ -88,6 +88,7 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
         "Assets analytical coverage",
         "Market State",
         "Risk/Reward",
+        "Options Intelligence",
         "Sector Rotation Intelligence",
         "Signal Assurance",
         "Intraday conditions",
@@ -107,7 +108,7 @@ def test_marketops_admin_operations_health_freshness_rows(admin_page: Page, admi
     labels = {str(row.get("label", "")) for row in rows}
     assert expected_labels.issubset(labels), f"missing freshness rows: {sorted(expected_labels - labels)}"
     by_label = {str(row.get("label", "")): row for row in rows}
-    for label in ["Dashboard", "Risk/Reward", "Intraday conditions", "FMP annual financials"]:
+    for label in ["Dashboard", "Risk/Reward", "Options Intelligence", "Intraday conditions", "FMP annual financials"]:
         row = by_label[label]
         assert row.get("expected_freshness"), f"{label} has no expected freshness contract"
         assert row.get("dependency_job_id"), f"{label} has no dependency job contract"

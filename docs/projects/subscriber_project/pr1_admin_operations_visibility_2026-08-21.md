@@ -270,3 +270,13 @@ scripts/run_subscription_admin_ui_smoke.sh -k test_marketops_admin_operations_he
 ```
 
 A first post-deploy subscriber smoke failed during the web/gateway restart window with `Failed to fetch`; the same constrained smoke passed after readiness returned. The failure is recorded as restart-window harness timing, not a persistent route or authorization failure.
+
+## Evidence-boundary status extension — 2026-09-12
+
+Admin Operations Health now includes `Options Intelligence` as a first-class freshness row and uses explicit source-boundary states for outage review:
+
+- `provider_evidence_missing`: options capture failed or returned no data for the completed session, and no persisted option-chain rows exist from which distributions can be derived.
+- `not_matured`: Signal Assurance has no source outcomes matured for the latest completed MarketOps session; this is not a projection failure.
+
+This extension is intentionally read-only. It does not retry provider calls, create synthetic distribution rows, or restate SAF outcomes. Production validation passed with the focused Admin Operations Health Playwright smoke and Dashboard freshness smoke.
+

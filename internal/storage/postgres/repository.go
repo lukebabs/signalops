@@ -929,6 +929,21 @@ WITH asset_set AS (
   SELECT max(latest_session_date)::date AS session_date
   FROM components
   WHERE view_id IN ('market_state','risk_reward')
+), options_evidence AS (
+  SELECT 'options_intelligence'::text AS view_id, 'Options Intelligence'::text AS label,
+    COALESCE(max(distribution.trade_date), (SELECT session_date FROM latest_completed))::date AS latest_session_date,
+    max(distribution.updated_at)::timestamptz AS latest_as_of,
+    count(DISTINCT distribution.symbol) FILTER (WHERE distribution.trade_date=(SELECT session_date FROM latest_completed))::integer AS row_count,
+    (SELECT selected_assets FROM expected) AS expected_count,
+    count(DISTINCT capture.symbol) FILTER (WHERE capture.session_date=(SELECT session_date FROM latest_completed) AND capture.status IN ('failed','no_data'))::integer AS failed_capture_count,
+    count(DISTINCT chain.symbol) FILTER (WHERE chain.trade_date=(SELECT session_date FROM latest_completed))::integer AS chain_symbol_count
+  FROM asset_set asset
+  LEFT JOIN marketops_options_distribution_daily distribution
+    ON distribution.tenant_id=$1 AND upper(distribution.symbol)=asset.symbol
+  LEFT JOIN marketops_options_capture_sessions capture
+    ON capture.tenant_id=$1 AND upper(capture.symbol)=asset.symbol AND capture.session_date=(SELECT session_date FROM latest_completed)
+  LEFT JOIN marketops_options_chain_daily chain
+    ON chain.tenant_id=$1 AND upper(chain.symbol)=asset.symbol AND chain.trade_date=(SELECT session_date FROM latest_completed)
 ), dashboard AS (
   SELECT 'dashboard'::text AS view_id, 'Dashboard'::text AS label,
     min(latest_session_date)::date AS latest_session_date,
@@ -1017,7 +1032,8 @@ WITH asset_set AS (
 ), freshness AS (
   SELECT * FROM dashboard
   UNION ALL SELECT * FROM assets
-  UNION ALL SELECT * FROM components
+  UNION ALL SELECT view_id,label,latest_session_date,latest_as_of,row_count,expected_count FROM components
+  UNION ALL SELECT view_id,label,latest_session_date,latest_as_of,row_count,expected_count FROM options_evidence
   UNION ALL SELECT * FROM intraday
   UNION ALL SELECT * FROM fmp
   UNION ALL SELECT * FROM syncratic_ask
@@ -1026,6 +1042,8 @@ WITH asset_set AS (
     CASE
       WHEN latest_session_date IS NULL AND NULLIF(latest_as_of, '-infinity'::timestamptz) IS NULL THEN 'missing'
       WHEN view_id='intraday' AND (SELECT monitor_window FROM market_clock) AND latest_as_of < now() - interval '45 minutes' THEN 'stale'
+      WHEN view_id='options_intelligence' AND row_count=0 AND (SELECT failed_capture_count FROM options_evidence) > 0 AND (SELECT chain_symbol_count FROM options_evidence)=0 THEN 'provider_evidence_missing'
+      WHEN view_id='signal_assurance' AND latest_session_date IS NOT NULL AND (SELECT session_date FROM latest_completed) IS NOT NULL AND latest_session_date < (SELECT session_date FROM latest_completed) THEN 'not_matured'
       WHEN expected_count IS NOT NULL AND expected_count > 0 AND row_count < expected_count THEN 'partial'
       ELSE 'current'
     END AS status
@@ -1040,6 +1058,8 @@ SELECT view_id,label,latest_session_date,latest_as_of,row_count,expected_count,s
     WHEN status='partial' AND view_id='assets' THEN 'not all active assets have current global EOD context for the latest completed session'
     WHEN status='partial' AND view_id='fmp_annual' THEN 'latest FMP annual workflow has incomplete or non-succeeded tasks'
     WHEN status='partial' AND view_id='syncratic_ask' THEN COALESCE((SELECT 'latest Ask failure category=' || failure_code || '; context_window_id=' || context_window_id FROM latest_syncratic_failure), 'no completed Ask insight found for the latest daily narrative context')
+    WHEN status='provider_evidence_missing' AND view_id='options_intelligence' THEN 'options provider capture failed or returned no data for the completed session; no source chain evidence exists to derive distributions'
+    WHEN status='not_matured' AND view_id='signal_assurance' THEN 'no source outcomes have matured for the latest completed MarketOps session yet; SAF remains source-date truthful'
     WHEN status='partial' THEN 'latest session has fewer rows than expected'
     WHEN view_id='assets' THEN 'selected assets with current Market State evidence; coverage activation history is separate'
     WHEN view_id='intraday' AND NOT (SELECT monitor_window FROM market_clock) THEN 'market idle; latest completed-session intraday evidence is used'
@@ -1053,11 +1073,12 @@ ORDER BY CASE view_id
   WHEN 'assets' THEN 2
   WHEN 'market_state' THEN 3
   WHEN 'risk_reward' THEN 4
-  WHEN 'sri' THEN 5
-  WHEN 'signal_assurance' THEN 6
-  WHEN 'intraday' THEN 7
-  WHEN 'fmp_annual' THEN 8
-  WHEN 'syncratic_ask' THEN 9
+  WHEN 'options_intelligence' THEN 5
+  WHEN 'sri' THEN 6
+  WHEN 'signal_assurance' THEN 7
+  WHEN 'intraday' THEN 8
+  WHEN 'fmp_annual' THEN 9
+  WHEN 'syncratic_ask' THEN 10
   ELSE 99 END`, strings.TrimSpace(tenantID))
 	if err != nil {
 		return nil, fmt.Errorf("list marketops operations freshness: %w", err)

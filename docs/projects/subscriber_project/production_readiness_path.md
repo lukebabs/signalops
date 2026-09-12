@@ -747,3 +747,27 @@ Next readiness action:
 
 - Add an Admin Operations Health detail state that separates `recovered`, `provider_evidence_missing`, and `not_matured` so future outage review can distinguish a broken pipeline from truthful missing evidence.
 
+### 2026-09-12 outage visibility closure — explicit evidence-boundary states
+
+Status: closed for the current outage-reconciliation visibility gap.
+
+What changed:
+
+- Admin Operations Health now includes an `Options Intelligence` freshness row sourced from existing option distribution, capture, and chain-evidence ledgers.
+- The operations freshness classifier now distinguishes truthful source gaps from generic partial/stale status:
+  - `provider_evidence_missing` means bounded options capture failed or returned no data and no option-chain evidence exists for the completed session.
+  - `not_matured` means Signal Assurance has no source outcomes matured for the latest completed MarketOps session yet.
+- Signal Assurance and Options rows remain status/explanation surfaces; they do not synthesize missing provider evidence or infer maturity from adjacent sessions.
+
+Validation:
+
+- Backend tests passed: `go test ./internal/storage/postgres ./internal/api`.
+- Production gateway deployment completed through `sudo -n signalops-deploy-agent marketops-gateway-deploy` and returned `marketops_read_cutover_gateway_verified`.
+- Admin Operations Health Playwright smoke passed: `scripts/run_subscription_admin_ui_smoke.sh -k test_marketops_admin_operations_health_freshness_rows` returned `3 passed, 1 skipped`.
+- Dashboard freshness Playwright smoke passed: `scripts/run_marketops_dashboard_freshness_ui_smoke.sh` returned `1 passed`.
+
+Production-readiness impact:
+
+- Operators can now distinguish recoverable projection drift from unrecoverable provider/source-evidence gaps in the Admin UI/API.
+- The Sep 9/Sep 10 options gaps remain truthful historical source gaps, not active production blockers for the scheduler path.
+
