@@ -8,11 +8,12 @@ Recorded: 2026-09-12.
 
 Because Syncratic-core, SignalOps, Signal-Connect, MarketOps, Keycloak, and platform observability are moving into the k3s stack, the Kubernetes target architecture should include a service-mesh layer rather than relying only on a simple ingress controller.
 
-The preferred target is **Gateway API + Envoy-based mesh**, with Istio as the leading implementation candidate. The exact mode should be selected during the mesh installation gate:
+The preferred target is **Gateway API + Envoy-based mesh**. After inspecting the live k3s stack, the first implementation candidate is Cilium Gateway API / Envoy-first routing because Cilium and Cilium Envoy are already installed and Gateway API CRDs are present. Istio remains the leading service-to-service mesh candidate once the ingress/Gateway path is proven. The exact mode should be confirmed during Mesh-0:
 
-- **Istio ambient mode** if the cluster version and operational requirements support it cleanly;
+- **Cilium Gateway API / Envoy-first** for the initial mesh ingress path, based on the current cluster baseline;
+- **Istio ambient mode** if service-to-service mTLS and richer mesh telemetry should be introduced before production cutover;
 - **Istio sidecar mode** only if ambient mode cannot satisfy traffic policy, telemetry, or mTLS requirements;
-- **Envoy Gateway without full mesh** only as a fallback if service-to-service mTLS and mesh telemetry are deferred.
+- **Envoy Gateway without full mesh** only as a fallback if Cilium Gateway API is not viable and full service-to-service mesh is deferred.
 
 This is a platform decision, not a SignalOps-only edge decision. Signal-Connect remains part of SignalOps, and the mesh must cover app, ingestion, MarketOps, identity, data-access, and observability paths.
 
@@ -61,7 +62,7 @@ signalops-observability/*
 
 Acceptance:
 
-- choose Istio ambient, Istio sidecar, or Envoy Gateway fallback;
+- choose Cilium Gateway API first, Istio ambient first, Istio sidecar, or Envoy Gateway fallback;
 - document supported k3s version and CNI compatibility;
 - document resource overhead and node sizing assumptions;
 - document rollback procedure to remove mesh labels/policies without breaking Compose production;
@@ -116,4 +117,4 @@ Acceptance:
 
 ## Current conclusion
 
-The target production Kubernetes platform should use a service mesh. The immediate next step is Mesh-0: choose the implementation mode and write the install/rollback plan. Until Mesh-2 and the broader K8S parity gates pass, Docker Compose/systemd remains the production authority and `production_cutover_allowed=false` remains correct.
+The target production Kubernetes platform should use a service mesh. Mesh-0 now starts from the current Traefik-to-k3s bridge baseline and recommends Cilium Gateway API / Envoy-first routing before a broader Istio ambient decision. Until Mesh-2 and the broader K8S parity gates pass, Docker Compose/systemd remains the production authority and `production_cutover_allowed=false` remains correct.

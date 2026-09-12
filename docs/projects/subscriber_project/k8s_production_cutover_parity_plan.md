@@ -48,6 +48,7 @@ Use `--strict` only when intentionally checking that final production readiness 
 | K8S-3 provider-enabled FMP smoke | `k8s3_provider_cronjob_smoke_2026-09-12.md` | Closed for one asset/no retry |
 | OpenBao CA trust | `k8s3_openbao_ca_trust_gate_2026-09-12.md` | Closed for staging app and MarketOps jobs |
 | Current backup/restore | `pr3_backup_restore_refresh_evidence_2026-09-12.md` | Closed for this cycle |
+| Mesh-0 baseline and implementation plan | `k8s_mesh0_implementation_plan_2026-09-12.md` | Drafted / verifier added |
 
 ## Remaining parity gates
 
@@ -92,6 +93,8 @@ Acceptance:
 - no production detector or MarketOps consumer switches until shadow evidence passes.
 
 ### Gate D — service mesh, ingress/DNS, and rollback proposal
+
+Mesh-0 now has a live baseline and recommended path in [Mesh-0 implementation plan — 2026-09-12](k8s_mesh0_implementation_plan_2026-09-12.md). The current recommendation is Cilium Gateway API / Envoy-first routing, preserving Docker Traefik as the public rollback/reference edge.
 
 This gate prepares but does not execute the traffic move.
 

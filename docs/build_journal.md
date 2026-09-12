@@ -9994,3 +9994,10 @@ Next-cycle priority:
 - Documented the product/platform decision that Syncratic-core and SignalOps should target a service-mesh setup on k3s rather than a simple ingress-only production edge.
 - Added `docs/projects/subscriber_project/k8s_service_mesh_architecture.md` with Gateway API / Envoy-Istio as the preferred target, Istio ambient as the first candidate, and sidecar/fallback options gated behind Mesh-0.
 - Updated Kubernetes architecture and cutover parity docs so ingress/DNS planning becomes a service-mesh/Gateway API rollback gate. Traefik remains the current Compose-era production edge and rollback reference until mesh staging parity is proven.
+
+### 2026-09-12 — Mesh-0 baseline captured from Syncratic-core Traefik and k3s
+
+- Inspected the current Syncratic-core Docker Traefik edge: Traefik v3.6.6 binds public 80/443, uses Docker and file providers, Let's Encrypt DNS challenge through GoDaddy, Imperva trusted forwarded headers, and the external `syncratic-core_syncratic_net` network.
+- Captured the existing k3s bridge: `ingress-nginx` is exposed at LoadBalancer `192.168.2.233` with NodePorts 30080/30443, and Traefik already forwards `portal.syncratic.co` to `https://host.docker.internal:30443`. Host listeners show k3s services on `192.168.2.5`.
+- Verified the cluster baseline: k3s `v1.33.5+k3s1`, Cilium `1.20.0`, Cilium Envoy running, Gateway API CRDs present, no GatewayClass configured, and no Istio CRDs present.
+- Added `scripts/verify_k8s_mesh0_baseline.sh` and `docs/projects/subscriber_project/k8s_mesh0_implementation_plan_2026-09-12.md`. The recommended first path is Cilium Gateway API / Envoy-first routing, with Istio ambient evaluated after the Gateway path proves stable.
