@@ -12,7 +12,7 @@ namespaces=(
 )
 
 expected_service_accounts=29
-expected_network_policies=15
+expected_network_policies=16
 expected_policy_configmaps=2
 
 fail() {

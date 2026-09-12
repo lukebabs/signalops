@@ -79,3 +79,24 @@ production_cutover_allowed=false
 ## Boundary
 
 This handoff does not authorize production workload cutover, production DNS changes, production provider polling, or production secret migration. It only prepares the staging app secret-role proof required before applying staging `web` and `gateway` pods.
+
+
+## Live verification evidence
+
+The operator ran the prepared script and returned the expected success marker:
+
+```text
+openbao_signalops_app_staging_verified
+mount=signalops
+app_role=signalops-app
+app_namespace=signalops-app
+app_service_accounts=signalops-gateway,signalops-web,signalops-app-secret-reader
+secret_path=signalops/k8s/app/signalops-gateway-runtime-staging
+deny_role=signalops-marketops
+deny_namespace=signalops-marketops
+cross_plane_denied=true
+secret_values=placeholder_only
+production_cutover_allowed=false
+```
+
+This closes the OpenBao staging app role/path blocker for applying K8S-2 staging pods. The secret values remain placeholder-only, so application readiness may still fail until staging database endpoints are provisioned.

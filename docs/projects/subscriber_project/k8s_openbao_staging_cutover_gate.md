@@ -104,7 +104,7 @@ Acceptance:
 
 ### Stage K8S-2 — Stateless app parity
 
-Status: manifest gate complete on 2026-09-12; workloads are not applied. See [K8S-2 staging app manifest evidence](k8s2_staging_app_manifest_evidence_2026-09-12.md).
+Status: OpenBao app role/path verified and staging workload apply mechanics exercised on 2026-09-12. OpenBao injection/protocol and app egress are corrected; readiness is blocked on staging image publication/import into the Kubernetes runtime. Deployments are scaled to zero pending that handoff. See [K8S-2 staging app manifest evidence](k8s2_staging_app_manifest_evidence_2026-09-12.md).
 
 Convert only `web` and `gateway` into staging Kubernetes Deployments behind non-production hostnames.
 
@@ -120,6 +120,7 @@ This must emit `openbao_signalops_app_staging_verified` with `cross_plane_denied
 
 Acceptance:
 
+- staging images are published to an approved registry or imported into the Kubernetes runtime;
 - web and gateway pods use OpenBao-injected files or scoped environment projection;
 - readiness/liveness probes pass;
 - gateway DB pool caps are explicit;

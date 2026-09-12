@@ -9782,3 +9782,16 @@ Next-cycle priority:
 - Validated script syntax and fail-closed behavior when no `BAO_TOKEN`, `VAULT_TOKEN`, or `OPENBAO_TOKEN` is set. No OpenBao mutation was performed because no admin token was available in the execution environment.
 - K8S-2 staging app pods remain unapplied until `openbao_signalops_app_staging_verified` evidence is captured.
 
+### 2026-09-12 — K8S-2 OpenBao app role verified
+
+- The OpenBao staging app role/path script returned `openbao_signalops_app_staging_verified` for the `signalops-app` role and `signalops/data/k8s/app/signalops-gateway-runtime-staging` path.
+- Cross-plane denial was confirmed: the `signalops-marketops` deny-proof role could not read the app staging path.
+- Values are placeholder-only and `production_cutover_allowed=false`; this permits staging pod apply mechanics but does not permit production cutover or production secret migration.
+
+### 2026-09-12 — K8S-2 staging app apply mechanics exercised
+
+- Applied the staging-only SignalOps `web` and `gateway` Kubernetes overlay after OpenBao app-role verification.
+- Added a narrow `signalops-app` gateway egress NetworkPolicy to the `openbao` namespace after live init logs showed the app namespace could not consistently authenticate to OpenBao under default-deny networking.
+- Corrected the staging gateway OpenBao injector annotations to use `https://openbao.openbao.svc:8200`; OpenBao server logs showed the first injected agent attempted HTTP against an HTTPS-only service.
+- Verified the base scaffold now has 16 NetworkPolicies and still has 0 workload pods after scaling the non-production staging Deployments back to zero.
+- Remaining K8S-2 blocker: staging images must be published to an approved registry or imported into k3s containerd before pods can become ready. Docker Compose remains production authority and `production_cutover_allowed=false`.
