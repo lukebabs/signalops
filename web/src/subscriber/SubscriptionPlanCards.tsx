@@ -96,16 +96,17 @@ export function BillingSupportPanel({ tenantId, subscription }: { tenantId: stri
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 className="text-sm font-semibold text-gray-950 dark:text-gray-50">Billing & refunds</h2>
+        <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-200">Need billing help?</p>
         <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">Manage active Stripe-backed subscriptions in the Stripe customer portal. Refunds remain admin-reviewed so exceptions stay controlled and auditable.</p>
       </div>
-      <button type="button" disabled={portalResult.state === 'working'} onClick={openCustomerPortal} className="inline-flex items-center gap-2 rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-100"><ExternalLink size={15} /> {portalResult.state === 'working' ? 'Opening…' : 'Manage subscription in Stripe'}</button>
+      <button type="button" disabled={portalResult.state === 'working'} onClick={openCustomerPortal} className="inline-flex w-full items-center justify-center gap-2 rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:border-gray-600 dark:text-gray-100"><ExternalLink size={15} /> {portalResult.state === 'working' ? 'Opening…' : 'Manage subscription in Stripe'}</button>
     </div>
     {portalResult.state === 'error' ? <p role="status" className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">{portalResult.message}</p> : null}
     <p className="mt-4 text-xs leading-5 text-gray-600 dark:text-gray-300">Submit a refund request for administrator review. SignalOps records the request; an admin performs approved refunds in Stripe Dashboard.</p>
     <div className="mt-3 grid gap-2 md:grid-cols-[10rem_1fr_auto]">
       <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Amount requested, optional<input inputMode="decimal" value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} placeholder="24.99" className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" /></label>
       <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Reason<textarea value={refundReason} onChange={(event) => setRefundReason(event.target.value)} rows={2} placeholder="Briefly explain the billing issue." className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" /></label>
-      <button type="button" disabled={refundResult.state === 'working' || !refundReason.trim()} onClick={requestRefund} className="self-end rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900">{refundResult.state === 'working' ? 'Submitting…' : 'Request refund'}</button>
+      <button type="button" disabled={refundResult.state === 'working' || !refundReason.trim()} onClick={requestRefund} className="w-full self-end rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 md:w-auto dark:bg-gray-100 dark:text-gray-900">{refundResult.state === 'working' ? 'Submitting…' : 'Request refund'}</button>
     </div>
     {refundResult.state !== 'idle' ? <p role="status" className={`mt-2 text-xs ${refundResult.state === 'error' ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>{refundResult.message}</p> : null}
   </section>;
@@ -126,7 +127,7 @@ function PlanCard({ product, current, workingKey, checkoutEnabled, onCheckout }:
   const selfService = product.product_key === 'explorer' || product.product_key === 'professional';
   const monthlyMapped = Boolean(product.stripe_monthly_price_id);
   const annualMapped = Boolean(product.stripe_annual_price_id);
-  return <article className={`rounded border bg-white p-4 shadow-sm dark:bg-gray-900 ${current ? 'border-brand-400 ring-1 ring-brand-300 dark:border-brand-500' : 'border-gray-200 dark:border-gray-700'}`}>
+  return <article className={`flex h-full flex-col rounded border bg-white p-4 shadow-sm dark:bg-gray-900 ${current ? 'border-brand-400 ring-1 ring-brand-300 dark:border-brand-500' : 'border-gray-200 dark:border-gray-700'}`}>
     <div className="flex items-start justify-between gap-2">
       <div>
         <h2 className="text-lg font-semibold text-gray-950 dark:text-gray-50">{product.display_name}</h2>
@@ -138,12 +139,13 @@ function PlanCard({ product, current, workingKey, checkoutEnabled, onCheckout }:
     <div className="mt-3 rounded bg-gray-50 p-3 dark:bg-gray-950">
       {institutional ? <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100"><Mail size={16} /> Contact Sales</div> : <div className="space-y-1"><PriceLine label="Monthly" value={displayPrice(product.monthly_display_price, product.stripe_monthly_price_id)} /><PriceLine label="Annual" value={displayPrice(product.annual_display_price, product.stripe_annual_price_id)} /></div>}
     </div>
-    <ul className="mt-3 space-y-2 text-xs text-gray-700 dark:text-gray-200">{info.bullets.map((bullet) => <li key={bullet} className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" />{bullet}</li>)}</ul>
-    <div className="mt-4 flex flex-wrap gap-2">
+    <ul className="mt-3 grow space-y-2 text-xs text-gray-700 dark:text-gray-200">{info.bullets.map((bullet) => <li key={bullet} className="flex gap-2"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" />{bullet}</li>)}</ul>
+    {selfService ? <p className="mt-4 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300">Activation is webhook-authoritative: completing Stripe Checkout starts the subscription, and MarketOps unlocks after Stripe confirms it.</p> : null}
+    <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap">
       {selfService ? <>
-        <button type="button" disabled={!checkoutEnabled || !monthlyMapped || Boolean(workingKey)} onClick={() => onCheckout(product, 'monthly')} className="inline-flex items-center gap-2 rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900"><CircleDollarSign size={15} /> {workingKey === `${product.product_key}:monthly` ? 'Opening…' : 'Monthly Checkout'}</button>
-        <button type="button" disabled={!checkoutEnabled || !annualMapped || Boolean(workingKey)} onClick={() => onCheckout(product, 'annual')} className="inline-flex items-center gap-2 rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-100"><CircleDollarSign size={15} /> {workingKey === `${product.product_key}:annual` ? 'Opening…' : 'Annual Checkout'}</button>
-      </> : <a href="mailto:sales@syncratic.io?subject=MarketOps%20Institutional" className="inline-flex items-center gap-2 rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-gray-100 dark:text-gray-900"><Mail size={15} /> Contact Sales</a>}
+        <button type="button" disabled={!checkoutEnabled || !monthlyMapped || Boolean(workingKey)} onClick={() => onCheckout(product, 'monthly')} className="inline-flex w-full items-center justify-center gap-2 rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:bg-gray-100 dark:text-gray-900"><CircleDollarSign size={15} /> {workingKey === `${product.product_key}:monthly` ? 'Opening…' : 'Monthly Checkout'}</button>
+        <button type="button" disabled={!checkoutEnabled || !annualMapped || Boolean(workingKey)} onClick={() => onCheckout(product, 'annual')} className="inline-flex w-full items-center justify-center gap-2 rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:border-gray-600 dark:text-gray-100"><CircleDollarSign size={15} /> {workingKey === `${product.product_key}:annual` ? 'Opening…' : 'Annual Checkout'}</button>
+      </> : <a href="mailto:sales@syncratic.io?subject=MarketOps%20Institutional" className="inline-flex w-full items-center justify-center gap-2 rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white sm:w-auto dark:bg-gray-100 dark:text-gray-900"><Mail size={15} /> Contact Sales</a>}
     </div>
   </article>;
 }

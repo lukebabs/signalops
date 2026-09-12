@@ -125,7 +125,9 @@ def test_b2c_user_resolves_enrollment_state(b2c_page: Page) -> None:
     if config.expected_state == "marketops_ready":
         expect(b2c_page.get_by_role("heading", name="MarketOps Dashboard")).to_be_visible(timeout=30_000)
     elif config.expected_state == "subscription_missing":
-        b2c_page.wait_for_url(re.compile(r"/marketops/pricing"), timeout=30_000)
+        b2c_page.wait_for_url(re.compile(r"/marketops/pricing.*source_feature=enrollment"), timeout=30_000)
         expect(b2c_page.get_by_role("heading", name="Increase analytical depth when the research question requires it.")).to_be_visible(timeout=30_000)
+        expect(b2c_page.get_by_label("Enrollment checkpoint")).to_be_visible(timeout=30_000)
+        expect(b2c_page.get_by_text("MarketOps is ready under")).to_be_visible(timeout=30_000)
     else:
         expect(b2c_page.locator("body")).to_contain_text(re.compile(config.expected_state.replace("_", " "), re.I))

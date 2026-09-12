@@ -14,6 +14,7 @@ export function MarketOpsPricingRoute() {
   const products = useMemo(() => (productsQ.data?.products ?? []).slice().sort(productSort), [productsQ.data?.products]);
   const checkoutEnabled = Boolean(productsQ.data?.checkout_enabled);
   const sourceFeature = search.source_feature || '';
+  const arrivedFromEnrollment = sourceFeature === 'enrollment';
 
   return <div className="mx-auto max-w-6xl space-y-5">
     <section className="rounded border border-brand-100 bg-brand-50 p-5 dark:border-brand-900 dark:bg-brand-950/30">
@@ -27,8 +28,22 @@ export function MarketOpsPricingRoute() {
           Current access: <span className="font-semibold">{subscription.subscription?.display_name ?? 'Unprovisioned'}</span>
         </div>
       </div>
-      {sourceFeature ? <p className="mt-3 rounded border border-brand-200 bg-white px-3 py-2 text-xs text-gray-700 dark:border-brand-800 dark:bg-gray-950 dark:text-gray-200">You arrived from a locked <span className="font-semibold">{featureName(sourceFeature)}</span> workflow. Choose the depth that answers the next research question.</p> : null}
+      {sourceFeature && !arrivedFromEnrollment ? <p className="mt-3 rounded border border-brand-200 bg-white px-3 py-2 text-xs text-gray-700 dark:border-brand-800 dark:bg-gray-950 dark:text-gray-200">You arrived from a locked <span className="font-semibold">{featureName(sourceFeature)}</span> workflow. Choose the depth that answers the next research question.</p> : null}
     </section>
+
+    {arrivedFromEnrollment ? <section className="rounded border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100" aria-label="Enrollment checkpoint">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold">Enrollment checkpoint</h2>
+          <p className="mt-1 leading-6">Your Syncratic identity is verified and MarketOps is ready under <span className="font-semibold">{tenantId}</span>. Choose Explorer or Professional to activate access.</p>
+        </div>
+        <ol className="grid gap-1 text-xs sm:min-w-56">
+          <li><span className="font-semibold">1.</span> Select a plan.</li>
+          <li><span className="font-semibold">2.</span> Complete Stripe Checkout.</li>
+          <li><span className="font-semibold">3.</span> Return after the signed webhook activates access.</li>
+        </ol>
+      </div>
+    </section> : null}
 
     {productsQ.isLoading ? <p className="text-sm text-gray-500">Loading configured plans…</p> : productsQ.isError ? <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">Plan configuration is unavailable.</p> : <SubscriptionPlanGrid products={products} currentProductKey={subscription.subscription?.product_key} checkoutEnabled={checkoutEnabled} tenantId={tenantId} />}
 

@@ -117,6 +117,13 @@ SIGNALOPS_E2E_EXPECT_CAN_SELF_ENROLL=false \
 
 This proves the authenticated enrollment resolver and protected Dashboard entry work for the existing pilot account; it does not prove the B2C self-enrollment branch.
 
+
+## Authenticated B2C resolver evidence — 2026-09-12
+
+The current B2C QA account has already completed paid activation, so the authenticated resolver smoke was run with `SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE=marketops_ready`. Result: `1 passed in 1.21s`.
+
+This proves the post-activation path: the user resolves to `tenant-local`, remains email verified, passes the no-MFA enrollment posture, and reaches the MarketOps Dashboard instead of being sent back to Pricing. The subscription-missing branch remains covered by the resolver contract and by the Pricing enrollment checkpoint: unaffiliated/new B2C users without an effective subscription route to `/marketops/pricing?source_feature=enrollment` and must wait for webhook-authoritative Stripe activation before access changes.
+
 ## Live Keycloak B2C QA evidence — 2026-08-25
 
 Live Keycloak was inspected through the `keycloak` container using `kcadm.sh`; no secrets or tokens were printed. The controlled B2C QA identity `luke.babarinde@gmail.com` now has:

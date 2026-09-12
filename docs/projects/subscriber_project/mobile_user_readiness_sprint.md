@@ -1,6 +1,6 @@
 # Subscriber Project — Mobile User Readiness Sprint
 
-Status: closed for the configured production QA identities on 2026-09-01; ongoing work is limited to non-blocking polish or future native/PWA planning.
+Status: closed for the configured production QA identities; refreshed on 2026-09-12 with mobile pricing/enrollment copy and production Playwright evidence. Ongoing work is limited to non-blocking polish or future native/PWA planning.
 
 Owner: MarketOps subscriber product and frontend engineering.
 
@@ -232,6 +232,15 @@ Initial likely fixes:
 6. Enrollment
    - Verify SignalOps branding and SMS disclosure on phone.
    - Ensure duplicate-user routing is clear.
+
+
+## Production evidence — 2026-09-12 refresh
+
+- `scripts/run_subscriber_mobile_ui_smoke.sh`: `24 passed in 47.90s` against production at 375px, 390px, and 430px.
+- `scripts/run_keycloak_b2c_enrollment_ui_smoke.sh`: `1 passed in 0.95s`, proving the public Create Account entrypoint still reaches the governed registration/enrollment path without form submission.
+- `SIGNALOPS_B2C_ENROLLMENT_SMOKE_ACK=approved SIGNALOPS_E2E_ENROLLMENT_EXPECTED_STATE=marketops_ready scripts/run_keycloak_b2c_enrollment_authenticated_smoke.sh`: `1 passed in 1.21s`, proving the currently activated B2C QA account resolves to `tenant-local` and reaches MarketOps.
+- `scripts/run_stripe_checkout_readiness_ui_smoke.sh`: `1 passed in 1.98s`, proving pricing displays human-readable Stripe prices, avoids raw `price_` IDs, shows webhook-authoritative activation language, and preserves billing/refund helper copy.
+- UI polish added in this refresh: pricing cards use mobile-friendly full-width primary actions, and enrollment-sourced pricing displays an explicit checkpoint explaining verified identity, tenant-local readiness, Stripe Checkout, and webhook-confirmed activation.
 
 ## Production evidence — 2026-09-01
 

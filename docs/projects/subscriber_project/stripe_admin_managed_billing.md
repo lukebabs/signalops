@@ -128,6 +128,21 @@ Validation boundary:
 Operational note: Stripe Tax calculates and collects tax when configured correctly, but filing/remittance remains an operational responsibility through Stripe filing products, filing partners, or manual processes. Confirm obligations with a tax advisor.
 
 
+
+## Pricing and mobile checkout-readiness refresh — 2026-09-12
+
+The subscriber Pricing page now makes the production activation boundary explicit for mobile and desktop users:
+
+- Explorer and Professional cards show human-readable monthly/annual prices and never expose raw Stripe `price_` IDs in the UI.
+- The cards explain that activation is webhook-authoritative: completing Stripe Checkout starts the subscription, and MarketOps unlocks only after Stripe confirms it.
+- `/marketops/pricing?source_feature=enrollment` shows an enrollment checkpoint: identity is verified, `tenant-local` MarketOps resolution is ready, the user should choose Explorer or Professional, and activation depends on the signed Stripe webhook.
+- Active subscribers see billing-help copy, Stripe customer portal access, and admin-reviewed refund request intake.
+
+Validation evidence:
+
+- `scripts/run_stripe_checkout_readiness_ui_smoke.sh`: `1 passed in 1.98s` against production.
+- `scripts/run_subscriber_mobile_ui_smoke.sh`: `24 passed in 47.90s`, including the mobile pricing cards and activation-copy assertions.
+
 ## Real paid activation evidence — 2026-09-04
 
 A live Explorer monthly Checkout payment completed for session `cs_live_a1PXQR4g96ZkMkJFkiOJMVoSQhrES4u2mBRgJaxptYjCyqFkZlFLaICeIN`. Stripe returned `status=complete`, `payment_status=paid`, subscription `sub_1UBoUu8w1ilrMHjMPE6RGdBH`, customer `cus_VCCuc6id2ct0vu`, and metadata `checkout_ref=subcheckout-ac7ea41094f5498af111dfe7`.

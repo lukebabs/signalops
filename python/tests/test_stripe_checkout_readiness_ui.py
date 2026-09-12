@@ -65,6 +65,8 @@ def test_stripe_checkout_readiness_state_matches_gateway(pricing_page: Page, pri
     body = pricing_page.locator("body")
     for display_price in ["$24.99/mo", "$249/yr", "$99/mo", "$999/yr"]:
         expect(body).to_contain_text(display_price, timeout=30_000)
+    expect(body).to_contain_text("Activation is webhook-authoritative", timeout=30_000)
+    expect(body).to_contain_text("A return from Stripe alone never grants access", timeout=30_000)
     expect(body).not_to_contain_text("price_")
 
     subscription_response = pricing_page.evaluate(

@@ -229,6 +229,8 @@ def test_subscriber_mobile_pricing_cards(mobile_subscriber_page: Page, subscribe
     expect(mobile_subscriber_page.get_by_role("heading", name="Professional")).to_be_visible(timeout=30_000)
     expect(mobile_subscriber_page.get_by_role("heading", name="Institutional")).to_be_visible(timeout=30_000)
     expect(mobile_subscriber_page.get_by_text("Checkout status")).to_be_visible(timeout=30_000)
+    expect(mobile_subscriber_page.get_by_text("Activation is webhook-authoritative").first).to_be_visible(timeout=30_000)
+    expect(mobile_subscriber_page.get_by_text("A return from Stripe alone never grants access")).to_be_visible(timeout=30_000)
     monthly_buttons = mobile_subscriber_page.get_by_role("button", name=re.compile(r"Monthly Checkout"))
     expect(monthly_buttons.first).to_be_visible(timeout=30_000)
     overflow = mobile_subscriber_page.evaluate(

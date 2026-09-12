@@ -1,6 +1,6 @@
 # Subscriber Project
 
-Status: active implementation project. The global catalog, subscriber-list foundation, user Profile/Settings flow, Stripe Checkout/Portal/refund-intake surfaces, and first webhook-authoritative paid activation evidence are deployed behind controlled production gates. Scheduled-job operations status is stored in the dedicated MarketOps database; repo-local runtime JSON is retained only as ignored fallback/debug output.
+Status: active implementation project. The global catalog, subscriber-list foundation, mobile subscriber journey, user Profile/Settings flow, Stripe Checkout/Portal/refund-intake surfaces, and first webhook-authoritative paid activation evidence are deployed behind controlled production gates. Scheduled-job operations status is stored in the dedicated MarketOps database; repo-local runtime JSON is retained only as ignored fallback/debug output.
 
 ## Goal
 
