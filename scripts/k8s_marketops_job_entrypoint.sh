@@ -144,7 +144,9 @@ case "$job_id" in
       signalops-subscriber-global-annual-financial-task-worker
       "$mode_flag"
       --max-assets "${MARKETOPS_FMP_ANNUAL_MAX_ASSETS:-1000}"
+      --max-retries "${MARKETOPS_FMP_ANNUAL_MAX_RETRIES:-2}"
       --session-date "${MARKETOPS_SESSION_DATE:-}"
+      --correlation-id "${MARKETOPS_FMP_ANNUAL_CORRELATION_ID:-$run_id}"
     )
     ;;
   marketops-saf-benchmark)

@@ -48,6 +48,7 @@ func run(ctx context.Context, args []string) error {
 	databaseURL := flags.String("database-url", strings.TrimSpace(os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL")), "dedicated primary global-worker database URL")
 	limit := flags.Int("max-assets", 1000, "maximum warm assets to refresh (1-1000)")
 	interval := flags.Duration("request-interval", 250*time.Millisecond, "minimum interval between FMP calls")
+	maxRetries := flags.Int("max-retries", 2, "maximum retry attempts per transient FMP call")
 	sessionValue := flags.String("session-date", "", "capture date YYYY-MM-DD; default is current UTC date")
 	correlationID := flags.String("correlation-id", "", "operator correlation id")
 	dryRun := flags.Bool("dry-run", false, "call FMP and report coverage without writing evidence")
@@ -63,6 +64,9 @@ func run(ctx context.Context, args []string) error {
 	}
 	if *interval < 250*time.Millisecond {
 		return errors.New("request-interval must be at least 250ms (240 FMP calls/minute)")
+	}
+	if *maxRetries < 0 || *maxRetries > 5 {
+		return errors.New("max-retries must be between 0 and 5")
 	}
 	session, err := captureSession(*sessionValue)
 	if err != nil {
@@ -93,7 +97,7 @@ func run(ctx context.Context, args []string) error {
 	}
 	outcomes := make([]outcome, 0, len(assets))
 	for _, item := range assets {
-		snapshot, fetchErr := getWithRetry(ctx, client, item.symbol)
+		snapshot, fetchErr := getWithRetry(ctx, client, item.symbol, *maxRetries)
 		outcomes = append(outcomes, outcome{asset: item, snapshot: snapshot, err: fetchErr})
 	}
 	succeeded, failed := summarize(outcomes)
@@ -150,15 +154,15 @@ func loadWarmAssets(ctx context.Context, db *sql.DB, limit int) ([]asset, error)
 	return assets, nil
 }
 
-func getWithRetry(ctx context.Context, client *fmp.Client, symbol string) (fmp.AnnualFinancialSnapshot, error) {
+func getWithRetry(ctx context.Context, client *fmp.Client, symbol string, maxRetries int) (fmp.AnnualFinancialSnapshot, error) {
 	var last error
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := 0; attempt <= maxRetries; attempt++ {
 		snapshot, err := client.GetAnnualFinancialSnapshot(ctx, symbol)
 		if err == nil {
 			return snapshot, nil
 		}
 		last = err
-		if !retryable(err) || attempt == 2 {
+		if !retryable(err) || attempt == maxRetries {
 			break
 		}
 		delay := time.Duration(attempt+1) * time.Second
