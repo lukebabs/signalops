@@ -119,11 +119,44 @@ This was a staging-only Kubernetes validation. It did not:
 
 `kubectl` continued to emit the known local warning about `/etc/rancher/k3s/config.yaml.d/90-syncratic-cilium.yaml`. It did not block apply, rollout, job execution, DB verification, or cleanup.
 
+## Immutable image publication follow-up
+
+After this gate was committed, the job-runner image was published with the immutable commit-derived tag:
+
+```text
+ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+```
+
+Publication evidence:
+
+```text
+signalops_k8s_marketops_job_runner_publish_verified
+registry=ghcr.io
+user=lukebabs
+image=ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner
+source_tag=6488950e98df
+staging_tag=staging
+permission=write
+```
+
+Kubernetes pull smoke against the immutable tag also passed:
+
+```text
+signalops_k8s_marketops_job_runner_pull_smoke_verified
+namespace=signalops-marketops
+registry=ghcr.io
+image=ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+secret=signalops-ghcr-pull
+pod_succeeded=true
+worker_executed=false
+provider_polling=false
+production_cutover_allowed=false
+```
+
 ## Remaining K8S-3 work
 
 Dedicated non-production MarketOps data services are no longer the blocker. The remaining K8S-3 gates are:
 
-1. publish the job-runner image with the immutable commit tag produced by this gate;
-2. remove staging-only OpenBao TLS skip-verify by installing/proving production-grade CA trust;
-3. run one approved CronJob unsuspend/resuspend smoke with no provider polling;
-4. only after that, request a separate named approval for any provider-enabled Kubernetes schedule test.
+1. remove staging-only OpenBao TLS skip-verify by installing/proving production-grade CA trust;
+2. run one approved CronJob unsuspend/resuspend smoke with no provider polling;
+3. only after that, request a separate named approval for any provider-enabled Kubernetes schedule test.

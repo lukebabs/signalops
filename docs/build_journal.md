@@ -9928,3 +9928,10 @@ Next-cycle priority:
 - Added a bounded gate runner that creates runtime Kubernetes Secrets only if missing, seeds only the minimal scheduler-parity schema and one synthetic warm asset row, writes a temporary no-print runtime env file, updates the OpenBao MarketOps staging path, runs the non-provider Kubernetes dry-run job, verifies scheduler-status parity in the dedicated staging MarketOps primary DB, and removes temporary dry-run resources.
 - Fixed two gate defects: SQL seed input now uses `kubectl exec -i`, and the OpenBao MarketOps runtime writer now carries `SIGNALOPS_K8S_STATUS_DATABASE_URL` so worker status cannot fall back to an unintended database.
 - Live evidence passed with run id `k8s-dedicated-db-parity-20260912T202846Z`: `scheduler_status_parity=verified`, `provider_polling=false`, and `production_cutover_allowed=false`. Temporary dry-run Job/Pod resources were removed; the dedicated non-production DB pods remain running for subsequent K8S gates.
+
+### 2026-09-12 — K8S-3 dedicated staging database image tag published
+
+- Published the MarketOps K8S job-runner image for the dedicated staging database gate after commit `6488950`.
+- GHCR publication passed for `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner` with immutable source tag `6488950e98df`; the mutable `staging` tag was refreshed.
+- Bounded Kubernetes pull smoke passed against the immutable tag in `signalops-marketops`: pod succeeded, worker execution false, provider polling false, and production cutover false.
+- K8S-3 remaining blockers are now OpenBao CA trust and one separately approved CronJob unsuspend/resuspend smoke with no provider polling.
