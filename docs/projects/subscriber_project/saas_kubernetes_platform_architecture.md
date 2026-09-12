@@ -125,6 +125,8 @@ OpenBao is the selected Kubernetes secret backend. SignalOps will use Vault-comp
 
 OpenBao must be operated in HA mode before SignalOps production workloads depend on it. The accepted HA posture is a fault-tolerant OpenBao server topology, durable storage with tested snapshot/restore, explicit unseal or auto-unseal recovery ownership, injector availability checks, audit logging, and per-plane Kubernetes auth roles that prevent cross-plane secret reads.
 
+The executable staging path is defined in [Kubernetes/OpenBao staging cutover gate](k8s_openbao_staging_cutover_gate.md). As of 2026-09-12, OpenBao is reported available, but the read-only HA verifier still blocks SignalOps workload conversion because it observed only 1 of the required 3 ready non-injector OpenBao server pods. Docker Compose therefore remains the live production authority.
+
 ## Initial migration path from Docker Compose
 
 1. Produce a compose-to-K8s workload inventory for web, gateway, Signal-Connect, MarketOps workers, CyberOps workers, Keycloak, broker, databases, and observability.

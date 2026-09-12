@@ -9737,3 +9737,12 @@ Next-cycle priority:
 - First live run of `marketops-outage-reconcile:2026-09-09` failed before provider work because existing `/tmp/signalops-marketops-*.lock` files were owned by the non-root scheduler user and not writable by the root-owned deployment-agent action.
 - Updated the outage reconciler to use a dedicated root-owned lock directory, `/run/signalops/marketops-outage-reconcile`, for warm-EOD, daily post-close, post-close recovery, SRI refresh, and SRI holdings locks.
 - This preserves normal scheduler locks while allowing the bounded deployment-agent catch-up path to run without broadening file permissions or deleting historical `/tmp` lock files.
+
+### 2026-09-12 — Kubernetes/OpenBao staging gate formalized
+
+- Resumed production-readiness item #5 now that OpenBao was reported ready by the platform owner.
+- Ran the read-only OpenBao HA verifier. It reached Kubernetes but did not pass the SignalOps HA gate: only 1 ready non-injector OpenBao server pod was visible while the gate requires 3.
+- Added `docs/projects/subscriber_project/k8s_openbao_staging_cutover_gate.md` to define the controlled sequence from OpenBao HA evidence through K8s staging, app parity, MarketOps worker shadow parity, Signal-Connect shadow, and eventual production cutover proposal.
+- Updated the Subscriber Project README, SaaS Kubernetes architecture, and production readiness path to keep Docker Compose as production authority until OpenBao HA and staging/parity gates pass.
+- No Kubernetes manifests were applied and no production workload authority changed.
+
