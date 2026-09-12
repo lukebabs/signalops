@@ -1,6 +1,6 @@
 # K8S-3 Suspended MarketOps CronJob Apply Evidence — 2026-09-12
 
-Status: suspended in-cluster CronJob apply/list smoke passed. GHCR job-runner publication remains blocked by token/package write scope.
+Status: suspended in-cluster CronJob apply/list smoke passed. GHCR job-runner publication is now verified.
 
 ## Scope
 
@@ -16,13 +16,17 @@ A repeatable publication helper was added:
 scripts/publish_k8s_marketops_job_runner_image.sh .env
 ```
 
-The local image build succeeded for the current source commit, but GHCR push failed:
+The initial local image build succeeded but GHCR push failed because the available token could read existing packages but could not create/push the new job-runner package. After the package-write permission was corrected, publication passed:
 
 ```text
-denied: permission_denied: The token provided does not match expected scopes.
+signalops_k8s_marketops_job_runner_publish_verified
+registry=ghcr.io
+user=lukebabs
+image=ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner
+source_tag=826d9d01d6bc
+staging_tag=staging
+permission=write
 ```
-
-Interpretation: the current `GHCR_KEY` can read existing private packages but cannot create or push the new `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner` package. The next publication attempt needs a token/account with package write permission for `syncratic-inc`, typically `write:packages` plus the required organization/package permission/SSO authorization.
 
 ## Suspended apply/list validation
 
@@ -73,8 +77,8 @@ They are intentionally not runnable as production replacements yet. The image ta
 
 ## Remaining K8S-3 gates
 
-1. Publish and verify `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging` with a package-write capable token.
-2. Refresh the Kubernetes `signalops-ghcr-pull` secret in `signalops-marketops` if the package-read credential changes.
+1. GHCR job-runner publication is closed for `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging`.
+2. Refresh or verify the Kubernetes `signalops-ghcr-pull` secret in `signalops-marketops` can read the new package before any pod-level dry-run.
 3. Provision `signalops/data/k8s/marketops/marketops-worker-runtime-staging` in OpenBao with non-production values and cross-plane denial evidence.
 4. Run one explicit non-provider dry-run Job after the image and runtime path are available.
 5. Build scheduler-completion parity before any CronJob is unsuspended.

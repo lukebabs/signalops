@@ -9868,4 +9868,10 @@ Next-cycle priority:
 - Added `scripts/run_k8s_marketops_suspended_cronjob_apply_smoke.sh` to apply the staging MarketOps scheduled-job overlay and prove the CronJobs remain suspended.
 - Live K8S validation passed in `signalops-marketops`: 5 CronJobs applied, all `suspend=true`, all `concurrencyPolicy=Forbid`, zero Jobs created, zero Pods created, provider polling false, and production cutover false.
 - Docker Compose/systemd remains the production scheduler authority; K8S CronJobs are staged as suspended objects only.
+### 2026-09-12 — K8S-3 MarketOps job-runner image published
+
+- Reran `scripts/publish_k8s_marketops_job_runner_image.sh .env` after GHCR package-write permission was corrected.
+- Publication passed for `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner` with source tag `826d9d01d6bc` and stable `staging` tag.
+- Revalidated the suspended CronJob manifests and inspected the in-cluster CronJobs: all five remain `SUSPEND=True`, `ACTIVE=0`, `LAST SCHEDULE=<none>`, and reference `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging`.
+- No Jobs or Pods were created; Docker Compose/systemd remains the live production scheduler authority.
 
