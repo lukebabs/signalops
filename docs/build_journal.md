@@ -9811,3 +9811,11 @@ Next-cycle priority:
 - Host-side manifest validation with the same token also returned `denied`, while token owner lookup returned `lukebabs`; the blocker is package read authorization, not username mismatch.
 - Added `scripts/verify_ghcr_pull_token.sh` so the corrected token can be validated before another Kubernetes rollout smoke.
 - Staging Deployments remain scaled to zero; Docker Compose remains production authority.
+
+### 2026-09-12 — Private GHCR pull credential verified
+
+- Replaced the GHCR pull token in `.env` with a classic token that passed `scripts/verify_ghcr_pull_token.sh .env`.
+- Refreshed the `signalops-ghcr-pull` Kubernetes secret in `signalops-app`.
+- Reran the bounded staging pull smoke; Kubernetes successfully pulled both private GHCR images for `signalops-web:staging` and `signalops-gateway:staging`.
+- The registry gate is closed. The remaining K8S-2 blocker is runtime readiness: web probes timed out and gateway entered restart/backoff after OpenBao injection, consistent with placeholder-only OpenBao runtime values and no approved staging DB dependencies yet.
+- Staging Deployments were scaled back to zero; Docker Compose remains production authority.

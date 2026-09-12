@@ -41,12 +41,12 @@ No production traffic moved. No Ingress, DNS, Kubernetes Secret, provider pollin
 
 ## Next decision
 
-Choose one image-pull strategy before K8S-2 readiness can close:
+Image-pull strategy selected and verified: keep GHCR private and use a scoped pull credential. Next readiness decision:
 
-1. Make the GHCR packages public for anonymous cluster pulls.
-2. Keep GHCR packages private and provision a scoped Kubernetes `imagePullSecret`/registry credential path, preferably managed through OpenBao or the platform secret pipeline.
+1. Replace placeholder-only OpenBao runtime values with approved staging endpoints/credentials, or create dedicated non-production dependencies.
+2. Scale staging web/gateway above zero and validate `/healthz`, `/readyz`, and browser smokes through a staging hostname or port-forward.
 
-For production SaaS posture, the preferred option is private GHCR packages with a narrowly scoped pull credential.
+For production SaaS posture, GHCR packages remain private with a narrowly scoped pull credential.
 
 
 ## Private pull credential attempt
@@ -55,7 +55,7 @@ A `GHCR_KEY` value was supplied through the local `.env` file and used to create
 
 The token owner lookup returned `lukebabs`, so the username was not the blocker. A direct host-side manifest check using the supplied token returned `denied` for both images, and Kubernetes returned authenticated `403 Forbidden` while pulling both private GHCR images.
 
-Current blocker: the supplied `GHCR_KEY` does not have package-read access to the private Syncratic GHCR packages, or it has not been authorized for the `syncratic-inc` organization/packages. The token must be replaced or re-authorized before staging pods can pull private images.
+Resolved: the replacement classic `GHCR_KEY` has package-read access to the private Syncratic GHCR packages and Kubernetes successfully pulled both images through `signalops-ghcr-pull`.
 
 Validation helper added:
 
@@ -71,4 +71,33 @@ registry=ghcr.io
 user=<token-owner>
 packages=signalops-web,signalops-gateway
 permission=read
+```
+
+
+## Private pull credential verified
+
+A new classic token was supplied through `.env` as `GHCR_KEY`. The validator passed:
+
+```text
+signalops_ghcr_pull_token_verified
+registry=ghcr.io
+user=lukebabs
+packages=signalops-web,signalops-gateway
+permission=read
+```
+
+The Kubernetes `signalops-ghcr-pull` secret in `signalops-app` was refreshed from that token and the staging pull smoke was rerun. Kubernetes successfully pulled both private GHCR images:
+
+```text
+Successfully pulled image "ghcr.io/syncratic-inc/signalops-web:staging"
+Successfully pulled image "ghcr.io/syncratic-inc/signalops-gateway:staging"
+```
+
+This closes the private-registry pull-credential gate. The remaining K8S-2 blocker is runtime readiness: the web pod started but failed probes, and the gateway pod advanced through OpenBao injection but entered container restart/backoff. This is expected while the OpenBao runtime values remain placeholder-only and no production/staging database cutover has been authorized.
+
+The staging Deployments were scaled back to zero after the smoke:
+
+```text
+deployment.apps/signalops-gateway   0/0
+deployment.apps/signalops-web       0/0
 ```
