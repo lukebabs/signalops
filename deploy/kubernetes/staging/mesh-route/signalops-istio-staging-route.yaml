@@ -14,14 +14,14 @@ spec:
     - name: public-ingress
       namespace: istio-system
       sectionName: http
+    - name: public-ingress
+      namespace: istio-system
+      sectionName: signalops-staging-https
   rules:
     - matches:
         - path:
             type: PathPrefix
             value: /v1
-        - path:
-            type: PathPrefix
-            value: /auth
         - path:
             type: PathPrefix
             value: /healthz

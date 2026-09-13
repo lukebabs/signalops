@@ -23,23 +23,19 @@ HOSTNAME = "signalops-staging.syncratic.co"
 
 @dataclass(frozen=True)
 class Mesh3AuthConfig:
-    port: str
+    base_url: str
+    host_resolver_ip: str
     username: str
     password: str = field(repr=False)
     expected_tenant_id: str
     expected_state: str
     artifact_dir: Path
 
-    @property
-    def base_url(self) -> str:
-        return f"http://{HOSTNAME}:{self.port}"
-
 
 def config() -> Mesh3AuthConfig:
-    port = os.environ.get("SIGNALOPS_K8S_MESH3_LOCAL_PORT", "").strip()
-    if not port:
-        pytest.skip("SIGNALOPS_K8S_MESH3_LOCAL_PORT is set by the Mesh-3 smoke runner")
-    assert port.isdigit(), "SIGNALOPS_K8S_MESH3_LOCAL_PORT must be numeric"
+    base_url = os.environ.get("SIGNALOPS_K8S_MESH3_BASE_URL", f"https://{HOSTNAME}").strip().rstrip("/")
+    assert base_url.startswith("https://"), "Mesh-3 auth smoke requires an HTTPS staging origin for browser PKCE"
+    host_resolver_ip = os.environ.get("SIGNALOPS_K8S_MESH3_HOST_RESOLVER_IP", "").strip()
     username = os.environ.get("SIGNALOPS_B2C_WEB", "").strip() or os.environ.get("SYNCRATIC_QA_CLIENT", "").strip()
     password = os.environ.get("SIGNALOPS_B2C_WEB_PASS", "").strip() or os.environ.get("SYNCRATIC_QA_PASS", "").strip()
     assert username, "SIGNALOPS_B2C_WEB or SYNCRATIC_QA_CLIENT is required"
@@ -48,7 +44,8 @@ def config() -> Mesh3AuthConfig:
     artifact_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     artifact_dir.chmod(0o700)
     return Mesh3AuthConfig(
-        port=port,
+        base_url=base_url,
+        host_resolver_ip=host_resolver_ip,
         username=username,
         password=password,
         expected_tenant_id=os.getenv("SIGNALOPS_E2E_B2C_TENANT_ID", "tenant-local").strip(),
@@ -82,11 +79,12 @@ def assert_not_keycloak_redirect_block(page) -> None:
 def test_keycloak_login_through_istio_staging_route() -> None:
     cfg = config()
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(
-            headless=True,
-            args=[f"--host-resolver-rules=MAP {HOSTNAME} 127.0.0.1"],
-        )
+        launch_args = []
+        if cfg.host_resolver_ip:
+            launch_args.append(f"--host-resolver-rules=MAP {HOSTNAME} {cfg.host_resolver_ip}")
+        browser = playwright.chromium.launch(headless=True, args=launch_args)
         context = browser.new_context(
+            ignore_https_errors=True,
             record_har_path=str(cfg.artifact_dir / "mesh3_keycloak_staging_route.har"),
             record_har_mode="minimal",
         )

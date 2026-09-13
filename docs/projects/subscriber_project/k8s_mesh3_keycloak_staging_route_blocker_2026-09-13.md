@@ -1,87 +1,62 @@
-# Mesh-3 authenticated Keycloak staging-route parity blocker — 2026-09-13
+# Mesh-3 authenticated Keycloak staging-route parity — 2026-09-13
 
-Status: partially remediated after Keycloak migration to k3s. Public OIDC discovery and JWKS are verified; authenticated SignalOps staging parity is now blocked by the HTTP-only staging route because browser PKCE requires a secure context. No SignalOps production traffic cutover.
+Status: closed for staging. Production cutover remains not approved.
 
 Recorded: 2026-09-13 UTC.
 
 ## Scope
 
-Mesh-3 is the next gate after Mesh-2. It attempts to prove that an existing SignalOps QA identity can authenticate through the Istio-routed staging host and return to the SignalOps `/auth/callback` route without moving production DNS.
+Mesh-3 proved that an existing SignalOps QA identity can authenticate through the Istio-routed SignalOps staging host, complete the Keycloak redirect/callback journey, and reach the SignalOps enrollment resolver without moving production DNS.
 
-The attempted smoke did not create users, did not register accounts, did not call Stripe, did not run provider polling, and did not change Keycloak configuration.
+The smoke did not create production users, did not run provider polling, did not call Stripe checkout, and did not cut over production traffic. Staging app workloads were scaled back to zero by the runner.
 
-## What passed before the blocker
+## Fixes required before closure
 
-The smoke confirmed the previously closed Mesh-2 infrastructure still works:
+The gate exposed and closed four issues:
 
-- staging app manifests validate;
-- Mesh-2 route manifests validate;
-- `signalops-web` and `signalops-gateway` roll out in `signalops-app`;
-- `signalops-staging-route` remains accepted by `istio-system/public-ingress`;
-- backend references resolve;
-- cleanup scales staging app workloads back to zero.
+1. Public Keycloak OIDC discovery initially returned a challenge/503. After Keycloak moved to k3s, discovery and JWKS returned HTTP 200 JSON.
+2. Browser PKCE failed over the original HTTP-only staging route. A staging-only HTTPS listener was added to `istio-system/public-ingress` with a self-signed `signalops-staging.syncratic.co` certificate and cross-namespace `ReferenceGrant`.
+3. Keycloak rejected the staging callback URI. The `signalops-web` client was reconciled with staging redirect URIs, web origin, and post-logout URLs.
+4. SignalOps callback initially returned 404 because `/auth/*` was routed to the gateway. The staging HTTPRoute now leaves `/auth/callback`, `/auth/silent-renew`, `/auth/signed-out`, and `/auth/login` on the SPA/web backend while keeping `/v1`, `/healthz`, and `/readyz` on the gateway.
 
-Post-failure cleanup state:
+The final remaining runtime issue was `access_resolution_failed` from `/v1/session/enrollment`. Root cause: OpenBao app staging runtime still pointed at the older `syncratic-runtime-smoke` database while the app was being tested against the dedicated MarketOps staging data boundary. The Mesh-3 runner now creates a non-production app runtime env from the dedicated staging DB secrets, writes it to OpenBao, and bootstraps only the minimal enrollment/access/subscription schema needed for the authenticated staging smoke.
 
-```text
-signalops-web       0/0
-signalops-gateway   0/0
-```
-
-## Blocker observed
-
-The browser loaded the SignalOps SPA through the Istio staging route. When the user clicked Sign in, the OIDC client attempted to fetch Keycloak discovery metadata and failed before reaching the Keycloak login form.
-
-Minimal HAR inspection, with query strings/cookies/tokens omitted, showed:
+## Passing evidence
 
 ```text
-GET 200 http://signalops-staging.syncratic.co:<local-port>/marketops/dashboard
-GET 200 http://signalops-staging.syncratic.co:<local-port>/assets/index-*.js
-GET 200 http://signalops-staging.syncratic.co:<local-port>/assets/router-*.js
-GET 200 http://signalops-staging.syncratic.co:<local-port>/assets/index-*.css
-GET -1 https://auth.syncratic.co/realms/syncratic/.well-known/openid-configuration
+signalops_k8s_mesh3_keycloak_route_smoke_verified
+namespace=signalops-app
+staging_hostname=signalops-staging.syncratic.co
+gateway=istio-system/public-ingress
+gateway_ip=192.168.2.233
+https_listener=signalops-staging-https
+authenticated_keycloak_redirect=true
+provider_polling=false
+production_cutover_allowed=false
+scaled_back_to_zero=true
 ```
 
-A direct retry from the host returned an Imperva/Incapsula challenge response instead of OIDC JSON:
+Playwright result:
 
 ```text
-HTTP/2 503
-retry-after: 5
-content-type: text/html
-...
-Request unsuccessful. Incapsula incident ID: <captured in runtime output>
+1 passed in 1.15s
 ```
 
-This means the authenticated parity gate is blocked before callback URI validation. The immediate issue is not a bad SignalOps route and not a QA password. It is that the browser/OIDC client cannot reliably read Keycloak discovery metadata from `https://auth.syncratic.co/realms/syncratic/.well-known/openid-configuration`.
+## Source-controlled assets
 
-## Source-controlled guard added
+- `deploy/kubernetes/staging/mesh-route/signalops-staging-tls.yaml`
+- `deploy/kubernetes/staging/mesh-route/signalops-istio-staging-route.yaml`
+- `scripts/provision_k8s_signalops_staging_https_listener.sh`
+- `scripts/reconcile_keycloak_signalops_staging_client.sh`
+- `scripts/create_k8s_signalops_app_runtime_staging_env.sh`
+- `scripts/bootstrap_k8s_staging_enrollment_schema.sh`
+- `scripts/run_k8s_mesh3_keycloak_staging_route_smoke.sh`
+- `python/tests/test_k8s_mesh3_keycloak_staging_route_parity.py`
 
-Added:
+## Important operational note
 
-```bash
-scripts/verify_keycloak_oidc_discovery_reachability.sh
-scripts/run_k8s_mesh3_keycloak_staging_route_smoke.sh
-python/tests/test_k8s_mesh3_keycloak_staging_route_parity.py
-```
+A diagnostic command accidentally printed part of a non-production staging primary DB URL. The staging primary DB password was immediately rotated, the Kubernetes secret was updated, OpenBao app runtime was refreshed, and the gateway was restarted before the passing smoke. No production database credential was involved.
 
-The Mesh-3 runner now checks OIDC discovery/JWKS reachability before scaling Kubernetes app workloads. If Keycloak discovery returns a WAF/challenge page or non-200 status, or if browser PKCE cannot run in a secure staging context, it fails closed and avoids a misleading auth test.
+## Remaining Kubernetes production-readiness gates
 
-## Required remediation
-
-Before Mesh-3 can pass, the SignalOps staging route must provide a secure browser context for PKCE. Keycloak/OIDC endpoints are now reachable:
-
-1. Keep unauthenticated GET access to Keycloak OIDC discovery and JWKS endpoints through the CDN/WAF:
-   - `/realms/syncratic/.well-known/openid-configuration`
-   - `/realms/syncratic/protocol/openid-connect/certs`
-2. Confirmed 2026-09-13: those endpoints return JSON metadata/keys, not an HTML WAF challenge.
-3. Decide the staging callback strategy:
-   - add `http://signalops-staging.syncratic.co:<smoke-port>/auth/callback` only for local-port smoke is not practical long term; or
-   - create a stable staging DNS/TLS hostname and Keycloak redirect/web-origin entries; or
-   - create a dedicated staging Keycloak client with equivalent claims/audience/roles.
-4. Rerun:
-
-```bash
-scripts/run_k8s_mesh3_keycloak_staging_route_smoke.sh
-```
-
-Until the secure staging callback path closes, `pending_authenticated_keycloak_mesh_route_parity=true` remains correct.
+Mesh-3 closes authenticated app parity through Istio. Production cutover remains blocked by the broader gates: full MarketOps scheduler parity, Signal-Connect ingestion shadow, ingress/DNS rollback plan, Stripe webhook parity through the K8S route, and capacity/load validation.

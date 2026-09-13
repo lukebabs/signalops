@@ -10033,3 +10033,12 @@ Next-cycle priority:
 - Tightened `scripts/verify_keycloak_oidc_discovery_reachability.sh` so normal Imperva response headers do not cause false WAF failures; the guard now validates JSON content type and fails on challenge-page body evidence.
 - Updated the K8S production-readiness report to derive `keycloak_oidc_discovery_reachability` from the live verifier.
 - Mesh-3 authenticated SignalOps staging parity remains pending because the current `signalops-staging.syncratic.co` route is HTTP-only; browser PKCE requires a secure context. The next gate is a stable HTTPS staging callback route or dedicated staging client strategy.
+
+### 2026-09-13 — Mesh-3 authenticated Keycloak staging route closed
+
+- Closed the authenticated SignalOps service-mesh staging route gate with Playwright through `https://signalops-staging.syncratic.co`.
+- Added staging-only TLS assets, a constrained Istio Gateway HTTPS listener provisioner, and a Keycloak client reconcile script for the staging callback/web-origin/post-logout URLs.
+- Corrected the staging HTTPRoute so `/auth/*` remains on the SPA/web backend while `/v1`, `/healthz`, and `/readyz` route to the gateway.
+- Added a dedicated app runtime env generator and minimal staging enrollment-schema bootstrap so the authenticated smoke uses the dedicated MarketOps staging database through OpenBao rather than the older runtime-smoke database.
+- Passing evidence: `signalops_k8s_mesh3_keycloak_route_smoke_verified`, `authenticated_keycloak_redirect=true`, `provider_polling=false`, `production_cutover_allowed=false`, `scaled_back_to_zero=true`; Playwright reported `1 passed`.
+- A diagnostic command exposed part of a non-production staging primary DB URL; the staging primary DB password was immediately rotated, the K8S secret updated, OpenBao runtime refreshed, and the gateway restarted before final validation. No production database credential was involved.

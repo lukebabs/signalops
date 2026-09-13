@@ -5,8 +5,11 @@ APP_NAMESPACE="${SIGNALOPS_K8S_STAGING_NAMESPACE:-signalops-app}"
 APP_MANIFEST_DIR="${SIGNALOPS_K8S_STAGING_APP_MANIFEST_DIR:-deploy/kubernetes/staging/app}"
 MESH_MANIFEST_DIR="${SIGNALOPS_K8S_MESH2_MANIFEST_DIR:-deploy/kubernetes/staging/mesh-route}"
 PYTHON_BIN="${SIGNALOPS_PLAYWRIGHT_PYTHON:-.venv/bin/python}"
-LOCAL_PORT="${SIGNALOPS_K8S_MESH3_LOCAL_PORT:-}"
 DOTENV_PATH="${SIGNALOPS_E2E_ENV_FILE:-.env}"
+HOSTNAME="${SIGNALOPS_K8S_SIGNALOPS_STAGING_HOSTNAME:-signalops-staging.syncratic.co}"
+GATEWAY_NAMESPACE="${SIGNALOPS_K8S_ISTIO_NAMESPACE:-istio-system}"
+GATEWAY_NAME="${SIGNALOPS_K8S_ISTIO_GATEWAY:-public-ingress}"
+GATEWAY_SERVICE="${SIGNALOPS_K8S_ISTIO_GATEWAY_SERVICE:-public-ingress-istio}"
 
 fail() {
   echo "signalops_k8s_mesh3_keycloak_route_smoke_failed: $*" >&2
@@ -28,34 +31,8 @@ export SIGNALOPS_B2C_WEB_PASS="${SIGNALOPS_B2C_WEB_PASS:-${SYNCRATIC_QA_PASS:-}}
 : "${SIGNALOPS_B2C_WEB:?SIGNALOPS_B2C_WEB or SYNCRATIC_QA_CLIENT is required}"
 : "${SIGNALOPS_B2C_WEB_PASS:?SIGNALOPS_B2C_WEB_PASS or SYNCRATIC_QA_PASS is required}"
 
-if [[ -z "$LOCAL_PORT" ]]; then
-  LOCAL_PORT="$($PYTHON_BIN - <<'PYPORT'
-import socket
-for port in range(18280, 18320):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind(("127.0.0.1", port))
-        except OSError:
-            continue
-        print(port)
-        raise SystemExit(0)
-raise SystemExit(1)
-PYPORT
-)" || fail "no free local mesh auth smoke port found in 18280-18319"
-fi
-[[ "$LOCAL_PORT" =~ ^[0-9]+$ ]] || fail "SIGNALOPS_K8S_MESH3_LOCAL_PORT must be numeric"
-
-port_forward_log="$(mktemp -t signalops-k8s-mesh3-port-forward.XXXXXX.log)"
-port_forward_pid=""
-
 cleanup() {
-  if [[ -n "$port_forward_pid" ]]; then
-    kill "$port_forward_pid" >/dev/null 2>&1 || true
-    wait "$port_forward_pid" >/dev/null 2>&1 || true
-  fi
   kubectl scale deployment/signalops-web deployment/signalops-gateway -n "$APP_NAMESPACE" --replicas=0 >/dev/null 2>&1 || true
-  rm -f "$port_forward_log"
 }
 trap cleanup EXIT
 
@@ -66,43 +43,39 @@ scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh "$MESH_MANIFEST_DI
 
 kubectl apply -k "$APP_MANIFEST_DIR" >/dev/null
 kubectl apply -k "$MESH_MANIFEST_DIR" >/dev/null
+app_runtime_env="${SIGNALOPS_K8S_APP_RUNTIME_ENV_FILE:-/tmp/signalops-openbao-app-runtime-staging.env}"
+scripts/create_k8s_signalops_app_runtime_staging_env.sh "$DOTENV_PATH" "$app_runtime_env" >/dev/null
+scripts/provision_openbao_signalops_app_runtime_staging.sh "$app_runtime_env" >/dev/null
+scripts/bootstrap_k8s_staging_enrollment_schema.sh >/dev/null
+kubectl wait --for=condition=Ready certificate/signalops-staging-tls -n "$APP_NAMESPACE" --timeout=120s >/dev/null
+scripts/provision_k8s_signalops_staging_https_listener.sh >/dev/null
 kubectl scale deployment/signalops-web deployment/signalops-gateway -n "$APP_NAMESPACE" --replicas=1 >/dev/null
 kubectl rollout status deployment/signalops-gateway -n "$APP_NAMESPACE" --timeout=120s
 kubectl rollout status deployment/signalops-web -n "$APP_NAMESPACE" --timeout=120s
 
-route_accepted="$(kubectl get httproute signalops-staging-route -n "$APP_NAMESPACE" -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}' 2>/dev/null || true)"
-route_refs="$(kubectl get httproute signalops-staging-route -n "$APP_NAMESPACE" -o jsonpath='{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}' 2>/dev/null || true)"
-[[ "$route_accepted" == "True" ]] || fail "HTTPRoute was not accepted by the Istio Gateway"
-[[ "$route_refs" == "True" ]] || fail "HTTPRoute backend references were not resolved"
+route_accepted="$(kubectl get httproute signalops-staging-route -n "$APP_NAMESPACE" -o jsonpath='{.status.parents[?(@.parentRef.sectionName=="signalops-staging-https")].conditions[?(@.type=="Accepted")].status}' 2>/dev/null || true)"
+route_refs="$(kubectl get httproute signalops-staging-route -n "$APP_NAMESPACE" -o jsonpath='{.status.parents[?(@.parentRef.sectionName=="signalops-staging-https")].conditions[?(@.type=="ResolvedRefs")].status}' 2>/dev/null || true)"
+[[ "$route_accepted" == "True" ]] || fail "HTTPRoute was not accepted by the Istio HTTPS Gateway listener"
+[[ "$route_refs" == "True" ]] || fail "HTTPRoute HTTPS backend references were not resolved"
 
-kubectl port-forward --address 127.0.0.1 -n istio-system service/public-ingress-istio "${LOCAL_PORT}:80" >"$port_forward_log" 2>&1 &
-port_forward_pid="$!"
-
-for _ in $(seq 1 30); do
-  if grep -q "Forwarding from 127.0.0.1:${LOCAL_PORT}" "$port_forward_log"; then
-    break
-  fi
-  if ! kill -0 "$port_forward_pid" >/dev/null 2>&1; then
-    sed -n '1,120p' "$port_forward_log" >&2 || true
-    fail "kubectl port-forward exited before it became ready"
-  fi
-  sleep 1
-done
-
-if ! grep -q "Forwarding from 127.0.0.1:${LOCAL_PORT}" "$port_forward_log"; then
-  sed -n '1,120p' "$port_forward_log" >&2 || true
-  fail "kubectl port-forward did not become ready"
+gateway_ip="$(kubectl get gateway "$GATEWAY_NAME" -n "$GATEWAY_NAMESPACE" -o jsonpath='{.status.addresses[0].value}' 2>/dev/null || true)"
+if [[ -z "$gateway_ip" ]]; then
+  gateway_ip="$(kubectl get service "$GATEWAY_SERVICE" -n "$GATEWAY_NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
 fi
+[[ -n "$gateway_ip" ]] || fail "could not resolve Istio Gateway address"
 
-export SIGNALOPS_K8S_MESH3_LOCAL_PORT="$LOCAL_PORT"
+export SIGNALOPS_K8S_MESH3_BASE_URL="https://${HOSTNAME}"
+export SIGNALOPS_K8S_MESH3_HOST_RESOLVER_IP="$gateway_ip"
 export SIGNALOPS_E2E_ARTIFACT_DIR="${SIGNALOPS_E2E_ARTIFACT_DIR:-/tmp/signalops-mesh3-auth-e2e-artifacts}"
 PYTHONDONTWRITEBYTECODE=1 "$PYTHON_BIN" -m pytest -q python/tests/test_k8s_mesh3_keycloak_staging_route_parity.py
 
 cat <<EOF
 signalops_k8s_mesh3_keycloak_route_smoke_verified
 namespace=${APP_NAMESPACE}
-staging_hostname=signalops-staging.syncratic.co
-port_forward=istio-system/public-ingress-istio:${LOCAL_PORT}->80
+staging_hostname=${HOSTNAME}
+gateway=${GATEWAY_NAMESPACE}/${GATEWAY_NAME}
+gateway_ip=${gateway_ip}
+https_listener=signalops-staging-https
 authenticated_keycloak_redirect=true
 provider_polling=false
 production_cutover_allowed=false

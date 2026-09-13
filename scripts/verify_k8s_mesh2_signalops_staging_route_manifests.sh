@@ -28,6 +28,9 @@ services="$(count_kind Service)"
 deployments="$(count_kind Deployment)"
 cronjobs="$(count_kind CronJob)"
 jobs="$(count_kind Job)"
+issuers="$(count_kind Issuer)"
+certificates="$(count_kind Certificate)"
+referencegrants="$(count_kind ReferenceGrant)"
 
 [[ "$namespaces" -eq 1 ]] || fail "expected 1 Namespace label resource, found ${namespaces}"
 [[ "$httproutes" -eq 1 ]] || fail "expected 1 HTTPRoute, found ${httproutes}"
@@ -39,11 +42,15 @@ jobs="$(count_kind Job)"
 [[ "$deployments" -eq 0 ]] || fail "expected 0 Deployments, found ${deployments}"
 [[ "$cronjobs" -eq 0 ]] || fail "expected 0 CronJobs, found ${cronjobs}"
 [[ "$jobs" -eq 0 ]] || fail "expected 0 Jobs, found ${jobs}"
+[[ "$issuers" -eq 1 ]] || fail "expected 1 staging TLS Issuer, found ${issuers}"
+[[ "$certificates" -eq 1 ]] || fail "expected 1 staging TLS Certificate, found ${certificates}"
+[[ "$referencegrants" -eq 1 ]] || fail "expected 1 staging TLS ReferenceGrant, found ${referencegrants}"
 
 printf '%s\n' "$rendered" | grep -q 'hostnames:' || fail "HTTPRoute hostnames missing"
 printf '%s\n' "$rendered" | grep -q 'signalops-staging.syncratic.co' || fail "staging hostname missing"
 printf '%s\n' "$rendered" | grep -q 'namespace: istio-system' || fail "HTTPRoute must target the existing istio-system Gateway"
-printf '%s\n' "$rendered" | grep -q 'sectionName: http' || fail "HTTPRoute must attach only to the HTTP listener for this stage"
+printf '%s\n' "$rendered" | grep -q 'sectionName: http' || fail "HTTPRoute must attach to the HTTP listener for Mesh-2 compatibility"
+printf '%s\n' "$rendered" | grep -q 'sectionName: signalops-staging-https' || fail "HTTPRoute must attach to the staging HTTPS listener for Mesh-3 auth parity"
 printf '%s\n' "$rendered" | grep -q 'name: signalops-web' || fail "web backend missing"
 printf '%s\n' "$rendered" | grep -q 'name: signalops-gateway' || fail "gateway backend missing"
 printf '%s\n' "$rendered" | grep -q 'gateway.networking.k8s.io/gateway-name: public-ingress' || fail "Istio gateway pod selector missing"
@@ -64,9 +71,12 @@ services=${services}
 deployments=${deployments}
 cronjobs=${cronjobs}
 jobs=${jobs}
+issuers=${issuers}
+certificates=${certificates}
+referencegrants=${referencegrants}
 staging_hostname=signalops-staging.syncratic.co
 parent_gateway=istio-system/public-ingress
-listener=http
+listener=http+signalops-staging-https
 production_cutover_allowed=false
 applied=false
 EOF
