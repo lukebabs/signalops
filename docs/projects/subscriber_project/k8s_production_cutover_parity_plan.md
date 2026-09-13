@@ -189,7 +189,7 @@ Acceptance:
 
 ## Current conclusion
 
-Kubernetes migration is past scaffold-only. It has real staging app, secret, image, data, scheduler, service-mesh, and authenticated Keycloak route evidence. Broader MarketOps scheduler parity is now complete at the suspended-workload and dry-run evidence level. The next production-readiness targets are Signal-Connect ingestion shadow, ingress/DNS rollback planning, Stripe webhook parity through the K8S route, capacity/load validation, and a separately approved scheduler authority transfer.
+Kubernetes migration is past scaffold-only. It has real staging app, secret, image, data, scheduler, service-mesh, authenticated Keycloak route evidence, Signal-Connect shadow evidence, and raw-worker processing-shadow evidence. Broader MarketOps scheduler parity is complete at the suspended-workload and dry-run evidence level. The next production-readiness targets are ingress/DNS rollback planning, Stripe webhook parity through the K8S route, capacity/load validation, and a separately approved scheduler authority transfer.
 
 Until those gates close, `production_cutover_allowed=false` remains the correct state and Docker Compose/systemd remains the live production authority.
 
@@ -274,4 +274,9 @@ Signal-Connect ingestion shadow is closed for the two Go Connect workers. A stag
 
 ### K8S-5 raw-worker scaffold — 2026-09-13
 
-The Python `raw-worker` migration has started as a separate gate from the Go Signal-Connect workers. The staging Deployment `signalops-raw-worker` is applied in `signalops-connect` with `replicas=0`, private GHCR image `ghcr.io/syncratic-inc/signalops-python-worker:staging`, the staging Redpanda broker endpoint, bounded `SIGNALOPS_WORKER_MAX_MESSAGES=1`, and `production-cutover-allowed=false`. Image publication and pull smoke are verified. The next gate is a deterministic one-message processing shadow that seeds a valid normalized event, scales the worker to one, verifies output/retry/DLQ behavior, and returns replicas to zero.
+The Python `raw-worker` migration is closed through a bounded one-message processing shadow. The staging Deployment `signalops-raw-worker` is applied in `signalops-connect` with `replicas=0`, private GHCR image `ghcr.io/syncratic-inc/signalops-python-worker:staging`, the staging Redpanda broker endpoint, bounded `SIGNALOPS_WORKER_MAX_MESSAGES=1`, and `production-cutover-allowed=false`. Image publication, pull smoke, and deterministic processing smoke are verified. The processing smoke emitted `marketops.dsm.accumulation` to `signalops.kubernetes-staging.signal.v1` and restored replicas to zero. Evidence is tracked in [K8S-5 raw-worker processing shadow — 2026-09-13](k8s5_raw_worker_processing_shadow_2026-09-13.md).
+
+
+### K8S-5 raw-worker processing shadow closed — 2026-09-13
+
+The Python `raw-worker` completed a bounded K3s staging processing smoke. A deterministic normalized MarketOps event was produced into the internal staging Redpanda broker, `signalops-raw-worker` was scaled to one, the worker emitted `marketops.dsm.accumulation` to the staging signal topic, and the Deployment returned to zero replicas. The initial fixture drift was corrected by using the governed `market_data.massive` source adapter expected by the DSM detector, while retaining synthetic-smoke provenance. The readiness report now shows `pending_raw_worker_processing_shadow=false`.

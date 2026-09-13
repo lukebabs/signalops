@@ -10157,3 +10157,11 @@ Next-cycle priority:
 - Published `ghcr.io/syncratic-inc/signalops-python-worker:fe1b1d7c01f1` and refreshed `staging`.
 - Pull smoke passed in `signalops-connect`; the raw-worker Deployment was applied and remains dormant at `0/0`.
 - The next gate is a deterministic one-message raw-worker processing shadow; production cutover remains disabled.
+
+### 2026-09-13 — K8S-5 raw-worker processing shadow closed
+
+- Added `scripts/run_k8s_signalops_raw_worker_processing_smoke.sh` to seed one deterministic normalized MarketOps event into the internal staging Redpanda broker, scale `signalops-raw-worker` to one, verify emitted signal output, and restore replicas to zero.
+- Fixed the smoke fixture after the first failed run: `source_adapter=market_data.k8s-smoke` was outside the DSM detector contract, so the worker correctly processed the event without emitting a signal. The fixture now uses governed `source_adapter=market_data.massive` with synthetic-smoke provenance retained in source id, metadata, and evidence.
+- Hardened the staging raw-worker Deployment with `imagePullPolicy: Always` because the mutable `:staging` tag must not be reused from node cache during canaries.
+- Passing evidence: `signalops_k8s_raw_worker_processing_smoke_verified`, run id `raw-worker-smoke-20260913T163832Z`, signal type `marketops.dsm.accumulation`, `messages_processed=1`, `replicas_restored_to_zero=true`, `provider_polling=false`, and `production_cutover_allowed=false`.
+- Production cutover remains disabled; remaining K8S readiness gaps are ingress/DNS rollback planning, Stripe webhook parity through the K8S route, capacity/load validation, and explicit production authority transfer.

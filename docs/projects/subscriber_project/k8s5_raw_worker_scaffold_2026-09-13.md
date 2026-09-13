@@ -1,6 +1,6 @@
 # K8S-5 raw-worker scaffold — 2026-09-13
 
-Status: source-ready, manifest-verified, private GHCR image-published, pull-smoked, and applied dormant in-cluster. No production traffic moved and the worker has not processed staging messages yet.
+Status: source-ready, manifest-verified, private GHCR image-published, pull-smoked, applied dormant in-cluster, and followed by a closed bounded processing shadow. No production traffic moved.
 
 ## Scope
 
@@ -70,4 +70,9 @@ signalops-raw-worker 0/0 ghcr.io/syncratic-inc/signalops-python-worker:staging
 
 ## Remaining gate
 
-The next raw-worker gate is a bounded one-message processing smoke. It should seed one deterministic normalized event into the staging broker, scale `signalops-raw-worker` to one, verify exactly one worker run/output path, and restore replicas to zero. This requires a generated fixture that satisfies the normalized-event schema and detector assumptions; it should be handled as a separate controlled migration step.
+The bounded one-message processing smoke is now closed and documented in [K8S-5 raw-worker processing shadow — 2026-09-13](k8s5_raw_worker_processing_shadow_2026-09-13.md). The worker remains dormant at `0/0`; production cutover remains disabled.
+
+
+## Staging image freshness guard
+
+The staging Deployment uses `imagePullPolicy: Always` because `:staging` is a mutable migration tag and must not be reused from node cache during canaries.

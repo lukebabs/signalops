@@ -33,7 +33,7 @@ spec:
       containers:
         - name: raw-worker
           image: ghcr.io/syncratic-inc/signalops-python-worker:staging
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: SIGNALOPS_BROKER_BROKERS
               value: signalops-redpanda-staging.signalops-data.svc.cluster.local:9092
