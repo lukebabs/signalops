@@ -10049,3 +10049,12 @@ Next-cycle priority:
 - Current result is `status=partial`: K8s fully represents `marketops-intraday`, `marketops-sri-refresh`, `marketops-sri-holdings-refresh`, and `marketops-fmp-annual-financial`; `marketops-saf-benchmark` exists as an extra analytical CronJob outside the Admin scheduler catalog.
 - Missing K8s CronJob and entrypoint coverage remains for `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-operations-monitor`, `marketops-postclose-recovery`, `marketops-retention-governance`, `marketops-risk-reward`, `marketops-task-retry`, and `marketops-warm-eod`.
 - Production readiness now surfaces this explicit partial scheduler-parity state while preserving `production_cutover_allowed=false`.
+
+### 2026-09-13 — K8S scheduler parity operational slice closed
+
+- Added K8s job-runner entrypoint support for `marketops-operations-monitor` and `marketops-retention-governance`; both fail closed unless run in K8s staging dry-run mode.
+- Added suspended staging CronJobs for those two operational jobs with OpenBao runtime injection, `concurrencyPolicy: Forbid`, no committed secrets, and `production-cutover-allowed=false`.
+- Added the `signalops-retention-governor` binary to the MarketOps K8s job-runner image.
+- Expanded the staging bootstrap with minimal `subscriber_user_activity_events`, `retention_policies`, and `retention_runs` tables plus dry-run subscriber activity retention policies for `tenant-local` and `tenant-pilot-b`.
+- Updated the one-shot K8s non-provider dry-run harness to accept selected safe job IDs while preserving the original FMP annual default.
+- Live K8s dry-runs passed for `marketops-operations-monitor` and `marketops-retention-governance` with `scheduler_status_parity=verified`, `provider_polling=false`, and `production_cutover_allowed=false`.

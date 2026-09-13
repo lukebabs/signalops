@@ -158,6 +158,22 @@ case "$job_id" in
       --correlation-id "${MARKETOPS_SAF_BENCHMARK_CORRELATION_ID:-k8s-staging-cronjob}"
     )
     ;;
+  marketops-operations-monitor)
+    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-operations-monitor is K8s-staging dry-run only until production scheduler cutover is approved"
+    command_args=(
+      bash
+      -ec
+      'psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT current_database() || chr(124) || count(*)::text FROM marketops_scheduled_job_statuses"; psql "$SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT current_database()"; echo marketops_k8s_operations_monitor_dry_run_verified'
+    )
+    ;;
+  marketops-retention-governance)
+    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-retention-governance is K8s-staging dry-run only until production scheduler cutover is approved"
+    command_args=(
+      bash
+      -ec
+      'signalops-retention-governor --tenant-id tenant-local --policy-id subscriber.user_activity_180d; signalops-retention-governor --tenant-id tenant-pilot-b --policy-id subscriber.user_activity_180d; echo marketops_k8s_retention_governance_dry_run_verified'
+    )
+    ;;
   *)
     fail "unsupported MarketOps Kubernetes job id: $job_id"
     ;;

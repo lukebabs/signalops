@@ -4,6 +4,7 @@ set -euo pipefail
 ENV_FILE="${1:-${SIGNALOPS_K8S_MARKETOPS_RUNTIME_ENV_FILE:-/etc/signalops/openbao-signalops-marketops-staging-runtime.env}}"
 NAMESPACE="${SIGNALOPS_K8S_MARKETOPS_NAMESPACE:-signalops-marketops}"
 IMAGE="${SIGNALOPS_MARKETOPS_K8S_JOB_RUNNER_IMAGE:-ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging}"
+DRY_RUN_JOB_ID="${SIGNALOPS_K8S_MARKETOPS_DRY_RUN_JOB_ID:-${2:-marketops-fmp-annual-financial}}"
 JOB_NAME="${SIGNALOPS_K8S_MARKETOPS_DRY_RUN_JOB_NAME:-signalops-marketops-non-provider-dry-run}"
 SECRET_PATH="${MARKETOPS_SECRET_PATH:-signalops/data/k8s/marketops/marketops-worker-runtime-staging}"
 OPENBAO_ADDR="${OPENBAO_ADDR:-https://openbao.openbao.svc:8200}"
@@ -27,6 +28,10 @@ set +a
 
 [[ "${SIGNALOPS_K8S_MARKETOPS_DRY_RUN_APPROVED:-}" == "true" ]] || fail "set SIGNALOPS_K8S_MARKETOPS_DRY_RUN_APPROVED=true in the runtime env file"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9._:-]+$ ]] || fail "run id contains unsupported characters"
+case "$DRY_RUN_JOB_ID" in
+  marketops-fmp-annual-financial|marketops-operations-monitor|marketops-retention-governance) ;;
+  *) fail "unsupported non-provider dry-run job id: ${DRY_RUN_JOB_ID}" ;;
+esac
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 "$repo_dir/scripts/provision_openbao_signalops_marketops_runtime_staging.sh" "$ENV_FILE" >/dev/null
@@ -167,7 +172,7 @@ spec:
           image: ${IMAGE}
           imagePullPolicy: Always
           args:
-            - marketops-fmp-annual-financial
+            - ${DRY_RUN_JOB_ID}
           env:
             - name: BAO_ADDR
               value: "${OPENBAO_ADDR}"
@@ -255,7 +260,7 @@ signalops_k8s_marketops_non_provider_dry_run_job_verified
 namespace=${NAMESPACE}
 image=${IMAGE}
 job=${JOB_NAME}
-job_id=marketops-fmp-annual-financial
+job_id=${DRY_RUN_JOB_ID}
 dry_run=true
 max_assets=1
 run_id=${RUN_ID}

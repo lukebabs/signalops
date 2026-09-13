@@ -186,13 +186,81 @@ CREATE INDEX IF NOT EXISTS idx_subscriber_subscription_seats_subscription ON sub
 CREATE INDEX IF NOT EXISTS idx_subscriber_subscription_feature_decisions_tenant_time ON subscriber_subscription_feature_decisions (tenant_id, decided_at DESC);
 CREATE INDEX IF NOT EXISTS idx_subscriber_subscription_audit_tenant_time ON subscriber_subscription_audit_events (tenant_id, occurred_at DESC);
 
+CREATE TABLE IF NOT EXISTS subscriber_user_activity_events (
+  activity_id text PRIMARY KEY,
+  tenant_id text NOT NULL,
+  subject text NOT NULL,
+  app_id text NOT NULL DEFAULT 'marketops',
+  event_type text NOT NULL,
+  feature_key text NOT NULL DEFAULT '',
+  http_method text NOT NULL DEFAULT '',
+  route_path text NOT NULL DEFAULT '',
+  status_code integer NOT NULL DEFAULT 0,
+  correlation_id text NOT NULL DEFAULT '',
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT subscriber_user_activity_app_check CHECK (app_id IN ('marketops')),
+  CONSTRAINT subscriber_user_activity_event_check CHECK (event_type IN ('login', 'logout', 'feature_view', 'api_mutation')),
+  CONSTRAINT subscriber_user_activity_status_check CHECK (status_code >= 0 AND status_code <= 599),
+  CONSTRAINT subscriber_user_activity_metadata_object_check CHECK (jsonb_typeof(metadata) = 'object')
+);
+CREATE INDEX IF NOT EXISTS idx_subscriber_user_activity_tenant_time ON subscriber_user_activity_events (tenant_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_subscriber_user_activity_tenant_subject_time ON subscriber_user_activity_events (tenant_id, subject, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_subscriber_user_activity_tenant_event_time ON subscriber_user_activity_events (tenant_id, event_type, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_subscriber_user_activity_feature_time ON subscriber_user_activity_events (tenant_id, feature_key, occurred_at DESC);
+
+CREATE TABLE IF NOT EXISTS retention_policies (
+  tenant_id text NOT NULL,
+  policy_id text NOT NULL,
+  app_id text NOT NULL,
+  domain text NOT NULL,
+  data_class text NOT NULL,
+  retention_days integer NOT NULL CHECK (retention_days > 0),
+  mode text NOT NULL DEFAULT 'dry_run' CHECK (mode IN ('dry_run','enforced','disabled')),
+  preservation_rule text NOT NULL DEFAULT '',
+  description text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, policy_id)
+);
+CREATE TABLE IF NOT EXISTS retention_runs (
+  run_id text PRIMARY KEY,
+  tenant_id text NOT NULL,
+  policy_id text NOT NULL,
+  mode text NOT NULL,
+  status text NOT NULL CHECK (status IN ('running','succeeded','failed','blocked')),
+  candidate_rows bigint NOT NULL DEFAULT 0,
+  affected_rows bigint NOT NULL DEFAULT 0,
+  oldest_candidate_at timestamptz,
+  newest_candidate_at timestamptz,
+  detail jsonb NOT NULL DEFAULT '{}'::jsonb,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz,
+  FOREIGN KEY (tenant_id, policy_id) REFERENCES retention_policies (tenant_id, policy_id)
+);
+CREATE INDEX IF NOT EXISTS idx_retention_runs_policy_time ON retention_runs (tenant_id, policy_id, started_at DESC);
+
+INSERT INTO retention_policies (tenant_id, policy_id, app_id, domain, data_class, retention_days, mode, preservation_rule, description)
+VALUES
+  ('tenant-local', 'subscriber.user_activity_180d', 'marketops', 'subscriber_administration', 'user_activity_detail', 180, 'dry_run', 'summarized_activity_before_detail_prune', 'Subscriber user activity detail retention.'),
+  ('tenant-pilot-b', 'subscriber.user_activity_180d', 'marketops', 'subscriber_administration', 'user_activity_detail', 180, 'dry_run', 'summarized_activity_before_detail_prune', 'Subscriber user activity detail retention.')
+ON CONFLICT (tenant_id, policy_id) DO UPDATE SET
+  app_id=EXCLUDED.app_id,
+  domain=EXCLUDED.domain,
+  data_class=EXCLUDED.data_class,
+  retention_days=EXCLUDED.retention_days,
+  mode=CASE WHEN retention_policies.mode='enforced' THEN retention_policies.mode ELSE EXCLUDED.mode END,
+  preservation_rule=EXCLUDED.preservation_rule,
+  description=EXCLUDED.description,
+  updated_at=now();
+
 INSERT INTO schema_migrations (version)
 VALUES ('k8s_staging_enrollment_schema_bootstrap')
 ON CONFLICT (version) DO NOTHING;
 SQL
 
-table_count="$(kubectl exec -n "$NAMESPACE" "$POD" -- env PGPASSWORD="$password" psql -h 127.0.0.1 -U "$USER" -d "$DB" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename IN ('tenant_user_access','tenant_user_access_audit','subscriber_subscription_products','subscriber_subject_subscriptions','subscriber_tenant_subscriptions','subscriber_subscription_seats','subscriber_subscription_feature_decisions','subscriber_billing_webhook_events','subscriber_subscription_audit_events');")"
-[[ "$table_count" == "9" ]] || fail "expected 9 enrollment tables, found ${table_count}"
+table_count="$(kubectl exec -n "$NAMESPACE" "$POD" -- env PGPASSWORD="$password" psql -h 127.0.0.1 -U "$USER" -d "$DB" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename IN ('tenant_user_access','tenant_user_access_audit','subscriber_subscription_products','subscriber_subject_subscriptions','subscriber_tenant_subscriptions','subscriber_subscription_seats','subscriber_subscription_feature_decisions','subscriber_billing_webhook_events','subscriber_subscription_audit_events','subscriber_user_activity_events','retention_policies','retention_runs');")"
+[[ "$table_count" == "12" ]] || fail "expected 12 enrollment/retention tables, found ${table_count}"
 
 cat <<EOF
 signalops_k8s_staging_enrollment_schema_bootstrap_verified

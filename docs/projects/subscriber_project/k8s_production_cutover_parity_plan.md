@@ -97,9 +97,9 @@ status=partial
 admin_marketops_jobs=12
 k8s_cronjobs=5
 k8s_entrypoint_jobs=5
-fully_represented=marketops-fmp-annual-financial,marketops-intraday,marketops-sri-holdings-refresh,marketops-sri-refresh
-missing_cronjob=marketops-daily-postclose,marketops-fmp-continuation,marketops-operations-monitor,marketops-postclose-recovery,marketops-retention-governance,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
-missing_entrypoint=marketops-daily-postclose,marketops-fmp-continuation,marketops-operations-monitor,marketops-postclose-recovery,marketops-retention-governance,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
+fully_represented=marketops-fmp-annual-financial,marketops-intraday,marketops-operations-monitor,marketops-retention-governance,marketops-sri-holdings-refresh,marketops-sri-refresh
+missing_cronjob=marketops-daily-postclose,marketops-fmp-continuation,marketops-postclose-recovery,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
+missing_entrypoint=marketops-daily-postclose,marketops-fmp-continuation,marketops-postclose-recovery,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
 extra_cronjob=marketops-saf-benchmark
 provider_polling=false
 production_cutover_allowed=false
@@ -113,6 +113,42 @@ Recommended porting order:
 4. `marketops-fmp-continuation`, because it is a weekend/continuation workflow that should be validated after the base EOD loop is proven.
 
 The verifier is intentionally non-cutover and makes the gap explicit instead of treating the existing five staged CronJobs as full production scheduler parity.
+
+
+### Scheduler parity operational slice — 2026-09-13
+
+Closed the first low-risk scheduler-porting slice by adding suspended Kubernetes CronJobs and entrypoint support for:
+
+- `marketops-operations-monitor`
+- `marketops-retention-governance`
+
+Both are K8s-staging dry-run only until production scheduler cutover is separately approved. The operation monitor path validates dedicated primary/temporal DB reachability and scheduler-status table access. The retention path executes the existing `signalops-retention-governor` binary for `subscriber.user_activity_180d` on `tenant-local` and `tenant-pilot-b` without enforcement.
+
+Passing evidence:
+
+```text
+signalops_k8s_marketops_non_provider_dry_run_job_verified
+job_id=marketops-operations-monitor
+dry_run=true
+scheduler_status_parity=verified
+provider_polling=false
+production_cutover_allowed=false
+
+signalops_k8s_marketops_non_provider_dry_run_job_verified
+job_id=marketops-retention-governance
+dry_run=true
+scheduler_status_parity=verified
+provider_polling=false
+production_cutover_allowed=false
+```
+
+Coverage after this slice:
+
+```text
+fully_represented=marketops-fmp-annual-financial,marketops-intraday,marketops-operations-monitor,marketops-retention-governance,marketops-sri-holdings-refresh,marketops-sri-refresh
+missing_cronjob=marketops-daily-postclose,marketops-fmp-continuation,marketops-postclose-recovery,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
+missing_entrypoint=marketops-daily-postclose,marketops-fmp-continuation,marketops-postclose-recovery,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
+```
 
 ### Gate C — Signal-Connect ingestion shadow
 
