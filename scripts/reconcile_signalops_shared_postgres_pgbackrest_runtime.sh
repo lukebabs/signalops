@@ -30,5 +30,16 @@ compose=(
 
 SIGNALOPS_PGBACKREST_CONFIG_PATH="$config_path" "${compose[@]}" config --quiet
 SIGNALOPS_PGBACKREST_CONFIG_PATH="$config_path" "${compose[@]}" up -d --build postgres
+
+ready=false
+for _ in $(seq 1 60); do
+  if SIGNALOPS_PGBACKREST_CONFIG_PATH="$config_path" "${compose[@]}" exec -T postgres pg_isready -U signalops -d signalops >/dev/null 2>&1; then
+    ready=true
+    break
+  fi
+  sleep 2
+done
+[[ "$ready" == "true" ]] || fail "shared Postgres did not become ready after pgBackRest runtime reconcile"
+
 SIGNALOPS_PGBACKREST_CONFIG_PATH="$config_path" "${compose[@]}" exec -T --user postgres postgres pgbackrest --stanza=signalops check
 "$root_dir/scripts/verify_signalops_shared_postgres_archive_health.sh"
