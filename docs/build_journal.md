@@ -10172,3 +10172,10 @@ Next-cycle priority:
 - Updated `compose.pgbackrest.yaml` to default the pgBackRest config mount to `/etc/signalops/pgbackrest.conf` so plain compose authority can render when the overlay is included.
 - Updated `scripts/verify_signalops_compose_authority.sh` to require `compose.pgbackrest.yaml` and verify the rendered shared Postgres image is `signalops-postgres-pgbackrest:16`.
 - Added constrained deployment-agent action `shared-postgres-pgbackrest-reconcile` backed by `scripts/reconcile_signalops_shared_postgres_pgbackrest_runtime.sh`.
+
+### 2026-09-13 — Shared Postgres pgBackRest runtime reconcile closed
+
+- The first `shared-postgres-pgbackrest-reconcile` attempt exposed a deployment-agent environment gap: the reconcile script called the pgBackRest credential refresher without first sourcing `/etc/signalops/pgbackrest-source.env`, so `SIGNALOPS_BACKUP_RUNNER_ACCESS_KEY_ID` was missing under the minimal agent environment.
+- Patched the reconcile script to source the protected root-owned pgBackRest source env before refreshing short-lived credentials, then added a bounded Postgres readiness wait before `pgbackrest --stanza=signalops check`.
+- Live reconcile passed through the constrained deployment-agent action. Evidence: `status=ok`, image `signalops-postgres-pgbackrest:16`, `archive_mode=on`, `pgbackrest_available=true`, `wal_size=83.0M`, and a successful WAL archive push for segment `00000001000001870000004F`.
+- The K8S production-readiness report now shows `shared_postgres_archive_health=ok`; production cutover remains disabled for the remaining K8S gates.

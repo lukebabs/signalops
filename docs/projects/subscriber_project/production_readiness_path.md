@@ -841,3 +841,8 @@ The raw-worker K3s migration gate is closed at staging-shadow level. One synthet
 ### 2026-09-13 shared platform Postgres pgBackRest authority hardening
 
 The shared platform Postgres drift root cause was narrowed to compose authority: `.env` did not include `compose.pgbackrest.yaml`, so plain `docker compose up -d --build` could recreate `signalops-postgres-1` from the base `postgres:16-alpine` image while `archive_mode=on` still expected `pgbackrest`. The migration hardening now requires the shared pgBackRest overlay in `scripts/verify_signalops_compose_authority.sh`, gives `compose.pgbackrest.yaml` a safe default config path of `/etc/signalops/pgbackrest.conf`, and adds a constrained deployment-agent action `shared-postgres-pgbackrest-reconcile` to rebuild/restart only the shared Postgres service with the pgBackRest-capable image, run `pgbackrest --stanza=signalops check`, and rerun the archive-health guard.
+
+
+### 2026-09-13 shared platform Postgres pgBackRest runtime reconcile closure
+
+The shared platform Postgres runtime reconcile is closed. The constrained deployment-agent action `shared-postgres-pgbackrest-reconcile` now sources the protected `/etc/signalops/pgbackrest-source.env`, refreshes short-lived assumed-role pgBackRest credentials, rebuilds/restarts only the shared `postgres` service with `signalops-postgres-pgbackrest:16`, waits for PostgreSQL readiness, runs `pgbackrest --stanza=signalops check`, and reruns the archive-health guard. Live evidence returned `shared_postgres_archive_health=ok`, `pgbackrest_available=true`, and `wal_size=83.0M`.
