@@ -10134,3 +10134,9 @@ Next-cycle priority:
 - Pull smoke passed with `pod_succeeded=true`, `worker_executed=false`, `provider_polling=false`, and `production_cutover_allowed=false`.
 - Applied the replicas-zero staging scaffold in-cluster: `signalops-connect-persister` and `signalops-connect-outbox` now exist as dormant Deployments with `0/0` replicas, plus `allow-connect-openbao-egress`.
 - The readiness report still correctly shows `pending_signal_connect_ingestion_shadow=true` because no scale-to-one Connect shadow run has validated broker/database behavior yet.
+
+### 2026-09-13 — K8S-4 Signal-Connect OpenBao placeholder runtime verified
+
+- Added `scripts/provision_openbao_signalops_connect_staging.sh` to create/verify the `signalops-connect` Kubernetes auth role, `signalops/data/k8s/connect/connect-worker-runtime-staging` placeholder runtime path, and cross-plane denial against the MarketOps role.
+- Verification passed for service accounts `signalops-connect-worker`, `signalops-connect-outbox`, and `signalops-connect-secret-reader`; `cross_plane_denied=true`, `secret_values=placeholder_only`, and `production_cutover_allowed=false`.
+- The next gate is replacing placeholders with approved non-production `.svc` database/broker endpoints and running one bounded scale-to-one Connect shadow smoke before returning replicas to zero.

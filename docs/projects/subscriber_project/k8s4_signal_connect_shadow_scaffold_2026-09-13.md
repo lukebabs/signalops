@@ -1,6 +1,6 @@
 # K8S-4 Signal-Connect shadow scaffold — 2026-09-13
 
-Status: source-ready, manifest-verified, private GHCR image-published, pull-smoked, and applied dormant in-cluster. No production traffic has moved and no Signal-Connect consumer has been scaled above zero.
+Status: source-ready, manifest-verified, private GHCR image-published, pull-smoked, applied dormant in-cluster, and OpenBao placeholder runtime-verified. No production traffic has moved and no Signal-Connect consumer has been scaled above zero.
 
 ## Outcome
 
@@ -82,6 +82,22 @@ signalops-connect-outbox      0/0
 signalops-connect-persister   0/0
 ```
 
+OpenBao placeholder runtime path and cross-plane denial were verified:
+
+```text
+openbao_signalops_connect_staging_verified
+mount=signalops
+connect_role=signalops-connect
+connect_namespace=signalops-connect
+connect_service_accounts=signalops-connect-worker,signalops-connect-outbox,signalops-connect-secret-reader
+secret_path=signalops/k8s/connect/connect-worker-runtime-staging
+deny_role=signalops-marketops
+deny_namespace=signalops-marketops
+cross_plane_denied=true
+secret_values=placeholder_only
+production_cutover_allowed=false
+```
+
 The broader non-cutover readiness report now includes:
 
 ```text
@@ -98,5 +114,5 @@ The Compose `raw-worker` is not claimed as closed by this slice. It is a Python 
 
 ## Next gate
 
-1. Provision placeholder-only or non-production OpenBao Connect runtime values.
+1. Replace placeholder-only OpenBao Connect runtime values with approved non-production `.svc` database/broker endpoints.
 2. Run one bounded scale-to-one shadow smoke against staging broker/database, then scale back to zero.
