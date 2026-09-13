@@ -180,7 +180,7 @@ case "$job_id" in
     command_args=(
       bash
       -ec
-      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u -d yesterday +%F 2>/dev/null || date -u +%F)}"; due_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_task_items WHERE tenant_id='tenant-local' AND session_date=DATE '${session_date}' AND task_type='tactical_posture' AND status='retry_scheduled' AND next_attempt_at <= now()")"; echo "marketops_k8s_task_retry_dry_run_verified session=${session_date} due_retries=${due_count}"'
+      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u -d yesterday +%F 2>/dev/null || date -u +%F)}"; due_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_task_items WHERE tenant_id=\$tenant\$tenant-local\$tenant\$ AND session_date=to_date(\$session\$${session_date}\$session\$,\$format\$YYYY-MM-DD\$format\$) AND task_type=\$task\$tactical_posture\$task\$ AND status=\$status\$retry_scheduled\$status\$ AND next_attempt_at <= now()")"; echo "marketops_k8s_task_retry_dry_run_verified session=${session_date} due_retries=${due_count}"'
     )
     ;;
   marketops-warm-eod)

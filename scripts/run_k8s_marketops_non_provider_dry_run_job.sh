@@ -229,7 +229,15 @@ logs="$(kubectl logs -n "$NAMESPACE" "$pod" -c marketops-job)"
 
 if [[ "${SIGNALOPS_K8S_STATUS_PARITY_VERIFY:-true}" == "true" ]]; then
   status_sql="SELECT status || '|' || runner || '|' || COALESCE(exit_code::text,'') || '|' || COALESCE((detail->>'dry_run'),'') FROM marketops_scheduled_job_runs WHERE run_id='${RUN_ID}'"
-  if command -v psql >/dev/null 2>&1 && psql --version >/dev/null 2>&1; then
+  db_host="$(python3 - <<'PYDBHOST'
+import os
+from urllib.parse import urlparse
+url = os.environ.get('SIGNALOPS_MARKETOPS_DATABASE_URL', '')
+parsed = urlparse(url)
+print(parsed.hostname or '')
+PYDBHOST
+)"
+  if [[ "$db_host" != *.svc && "$db_host" != *.svc.cluster.local ]] && command -v psql >/dev/null 2>&1 && psql --version >/dev/null 2>&1; then
     status_line="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "$status_sql")"
   else
     pg_pod="${SIGNALOPS_K8S_RUNTIME_SMOKE_POSTGRES_POD:-syncratic-refactor-smoke-syncratic-phase1-postgres-0}"
