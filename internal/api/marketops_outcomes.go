@@ -21,6 +21,10 @@ func registerMarketOpsOutcomeRoutes(mux *http.ServeMux, queryRepository storage.
 			return
 		}
 		horizon := 0
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if raw := strings.TrimSpace(r.URL.Query().Get("horizon_sessions")); raw != "" {
 			value, err := strconv.Atoi(raw)
 			if err != nil || (value != 1 && value != 5 && value != 10 && value != 20) {
@@ -30,7 +34,7 @@ func registerMarketOpsOutcomeRoutes(mux *http.ServeMux, queryRepository storage.
 			horizon = value
 		}
 		records, err := repo.ListMarketOpsSignalOutcomes(r.Context(), storage.MarketOpsSignalOutcomeFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
 			SourceType: strings.TrimSpace(r.URL.Query().Get("source_type")), SourceID: strings.TrimSpace(r.URL.Query().Get("source_id")),
 			HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), HypothesisVersion: strings.TrimSpace(r.URL.Query().Get("hypothesis_version")),
 			Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), Direction: strings.TrimSpace(r.URL.Query().Get("direction")),
@@ -48,7 +52,10 @@ func registerMarketOpsOutcomeRoutes(mux *http.ServeMux, queryRepository storage.
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return

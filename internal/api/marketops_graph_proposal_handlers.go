@@ -15,8 +15,12 @@ func marketOpsGraphProposalListHandler(queryRepository storage.QueryRepository) 
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		records, err := repo.ListMarketOpsDSMGraphProposals(r.Context(), storage.MarketOpsDSMGraphProposalFilter{
-			TenantID:         strings.TrimSpace(r.URL.Query().Get("tenant_id")),
+			TenantID:         tenantID,
 			AppID:            strings.TrimSpace(r.URL.Query().Get("app_id")),
 			Domain:           strings.TrimSpace(r.URL.Query().Get("domain")),
 			UseCase:          strings.TrimSpace(r.URL.Query().Get("use_case")),
@@ -42,9 +46,17 @@ func marketOpsGraphProposalGetHandler(queryRepository storage.QueryRepository) h
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		record, err := repo.GetMarketOpsDSMGraphProposal(r.Context(), r.PathValue("proposal_id"))
 		if err != nil {
 			writeQueryError(w, err, "graph_proposal_not_found", "MarketOps graph proposal not found")
+			return
+		}
+		if tenantID != "" && record.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps graph proposal not found")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"graph_proposal": marketOpsDSMGraphProposalResponse(record)})
@@ -56,6 +68,22 @@ func marketOpsGraphProposalDecisionHandler(queryRepository storage.QueryReposito
 		repo, ok := requireQueryRepository(w, queryRepository)
 		if !ok {
 			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		existing, err := repo.GetMarketOpsDSMGraphProposal(r.Context(), r.PathValue("proposal_id"))
+		if err != nil {
+			writeQueryError(w, err, "graph_proposal_not_found", "MarketOps graph proposal not found")
+			return
+		}
+		if tenantID != "" && existing.TenantID != tenantID {
+			writeError(w, http.StatusNotFound, "graph_proposal_not_found", "MarketOps graph proposal not found")
+			return
+		}
+		if tenantID == "" {
+			tenantID = strings.TrimSpace(existing.TenantID)
 		}
 		var req graphProposalDecisionRequest
 		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, defaultMaxRawEventBytes))
@@ -71,6 +99,7 @@ func marketOpsGraphProposalDecisionHandler(queryRepository storage.QueryReposito
 		}
 		record, err := repo.MutateMarketOpsDSMGraphProposal(r.Context(), storage.MarketOpsDSMGraphProposalMutation{
 			ProposalID:   r.PathValue("proposal_id"),
+			TenantID:     tenantID,
 			Status:       status,
 			ReviewedBy:   lifecycleActor(r, req.Actor),
 			DecisionNote: strings.TrimSpace(req.Note),

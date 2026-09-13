@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -35,31 +36,41 @@ type marketOpsEODZScoreDTO struct {
 	Reason          string              `json:"reason,omitempty"`
 }
 
-func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo storage.QueryRepository) {
+func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	repo := cfg.QueryRepository
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/risk-reward", func(w http.ResponseWriter, r *http.Request) {
 		reader, ok := any(repo).(marketOpsAssetAlgorithmObservationReader)
 		if !ok {
 			writeError(w, http.StatusNotImplemented, "risk_reward_unavailable", "risk/reward summaries are unavailable")
 			return
 		}
-		tenant := strings.TrimSpace(r.PathValue("tenant_id"))
-		if tenant == "" {
-			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
+		tenant, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenant)
+		if !ok {
 			return
 		}
 		universeGroup := strings.TrimSpace(r.URL.Query().Get("universe_group"))
 		if universeGroup == "" {
 			universeGroup = "top50_megacap"
 		}
-		assets, err := reader.ListMarketOpsAssets(r.Context(), tenant, universeGroup, true, 500)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list marketops assets")
-			return
-		}
-		activeSymbols := make(map[string]struct{}, len(assets))
-		for _, asset := range assets {
-			if asset.IsActive {
-				activeSymbols[strings.ToUpper(asset.Ticker)] = struct{}{}
+		activeSymbols := map[string]struct{}{}
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			for ticker := range watchlistContext.Tickers {
+				activeSymbols[ticker] = struct{}{}
+			}
+		} else {
+			assets, err := reader.ListMarketOpsAssets(r.Context(), tenant, universeGroup, true, 500)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to list marketops assets")
+				return
+			}
+			for _, asset := range assets {
+				if asset.IsActive {
+					activeSymbols[strings.ToUpper(asset.Ticker)] = struct{}{}
+				}
 			}
 		}
 		// Risk/Reward evolution requires at least two persisted sessions per asset.
@@ -93,10 +104,24 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo s
 			writeError(w, http.StatusNotImplemented, "algorithm_observations_unavailable", "asset algorithm observations are unavailable")
 			return
 		}
-		tenant, symbol := strings.TrimSpace(r.PathValue("tenant_id")), strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
-		if tenant == "" || symbol == "" {
-			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id and symbol are required")
+		tenant, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
 			return
+		}
+		symbol := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
+		if symbol == "" {
+			writeError(w, http.StatusBadRequest, "missing_path", "symbol is required")
+			return
+		}
+		watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenant)
+		if !ok {
+			return
+		}
+		if subscriberWatchlistContextEnabled(cfg, tenant) {
+			if _, allowed := watchlistContext.Tickers[symbol]; !allowed {
+				writeError(w, http.StatusNotFound, "marketops_asset_not_found", "MarketOps asset was not found in the selected watchlist")
+				return
+			}
 		}
 		results, err := reader.ListAlgorithmResults(r.Context(), storage.AlgorithmResultFilter{TenantID: tenant, Limit: 2000})
 		if err != nil {
@@ -105,13 +130,66 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, repo s
 		}
 		eod, other := curateAssetAlgorithmObservations(results, symbol)
 		riskReward := curateRiskRewardObservations(results, symbol)
+		var currentEOD any
+		revisionReview := map[string]any{"available": false, "usage_context": "revision_review", "initial_observation_role": "initial_tenant_local_capture", "revised_observation_role": "global_reobservation", "deltas": []map[string]any{}}
+		if currentReader, ok := any(repo).(storage.SubscriberCurrentEODContextRepository); ok {
+			current, currentErr := currentReader.GetSubscriberCurrentEODContext(r.Context(), tenant, symbol)
+			if currentErr != nil && !errors.Is(currentErr, storage.ErrNotFound) {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to load current EOD context")
+				return
+			}
+			if currentErr == nil {
+				currentEOD = currentEODContextResponse(current)
+			}
+		}
+		if reviewReader, ok := any(repo).(storage.SubscriberEODRevisionReviewRepository); ok {
+			deltas, reviewErr := reviewReader.ListSubscriberEODRevisionDeltas(r.Context(), tenant, symbol, 24)
+			if reviewErr != nil {
+				writeError(w, http.StatusInternalServerError, "query_failed", "failed to load EOD revision review")
+				return
+			}
+			revisionReview = revisionReviewResponse(deltas)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"symbol":        symbol,
-			"eod_zscores":   eod,
-			"other_outputs": algorithmResultResponses(other),
-			"risk_reward":   riskReward,
+			"symbol":              symbol,
+			"eod_zscores":         eod,
+			"other_outputs":       algorithmResultResponses(other),
+			"risk_reward":         riskReward,
+			"current_eod_context": currentEOD,
+			"eod_revision_review": revisionReview,
 		})
 	})
+}
+
+func revisionReviewResponse(records []storage.SubscriberEODRevisionDeltaRecord) map[string]any {
+	deltas := make([]map[string]any, 0, len(records))
+	reviewRequired := 0
+	for _, record := range records {
+		if record.Materiality == "review_required" {
+			reviewRequired++
+		}
+		deltas = append(deltas, map[string]any{
+			"session_date": record.SessionDate.UTC().Format("2006-01-02"), "field_name": record.FieldName,
+			"initial_value": record.InitialValue, "revised_value": record.RevisedValue, "delta_class": record.DeltaClass, "materiality": record.Materiality,
+			"initial_observed_at": record.InitialObservedAt.UTC().Format(time.RFC3339), "revised_observed_at": record.RevisedObservedAt.UTC().Format(time.RFC3339),
+			"initial_source_event_id": record.InitialSourceEventID, "revised_source_event_id": record.RevisedSourceEventID,
+			"initial_source_run_id": record.InitialSourceRunID, "revised_source_run_id": record.RevisedSourceRunID,
+			"initial_payload_fingerprint": record.InitialPayloadFingerprint, "revised_payload_fingerprint": record.RevisedPayloadFingerprint,
+			"initial_algorithm_version": record.InitialAlgorithmVersion, "revised_algorithm_version": record.RevisedAlgorithmVersion,
+		})
+	}
+	return map[string]any{"available": len(deltas) > 0, "usage_context": "revision_review", "initial_observation_role": "initial_tenant_local_capture", "revised_observation_role": "global_reobservation", "review_required_count": reviewRequired, "deltas": deltas}
+}
+
+func currentEODContextResponse(record storage.SubscriberCurrentEODContextRecord) map[string]any {
+	return map[string]any{
+		"symbol": record.Symbol, "session_date": record.SessionDate.UTC().Format("2006-01-02"),
+		"open": record.Open, "high": record.High, "low": record.Low, "close": record.Close, "volume": record.Volume, "vwap": record.VWAP,
+		"provider": record.Provider, "usage_context": "current_market_context", "selected_observation_role": record.SelectedObservationRole,
+		"policy_version": record.SelectionPolicyVersion, "payload_fingerprint": record.PayloadFingerprint,
+		"source_event_id": record.SourceEventID, "source_run_id": record.SourceRunID, "algorithm_version": record.AlgorithmVersion,
+		"quality_state": record.QualityState, "as_of_time": record.AsOfTime.UTC().Format(time.RFC3339),
+	}
 }
 
 func curateAssetAlgorithmObservations(results []storage.AlgorithmResultRecord, symbol string) ([]marketOpsEODZScoreDTO, []storage.AlgorithmResultRecord) {

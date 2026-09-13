@@ -1,0 +1,2 @@
+REVOKE ALL ON FUNCTION subscriber_subscription_admin_identity_labels(text) FROM signalops_subscriber_gateway;
+DROP FUNCTION IF EXISTS subscriber_subscription_admin_identity_labels(text);

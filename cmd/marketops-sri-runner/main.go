@@ -25,9 +25,11 @@ func run() error {
 	if app.DatabaseURL == "" || app.TemporalDatabaseURL == "" {
 		return fmt.Errorf("SIGNALOPS_DATABASE_URL and SIGNALOPS_TEMPORAL_DATABASE_URL are required")
 	}
-	tenant := flag.String("tenant-id", "tenant-local", "tenant")
+	tenant := flag.String("tenant-id", "platform-global", "output data scope")
+	inputTenant := flag.String("input-tenant-id", "tenant-local", "canonical EOD input scope")
 	runID := flag.String("run-id", "sri_"+time.Now().UTC().Format("20060102T150405Z"), "run id")
 	asOf := flag.String("as-of", time.Now().UTC().Format("2006-01-02"), "as of date")
+	backfillSessions := flag.Int("backfill-sessions", 0, "materialize this many recent common SRI sessions (1-120)")
 	flag.Parse()
 	date, err := time.Parse("2006-01-02", strings.TrimSpace(*asOf))
 	if err != nil {
@@ -38,7 +40,16 @@ func run() error {
 		return err
 	}
 	defer repo.Close()
-	result, err := sri.Run(context.Background(), repo, sri.Config{TenantID: strings.TrimSpace(*tenant), RunID: strings.TrimSpace(*runID), AsOf: date})
+	cfg := sri.Config{TenantID: strings.TrimSpace(*tenant), InputTenantID: strings.TrimSpace(*inputTenant), RunID: strings.TrimSpace(*runID), AsOf: date}
+	if *backfillSessions > 0 {
+		result, err := sri.RunRecentSessions(context.Background(), repo, cfg, *backfillSessions)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("{\"sessions\":%d,\"first_session\":\"%s\",\"last_session\":\"%s\",\"snapshots\":%d,\"partial\":%d}\n", result.Sessions, result.FirstSession.Format("2006-01-02"), result.LastSession.Format("2006-01-02"), result.Snapshots, result.Partial)
+		return nil
+	}
+	result, err := sri.Run(context.Background(), repo, cfg)
 	if err != nil {
 		return err
 	}

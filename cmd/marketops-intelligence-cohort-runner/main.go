@@ -168,9 +168,6 @@ func execute(ctx context.Context, repo repository, cfg cliConfig) (summary, erro
 	started := time.Now().UTC()
 	runRecord := storage.MarketOpsIntelligenceCohortRunRecord{RunID: cfg.RunID, TenantID: cfg.TenantID, AppID: "marketops", UniverseGroup: cfg.UniverseGroup, RequestedSymbols: cfg.Symbols, ResolvedSymbols: symbols, Stages: cfg.Stages, MaxSymbols: cfg.MaxSymbols, DryRun: cfg.DryRun, ContinueOnError: cfg.ContinueOnError, Status: storage.MarketOpsCohortRunRunning, AggregateJSON: []byte(`{}`), ErrorsJSON: []byte(`[]`), Actor: cfg.Actor, SessionStart: cfg.SessionStart, SessionEnd: cfg.SessionEnd, StartedAt: started}
 	if !cfg.DryRun {
-		if _, err := repo.GetMarketOpsIntelligenceCohortRun(ctx, cfg.TenantID, cfg.RunID); err == nil {
-			return out, errors.New("cohort run_id already exists")
-		}
 		if err := repo.UpsertMarketOpsIntelligenceCohortRun(ctx, runRecord); err != nil {
 			return out, err
 		}

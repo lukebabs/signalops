@@ -12,7 +12,13 @@ import (
 
 func (q *fakeQueryRepository) ListMarketOpsSignalOutcomes(_ context.Context, filter storage.MarketOpsSignalOutcomeFilter) ([]storage.MarketOpsSignalOutcomeRecord, error) {
 	q.lastOutcomeFilter = filter
-	return q.marketOpsOutcomes, nil
+	out := []storage.MarketOpsSignalOutcomeRecord{}
+	for _, record := range q.marketOpsOutcomes {
+		if filter.TenantID == "" || record.TenantID == filter.TenantID {
+			out = append(out, record)
+		}
+	}
+	return out, nil
 }
 
 func (q *fakeQueryRepository) GetMarketOpsSignalOutcome(_ context.Context, tenantID, outcomeID string) (storage.MarketOpsSignalOutcomeRecord, error) {
@@ -66,5 +72,24 @@ func TestMarketOpsOutcomeReadsRejectInvalidQueries(t *testing.T) {
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("path=%s status=%d body=%s", path, recorder.Code, recorder.Body.String())
 		}
+	}
+}
+
+func TestAuthenticatedMarketOpsOutcomesBindPrincipalTenant(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &fakeQueryRepository{marketOpsOutcomes: []storage.MarketOpsSignalOutcomeRecord{{OutcomeID: "moutcome-foreign", TenantID: "tenant-other"}}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	list := httptest.NewRecorder()
+	router.ServeHTTP(list, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/outcomes", nil), token))
+	if list.Code != http.StatusOK || repo.lastOutcomeFilter.TenantID != "tenant-local" {
+		t.Fatalf("list status=%d tenant=%q body=%s", list.Code, repo.lastOutcomeFilter.TenantID, list.Body.String())
+	}
+
+	foreign := httptest.NewRecorder()
+	router.ServeHTTP(foreign, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/outcomes/moutcome-foreign", nil), token))
+	if foreign.Code != http.StatusNotFound {
+		t.Fatalf("foreign status=%d body=%s", foreign.Code, foreign.Body.String())
 	}
 }

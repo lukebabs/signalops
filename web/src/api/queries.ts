@@ -66,6 +66,8 @@ import type {
   SyncraticContextWindowFilter,
   SyncraticMaterializeRequest,
   SyncraticMaterializationResponse,
+  SyncraticDailyNarrativeMaterializeRequest,
+  SyncraticDailyNarrativeMaterializationResponse,
   SyncraticAskRequest,
   SyncraticAskResponse,
   AlgorithmDefinitionFilter,
@@ -86,6 +88,7 @@ export const queryKeys = {
   readyz: ['readyz'] as const,
   runs: (limit: number) => ['runs', limit] as const,
   scheduledJobs: ['scheduled-jobs'] as const,
+  marketOpsOperationsHealth: (tenantId: string) => ["marketops-operations-health", tenantId] as const,
   marketOpsTasks: (tenantId: string) => ["marketops-tasks", tenantId] as const,
   administrationNotifications: (tenantId: string) => ['administration-notifications', tenantId] as const,
   administrationSMTPSettings: (tenantId: string) => ["administration-smtp-settings", tenantId] as const,
@@ -115,6 +118,7 @@ export const queryKeys = {
   replayStatus: (tenantId: string, limit?: number) => ['replay-status', tenantId, limit] as const,
   appProfiles: ['app-profiles'] as const,
   sessionExperience: ['session-experience'] as const,
+  subscriberSubscription: (tenantId: string) => ['subscriber-subscription', tenantId] as const,
   marketOpsAssets: (filter: MarketOpsAssetFilter) => ['marketops-assets', filter] as const,
   marketOpsAssetQuotes: (tenantId: string, group: string) => ['marketops-asset-quotes', tenantId, group] as const,
   marketOpsIntradayConditions: (tenantId: string, group: string, symbol = "") => ["marketops-intraday-conditions", tenantId, group, symbol] as const,
@@ -133,6 +137,7 @@ export const queryKeys = {
   marketOpsOptionsChain: (tenantId: string, symbol: string, filter: MarketOpsOptionsChainFilter) =>
     ['marketops-options-chain', tenantId, symbol, filter] as const,
   marketOpsOpportunities: (filter: MarketOpsOpportunityFilter) => ['marketops-opportunities', filter] as const,
+  marketOpsSignalAssuranceReadiness: (tenantId: string) => ['marketops-signal-assurance-readiness', tenantId] as const,
   marketOpsSignalAssuranceAssertions: (filter: MarketOpsSignalAssuranceAssertionFilter) => ['marketops-signal-assurance-assertions', filter] as const,
   marketOpsSignalAssuranceEvaluations: (assertionId: string, tenantId: string) => ['marketops-signal-assurance-evaluations', assertionId, tenantId] as const,
   marketOpsOpportunity: (opportunityId: string, tenantId: string) =>
@@ -250,6 +255,8 @@ export function useMutateAdministrationSMTPSettings(tenantId: string) { const cl
 export function useMutateAdministrationNotificationState(tenantId: string) { const client = useQueryClient(); return useMutation({ mutationFn: ({ id, read, archived }: { id: string; read: boolean; archived: boolean }) => api.setAdministrationNotificationState(id, { tenant_id: tenantId, read, archived }), onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.administrationNotifications(tenantId) }) }); }
 
 export function useScheduledJobs() { return useQuery({ queryKey: queryKeys.scheduledJobs, queryFn: api.listScheduledJobs, refetchInterval: 15000 }); }
+export function useMutateScheduledJobRunNow(tenantId: string) { const client = useQueryClient(); return useMutation({ mutationFn: api.runScheduledJobNow, onSuccess: () => { client.invalidateQueries({ queryKey: queryKeys.scheduledJobs }); client.invalidateQueries({ queryKey: queryKeys.marketOpsOperationsHealth(tenantId) }); } }); }
+export function useMarketOpsOperationsHealth(tenantId: string) { return useQuery({ queryKey: queryKeys.marketOpsOperationsHealth(tenantId), queryFn: () => api.getMarketOpsOperationsHealth(tenantId), refetchInterval: 15000 }); }
 export function useMarketOpsTasks(tenantId: string) { return useQuery({ queryKey: queryKeys.marketOpsTasks(tenantId), queryFn: () => api.listMarketOpsTasks(tenantId), refetchInterval: 15000 }); }
 export function useStorageOverview() { return useQuery({ queryKey: queryKeys.storageOverview, queryFn: api.getStorageOverview, refetchInterval: 15 * 60 * 1000 }); }
 export function useStorageAnalysis(window = "90d") { return useQuery({ queryKey: queryKeys.storageAnalysis(window), queryFn: () => api.getStorageAnalysis(window), refetchInterval: 15 * 60 * 1000 }); }
@@ -454,6 +461,17 @@ export function useSessionExperience() {
   });
 }
 
+export function useSubscriberSubscription(tenantId: string, options: { refetchIntervalMs?: number } = {}) {
+  return useQuery({
+    queryKey: queryKeys.subscriberSubscription(tenantId),
+    queryFn: () => api.getSubscriberSubscription(tenantId),
+    enabled: !!tenantId,
+    staleTime: 60_000,
+    retry: false,
+    refetchInterval: options.refetchIntervalMs,
+  });
+}
+
 // G071 MarketOps asset universe (read-only). The seed changes slowly; cache 5 min.
 export function useMarketOpsAssetQuotes(tenantId: string, universeGroup = "all_active") {
   return useQuery({ queryKey: queryKeys.marketOpsAssetQuotes(tenantId, universeGroup), queryFn: () => api.getMarketOpsAssetQuotes(tenantId, universeGroup), refetchInterval: 15 * 60 * 1000, staleTime: 15 * 60 * 1000, placeholderData: (previousData) => previousData });
@@ -533,6 +551,10 @@ export function useMarketOpsOptionsChain(
     enabled: !!tenantId && !!symbol && !!filter.trade_date,
     staleTime: 5 * 60 * 1000,
   });
+}
+
+export function useMarketOpsSignalAssuranceReadiness(tenantId: string) {
+  return useQuery({ queryKey: queryKeys.marketOpsSignalAssuranceReadiness(tenantId), queryFn: () => api.getMarketOpsSignalAssuranceReadiness(tenantId), enabled: !!tenantId, staleTime: 30 * 1000, refetchInterval: 60 * 1000 });
 }
 
 export function useMarketOpsSignalAssuranceAssertions(filter: MarketOpsSignalAssuranceAssertionFilter = { tenant_id: 'tenant-local', limit: 100 }) {
@@ -1190,6 +1212,26 @@ export function useMaterializeSyncraticContexts() {
   return useMutation({
     mutationFn: (request: SyncraticMaterializeRequest) => api.materializeSyncraticContexts(request),
     onSuccess: (data) => applySyncraticMaterializeResult(queryClient, data),
+  });
+}
+
+export function applySyncraticDailyNarrativeMaterializeResult(
+  queryClient: QueryClient,
+  data: SyncraticDailyNarrativeMaterializationResponse,
+) {
+  if (data?.daily_narrative_materialization?.dry_run) return;
+  queryClient.invalidateQueries({ queryKey: ['syncratic-insights'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-insight'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-context-windows'] });
+  queryClient.invalidateQueries({ queryKey: ['syncratic-context-window'] });
+}
+
+export function useMaterializeSyncraticDailyNarratives() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: SyncraticDailyNarrativeMaterializeRequest) =>
+      api.materializeSyncraticDailyNarratives(request),
+    onSuccess: (data) => applySyncraticDailyNarrativeMaterializeResult(queryClient, data),
   });
 }
 

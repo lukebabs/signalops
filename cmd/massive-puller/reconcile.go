@@ -203,7 +203,7 @@ func runEquityReconciliation(
 		}
 	}
 	if report.DeadlineReached {
-		return report, fmt.Errorf("equity reconciliation deadline reached with %d/50 normalized", report.FinalComplete)
+		return report, fmt.Errorf("equity reconciliation deadline reached with %d/%d normalized", report.FinalComplete, len(assets))
 	}
 	if report.FinalComplete != len(assets) {
 		return report, fmt.Errorf("equity reconciliation incomplete: %d/%d normalized", report.FinalComplete, len(assets))

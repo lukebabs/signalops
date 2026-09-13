@@ -14,6 +14,7 @@ type TickerDetails struct {
 	Exchange                    string
 	Market                      string
 	Type                        string
+	Locale                      string
 	Active                      bool
 	Sector                      string
 	Industry                    string
@@ -29,6 +30,7 @@ type tickerDetailsResponse struct {
 		PrimaryExchange             string  `json:"primary_exchange"`
 		Market                      string  `json:"market"`
 		Type                        string  `json:"type"`
+		Locale                      string  `json:"locale"`
 		Active                      bool    `json:"active"`
 		SICDescription              string  `json:"sic_description"`
 		MarketCap                   float64 `json:"market_cap"`
@@ -46,7 +48,7 @@ func (c *Client) GetTickerDetails(ctx context.Context, ticker string) (TickerDet
 	if err := c.getJSON(ctx, "/v3/reference/tickers/"+url.PathEscape(ticker), nil, &response); err != nil {
 		return TickerDetails{}, err
 	}
-	out := TickerDetails{Ticker: normalizeSymbol(response.Results.Ticker), Name: strings.TrimSpace(response.Results.Name), Exchange: strings.TrimSpace(response.Results.PrimaryExchange), Market: strings.ToLower(strings.TrimSpace(response.Results.Market)), Type: strings.ToLower(strings.TrimSpace(response.Results.Type)), Active: response.Results.Active, Industry: strings.TrimSpace(response.Results.SICDescription), MarketCap: response.Results.MarketCap, ShareClassSharesOutstanding: response.Results.ShareClassSharesOutstanding, WeightedSharesOutstanding: response.Results.WeightedSharesOutstanding}
+	out := TickerDetails{Ticker: normalizeSymbol(response.Results.Ticker), Name: strings.TrimSpace(response.Results.Name), Exchange: strings.TrimSpace(response.Results.PrimaryExchange), Market: strings.ToLower(strings.TrimSpace(response.Results.Market)), Type: strings.ToLower(strings.TrimSpace(response.Results.Type)), Locale: strings.ToLower(strings.TrimSpace(response.Results.Locale)), Active: response.Results.Active, Industry: strings.TrimSpace(response.Results.SICDescription), MarketCap: response.Results.MarketCap, ShareClassSharesOutstanding: response.Results.ShareClassSharesOutstanding, WeightedSharesOutstanding: response.Results.WeightedSharesOutstanding}
 	if out.Ticker == "" || out.Name == "" {
 		return TickerDetails{}, fmt.Errorf("massive ticker reference response is incomplete")
 	}

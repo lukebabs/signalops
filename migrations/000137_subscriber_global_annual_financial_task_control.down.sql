@@ -1,0 +1,5 @@
+REVOKE ALL ON subscriber_gateway_global_annual_financial_tasks FROM signalops_subscriber_gateway;
+REVOKE ALL ON subscriber_global_annual_financial_workflows,subscriber_global_annual_financial_tasks FROM signalops_subscriber_global_eod;
+DROP VIEW IF EXISTS subscriber_gateway_global_annual_financial_tasks;
+DROP TABLE IF EXISTS subscriber_global_annual_financial_tasks;
+DROP TABLE IF EXISTS subscriber_global_annual_financial_workflows;

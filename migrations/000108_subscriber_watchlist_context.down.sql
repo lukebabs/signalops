@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS subscriber_watchlist_context_preferences;

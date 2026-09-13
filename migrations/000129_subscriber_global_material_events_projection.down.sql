@@ -1,0 +1,2 @@
+REVOKE ALL ON subscriber_gateway_global_material_events FROM signalops_subscriber_gateway;
+DROP VIEW IF EXISTS subscriber_gateway_global_material_events;

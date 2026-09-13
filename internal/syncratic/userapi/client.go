@@ -78,6 +78,7 @@ type AskRequest struct {
 	ExternalContext *AskExternalContext `json:"external_context,omitempty"`
 	GraphEnabled    *bool               `json:"graph_enabled,omitempty"`
 	KEEEnabled      *bool               `json:"kee_enabled,omitempty"`
+	IdempotencyKey  string              `json:"-"`
 }
 
 type AskExternalContext struct {
@@ -185,7 +186,7 @@ func (c *Client) Ask(ctx context.Context, req AskRequest) (AskResponse, error) {
 		return AskResponse{}, errors.New("ask question is required")
 	}
 	var out AskResponse
-	raw, err := c.postJSON(ctx, "/api/v1/ask", req, &out)
+	raw, err := c.postJSONWithHeaders(ctx, "/api/v1/ask", req, map[string]string{"Idempotency-Key": strings.TrimSpace(req.IdempotencyKey)}, &out)
 	out.Raw = raw
 	return out, err
 }
@@ -270,6 +271,10 @@ func (c *Client) bearerToken(ctx context.Context) (string, error) {
 }
 
 func (c *Client) postJSON(ctx context.Context, path string, payload any, dest any) ([]byte, error) {
+	return c.postJSONWithHeaders(ctx, path, payload, nil, dest)
+}
+
+func (c *Client) postJSONWithHeaders(ctx context.Context, path string, payload any, headers map[string]string, dest any) ([]byte, error) {
 	rawPayload, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -279,6 +284,12 @@ func (c *Client) postJSON(ctx context.Context, path string, payload any, dest an
 		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
+		if key != "" && value != "" {
+			httpReq.Header.Set(key, value)
+		}
+	}
 	return c.doJSON(ctx, httpReq, dest)
 }
 

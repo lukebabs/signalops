@@ -1,0 +1,158 @@
+# N1 closure evidence — 2026-08-19
+
+Status: N1 closed. Monitor health, deployment-agent control, activation queue reconciliation, pgBackRest unit re-anchoring, and DB-backed scheduled-job status are verified.
+
+## Closed in this cycle
+
+- Installed the constrained deployment-agent path so approved operations no longer require repeated manual script execution.
+- Installed and verified the root-owned Unix-socket bridge for Admin run-now execution.
+- Verified `scheduler-status` through `sudo -n signalops-deploy-agent scheduler-status`.
+- Verified Admin run-now through the live Gateway: `signalops-storage-monitor` returned `202 accepted` with runner `unix:/run/signalops/deployment-agent.sock`.
+- Verified Gateway readiness at `/readyz`.
+- Verified subscriber pilot browser smoke after hardening the auth navigation retry for transient Chromium `net::ERR_NETWORK_CHANGED`.
+- Moved scheduled-job operational status into the dedicated MarketOps database so Admin status reads no longer depend on repository-local runtime files.
+
+## Fresh evidence
+
+- Gateway readiness returned `status=ready` at `2026-08-19T03:11:47Z`.
+- `signalops-storage-monitor` run-now completed successfully at `2026-08-19T03:10:47Z`.
+- Scheduler status showed active timers for intraday, post-close, post-close recovery, SRI refresh, SRI holdings refresh, and warm EOD.
+
+## Historical N1 failures before recovery-control fix
+
+At 2026-08-19 03:11 UTC, before the recovery-control fix, the operations monitor failed truthfully with six actionable checks:
+
+1. `backup_marketops-primary`: pgBackRest info unavailable.
+2. `backup_marketops-temporal`: backup age above the 26-hour threshold.
+3. `wal_primary`: archived WAL age above the 30-minute threshold.
+4. `wal_temporal`: archived WAL age above the 30-minute threshold.
+5. `restore_rehearsal`: no durable restore-rehearsal evidence stamp.
+6. `coverage_activation_queue`: two activation requests older than the 24-hour threshold.
+
+## Root cause identified
+
+At that point, the installed `signalops-marketops-pgbackrest.service` pointed at an old temporary release directory:
+
+```text
+/tmp/signalops-marketops-recovery-release/scripts/marketops_pgbackrest_backup.sh
+```
+
+That stale backup path executed against MarketOps database containers that do not have `pgbackrest` in `$PATH`, causing:
+
+```text
+OCI runtime exec failed: exec failed: unable to start container process: exec: "pgbackrest": executable file not found in $PATH
+```
+
+This is a deployment-control drift, not a provider-data failure. The dedicated MarketOps databases remained reachable and the scheduler timers were active.
+
+## Approved recovery-control boundary
+
+Closing the remaining N1 recovery loop required an explicitly approved production recovery-control change because the fix may rebuild/recreate the dedicated MarketOps database containers under the pgBackRest image overlay and reinstall the root-owned systemd backup unit from the current repository path.
+
+The approved target behavior was:
+
+1. re-anchor `signalops-marketops-pgbackrest.service` to the current repository path;
+2. ensure backup and restore rehearsal run against MarketOps database containers that include pgBackRest and the mounted root-owned config;
+3. run one controlled backup;
+4. run one isolated restore rehearsal;
+5. rerun the operations monitor;
+6. leave the two stale coverage-activation requests for the N3 catalog-activation queue closure unless separately approved.
+
+No provider polling, tenant-data mutation, or database deletion was implied by this recovery-control change.
+
+
+## Recovery-control execution update — 2026-08-19 03:31 UTC
+
+After the approved recovery-control fix:
+
+- the current repo scripts now reassert the pgBackRest Compose overlay before backup and restore rehearsal;
+- isolated restore rehearsal passed for both `marketops-primary` and `marketops-temporal`;
+- controlled pgBackRest backup passed for both stanzas;
+- the operations monitor reduced from six actionable failures to one.
+
+Latest monitor pass evidence:
+
+- `backup_marketops-primary`: passed, age 109 seconds;
+- `repository_marketops-primary`: passed, 308,805,056 bytes;
+- `backup_marketops-temporal`: passed, age 21 seconds;
+- `repository_marketops-temporal`: passed, 154,393,056 bytes;
+- `wal_primary`: passed, age 109 seconds;
+- `wal_temporal`: passed, age 21 seconds;
+- `credentials`: passed;
+- `scheduler_signalops-marketops-pgbackrest.service`: passed;
+- `restore_rehearsal`: passed, age 156 seconds.
+
+Historical remaining monitor failure at 03:31 UTC:
+
+- `coverage_activation_queue`: failed because two pilot activation requests were still `queued` and older than 24 hours.
+
+Read-only inspection showed those two rows are AAPL and NVDA requests from `tenant-pilot-b` private list `sublist_73a0087473df782f499b51e9`. Both underlying global assets already have active `eod_baseline` coverage and current global evidence. Closing this last monitor failure required a separately approved data-state reconciliation that marks activation requests active when their corresponding global EOD coverage is already active. That is an N3 catalog-activation queue correction, not a provider call or backup operation.
+
+Historical residual hardening note before reprovisioning: the live `signalops-marketops-pgbackrest.service` still showed the old `/tmp/signalops-marketops-recovery-release` path until the deployment agent was reprovisioned or the systemd unit was reinstalled from the current repo. The backup succeeded after the pgBackRest overlay was reasserted, but the root-owned unit needed to be re-anchored for permanence.
+
+
+## Activation queue reconciliation and N1 monitor pass — 2026-08-19 03:43 UTC
+
+Under explicit approval from `luke@strategiclabs.io`, the two stale `tenant-pilot-b` activation requests were reconciled to `active` because their corresponding global assets already had active `eod_baseline` coverage and current global evidence.
+
+Guardrails applied:
+
+- exact tenant: `tenant-pilot-b`;
+- exact requester kind: `user_private_list`;
+- exact symbols: AAPL and NVDA;
+- prior request state had to be `queued` or `warming_up`;
+- matching `subscriber_global_asset_coverage` row had to be `coverage_product='eod_baseline'`, `coverage_state='active'`, and `active_source_rows > 0`;
+- exactly two rows had to be eligible and exactly two rows had to update;
+- no provider polling was performed.
+
+Both rows now carry provenance under `coverage_reconciliation` with approval, correlation ID `n1-coverage-activation-reconcile-20260819`, basis, and `provider_polling=false`.
+
+Post-reconciliation evidence:
+
+- open activation requests: 0;
+- operations monitor passed at `2026-08-19T03:43:01Z`;
+- backup, repository size, WAL freshness, credentials, pgBackRest scheduler result, intraday scheduler result, restore rehearsal, and coverage queue checks all passed.
+
+N1 is functionally closed for monitor health. The remaining hardening item was to reinstall/reprovision the root-owned pgBackRest unit from the current repository path so `signalops-marketops-pgbackrest.service` no longer reports the old `/tmp/signalops-marketops-recovery-release` ExecStart path.
+
+
+## pgBackRest unit re-anchor verification — 2026-08-19 03:49 UTC
+
+After the deployment agent was reprovisioned, the controlled backup path reinstalled the MarketOps pgBackRest systemd unit from the current repository. The live unit now resolves to:
+
+```text
+/home/adminalien/docker/syncratic-core/subsystems/signalops/scripts/marketops_pgbackrest_backup.sh scheduled
+```
+
+Systemd recorded the latest `signalops-marketops-pgbackrest.service` execution as `status=0` from `2026-08-19 03:48:33 UTC` to `2026-08-19 03:49:40 UTC`.
+
+Final verification:
+
+- `sudo -n signalops-deploy-agent operations-monitor-run` exited successfully;
+- `sudo -n signalops-deploy-agent scheduler-status` showed active MarketOps timers for intraday, daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, and warm EOD;
+- the same scheduler status showed the latest one-shot results for preflight, intraday, daily post-close, post-close recovery, SRI refresh, SRI holdings refresh, storage monitor, and retention governance as `result=success`;
+- `signalops-marketops-boundary-fmp-annual-financial.timer` remains intentionally inactive with `next=n/a`.
+
+N1 has no remaining blocker from the 2026-08-19 recovery-control loop. Future work moves to the next sprint backlog rather than reopening N1.
+
+
+## Scheduled-job status database closure — 2026-08-19 04:24 UTC
+
+Migration `000154_marketops_scheduled_job_statuses` was applied to the
+dedicated MarketOps primary database. The previous ignored runtime status
+artifacts were seeded into `marketops_scheduled_job_statuses` and
+`marketops_scheduled_job_runs` so Admin did not lose continuity.
+
+Verification evidence:
+
+- commit `5b0871f` deployed and pushed to `origin/subscribers`;
+- Gateway `/readyz` returned healthy;
+- `signalops-web-1`, `signalops-gateway-1`, and
+  `signalops-marketops-postgres-1` were running;
+- `marketops-operations-monitor` wrote a fresh DB-backed success row from
+  `2026-08-19 04:16:18 UTC` to `2026-08-19 04:16:20 UTC`;
+- subscriber pilot UI smoke passed with `2 passed`.
+
+The operational source of truth for scheduled-job status is now the dedicated
+MarketOps database. `runtime/scheduled-jobs/` remains ignored fallback/debug
+output only and must not be committed.

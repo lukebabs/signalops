@@ -77,6 +77,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 			}
 		}
 		assets = filtered
+		if len(assets) != len(wanted) {
+			return fmt.Errorf("requested intraday symbols are not all in tenant %q universe %q: requested=%d resolved=%d", *tenant, *group, len(wanted), len(assets))
+		}
 	}
 	now := time.Now().UTC()
 	status, active := marketSession(now)

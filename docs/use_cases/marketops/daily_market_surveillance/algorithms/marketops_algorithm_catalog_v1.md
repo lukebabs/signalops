@@ -88,7 +88,7 @@ After final convergence refresh, outcome materialization reruns over the precedi
 
 ## Schedule, UI, and limits
 
-The weekday post-close run starts **18:01:55 ET**: collection/normalization, Market State, hypotheses and Risk/Reward; retention and weekly valuation; Tactical Posture and EROC; final convergence and outcome sweep; universal completion gate and Syncratic intelligence.
+The weekday post-close run starts **16:30 ET**: collection/normalization, Market State, hypotheses and Risk/Reward; retention and weekly valuation; Tactical Posture and EROC; final convergence and outcome sweep; universal completion gate and Syncratic intelligence.
 
 - `/marketops/valuation`: VC/DOSM and tactical calculation trace.
 - `/marketops/eroc`: reversal assessment and evidence.

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: signalops-identity
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: identity
+  annotations:
+    signalops.syncratic.io/responsibility: "Keycloak and identity reconciliation controls."

@@ -430,7 +430,7 @@ function DsmDetailBody({
           <div className="text-gray-400">No matching open alert.</div>
         )}
         {insight ? (
-          <div>Active insight <Link to="/marketops/insights" className="break-all font-mono text-brand-700 hover:underline">{insight.insight_id}</Link></div>
+          <div>Active insight <Link to="/marketops/syncratic" search={{ insight_id: insight.insight_id }} className="break-all font-mono text-brand-700 hover:underline">{insight.insight_id}</Link></div>
         ) : (
           <div className="text-gray-400">No matching active insight.</div>
         )}

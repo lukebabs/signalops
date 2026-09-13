@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signalops-connect-persister
+  namespace: signalops-connect
+  labels:
+    app.kubernetes.io/name: signalops-connect-k8s-worker
+    app.kubernetes.io/component: raw-persister
+    signalops.syncratic.io/plane: connect
+    signalops.syncratic.io/workload-id: connect-persister
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-connect-k8s-worker
+      app.kubernetes.io/component: raw-persister
+      app.kubernetes.io/part-of: signalops
+      signalops.syncratic.io/stage: staging
+      signalops.syncratic.io/production-cutover-allowed: "false"
+      signalops.syncratic.io/workload-id: connect-persister
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signalops-connect-k8s-worker
+        app.kubernetes.io/component: raw-persister
+        app.kubernetes.io/part-of: signalops
+        signalops.syncratic.io/plane: connect
+        signalops.syncratic.io/stage: staging
+        signalops.syncratic.io/production-cutover-allowed: "false"
+        signalops.syncratic.io/workload-id: connect-persister
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "signalops-connect"
+        vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
+        vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+        vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
+        vault.hashicorp.com/agent-inject-secret-connect-worker-runtime.env: "signalops/data/k8s/connect/connect-worker-runtime-staging"
+        vault.hashicorp.com/agent-inject-template-connect-worker-runtime.env: |
+          {{- with secret "signalops/data/k8s/connect/connect-worker-runtime-staging" -}}
+          export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
+          export SIGNALOPS_BROKER_BROKERS='{{ .Data.data.SIGNALOPS_BROKER_BROKERS }}'
+          export SIGNALOPS_ENV='{{ .Data.data.SIGNALOPS_ENV }}'
+          export SIGNALOPS_CONNECT_SHADOW_MODE='{{ .Data.data.SIGNALOPS_CONNECT_SHADOW_MODE }}'
+          {{- end }}
+    spec:
+      serviceAccountName: signalops-connect-worker
+      imagePullSecrets:
+        - name: signalops-ghcr-pull
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: connect-worker
+          image: ghcr.io/syncratic-inc/signalops-connect-k8s-worker:staging
+          imagePullPolicy: IfNotPresent
+          args:
+            - connect-persister
+          env:
+            - name: SIGNALOPS_ENV
+              value: kubernetes-staging
+            - name: SIGNALOPS_CONNECT_SHADOW_MODE
+              value: "true"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signalops-connect-outbox
+  namespace: signalops-connect
+  labels:
+    app.kubernetes.io/name: signalops-connect-k8s-worker
+    app.kubernetes.io/component: outbox
+    signalops.syncratic.io/plane: connect
+    signalops.syncratic.io/workload-id: connect-outbox
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-connect-k8s-worker
+      app.kubernetes.io/component: outbox
+      app.kubernetes.io/part-of: signalops
+      signalops.syncratic.io/stage: staging
+      signalops.syncratic.io/production-cutover-allowed: "false"
+      signalops.syncratic.io/workload-id: connect-outbox
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signalops-connect-k8s-worker
+        app.kubernetes.io/component: outbox
+        app.kubernetes.io/part-of: signalops
+        signalops.syncratic.io/plane: connect
+        signalops.syncratic.io/stage: staging
+        signalops.syncratic.io/production-cutover-allowed: "false"
+        signalops.syncratic.io/workload-id: connect-outbox
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "signalops-connect"
+        vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
+        vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+        vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
+        vault.hashicorp.com/agent-inject-secret-connect-worker-runtime.env: "signalops/data/k8s/connect/connect-worker-runtime-staging"
+        vault.hashicorp.com/agent-inject-template-connect-worker-runtime.env: |
+          {{- with secret "signalops/data/k8s/connect/connect-worker-runtime-staging" -}}
+          export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
+          export SIGNALOPS_BROKER_BROKERS='{{ .Data.data.SIGNALOPS_BROKER_BROKERS }}'
+          export SIGNALOPS_ENV='{{ .Data.data.SIGNALOPS_ENV }}'
+          export SIGNALOPS_CONNECT_SHADOW_MODE='{{ .Data.data.SIGNALOPS_CONNECT_SHADOW_MODE }}'
+          {{- end }}
+    spec:
+      serviceAccountName: signalops-connect-outbox
+      imagePullSecrets:
+        - name: signalops-ghcr-pull
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: connect-worker
+          image: ghcr.io/syncratic-inc/signalops-connect-k8s-worker:staging
+          imagePullPolicy: IfNotPresent
+          args:
+            - connect-outbox
+          env:
+            - name: SIGNALOPS_ENV
+              value: kubernetes-staging
+            - name: SIGNALOPS_CONNECT_SHADOW_MODE
+              value: "true"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

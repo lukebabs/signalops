@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-connect-openbao-egress
+  namespace: signalops-connect
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: connect
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-connect-k8s-worker
+      signalops.syncratic.io/stage: staging
+      signalops.syncratic.io/production-cutover-allowed: "false"
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openbao
+      ports:
+        - protocol: TCP
+          port: 8200

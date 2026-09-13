@@ -8,6 +8,15 @@ The current release uses four FMP quarterly rows to derive TTM financials. It pu
 
 Acceptance is complete when a pilot persists source statements, TTM derivation, calculation trace, and UI disclosure for a completed session.
 
+## Parallel annual v4 research profile
+
+FMP Starter annual statements provide a separate, five-period annual route to
+three-year revenue CAGR and a broader six-dimension fundamental profile. The
+annual `vc-dosm-4.0-annual` model is captured centrally and remains parallel
+to the live `vc-dosm-3.0` TTM profile until independent replay, calibration,
+global-reader, analyst-review, and rollout gates pass. See the
+[Subscriber Project annual-enrichment contract](../projects/subscriber_project/fmp_annual_v4_enrichment.md).
+
 ## Next: 16-quarter history and CAGR
 
 Dependency: FMP entitlement or a verified provider endpoint that returns sixteen distinct quarterly filings per symbol with filing/accepted timestamps.

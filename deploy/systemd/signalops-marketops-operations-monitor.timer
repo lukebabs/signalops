@@ -1,0 +1,11 @@
+[Unit]
+Description=Run dedicated MarketOps operations monitor hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+AccuracySec=1min
+Unit=signalops-marketops-operations-monitor.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Create dedicated MarketOps daily pgBackRest recovery points
+
+[Timer]
+OnCalendar=*-*-* 02:45:00 UTC
+Persistent=true
+AccuracySec=1min
+Unit=signalops-marketops-pgbackrest.service
+
+[Install]
+WantedBy=timers.target

@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=marketops_schedule_database.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/marketops_schedule_database.sh"
+# shellcheck source=lib/marketops_trading_calendar.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_trading_calendar.sh"
+# shellcheck source=lib/marketops_locks.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/marketops_locks.sh"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -49,10 +55,9 @@ while (($# > 0)); do
 done
 
 if [[ -f .env ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ./.env
-  set +a
+  # shellcheck source=lib/dotenv.sh
+  source "$ROOT_DIR/scripts/lib/dotenv.sh"
+  load_dotenv "$ROOT_DIR/.env"
 fi
 
 timezone="${MARKETOPS_DAILY_TIMEZONE:-America/New_York}"
@@ -68,7 +73,7 @@ actor="${MARKETOPS_DAILY_ACTOR:-systemd-postclose}"
 # Per-run options capacity is enforced by run_options_batches; no universe cap applies.
 provider_batch_size="${MARKETOPS_DAILY_PROVIDER_BATCH_SIZE:-50}"
 option_symbols="${MARKETOPS_DAILY_OPTION_SYMBOLS:-NVDA,AAPL,GOOGL,MSFT,AMZN,TSM,SPCX,AVGO,TSLA,META,MU,BRK.B,LLY,JPM,AMD,WMT,ASML,V,JNJ,INTC,XOM,TCEHY,MA,AMAT,ABBV,CSCO,CAT,LRCX,BAC,COST,ORCL,GE,UNH,KO,MS,HD,PG,ARM,HSBC,CVX,NFLX,PLTR,MRK,GS,GEV,PM,RY,BABA,NVS,PANW}"
-lock_file="${MARKETOPS_DAILY_LOCK_FILE:-/tmp/signalops-marketops-daily.lock}"
+lock_file="${MARKETOPS_DAILY_LOCK_FILE:-$(marketops_runtime_lock_file daily-postclose)}"
 
 log() {
   printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*"
@@ -95,17 +100,14 @@ now_session_date="$(TZ="$timezone" date '+%F')"
 local_clock="$(TZ="$timezone" date '+%H%M%S')"
 if [[ -z "$session_date" ]]; then
   session_date="$now_session_date"
-  if [[ "$local_clock" -lt 180000 ]]; then
-    session_date="$(TZ="$timezone" date -d "$now_session_date -1 day" '+%F')"
-    while (( $(TZ="$timezone" date -d "$session_date" '+%u') > 5 )); do
-      session_date="$(TZ="$timezone" date -d "$session_date -1 day" '+%F')"
-    done
+  if [[ "$local_clock" -lt 163000 ]]; then
+    session_date="$(marketops_previous_trading_day "$timezone" "$now_session_date")"
   fi
 fi
 [[ "$session_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { printf 'invalid session date: %s\n' "$session_date" >&2; exit 2; }
 [[ "$(date -u -d "$session_date" '+%F' 2>/dev/null)" == "$session_date" ]] || { printf 'invalid session date: %s\n' "$session_date" >&2; exit 2; }
-weekday="$(date -u -d "$session_date" '+%u')"
-((weekday <= 5)) || { printf 'session date must be a weekday: %s\n' "$session_date" >&2; exit 2; }
+marketops_is_trading_day "$timezone" "$session_date" || { printf 'session date must be a trading day: %s\n' "$session_date" >&2; exit 2; }
+weekday="$(TZ="$timezone" date -d "$session_date" '+%u')"
 if ! $plan_mode && [[ "$session_date" > "$now_session_date" ]]; then
   printf 'session date is in the future: %s\n' "$session_date" >&2
   exit 2
@@ -118,8 +120,8 @@ if $write_mode && ! $plan_mode; then
   }
   if [[ "$session_date" == "$now_session_date" ]]; then
     local_time="$(TZ="$timezone" date '+%H%M%S')"
-    [[ "$local_time" -ge 180000 ]] || {
-      printf 'same-session writes are blocked before 18:00:00 %s\n' "$timezone" >&2
+    [[ "$local_time" -ge 163000 ]] || {
+      printf 'same-session writes are blocked before 16:30:00 %s\n' "$timezone" >&2
       exit 2
     }
   fi
@@ -140,7 +142,7 @@ dry_run=true
 $write_mode && dry_run=false
 run_prefix="daily-evidence-${session_date//-/}"
 
-equity_command=(docker compose --profile massive-pull run --rm massive-puller
+equity_command=(marketops_compose --profile massive-pull run --rm massive-puller
   --datasets equity
   --date "$session_date"
   --max-companies 50
@@ -152,7 +154,7 @@ equity_command=(docker compose --profile massive-pull run --rm massive-puller
   --continue-on-error=true
   --dry-run="$dry_run")
 
-reconciliation_command=(docker compose --profile massive-pull run --rm massive-puller
+reconciliation_command=(marketops_compose --profile massive-pull run --rm massive-puller
   --mode reconcile-equity
   --date "$session_date"
   --universe-group all_active
@@ -165,7 +167,7 @@ reconciliation_command=(docker compose --profile massive-pull run --rm massive-p
   --dry-run="$dry_run")
 $write_mode && reconciliation_command+=(--acknowledge-writes)
 
-options_command=(docker compose --profile marketops-daily run --rm marketops-options-coverage-runner
+options_command=(marketops_compose --profile marketops-daily run --rm marketops-options-coverage-runner
   --tenant-id tenant-local
   --symbols "$option_symbols"
   --max-symbols "${#symbols[@]}"
@@ -197,7 +199,7 @@ if $plan_mode; then
   for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=10, batch++)); do
     batch_symbols=("${symbols[@]:offset:10}")
     batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
-    cohort=(docker compose --profile marketops-daily run --rm
+    cohort=(marketops_compose --profile marketops-daily run --rm
       -e "SIGNALOPS_ACTOR=$actor"
       marketops-intelligence-cohort-runner
       --tenant-id tenant-local
@@ -214,13 +216,12 @@ if $plan_mode; then
   done
   outcome_start="$(TZ="$timezone" date -d "$session_date - ${MARKETOPS_OUTCOME_LOOKBACK_DAYS:-45} days" '+%F')"
   log "plan includes final convergence refresh and outcome maturity window=$outcome_start..$session_date"
-  print_command docker compose --profile marketops-daily run --rm marketops-signal-assurance-worker --tenant-id tenant-local --as-of "$session_date" --mode RESEARCH --run-id saf-research-materializations-v1
-  print_command docker compose --profile marketops-daily run --rm marketops-sri-runner --tenant-id tenant-local --as-of "$session_date" --run-id "${run_prefix}-sri"
+  print_command marketops_compose --profile marketops-daily run --rm marketops-signal-assurance-worker --tenant-id tenant-local --as-of "$session_date" --mode RESEARCH --run-id saf-research-materializations-v1
   for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=10, batch++)); do
     batch_symbols=("${symbols[@]:offset:10}")
     batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
-    refresh=(docker compose --profile marketops-daily run --rm -e "SIGNALOPS_ACTOR=$actor" marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$batch_csv" --max-symbols "${#batch_symbols[@]}" --session-start "$session_date" --session-end "$session_date" --stages "opportunity_build" --continue-on-error=true --run-id "$(printf '%s-convergence-%02d' "$run_prefix" "$batch")" --dry-run="$dry_run")
-    outcome_sweep=(docker compose --profile marketops-daily run --rm -e "SIGNALOPS_ACTOR=$actor" marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$batch_csv" --max-symbols "${#batch_symbols[@]}" --session-start "$outcome_start" --session-end "$session_date" --stages "outcome_materialization" --continue-on-error=true --run-id "$(printf '%s-outcomes-%02d' "$run_prefix" "$batch")" --dry-run="$dry_run")
+    refresh=(marketops_compose --profile marketops-daily run --rm -e "SIGNALOPS_ACTOR=$actor" marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$batch_csv" --max-symbols "${#batch_symbols[@]}" --session-start "$session_date" --session-end "$session_date" --stages "opportunity_build" --continue-on-error=true --run-id "$(printf '%s-convergence-%02d' "$run_prefix" "$batch")" --dry-run="$dry_run")
+    outcome_sweep=(marketops_compose --profile marketops-daily run --rm -e "SIGNALOPS_ACTOR=$actor" marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$batch_csv" --max-symbols "${#batch_symbols[@]}" --session-start "$outcome_start" --session-end "$session_date" --stages "outcome_materialization" --continue-on-error=true --run-id "$(printf '%s-outcomes-%02d' "$run_prefix" "$batch")" --dry-run="$dry_run")
     $write_mode && refresh+=(--acknowledge-writes)
     $write_mode && outcome_sweep+=(--acknowledge-writes)
     print_command "${refresh[@]}"
@@ -233,14 +234,14 @@ for command in docker flock date; do
   command -v "$command" >/dev/null || { printf 'required command not found: %s\n' "$command" >&2; exit 2; }
 done
 
-running_services="$(docker compose ps --status running --services)"
-for service in redpanda postgres timescaledb normalizer; do
+running_services="$(marketops_compose ps --status running --services)"
+for service in redpanda "${SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE:-postgres}" "${SIGNALOPS_MARKETOPS_TEMPORAL_DB_SERVICE:-timescaledb}" normalizer; do
   grep -qx "$service" <<< "$running_services" || { printf 'required service is not running: %s\n' "$service" >&2; exit 4; }
 done
 # The database universe is authoritative at execution time. This prevents a
 # stale environment variable from omitting a newly listed asset from options
 # capture or its downstream intelligence cohort.
-active_universe_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+active_universe_symbols="$(marketops_primary_psql -Atc \
   "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;")"
 [[ -n "$active_universe_symbols" ]] || { printf 'active equity universe is empty\n' >&2; exit 4; }
 IFS=',' read -r -a active_universe_array <<< "$active_universe_symbols"
@@ -268,7 +269,7 @@ IFS=',' read -r -a workflow_symbols <<< "$workflow_universe_symbols"
 log "universe snapshot active=${#symbols[@]} workflow=${#workflow_symbols[@]}"
 # Pull the same combined universe that later stages consume. Explicit symbols
 # include provider-validated analyst-watchlist assets beyond the static seed.
-equity_command=(docker compose --profile massive-pull run --rm massive-puller
+equity_command=(marketops_compose --profile massive-pull run --rm massive-puller
   --datasets equity
   --date "$session_date"
   --symbols "$active_universe_symbols"
@@ -281,7 +282,7 @@ equity_command=(docker compose --profile massive-pull run --rm massive-puller
   --max-retries 0
   --continue-on-error=true
   --dry-run="$dry_run")
-options_command=(docker compose --profile marketops-daily run --rm marketops-options-coverage-runner
+options_command=(marketops_compose --profile marketops-daily run --rm marketops-options-coverage-runner
   --tenant-id tenant-local
   --symbols "$option_symbols"
   --max-symbols "${#workflow_symbols[@]}"
@@ -301,10 +302,10 @@ options_command=(docker compose --profile marketops-daily run --rm marketops-opt
 
 coverage_count() {
   local active_symbols
-  active_symbols="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+  active_symbols="$(marketops_primary_psql -Atc \
     "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;")"
   [[ -n "$active_symbols" ]] || { printf 'active equity universe is empty\n' >&2; return 1; }
-  docker compose exec -T timescaledb psql -U signalops -d signalops_temporal -Atc \
+  marketops_temporal_psql -Atc \
     "SELECT count(DISTINCT normalized_payload->>'symbol') FROM normalized_event_ledger WHERE tenant_id='tenant-local' AND source_id='src-massive' AND dataset='equity_eod_prices' AND normalized_payload->>'observation_date' = '$session_date' AND normalized_payload->>'symbol' = ANY(string_to_array('$active_symbols', ','));" | tr -d '[:space:]'
 }
 
@@ -313,7 +314,7 @@ run_options_batches() {
   for ((offset=0, batch=1; offset<${#symbols[@]}; offset+=provider_batch_size, batch++)); do
     batch_symbols=("${symbols[@]:offset:provider_batch_size}")
     batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
-    options_batch=(docker compose --profile marketops-daily run --rm marketops-options-coverage-runner
+    options_batch=(marketops_compose --profile marketops-daily run --rm marketops-options-coverage-runner
       --tenant-id tenant-local
       --symbols "$batch_csv"
       --max-symbols "${#batch_symbols[@]}"
@@ -336,15 +337,15 @@ run_options_batches() {
 }
 run_governed_tactical_posture() {
   local task_count workflow_status
-  if docker compose --profile marketops-daily run --rm marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"; then
+  if marketops_compose --profile marketops-daily run --rm marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"; then
     return 0
   fi
 
   # A tactical runner may report a non-zero process result after independently
   # recording asset outcomes. Continue only when the durable ledger proves the
   # full active universe was classified; otherwise preserve the job failure.
-  task_count="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT count(DISTINCT symbol) FROM marketops_task_items WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' AND task_type='tactical_posture';" | tr -d '[:space:]')"
-  workflow_status="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc "SELECT status FROM marketops_task_workflows WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' AND workflow_type='marketops_postclose' ORDER BY updated_at DESC LIMIT 1;" | tr -d '[:space:]')"
+  task_count="$(marketops_primary_psql -Atc "SELECT count(DISTINCT symbol) FROM marketops_task_items WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' AND task_type='tactical_posture';" | tr -d '[:space:]')"
+  workflow_status="$(marketops_primary_psql -Atc "SELECT status FROM marketops_task_workflows WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' AND workflow_type='marketops_postclose' ORDER BY updated_at DESC LIMIT 1;" | tr -d '[:space:]')"
   if [[ "$task_count" == "${#workflow_symbols[@]}" ]] && [[ "$workflow_status" == "succeeded" || "$workflow_status" == "degraded" ]]; then
     log "tactical posture process exited non-zero but task ledger is complete; workflow=$workflow_status tasks=$task_count; continuing governed post-close"
     return 0
@@ -395,7 +396,7 @@ log "options stage started batches of $provider_batch_size dry_run=$dry_run"
 run_options_batches
 
 if $write_mode; then
-  capture_count="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+  capture_count="$(marketops_primary_psql -Atc \
     "SELECT count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date = DATE '$session_date' AND symbol = ANY (string_to_array('$option_symbols', ','));" | tr -d '[:space:]')"
   (( capture_count == ${#symbols[@]} )) || {
     printf 'options capture barrier failed: captures=%s expected=%s\n' "$capture_count" "${#symbols[@]}" >&2
@@ -408,7 +409,7 @@ if $write_mode; then
   # One FMP calendar call persists point-in-time-known earnings events before
   # the state cohorts consume days-to-earnings and earnings-window context.
   log "earnings calendar synchronization started"
-  docker compose --profile marketops-daily run --rm marketops-eeom-runner --tenant-id tenant-local --session-date "$session_date"
+  marketops_compose --profile marketops-daily run --rm marketops-eeom-runner --tenant-id tenant-local --session-date "$session_date"
   log "algorithm corroboration deferred until current-session cohorts have materialized features"
 else
   log "algorithm corroboration skipped dry_run=true (algorithm runner has no non-mutating mode)"
@@ -419,7 +420,7 @@ for ((offset=0, batch=1; offset<${#workflow_symbols[@]}; offset+=10, batch++)); 
   batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
   batch_run_id="$(printf '%s-cohort-%02d' "$cohort_run_prefix" "$batch")"
   if $write_mode; then
-    existing_status="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+    existing_status="$(marketops_primary_psql -Atc \
       "SELECT status FROM marketops_intelligence_cohort_runs WHERE tenant_id='tenant-local' AND run_id='$batch_run_id';" | tr -d '[:space:]')"
     if [[ "$existing_status" == "succeeded" ]]; then
       log "cohort batch=$batch skipped run_id=$batch_run_id status=succeeded"
@@ -430,7 +431,7 @@ for ((offset=0, batch=1; offset<${#workflow_symbols[@]}; offset+=10, batch++)); 
       exit 7
     }
   fi
-  cohort=(docker compose --profile marketops-daily run --rm
+  cohort=(marketops_compose --profile marketops-daily run --rm
     -e "SIGNALOPS_ACTOR=$actor"
     marketops-intelligence-cohort-runner
     --tenant-id tenant-local
@@ -456,12 +457,12 @@ if $write_mode; then
   bash ./scripts/marketops_risk_reward_retention.sh
   bash ./scripts/marketops_financial_retention.sh
   if [[ "$weekday" == "${MARKETOPS_VALUATION_WEEKDAY:-5}" ]]; then
-    docker compose --profile marketops-daily run --rm marketops-valuation-runner --tenant-id tenant-local --session-date "$session_date" --fmp-max-requests "${MARKETOPS_VALUATION_FMP_MAX_REQUESTS:-240}" --refresh-financials
+    marketops_compose --profile marketops-daily run --rm marketops-valuation-runner --tenant-id tenant-local --session-date "$session_date" --fmp-max-requests "${MARKETOPS_VALUATION_FMP_MAX_REQUESTS:-240}" --refresh-financials
   else
     log "skipping weekly valuation; session weekday=$weekday"
   fi
   run_governed_tactical_posture
-  docker compose --profile marketops-daily run --rm marketops-eroc-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"
+  marketops_compose --profile marketops-daily run --rm marketops-eroc-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"
   # EROC and tactical posture are intentionally evaluated after the state cohorts.
   # Refresh the research-only opportunity queue afterward so its exact-session
   # convergence contract can use those final daily algorithm results as well.
@@ -469,7 +470,7 @@ if $write_mode; then
   for ((offset=0, batch=1; offset<${#workflow_symbols[@]}; offset+=10, batch++)); do
     batch_symbols=("${workflow_symbols[@]:offset:10}")
     batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
-    refresh=(docker compose --profile marketops-daily run --rm
+    refresh=(marketops_compose --profile marketops-daily run --rm
       -e "SIGNALOPS_ACTOR=$actor"
       marketops-intelligence-cohort-runner
       --tenant-id tenant-local
@@ -492,7 +493,7 @@ if $write_mode; then
   for ((offset=0, batch=1; offset<${#workflow_symbols[@]}; offset+=10, batch++)); do
     batch_symbols=("${workflow_symbols[@]:offset:10}")
     batch_csv="$(IFS=,; printf '%s' "${batch_symbols[*]}")"
-    outcome_sweep=(docker compose --profile marketops-daily run --rm
+    outcome_sweep=(marketops_compose --profile marketops-daily run --rm
       -e "SIGNALOPS_ACTOR=$actor"
       marketops-intelligence-cohort-runner
       --tenant-id tenant-local
@@ -509,14 +510,44 @@ if $write_mode; then
     "${outcome_sweep[@]}"
   done
   log "research signal assurance evaluation started as_of=$session_date"
-  docker compose --profile marketops-daily run --rm marketops-signal-assurance-worker --tenant-id tenant-local --as-of "$session_date" --mode RESEARCH --run-id saf-research-materializations-v1
+  marketops_compose --profile marketops-daily run --rm marketops-signal-assurance-worker --tenant-id tenant-local --as-of "$session_date" --mode RESEARCH --run-id saf-research-materializations-v1
   log "universal completed-close refresh started symbols=${#workflow_symbols[@]}"
-  docker compose --profile marketops-intraday run --rm marketops-intraday-monitor --tenant-id tenant-local --universe-group all_active --max-symbols 200 --allow-outside-session
+  marketops_compose --profile marketops-intraday run --rm marketops-intraday-monitor --tenant-id tenant-local --universe-group all_active --max-symbols 200 --allow-outside-session
   bash ./scripts/marketops_universal_completion_gate.sh "$session_date" "$workflow_universe_symbols" "${#workflow_symbols[@]}" || exit 8
-  log "sector intelligence refresh started as_of=$session_date"
-  docker compose --profile marketops-daily run --rm marketops-sri-runner --tenant-id tenant-local --as-of "$session_date" --run-id "${run_prefix}-sri"
-  docker compose --profile marketops-daily run --rm marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
-  summary="$(docker compose exec -T postgres psql -U signalops -d signalops -Atc \
+  marketops_compose --profile marketops-daily run --build --rm marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
+  bash ./scripts/marketops_global_dashboard_projection.sh "$session_date" || exit 9
+  # SRI is a platform-global reader. It is calculated only after the daily
+  # source session is complete, so it reuses canonical normalized ETF
+  # observations and never races or duplicates the scheduled provider pull.
+  log "SRI completed-session materialization started session=$session_date"
+  if ! bash ./scripts/marketops_sri_refresh.sh --date "$session_date" --normalized-only; then
+    now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    detail="deferred_to_sri_refresh_timer"
+    detail_json="$(printf '{"session_date":"%s","detail":"%s","deferred_from":"marketops-daily-postclose"}' "$session_date" "$detail")"
+    marketops_record_scheduled_job_status_or_warn "marketops-sri-refresh-${session_date}-deferred" "marketops-sri-refresh" "Weekdays 17:05" "$timezone" "recovery_needed" "$now" "$now" "0" "$detail" "$detail_json" || true
+    log "SRI completed-session materialization deferred session=$session_date reason=$detail"
+  fi
+  if [[ -n "${SIGNALOPS_WEB:-}" && -n "${SIGNALOPS_WEB_PASS:-}" ]]; then
+    log "subscriber pilot browser acceptance started"
+    qa_operator="${SIGNALOPS_QA_OPERATOR:-${SUDO_USER:-}}"
+    browser_acceptance="passed"
+    if [[ "${EUID:-$(id -u)}" -eq 0 && -n "$qa_operator" && "$qa_operator" != "root" && "$qa_operator" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+      qa_home="$(getent passwd "$qa_operator" | cut -d: -f6)"
+      if [[ -n "$qa_home" && -d "$qa_home/.cache/ms-playwright" ]]; then
+        runuser -u "$qa_operator" -- env "HOME=$qa_home" "PLAYWRIGHT_BROWSERS_PATH=$qa_home/.cache/ms-playwright" \
+          ./scripts/run_subscriber_pilot_ui_smoke.sh || exit 11
+      else
+        browser_acceptance="skipped"
+        log "subscriber pilot browser acceptance skipped: Playwright browser cache missing for operator=$qa_operator"
+      fi
+    else
+      ./scripts/run_subscriber_pilot_ui_smoke.sh || exit 11
+    fi
+    log "subscriber pilot browser acceptance $browser_acceptance"
+  else
+    log "subscriber pilot browser acceptance skipped: QA identity is not configured"
+  fi
+  summary="$(marketops_primary_psql -Atc \
     "SELECT 'captures=' || count(DISTINCT symbol) FROM marketops_options_capture_sessions WHERE tenant_id='tenant-local' AND session_date=DATE '$session_date' UNION ALL SELECT 'cohort_results=' || count(*) FROM marketops_intelligence_cohort_symbol_results WHERE tenant_id='tenant-local' AND run_id LIKE '${cohort_run_prefix}-cohort-%' UNION ALL SELECT 'algorithm_results=' || count(*) FROM algorithm_results WHERE tenant_id='tenant-local' AND correlation_id='$run_prefix';")"
   log "completed session=$session_date ${summary//$'\n'/ }"
 else
