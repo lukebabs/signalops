@@ -153,7 +153,7 @@ Use direct `docker`/`systemctl` only when a constrained deployment-agent action 
 
 As of 2026-09-13:
 
-1. Complete authenticated Keycloak parity through the Kubernetes/Istio staging route now that Mesh-2 unauthenticated route parity is proven.
+1. Restore unauthenticated OIDC discovery/JWKS reachability through the CDN/WAF, then complete authenticated Keycloak parity through the Kubernetes/Istio staging route.
 2. Expand MarketOps Kubernetes scheduler parity beyond the one no-provider dry-run and one approved FMP provider smoke.
 3. Run Signal-Connect ingestion shadow through the same Kubernetes/mesh posture so Connect, app, and MarketOps scale as one platform.
 4. Complete capacity/load validation for gateway, database connection pools, Syncratic Ask, Stripe, and provider-bound jobs.

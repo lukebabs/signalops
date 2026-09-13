@@ -1,3 +1,11 @@
+### 2026-09-13 — Mesh-3 authenticated Keycloak route parity blocked by OIDC discovery
+
+- Added `scripts/run_k8s_mesh3_keycloak_staging_route_smoke.sh` and `python/tests/test_k8s_mesh3_keycloak_staging_route_parity.py` to attempt an existing QA-user login through the Istio staging route without registration, Stripe, provider polling, DNS movement, or Keycloak mutation.
+- The smoke loaded the SignalOps SPA through `signalops-staging.syncratic.co`, but the browser failed before Keycloak login when `oidc-client-ts` attempted to fetch Keycloak discovery metadata.
+- Minimal HAR inspection showed app assets loading through Istio and `GET https://auth.syncratic.co/realms/syncratic/.well-known/openid-configuration` failing with network status `-1`.
+- Added `scripts/verify_keycloak_oidc_discovery_reachability.sh`; the preflight failed deterministically with HTTP `503` for the OIDC discovery URL, matching the Imperva/Incapsula challenge observed from the host.
+- Mesh-3 remains blocked until OIDC discovery and JWKS return JSON without WAF challenge to fresh browser/smoke traffic. Staging app workloads were scaled back to zero after the failed smoke.
+
 ### 2026-09-13 — Mesh-2 SignalOps staging route parity closed
 
 - Added a staging-only Istio HTTPRoute overlay for `signalops-staging.syncratic.co` under `deploy/kubernetes/staging/mesh-route`. The route attaches only to the existing `istio-system/public-ingress` HTTP listener and routes `/v1`, `/auth`, `/healthz`, and `/readyz` to `signalops-gateway`, with `/` routed to `signalops-web`.

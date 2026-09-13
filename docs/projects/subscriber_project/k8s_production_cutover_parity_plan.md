@@ -29,6 +29,7 @@ compose_systemd_production_authority=true
 ...
 pending_authenticated_keycloak_k8s_parity=true
 pending_authenticated_keycloak_mesh_route_parity=true
+keycloak_oidc_discovery_reachability=blocked_http_503_2026-09-13
 pending_broader_marketops_scheduler_parity=true
 pending_signal_connect_ingestion_shadow=true
 mesh1_istio_control_plane=verified_2026-09-13
@@ -105,7 +106,7 @@ Acceptance:
 
 - target Gateway API / Istio ingress mode and hostnames documented;
 - unauthenticated SignalOps staging route parity is proven through Istio;
-- Keycloak redirect URIs and web origins include the target K8S hostnames;
+- Keycloak OIDC discovery/JWKS endpoints are reachable without WAF challenge, and redirect URIs/web origins include the target K8S hostnames;
 - Stripe webhook endpoint behavior is validated for the K8S route;
 - rollback path returns traffic from mesh/Gateway API to Docker Compose/systemd without data loss;
 - backup/restore evidence is current;
@@ -155,6 +156,7 @@ proven_app_parity=port_forward_unauthenticated
 proven_scheduler_parity=no_provider_and_one_provider_fmp_smoke
 pending_authenticated_keycloak_k8s_parity=true
 pending_authenticated_keycloak_mesh_route_parity=true
+keycloak_oidc_discovery_reachability=blocked_http_503_2026-09-13
 pending_broader_marketops_scheduler_parity=true
 pending_signal_connect_ingestion_shadow=true
 mesh1_istio_control_plane=verified_2026-09-13
