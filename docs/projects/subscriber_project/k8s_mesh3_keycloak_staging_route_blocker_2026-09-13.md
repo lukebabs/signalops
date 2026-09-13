@@ -1,6 +1,6 @@
 # Mesh-3 authenticated Keycloak staging-route parity blocker — 2026-09-13
 
-Status: blocked by Keycloak/OIDC discovery reachability; no SignalOps production traffic cutover.
+Status: partially remediated after Keycloak migration to k3s. Public OIDC discovery and JWKS are verified; authenticated SignalOps staging parity is now blocked by the HTTP-only staging route because browser PKCE requires a secure context. No SignalOps production traffic cutover.
 
 Recorded: 2026-09-13 UTC.
 
@@ -64,17 +64,17 @@ scripts/run_k8s_mesh3_keycloak_staging_route_smoke.sh
 python/tests/test_k8s_mesh3_keycloak_staging_route_parity.py
 ```
 
-The Mesh-3 runner now checks OIDC discovery/JWKS reachability before scaling Kubernetes app workloads. If Keycloak discovery returns a WAF/challenge page or non-200 status, it fails closed and avoids a misleading auth test.
+The Mesh-3 runner now checks OIDC discovery/JWKS reachability before scaling Kubernetes app workloads. If Keycloak discovery returns a WAF/challenge page or non-200 status, or if browser PKCE cannot run in a secure staging context, it fails closed and avoids a misleading auth test.
 
 ## Required remediation
 
-Before Mesh-3 can pass, the Keycloak/OIDC endpoints must be reachable by fresh browser sessions and smoke runners:
+Before Mesh-3 can pass, the SignalOps staging route must provide a secure browser context for PKCE. Keycloak/OIDC endpoints are now reachable:
 
-1. Allowlist unauthenticated GET access to Keycloak OIDC discovery and JWKS endpoints through the CDN/WAF:
+1. Keep unauthenticated GET access to Keycloak OIDC discovery and JWKS endpoints through the CDN/WAF:
    - `/realms/syncratic/.well-known/openid-configuration`
    - `/realms/syncratic/protocol/openid-connect/certs`
-2. Confirm those endpoints return JSON metadata/keys, not an HTML WAF challenge.
-3. Then decide the staging callback strategy:
+2. Confirmed 2026-09-13: those endpoints return JSON metadata/keys, not an HTML WAF challenge.
+3. Decide the staging callback strategy:
    - add `http://signalops-staging.syncratic.co:<smoke-port>/auth/callback` only for local-port smoke is not practical long term; or
    - create a stable staging DNS/TLS hostname and Keycloak redirect/web-origin entries; or
    - create a dedicated staging Keycloak client with equivalent claims/audience/roles.
@@ -84,4 +84,4 @@ Before Mesh-3 can pass, the Keycloak/OIDC endpoints must be reachable by fresh b
 scripts/run_k8s_mesh3_keycloak_staging_route_smoke.sh
 ```
 
-Until this closes, `pending_authenticated_keycloak_mesh_route_parity=true` remains correct.
+Until the secure staging callback path closes, `pending_authenticated_keycloak_mesh_route_parity=true` remains correct.

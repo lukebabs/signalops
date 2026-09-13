@@ -21,7 +21,13 @@ trap cleanup EXIT
 status="$(curl -sS -L -D "$tmp_headers" -o "$tmp_body" -w '%{http_code}' "$DISCOVERY_URL" || true)"
 [[ "$status" == "200" ]] || fail "OIDC discovery returned HTTP ${status}; expected 200 for ${DISCOVERY_URL}"
 
-if grep -qiE 'incapsula|request unsuccessful|incident_id|captcha|challenge' "$tmp_body" "$tmp_headers"; then
+content_type="$(grep -i '^content-type:' "$tmp_headers" | tail -1 | tr -d '\r' || true)"
+case "$content_type" in
+  *application/json*) ;;
+  *) fail "OIDC discovery returned non-JSON content type: ${content_type:-missing}" ;;
+esac
+
+if grep -qiE 'request unsuccessful|incident_id|captcha|incapsula incident' "$tmp_body"; then
   fail "OIDC discovery returned a WAF/challenge page instead of JSON metadata"
 fi
 

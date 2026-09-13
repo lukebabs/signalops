@@ -89,6 +89,10 @@ scripts/verify_k8s_marketops_scheduled_jobs_manifests.sh >/dev/null
 scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh >/dev/null
 scripts/verify_k8s_mesh1_istio_readiness.sh >/dev/null
 scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh >/dev/null
+keycloak_oidc_status="verified"
+if ! scripts/verify_keycloak_oidc_discovery_reachability.sh >/dev/null 2>/tmp/signalops-keycloak-oidc-readiness.err; then
+  keycloak_oidc_status="blocked"
+fi
 
 cat <<EOF
 signalops_k8s_production_cutover_readiness_report
@@ -104,7 +108,7 @@ proven_app_parity=port_forward_unauthenticated
 proven_scheduler_parity=no_provider_and_one_provider_fmp_smoke
 pending_authenticated_keycloak_k8s_parity=true
 pending_authenticated_keycloak_mesh_route_parity=true
-keycloak_oidc_discovery_reachability=blocked_http_503_2026-09-13
+keycloak_oidc_discovery_reachability=$keycloak_oidc_status
 pending_broader_marketops_scheduler_parity=true
 pending_signal_connect_ingestion_shadow=true
 mesh1_istio_control_plane=verified_2026-09-13

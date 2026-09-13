@@ -10025,3 +10025,11 @@ Next-cycle priority:
 - Captured the existing k3s bridge: `ingress-nginx` is exposed at LoadBalancer `192.168.2.233` with NodePorts 30080/30443, and Traefik already forwards `portal.syncratic.co` to `https://host.docker.internal:30443`. Host listeners show k3s services on `192.168.2.5`.
 - Verified the cluster baseline: k3s `v1.33.5+k3s1`, Cilium `1.20.0`, Cilium Envoy running, Gateway API CRDs present, no GatewayClass configured, and no Istio CRDs present.
 - Added `scripts/verify_k8s_mesh0_baseline.sh` and `docs/projects/subscriber_project/k8s_mesh0_implementation_plan_2026-09-12.md`. The recommended first path is Cilium Gateway API / Envoy-first routing, with Istio ambient evaluated after the Gateway path proves stable.
+
+### 2026-09-13 — Keycloak k3s migration unblocks OIDC discovery
+
+- Confirmed the shared Syncratic Keycloak runtime is now running in k3s namespace `syncratic` with Keycloak and Keycloak DB pods healthy.
+- Verified `https://auth.syncratic.co/realms/syncratic/.well-known/openid-configuration` and JWKS now return HTTP 200 JSON through the Istio Envoy edge.
+- Tightened `scripts/verify_keycloak_oidc_discovery_reachability.sh` so normal Imperva response headers do not cause false WAF failures; the guard now validates JSON content type and fails on challenge-page body evidence.
+- Updated the K8S production-readiness report to derive `keycloak_oidc_discovery_reachability` from the live verifier.
+- Mesh-3 authenticated SignalOps staging parity remains pending because the current `signalops-staging.syncratic.co` route is HTTP-only; browser PKCE requires a secure context. The next gate is a stable HTTPS staging callback route or dedicated staging client strategy.
