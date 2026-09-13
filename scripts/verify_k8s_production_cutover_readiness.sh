@@ -32,6 +32,7 @@ require_file docs/projects/subscriber_project/k8s_production_cutover_parity_plan
 require_file docs/projects/subscriber_project/k8s_mesh1_istio_readiness_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_mesh2_signalops_staging_route_parity_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md
+require_file docs/projects/subscriber_project/k8s_stripe_webhook_route_parity_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s4_signal_connect_shadow_smoke_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_scaffold_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_processing_shadow_2026-09-13.md
@@ -48,6 +49,7 @@ require_executable scripts/verify_k8s_mesh4_ingress_dns_cutover_plan.sh
 require_executable scripts/verify_k8s_mesh1_istio_readiness.sh
 require_executable scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh
 require_executable scripts/verify_signalops_shared_postgres_archive_health.sh
+require_executable scripts/run_k8s_stripe_webhook_route_parity_smoke.sh
 
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
 
@@ -159,6 +161,8 @@ mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
 pending_service_mesh_ingress_dns_cutover_plan=false
 proven_service_mesh_ingress_dns_cutover_plan=rollback_plan_verified_2026-09-13
+pending_stripe_webhook_k8s_route_parity=false
+proven_stripe_webhook_k8s_route_parity=synthetic_checkout_completed_2026-09-13
 pending_capacity_load_validation=true
 EOF
 

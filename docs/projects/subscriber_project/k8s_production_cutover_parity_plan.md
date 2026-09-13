@@ -32,10 +32,11 @@ pending_authenticated_keycloak_mesh_route_parity=false
 keycloak_oidc_discovery_reachability=verified
 pending_broader_marketops_scheduler_parity=false
 k8s_marketops_scheduler_parity_coverage=complete
-pending_signal_connect_ingestion_shadow=true
+pending_signal_connect_ingestion_shadow=false
 mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
-pending_service_mesh_ingress_dns_cutover_plan=true
+pending_service_mesh_ingress_dns_cutover_plan=false
+pending_stripe_webhook_k8s_route_parity=false
 pending_capacity_load_validation=true
 ```
 
@@ -55,6 +56,8 @@ Use `--strict` only when intentionally checking that final production readiness 
 | Current backup/restore | `pr3_backup_restore_refresh_evidence_2026-09-12.md` | Closed for this cycle |
 | Mesh-0 baseline and implementation plan | `k8s_mesh0_implementation_plan_2026-09-12.md` | Drafted / verifier added |
 | Mesh-3 authenticated SignalOps route | `k8s_mesh3_keycloak_staging_route_blocker_2026-09-13.md` | Closed for staging |
+| Mesh-4 ingress/DNS rollback planning | `k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md` | Closed as plan/no traffic moved |
+| Stripe webhook K8S route parity | `k8s_stripe_webhook_route_parity_2026-09-13.md` | Closed with synthetic signed checkout event |
 
 ## Remaining parity gates
 
@@ -189,7 +192,7 @@ Acceptance:
 
 ## Current conclusion
 
-Kubernetes migration is past scaffold-only. It has real staging app, secret, image, data, scheduler, service-mesh, authenticated Keycloak route evidence, Signal-Connect shadow evidence, and raw-worker processing-shadow evidence. Broader MarketOps scheduler parity is complete at the suspended-workload and dry-run evidence level. The next production-readiness targets are ingress/DNS rollback planning, Stripe webhook parity through the K8S route, capacity/load validation, and a separately approved scheduler authority transfer.
+Kubernetes migration is past scaffold-only. It has real staging app, secret, image, data, scheduler, service-mesh, authenticated Keycloak route evidence, Signal-Connect shadow evidence, and raw-worker processing-shadow evidence. Broader MarketOps scheduler parity is complete at the suspended-workload and dry-run evidence level. The next production-readiness targets are capacity/load validation and a separately approved production authority transfer. Ingress/DNS rollback planning and Stripe webhook parity through the K8S route are now closed as non-cutover staging gates.
 
 Until those gates close, `production_cutover_allowed=false` remains the correct state and Docker Compose/systemd remains the live production authority.
 
@@ -224,10 +227,11 @@ pending_authenticated_keycloak_mesh_route_parity=false
 keycloak_oidc_discovery_reachability=verified
 pending_broader_marketops_scheduler_parity=false
 k8s_marketops_scheduler_parity_coverage=complete
-pending_signal_connect_ingestion_shadow=true
+pending_signal_connect_ingestion_shadow=false
 mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
-pending_service_mesh_ingress_dns_cutover_plan=true
+pending_service_mesh_ingress_dns_cutover_plan=false
+pending_stripe_webhook_k8s_route_parity=false
 pending_capacity_load_validation=true
 ```
 
@@ -264,12 +268,12 @@ This does not by itself transfer production authority. The K3s CronJobs remain s
 
 K8S-4 has started. The concrete Go Signal-Connect workers now have a replicas-zero staging scaffold in `signalops-connect`: `signalops-connect-persister` and `signalops-connect-outbox`. The manifests are verified with OpenBao runtime injection, no Services/Ingress, no committed Secrets, and `production-cutover-allowed=false`.
 
-This closes the source/manifest guard, private GHCR publication, namespace pull smoke, dormant in-cluster apply, and placeholder OpenBao runtime isolation for the Connect worker shape. The Connect worker image is published as `ghcr.io/syncratic-inc/signalops-connect-k8s-worker:347dc8d20d07` and `staging`; `signalops-connect-persister` and `signalops-connect-outbox` are applied with `0/0` replicas. `pending_signal_connect_ingestion_shadow=true` remains correct until approved non-production `.svc` runtime values are installed, one bounded scale-to-one shadow smoke proves broker/database behavior, and the workloads scale back to zero. Evidence is tracked in [K8S-4 Signal-Connect shadow scaffold — 2026-09-13](k8s4_signal_connect_shadow_scaffold_2026-09-13.md).
+This closes the source/manifest guard, private GHCR publication, namespace pull smoke, dormant in-cluster apply, and placeholder OpenBao runtime isolation for the Connect worker shape. The Connect worker image is published as `ghcr.io/syncratic-inc/signalops-connect-k8s-worker:347dc8d20d07` and `staging`; `signalops-connect-persister` and `signalops-connect-outbox` are applied with `0/0` replicas. `pending_signal_connect_ingestion_shadow=false` remains correct until approved non-production `.svc` runtime values are installed, one bounded scale-to-one shadow smoke proves broker/database behavior, and the workloads scale back to zero. Evidence is tracked in [K8S-4 Signal-Connect shadow scaffold — 2026-09-13](k8s4_signal_connect_shadow_scaffold_2026-09-13.md).
 
 
 ### K8S-4 Signal-Connect shadow smoke closed — 2026-09-13
 
-Signal-Connect ingestion shadow is closed for the two Go Connect workers. A staging-only internal Redpanda broker was applied in `signalops-data`, standard `kubernetes-staging` topics were bootstrapped, non-production Connect runtime values were written through OpenBao with cross-plane denial, and `signalops-connect-persister` plus `signalops-connect-outbox` each completed a bounded sequential scale-to-one smoke before returning to zero replicas. The readiness report now shows `pending_signal_connect_ingestion_shadow=false`. The Python `raw-worker` remains a separate normalized-event worker migration gate; production cutover remains blocked by ingress/DNS rollback planning, Stripe webhook parity through K3s, capacity/load validation, and explicit authority transfer.
+Signal-Connect ingestion shadow is closed for the two Go Connect workers. A staging-only internal Redpanda broker was applied in `signalops-data`, standard `kubernetes-staging` topics were bootstrapped, non-production Connect runtime values were written through OpenBao with cross-plane denial, and `signalops-connect-persister` plus `signalops-connect-outbox` each completed a bounded sequential scale-to-one smoke before returning to zero replicas. The readiness report now shows `pending_signal_connect_ingestion_shadow=false`. The Python `raw-worker` migration gate is now closed separately; production cutover remains blocked by capacity/load validation and explicit authority transfer.
 
 
 ### K8S-5 raw-worker scaffold — 2026-09-13
@@ -284,4 +288,4 @@ The Python `raw-worker` completed a bounded K3s staging processing smoke. A dete
 
 ### Mesh-4 ingress/DNS rollback planning verified — 2026-09-13
 
-The service-mesh production ingress/DNS planning gate is now documented and verifier-backed. It defines the intended `signalops.syncratic.io` move to Istio Gateway API, keeps Docker Traefik/Compose as rollback authority, and blocks accidental production hostname binding in the staging mesh-route overlay. This closes the planning gap only; production traffic movement still requires Stripe webhook parity, capacity/load validation, and explicit production authority transfer approval.
+The service-mesh production ingress/DNS planning gate is now documented and verifier-backed. It defines the intended `signalops.syncratic.io` move to Istio Gateway API, keeps Docker Traefik/Compose as rollback authority, and blocks accidental production hostname binding in the staging mesh-route overlay. This closes the planning gap only. Stripe webhook K8S route parity is also closed; production traffic movement still requires capacity/load validation and explicit production authority transfer approval.

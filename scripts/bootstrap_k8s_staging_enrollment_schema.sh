@@ -186,6 +186,27 @@ CREATE INDEX IF NOT EXISTS idx_subscriber_subscription_seats_subscription ON sub
 CREATE INDEX IF NOT EXISTS idx_subscriber_subscription_feature_decisions_tenant_time ON subscriber_subscription_feature_decisions (tenant_id, decided_at DESC);
 CREATE INDEX IF NOT EXISTS idx_subscriber_subscription_audit_tenant_time ON subscriber_subscription_audit_events (tenant_id, occurred_at DESC);
 
+CREATE TABLE IF NOT EXISTS subscriber_checkout_sessions (
+  checkout_ref text PRIMARY KEY,
+  tenant_id text NOT NULL,
+  subject text NOT NULL,
+  product_key text NOT NULL REFERENCES subscriber_subscription_products(product_key) ON DELETE RESTRICT,
+  billing_period text NOT NULL CHECK (billing_period IN ('monthly', 'annual')),
+  stripe_price_id text NOT NULL,
+  stripe_session_id text NOT NULL DEFAULT '',
+  stripe_subscription_id text NOT NULL DEFAULT '',
+  status text NOT NULL CHECK (status IN ('created', 'checkout_started', 'webhook_processed', 'expired', 'failed')),
+  checkout_url_returned boolean NOT NULL DEFAULT false,
+  actor_subject text NOT NULL DEFAULT '',
+  correlation_id text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_subscriber_checkout_sessions_tenant_subject ON subscriber_checkout_sessions (tenant_id, subject, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_subscriber_checkout_sessions_ref_status ON subscriber_checkout_sessions (checkout_ref, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriber_checkout_sessions_stripe_session ON subscriber_checkout_sessions (stripe_session_id) WHERE stripe_session_id <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriber_checkout_sessions_stripe_subscription ON subscriber_checkout_sessions (stripe_subscription_id) WHERE stripe_subscription_id <> '';
+
 CREATE TABLE IF NOT EXISTS subscriber_user_activity_events (
   activity_id text PRIMARY KEY,
   tenant_id text NOT NULL,
@@ -273,8 +294,8 @@ VALUES ('k8s_staging_enrollment_schema_bootstrap')
 ON CONFLICT (version) DO NOTHING;
 SQL
 
-table_count="$(kubectl exec -n "$NAMESPACE" "$POD" -- env PGPASSWORD="$password" psql -h 127.0.0.1 -U "$USER" -d "$DB" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename IN ('tenant_user_access','tenant_user_access_audit','subscriber_subscription_products','subscriber_subject_subscriptions','subscriber_tenant_subscriptions','subscriber_subscription_seats','subscriber_subscription_feature_decisions','subscriber_billing_webhook_events','subscriber_subscription_audit_events','subscriber_user_activity_events','retention_policies','retention_runs','marketops_task_items');")"
-[[ "$table_count" == "13" ]] || fail "expected 13 enrollment/retention/task tables, found ${table_count}"
+table_count="$(kubectl exec -n "$NAMESPACE" "$POD" -- env PGPASSWORD="$password" psql -h 127.0.0.1 -U "$USER" -d "$DB" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename IN ('tenant_user_access','tenant_user_access_audit','subscriber_subscription_products','subscriber_subject_subscriptions','subscriber_tenant_subscriptions','subscriber_subscription_seats','subscriber_subscription_feature_decisions','subscriber_billing_webhook_events','subscriber_subscription_audit_events','subscriber_checkout_sessions','subscriber_user_activity_events','retention_policies','retention_runs','marketops_task_items');")"
+[[ "$table_count" == "14" ]] || fail "expected 14 enrollment/retention/task tables, found ${table_count}"
 
 cat <<EOF
 signalops_k8s_staging_enrollment_schema_bootstrap_verified

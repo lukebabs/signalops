@@ -10185,3 +10185,16 @@ Next-cycle priority:
 - Added `docs/projects/subscriber_project/k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md` with current authority, target Istio Gateway API route split, pre-cutover checks, DNS movement shape, rollback steps, abort conditions, and explicit non-authorizations.
 - Added `scripts/verify_k8s_mesh4_ingress_dns_cutover_plan.sh` to verify the plan markers and ensure the staging mesh-route overlay does not bind `signalops.syncratic.io`.
 - Wired the Mesh-4 planning gate into `scripts/verify_k8s_production_cutover_readiness.sh`; the report can now distinguish a verified ingress/DNS rollback plan from an actual production traffic cutover.
+
+### 2026-09-13 — K8S Stripe webhook route parity smoke prepared
+
+- Added `scripts/run_k8s_stripe_webhook_route_parity_smoke.sh` to validate Stripe webhook handling through the K3s Istio staging route using synthetic events only.
+- The smoke requires invalid signatures to fail closed and valid HMAC-signed synthetic events to process through the staging Gateway/runtime path.
+- The gate does not call Stripe, move production DNS, move production traffic, change provider polling, or transfer scheduler authority.
+
+### 2026-09-13 — K8S Stripe webhook route parity closed
+
+- Closed the Stripe webhook K8S route parity gate through `scripts/run_k8s_stripe_webhook_route_parity_smoke.sh`.
+- The smoke used the Istio staging route `signalops-staging.syncratic.co`, rejected an invalid Stripe signature, accepted a valid HMAC-signed synthetic `checkout.session.completed` event, and reconciled it through the staging MarketOps subscription checkout ledger.
+- The gate made no Stripe provider call, moved no production DNS or traffic, and scaled staging `signalops-gateway`/`signalops-web` back to zero after evidence capture.
+- The K8S production-readiness verifier now reports `pending_stripe_webhook_k8s_route_parity=false` while keeping `production_cutover_allowed=false` pending capacity/load validation and explicit production authority transfer.
