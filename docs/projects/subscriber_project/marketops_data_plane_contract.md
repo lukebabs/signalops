@@ -79,11 +79,14 @@ SignalOps production package when the project `.env` contains the full
 production `COMPOSE_FILE` graph:
 
 ```text
-compose.yaml:compose.marketops-boundary.yaml:compose.marketops-read-cutover.yaml:compose.marketops-writer-cutover.yaml:compose.marketops-pgbackrest.yaml:compose.traefik.yaml
+compose.yaml:compose.pgbackrest.yaml:compose.marketops-boundary.yaml:compose.marketops-read-cutover.yaml:compose.marketops-writer-cutover.yaml:compose.marketops-pgbackrest.yaml:compose.traefik.yaml
 ```
 
 The same `.env` must carry the non-committed MarketOps primary, MarketOps
-temporal, and subscriber gateway runtime passwords. This keeps the Compose
+temporal, and subscriber gateway runtime passwords. The shared pgBackRest overlay
+defaults to `/etc/signalops/pgbackrest.conf`, so plain Compose can render the
+shared platform PostgreSQL service with the pgBackRest-capable image while the
+secret material remains root-owned outside the repository. This keeps the Compose
 client from depending on the root-only `/etc/signalops/marketops-cutover.env`
 for normal restarts while preserving the dedicated data boundary.
 

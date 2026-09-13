@@ -11,6 +11,7 @@ cd "$root_dir"
 
 required_files=(
   compose.yaml
+  compose.pgbackrest.yaml
   compose.marketops-boundary.yaml
   compose.marketops-read-cutover.yaml
   compose.marketops-writer-cutover.yaml
@@ -57,5 +58,6 @@ grep -q 'traefik.enable: "true"' "$rendered" || fail "web service is missing Tra
 grep -q 'SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED: "true"' "$rendered" || fail "plain compose render is missing MarketOps boundary-required flag"
 grep -q 'SIGNALOPS_MARKETOPS_DATABASE_URL:' "$rendered" || fail "plain compose render is missing dedicated MarketOps primary URL"
 grep -q 'SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:' "$rendered" || fail "plain compose render is missing dedicated MarketOps temporal URL"
+grep -q 'image: signalops-postgres-pgbackrest:16' "$rendered" || fail "plain compose render is missing shared Postgres pgBackRest image"
 
 printf '%s\n' signalops_compose_authority_verified

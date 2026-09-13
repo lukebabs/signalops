@@ -836,3 +836,8 @@ The Python `raw-worker` migration is now closed through a bounded one-message pr
 ### K8S-5 raw-worker processing shadow closure — 2026-09-13
 
 The raw-worker K3s migration gate is closed at staging-shadow level. One synthetic normalized MarketOps event was produced to `signalops.kubernetes-staging.normalized.v1`; the worker emitted `marketops.dsm.accumulation` to `signalops.kubernetes-staging.signal.v1`; replicas were restored to zero; provider polling and production cutover remained disabled. The initial failed smoke identified a useful guardrail: fixtures must use governed source adapter values accepted by the detector, not test-only adapter names that fall outside the detector contract.
+
+
+### 2026-09-13 shared platform Postgres pgBackRest authority hardening
+
+The shared platform Postgres drift root cause was narrowed to compose authority: `.env` did not include `compose.pgbackrest.yaml`, so plain `docker compose up -d --build` could recreate `signalops-postgres-1` from the base `postgres:16-alpine` image while `archive_mode=on` still expected `pgbackrest`. The migration hardening now requires the shared pgBackRest overlay in `scripts/verify_signalops_compose_authority.sh`, gives `compose.pgbackrest.yaml` a safe default config path of `/etc/signalops/pgbackrest.conf`, and adds a constrained deployment-agent action `shared-postgres-pgbackrest-reconcile` to rebuild/restart only the shared Postgres service with the pgBackRest-capable image, run `pgbackrest --stanza=signalops check`, and rerun the archive-health guard.

@@ -13,4 +13,4 @@ services:
       dockerfile: deploy/postgres/pgbackrest.Dockerfile
     image: signalops-postgres-pgbackrest:16
     volumes:
-      - ${SIGNALOPS_PGBACKREST_CONFIG_PATH:?set to the root-owned rendered pgBackRest configuration}:/etc/pgbackrest/pgbackrest.conf:ro
+      - ${SIGNALOPS_PGBACKREST_CONFIG_PATH:-/etc/signalops/pgbackrest.conf}:/etc/pgbackrest/pgbackrest.conf:ro

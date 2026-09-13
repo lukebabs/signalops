@@ -23,6 +23,10 @@ run() {
   audit success
 }
 
+ensure_signalops_shared_pgbackrest_runtime() {
+  "$repository_dir/scripts/reconcile_signalops_shared_postgres_pgbackrest_runtime.sh"
+}
+
 ensure_marketops_pgbackrest_unit() {
   local expected="$repository_dir/scripts/marketops_pgbackrest_backup.sh"
   local actual
@@ -321,6 +325,9 @@ FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
   marketops-writer-cutover)
     systemctl stop signalops-marketops-boundary-schedule@marketops-daily-postclose.service signalops-marketops-boundary-schedule@marketops-postclose-recovery.service || true
     run "$repository_dir/scripts/deploy_marketops_writer_cutover.sh" --dedicated-authoritative "$repository_dir/.env"
+    ;;
+  shared-postgres-pgbackrest-reconcile)
+    run ensure_signalops_shared_pgbackrest_runtime
     ;;
   backup-run)
     ensure_marketops_pgbackrest_unit

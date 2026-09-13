@@ -10165,3 +10165,10 @@ Next-cycle priority:
 - Hardened the staging raw-worker Deployment with `imagePullPolicy: Always` because the mutable `:staging` tag must not be reused from node cache during canaries.
 - Passing evidence: `signalops_k8s_raw_worker_processing_smoke_verified`, run id `raw-worker-smoke-20260913T163832Z`, signal type `marketops.dsm.accumulation`, `messages_processed=1`, `replicas_restored_to_zero=true`, `provider_polling=false`, and `production_cutover_allowed=false`.
 - Production cutover remains disabled; remaining K8S readiness gaps are ingress/DNS rollback planning, Stripe webhook parity through the K8S route, capacity/load validation, and explicit production authority transfer.
+
+### 2026-09-13 — Shared Postgres pgBackRest authority hardening prepared
+
+- Confirmed `signalops-postgres-1` had drifted back to `postgres:16-alpine` while `archive_mode=on` and `archive_command` required pgBackRest; WAL size was still small, but the posture would accumulate WAL again.
+- Updated `compose.pgbackrest.yaml` to default the pgBackRest config mount to `/etc/signalops/pgbackrest.conf` so plain compose authority can render when the overlay is included.
+- Updated `scripts/verify_signalops_compose_authority.sh` to require `compose.pgbackrest.yaml` and verify the rendered shared Postgres image is `signalops-postgres-pgbackrest:16`.
+- Added constrained deployment-agent action `shared-postgres-pgbackrest-reconcile` backed by `scripts/reconcile_signalops_shared_postgres_pgbackrest_runtime.sh`.
