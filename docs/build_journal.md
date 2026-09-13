@@ -10234,3 +10234,11 @@ Next-cycle priority:
 - Updated the Mesh-4 cutover plan, Kubernetes base scaffold notes, and service-mesh architecture document to treat `istio-system/public-ingress` as the canonical Kubernetes traffic entrypoint.
 - Clarified that Docker Traefik remains the Compose-era rollback/reference edge until named production traffic cutover, while ingress-nginx is historical/baseline infrastructure and not a competing SignalOps production ingress authority.
 - No DNS, traffic, workload, or scheduler authority was moved by this documentation/control update.
+
+### 2026-09-13 — K8S production app/data migration package prepared
+
+- Added a production K8s app overlay for `signalops-gateway-production` and `signalops-web-production`, plus an Istio/Gateway API route package for `signalops.syncratic.io`.
+- Added a production K8s data overlay for the four database services: shared SignalOps primary/temporal and dedicated MarketOps primary/temporal. The data overlay uses retained Longhorn storage via `syncratic-data-retain` and internal ClusterIP services only.
+- Updated the production runtime handoff so generated OpenBao runtime values prefer Kubernetes service DNS, not Docker-hosted database ports. Docker DB access is now only an explicit fallback via caller-supplied runtime values.
+- Added guarded scripts for publishing app/database images, creating the production app runtime env, provisioning the OpenBao production app runtime path, and verifying the production app/data packages.
+- Server-side dry-run validation passed for both `deploy/kubernetes/production/data` and `deploy/kubernetes/production/app`/`mesh-route`. Production traffic, production secrets, database restore, scheduler authority, DNS, and provider polling were not moved.

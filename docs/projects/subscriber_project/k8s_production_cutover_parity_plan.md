@@ -301,3 +301,19 @@ The Python `raw-worker` completed a bounded K3s staging processing smoke. A dete
 ### Mesh-4 ingress/DNS rollback planning verified — 2026-09-13
 
 The service-mesh production ingress/DNS planning gate is now documented and verifier-backed. It defines the intended `signalops.syncratic.io` move to Istio Gateway API, keeps Docker Traefik/Compose as rollback authority, and blocks accidental production hostname binding in the staging mesh-route overlay. This closes the planning gap only. Stripe webhook K8S route parity is also closed; production traffic movement still requires capacity/load validation and explicit production authority transfer approval.
+
+### K8S production app/data package prepared — 2026-09-13
+
+The production migration package now has explicit app and data overlays. The target architecture is Kubernetes-native database service DNS backed by retained Longhorn PVCs, followed by OpenBao production runtime provisioning, then Istio traffic authority transfer. Docker-hosted production databases remain rollback/fallback infrastructure, not the default generated K8s runtime target. Evidence is recorded in [K8S production app/data migration package — 2026-09-13](k8s_production_app_data_migration_package_2026-09-13.md).
+
+The readiness report now distinguishes these final gates:
+
+```text
+k8s_production_data_package=verified
+k8s_production_app_cutover_package=verified
+pending_production_runtime_openbao=true
+pending_production_database_restore_or_replication=true
+pending_production_traffic_authority_transfer=true
+```
+
+Production cutover remains unauthorized until those gates close under named approval.

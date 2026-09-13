@@ -36,6 +36,7 @@ require_file docs/projects/subscriber_project/k8s_stripe_webhook_route_parity_20
 require_file docs/projects/subscriber_project/k8s_capacity_load_validation_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_capacity_remediation_plan_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_worker_node_addition_runbook_2026-09-13.md
+# Production app/data cutover package evidence is prepared before authority transfer.
 require_file docs/projects/subscriber_project/k8s4_signal_connect_shadow_smoke_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_scaffold_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_processing_shadow_2026-09-13.md
@@ -56,6 +57,10 @@ require_executable scripts/run_k8s_stripe_webhook_route_parity_smoke.sh
 require_executable scripts/run_k8s_capacity_load_validation_smoke.sh
 require_executable scripts/verify_k8s_capacity_headroom.sh
 require_executable scripts/report_k8s_capacity_requests.sh
+require_executable scripts/verify_k8s_production_app_cutover_package.sh
+require_executable scripts/verify_k8s_production_data_package.sh
+require_executable scripts/create_k8s_signalops_app_runtime_production_env.sh
+require_executable scripts/provision_openbao_signalops_app_runtime_production.sh
 
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
 
@@ -66,6 +71,8 @@ marketops_data_render="$(kubectl kustomize deploy/kubernetes/staging/marketops-d
 connect_render="$(kubectl kustomize deploy/kubernetes/staging/connect)"
 connect_broker_render="$(kubectl kustomize deploy/kubernetes/staging/connect-broker)"
 raw_worker_render="$(kubectl kustomize deploy/kubernetes/staging/raw-worker)"
+production_data_render="$(kubectl kustomize deploy/kubernetes/production/data)"
+production_app_render="$(kubectl kustomize deploy/kubernetes/production/app)"
 
 count_kind() {
   local rendered="$1"
@@ -120,6 +127,8 @@ scripts/verify_k8s_signalops_raw_worker_manifests.sh >/dev/null
 scripts/verify_k8s_mesh4_ingress_dns_cutover_plan.sh >/dev/null
 scripts/verify_k8s_mesh1_istio_readiness.sh >/dev/null
 scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh >/dev/null
+scripts/verify_k8s_production_data_package.sh >/dev/null
+scripts/verify_k8s_production_app_cutover_package.sh >/dev/null
 keycloak_oidc_status="verified"
 if ! scripts/verify_keycloak_oidc_discovery_reachability.sh >/dev/null 2>/tmp/signalops-keycloak-oidc-readiness.err; then
   keycloak_oidc_status="blocked"
@@ -181,6 +190,11 @@ proven_service_mesh_ingress_dns_cutover_plan=rollback_plan_verified_2026-09-13
 pending_stripe_webhook_k8s_route_parity=false
 proven_stripe_webhook_k8s_route_parity=synthetic_checkout_completed_2026-09-13
 proven_k8s_route_load_smoke=health_ready_webhook_2026-09-13
+k8s_production_data_package=verified
+k8s_production_app_cutover_package=verified
+pending_production_runtime_openbao=true
+pending_production_database_restore_or_replication=true
+pending_production_traffic_authority_transfer=true
 k8s_capacity_headroom_status=${capacity_headroom_status}
 k8s_capacity_headroom_cpu_request_pct=${capacity_headroom_cpu_pct}
 k8s_capacity_headroom_memory_request_pct=${capacity_headroom_memory_pct}
