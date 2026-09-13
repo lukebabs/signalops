@@ -10206,3 +10206,11 @@ Next-cycle priority:
 - Added `scripts/verify_k8s_capacity_headroom.sh` to compute cluster CPU/memory request headroom from live Kubernetes nodes/pods.
 - Current headroom evidence is blocked: single-node K3s has 16,000m allocatable CPU and 17,665m requested CPU (110.41%). The route smoke therefore used staging zero-CPU reservation and does not close production-grade capacity.
 - The K8S production-readiness verifier now records `proven_k8s_route_load_smoke=health_ready_webhook_2026-09-13` while keeping `pending_capacity_load_validation=true` until CPU headroom is remediated.
+
+### 2026-09-13 — K8S capacity remediation plan prepared
+
+- Added `scripts/report_k8s_capacity_requests.sh` to attribute Kubernetes CPU/memory requests by namespace and workload without dumping raw pod JSON or secrets.
+- Current report remains blocked at one node, 101 active pods, 16,000m allocatable CPU, 17,665m requested CPU, and 110.41% CPU request pressure.
+- The largest namespace reservations are `syncratic` at 7,650m, `syncratic-runtime-smoke` at 3,550m, `syncratic-capacity-rehearsal` at 2,750m, `longhorn-system` at 1,920m, and `istio-system` at 950m.
+- Documented remediation options in `docs/projects/subscriber_project/k8s_capacity_remediation_plan_2026-09-13.md`: add worker capacity, explicitly approve cleanup of stale smoke/rehearsal namespaces, right-size requests from observed metrics, or dedicate node capacity to SignalOps.
+- No workloads were scaled, deleted, restarted, or cut over. Docker Compose/systemd remains production authority and `production_cutover_allowed=false`.

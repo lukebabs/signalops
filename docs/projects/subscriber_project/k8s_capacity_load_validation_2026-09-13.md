@@ -88,6 +88,8 @@ This gate does not block because the SignalOps gateway is slow; it blocks becaus
 - isolate SignalOps production workloads onto dedicated node capacity with explicit requests/limits;
 - rerun a production-shaped load test with non-zero CPU requests and realistic concurrent authenticated routes.
 
+The detailed attribution and remediation path is tracked in [K8S capacity remediation plan — 2026-09-13](k8s_capacity_remediation_plan_2026-09-13.md). The new `scripts/report_k8s_capacity_requests.sh` report shows the pressure is dominated by Syncratic platform/runtime namespaces, smoke/rehearsal namespaces, Longhorn, and Istio, while SignalOps staging app/workers remain scaled to zero outside bounded smokes.
+
 ## Non-authorizations
 
 This gate did not move production DNS, did not move production traffic, did not call Stripe, did not enable Kubernetes schedules, and did not transfer production authority.

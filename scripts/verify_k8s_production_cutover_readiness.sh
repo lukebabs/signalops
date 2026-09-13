@@ -34,6 +34,7 @@ require_file docs/projects/subscriber_project/k8s_mesh2_signalops_staging_route_
 require_file docs/projects/subscriber_project/k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_stripe_webhook_route_parity_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_capacity_load_validation_2026-09-13.md
+require_file docs/projects/subscriber_project/k8s_capacity_remediation_plan_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s4_signal_connect_shadow_smoke_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_scaffold_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_processing_shadow_2026-09-13.md
@@ -53,6 +54,7 @@ require_executable scripts/verify_signalops_shared_postgres_archive_health.sh
 require_executable scripts/run_k8s_stripe_webhook_route_parity_smoke.sh
 require_executable scripts/run_k8s_capacity_load_validation_smoke.sh
 require_executable scripts/verify_k8s_capacity_headroom.sh
+require_executable scripts/report_k8s_capacity_requests.sh
 
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
 
@@ -181,6 +183,8 @@ proven_k8s_route_load_smoke=health_ready_webhook_2026-09-13
 k8s_capacity_headroom_status=${capacity_headroom_status}
 k8s_capacity_headroom_cpu_request_pct=${capacity_headroom_cpu_pct}
 k8s_capacity_headroom_memory_request_pct=${capacity_headroom_memory_pct}
+k8s_capacity_request_report=available
+k8s_capacity_remediation_plan=prepared_2026-09-13
 pending_capacity_load_validation=true
 EOF
 
