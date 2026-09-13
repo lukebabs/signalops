@@ -33,6 +33,10 @@ spec:
         vault.hashicorp.com/role: "signalops-connect"
         vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
         vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+        vault.hashicorp.com/agent-requests-cpu: "25m"
+        vault.hashicorp.com/agent-limits-cpu: "100m"
+        vault.hashicorp.com/agent-requests-mem: "32Mi"
+        vault.hashicorp.com/agent-limits-mem: "96Mi"
         vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
         vault.hashicorp.com/agent-inject-secret-connect-worker-runtime.env: "signalops/data/k8s/connect/connect-worker-runtime-staging"
         vault.hashicorp.com/agent-inject-template-connect-worker-runtime.env: |
@@ -101,6 +105,10 @@ spec:
         vault.hashicorp.com/role: "signalops-connect"
         vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
         vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+        vault.hashicorp.com/agent-requests-cpu: "25m"
+        vault.hashicorp.com/agent-limits-cpu: "100m"
+        vault.hashicorp.com/agent-requests-mem: "32Mi"
+        vault.hashicorp.com/agent-limits-mem: "96Mi"
         vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
         vault.hashicorp.com/agent-inject-secret-connect-worker-runtime.env: "signalops/data/k8s/connect/connect-worker-runtime-staging"
         vault.hashicorp.com/agent-inject-template-connect-worker-runtime.env: |

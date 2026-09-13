@@ -10140,3 +10140,12 @@ Next-cycle priority:
 - Added `scripts/provision_openbao_signalops_connect_staging.sh` to create/verify the `signalops-connect` Kubernetes auth role, `signalops/data/k8s/connect/connect-worker-runtime-staging` placeholder runtime path, and cross-plane denial against the MarketOps role.
 - Verification passed for service accounts `signalops-connect-worker`, `signalops-connect-outbox`, and `signalops-connect-secret-reader`; `cross_plane_denied=true`, `secret_values=placeholder_only`, and `production_cutover_allowed=false`.
 - The next gate is replacing placeholders with approved non-production `.svc` database/broker endpoints and running one bounded scale-to-one Connect shadow smoke before returning replicas to zero.
+
+### 2026-09-13 — K8S-4 Signal-Connect shadow smoke closed
+
+- Added a staging-only internal Redpanda broker scaffold in `signalops-data` with `ClusterIP`, `emptyDir`, narrow DNS/self NetworkPolicy, and `production-cutover-allowed=false`.
+- Broker smoke passed and created the 12 standard `kubernetes-staging` SignalOps topics.
+- Added Connect runtime generation/provisioning scripts that use non-production `.svc` endpoints, write to OpenBao, and preserve cross-plane denial.
+- Fixed staging CA trust by mirroring `signalops-openbao-ca` into `signalops-connect` without printing certificate contents.
+- Adjusted Connect staging requests and changed the bounded smoke to sequential worker validation for the current single-node K3s capacity profile.
+- Passing smoke: `signalops_k8s_connect_shadow_smoke_verified`, with `replicas_scaled_to_one=sequential`, `replicas_restored_to_zero=true`, `provider_polling=false`, and `production_cutover_allowed=false`.
