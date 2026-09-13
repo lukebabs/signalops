@@ -34,40 +34,27 @@ statefulsets="$(count_kind StatefulSet)"
 [[ "$statefulsets" -eq 0 ]] || fail "expected 0 StatefulSets, found ${statefulsets}"
 
 for job in marketops-intraday marketops-sri-refresh marketops-sri-holdings-refresh marketops-fmp-annual-financial marketops-saf-benchmark marketops-operations-monitor marketops-retention-governance marketops-task-retry marketops-warm-eod; do
-  printf '%s
-' "$rendered" | grep -q "name: ${job}" || fail "CronJob ${job} missing"
-  printf '%s
-' "$rendered" | grep -q "signalops.syncratic.io/job-id: ${job}" || fail "job-id label missing for ${job}"
-  printf '%s
-' "$rendered" | grep -q -- "- ${job}" || fail "entrypoint arg missing for ${job}"
+  grep -q "name: ${job}" <<<"$rendered" || fail "CronJob ${job} missing"
+  grep -q "signalops.syncratic.io/job-id: ${job}" <<<"$rendered" || fail "job-id label missing for ${job}"
+  grep -q -- "- ${job}" <<<"$rendered" || fail "entrypoint arg missing for ${job}"
 done
 
 [[ "$(printf '%s
 ' "$rendered" | grep -c 'suspend: true')" -eq 9 ]] || fail "all CronJobs must be suspended in staging scaffold"
 [[ "$(printf '%s
 ' "$rendered" | grep -c 'concurrencyPolicy: Forbid')" -eq 9 ]] || fail "all CronJobs must forbid concurrency"
-printf '%s
-' "$rendered" | grep -q 'timeZone: America/New_York' || fail "timezone policy missing"
-printf '%s
-' "$rendered" | grep -q 'signalops/data/k8s/marketops/marketops-worker-runtime-staging' || fail "OpenBao marketops worker runtime path missing"
-printf '%s
-' "$rendered" | grep -q 'vault.hashicorp.com/role: signalops-marketops' || fail "OpenBao marketops role missing"
-printf '%s
-' "$rendered" | grep -q 'vault.hashicorp.com/service: https://openbao.openbao.svc:8200' || fail "OpenBao HTTPS service annotation missing"
-printf '%s
-' "$rendered" | grep -q 'vault.hashicorp.com/tls-secret: signalops-openbao-ca' || fail "OpenBao CA trust secret annotation missing"
-printf '%s
-' "$rendered" | grep -q 'vault.hashicorp.com/ca-cert: /vault/tls/ca.crt' || fail "OpenBao CA cert path annotation missing"
-if printf '%s
-' "$rendered" | grep -q 'vault.hashicorp.com/tls-skip-verify'; then
+grep -q 'timeZone: America/New_York' <<<"$rendered" || fail "timezone policy missing"
+grep -q 'signalops/data/k8s/marketops/marketops-worker-runtime-staging' <<<"$rendered" || fail "OpenBao marketops worker runtime path missing"
+grep -q 'vault.hashicorp.com/role: signalops-marketops' <<<"$rendered" || fail "OpenBao marketops role missing"
+grep -q 'vault.hashicorp.com/service: https://openbao.openbao.svc:8200' <<<"$rendered" || fail "OpenBao HTTPS service annotation missing"
+grep -q 'vault.hashicorp.com/tls-secret: signalops-openbao-ca' <<<"$rendered" || fail "OpenBao CA trust secret annotation missing"
+grep -q 'vault.hashicorp.com/ca-cert: /vault/tls/ca.crt' <<<"$rendered" || fail "OpenBao CA cert path annotation missing"
+if grep -q 'vault.hashicorp.com/tls-skip-verify' <<<"$rendered"; then
   fail "tls-skip-verify must not be present in MarketOps staging CronJobs"
 fi
-printf '%s
-' "$rendered" | grep -q 'image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging' || fail "staging job-runner image missing"
-printf '%s
-' "$rendered" | grep -q 'SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED' || fail "data-boundary env guard missing"
-printf '%s
-' "$rendered" | grep -q 'production-cutover-allowed: "false"' || fail "production cutover guard missing"
+grep -q 'image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:staging' <<<"$rendered" || fail "staging job-runner image missing"
+grep -q 'SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED' <<<"$rendered" || fail "data-boundary env guard missing"
+grep -q 'production-cutover-allowed: "false"' <<<"$rendered" || fail "production cutover guard missing"
 
 kubectl apply -k "$manifest_dir" --dry-run=server >/dev/null
 

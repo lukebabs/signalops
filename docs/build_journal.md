@@ -10095,3 +10095,12 @@ Next-cycle priority:
 - Build-time `go test ./...` passed during image build.
 - Live one-shot K8S dry-run execution is pending because `/etc/signalops/openbao-signalops-marketops-staging-runtime.env` is missing or unreadable to the current shell and the installed root-owned deployment agent does not yet expose `k8s-marketops-non-provider-dry-run`.
 - Next operator step: reprovision the deployment agent from current source or recreate the approved protected MarketOps staging runtime env file, then run one dry-run each for `marketops-task-retry` and `marketops-warm-eod`.
+
+### 2026-09-13 — K8S scheduler parity task-retry/warm-EOD dry-run closed
+
+- Committed and pushed `de5c983` to fix K8S dry-run status checks before publishing the matching job-runner image.
+- Published private GHCR image `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:de5c9833fd04` and refreshed the mutable `staging` tag; build-time `go test ./...` passed.
+- Bootstrapped the dedicated K8S staging MarketOps schema with `tables=13`, `provider_polling=false`, and `production_cutover_allowed=false`.
+- Live one-shot K8S dry-runs passed for `marketops-task-retry` and `marketops-warm-eod` against the dedicated staging MarketOps primary/temporal services. Both returned `scheduler_status_parity=verified`, `provider_polling=false`, and `production_cutover_allowed=false`.
+- Hardened the MarketOps scheduled-jobs manifest verifier to avoid `pipefail`/`grep -q` false negatives on large rendered Kubernetes YAML, then reran both the manifest verifier and the K8S production cutover readiness report successfully.
+- Added detailed evidence in `docs/projects/subscriber_project/k8s3_task_retry_warm_eod_dry_run_evidence_2026-09-13.md`. Remaining K8S scheduler parity gaps are `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.

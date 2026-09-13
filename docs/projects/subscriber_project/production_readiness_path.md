@@ -802,3 +802,10 @@ No remediation should delete WAL files manually. Preferred remediation is to re-
 The approved fast reclaim procedure is complete. The shared platform Postgres volume was preserved, the live container was restored to the pgBackRest-capable image, the historical WAL backlog was intentionally invalidated under named approval, and a new full baseline backup was established. Final evidence showed `pg_wal=83.0M`, `pgbackrest_available=true`, `archive_mode=on`, no `pg_stat_archiver` failures, and full backup label `20260913-034800F`.
 
 Operational implication: shared Postgres recovery before `20260913-034800F` should not be treated as PITR-continuous. Recovery after the new baseline is valid subject to normal pgBackRest/WAL archival monitoring.
+
+
+### K8S scheduler parity task-retry/warm-EOD closure — 2026-09-13
+
+The task-retry and warm-EOD K8S scheduler-parity slice is now closed. Commit `de5c983` fixed the K8S dry-run runner, the private GHCR job-runner image was published as `de5c9833fd04`, and both one-shot staging Jobs passed with scheduler-status parity verified. The runs used dedicated staging MarketOps databases through OpenBao runtime injection and preserved `provider_polling=false` plus `production_cutover_allowed=false`.
+
+Remaining scheduler parity gaps are now the four provider/composite jobs: `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.

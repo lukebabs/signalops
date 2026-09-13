@@ -246,6 +246,8 @@ Current parity after this source slice: 8 of 12 Admin MarketOps jobs are represe
 
 ### Task-retry/warm-EOD live dry-run evidence status
 
-The source and image portions of this slice are complete: commit `258aaa2` is pushed and the private GHCR job-runner image is published as `258aaa2f42cc` plus `staging`. Manifest and readiness reports show the scheduler parity gap reduced to four jobs.
+Closed on 2026-09-13. Commit `de5c983` is pushed, and the private GHCR job-runner image is published as `de5c9833fd04` plus `staging`. The dedicated staging schema bootstrap passed with `tables=13`.
 
-Live one-shot K8S dry-run evidence for `marketops-task-retry` and `marketops-warm-eod` remains pending because the approved protected runtime file `/etc/signalops/openbao-signalops-marketops-staging-runtime.env` is not readable/available to the current shell, and the installed deployment-agent action list is behind source. This is an execution-control gap, not a source-manifest gap.
+Live one-shot K8S dry-run evidence passed for both `marketops-task-retry` and `marketops-warm-eod` against the dedicated staging MarketOps primary/temporal services. Both runs verified DB-backed scheduler status parity and preserved `provider_polling=false` and `production_cutover_allowed=false`. Detailed evidence is captured in [K8S-3 task-retry and warm-EOD dry-run evidence — 2026-09-13](k8s3_task_retry_warm_eod_dry_run_evidence_2026-09-13.md).
+
+The broader scheduler parity gap is now limited to `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.
