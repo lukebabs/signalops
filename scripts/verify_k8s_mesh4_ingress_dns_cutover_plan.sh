@@ -13,7 +13,7 @@ cd "$repo_dir"
 plan="docs/projects/subscriber_project/k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md"
 [[ -r "$plan" ]] || fail "cutover plan is missing"
 
-for required in   'Docker Compose'   'Docker Traefik'   'Istio Gateway API'   'signalops.syncratic.io'   'Stripe webhook parity'   'Rollback path'   'production DNS changes'   'production_cutover_allowed=false'
+for required in   'Docker Compose'   'Docker Traefik'   'Istio Gateway API'   'K3s ingress authority'   'signalops.syncratic.io'   'Stripe webhook parity'   'Rollback path'   'production DNS changes'   'production_cutover_allowed=false'
 do
   grep -q "$required" "$plan" || fail "plan missing required marker: $required"
 done

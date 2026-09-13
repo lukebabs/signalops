@@ -10227,3 +10227,10 @@ Next-cycle priority:
 - Rechecked live K3s node state after preparing the worker-node addition runbook. No second node has joined yet; `kubectl get nodes` still reports only `hypernet101`.
 - Capacity pressure nevertheless improved because active workload reservations dropped to 78 pods and 10,765m requested CPU. `scripts/verify_k8s_capacity_headroom.sh` now reports `status=ok`, `cpu_request_pct=67.28`, and `memory_request_pct=15.3`.
 - Updated the capacity documents to distinguish the immediate green headroom state from the remaining single-node production resilience gap. Worker-node addition remains recommended before production authority transfer.
+
+### 2026-09-13 — Istio K3s ingress authority clarified
+
+- Recorded the architecture decision that Istio/Gateway API is the target K3s ingress controller and node-routing authority for SignalOps/Syncratic platform traffic.
+- Updated the Mesh-4 cutover plan, Kubernetes base scaffold notes, and service-mesh architecture document to treat `istio-system/public-ingress` as the canonical Kubernetes traffic entrypoint.
+- Clarified that Docker Traefik remains the Compose-era rollback/reference edge until named production traffic cutover, while ingress-nginx is historical/baseline infrastructure and not a competing SignalOps production ingress authority.
+- No DNS, traffic, workload, or scheduler authority was moved by this documentation/control update.

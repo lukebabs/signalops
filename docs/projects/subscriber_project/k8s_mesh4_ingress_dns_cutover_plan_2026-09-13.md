@@ -4,7 +4,7 @@ Status: plan verified; no production DNS or traffic movement approved.
 
 ## Purpose
 
-This gate defines how SignalOps can move public user traffic from the current Docker Compose / Traefik front door to the k3s Istio Gateway API front door without losing rollback control. It is a production-readiness planning gate, not a cutover gate.
+This gate defines how SignalOps can move public user traffic from the current Docker Compose / Traefik front door to the K3s Istio Gateway API front door without losing rollback control. It is a production-readiness planning gate, not a cutover gate. The target state is that Istio serves as the K3s ingress controller and takes routing authority for all Kubernetes node traffic through Gateway API resources.
 
 ## Current authority
 
@@ -18,6 +18,8 @@ Production authority remains:
 K3s authority is staging-only for SignalOps app, MarketOps scheduled-job parity, Signal-Connect shadow workers, raw-worker shadow processing, OpenBao secret staging, and Istio route parity.
 
 ## Target ingress model
+
+Istio is the target K3s ingress authority. Production Kubernetes routing should terminate at the Istio Gateway API listener and then route by `HTTPRoute` to the correct SignalOps service. Do not introduce parallel production Ingress authority through ingress-nginx or per-service node routing for SignalOps.
 
 The target production path is:
 
@@ -59,7 +61,7 @@ Pre-change:
 
 - lower TTL for `signalops.syncratic.io` to a short rollback-friendly value;
 - confirm current Docker Traefik route remains healthy;
-- confirm K3s Istio gateway address and listener readiness;
+- confirm K3s Istio gateway address and listener readiness as the Kubernetes ingress authority;
 - confirm Keycloak redirect URI and web-origin compatibility;
 - confirm CDN/WAF forwarding headers and TLS behavior.
 
@@ -110,7 +112,7 @@ This plan does not authorize:
 
 - production DNS changes;
 - public traffic movement;
-- disabling Docker Traefik or Compose rollback;
+- disabling Docker Traefik or Compose rollback before Istio production traffic authority is accepted;
 - unsuspending K3s production CronJobs;
 - moving scheduler authority from systemd to K3s;
 - changing provider polling;

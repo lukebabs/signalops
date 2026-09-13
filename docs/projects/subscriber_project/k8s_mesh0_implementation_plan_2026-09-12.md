@@ -129,3 +129,7 @@ Rollback must remain simple during Mesh-0 and Mesh-1:
 ## Current conclusion
 
 The next safe implementation step is not a full Istio install. It is to close Mesh-0 with a verified baseline and an implementation-mode decision. Based on the current cluster, the best first move is Cilium Gateway API / Envoy-first routing, with Istio ambient evaluated as the service-to-service mesh layer after Gateway API routing proves stable.
+
+## Supersession note — 2026-09-13
+
+Mesh-0 was drafted before Istio was installed. The accepted current direction has advanced from the earlier Cilium Gateway API / Envoy-first recommendation to Istio/Gateway API. Istio now serves as the target K3s ingress controller and traffic authority for node routing; ingress-nginx is retained only as observed baseline infrastructure, and Docker Traefik remains the rollback/reference edge until production DNS/traffic cutover is explicitly approved.

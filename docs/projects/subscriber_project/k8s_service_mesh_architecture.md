@@ -8,9 +8,17 @@ Recorded: 2026-09-12.
 
 Because Syncratic-core, SignalOps, Signal-Connect, MarketOps, Keycloak, and platform observability are moving into the k3s stack, the Kubernetes target architecture should include a service-mesh layer rather than relying only on a simple ingress controller.
 
-The selected target is **Gateway API + Istio/Envoy service mesh**. Cilium remains the CNI and NetworkPolicy foundation, while Istio becomes the platform mesh and Gateway API controller for the staged production migration. Mesh-1 was verified on 2026-09-13: `istio-base` and `istiod` are deployed, Istio CRDs are present, `GatewayClass/istio` is accepted, and `istio-system/public-ingress` is programmed at `192.168.2.233`.
+The selected target is **Gateway API + Istio/Envoy service mesh**. Cilium remains the CNI and NetworkPolicy foundation, while Istio becomes the platform mesh, Gateway API controller, and K3s ingress authority for node routing. Mesh-1 was verified on 2026-09-13: `istio-base` and `istiod` are deployed, Istio CRDs are present, `GatewayClass/istio` is accepted, and `istio-system/public-ingress` is programmed at `192.168.2.233`.
 
 Implementation mode:
+
+Authority model:
+
+- Istio/Gateway API is the target ingress controller for K3s-hosted Syncratic and SignalOps traffic.
+- `istio-system/public-ingress` is the canonical Kubernetes traffic entrypoint for staging and future production cutover.
+- Route ownership should be expressed through Gateway API `Gateway` and `HTTPRoute` resources, not per-service ingress exceptions.
+- Docker Traefik remains a Compose-era rollback/reference edge until a named production cutover moves `signalops.syncratic.io` and related hostnames to the K3s Istio gateway.
+- `ingress-nginx`, where present, is historical/baseline infrastructure and must not be treated as the competing production ingress authority for SignalOps.
 
 - **Istio Gateway API ingress** for staging-route parity and future controlled production routing;
 - **Istio ambient mode** as the preferred service-to-service mesh enrollment model when app, Connect, MarketOps, identity, and observability paths are ready for mTLS/telemetry enforcement;
@@ -125,4 +133,4 @@ Acceptance:
 
 ## Current conclusion
 
-The target production Kubernetes platform should use Istio as the service mesh and Gateway API controller. Mesh-1 proves the control plane exists and is healthy enough for staging-route parity. Until Mesh-2 and the broader K8S parity gates pass, Docker Compose/systemd remains the production authority and `production_cutover_allowed=false` remains correct.
+The target production Kubernetes platform should use Istio as the service mesh, Gateway API controller, and ingress authority for K3s node routing. Mesh-1 proves the control plane exists and is healthy enough for staging-route parity. Until the broader K8S parity and authority-transfer gates pass, Docker Compose/systemd remains the live production authority and `production_cutover_allowed=false` remains correct.
