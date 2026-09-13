@@ -10121,3 +10121,9 @@ Next-cycle priority:
 - Added `scripts/verify_k8s_signalops_connect_staging_manifests.sh`; validation passed with 2 Deployments, 1 NetworkPolicy, 0 Secrets, 0 Services, 0 CronJobs, and 0 StatefulSets.
 - Wired the Connect manifest guard into `scripts/verify_k8s_production_cutover_readiness.sh`; the readiness report now includes `k8s_signal_connect_manifest_guard=verified` while preserving `pending_signal_connect_ingestion_shadow=true`.
 - Documented the slice in `docs/projects/subscriber_project/k8s4_signal_connect_shadow_scaffold_2026-09-13.md`. The Python `raw-worker` remains a separate normalized-event worker gate and is not claimed as closed by this slice.
+
+### 2026-09-13 — K8S-4 Signal-Connect worker image published
+
+- Published and verified the private GHCR image `ghcr.io/syncratic-inc/signalops-connect-k8s-worker:347dc8d20d07`.
+- Verified the mutable `staging` tag resolves to the same image config digest: `sha256:e223fa7fa2c189c26080d4fd34eb64d2a1a3a72baba6987c90c057eba876e294`.
+- No Signal-Connect workload was scaled above zero and no production traffic moved. The next gate is a private GHCR pull smoke from the `signalops-connect` namespace, then replicas-zero apply and bounded scale-to-one shadow validation.

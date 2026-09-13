@@ -1,6 +1,6 @@
 # K8S-4 Signal-Connect shadow scaffold — 2026-09-13
 
-Status: source-ready and manifest-verified. No production traffic has moved and no Signal-Connect consumer has been scaled above zero.
+Status: source-ready, manifest-verified, and private GHCR image-published. No production traffic has moved and no Signal-Connect consumer has been scaled above zero.
 
 ## Outcome
 
@@ -44,6 +44,15 @@ production_cutover_allowed=false
 applied=false
 ```
 
+Private GHCR publication was verified after commit `347dc8d20d07`:
+
+```text
+image=ghcr.io/syncratic-inc/signalops-connect-k8s-worker
+source_tag=347dc8d20d07
+staging_tag=staging
+manifest_config_digest=sha256:e223fa7fa2c189c26080d4fd34eb64d2a1a3a72baba6987c90c057eba876e294
+```
+
 The broader non-cutover readiness report now includes:
 
 ```text
@@ -52,7 +61,7 @@ pending_signal_connect_ingestion_shadow=true
 production_cutover_allowed=false
 ```
 
-`pending_signal_connect_ingestion_shadow` remains true because the workloads have not yet been published, applied, scaled to one, or validated against staging broker/database flow.
+`pending_signal_connect_ingestion_shadow` remains true because the image has not yet been pull-smoked from the `signalops-connect` namespace, the workloads have not yet been applied in-cluster, and no bounded scale-to-one shadow smoke has validated staging broker/database flow.
 
 ## Deliberate boundary
 
@@ -60,8 +69,7 @@ The Compose `raw-worker` is not claimed as closed by this slice. It is a Python 
 
 ## Next gate
 
-1. Publish `ghcr.io/syncratic-inc/signalops-connect-k8s-worker` from this committed source.
-2. Verify the private GHCR pull in `signalops-connect`.
-3. Provision placeholder-only or non-production OpenBao Connect runtime values.
-4. Apply the replicas-zero scaffold in-cluster.
-5. Run one bounded scale-to-one shadow smoke against staging broker/database, then scale back to zero.
+1. Verify the private GHCR pull in `signalops-connect`.
+2. Provision placeholder-only or non-production OpenBao Connect runtime values.
+3. Apply the replicas-zero scaffold in-cluster.
+4. Run one bounded scale-to-one shadow smoke against staging broker/database, then scale back to zero.
