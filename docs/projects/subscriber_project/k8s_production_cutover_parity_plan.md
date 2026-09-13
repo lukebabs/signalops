@@ -230,3 +230,16 @@ proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_202
 pending_service_mesh_ingress_dns_cutover_plan=true
 pending_capacity_load_validation=true
 ```
+
+## Scheduler parity task-retry/warm-EOD slice — 2026-09-13
+
+Status: source-prepared and manifest-verified; live K8S one-shot dry-run evidence follows image publication.
+
+This slice adds K8S-staging representation for two more Admin MarketOps jobs:
+
+- `marketops-task-retry` — dry-run-only handler counts due tactical retries in the dedicated staging MarketOps primary and records scheduler status parity. It does not execute tactical valuation or provider work.
+- `marketops-warm-eod` — dry-run-only handler verifies the warm EOD cohort source in the dedicated staging MarketOps primary and records scheduler status parity. It does not invoke Massive and does not materialize EOD evidence.
+
+The staging CronJobs remain suspended with `concurrencyPolicy: Forbid`, OpenBao runtime injection, GHCR private image pull, and `production-cutover-allowed=false`.
+
+Current parity after this source slice: 8 of 12 Admin MarketOps jobs are represented by both a K8S CronJob and an entrypoint handler. The remaining missing jobs are `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.

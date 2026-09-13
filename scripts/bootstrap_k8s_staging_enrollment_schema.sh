@@ -240,6 +240,20 @@ CREATE TABLE IF NOT EXISTS retention_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_retention_runs_policy_time ON retention_runs (tenant_id, policy_id, started_at DESC);
 
+CREATE TABLE IF NOT EXISTS marketops_task_items (
+  task_id text PRIMARY KEY,
+  tenant_id text NOT NULL,
+  session_date date NOT NULL,
+  symbol text NOT NULL,
+  task_type text NOT NULL,
+  status text NOT NULL CHECK (status IN ('queued','running','retry_scheduled','succeeded','skipped_no_data','blocked_entitlement','deferred_quota','failed_terminal','superseded')),
+  next_attempt_at timestamptz NOT NULL DEFAULT now(),
+  attempt_count integer NOT NULL DEFAULT 0,
+  max_attempts integer NOT NULL DEFAULT 2,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_marketops_task_items_retry_due ON marketops_task_items (tenant_id, session_date, task_type, status, next_attempt_at);
+
 INSERT INTO retention_policies (tenant_id, policy_id, app_id, domain, data_class, retention_days, mode, preservation_rule, description)
 VALUES
   ('tenant-local', 'subscriber.user_activity_180d', 'marketops', 'subscriber_administration', 'user_activity_detail', 180, 'dry_run', 'summarized_activity_before_detail_prune', 'Subscriber user activity detail retention.'),
@@ -259,8 +273,8 @@ VALUES ('k8s_staging_enrollment_schema_bootstrap')
 ON CONFLICT (version) DO NOTHING;
 SQL
 
-table_count="$(kubectl exec -n "$NAMESPACE" "$POD" -- env PGPASSWORD="$password" psql -h 127.0.0.1 -U "$USER" -d "$DB" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename IN ('tenant_user_access','tenant_user_access_audit','subscriber_subscription_products','subscriber_subject_subscriptions','subscriber_tenant_subscriptions','subscriber_subscription_seats','subscriber_subscription_feature_decisions','subscriber_billing_webhook_events','subscriber_subscription_audit_events','subscriber_user_activity_events','retention_policies','retention_runs');")"
-[[ "$table_count" == "12" ]] || fail "expected 12 enrollment/retention tables, found ${table_count}"
+table_count="$(kubectl exec -n "$NAMESPACE" "$POD" -- env PGPASSWORD="$password" psql -h 127.0.0.1 -U "$USER" -d "$DB" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename IN ('tenant_user_access','tenant_user_access_audit','subscriber_subscription_products','subscriber_subject_subscriptions','subscriber_tenant_subscriptions','subscriber_subscription_seats','subscriber_subscription_feature_decisions','subscriber_billing_webhook_events','subscriber_subscription_audit_events','subscriber_user_activity_events','retention_policies','retention_runs','marketops_task_items');")"
+[[ "$table_count" == "13" ]] || fail "expected 13 enrollment/retention/task tables, found ${table_count}"
 
 cat <<EOF
 signalops_k8s_staging_enrollment_schema_bootstrap_verified

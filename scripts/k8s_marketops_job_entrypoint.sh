@@ -174,6 +174,23 @@ case "$job_id" in
       'signalops-retention-governor --tenant-id tenant-local --policy-id subscriber.user_activity_180d; signalops-retention-governor --tenant-id tenant-pilot-b --policy-id subscriber.user_activity_180d; echo marketops_k8s_retention_governance_dry_run_verified'
     )
     ;;
+
+  marketops-task-retry)
+    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-task-retry is K8s-staging dry-run only until production scheduler cutover is approved"
+    command_args=(
+      bash
+      -ec
+      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u -d yesterday +%F 2>/dev/null || date -u +%F)}"; due_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_task_items WHERE tenant_id='tenant-local' AND session_date=DATE '${session_date}' AND task_type='tactical_posture' AND status='retry_scheduled' AND next_attempt_at <= now()")"; echo "marketops_k8s_task_retry_dry_run_verified session=${session_date} due_retries=${due_count}"'
+    )
+    ;;
+  marketops-warm-eod)
+    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-warm-eod is K8s-staging dry-run only until production scheduler cutover is approved"
+    command_args=(
+      bash
+      -ec
+      'warm_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM subscriber_global_warm_eod_assets")"; [[ "$warm_count" =~ ^[0-9]+$ ]] || exit 4; echo "marketops_k8s_warm_eod_dry_run_verified warm_assets=${warm_count}"'
+    )
+    ;;
   *)
     fail "unsupported MarketOps Kubernetes job id: $job_id"
     ;;

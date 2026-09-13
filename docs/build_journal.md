@@ -10079,3 +10079,11 @@ Next-cycle priority:
 - Verified `pgbackrest --stanza=signalops check` succeeded and archived fresh WAL segment `000000010000018700000049`.
 - Established new full shared Postgres backup baseline `20260913-034800F`; pgBackRest reported `full backup size = 94.2GB` and completed successfully.
 - Final archive-health guard reported `status=ok`, image `signalops-postgres-pgbackrest:16`, `archive_mode=on`, pgBackRest available, `wal_size=83.0M`, and `failed_count=0` in `pg_stat_archiver`.
+
+### 2026-09-13 — K8S scheduler parity task-retry/warm-EOD slice prepared
+
+- Added suspended K8S staging CronJob coverage for `marketops-task-retry` and `marketops-warm-eod`.
+- Added dry-run-only entrypoint handlers for both jobs. `marketops-task-retry` counts due tactical retries for the session without invoking the tactical runner; `marketops-warm-eod` verifies the warm EOD cohort table without invoking Massive or publishing provider events.
+- Extended the non-provider dry-run harness allowlist and staging schema bootstrap with a minimal `marketops_task_items` table for retry visibility.
+- Manifest/parity validation now reports 9 suspended CronJobs and 8 of 12 Admin MarketOps jobs fully represented in K8S staging. Remaining parity gaps are `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.
+- Production cutover remains disabled; no provider polling is introduced by this slice.
