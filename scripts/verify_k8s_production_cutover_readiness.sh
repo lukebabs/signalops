@@ -33,6 +33,7 @@ require_file docs/projects/subscriber_project/k8s_mesh1_istio_readiness_2026-09-
 require_file docs/projects/subscriber_project/k8s_mesh2_signalops_staging_route_parity_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_stripe_webhook_route_parity_2026-09-13.md
+require_file docs/projects/subscriber_project/k8s_capacity_load_validation_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s4_signal_connect_shadow_smoke_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_scaffold_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_processing_shadow_2026-09-13.md
@@ -50,6 +51,8 @@ require_executable scripts/verify_k8s_mesh1_istio_readiness.sh
 require_executable scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh
 require_executable scripts/verify_signalops_shared_postgres_archive_health.sh
 require_executable scripts/run_k8s_stripe_webhook_route_parity_smoke.sh
+require_executable scripts/run_k8s_capacity_load_validation_smoke.sh
+require_executable scripts/verify_k8s_capacity_headroom.sh
 
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
 
@@ -130,6 +133,17 @@ else
   shared_postgres_archive_reason="$(tr '\n' ' ' </tmp/signalops-shared-postgres-archive-health.err | sed 's/[[:space:]]\+/ /g' | sed 's/[=,]/_/g')"
 fi
 
+
+capacity_headroom_report="$(scripts/verify_k8s_capacity_headroom.sh 2>/tmp/signalops-k8s-capacity-headroom.err || true)"
+capacity_headroom_status="unknown"
+capacity_headroom_cpu_pct="unknown"
+capacity_headroom_memory_pct="unknown"
+if [[ -n "$capacity_headroom_report" ]]; then
+  capacity_headroom_status="$(printf '%s\n' "$capacity_headroom_report" | awk -F= '$1=="status"{print $2; exit}')"
+  capacity_headroom_cpu_pct="$(printf '%s\n' "$capacity_headroom_report" | awk -F= '$1=="cpu_request_pct"{print $2; exit}')"
+  capacity_headroom_memory_pct="$(printf '%s\n' "$capacity_headroom_report" | awk -F= '$1=="memory_request_pct"{print $2; exit}')"
+fi
+
 cat <<EOF
 signalops_k8s_production_cutover_readiness_report
 production_cutover_allowed=false
@@ -163,6 +177,10 @@ pending_service_mesh_ingress_dns_cutover_plan=false
 proven_service_mesh_ingress_dns_cutover_plan=rollback_plan_verified_2026-09-13
 pending_stripe_webhook_k8s_route_parity=false
 proven_stripe_webhook_k8s_route_parity=synthetic_checkout_completed_2026-09-13
+proven_k8s_route_load_smoke=health_ready_webhook_2026-09-13
+k8s_capacity_headroom_status=${capacity_headroom_status}
+k8s_capacity_headroom_cpu_request_pct=${capacity_headroom_cpu_pct}
+k8s_capacity_headroom_memory_request_pct=${capacity_headroom_memory_pct}
 pending_capacity_load_validation=true
 EOF
 

@@ -37,6 +37,8 @@ mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
 pending_service_mesh_ingress_dns_cutover_plan=false
 pending_stripe_webhook_k8s_route_parity=false
+proven_k8s_route_load_smoke=health_ready_webhook_2026-09-13
+k8s_capacity_headroom_status=blocked
 pending_capacity_load_validation=true
 ```
 
@@ -58,6 +60,7 @@ Use `--strict` only when intentionally checking that final production readiness 
 | Mesh-3 authenticated SignalOps route | `k8s_mesh3_keycloak_staging_route_blocker_2026-09-13.md` | Closed for staging |
 | Mesh-4 ingress/DNS rollback planning | `k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md` | Closed as plan/no traffic moved |
 | Stripe webhook K8S route parity | `k8s_stripe_webhook_route_parity_2026-09-13.md` | Closed with synthetic signed checkout event |
+| K8S route/runtime capacity smoke | `k8s_capacity_load_validation_2026-09-13.md` | Partial: route smoke passed; CPU headroom blocked |
 
 ## Remaining parity gates
 
@@ -192,7 +195,7 @@ Acceptance:
 
 ## Current conclusion
 
-Kubernetes migration is past scaffold-only. It has real staging app, secret, image, data, scheduler, service-mesh, authenticated Keycloak route evidence, Signal-Connect shadow evidence, and raw-worker processing-shadow evidence. Broader MarketOps scheduler parity is complete at the suspended-workload and dry-run evidence level. The next production-readiness targets are capacity/load validation and a separately approved production authority transfer. Ingress/DNS rollback planning and Stripe webhook parity through the K8S route are now closed as non-cutover staging gates.
+Kubernetes migration is past scaffold-only. It has real staging app, secret, image, data, scheduler, service-mesh, authenticated Keycloak route evidence, Signal-Connect shadow evidence, and raw-worker processing-shadow evidence. Broader MarketOps scheduler parity is complete at the suspended-workload and dry-run evidence level. The next production-readiness targets are K3s CPU headroom remediation and a separately approved production authority transfer. Ingress/DNS rollback planning and Stripe webhook parity through the K8S route are now closed as non-cutover staging gates.
 
 Until those gates close, `production_cutover_allowed=false` remains the correct state and Docker Compose/systemd remains the live production authority.
 
@@ -232,6 +235,8 @@ mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
 pending_service_mesh_ingress_dns_cutover_plan=false
 pending_stripe_webhook_k8s_route_parity=false
+proven_k8s_route_load_smoke=health_ready_webhook_2026-09-13
+k8s_capacity_headroom_status=blocked
 pending_capacity_load_validation=true
 ```
 

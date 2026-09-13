@@ -10011,7 +10011,7 @@ Next-cycle priority:
 - Ran `scripts/verify_k8s_production_cutover_readiness.sh`; it passed as a non-cutover report and retained `production_cutover_allowed=false`.
 - Corrected `scripts/verify_k8s_base_scaffold.sh` so base K8S-1 counts exclude intentional staging NetworkPolicies, ConfigMaps, and pods introduced by later K8S-2/K8S-3 gates.
 - Current proven K8S state: base scaffold verified, app manifest guard verified, MarketOps jobs/data manifest guards verified, OpenBao CA trust verified, and backup/restore current as of 2026-09-12.
-- Remaining K8S cutover gates are authenticated Keycloak app parity, broader MarketOps scheduler parity, Signal-Connect ingestion shadow, ingress/DNS rollback proposal, and capacity/load validation.
+- Remaining K8S cutover gates have narrowed to capacity headroom remediation and explicit production authority transfer; earlier parity gates remain documented as closed evidence.
 
 ### 2026-09-12 — Service mesh target accepted for k3s platform
 
@@ -10164,7 +10164,7 @@ Next-cycle priority:
 - Fixed the smoke fixture after the first failed run: `source_adapter=market_data.k8s-smoke` was outside the DSM detector contract, so the worker correctly processed the event without emitting a signal. The fixture now uses governed `source_adapter=market_data.massive` with synthetic-smoke provenance retained in source id, metadata, and evidence.
 - Hardened the staging raw-worker Deployment with `imagePullPolicy: Always` because the mutable `:staging` tag must not be reused from node cache during canaries.
 - Passing evidence: `signalops_k8s_raw_worker_processing_smoke_verified`, run id `raw-worker-smoke-20260913T163832Z`, signal type `marketops.dsm.accumulation`, `messages_processed=1`, `replicas_restored_to_zero=true`, `provider_polling=false`, and `production_cutover_allowed=false`.
-- Production cutover remains disabled; remaining K8S readiness gaps are ingress/DNS rollback planning, Stripe webhook parity through the K8S route, capacity/load validation, and explicit production authority transfer.
+- Production cutover remains disabled; remaining K8S readiness gaps are capacity headroom remediation and explicit production authority transfer.
 
 ### 2026-09-13 — Shared Postgres pgBackRest authority hardening prepared
 
@@ -10198,3 +10198,11 @@ Next-cycle priority:
 - The smoke used the Istio staging route `signalops-staging.syncratic.co`, rejected an invalid Stripe signature, accepted a valid HMAC-signed synthetic `checkout.session.completed` event, and reconciled it through the staging MarketOps subscription checkout ledger.
 - The gate made no Stripe provider call, moved no production DNS or traffic, and scaled staging `signalops-gateway`/`signalops-web` back to zero after evidence capture.
 - The K8S production-readiness verifier now reports `pending_stripe_webhook_k8s_route_parity=false` while keeping `production_cutover_allowed=false` pending capacity/load validation and explicit production authority transfer.
+
+### 2026-09-13 — K8S capacity/load validation partial closure
+
+- Added `scripts/run_k8s_capacity_load_validation_smoke.sh` to run a bounded non-cutover staging load smoke through the Istio route.
+- Passing route/runtime evidence: `/healthz` 120 requests at concurrency 12 with p95 12.52ms; `/readyz` 80 requests at concurrency 8 with p95 10.39ms; synthetic signed Stripe checkout webhook reconciliation 24 requests at concurrency 4 with p95 22.42ms. All phases had 0% errors.
+- Added `scripts/verify_k8s_capacity_headroom.sh` to compute cluster CPU/memory request headroom from live Kubernetes nodes/pods.
+- Current headroom evidence is blocked: single-node K3s has 16,000m allocatable CPU and 17,665m requested CPU (110.41%). The route smoke therefore used staging zero-CPU reservation and does not close production-grade capacity.
+- The K8S production-readiness verifier now records `proven_k8s_route_load_smoke=health_ready_webhook_2026-09-13` while keeping `pending_capacity_load_validation=true` until CPU headroom is remediated.
