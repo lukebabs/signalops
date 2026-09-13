@@ -10058,3 +10058,11 @@ Next-cycle priority:
 - Expanded the staging bootstrap with minimal `subscriber_user_activity_events`, `retention_policies`, and `retention_runs` tables plus dry-run subscriber activity retention policies for `tenant-local` and `tenant-pilot-b`.
 - Updated the one-shot K8s non-provider dry-run harness to accept selected safe job IDs while preserving the original FMP annual default.
 - Live K8s dry-runs passed for `marketops-operations-monitor` and `marketops-retention-governance` with `scheduler_status_parity=verified`, `provider_polling=false`, and `production_cutover_allowed=false`.
+
+### 2026-09-13 — Shared Postgres WAL/pgBackRest drift guard added
+
+- Investigated the `signalops_postgres-data` growth report and confirmed the volume is expected shared SignalOps platform storage, but its current WAL growth is abnormal.
+- Live evidence showed `signalops-postgres-1` running `postgres:16-alpine` while PostgreSQL still had `archive_mode=on` and an archive command that requires `pgbackrest`. Because the live shared container lacks the pgBackRest binary, WAL archival cannot complete and `pg_wal` had grown to roughly 441.4 GB.
+- Added `scripts/verify_signalops_shared_postgres_archive_health.sh` to report shared Postgres archive health without printing credentials.
+- Wired the shared Postgres archive-health result into the K8s production-cutover readiness report so this drift is visible as a production-readiness blocker until remediated.
+- No live archive settings were changed and no WAL files were deleted. The safe remediation path must either restore the shared pgBackRest-capable container/configuration or explicitly disable shared WAL archiving under a named recovery decision.

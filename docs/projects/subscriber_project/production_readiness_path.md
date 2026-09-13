@@ -787,3 +787,12 @@ Production-readiness impact:
 - This accepted gap is no longer a production blocker for the scheduler or Dashboard readiness path.
 - A future historical options reconstruction sprint may be opened if the business later wants contract-level historical reconstruction from per-contract aggregates/open-close/quotes, but that would be a separate data contract and provider-cost decision.
 
+## 2026-09-13 shared platform Postgres WAL/pgBackRest drift
+
+Status: production-readiness blocker until remediated.
+
+The shared `signalops_postgres-data` volume is expected infrastructure because the shared SignalOps database still carries non-MarketOps platform/CyberOps data. It must not be deleted or recreated. The issue is that live shared Postgres was observed running the base `postgres:16-alpine` image while `archive_mode=on` and `archive_command` still required `pgbackrest`. That combination prevents WAL archival and caused the shared `pg_wal` directory to grow to roughly 441.4 GB.
+
+A regression guard now exists: `scripts/verify_signalops_shared_postgres_archive_health.sh`. The production readiness report includes `shared_postgres_archive_health` and `shared_postgres_archive_reason`. Production readiness should treat `archive_command_requires_pgbackrest_but_live_container_lacks_pgbackrest` as blocked until the shared platform database is either restored to a pgBackRest-capable runtime or intentionally moved to a documented non-archiving backup posture.
+
+No remediation should delete WAL files manually. Preferred remediation is to re-run shared Postgres with `compose.pgbackrest.yaml` and valid `/etc/signalops/pgbackrest.conf`, verify `pgbackrest --stanza=signalops check`, then allow PostgreSQL to archive/recycle the backlog naturally.

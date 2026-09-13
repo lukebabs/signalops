@@ -39,6 +39,7 @@ require_executable scripts/verify_k8s_marketops_scheduler_parity_coverage.sh
 require_executable scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh
 require_executable scripts/verify_k8s_mesh1_istio_readiness.sh
 require_executable scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh
+require_executable scripts/verify_signalops_shared_postgres_archive_health.sh
 
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
 
@@ -99,10 +100,23 @@ if ! scripts/verify_keycloak_oidc_discovery_reachability.sh >/dev/null 2>/tmp/si
   keycloak_oidc_status="blocked"
 fi
 
+shared_postgres_archive_health="not_checked"
+shared_postgres_archive_reason="not_checked"
+shared_postgres_archive_report="$(scripts/verify_signalops_shared_postgres_archive_health.sh 2>/tmp/signalops-shared-postgres-archive-health.err || true)"
+if [[ -n "$shared_postgres_archive_report" ]]; then
+  shared_postgres_archive_health="$(printf '%s\n' "$shared_postgres_archive_report" | awk -F= '$1=="status"{print $2; exit}')"
+  shared_postgres_archive_reason="$(printf '%s\n' "$shared_postgres_archive_report" | awk -F= '$1=="reason"{print $2; exit}')"
+else
+  shared_postgres_archive_health="unknown"
+  shared_postgres_archive_reason="$(tr '\n' ' ' </tmp/signalops-shared-postgres-archive-health.err | sed 's/[[:space:]]\+/ /g' | sed 's/[=,]/_/g')"
+fi
+
 cat <<EOF
 signalops_k8s_production_cutover_readiness_report
 production_cutover_allowed=false
 compose_systemd_production_authority=true
+shared_postgres_archive_health=${shared_postgres_archive_health}
+shared_postgres_archive_reason=${shared_postgres_archive_reason}
 k8s_base_scaffold=verified
 k8s_app_manifest_guard=verified
 k8s_marketops_jobs_manifest_guard=verified
