@@ -10149,3 +10149,11 @@ Next-cycle priority:
 - Fixed staging CA trust by mirroring `signalops-openbao-ca` into `signalops-connect` without printing certificate contents.
 - Adjusted Connect staging requests and changed the bounded smoke to sequential worker validation for the current single-node K3s capacity profile.
 - Passing smoke: `signalops_k8s_connect_shadow_smoke_verified`, with `replicas_scaled_to_one=sequential`, `replicas_restored_to_zero=true`, `provider_polling=false`, and `production_cutover_allowed=false`.
+
+### 2026-09-13 — K8S-5 raw-worker scaffold closed
+
+- Added a replicas-zero K3s staging Deployment for the Python `raw-worker` in `signalops-connect`, wired to the internal staging Redpanda broker and standard `kubernetes-staging` normalized/retry/DLQ/signal topics.
+- Added `scripts/verify_k8s_signalops_raw_worker_manifests.sh`, `scripts/publish_k8s_signalops_python_worker_image.sh`, and `scripts/run_k8s_signalops_raw_worker_pull_smoke.sh`.
+- Published `ghcr.io/syncratic-inc/signalops-python-worker:fe1b1d7c01f1` and refreshed `staging`.
+- Pull smoke passed in `signalops-connect`; the raw-worker Deployment was applied and remains dormant at `0/0`.
+- The next gate is a deterministic one-message raw-worker processing shadow; production cutover remains disabled.

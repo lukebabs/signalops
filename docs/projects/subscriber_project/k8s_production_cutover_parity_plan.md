@@ -270,3 +270,8 @@ This closes the source/manifest guard, private GHCR publication, namespace pull 
 ### K8S-4 Signal-Connect shadow smoke closed — 2026-09-13
 
 Signal-Connect ingestion shadow is closed for the two Go Connect workers. A staging-only internal Redpanda broker was applied in `signalops-data`, standard `kubernetes-staging` topics were bootstrapped, non-production Connect runtime values were written through OpenBao with cross-plane denial, and `signalops-connect-persister` plus `signalops-connect-outbox` each completed a bounded sequential scale-to-one smoke before returning to zero replicas. The readiness report now shows `pending_signal_connect_ingestion_shadow=false`. The Python `raw-worker` remains a separate normalized-event worker migration gate; production cutover remains blocked by ingress/DNS rollback planning, Stripe webhook parity through K3s, capacity/load validation, and explicit authority transfer.
+
+
+### K8S-5 raw-worker scaffold — 2026-09-13
+
+The Python `raw-worker` migration has started as a separate gate from the Go Signal-Connect workers. The staging Deployment `signalops-raw-worker` is applied in `signalops-connect` with `replicas=0`, private GHCR image `ghcr.io/syncratic-inc/signalops-python-worker:staging`, the staging Redpanda broker endpoint, bounded `SIGNALOPS_WORKER_MAX_MESSAGES=1`, and `production-cutover-allowed=false`. Image publication and pull smoke are verified. The next gate is a deterministic one-message processing shadow that seeds a valid normalized event, scales the worker to one, verifies output/retry/DLQ behavior, and returns replicas to zero.

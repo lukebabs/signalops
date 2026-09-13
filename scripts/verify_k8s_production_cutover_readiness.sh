@@ -32,6 +32,7 @@ require_file docs/projects/subscriber_project/k8s_production_cutover_parity_plan
 require_file docs/projects/subscriber_project/k8s_mesh1_istio_readiness_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_mesh2_signalops_staging_route_parity_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s4_signal_connect_shadow_smoke_2026-09-13.md
+require_file docs/projects/subscriber_project/k8s5_raw_worker_scaffold_2026-09-13.md
 
 require_executable scripts/verify_k8s_base_scaffold.sh
 require_executable scripts/verify_k8s_staging_app_manifests.sh
@@ -40,6 +41,7 @@ require_executable scripts/verify_k8s_marketops_scheduler_parity_coverage.sh
 require_executable scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh
 require_executable scripts/verify_k8s_signalops_connect_staging_manifests.sh
 require_executable scripts/verify_k8s_signalops_connect_broker_manifests.sh
+require_executable scripts/verify_k8s_signalops_raw_worker_manifests.sh
 require_executable scripts/verify_k8s_mesh1_istio_readiness.sh
 require_executable scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh
 require_executable scripts/verify_signalops_shared_postgres_archive_health.sh
@@ -52,6 +54,7 @@ marketops_jobs_render="$(kubectl kustomize deploy/kubernetes/staging/marketops-j
 marketops_data_render="$(kubectl kustomize deploy/kubernetes/staging/marketops-data)"
 connect_render="$(kubectl kustomize deploy/kubernetes/staging/connect)"
 connect_broker_render="$(kubectl kustomize deploy/kubernetes/staging/connect-broker)"
+raw_worker_render="$(kubectl kustomize deploy/kubernetes/staging/raw-worker)"
 
 count_kind() {
   local rendered="$1"
@@ -65,9 +68,11 @@ count_kind() {
 [[ "$(count_kind "$marketops_data_render" Ingress)" -eq 0 ]] || fail "staging MarketOps data manifests must not define Ingress"
 [[ "$(count_kind "$connect_broker_render" Ingress)" -eq 0 ]] || fail "staging Connect broker manifests must not define Ingress"
 [[ "$(count_kind "$connect_broker_render" Service)" -eq 1 ]] || fail "staging Connect broker must define exactly one internal Service"
+[[ "$(count_kind "$raw_worker_render" Ingress)" -eq 0 ]] || fail "staging raw-worker manifests must not define Ingress"
+[[ "$(count_kind "$raw_worker_render" Service)" -eq 0 ]] || fail "staging raw-worker manifests must not define Service"
 grep -q "type: ClusterIP" <<<"$connect_broker_render" || fail "staging Connect broker Service must remain ClusterIP"
 
-for rendered_name in app_render marketops_jobs_render marketops_data_render connect_render connect_broker_render; do
+for rendered_name in app_render marketops_jobs_render marketops_data_render connect_render connect_broker_render raw_worker_render; do
   rendered="${!rendered_name}"
   grep -q 'production-cutover-allowed: "false"' <<<"$rendered" || fail "${rendered_name} missing production-cutover-allowed=false guard"
 done
@@ -100,6 +105,7 @@ fi
 scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh >/dev/null
 scripts/verify_k8s_signalops_connect_staging_manifests.sh >/dev/null
 scripts/verify_k8s_signalops_connect_broker_manifests.sh >/dev/null
+scripts/verify_k8s_signalops_raw_worker_manifests.sh >/dev/null
 scripts/verify_k8s_mesh1_istio_readiness.sh >/dev/null
 scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh >/dev/null
 keycloak_oidc_status="verified"
@@ -142,6 +148,8 @@ k8s_marketops_scheduler_missing_cronjob=${scheduler_parity_missing_cronjob}
 k8s_marketops_scheduler_missing_entrypoint=${scheduler_parity_missing_entrypoint}
 pending_signal_connect_ingestion_shadow=false
 proven_signal_connect_ingestion_shadow=sequential_openbao_broker_db_2026-09-13
+k8s_raw_worker_scaffold=verified
+pending_raw_worker_processing_shadow=true
 mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
 pending_service_mesh_ingress_dns_cutover_plan=true
