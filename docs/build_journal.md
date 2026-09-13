@@ -10087,3 +10087,11 @@ Next-cycle priority:
 - Extended the non-provider dry-run harness allowlist and staging schema bootstrap with a minimal `marketops_task_items` table for retry visibility.
 - Manifest/parity validation now reports 9 suspended CronJobs and 8 of 12 Admin MarketOps jobs fully represented in K8S staging. Remaining parity gaps are `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.
 - Production cutover remains disabled; no provider polling is introduced by this slice.
+
+### 2026-09-13 — K8S scheduler parity task-retry/warm-EOD image published
+
+- Committed and pushed `258aaa2` for K8S task-retry/warm-EOD scheduler parity.
+- Published `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:258aaa2f42cc` and refreshed the `staging` tag.
+- Build-time `go test ./...` passed during image build.
+- Live one-shot K8S dry-run execution is pending because `/etc/signalops/openbao-signalops-marketops-staging-runtime.env` is missing or unreadable to the current shell and the installed root-owned deployment agent does not yet expose `k8s-marketops-non-provider-dry-run`.
+- Next operator step: reprovision the deployment agent from current source or recreate the approved protected MarketOps staging runtime env file, then run one dry-run each for `marketops-task-retry` and `marketops-warm-eod`.

@@ -243,3 +243,9 @@ This slice adds K8S-staging representation for two more Admin MarketOps jobs:
 The staging CronJobs remain suspended with `concurrencyPolicy: Forbid`, OpenBao runtime injection, GHCR private image pull, and `production-cutover-allowed=false`.
 
 Current parity after this source slice: 8 of 12 Admin MarketOps jobs are represented by both a K8S CronJob and an entrypoint handler. The remaining missing jobs are `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.
+
+### Task-retry/warm-EOD live dry-run evidence status
+
+The source and image portions of this slice are complete: commit `258aaa2` is pushed and the private GHCR job-runner image is published as `258aaa2f42cc` plus `staging`. Manifest and readiness reports show the scheduler parity gap reduced to four jobs.
+
+Live one-shot K8S dry-run evidence for `marketops-task-retry` and `marketops-warm-eod` remains pending because the approved protected runtime file `/etc/signalops/openbao-signalops-marketops-staging-runtime.env` is not readable/available to the current shell, and the installed deployment-agent action list is behind source. This is an execution-control gap, not a source-manifest gap.
