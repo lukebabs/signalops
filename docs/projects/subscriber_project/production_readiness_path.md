@@ -796,3 +796,9 @@ The shared `signalops_postgres-data` volume is expected infrastructure because t
 A regression guard now exists: `scripts/verify_signalops_shared_postgres_archive_health.sh`. The production readiness report includes `shared_postgres_archive_health` and `shared_postgres_archive_reason`. Production readiness should treat `archive_command_requires_pgbackrest_but_live_container_lacks_pgbackrest` as blocked until the shared platform database is either restored to a pgBackRest-capable runtime or intentionally moved to a documented non-archiving backup posture.
 
 No remediation should delete WAL files manually. Preferred remediation is to re-run shared Postgres with `compose.pgbackrest.yaml` and valid `/etc/signalops/pgbackrest.conf`, verify `pgbackrest --stanza=signalops check`, then allow PostgreSQL to archive/recycle the backlog naturally.
+
+### Shared platform Postgres WAL reclaim closure — 2026-09-13
+
+The approved fast reclaim procedure is complete. The shared platform Postgres volume was preserved, the live container was restored to the pgBackRest-capable image, the historical WAL backlog was intentionally invalidated under named approval, and a new full baseline backup was established. Final evidence showed `pg_wal=83.0M`, `pgbackrest_available=true`, `archive_mode=on`, no `pg_stat_archiver` failures, and full backup label `20260913-034800F`.
+
+Operational implication: shared Postgres recovery before `20260913-034800F` should not be treated as PITR-continuous. Recovery after the new baseline is valid subject to normal pgBackRest/WAL archival monitoring.

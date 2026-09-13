@@ -10066,3 +10066,16 @@ Next-cycle priority:
 - Added `scripts/verify_signalops_shared_postgres_archive_health.sh` to report shared Postgres archive health without printing credentials.
 - Wired the shared Postgres archive-health result into the K8s production-cutover readiness report so this drift is visible as a production-readiness blocker until remediated.
 - No live archive settings were changed and no WAL files were deleted. The safe remediation path must either restore the shared pgBackRest-capable container/configuration or explicitly disable shared WAL archiving under a named recovery decision.
+
+### 2026-09-13 — Shared Postgres fast WAL reclaim completed
+
+- Executed the explicitly approved fast shared Postgres WAL reclaim procedure.
+- Preserved the `signalops_postgres-data` Docker volume and did not manually delete PostgreSQL WAL files.
+- Recreated only `signalops-postgres-1` with the pgBackRest-capable `signalops-postgres-pgbackrest:16` image.
+- Temporarily set `archive_command=/bin/true` to mark the old historical WAL backlog as no longer required, accepting the approved break in historical shared Postgres PITR continuity before the new baseline.
+- Checkpoint reclaimed the backlog: `pg_wal` dropped from roughly `435.9G` with `27,489+` ready files to `83.0M` and 6 WAL files.
+- Restored `archive_command=pgbackrest --stanza=signalops archive-push %p`.
+- Cleared only stale pgBackRest async spool metadata under `/var/spool/pgbackrest/archive/signalops/out`; no database volume or WAL files were deleted manually.
+- Verified `pgbackrest --stanza=signalops check` succeeded and archived fresh WAL segment `000000010000018700000049`.
+- Established new full shared Postgres backup baseline `20260913-034800F`; pgBackRest reported `full backup size = 94.2GB` and completed successfully.
+- Final archive-health guard reported `status=ok`, image `signalops-postgres-pgbackrest:16`, `archive_mode=on`, pgBackRest available, `wal_size=83.0M`, and `failed_count=0` in `pg_stat_archiver`.
