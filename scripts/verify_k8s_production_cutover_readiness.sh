@@ -30,12 +30,14 @@ require_file docs/projects/subscriber_project/k8s3_provider_cronjob_smoke_2026-0
 require_file docs/projects/subscriber_project/pr3_backup_restore_refresh_evidence_2026-09-12.md
 require_file docs/projects/subscriber_project/k8s_production_cutover_parity_plan.md
 require_file docs/projects/subscriber_project/k8s_mesh1_istio_readiness_2026-09-13.md
+require_file docs/projects/subscriber_project/k8s_mesh2_signalops_staging_route_parity_2026-09-13.md
 
 require_executable scripts/verify_k8s_base_scaffold.sh
 require_executable scripts/verify_k8s_staging_app_manifests.sh
 require_executable scripts/verify_k8s_marketops_scheduled_jobs_manifests.sh
 require_executable scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh
 require_executable scripts/verify_k8s_mesh1_istio_readiness.sh
+require_executable scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh
 
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
 
@@ -86,6 +88,7 @@ scripts/verify_k8s_staging_app_manifests.sh >/dev/null
 scripts/verify_k8s_marketops_scheduled_jobs_manifests.sh >/dev/null
 scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh >/dev/null
 scripts/verify_k8s_mesh1_istio_readiness.sh >/dev/null
+scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh >/dev/null
 
 cat <<EOF
 signalops_k8s_production_cutover_readiness_report
@@ -100,10 +103,11 @@ backup_restore_current=verified_2026-09-12
 proven_app_parity=port_forward_unauthenticated
 proven_scheduler_parity=no_provider_and_one_provider_fmp_smoke
 pending_authenticated_keycloak_k8s_parity=true
+pending_authenticated_keycloak_mesh_route_parity=true
 pending_broader_marketops_scheduler_parity=true
 pending_signal_connect_ingestion_shadow=true
 mesh1_istio_control_plane=verified_2026-09-13
-pending_service_mesh_signalops_route_parity=true
+proven_service_mesh_signalops_route_parity=unauthenticated_playwright_2026-09-13
 pending_service_mesh_ingress_dns_cutover_plan=true
 pending_capacity_load_validation=true
 EOF

@@ -94,6 +94,8 @@ Acceptance:
 - mTLS mode is recorded;
 - production cutover remains false.
 
+Status: partially closed on 2026-09-13 for unauthenticated HTTP route parity. See [Mesh-2 SignalOps staging route parity](k8s_mesh2_signalops_staging_route_parity_2026-09-13.md). Authenticated Keycloak parity remains pending.
+
 ### Mesh-3 — MarketOps and Signal-Connect shadow parity
 
 Acceptance:

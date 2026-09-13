@@ -1,3 +1,12 @@
+### 2026-09-13 — Mesh-2 SignalOps staging route parity closed
+
+- Added a staging-only Istio HTTPRoute overlay for `signalops-staging.syncratic.co` under `deploy/kubernetes/staging/mesh-route`. The route attaches only to the existing `istio-system/public-ingress` HTTP listener and routes `/v1`, `/auth`, `/healthz`, and `/readyz` to `signalops-gateway`, with `/` routed to `signalops-web`.
+- Added a narrow `signalops-app` NetworkPolicy that admits port `8080` traffic only from the Istio public gateway pod selector. Added the namespace label required by the existing Gateway allowed-routes selector; no Istio injection or ambient dataplane label was added.
+- Added `scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh`, `scripts/run_k8s_mesh2_signalops_staging_route_smoke.sh`, and `python/tests/test_k8s_mesh2_signalops_staging_route.py`.
+- The manifest verifier passed with zero Ingress, Gateway, Secret, Service, Deployment, CronJob, or Job resources in the route overlay and `production_cutover_allowed=false`.
+- The live smoke applied the staging app and route overlays, scaled `signalops-web` and `signalops-gateway` to one replica, verified HTTPRoute acceptance/reference resolution, port-forwarded the Istio gateway, mapped the staging hostname to localhost in Chromium, and passed Playwright browser checks for the SPA shell, Dashboard route, `/healthz`, and `/readyz`.
+- Cleanup scaled staging web/gateway back to zero. The route and NetworkPolicy remain as inert staging infrastructure; no production DNS or traffic moved.
+
 ### 2026-09-13 — Mesh-1 Istio readiness captured
 
 - Recorded that Istio is now installed and ready enough for the next SignalOps Kubernetes staging-route gate: `istio-base` and `istiod` are deployed, Istio CRDs are present, `GatewayClass/istio` is accepted, and `istio-system/public-ingress` is programmed at `192.168.2.233`.

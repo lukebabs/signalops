@@ -116,6 +116,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [N1 closure evidence — 2026-08-19](n1_closure_evidence_2026-08-19.md): deployment-agent/Admin run-now closure, activation-queue reconciliation, and pgBackRest recovery-control re-anchor verification.
 - [PR-3 backup/restore refresh evidence — 2026-09-12](pr3_backup_restore_refresh_evidence_2026-09-12.md): fresh constrained backup, isolated restore rehearsal, operations-monitor pass, and scheduler status evidence for the dedicated MarketOps data boundary.
 - [Mesh-1 Istio readiness evidence — 2026-09-13](k8s_mesh1_istio_readiness_2026-09-13.md): Istio base/istiod, CRDs, accepted GatewayClass, programmed Gateway, and no SignalOps namespace mesh enrollment.
+- [Mesh-2 SignalOps staging route parity — 2026-09-13](k8s_mesh2_signalops_staging_route_parity_2026-09-13.md): staging-only HTTPRoute through Istio, narrow ingress policy, Playwright route smoke, and scaled-back app pods.
 - [MarketOps scheduled-job status database migration — 2026-08-19](marketops_scheduled_job_status_database_2026-08-19.md): DB-backed scheduler-status source of truth, fallback boundary, and live verification.
 - [Production readiness path](production_readiness_path.md): current readiness snapshot, production blockers, P0/P1/P2 gates, and the secure sprint path to production.
 - [September 2026 outage reconciliation closure](outage_reconciliation_closure_2026-09-12.md): closure evidence for the September outage recovery, accepted options-chain provider-evidence gap, and operator verification query.
