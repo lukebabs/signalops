@@ -158,6 +158,39 @@ case "$job_id" in
       --correlation-id "${MARKETOPS_SAF_BENCHMARK_CORRELATION_ID:-k8s-staging-cronjob}"
     )
     ;;
+
+  marketops-daily-postclose)
+    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-daily-postclose requires a separately approved production K8s scheduler cutover"
+    command_args=(
+      bash
+      -ec
+      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"; counts="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT (SELECT count(*) FROM marketops_scheduled_job_statuses) || chr(124) || (SELECT count(*) FROM subscriber_global_warm_eod_assets)")"; echo "marketops_k8s_daily_postclose_dry_run_verified session=${session_date} status_and_warm_counts=${counts}"'
+    )
+    ;;
+  marketops-postclose-recovery)
+    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-postclose-recovery requires a separately approved production K8s scheduler cutover"
+    command_args=(
+      bash
+      -ec
+      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"; latest="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT COALESCE(max(completed_at)::text,\$none\$none\$none\$) FROM marketops_scheduled_job_runs WHERE job_id IN (\$daily\$marketops-daily-postclose\$daily\$,\$risk\$marketops-risk-reward\$risk\$)")"; echo "marketops_k8s_postclose_recovery_dry_run_verified session=${session_date} latest_dependency_completion=${latest}"'
+    )
+    ;;
+  marketops-risk-reward)
+    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-risk-reward requires a separately approved production K8s scheduler cutover"
+    command_args=(
+      bash
+      -ec
+      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"; snapshot_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT COALESCE(count(*),0) FROM marketops_scheduled_job_statuses")"; echo "marketops_k8s_risk_reward_dry_run_verified session=${session_date} status_rows=${snapshot_count}"'
+    )
+    ;;
+  marketops-fmp-continuation)
+    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-fmp-continuation requires a separately approved production K8s scheduler cutover"
+    command_args=(
+      bash
+      -ec
+      'workflow_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_scheduled_job_runs WHERE job_id=\$job\$marketops-fmp-annual-financial\$job\$")"; echo "marketops_k8s_fmp_continuation_dry_run_verified annual_workflow_rows=${workflow_count}"'
+    )
+    ;;
   marketops-operations-monitor)
     [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-operations-monitor is K8s-staging dry-run only until production scheduler cutover is approved"
     command_args=(

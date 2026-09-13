@@ -29,7 +29,7 @@ set +a
 [[ "${SIGNALOPS_K8S_MARKETOPS_DRY_RUN_APPROVED:-}" == "true" ]] || fail "set SIGNALOPS_K8S_MARKETOPS_DRY_RUN_APPROVED=true in the runtime env file"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9._:-]+$ ]] || fail "run id contains unsupported characters"
 case "$DRY_RUN_JOB_ID" in
-  marketops-fmp-annual-financial|marketops-operations-monitor|marketops-retention-governance|marketops-task-retry|marketops-warm-eod) ;;
+  marketops-daily-postclose|marketops-fmp-annual-financial|marketops-fmp-continuation|marketops-operations-monitor|marketops-postclose-recovery|marketops-retention-governance|marketops-risk-reward|marketops-task-retry|marketops-warm-eod) ;;
   *) fail "unsupported non-provider dry-run job id: ${DRY_RUN_JOB_ID}" ;;
 esac
 

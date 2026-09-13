@@ -26,23 +26,21 @@ services="$(count_kind Service)"
 deployments="$(count_kind Deployment)"
 statefulsets="$(count_kind StatefulSet)"
 
-[[ "$cronjobs" -eq 9 ]] || fail "expected 9 CronJobs, found ${cronjobs}"
+[[ "$cronjobs" -eq 13 ]] || fail "expected 13 CronJobs, found ${cronjobs}"
 [[ "$networkpolicies" -eq 1 ]] || fail "expected 1 NetworkPolicy, found ${networkpolicies}"
 [[ "$secrets" -eq 0 ]] || fail "expected 0 Kubernetes Secrets, found ${secrets}"
 [[ "$services" -eq 0 ]] || fail "expected 0 Services, found ${services}"
 [[ "$deployments" -eq 0 ]] || fail "expected 0 Deployments, found ${deployments}"
 [[ "$statefulsets" -eq 0 ]] || fail "expected 0 StatefulSets, found ${statefulsets}"
 
-for job in marketops-intraday marketops-sri-refresh marketops-sri-holdings-refresh marketops-fmp-annual-financial marketops-saf-benchmark marketops-operations-monitor marketops-retention-governance marketops-task-retry marketops-warm-eod; do
+for job in marketops-intraday marketops-warm-eod marketops-daily-postclose marketops-sri-refresh marketops-sri-holdings-refresh marketops-fmp-continuation marketops-fmp-annual-financial marketops-task-retry marketops-postclose-recovery marketops-risk-reward marketops-operations-monitor marketops-retention-governance marketops-saf-benchmark; do
   grep -q "name: ${job}" <<<"$rendered" || fail "CronJob ${job} missing"
   grep -q "signalops.syncratic.io/job-id: ${job}" <<<"$rendered" || fail "job-id label missing for ${job}"
   grep -q -- "- ${job}" <<<"$rendered" || fail "entrypoint arg missing for ${job}"
 done
 
-[[ "$(printf '%s
-' "$rendered" | grep -c 'suspend: true')" -eq 9 ]] || fail "all CronJobs must be suspended in staging scaffold"
-[[ "$(printf '%s
-' "$rendered" | grep -c 'concurrencyPolicy: Forbid')" -eq 9 ]] || fail "all CronJobs must forbid concurrency"
+[[ "$(grep -c 'suspend: true' <<<"$rendered")" -eq 13 ]] || fail "all CronJobs must be suspended in staging scaffold"
+[[ "$(grep -c 'concurrencyPolicy: Forbid' <<<"$rendered")" -eq 13 ]] || fail "all CronJobs must forbid concurrency"
 grep -q 'timeZone: America/New_York' <<<"$rendered" || fail "timezone policy missing"
 grep -q 'signalops/data/k8s/marketops/marketops-worker-runtime-staging' <<<"$rendered" || fail "OpenBao marketops worker runtime path missing"
 grep -q 'vault.hashicorp.com/role: signalops-marketops' <<<"$rendered" || fail "OpenBao marketops role missing"
@@ -61,6 +59,7 @@ kubectl apply -k "$manifest_dir" --dry-run=server >/dev/null
 cat <<EOF
 signalops_k8s_marketops_scheduled_jobs_manifests_verified
 cronjobs=${cronjobs}
+admin_scheduler_parity=complete
 networkpolicies=${networkpolicies}
 secrets=${secrets}
 services=${services}

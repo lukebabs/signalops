@@ -61,29 +61,22 @@ count_kind() {
 
 for rendered_name in app_render marketops_jobs_render marketops_data_render; do
   rendered="${!rendered_name}"
-  printf '%s
-' "$rendered" | grep -q 'production-cutover-allowed: "false"' || fail "${rendered_name} missing production-cutover-allowed=false guard"
+  grep -q 'production-cutover-allowed: "false"' <<<"$rendered" || fail "${rendered_name} missing production-cutover-allowed=false guard"
 done
 
-if printf '%s
-%s
-%s
-' "$app_render" "$marketops_jobs_render" "$marketops_data_render" | grep -q 'vault.hashicorp.com/tls-skip-verify'; then
+combined_render="${app_render}
+${marketops_jobs_render}
+${marketops_data_render}"
+if grep -q 'vault.hashicorp.com/tls-skip-verify' <<<"$combined_render"; then
   fail "K8S manifests must not use OpenBao tls-skip-verify"
 fi
 
-printf '%s
-' "$app_render" | grep -q 'signalops/data/k8s/app/signalops-gateway-runtime-staging' || fail "app OpenBao staging runtime path missing"
-printf '%s
-' "$marketops_jobs_render" | grep -q 'signalops/data/k8s/marketops/marketops-worker-runtime-staging' || fail "MarketOps OpenBao staging runtime path missing"
-printf '%s
-' "$app_render" | grep -q 'SIGNALOPS_DATABASE_MAX_OPEN_CONNS' || fail "gateway shared DB pool cap missing"
-printf '%s
-' "$app_render" | grep -q 'SIGNALOPS_MARKETOPS_DATABASE_MAX_OPEN_CONNS' || fail "gateway MarketOps DB pool cap missing"
-printf '%s
-' "$marketops_jobs_render" | grep -q 'concurrencyPolicy: Forbid' || fail "MarketOps CronJob concurrencyPolicy guard missing"
-printf '%s
-' "$marketops_jobs_render" | grep -q 'suspend: true' || fail "MarketOps staged CronJobs must remain suspended before cutover"
+grep -q 'signalops/data/k8s/app/signalops-gateway-runtime-staging' <<<"$app_render" || fail "app OpenBao staging runtime path missing"
+grep -q 'signalops/data/k8s/marketops/marketops-worker-runtime-staging' <<<"$marketops_jobs_render" || fail "MarketOps OpenBao staging runtime path missing"
+grep -q 'SIGNALOPS_DATABASE_MAX_OPEN_CONNS' <<<"$app_render" || fail "gateway shared DB pool cap missing"
+grep -q 'SIGNALOPS_MARKETOPS_DATABASE_MAX_OPEN_CONNS' <<<"$app_render" || fail "gateway MarketOps DB pool cap missing"
+grep -q 'concurrencyPolicy: Forbid' <<<"$marketops_jobs_render" || fail "MarketOps CronJob concurrencyPolicy guard missing"
+grep -q 'suspend: true' <<<"$marketops_jobs_render" || fail "MarketOps staged CronJobs must remain suspended before cutover"
 
 scripts/verify_k8s_base_scaffold.sh >/dev/null
 scripts/verify_k8s_staging_app_manifests.sh >/dev/null
