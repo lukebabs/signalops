@@ -10042,3 +10042,10 @@ Next-cycle priority:
 - Added a dedicated app runtime env generator and minimal staging enrollment-schema bootstrap so the authenticated smoke uses the dedicated MarketOps staging database through OpenBao rather than the older runtime-smoke database.
 - Passing evidence: `signalops_k8s_mesh3_keycloak_route_smoke_verified`, `authenticated_keycloak_redirect=true`, `provider_polling=false`, `production_cutover_allowed=false`, `scaled_back_to_zero=true`; Playwright reported `1 passed`.
 - A diagnostic command exposed part of a non-production staging primary DB URL; the staging primary DB password was immediately rotated, the K8S secret updated, OpenBao runtime refreshed, and the gateway restarted before final validation. No production database credential was involved.
+
+### 2026-09-13 — K8S scheduler parity coverage report added
+
+- Added `scripts/verify_k8s_marketops_scheduler_parity_coverage.sh` to compare the production Admin MarketOps scheduler catalog with staged Kubernetes CronJobs and the Kubernetes job-runner entrypoint.
+- Current result is `status=partial`: K8s fully represents `marketops-intraday`, `marketops-sri-refresh`, `marketops-sri-holdings-refresh`, and `marketops-fmp-annual-financial`; `marketops-saf-benchmark` exists as an extra analytical CronJob outside the Admin scheduler catalog.
+- Missing K8s CronJob and entrypoint coverage remains for `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-operations-monitor`, `marketops-postclose-recovery`, `marketops-retention-governance`, `marketops-risk-reward`, `marketops-task-retry`, and `marketops-warm-eod`.
+- Production readiness now surfaces this explicit partial scheduler-parity state while preserving `production_cutover_allowed=false`.

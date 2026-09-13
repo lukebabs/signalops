@@ -35,6 +35,7 @@ require_file docs/projects/subscriber_project/k8s_mesh2_signalops_staging_route_
 require_executable scripts/verify_k8s_base_scaffold.sh
 require_executable scripts/verify_k8s_staging_app_manifests.sh
 require_executable scripts/verify_k8s_marketops_scheduled_jobs_manifests.sh
+require_executable scripts/verify_k8s_marketops_scheduler_parity_coverage.sh
 require_executable scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh
 require_executable scripts/verify_k8s_mesh1_istio_readiness.sh
 require_executable scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh
@@ -86,6 +87,10 @@ printf '%s
 scripts/verify_k8s_base_scaffold.sh >/dev/null
 scripts/verify_k8s_staging_app_manifests.sh >/dev/null
 scripts/verify_k8s_marketops_scheduled_jobs_manifests.sh >/dev/null
+scheduler_parity_report="$(scripts/verify_k8s_marketops_scheduler_parity_coverage.sh)"
+scheduler_parity_status="$(printf '%s\n' "$scheduler_parity_report" | awk -F= '$1=="status"{print $2; exit}')"
+scheduler_parity_missing_cronjob="$(printf '%s\n' "$scheduler_parity_report" | awk -F= '$1=="missing_cronjob"{print $2; exit}')"
+scheduler_parity_missing_entrypoint="$(printf '%s\n' "$scheduler_parity_report" | awk -F= '$1=="missing_entrypoint"{print $2; exit}')"
 scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh >/dev/null
 scripts/verify_k8s_mesh1_istio_readiness.sh >/dev/null
 scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh >/dev/null
@@ -110,6 +115,9 @@ pending_authenticated_keycloak_k8s_parity=false
 pending_authenticated_keycloak_mesh_route_parity=false
 keycloak_oidc_discovery_reachability=$keycloak_oidc_status
 pending_broader_marketops_scheduler_parity=true
+k8s_marketops_scheduler_parity_coverage=${scheduler_parity_status}
+k8s_marketops_scheduler_missing_cronjob=${scheduler_parity_missing_cronjob}
+k8s_marketops_scheduler_missing_entrypoint=${scheduler_parity_missing_entrypoint}
 pending_signal_connect_ingestion_shadow=true
 mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13

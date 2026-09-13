@@ -31,6 +31,7 @@ pending_authenticated_keycloak_k8s_parity=false
 pending_authenticated_keycloak_mesh_route_parity=false
 keycloak_oidc_discovery_reachability=verified
 pending_broader_marketops_scheduler_parity=true
+k8s_marketops_scheduler_parity_coverage=partial
 pending_signal_connect_ingestion_shadow=true
 mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
@@ -84,6 +85,34 @@ Acceptance:
 - every CronJob keeps `concurrencyPolicy: Forbid`, explicit deadline/history limits, and bounded retry posture;
 - provider-enabled tests require named approval and one-job/no-retry constraints until production cutover is approved;
 - Docker/systemd remains authoritative until the full scheduler parity report is accepted.
+
+
+### Scheduler parity coverage report — 2026-09-13
+
+A source-controlled parity verifier now compares the production Admin scheduler catalog with the staged Kubernetes CronJob catalog and the Kubernetes job-runner entrypoint. Current result:
+
+```text
+signalops_k8s_marketops_scheduler_parity_coverage_report
+status=partial
+admin_marketops_jobs=12
+k8s_cronjobs=5
+k8s_entrypoint_jobs=5
+fully_represented=marketops-fmp-annual-financial,marketops-intraday,marketops-sri-holdings-refresh,marketops-sri-refresh
+missing_cronjob=marketops-daily-postclose,marketops-fmp-continuation,marketops-operations-monitor,marketops-postclose-recovery,marketops-retention-governance,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
+missing_entrypoint=marketops-daily-postclose,marketops-fmp-continuation,marketops-operations-monitor,marketops-postclose-recovery,marketops-retention-governance,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
+extra_cronjob=marketops-saf-benchmark
+provider_polling=false
+production_cutover_allowed=false
+```
+
+Recommended porting order:
+
+1. `marketops-operations-monitor` and `marketops-retention-governance`, because they are operational/non-provider and prove control-plane hygiene.
+2. `marketops-task-retry`, `marketops-postclose-recovery`, and `marketops-risk-reward`, because they close the post-close recovery/completion loop without introducing a broad provider surface.
+3. `marketops-warm-eod` and `marketops-daily-postclose`, because they are the production-critical EOD pipelines and require the most careful provider/data-boundary validation.
+4. `marketops-fmp-continuation`, because it is a weekend/continuation workflow that should be validated after the base EOD loop is proven.
+
+The verifier is intentionally non-cutover and makes the gap explicit instead of treating the existing five staged CronJobs as full production scheduler parity.
 
 ### Gate C — Signal-Connect ingestion shadow
 
@@ -158,6 +187,7 @@ pending_authenticated_keycloak_k8s_parity=false
 pending_authenticated_keycloak_mesh_route_parity=false
 keycloak_oidc_discovery_reachability=verified
 pending_broader_marketops_scheduler_parity=true
+k8s_marketops_scheduler_parity_coverage=partial
 pending_signal_connect_ingestion_shadow=true
 mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
