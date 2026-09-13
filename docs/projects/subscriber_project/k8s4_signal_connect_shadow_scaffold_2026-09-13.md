@@ -1,6 +1,6 @@
 # K8S-4 Signal-Connect shadow scaffold — 2026-09-13
 
-Status: source-ready, manifest-verified, and private GHCR image-published. No production traffic has moved and no Signal-Connect consumer has been scaled above zero.
+Status: source-ready, manifest-verified, private GHCR image-published, pull-smoked, and applied dormant in-cluster. No production traffic has moved and no Signal-Connect consumer has been scaled above zero.
 
 ## Outcome
 
@@ -53,6 +53,35 @@ staging_tag=staging
 manifest_config_digest=sha256:e223fa7fa2c189c26080d4fd34eb64d2a1a3a72baba6987c90c057eba876e294
 ```
 
+Private GHCR pull from the `signalops-connect` namespace was verified with a temporary echo pod:
+
+```text
+signalops_k8s_connect_worker_pull_smoke_verified
+namespace=signalops-connect
+registry=ghcr.io
+image=ghcr.io/syncratic-inc/signalops-connect-k8s-worker:staging
+secret=signalops-ghcr-pull
+pod_succeeded=true
+worker_executed=false
+provider_polling=false
+production_cutover_allowed=false
+```
+
+The replicas-zero scaffold was then applied in-cluster:
+
+```text
+deployment.apps/signalops-connect-outbox created
+deployment.apps/signalops-connect-persister created
+networkpolicy.networking.k8s.io/allow-connect-openbao-egress created
+```
+
+Cluster state after apply:
+
+```text
+signalops-connect-outbox      0/0
+signalops-connect-persister   0/0
+```
+
 The broader non-cutover readiness report now includes:
 
 ```text
@@ -61,7 +90,7 @@ pending_signal_connect_ingestion_shadow=true
 production_cutover_allowed=false
 ```
 
-`pending_signal_connect_ingestion_shadow` remains true because the image has not yet been pull-smoked from the `signalops-connect` namespace, the workloads have not yet been applied in-cluster, and no bounded scale-to-one shadow smoke has validated staging broker/database flow.
+`pending_signal_connect_ingestion_shadow` remains true because no bounded scale-to-one shadow smoke has validated staging broker/database flow.
 
 ## Deliberate boundary
 
@@ -69,7 +98,5 @@ The Compose `raw-worker` is not claimed as closed by this slice. It is a Python 
 
 ## Next gate
 
-1. Verify the private GHCR pull in `signalops-connect`.
-2. Provision placeholder-only or non-production OpenBao Connect runtime values.
-3. Apply the replicas-zero scaffold in-cluster.
-4. Run one bounded scale-to-one shadow smoke against staging broker/database, then scale back to zero.
+1. Provision placeholder-only or non-production OpenBao Connect runtime values.
+2. Run one bounded scale-to-one shadow smoke against staging broker/database, then scale back to zero.

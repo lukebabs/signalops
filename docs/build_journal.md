@@ -10127,3 +10127,10 @@ Next-cycle priority:
 - Published and verified the private GHCR image `ghcr.io/syncratic-inc/signalops-connect-k8s-worker:347dc8d20d07`.
 - Verified the mutable `staging` tag resolves to the same image config digest: `sha256:e223fa7fa2c189c26080d4fd34eb64d2a1a3a72baba6987c90c057eba876e294`.
 - No Signal-Connect workload was scaled above zero and no production traffic moved. The next gate is a private GHCR pull smoke from the `signalops-connect` namespace, then replicas-zero apply and bounded scale-to-one shadow validation.
+
+### 2026-09-13 — K8S-4 Signal-Connect pull smoke and dormant apply closed
+
+- Added `scripts/run_k8s_signalops_connect_worker_pull_smoke.sh` to refresh the scoped `signalops-connect` GHCR pull secret, run a temporary echo-only pod from `ghcr.io/syncratic-inc/signalops-connect-k8s-worker:staging`, and clean it up after success.
+- Pull smoke passed with `pod_succeeded=true`, `worker_executed=false`, `provider_polling=false`, and `production_cutover_allowed=false`.
+- Applied the replicas-zero staging scaffold in-cluster: `signalops-connect-persister` and `signalops-connect-outbox` now exist as dormant Deployments with `0/0` replicas, plus `allow-connect-openbao-egress`.
+- The readiness report still correctly shows `pending_signal_connect_ingestion_shadow=true` because no scale-to-one Connect shadow run has validated broker/database behavior yet.
