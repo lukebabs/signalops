@@ -112,6 +112,23 @@ COPY --from=build /out/signalops-cyberops-connect-outbox /signalops-cyberops-con
 
 ENTRYPOINT ["/signalops-cyberops-connect-outbox"]
 
+
+FROM debian:bookworm-slim AS signalops-connect-k8s-worker
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends bash ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=build /out/signalops-cyberops-connect-persister /usr/local/bin/signalops-cyberops-connect-persister
+COPY --from=build /out/signalops-cyberops-connect-outbox /usr/local/bin/signalops-cyberops-connect-outbox
+COPY scripts/k8s_signalops_connect_entrypoint.sh /usr/local/bin/signalops-k8s-connect-worker
+
+RUN chmod +x /usr/local/bin/signalops-k8s-connect-worker
+
+ENTRYPOINT ["/usr/local/bin/signalops-k8s-connect-worker"]
+
 FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-normalizer
 
 COPY --from=build /out/signalops-cyberops-normalizer /signalops-cyberops-normalizer

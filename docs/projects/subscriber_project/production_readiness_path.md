@@ -816,3 +816,8 @@ This was the remaining scheduler parity gap at the end of the task-retry/warm-EO
 K8S scheduler parity is now complete at the workload-representation and staging dry-run level. All 12 Admin MarketOps scheduled jobs are represented by suspended K8S CronJobs with matching job-runner entrypoints; the extra `marketops-saf-benchmark` CronJob remains an intentional analytical support job. Four final dry-runs passed for `marketops-daily-postclose`, `marketops-postclose-recovery`, `marketops-risk-reward`, and `marketops-fmp-continuation`, each with DB-backed scheduler parity, no provider polling, and production cutover disabled.
 
 Production readiness impact: scheduler parity moves from pending to closed. Remaining migration blockers are Signal-Connect ingestion shadow, Istio/Gateway API production ingress/DNS rollback planning, Stripe webhook parity through K8S, capacity/load validation, and an explicit production scheduler authority transfer.
+
+
+### K8S Signal-Connect shadow scaffold — 2026-09-13
+
+Signal-Connect K8S migration has started with a source-ready, replicas-zero staging scaffold for the two concrete Go Connect workers: persister and outbox. The manifest guard is verified and now appears in the production-readiness report as `k8s_signal_connect_manifest_guard=verified`. Live ingestion shadow remains pending until the image is published/pulled, the manifests are applied in-cluster, and a bounded scale-to-one shadow smoke validates broker/database behavior before scaling back to zero.

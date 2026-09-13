@@ -10113,3 +10113,11 @@ Next-cycle priority:
 - Live K8S staging dry-runs passed for all four newly represented jobs with scheduler status parity verified, provider polling disabled, and production cutover disabled.
 - The K8S production cutover readiness report now shows `k8s_marketops_scheduler_parity_coverage=complete`, `missing_cronjob=none`, and `missing_entrypoint=none`. Docker Compose/systemd remains production scheduler authority until an explicit scheduler authority transfer is approved.
 - Added evidence in `docs/projects/subscriber_project/k8s3_marketops_scheduler_parity_complete_2026-09-13.md`.
+
+### 2026-09-13 — K8S-4 Signal-Connect shadow scaffold source-ready
+
+- Added a `signalops-connect-k8s-worker` Dockerfile target that packages the existing `signalops-cyberops-connect-persister` and `signalops-cyberops-connect-outbox` binaries behind a constrained K8S entrypoint.
+- Added staging `signalops-connect` Deployments for `signalops-connect-persister` and `signalops-connect-outbox` with `replicas: 0`, OpenBao runtime injection, explicit CA trust, no Services, no Ingress, no committed Secrets, and `production-cutover-allowed=false`.
+- Added `scripts/verify_k8s_signalops_connect_staging_manifests.sh`; validation passed with 2 Deployments, 1 NetworkPolicy, 0 Secrets, 0 Services, 0 CronJobs, and 0 StatefulSets.
+- Wired the Connect manifest guard into `scripts/verify_k8s_production_cutover_readiness.sh`; the readiness report now includes `k8s_signal_connect_manifest_guard=verified` while preserving `pending_signal_connect_ingestion_shadow=true`.
+- Documented the slice in `docs/projects/subscriber_project/k8s4_signal_connect_shadow_scaffold_2026-09-13.md`. The Python `raw-worker` remains a separate normalized-event worker gate and is not claimed as closed by this slice.

@@ -37,6 +37,7 @@ require_executable scripts/verify_k8s_staging_app_manifests.sh
 require_executable scripts/verify_k8s_marketops_scheduled_jobs_manifests.sh
 require_executable scripts/verify_k8s_marketops_scheduler_parity_coverage.sh
 require_executable scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh
+require_executable scripts/verify_k8s_signalops_connect_staging_manifests.sh
 require_executable scripts/verify_k8s_mesh1_istio_readiness.sh
 require_executable scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh
 require_executable scripts/verify_signalops_shared_postgres_archive_health.sh
@@ -47,6 +48,7 @@ base_render="$(kubectl kustomize deploy/kubernetes/base)"
 app_render="$(kubectl kustomize deploy/kubernetes/staging/app)"
 marketops_jobs_render="$(kubectl kustomize deploy/kubernetes/staging/marketops-jobs)"
 marketops_data_render="$(kubectl kustomize deploy/kubernetes/staging/marketops-data)"
+connect_render="$(kubectl kustomize deploy/kubernetes/staging/connect)"
 
 count_kind() {
   local rendered="$1"
@@ -59,7 +61,7 @@ count_kind() {
 [[ "$(count_kind "$marketops_jobs_render" Ingress)" -eq 0 ]] || fail "staging MarketOps job manifests must not define Ingress"
 [[ "$(count_kind "$marketops_data_render" Ingress)" -eq 0 ]] || fail "staging MarketOps data manifests must not define Ingress"
 
-for rendered_name in app_render marketops_jobs_render marketops_data_render; do
+for rendered_name in app_render marketops_jobs_render marketops_data_render connect_render; do
   rendered="${!rendered_name}"
   grep -q 'production-cutover-allowed: "false"' <<<"$rendered" || fail "${rendered_name} missing production-cutover-allowed=false guard"
 done
@@ -90,6 +92,7 @@ if [[ "$scheduler_parity_status" == "complete" && "$scheduler_parity_missing_cro
   scheduler_parity_pending=false
 fi
 scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh >/dev/null
+scripts/verify_k8s_signalops_connect_staging_manifests.sh >/dev/null
 scripts/verify_k8s_mesh1_istio_readiness.sh >/dev/null
 scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh >/dev/null
 keycloak_oidc_status="verified"
@@ -118,6 +121,7 @@ k8s_base_scaffold=verified
 k8s_app_manifest_guard=verified
 k8s_marketops_jobs_manifest_guard=verified
 k8s_marketops_data_manifest_guard=verified
+k8s_signal_connect_manifest_guard=verified
 openbao_ca_trust=verified
 backup_restore_current=verified_2026-09-12
 proven_app_parity=port_forward_unauthenticated+mesh_authenticated_https

@@ -259,3 +259,9 @@ The K8S scheduler parity gate is closed for workload representation and staging 
 Evidence is recorded in [K8S-3 MarketOps scheduler parity complete — 2026-09-13](k8s3_marketops_scheduler_parity_complete_2026-09-13.md). The production-readiness report now returns `k8s_marketops_scheduler_parity_coverage=complete` with no missing CronJobs or entrypoints.
 
 This does not by itself transfer production authority. The K3s CronJobs remain suspended and Docker Compose/systemd remains live scheduler authority until a named production scheduler cutover approves unsuspending K3s CronJobs and disabling equivalent systemd timers in a controlled rollback window.
+
+## Signal-Connect shadow scaffold — 2026-09-13
+
+K8S-4 has started. The concrete Go Signal-Connect workers now have a replicas-zero staging scaffold in `signalops-connect`: `signalops-connect-persister` and `signalops-connect-outbox`. The manifests are verified with OpenBao runtime injection, no Services/Ingress, no committed Secrets, and `production-cutover-allowed=false`.
+
+This closes the source/manifest guard for the Connect worker shape but not live ingestion shadow parity. `pending_signal_connect_ingestion_shadow=true` remains correct until the Connect worker image is published, pulled in-cluster, the scaffold is applied, one bounded scale-to-one shadow smoke proves broker/database behavior, and the workloads scale back to zero. Evidence is tracked in [K8S-4 Signal-Connect shadow scaffold — 2026-09-13](k8s4_signal_connect_shadow_scaffold_2026-09-13.md).
