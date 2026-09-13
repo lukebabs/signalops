@@ -35,6 +35,7 @@ require_file docs/projects/subscriber_project/k8s_mesh4_ingress_dns_cutover_plan
 require_file docs/projects/subscriber_project/k8s_stripe_webhook_route_parity_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_capacity_load_validation_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_capacity_remediation_plan_2026-09-13.md
+require_file docs/projects/subscriber_project/k8s_worker_node_addition_runbook_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s4_signal_connect_shadow_smoke_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_scaffold_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_processing_shadow_2026-09-13.md
@@ -185,6 +186,7 @@ k8s_capacity_headroom_cpu_request_pct=${capacity_headroom_cpu_pct}
 k8s_capacity_headroom_memory_request_pct=${capacity_headroom_memory_pct}
 k8s_capacity_request_report=available
 k8s_capacity_remediation_plan=prepared_2026-09-13
+k8s_worker_node_addition_runbook=prepared_2026-09-13
 pending_capacity_load_validation=true
 EOF
 

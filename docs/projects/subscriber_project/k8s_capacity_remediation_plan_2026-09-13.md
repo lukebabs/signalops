@@ -1,6 +1,6 @@
 # K8S capacity remediation plan — 2026-09-13
 
-Status: active production-readiness blocker. No workloads were changed by this gate.
+Status: remediation prepared. Latest live headroom is currently green after active workload pressure dropped, but the cluster remains single-node and worker capacity is still recommended before production authority transfer. No workloads were changed by this gate.
 
 ## Purpose
 
@@ -74,6 +74,8 @@ scripts/report_k8s_capacity_requests.sh
 
 This preserves current workload posture and avoids changing unrelated Syncratic runtime services while SignalOps migration continues.
 
+Prepared execution guide: [K8S worker node addition runbook — 2026-09-13](k8s_worker_node_addition_runbook_2026-09-13.md). Based on the current 17,665m requested CPU and the 85% threshold, the cluster needs at least 20,782m allocatable CPU, or roughly 4,782m more than the current single node. A practical minimum is one additional 8 vCPU worker.
+
 ### Option B — clean up stale smoke/rehearsal namespaces
 
 `syncratic-runtime-smoke` and `syncratic-capacity-rehearsal` together reserve 6,300m CPU, or 39.38% of the current cluster CPU. If they are obsolete, scaling/removing them would likely bring the cluster below the 85% CPU threshold.
@@ -100,3 +102,25 @@ Create a dedicated SignalOps node pool or labeled worker capacity and bind Signa
 ## Non-authorizations
 
 This gate did not scale, delete, or restart any workload. It did not move production DNS, move production traffic, enable Kubernetes schedules, call providers, or transfer production authority.
+
+## Latest live headroom update
+
+After the remediation plan was prepared, live validation showed active workload pressure had dropped without a new worker node joining:
+
+```text
+signalops_k8s_capacity_headroom_report
+status=ok
+nodes=1
+active_pods=78
+allocatable_cpu_m=16000.0
+requested_cpu_m=10765.0
+cpu_request_pct=67.28
+max_cpu_request_pct=85
+allocatable_memory_mib=127912.86
+requested_memory_mib=19568.0
+memory_request_pct=15.3
+max_memory_request_pct=80
+production_cutover_allowed=false
+```
+
+This closes the immediate CPU headroom condition, but not the production resilience concern. A single-node cluster still creates a failure-domain and maintenance-window risk. The preferred next production infrastructure action remains adding at least one worker node, then rerunning headroom, route/load, and production-readiness verifiers.

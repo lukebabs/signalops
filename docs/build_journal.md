@@ -10214,3 +10214,16 @@ Next-cycle priority:
 - The largest namespace reservations are `syncratic` at 7,650m, `syncratic-runtime-smoke` at 3,550m, `syncratic-capacity-rehearsal` at 2,750m, `longhorn-system` at 1,920m, and `istio-system` at 950m.
 - Documented remediation options in `docs/projects/subscriber_project/k8s_capacity_remediation_plan_2026-09-13.md`: add worker capacity, explicitly approve cleanup of stale smoke/rehearsal namespaces, right-size requests from observed metrics, or dedicate node capacity to SignalOps.
 - No workloads were scaled, deleted, restarted, or cut over. Docker Compose/systemd remains production authority and `production_cutover_allowed=false`.
+
+### 2026-09-13 — K8S worker node addition runbook prepared
+
+- Captured the current K3s node baseline: `hypernet101`, `192.168.2.5`, K3s `v1.33.5+k3s1`, 16 allocatable CPUs, and one-node cluster state.
+- Added `docs/projects/subscriber_project/k8s_worker_node_addition_runbook_2026-09-13.md` with the worker join template, sensitive token handling, post-join validation, optional labeling, Longhorn/storage caution, and rollback.
+- Calculated the CPU target: current 17,665m requested CPU requires at least 20,782m allocatable CPU to satisfy the 85% threshold, so the practical minimum is one additional 8 vCPU worker.
+- No node was joined by this source update and production cutover remains unauthorized until post-join headroom and readiness verifiers pass.
+
+### 2026-09-13 — K8S capacity headroom rechecked after worker-node planning
+
+- Rechecked live K3s node state after preparing the worker-node addition runbook. No second node has joined yet; `kubectl get nodes` still reports only `hypernet101`.
+- Capacity pressure nevertheless improved because active workload reservations dropped to 78 pods and 10,765m requested CPU. `scripts/verify_k8s_capacity_headroom.sh` now reports `status=ok`, `cpu_request_pct=67.28`, and `memory_request_pct=15.3`.
+- Updated the capacity documents to distinguish the immediate green headroom state from the remaining single-node production resilience gap. Worker-node addition remains recommended before production authority transfer.

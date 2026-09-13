@@ -37,6 +37,7 @@ The existing SRI ETF makeup feature is not the product boundary. It is one usefu
 - [Kubernetes/OpenBao staging cutover gate](k8s_openbao_staging_cutover_gate.md): controlled staging sequence, OpenBao recovery controls, parity gates, and production cutover blockers.
 - [K8S production cutover parity plan](k8s_production_cutover_parity_plan.md): executable readiness checklist and remaining app/auth, scheduler, Signal-Connect, ingress/DNS, rollback, and capacity gates.
 - [K8S capacity remediation plan — 2026-09-13](k8s_capacity_remediation_plan_2026-09-13.md): live capacity attribution by namespace/workload and safe remediation options before production authority transfer.
+- [K8S worker node addition runbook — 2026-09-13](k8s_worker_node_addition_runbook_2026-09-13.md): safe worker-node join, validation, labeling, storage caution, and rollback procedure for closing the CPU headroom gate.
 - [K8S service mesh architecture decision](k8s_service_mesh_architecture.md): accepted Gateway API / Envoy-Istio mesh direction for the k3s SaaS platform, with staged adoption gates and rollback guardrails.
 - [Mesh-0 implementation plan — 2026-09-12](k8s_mesh0_implementation_plan_2026-09-12.md): live Traefik/k3s/Cilium baseline, recommended Cilium Gateway API / Envoy-first path, and rollback posture.
 - [K8S-1 OpenBao staging foundation evidence — 2026-09-12](k8s1_openbao_staging_foundation_evidence_2026-09-12.md): applied non-secret staging namespaces, service accounts, NetworkPolicies, and OpenBao policy ConfigMaps with zero workload pods.
