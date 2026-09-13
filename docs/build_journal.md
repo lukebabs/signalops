@@ -10179,3 +10179,9 @@ Next-cycle priority:
 - Patched the reconcile script to source the protected root-owned pgBackRest source env before refreshing short-lived credentials, then added a bounded Postgres readiness wait before `pgbackrest --stanza=signalops check`.
 - Live reconcile passed through the constrained deployment-agent action. Evidence: `status=ok`, image `signalops-postgres-pgbackrest:16`, `archive_mode=on`, `pgbackrest_available=true`, `wal_size=83.0M`, and a successful WAL archive push for segment `00000001000001870000004F`.
 - The K8S production-readiness report now shows `shared_postgres_archive_health=ok`; production cutover remains disabled for the remaining K8S gates.
+
+### 2026-09-13 — Mesh-4 ingress/DNS rollback planning gate prepared
+
+- Added `docs/projects/subscriber_project/k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md` with current authority, target Istio Gateway API route split, pre-cutover checks, DNS movement shape, rollback steps, abort conditions, and explicit non-authorizations.
+- Added `scripts/verify_k8s_mesh4_ingress_dns_cutover_plan.sh` to verify the plan markers and ensure the staging mesh-route overlay does not bind `signalops.syncratic.io`.
+- Wired the Mesh-4 planning gate into `scripts/verify_k8s_production_cutover_readiness.sh`; the report can now distinguish a verified ingress/DNS rollback plan from an actual production traffic cutover.

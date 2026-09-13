@@ -815,7 +815,7 @@ This was the remaining scheduler parity gap at the end of the task-retry/warm-EO
 
 K8S scheduler parity is now complete at the workload-representation and staging dry-run level. All 12 Admin MarketOps scheduled jobs are represented by suspended K8S CronJobs with matching job-runner entrypoints; the extra `marketops-saf-benchmark` CronJob remains an intentional analytical support job. Four final dry-runs passed for `marketops-daily-postclose`, `marketops-postclose-recovery`, `marketops-risk-reward`, and `marketops-fmp-continuation`, each with DB-backed scheduler parity, no provider polling, and production cutover disabled.
 
-Production readiness impact: scheduler parity moves from pending to closed. Remaining migration blockers are Istio/Gateway API production ingress/DNS rollback planning, Stripe webhook parity through K8S, capacity/load validation, and an explicit production scheduler authority transfer.
+Production readiness impact: scheduler parity moves from pending to closed. Remaining migration blockers are Stripe webhook parity through K8S, capacity/load validation, and an explicit production scheduler authority transfer. The Istio/Gateway API ingress/DNS rollback plan is now documented as a verified planning gate; it does not authorize traffic movement.
 
 
 ### K8S Signal-Connect shadow scaffold — 2026-09-13
@@ -846,3 +846,8 @@ The shared platform Postgres drift root cause was narrowed to compose authority:
 ### 2026-09-13 shared platform Postgres pgBackRest runtime reconcile closure
 
 The shared platform Postgres runtime reconcile is closed. The constrained deployment-agent action `shared-postgres-pgbackrest-reconcile` now sources the protected `/etc/signalops/pgbackrest-source.env`, refreshes short-lived assumed-role pgBackRest credentials, rebuilds/restarts only the shared `postgres` service with `signalops-postgres-pgbackrest:16`, waits for PostgreSQL readiness, runs `pgbackrest --stanza=signalops check`, and reruns the archive-health guard. Live evidence returned `shared_postgres_archive_health=ok`, `pgbackrest_available=true`, and `wal_size=83.0M`.
+
+
+### 2026-09-13 Mesh-4 ingress/DNS rollback planning gate
+
+The production ingress/DNS rollback planning gate is documented in [K8S Mesh-4 ingress and DNS cutover plan — 2026-09-13](k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md). The plan preserves Docker Compose and Docker Traefik as rollback authority, defines the target Istio Gateway API route split, lists pre-cutover checks, describes low-TTL DNS movement, records abort conditions, and explicitly does not authorize production DNS changes or traffic movement. The verifier `scripts/verify_k8s_mesh4_ingress_dns_cutover_plan.sh` keeps the staging route from binding `signalops.syncratic.io` and requires the rollback markers before the readiness report can mark the planning gate closed.

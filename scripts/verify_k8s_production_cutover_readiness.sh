@@ -31,6 +31,7 @@ require_file docs/projects/subscriber_project/pr3_backup_restore_refresh_evidenc
 require_file docs/projects/subscriber_project/k8s_production_cutover_parity_plan.md
 require_file docs/projects/subscriber_project/k8s_mesh1_istio_readiness_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s_mesh2_signalops_staging_route_parity_2026-09-13.md
+require_file docs/projects/subscriber_project/k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s4_signal_connect_shadow_smoke_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_scaffold_2026-09-13.md
 require_file docs/projects/subscriber_project/k8s5_raw_worker_processing_shadow_2026-09-13.md
@@ -43,6 +44,7 @@ require_executable scripts/verify_k8s_marketops_dedicated_staging_data_manifests
 require_executable scripts/verify_k8s_signalops_connect_staging_manifests.sh
 require_executable scripts/verify_k8s_signalops_connect_broker_manifests.sh
 require_executable scripts/verify_k8s_signalops_raw_worker_manifests.sh
+require_executable scripts/verify_k8s_mesh4_ingress_dns_cutover_plan.sh
 require_executable scripts/verify_k8s_mesh1_istio_readiness.sh
 require_executable scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh
 require_executable scripts/verify_signalops_shared_postgres_archive_health.sh
@@ -107,6 +109,7 @@ scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh >/dev/null
 scripts/verify_k8s_signalops_connect_staging_manifests.sh >/dev/null
 scripts/verify_k8s_signalops_connect_broker_manifests.sh >/dev/null
 scripts/verify_k8s_signalops_raw_worker_manifests.sh >/dev/null
+scripts/verify_k8s_mesh4_ingress_dns_cutover_plan.sh >/dev/null
 scripts/verify_k8s_mesh1_istio_readiness.sh >/dev/null
 scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh >/dev/null
 keycloak_oidc_status="verified"
@@ -154,7 +157,8 @@ pending_raw_worker_processing_shadow=false
 proven_raw_worker_processing_shadow=one_message_redpanda_signal_2026-09-13
 mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
-pending_service_mesh_ingress_dns_cutover_plan=true
+pending_service_mesh_ingress_dns_cutover_plan=false
+proven_service_mesh_ingress_dns_cutover_plan=rollback_plan_verified_2026-09-13
 pending_capacity_load_validation=true
 EOF
 

@@ -280,3 +280,8 @@ The Python `raw-worker` migration is closed through a bounded one-message proces
 ### K8S-5 raw-worker processing shadow closed — 2026-09-13
 
 The Python `raw-worker` completed a bounded K3s staging processing smoke. A deterministic normalized MarketOps event was produced into the internal staging Redpanda broker, `signalops-raw-worker` was scaled to one, the worker emitted `marketops.dsm.accumulation` to the staging signal topic, and the Deployment returned to zero replicas. The initial fixture drift was corrected by using the governed `market_data.massive` source adapter expected by the DSM detector, while retaining synthetic-smoke provenance. The readiness report now shows `pending_raw_worker_processing_shadow=false`.
+
+
+### Mesh-4 ingress/DNS rollback planning verified — 2026-09-13
+
+The service-mesh production ingress/DNS planning gate is now documented and verifier-backed. It defines the intended `signalops.syncratic.io` move to Istio Gateway API, keeps Docker Traefik/Compose as rollback authority, and blocks accidental production hostname binding in the staging mesh-route overlay. This closes the planning gap only; production traffic movement still requires Stripe webhook parity, capacity/load validation, and explicit production authority transfer approval.
