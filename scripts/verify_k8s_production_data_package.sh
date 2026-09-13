@@ -20,8 +20,9 @@ for required in \
   'image: ghcr.io/syncratic-inc/signalops-postgres-pgbackrest:production' \
   'image: ghcr.io/syncratic-inc/signalops-marketops-timescaledb-pgbackrest:production' \
   'storageClassName: syncratic-data-retain' \
-  'name: signalops-postgres-production-auth' \
-  'name: marketops-postgres-production-auth' \
+  'vault.hashicorp.com/role: signalops-data' \
+  'signalops/data/k8s/data/signalops-databases-runtime-production' \
+  'serviceAccountName: signalops-data-secret-reader' \
   'kind: NetworkPolicy' \
   'production-cutover-allowed: "false"'
 do
@@ -30,6 +31,9 @@ done
 
 if grep -q 'storageClassName: local-path' <<<"$rendered"; then
   fail "production data overlay must not use local-path storage"
+fi
+if grep -q 'secretKeyRef' <<<"$rendered"; then
+  fail "production data overlay must not use Kubernetes Secret password references; use OpenBao injection"
 fi
 if grep -q 'type: LoadBalancer' <<<"$rendered" || grep -q 'kind: Ingress' <<<"$rendered"; then
   fail "production data overlay must not expose databases externally"
@@ -42,6 +46,8 @@ signalops_k8s_production_data_package_verified
 production_data_overlay=verified
 namespace=signalops-data
 storage_class=syncratic-data-retain
+secret_source=openbao
+openbao_path=signalops/data/k8s/data/signalops-databases-runtime-production
 services=signalops-postgres-production,signalops-timescaledb-production,marketops-postgres-production,marketops-timescaledb-production
 server_side_dry_run=passed
 production_traffic_moved=false

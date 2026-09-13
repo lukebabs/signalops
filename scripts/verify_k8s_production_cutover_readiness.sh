@@ -61,6 +61,9 @@ require_executable scripts/verify_k8s_production_app_cutover_package.sh
 require_executable scripts/verify_k8s_production_data_package.sh
 require_executable scripts/create_k8s_signalops_app_runtime_production_env.sh
 require_executable scripts/provision_openbao_signalops_app_runtime_production.sh
+require_executable scripts/create_k8s_signalops_data_runtime_production_env.sh
+require_executable scripts/provision_openbao_signalops_data_runtime_production.sh
+require_executable scripts/publish_k8s_signalops_database_images.sh
 
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
 
@@ -192,7 +195,8 @@ proven_stripe_webhook_k8s_route_parity=synthetic_checkout_completed_2026-09-13
 proven_k8s_route_load_smoke=health_ready_webhook_2026-09-13
 k8s_production_data_package=verified
 k8s_production_app_cutover_package=verified
-pending_production_runtime_openbao=true
+pending_production_app_runtime_openbao=true
+pending_production_data_runtime_openbao=true
 pending_production_database_restore_or_replication=true
 pending_production_traffic_authority_transfer=true
 k8s_capacity_headroom_status=${capacity_headroom_status}

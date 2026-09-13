@@ -10242,3 +10242,9 @@ Next-cycle priority:
 - Updated the production runtime handoff so generated OpenBao runtime values prefer Kubernetes service DNS, not Docker-hosted database ports. Docker DB access is now only an explicit fallback via caller-supplied runtime values.
 - Added guarded scripts for publishing app/database images, creating the production app runtime env, provisioning the OpenBao production app runtime path, and verifying the production app/data packages.
 - Server-side dry-run validation passed for both `deploy/kubernetes/production/data` and `deploy/kubernetes/production/app`/`mesh-route`. Production traffic, production secrets, database restore, scheduler authority, DNS, and provider polling were not moved.
+
+### 2026-09-13 — K8S production data secrets aligned to OpenBao
+
+- Corrected the production database overlay so bootstrap database passwords come from OpenBao path `signalops/data/k8s/data/signalops-databases-runtime-production` under the `signalops-data` role.
+- Added guarded production data-runtime env/provisioning helpers and updated the production data verifier to reject Kubernetes Secret password references.
+- Re-ran production app/data package and readiness verifiers. The report now separates `pending_production_app_runtime_openbao=true` and `pending_production_data_runtime_openbao=true`, followed by database restore/replication and traffic authority transfer.

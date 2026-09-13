@@ -27,7 +27,7 @@ It defines internal-only ClusterIP services and StatefulSets for:
 - `marketops-postgres-production`
 - `marketops-timescaledb-production`
 
-The PVCs use `syncratic-data-retain`, not `local-path`, so accidental manifest deletion should not delete the underlying retained volumes. The database services are not exposed by Ingress or LoadBalancer.
+The PVCs use `syncratic-data-retain`, not `local-path`, so accidental manifest deletion should not delete the underlying retained volumes. The database services are not exposed by Ingress or LoadBalancer. Bootstrap database passwords are injected from OpenBao path `signalops/data/k8s/data/signalops-databases-runtime-production` under the `signalops-data` Kubernetes auth role; the production data overlay no longer references Kubernetes Secret password objects.
 
 Validation evidence:
 
@@ -36,6 +36,8 @@ signalops_k8s_production_data_package_verified
 production_data_overlay=verified
 namespace=signalops-data
 storage_class=syncratic-data-retain
+secret_source=openbao
+openbao_path=signalops/data/k8s/data/signalops-databases-runtime-production
 services=signalops-postgres-production,signalops-timescaledb-production,marketops-postgres-production,marketops-timescaledb-production
 server_side_dry_run=passed
 production_traffic_moved=false
@@ -69,7 +71,8 @@ The production-readiness verifier now reports the K8s production app/data packag
 ```text
 k8s_production_data_package=verified
 k8s_production_app_cutover_package=verified
-pending_production_runtime_openbao=true
+pending_production_app_runtime_openbao=true
+pending_production_data_runtime_openbao=true
 pending_production_database_restore_or_replication=true
 pending_production_traffic_authority_transfer=true
 pending_capacity_load_validation=true
@@ -81,7 +84,8 @@ This package does not authorize:
 
 - DNS movement for `signalops.syncratic.io`;
 - production traffic movement from Docker/Traefik to Istio;
-- production secret migration into OpenBao;
+- production app runtime secret migration into OpenBao;
+- production data bootstrap secret migration into OpenBao;
 - database restore into K8s production PVCs;
 - Kubernetes scheduler authority transfer;
 - provider polling from K8s production jobs.

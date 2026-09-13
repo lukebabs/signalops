@@ -39,7 +39,22 @@ spec:
         app.kubernetes.io/name: signalops-postgres-production
         app.kubernetes.io/component: database
         signalops.syncratic.io/plane: data
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "signalops-data"
+        vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
+        vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+        vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
+        vault.hashicorp.com/agent-inject-secret-signalops-data-runtime.env: "signalops/data/k8s/data/signalops-databases-runtime-production"
+        vault.hashicorp.com/agent-inject-template-signalops-data-runtime.env: |
+          {{- with secret "signalops/data/k8s/data/signalops-databases-runtime-production" -}}
+          export SIGNALOPS_POSTGRES_PASSWORD="{{ .Data.data.SIGNALOPS_POSTGRES_PASSWORD }}"
+          export SIGNALOPS_TIMESCALE_PASSWORD="{{ .Data.data.SIGNALOPS_TIMESCALE_PASSWORD }}"
+          export SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD="{{ .Data.data.SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD }}"
+          export SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD="{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD }}"
+          {{- end }}
     spec:
+      serviceAccountName: signalops-data-secret-reader
       terminationGracePeriodSeconds: 60
       imagePullSecrets:
         - name: signalops-ghcr-pull
@@ -47,6 +62,13 @@ spec:
         - name: postgres
           image: ghcr.io/syncratic-inc/signalops-postgres-pgbackrest:production
           imagePullPolicy: Always
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              test -s /vault/secrets/signalops-data-runtime.env
+              . /vault/secrets/signalops-data-runtime.env
+              export POSTGRES_PASSWORD="${SIGNALOPS_POSTGRES_PASSWORD}"
+              exec docker-entrypoint.sh postgres
           ports:
             - name: postgres
               containerPort: 5432
@@ -55,11 +77,6 @@ spec:
               value: signalops
             - name: POSTGRES_DB
               value: signalops
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: signalops-postgres-production-auth
-                  key: POSTGRES_PASSWORD
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "signalops", "-d", "signalops"]
@@ -126,7 +143,22 @@ spec:
         app.kubernetes.io/name: signalops-timescaledb-production
         app.kubernetes.io/component: database
         signalops.syncratic.io/plane: data
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "signalops-data"
+        vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
+        vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+        vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
+        vault.hashicorp.com/agent-inject-secret-signalops-data-runtime.env: "signalops/data/k8s/data/signalops-databases-runtime-production"
+        vault.hashicorp.com/agent-inject-template-signalops-data-runtime.env: |
+          {{- with secret "signalops/data/k8s/data/signalops-databases-runtime-production" -}}
+          export SIGNALOPS_POSTGRES_PASSWORD="{{ .Data.data.SIGNALOPS_POSTGRES_PASSWORD }}"
+          export SIGNALOPS_TIMESCALE_PASSWORD="{{ .Data.data.SIGNALOPS_TIMESCALE_PASSWORD }}"
+          export SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD="{{ .Data.data.SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD }}"
+          export SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD="{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD }}"
+          {{- end }}
     spec:
+      serviceAccountName: signalops-data-secret-reader
       terminationGracePeriodSeconds: 60
       imagePullSecrets:
         - name: signalops-ghcr-pull
@@ -134,6 +166,13 @@ spec:
         - name: timescaledb
           image: ghcr.io/syncratic-inc/signalops-marketops-timescaledb-pgbackrest:production
           imagePullPolicy: Always
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              test -s /vault/secrets/signalops-data-runtime.env
+              . /vault/secrets/signalops-data-runtime.env
+              export POSTGRES_PASSWORD="${SIGNALOPS_TIMESCALE_PASSWORD}"
+              exec docker-entrypoint.sh postgres
           ports:
             - name: postgres
               containerPort: 5432
@@ -142,11 +181,6 @@ spec:
               value: signalops
             - name: POSTGRES_DB
               value: signalops
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: signalops-timescaledb-production-auth
-                  key: POSTGRES_PASSWORD
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "signalops", "-d", "signalops"]
@@ -213,7 +247,22 @@ spec:
         app.kubernetes.io/name: marketops-postgres-production
         app.kubernetes.io/component: database
         signalops.syncratic.io/plane: data
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "signalops-data"
+        vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
+        vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+        vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
+        vault.hashicorp.com/agent-inject-secret-signalops-data-runtime.env: "signalops/data/k8s/data/signalops-databases-runtime-production"
+        vault.hashicorp.com/agent-inject-template-signalops-data-runtime.env: |
+          {{- with secret "signalops/data/k8s/data/signalops-databases-runtime-production" -}}
+          export SIGNALOPS_POSTGRES_PASSWORD="{{ .Data.data.SIGNALOPS_POSTGRES_PASSWORD }}"
+          export SIGNALOPS_TIMESCALE_PASSWORD="{{ .Data.data.SIGNALOPS_TIMESCALE_PASSWORD }}"
+          export SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD="{{ .Data.data.SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD }}"
+          export SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD="{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD }}"
+          {{- end }}
     spec:
+      serviceAccountName: signalops-data-secret-reader
       terminationGracePeriodSeconds: 60
       imagePullSecrets:
         - name: signalops-ghcr-pull
@@ -221,6 +270,13 @@ spec:
         - name: postgres
           image: ghcr.io/syncratic-inc/signalops-postgres-pgbackrest:production
           imagePullPolicy: Always
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              test -s /vault/secrets/signalops-data-runtime.env
+              . /vault/secrets/signalops-data-runtime.env
+              export POSTGRES_PASSWORD="${SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD}"
+              exec docker-entrypoint.sh postgres
           ports:
             - name: postgres
               containerPort: 5432
@@ -229,11 +285,6 @@ spec:
               value: signalops
             - name: POSTGRES_DB
               value: marketops
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: marketops-postgres-production-auth
-                  key: POSTGRES_PASSWORD
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "signalops", "-d", "marketops"]
@@ -300,7 +351,22 @@ spec:
         app.kubernetes.io/name: marketops-timescaledb-production
         app.kubernetes.io/component: database
         signalops.syncratic.io/plane: data
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "signalops-data"
+        vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
+        vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+        vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
+        vault.hashicorp.com/agent-inject-secret-signalops-data-runtime.env: "signalops/data/k8s/data/signalops-databases-runtime-production"
+        vault.hashicorp.com/agent-inject-template-signalops-data-runtime.env: |
+          {{- with secret "signalops/data/k8s/data/signalops-databases-runtime-production" -}}
+          export SIGNALOPS_POSTGRES_PASSWORD="{{ .Data.data.SIGNALOPS_POSTGRES_PASSWORD }}"
+          export SIGNALOPS_TIMESCALE_PASSWORD="{{ .Data.data.SIGNALOPS_TIMESCALE_PASSWORD }}"
+          export SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD="{{ .Data.data.SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD }}"
+          export SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD="{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD }}"
+          {{- end }}
     spec:
+      serviceAccountName: signalops-data-secret-reader
       terminationGracePeriodSeconds: 60
       imagePullSecrets:
         - name: signalops-ghcr-pull
@@ -308,6 +374,13 @@ spec:
         - name: timescaledb
           image: ghcr.io/syncratic-inc/signalops-marketops-timescaledb-pgbackrest:production
           imagePullPolicy: Always
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              test -s /vault/secrets/signalops-data-runtime.env
+              . /vault/secrets/signalops-data-runtime.env
+              export POSTGRES_PASSWORD="${SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD}"
+              exec docker-entrypoint.sh postgres
           ports:
             - name: postgres
               containerPort: 5432
@@ -316,11 +389,6 @@ spec:
               value: signalops
             - name: POSTGRES_DB
               value: marketops_temporal
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: marketops-timescaledb-production-auth
-                  key: POSTGRES_PASSWORD
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "signalops", "-d", "marketops_temporal"]

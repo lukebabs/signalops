@@ -304,14 +304,15 @@ The service-mesh production ingress/DNS planning gate is now documented and veri
 
 ### K8S production app/data package prepared — 2026-09-13
 
-The production migration package now has explicit app and data overlays. The target architecture is Kubernetes-native database service DNS backed by retained Longhorn PVCs, followed by OpenBao production runtime provisioning, then Istio traffic authority transfer. Docker-hosted production databases remain rollback/fallback infrastructure, not the default generated K8s runtime target. Evidence is recorded in [K8S production app/data migration package — 2026-09-13](k8s_production_app_data_migration_package_2026-09-13.md).
+The production migration package now has explicit app and data overlays. The target architecture is Kubernetes-native database service DNS backed by retained Longhorn PVCs, OpenBao-injected database bootstrap secrets, OpenBao-injected app runtime secrets, then Istio traffic authority transfer. Docker-hosted production databases remain rollback/fallback infrastructure, not the default generated K8s runtime target. Evidence is recorded in [K8S production app/data migration package — 2026-09-13](k8s_production_app_data_migration_package_2026-09-13.md).
 
 The readiness report now distinguishes these final gates:
 
 ```text
 k8s_production_data_package=verified
 k8s_production_app_cutover_package=verified
-pending_production_runtime_openbao=true
+pending_production_app_runtime_openbao=true
+pending_production_data_runtime_openbao=true
 pending_production_database_restore_or_replication=true
 pending_production_traffic_authority_transfer=true
 ```
