@@ -1,3 +1,10 @@
+### 2026-09-13 — Mesh-1 Istio readiness captured
+
+- Recorded that Istio is now installed and ready enough for the next SignalOps Kubernetes staging-route gate: `istio-base` and `istiod` are deployed, Istio CRDs are present, `GatewayClass/istio` is accepted, and `istio-system/public-ingress` is programmed at `192.168.2.233`.
+- Added `scripts/verify_k8s_mesh1_istio_readiness.sh` to make the Mesh-1 control-plane gate repeatable. The verifier also fails if any SignalOps namespace has `istio-injection` or `istio.io/dataplane-mode` labels before explicit mesh-enrollment approval.
+- The live verifier passed and reported `signalops_namespace_auto_injection=false`, `signalops_dataplane_enrollment=false`, and `production_cutover_allowed=false`.
+- Updated Subscriber Project production-readiness and service-mesh documentation to select Istio as the mesh path while preserving Docker Compose/systemd as SignalOps production authority until Mesh-2 staging-route parity and broader K8S cutover gates pass.
+
 ### 2026-09-11 — MarketOps outage reconciliation hardening
 
 - Investigated the September 9, 2026 outage catch-up after the first controlled reconciliation failed on `/tmp/signalops-marketops-warm-eod.lock: Permission denied`.

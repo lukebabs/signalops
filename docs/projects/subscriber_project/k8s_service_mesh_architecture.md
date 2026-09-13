@@ -1,6 +1,6 @@
 # K8S service mesh architecture decision
 
-Status: accepted target direction; implementation not yet applied to production.
+Status: accepted target direction; Mesh-1 Istio control-plane readiness verified without SignalOps production traffic cutover.
 
 Recorded: 2026-09-12.
 
@@ -8,12 +8,14 @@ Recorded: 2026-09-12.
 
 Because Syncratic-core, SignalOps, Signal-Connect, MarketOps, Keycloak, and platform observability are moving into the k3s stack, the Kubernetes target architecture should include a service-mesh layer rather than relying only on a simple ingress controller.
 
-The preferred target is **Gateway API + Envoy-based mesh**. After inspecting the live k3s stack, the first implementation candidate is Cilium Gateway API / Envoy-first routing because Cilium and Cilium Envoy are already installed and Gateway API CRDs are present. Istio remains the leading service-to-service mesh candidate once the ingress/Gateway path is proven. The exact mode should be confirmed during Mesh-0:
+The selected target is **Gateway API + Istio/Envoy service mesh**. Cilium remains the CNI and NetworkPolicy foundation, while Istio becomes the platform mesh and Gateway API controller for the staged production migration. Mesh-1 was verified on 2026-09-13: `istio-base` and `istiod` are deployed, Istio CRDs are present, `GatewayClass/istio` is accepted, and `istio-system/public-ingress` is programmed at `192.168.2.233`.
 
-- **Cilium Gateway API / Envoy-first** for the initial mesh ingress path, based on the current cluster baseline;
-- **Istio ambient mode** if service-to-service mTLS and richer mesh telemetry should be introduced before production cutover;
-- **Istio sidecar mode** only if ambient mode cannot satisfy traffic policy, telemetry, or mTLS requirements;
-- **Envoy Gateway without full mesh** only as a fallback if Cilium Gateway API is not viable and full service-to-service mesh is deferred.
+Implementation mode:
+
+- **Istio Gateway API ingress** for staging-route parity and future controlled production routing;
+- **Istio ambient mode** as the preferred service-to-service mesh enrollment model when app, Connect, MarketOps, identity, and observability paths are ready for mTLS/telemetry enforcement;
+- **Istio sidecar mode** only for namespaces or workloads that cannot meet policy/telemetry needs through ambient mode;
+- **Cilium NetworkPolicy** remains the network guardrail baseline.
 
 This is a platform decision, not a SignalOps-only edge decision. Signal-Connect remains part of SignalOps, and the mesh must cover app, ingestion, MarketOps, identity, data-access, and observability paths.
 
@@ -73,10 +75,14 @@ Acceptance:
 Acceptance:
 
 - mesh control plane is installed in a dedicated namespace;
-- Gateway API CRDs and/or Istio CRDs are present;
+- Gateway API CRDs and Istio CRDs are present;
+- `GatewayClass/istio` is accepted;
+- an Istio Gateway is programmed;
 - no SignalOps production DNS or traffic changes;
-- no namespace auto-injection on production namespaces until explicitly approved;
-- baseline health and telemetry are visible.
+- no namespace auto-injection or ambient enrollment on SignalOps namespaces until explicitly approved;
+- baseline health is visible.
+
+Status: closed on 2026-09-13. See [Mesh-1 Istio readiness evidence](k8s_mesh1_istio_readiness_2026-09-13.md).
 
 ### Mesh-2 — staging app mesh parity
 
@@ -117,4 +123,4 @@ Acceptance:
 
 ## Current conclusion
 
-The target production Kubernetes platform should use a service mesh. Mesh-0 now starts from the current Traefik-to-k3s bridge baseline and recommends Cilium Gateway API / Envoy-first routing before a broader Istio ambient decision. Until Mesh-2 and the broader K8S parity gates pass, Docker Compose/systemd remains the production authority and `production_cutover_allowed=false` remains correct.
+The target production Kubernetes platform should use Istio as the service mesh and Gateway API controller. Mesh-1 proves the control plane exists and is healthy enough for staging-route parity. Until Mesh-2 and the broader K8S parity gates pass, Docker Compose/systemd remains the production authority and `production_cutover_allowed=false` remains correct.

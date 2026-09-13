@@ -151,10 +151,11 @@ Use direct `docker`/`systemctl` only when a constrained deployment-agent action 
 
 ## Current production-readiness open items
 
-As of 2026-08-22:
+As of 2026-09-13:
 
-1. Observe the next natural trading-day post-close run and confirm EROC global projection advances through the standard parity/materializer path.
-2. Observe the first scheduled FMP annual financial run on 2026-08-29 at 02:30 America/New_York.
-3. Decide whether to refresh PR-3 backup/restore evidence before broader paid pilot expansion.
-4. Continue hardening operations-monitor cadence to reduce transient false failures during long post-close windows.
+1. Complete authenticated Keycloak parity through the Kubernetes staging route once Mesh-2 creates a SignalOps-only route behind Istio.
+2. Expand MarketOps Kubernetes scheduler parity beyond the one no-provider dry-run and one approved FMP provider smoke.
+3. Run Signal-Connect ingestion shadow through the same Kubernetes/mesh posture so Connect, app, and MarketOps scale as one platform.
+4. Complete capacity/load validation for gateway, database connection pools, Syncratic Ask, Stripe, and provider-bound jobs.
+5. Keep OpenBao HA as resilience hardening, while maintaining current backup/restore, seal/unseal, audit, and rollback evidence as the production gate.
 

@@ -30,6 +30,8 @@ compose_systemd_production_authority=true
 pending_authenticated_keycloak_k8s_parity=true
 pending_broader_marketops_scheduler_parity=true
 pending_signal_connect_ingestion_shadow=true
+mesh1_istio_control_plane=verified_2026-09-13
+pending_service_mesh_signalops_route_parity=true
 pending_service_mesh_ingress_dns_cutover_plan=true
 pending_capacity_load_validation=true
 ```
@@ -94,13 +96,13 @@ Acceptance:
 
 ### Gate D — service mesh, ingress/DNS, and rollback proposal
 
-Mesh-0 now has a live baseline and recommended path in [Mesh-0 implementation plan — 2026-09-12](k8s_mesh0_implementation_plan_2026-09-12.md). The current recommendation is Cilium Gateway API / Envoy-first routing, preserving Docker Traefik as the public rollback/reference edge.
+Mesh-0 has a live baseline in [Mesh-0 implementation plan — 2026-09-12](k8s_mesh0_implementation_plan_2026-09-12.md). Mesh-1 closed on 2026-09-13 with Istio selected and verified: `istio-base` and `istiod` are deployed, `GatewayClass/istio` is accepted, and `istio-system/public-ingress` is programmed at `192.168.2.233`. Docker Traefik remains the public rollback/reference edge for SignalOps until SignalOps route parity and cutover are separately approved.
 
 This gate prepares but does not execute the traffic move.
 
 Acceptance:
 
-- target Gateway API / Envoy-Istio ingress mode and hostnames documented;
+- target Gateway API / Istio ingress mode and hostnames documented;
 - Keycloak redirect URIs and web origins include the target K8S hostnames;
 - Stripe webhook endpoint behavior is validated for the K8S route;
 - rollback path returns traffic from mesh/Gateway API to Docker Compose/systemd without data loss;
@@ -152,6 +154,8 @@ proven_scheduler_parity=no_provider_and_one_provider_fmp_smoke
 pending_authenticated_keycloak_k8s_parity=true
 pending_broader_marketops_scheduler_parity=true
 pending_signal_connect_ingestion_shadow=true
+mesh1_istio_control_plane=verified_2026-09-13
+pending_service_mesh_signalops_route_parity=true
 pending_service_mesh_ingress_dns_cutover_plan=true
 pending_capacity_load_validation=true
 ```
