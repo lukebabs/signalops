@@ -10104,3 +10104,12 @@ Next-cycle priority:
 - Live one-shot K8S dry-runs passed for `marketops-task-retry` and `marketops-warm-eod` against the dedicated staging MarketOps primary/temporal services. Both returned `scheduler_status_parity=verified`, `provider_polling=false`, and `production_cutover_allowed=false`.
 - Hardened the MarketOps scheduled-jobs manifest verifier to avoid `pipefail`/`grep -q` false negatives on large rendered Kubernetes YAML, then reran both the manifest verifier and the K8S production cutover readiness report successfully.
 - Added detailed evidence in `docs/projects/subscriber_project/k8s3_task_retry_warm_eod_dry_run_evidence_2026-09-13.md`. Remaining K8S scheduler parity gaps are `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.
+
+### 2026-09-13 — K8S MarketOps scheduler parity complete
+
+- Added suspended K8S CronJobs and dry-run entrypoint handlers for the final four Admin MarketOps scheduler jobs: `marketops-daily-postclose`, `marketops-postclose-recovery`, `marketops-risk-reward`, and `marketops-fmp-continuation`.
+- Updated K8S scheduler manifest verification to expect 13 CronJobs: the 12 Admin MarketOps jobs plus the intentional extra `marketops-saf-benchmark` analytical CronJob.
+- Committed and pushed `1aecab4` and published private GHCR image `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:1aecab496a42`; the image build ran `go test ./...` successfully.
+- Live K8S staging dry-runs passed for all four newly represented jobs with scheduler status parity verified, provider polling disabled, and production cutover disabled.
+- The K8S production cutover readiness report now shows `k8s_marketops_scheduler_parity_coverage=complete`, `missing_cronjob=none`, and `missing_entrypoint=none`. Docker Compose/systemd remains production scheduler authority until an explicit scheduler authority transfer is approved.
+- Added evidence in `docs/projects/subscriber_project/k8s3_marketops_scheduler_parity_complete_2026-09-13.md`.

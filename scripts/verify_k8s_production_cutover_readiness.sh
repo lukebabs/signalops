@@ -85,6 +85,10 @@ scheduler_parity_report="$(scripts/verify_k8s_marketops_scheduler_parity_coverag
 scheduler_parity_status="$(printf '%s\n' "$scheduler_parity_report" | awk -F= '$1=="status"{print $2; exit}')"
 scheduler_parity_missing_cronjob="$(printf '%s\n' "$scheduler_parity_report" | awk -F= '$1=="missing_cronjob"{print $2; exit}')"
 scheduler_parity_missing_entrypoint="$(printf '%s\n' "$scheduler_parity_report" | awk -F= '$1=="missing_entrypoint"{print $2; exit}')"
+scheduler_parity_pending=true
+if [[ "$scheduler_parity_status" == "complete" && "$scheduler_parity_missing_cronjob" == "none" && "$scheduler_parity_missing_entrypoint" == "none" ]]; then
+  scheduler_parity_pending=false
+fi
 scripts/verify_k8s_marketops_dedicated_staging_data_manifests.sh >/dev/null
 scripts/verify_k8s_mesh1_istio_readiness.sh >/dev/null
 scripts/verify_k8s_mesh2_signalops_staging_route_manifests.sh >/dev/null
@@ -121,7 +125,7 @@ proven_scheduler_parity=no_provider_and_one_provider_fmp_smoke
 pending_authenticated_keycloak_k8s_parity=false
 pending_authenticated_keycloak_mesh_route_parity=false
 keycloak_oidc_discovery_reachability=$keycloak_oidc_status
-pending_broader_marketops_scheduler_parity=true
+pending_broader_marketops_scheduler_parity=${scheduler_parity_pending}
 k8s_marketops_scheduler_parity_coverage=${scheduler_parity_status}
 k8s_marketops_scheduler_missing_cronjob=${scheduler_parity_missing_cronjob}
 k8s_marketops_scheduler_missing_entrypoint=${scheduler_parity_missing_entrypoint}

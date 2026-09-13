@@ -30,8 +30,8 @@ compose_systemd_production_authority=true
 pending_authenticated_keycloak_k8s_parity=false
 pending_authenticated_keycloak_mesh_route_parity=false
 keycloak_oidc_discovery_reachability=verified
-pending_broader_marketops_scheduler_parity=true
-k8s_marketops_scheduler_parity_coverage=partial
+pending_broader_marketops_scheduler_parity=false
+k8s_marketops_scheduler_parity_coverage=complete
 pending_signal_connect_ingestion_shadow=true
 mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
@@ -189,7 +189,7 @@ Acceptance:
 
 ## Current conclusion
 
-Kubernetes migration is past scaffold-only. It has real staging app, secret, image, data, scheduler, service-mesh, and authenticated Keycloak route evidence. The next production-readiness target is broader MarketOps scheduler parity, followed by Signal-Connect ingestion shadow, ingress/DNS rollback planning, Stripe webhook parity through the K8S route, and capacity/load validation.
+Kubernetes migration is past scaffold-only. It has real staging app, secret, image, data, scheduler, service-mesh, and authenticated Keycloak route evidence. Broader MarketOps scheduler parity is now complete at the suspended-workload and dry-run evidence level. The next production-readiness targets are Signal-Connect ingestion shadow, ingress/DNS rollback planning, Stripe webhook parity through the K8S route, capacity/load validation, and a separately approved scheduler authority transfer.
 
 Until those gates close, `production_cutover_allowed=false` remains the correct state and Docker Compose/systemd remains the live production authority.
 
@@ -222,8 +222,8 @@ proven_scheduler_parity=no_provider_and_one_provider_fmp_smoke
 pending_authenticated_keycloak_k8s_parity=false
 pending_authenticated_keycloak_mesh_route_parity=false
 keycloak_oidc_discovery_reachability=verified
-pending_broader_marketops_scheduler_parity=true
-k8s_marketops_scheduler_parity_coverage=partial
+pending_broader_marketops_scheduler_parity=false
+k8s_marketops_scheduler_parity_coverage=complete
 pending_signal_connect_ingestion_shadow=true
 mesh1_istio_control_plane=verified_2026-09-13
 proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
@@ -250,4 +250,12 @@ Closed on 2026-09-13. Commit `de5c983` is pushed, and the private GHCR job-runne
 
 Live one-shot K8S dry-run evidence passed for both `marketops-task-retry` and `marketops-warm-eod` against the dedicated staging MarketOps primary/temporal services. Both runs verified DB-backed scheduler status parity and preserved `provider_polling=false` and `production_cutover_allowed=false`. Detailed evidence is captured in [K8S-3 task-retry and warm-EOD dry-run evidence — 2026-09-13](k8s3_task_retry_warm_eod_dry_run_evidence_2026-09-13.md).
 
-The broader scheduler parity gap is now limited to `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.
+This was the remaining scheduler parity gap at the end of the task-retry/warm-EOD slice; it was superseded later on 2026-09-13 by full MarketOps scheduler parity completion.
+
+## MarketOps scheduler parity completion — 2026-09-13
+
+The K8S scheduler parity gate is closed for workload representation and staging dry-run execution. All 12 Admin MarketOps scheduled jobs now have suspended K8S CronJobs and matching job-runner entrypoints. The intentional extra `marketops-saf-benchmark` CronJob remains outside the Admin scheduler catalog.
+
+Evidence is recorded in [K8S-3 MarketOps scheduler parity complete — 2026-09-13](k8s3_marketops_scheduler_parity_complete_2026-09-13.md). The production-readiness report now returns `k8s_marketops_scheduler_parity_coverage=complete` with no missing CronJobs or entrypoints.
+
+This does not by itself transfer production authority. The K3s CronJobs remain suspended and Docker Compose/systemd remains live scheduler authority until a named production scheduler cutover approves unsuspending K3s CronJobs and disabling equivalent systemd timers in a controlled rollback window.

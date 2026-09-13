@@ -808,4 +808,11 @@ Operational implication: shared Postgres recovery before `20260913-034800F` shou
 
 The task-retry and warm-EOD K8S scheduler-parity slice is now closed. Commit `de5c983` fixed the K8S dry-run runner, the private GHCR job-runner image was published as `de5c9833fd04`, and both one-shot staging Jobs passed with scheduler-status parity verified. The runs used dedicated staging MarketOps databases through OpenBao runtime injection and preserved `provider_polling=false` plus `production_cutover_allowed=false`.
 
-Remaining scheduler parity gaps are now the four provider/composite jobs: `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.
+This was the remaining scheduler parity gap at the end of the task-retry/warm-EOD slice; it was superseded later on 2026-09-13 by full MarketOps scheduler parity completion.
+
+
+### K8S MarketOps scheduler parity completion — 2026-09-13
+
+K8S scheduler parity is now complete at the workload-representation and staging dry-run level. All 12 Admin MarketOps scheduled jobs are represented by suspended K8S CronJobs with matching job-runner entrypoints; the extra `marketops-saf-benchmark` CronJob remains an intentional analytical support job. Four final dry-runs passed for `marketops-daily-postclose`, `marketops-postclose-recovery`, `marketops-risk-reward`, and `marketops-fmp-continuation`, each with DB-backed scheduler parity, no provider polling, and production cutover disabled.
+
+Production readiness impact: scheduler parity moves from pending to closed. Remaining migration blockers are Signal-Connect ingestion shadow, Istio/Gateway API production ingress/DNS rollback planning, Stripe webhook parity through K8S, capacity/load validation, and an explicit production scheduler authority transfer.
