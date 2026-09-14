@@ -91,3 +91,9 @@ This package does not authorize:
 - provider polling from K8s production jobs.
 
 Those remain named-approval gates.
+
+## September 14, 2026 execution note
+
+The approved production runtime provisioning gate reached an environmental blocker: OpenBao was sealed (`Sealed=true`, unseal progress `0/3`). Runtime env rendering succeeded, but production app/data runtime secrets were not written and the production data overlay was not applied. Applying the overlay while OpenBao is sealed would strand the database pods without injected bootstrap passwords, so the correct state is to unseal OpenBao first, then rerun the provisioning gate.
+
+A shell compatibility issue was also fixed: generated OpenBao pod-side payloads now use POSIX `set -eu` rather than `set -euo pipefail`, because the OpenBao pod executes payloads with `/bin/sh`.

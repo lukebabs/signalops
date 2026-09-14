@@ -124,7 +124,7 @@ keys = [
     "SYNCRATIC_TOKEN_AUDIENCE",
 ]
 lines = [
-    "set -euo pipefail",
+    "set -eu",
     f"export BAO_ADDR={shlex.quote(os.environ['OPENBAO_ADDR'])}",
     f"export BAO_TOKEN={shlex.quote(os.environ['ADMIN_TOKEN'])}",
     'export BAO_CACERT="${BAO_CACERT:-/openbao/ca/ca.crt}"',

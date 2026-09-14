@@ -10248,3 +10248,10 @@ Next-cycle priority:
 - Corrected the production database overlay so bootstrap database passwords come from OpenBao path `signalops/data/k8s/data/signalops-databases-runtime-production` under the `signalops-data` role.
 - Added guarded production data-runtime env/provisioning helpers and updated the production data verifier to reject Kubernetes Secret password references.
 - Re-ran production app/data package and readiness verifiers. The report now separates `pending_production_app_runtime_openbao=true` and `pending_production_data_runtime_openbao=true`, followed by database restore/replication and traffic authority transfer.
+
+### 2026-09-14 — K8S production runtime provisioning blocked by sealed OpenBao
+
+- Began the approved production app/data runtime provisioning gate for the K8s migration. Runtime env rendering succeeded and did not print secret values.
+- Provisioning failed inside the OpenBao pod because the pod is currently sealed: `Initialized=true`, `Sealed=true`, `Unseal Progress=0/3`, `HA Enabled=true`.
+- Corrected the generated pod-side OpenBao payloads from `set -euo pipefail` to POSIX-compatible `set -eu`; `/bin/sh` in the OpenBao container does not support `pipefail`.
+- The production K8s data overlay was not applied because sealed OpenBao would prevent secret injection into the database pods. No public traffic, DNS, scheduler authority, provider polling, or production database restore/replication was changed.

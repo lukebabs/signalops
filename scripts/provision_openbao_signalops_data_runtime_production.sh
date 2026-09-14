@@ -49,7 +49,7 @@ from pathlib import Path
 import os, shlex, sys
 keys = ["SIGNALOPS_POSTGRES_PASSWORD", "SIGNALOPS_TIMESCALE_PASSWORD", "SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD", "SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD"]
 lines = [
-    "set -euo pipefail",
+    "set -eu",
     f"export BAO_ADDR={shlex.quote(os.environ['OPENBAO_ADDR'])}",
     f"export BAO_TOKEN={shlex.quote(os.environ['ADMIN_TOKEN'])}",
     'export BAO_CACERT="${BAO_CACERT:-/openbao/ca/ca.crt}"',
