@@ -145,10 +145,34 @@ marketops_temporal: source missing_or_stopped, target ready
 ready_for_execute=false
 ```
 
-Actual database copy remains a separate named-approval gate because it will replace the initialized contents inside the K8s production database PVCs, even though public traffic has not moved there.
+Actual MarketOps database copy remains a separate named-approval gate because it will replace the initialized contents inside the K8s production MarketOps database PVCs, even though public traffic has not moved there.
 
 Required approval text for the one-time copy gate:
 
 ```text
 I, luke@strategiclabs.io, approve copying current Docker production SignalOps and MarketOps databases into the K8s production database PVCs, replacing only the K8s production target database contents, with no DNS cutover, no public traffic movement, no K8s scheduler enablement, and no provider polling.
+```
+
+## September 14, 2026 MarketOps-only replication correction
+
+During the first approved copy attempt, the original replication script followed the broader platform phrase "SignalOps and MarketOps databases" and started with the shared SignalOps primary database. That was stopped before any MarketOps target copy began. No public traffic points to the K8s production data services. The K8s shared SignalOps primary target is therefore treated as an incomplete, non-serving partial restore and is not part of the MarketOps cutover evidence.
+
+The replication tool has been corrected so the default scope is now `marketops-only`. Shared SignalOps platform database migration is a separate platform gate and should not be coupled to MarketOps database cutover readiness.
+
+Latest MarketOps-only dry-run evidence:
+
+```text
+scope=marketops-only
+marketops: source ready, target ready, source_tables=190, target_tables=0
+marketops_temporal: source ready, target ready, source_tables=6, target_tables=0
+ready_for_execute=true
+production_traffic_moved=false
+k8s_schedulers_enabled=false
+provider_polling=false
+```
+
+Required approval text for the corrected MarketOps-only copy gate:
+
+```text
+I, luke@strategiclabs.io, approve copying current Docker production MarketOps databases into the K8s production MarketOps database PVCs, replacing only the K8s production MarketOps target database contents, with no SignalOps shared database copy, no DNS cutover, no public traffic movement, no K8s scheduler enablement, and no provider polling.
 ```

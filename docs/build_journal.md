@@ -10272,3 +10272,9 @@ Next-cycle priority:
 - Added a source-container startup helper and deployment-agent actions for source startup and replication dry-run only. A persistent destructive execute action was intentionally not added.
 - Dry-run evidence showed the K8s production target databases are ready and empty, while three Docker source database containers were currently stopped/missing from the live container inventory. Actual copy remains blocked until source DBs are online and the named one-time replacement approval is provided.
 
+### 2026-09-14 — K8s replication scope corrected to MarketOps-only
+
+- Stopped the initial broad Docker-to-K8s copy while it was still on the shared SignalOps primary after product clarified that MarketOps should remain the immediate cutover scope.
+- Confirmed K8s MarketOps production targets were still empty and ready; the K8s shared SignalOps primary target is treated as an incomplete, non-serving partial restore.
+- Updated the replication tool so `marketops-only` is the default scope and all-platform copy requires a separate explicit scope. The corrected MarketOps-only dry-run passed with source/target readiness, ClusterIP-only services, and no traffic/scheduler/provider changes.
+

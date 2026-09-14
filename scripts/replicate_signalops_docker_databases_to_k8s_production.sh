@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+MODE="${1:---dry-run}"
+case "$MODE" in
+  --dry-run|--execute) ;;
+  *) printf 'Usage: %s [--dry-run|--execute]\n' "${0##*/}" >&2; exit 2 ;;
+esac
+
+EXPECTED_MARKETOPS_APPROVAL="I, luke@strategiclabs.io, approve copying current Docker production MarketOps databases into the K8s production MarketOps database PVCs, replacing only the K8s production MarketOps target database contents, with no SignalOps shared database copy, no DNS cutover, no public traffic movement, no K8s scheduler enablement, and no provider polling."
+EXPECTED_ALL_PLATFORM_APPROVAL="I, luke@strategiclabs.io, approve copying current Docker production SignalOps and MarketOps databases into the K8s production database PVCs, replacing only the K8s production target database contents, with no DNS cutover, no public traffic movement, no K8s scheduler enablement, and no provider polling."
+
+SCOPE="${SIGNALOPS_K8S_PRODUCTION_DB_REPLICATION_SCOPE:-marketops-only}"
+case "$SCOPE" in
+  marketops-only|all-platform) ;;
+  *) printf 'Invalid SIGNALOPS_K8S_PRODUCTION_DB_REPLICATION_SCOPE: %s\n' "$SCOPE" >&2; exit 2 ;;
+esac
+
 NAMESPACE="${SIGNALOPS_K8S_PRODUCTION_DATA_NAMESPACE:-signalops-data}"
 APP_NAMESPACE="${SIGNALOPS_K8S_PRODUCTION_APP_NAMESPACE:-signalops-app}"
 
@@ -40,16 +55,24 @@ target_psql() {
 public_table_count_sql="SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
 size_sql="SELECT pg_database_size(current_database());"
 
-pairs=(
-  "signalops-postgres-1|signalops|signalops-postgres-production-0|postgres|signalops|signalops-postgres-production"
-  "signalops-timescaledb-1|signalops_temporal|signalops-timescaledb-production-0|timescaledb|signalops|signalops-timescaledb-production"
+marketops_pairs=(
   "signalops-marketops-postgres-1|marketops|marketops-postgres-production-0|postgres|marketops|marketops-postgres-production"
   "signalops-marketops-timescaledb-1|marketops_temporal|marketops-timescaledb-production-0|timescaledb|marketops_temporal|marketops-timescaledb-production"
 )
+all_platform_pairs=(
+  "signalops-postgres-1|signalops|signalops-postgres-production-0|postgres|signalops|signalops-postgres-production"
+  "signalops-timescaledb-1|signalops_temporal|signalops-timescaledb-production-0|timescaledb|signalops_temporal|signalops-timescaledb-production"
+  "${marketops_pairs[@]}"
+)
+if [[ "$SCOPE" == "marketops-only" ]]; then
+  pairs=("${marketops_pairs[@]}")
+else
+  pairs=("${all_platform_pairs[@]}")
+fi
 
 require_no_k8s_production_traffic
 unavailable=0
-printf 'signalops_k8s_production_database_replication_dry_run\n'
+printf 'signalops_k8s_production_database_replication_%s\n' "${MODE#--}"
 for pair in "${pairs[@]}"; do
   IFS='|' read -r source_container source_db target_pod target_container target_db target_service <<<"$pair"
   source_status=ready
@@ -82,9 +105,38 @@ for pair in "${pairs[@]}"; do
   printf 'database=%s source_container=%s source_status=%s target_pod=%s target_status=%s service=%s source_tables=%s target_tables=%s source_size_bytes=%s target_size_bytes=%s\n' \
     "$source_db" "$source_container" "$source_status" "$target_pod" "$target_status" "$target_service" "$source_tables" "$target_tables" "$source_size" "$target_size"
 done
-printf 'mode=dry_run\nproduction_traffic_moved=false\nk8s_schedulers_enabled=false\nprovider_polling=false\n'
+printf 'mode=%s\nscope=%s\nproduction_traffic_moved=false\nk8s_schedulers_enabled=false\nprovider_polling=false\n' "${MODE#--}" "$SCOPE"
 if (( unavailable )); then
   printf 'ready_for_execute=false\n'
   exit 4
 fi
 printf 'ready_for_execute=true\n'
+
+if [[ "$MODE" == "--dry-run" ]]; then
+  exit 0
+fi
+
+if [[ "$SCOPE" == "marketops-only" ]]; then
+  expected_approval="$EXPECTED_MARKETOPS_APPROVAL"
+else
+  expected_approval="$EXPECTED_ALL_PLATFORM_APPROVAL"
+fi
+[[ "${SIGNALOPS_K8S_PRODUCTION_DB_REPLICATION_APPROVAL:-}" == "$expected_approval" ]] || {
+  printf 'Missing exact approval for scope=%s. Set SIGNALOPS_K8S_PRODUCTION_DB_REPLICATION_APPROVAL to the matching named approval text.\n' "$SCOPE" >&2
+  exit 3
+}
+
+run_id="k8s-prod-db-replication-$(date -u +%Y%m%dT%H%M%SZ)"
+printf 'signalops_k8s_production_database_replication_started run_id=%s\n' "$run_id"
+for pair in "${pairs[@]}"; do
+  IFS='|' read -r source_container source_db target_pod target_container target_db target_service <<<"$pair"
+  before_tables="$(target_psql "$target_pod" "$target_container" "$target_db" "$public_table_count_sql" | tr -d '[:space:]')"
+  printf 'replicating database=%s source=%s target=%s target_tables_before=%s\n' "$source_db" "$source_container" "$target_pod" "$before_tables"
+  docker exec "$source_container" pg_dump -U signalops -d "$source_db" --format=custom --no-owner --no-acl \
+    | kubectl exec -i -n "$NAMESPACE" "$target_pod" -c "$target_container" -- pg_restore -U signalops -d "$target_db" --clean --if-exists --no-owner --no-acl --exit-on-error
+  after_tables="$(target_psql "$target_pod" "$target_container" "$target_db" "$public_table_count_sql" | tr -d '[:space:]')"
+  after_size="$(target_psql "$target_pod" "$target_container" "$target_db" "$size_sql" | tr -d '[:space:]')"
+  printf 'replicated database=%s target_tables_after=%s target_size_bytes=%s\n' "$target_db" "$after_tables" "$after_size"
+done
+printf 'signalops_k8s_production_database_replication_verified run_id=%s\n' "$run_id"
+printf 'production_traffic_moved=false\nk8s_schedulers_enabled=false\nprovider_polling=false\n'
