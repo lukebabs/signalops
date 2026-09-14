@@ -39,8 +39,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -115,8 +115,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -191,8 +191,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -267,8 +267,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -343,8 +343,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -419,8 +419,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -497,8 +497,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -575,8 +575,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -653,8 +653,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -731,8 +731,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -810,8 +810,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -889,8 +889,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
@@ -968,8 +968,8 @@ spec:
             vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-staging"
             vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
               {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-staging" -}}
-              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_DATABASE_URL }}'
-              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
               export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
               export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL }}'
