@@ -32,6 +32,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-intraday
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -57,7 +58,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-intraday
@@ -108,6 +109,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-sri-refresh
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -133,7 +135,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-sri-refresh
@@ -184,6 +186,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-sri-holdings-refresh
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -209,7 +212,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-sri-holdings-refresh
@@ -260,6 +263,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-fmp-annual-financial
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -285,7 +289,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-fmp-annual-financial
@@ -336,6 +340,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-saf-benchmark
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -361,7 +366,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-saf-benchmark
@@ -412,6 +417,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-operations-monitor
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -437,7 +443,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-operations-monitor
@@ -490,6 +496,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-retention-governance
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -515,7 +522,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-retention-governance
@@ -568,6 +575,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-task-retry
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -593,7 +601,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-task-retry
@@ -646,6 +654,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-warm-eod
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -671,7 +680,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-warm-eod
@@ -724,6 +733,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-daily-postclose
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -749,7 +759,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-daily-postclose
@@ -803,6 +813,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-postclose-recovery
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -828,7 +839,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-postclose-recovery
@@ -882,6 +893,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-risk-reward
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -907,7 +919,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-risk-reward
@@ -961,6 +973,7 @@ spec:
             signalops.syncratic.io/job-id: marketops-fmp-continuation
           annotations:
             vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
             vault.hashicorp.com/role: "signalops-marketops"
             vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
             vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
@@ -986,7 +999,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:6488950e98df
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:intraday-fix-202609142035
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-fmp-continuation
