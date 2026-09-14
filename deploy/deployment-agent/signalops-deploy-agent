@@ -223,6 +223,10 @@ FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
   scheduler-fmp-annual-disable)
     run systemctl disable --now signalops-marketops-boundary-fmp-annual-financial.timer
     ;;
+  marketops-docker-schedulers-disable)
+    timers=(signalops-marketops-boundary-daily-postclose.timer signalops-marketops-boundary-postclose-recovery.timer signalops-marketops-boundary-warm-eod.timer signalops-marketops-boundary-sri-refresh.timer signalops-marketops-boundary-sri-holdings-refresh.timer signalops-marketops-operations-monitor.timer)
+    run systemctl disable --now "${timers[@]}"
+    ;;
   subscriber-qualified-warm-cohort-reconcile)
     run "$repository_dir/scripts/reconcile_subscriber_qualified_warm_cohort.sh" "$repository_dir/.env"
     ;;
