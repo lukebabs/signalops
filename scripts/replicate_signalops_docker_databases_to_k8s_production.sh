@@ -8,11 +8,12 @@ case "$MODE" in
 esac
 
 EXPECTED_MARKETOPS_APPROVAL="I, luke@strategiclabs.io, approve copying current Docker production MarketOps databases into the K8s production MarketOps database PVCs, replacing only the K8s production MarketOps target database contents, with no SignalOps shared database copy, no DNS cutover, no public traffic movement, no K8s scheduler enablement, and no provider polling."
+EXPECTED_SIGNALOPS_APPROVAL='I, luke@strategiclabs.io, approve copying the cleaned shared SignalOps databases (`signalops` and `signalops_temporal`) into their K8s production targets, replacing only those K8s target contents. MarketOps databases must remain unchanged. No DNS change, public traffic cutover, K8s scheduler enablement, provider polling, or Docker volume deletion is authorized. Recovery baseline: `20260914-044935F`.'
 EXPECTED_ALL_PLATFORM_APPROVAL="I, luke@strategiclabs.io, approve copying current Docker production SignalOps and MarketOps databases into the K8s production database PVCs, replacing only the K8s production target database contents, with no DNS cutover, no public traffic movement, no K8s scheduler enablement, and no provider polling."
 
 SCOPE="${SIGNALOPS_K8S_PRODUCTION_DB_REPLICATION_SCOPE:-marketops-only}"
 case "$SCOPE" in
-  marketops-only|marketops-temporal-only|all-platform) ;;
+  marketops-only|marketops-temporal-only|signalops-only|all-platform) ;;
   *) printf 'Invalid SIGNALOPS_K8S_PRODUCTION_DB_REPLICATION_SCOPE: %s\n' "$SCOPE" >&2; exit 2 ;;
 esac
 
@@ -68,6 +69,8 @@ if [[ "$SCOPE" == "marketops-only" ]]; then
   pairs=("${marketops_pairs[@]}")
 elif [[ "$SCOPE" == "marketops-temporal-only" ]]; then
   pairs=("${marketops_pairs[1]}")
+elif [[ "$SCOPE" == "signalops-only" ]]; then
+  pairs=("${all_platform_pairs[0]}" "${all_platform_pairs[1]}")
 else
   pairs=("${all_platform_pairs[@]}")
 fi
@@ -120,6 +123,8 @@ fi
 
 if [[ "$SCOPE" == "marketops-only" || "$SCOPE" == "marketops-temporal-only" ]]; then
   expected_approval="$EXPECTED_MARKETOPS_APPROVAL"
+elif [[ "$SCOPE" == "signalops-only" ]]; then
+  expected_approval="$EXPECTED_SIGNALOPS_APPROVAL"
 else
   expected_approval="$EXPECTED_ALL_PLATFORM_APPROVAL"
 fi

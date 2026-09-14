@@ -10302,3 +10302,12 @@ Next-cycle priority:
 - Post-cleanup verification: all six targeted CyberOps tables and CyberOps shared-ledger predicates contain zero rows; MarketOps shared-ledger records remain (14 normalized events, 3,081 signals).
 - Parallel vacuum initially hit the host shared-memory limit; reran with `PARALLEL 0` successfully. Table footprint fell from roughly 54 GB to 18.5 GB.
 - pgBackRest check passes and WAL archival remains healthy.
+
+
+### 2026-09-14 — Approved shared SignalOps databases replicated to K8s production targets
+
+- Executed the named one-time approval to copy the cleaned `signalops` and `signalops_temporal` databases into their K8s production targets.
+- The copy replaced only the two shared SignalOps K8s targets; dedicated MarketOps primary and temporal databases were not modified. No DNS or public traffic movement, K8s scheduler enablement, provider polling, or Docker volume deletion occurred.
+- Restored shared targets passed parity checks: `signalops` 159 tables and `signalops_temporal` six tables. The recovery baseline remains encrypted pgBackRest backup `20260914-044935F`.
+- K8s gateway startup exposed a restore limitation: PostgreSQL role passwords and LOGIN attributes are not carried by database dumps. Synchronized `signalops_subscriber_gateway_runtime` from the protected runtime configuration and enabled LOGIN without exposing the credential.
+- Restarted the internal K8s production gateway; both replicas are `2/2 Running`, web replicas remain healthy, and gateway logs show normal startup with MarketOps dedicated-data routing. Public traffic remains on Docker pending the separate traffic-authority gate.
