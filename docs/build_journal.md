@@ -10278,3 +10278,11 @@ Next-cycle priority:
 - Confirmed K8s MarketOps production targets were still empty and ready; the K8s shared SignalOps primary target is treated as an incomplete, non-serving partial restore.
 - Updated the replication tool so `marketops-only` is the default scope and all-platform copy requires a separate explicit scope. The corrected MarketOps-only dry-run passed with source/target readiness, ClusterIP-only services, and no traffic/scheduler/provider changes.
 
+
+### 2026-09-14 — Approved MarketOps K8s database replication completed
+
+- Executed the named MarketOps-only replacement approval against the non-serving K8s production targets; no shared SignalOps database copy, DNS/public traffic movement, K8s scheduler enablement, or provider polling occurred.
+- `marketops` primary parity verified: 190 public tables; Docker source 2,444,835,863 bytes and K8s target 2,243,558,423 bytes (expected storage/index variance).
+- `marketops_temporal` parity verified: six public tables and identical row counts for normalized_event_ledger (46,517), raw_event_ledger (19,727), schema_migrations (2), and signal_ledger (151,528); TimescaleDB 2.17.2 installed with pre/post-restore hooks; K8s target size 1,246,720,483 bytes.
+- The restore tool now supports a `marketops-temporal-only` retry, recreates only the temporal target, and filters preinstalled Timescale extension TOC entries using container-native PostgreSQL tooling.
+- K8s data services remain ClusterIP-only on retained Longhorn PVCs and production app traffic remains on the existing Docker deployment pending the later application cutover gate.
