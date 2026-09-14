@@ -12,7 +12,7 @@ EXPECTED_ALL_PLATFORM_APPROVAL="I, luke@strategiclabs.io, approve copying curren
 
 SCOPE="${SIGNALOPS_K8S_PRODUCTION_DB_REPLICATION_SCOPE:-marketops-only}"
 case "$SCOPE" in
-  marketops-only|all-platform) ;;
+  marketops-only|marketops-temporal-only|all-platform) ;;
   *) printf 'Invalid SIGNALOPS_K8S_PRODUCTION_DB_REPLICATION_SCOPE: %s\n' "$SCOPE" >&2; exit 2 ;;
 esac
 
@@ -66,6 +66,8 @@ all_platform_pairs=(
 )
 if [[ "$SCOPE" == "marketops-only" ]]; then
   pairs=("${marketops_pairs[@]}")
+elif [[ "$SCOPE" == "marketops-temporal-only" ]]; then
+  pairs=("${marketops_pairs[1]}")
 else
   pairs=("${all_platform_pairs[@]}")
 fi
@@ -116,7 +118,7 @@ if [[ "$MODE" == "--dry-run" ]]; then
   exit 0
 fi
 
-if [[ "$SCOPE" == "marketops-only" ]]; then
+if [[ "$SCOPE" == "marketops-only" || "$SCOPE" == "marketops-temporal-only" ]]; then
   expected_approval="$EXPECTED_MARKETOPS_APPROVAL"
 else
   expected_approval="$EXPECTED_ALL_PLATFORM_APPROVAL"
@@ -128,12 +130,43 @@ fi
 
 run_id="k8s-prod-db-replication-$(date -u +%Y%m%dT%H%M%SZ)"
 printf 'signalops_k8s_production_database_replication_started run_id=%s\n' "$run_id"
+temp_dump=""
+temp_list=""
+cleanup_temp_dump() { rm -f "$temp_dump" "$temp_list"; }
+trap cleanup_temp_dump EXIT
 for pair in "${pairs[@]}"; do
   IFS='|' read -r source_container source_db target_pod target_container target_db target_service <<<"$pair"
+  if [[ "$target_container" == "timescaledb" ]]; then
+    kubectl exec -n "$NAMESPACE" "$target_pod" -c "$target_container" -- psql -X -v ON_ERROR_STOP=1 -U signalops -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$target_db' AND pid <> pg_backend_pid();" -c "DROP DATABASE IF EXISTS $target_db;" -c "CREATE DATABASE $target_db OWNER signalops;"
+    kubectl exec -n "$NAMESPACE" "$target_pod" -c "$target_container" -- psql -X -v ON_ERROR_STOP=1 -U signalops -d "$target_db" -c "CREATE EXTENSION IF NOT EXISTS timescaledb;" -c "SELECT timescaledb_pre_restore();"
+  fi
   before_tables="$(target_psql "$target_pod" "$target_container" "$target_db" "$public_table_count_sql" | tr -d '[:space:]')"
   printf 'replicating database=%s source=%s target=%s target_tables_before=%s\n' "$source_db" "$source_container" "$target_pod" "$before_tables"
-  docker exec "$source_container" pg_dump -U signalops -d "$source_db" --format=custom --no-owner --no-acl \
-    | kubectl exec -i -n "$NAMESPACE" "$target_pod" -c "$target_container" -- pg_restore -U signalops -d "$target_db" --clean --if-exists --no-owner --no-acl --exit-on-error
+  if [[ "$target_container" == "timescaledb" ]]; then
+    temp_dump="$(mktemp /tmp/signalops-marketops-temporal-XXXXXX.dump)"
+    temp_list="$(mktemp /tmp/signalops-marketops-temporal-XXXXXX.list)"
+    docker exec "$source_container" pg_dump -U signalops -d "$source_db" --format=custom --no-owner --no-acl >"$temp_dump"
+    # The target image preloads the same Timescale library; omit the dump's
+    # extension TOC entries because the extension was created above. Use the
+    # source image's pg_restore client to inspect the custom dump; the host is
+    # intentionally not required to have a PostgreSQL client installed.
+    source_dump="/tmp/$(basename "$temp_dump")"
+    docker cp "$temp_dump" "$source_container:$source_dump" >/dev/null
+    docker exec "$source_container" pg_restore -l "$source_dump" | grep -Ev 'EXTENSION .*timescaledb|COMMENT - EXTENSION timescaledb' >"$temp_list"
+    docker exec "$source_container" rm -f "$source_dump" >/dev/null
+    target_list="/tmp/$(basename "$temp_list")"
+    target_dump="/tmp/$(basename "$temp_dump")"
+    kubectl cp "$temp_list" "$NAMESPACE/$target_pod:$target_list" -c "$target_container" >/dev/null
+    kubectl cp "$temp_dump" "$NAMESPACE/$target_pod:$target_dump" -c "$target_container" >/dev/null
+    kubectl exec -n "$NAMESPACE" "$target_pod" -c "$target_container" -- pg_restore -U signalops -d "$target_db" --clean --if-exists --no-owner --no-acl --exit-on-error -L "$target_list" "$target_dump"
+    kubectl exec -n "$NAMESPACE" "$target_pod" -c "$target_container" -- rm -f "$target_list" "$target_dump" >/dev/null
+  else
+    docker exec "$source_container" pg_dump -U signalops -d "$source_db" --format=custom --no-owner --no-acl \
+      | kubectl exec -i -n "$NAMESPACE" "$target_pod" -c "$target_container" -- pg_restore -U signalops -d "$target_db" --clean --if-exists --no-owner --no-acl --exit-on-error
+  fi
+  if [[ "$target_container" == "timescaledb" ]]; then
+    kubectl exec -n "$NAMESPACE" "$target_pod" -c "$target_container" -- psql -X -v ON_ERROR_STOP=1 -U signalops -d "$target_db" -c "SELECT timescaledb_post_restore();"
+  fi
   after_tables="$(target_psql "$target_pod" "$target_container" "$target_db" "$public_table_count_sql" | tr -d '[:space:]')"
   after_size="$(target_psql "$target_pod" "$target_container" "$target_db" "$size_sql" | tr -d '[:space:]')"
   printf 'replicated database=%s target_tables_after=%s target_size_bytes=%s\n' "$target_db" "$after_tables" "$after_size"
