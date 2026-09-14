@@ -10293,3 +10293,12 @@ Next-cycle priority:
 - Updated `reconcile_signalops_shared_postgres_pgbackrest_runtime.sh` to use `docker compose up -d --build --force-recreate postgres` after credential rendering.
 - Reconciliation completed successfully: pgBackRest repository/archive check passed, WAL segment `000000010000018700000058` archived, archive health reported `status=ok`, and WAL usage was ~99 MB (7 entries).
 - Shared PostgreSQL is accepting connections and `pg_is_in_recovery()` is false. No CyberOps or MarketOps data was deleted.
+
+### 2026-09-14 — Approved CyberOps cleanup and shared-ledger reclamation completed
+
+- Established encrypted full backup baseline `20260914-035722F` (94.2 GB) before cleanup.
+- Purged only the approved CyberOps event/outbox/lifecycle/IoT tables and shared-ledger rows where `domain/source_domain=security` and `app_id=cyberops`.
+- Preserved CyberOps policies/configuration/audit tables and all MarketOps, subscriber, authentication, and platform records.
+- Post-cleanup verification: all six targeted CyberOps tables and CyberOps shared-ledger predicates contain zero rows; MarketOps shared-ledger records remain (14 normalized events, 3,081 signals).
+- Parallel vacuum initially hit the host shared-memory limit; reran with `PARALLEL 0` successfully. Table footprint fell from roughly 54 GB to 18.5 GB.
+- pgBackRest check passes and WAL archival remains healthy.
