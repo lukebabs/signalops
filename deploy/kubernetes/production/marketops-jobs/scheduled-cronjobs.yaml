@@ -86,7 +86,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-sri-refresh
 spec:
-  schedule: "7 20 * * 1-5"
+  schedule: "5 17 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
@@ -163,7 +163,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-sri-holdings-refresh
 spec:
-  schedule: "20 20 * * 1-5"
+  schedule: "20 17 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
@@ -317,7 +317,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-saf-benchmark
 spec:
-  schedule: "45 18 * * 1-5"
+  schedule: "15 17 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
@@ -552,7 +552,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-task-retry
 spec:
-  schedule: "*/15 18-23 * * 1-5"
+  schedule: "*/15 16-20 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
@@ -631,7 +631,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-warm-eod
 spec:
-  schedule: "0 18 * * 1-5"
+  schedule: "20 16 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
@@ -710,7 +710,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-daily-postclose
 spec:
-  schedule: "1 18 * * 1-5"
+  schedule: "30 16 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
@@ -790,7 +790,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-postclose-recovery
 spec:
-  schedule: "*/15 18-23 * * 1-5"
+  schedule: "*/15 16-20 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
@@ -870,7 +870,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-risk-reward
 spec:
-  schedule: "35 18 * * 1-5"
+  schedule: "5 17 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
@@ -950,7 +950,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-fmp-continuation
 spec:
-  schedule: "0 2 * * 6"
+  schedule: "0 4 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
