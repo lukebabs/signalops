@@ -126,3 +126,29 @@ k8s_schedulers_enabled=false
 ```
 
 The remaining production cutover gates are database restore/replication into the K8s production PVCs, final capacity/load validation, and explicit traffic authority transfer.
+
+## September 14, 2026 database replication preparation
+
+A non-destructive replication readiness tool is now source-controlled:
+
+- `scripts/start_signalops_docker_database_sources_for_k8s_replication.sh` starts only the Docker database source containers needed for a K8s copy: shared SignalOps primary/temporal and dedicated MarketOps primary/temporal. It does not restart web/gateway, start schedulers, or invoke providers.
+- `scripts/replicate_signalops_docker_databases_to_k8s_production.sh` is currently dry-run only. It verifies Docker source availability, K8s target pod readiness, ClusterIP-only database services, and table/size evidence without copying data.
+- Deployment-agent actions were added only for `k8s-production-db-sources-start` and `k8s-production-db-replication-dry-run`. No persistent destructive execute action exists.
+
+Current dry-run evidence showed the K8s targets are ready and empty, while Docker source availability is incomplete until the missing Docker DB source containers are started:
+
+```text
+signalops: source ready, target ready, source_tables=159, target_tables=0
+signalops_temporal: source missing_or_stopped, target ready
+marketops: source missing_or_stopped, target ready
+marketops_temporal: source missing_or_stopped, target ready
+ready_for_execute=false
+```
+
+Actual database copy remains a separate named-approval gate because it will replace the initialized contents inside the K8s production database PVCs, even though public traffic has not moved there.
+
+Required approval text for the one-time copy gate:
+
+```text
+I, luke@strategiclabs.io, approve copying current Docker production SignalOps and MarketOps databases into the K8s production database PVCs, replacing only the K8s production target database contents, with no DNS cutover, no public traffic movement, no K8s scheduler enablement, and no provider polling.
+```

@@ -336,6 +336,13 @@ FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
   restore-rehearsal-run)
     run "$repository_dir/scripts/marketops_pgbackrest_restore_rehearsal.sh"
     ;;
+
+  k8s-production-db-sources-start)
+    run "$repository_dir/scripts/start_signalops_docker_database_sources_for_k8s_replication.sh"
+    ;;
+  k8s-production-db-replication-dry-run)
+    run "$repository_dir/scripts/replicate_signalops_docker_databases_to_k8s_production.sh"
+    ;;
   k8s-staging-gateway-runtime-smoke)
     run "$repository_dir/scripts/run_k8s_staging_gateway_runtime_smoke.sh"
     ;;

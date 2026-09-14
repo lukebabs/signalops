@@ -64,6 +64,8 @@ require_executable scripts/provision_openbao_signalops_app_runtime_production.sh
 require_executable scripts/create_k8s_signalops_data_runtime_production_env.sh
 require_executable scripts/provision_openbao_signalops_data_runtime_production.sh
 require_executable scripts/publish_k8s_signalops_database_images.sh
+require_executable scripts/start_signalops_docker_database_sources_for_k8s_replication.sh
+require_executable scripts/replicate_signalops_docker_databases_to_k8s_production.sh
 
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
 
@@ -198,6 +200,7 @@ k8s_production_app_cutover_package=verified
 pending_production_app_runtime_openbao=false
 pending_production_data_runtime_openbao=false
 pending_production_database_restore_or_replication=true
+production_database_replication_dry_run_tool=available
 pending_production_traffic_authority_transfer=true
 k8s_capacity_headroom_status=${capacity_headroom_status}
 k8s_capacity_headroom_cpu_request_pct=${capacity_headroom_cpu_pct}

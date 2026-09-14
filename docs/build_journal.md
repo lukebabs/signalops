@@ -10266,3 +10266,9 @@ Next-cycle priority:
 - Added pod-template production labels so base scaffold verification no longer confuses production data pods with base-scaffold workload pods.
 - Verified all four production database pods are `2/2 Running` and `pg_isready` accepts connections. No DNS movement, public traffic cutover, K8s scheduler enablement, provider polling, or database restore was performed.
 
+### 2026-09-14 — K8s production database replication gate prepared
+
+- Added a dry-run-only Docker-to-K8s production database replication readiness tool. The dry-run checks source container availability, K8s target pod readiness, ClusterIP-only target services, and source/target table/size evidence without copying data.
+- Added a source-container startup helper and deployment-agent actions for source startup and replication dry-run only. A persistent destructive execute action was intentionally not added.
+- Dry-run evidence showed the K8s production target databases are ready and empty, while three Docker source database containers were currently stopped/missing from the live container inventory. Actual copy remains blocked until source DBs are online and the named one-time replacement approval is provided.
+
