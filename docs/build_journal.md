@@ -10286,3 +10286,10 @@ Next-cycle priority:
 - `marketops_temporal` parity verified: six public tables and identical row counts for normalized_event_ledger (46,517), raw_event_ledger (19,727), schema_migrations (2), and signal_ledger (151,528); TimescaleDB 2.17.2 installed with pre/post-restore hooks; K8s target size 1,246,720,483 bytes.
 - The restore tool now supports a `marketops-temporal-only` retry, recreates only the temporal target, and filters preinstalled Timescale extension TOC entries using container-native PostgreSQL tooling.
 - K8s data services remain ClusterIP-only on retained Longhorn PVCs and production app traffic remains on the existing Docker deployment pending the later application cutover gate.
+
+### 2026-09-14 — Shared pgBackRest stale bind-mount fixed
+
+- Diagnosed repeated shared PostgreSQL crashes as an expired S3 STS token remaining inside the container after host config refresh. The refresh script atomically replaced `/etc/signalops/pgbackrest.conf`, while Docker retained the old single-file bind-mount inode.
+- Updated `reconcile_signalops_shared_postgres_pgbackrest_runtime.sh` to use `docker compose up -d --build --force-recreate postgres` after credential rendering.
+- Reconciliation completed successfully: pgBackRest repository/archive check passed, WAL segment `000000010000018700000058` archived, archive health reported `status=ok`, and WAL usage was ~99 MB (7 entries).
+- Shared PostgreSQL is accepting connections and `pg_is_in_recovery()` is false. No CyberOps or MarketOps data was deleted.

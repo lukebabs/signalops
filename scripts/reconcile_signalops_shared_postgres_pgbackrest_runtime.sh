@@ -29,7 +29,7 @@ compose=(
 )
 
 SIGNALOPS_PGBACKREST_CONFIG_PATH="$config_path" "${compose[@]}" config --quiet
-SIGNALOPS_PGBACKREST_CONFIG_PATH="$config_path" "${compose[@]}" up -d --build postgres
+SIGNALOPS_PGBACKREST_CONFIG_PATH="$config_path" "${compose[@]}" up -d --build --force-recreate postgres
 
 ready=false
 for _ in $(seq 1 60); do
