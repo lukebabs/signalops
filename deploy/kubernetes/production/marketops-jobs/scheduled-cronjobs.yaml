@@ -11,7 +11,7 @@ metadata:
 spec:
   schedule: "*/15 9-20 * * 1-5"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -88,7 +88,7 @@ metadata:
 spec:
   schedule: "7 20 * * 1-5"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -165,7 +165,7 @@ metadata:
 spec:
   schedule: "20 20 * * 1-5"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -242,7 +242,7 @@ metadata:
 spec:
   schedule: "30 2 * * 6"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -319,7 +319,7 @@ metadata:
 spec:
   schedule: "45 18 * * 1-5"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -396,7 +396,7 @@ metadata:
 spec:
   schedule: "0 * * * *"
   timeZone: "UTC"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -475,7 +475,7 @@ metadata:
 spec:
   schedule: "30 2 * * *"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -554,7 +554,7 @@ metadata:
 spec:
   schedule: "*/15 18-23 * * 1-5"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -633,7 +633,7 @@ metadata:
 spec:
   schedule: "0 18 * * 1-5"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -712,7 +712,7 @@ metadata:
 spec:
   schedule: "1 18 * * 1-5"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -792,7 +792,7 @@ metadata:
 spec:
   schedule: "*/15 18-23 * * 1-5"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -872,7 +872,7 @@ metadata:
 spec:
   schedule: "35 18 * * 1-5"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -952,7 +952,7 @@ metadata:
 spec:
   schedule: "0 2 * * 6"
   timeZone: "America/New_York"
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
