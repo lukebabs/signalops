@@ -161,6 +161,12 @@ if [[ -n "$capacity_headroom_report" ]]; then
   capacity_headroom_memory_pct="$(printf '%s\n' "$capacity_headroom_report" | awk -F= '$1=="memory_request_pct"{print $2; exit}')"
 fi
 
+production_database_replication_pending=true
+if kubectl exec -n signalops-data signalops-postgres-production-0 -c postgres -- psql -U signalops -d signalops -Atqc "SELECT count(*) FROM pg_tables WHERE schemaname='public'" 2>/dev/null | awk '$1 > 0 {ok=1} END {exit ok ? 0 : 1}' \
+  && kubectl exec -n signalops-data signalops-timescaledb-production-0 -c timescaledb -- psql -U signalops -d signalops_temporal -Atqc "SELECT count(*) FROM pg_tables WHERE schemaname='public'" 2>/dev/null | awk '$1 > 0 {ok=1} END {exit ok ? 0 : 1}'; then
+  production_database_replication_pending=false
+fi
+
 cat <<EOF
 signalops_k8s_production_cutover_readiness_report
 production_cutover_allowed=false
@@ -199,7 +205,7 @@ k8s_production_data_package=verified
 k8s_production_app_cutover_package=verified
 pending_production_app_runtime_openbao=false
 pending_production_data_runtime_openbao=false
-pending_production_database_restore_or_replication=true
+pending_production_database_restore_or_replication=${production_database_replication_pending}
 production_database_replication_dry_run_tool=available
 pending_production_traffic_authority_transfer=true
 k8s_capacity_headroom_status=${capacity_headroom_status}
