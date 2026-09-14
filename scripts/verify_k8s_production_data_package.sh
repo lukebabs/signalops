@@ -24,6 +24,8 @@ for required in \
   'signalops/data/k8s/data/signalops-databases-runtime-production' \
   'serviceAccountName: signalops-data-secret-reader' \
   'kind: NetworkPolicy' \
+  'allow-signalops-production-database-openbao-egress' \
+  'kubernetes.io/metadata.name: openbao' \
   'production-cutover-allowed: "false"'
 do
   grep -q "$required" <<<"$rendered" || fail "render missing required marker: $required"

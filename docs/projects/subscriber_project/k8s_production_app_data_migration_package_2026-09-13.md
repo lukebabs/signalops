@@ -71,8 +71,8 @@ The production-readiness verifier now reports the K8s production app/data packag
 ```text
 k8s_production_data_package=verified
 k8s_production_app_cutover_package=verified
-pending_production_app_runtime_openbao=true
-pending_production_data_runtime_openbao=true
+pending_production_app_runtime_openbao=false
+pending_production_data_runtime_openbao=false
 pending_production_database_restore_or_replication=true
 pending_production_traffic_authority_transfer=true
 pending_capacity_load_validation=true
@@ -84,8 +84,6 @@ This package does not authorize:
 
 - DNS movement for `signalops.syncratic.io`;
 - production traffic movement from Docker/Traefik to Istio;
-- production app runtime secret migration into OpenBao;
-- production data bootstrap secret migration into OpenBao;
 - database restore into K8s production PVCs;
 - Kubernetes scheduler authority transfer;
 - provider polling from K8s production jobs.
@@ -97,3 +95,34 @@ Those remain named-approval gates.
 The approved production runtime provisioning gate reached an environmental blocker: OpenBao was sealed (`Sealed=true`, unseal progress `0/3`). Runtime env rendering succeeded, but production app/data runtime secrets were not written and the production data overlay was not applied. Applying the overlay while OpenBao is sealed would strand the database pods without injected bootstrap passwords, so the correct state is to unseal OpenBao first, then rerun the provisioning gate.
 
 A shell compatibility issue was also fixed: generated OpenBao pod-side payloads now use POSIX `set -eu` rather than `set -euo pipefail`, because the OpenBao pod executes payloads with `/bin/sh`.
+
+## September 14, 2026 OpenBao unsealed production data readiness
+
+After OpenBao was unsealed, the approved production runtime provisioning gate completed without exposing secret values.
+
+Verified evidence:
+
+```text
+openbao_signalops_data_runtime_production_verified
+openbao_signalops_app_runtime_production_verified
+cross_plane_denied=true
+secret_values=production_runtime_supplied
+production_traffic_moved=false
+```
+
+The production data overlay was then applied into `signalops-data` using retained Longhorn PVCs and OpenBao Agent Injector runtime delivery. Initial database startup exposed the standard Longhorn/ext filesystem `lost+found` issue when mounting a PVC directly as PostgreSQL's data directory. The manifest now sets `PGDATA=/var/lib/postgresql/data/pgdata` for all four production database pods so PostgreSQL initializes inside a subdirectory while preserving the PVC boundary.
+
+Current K8s production data evidence:
+
+```text
+signalops-postgres-production-0: 2/2 Running, pg_isready accepting connections
+signalops-timescaledb-production-0: 2/2 Running, pg_isready accepting connections
+marketops-postgres-production-0: 2/2 Running, pg_isready accepting connections
+marketops-timescaledb-production-0: 2/2 Running, pg_isready accepting connections
+services: ClusterIP only
+production_traffic_moved=false
+provider_polling_invoked=false
+k8s_schedulers_enabled=false
+```
+
+The remaining production cutover gates are database restore/replication into the K8s production PVCs, final capacity/load validation, and explicit traffic authority transfer.

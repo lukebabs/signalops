@@ -10255,3 +10255,14 @@ Next-cycle priority:
 - Provisioning failed inside the OpenBao pod because the pod is currently sealed: `Initialized=true`, `Sealed=true`, `Unseal Progress=0/3`, `HA Enabled=true`.
 - Corrected the generated pod-side OpenBao payloads from `set -euo pipefail` to POSIX-compatible `set -eu`; `/bin/sh` in the OpenBao container does not support `pipefail`.
 - The production K8s data overlay was not applied because sealed OpenBao would prevent secret injection into the database pods. No public traffic, DNS, scheduler authority, provider polling, or production database restore/replication was changed.
+
+### 2026-09-14 — K8s production OpenBao runtime and data pods verified
+
+- After OpenBao was unsealed, provisioned production app and data runtime paths into OpenBao without printing secret values.
+- Verified app/data Kubernetes auth roles could read only their intended paths and cross-plane access was denied.
+- Propagated the OpenBao CA trust into `signalops-data` and confirmed the GHCR pull path for production database images.
+- Applied the production K8s data overlay with retained Longhorn PVCs and ClusterIP-only database services.
+- Fixed the production PostgreSQL/Timescale startup issue by setting `PGDATA=/var/lib/postgresql/data/pgdata`, avoiding the Longhorn `lost+found` mount-root initialization failure.
+- Added pod-template production labels so base scaffold verification no longer confuses production data pods with base-scaffold workload pods.
+- Verified all four production database pods are `2/2 Running` and `pg_isready` accepts connections. No DNS movement, public traffic cutover, K8s scheduler enablement, provider polling, or database restore was performed.
+

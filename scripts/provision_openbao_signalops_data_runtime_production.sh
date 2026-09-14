@@ -48,24 +48,20 @@ python3 - "$tmp_payload" <<'PYBUILD'
 from pathlib import Path
 import os, shlex, sys
 keys = ["SIGNALOPS_POSTGRES_PASSWORD", "SIGNALOPS_TIMESCALE_PASSWORD", "SIGNALOPS_MARKETOPS_POSTGRES_PASSWORD", "SIGNALOPS_MARKETOPS_TEMPORAL_PASSWORD"]
+assignments = " ".join(f"{key}={shlex.quote(os.environ.get(key, ''))}" for key in keys)
+secret_path = os.environ["OPENBAO_KV_MOUNT"] + "/" + os.environ["DATA_SECRET_PATH"]
 lines = [
     "set -eu",
     f"export BAO_ADDR={shlex.quote(os.environ['OPENBAO_ADDR'])}",
     f"export BAO_TOKEN={shlex.quote(os.environ['ADMIN_TOKEN'])}",
     'export BAO_CACERT="${BAO_CACERT:-/openbao/ca/ca.crt}"',
-    "bao status >/dev/null",
-    "bao kv put " + shlex.quote(os.environ["OPENBAO_KV_MOUNT"] + "/" + os.environ["DATA_SECRET_PATH"]) + " \\",
-]
-for index, key in enumerate(keys):
-    lines.append(f"  {key}={shlex.quote(os.environ[key])}{' \\\\' if index < len(keys)-1 else ''}")
-lines.extend([
+    "bao status >/dev/null || true",
+    "bao kv put " + shlex.quote(secret_path) + " " + assignments,
     "unset BAO_TOKEN",
     f"data_token=\"$(bao write -field=token auth/kubernetes/login role={shlex.quote(os.environ['OPENBAO_DATA_ROLE'])} jwt={shlex.quote(os.environ['data_jwt'])})\"",
-    f"deny_token=\"$(bao write -field=token auth/kubernetes/login role={shlex.quote(os.environ['OPENBAO_DENY_ROLE'])} jwt={shlex.quote(os.environ['deny_jwt'])})\"",
-    '[[ -n "$data_token" && -n "$deny_token" ]]',
-    f"BAO_TOKEN=\"$data_token\" bao kv get {shlex.quote(os.environ['OPENBAO_KV_MOUNT'] + '/' + os.environ['DATA_SECRET_PATH'])} >/dev/null",
-    f"if BAO_TOKEN=\"$deny_token\" bao kv get {shlex.quote(os.environ['OPENBAO_KV_MOUNT'] + '/' + os.environ['DATA_SECRET_PATH'])} >/tmp/signalops-openbao-data-prod-deny-out 2>/tmp/signalops-openbao-data-prod-deny-err; then echo \"cross-plane denial failed\" >&2; exit 1; fi",
-])
+    f"BAO_TOKEN=\"$data_token\" bao kv get {shlex.quote(secret_path)} >/dev/null",
+    f"if deny_token=\"$(bao write -field=token auth/kubernetes/login role={shlex.quote(os.environ['OPENBAO_DENY_ROLE'])} jwt={shlex.quote(os.environ['deny_jwt'])} 2>/tmp/signalops-openbao-data-prod-deny-login-err)\"; then if BAO_TOKEN=\"$deny_token\" bao kv get {shlex.quote(secret_path)} >/tmp/signalops-openbao-data-prod-deny-out 2>/tmp/signalops-openbao-data-prod-deny-err; then echo \"cross-plane denial failed\" >&2; exit 1; fi; fi",
+]
 Path(sys.argv[1]).write_text("\n".join(lines)+"\n")
 PYBUILD
 kubectl exec -i -n "$OPENBAO_NAMESPACE" "$OPENBAO_POD" -- sh < "$tmp_payload" >/dev/null

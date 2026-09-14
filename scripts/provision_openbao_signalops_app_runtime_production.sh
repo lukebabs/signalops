@@ -123,25 +123,20 @@ keys = [
     "SYNCRATIC_PASSWORD",
     "SYNCRATIC_TOKEN_AUDIENCE",
 ]
+assignments = " ".join(f"{key}={shlex.quote(os.environ.get(key, ''))}" for key in keys)
+secret_path = os.environ["OPENBAO_KV_MOUNT"] + "/" + os.environ["APP_SECRET_PATH"]
 lines = [
     "set -eu",
     f"export BAO_ADDR={shlex.quote(os.environ['OPENBAO_ADDR'])}",
     f"export BAO_TOKEN={shlex.quote(os.environ['ADMIN_TOKEN'])}",
     'export BAO_CACERT="${BAO_CACERT:-/openbao/ca/ca.crt}"',
-    "bao status >/dev/null",
-    "bao kv put " + shlex.quote(os.environ["OPENBAO_KV_MOUNT"] + "/" + os.environ["APP_SECRET_PATH"]) + " \\",
-]
-for index, key in enumerate(keys):
-    suffix = " \\" if index < len(keys) - 1 else ""
-    lines.append(f"  {key}={shlex.quote(os.environ.get(key, ''))}{suffix}")
-lines.extend([
+    "bao status >/dev/null || true",
+    "bao kv put " + shlex.quote(secret_path) + " " + assignments,
     "unset BAO_TOKEN",
     f"app_token=\"$(bao write -field=token auth/kubernetes/login role={shlex.quote(os.environ['OPENBAO_APP_ROLE'])} jwt={shlex.quote(os.environ['app_jwt'])})\"",
-    f"deny_token=\"$(bao write -field=token auth/kubernetes/login role={shlex.quote(os.environ['OPENBAO_DENY_ROLE'])} jwt={shlex.quote(os.environ['deny_jwt'])})\"",
-    '[[ -n "$app_token" && -n "$deny_token" ]]',
-    f"BAO_TOKEN=\"$app_token\" bao kv get {shlex.quote(os.environ['OPENBAO_KV_MOUNT'] + '/' + os.environ['APP_SECRET_PATH'])} >/dev/null",
-    f"if BAO_TOKEN=\"$deny_token\" bao kv get {shlex.quote(os.environ['OPENBAO_KV_MOUNT'] + '/' + os.environ['APP_SECRET_PATH'])} >/tmp/signalops-openbao-prod-deny-out 2>/tmp/signalops-openbao-prod-deny-err; then echo \"cross-plane denial failed\" >&2; exit 1; fi",
-])
+    f"BAO_TOKEN=\"$app_token\" bao kv get {shlex.quote(secret_path)} >/dev/null",
+    f"if deny_token=\"$(bao write -field=token auth/kubernetes/login role={shlex.quote(os.environ['OPENBAO_DENY_ROLE'])} jwt={shlex.quote(os.environ['deny_jwt'])} 2>/tmp/signalops-openbao-app-prod-deny-login-err)\"; then if BAO_TOKEN=\"$deny_token\" bao kv get {shlex.quote(secret_path)} >/tmp/signalops-openbao-app-prod-deny-out 2>/tmp/signalops-openbao-app-prod-deny-err; then echo \"cross-plane denial failed\" >&2; exit 1; fi; fi",
+]
 Path(sys.argv[1]).write_text("\n".join(lines) + "\n")
 PYBUILD
 

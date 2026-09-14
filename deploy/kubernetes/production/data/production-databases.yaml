@@ -38,7 +38,10 @@ spec:
       labels:
         app.kubernetes.io/name: signalops-postgres-production
         app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: signalops
         signalops.syncratic.io/plane: data
+        signalops.syncratic.io/stage: production
+        signalops.syncratic.io/production-cutover-allowed: "false"
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "signalops-data"
@@ -77,6 +80,8 @@ spec:
               value: signalops
             - name: POSTGRES_DB
               value: signalops
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "signalops", "-d", "signalops"]
@@ -142,7 +147,10 @@ spec:
       labels:
         app.kubernetes.io/name: signalops-timescaledb-production
         app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: signalops
         signalops.syncratic.io/plane: data
+        signalops.syncratic.io/stage: production
+        signalops.syncratic.io/production-cutover-allowed: "false"
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "signalops-data"
@@ -181,6 +189,8 @@ spec:
               value: signalops
             - name: POSTGRES_DB
               value: signalops
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "signalops", "-d", "signalops"]
@@ -246,7 +256,10 @@ spec:
       labels:
         app.kubernetes.io/name: marketops-postgres-production
         app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: signalops
         signalops.syncratic.io/plane: data
+        signalops.syncratic.io/stage: production
+        signalops.syncratic.io/production-cutover-allowed: "false"
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "signalops-data"
@@ -285,6 +298,8 @@ spec:
               value: signalops
             - name: POSTGRES_DB
               value: marketops
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "signalops", "-d", "marketops"]
@@ -350,7 +365,10 @@ spec:
       labels:
         app.kubernetes.io/name: marketops-timescaledb-production
         app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: signalops
         signalops.syncratic.io/plane: data
+        signalops.syncratic.io/stage: production
+        signalops.syncratic.io/production-cutover-allowed: "false"
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "signalops-data"
@@ -389,6 +407,8 @@ spec:
               value: signalops
             - name: POSTGRES_DB
               value: marketops_temporal
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "signalops", "-d", "marketops_temporal"]
@@ -449,3 +469,48 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-signalops-production-database-openbao-egress
+  namespace: signalops-data
+  labels:
+    app.kubernetes.io/name: signalops-production-databases
+    signalops.syncratic.io/plane: data
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - signalops-postgres-production
+          - signalops-timescaledb-production
+          - marketops-postgres-production
+          - marketops-timescaledb-production
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openbao
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: openbao
+              component: server
+      ports:
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 8201
+
