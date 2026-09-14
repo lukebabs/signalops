@@ -35,7 +35,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	repo, err := postgres.OpenWithTemporal(context.Background(), app.DatabaseURL, app.TemporalDatabaseURL)
+	primaryDatabaseURL := app.DatabaseURL
+	temporalDatabaseURL := app.TemporalDatabaseURL
+	if app.MarketOpsDatabaseURL != "" {
+		primaryDatabaseURL = app.MarketOpsDatabaseURL
+	}
+	if app.MarketOpsTemporalDatabaseURL != "" {
+		temporalDatabaseURL = app.MarketOpsTemporalDatabaseURL
+	}
+	repo, err := postgres.OpenWithTemporal(context.Background(), primaryDatabaseURL, temporalDatabaseURL)
 	if err != nil {
 		return err
 	}
