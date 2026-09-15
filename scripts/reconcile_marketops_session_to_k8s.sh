@@ -31,7 +31,7 @@ docker inspect "$src_temporal" >/dev/null
 
 copy_table() {
   local source_container="$1" source_db="$2" destination_pod="$3" destination_db="$4" table="$5" predicate="$6"
-  local stage="session_reconcile_${table//[^a-zA-Z0-9_]/_}_$$" exists inserted
+  local safe_table="${table//[^a-zA-Z0-9_]/_}" stage="mr_${safe_table:0:28}_$$_${RANDOM}" exists inserted
   exists="$(docker_psql "$source_container" "$source_db" "SELECT (to_regclass('public.$table') IS NOT NULL)::int")"
   [[ "$exists" == "1" ]] || { echo "skipped=$table reason=source_table_missing"; return 0; }
   exists="$(k8s_psql "$destination_pod" "$destination_db" "SELECT (to_regclass('public.$table') IS NOT NULL)::int")"
