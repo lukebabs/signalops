@@ -59,6 +59,7 @@ func (r *Repository) ClaimSyncraticIntelligenceJob(ctx context.Context, now time
  JOIN syncratic_context_windows c ON c.context_window_id=j.context_window_id
  WHERE (j.status IN ('queued','retryable_failed') OR (j.status='running' AND j.lease_expires_at < $1))
    AND j.attempts < j.max_attempts
+   AND j.subject_symbol='MARKETOPS'
    AND c.context_strategy IN ('marketops_daily_overview_v1','marketops_sri_daily_v1','marketops_risk_reward_daily_v1','marketops_review_queue_daily_v1')
  ORDER BY j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1
 ) UPDATE syncratic_intelligence_jobs j SET status='running', attempts=j.attempts+1, lease_expires_at=$1+$2::interval,
