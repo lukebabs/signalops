@@ -862,6 +862,9 @@ func syncraticAskAlreadyApplied(insight storage.SyncraticInsightRecord, meta syn
 	if asString(metrics["strategy"]) == dailyNarrativeStrategyOverview && !dailyOverviewNarrativeComplete(insight.Explanation, insight.Summary) {
 		return false
 	}
+	if asString(metrics["strategy"]) == dailyNarrativeStrategyRiskReward && !dailyRiskRewardNarrativeComplete(insight) {
+		return false
+	}
 	ask, ok := metrics["syncratic_ask"].(map[string]any)
 	if !ok {
 		return false
@@ -958,6 +961,17 @@ func syncraticAskOutputNeedsDeterministicFallback(answer, summary, title string,
 		return true
 	}
 	return false
+}
+
+func dailyRiskRewardNarrativeComplete(insight storage.SyncraticInsightRecord) bool {
+	metrics := jsonObjectOrEmpty(insight.MetricsJSON)
+	sections := mapFromAny(metrics["sections"])
+	riskReward := mapFromAny(sections["risk_reward"])
+	breadth := mapFromAny(riskReward["breadth"])
+	if intFromAny(breadth["bearish"]) > 0 {
+		return strings.Contains(strings.ToLower(strings.Join([]string{insight.Explanation, insight.Summary}, " ")), "bearish")
+	}
+	return true
 }
 
 func dailyOverviewNarrativeComplete(answer, summary string) bool {
