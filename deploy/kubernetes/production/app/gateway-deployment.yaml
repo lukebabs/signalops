@@ -75,8 +75,6 @@ spec:
             - |
               test -s /vault/secrets/signalops-gateway-runtime.env
               . /vault/secrets/signalops-gateway-runtime.env
-              # Ask is paused while deterministic/stored narratives remain available.
-              unset SYNCRATIC_API_BASE_URL
               if [ -S /run/signalops/deployment-agent.sock ]; then
                 export SIGNALOPS_SCHEDULE_RUNNER_SOCKET=/run/signalops/deployment-agent.sock
               fi
