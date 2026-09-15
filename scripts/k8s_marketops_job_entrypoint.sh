@@ -159,6 +159,13 @@ case "$job_id" in
     )
     ;;
 
+  marketops-syncratic-intelligence)
+    command_args=(
+      signalops-marketops-syncratic-intelligence-runner
+      --tenant-id "${MARKETOPS_SYNCRATIC_TENANT_ID:-tenant-local}"
+      --session-date "${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"
+    )
+    ;;
   marketops-daily-postclose)
     [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-daily-postclose requires a separately approved production K8s scheduler cutover"
     command_args=(

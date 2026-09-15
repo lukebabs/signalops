@@ -423,6 +423,7 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --from=build /out/signalops-marketops-intraday-monitor /usr/local/bin/signalops-marketops-intraday-monitor
+COPY --from=build /out/signalops-marketops-syncratic-intelligence-runner /usr/local/bin/signalops-marketops-syncratic-intelligence-runner
 COPY --from=build /out/signalops-marketops-sri-runner /usr/local/bin/signalops-marketops-sri-runner
 COPY --from=build /out/signalops-marketops-sri-holdings-runner /usr/local/bin/signalops-marketops-sri-holdings-runner
 COPY --from=build /out/signalops-subscriber-global-annual-financial-task-worker /usr/local/bin/signalops-subscriber-global-annual-financial-task-worker

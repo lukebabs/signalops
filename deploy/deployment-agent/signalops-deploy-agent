@@ -70,7 +70,7 @@ case "$action" in
   scheduler-run-now:*)
     job_id="${action#scheduler-run-now:}"
     case "$job_id" in
-      marketops-warm-eod|marketops-daily-postclose|marketops-sri-refresh|marketops-sri-holdings-refresh|marketops-intraday|marketops-fmp-continuation|marketops-fmp-annual-financial|marketops-task-retry|marketops-postclose-recovery|marketops-risk-reward|marketops-operations-monitor|marketops-saf-benchmark|marketops-retention-governance)
+      marketops-warm-eod|marketops-daily-postclose|marketops-sri-refresh|marketops-sri-holdings-refresh|marketops-intraday|marketops-fmp-continuation|marketops-syncratic-intelligence|marketops-fmp-annual-financial|marketops-task-retry|marketops-postclose-recovery|marketops-risk-reward|marketops-operations-monitor|marketops-saf-benchmark|marketops-retention-governance)
         run_k8s_marketops_job "$job_id"
         exit 0
         ;;
