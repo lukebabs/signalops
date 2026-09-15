@@ -120,7 +120,8 @@ func main() {
 		routerConfig.PlatformDefinitionRepository = queryRepo
 		routerConfig.PublishRepository = queryRepo
 	}
-	if strings.TrimSpace(os.Getenv("SYNCRATIC_API_BASE_URL")) != "" {
+	syncraticAskEnabled := !strings.EqualFold(strings.TrimSpace(os.Getenv("SIGNALOPS_SYNCRATIC_ASK_ENABLED")), "false")
+	if syncraticAskEnabled && strings.TrimSpace(os.Getenv("SYNCRATIC_API_BASE_URL")) != "" {
 		synClient, err := userapi.New(userapi.ConfigFromEnv())
 		if err != nil {
 			logger.Error("signalops gateway syncratic user api setup failed", "error", err)
