@@ -1245,13 +1245,13 @@ func naturalDirectionalImbalance(bullish, bearish int) string {
 	diff := bullish - bearish
 	switch {
 	case diff >= 10:
-		return "a clear bullish tilt"
+		return "a clear bullish tilt with a smaller bearish counter-signal"
 	case diff > 0:
-		return "a modest bullish tilt"
+		return "a modest bullish tilt with a smaller bearish counter-signal"
 	case diff <= -10:
-		return "a clear bearish tilt"
+		return "a clear bearish tilt with a smaller bullish counter-signal"
 	case diff < 0:
-		return "a modest bearish tilt"
+		return "a modest bearish tilt with a smaller bullish counter-signal"
 	default:
 		return "a balanced directional profile"
 	}
