@@ -36,6 +36,21 @@ ensure_marketops_pgbackrest_unit() {
   fi
 }
 
+run_k8s_marketops_job() {
+  local job_id="$1"
+  local namespace="${SIGNALOPS_K8S_MARKETOPS_NAMESPACE:-signalops-marketops}"
+  local job_name="${job_id}-manual-$(date -u +%Y%m%d%H%M%S)"
+  kubectl create job -n "$namespace" "$job_name" --from="cronjob/${job_id}"
+  if kubectl wait -n "$namespace" --for=condition=complete --timeout="${SIGNALOPS_K8S_RUN_NOW_TIMEOUT:-900s}" "job/${job_name}"; then
+    kubectl logs -n "$namespace" "job/${job_name}" --all-containers=true --tail=200
+    audit success
+    return 0
+  fi
+  kubectl logs -n "$namespace" "job/${job_name}" --all-containers=true --tail=200 || true
+  audit failed
+  return 1
+}
+
 case "$action" in
   render-cutover-env)
     run "$root_dir/render_marketops_cutover_env.sh"
@@ -55,14 +70,9 @@ case "$action" in
   scheduler-run-now:*)
     job_id="${action#scheduler-run-now:}"
     case "$job_id" in
-      marketops-warm-eod|marketops-daily-postclose|marketops-sri-refresh|marketops-sri-holdings-refresh|marketops-intraday|marketops-fmp-continuation|marketops-fmp-annual-financial|marketops-task-retry|marketops-postclose-recovery)
-        unit="signalops-marketops-boundary-schedule@${job_id}.service"
-        ;;
-      marketops-risk-reward)
-        unit="signalops-marketops-boundary-schedule@marketops-postclose-recovery.service"
-        ;;
-      marketops-operations-monitor)
-        unit="signalops-marketops-operations-monitor.service"
+      marketops-warm-eod|marketops-daily-postclose|marketops-sri-refresh|marketops-sri-holdings-refresh|marketops-intraday|marketops-fmp-continuation|marketops-fmp-annual-financial|marketops-task-retry|marketops-postclose-recovery|marketops-risk-reward|marketops-operations-monitor|marketops-saf-benchmark|marketops-retention-governance)
+        run_k8s_marketops_job "$job_id"
+        exit 0
         ;;
       signalops-storage-monitor)
         unit="signalops-storage-monitor.service"
