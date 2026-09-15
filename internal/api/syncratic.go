@@ -859,6 +859,9 @@ func syncraticAskAlreadyApplied(insight storage.SyncraticInsightRecord, meta syn
 		return false
 	}
 	metrics := jsonObjectOrEmpty(insight.MetricsJSON)
+	if asString(metrics["strategy"]) == dailyNarrativeStrategyOverview && !dailyOverviewNarrativeComplete(insight.Explanation, insight.Summary) {
+		return false
+	}
 	ask, ok := metrics["syncratic_ask"].(map[string]any)
 	if !ok {
 		return false
