@@ -51,7 +51,8 @@ def test_postclose_monitor_conditions_are_not_rendered_as_midnight_live_events(b
         login(page, config)
         responses: list[Response] = []
         page.on("response", lambda response: responses.append(response) if intraday_response(response) else None)
-        page.reload(wait_until="domcontentloaded")
+        page.goto(f"{base_url}/marketops/indicator-reel", wait_until="domcontentloaded")
+        page.get_by_role("heading", name="Market Intelligence").wait_for(timeout=30_000)
         page.wait_for_timeout(1_000)
         response = next((candidate for candidate in responses if candidate.status == 200), None)
         assert response is not None, "Market Intelligence did not request intraday conditions after reload"
