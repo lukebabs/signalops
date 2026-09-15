@@ -527,7 +527,7 @@ export function useCyberOpsTrafficOverview(tenantId: string, window: CyberOpsTra
 
 // This is the primary MarketOps dashboard state. Keep the view aligned with completed
 // intraday/EOD jobs even when the authenticated SSE bridge is unavailable.
-export function useMarketOpsSignalOverview(tenantId: string, universeGroup = "all_active", window: MarketOpsSignalOverviewWindow = "60_trade_days") { return useQuery<MarketOpsSignalOverviewResponse>({ queryKey: queryKeys.marketOpsSignalOverview(tenantId, universeGroup, window), queryFn: () => api.getMarketOpsSignalOverview(tenantId, universeGroup, window), staleTime: 15 * 1000, refetchInterval: 15 * 1000, refetchOnMount: "always" }); }
+export function useMarketOpsSignalOverview(tenantId: string, universeGroup = "all_active", window: MarketOpsSignalOverviewWindow = "60_trade_days") { return useQuery<MarketOpsSignalOverviewResponse>({ queryKey: queryKeys.marketOpsSignalOverview(tenantId, universeGroup, window), queryFn: () => api.getMarketOpsSignalOverview(tenantId, universeGroup, window), staleTime: 60 * 1000, refetchInterval: 60 * 1000, placeholderData: (previousData) => previousData }); }
 
 export function useMarketOpsOptionsDistributions(
   tenantId: string,
