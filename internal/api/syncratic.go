@@ -881,7 +881,7 @@ func applySyncraticAskResponse(insight storage.SyncraticInsightRecord, contextWi
 	summary := firstNonEmpty(asString(structured["executive_summary"]), asString(structured["summary"]), extractAskString(resp.Raw, "summary"), truncateForSummary(answer), insight.Summary)
 	title := firstNonEmpty(asString(structured["title"]), extractAskString(resp.Raw, "title"), insight.Title, fmt.Sprintf("%s Syncratic Ask explanation", contextWindow.SubjectSymbol))
 	action := firstNonEmpty(asString(structured["recommended_next_step"]), asString(structured["action"]), extractAskString(resp.Raw, "action"), "review")
-	if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) && syncraticAskOutputNeedsDeterministicFallback(answer, summary, title, structured) {
+	if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) && syncraticAskOutputNeedsDeterministicFallback(answer, summary, title, structured) || (contextWindow.ContextStrategy == dailyNarrativeStrategyOverview && !dailyOverviewNarrativeComplete(answer, summary)) {
 		fallback := deterministicDailyNarrativeFromContext(contextWindow)
 		if fallback.Explanation != "" {
 			answer = fallback.Explanation
@@ -955,6 +955,16 @@ func syncraticAskOutputNeedsDeterministicFallback(answer, summary, title string,
 		return true
 	}
 	return false
+}
+
+func dailyOverviewNarrativeComplete(answer, summary string) bool {
+	text := strings.ToLower(strings.Join([]string{answer, summary}, " "))
+	for _, marker := range []string{"sector rotation", "risk/reward", "review queue"} {
+		if !strings.Contains(text, marker) {
+			return false
+		}
+	}
+	return true
 }
 
 func syncraticAskAnswerIsMetaCommentary(answer string) bool {
