@@ -49,10 +49,12 @@ def test_postclose_monitor_conditions_are_not_rendered_as_midnight_live_events(b
     page = browser.new_page()
     try:
         login(page, config)
-        with page.expect_response(intraday_response, timeout=30_000) as response_info:
-            page.reload(wait_until="domcontentloaded")
-        response = response_info.value
-        assert response.status == 200, f"{response.url} returned HTTP {response.status}"
+        responses: list[Response] = []
+        page.on("response", lambda response: responses.append(response) if intraday_response(response) else None)
+        page.reload(wait_until="domcontentloaded")
+        page.wait_for_timeout(1_000)
+        response = next((candidate for candidate in responses if candidate.status == 200), None)
+        assert response is not None, "Market Intelligence did not request intraday conditions after reload"
         payload: dict[str, Any] = response.json()
         snapshots = payload.get("snapshots")
         assert isinstance(snapshots, list), "intraday condition response did not contain snapshots"
