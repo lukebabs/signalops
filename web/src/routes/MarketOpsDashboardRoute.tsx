@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ThemedEChart as ReactECharts } from "../components/ThemedEChart";
@@ -71,11 +71,15 @@ export function MarketOpsDashboardRoute() {
     members: MarketOpsSignalOverviewMember[];
   } | null>(null);
   const [expandedNarrativeId, setExpandedNarrativeId] = useState<string | null>(null);
+  const [erocEnabled, setErocEnabled] = useState(false);
   const query = useMarketOpsSignalOverview(tenantId, "all_active", window);
+  const data = query.data;
   const reversalQ = useQuery({
     queryKey: ["marketops-eroc", tenantId],
     queryFn: () => api.getMarketOpsEROC(tenantId),
+    enabled: erocEnabled && !!data,
     refetchInterval: 5 * 60 * 1000,
+    retry: false,
   });
   const eventsQ = useQuery({
     queryKey: ["marketops-material-events", tenantId],
@@ -90,7 +94,17 @@ export function MarketOpsDashboardRoute() {
     limit: 20,
   });
   const intradayConditionsQ = useMarketOpsIntradayConditions(tenantId, "all_active");
-  const data = query.data;
+  useEffect(() => {
+    if (!data) {
+      setErocEnabled(false);
+      return;
+    }
+    // EROC is useful enrichment, but must never compete with the dashboard's
+    // first paint. Give the signal overview and Market Intelligence reel a
+    // quiet head start, then load the queue independently.
+    const timer = globalThis.setTimeout(() => setErocEnabled(true), 250);
+    return () => globalThis.clearTimeout(timer);
+  }, [data]);
   const openAsset = (symbol: string) =>
     void navigate({ to: "/marketops/state", search: { symbol } });
   return (
@@ -168,7 +182,7 @@ export function MarketOpsDashboardRoute() {
               <div className="order-6 min-w-0 xl:col-span-2">
                 <ExhaustiveReversalQueue
                   rows={reversalQ.data?.results ?? []}
-                  loading={reversalQ.isLoading}
+                  loading={erocEnabled && reversalQ.isLoading}
                 />
               </div>
               <div className="order-2 min-w-0">
@@ -463,9 +477,7 @@ function UpcomingEarnings({
   loading: boolean;
   onOpen: (symbol: string) => void;
 }) {
-  const upcoming = events
-    .filter((event) => Number(event.days_to_event) >= 0)
-    .slice(0, 8);
+  const upcoming = dedupeUpcomingEarnings(events);
   return (
     <section className="rounded border border-gray-200 bg-white p-3">
       <div className="flex items-center justify-between gap-2">
@@ -524,6 +536,29 @@ function UpcomingEarnings({
         </div>
       )}
     </section>
+  );
+}
+
+function dedupeUpcomingEarnings(events: any[]): any[] {
+  const nearestBySymbol = new Map<string, any>();
+  for (const event of events) {
+    if (Number(event.days_to_event) < 0) continue;
+    const symbol = String(event.symbol ?? "").trim().toUpperCase();
+    if (!symbol) continue;
+    const current = nearestBySymbol.get(symbol);
+    if (!current || upcomingEventSort(event, current) < 0) {
+      nearestBySymbol.set(symbol, event);
+    }
+  }
+  return [...nearestBySymbol.values()].sort(upcomingEventSort).slice(0, 8);
+}
+
+function upcomingEventSort(left: any, right: any): number {
+  return (
+    Number(left.days_to_event) - Number(right.days_to_event) ||
+    String(left.event_date ?? "").localeCompare(String(right.event_date ?? "")) ||
+    String(left.symbol ?? "").localeCompare(String(right.symbol ?? "")) ||
+    String(left.event_id ?? "").localeCompare(String(right.event_id ?? ""))
   );
 }
 

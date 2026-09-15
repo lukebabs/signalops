@@ -482,8 +482,10 @@ export function useMarketOpsIntradayConditions(tenantId: string, universeGroup =
     queryKey: queryKeys.marketOpsIntradayConditions(tenantId, universeGroup, symbol ?? ""),
     queryFn: () => api.getMarketOpsIntradayConditions(tenantId, universeGroup, symbol),
     enabled: !!tenantId,
-    refetchInterval: 15 * 60 * 1000,
-    staleTime: 60 * 1000,
+    // Keep the Dashboard reel aligned with the canonical Market Intelligence
+    // view while the monitor is live; both read the same persisted snapshots.
+    refetchInterval: 60 * 1000,
+    staleTime: 15 * 1000,
     // The monitor refreshes every 15 minutes. Always reconcile its persisted
     // snapshots when the Assets view mounts or regains focus, rather than
     // presenting a prior tab's incomplete cache as an absent monitor result.
