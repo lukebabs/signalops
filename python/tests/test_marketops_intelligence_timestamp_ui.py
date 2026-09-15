@@ -36,7 +36,7 @@ def login(page: Page, config: tuple[str, str, str]) -> None:
 
 
 def intraday_response(response: Response) -> bool:
-    return response.request.method == "GET" and "/marketops/intraday-conditions?" in response.url
+    return response.request.method == "GET" and "/marketops/assets/intraday-conditions?" in response.url
 
 
 def session_label(as_of_time: str) -> str:
