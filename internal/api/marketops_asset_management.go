@@ -60,7 +60,10 @@ func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
 			writeError(w, http.StatusBadRequest, "invalid_json", "invalid display-sector request")
 			return
 		}
-		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
 		ticker := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
 		displaySector := strings.TrimSpace(req.DisplaySector)
 		if tenantID == "" || !analystTickerPattern.MatchString(ticker) || (req.UniverseGroup != "top50_megacap" && req.UniverseGroup != analystWatchlistGroup && req.UniverseGroup != sp100Group) || displaySector == "" || len([]rune(displaySector)) > 48 {
@@ -89,7 +92,10 @@ func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
 			writeError(w, http.StatusBadRequest, "invalid_json", "invalid display-name request")
 			return
 		}
-		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
 		ticker := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
 		displayName := strings.TrimSpace(req.DisplayName)
 		if tenantID == "" || !analystTickerPattern.MatchString(ticker) || (req.UniverseGroup != "top50_megacap" && req.UniverseGroup != analystWatchlistGroup && req.UniverseGroup != sp100Group) || len([]rune(displayName)) > 120 {
@@ -108,6 +114,14 @@ func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
 		writeJSON(w, http.StatusOK, map[string]any{"asset": marketOpsAssetResponses([]storage.MarketOpsAssetRecord{asset})[0]})
 	})
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/assets/validate", func(w http.ResponseWriter, r *http.Request) {
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
+		if tenantID == "" {
+			writeError(w, http.StatusBadRequest, "ticker_validation_failed", "tenant_id is required")
+			return
+		}
 		validated, err := validateWatchlistTicker(r.Context(), r.URL.Query().Get("ticker"))
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "ticker_validation_failed", err.Error())
@@ -122,10 +136,13 @@ func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
 			writeError(w, http.StatusServiceUnavailable, "asset_management_unavailable", "asset onboarding is unavailable")
 			return
 		}
-		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
 		var req marketOpsAssetOnboardRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", "invalid onboarding request")
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
 			return
 		}
 		validated, err := validateWatchlistTicker(r.Context(), req.Ticker)
@@ -164,10 +181,13 @@ func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
 			writeError(w, http.StatusServiceUnavailable, "asset_management_unavailable", "asset management is unavailable")
 			return
 		}
-		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
 		var req marketOpsAssetCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", "invalid asset request")
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
 			return
 		}
 		ticker := strings.ToUpper(strings.TrimSpace(req.Ticker))
@@ -189,7 +209,10 @@ func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
 			writeError(w, http.StatusServiceUnavailable, "asset_backfill_unavailable", "asset backfill is unavailable")
 			return
 		}
-		tenantID := strings.TrimSpace(r.PathValue("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
+			return
+		}
 		jobs, err := reader.ListMarketOpsAssetBackfillJobs(r.Context(), storage.MarketOpsAssetBackfillJobFilter{TenantID: tenantID, Symbol: r.URL.Query().Get("symbol"), Status: r.URL.Query().Get("status"), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list asset backfills")
@@ -204,10 +227,14 @@ func registerMarketOpsAssetManagementRoutes(mux *http.ServeMux, repo any) {
 			writeError(w, http.StatusServiceUnavailable, "asset_backfill_unavailable", "asset backfill is unavailable")
 			return
 		}
-		tenantID, symbol := strings.TrimSpace(r.PathValue("tenant_id")), strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
+		symbol := strings.ToUpper(strings.TrimSpace(r.PathValue("symbol")))
 		var req marketOpsAssetBackfillCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_json", "invalid backfill request")
+			return
+		}
+		tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+		if !ok {
 			return
 		}
 		start, end, sessions, err := parseAssetBackfillWindow(req.StartDate, req.EndDate)

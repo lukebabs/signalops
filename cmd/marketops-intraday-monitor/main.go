@@ -38,8 +38,15 @@ func main() {
 }
 func run(ctx context.Context, logger *slog.Logger) error {
 	app := config.Load()
-	if strings.TrimSpace(app.DatabaseURL) == "" {
-		return errors.New("SIGNALOPS_DATABASE_URL is required")
+	databaseURL := app.DatabaseURL
+	if strings.TrimSpace(app.MarketOpsDatabaseURL) != "" {
+		databaseURL = app.MarketOpsDatabaseURL
+	}
+	if strings.TrimSpace(databaseURL) == "" {
+		return errors.New("SIGNALOPS_DATABASE_URL or SIGNALOPS_MARKETOPS_DATABASE_URL is required")
+	}
+	if err := app.ValidateMarketOpsDataBoundary(); err != nil {
+		return err
 	}
 	tenant := flag.String("tenant-id", "tenant-local", "tenant id")
 	group := flag.String("universe-group", "all_active", "asset universe")
@@ -48,7 +55,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	allowOutsideSession := flag.Bool("allow-outside-session", false, "persist the provider latest completed close outside regular and extended sessions")
 	dry := flag.Bool("dry-run", false, "calculate without persisting")
 	flag.Parse()
-	repo, err := postgresstorage.Open(ctx, app.DatabaseURL)
+	repo, err := postgresstorage.Open(ctx, databaseURL)
 	if err != nil {
 		return err
 	}
@@ -77,6 +84,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 			}
 		}
 		assets = filtered
+		if len(assets) != len(wanted) {
+			return fmt.Errorf("requested intraday symbols are not all in tenant %q universe %q: requested=%d resolved=%d", *tenant, *group, len(wanted), len(assets))
+		}
 	}
 	now := time.Now().UTC()
 	status, active := marketSession(now)

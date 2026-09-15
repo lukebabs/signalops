@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signalops-raw-worker
+  namespace: signalops-connect
+  labels:
+    app.kubernetes.io/name: signalops-raw-worker
+    app.kubernetes.io/component: normalized-algorithm-worker
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: connect
+    signalops.syncratic.io/stage: staging
+    signalops.syncratic.io/production-cutover-allowed: "false"
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-raw-worker
+      app.kubernetes.io/component: normalized-algorithm-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signalops-raw-worker
+        app.kubernetes.io/component: normalized-algorithm-worker
+        app.kubernetes.io/part-of: signalops
+        signalops.syncratic.io/plane: connect
+        signalops.syncratic.io/stage: staging
+        signalops.syncratic.io/production-cutover-allowed: "false"
+    spec:
+      serviceAccountName: signalops-connect-worker
+      imagePullSecrets:
+        - name: signalops-ghcr-pull
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: raw-worker
+          image: ghcr.io/syncratic-inc/signalops-python-worker:staging
+          imagePullPolicy: Always
+          env:
+            - name: SIGNALOPS_BROKER_BROKERS
+              value: signalops-redpanda-staging.signalops-data.svc.cluster.local:9092
+            - name: SIGNALOPS_ENV
+              value: kubernetes-staging
+            - name: SIGNALOPS_WORKER_INPUT_TOPIC
+              value: signalops.kubernetes-staging.normalized.v1
+            - name: SIGNALOPS_WORKER_RETRY_TOPIC
+              value: signalops.kubernetes-staging.retry.algorithm.v1
+            - name: SIGNALOPS_WORKER_DLQ_TOPIC
+              value: signalops.kubernetes-staging.dlq.algorithm.v1
+            - name: SIGNALOPS_WORKER_SIGNAL_TOPIC
+              value: signalops.kubernetes-staging.signal.v1
+            - name: SIGNALOPS_WORKER_GROUP_ID
+              value: signalops.kubernetes-staging.normalized-worker.v1
+            - name: SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS
+              value: "1"
+            - name: SIGNALOPS_WORKER_MAX_MESSAGES
+              value: "1"
+            - name: SIGNALOPS_WORKER_DETECTOR_ID
+              value: marketops.dsm.taxonomy_v1
+            - name: SIGNALOPS_WORKER_LOG_LEVEL
+              value: INFO
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              cpu: 250m
+              memory: 384Mi

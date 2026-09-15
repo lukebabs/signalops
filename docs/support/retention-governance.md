@@ -17,7 +17,9 @@ The existing 400-calendar-day MarketOps evaluator must be constrained to a 12-mo
 
 ## Operation
 
-`signalops-retention-governance.timer` runs daily at 02:30 ET. It first materializes CyberOps daily features, then runs `retention-governor` in dry-run mode. The run records candidate counts, temporal bounds, policy version, and preservation rule in `retention_runs`; no record is deleted by this schedule.
+`signalops-retention-governance.timer` runs daily at 02:30 ET for the shared SignalOps database. It first materializes CyberOps daily features, then runs `retention-governor` in dry-run mode. The run records candidate counts, temporal bounds, policy version, and preservation rule in `retention_runs`; no record is deleted by this schedule.
+
+After the MarketOps database boundary cutover, subscriber and MarketOps-specific retention policies must run through the dedicated MarketOps path, not the shared SignalOps retention job. The allowlisted job is `marketops-retention-governance`, backed by `scripts/run_marketops_retention_governance.sh` and `signalops-marketops-retention-governance.service`. It currently dry-runs `subscriber.user_activity_180d` for `tenant-local` and `tenant-pilot-b` against the dedicated MarketOps primary database. This path must include the MarketOps pgBackRest Compose overlay so maintenance runs do not drift the live database containers away from the recovery-capable images.
 
 An operator can inspect every policy and its latest dry-run result in **Administration → Storage → Retention governance**. Enforcement requires a separate approved change to set a policy's `mode` to `enforced`, followed by an explicit `retention-governor --execute` run. There is no bulk/global purge command.
 

@@ -1,0 +1,2 @@
+REVOKE ALL ON subscriber_gateway_current_eod_context FROM signalops_subscriber_gateway;
+DROP VIEW IF EXISTS subscriber_gateway_current_eod_context;

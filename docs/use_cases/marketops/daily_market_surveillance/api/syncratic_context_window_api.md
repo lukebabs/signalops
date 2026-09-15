@@ -79,9 +79,11 @@ Request fields:
 
 - `tenant_id` optional but must match the context window when provided.
 - `prompt_builder_version` defaults to `marketops.syncratic.ask_prompt.v1`.
-- `max_prompt_bytes` defaults to `12000` and is capped at `24000`.
+- Asset/context Ask `max_prompt_bytes` defaults to `12000` and is capped at `24000`. MarketOps daily narrative Ask defaults to a conservative `10000`-byte proxy and is capped at `10000` to stay under the Syncratic AI Gateway `4000` input-token policy; the prompt builder compacts section summaries and lineage samples instead of sending full stored lineage.
 - `include_record_details` is accepted for contract stability but the G090 implementation sends IDs and summary metrics only.
 - `force` defaults to `false`; unchanged prompt/evidence skips the Ask call.
+
+SignalOps sends a server-generated `Idempotency-Key` header to the Syncratic AI Gateway for every Ask call. Standard `force=false` Ask requests use a stable key derived from the context window and prompt digest; explicit `force=true` regenerate requests include a timestamp suffix so the operator can intentionally request a fresh upstream run.
 
 Response fields:
 
@@ -143,3 +145,8 @@ The v2 builder caps stored features at 25, transitions at 50, evaluations at 8, 
 Ask for this strategy defaults to `marketops.syncratic.ask_prompt.v2` and caps serialized prompts at 12,000 bytes. A deterministic compact projection records prompt truncation metadata while preserving all persisted top-level IDs and calibration warnings. V2 requires categorized claims, persisted citations, missing-not-zero semantics, historical-association caveats, and no trade or lifecycle instructions. Data-quality-blocked contexts permit remediation explanation only.
 
 Legacy signal contexts and Ask v1 remain compatible.
+
+
+### Daily narrative chunking policy
+
+Daily narrative context windows retain full persisted lineage in `syncratic_context_windows.lineage_refs`, but Ask prompts receive compact payloads: section summaries, top bounded examples, artifact counts, and capped citation samples. Daily Overview is treated as a synthesis prompt over compact Risk/Reward, SRI, and Review Queue sections. If the compacted prompt still exceeds the request budget, the route returns `400 context_requires_chunking` instead of a generic validation failure.

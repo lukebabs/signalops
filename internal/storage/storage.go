@@ -182,6 +182,31 @@ const (
 	MarketOpsQualityNotApplicable     = "not_applicable"
 )
 
+type MarketOpsScheduledJobStatusRecord struct {
+	JobID       string
+	Schedule    string
+	Timezone    string
+	Status      string
+	Reason      string
+	StartedAt   *time.Time
+	CompletedAt *time.Time
+	ExitCode    *int
+	DetailJSON  []byte
+	Runner      string
+	UpdatedAt   time.Time
+}
+
+type MarketOpsOperationsFreshnessRecord struct {
+	ViewID            string
+	Label             string
+	LatestSessionDate *time.Time
+	LatestAsOf        *time.Time
+	RowCount          int
+	ExpectedCount     int
+	Status            string
+	Reason            string
+}
+
 type SchedulerRunRecord struct {
 	RunID            string
 	TenantID         string
@@ -2032,6 +2057,7 @@ type MarketOpsDSMGraphProposalFilter struct {
 
 type MarketOpsDSMGraphProposalMutation struct {
 	ProposalID   string
+	TenantID     string
 	Status       string
 	ReviewedBy   string
 	DecisionNote string
@@ -2213,6 +2239,14 @@ type ReplayJobFilter struct {
 	SourceKind string
 	Status     string
 	Limit      int
+}
+
+type MarketOpsScheduledJobStatusRepository interface {
+	ListMarketOpsScheduledJobStatuses(ctx context.Context) ([]MarketOpsScheduledJobStatusRecord, error)
+}
+
+type MarketOpsOperationsFreshnessRepository interface {
+	ListMarketOpsOperationsFreshness(ctx context.Context, tenantID string) ([]MarketOpsOperationsFreshnessRecord, error)
 }
 
 type QueryRepository interface {

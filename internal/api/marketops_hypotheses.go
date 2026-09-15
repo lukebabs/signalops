@@ -16,7 +16,11 @@ func registerMarketOpsHypothesisRoutes(mux *http.ServeMux, queryRepository stora
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsHypothesisDefinitions(r.Context(), storage.MarketOpsHypothesisDefinitionFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), HypothesisVersion: strings.TrimSpace(r.URL.Query().Get("hypothesis_version")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), LifecycleStatus: strings.TrimSpace(r.URL.Query().Get("lifecycle_status")), Limit: hypothesisEvaluationLimit(r)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsHypothesisDefinitions(r.Context(), storage.MarketOpsHypothesisDefinitionFilter{TenantID: tenantID, HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), HypothesisVersion: strings.TrimSpace(r.URL.Query().Get("hypothesis_version")), Domain: strings.TrimSpace(r.URL.Query().Get("domain")), LifecycleStatus: strings.TrimSpace(r.URL.Query().Get("lifecycle_status")), Limit: hypothesisEvaluationLimit(r)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps hypothesis definitions")
 			return
@@ -28,7 +32,10 @@ func registerMarketOpsHypothesisRoutes(mux *http.ServeMux, queryRepository stora
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
@@ -61,7 +68,11 @@ func registerMarketOpsHypothesisRoutes(mux *http.ServeMux, queryRepository stora
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsHypothesisEvaluations(r.Context(), storage.MarketOpsHypothesisEvaluationFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), HypothesisVersion: strings.TrimSpace(r.URL.Query().Get("hypothesis_version")), MarketStateID: strings.TrimSpace(r.URL.Query().Get("market_state_id")), AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), Eligible: eligible, Triggered: triggered, Invalidated: invalidated, SessionStart: start, SessionEnd: end, Limit: hypothesisEvaluationLimit(r)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsHypothesisEvaluations(r.Context(), storage.MarketOpsHypothesisEvaluationFilter{TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")), HypothesisKey: strings.TrimSpace(r.URL.Query().Get("hypothesis_key")), HypothesisVersion: strings.TrimSpace(r.URL.Query().Get("hypothesis_version")), MarketStateID: strings.TrimSpace(r.URL.Query().Get("market_state_id")), AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), Eligible: eligible, Triggered: triggered, Invalidated: invalidated, SessionStart: start, SessionEnd: end, Limit: hypothesisEvaluationLimit(r)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps hypothesis evaluations")
 			return

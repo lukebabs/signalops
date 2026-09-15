@@ -18,7 +18,26 @@ func (r *Repository) UpsertMarketOpsEEOMResult(ctx context.Context, x storage.Ma
 	return nil
 }
 func (r *Repository) ListMarketOpsEEOMResults(ctx context.Context, f storage.MarketOpsEEOMFilter) ([]storage.MarketOpsEEOMResultRecord, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT DISTINCT ON (symbol,earnings_event_id) result_id,tenant_id,symbol,earnings_event_id,earnings_date,session_date,model_version,score,posture,classification,evidence_quality,eligible,result_json,created_at FROM marketops_eeom_results WHERE tenant_id=$1 AND ($2='' OR symbol=$2) AND ($3::date IS NULL OR earnings_date >= $3::date) AND ($4::date IS NULL OR earnings_date <= $4::date) AND (NOT $5 OR eligible) ORDER BY symbol,earnings_event_id,session_date DESC,created_at DESC LIMIT $6`, strings.TrimSpace(f.TenantID), strings.ToUpper(strings.TrimSpace(f.Symbol)), nullTime(f.StartDate), nullTime(f.EndDate), f.EligibleOnly, valuationLimit(f.Limit))
+	rows, err := r.db.QueryContext(ctx, `WITH filtered AS (
+  SELECT result_id,tenant_id,symbol,earnings_event_id,earnings_date,session_date,model_version,score,posture,classification,evidence_quality,eligible,result_json,created_at
+  FROM marketops_eeom_results
+  WHERE tenant_id=$1
+    AND ($2='' OR symbol=$2)
+    AND ($3::date IS NULL OR earnings_date >= $3::date)
+    AND ($4::date IS NULL OR earnings_date <= $4::date)
+    AND (NOT $5 OR eligible)
+), ranked AS (
+  SELECT filtered.*, row_number() OVER (
+    PARTITION BY upper(symbol)
+    ORDER BY earnings_date ASC, session_date DESC, created_at DESC, score DESC, symbol ASC
+  ) AS current_rank
+  FROM filtered
+)
+SELECT result_id,tenant_id,symbol,earnings_event_id,earnings_date,session_date,model_version,score,posture,classification,evidence_quality,eligible,result_json,created_at
+FROM ranked
+WHERE current_rank=1
+ORDER BY earnings_date ASC, session_date DESC, score DESC, symbol ASC
+LIMIT $6`, strings.TrimSpace(f.TenantID), strings.ToUpper(strings.TrimSpace(f.Symbol)), nullTime(f.StartDate), nullTime(f.EndDate), f.EligibleOnly, valuationLimit(f.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list EEOM results: %w", err)
 	}

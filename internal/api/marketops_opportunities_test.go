@@ -106,3 +106,23 @@ func TestMarketOpsOpportunityReadsRejectInvalidQueries(t *testing.T) {
 		}
 	}
 }
+
+func TestMarketOpsOpportunityDispositionBindsOmittedTenantToAuthenticatedPrincipal(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &fakeQueryRepository{marketOpsOpportunities: []storage.MarketOpsOpportunityRecord{{OpportunityID: "mopp-1", TenantID: "tenant-local"}}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleAdmin}}})
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketops/opportunities/mopp-1/dispositions", strings.NewReader(`{"disposition":"watch","actor":"untrusted-body","metadata":{}}`))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if len(repo.marketOpsOpportunityDispositions) != 1 || repo.marketOpsOpportunityDispositions[0].TenantID != "tenant-local" {
+		t.Fatalf("dispositions = %+v", repo.marketOpsOpportunityDispositions)
+	}
+	if repo.marketOpsOpportunityDispositions[0].Actor != "operator-auth" {
+		t.Fatalf("actor = %q", repo.marketOpsOpportunityDispositions[0].Actor)
+	}
+}
