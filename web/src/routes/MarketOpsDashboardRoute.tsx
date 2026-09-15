@@ -135,14 +135,11 @@ export function MarketOpsDashboardRoute() {
           </select>
         </div>
       </div>
-      {query.isLoading && !data ? (
-        <LoadingState label="Loading MarketOps dashboard..." />
-      ) : query.isError ? (
+      {query.isError ? (
         <ErrorState error={query.error} />
-      ) : !data ? (
-        <EmptyState message="No persisted signal overview is available for this scope." />
       ) : (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,4fr)_minmax(260px,1fr)]">
+          {data ? (
           <main data-testid="dashboard-primary-content" className="min-w-0 space-y-3">
             <div className="rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
               Watchlist assets {" "}
@@ -225,6 +222,11 @@ export function MarketOpsDashboardRoute() {
               openSyncratic={(insight) => void navigate({ to: "/marketops/syncratic", search: insight ? { tab: syncraticTabForInsight(insight), insight_id: insight.syncratic_insight_id } : {} })}
             />
           </main>
+          ) : (
+            <main data-testid="dashboard-primary-content" className="min-w-0 space-y-3">
+              <LoadingState label="Loading persisted signal overview…" />
+            </main>
+          )}
           <MarketIntelligenceReel
             snapshots={intradayConditionsQ.data?.snapshots ?? []}
             loading={intradayConditionsQ.isLoading}
