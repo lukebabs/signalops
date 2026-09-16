@@ -1009,7 +1009,7 @@ spec:
                 - name: SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED
                   value: "true"
                 - name: MARKETOPS_K8S_DRY_RUN
-                  value: "true"
+                  value: "false"
               resources:
                 requests:
                   cpu: 250m

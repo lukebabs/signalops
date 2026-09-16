@@ -183,12 +183,15 @@ case "$job_id" in
     )
     ;;
   marketops-risk-reward)
-    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-risk-reward requires a separately approved production K8s scheduler cutover"
-    command_args=(
-      bash
-      -ec
-      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"; snapshot_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT COALESCE(count(*),0) FROM marketops_scheduled_job_statuses")"; echo "marketops_k8s_risk_reward_dry_run_verified session=${session_date} status_rows=${snapshot_count}"'
-    )
+    if [[ "$mode_flag" == "--dry-run" ]]; then
+      command_args=(
+        bash
+        -ec
+        'session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"; snapshot_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT COALESCE(count(*),0) FROM marketops_scheduled_job_statuses")"; echo "marketops_k8s_risk_reward_dry_run_verified session=${session_date} status_rows=${snapshot_count}"'
+      )
+    else
+      command_args=(k8s-marketops-risk-reward)
+    fi
     ;;
   marketops-fmp-continuation)
     [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-fmp-continuation requires a separately approved production K8s scheduler cutover"
@@ -202,7 +205,7 @@ case "$job_id" in
     command_args=(
       bash
       -ec
-      'failed_jobs="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_scheduled_job_statuses WHERE status=\$q\$failed\$q\$ AND updated_at >= now() - interval \$q\$24 hours\$q\$")"; stale_running="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_scheduled_job_statuses WHERE status=\$q\$running\$q\$ AND updated_at < now() - interval \$q\$2 hours\$q\$")"; stale_intraday="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "WITH market_clock AS (SELECT now() AT TIME ZONE \$q\$America/New_York\$q\$ AS local_now), latest AS (SELECT max(as_of_time) AS latest FROM marketops_intraday_condition_snapshots WHERE tenant_id=\$q\$tenant-local\$q\$) SELECT CASE WHEN extract(isodow FROM local_now) BETWEEN 1 AND 5 AND local_now::time >= time \$q\$09:30\$q\$ AND local_now::time <= time \$q\$16:15\$q\$ AND (latest IS NULL OR latest < now() - interval \$q\$45 minutes\$q\$) THEN 1 ELSE 0 END FROM market_clock, latest")"; printf "marketops_k8s_operations_monitor failed_jobs=%s stale_running=%s stale_intraday=%s\n" "$failed_jobs" "$stale_running" "$stale_intraday"; [[ "$failed_jobs" == 0 && "$stale_running" == 0 && "$stale_intraday" == 0 ]]'
+      'failed_jobs="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_scheduled_job_statuses WHERE status=\$q\$failed\$q\$ AND updated_at >= now() - interval \$q\$24 hours\$q\$")"; stale_running="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_scheduled_job_statuses WHERE status=\$q\$running\$q\$ AND updated_at < now() - interval \$q\$2 hours\$q\$")"; dry_run_mutating="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_scheduled_job_statuses WHERE job_id IN (\$q\$marketops-daily-postclose\$q\$,\$q\$marketops-risk-reward\$q\$,\$q\$marketops-postclose-recovery\$q\$,\$q\$marketops-task-retry\$q\$,\$q\$marketops-warm-eod\$q\$) AND status=\$q\$succeeded\$q\$ AND detail->>\$q\$dry_run\$q\$=\$q\$true\$q\$ AND updated_at >= now() - interval \$q\$24 hours\$q\$")"; stale_intraday="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "WITH market_clock AS (SELECT now() AT TIME ZONE \$q\$America/New_York\$q\$ AS local_now), latest AS (SELECT max(as_of_time) AS latest FROM marketops_intraday_condition_snapshots WHERE tenant_id=\$q\$tenant-local\$q\$) SELECT CASE WHEN extract(isodow FROM local_now) BETWEEN 1 AND 5 AND local_now::time >= time \$q\$09:30\$q\$ AND local_now::time <= time \$q\$16:15\$q\$ AND (latest IS NULL OR latest < now() - interval \$q\$45 minutes\$q\$) THEN 1 ELSE 0 END FROM market_clock, latest")"; printf "marketops_k8s_operations_monitor failed_jobs=%s stale_running=%s dry_run_mutating=%s stale_intraday=%s\n" "$failed_jobs" "$stale_running" "$dry_run_mutating" "$stale_intraday"; [[ "$failed_jobs" == 0 && "$stale_running" == 0 && "$dry_run_mutating" == 0 && "$stale_intraday" == 0 ]]'
     )
     ;;
   marketops-retention-governance)

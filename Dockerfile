@@ -423,6 +423,7 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --from=build /out/signalops-marketops-intraday-monitor /usr/local/bin/signalops-marketops-intraday-monitor
+COPY --from=build /out/signalops-algorithm-runner /usr/local/bin/signalops-algorithm-runner
 COPY --from=build /out/signalops-marketops-syncratic-intelligence-runner /usr/local/bin/signalops-marketops-syncratic-intelligence-runner
 COPY --from=build /out/signalops-marketops-sri-runner /usr/local/bin/signalops-marketops-sri-runner
 COPY --from=build /out/signalops-marketops-sri-holdings-runner /usr/local/bin/signalops-marketops-sri-holdings-runner
@@ -430,7 +431,8 @@ COPY --from=build /out/signalops-subscriber-global-annual-financial-task-worker 
 COPY --from=build /out/signalops-subscriber-global-saf-benchmark-materializer /usr/local/bin/signalops-subscriber-global-saf-benchmark-materializer
 COPY --from=build /out/signalops-retention-governor /usr/local/bin/signalops-retention-governor
 COPY scripts/k8s_marketops_job_entrypoint.sh /usr/local/bin/signalops-k8s-marketops-job
+COPY scripts/k8s_marketops_risk_reward.sh /usr/local/bin/k8s-marketops-risk-reward
 
-RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job
+RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward
 
 ENTRYPOINT ["/usr/local/bin/signalops-k8s-marketops-job"]
