@@ -421,6 +421,7 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --from=build /out/signalops-marketops-intraday-monitor /usr/local/bin/signalops-marketops-intraday-monitor
+COPY --from=build /out/signalops-marketops-options-coverage-runner /usr/local/bin/signalops-marketops-options-coverage-runner
 COPY --from=build /out/signalops-massive-puller /usr/local/bin/signalops-massive-puller
 COPY --from=build /out/signalops-normalizer /usr/local/bin/signalops-normalizer
 COPY --from=build /out/signalops-algorithm-runner /usr/local/bin/signalops-algorithm-runner

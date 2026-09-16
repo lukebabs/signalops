@@ -10,10 +10,13 @@ ack="${MARKETOPS_POSTCLOSE_ACKNOWLEDGE_WRITES:-false}"
 : "${SIGNALOPS_MARKETOPS_DATABASE_URL:?dedicated MarketOps database required}"
 mapfile -t symbols < <(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "SELECT ticker FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY rank NULLS LAST,ticker")
 ((${#symbols[@]} > 0)) || { echo "no active MarketOps symbols" >&2; exit 3; }
+option_symbols="$(printf "%s\n" "${symbols[@]:0:50}" | paste -sd, -)"
+[[ -n "$option_symbols" ]] || { echo "no options symbols" >&2; exit 4; }
 for ((i=0;i<${#symbols[@]};i+=10)); do
   batch=("${symbols[@]:i:10}"); csv=$(IFS=,; echo "${batch[*]}");
   signalops-marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$csv" --max-symbols "${#batch[@]}" --session-start "$start_date" --session-end "$session_date" --stages preflight,state_materialization,hypothesis_evaluation,opportunity_build,outcome_materialization,hypothesis_proposal_generation --continue-on-error=true --dry-run=false --acknowledge-writes --run-id "k8s-postclose-${session_date}-$(printf '%03d' "$i")"
 done
+signalops-marketops-options-coverage-runner --tenant-id tenant-local --symbols "$option_symbols" --max-symbols 50 --session-date "$session_date" --run-id "k8s-postclose-${session_date}-options" --limit 250 --max-pages 2 --max-candidates 500 --min-dte 14 --max-dte 120 --min-moneyness 0.70 --max-moneyness 1.30 --skip-complete=true --continue-on-error=true --max-retries 0 --dry-run=false
 signalops-marketops-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date" --dry-run=false --fmp-max-requests 300 --refresh-financials
 signalops-marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"
 signalops-marketops-eroc-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date" --dry-run=false
