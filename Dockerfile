@@ -414,7 +414,8 @@ ENTRYPOINT ["/signalops-subscriber-global-intraday-shadow-capture"]
 FROM debian:bookworm-slim AS marketops-k8s-job-runner
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash ca-certificates postgresql-client \
+    && apt-get install -y --no-install-recommends bash ca-certificates postgresql-client python3 \
+    && ln -s /usr/bin/python3 /usr/local/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -442,6 +443,8 @@ COPY --from=build /out/signalops-retention-governor /usr/local/bin/signalops-ret
 COPY scripts/k8s_marketops_job_entrypoint.sh /usr/local/bin/signalops-k8s-marketops-job
 COPY scripts/k8s_marketops_postclose_writer.sh /usr/local/bin/k8s-marketops-postclose-writer
 COPY scripts/k8s_marketops_risk_reward.sh /usr/local/bin/k8s-marketops-risk-reward
+COPY python /app/python
+ENV PYTHONPATH=/app/python
 
 RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward /usr/local/bin/k8s-marketops-postclose-writer
 
