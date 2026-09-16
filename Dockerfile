@@ -424,14 +424,25 @@ COPY --from=build /out/signalops-massive-puller /usr/local/bin/signalops-massive
 COPY --from=build /out/signalops-normalizer /usr/local/bin/signalops-normalizer
 COPY --from=build /out/signalops-algorithm-runner /usr/local/bin/signalops-algorithm-runner
 COPY --from=build /out/signalops-marketops-syncratic-intelligence-runner /usr/local/bin/signalops-marketops-syncratic-intelligence-runner
+COPY --from=build /out/signalops-marketops-intelligence-cohort-runner /usr/local/bin/signalops-marketops-intelligence-cohort-runner
+COPY --from=build /out/signalops-marketops-state-materializer /usr/local/bin/signalops-marketops-state-materializer
+COPY --from=build /out/signalops-marketops-hypothesis-evaluator /usr/local/bin/signalops-marketops-hypothesis-evaluator
+COPY --from=build /out/signalops-marketops-hypothesis-proposal-generator /usr/local/bin/signalops-marketops-hypothesis-proposal-generator
+COPY --from=build /out/signalops-marketops-opportunity-builder /usr/local/bin/signalops-marketops-opportunity-builder
+COPY --from=build /out/signalops-marketops-outcome-materializer /usr/local/bin/signalops-marketops-outcome-materializer
+COPY --from=build /out/signalops-marketops-valuation-runner /usr/local/bin/signalops-marketops-valuation-runner
+COPY --from=build /out/signalops-marketops-tactical-valuation-runner /usr/local/bin/signalops-marketops-tactical-valuation-runner
+COPY --from=build /out/signalops-marketops-eroc-runner /usr/local/bin/signalops-marketops-eroc-runner
+COPY --from=build /out/signalops-marketops-eeom-runner /usr/local/bin/signalops-marketops-eeom-runner
 COPY --from=build /out/signalops-marketops-sri-runner /usr/local/bin/signalops-marketops-sri-runner
 COPY --from=build /out/signalops-marketops-sri-holdings-runner /usr/local/bin/signalops-marketops-sri-holdings-runner
 COPY --from=build /out/signalops-subscriber-global-annual-financial-task-worker /usr/local/bin/signalops-subscriber-global-annual-financial-task-worker
 COPY --from=build /out/signalops-subscriber-global-saf-benchmark-materializer /usr/local/bin/signalops-subscriber-global-saf-benchmark-materializer
 COPY --from=build /out/signalops-retention-governor /usr/local/bin/signalops-retention-governor
 COPY scripts/k8s_marketops_job_entrypoint.sh /usr/local/bin/signalops-k8s-marketops-job
+COPY scripts/k8s_marketops_postclose_writer.sh /usr/local/bin/k8s-marketops-postclose-writer
 COPY scripts/k8s_marketops_risk_reward.sh /usr/local/bin/k8s-marketops-risk-reward
 
-RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward
+RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward /usr/local/bin/k8s-marketops-postclose-writer
 
 ENTRYPOINT ["/usr/local/bin/signalops-k8s-marketops-job"]

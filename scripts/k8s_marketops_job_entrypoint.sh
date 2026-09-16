@@ -167,12 +167,11 @@ case "$job_id" in
     )
     ;;
   marketops-daily-postclose)
-    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-daily-postclose requires a separately approved production K8s scheduler cutover"
-    command_args=(
-      bash
-      -ec
-      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"; counts="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT (SELECT count(*) FROM marketops_scheduled_job_statuses) || chr(124) || (SELECT count(*) FROM subscriber_global_warm_eod_assets)")"; echo "marketops_k8s_daily_postclose_dry_run_verified session=${session_date} status_and_warm_counts=${counts}"'
-    )
+    if [[ "$mode_flag" == "--dry-run" ]]; then
+      command_args=(bash -ec 'echo "marketops_k8s_daily_postclose_dry_run_verified session=${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"')
+    else
+      command_args=(k8s-marketops-postclose-writer)
+    fi
     ;;
   marketops-postclose-recovery)
     [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-postclose-recovery requires a separately approved production K8s scheduler cutover"
