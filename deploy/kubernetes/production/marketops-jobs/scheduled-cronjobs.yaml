@@ -59,7 +59,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-intraday
@@ -137,7 +137,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-sri-refresh
@@ -215,7 +215,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-sri-holdings-refresh
@@ -293,7 +293,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-fmp-annual-financial
@@ -371,7 +371,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-saf-benchmark
@@ -449,7 +449,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-operations-monitor
@@ -529,7 +529,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-retention-governance
@@ -609,7 +609,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-task-retry
@@ -689,7 +689,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-warm-eod
@@ -769,7 +769,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-daily-postclose
@@ -779,6 +779,8 @@ spec:
                 - name: SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED
                   value: "true"
                 - name: MARKETOPS_K8S_DRY_RUN
+                  value: "false"
+                - name: MARKETOPS_POSTCLOSE_ACKNOWLEDGE_WRITES
                   value: "true"
               resources:
                 requests:
@@ -850,7 +852,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-syncratic-intelligence
@@ -931,7 +933,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-postclose-recovery
@@ -1012,7 +1014,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-risk-reward
@@ -1093,7 +1095,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:8623a71abe46
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:571101d290ef
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-fmp-continuation
