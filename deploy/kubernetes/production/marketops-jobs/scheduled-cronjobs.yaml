@@ -50,6 +50,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-provider-worker
@@ -127,6 +128,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-analytics-worker
@@ -204,6 +206,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-provider-worker
@@ -281,6 +284,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-provider-worker
@@ -358,6 +362,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-saf-worker
@@ -435,6 +440,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-analytics-worker
@@ -514,6 +520,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-analytics-worker
@@ -593,6 +600,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-analytics-worker
@@ -672,6 +680,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-provider-worker
@@ -751,6 +760,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-provider-worker
@@ -831,6 +841,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-provider-worker
@@ -911,6 +922,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-analytics-worker
@@ -991,6 +1003,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-analytics-worker
@@ -1071,6 +1084,7 @@ spec:
               export SIGNALOPS_MASSIVE_API_KEY='{{ .Data.data.SIGNALOPS_MASSIVE_API_KEY }}'
               export SIGNALOPS_FMP_BASE_URL='{{ .Data.data.SIGNALOPS_FMP_BASE_URL }}'
               export SIGNALOPS_FMP_API_KEY='{{ .Data.data.SIGNALOPS_FMP_API_KEY }}'
+              export SIGNALOPS_BROKER_BROKERS='signalops-redpanda-production.signalops-data.svc.cluster.local:9092'
               {{- end }}
         spec:
           serviceAccountName: signalops-marketops-provider-worker
