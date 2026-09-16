@@ -421,6 +421,7 @@ WORKDIR /app
 
 COPY --from=build /out/signalops-marketops-intraday-monitor /usr/local/bin/signalops-marketops-intraday-monitor
 COPY --from=build /out/signalops-massive-puller /usr/local/bin/signalops-massive-puller
+COPY --from=build /out/signalops-normalizer /usr/local/bin/signalops-normalizer
 COPY --from=build /out/signalops-algorithm-runner /usr/local/bin/signalops-algorithm-runner
 COPY --from=build /out/signalops-marketops-syncratic-intelligence-runner /usr/local/bin/signalops-marketops-syncratic-intelligence-runner
 COPY --from=build /out/signalops-marketops-sri-runner /usr/local/bin/signalops-marketops-sri-runner
