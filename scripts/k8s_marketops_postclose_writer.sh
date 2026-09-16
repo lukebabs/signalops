@@ -5,7 +5,7 @@ start_date="${MARKETOPS_POSTCLOSE_WINDOW_START:-$session_date}"
 ack="${MARKETOPS_POSTCLOSE_ACKNOWLEDGE_WRITES:-false}"
 [[ "$ack" == true ]] || { echo "postclose writer requires MARKETOPS_POSTCLOSE_ACKNOWLEDGE_WRITES=true" >&2; exit 2; }
 : "${SIGNALOPS_MARKETOPS_DATABASE_URL:?dedicated MarketOps database required}"
-mapfile -t symbols < <(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "SELECT ticker FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND universe_group='all_active' AND is_active ORDER BY rank NULLS LAST,ticker")
+mapfile -t symbols < <(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "SELECT ticker FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY rank NULLS LAST,ticker")
 ((${#symbols[@]} > 0)) || { echo "no active MarketOps symbols" >&2; exit 3; }
 for ((i=0;i<${#symbols[@]};i+=10)); do
   batch=("${symbols[@]:i:10}"); csv=$(IFS=,; echo "${batch[*]}");
