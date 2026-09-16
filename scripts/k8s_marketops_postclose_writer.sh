@@ -12,6 +12,11 @@ mapfile -t symbols < <(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "SELECT tic
 ((${#symbols[@]} > 0)) || { echo "no active MarketOps symbols" >&2; exit 3; }
 option_symbols="$(printf "%s\n" "${symbols[@]:0:50}" | paste -sd, -)"
 [[ -n "$option_symbols" ]] || { echo "no options symbols" >&2; exit 4; }
+csv_all="$(IFS=,; echo "${symbols[*]}")"
+signalops-massive-puller --mode pull --date "$session_date" --symbols "$csv_all" --allow-unseeded-symbols --datasets equity --max-companies "${#symbols[@]}" --max-provider-requests "${#symbols[@]}" --max-events-built "${#symbols[@]}" --max-events-published "${#symbols[@]}" --max-retries 0 --continue-on-error=true --acknowledge-writes --dry-run=false
+: "${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:?dedicated MarketOps temporal database required}"
+deadline=$((SECONDS + 900))
+while true; do normalized="$(psql "$SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL" -Atc "SELECT count(DISTINCT upper(normalized_payload->>\$q\$symbol\$q\$)) FROM normalized_event_ledger WHERE tenant_id=\$q\$tenant-local\$q\$ AND source_id=\$q\$src-massive\$q\$ AND dataset=\$q\$equity_eod_prices\$q\$ AND observation_time::date=DATE \$q\$${session_date}\$q\$ AND upper(normalized_payload->>\$q\$symbol\$q\$) = ANY(string_to_array(\$q\$${option_symbols}\$q\$, \$q\$,\$q\$));" | tr -d "[:space:]")"; [[ "$normalized" =~ ^[0-9]+$ && "$normalized" -ge 50 ]] && break; (( SECONDS >= deadline )) && { echo "same-session equity normalization incomplete normalized=$normalized" >&2; exit 5; }; sleep 10; done
 for ((i=0;i<${#symbols[@]};i+=10)); do
   batch=("${symbols[@]:i:10}"); csv=$(IFS=,; echo "${batch[*]}");
   signalops-marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$csv" --max-symbols "${#batch[@]}" --session-start "$start_date" --session-end "$session_date" --stages preflight,state_materialization,hypothesis_evaluation,opportunity_build,outcome_materialization,hypothesis_proposal_generation --continue-on-error=true --dry-run=false --acknowledge-writes --run-id "k8s-postclose-${session_date}-$(printf '%03d' "$i")"
