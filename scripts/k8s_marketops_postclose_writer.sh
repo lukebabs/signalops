@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-session_date="${MARKETOPS_SESSION_DATE:-$(date -u -d yesterday +%F)}"
+# This job runs after the New York market close; anchor the default to the current
+# New York trading date so post-close does not lag by one session. Explicit
+# MARKETOPS_SESSION_DATE remains supported for bounded reconciliation runs.
+session_date="${MARKETOPS_SESSION_DATE:-$(TZ=America/New_York date +%F)}"
 start_date="${MARKETOPS_POSTCLOSE_WINDOW_START:-$session_date}"
 ack="${MARKETOPS_POSTCLOSE_ACKNOWLEDGE_WRITES:-false}"
 [[ "$ack" == true ]] || { echo "postclose writer requires MARKETOPS_POSTCLOSE_ACKNOWLEDGE_WRITES=true" >&2; exit 2; }
