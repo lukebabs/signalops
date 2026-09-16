@@ -439,14 +439,18 @@ COPY --from=build /out/signalops-marketops-sri-runner /usr/local/bin/signalops-m
 COPY --from=build /out/signalops-marketops-sri-holdings-runner /usr/local/bin/signalops-marketops-sri-holdings-runner
 COPY --from=build /out/signalops-subscriber-global-annual-financial-task-worker /usr/local/bin/signalops-subscriber-global-annual-financial-task-worker
 COPY --from=build /out/signalops-subscriber-global-saf-benchmark-materializer /usr/local/bin/signalops-subscriber-global-saf-benchmark-materializer
+COPY --from=build /out/signalops-subscriber-global-marketops-parity-manifest /usr/local/bin/signalops-subscriber-global-marketops-parity-manifest
+COPY --from=build /out/signalops-subscriber-global-marketops-evidence-materializer /usr/local/bin/signalops-subscriber-global-marketops-evidence-materializer
 COPY --from=build /out/signalops-retention-governor /usr/local/bin/signalops-retention-governor
 COPY scripts/k8s_marketops_job_entrypoint.sh /usr/local/bin/signalops-k8s-marketops-job
 COPY scripts/k8s_marketops_postclose_writer.sh /usr/local/bin/k8s-marketops-postclose-writer
+COPY scripts/k8s_marketops_global_dashboard_projection.sh /usr/local/bin/k8s-marketops-global-dashboard-projection
 COPY scripts/k8s_marketops_risk_reward.sh /usr/local/bin/k8s-marketops-risk-reward
 COPY scripts/k8s_marketops_sri_refresh.sh /usr/local/bin/k8s-marketops-sri-refresh
 COPY python /app/python
 ENV PYTHONPATH=/app/python
 
 RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward /usr/local/bin/k8s-marketops-sri-refresh /usr/local/bin/k8s-marketops-postclose-writer
+RUN chmod +x /usr/local/bin/k8s-marketops-global-dashboard-projection
 
 ENTRYPOINT ["/usr/local/bin/signalops-k8s-marketops-job"]
