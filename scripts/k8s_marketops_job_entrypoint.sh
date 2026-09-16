@@ -126,12 +126,7 @@ case "$job_id" in
     fi
     ;;
   marketops-sri-refresh)
-    command_args=(
-      signalops-marketops-sri-runner
-      --tenant-id "${SIGNALOPS_SRI_OUTPUT_TENANT_ID:-platform-global}"
-      --input-tenant-id "${SIGNALOPS_SRI_INPUT_TENANT_ID:-tenant-local}"
-      --as-of "${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"
-    )
+    command_args=(k8s-marketops-sri-refresh "$mode_flag")
     ;;
   marketops-sri-holdings-refresh)
     command_args=(

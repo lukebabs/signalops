@@ -443,9 +443,10 @@ COPY --from=build /out/signalops-retention-governor /usr/local/bin/signalops-ret
 COPY scripts/k8s_marketops_job_entrypoint.sh /usr/local/bin/signalops-k8s-marketops-job
 COPY scripts/k8s_marketops_postclose_writer.sh /usr/local/bin/k8s-marketops-postclose-writer
 COPY scripts/k8s_marketops_risk_reward.sh /usr/local/bin/k8s-marketops-risk-reward
+COPY scripts/k8s_marketops_sri_refresh.sh /usr/local/bin/k8s-marketops-sri-refresh
 COPY python /app/python
 ENV PYTHONPATH=/app/python
 
-RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward /usr/local/bin/k8s-marketops-postclose-writer
+RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward /usr/local/bin/k8s-marketops-sri-refresh /usr/local/bin/k8s-marketops-postclose-writer
 
 ENTRYPOINT ["/usr/local/bin/signalops-k8s-marketops-job"]
