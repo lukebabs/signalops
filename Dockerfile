@@ -302,9 +302,6 @@ ENTRYPOINT ["/signalops-marketops-algorithm-evaluator"]
 FROM gcr.io/distroless/static-debian12:nonroot AS marketops-algorithm-evaluation-backfill
 
 COPY --from=build /out/signalops-marketops-algorithm-evaluation-backfill /signalops-marketops-algorithm-evaluation-backfill
-COPY --from=build /out/signalops-massive-puller /usr/local/bin/signalops-massive-puller
-ENV SIGNALOPS_MASSIVE_PULLER_BIN=/usr/local/bin/signalops-massive-puller
-
 ENTRYPOINT ["/signalops-marketops-algorithm-evaluation-backfill"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS marketops-intraday-monitor
@@ -423,6 +420,7 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --from=build /out/signalops-marketops-intraday-monitor /usr/local/bin/signalops-marketops-intraday-monitor
+COPY --from=build /out/signalops-massive-puller /usr/local/bin/signalops-massive-puller
 COPY --from=build /out/signalops-algorithm-runner /usr/local/bin/signalops-algorithm-runner
 COPY --from=build /out/signalops-marketops-syncratic-intelligence-runner /usr/local/bin/signalops-marketops-syncratic-intelligence-runner
 COPY --from=build /out/signalops-marketops-sri-runner /usr/local/bin/signalops-marketops-sri-runner
