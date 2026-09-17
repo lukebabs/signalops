@@ -719,7 +719,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-daily-postclose
 spec:
-  schedule: "30 16 * * 1-5"
+  schedule: "35 17 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
