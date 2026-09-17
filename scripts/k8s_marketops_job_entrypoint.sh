@@ -154,6 +154,9 @@ case "$job_id" in
     )
     ;;
 
+  marketops-saf-evaluation)
+    command_args=(k8s-marketops-saf-evaluation)
+    ;;
   marketops-syncratic-intelligence)
     command_args=(
       signalops-marketops-syncratic-intelligence-runner

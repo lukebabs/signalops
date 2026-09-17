@@ -347,6 +347,7 @@ COPY --from=build /out/signalops-marketops-state-materializer /usr/local/bin/sig
 COPY --from=build /out/signalops-marketops-hypothesis-evaluator /usr/local/bin/signalops-marketops-hypothesis-evaluator
 COPY --from=build /out/signalops-marketops-opportunity-builder /usr/local/bin/signalops-marketops-opportunity-builder
 COPY --from=build /out/signalops-marketops-outcome-materializer /usr/local/bin/signalops-marketops-outcome-materializer
+COPY --from=build /out/signalops-marketops-signal-assurance-worker /usr/local/bin/signalops-marketops-signal-assurance-worker
 COPY --from=build /out/signalops-marketops-hypothesis-proposal-generator /usr/local/bin/signalops-marketops-hypothesis-proposal-generator
 
 ENTRYPOINT ["/usr/local/bin/signalops-marketops-intelligence-cohort-runner"]
@@ -432,6 +433,7 @@ COPY --from=build /out/signalops-marketops-hypothesis-evaluator /usr/local/bin/s
 COPY --from=build /out/signalops-marketops-hypothesis-proposal-generator /usr/local/bin/signalops-marketops-hypothesis-proposal-generator
 COPY --from=build /out/signalops-marketops-opportunity-builder /usr/local/bin/signalops-marketops-opportunity-builder
 COPY --from=build /out/signalops-marketops-outcome-materializer /usr/local/bin/signalops-marketops-outcome-materializer
+COPY --from=build /out/signalops-marketops-signal-assurance-worker /usr/local/bin/signalops-marketops-signal-assurance-worker
 COPY --from=build /out/signalops-marketops-valuation-runner /usr/local/bin/signalops-marketops-valuation-runner
 COPY --from=build /out/signalops-marketops-tactical-valuation-runner /usr/local/bin/signalops-marketops-tactical-valuation-runner
 COPY --from=build /out/signalops-marketops-eroc-runner /usr/local/bin/signalops-marketops-eroc-runner
@@ -445,13 +447,14 @@ COPY --from=build /out/signalops-subscriber-global-marketops-evidence-materializ
 COPY --from=build /out/signalops-retention-governor /usr/local/bin/signalops-retention-governor
 COPY scripts/k8s_marketops_job_entrypoint.sh /usr/local/bin/signalops-k8s-marketops-job
 COPY scripts/k8s_marketops_postclose_writer.sh /usr/local/bin/k8s-marketops-postclose-writer
+COPY scripts/k8s_marketops_saf_evaluation.sh /usr/local/bin/k8s-marketops-saf-evaluation
 COPY scripts/k8s_marketops_global_dashboard_projection.sh /usr/local/bin/k8s-marketops-global-dashboard-projection
 COPY scripts/k8s_marketops_risk_reward.sh /usr/local/bin/k8s-marketops-risk-reward
 COPY scripts/k8s_marketops_sri_refresh.sh /usr/local/bin/k8s-marketops-sri-refresh
 COPY python /app/python
 ENV PYTHONPATH=/app/python
 
-RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward /usr/local/bin/k8s-marketops-sri-refresh /usr/local/bin/k8s-marketops-postclose-writer
+RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward /usr/local/bin/k8s-marketops-sri-refresh /usr/local/bin/k8s-marketops-postclose-writer /usr/local/bin/k8s-marketops-saf-evaluation
 RUN chmod +x /usr/local/bin/k8s-marketops-global-dashboard-projection
 
 ENTRYPOINT ["/usr/local/bin/signalops-k8s-marketops-job"]
