@@ -31,7 +31,7 @@ spec:
       terminationGracePeriodSeconds: 15
       containers:
         - name: web
-          image: ghcr.io/syncratic-inc/signalops-web:production
+          image: ghcr.io/syncratic-inc/signalops-web:87da67e655ac
           imagePullPolicy: Always
           ports:
             - name: http
