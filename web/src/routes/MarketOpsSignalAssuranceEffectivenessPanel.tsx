@@ -149,6 +149,7 @@ export function MarketOpsSignalAssuranceDailyProgressionPanel() {
 }
 
 type DailyProgressionPoint = {
+  pending?: boolean;
   date: string;
   sample: number;
   hits: number;
@@ -181,7 +182,7 @@ function filterObservationsByTradingWindow(observations: MarketOpsSignalAssuranc
   return afterCutoff.filter((observation) => observation.outcome_at && allowed.has(observation.outcome_at.slice(0, 10)));
 }
 
-function buildDailyProgression(observations: MarketOpsSignalAssuranceEffectivenessObservation[]): DailyProgressionPoint[] {
+function buildDailyProgression(observations: MarketOpsSignalAssuranceEffectivenessObservation[], windowDays: string): DailyProgressionPoint[] {
   const buckets = new Map<string, MarketOpsSignalAssuranceEffectivenessObservation[]>();
   for (const observation of observations) {
     if (observation.directional_hit == null || !observation.outcome_at) continue;
@@ -190,6 +191,13 @@ function buildDailyProgression(observations: MarketOpsSignalAssuranceEffectivene
     const rows = buckets.get(date) ?? [];
     rows.push(observation);
     buckets.set(date, rows);
+  }
+  const latest = Array.from(buckets.keys()).sort().at(-1);
+  if (latest) {
+    const days = Number(windowDays);
+    for (const date of marketOpsTrailingTradingDays(latest, Number.isFinite(days) && days > 0 ? days : 10)) {
+      if (!buckets.has(date)) buckets.set(date, []);
+    }
   }
   let cumulativeSample = 0;
   let cumulativeHits = 0;
@@ -203,6 +211,7 @@ function buildDailyProgression(observations: MarketOpsSignalAssuranceEffectivene
     const sectorReturns = rows.map((row) => row.sector_relative_return).filter(finite);
     return {
       date,
+      pending: sample === 0,
       sample,
       hits,
       accuracy: sample ? hits / sample : 0,
@@ -220,7 +229,7 @@ function buildDailyProgression(observations: MarketOpsSignalAssuranceEffectivene
 
 function DailyProgressionChart({ observations, evidenceSource, windowDays }: { observations: MarketOpsSignalAssuranceEffectivenessObservation[]; evidenceSource: string; windowDays: string }) {
   const scopedObservations = useMemo(() => filterObservationsByTradingWindow(observations, windowDays), [observations, windowDays]);
-  const points = useMemo(() => buildDailyProgression(scopedObservations), [scopedObservations]);
+  const points = useMemo(() => buildDailyProgression(scopedObservations, windowDays), [scopedObservations, windowDays]);
   const latest = points.at(-1);
   const axisInterval = Math.max(0, Math.ceil(points.length / 7) - 1);
   const option = useMemo(() => ({
@@ -234,7 +243,7 @@ function DailyProgressionChart({ observations, evidenceSource, windowDays }: { o
         if (!point) return '';
         return [
           point.date,
-          `Daily accuracy: ${pct(point.accuracy)} (${point.hits}/${point.sample})`,
+          point.pending ? "Pending maturity: no terminal observations" : `Daily accuracy: ${pct(point.accuracy)} (${point.hits}/${point.sample})`,
           `Cumulative accuracy: ${pct(point.cumulativeAccuracy)} (${point.cumulativeHits}/${point.cumulativeSample})`,
           `Avg aligned return: ${pct(point.averageDirectionalReturn)}`,
           `SPY excess: ${pct(point.averageRelativeReturn)}`,
@@ -249,7 +258,7 @@ function DailyProgressionChart({ observations, evidenceSource, windowDays }: { o
       { type: 'value', min: 0, axisLabel: { fontSize: 10 }, splitLine: { show: false } },
     ],
     series: [
-      { name: 'Daily hit rate', type: 'line', smooth: true, symbolSize: 5, data: points.map((point) => point.accuracy), lineStyle: { color: '#2563eb', width: 2 }, itemStyle: { color: '#2563eb' } },
+      { name: 'Daily hit rate', type: 'line', smooth: true, symbolSize: 5, data: points.map((point) => point.pending ? null : point.accuracy), lineStyle: { color: '#2563eb', width: 2 }, itemStyle: { color: '#2563eb' } },
       { name: 'Cumulative hit rate', type: 'line', smooth: true, symbolSize: 5, data: points.map((point) => point.cumulativeAccuracy), lineStyle: { color: '#16a34a', width: 2 }, itemStyle: { color: '#16a34a' } },
       { name: 'Avg aligned return', type: 'line', smooth: true, symbolSize: 4, data: points.map((point) => point.averageDirectionalReturn ?? null), lineStyle: { color: '#d97706', width: 2 }, itemStyle: { color: '#d97706' } },
       { name: 'Daily sample', type: 'bar', yAxisIndex: 1, data: points.map((point) => point.sample), itemStyle: { color: '#cbd5e1' } },
