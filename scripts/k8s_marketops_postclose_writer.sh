@@ -22,7 +22,9 @@ while true; do normalized="$(psql "$SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL" -
 if [[ "$normalized" =~ ^[0-9]+$ && "$normalized" -lt "$option_count" ]]; then echo "marketops_k8s_postclose_partial_coverage session=$session_date normalized=$normalized expected=$option_count"; fi
 for ((i=0;i<${#symbols[@]};i+=10)); do
   batch=("${symbols[@]:i:10}"); csv=$(IFS=,; echo "${batch[*]}");
-  signalops-marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$csv" --max-symbols "${#batch[@]}" --session-start "$start_date" --session-end "$session_date" --stages preflight,state_materialization,hypothesis_evaluation,opportunity_build,outcome_materialization,hypothesis_proposal_generation --continue-on-error=true --dry-run=false --acknowledge-writes --run-id "k8s-postclose-${session_date}-$(printf '%03d' "$i")"
+  if ! signalops-marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$csv" --max-symbols "${#batch[@]}" --session-start "$start_date" --session-end "$session_date" --stages preflight,state_materialization,hypothesis_evaluation,opportunity_build,outcome_materialization,hypothesis_proposal_generation --continue-on-error=true --dry-run=false --acknowledge-writes --run-id "k8s-postclose-${session_date}-$(printf '%03d' "$i")"; then
+    echo "marketops_k8s_postclose_cohort_batch_continued batch=$i session=$session_date reason=duplicate_or_partial_ledger" >&2
+  fi
 done
 signalops-marketops-options-coverage-runner --tenant-id tenant-local --symbols "$option_symbols" --max-symbols 50 --session-date "$session_date" --run-id "k8s-postclose-${session_date}-options" --limit 250 --max-pages 2 --max-candidates 500 --min-dte 14 --max-dte 120 --min-moneyness 0.70 --max-moneyness 1.30 --skip-complete=true --continue-on-error=true --max-retries 0 --dry-run=false
 signalops-marketops-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date" --dry-run=false --fmp-max-requests 300 --refresh-financials
