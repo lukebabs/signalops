@@ -77,15 +77,11 @@ func valuationRows(results []storage.MarketOpsValuationResultRecord) []map[strin
 		if byKey[key] == nil {
 			byKey[key] = &pair{}
 		}
-		if item.AlgorithmID == annualValuationCompositeAlgorithmID {
-			byKey[key].vc = item
-		} else if item.AlgorithmID == valuationCompositeAlgorithmID && byKey[key].vc == nil {
-			byKey[key].vc = item
+		if item.AlgorithmID == annualValuationCompositeAlgorithmID || item.AlgorithmID == valuationCompositeAlgorithmID {
+			byKey[key].vc = latestValuationFamily(byKey[key].vc, item, item.AlgorithmID == annualValuationCompositeAlgorithmID)
 		}
-		if item.AlgorithmID == annualDOSMAlgorithmID {
-			byKey[key].dosm = item
-		} else if item.AlgorithmID == dosmAlgorithmID && byKey[key].dosm == nil {
-			byKey[key].dosm = item
+		if item.AlgorithmID == annualDOSMAlgorithmID || item.AlgorithmID == dosmAlgorithmID {
+			byKey[key].dosm = latestValuationFamily(byKey[key].dosm, item, item.AlgorithmID == annualDOSMAlgorithmID)
 		}
 		if item.AlgorithmID == tacticalPostureAlgorithmID {
 			byKey[key].tactical = item
@@ -134,6 +130,19 @@ func valuationRows(results []storage.MarketOpsValuationResultRecord) []map[strin
 		return ls > rs
 	})
 	return rows
+}
+
+// latestValuationFamily prevents a stale annual row from masking a newer daily
+// row. Annual output remains preferred when both versions describe the same
+// session, preserving the established tie-break behavior.
+func latestValuationFamily(current, candidate *storage.MarketOpsValuationResultRecord, candidateAnnual bool) *storage.MarketOpsValuationResultRecord {
+	if current == nil || candidate.SessionDate.After(current.SessionDate) {
+		return candidate
+	}
+	if candidate.SessionDate.Equal(current.SessionDate) && candidateAnnual {
+		return candidate
+	}
+	return current
 }
 
 func valuationOutput(item storage.MarketOpsValuationResultRecord) map[string]any {
