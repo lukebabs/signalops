@@ -50,7 +50,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:117715ab9da3
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:bb6c6b4
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-saf-evaluation
