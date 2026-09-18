@@ -130,7 +130,7 @@ fi
 option_symbols="${option_symbols//[[:space:]]/}"
 IFS=',' read -r -a symbols <<< "$option_symbols"
 workflow_symbols=("${symbols[@]}")
-(( ${#symbols[@]} > 0 && ${#symbols[@]} <= 50 )) || { printf 'option symbol count must be between 1 and 50\n' >&2; exit 2; }
+(( ${#symbols[@]} > 0 && ${#symbols[@]} <= 132 )) || { printf 'option symbol count must be between 1 and 132\n' >&2; exit 2; }
 for symbol in "${symbols[@]}"; do
   [[ "$symbol" =~ ^[A-Z0-9.]+$ ]] || { printf 'invalid option symbol: %s\n' "$symbol" >&2; exit 2; }
 done
