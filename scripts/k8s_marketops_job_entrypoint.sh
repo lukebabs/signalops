@@ -215,11 +215,10 @@ case "$job_id" in
     ;;
 
   marketops-task-retry)
-    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-task-retry is K8s-staging dry-run only until production scheduler cutover is approved"
     command_args=(
       bash
       -ec
-      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u -d yesterday +%F 2>/dev/null || date -u +%F)}"; due_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_task_items WHERE tenant_id=\$tenant\$tenant-local\$tenant\$ AND session_date=to_date(\$session\$${session_date}\$session\$,\$format\$YYYY-MM-DD\$format\$) AND task_type=\$task\$tactical_posture\$task\$ AND status=\$status\$retry_scheduled\$status\$ AND next_attempt_at <= now()")"; echo "marketops_k8s_task_retry_dry_run_verified session=${session_date} due_retries=${due_count}"'
+      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u -d yesterday +%F 2>/dev/null || date -u +%F)}"; symbols="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT symbol FROM marketops_task_items WHERE tenant_id=\$tenant\$tenant-local\$tenant\$ AND session_date=to_date(\$session\$${session_date}\$session\$,\$format\$YYYY-MM-DD\$format\$) AND task_type=\$task\$tactical_posture\$task\$ AND status=\$status\$retry_scheduled\$status\$ AND next_attempt_at <= now() ORDER BY symbol" | paste -sd, -)"; if [ -z "$symbols" ]; then echo "marketops_k8s_task_retry_no_due_work session=${session_date}"; exit 0; fi; if [ "$MARKETOPS_K8S_DRY_RUN" = true ]; then echo "marketops_k8s_task_retry_dry_run_verified session=${session_date} symbols=${symbols}"; exit 0; fi; signalops-marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date" --symbols "$symbols" --max-retries 2'
     )
     ;;
   marketops-warm-eod)
