@@ -90,6 +90,7 @@ export const queryKeys = {
   scheduledJobs: ['scheduled-jobs'] as const,
   marketOpsOperationsHealth: (tenantId: string) => ["marketops-operations-health", tenantId] as const,
   marketOpsTasks: (tenantId: string) => ["marketops-tasks", tenantId] as const,
+  marketOpsTaskManager: (tenantId: string) => ["marketops-task-manager", tenantId] as const,
   administrationNotifications: (tenantId: string) => ['administration-notifications', tenantId] as const,
   administrationSMTPSettings: (tenantId: string) => ["administration-smtp-settings", tenantId] as const,
   storageOverview: ["storage-overview"] as const,
@@ -258,6 +259,8 @@ export function useScheduledJobs() { return useQuery({ queryKey: queryKeys.sched
 export function useMutateScheduledJobRunNow(tenantId: string) { const client = useQueryClient(); return useMutation({ mutationFn: api.runScheduledJobNow, onSuccess: () => { client.invalidateQueries({ queryKey: queryKeys.scheduledJobs }); client.invalidateQueries({ queryKey: queryKeys.marketOpsOperationsHealth(tenantId) }); } }); }
 export function useMarketOpsOperationsHealth(tenantId: string) { return useQuery({ queryKey: queryKeys.marketOpsOperationsHealth(tenantId), queryFn: () => api.getMarketOpsOperationsHealth(tenantId), refetchInterval: 15000 }); }
 export function useMarketOpsTasks(tenantId: string) { return useQuery({ queryKey: queryKeys.marketOpsTasks(tenantId), queryFn: () => api.listMarketOpsTasks(tenantId), refetchInterval: 15000 }); }
+export function useMarketOpsTaskManager(tenantId: string) { return useQuery({ queryKey: queryKeys.marketOpsTaskManager(tenantId), queryFn: () => api.getMarketOpsTaskManager(tenantId), refetchInterval: 15000 }); }
+export function useMutateMarketOpsTaskRetry(tenantId: string) { const client = useQueryClient(); return useMutation({ mutationFn: api.retryMarketOpsTask, onSuccess: () => { client.invalidateQueries({ queryKey: queryKeys.marketOpsTaskManager(tenantId) }); client.invalidateQueries({ queryKey: queryKeys.scheduledJobs }); } }); }
 export function useStorageOverview() { return useQuery({ queryKey: queryKeys.storageOverview, queryFn: api.getStorageOverview, refetchInterval: 15 * 60 * 1000 }); }
 export function useStorageAnalysis(window = "90d") { return useQuery({ queryKey: queryKeys.storageAnalysis(window), queryFn: () => api.getStorageAnalysis(window), refetchInterval: 15 * 60 * 1000 }); }
 export function useRetentionGovernance() { return useQuery({ queryKey: queryKeys.retentionGovernance, queryFn: api.getRetentionGovernance, refetchInterval: 15 * 60 * 1000 }); }

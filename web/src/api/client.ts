@@ -400,6 +400,8 @@ export const api = {
       { tenant_id: tenantId, limit: 200 },
       "no-store",
     ),
+  getMarketOpsTaskManager: (tenantId: string) => get<{ generated_at: string; tasks: any[] }>("/v1/administration/marketops/task-manager", { tenant_id: tenantId }, "no-store"),
+  retryMarketOpsTask: (jobId: string) => post<{ retry: any }>("/v1/administration/marketops/task-manager/" + encodeURIComponent(jobId) + "/retry", {}),
   listAdministrationNotifications: (tenantId: string) =>
     get<AdministrationNotificationsResponse>(
       "/v1/administration/notifications",

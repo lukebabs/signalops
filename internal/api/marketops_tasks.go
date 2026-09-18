@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"github.com/lukebabs/signalops/internal/marketops/taskmanager"
 	"github.com/lukebabs/signalops/internal/storage"
 	"net/http"
 	"strings"
@@ -9,6 +11,70 @@ import (
 )
 
 func registerMarketOpsTaskRoutes(mux *http.ServeMux, repo storage.QueryRepository) {
+	mux.HandleFunc("GET /v1/administration/marketops/task-manager", func(w http.ResponseWriter, r *http.Request) {
+		if !requireTenantAdministrator(w, r) {
+			return
+		}
+		reader, ok := any(repo).(storage.MarketOpsScheduledJobStatusRepository)
+		if !ok {
+			writeError(w, http.StatusNotImplemented, "task_manager_unavailable", "marketops task manager is unavailable")
+			return
+		}
+		rows, err := reader.ListMarketOpsScheduledJobStatuses(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to load task manager statuses")
+			return
+		}
+		inputs := make([]taskmanager.Input, 0, len(rows))
+		for _, x := range rows {
+			inputs = append(inputs, taskmanager.Input{JobID: x.JobID, Status: x.Status, Reason: x.Reason, UpdatedAt: x.UpdatedAt, ExitCode: x.ExitCode})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"generated_at": time.Now().UTC().Format(time.RFC3339), "tasks": taskmanager.Evaluate(time.Now().UTC(), inputs)})
+	})
+	mux.HandleFunc("POST /v1/administration/marketops/task-manager/{job_id}/retry", func(w http.ResponseWriter, r *http.Request) {
+		if !requireTenantAdministrator(w, r) {
+			return
+		}
+		reader, ok := any(repo).(storage.MarketOpsScheduledJobStatusRepository)
+		if !ok {
+			writeError(w, http.StatusNotImplemented, "task_manager_unavailable", "marketops task manager is unavailable")
+			return
+		}
+		rows, err := reader.ListMarketOpsScheduledJobStatuses(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to load task manager statuses")
+			return
+		}
+		inputs := make([]taskmanager.Input, 0, len(rows))
+		for _, x := range rows {
+			inputs = append(inputs, taskmanager.Input{JobID: x.JobID, Status: x.Status, Reason: x.Reason, UpdatedAt: x.UpdatedAt, ExitCode: x.ExitCode})
+		}
+		var target *taskmanager.Decision
+		for _, d := range taskmanager.Evaluate(time.Now().UTC(), inputs) {
+			if d.JobID == r.PathValue("job_id") {
+				target = &d
+				break
+			}
+		}
+		if target == nil {
+			writeError(w, http.StatusNotFound, "task_not_found", "task is not managed")
+			return
+		}
+		if target.State == "blocked" {
+			writeError(w, http.StatusConflict, "task_retry_blocked", target.Reason)
+			return
+		}
+		if !target.RetryEligible {
+			writeError(w, http.StatusConflict, "task_retry_not_eligible", "task is not currently eligible for retry")
+			return
+		}
+		result, err := triggerScheduledJobRunNow(context.WithoutCancel(r.Context()), target.JobID, time.Now().UTC())
+		if err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "task_retry_start_failed", "run": result})
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"retry": result})
+	})
 	mux.HandleFunc("GET /v1/administration/marketops/tasks", func(w http.ResponseWriter, r *http.Request) {
 		reader, ok := any(repo).(storage.MarketOpsTaskRepository)
 		tenantID, tenantOK := requireRequestTenant(w, r, strings.TrimSpace(r.URL.Query().Get("tenant_id")))
