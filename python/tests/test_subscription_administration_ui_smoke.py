@@ -289,3 +289,23 @@ def test_subscription_administration_is_platform_only(admin_page: Page, admin_co
     admin_page.goto(f"{base_url}/marketops/valuation", wait_until="domcontentloaded")
     expect(admin_page.get_by_role("heading", name="Value Intelligence & Distressed Opportunity Intelligence")).to_be_visible(timeout=30_000)
     expect(admin_page.locator("body")).not_to_contain_text("requires additional analytical depth")
+
+
+def test_marketops_task_manager_dependency_and_retry_surface(admin_page: Page, admin_config: tuple[str, str, str]) -> None:
+    with admin_page.expect_response(
+        lambda response: response.request.method == "GET"
+        and "/v1/administration/marketops/task-manager" in response.url,
+        timeout=30_000,
+    ) as response_info:
+        login_marketops_admin(admin_page, admin_config)
+    response = response_info.value
+    assert response.status == 200, f"{response.url} returned HTTP {response.status}: {response.text()}"
+    payload = response.json()
+    tasks = payload.get("tasks")
+    assert isinstance(tasks, list) and tasks, payload
+    by_id = {str(task.get("job_id")): task for task in tasks}
+    assert "marketops-risk-reward" in by_id, by_id
+    assert "state" in by_id["marketops-risk-reward"]
+    expect(admin_page.get_by_role("heading", name="MarketOps Task Manager")).to_be_visible(timeout=30_000)
+    expect(admin_page.locator("body")).to_contain_text("Dependencies", timeout=30_000)
+    expect(admin_page.locator("body")).to_contain_text("No action", timeout=30_000)
