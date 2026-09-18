@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: marketops-saf-evaluation
+  namespace: signalops-marketops
+spec:
+  # Evaluation follows the benchmark and is independently visible as a
+  # critical daily evidence task.
+  schedule: "45 18 * * 1-5"
+  timeZone: "America/New_York"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: signalops-marketops-k8s-job-runner
+            app.kubernetes.io/part-of: signalops
+            app.kubernetes.io/component: scheduled-worker
+            signalops.syncratic.io/plane: marketops
+            signalops.syncratic.io/stage: production
+            signalops.syncratic.io/production-cutover-allowed: "true"
+          annotations:
+            vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/agent-pre-populate-only: "true"
+            vault.hashicorp.com/role: "signalops-marketops"
+            vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
+            vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+            vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
+            vault.hashicorp.com/agent-inject-secret-marketops-worker-runtime.env: "signalops/data/k8s/marketops/marketops-worker-runtime-production"
+            vault.hashicorp.com/agent-inject-template-marketops-worker-runtime.env: |
+              {{- with secret "signalops/data/k8s/marketops/marketops-worker-runtime-production" -}}
+              export SIGNALOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_DATABASE_URL }}'
+              export SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL='{{ .Data.data.SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL }}'
+              {{- end }}
+        spec:
+          serviceAccountName: signalops-marketops-saf-worker
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: signalops-ghcr-pull
+          containers:
+            - name: marketops-job
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:117715ab9da3
+              imagePullPolicy: IfNotPresent
+              args:
+                - marketops-saf-evaluation
+              env:
+                - name: SIGNALOPS_ENV
+                  value: kubernetes-production
+                - name: SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED
+                  value: "true"

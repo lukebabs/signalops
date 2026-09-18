@@ -2,58 +2,176 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/lukebabs/signalops/internal/storage"
 	"net/http"
 	"strings"
 	"time"
 )
 
-func registerMarketOpsSRIRoutes(mux *http.ServeMux, repository storage.QueryRepository) {
-	q, ok := repository.(storage.MarketOpsSRIRepository)
+func registerMarketOpsSRIRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	local, ok := cfg.QueryRepository.(storage.MarketOpsSRIRepository)
 	if !ok {
 		return
 	}
+	global, hasGlobal := cfg.QueryRepository.(storage.SubscriberGlobalSRIRepository)
+
+	readScope := func(w http.ResponseWriter, r *http.Request) (string, subscriberWatchlistContext, bool, bool) {
+		tenant, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok || tenant == "" {
+			if ok {
+				writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
+			}
+			return "", subscriberWatchlistContext{}, false, false
+		}
+		if !subscriberWatchlistContextEnabled(cfg, tenant) {
+			return tenant, subscriberWatchlistContext{}, false, true
+		}
+		context, ok := requireSubscriberWatchlistContext(w, r, cfg, tenant)
+		if !ok {
+			return "", subscriberWatchlistContext{}, false, false
+		}
+		if !hasGlobal {
+			writeError(w, http.StatusServiceUnavailable, "global_sri_unavailable", "platform-global SRI projection is unavailable")
+			return "", subscriberWatchlistContext{}, false, false
+		}
+		return tenant, context, true, true
+	}
+	decorate := func(response map[string]any, globalScope bool, context subscriberWatchlistContext) map[string]any {
+		if globalScope {
+			response["data_scope"] = "platform-global"
+			response["watchlist_context"] = subscriberWatchlistContextResponse(context)
+		}
+		return response
+	}
 	mux.HandleFunc("GET /v1/marketops/sectors", func(w http.ResponseWriter, r *http.Request) {
-		tenant := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
-		items, err := q.ListMarketOpsSRISegments(r.Context(), tenant, true, queryLimit(r, 100))
+		tenant, context, globalScope, ok := readScope(w, r)
+		if !ok {
+			return
+		}
+		var items []storage.MarketOpsSRISegmentRecord
+		var err error
+		if globalScope {
+			items, err = global.ListSubscriberGlobalSRISegments(r.Context(), true, queryLimit(r, 100))
+		} else {
+			items, err = local.ListMarketOpsSRISegments(r.Context(), tenant, true, queryLimit(r, 100))
+		}
 		if err != nil {
 			writeError(w, 500, "query_failed", "failed to list SRI segments")
 			return
 		}
-		writeJSON(w, 200, map[string]any{"segments": sriSegmentResponses(items), "research_only": true})
+		writeJSON(w, 200, decorate(map[string]any{"segments": sriSegmentResponses(items), "research_only": true}, globalScope, context))
 	})
 	mux.HandleFunc("GET /v1/marketops/sectors/rankings", func(w http.ResponseWriter, r *http.Request) {
-		tenant := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
-		items, err := q.ListMarketOpsSRISnapshots(r.Context(), storage.MarketOpsSRISnapshotFilter{TenantID: tenant, SegmentType: strings.TrimSpace(r.URL.Query().Get("segment_type")), State: strings.TrimSpace(r.URL.Query().Get("state")), Limit: 200})
+		tenant, context, globalScope, ok := readScope(w, r)
+		if !ok {
+			return
+		}
+		filter := storage.MarketOpsSRISnapshotFilter{TenantID: tenant, SegmentType: strings.TrimSpace(r.URL.Query().Get("segment_type")), State: strings.TrimSpace(r.URL.Query().Get("state")), Limit: 200}
+		var items []storage.MarketOpsSRISnapshotRecord
+		var err error
+		if globalScope {
+			items, err = global.ListSubscriberGlobalSRISnapshots(r.Context(), filter)
+		} else {
+			items, err = local.ListMarketOpsSRISnapshots(r.Context(), filter)
+		}
 		if err != nil {
 			writeError(w, 500, "query_failed", "failed to list SRI rankings")
 			return
 		}
-		writeJSON(w, 200, map[string]any{"snapshots": sriLatestResponses(items), "research_only": true, "evidence_note": "Price-led foundation context only. It does not assert sector rotation, breadth, diffusion, flows, or a trade recommendation."})
+		writeJSON(w, 200, decorate(map[string]any{"snapshots": sriLatestResponses(items), "research_only": true, "evidence_note": "Price-led platform-global foundation context only. It does not assert sector rotation, breadth, diffusion, flows, or a trade recommendation."}, globalScope, context))
+	})
+	mux.HandleFunc("GET /v1/marketops/sectors/{segment_id}/makeup", func(w http.ResponseWriter, r *http.Request) {
+		tenant, context, globalScope, ok := readScope(w, r)
+		if !ok {
+			return
+		}
+		segmentID := strings.TrimSpace(r.PathValue("segment_id"))
+		var registry []storage.MarketOpsSRIETFRecord
+		var err error
+		if globalScope {
+			registry, err = global.ListSubscriberGlobalSRIETFRegistry(r.Context(), segmentID)
+		} else {
+			registry, err = local.ListMarketOpsSRIETFRegistry(r.Context(), tenant, segmentID)
+		}
+		if err != nil {
+			writeError(w, 500, "query_failed", "failed to resolve SRI ETF makeup")
+			return
+		}
+		etf := sriRegistryPrimaryETF(registry)
+		if etf == "" {
+			writeJSON(w, 200, decorate(map[string]any{"segment_id": segmentID, "availability": "not_configured", "holdings": []any{}, "research_only": true, "reason": "No primary ETF is configured for this SRI segment."}, globalScope, context))
+			return
+		}
+		var snapshot storage.MarketOpsSRIETFHoldingsSnapshotRecord
+		var found bool
+		if globalScope {
+			snapshot, found, err = global.GetLatestSubscriberGlobalSRIETFHoldingsSnapshot(r.Context(), etf)
+		} else {
+			snapshot, found, err = local.GetLatestMarketOpsSRIETFHoldingsSnapshot(r.Context(), tenant, etf)
+		}
+		if err != nil {
+			writeError(w, 500, "query_failed", "failed to read ETF makeup snapshot")
+			return
+		}
+		if !found {
+			writeJSON(w, 200, decorate(map[string]any{"segment_id": segmentID, "etf_symbol": etf, "availability": "unavailable", "holdings": []any{}, "research_only": true, "reason": "No current issuer-published holdings snapshot is available for this ETF."}, globalScope, context))
+			return
+		}
+		var holdings []storage.MarketOpsSRIETFHoldingRecord
+		if globalScope {
+			holdings, err = global.ListSubscriberGlobalSRIETFHoldings(r.Context(), snapshot.SnapshotID, queryLimit(r, 25))
+		} else {
+			holdings, err = local.ListMarketOpsSRIETFHoldings(r.Context(), snapshot.SnapshotID, queryLimit(r, 25))
+		}
+		if err != nil {
+			writeError(w, 500, "query_failed", "failed to list ETF makeup holdings")
+			return
+		}
+		writeJSON(w, 200, decorate(map[string]any{"segment_id": segmentID, "etf_symbol": etf, "availability": "available", "snapshot": sriETFHoldingsSnapshotResponse(snapshot), "holdings": sriETFHoldingsResponses(holdings), "research_only": true, "evidence_note": "Current issuer-published ETF composition for representation only. It does not affect SRI scores or reconstruct historical holdings."}, globalScope, context))
 	})
 	mux.HandleFunc("GET /v1/marketops/sectors/{segment_id}", func(w http.ResponseWriter, r *http.Request) {
-		tenant := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
-		id := r.PathValue("segment_id")
-		items, err := q.ListMarketOpsSRISnapshots(r.Context(), storage.MarketOpsSRISnapshotFilter{TenantID: tenant, SegmentID: id, Limit: 100})
+		tenant, context, globalScope, ok := readScope(w, r)
+		if !ok {
+			return
+		}
+		filter := storage.MarketOpsSRISnapshotFilter{TenantID: tenant, SegmentID: r.PathValue("segment_id"), Limit: 100}
+		var items []storage.MarketOpsSRISnapshotRecord
+		var err error
+		if globalScope {
+			items, err = global.ListSubscriberGlobalSRISnapshots(r.Context(), filter)
+		} else {
+			items, err = local.ListMarketOpsSRISnapshots(r.Context(), filter)
+		}
 		if err != nil {
 			writeError(w, 500, "query_failed", "failed to read SRI segment")
 			return
 		}
-		snapshot, ok := sriLatestSnapshot(items)
-		if !ok {
+		snapshot, found := sriLatestSnapshot(items)
+		if !found {
 			writeError(w, 404, "not_found", "SRI segment snapshot not found")
 			return
 		}
-		writeJSON(w, 200, map[string]any{"snapshot": sriSnapshotResponse(snapshot), "research_only": true})
+		writeJSON(w, 200, decorate(map[string]any{"snapshot": sriSnapshotResponse(snapshot), "research_only": true}, globalScope, context))
 	})
 	mux.HandleFunc("GET /v1/marketops/sectors/{segment_id}/history", func(w http.ResponseWriter, r *http.Request) {
-		tenant := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
-		items, err := q.ListMarketOpsSRISnapshots(r.Context(), storage.MarketOpsSRISnapshotFilter{TenantID: tenant, SegmentID: r.PathValue("segment_id"), Limit: queryLimit(r, 100)})
+		tenant, context, globalScope, ok := readScope(w, r)
+		if !ok {
+			return
+		}
+		filter := storage.MarketOpsSRISnapshotFilter{TenantID: tenant, SegmentID: r.PathValue("segment_id"), QualityState: "usable", Limit: queryLimit(r, 100)}
+		var items []storage.MarketOpsSRISnapshotRecord
+		var err error
+		if globalScope {
+			items, err = global.ListSubscriberGlobalSRISnapshots(r.Context(), filter)
+		} else {
+			items, err = local.ListMarketOpsSRISnapshots(r.Context(), filter)
+		}
 		if err != nil {
 			writeError(w, 500, "query_failed", "failed to list SRI history")
 			return
 		}
-		writeJSON(w, 200, map[string]any{"snapshots": sriSnapshotResponses(items), "research_only": true})
+		writeJSON(w, 200, decorate(map[string]any{"snapshots": sriSnapshotResponses(items), "research_only": true}, globalScope, context))
 	})
 }
 func registerMarketOpsSRIAssetContextRoute(mux *http.ServeMux, repository storage.QueryRepository) {
@@ -131,8 +249,41 @@ func sriSegmentResponses(items []storage.MarketOpsSRISegmentRecord) []map[string
 	return out
 }
 func sriSnapshotResponse(x storage.MarketOpsSRISnapshotRecord) map[string]any {
-	return map[string]any{"snapshot_id": x.SnapshotID, "segment_id": x.SegmentID, "session_date": x.SessionDate.Format("2006-01-02"), "as_of": x.AsOfTime.UTC().Format(time.RFC3339), "state": x.State, "composite_score": x.CompositeScore, "relative_strength_score": x.RelativeStrengthScore, "momentum_score": x.MomentumScore, "momentum_acceleration": x.MomentumAcceleration, "rank": x.Rank, "rank_change_5d": x.RankChange5D, "evidence_quality": x.EvidenceQuality, "quality_state": x.QualityState, "quality_flags": jsonRawOrEmptyArray(x.QualityFlagsJSON), "components": jsonRawOrEmptyObject(x.ComponentsJSON), "input_provenance": jsonRawOrEmptyObject(x.InputProvenanceJSON), "algorithm_version": x.AlgorithmVersion, "configuration_version": x.ConfigurationVersion}
+	return map[string]any{"snapshot_id": x.SnapshotID, "segment_id": x.SegmentID, "primary_etf": sriPrimaryETF(x.InputProvenanceJSON), "session_date": x.SessionDate.Format("2006-01-02"), "as_of": x.AsOfTime.UTC().Format(time.RFC3339), "state": x.State, "composite_score": x.CompositeScore, "relative_strength_score": x.RelativeStrengthScore, "momentum_score": x.MomentumScore, "momentum_acceleration": x.MomentumAcceleration, "rank": x.Rank, "rank_change_5d": x.RankChange5D, "evidence_quality": x.EvidenceQuality, "quality_state": x.QualityState, "quality_flags": jsonRawOrEmptyArray(x.QualityFlagsJSON), "components": jsonRawOrEmptyObject(x.ComponentsJSON), "input_provenance": jsonRawOrEmptyObject(x.InputProvenanceJSON), "algorithm_version": x.AlgorithmVersion, "configuration_version": x.ConfigurationVersion}
 }
+func sriPrimaryETF(raw []byte) string {
+	var provenance struct {
+		PrimaryETF string `json:"primary_etf"`
+	}
+	_ = json.Unmarshal(raw, &provenance)
+	return strings.ToUpper(strings.TrimSpace(provenance.PrimaryETF))
+}
+
+func sriRegistryPrimaryETF(items []storage.MarketOpsSRIETFRecord) string {
+	for _, item := range items {
+		if item.Active && strings.EqualFold(item.Role, "primary") {
+			return strings.ToUpper(strings.TrimSpace(item.ETFSymbol))
+		}
+	}
+	return ""
+}
+
+func sriETFHoldingsSnapshotResponse(x storage.MarketOpsSRIETFHoldingsSnapshotRecord) map[string]any {
+	return map[string]any{
+		"snapshot_id": x.SnapshotID, "fund_name": x.FundName, "effective_date": x.EffectiveDate.Format("2006-01-02"),
+		"retrieved_at": x.RetrievedAt.UTC().Format(time.RFC3339), "source": x.Source, "source_url": x.SourceURL,
+		"holdings_count": x.HoldingsCount, "total_weight": x.TotalWeight, "top_ten_weight": x.TopTenWeight,
+	}
+}
+
+func sriETFHoldingsResponses(items []storage.MarketOpsSRIETFHoldingRecord) []map[string]any {
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		out = append(out, map[string]any{"rank": item.HoldingRank, "ticker": item.Ticker, "name": item.Name, "identifier": item.Identifier, "sedol": item.SEDOL, "sector": item.Sector, "currency": item.Currency, "weight": item.Weight, "shares_held": item.SharesHeld})
+	}
+	return out
+}
+
 func sriSnapshotResponses(items []storage.MarketOpsSRISnapshotRecord) []map[string]any {
 	out := make([]map[string]any, 0, len(items))
 	for _, x := range items {

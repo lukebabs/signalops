@@ -1,0 +1,193 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketops-postgres-staging
+  namespace: signalops-data
+  labels:
+    app.kubernetes.io/name: marketops-postgres-staging
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: data
+    signalops.syncratic.io/purpose: marketops-k8s-staging
+    signalops.syncratic.io/stage: staging
+    signalops.syncratic.io/production-cutover-allowed: "false"
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+  selector:
+    app.kubernetes.io/name: marketops-postgres-staging
+    app.kubernetes.io/component: database
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: marketops-postgres-staging
+  namespace: signalops-data
+  labels:
+    app.kubernetes.io/name: marketops-postgres-staging
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: data
+    signalops.syncratic.io/purpose: marketops-k8s-staging
+    signalops.syncratic.io/stage: staging
+    signalops.syncratic.io/production-cutover-allowed: "false"
+spec:
+  serviceName: marketops-postgres-staging
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: marketops-postgres-staging
+      app.kubernetes.io/component: database
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: marketops-postgres-staging
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: signalops
+        signalops.syncratic.io/plane: data
+        signalops.syncratic.io/purpose: marketops-k8s-staging
+        signalops.syncratic.io/stage: staging
+        signalops.syncratic.io/production-cutover-allowed: "false"
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: signalops
+            - name: POSTGRES_DB
+              value: marketops
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: marketops-postgres-staging-auth
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "signalops", "-d", "marketops"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketops-timescaledb-staging
+  namespace: signalops-data
+  labels:
+    app.kubernetes.io/name: marketops-timescaledb-staging
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: data
+    signalops.syncratic.io/purpose: marketops-k8s-staging
+    signalops.syncratic.io/stage: staging
+    signalops.syncratic.io/production-cutover-allowed: "false"
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+  selector:
+    app.kubernetes.io/name: marketops-timescaledb-staging
+    app.kubernetes.io/component: database
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: marketops-timescaledb-staging
+  namespace: signalops-data
+  labels:
+    app.kubernetes.io/name: marketops-timescaledb-staging
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: data
+    signalops.syncratic.io/purpose: marketops-k8s-staging
+    signalops.syncratic.io/stage: staging
+    signalops.syncratic.io/production-cutover-allowed: "false"
+spec:
+  serviceName: marketops-timescaledb-staging
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: marketops-timescaledb-staging
+      app.kubernetes.io/component: database
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: marketops-timescaledb-staging
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: signalops
+        signalops.syncratic.io/plane: data
+        signalops.syncratic.io/purpose: marketops-k8s-staging
+        signalops.syncratic.io/stage: staging
+        signalops.syncratic.io/production-cutover-allowed: "false"
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: timescaledb
+          image: timescale/timescaledb:2.17.2-pg16
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: signalops
+            - name: POSTGRES_DB
+              value: marketops_temporal
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: marketops-timescaledb-staging-auth
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "signalops", "-d", "marketops_temporal"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi

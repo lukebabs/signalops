@@ -43,6 +43,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-o
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-outcome-materializer ./cmd/marketops-outcome-materializer
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-history-runner ./cmd/marketops-history-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-sri-runner ./cmd/marketops-sri-runner
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-sri-holdings-runner ./cmd/marketops-sri-holdings-runner
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-evaluator ./cmd/marketops-algorithm-evaluator
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-evaluation-backfill ./cmd/marketops-algorithm-evaluation-backfill
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-intraday-monitor ./cmd/marketops-intraday-monitor
@@ -54,6 +55,17 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-r
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-algorithm-adjudicator ./cmd/marketops-algorithm-adjudicator
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-marketops-asset-backfill-worker ./cmd/marketops-asset-backfill-worker
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-algorithm-proposal-generator ./cmd/algorithm-proposal-generator
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-marketops-parity-manifest ./cmd/subscriber-global-marketops-parity-manifest
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-marketops-evidence-materializer ./cmd/subscriber-global-marketops-evidence-materializer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-eod-history-materializer ./cmd/subscriber-global-eod-history-materializer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-financial-refresh ./cmd/subscriber-global-annual-financial-refresh
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-saf-benchmark-materializer ./cmd/subscriber-global-saf-benchmark-materializer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-valuation-materializer ./cmd/subscriber-global-annual-valuation-materializer
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-annual-financial-task-worker ./cmd/subscriber-global-annual-financial-task-worker
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-ranking-import ./cmd/subscriber-global-ranking-import
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-catalog-admission ./cmd/subscriber-global-catalog-admission
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-eod-shadow-planner ./cmd/subscriber-global-eod-shadow-planner
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/signalops-subscriber-global-intraday-shadow-capture ./cmd/subscriber-global-intraday-shadow-capture
 
 FROM python:3.12-slim AS gateway
 
@@ -99,6 +111,23 @@ FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-connect-outbox
 COPY --from=build /out/signalops-cyberops-connect-outbox /signalops-cyberops-connect-outbox
 
 ENTRYPOINT ["/signalops-cyberops-connect-outbox"]
+
+
+FROM debian:bookworm-slim AS signalops-connect-k8s-worker
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends bash ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=build /out/signalops-cyberops-connect-persister /usr/local/bin/signalops-cyberops-connect-persister
+COPY --from=build /out/signalops-cyberops-connect-outbox /usr/local/bin/signalops-cyberops-connect-outbox
+COPY scripts/k8s_signalops_connect_entrypoint.sh /usr/local/bin/signalops-k8s-connect-worker
+
+RUN chmod +x /usr/local/bin/signalops-k8s-connect-worker
+
+ENTRYPOINT ["/usr/local/bin/signalops-k8s-connect-worker"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS cyberops-normalizer
 
@@ -258,6 +287,12 @@ COPY --from=build /out/signalops-marketops-sri-runner /signalops-marketops-sri-r
 
 ENTRYPOINT ["/signalops-marketops-sri-runner"]
 
+FROM gcr.io/distroless/static-debian12:nonroot AS marketops-sri-holdings-runner
+
+COPY --from=build /out/signalops-marketops-sri-holdings-runner /signalops-marketops-sri-holdings-runner
+
+ENTRYPOINT ["/signalops-marketops-sri-holdings-runner"]
+
 FROM gcr.io/distroless/static-debian12:nonroot AS marketops-algorithm-evaluator
 
 COPY --from=build /out/signalops-marketops-algorithm-evaluator /signalops-marketops-algorithm-evaluator
@@ -267,9 +302,6 @@ ENTRYPOINT ["/signalops-marketops-algorithm-evaluator"]
 FROM gcr.io/distroless/static-debian12:nonroot AS marketops-algorithm-evaluation-backfill
 
 COPY --from=build /out/signalops-marketops-algorithm-evaluation-backfill /signalops-marketops-algorithm-evaluation-backfill
-COPY --from=build /out/signalops-massive-puller /usr/local/bin/signalops-massive-puller
-ENV SIGNALOPS_MASSIVE_PULLER_BIN=/usr/local/bin/signalops-massive-puller
-
 ENTRYPOINT ["/signalops-marketops-algorithm-evaluation-backfill"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS marketops-intraday-monitor
@@ -315,6 +347,7 @@ COPY --from=build /out/signalops-marketops-state-materializer /usr/local/bin/sig
 COPY --from=build /out/signalops-marketops-hypothesis-evaluator /usr/local/bin/signalops-marketops-hypothesis-evaluator
 COPY --from=build /out/signalops-marketops-opportunity-builder /usr/local/bin/signalops-marketops-opportunity-builder
 COPY --from=build /out/signalops-marketops-outcome-materializer /usr/local/bin/signalops-marketops-outcome-materializer
+COPY --from=build /out/signalops-marketops-signal-assurance-worker /usr/local/bin/signalops-marketops-signal-assurance-worker
 COPY --from=build /out/signalops-marketops-hypothesis-proposal-generator /usr/local/bin/signalops-marketops-hypothesis-proposal-generator
 
 ENTRYPOINT ["/usr/local/bin/signalops-marketops-intelligence-cohort-runner"]
@@ -334,3 +367,94 @@ ENTRYPOINT ["/signalops-retention-governor"]
 FROM gcr.io/distroless/static-debian12:nonroot AS administration-notification-recorder
 COPY --from=build /out/signalops-administration-notification-recorder /signalops-administration-notification-recorder
 ENTRYPOINT ["/signalops-administration-notification-recorder"]
+
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-marketops-parity-manifest
+COPY --from=build /out/signalops-subscriber-global-marketops-parity-manifest /signalops-subscriber-global-marketops-parity-manifest
+ENTRYPOINT ["/signalops-subscriber-global-marketops-parity-manifest"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-marketops-evidence-materializer
+COPY --from=build /out/signalops-subscriber-global-marketops-evidence-materializer /signalops-subscriber-global-marketops-evidence-materializer
+ENTRYPOINT ["/signalops-subscriber-global-marketops-evidence-materializer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-eod-history-materializer
+COPY --from=build /out/signalops-subscriber-global-eod-history-materializer /signalops-subscriber-global-eod-history-materializer
+ENTRYPOINT ["/signalops-subscriber-global-eod-history-materializer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-saf-benchmark-materializer
+COPY --from=build /out/signalops-subscriber-global-saf-benchmark-materializer /signalops-subscriber-global-saf-benchmark-materializer
+ENTRYPOINT ["/signalops-subscriber-global-saf-benchmark-materializer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-annual-financial-refresh
+COPY --from=build /out/signalops-subscriber-global-annual-financial-refresh /signalops-subscriber-global-annual-financial-refresh
+ENTRYPOINT ["/signalops-subscriber-global-annual-financial-refresh"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-annual-valuation-materializer
+COPY --from=build /out/signalops-subscriber-global-annual-valuation-materializer /signalops-subscriber-global-annual-valuation-materializer
+ENTRYPOINT ["/signalops-subscriber-global-annual-valuation-materializer"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-annual-financial-task-worker
+COPY --from=build /out/signalops-subscriber-global-annual-financial-task-worker /signalops-subscriber-global-annual-financial-task-worker
+ENTRYPOINT ["/signalops-subscriber-global-annual-financial-task-worker"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-ranking-import
+COPY --from=build /out/signalops-subscriber-global-ranking-import /signalops-subscriber-global-ranking-import
+ENTRYPOINT ["/signalops-subscriber-global-ranking-import"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-catalog-admission
+COPY --from=build /out/signalops-subscriber-global-catalog-admission /signalops-subscriber-global-catalog-admission
+ENTRYPOINT ["/signalops-subscriber-global-catalog-admission"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-eod-shadow-planner
+COPY --from=build /out/signalops-subscriber-global-eod-shadow-planner /signalops-subscriber-global-eod-shadow-planner
+ENTRYPOINT ["/signalops-subscriber-global-eod-shadow-planner"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS subscriber-global-intraday-shadow-capture
+COPY --from=build /out/signalops-subscriber-global-intraday-shadow-capture /signalops-subscriber-global-intraday-shadow-capture
+ENTRYPOINT ["/signalops-subscriber-global-intraday-shadow-capture"]
+FROM debian:bookworm-slim AS marketops-k8s-job-runner
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends bash ca-certificates postgresql-client python3 \
+    && ln -s /usr/bin/python3 /usr/local/bin/python \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=build /out/signalops-marketops-intraday-monitor /usr/local/bin/signalops-marketops-intraday-monitor
+COPY --from=build /out/signalops-marketops-options-coverage-runner /usr/local/bin/signalops-marketops-options-coverage-runner
+COPY --from=build /out/signalops-massive-puller /usr/local/bin/signalops-massive-puller
+COPY --from=build /out/signalops-normalizer /usr/local/bin/signalops-normalizer
+COPY --from=build /out/signalops-algorithm-runner /usr/local/bin/signalops-algorithm-runner
+COPY --from=build /out/signalops-marketops-syncratic-intelligence-runner /usr/local/bin/signalops-marketops-syncratic-intelligence-runner
+COPY --from=build /out/signalops-marketops-intelligence-cohort-runner /usr/local/bin/signalops-marketops-intelligence-cohort-runner
+COPY --from=build /out/signalops-marketops-state-materializer /usr/local/bin/signalops-marketops-state-materializer
+COPY --from=build /out/signalops-marketops-hypothesis-evaluator /usr/local/bin/signalops-marketops-hypothesis-evaluator
+COPY --from=build /out/signalops-marketops-hypothesis-proposal-generator /usr/local/bin/signalops-marketops-hypothesis-proposal-generator
+COPY --from=build /out/signalops-marketops-opportunity-builder /usr/local/bin/signalops-marketops-opportunity-builder
+COPY --from=build /out/signalops-marketops-outcome-materializer /usr/local/bin/signalops-marketops-outcome-materializer
+COPY --from=build /out/signalops-marketops-signal-assurance-worker /usr/local/bin/signalops-marketops-signal-assurance-worker
+COPY --from=build /out/signalops-marketops-valuation-runner /usr/local/bin/signalops-marketops-valuation-runner
+COPY --from=build /out/signalops-marketops-tactical-valuation-runner /usr/local/bin/signalops-marketops-tactical-valuation-runner
+COPY --from=build /out/signalops-marketops-eroc-runner /usr/local/bin/signalops-marketops-eroc-runner
+COPY --from=build /out/signalops-marketops-eeom-runner /usr/local/bin/signalops-marketops-eeom-runner
+COPY --from=build /out/signalops-marketops-sri-runner /usr/local/bin/signalops-marketops-sri-runner
+COPY --from=build /out/signalops-marketops-sri-holdings-runner /usr/local/bin/signalops-marketops-sri-holdings-runner
+COPY --from=build /out/signalops-subscriber-global-annual-financial-task-worker /usr/local/bin/signalops-subscriber-global-annual-financial-task-worker
+COPY --from=build /out/signalops-subscriber-global-saf-benchmark-materializer /usr/local/bin/signalops-subscriber-global-saf-benchmark-materializer
+COPY --from=build /out/signalops-subscriber-global-marketops-parity-manifest /usr/local/bin/signalops-subscriber-global-marketops-parity-manifest
+COPY --from=build /out/signalops-subscriber-global-marketops-evidence-materializer /usr/local/bin/signalops-subscriber-global-marketops-evidence-materializer
+COPY --from=build /out/signalops-retention-governor /usr/local/bin/signalops-retention-governor
+COPY scripts/k8s_marketops_job_entrypoint.sh /usr/local/bin/signalops-k8s-marketops-job
+COPY scripts/k8s_marketops_postclose_writer.sh /usr/local/bin/k8s-marketops-postclose-writer
+COPY scripts/k8s_marketops_saf_evaluation.sh /usr/local/bin/k8s-marketops-saf-evaluation
+COPY scripts/k8s_marketops_global_dashboard_projection.sh /usr/local/bin/k8s-marketops-global-dashboard-projection
+COPY scripts/k8s_marketops_risk_reward.sh /usr/local/bin/k8s-marketops-risk-reward
+COPY scripts/k8s_marketops_sri_refresh.sh /usr/local/bin/k8s-marketops-sri-refresh
+COPY python /app/python
+ENV PYTHONPATH=/app/python
+
+RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward /usr/local/bin/k8s-marketops-sri-refresh /usr/local/bin/k8s-marketops-postclose-writer /usr/local/bin/k8s-marketops-saf-evaluation
+RUN chmod +x /usr/local/bin/k8s-marketops-global-dashboard-projection
+
+ENTRYPOINT ["/usr/local/bin/signalops-k8s-marketops-job"]

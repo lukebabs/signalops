@@ -10,7 +10,8 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-func registerMarketOpsOpportunityRoutes(mux *http.ServeMux, queryRepository storage.QueryRepository) {
+func registerMarketOpsOpportunityRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	queryRepository := cfg.QueryRepository
 	mux.HandleFunc("GET /v1/marketops/opportunities", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, queryRepository)
 		if !ok {
@@ -24,26 +25,50 @@ func registerMarketOpsOpportunityRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		filter := storage.MarketOpsOpportunityFilter{
-			TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
+			TenantID: tenantID, AppID: strings.TrimSpace(r.URL.Query().Get("app_id")),
 			OpportunityID: strings.TrimSpace(r.URL.Query().Get("opportunity_id")), AssetID: strings.TrimSpace(r.URL.Query().Get("asset_id")),
 			Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), Direction: strings.TrimSpace(r.URL.Query().Get("direction")),
 			Horizon: strings.TrimSpace(r.URL.Query().Get("horizon")), LifecycleStatus: strings.TrimSpace(r.URL.Query().Get("lifecycle_status")),
 			ResearchOnly: researchOnly, SessionStart: start, SessionEnd: end, Limit: queryLimit(r, 50),
+		}
+		watchlistContext, scoped := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+		if !scoped {
+			return
 		}
 		records, err := repo.ListMarketOpsOpportunities(r.Context(), filter)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps opportunities")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"opportunities": opportunityResponses(records)})
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			visible := records[:0]
+			for _, record := range records {
+				if _, allowed := watchlistContext.Tickers[strings.ToUpper(record.Symbol)]; allowed {
+					visible = append(visible, record)
+				}
+			}
+			records = visible
+		}
+		response := map[string]any{"opportunities": opportunityResponses(records)}
+		if subscriberWatchlistContextEnabled(cfg, tenantID) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 	mux.HandleFunc("GET /v1/marketops/opportunities/{opportunity_id}", func(w http.ResponseWriter, r *http.Request) {
 		repo, ok := requireQueryRepository(w, queryRepository)
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
@@ -60,7 +85,10 @@ func registerMarketOpsOpportunityRoutes(mux *http.ServeMux, queryRepository stor
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
@@ -82,9 +110,13 @@ func registerMarketOpsOpportunityRoutes(mux *http.ServeMux, queryRepository stor
 			writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 			return
 		}
-		tenantID := strings.TrimSpace(req.TenantID)
-		if tenantID == "" {
-			tenantID = strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		requestedTenantID := req.TenantID
+		if strings.TrimSpace(requestedTenantID) == "" {
+			requestedTenantID = r.URL.Query().Get("tenant_id")
+		}
+		tenantID, ok := requireRequestTenant(w, r, requestedTenantID)
+		if !ok {
+			return
 		}
 		disposition := strings.TrimSpace(req.Disposition)
 		if !validOpportunityDisposition(disposition) {

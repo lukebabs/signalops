@@ -1,0 +1,200 @@
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/lukebabs/signalops/internal/storage"
+)
+
+func TestScheduledJobStatusesIncludePostCloseRecoveryStages(t *testing.T) {
+	t.Setenv("SIGNALOPS_SCHEDULE_STATUS_DIR", t.TempDir())
+
+	jobs := scheduledJobStatuses(context.Background(), nil)
+	byID := make(map[string]map[string]any, len(jobs))
+	for _, job := range jobs {
+		byID[job["job_id"].(string)] = job
+	}
+
+	for _, id := range []string{"marketops-postclose-recovery", "marketops-risk-reward"} {
+		if _, ok := byID[id]; !ok {
+			t.Fatalf("scheduled job %q is missing", id)
+		}
+	}
+}
+
+func TestScheduledJobStatusesReadRecoveryEvidence(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("SIGNALOPS_SCHEDULE_STATUS_DIR", dir)
+
+	recorded := map[string]any{
+		"job_id":              "marketops-risk-reward",
+		"status":              "succeeded",
+		"session_date":        "2026-08-11",
+		"risk_reward_results": float64(132),
+	}
+	raw, err := json.Marshal(recorded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "marketops-risk-reward.json"), raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, job := range scheduledJobStatuses(context.Background(), nil) {
+		if job["job_id"] != "marketops-risk-reward" {
+			continue
+		}
+		if job["status"] != "succeeded" || job["session_date"] != "2026-08-11" {
+			t.Fatalf("recorded recovery evidence was not merged: %#v", job)
+		}
+		return
+	}
+	t.Fatal("risk/reward job is missing")
+}
+
+func TestScheduledJobRunActionIsAllowlisted(t *testing.T) {
+	cases := map[string]string{
+		"marketops-intraday":             "scheduler-run-now:marketops-intraday",
+		"marketops-risk-reward":          "scheduler-run-now:marketops-risk-reward",
+		"marketops-operations-monitor":   "scheduler-run-now:marketops-operations-monitor",
+		"signalops-retention-governance": "scheduler-run-now:signalops-retention-governance",
+		"marketops-retention-governance": "scheduler-run-now:marketops-retention-governance",
+	}
+	for jobID, expected := range cases {
+		action, ok := scheduledJobRunAction(jobID)
+		if !ok {
+			t.Fatalf("scheduled job %q is not allowlisted", jobID)
+		}
+		if action != expected {
+			t.Fatalf("scheduled job %q action = %q, want %q", jobID, action, expected)
+		}
+	}
+	if action, ok := scheduledJobRunAction("arbitrary-host-command"); ok || action != "" {
+		t.Fatalf("unexpected action for unsupported job: %q", action)
+	}
+}
+
+func TestTriggerScheduledJobRunNowViaSocket(t *testing.T) {
+	socketPath := filepath.Join(t.TempDir(), "runner.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/run-now" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		var req scheduledJobRunnerRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		if req.Action != "scheduler-run-now:signalops-storage-monitor" {
+			t.Fatalf("unexpected action: %s", req.Action)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(scheduledJobRunnerResponse{Status: "accepted", Output: "started"})
+	})}
+	defer server.Close()
+	go func() { _ = server.Serve(listener) }()
+
+	result, err := triggerScheduledJobRunNowViaSocket(context.Background(), "signalops-storage-monitor", "scheduler-run-now:signalops-storage-monitor", socketPath, time.Date(2026, 8, 19, 2, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Runner != "unix:"+socketPath || result.Output != "started" || result.Status != "accepted" {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+}
+
+type fakeScheduledJobStatusRepository struct {
+	records   []storage.MarketOpsScheduledJobStatusRecord
+	freshness []storage.MarketOpsOperationsFreshnessRecord
+}
+
+func (f fakeScheduledJobStatusRepository) ListMarketOpsScheduledJobStatuses(context.Context) ([]storage.MarketOpsScheduledJobStatusRecord, error) {
+	return f.records, nil
+}
+
+func (f fakeScheduledJobStatusRepository) ListMarketOpsOperationsFreshness(context.Context, string) ([]storage.MarketOpsOperationsFreshnessRecord, error) {
+	return f.freshness, nil
+}
+
+func TestScheduledJobStatusesPreferDatabaseStatus(t *testing.T) {
+	started := time.Date(2026, 8, 19, 4, 0, 0, 0, time.UTC)
+	completed := time.Date(2026, 8, 19, 4, 0, 2, 0, time.UTC)
+	exitCode := 0
+	repo := fakeScheduledJobStatusRepository{records: []storage.MarketOpsScheduledJobStatusRecord{{
+		JobID:       "marketops-operations-monitor",
+		Schedule:    "Hourly",
+		Timezone:    "UTC",
+		Status:      "succeeded",
+		StartedAt:   &started,
+		CompletedAt: &completed,
+		ExitCode:    &exitCode,
+		DetailJSON:  []byte(`{"checks":8}`),
+		UpdatedAt:   completed,
+	}}}
+
+	jobs := scheduledJobStatuses(context.Background(), repo)
+	for _, job := range jobs {
+		if job["job_id"] != "marketops-operations-monitor" {
+			continue
+		}
+		if job["status"] != "succeeded" || job["status_source"] != "database" || job["exit_code"] != 0 {
+			t.Fatalf("database status was not merged: %#v", job)
+		}
+		if job["run_now_enabled"] != true {
+			t.Fatalf("operations monitor should be runnable from Admin through the constrained deployment-agent action: %#v", job)
+		}
+		if job["checks"] != float64(8) {
+			t.Fatalf("database detail was not flattened: %#v", job)
+		}
+		return
+	}
+	t.Fatal("operations monitor job missing")
+}
+
+func TestMarketOpsOperationsFreshnessResponses(t *testing.T) {
+	session := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
+	asOf := time.Date(2026, 8, 20, 22, 15, 0, 0, time.UTC)
+	completed := time.Date(2026, 8, 20, 22, 30, 0, 0, time.UTC)
+	jobs := []map[string]any{{
+		"job_id":          "marketops-risk-reward",
+		"label":           "MarketOps Risk/Reward post-close",
+		"schedule":        "Post-close completion stage",
+		"timezone":        "America/New_York",
+		"status":          "succeeded",
+		"completed_at":    completed.Format(time.RFC3339),
+		"run_now_enabled": true,
+	}}
+	rows := marketOpsOperationsFreshnessResponses([]storage.MarketOpsOperationsFreshnessRecord{{
+		ViewID:            "risk_reward",
+		Label:             "Risk/Reward",
+		LatestSessionDate: &session,
+		LatestAsOf:        &asOf,
+		RowCount:          132,
+		ExpectedCount:     132,
+		Status:            "current",
+	}}, jobs)
+	if len(rows) != 1 {
+		t.Fatalf("unexpected rows: %#v", rows)
+	}
+	if rows[0]["latest_session_date"] != "2026-08-20" || rows[0]["latest_as_of"] != "2026-08-20T22:15:00Z" || rows[0]["status"] != "current" {
+		t.Fatalf("unexpected freshness response: %#v", rows[0])
+	}
+	if rows[0]["dependency_job_id"] != "marketops-risk-reward" || rows[0]["dependency_status"] != "succeeded" || rows[0]["run_now_job_id"] != "marketops-risk-reward" || rows[0]["run_now_enabled"] != true {
+		t.Fatalf("freshness contract was not attached: %#v", rows[0])
+	}
+	if rows[0]["expected_freshness"] == "" || rows[0]["staleness_explanation"] == "" || rows[0]["next_step"] == "" {
+		t.Fatalf("freshness explanation fields missing: %#v", rows[0])
+	}
+}

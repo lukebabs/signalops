@@ -1,0 +1,13 @@
+[Unit]
+Description=SignalOps encrypted PostgreSQL pgBackRest recovery point
+After=network-online.target docker.service signalops-pgbackrest-credentials.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@WORKDIR@
+Environment=SIGNALOPS_PGBACKREST_CONFIG_PATH=/etc/signalops/pgbackrest.conf
+ExecStartPre=/usr/bin/systemctl start signalops-pgbackrest-credentials.service
+ExecStart=@WORKDIR@/scripts/signalops_postgres_backup.sh scheduled
+TimeoutStartSec=4h
+Nice=10

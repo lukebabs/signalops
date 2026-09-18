@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Hoisted mutable auth state so the mocked modules can read the live values.
-const state = vi.hoisted(() => ({ token: 'jwt-abc' as string | null, authEnabled: true }));
+const state = vi.hoisted(() => ({ token: 'jwt-abc' as string | null, authEnabled: true, redirect: vi.fn() }));
 
 vi.mock('../auth/config', () => ({
   authConfig: {
@@ -16,6 +16,7 @@ vi.mock('../auth/config', () => ({
 }));
 vi.mock('../auth/session', () => ({
   getAccessToken: () => state.token,
+  redirectToSignInForExpiredSession: state.redirect,
 }));
 
 // Import the client AFTER the mocks are registered.
@@ -26,6 +27,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   state.token = 'jwt-abc';
   state.authEnabled = true;
+  state.redirect.mockReset();
 });
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -100,6 +102,22 @@ describe('api client auth behavior (G053)', () => {
     const [, options] = fetchMock.mock.calls[0];
     expect(options.headers['X-SignalOps-Actor']).toBe('operator-local');
     expect(options.headers['Authorization']).toBeUndefined();
+  });
+
+
+  it('starts a clean sign-in redirect when the gateway reports an expired token', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ error: 'unauthorized', message: 'token is expired' }, 401));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(api.listAlerts({ tenant_id: 'tenant-local' })).rejects.toMatchObject({
+      status: 401,
+      code: 'unauthorized',
+      message: 'token is expired',
+    });
+    expect(state.redirect).toHaveBeenCalledTimes(1);
   });
 
   it('maps a 401 gateway error envelope to an ApiError with status/code/message', async () => {

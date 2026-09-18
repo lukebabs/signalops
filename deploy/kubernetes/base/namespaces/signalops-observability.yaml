@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: signalops-observability
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: observability
+  annotations:
+    signalops.syncratic.io/responsibility: "Metrics, logs, traces, dashboards, exporters, and alerting."
