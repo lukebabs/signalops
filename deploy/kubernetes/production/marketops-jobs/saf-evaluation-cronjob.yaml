@@ -4,7 +4,9 @@ metadata:
   name: marketops-saf-evaluation
   namespace: signalops-marketops
 spec:
-  schedule: "45 17 * * 1-5"
+  # Evaluation follows the benchmark and is independently visible as a
+  # critical daily evidence task.
+  schedule: "45 18 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
@@ -48,7 +50,7 @@ spec:
             - name: signalops-ghcr-pull
           containers:
             - name: marketops-job
-              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:5c4aa2f7cc03
+              image: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:117715ab9da3
               imagePullPolicy: IfNotPresent
               args:
                 - marketops-saf-evaluation

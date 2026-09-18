@@ -321,7 +321,8 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-saf-benchmark
 spec:
-  schedule: "15 17 * * 1-5"
+  # SAF benchmark is downstream of the completed post-close projection.
+  schedule: "15 18 * * 1-5"
   timeZone: "America/New_York"
   suspend: false
   concurrencyPolicy: Forbid
@@ -1113,4 +1114,3 @@ spec:
                 limits:
                   cpu: 750m
                   memory: 512Mi
-

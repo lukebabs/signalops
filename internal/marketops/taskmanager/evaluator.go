@@ -32,8 +32,9 @@ var contracts = []Contract{
 	{"marketops-risk-reward", "Risk/Reward", []Dependency{{"marketops-daily-postclose", []string{"succeeded"}, 24 * time.Hour}}, 3, 15 * time.Minute},
 	{"marketops-sri-refresh", "SRI refresh", []Dependency{{"marketops-daily-postclose", []string{"succeeded"}, 24 * time.Hour}}, 3, 15 * time.Minute},
 	{"marketops-sri-holdings-refresh", "SRI holdings", []Dependency{{"marketops-sri-refresh", []string{"succeeded"}, 24 * time.Hour}}, 3, 15 * time.Minute},
-	{"marketops-daily-postclose", "Daily post-close", []Dependency{{"marketops-risk-reward", []string{"succeeded"}, 24 * time.Hour}, {"marketops-sri-refresh", []string{"succeeded"}, 24 * time.Hour}}, 3, 15 * time.Minute},
-	{"marketops-saf-evaluation", "Signal Assurance", []Dependency{{"marketops-risk-reward", []string{"succeeded"}, 48 * time.Hour}}, 3, 30 * time.Minute},
+	{"marketops-daily-postclose", "Daily post-close", nil, 3, 15 * time.Minute},
+	{"marketops-saf-benchmark", "Signal Assurance benchmark", []Dependency{{"marketops-daily-postclose", []string{"succeeded"}, 24 * time.Hour}, {"marketops-risk-reward", []string{"succeeded"}, 24 * time.Hour}}, 3, 30 * time.Minute},
+	{"marketops-saf-evaluation", "Signal Assurance", []Dependency{{"marketops-saf-benchmark", []string{"succeeded"}, 24 * time.Hour}, {"marketops-risk-reward", []string{"succeeded"}, 24 * time.Hour}}, 3, 30 * time.Minute},
 	{"marketops-postclose-recovery", "Post-close recovery", nil, 3, 15 * time.Minute},
 }
 
