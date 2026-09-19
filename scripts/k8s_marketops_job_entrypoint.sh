@@ -31,6 +31,16 @@ runner_label="${MARKETOPS_K8S_RUNNER_ID:-kubernetes}"
 status_database_url="${SIGNALOPS_K8S_STATUS_DATABASE_URL:-${SIGNALOPS_MARKETOPS_DATABASE_URL:-${SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL:-}}}"
 status_required="${SIGNALOPS_K8S_STATUS_RECORDING_REQUIRED:-true}"
 
+# Run-now requests can arrive on weekends. Keep post-close work tied to the
+# most recent weekday unless the scheduler supplied an explicit session date.
+if [[ -z "${MARKETOPS_SESSION_DATE:-}" && "$job_id" =~ ^marketops-(warm-eod|daily-postclose|risk-reward|saf-|sri-|task-retry|postclose-recovery|syncratic-intelligence)$ ]]; then
+  candidate="$(date -u -d 'yesterday' +%F)"
+  while [[ "$(date -u -d "$candidate" +%u)" -gt 5 ]]; do
+    candidate="$(date -u -d "$candidate - 1 day" +%F)"
+  done
+  export MARKETOPS_SESSION_DATE="$candidate"
+fi
+
 json_escape() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
@@ -222,12 +232,19 @@ case "$job_id" in
     )
     ;;
   marketops-warm-eod)
-    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-warm-eod is K8s-staging dry-run only until production scheduler cutover is approved"
-    command_args=(
-      bash
-      -ec
-      'warm_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM subscriber_global_warm_eod_assets")"; [[ "$warm_count" =~ ^[0-9]+$ ]] || exit 4; echo "marketops_k8s_warm_eod_dry_run_verified warm_assets=${warm_count}"'
-    )
+    if [[ "$mode_flag" == "--dry-run" ]]; then
+      command_args=(
+        bash
+        -ec
+        'warm_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM subscriber_global_warm_eod_assets")"; [[ "$warm_count" =~ ^[0-9]+$ ]] || exit 4; echo "marketops_k8s_warm_eod_dry_run_verified warm_assets=$warm_count"'
+      )
+    else
+      command_args=(
+        bash
+        -ec
+        'symbols="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT string_agg(canonical_symbol, chr(44) ORDER BY canonical_symbol) FROM subscriber_global_warm_eod_assets")"; [[ -n "$symbols" ]] || { echo "warm EOD cohort is empty" >&2; exit 4; }; signalops-massive-puller --mode pull --date "${MARKETOPS_SESSION_DATE}" --symbols "$symbols" --allow-unseeded-symbols --datasets equity --max-companies 1000 --max-provider-requests 0 --max-events-built 0 --max-events-published 0 --max-retries 0 --continue-on-error=true --dry-run=false --tenant-id tenant-local --source-id src-massive'
+      )
+    fi
     ;;
   *)
     fail "unsupported MarketOps Kubernetes job id: $job_id"
