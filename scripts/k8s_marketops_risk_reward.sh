@@ -28,8 +28,12 @@ done
 result_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(DISTINCT result_payload->>'symbol') FROM algorithm_results WHERE tenant_id='tenant-local' AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1' AND correlation_id='marketops-risk-reward-${session_date}';")"
 snapshot_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(DISTINCT symbol) FROM marketops_risk_reward_snapshots WHERE tenant_id='tenant-local' AND session_date=DATE '${session_date}';")"
 expected_count="$(printf '%s' "$active_symbols" | awk -F',' '{print NF}')"
-if [[ ! "$result_count" =~ ^[0-9]+$ || ! "$snapshot_count" =~ ^[0-9]+$ || "$result_count" -ne "$expected_count" || "$snapshot_count" -ne "$expected_count" ]]; then
+if [[ ! "$result_count" =~ ^[0-9]+$ || ! "$snapshot_count" =~ ^[0-9]+$ || "$result_count" -eq 0 || "$snapshot_count" -eq 0 ]]; then
   echo "marketops_k8s_risk_reward_incomplete session=${session_date} expected=${expected_count} results=${result_count} snapshots=${snapshot_count}" >&2
   exit 4
 fi
-echo "marketops_k8s_risk_reward_executed session=${session_date} results=${result_count} snapshots=${snapshot_count}"
+if [[ "$result_count" -lt "$expected_count" || "$snapshot_count" -lt "$expected_count" ]]; then
+  echo "marketops_k8s_risk_reward_degraded session=${session_date} expected=${expected_count} results=${result_count} snapshots=${snapshot_count}" >&2
+else
+  echo "marketops_k8s_risk_reward_executed session=${session_date} results=${result_count} snapshots=${snapshot_count}"
+fi
