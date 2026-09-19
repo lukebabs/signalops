@@ -34,10 +34,13 @@ status_required="${SIGNALOPS_K8S_STATUS_RECORDING_REQUIRED:-true}"
 # Run-now requests can arrive on weekends. Keep post-close work tied to the
 # most recent weekday unless the scheduler supplied an explicit session date.
 if [[ -z "${MARKETOPS_SESSION_DATE:-}" && "$job_id" =~ ^marketops-(warm-eod|daily-postclose|risk-reward|saf-|sri-|task-retry|postclose-recovery|syncratic-intelligence)$ ]]; then
-  candidate="$(date -u -d 'yesterday' +%F)"
-  while [[ "$(date -u -d "$candidate" +%u)" -gt 5 ]]; do
-    candidate="$(date -u -d "$candidate - 1 day" +%F)"
-  done
+  candidate="$(TZ=America/New_York date +%F)"
+  if [[ "$(TZ=America/New_York date +%u)" -gt 5 ]]; then
+    candidate="$(TZ=America/New_York date -d 'yesterday' +%F)"
+    while [[ "$(TZ=America/New_York date -d "$candidate" +%u)" -gt 5 ]]; do
+      candidate="$(TZ=America/New_York date -d "$candidate - 1 day" +%F)"
+    done
+  fi
   export MARKETOPS_SESSION_DATE="$candidate"
 fi
 
