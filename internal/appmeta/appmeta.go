@@ -9,6 +9,7 @@ const (
 	AppConsole   = "console"
 	AppMarketOps = "marketops"
 	AppCyberOps  = "cyberops"
+	AppStreams   = "streams"
 )
 
 type Metadata struct {
@@ -61,6 +62,16 @@ var Profiles = []Profile{
 		DashboardProfile: "security.default",
 		LandingSummary:   "Firewall evidence, deterministic detections, and focused security investigation.",
 		RoutePrefix:      "/cyberops",
+	},
+	{
+		AppID:            AppStreams,
+		Label:            "Streams",
+		DefaultRoute:     "/streams",
+		Domains:          []string{"operations", "media"},
+		EnabledModules:   []string{"dashboard", "sources", "media", "transcripts", "retention", "settings"},
+		DashboardProfile: "streams.default",
+		LandingSummary:   "Live audio capture, retained recordings, transcripts, and storage-efficient retention policy management.",
+		RoutePrefix:      "/streams",
 	},
 }
 

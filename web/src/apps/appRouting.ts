@@ -69,7 +69,8 @@ export type AppRoutePath =
   | '/cyberops/settings'
   | '/cyberops/signals'
   | '/cyberops/alerts'
-  | '/cyberops/insights';
+  | '/cyberops/insights'
+  ;
 
 export type MetadataFilter = { app_id?: string; domain?: string; use_case?: string };
 
@@ -86,6 +87,7 @@ export function appIdFromPathname(pathname: string): string {
   const p = pathname || '/';
   if (p === '/marketops' || p.startsWith('/marketops/')) return 'marketops';
   if (p === '/cyberops' || p.startsWith('/cyberops/')) return 'cyberops';
+  if (p === '/streams' || p.startsWith('/streams/')) return 'streams';
   return 'console';
 }
 

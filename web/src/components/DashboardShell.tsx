@@ -130,7 +130,6 @@ export function DashboardShell() {
           </label>
           <HealthIndicator />
           {superAdmin && <Link to="/admin/dashboard" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Administration</Link>}
-          {authEnabled && hasPlatformAdmin(claims) && <a href="/streams" className="inline-flex items-center gap-1 rounded border border-brand-300 bg-white px-2 py-1 text-xs text-brand-700 hover:bg-brand-50"><Activity size={14} /> Streams</a>}
           {!superAdmin && hasSubscriptionAdministrator(claims) && <Link to="/admin/subscriptions" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Subscription Administration</Link>}
           {identity && (
             <div className="flex items-center gap-2">
