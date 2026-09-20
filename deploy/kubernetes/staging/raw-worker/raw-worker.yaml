@@ -52,7 +52,7 @@ spec:
             - name: SIGNALOPS_WORKER_POLL_TIMEOUT_SECONDS
               value: "1"
             - name: SIGNALOPS_WORKER_MAX_MESSAGES
-              value: "1"
+              value: "0"
             - name: SIGNALOPS_WORKER_DETECTOR_ID
               value: marketops.dsm.taxonomy_v1
             - name: SIGNALOPS_WORKER_LOG_LEVEL
