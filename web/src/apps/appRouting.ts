@@ -88,6 +88,7 @@ export function appIdFromPathname(pathname: string): string {
   if (p === '/marketops' || p.startsWith('/marketops/')) return 'marketops';
   if (p === '/cyberops' || p.startsWith('/cyberops/')) return 'cyberops';
   if (p === '/streams' || p.startsWith('/streams/')) return 'streams';
+  if (p === '/narrativeops' || p.startsWith('/narrativeops/')) return 'narrativeops';
   return 'console';
 }
 

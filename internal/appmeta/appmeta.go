@@ -6,10 +6,11 @@ const (
 	DefaultAppID   = "console"
 	DefaultUseCase = "general"
 
-	AppConsole   = "console"
-	AppMarketOps = "marketops"
-	AppCyberOps  = "cyberops"
-	AppStreams   = "streams"
+	AppConsole      = "console"
+	AppMarketOps    = "marketops"
+	AppCyberOps     = "cyberops"
+	AppStreams      = "streams"
+	AppNarrativeOps = "narrativeops"
 )
 
 type Metadata struct {
@@ -72,6 +73,16 @@ var Profiles = []Profile{
 		DashboardProfile: "streams.default",
 		LandingSummary:   "Live audio capture, retained recordings, transcripts, and storage-efficient retention policy management.",
 		RoutePrefix:      "/streams",
+	},
+	{
+		AppID:            AppNarrativeOps,
+		Label:            "NarrativeOps",
+		DefaultRoute:     "/narrativeops",
+		Domains:          []string{"market_data", "operations", "intelligence"},
+		EnabledModules:   []string{"dashboard", "narratives", "evidence", "replay", "divergence", "operations"},
+		DashboardProfile: "narrativeops.default",
+		LandingSummary:   "Evidence-backed market narratives, replay, divergence, and operational qualification.",
+		RoutePrefix:      "/narrativeops",
 	},
 }
 

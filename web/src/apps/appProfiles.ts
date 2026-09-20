@@ -80,3 +80,14 @@ export const STREAMS_PROFILE: AppProfile = {
   landing_summary: 'Live audio capture, retained recordings, transcripts, and storage-efficient retention policy management.',
   route_prefix: '/streams',
 };
+
+export const NARRATIVEOPS_PROFILE: AppProfile = {
+  app_id: "narrativeops",
+  label: "NarrativeOps",
+  default_route: "/narrativeops",
+  domains: ["market_data", "operations", "intelligence"],
+  enabled_modules: ["dashboard", "narratives", "evidence", "replay", "divergence", "operations"],
+  dashboard_profile: "narrativeops.default",
+  landing_summary: "Evidence-backed market narratives, replay, divergence, and operational qualification.",
+  route_prefix: "/narrativeops",
+};
