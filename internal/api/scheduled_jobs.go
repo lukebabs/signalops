@@ -26,8 +26,8 @@ type scheduledJobDefinition struct {
 var scheduledJobDefinitions = []scheduledJobDefinition{
 	{"marketops-warm-eod", "MarketOps warm EOD baseline", "Weekdays 18:00", "America/New_York", "scheduler-run-now:marketops-warm-eod"},
 	{"marketops-daily-postclose", "MarketOps post-close", "Weekdays 18:01", "America/New_York", "scheduler-run-now:marketops-daily-postclose"},
-	{"marketops-sri-refresh", "MarketOps SRI refresh", "Weekdays 20:07", "America/New_York", "scheduler-run-now:marketops-sri-refresh"},
-	{"marketops-sri-holdings-refresh", "MarketOps SRI issuer holdings", "Weekdays 20:20", "America/New_York", "scheduler-run-now:marketops-sri-holdings-refresh"},
+	{"marketops-sri-refresh", "MarketOps SRI refresh", "Weekdays 18:00", "America/New_York", "scheduler-run-now:marketops-sri-refresh"},
+	{"marketops-sri-holdings-refresh", "MarketOps SRI issuer holdings", "Weekdays 18:20", "America/New_York", "scheduler-run-now:marketops-sri-holdings-refresh"},
 	{"marketops-intraday", "MarketOps intraday monitor", "Weekdays every 15 minutes, 09:30-20:00", "America/New_York", "scheduler-run-now:marketops-intraday"},
 	{"marketops-fmp-continuation", "FMP continuation", "Saturday 02:00", "America/New_York", "scheduler-run-now:marketops-fmp-continuation"},
 	{"marketops-fmp-annual-financial", "FMP annual financial capture", "Saturday 02:30", "America/New_York", "scheduler-run-now:marketops-fmp-annual-financial"},
@@ -415,6 +415,9 @@ func marketOpsFreshnessStatusExplanation(record storage.MarketOpsOperationsFresh
 		jobReason = rowString(dependency, "error_message")
 	}
 	nextStep := contract.NextStepCurrent
+	if jobStatus == "failed" {
+		nextStep = contract.NextStepStale
+	}
 	if status == "stale" || status == "partial" || status == "failed" || status == "missing" || status == "unavailable" || status == "pending" || status == "provider_evidence_missing" || status == "not_matured" {
 		nextStep = contract.NextStepStale
 	}

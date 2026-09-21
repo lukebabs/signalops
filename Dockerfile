@@ -450,11 +450,12 @@ COPY scripts/k8s_marketops_postclose_writer.sh /usr/local/bin/k8s-marketops-post
 COPY scripts/k8s_marketops_saf_evaluation.sh /usr/local/bin/k8s-marketops-saf-evaluation
 COPY scripts/k8s_marketops_global_dashboard_projection.sh /usr/local/bin/k8s-marketops-global-dashboard-projection
 COPY scripts/k8s_marketops_risk_reward.sh /usr/local/bin/k8s-marketops-risk-reward
+COPY scripts/k8s_marketops_task_retry.sh /usr/local/bin/k8s-marketops-task-retry
 COPY scripts/k8s_marketops_sri_refresh.sh /usr/local/bin/k8s-marketops-sri-refresh
 COPY python /app/python
 ENV PYTHONPATH=/app/python
 
-RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward /usr/local/bin/k8s-marketops-sri-refresh /usr/local/bin/k8s-marketops-postclose-writer /usr/local/bin/k8s-marketops-saf-evaluation
+RUN chmod +x /usr/local/bin/signalops-k8s-marketops-job /usr/local/bin/k8s-marketops-risk-reward /usr/local/bin/k8s-marketops-task-retry /usr/local/bin/k8s-marketops-sri-refresh /usr/local/bin/k8s-marketops-postclose-writer /usr/local/bin/k8s-marketops-saf-evaluation
 RUN chmod +x /usr/local/bin/k8s-marketops-global-dashboard-projection
 
 ENTRYPOINT ["/usr/local/bin/signalops-k8s-marketops-job"]

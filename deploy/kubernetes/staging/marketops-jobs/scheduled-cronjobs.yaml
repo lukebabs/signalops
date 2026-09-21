@@ -85,7 +85,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-sri-refresh
 spec:
-  schedule: "5 17 * * 1-5"
+  schedule: "0 18 * * 1-5"
   timeZone: "America/New_York"
   suspend: true
   concurrencyPolicy: Forbid
@@ -161,7 +161,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-sri-holdings-refresh
 spec:
-  schedule: "20 17 * * 1-5"
+  schedule: "20 18 * * 1-5"
   timeZone: "America/New_York"
   suspend: true
   concurrencyPolicy: Forbid
@@ -859,7 +859,7 @@ metadata:
     signalops.syncratic.io/plane: marketops
     signalops.syncratic.io/job-id: marketops-risk-reward
 spec:
-  schedule: "35 16 * * 1-5"
+  schedule: "45 17 * * 1-5"
   timeZone: "America/New_York"
   suspend: true
   concurrencyPolicy: Forbid

@@ -163,6 +163,17 @@ func TestScheduledJobStatusesPreferDatabaseStatus(t *testing.T) {
 	t.Fatal("operations monitor job missing")
 }
 
+func TestMarketOpsFreshnessFailedProducerNeverReportsNoActionRequired(t *testing.T) {
+	reason, next := marketOpsFreshnessStatusExplanation(
+		storage.MarketOpsOperationsFreshnessRecord{ViewID: "risk_reward", Status: "current"},
+		marketOpsOperationsFreshnessContractFor(storage.MarketOpsOperationsFreshnessRecord{ViewID: "risk_reward"}),
+		map[string]any{"status": "failed", "reason": "zero current-session samples"},
+	)
+	if reason == "" || next == "No action required. Risk/Reward breadth is current for the completed session." {
+		t.Fatalf("failed producer was presented as current: reason=%q next=%q", reason, next)
+	}
+}
+
 func TestMarketOpsOperationsFreshnessResponses(t *testing.T) {
 	session := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
 	asOf := time.Date(2026, 8, 20, 22, 15, 0, 0, time.UTC)
