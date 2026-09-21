@@ -163,8 +163,8 @@ func hypothesisEvaluationLimit(r *http.Request) int {
 	if err != nil || value <= 0 {
 		return 50
 	}
-	if value > 600 {
-		return 600
+	if value > 2000 {
+		return 2000
 	}
 	return value
 }
