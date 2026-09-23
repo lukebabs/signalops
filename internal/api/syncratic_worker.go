@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -78,6 +79,12 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 	}
 	insight, result, err := enrichSyncraticInsightWithAsk(ctx, repo, askClient, job.ContextWindowID, syncraticAskRequest{TenantID: job.TenantID, PromptBuilderVersion: promptVersion, IncludeRecordDetails: true, InsightType: insightType})
 	if err != nil {
+		if isDailyNarrativeContextStrategy(contextWindow.ContextStrategy) {
+			if fallbackErr := persistSyncraticDailyNarrativeFallback(ctx, repo, contextWindow, err); fallbackErr == nil {
+				completeSyncraticIntelligenceJob(ctx, jobs, job.JobID, stableSyncraticID("synins", contextWindow.ContextWindowID, dailyNarrativeInsightType, dailyNarrativeBuilderVersion), "")
+				return
+			}
+		}
 		code := "syncratic_ask_failed"
 		if errors.Is(err, storage.ErrNotFound) {
 			code = "context_window_not_found"
@@ -86,6 +93,30 @@ func processSyncraticIntelligenceJob(ctx context.Context, repo storage.QueryRepo
 		return
 	}
 	completeSyncraticIntelligenceJob(ctx, jobs, job.JobID, insight.SyncraticInsightID, result.AskQueryID)
+}
+
+func persistSyncraticDailyNarrativeFallback(ctx context.Context, repo storage.QueryRepository, contextWindow storage.SyncraticContextWindowRecord, askErr error) error {
+	insight := buildSyncraticDailyNarrativeInsight(contextWindow)
+	metrics := map[string]any{}
+	if raw := strings.TrimSpace(string(insight.MetricsJSON)); raw != "" {
+		_ = json.Unmarshal([]byte(raw), &metrics)
+	}
+	metrics["syncratic_ask"] = map[string]any{"enabled": true, "ask_status": "failed_fallback", "fallback": "deterministic_daily_narrative", "failure_reason": truncateSyncraticAskError(askErr)}
+	insight.MetricsJSON = mustJSON(metrics)
+	insight.Explanation += " Syncratic Ask was unavailable for this run, so the deterministic narrative is shown instead; retrying is not required."
+	insight.RecommendationJSON = mustJSON(map[string]any{"action": "review_context", "source": "deterministic_daily_narrative_fallback", "reason": "Upstream Syncratic Ask was unavailable; persisted MarketOps evidence remains authoritative."})
+	return repo.UpsertSyncraticInsight(ctx, insight)
+}
+
+func truncateSyncraticAskError(err error) string {
+	if err == nil {
+		return "upstream_unavailable"
+	}
+	message := strings.TrimSpace(err.Error())
+	if len(message) > 240 {
+		message = message[:240]
+	}
+	return message
 }
 
 func completeSyncraticIntelligenceJob(ctx context.Context, jobs storage.SyncraticIntelligenceJobRepository, jobID, insightID, askQueryID string) {

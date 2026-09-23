@@ -488,8 +488,8 @@ func buildSyncraticDailyNarrativeAskPrompt(contextWindow storage.SyncraticContex
 		// The gateway tokenizer is not available in SignalOps, so daily narrative prompts
 		// use a conservative serialized-byte proxy and compact/chunk before crossing it.
 		dailyNarrativeInputTokenBudget       = 4000
-		dailyNarrativeDefaultPromptByteProxy = 10000
-		dailyNarrativeMaxPromptByteProxy     = 10000
+		dailyNarrativeDefaultPromptByteProxy = 8000
+		dailyNarrativeMaxPromptByteProxy     = 8000
 	)
 	maxPromptBytes := req.MaxPromptBytes
 	if maxPromptBytes <= 0 {

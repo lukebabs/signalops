@@ -61,7 +61,7 @@ func (r *Repository) ClaimSyncraticIntelligenceJob(ctx context.Context, now time
    AND j.attempts < j.max_attempts
    AND j.subject_symbol='MARKETOPS'
    AND c.context_strategy IN ('marketops_daily_overview_v1','marketops_sri_daily_v1','marketops_risk_reward_daily_v1','marketops_review_queue_daily_v1')
- ORDER BY j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1
+ ORDER BY j.session_date DESC, j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1
 ) UPDATE syncratic_intelligence_jobs j SET status='running', attempts=j.attempts+1, lease_expires_at=$1+$2::interval,
  error_code=NULL, error_message=NULL, updated_at=$1 FROM candidate WHERE j.job_id=candidate.job_id
  RETURNING j.job_id, j.tenant_id, j.app_id, j.use_case, j.subject_symbol, j.session_date, j.context_window_id, j.evidence_digest,
