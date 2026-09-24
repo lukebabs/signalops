@@ -7,6 +7,7 @@ set -euo pipefail
 mode="${1:---write}"
 session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"
 symbols="${MARKETOPS_SRI_ETF_SYMBOLS:-IBB,IGV,KBE,KRE,OIH,QQQ,RSP,SKYY,SMH,SOXX,SPY,XBI,XLB,XLC,XLE,XLF,XLI,XLK,XLP,XLRE,XLU,XLV,XLY,XOP}"
+allow_provider_fallback="${MARKETOPS_SRI_ALLOW_PROVIDER_FALLBACK:-false}"
 IFS=',' read -r -a symbol_list <<< "$symbols"
 expected="${#symbol_list[@]}"
 
@@ -15,22 +16,31 @@ if [[ "$mode" == "--dry-run" ]]; then
   exit 0
 fi
 
-signalops-massive-puller \
-  --mode pull \
-  --date "$session_date" \
-  --symbols "$symbols" \
-  --allow-unseeded-symbols \
-  --datasets equity \
-  --max-companies "$expected" \
-  --max-provider-requests "$expected" \
-  --max-events-built "$expected" \
-  --max-events-published "$expected" \
-  --max-retries "${MARKETOPS_SRI_MAX_RETRIES:-1}" \
-  --dry-run=false \
-  --continue-on-error=false
-
 normalized="$(psql "$SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(DISTINCT UPPER(normalized_payload->>'symbol')) FROM normalized_event_ledger WHERE tenant_id='tenant-local' AND source_id='src-massive' AND dataset='equity_eod_prices' AND observation_time::date=DATE '${session_date}' AND UPPER(normalized_payload->>'symbol') = ANY(string_to_array('${symbols}', ','));" | tr -d '[:space:]')"
-[[ "$normalized" == "$expected" ]] || { echo "SRI ETF normalization incomplete: normalized=${normalized} expected=${expected} session=${session_date}" >&2; exit 4; }
+[[ "$normalized" =~ ^[0-9]+$ ]] || { echo "SRI ETF normalization count invalid: normalized=${normalized} session=${session_date}" >&2; exit 4; }
+
+if [[ "$normalized" != "$expected" ]]; then
+  if [[ "$allow_provider_fallback" != "true" ]]; then
+    echo "marketops_sri_recovery_needed session=${session_date} normalized=${normalized} expected=${expected} provider_fallback=disabled" >&2
+    exit 42
+  fi
+  signalops-massive-puller \
+    --mode pull \
+    --date "$session_date" \
+    --symbols "$symbols" \
+    --allow-unseeded-symbols \
+    --datasets equity \
+    --max-companies "$expected" \
+    --max-provider-requests "$expected" \
+    --max-events-built "$expected" \
+    --max-events-published "$expected" \
+    --max-retries "${MARKETOPS_SRI_MAX_RETRIES:-1}" \
+    --dry-run=false \
+    --continue-on-error=false
+
+  normalized="$(psql "$SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(DISTINCT UPPER(normalized_payload->>'symbol')) FROM normalized_event_ledger WHERE tenant_id='tenant-local' AND source_id='src-massive' AND dataset='equity_eod_prices' AND observation_time::date=DATE '${session_date}' AND UPPER(normalized_payload->>'symbol') = ANY(string_to_array('${symbols}', ','));" | tr -d '[:space:]')"
+  [[ "$normalized" == "$expected" ]] || { echo "SRI ETF normalization incomplete: normalized=${normalized} expected=${expected} session=${session_date}" >&2; exit 4; }
+fi
 
 signalops-marketops-sri-runner \
   --tenant-id "${SIGNALOPS_SRI_OUTPUT_TENANT_ID:-platform-global}" \

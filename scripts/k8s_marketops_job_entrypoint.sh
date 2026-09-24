@@ -265,7 +265,17 @@ completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 status="succeeded"
 reason=""
 if [[ "$exit_code" -ne 0 ]]; then
-  status="failed"
+  if [[ "$exit_code" -eq 42 ]]; then
+    status="recovery_needed"
+    reason="sri_canonical_etf_source_incomplete"
+  else
+    status="failed"
+  fi
 fi
 record_status "$status" "$completed_at" "$exit_code" "$reason"
+if [[ "$status" == "recovery_needed" ]]; then
+  # This is an expected, recoverable source gap. Keep the CronJob green so
+  # Kubernetes does not waste retries; the task ledger remains actionable.
+  exit 0
+fi
 exit "$exit_code"
