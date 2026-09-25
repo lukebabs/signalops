@@ -267,7 +267,13 @@ reason=""
 if [[ "$exit_code" -ne 0 ]]; then
   if [[ "$exit_code" -eq 42 ]]; then
     status="recovery_needed"
-    reason="sri_canonical_etf_source_incomplete"
+    if [[ "$job_id" == "marketops-sri-refresh" ]]; then
+      reason="sri_canonical_etf_source_incomplete"
+    elif [[ "$job_id" == "marketops-risk-reward" ]]; then
+      reason="risk_reward_postclose_feature_dependency_incomplete"
+    else
+      reason="recoverable_dependency_incomplete"
+    fi
   else
     status="failed"
   fi
