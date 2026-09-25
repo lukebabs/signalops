@@ -54,6 +54,13 @@ def readiness_response(response: Response) -> bool:
     )
 
 
+def daily_cohort_validation_response(response: Response) -> bool:
+    return (
+        response.request.method == "GET"
+        and "/v1/marketops/signal-assurance/daily-cohort-validation?" in response.url
+    )
+
+
 def test_signal_assurance_tools_view_honors_operational_cutoff(browser: Browser, config: tuple[str, str, str]) -> None:
     base_url, _, _ = config
     page = browser.new_page()
@@ -62,7 +69,8 @@ def test_signal_assurance_tools_view_honors_operational_cutoff(browser: Browser,
         expect(page.get_by_label("MarketOps tools sections")).to_be_visible(timeout=30_000)
         with page.expect_response(readiness_response, timeout=30_000) as readiness_info:
             with page.expect_response(benchmark_coverage_response, timeout=30_000) as response_info:
-                page.get_by_role("button", name=re.compile("Signal Assurance")).click()
+                with page.expect_response(daily_cohort_validation_response, timeout=30_000) as cohort_info:
+                    page.get_by_role("button", name=re.compile("Signal Assurance")).click()
         readiness = readiness_info.value
         assert readiness.status == 200, f"{readiness.url} returned HTTP {readiness.status}"
         readiness_payload: dict[str, Any] = readiness.json()
@@ -75,7 +83,15 @@ def test_signal_assurance_tools_view_honors_operational_cutoff(browser: Browser,
         assert isinstance(rows, list) and rows, "SAF did not return post-cutoff benchmark-coverage rows"
         dimensions = {str(row.get("dimension_value", "")) for row in rows}
         assert all(dimension for dimension in dimensions), dimensions
+        cohort_response = cohort_info.value
+        assert cohort_response.status == 200, f"{cohort_response.url} returned HTTP {cohort_response.status}"
+        cohort_payload: dict[str, Any] = cohort_response.json()
+        assert cohort_payload.get("data_scope") == "platform-global", cohort_payload
+        validation = cohort_payload.get("validation")
+        assert isinstance(validation, list) and validation, "daily cohort validation is empty"
+        assert all(int(row.get("cohort_size", 0)) > 0 for row in validation), validation
         expect(page.get_by_role("heading", name="Signal Assurance")).to_be_visible(timeout=30_000)
+        expect(page.get_by_test_id("saf-daily-cohort-validation")).to_be_visible(timeout=30_000)
         expect(page.get_by_test_id("saf-operational-readiness")).to_be_visible(timeout=30_000)
         expect(page.get_by_test_id("saf-operational-readiness")).to_contain_text("Prospective SAF readiness", timeout=30_000)
         expect(page.get_by_test_id("saf-operational-readiness")).to_contain_text("Live contracts", timeout=30_000)
