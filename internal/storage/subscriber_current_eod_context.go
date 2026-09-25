@@ -45,6 +45,24 @@ type SubscriberGlobalRiskRewardSnapshotRepository interface {
 	ListSubscriberGlobalRiskRewardSnapshots(context.Context, []string, time.Time, int) ([]MarketOpsRiskRewardSnapshotRecord, error)
 }
 
+// SignalAssuranceDailyCohortValidationRecord is a daily, cohort-level
+// validation row. It deliberately remains separate from matured assertion
+// effectiveness: neutral signals are counted for coverage, while only
+// directional signals with a subsequent EOD close are scored.
+type SignalAssuranceDailyCohortValidationRecord struct {
+	Symbol           string
+	SessionDate      time.Time
+	SignalDirection  string
+	SignalEligible   bool
+	OutcomeAvailable bool
+	DirectionalHit   *bool
+	ForwardReturn    *float64
+}
+
+type SubscriberGlobalSignalAssuranceDailyCohortRepository interface {
+	ListSubscriberGlobalSignalAssuranceDailyCohortValidation(context.Context, []string, time.Time, int) ([]SignalAssuranceDailyCohortValidationRecord, error)
+}
+
 type SubscriberGlobalOptionsDistributionRepository interface {
 	ListSubscriberGlobalOptionsDistributions(context.Context, []string, time.Time, int) ([]MarketOpsOptionsDistributionRecord, error)
 }

@@ -180,6 +180,7 @@ import type {
   MarketOpsSignalAssuranceEvaluationsResponse,
   MarketOpsSignalAssuranceEffectivenessResponse,
   MarketOpsSignalAssuranceEffectivenessObservationsResponse,
+  MarketOpsSignalAssuranceDailyCohortValidationResponse,
   MarketOpsSignalAssuranceAssertionResponse,
   MarketOpsSignalAssuranceRecommendationsResponse,
   MarketOpsSRIRankingsResponse,
@@ -838,6 +839,8 @@ export const api = {
     get<MarketOpsSignalAssuranceEffectivenessResponse>("/v1/marketops/signal-assurance/effectiveness", { tenant_id: tenantId, evidence_source: evidenceSource || undefined, dimension: dimension || undefined, evaluation_mode: evaluationMode || undefined }),
   listMarketOpsSignalAssuranceEffectivenessObservations: (tenantId: string, evidenceSource: string, dimension: string, dimensionValue: string, evaluationMode = "", limit = 200) =>
     get<MarketOpsSignalAssuranceEffectivenessObservationsResponse>("/v1/marketops/signal-assurance/effectiveness/observations", { tenant_id: tenantId, evidence_source: evidenceSource, dimension, dimension_value: dimensionValue, evaluation_mode: evaluationMode || undefined, limit }),
+  getMarketOpsSignalAssuranceDailyCohortValidation: (tenantId: string) =>
+    get<MarketOpsSignalAssuranceDailyCohortValidationResponse>("/v1/marketops/signal-assurance/daily-cohort-validation", { tenant_id: tenantId }, "no-store"),
   getMarketOpsSignalAssuranceAssertion: (assertionId: string, tenantId: string) =>
     get<MarketOpsSignalAssuranceAssertionResponse>(`/v1/marketops/signal-assurance/assertions/${encodeURIComponent(assertionId)}`, { tenant_id: tenantId }),
   getMarketOpsSignalAssuranceRecommendations: (tenantId: string, evidenceSource = "", evaluationMode = "") =>

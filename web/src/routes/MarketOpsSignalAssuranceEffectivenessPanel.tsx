@@ -8,7 +8,7 @@ import { RefreshButton } from '../components/RefreshButton';
 import { ThemedEChart } from '../components/ThemedEChart';
 import { formatPercent, formatUtc } from '../lib/format';
 import { marketOpsTrailingTradingDays } from '../lib/marketopsTradingCalendar';
-import type { MarketOpsSignalAssuranceEffectiveness, MarketOpsSignalAssuranceEffectivenessObservation } from '../types';
+import type { MarketOpsSignalAssuranceDailyCohortValidation, MarketOpsSignalAssuranceEffectiveness, MarketOpsSignalAssuranceEffectivenessObservation } from '../types';
 
 export const SAF_OPERATIONAL_CUTOFF_DATE = '2026-08-20';
 
@@ -118,6 +118,11 @@ export function MarketOpsSignalAssuranceDailyProgressionPanel() {
     queryFn: () => api.listMarketOpsSignalAssuranceEffectivenessObservations(tenantId, source, 'overall', 'all', mode, 1500),
     staleTime: 30_000,
   });
+  const cohortValidation = useQuery({
+    queryKey: ['saf-daily-cohort-validation', tenantId],
+    queryFn: () => api.getMarketOpsSignalAssuranceDailyCohortValidation(tenantId),
+    staleTime: 30_000,
+  });
 
   return <section className="space-y-3 rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -144,8 +149,46 @@ export function MarketOpsSignalAssuranceDailyProgressionPanel() {
         </select>
       </label>
     </div>
-    {progression.isLoading ? <LoadingState label="Loading SAF daily progression..." /> : progression.isError ? <ErrorState error={progression.error} /> : <DailyProgressionChart observations={progression.data?.observations ?? []} evidenceSource={source} windowDays={windowDays} />}
+    {cohortValidation.isLoading ? <LoadingState label="Loading daily cohort validation..." /> : cohortValidation.isError ? <ErrorState error={cohortValidation.error} /> : <DailyCohortValidationChart rows={cohortValidation.data?.validation ?? []} windowDays={windowDays} />}
+    <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
+      {progression.isLoading ? <LoadingState label="Loading matured assertion progression..." /> : progression.isError ? <ErrorState error={progression.error} /> : <DailyProgressionChart observations={progression.data?.observations ?? []} evidenceSource={source} windowDays={windowDays} />}
+    </div>
   </section>;
+}
+
+function DailyCohortValidationChart({ rows, windowDays }: { rows: MarketOpsSignalAssuranceDailyCohortValidation[]; windowDays: string }) {
+  const scoped = useMemo(() => {
+    const sorted = [...rows].sort((a, b) => a.session_date.localeCompare(b.session_date));
+    const latest = sorted.at(-1)?.session_date;
+    if (!latest) return sorted;
+    const allowed = new Set(marketOpsTrailingTradingDays(latest, Number(windowDays) || 10));
+    return sorted.filter((row) => allowed.has(row.session_date));
+  }, [rows, windowDays]);
+  const latest = scoped.at(-1);
+  const option = useMemo(() => ({
+    animation: false,
+    grid: { left: 44, right: 44, top: 48, bottom: 42 },
+    legend: { top: 0, textStyle: { fontSize: 11 } },
+    tooltip: { trigger: 'axis', formatter: (items: Array<{ dataIndex?: number }>) => {
+      const row = scoped[items?.[0]?.dataIndex ?? 0];
+      if (!row) return '';
+      return [row.session_date, `Cohort coverage: ${row.signal_coverage}/${row.cohort_size}`, `Directional signals: ${row.directional_signals}`, `Validated: ${row.directional_hits}/${row.evaluated}`, `Daily accuracy: ${pct(row.directional_accuracy)}`, `Average next-session return: ${pct(row.average_forward_return)}`].join('<br/>');
+    } },
+    xAxis: { type: 'category', data: scoped.map((row) => row.session_date), axisLabel: { fontSize: 10, interval: Math.max(0, Math.ceil(scoped.length / 7) - 1), formatter: (value: string) => value.slice(5) } },
+    yAxis: [{ type: 'value', min: 0, max: 1, axisLabel: { fontSize: 10, formatter: (value: number) => `${Math.round(value * 100)}%` } }, { type: 'value', min: 0, axisLabel: { fontSize: 10 }, splitLine: { show: false } }],
+    series: [
+      { name: 'Daily cohort accuracy', type: 'line', smooth: true, symbolSize: 5, data: scoped.map((row) => row.directional_accuracy ?? null), lineStyle: { color: '#7c3aed', width: 2 }, itemStyle: { color: '#7c3aed' } },
+      { name: 'Directional signals', type: 'bar', yAxisIndex: 1, data: scoped.map((row) => row.directional_signals), itemStyle: { color: '#c4b5fd' } },
+      { name: 'Cohort coverage', type: 'line', yAxisIndex: 1, data: scoped.map((row) => row.signal_coverage), lineStyle: { color: '#0891b2', width: 2 }, itemStyle: { color: '#0891b2' } },
+    ],
+  }), [scoped]);
+  return <div data-testid="saf-daily-cohort-validation" className="space-y-3">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div><h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Daily cohort validation</h3><p className="max-w-3xl text-xs text-gray-500 dark:text-gray-400">Validates each selected cohort day using its Risk/Reward direction and the next available EOD close. This is separate from matured SAF assertion effectiveness.</p></div>
+      {latest ? <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4"><div className="rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800"><div className="text-gray-500 dark:text-gray-400">Latest day</div><div className="font-semibold">{latest.session_date}</div></div><div className="rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800"><div className="text-gray-500 dark:text-gray-400">Cohort coverage</div><div className="font-semibold">{latest.signal_coverage}/{latest.cohort_size}</div></div><div className="rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800"><div className="text-gray-500 dark:text-gray-400">Validated</div><div className="font-semibold">{latest.directional_hits}/{latest.evaluated}</div></div><div className="rounded border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800"><div className="text-gray-500 dark:text-gray-400">Accuracy</div><div className="font-semibold">{pct(latest.directional_accuracy)}</div></div></div> : null}
+    </div>
+    {scoped.length ? <ThemedEChart option={option} style={{ height: 320 }} /> : <EmptyState message="No daily cohort validation is available for this window." />}
+  </div>;
 }
 
 type DailyProgressionPoint = {

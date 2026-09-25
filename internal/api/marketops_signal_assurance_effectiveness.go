@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -117,6 +118,79 @@ func registerMarketOpsSignalAssuranceEffectivenessRoutes(mux *http.ServeMux, cfg
 			response["evidence_source_note"] = "SAF has no confirmed global assertions yet. Historical outcome evidence is platform-global and filtered to the selected watchlist."
 		}
 		writeJSON(w, http.StatusOK, response)
+	})
+	mux.HandleFunc("GET /v1/marketops/signal-assurance/daily-cohort-validation", func(w http.ResponseWriter, r *http.Request) {
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok || tenantID == "" {
+			return
+		}
+		watchlistContext, global, allowed := subscriberGlobalSignalAssuranceContext(w, r, cfg, tenantID)
+		if !allowed {
+			return
+		}
+		if !global {
+			writeJSON(w, http.StatusOK, map[string]any{"validation": []map[string]any{}, "data_scope": "tenant-local", "evidence_note": "Daily cohort validation is currently platform-global."})
+			return
+		}
+		reader, supported := cfg.QueryRepository.(storage.SubscriberGlobalSignalAssuranceDailyCohortRepository)
+		if !supported {
+			writeError(w, http.StatusServiceUnavailable, "global_signal_assurance_unavailable", "global daily cohort validation is unavailable")
+			return
+		}
+		symbols := authorizedEROCTickers(watchlistContext, "")
+		rows, err := reader.ListSubscriberGlobalSignalAssuranceDailyCohortValidation(r.Context(), symbols, time.Now().UTC().AddDate(0, 0, -60), 20000)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list daily cohort validation")
+			return
+		}
+		type bucket struct {
+			coverage, eligible, evaluated, hits int
+			returns                             []float64
+		}
+		buckets := map[string]*bucket{}
+		for _, row := range rows {
+			date := row.SessionDate.Format("2006-01-02")
+			item := buckets[date]
+			if item == nil {
+				item = &bucket{}
+				buckets[date] = item
+			}
+			item.coverage++
+			if !row.SignalEligible {
+				continue
+			}
+			item.eligible++
+			if !row.OutcomeAvailable || row.DirectionalHit == nil {
+				continue
+			}
+			item.evaluated++
+			if *row.DirectionalHit {
+				item.hits++
+			}
+			if row.ForwardReturn != nil {
+				item.returns = append(item.returns, *row.ForwardReturn)
+			}
+		}
+		validation := make([]map[string]any, 0, len(buckets))
+		for date, item := range buckets {
+			accuracy := any(nil)
+			if item.evaluated > 0 {
+				accuracy = float64(item.hits) / float64(item.evaluated)
+			}
+			avgReturn := any(nil)
+			if len(item.returns) > 0 {
+				total := 0.0
+				for _, value := range item.returns {
+					total += value
+				}
+				avgReturn = total / float64(len(item.returns))
+			}
+			validation = append(validation, map[string]any{"session_date": date, "cohort_size": len(symbols), "signal_coverage": item.coverage, "directional_signals": item.eligible, "evaluated": item.evaluated, "directional_hits": item.hits, "directional_accuracy": accuracy, "average_forward_return": avgReturn})
+		}
+		sort.Slice(validation, func(i, j int) bool {
+			return validation[i]["session_date"].(string) < validation[j]["session_date"].(string)
+		})
+		writeJSON(w, http.StatusOK, map[string]any{"validation": validation, "data_scope": "platform-global", "watchlist_context": subscriberWatchlistContextResponse(watchlistContext), "evidence_note": "Daily cohort validation uses the selected cohort's Risk/Reward direction and the next available EOD close. It is separate from matured SAF assertion effectiveness."})
 	})
 	mux.HandleFunc("GET /v1/marketops/signal-assurance/recommendations", func(w http.ResponseWriter, r *http.Request) {
 		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))

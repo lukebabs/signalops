@@ -118,3 +118,36 @@ LIMIT $3`, pqArray(symbols), sessionStart.UTC(), riskRewardSnapshotLimit(limit))
 	}
 	return items, rows.Err()
 }
+
+func (r *Repository) ListSubscriberGlobalSignalAssuranceDailyCohortValidation(ctx context.Context, symbols []string, sessionStart time.Time, limit int) ([]storage.SignalAssuranceDailyCohortValidationRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT symbol, session_date, signal_direction, signal_eligible, outcome_available,
+       directional_hit, forward_return
+FROM subscriber_gateway_global_saf_daily_cohort_validation
+WHERE upper(symbol) = ANY($1) AND session_date >= $2::date
+ORDER BY session_date DESC, symbol ASC
+LIMIT $3`, pqArray(symbols), sessionStart.UTC(), riskRewardSnapshotLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("list subscriber global SAF daily cohort validation: %w", err)
+	}
+	defer rows.Close()
+	items := []storage.SignalAssuranceDailyCohortValidationRecord{}
+	for rows.Next() {
+		var item storage.SignalAssuranceDailyCohortValidationRecord
+		var hit sql.NullBool
+		var returnValue sql.NullFloat64
+		if err := rows.Scan(&item.Symbol, &item.SessionDate, &item.SignalDirection, &item.SignalEligible, &item.OutcomeAvailable, &hit, &returnValue); err != nil {
+			return nil, fmt.Errorf("scan subscriber global SAF daily cohort validation: %w", err)
+		}
+		if hit.Valid {
+			value := hit.Bool
+			item.DirectionalHit = &value
+		}
+		if returnValue.Valid {
+			value := returnValue.Float64
+			item.ForwardReturn = &value
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
