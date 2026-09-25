@@ -35,3 +35,14 @@ labels the metrics explicitly:
 Neutral signals remain in coverage accounting but are not counted as hits or
 misses. This prevents a low-signal day from being misrepresented as algorithm
 failure while preserving visibility into breadth.
+
+## Session-close fallback and pending days
+
+When the historical EOD evidence stream has not yet caught up, the projection
+may use the verified `marketops_asset_quote_cache` session close and its
+`previous_close` as a bounded read-only fallback. The cache freshness flag is
+an intraday freshness indicator; it does not invalidate a completed session
+close. This allows the latest completed cohort to be evaluated without
+fabricating a future result. The newest session remains explicitly pending
+until a subsequent close exists, so a latest-session coverage card can show
+`132/132` while the latest evaluable day is an earlier session.

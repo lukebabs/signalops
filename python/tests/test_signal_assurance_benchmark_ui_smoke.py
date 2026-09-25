@@ -90,6 +90,7 @@ def test_signal_assurance_tools_view_honors_operational_cutoff(browser: Browser,
         validation = cohort_payload.get("validation")
         assert isinstance(validation, list) and validation, "daily cohort validation is empty"
         assert all(int(row.get("cohort_size", 0)) > 0 for row in validation), validation
+        assert any(int(row.get("evaluated", 0)) > 0 for row in validation), "daily cohort validation has no evaluable session"
         expect(page.get_by_role("heading", name="Signal Assurance")).to_be_visible(timeout=30_000)
         expect(page.get_by_test_id("saf-daily-cohort-validation")).to_be_visible(timeout=30_000)
         expect(page.get_by_test_id("saf-operational-readiness")).to_be_visible(timeout=30_000)
