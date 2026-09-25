@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: signalops-app
+  labels:
+    syncratic.io/public-ingress: "true"
+  annotations:
+    signalops.syncratic.io/mesh-route-scope: "staging-only"

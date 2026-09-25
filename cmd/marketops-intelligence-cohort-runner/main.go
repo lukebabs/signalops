@@ -168,9 +168,6 @@ func execute(ctx context.Context, repo repository, cfg cliConfig) (summary, erro
 	started := time.Now().UTC()
 	runRecord := storage.MarketOpsIntelligenceCohortRunRecord{RunID: cfg.RunID, TenantID: cfg.TenantID, AppID: "marketops", UniverseGroup: cfg.UniverseGroup, RequestedSymbols: cfg.Symbols, ResolvedSymbols: symbols, Stages: cfg.Stages, MaxSymbols: cfg.MaxSymbols, DryRun: cfg.DryRun, ContinueOnError: cfg.ContinueOnError, Status: storage.MarketOpsCohortRunRunning, AggregateJSON: []byte(`{}`), ErrorsJSON: []byte(`[]`), Actor: cfg.Actor, SessionStart: cfg.SessionStart, SessionEnd: cfg.SessionEnd, StartedAt: started}
 	if !cfg.DryRun {
-		if _, err := repo.GetMarketOpsIntelligenceCohortRun(ctx, cfg.TenantID, cfg.RunID); err == nil {
-			return out, errors.New("cohort run_id already exists")
-		}
 		if err := repo.UpsertMarketOpsIntelligenceCohortRun(ctx, runRecord); err != nil {
 			return out, err
 		}
@@ -242,7 +239,9 @@ func runStage(ctx context.Context, cfg cliConfig, symbol, stage string) error {
 	switch stage {
 	case "state_materialization":
 		name = "signalops-marketops-state-materializer"
-		args = []string{"--tenant-id", cfg.TenantID, "--symbols", symbol, "--max-symbols", "1", "--window-start", start, "--window-end", cfg.SessionEnd.AddDate(0, 0, 1).Format("2006-01-02"), "--run-id", runID}
+		// State transitions are longitudinal evidence. Materializing only the target session leaves the hypothesis evaluator with no persistence history and blocks every hypothesis. Keep evaluation scoped to the target session, but build state over the governed lookback window.
+		stateStart := cfg.SessionStart.AddDate(0, 0, -60).Format("2006-01-02")
+		args = []string{"--tenant-id", cfg.TenantID, "--symbols", symbol, "--max-symbols", "1", "--window-start", stateStart, "--window-end", cfg.SessionEnd.AddDate(0, 0, 1).Format("2006-01-02"), "--run-id", runID}
 	case "hypothesis_evaluation":
 		name = "signalops-marketops-hypothesis-evaluator"
 		args = []string{"--tenant-id", cfg.TenantID, "--symbol", symbol, "--session-start", start, "--session-end", end, "--run-id", runID, "--max-sessions", "50", "--cohort-run-id", cfg.RunID}

@@ -157,7 +157,7 @@ Recommended metadata under `metrics.syncratic_ask`:
     "max_artifact_ids": 20,
     "max_graph_proposal_ids": 20,
     "max_label_ids": 20,
-    "max_prompt_bytes": 12000
+    "max_prompt_bytes": 10000
   },
   "response": {
     "confidence": 0.0,
@@ -184,7 +184,7 @@ Request body:
 {
   "tenant_id": "tenant-local",
   "prompt_builder_version": "marketops.syncratic.ask_prompt.v1",
-  "max_prompt_bytes": 12000,
+  "max_prompt_bytes": 10000,
   "include_record_details": false,
   "force": false
 }
@@ -353,8 +353,8 @@ SignalOps now sends a short Ask `question` plus the bounded deterministic contex
 
 Validated on `2026-07-14T00:00:00Z` after reviewing a generic Syncratic Ask answer that restated the context envelope instead of interpreting evidence.
 
-The Ask context now includes up to five compact referenced signal details: signal id, type, detector, severity, confidence, timing, event/artifact ids, entities, supporting metrics, short evidence summaries, and subject-mismatch hints. Large raw semantic evidence and recommendations are intentionally omitted from the Ask payload to keep the prompt under the default `12000` byte cap.
+The Ask context now includes up to five compact referenced signal details: signal id, type, detector, severity, confidence, timing, event/artifact ids, entities, supporting metrics, short evidence summaries, and subject-mismatch hints. Large raw semantic evidence and recommendations are intentionally omitted from the Ask payload to keep the prompt under the conservative `10000` byte proxy.
 
 The prompt also includes `analysis_mode`. When subject mismatch hints are present, `analysis_mode=data_quality_blocked`; Syncratic is instructed to lead with a data-quality warning, skip market top-driver interpretation, avoid cross-symbol impact claims, and explain why the evidence cannot support the context subject.
 
-Live validation against `synctx_47bccf8af8af03a15d4c0d3f` persisted a `380` character explanation with title `Data Quality Warning: Subject Mismatch Detected`, stating that AAPL/SPY evidence does not support context subject MS. Prompt size was `9709` bytes, below the `12000` byte cap, and unchanged rerun skipped with `skipped_reason=unchanged_prompt_and_evidence`.
+Live validation against `synctx_47bccf8af8af03a15d4c0d3f` persisted a `380` character explanation with title `Data Quality Warning: Subject Mismatch Detected`, stating that AAPL/SPY evidence does not support context subject MS. Prompt size was `9709` bytes, below the then-configured `12000` byte cap, and unchanged rerun skipped with `skipped_reason=unchanged_prompt_and_evidence`.

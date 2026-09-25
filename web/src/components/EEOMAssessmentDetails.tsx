@@ -1,7 +1,7 @@
 const componentLabel = (name: string) =>
   ({
-    vc: "VC",
-    dosm: "DOSM",
+    vc: "Value Intelligence",
+    dosm: "Distressed Opportunity Intelligence",
     risk_reward: "Risk/Reward",
     event_materiality: "Event materiality",
   })[name] ?? name.replace(/_/g, " ");
@@ -75,7 +75,7 @@ export function EEOMSignalDetails({ row }: { row: any }) {
           </div>
         ) : null}
         <p className="text-gray-500">
-          Component values are normalized evidence inputs; EEOM setup quality is
+          Component values are normalized evidence inputs; Earnings Opportunity Intelligence (EEOM) setup quality is
           the weighted 0–10 analyst score.
         </p>
       </div>

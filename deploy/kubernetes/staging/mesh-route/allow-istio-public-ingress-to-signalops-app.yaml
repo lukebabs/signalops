@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-istio-public-ingress-to-signalops-app
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-istio-ingress-policy
+    app.kubernetes.io/component: mesh-route
+    signalops.syncratic.io/plane: app
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - signalops-web
+          - signalops-gateway
+      - key: signalops.syncratic.io/stage
+        operator: In
+        values:
+          - staging
+      - key: signalops.syncratic.io/production-cutover-allowed
+        operator: In
+        values:
+          - "false"
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+          podSelector:
+            matchLabels:
+              gateway.networking.k8s.io/gateway-name: public-ingress
+      ports:
+        - protocol: TCP
+          port: 8080

@@ -34,3 +34,14 @@ func TestAggregateEffectivenessSeparatesCoverageAndAccuracy(t *testing.T) {
 		t.Fatal("expected Wilson interval")
 	}
 }
+
+func TestBenchmarkCoverageDimensionSeparatesUnmappedSectorEvidence(t *testing.T) {
+	matched := effectivenessObservation{source: "LEGACY", broadMarketBenchmarkState: "matched", sectorBenchmarkState: "matched"}
+	unmapped := effectivenessObservation{source: "LEGACY", broadMarketBenchmarkState: "matched", sectorBenchmarkState: "sector_unmapped"}
+	if got := dimensionValue(matched, "benchmark_coverage"); got != "broad=matched; sector=matched" {
+		t.Fatalf("matched coverage=%q", got)
+	}
+	if got := dimensionValue(unmapped, "benchmark_coverage"); got != "broad=matched; sector=sector_unmapped" {
+		t.Fatalf("unmapped coverage=%q", got)
+	}
+}

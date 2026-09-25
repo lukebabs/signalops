@@ -68,3 +68,26 @@ export const CYBEROPS_PROFILE: AppProfile = {
   landing_summary: "Firewall evidence, deterministic detections, and focused security investigation.",
   route_prefix: "/cyberops",
 };
+
+// StreamRecorder is a same-origin governed workspace mounted at /streams.
+export const STREAMS_PROFILE: AppProfile = {
+  app_id: 'streams',
+  label: 'Streams',
+  default_route: '/streams',
+  domains: ['operations', 'media'],
+  enabled_modules: ['dashboard', 'sources', 'media', 'transcripts', 'retention', 'settings'],
+  dashboard_profile: 'streams.default',
+  landing_summary: 'Live audio capture, retained recordings, transcripts, and storage-efficient retention policy management.',
+  route_prefix: '/streams',
+};
+
+export const NARRATIVEOPS_PROFILE: AppProfile = {
+  app_id: "narrativeops",
+  label: "NarrativeOps",
+  default_route: "/narrativeops",
+  domains: ["market_data", "operations", "intelligence"],
+  enabled_modules: ["dashboard", "narratives", "evidence", "replay", "divergence", "operations"],
+  dashboard_profile: "narrativeops.default",
+  landing_summary: "Evidence-backed market narratives, replay, divergence, and operational qualification.",
+  route_prefix: "/narrativeops",
+};
