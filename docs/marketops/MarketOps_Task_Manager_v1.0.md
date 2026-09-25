@@ -16,3 +16,11 @@ those audit rows are integrated into the scheduled workers.
 
 Initial dependency scope covers warm EOD, intraday, post-close, Risk/Reward, SRI, SRI holdings, SAF evaluation, and recovery.
 Provider polling behavior and scheduler timing are unchanged by this release.
+
+## Post-close feature dependency guard
+
+Risk/Reward is downstream of the serialized post-close writer. The production Kubernetes worker now waits for the complete
+technical input set (`range_position_252d`, `rsi_14`, `return_5d`, `volume_ratio_10d`, both SMA distances, SMA slope, and
+ATR) for every active tenant-local symbol before executing. If the set is incomplete after the bounded wait, the worker records
+`recovery_needed` with reason `risk_reward_postclose_feature_dependency_incomplete` and does not publish a partial projection.
+Any degraded result also exits through the recovery path rather than being reported as a successful task.
