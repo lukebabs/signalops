@@ -35,6 +35,7 @@ let currentAccessToken: string | null = null;
 let authFailureRedirectInFlight = false;
 const TOKEN_EXPIRY_SAFETY_SECONDS = 10;
 const AUTH_FAILURE_RETRY_KEY = 'signalops.auth.failure.retry';
+type AuthFailureOptions = { automaticRetry?: boolean };
 
 function clearAuthFailureRetry(): void {
   try {
@@ -73,17 +74,24 @@ export function getAccessToken(): string | null {
  * important: otherwise the SPA keeps restoring the rejected token and the
  * operator is trapped on the error screen until browser storage is cleared.
  */
-export async function redirectToSignInForAuthFailure(): Promise<void> {
+export async function redirectToSignInForAuthFailure(options: AuthFailureOptions = {}): Promise<void> {
   if (!authConfig.authEnabled || authFailureRedirectInFlight) return;
   authFailureRedirectInFlight = true;
   currentAccessToken = null;
   try {
+    const manager = getUserManager();
+    if (options.automaticRetry === false) {
+      await manager.removeUser();
+      clearAuthFailureRetry();
+      authFailureRedirectInFlight = false;
+      window.location.replace('/?auth_error=tenant_context');
+      return;
+    }
     // A service account (or a user with no tenant assignment) can receive the
     // same invalid token after a fresh OIDC login. Allow one clean retry, then
     // stop on the login screen instead of recursively starting OIDC forever.
     const alreadyRetried = window.sessionStorage.getItem(AUTH_FAILURE_RETRY_KEY) === '1';
     if (alreadyRetried) {
-      const manager = getUserManager();
       await manager.removeUser();
       authFailureRedirectInFlight = false;
       return;
@@ -91,7 +99,6 @@ export async function redirectToSignInForAuthFailure(): Promise<void> {
     window.sessionStorage.setItem(AUTH_FAILURE_RETRY_KEY, '1');
     const path = `${window.location.pathname}${window.location.search}`;
     rememberRedirectPath(path);
-    const manager = getUserManager();
     await manager.removeUser();
     await manager.signinRedirect();
   } catch {

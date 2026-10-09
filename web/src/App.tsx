@@ -128,7 +128,11 @@ function RootGate() {
     return <LoginScreen loading />;
   }
   if (!session.authenticated) {
-    return <LoginScreen error={session.error} onSignIn={() => void session.signIn()} onSignUp={authConfig.signUpUrl ? () => void session.signUp() : undefined} />;
+    const authError = new URLSearchParams(window.location.search).get('auth_error');
+    const loginError = authError === 'tenant_context'
+      ? 'This identity is not provisioned for a SignalOps tenant. Sign in with an approved account or contact an administrator.'
+      : session.error;
+    return <LoginScreen error={loginError} onSignIn={() => void session.signIn()} onSignUp={authConfig.signUpUrl ? () => void session.signUp() : undefined} />;
   }
   return (
     <EnrollmentGate>

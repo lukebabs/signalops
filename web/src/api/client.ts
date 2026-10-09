@@ -290,7 +290,11 @@ function isAuthContextError(error: ApiError): boolean {
 async function throwApiError(error: ApiError): Promise<never> {
   if (authConfig.authEnabled && isAuthContextError(error)) {
     const redirect = authSession.redirectToSignInForAuthFailure ?? authSession.redirectToSignInForExpiredSession;
-    await redirect?.();
+    const tenantContextFailure = error.status === 403 && (
+      new Set(['missing_tenant_claim', 'tenant_mismatch', 'tenant_access_missing']).has(error.code) ||
+      /token must include tenant_id|request tenant does not match token tenant/i.test(error.message)
+    );
+    await redirect?.({ automaticRetry: !tenantContextFailure });
   }
   throw error;
 }
