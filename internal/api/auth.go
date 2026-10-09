@@ -25,10 +25,11 @@ const (
 	roleOperator = "signalops:operator"
 	// rolePlatformSuperAdmin is the Keycloak realm role used for platform administration.
 	// roleAdmin remains accepted while existing SignalOps role mappings migrate.
-	rolePlatformSuperAdmin = "super_admin"
-	roleAdmin              = "signalops:admin"
-	roleTenantProvisioner  = "signalops:tenant_provisioner"
-	roleSubscriptionAdmin  = "signalops:subscription_admin"
+	rolePlatformSuperAdmin      = "super_admin"
+	roleAdmin                   = "signalops:admin"
+	roleTenantProvisioner       = "signalops:tenant_provisioner"
+	roleSubscriptionAdmin       = "signalops:subscription_admin"
+	roleSubscriberCatalogReader = "signalops:subscriber_catalog_reader"
 )
 
 type authContextKey struct{}
@@ -332,6 +333,9 @@ func requireInitialProvisioningTenant(w http.ResponseWriter, r *http.Request, re
 }
 
 func authorizedForRequest(r *http.Request, principal Principal) bool {
+	if isSubscriberCoverageManifestRequest(r) {
+		return hasAnyRole(principal, roleSubscriberCatalogReader, roleViewer, roleOperator, roleAdmin)
+	}
 	if isExperienceRequest(r) || isSessionActivityRequest(r) || isSessionEnrollmentRequest(r) {
 		return true
 	}
@@ -373,6 +377,10 @@ func authorizedForRequest(r *http.Request, principal Principal) bool {
 		return hasAnyRole(principal, roleOperator, roleAdmin)
 	}
 	return hasAnyRole(principal, roleViewer, roleOperator, roleAdmin)
+}
+
+func isSubscriberCoverageManifestRequest(r *http.Request) bool {
+	return r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/marketops/subscriber/coverage-manifest")
 }
 
 func appScopeForRequest(r *http.Request) string {

@@ -68,6 +68,7 @@ type RouterConfig struct {
 	SubscriberCatalogRepository                    storage.SubscriberCatalogProjectionRepository
 	SubscriberEntitlementRepository                storage.SubscriberEntitlementRepository
 	SubscriberCatalogMembershipRepository          storage.SubscriberCatalogMembershipRepository
+	SubscriberCoverageRepository                   storage.SubscriberCoverageRepository
 	SubscriberSubscriptionRepository               storage.SubscriberSubscriptionRepository
 	SubscriberSubscriptionAdministrationRepository storage.SubscriberSubscriptionAdministrationRepository
 	StripeWebhookSecret                            string
@@ -119,6 +120,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		registerSubscriberWatchlistContextRoutes(mux, cfg)
 		registerSubscriberCatalogRoutes(mux, cfg)
 		registerSubscriberCatalogMembershipRoutes(mux, cfg)
+		registerSubscriberCoverageRoutes(mux, cfg)
 		registerSubscriberSubscriptionRoutes(mux, cfg)
 		registerSubscriberSubscriptionAdministrationRoutes(mux, cfg)
 		registerSubscriberStripeWebhookRoutes(mux, cfg)

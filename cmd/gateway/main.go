@@ -99,6 +99,7 @@ func main() {
 		routerConfig.SubscriberCatalogRepository = subscriberWatchlistRepo
 		routerConfig.SubscriberEntitlementRepository = subscriberWatchlistRepo
 		routerConfig.SubscriberCatalogMembershipRepository = subscriberWatchlistRepo
+		routerConfig.SubscriberCoverageRepository = subscriberWatchlistRepo
 		routerConfig.SubscriberSubscriptionRepository = subscriberWatchlistRepo
 		routerConfig.SubscriberSubscriptionAdministrationRepository = subscriberWatchlistRepo
 	}

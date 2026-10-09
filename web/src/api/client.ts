@@ -193,6 +193,8 @@ import type {
   SubscriberWatchlistContextRequest,
   SubscriberWatchlist,
   SubscriberCatalogResponse,
+  SubscriberAdminWarmCatalogResponse,
+  SubscriberCoverageManifest,
   SubscriberCatalogMembershipResult,
   SubscriberSubscriptionProductsResponse,
   SubscriberSubscriptionResponse,
@@ -885,6 +887,12 @@ export const api = {
     post<{ list: SubscriberWatchlist }>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/private-lists", body),
   searchSubscriberCatalog: (tenantId: string, query: string) =>
     get<SubscriberCatalogResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/catalog", { q: query, limit: 20 }, "no-store"),
+  getSubscriberCoverageManifest: (tenantId: string) =>
+    get<SubscriberCoverageManifest>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/coverage-manifest", undefined, "no-store"),
+  getSubscriberAdminWarmCatalog: (tenantId: string, listId: string, params: { q?: string; preset?: string; limit?: number; offset?: number } = {}) =>
+    get<SubscriberAdminWarmCatalogResponse>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/admin/warm-catalog", { list_id: listId, q: params.q || undefined, preset: params.preset || undefined, limit: params.limit ?? 1000, offset: params.offset ?? 0 }, "no-store"),
+  addSubscriberTenantDefaultCatalogMemberships: (tenantId: string, body: { list_id: string; global_asset_ids: string[]; preset?: string; correlation_id?: string }) =>
+    post<{ tenant_id: string; list_id: string; added: Array<{ global_asset_id: string; activation_state: string }>; preset?: string }>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/admin/tenant-default-catalog-memberships", body),
   addSubscriberPrivateCatalogMembership: (tenantId: string, listId: string, globalAssetId: string) =>
     post<SubscriberCatalogMembershipResult>("/v1/tenants/" + encodeURIComponent(tenantId) + "/marketops/subscriber/lists/" + encodeURIComponent(listId) + "/catalog-memberships", { global_asset_id: globalAssetId, correlation_id: "subscriber-catalog-ui" }),
   getMarketOpsSRIRankings: (tenantId: string, segmentType = "", state = "") =>

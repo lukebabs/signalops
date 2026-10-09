@@ -50,6 +50,9 @@ export interface SubscriberWatchlistContext { selection_mode: SubscriberWatchlis
 export interface SubscriberWatchlistContextRequest { selection_mode: SubscriberWatchlistContextMode; list_id?: string; provenance?: unknown; }
 export interface SubscriberCatalogAsset { global_asset_id:string; ticker:string; company_name:string; asset_type:string; exchange:string; sector:string; eligibility_status:string; coverage_state:string; coverage_mode:string; }
 export interface SubscriberCatalogResponse { assets: SubscriberCatalogAsset[]; }
+export interface SubscriberAdminWarmCatalogAsset extends SubscriberCatalogAsset { coverage_tier?: string; warm_rank?: number; market_cap_rank?: number; tenant_default_member?: boolean; legacy_protected?: boolean; }
+export interface SubscriberAdminWarmCatalogResponse { assets: SubscriberAdminWarmCatalogAsset[]; limit: number; offset: number; preset?: string; }
+export interface SubscriberCoverageManifest { tenant_id:string; manifest_schema:string; list_id:string; list_name:string; generated_at:string; asset_count:number; assets:Array<SubscriberWatchlistItem & { source?: string; coverage_tier?: string }>; }
 export interface SubscriberCatalogMembershipResult { membership: SubscriberWatchlistItem; activation_state:string; }
 
 export type SubscriberSubscriptionFeature =
