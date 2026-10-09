@@ -85,7 +85,6 @@ export async function redirectToSignInForAuthFailure(): Promise<void> {
     if (alreadyRetried) {
       const manager = getUserManager();
       await manager.removeUser();
-      clearAuthFailureRetry();
       authFailureRedirectInFlight = false;
       return;
     }
