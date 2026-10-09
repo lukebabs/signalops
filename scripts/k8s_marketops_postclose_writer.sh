@@ -46,7 +46,14 @@ if ! signalops-massive-puller --mode reconcile-equity --date "$session_date" --u
 fi
 # Options coverage is an upstream dependency of state materialization and hypothesis evaluation.
 # Run it before the cohort stages so the hypotheses observe the current session's option features.
-signalops-marketops-options-coverage-runner --tenant-id tenant-local --symbols "$option_symbols" --max-symbols "${#symbols[@]}" --session-date "$session_date" --run-id "k8s-postclose-${session_date}-options" --limit 250 --max-pages 2 --max-candidates 500 --min-dte 14 --max-dte 120 --min-moneyness 0.70 --max-moneyness 1.30 --skip-complete=true --continue-on-error=true --max-retries 0 --dry-run=false
+# The options runner accepts at most 200 symbols per invocation. Process the
+# complete operational union in bounded batches so expanding the catalog does
+# not silently drop symbols or block the post-close pipeline.
+for ((options_offset=0; options_offset<${#symbols[@]}; options_offset+=200)); do
+  options_batch=("${symbols[@]:options_offset:200}")
+  options_csv="$(IFS=,; echo "${options_batch[*]}")"
+  signalops-marketops-options-coverage-runner --tenant-id tenant-local --symbols "$options_csv" --max-symbols "${#options_batch[@]}" --session-date "$session_date" --run-id "k8s-postclose-${session_date}-options-$(printf '%03d' "$options_offset")" --limit 250 --max-pages 2 --max-candidates 500 --min-dte 14 --max-dte 120 --min-moneyness 0.70 --max-moneyness 1.30 --skip-complete=true --continue-on-error=true --max-retries 0 --dry-run=false
+done
 for ((i=0;i<${#symbols[@]};i+=10)); do
   batch=("${symbols[@]:i:10}"); csv=$(IFS=,; echo "${batch[*]}");
   if ! signalops-marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$csv" --max-symbols "${#batch[@]}" --session-start "$start_date" --session-end "$session_date" --stages preflight,state_materialization,hypothesis_evaluation,opportunity_build,outcome_materialization,hypothesis_proposal_generation --continue-on-error=true --dry-run=false --acknowledge-writes --run-id "k8s-postclose-${session_date}-$(printf '%03d' "$i")"; then
