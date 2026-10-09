@@ -291,7 +291,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void sendSessionActivity('login', currentAccessToken);
     const restoredPath = consumeRedirectPath();
     const callbackClaims = mergeSessionClaims((u?.profile as AuthClaims | undefined) ?? null, u?.access_token);
-    return restoredPath === DEFAULT_POST_LOGIN_PATH && hasPlatformAdmin(callbackClaims)
+    const isDefaultLandingPath = restoredPath === '/' || restoredPath === DEFAULT_POST_LOGIN_PATH;
+    return isDefaultLandingPath && hasPlatformAdmin(callbackClaims)
       ? '/admin/dashboard'
       : restoredPath;
   }, []);
