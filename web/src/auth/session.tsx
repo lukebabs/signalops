@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { User } from 'oidc-client-ts';
 import { authConfig } from './config';
-import { clearRedirectPath, consumeRedirectPath, DEFAULT_POST_LOGIN_PATH, getUserManager, rememberRedirectPath } from './oidc';
+import { clearRedirectPath, consumeRedirectPath, getUserManager, rememberRedirectPath } from './oidc';
 import type { AuthClaims } from './claims';
 import { displayIdentity, hasPlatformAdmin, mergeSessionClaims } from './claims';
 
@@ -290,10 +290,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     currentAccessToken = u?.access_token ?? null;
     void sendSessionActivity('login', currentAccessToken);
     const restoredPath = consumeRedirectPath();
-    const callbackClaims = mergeSessionClaims((u?.profile as AuthClaims | undefined) ?? null, u?.access_token);
-    return restoredPath === DEFAULT_POST_LOGIN_PATH && hasPlatformAdmin(callbackClaims)
-      ? '/admin/dashboard'
-      : restoredPath;
+    return restoredPath;
   }, []);
 
   const signOut = useCallback(async () => {

@@ -50,7 +50,10 @@ export function getRegistrationUserManager(): UserManager {
 // Auth endpoints are flow machinery, never destinations: restoring one after a
 // successful callback would render the application's not-found route.
 const REDIRECT_PATH_KEY = 'signalops.auth.redirectPath';
-export const DEFAULT_POST_LOGIN_PATH = '/marketops/dashboard';
+// The root route is the authenticated SignalOps landing page. It presents the
+// available workspace widgets (MarketOps, NarrativeOps, Streams, etc.) and
+// lets each user choose a domain rather than forcing a single product view.
+export const DEFAULT_POST_LOGIN_PATH = '/';
 
 export function sanitizeRedirectPath(path: string | null | undefined): string {
   if (!path || !path.startsWith('/') || path.startsWith('//')) return DEFAULT_POST_LOGIN_PATH;

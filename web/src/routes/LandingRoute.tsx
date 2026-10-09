@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ArrowRight, BarChart3, Binary, ShieldCheck, Sparkles, type LucideIcon } from 'lucide-react';
 import { useAppProfile } from '../apps/AppProfileContext';
@@ -17,12 +16,7 @@ export function LandingRoute() {
   const { claims } = useAuth();
   const navigate = useNavigate();
   const identity = displayIdentity(claims);
-  useEffect(() => {
-    if (loading || profiles.length !== 1) return;
-    void navigate({ to: profiles[0].default_route as never, replace: true });
-  }, [loading, profiles, navigate]);
   if (loading) return <div className="py-16 text-center text-sm text-gray-500">Preparing your SignalOps workspace…</div>;
-  if (profiles.length === 1) return <div className="py-16 text-center text-sm text-gray-500">Opening your workspace…</div>;
   return <div className="mx-auto max-w-4xl space-y-7 py-8">
     <section className="max-w-2xl space-y-3">
       <img src={syncraticPortalLogo} alt="Syncratic" className="h-12 w-auto" />
