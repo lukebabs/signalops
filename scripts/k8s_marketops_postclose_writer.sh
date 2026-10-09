@@ -10,10 +10,16 @@ ack="${MARKETOPS_POSTCLOSE_ACKNOWLEDGE_WRITES:-false}"
 : "${SIGNALOPS_MARKETOPS_DATABASE_URL:?dedicated MarketOps database required}"
 mapfile -t symbols < <(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "SELECT ticker FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY rank NULLS LAST,ticker")
 ((${#symbols[@]} > 0)) || { echo "no active MarketOps symbols" >&2; exit 3; }
+# SRI is platform-global and consumes a fixed ETF source set that is not part
+# of the tenant-local stock universe. Capture those 24 ETFs in this same
+# bounded provider pull; downstream options and algorithms remain stock-only.
+sri_symbols="IBB,IGV,KBE,KRE,OIH,QQQ,RSP,SKYY,SMH,SOXX,SPY,XBI,XLB,XLC,XLE,XLF,XLI,XLK,XLP,XLRE,XLU,XLV,XLY,XOP"
 option_symbols="$(printf "%s\n" "${symbols[@]}" | paste -sd, -)"
 [[ -n "$option_symbols" ]] || { echo "no options symbols" >&2; exit 4; }
 csv_all="$(IFS=,; echo "${symbols[*]}")"
-signalops-massive-puller --mode pull --date "$session_date" --symbols "$csv_all" --allow-unseeded-symbols --datasets equity --max-companies "${#symbols[@]}" --max-provider-requests "${#symbols[@]}" --max-events-built "${#symbols[@]}" --max-events-published "${#symbols[@]}" --max-retries 0 --continue-on-error=true --acknowledge-writes --dry-run=false
+capture_symbols="${csv_all},${sri_symbols}"
+capture_count="$(printf '%s\n' "$capture_symbols" | tr ',' '\n' | sort -u | awk 'NF { count++ } END { print count + 0 }')"
+signalops-massive-puller --mode pull --date "$session_date" --symbols "$capture_symbols" --allow-unseeded-symbols --datasets equity --max-companies "$capture_count" --max-provider-requests "$capture_count" --max-events-built "$capture_count" --max-events-published "$capture_count" --max-retries 0 --continue-on-error=true --acknowledge-writes --dry-run=false
 : "${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:?dedicated MarketOps temporal database required}"
 option_count=${#symbols[@]}
 minimum_normalized=$(( (option_count * 95 + 99) / 100 ))
