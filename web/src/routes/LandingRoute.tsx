@@ -13,14 +13,18 @@ function iconFor(domains: string[]): LucideIcon {
 }
 
 export function LandingRoute() {
-  const { profiles, loading } = useAppProfile();
+  const { profiles, loading, superAdmin } = useAppProfile();
   const { claims } = useAuth();
   const navigate = useNavigate();
   const identity = displayIdentity(claims);
   useEffect(() => {
+    if (!loading && superAdmin) {
+      void navigate({ to: '/admin/dashboard', replace: true });
+      return;
+    }
     if (loading || profiles.length !== 1) return;
     void navigate({ to: profiles[0].default_route as never, replace: true });
-  }, [loading, profiles, navigate]);
+  }, [loading, profiles, superAdmin, navigate]);
   if (loading) return <div className="py-16 text-center text-sm text-gray-500">Preparing your SignalOps workspace…</div>;
   if (profiles.length === 1) return <div className="py-16 text-center text-sm text-gray-500">Opening your workspace…</div>;
   return <div className="mx-auto max-w-4xl space-y-7 py-8">
