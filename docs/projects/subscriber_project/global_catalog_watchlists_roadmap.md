@@ -534,6 +534,10 @@ common stocks.
 
 Migration `000142_subscriber_tenant_local_legacy_hot_parity_foundation` records the safe preservation prerequisite for the legacy 132-symbol hot universe. It exposes only the `tenant-local` `all_active` **current-state** intraday source through a security-barrier view, extends immutable parity manifests with `intraday_snapshot`, and keeps direct raw intraday-table access denied to the global worker. The completed manifest run `subglobalparity_d72978bedcbace8096a8d305` mapped 132 intraday current states plus 1,533 previously unmanifested Risk/Reward rows (1,665/1,665 mapped). Together with earlier manifests, all 2,533 retained legacy Risk/Reward rows are now immutable provenance records.
 
+### Operational S&P-200 union (migration 000189)
+
+The tenant-local operational default is now the additive union of the preserved legacy 132 and the eligible members of the governed ranked S&P-200 selection. The current ranking contains 200 rows, 165 eligible assets, and 65 eligible assets not previously in the legacy list, producing 197 active universal assets/default-list memberships. Ineligible ranked rows are not polled. The canonical `marketops_universal_assets` view includes the `snp500_top200` projection, so post-close algorithms and scheduled MarketOps tasks discover the expanded set dynamically. The legacy SAF cohort and its immutable historical evidence remain anchored to `sublist-tenant-local-legacy-default` and are not deleted or rewritten.
+
 This is not a materialization or cutover. The global Risk/Reward reader continues to have 1,000 materialized records, and the intraday evidence has no global reader. The remaining gates are append-only materialization, source/global parity proof, a separately defined current-state intraday reader, and dual-run evidence for the grandfathered 132-symbol hot cohort before any scheduler or UI switch.
 
 ### Tenant-local legacy-hot materialization — 2026-08-16

@@ -8,7 +8,9 @@ SignalOps exposes the tenant-local resolved coverage list for approved downstrea
 GET https://signalops.syncratic.io/v1/tenants/tenant-local/marketops/subscriber/coverage-manifest
 ```
 
-The response is the tenant's current default coverage selection. It currently contains the preserved legacy 132 assets. When the
+The response is the tenant's current default coverage selection. Tenant-local now contains the additive union of the preserved
+legacy 132 assets and the eligible governed S&P-200 selection (197 assets at migration `000189`). The preserved legacy SAF
+cohort remains immutable evidence even though the operational default has expanded. When the
 tenant administrator adds assets from the governed warm catalog, the same manifest expands without creating duplicate asset records.
 
 ## Authentication
