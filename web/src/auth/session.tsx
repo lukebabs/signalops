@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { User } from 'oidc-client-ts';
 import { authConfig } from './config';
-import { consumeRedirectPath, getUserManager, rememberRedirectPath } from './oidc';
+import { clearRedirectPath, consumeRedirectPath, DEFAULT_POST_LOGIN_PATH, getUserManager, rememberRedirectPath } from './oidc';
 import type { AuthClaims } from './claims';
 import { displayIdentity, hasPlatformAdmin, mergeSessionClaims } from './claims';
 
@@ -83,6 +83,7 @@ export async function redirectToSignInForAuthFailure(options: AuthFailureOptions
     if (options.automaticRetry === false) {
       await manager.removeUser();
       clearAuthFailureRetry();
+      clearRedirectPath();
       authFailureRedirectInFlight = false;
       window.location.replace('/?auth_error=tenant_context');
       return;
@@ -250,7 +251,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       clearAuthFailureRetry();
       const tenantContextFailure = new URLSearchParams(window.location.search).get('auth_error') === 'tenant_context';
-      rememberRedirectPath(tenantContextFailure ? '/marketops/dashboard' : window.location.pathname + window.location.search);
+      if (tenantContextFailure) clearRedirectPath();
+      else rememberRedirectPath(window.location.pathname + window.location.search);
       await getUserManager().signinRedirect(
         tenantContextFailure ? { extraQueryParams: { prompt: 'login' } } : undefined,
       );
@@ -287,7 +289,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
     currentAccessToken = u?.access_token ?? null;
     void sendSessionActivity('login', currentAccessToken);
-    return consumeRedirectPath();
+    const restoredPath = consumeRedirectPath();
+    const callbackClaims = mergeSessionClaims((u?.profile as AuthClaims | undefined) ?? null, u?.access_token);
+    return restoredPath === DEFAULT_POST_LOGIN_PATH && hasPlatformAdmin(callbackClaims)
+      ? '/admin/dashboard'
+      : restoredPath;
   }, []);
 
   const signOut = useCallback(async () => {

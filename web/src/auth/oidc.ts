@@ -66,6 +66,14 @@ export function rememberRedirectPath(path: string): void {
   }
 }
 
+export function clearRedirectPath(): void {
+  try {
+    sessionStorage.removeItem(REDIRECT_PATH_KEY);
+  } catch {
+    /* sessionStorage unavailable */
+  }
+}
+
 export function consumeRedirectPath(): string {
   try {
     const path = sanitizeRedirectPath(sessionStorage.getItem(REDIRECT_PATH_KEY));
