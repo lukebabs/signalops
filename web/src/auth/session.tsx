@@ -34,6 +34,15 @@ const SessionContext = createContext<SessionState | null>(null);
 let currentAccessToken: string | null = null;
 let authFailureRedirectInFlight = false;
 const TOKEN_EXPIRY_SAFETY_SECONDS = 10;
+const AUTH_FAILURE_RETRY_KEY = 'signalops.auth.failure.retry';
+
+function clearAuthFailureRetry(): void {
+  try {
+    window.sessionStorage.removeItem(AUTH_FAILURE_RETRY_KEY);
+  } catch {
+    // Storage may be unavailable in privacy-restricted browser contexts.
+  }
+}
 
 function tokenExpiresWithin(token: string, windowSeconds: number): boolean {
   const [, payload] = token.split('.');
@@ -69,6 +78,18 @@ export async function redirectToSignInForAuthFailure(): Promise<void> {
   authFailureRedirectInFlight = true;
   currentAccessToken = null;
   try {
+    // A service account (or a user with no tenant assignment) can receive the
+    // same invalid token after a fresh OIDC login. Allow one clean retry, then
+    // stop on the login screen instead of recursively starting OIDC forever.
+    const alreadyRetried = window.sessionStorage.getItem(AUTH_FAILURE_RETRY_KEY) === '1';
+    if (alreadyRetried) {
+      const manager = getUserManager();
+      await manager.removeUser();
+      clearAuthFailureRetry();
+      authFailureRedirectInFlight = false;
+      return;
+    }
+    window.sessionStorage.setItem(AUTH_FAILURE_RETRY_KEY, '1');
     const path = `${window.location.pathname}${window.location.search}`;
     rememberRedirectPath(path);
     const manager = getUserManager();
@@ -221,6 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // "No matching state found in storage" and bouncing the user to login.
   const signIn = useCallback(async () => {
     try {
+      clearAuthFailureRetry();
       rememberRedirectPath(window.location.pathname + window.location.search);
       await getUserManager().signinRedirect();
     } catch (e) {
@@ -230,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = useCallback(async () => {
     try {
+      clearAuthFailureRetry();
       rememberRedirectPath('/marketops/dashboard');
       const configuredURL = authConfig.signUpUrl.trim();
       if (configuredURL) {
@@ -266,6 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = currentAccessToken;
     void sendSessionActivity('logout', token);
     currentAccessToken = null;
+    clearAuthFailureRetry();
     userRef.current = null;
     setUser(null);
     try {
