@@ -277,13 +277,20 @@ async function apiErrorFromResponse(res: Response, endpoint: string, fallbackCod
   return new ApiError(res.status, code, message, endpoint);
 }
 
-function isExpiredTokenError(error: ApiError): boolean {
-  return error.status === 401 && /token is expired|expired token|token expired/i.test(error.message);
+function isAuthContextError(error: ApiError): boolean {
+  if (error.status === 401) return true;
+  if (error.status !== 403) return false;
+  return new Set([
+    'missing_tenant_claim',
+    'tenant_mismatch',
+    'tenant_access_missing',
+  ]).has(error.code) || /token must include tenant_id|request tenant does not match token tenant/i.test(error.message);
 }
 
 async function throwApiError(error: ApiError): Promise<never> {
-  if (authConfig.authEnabled && isExpiredTokenError(error)) {
-    await authSession.redirectToSignInForExpiredSession?.();
+  if (authConfig.authEnabled && isAuthContextError(error)) {
+    const redirect = authSession.redirectToSignInForAuthFailure ?? authSession.redirectToSignInForExpiredSession;
+    await redirect?.();
   }
   throw error;
 }

@@ -32,7 +32,7 @@ const SessionContext = createContext<SessionState | null>(null);
 // Module-level access-token holder so the non-React api/client.ts can attach the
 // current Bearer token without React context. The provider updates it on user changes.
 let currentAccessToken: string | null = null;
-let expiredSessionRedirectInFlight = false;
+let authFailureRedirectInFlight = false;
 const TOKEN_EXPIRY_SAFETY_SECONDS = 10;
 
 function tokenExpiresWithin(token: string, windowSeconds: number): boolean {
@@ -52,15 +52,21 @@ function tokenExpiresWithin(token: string, windowSeconds: number): boolean {
 export function getAccessToken(): string | null {
   if (currentAccessToken && tokenExpiresWithin(currentAccessToken, TOKEN_EXPIRY_SAFETY_SECONDS)) {
     currentAccessToken = null;
-    void redirectToSignInForExpiredSession();
+    void redirectToSignInForAuthFailure();
     return null;
   }
   return currentAccessToken;
 }
 
-export async function redirectToSignInForExpiredSession(): Promise<void> {
-  if (!authConfig.authEnabled || expiredSessionRedirectInFlight) return;
-  expiredSessionRedirectInFlight = true;
+/**
+ * Recover from a token that is expired, malformed, or bound to a different
+ * tenant than the request. Clearing the oidc-client user before redirecting is
+ * important: otherwise the SPA keeps restoring the rejected token and the
+ * operator is trapped on the error screen until browser storage is cleared.
+ */
+export async function redirectToSignInForAuthFailure(): Promise<void> {
+  if (!authConfig.authEnabled || authFailureRedirectInFlight) return;
+  authFailureRedirectInFlight = true;
   currentAccessToken = null;
   try {
     const path = `${window.location.pathname}${window.location.search}`;
@@ -69,14 +75,19 @@ export async function redirectToSignInForExpiredSession(): Promise<void> {
     await manager.removeUser();
     await manager.signinRedirect();
   } catch {
-    expiredSessionRedirectInFlight = false;
+    authFailureRedirectInFlight = false;
   }
+}
+
+// Kept as a compatibility export for existing callers and test seams.
+export async function redirectToSignInForExpiredSession(): Promise<void> {
+  return redirectToSignInForAuthFailure();
 }
 
 // Test seam: set/clear the token holder without a provider.
 export function setAccessTokenForTest(token: string | null): void {
   currentAccessToken = token;
-  expiredSessionRedirectInFlight = false;
+  authFailureRedirectInFlight = false;
 }
 
 function errMsg(e: unknown): string {
@@ -144,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           userRef.current = null;
           setUser(null);
           setError(`Session renewal failed: ${errMsg(e)}`);
-          void redirectToSignInForExpiredSession();
+          void redirectToSignInForAuthFailure();
         }
       } finally {
         renewingRef.current = false;

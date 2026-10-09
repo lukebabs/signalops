@@ -16,6 +16,7 @@ vi.mock('../auth/config', () => ({
 }));
 vi.mock('../auth/session', () => ({
   getAccessToken: () => state.token,
+  redirectToSignInForAuthFailure: state.redirect,
   redirectToSignInForExpiredSession: state.redirect,
 }));
 
@@ -132,5 +133,29 @@ describe('api client auth behavior (G053)', () => {
       code: 'unauthorized',
       message: 'missing or invalid token',
     });
+  });
+
+  it('returns to sign-in when the token has no tenant claim', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'missing_tenant_claim', message: 'token must include tenant_id' }, 403));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(api.listAlerts({ tenant_id: 'tenant-local' })).rejects.toMatchObject({
+      status: 403,
+      code: 'missing_tenant_claim',
+    });
+    expect(state.redirect).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns to sign-in when the request tenant conflicts with the token tenant', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'tenant_mismatch', message: 'request tenant does not match token tenant' }, 403));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(api.listAlerts({ tenant_id: 'tenant-pilot-b' })).rejects.toMatchObject({
+      status: 403,
+      code: 'tenant_mismatch',
+    });
+    expect(state.redirect).toHaveBeenCalledTimes(1);
   });
 });
