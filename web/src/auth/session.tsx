@@ -249,8 +249,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async () => {
     try {
       clearAuthFailureRetry();
-      rememberRedirectPath(window.location.pathname + window.location.search);
-      await getUserManager().signinRedirect();
+      const tenantContextFailure = new URLSearchParams(window.location.search).get('auth_error') === 'tenant_context';
+      rememberRedirectPath(tenantContextFailure ? '/marketops/dashboard' : window.location.pathname + window.location.search);
+      await getUserManager().signinRedirect(
+        tenantContextFailure ? { extraQueryParams: { prompt: 'login' } } : undefined,
+      );
     } catch (e) {
       setError(errMsg(e));
     }
