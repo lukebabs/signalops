@@ -43,5 +43,7 @@ replaced.
 - The tenant-default list remains the default view for tenant-local users; private lists remain subject-owned.
 - A selected catalog asset is hot for intraday demand aggregation; the global warm cohort remains centrally governed.
 - The manifest is read-only and safe for downstream cache refreshes.
-- Provision the dedicated Keycloak service client and `signalops:subscriber_catalog_reader` role separately; no role or client is
-  created by the migration.
+- Production currently provisions the dedicated Keycloak client `signalops-subscriber-catalog-reader` with client-credentials
+  enabled. Its realm role is `signalops:subscriber_catalog_reader`, its audience is `signalops-api`, and its tenant claim is
+  hardcoded to `tenant-local`. Create one separately scoped client per additional tenant; do not broaden this client to accept a
+  caller-supplied tenant claim.
