@@ -58,7 +58,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
           AND legacy_filter.list_id = 'sublist-tenant-local-legacy-default'
           AND legacy_filter.global_asset_id = asset.global_asset_id
       ))
-  ORDER BY COALESCE(ranking.source_rank, 2147483647), warm.priority, asset.canonical_symbol, asset.global_asset_id
+  ORDER BY COALESCE(ranking.source_rank, 2147483647), candidates.warm_rank, asset.canonical_symbol, asset.global_asset_id
   LIMIT LEAST(GREATEST(COALESCE(p_limit, 100), 1), 1000)
   OFFSET GREATEST(COALESCE(p_offset, 0), 0)
 $$;
