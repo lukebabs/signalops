@@ -29,7 +29,8 @@ asset IDs, and each asset's coverage tier. The `ETag` header is a SHA-256 repres
 `POST /v1/tenants/{tenant_id}/marketops/subscriber/admin/tenant-default-catalog-memberships`
 
 These routes require the existing tenant administrator primitive (`super_admin`/`signalops:admin`). The bulk request accepts up to
-400 global asset IDs and is idempotent. The UI's “ranked top 200” preset is based on the current governed market-cap ranking
+400 global asset IDs and is idempotent. The UI's “S&P 200” preset is based on the current governed market-cap ranking; only
+eligible assets are admitted to the operational tenant-local union, while the preserved legacy cohort remains intact.
 snapshot. Until an independently sourced S&P 500 membership snapshot is loaded, it must be described as a ranked warm-catalog
 proxy, not as an official index constituent list. The API does not silently claim index membership.
 
