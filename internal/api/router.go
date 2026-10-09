@@ -100,6 +100,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		serviceName = "signalops"
 	}
 	rawTopic := cfg.RawTopic
+	registerAuthDiagnosticRoute(mux)
 	registerAccessManagementRoutes(mux, cfg)
 	registerSessionExperienceRoute(mux, cfg)
 	registerSessionEnrollmentRoute(mux, cfg)

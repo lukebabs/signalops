@@ -154,6 +154,9 @@ func isPublicRoute(r *http.Request) bool {
 	if r.Method == http.MethodPost && r.URL.Path == "/v1/billing/stripe/webhook" {
 		return true
 	}
+	if r.Method == http.MethodPost && r.URL.Path == "/v1/auth/diagnostics" {
+		return true
+	}
 	return r.Method == http.MethodGet && (r.URL.Path == "/healthz" || r.URL.Path == "/readyz")
 }
 

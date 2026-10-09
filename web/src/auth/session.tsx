@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { User } from 'oidc-client-ts';
 import { authConfig } from './config';
-import { clearRedirectPath, consumeRedirectPath, getUserManager, rememberRedirectPath } from './oidc';
+import { clearRedirectPath, consumeRedirectPath, getUserManager, rememberRedirectPath, recordAuthDiagnostic, clearAuthDiagnostic } from './oidc';
 import type { AuthClaims } from './claims';
 import { displayIdentity, hasPlatformAdmin, mergeSessionClaims } from './claims';
 
@@ -253,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const tenantContextFailure = new URLSearchParams(window.location.search).get('auth_error') === 'tenant_context';
       if (tenantContextFailure) clearRedirectPath();
       else rememberRedirectPath(window.location.pathname + window.location.search);
+      recordAuthDiagnostic('redirect_started', { destination: window.location.pathname + window.location.search });
       await getUserManager().signinRedirect(
         tenantContextFailure ? { extraQueryParams: { prompt: 'login' } } : undefined,
       );
@@ -289,6 +290,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
     currentAccessToken = u?.access_token ?? null;
     void sendSessionActivity('login', currentAccessToken);
+    recordAuthDiagnostic('callback_succeeded', { destination: window.location.pathname });
+    clearAuthDiagnostic();
     const restoredPath = consumeRedirectPath();
     return restoredPath;
   }, []);
