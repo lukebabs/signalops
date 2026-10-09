@@ -26,6 +26,24 @@ minimum_normalized=$(( (option_count * 95 + 99) / 100 ))
 deadline=$((SECONDS + 900))
 while true; do normalized="$(psql "$SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL" -Atc "SELECT count(DISTINCT upper(normalized_payload->>\$q\$symbol\$q\$)) FROM normalized_event_ledger WHERE tenant_id=\$q\$tenant-local\$q\$ AND source_id=\$q\$src-massive\$q\$ AND dataset=\$q\$equity_eod_prices\$q\$ AND observation_time::date=DATE \$q\$${session_date}\$q\$ AND upper(normalized_payload->>\$q\$symbol\$q\$) = ANY(string_to_array(\$q\$${option_symbols}\$q\$, \$q\$,\$q\$));" | tr -d "[:space:]")"; [[ "$normalized" =~ ^[0-9]+$ && "$normalized" -ge "$minimum_normalized" ]] && break; (( SECONDS >= deadline )) && { echo "partial equity normalization accepted normalized=$normalized minimum=$minimum_normalized option_count=$option_count; downstream continues" >&2; break; }; sleep 10; done
 if [[ "$normalized" =~ ^[0-9]+$ && "$normalized" -lt "$option_count" ]]; then echo "marketops_k8s_postclose_partial_coverage session=$session_date normalized=$normalized expected=$option_count"; fi
+
+# Reconcile only missing equity EOD rows after the initial pull. This is
+# intentionally separate from the provider pull so a transient failure for one
+# asset cannot block the rest of the post-close algorithms. The reconciler
+# discovers the canonical 225-asset operational union from all_active, reuses
+# any raw events already present, retries missing symbols at most twice, and
+# reports an actionable recovery state when a provider gap remains.
+reconciliation_degraded=false
+if ! signalops-massive-puller --mode reconcile-equity --date "$session_date" --universe-group all_active \
+  --max-provider-requests "${MARKETOPS_EOD_RECONCILIATION_MAX_PROVIDER_REQUESTS:-225}" \
+  --max-attempts "${MARKETOPS_EOD_RECONCILIATION_MAX_ATTEMPTS:-2}" \
+  --deadline "${MARKETOPS_EOD_RECONCILIATION_DEADLINE:-15m}" \
+  --retry-backoffs "${MARKETOPS_EOD_RECONCILIATION_BACKOFFS:-30s,2m}" \
+  --normalization-poll "${MARKETOPS_EOD_RECONCILIATION_POLL:-5s}" \
+  --requeue-failed --acknowledge-writes; then
+  reconciliation_degraded=true
+  echo "marketops_k8s_postclose_eod_reconciliation_degraded session=$session_date; continuing algorithm stages" >&2
+fi
 # Options coverage is an upstream dependency of state materialization and hypothesis evaluation.
 # Run it before the cohort stages so the hypotheses observe the current session's option features.
 signalops-marketops-options-coverage-runner --tenant-id tenant-local --symbols "$option_symbols" --max-symbols "${#symbols[@]}" --session-date "$session_date" --run-id "k8s-postclose-${session_date}-options" --limit 250 --max-pages 2 --max-candidates 500 --min-dte 14 --max-dte 120 --min-moneyness 0.70 --max-moneyness 1.30 --skip-complete=true --continue-on-error=true --max-retries 0 --dry-run=false
@@ -44,3 +62,7 @@ signalops-marketops-syncratic-intelligence-runner --tenant-id tenant-local --ses
 # This is append-only and runs against the dedicated K8s MarketOps database.
 k8s-marketops-global-dashboard-projection "$session_date"
 echo "marketops_k8s_postclose_writer_completed session=$session_date symbols=${#symbols[@]}"
+if [[ "$reconciliation_degraded" == true ]]; then
+  echo "marketops_k8s_postclose_writer_recovery_needed session=$session_date reason=equity_eod_reconciliation_incomplete" >&2
+  exit 42
+fi
