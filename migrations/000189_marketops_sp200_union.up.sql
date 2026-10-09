@@ -105,8 +105,9 @@ ON CONFLICT (tenant_id, universe_group, ticker) DO UPDATE SET
   updated_at = now();
 
 -- Expand the tenant-local default list by unioning the eligible ranked cohort.
--- Existing legacy memberships are retained verbatim, preserving historical
--- SAF evidence and its immutable baseline.
+-- Existing legacy memberships are retained verbatim. Historical SAF rows and
+-- the 132-member baseline remain immutable; future operational runs use the
+-- expanded default membership through the same durable list identity.
 WITH ranked AS (
   SELECT DISTINCT ON (asset.global_asset_id) asset.global_asset_id, entry.source_rank
   FROM subscriber_global_ranking_snapshot_entries entry

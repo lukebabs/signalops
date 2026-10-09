@@ -9,8 +9,8 @@ GET https://signalops.syncratic.io/v1/tenants/tenant-local/marketops/subscriber/
 ```
 
 The response is the tenant's current default coverage selection. Tenant-local now contains the additive union of the preserved
-legacy 132 assets and the eligible governed S&P-200 selection (197 assets at migration `000189`). The preserved legacy SAF
-cohort remains immutable evidence even though the operational default has expanded. When the
+legacy 132 assets and the eligible governed S&P-200 selection (197 assets at migration `000189`). Historical SAF observations
+and the 132-member baseline remain immutable even though the operational default has expanded. When the
 tenant administrator adds assets from the governed warm catalog, the same manifest expands without creating duplicate asset records.
 
 ## Authentication
