@@ -81,7 +81,10 @@ Monitor rolling drift after completed sessions and surface degraded cohorts in t
 
 ## SAF-V1 acceptance
 
-- The 132-member tenant-local default is the declared primary cohort.
+- The live tenant-local `marketops_primary_assets` projection is the declared
+  production cohort (currently 225 assets). SAF benchmark history may retain
+  the immutable 132-member legacy cohort for comparability, but all new SAF
+  evaluations and dependent production tasks select the live primary view.
 - Historical `LEGACY` outcomes remain visibly distinct from confirmed `SAF` assertions.
 - Fewer than 30 matured observations cannot be presented as viable.
 - Missing benchmark-relative evidence cannot be interpreted as zero or as a pass.

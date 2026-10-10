@@ -51,7 +51,7 @@ fi
 
 signalops-marketops-tactical-valuation-runner \
   --tenant-id tenant-local \
-  --universe-group all_active \
+  --universe-group primary_eod \
   --session-date "$session_date" \
   --symbols "$symbols" \
   --max-retries 2

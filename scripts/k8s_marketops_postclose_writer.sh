@@ -34,7 +34,7 @@ if [[ "$normalized" =~ ^[0-9]+$ && "$normalized" -lt "$option_count" ]]; then ec
 # any raw events already present, retries missing symbols at most twice, and
 # reports an actionable recovery state when a provider gap remains.
 reconciliation_degraded=false
-if ! signalops-massive-puller --mode reconcile-equity --date "$session_date" --universe-group all_active \
+if ! signalops-massive-puller --mode reconcile-equity --date "$session_date" --universe-group primary_eod \
   --max-provider-requests "${MARKETOPS_EOD_RECONCILIATION_MAX_PROVIDER_REQUESTS:-0}" \
   --max-attempts "${MARKETOPS_EOD_RECONCILIATION_MAX_ATTEMPTS:-2}" \
   --deadline "${MARKETOPS_EOD_RECONCILIATION_DEADLINE:-15m}" \
@@ -60,9 +60,9 @@ for ((i=0;i<${#symbols[@]};i+=10)); do
     echo "marketops_k8s_postclose_cohort_batch_continued batch=$i session=$session_date reason=duplicate_or_partial_ledger" >&2
   fi
 done
-signalops-marketops-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date" --dry-run=false --fmp-max-requests 300 --refresh-financials
-signalops-marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date"
-signalops-marketops-eroc-runner --tenant-id tenant-local --universe-group all_active --session-date "$session_date" --dry-run=false
+signalops-marketops-valuation-runner --tenant-id tenant-local --universe-group primary_eod --session-date "$session_date" --dry-run=false --fmp-max-requests 300 --refresh-financials
+signalops-marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group primary_eod --session-date "$session_date"
+signalops-marketops-eroc-runner --tenant-id tenant-local --universe-group primary_eod --session-date "$session_date" --dry-run=false
 signalops-marketops-eeom-runner --tenant-id tenant-local --session-date "$session_date" --dry-run=false
 signalops-marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
 # Refresh the subscriber-facing global projection after all source algorithms finish.

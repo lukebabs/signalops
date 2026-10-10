@@ -10332,3 +10332,10 @@ Next-cycle priority:
 
 - Root cause for assets such as TRV showing `Global EOD only` was API projection precedence, not missing MarketOps data. TRV was already in the 225-asset primary cohort with normalized 2026-10-09 EOD data, Market State, technical features, and Risk/Reward; the watchlist fallback instead selected an old subscriber global EOD context dated 2026-08-31.
 - The Assets endpoint now loads up to 500 governed assets and prefers the current primary MarketOps row for watchlist members. Subscriber global EOD fallback is retained only for assets not yet in the operational primary cohort.
+
+### 2026-10-10 — Production golden-rule selector applied to all dependent tasks
+
+- Established `primary_eod` as the worker-level name for the live `marketops_primary_assets` view. The view is evaluated at run time, so additions to the governed union are automatically included without changing job manifests.
+- SAF outcome/evaluation, Risk/Reward, post-close reconciliation, valuation, tactical valuation, EROC, EEOM, task retry, and intraday monitoring now resolve the same primary cohort. The legacy 132-member list remains only as immutable SAF historical evidence; it is no longer used as the live evaluation selector.
+- The options runner’s 200-symbol limit remains only a per-request batch size; post-close iterates over the complete primary cohort. The separate 1,000-asset warm-EOD feed remains an intentional background coverage tier and is not a substitute for the primary cohort.
+- Added repository support for `universe-group=primary_eod`, updated the legacy intraday wrapper, and validated shell syntax plus focused worker/storage Go tests. No weekend provider catch-up was triggered; the next production cycle will consume the live selector.

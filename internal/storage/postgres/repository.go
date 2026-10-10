@@ -1843,7 +1843,7 @@ func (r *Repository) ListMarketOpsAssets(ctx context.Context, tenantID string, u
 	if universeGroup == "" {
 		universeGroup = "all_active"
 	}
-	rows, err := r.db.QueryContext(ctx, `
+	query := `
 WITH scoped AS (
   SELECT *, row_number() OVER (PARTITION BY ticker ORDER BY rank ASC, universe_group ASC) AS ticker_row
   FROM marketops_universal_assets
@@ -1858,7 +1858,23 @@ SELECT tenant_id, app_id, domain, use_case, source_id, universe_group,
 FROM scoped
 WHERE ticker_row = 1
 ORDER BY rank ASC, ticker ASC
-LIMIT $4`, strings.TrimSpace(tenantID), universeGroup, activeOnly, clampLimit(limit))
+LIMIT $4`
+	args := []any{strings.TrimSpace(tenantID), universeGroup, activeOnly, clampLimit(limit)}
+	if universeGroup == "primary_eod" {
+		// primary_eod is the governed production cohort. It is a live view so
+		// every dependent job picks up additions/removals on its next run.
+		query = `
+SELECT tenant_id, app_id, domain, use_case, source_id, universe_group,
+  row_number() OVER (ORDER BY universe_priority, rank NULLS LAST, ticker)::int AS rank,
+  ticker, ticker_key, company, company_key, display_name, display_sector, asset_type,
+  exchange, sector, sector_key, industry, industry_key, is_active, metadata,
+  created_at, updated_at
+FROM marketops_primary_assets
+WHERE tenant_id = $1
+LIMIT $2`
+		args = []any{strings.TrimSpace(tenantID), clampLimit(limit)}
+	}
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list marketops assets: %w", err)
 	}

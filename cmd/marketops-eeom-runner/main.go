@@ -28,6 +28,7 @@ func main() {
 func run(ctx context.Context) error {
 	app := config.Load()
 	tenant := flag.String("tenant-id", "tenant-local", "tenant")
+	group := flag.String("universe-group", "primary_eod", "asset universe")
 	session := flag.String("session-date", "", "completed date")
 	days := flag.Int("window-days", 30, "maximum earnings horizon")
 	dry := flag.Bool("dry-run", false, "calculate only")
@@ -52,7 +53,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, "all_active", true, 5000)
+	assets, err := repo.ListMarketOpsAssets(ctx, *tenant, *group, true, 5000)
 	if err != nil {
 		return err
 	}

@@ -131,7 +131,7 @@ case "$job_id" in
     command_args=(
       signalops-marketops-intraday-monitor
       --tenant-id "${MARKETOPS_INTRADAY_TENANT_ID:-tenant-local}"
-      --universe-group "${MARKETOPS_INTRADAY_UNIVERSE_GROUP:-all_active}"
+      --universe-group "${MARKETOPS_INTRADAY_UNIVERSE_GROUP:-primary_eod}"
       # The governed primary cohort is dynamic (currently 225 assets). Keep
       # the worker limit above that cohort so no tail assets silently miss
       # intraday monitoring.
@@ -192,7 +192,7 @@ case "$job_id" in
     command_args=(
       bash
       -ec
-      'session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"; latest="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT COALESCE(max(completed_at)::text,\$none\$none\$none\$) FROM marketops_scheduled_job_runs WHERE job_id IN (\$daily\$marketops-daily-postclose\$daily\$,\$risk\$marketops-risk-reward\$risk\$)")"; echo "marketops_k8s_postclose_recovery_dry_run_verified session=${session_date} latest_dependency_completion=${latest}"'
+        'session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"; latest="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT COALESCE(max(completed_at)::text,\$none\$none\$none\$) FROM marketops_scheduled_job_runs WHERE job_id IN (\$daily\$marketops-daily-postclose\$daily\$,\$risk\$marketops-risk-reward\$risk\$)")"; echo "marketops_k8s_postclose_recovery_dry_run_verified session=${session_date} latest_dependency_completion=${latest}"'
     )
     ;;
   marketops-risk-reward)
