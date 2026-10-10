@@ -90,7 +90,7 @@ Monitor rolling drift after completed sessions and surface degraded cohorts in t
 - Missing benchmark-relative evidence cannot be interpreted as zero or as a pass.
 - The slice is read-only and cannot change an algorithm, validation contract, provider schedule, or signal outcome.
 
-SAF-V2a is now implemented as an additive benchmark materializer. For each matured historical observation in the immutable 132-member legacy-default cohort, it records:
+SAF-V2a is now implemented as an additive benchmark materializer. For each matured observation in the live 225-member primary cohort, it records:
 
 - a broad-market comparison against `SPY`;
 - a sector comparison against the governed SRI primary ETF (for example `XLK`, `XLF`, or `XLV`) when the current global catalog has a resolvable sector;
@@ -100,7 +100,7 @@ SAF-V2a is now implemented as an additive benchmark materializer. For each matur
 
 The materializer writes only `subscriber_global_saf_benchmark_observations`; it cannot update or delete a legacy outcome, outcome payload, baseline, or confirmation. The scorecard treats incomplete broad-market **or** sector coverage as `benchmark_pending`.
 
-The initial catalog inspection shows that only 40 of the 132 legacy members currently carry a canonical top-level sector label. This is an input-quality gap, not a license to infer a sector silently. The remaining unmapped rows remain visible and block a complete sector-relative viability conclusion until governed catalog normalization is completed.
+Historical legacy-default rows remain immutable and separately identifiable. Sector classification gaps remain explicit; they are not silently inferred and block only the affected sector-relative row, not the broad-market observation.
 
 ## SAF-V2a operational benchmark diagnostic — 2026-08-17
 

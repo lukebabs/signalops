@@ -23,6 +23,7 @@ const (
 	defaultCalculationVersion = "saf_benchmark.v1"
 	selectionPolicy           = "historical_assurance_initial_capture.v1"
 	legacyDefaultList         = "sublist-tenant-local-legacy-default"
+	primaryCohort             = "primary_eod"
 )
 
 type observation struct {
@@ -55,6 +56,7 @@ func run(ctx context.Context, args []string) error {
 	temporalURL := flags.String("temporal-database-url", strings.TrimSpace(os.Getenv("SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL")), "dedicated MarketOps temporal database URL")
 	limit := flags.Int("max-observations", 500, "maximum legacy observations to inspect; values above 500 are clamped to the governed safety cap")
 	correlation := flags.String("correlation-id", "", "operator correlation id")
+	cohort := flags.String("cohort", primaryCohort, "SAF cohort: primary_eod or legacy")
 	calculationVersion := flags.String("calculation-version", defaultCalculationVersion, "append-only benchmark calculation version")
 	dryRun := flags.Bool("dry-run", false, "calculate without writes")
 	execute := flags.Bool("execute", false, "append matched benchmark observations")
@@ -74,6 +76,10 @@ func run(ctx context.Context, args []string) error {
 		*limit = 500
 	}
 	*calculationVersion = strings.TrimSpace(*calculationVersion)
+	*cohort = strings.TrimSpace(*cohort)
+	if *cohort != primaryCohort && *cohort != "legacy" {
+		return errors.New("cohort must be primary_eod or legacy")
+	}
 	if !validCalculationVersion(*calculationVersion) {
 		return errors.New("calculation-version must contain only lowercase letters, digits, dots, underscores, or hyphens")
 	}
@@ -99,7 +105,7 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("assume SAF benchmark writer role: %w", err)
 	}
 	defer primary.ExecContext(context.Background(), "RESET ROLE")
-	items, err := loadObservations(ctx, primary, *limit, *calculationVersion)
+	items, err := loadObservations(ctx, primary, *limit, *calculationVersion, *cohort)
 	if err != nil {
 		return err
 	}
@@ -141,7 +147,7 @@ func run(ctx context.Context, args []string) error {
 		}
 	}
 	if *dryRun {
-		fmt.Printf("dry_run=true legacy_list=%s observations=%d benchmark_rows=%d matched=%d sector_unmapped=%d price_unavailable=%d calculation_version=%s\n", legacyDefaultList, len(items), len(calculated), matched, unmapped, unavailable, *calculationVersion)
+		fmt.Printf("dry_run=true cohort=%s observations=%d benchmark_rows=%d matched=%d sector_unmapped=%d price_unavailable=%d calculation_version=%s\n", *cohort, len(items), len(calculated), matched, unmapped, unavailable, *calculationVersion)
 		return nil
 	}
 	if strings.TrimSpace(*correlation) == "" {
@@ -151,24 +157,29 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("legacy_list=%s observations=%d benchmark_rows=%d inserted=%d matched=%d sector_unmapped=%d price_unavailable=%d calculation_version=%s correlation_id=%s\n", legacyDefaultList, len(items), len(calculated), inserted, matched, unmapped, unavailable, *calculationVersion, *correlation)
+	fmt.Printf("cohort=%s observations=%d benchmark_rows=%d inserted=%d matched=%d sector_unmapped=%d price_unavailable=%d calculation_version=%s correlation_id=%s\n", *cohort, len(items), len(calculated), inserted, matched, unmapped, unavailable, *calculationVersion, *correlation)
 	return nil
 }
 
-func loadObservations(ctx context.Context, db *sql.DB, limit int, calculationVersion string) ([]observation, error) {
-	rows, err := db.QueryContext(ctx, `SELECT observation_id, observation.global_asset_id, observation.symbol, COALESCE(asset.sector,''), observation.direction, origin_session_date, matured_session_date, forward_return
+func loadObservations(ctx context.Context, db *sql.DB, limit int, calculationVersion, cohort string) ([]observation, error) {
+	cohortReader := "subscriber_global_saf_benchmark_primary_members()"
+	if cohort == "legacy" {
+		cohortReader = "subscriber_global_saf_benchmark_legacy_default_members()"
+	}
+	query := `SELECT observation_id, observation.global_asset_id, observation.symbol, COALESCE(asset.sector,''), observation.direction, origin_session_date, matured_session_date, forward_return
 FROM subscriber_gateway_global_signal_assurance_observations observation
 JOIN subscriber_global_assets asset ON asset.global_asset_id=observation.global_asset_id
-JOIN subscriber_global_saf_benchmark_legacy_default_members() member ON member.global_asset_id=observation.global_asset_id
+JOIN ` + cohortReader + ` member ON member.global_asset_id=observation.global_asset_id
 WHERE matured_session_date IS NOT NULL AND forward_return IS NOT NULL
 ORDER BY CASE WHEN EXISTS (
   SELECT 1 FROM subscriber_global_saf_benchmark_observations existing
   WHERE existing.source_observation_id = observation.observation_id
     AND existing.calculation_version = $2
     AND existing.benchmark_kind IN ('broad_market','sector')
-  GROUP BY existing.source_observation_id
-  HAVING count(DISTINCT existing.benchmark_kind) = 2
-) THEN 1 ELSE 0 END, matured_session_date, observation_id LIMIT $1`, limit, calculationVersion)
+GROUP BY existing.source_observation_id
+HAVING count(DISTINCT existing.benchmark_kind) = 2
+) THEN 1 ELSE 0 END, matured_session_date, observation_id LIMIT $1`
+	rows, err := db.QueryContext(ctx, query, limit, calculationVersion)
 	if err != nil {
 		return nil, fmt.Errorf("load legacy SAF observations: %w", err)
 	}

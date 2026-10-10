@@ -10339,3 +10339,9 @@ Next-cycle priority:
 - SAF outcome/evaluation, Risk/Reward, post-close reconciliation, valuation, tactical valuation, EROC, EEOM, task retry, and intraday monitoring now resolve the same primary cohort. The legacy 132-member list remains only as immutable SAF historical evidence; it is no longer used as the live evaluation selector.
 - The options runner’s 200-symbol limit remains only a per-request batch size; post-close iterates over the complete primary cohort. The separate 1,000-asset warm-EOD feed remains an intentional background coverage tier and is not a substitute for the primary cohort.
 - Added repository support for `universe-group=primary_eod`, updated the legacy intraday wrapper, and validated shell syntax plus focused worker/storage Go tests. No weekend provider catch-up was triggered; the next production cycle will consume the live selector.
+
+### 2026-10-10 — SAF live cohort expanded to the full primary union
+
+- Added migration `000192_subscriber_global_saf_primary_cohort_reader`, a security-definer reader that resolves the live `marketops_primary_assets` union to global asset identities.
+- The SAF benchmark materializer now defaults to `primary_eod`; the production SAF CronJob explicitly passes that cohort. The prior 132-member legacy selector remains available only through `--cohort legacy` for immutable historical comparisons.
+- This keeps SAF daily evaluation, benchmark matching, and dependent post-close work aligned to all 225 primary assets without rewriting historical evidence.

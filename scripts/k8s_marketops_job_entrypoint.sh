@@ -164,6 +164,7 @@ case "$job_id" in
     command_args=(
       signalops-subscriber-global-saf-benchmark-materializer
       "$mode_flag"
+      --cohort "${MARKETOPS_SAF_BENCHMARK_COHORT:-primary_eod}"
       --max-observations "${MARKETOPS_SAF_BENCHMARK_MAX_OBSERVATIONS:-500}"
       --calculation-version "${MARKETOPS_SAF_BENCHMARK_CALCULATION_VERSION:-saf_benchmark.k8s_staging}"
       --correlation-id "${MARKETOPS_SAF_BENCHMARK_CORRELATION_ID:-k8s-staging-cronjob}"
