@@ -82,7 +82,7 @@ func registerMarketOpsAssetAlgorithmObservationRoutes(mux *http.ServeMux, cfg Ro
 				limit = 1000
 			}
 			items, err := snapshots.ListMarketOpsRiskRewardSnapshots(r.Context(), storage.MarketOpsRiskRewardSnapshotFilter{
-				TenantID: tenant, Symbols: mapKeys(activeSymbols), SessionStart: time.Now().UTC().AddDate(0, 0, -21), EligibleOnly: true, Limit: limit,
+				TenantID: tenant, Symbols: mapKeys(activeSymbols), SessionStart: time.Now().UTC().AddDate(0, 0, -21), EligibleOnly: false, Limit: limit,
 			})
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "query_failed", "failed to list risk/reward snapshots")
@@ -448,7 +448,7 @@ func curateRiskRewardSnapshotSummaries(snapshots []storage.MarketOpsRiskRewardSn
 	bySymbol := map[string]map[string]storage.MarketOpsRiskRewardSnapshotRecord{}
 	for _, snapshot := range snapshots {
 		symbol := strings.ToUpper(strings.TrimSpace(snapshot.Symbol))
-		if _, active := activeSymbols[symbol]; !active || snapshot.SessionDate.IsZero() || !snapshot.Eligible {
+		if _, active := activeSymbols[symbol]; !active || snapshot.SessionDate.IsZero() {
 			continue
 		}
 		tradeDate := snapshot.SessionDate.UTC().Format("2006-01-02")
@@ -467,7 +467,7 @@ func curateRiskRewardSnapshotSummaries(snapshots []storage.MarketOpsRiskRewardSn
 		}
 		sort.Sort(sort.Reverse(sort.StringSlice(dates)))
 		latest := byDate[dates[0]]
-		item := map[string]any{"ticker": symbol, "trade_date": dates[0], "direction": latest.TechnicalDirection, "score": latest.TechnicalScore, "confidence": latest.Confidence, "risk_level": latest.RiskLevel, "research_only": true}
+		item := map[string]any{"ticker": symbol, "trade_date": dates[0], "direction": latest.TechnicalDirection, "score": latest.TechnicalScore, "confidence": latest.Confidence, "risk_level": latest.RiskLevel, "eligible": latest.Eligible, "usable_input_count": latest.UsableInputCount, "required_input_count": latest.RequiredInputCount, "research_only": true}
 		if len(dates) > 1 {
 			previous := byDate[dates[1]]
 			item["previous_trade_date"] = dates[1]
