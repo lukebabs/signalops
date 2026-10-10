@@ -116,7 +116,9 @@ export function MarketOpsAssetsRoute() {
     tenant_id: TENANT_ID,
     universe_group: 'all_active',
     active_only: true,
-    limit: 200,
+    // Keep the client limit above the dynamic primary cohort so its tail is
+    // not reintroduced as stale subscriber-global-EOD fallback rows.
+    limit: 500,
   });
 
   // Ready rows come from the canonical MarketOps projection. A selected
