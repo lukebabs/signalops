@@ -10346,3 +10346,4 @@ Next-cycle priority:
 - The SAF benchmark materializer now defaults to `primary_eod`; the production SAF CronJob explicitly passes that cohort. The prior 132-member legacy selector remains available only through `--cohort legacy` for immutable historical comparisons.
 - This keeps SAF daily evaluation, benchmark matching, and dependent post-close work aligned to all 225 primary assets without rewriting historical evidence.
 - Added migration `000193_subscriber_global_saf_primary_cohort_canonical_dedupe` after production verification found duplicate global catalog identities; the reader now returns one global identity per primary ticker (225 rows), not every historical identity.
+- Production verification found a second layer of duplicate global identities; migration `000194_subscriber_global_saf_primary_global_identity_dedupe` now collapses those identities after symbol mapping. The reader verifies at exactly 225 rows.
