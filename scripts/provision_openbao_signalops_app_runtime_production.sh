@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OPENBAO_NAMESPACE="${OPENBAO_NAMESPACE:-openbao}"
+OPENBAO_POD="${OPENBAO_POD:-openbao-0}"
+OPENBAO_ADDR="${OPENBAO_ADDR:-https://openbao.openbao.svc:8200}"
+OPENBAO_KV_MOUNT="${OPENBAO_KV_MOUNT:-signalops}"
+OPENBAO_APP_ROLE="${OPENBAO_APP_ROLE:-signalops-app}"
+OPENBAO_DENY_ROLE="${OPENBAO_DENY_ROLE:-signalops-marketops}"
+APP_NAMESPACE="${APP_NAMESPACE:-signalops-app}"
+DENY_NAMESPACE="${DENY_NAMESPACE:-signalops-marketops}"
+APP_SERVICE_ACCOUNT="${APP_SERVICE_ACCOUNT:-signalops-gateway}"
+DENY_SERVICE_ACCOUNT="${DENY_SERVICE_ACCOUNT:-signalops-marketops-secret-reader}"
+APP_SECRET_PATH="${APP_SECRET_PATH:-k8s/app/signalops-gateway-runtime-production}"
+RUNTIME_ENV_FILE="${1:-${SIGNALOPS_K8S_PRODUCTION_RUNTIME_ENV_FILE:-/etc/signalops/openbao-signalops-app-production-runtime.env}}"
+
+fail() {
+  echo "openbao_signalops_app_runtime_production_failed: $*" >&2
+  exit 1
+}
+
+command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
+[[ -r "$RUNTIME_ENV_FILE" ]] || fail "runtime env file is missing or unreadable: ${RUNTIME_ENV_FILE}"
+
+set -a
+# shellcheck disable=SC1090
+source "$RUNTIME_ENV_FILE"
+set +a
+
+ADMIN_TOKEN="${BAO_TOKEN:-${VAULT_TOKEN:-${OPENBAO_TOKEN:-${OPENBAO_ADMIN_TOKEN:-}}}}"
+[[ -n "$ADMIN_TOKEN" ]] || fail "runtime env file must provide BAO_TOKEN, VAULT_TOKEN, OPENBAO_TOKEN, or OPENBAO_ADMIN_TOKEN"
+[[ "${SIGNALOPS_K8S_PRODUCTION_RUNTIME_APPROVED:-}" == "true" ]] || fail "set SIGNALOPS_K8S_PRODUCTION_RUNTIME_APPROVED=true only after named production secret migration approval"
+
+required_keys=(
+  SIGNALOPS_DATABASE_URL
+  SIGNALOPS_TEMPORAL_DATABASE_URL
+  SIGNALOPS_MARKETOPS_DATABASE_URL
+  SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL
+  SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL
+  SIGNALOPS_NOTIFICATION_ENCRYPTION_KEY
+  STRIPE_RESTRICTED_API_KEY
+  STRIPE_WEBHOOK_SECRET
+  STRIPE_API_KEY
+  SIGNALOPS_STRIPE_CHECKOUT_SUCCESS_URL
+  SIGNALOPS_STRIPE_CHECKOUT_CANCEL_URL
+  SIGNALOPS_STRIPE_PORTAL_RETURN_URL
+  SYNCRATIC_API_BASE_URL
+  SYNCRATIC_AUTH_MODE
+  SYNCRATIC_TOKEN_URL
+  SYNCRATIC_TOKEN_GRANT
+  SYNCRATIC_CLIENT_ID
+  SYNCRATIC_CLIENT_SECRET
+  SYNCRATIC_USERNAME
+  SYNCRATIC_PASSWORD
+)
+for key in "${required_keys[@]}"; do
+  [[ -n "${!key:-}" ]] || fail "missing required runtime key: ${key}"
+done
+
+python3 - <<'PYCHECK'
+import os
+from urllib.parse import urlparse
+
+for key in [
+    "SIGNALOPS_DATABASE_URL",
+    "SIGNALOPS_TEMPORAL_DATABASE_URL",
+    "SIGNALOPS_MARKETOPS_DATABASE_URL",
+    "SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL",
+    "SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL",
+]:
+    parsed = urlparse(os.environ.get(key, "").strip())
+    if parsed.scheme not in {"postgres", "postgresql"} or not parsed.hostname:
+        raise SystemExit(f"invalid PostgreSQL URL for {key}")
+    host = parsed.hostname.lower()
+    port = parsed.port or 5432
+    if ".svc" in host:
+        if port != 5432:
+            raise SystemExit(f"{key} must use port 5432 for Kubernetes service DNS")
+        continue
+    if host == "192.168.2.5" and port in {15432, 15433, 15434, 15435}:
+        continue
+    raise SystemExit(f"{key} must use Kubernetes service DNS, or explicit Docker-host fallback 192.168.2.5:15432-15435")
+PYCHECK
+
+kubectl get pod "$OPENBAO_POD" -n "$OPENBAO_NAMESPACE" >/dev/null || fail "OpenBao pod not found: ${OPENBAO_NAMESPACE}/${OPENBAO_POD}"
+kubectl get serviceaccount "$APP_SERVICE_ACCOUNT" -n "$APP_NAMESPACE" >/dev/null || fail "app service account missing: ${APP_NAMESPACE}/${APP_SERVICE_ACCOUNT}"
+kubectl get serviceaccount "$DENY_SERVICE_ACCOUNT" -n "$DENY_NAMESPACE" >/dev/null || fail "deny-proof service account missing: ${DENY_NAMESPACE}/${DENY_SERVICE_ACCOUNT}"
+
+app_jwt="$(kubectl create token "$APP_SERVICE_ACCOUNT" -n "$APP_NAMESPACE" --duration=10m)"
+deny_jwt="$(kubectl create token "$DENY_SERVICE_ACCOUNT" -n "$DENY_NAMESPACE" --duration=10m)"
+[[ -n "$app_jwt" && -n "$deny_jwt" ]] || fail "failed to create bounded Kubernetes service-account tokens"
+
+tmp_payload="$(mktemp)"
+trap 'rm -f "$tmp_payload"' EXIT
+
+export OPENBAO_ADDR ADMIN_TOKEN OPENBAO_KV_MOUNT APP_SECRET_PATH OPENBAO_APP_ROLE OPENBAO_DENY_ROLE app_jwt deny_jwt
+python3 - "$tmp_payload" <<'PYBUILD'
+from pathlib import Path
+import os
+import shlex
+import sys
+
+keys = [
+    "SIGNALOPS_DATABASE_URL",
+    "SIGNALOPS_TEMPORAL_DATABASE_URL",
+    "SIGNALOPS_MARKETOPS_DATABASE_URL",
+    "SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL",
+    "SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL",
+    "SIGNALOPS_NOTIFICATION_ENCRYPTION_KEY",
+    "STRIPE_RESTRICTED_API_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_API_KEY",
+    "SIGNALOPS_STRIPE_CHECKOUT_SUCCESS_URL",
+    "SIGNALOPS_STRIPE_CHECKOUT_CANCEL_URL",
+    "SIGNALOPS_STRIPE_PORTAL_RETURN_URL",
+    "SYNCRATIC_API_BASE_URL",
+    "SYNCRATIC_AUTH_MODE",
+    "SYNCRATIC_TOKEN_URL",
+    "SYNCRATIC_TOKEN_GRANT",
+    "SYNCRATIC_CLIENT_ID",
+    "SYNCRATIC_CLIENT_SECRET",
+    "SYNCRATIC_USERNAME",
+    "SYNCRATIC_PASSWORD",
+    "SYNCRATIC_TOKEN_AUDIENCE",
+]
+assignments = " ".join(f"{key}={shlex.quote(os.environ.get(key, ''))}" for key in keys)
+secret_path = os.environ["OPENBAO_KV_MOUNT"] + "/" + os.environ["APP_SECRET_PATH"]
+lines = [
+    "set -eu",
+    f"export BAO_ADDR={shlex.quote(os.environ['OPENBAO_ADDR'])}",
+    f"export BAO_TOKEN={shlex.quote(os.environ['ADMIN_TOKEN'])}",
+    'export BAO_CACERT="${BAO_CACERT:-/openbao/ca/ca.crt}"',
+    "bao status >/dev/null || true",
+    "bao kv put " + shlex.quote(secret_path) + " " + assignments,
+    "unset BAO_TOKEN",
+    f"app_token=\"$(bao write -field=token auth/kubernetes/login role={shlex.quote(os.environ['OPENBAO_APP_ROLE'])} jwt={shlex.quote(os.environ['app_jwt'])})\"",
+    f"BAO_TOKEN=\"$app_token\" bao kv get {shlex.quote(secret_path)} >/dev/null",
+    f"if deny_token=\"$(bao write -field=token auth/kubernetes/login role={shlex.quote(os.environ['OPENBAO_DENY_ROLE'])} jwt={shlex.quote(os.environ['deny_jwt'])} 2>/tmp/signalops-openbao-app-prod-deny-login-err)\"; then if BAO_TOKEN=\"$deny_token\" bao kv get {shlex.quote(secret_path)} >/tmp/signalops-openbao-app-prod-deny-out 2>/tmp/signalops-openbao-app-prod-deny-err; then echo \"cross-plane denial failed\" >&2; exit 1; fi; fi",
+]
+Path(sys.argv[1]).write_text("\n".join(lines) + "\n")
+PYBUILD
+
+kubectl exec -i -n "$OPENBAO_NAMESPACE" "$OPENBAO_POD" -- sh < "$tmp_payload" >/dev/null
+
+cat <<EOF
+openbao_signalops_app_runtime_production_verified
+mount=${OPENBAO_KV_MOUNT}
+app_role=${OPENBAO_APP_ROLE}
+app_namespace=${APP_NAMESPACE}
+app_service_account=${APP_SERVICE_ACCOUNT}
+secret_path=${OPENBAO_KV_MOUNT}/${APP_SECRET_PATH}
+deny_role=${OPENBAO_DENY_ROLE}
+deny_namespace=${DENY_NAMESPACE}
+cross_plane_denied=true
+secret_values=production_runtime_supplied
+production_traffic_moved=false
+EOF

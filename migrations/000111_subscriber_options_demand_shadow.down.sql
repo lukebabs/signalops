@@ -1,0 +1,8 @@
+REVOKE ALL ON FUNCTION subscriber_options_demand_aggregate() FROM signalops_subscriber_options_demand;
+DROP FUNCTION IF EXISTS subscriber_options_demand_aggregate();
+DROP POLICY IF EXISTS subscriber_options_demand_migrator_memberships ON subscriber_watchlist_memberships;
+DROP POLICY IF EXISTS subscriber_options_demand_migrator_watchlists ON subscriber_watchlists;
+DROP POLICY IF EXISTS subscriber_options_demand_migrator_capabilities ON subscriber_entitlement_capabilities;
+DROP POLICY IF EXISTS subscriber_options_demand_migrator_entitlements ON subscriber_tenant_entitlements;
+DROP TABLE IF EXISTS subscriber_options_demand_snapshot_members;
+DROP TABLE IF EXISTS subscriber_options_demand_snapshot_runs;

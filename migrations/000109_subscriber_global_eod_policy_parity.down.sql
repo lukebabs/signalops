@@ -1,0 +1,2 @@
+REVOKE ALL ON subscriber_global_eod_canary_policy_parity_reports FROM signalops_subscriber_global_eod;
+DROP TABLE IF EXISTS subscriber_global_eod_canary_policy_parity_reports;

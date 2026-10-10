@@ -1,0 +1,1 @@
+GRANT SELECT ON marketops_asset_quote_cache TO signalops_subscriber_migrator;

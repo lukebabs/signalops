@@ -79,6 +79,7 @@ type fakeQueryRepository struct {
 	lastReplayFilter                   storage.ReplayJobFilter
 	usage                              []storage.ProviderUsageRecord
 	rawEvents                          []storage.RawEventLedgerRecord
+	normalizedEvents                   []storage.NormalizedEventLedgerRecord
 	cyberOpsTraffic                    []storage.CyberOpsTrafficInput
 	idem                               storage.IdempotencyRecord
 	sources                            []storage.CatalogSourceRecord
@@ -128,6 +129,10 @@ type fakeQueryRepository struct {
 	syncraticInsights                  []storage.SyncraticInsightRecord
 	cohortRuns                         []storage.MarketOpsIntelligenceCohortRunRecord
 	cohortResults                      []storage.MarketOpsIntelligenceCohortSymbolResultRecord
+	lastSyncraticContextWindowFilter   storage.SyncraticContextWindowFilter
+	lastSyncraticInsightFilter         storage.SyncraticInsightFilter
+	lastCohortRunFilter                storage.MarketOpsIntelligenceCohortRunFilter
+	lastCohortReadinessFilter          storage.MarketOpsIntelligenceReadinessFilter
 	algorithmDefinitions               []storage.AlgorithmDefinitionRecord
 	algorithmExecutionRequests         []storage.AlgorithmExecutionRequestRecord
 	algorithmResults                   []storage.AlgorithmResultRecord
@@ -167,6 +172,10 @@ type fakeQueryRepository struct {
 	lastEvidenceFilter                 storage.MarketOpsEvidenceFilter
 	lastSignalLedgerFilter             storage.SignalLedgerFilter
 	lastAlertLedgerFilter              storage.AlertLedgerFilter
+	lastInsightLedgerFilter            storage.InsightLedgerFilter
+	lastIdempotencyTenant              string
+	lastIdempotencySource              string
+	lastIdempotencyKey                 string
 	signalLedgerQueries                int
 	alertLedgerQueries                 int
 	signals                            []storage.SignalLedgerRecord
@@ -292,7 +301,16 @@ func (q *fakeQueryRepository) ListProviderUsage(context.Context, string, int) ([
 func (q *fakeQueryRepository) ListRawEventLedger(_ context.Context, filter storage.RawEventLedgerFilter) ([]storage.RawEventLedgerRecord, error) {
 	q.rawEventQueries++
 	q.lastFilter = filter
-	return q.rawEvents, nil
+	if filter.TenantID == "" {
+		return q.rawEvents, nil
+	}
+	records := []storage.RawEventLedgerRecord{}
+	for _, record := range q.rawEvents {
+		if record.TenantID == filter.TenantID {
+			records = append(records, record)
+		}
+	}
+	return records, nil
 }
 
 func (q *fakeQueryRepository) GetRawEventLedger(_ context.Context, eventID string) (storage.RawEventLedgerRecord, error) {
@@ -307,10 +325,25 @@ func (q *fakeQueryRepository) GetRawEventLedger(_ context.Context, eventID strin
 	return storage.RawEventLedgerRecord{}, storage.ErrNotFound
 }
 
-func (q *fakeQueryRepository) ListNormalizedEventLedger(context.Context, storage.RawEventLedgerFilter) ([]storage.NormalizedEventLedgerRecord, error) {
-	return nil, nil
+func (q *fakeQueryRepository) ListNormalizedEventLedger(_ context.Context, filter storage.RawEventLedgerFilter) ([]storage.NormalizedEventLedgerRecord, error) {
+	q.lastFilter = filter
+	if filter.TenantID == "" {
+		return q.normalizedEvents, nil
+	}
+	records := []storage.NormalizedEventLedgerRecord{}
+	for _, record := range q.normalizedEvents {
+		if record.TenantID == filter.TenantID {
+			records = append(records, record)
+		}
+	}
+	return records, nil
 }
-func (q *fakeQueryRepository) GetNormalizedEventLedger(context.Context, string) (storage.NormalizedEventLedgerRecord, error) {
+func (q *fakeQueryRepository) GetNormalizedEventLedger(_ context.Context, eventID string) (storage.NormalizedEventLedgerRecord, error) {
+	for _, event := range q.normalizedEvents {
+		if event.EventID == eventID {
+			return event, nil
+		}
+	}
 	return storage.NormalizedEventLedgerRecord{}, storage.ErrNotFound
 }
 
@@ -321,7 +354,16 @@ func (q *fakeQueryRepository) ListCyberOpsTrafficInputs(context.Context, string,
 func (q *fakeQueryRepository) ListSignalLedger(_ context.Context, filter storage.SignalLedgerFilter) ([]storage.SignalLedgerRecord, error) {
 	q.signalLedgerQueries++
 	q.lastSignalLedgerFilter = filter
-	return q.signals, nil
+	if filter.TenantID == "" {
+		return q.signals, nil
+	}
+	records := []storage.SignalLedgerRecord{}
+	for _, record := range q.signals {
+		if record.TenantID == filter.TenantID {
+			records = append(records, record)
+		}
+	}
+	return records, nil
 }
 func (q *fakeQueryRepository) GetSignalLedger(_ context.Context, signalID string) (storage.SignalLedgerRecord, error) {
 	for _, signal := range q.signals {
@@ -693,6 +735,7 @@ func (q *fakeQueryRepository) UpsertSyncraticContextWindow(_ context.Context, re
 }
 
 func (q *fakeQueryRepository) ListSyncraticContextWindows(_ context.Context, filter storage.SyncraticContextWindowFilter) ([]storage.SyncraticContextWindowRecord, error) {
+	q.lastSyncraticContextWindowFilter = filter
 	out := []storage.SyncraticContextWindowRecord{}
 	for _, record := range q.syncraticContextWindows {
 		if filter.TenantID != "" && record.TenantID != filter.TenantID {
@@ -743,6 +786,7 @@ func (q *fakeQueryRepository) UpsertSyncraticInsight(_ context.Context, record s
 }
 
 func (q *fakeQueryRepository) ListSyncraticInsights(_ context.Context, filter storage.SyncraticInsightFilter) ([]storage.SyncraticInsightRecord, error) {
+	q.lastSyncraticInsightFilter = filter
 	out := []storage.SyncraticInsightRecord{}
 	for _, record := range q.syncraticInsights {
 		if filter.TenantID != "" && record.TenantID != filter.TenantID {
@@ -966,7 +1010,8 @@ func (q *fakeQueryRepository) MutateAlertLifecycle(_ context.Context, mutation s
 	return storage.AlertLedgerRecord{}, storage.ErrNotFound
 }
 
-func (q *fakeQueryRepository) ListInsightLedger(context.Context, storage.InsightLedgerFilter) ([]storage.InsightLedgerRecord, error) {
+func (q *fakeQueryRepository) ListInsightLedger(_ context.Context, filter storage.InsightLedgerFilter) ([]storage.InsightLedgerRecord, error) {
+	q.lastInsightLedgerFilter = filter
 	return q.insights, nil
 }
 
@@ -1000,7 +1045,10 @@ func (q *fakeQueryRepository) MutateInsightLifecycle(_ context.Context, mutation
 	return storage.InsightLedgerRecord{}, storage.ErrNotFound
 }
 
-func (q *fakeQueryRepository) GetIdempotencyRecord(context.Context, string, string, string) (storage.IdempotencyRecord, error) {
+func (q *fakeQueryRepository) GetIdempotencyRecord(_ context.Context, tenantID, sourceID, key string) (storage.IdempotencyRecord, error) {
+	q.lastIdempotencyTenant = tenantID
+	q.lastIdempotencySource = sourceID
+	q.lastIdempotencyKey = key
 	if q.notFound {
 		return storage.IdempotencyRecord{}, storage.ErrNotFound
 	}
@@ -3906,7 +3954,7 @@ func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T)
 	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-test", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1", "sig-aapl-2"}, AlertIDs: []string{"alert-aapl-1"}, EventIDs: []string{"evt-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":2,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
 	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{insight}, signals: []storage.SignalLedgerRecord{{SignalID: "sig-aapl-1", SignalType: "marketops.dsm.volatility_expansion", DetectorID: "marketops.dsm.taxonomy_v1", Severity: "high", Confidence: 0.91, EventIDs: []string{"evt-aapl-1"}, EntitiesJSON: []byte(`[{"symbol":"AAPL"}]`), SupportingMetrics: []byte(`{"daily_return_pct":6.9,"intraday_range_pct":13}`), EvidenceJSON: []byte(`[{"summary":"volatility expansion threshold crossed"}]`)}}}
-	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-1", Answer: "Generated Syncratic Ask explanation for AAPL.", Confidence: userapi.NumericFloat(0.91), EvidenceCount: 3, Raw: []byte(`{"title":"Ask title","summary":"Ask summary","action":"review"}`)}}
+	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-1", Answer: `{"title":"Ask title","executive_summary":"AAPL showed a volatility expansion cluster that deserves analyst review.","what_changed":["Volatility expansion evidence was present for AAPL."],"top_drivers":["sig-aapl-1 showed daily_return_pct=6.9."],"contradictions_or_weak_evidence":["Only one detailed signal was supplied to the Ask context."],"analyst_followups":["Review the cited signal and source metrics before acting."],"cited_artifacts":["sig-aapl-1"],"data_quality_warnings":[]}`, Confidence: userapi.NumericFloat(0.91), EvidenceCount: 3, Raw: []byte(`{"title":"Ask title","summary":"Ask summary","action":"review"}`)}}
 	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
 	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-test/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -3918,14 +3966,14 @@ func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T)
 	if ask.calls != 1 || ask.req.Scope != defaultSyncraticAskScope || ask.req.K != 1 || ask.req.ThreadMode != "off" || ask.req.IncludeRefs == nil || *ask.req.IncludeRefs || len(ask.req.Filters) != 0 {
 		t.Fatalf("ask call = %+v calls=%d", ask.req, ask.calls)
 	}
-	if ask.req.DirectReasoning == nil || !*ask.req.DirectReasoning || ask.req.GraphEnabled == nil || *ask.req.GraphEnabled || ask.req.KEEEnabled == nil || *ask.req.KEEEnabled {
+	if ask.req.DirectReasoning == nil || *ask.req.DirectReasoning || ask.req.GraphEnabled == nil || *ask.req.GraphEnabled || ask.req.KEEEnabled == nil || *ask.req.KEEEnabled {
 		t.Fatalf("ask reasoning flags = %+v", ask.req)
 	}
 	if ask.req.ExternalContext == nil || len(ask.req.ExternalContext.Items) != 1 || ask.req.ExternalContext.Items[0].SourceID != "synctx-test" || !strings.Contains(ask.req.ExternalContext.Items[0].Text, "synctx-test") {
 		t.Fatalf("ask external context = %+v", ask.req.ExternalContext)
 	}
 	stored := repo.syncraticInsights[0]
-	if stored.Explanation != "Generated Syncratic Ask explanation for AAPL." || stored.Title != "Ask title" || stored.Summary != "Ask summary" || stored.Confidence != 0.91 {
+	if !strings.Contains(stored.Explanation, "Executive summary:") || !strings.Contains(stored.Explanation, "Top drivers:") || stored.Title != "Ask title" || stored.Summary != "AAPL showed a volatility expansion cluster that deserves analyst review." || stored.Confidence != 0.91 {
 		t.Fatalf("stored insight = %+v", stored)
 	}
 	var metrics map[string]any
@@ -3935,6 +3983,69 @@ func TestPostSyncraticContextWindowAskPersistsGeneratedExplanation(t *testing.T)
 	askMeta, ok := metrics["syncratic_ask"].(map[string]any)
 	if !ok || askMeta["ask_query_id"] != "ask-1" || askMeta["context_evidence_digest"] != "digest" {
 		t.Fatalf("ask metrics = %#v", metrics["syncratic_ask"])
+	}
+}
+
+func TestPostSyncraticContextWindowAskFallsBackForGenericMetaEmptyEvidence(t *testing.T) {
+	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-panw-empty", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "PANW", SubjectSymbol: "PANW", WindowStart: time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC), ContextStrategy: "market_state_session_v2", ContextBuilderVersion: defaultSyncraticBuilderVersion, SummaryMetricsJSON: []byte(`{"signal_count":0,"alert_count":0,"event_count":0,"artifact_count":0,"label_count":0,"graph_proposal_count":0}`), EvidenceDigest: "digest-empty", IdempotencyKey: "idem", Status: "active", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}, syncraticInsights: []storage.SyncraticInsightRecord{insight}}
+	askAnswer := "They want me to interpret a deterministic SignalOps MarketOps context window for an operator. The task is to rank the strongest drivers and explain why the cluster matters now. The context includes metadata and data quality checks from provided external context."
+	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-empty", Answer: askAnswer, Confidence: userapi.NumericFloat(0.62), EvidenceCount: 0}}
+	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-panw-empty/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	stored := repo.syncraticInsights[0]
+	if !strings.Contains(stored.Explanation, "DATA QUALITY WARNING") || !strings.Contains(stored.Explanation, "PANW does not have enough persisted Syncratic evidence") || !strings.Contains(stored.Explanation, "Rematerialize") {
+		t.Fatalf("stored explanation did not use empty-evidence fallback: %s", stored.Explanation)
+	}
+	if strings.Contains(stored.Explanation, "They want me") || strings.Contains(stored.Explanation, "The task is to") || strings.Contains(stored.Explanation, "The context includes") {
+		t.Fatalf("meta commentary persisted: %s", stored.Explanation)
+	}
+	var metrics map[string]any
+	if err := json.Unmarshal(stored.MetricsJSON, &metrics); err != nil {
+		t.Fatal(err)
+	}
+	askMeta, ok := metrics["syncratic_ask"].(map[string]any)
+	if !ok || askMeta["response_quality"] != "deterministic_fallback_empty_context" || askMeta["prompt_builder_version"] != defaultSyncraticAskPromptVersion {
+		t.Fatalf("ask metrics = %#v", metrics["syncratic_ask"])
+	}
+}
+
+func TestPostSyncraticContextWindowAskDoesNotSkipPriorMetaAnswer(t *testing.T) {
+	cw := storage.SyncraticContextWindowRecord{ContextWindowID: "synctx-prior-meta", TenantID: "tenant-1", AppID: "marketops", Domain: "market_data", UseCase: "daily_market_surveillance", SubjectType: "ticker", SubjectID: "AAPL", SubjectSymbol: "AAPL", WindowStart: time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC), ContextStrategy: "symbol_signal_cluster_5d", ContextBuilderVersion: defaultSyncraticBuilderVersion, SignalIDs: []string{"sig-aapl-1"}, AlertIDs: []string{"alert-aapl-1"}, SummaryMetricsJSON: []byte(`{"signal_count":1,"alert_count":1}`), EvidenceDigest: "digest", IdempotencyKey: "idem", Status: "active"}
+	repo := &fakeQueryRepository{syncraticContextWindows: []storage.SyncraticContextWindowRecord{cw}}
+	details, missing, err := syncraticAskSignalDetails(context.Background(), repo, cw, 12)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, meta, err := buildSyncraticAskPrompt(cw, syncraticAskRequest{MaxPromptBytes: 12000}, details, missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	insight := buildSyncraticInsight(cw, defaultSyncraticInsightType, defaultSyncraticBuilderVersion)
+	insight.Explanation = "They want me to interpret a deterministic SignalOps MarketOps context window."
+	insight.MetricsJSON = mustJSON(map[string]any{"syncratic_ask": map[string]any{"ask_status": "completed", "prompt_digest": meta.PromptDigest, "context_evidence_digest": meta.ContextEvidenceDigest}})
+	repo.syncraticInsights = []storage.SyncraticInsightRecord{insight}
+	ask := &fakeSyncraticAskClient{resp: userapi.AskResponse{QueryID: "ask-fixed", Answer: `{"title":"Fixed title","executive_summary":"AAPL has a bounded alert and signal cluster worth analyst review.","what_changed":["The prior answer was regenerated."],"top_drivers":["The AAPL cluster points to analyst review rather than request description."],"contradictions_or_weak_evidence":[],"analyst_followups":["Review the cited signal."],"cited_artifacts":["sig-aapl-1"],"data_quality_warnings":[]}`, Confidence: userapi.NumericFloat(0.8), EvidenceCount: 2}}
+	router := NewRouter(RouterConfig{QueryRepository: repo, SyncraticAskClient: ask})
+	req := httptest.NewRequest(http.MethodPost, "/v1/syncratic/context-windows/synctx-prior-meta/ask", strings.NewReader(`{"tenant_id":"tenant-1","max_prompt_bytes":12000}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if ask.calls != 1 {
+		t.Fatalf("expected prior meta insight to regenerate, calls=%d", ask.calls)
+	}
+	if strings.Contains(rec.Body.String(), "unchanged_prompt_and_evidence") {
+		t.Fatalf("prior meta answer was incorrectly skipped: %s", rec.Body.String())
 	}
 }
 

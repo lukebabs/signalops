@@ -1,0 +1,37 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: signalops-production-tls
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-production-tls
+    app.kubernetes.io/component: mesh-route
+    signalops.syncratic.io/plane: app
+spec:
+  secretName: signalops-production-tls
+  commonName: signalops.syncratic.io
+  dnsNames:
+    - signalops.syncratic.io
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: ReferenceGrant
+metadata:
+  name: allow-istio-public-ingress-signalops-production-tls
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-production-tls
+    app.kubernetes.io/component: mesh-route
+    signalops.syncratic.io/plane: app
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: istio-system
+  to:
+    - group: ""
+      kind: Secret
+      name: signalops-production-tls

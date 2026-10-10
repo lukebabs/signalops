@@ -15,7 +15,11 @@ func registerMarketOpsAlgorithmEvaluationRoutes(mux *http.ServeMux, queryReposit
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsAlgorithmEvaluationRuns(r.Context(), storage.MarketOpsAlgorithmEvaluationRunFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsAlgorithmEvaluationRuns(r.Context(), storage.MarketOpsAlgorithmEvaluationRunFilter{TenantID: tenantID, AlgorithmID: strings.TrimSpace(r.URL.Query().Get("algorithm_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list algorithm evaluations")
 			return
@@ -27,7 +31,10 @@ func registerMarketOpsAlgorithmEvaluationRoutes(mux *http.ServeMux, queryReposit
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
@@ -51,7 +58,10 @@ func registerMarketOpsAlgorithmEvaluationRoutes(mux *http.ServeMux, queryReposit
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
@@ -72,7 +82,11 @@ func registerMarketOpsAlgorithmEvaluationRoutes(mux *http.ServeMux, queryReposit
 		if !ok {
 			return
 		}
-		records, err := repo.ListMarketOpsAlgorithmEvaluationBackfillCampaigns(r.Context(), storage.MarketOpsAlgorithmEvaluationBackfillCampaignFilter{TenantID: strings.TrimSpace(r.URL.Query().Get("tenant_id")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
+		records, err := repo.ListMarketOpsAlgorithmEvaluationBackfillCampaigns(r.Context(), storage.MarketOpsAlgorithmEvaluationBackfillCampaignFilter{TenantID: tenantID, Status: strings.TrimSpace(r.URL.Query().Get("status")), Limit: queryLimit(r, 50)})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list algorithm evaluation backfill campaigns")
 			return
@@ -84,7 +98,10 @@ func registerMarketOpsAlgorithmEvaluationRoutes(mux *http.ServeMux, queryReposit
 		if !ok {
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
+			return
+		}
 		if tenantID == "" {
 			writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 			return
@@ -111,7 +128,10 @@ func requireMarketOpsAlgorithmEvaluationRepository(w http.ResponseWriter, queryR
 	return repo, true
 }
 func writeAlgorithmEvaluationResults(w http.ResponseWriter, r *http.Request, repo storage.MarketOpsAlgorithmEvaluationRepository, runID string) {
-	tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
+	tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+	if !ok {
+		return
+	}
 	if tenantID == "" {
 		writeError(w, http.StatusBadRequest, "missing_query", "tenant_id is required")
 		return

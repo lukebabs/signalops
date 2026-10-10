@@ -194,6 +194,9 @@ func (r *Repository) MutateMarketOpsDSMGraphProposal(ctx context.Context, mutati
 	if strings.TrimSpace(mutation.ProposalID) == "" {
 		return storage.MarketOpsDSMGraphProposalRecord{}, fmt.Errorf("marketops dsm graph proposal id is required")
 	}
+	if strings.TrimSpace(mutation.TenantID) == "" {
+		return storage.MarketOpsDSMGraphProposalRecord{}, fmt.Errorf("marketops dsm graph proposal tenant id is required")
+	}
 	if !validMarketOpsDSMGraphProposalStatus(mutation.Status) {
 		return storage.MarketOpsDSMGraphProposalRecord{}, fmt.Errorf("marketops dsm graph proposal status is invalid")
 	}
@@ -202,8 +205,8 @@ func (r *Repository) MutateMarketOpsDSMGraphProposal(ctx context.Context, mutati
 		decidedAt = time.Now().UTC()
 	}
 	record, err := scanMarketOpsDSMGraphProposal(r.db.QueryRowContext(ctx, `
-UPDATE marketops_dsm_graph_proposals SET status=$2, reviewed_by=$3, decision_note=$4, decided_at=$5, updated_at=now()
-WHERE proposal_id=$1 `+marketOpsDSMGraphProposalReturning, strings.TrimSpace(mutation.ProposalID), strings.TrimSpace(mutation.Status), strings.TrimSpace(mutation.ReviewedBy), strings.TrimSpace(mutation.DecisionNote), decidedAt))
+UPDATE marketops_dsm_graph_proposals SET status=$3, reviewed_by=$4, decision_note=$5, decided_at=$6, updated_at=now()
+WHERE proposal_id=$1 AND tenant_id=$2 `+marketOpsDSMGraphProposalReturning, strings.TrimSpace(mutation.ProposalID), strings.TrimSpace(mutation.TenantID), strings.TrimSpace(mutation.Status), strings.TrimSpace(mutation.ReviewedBy), strings.TrimSpace(mutation.DecisionNote), decidedAt))
 	if err != nil {
 		return storage.MarketOpsDSMGraphProposalRecord{}, err
 	}

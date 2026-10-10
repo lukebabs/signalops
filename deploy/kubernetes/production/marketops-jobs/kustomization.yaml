@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - scheduled-cronjobs.yaml
+  - saf-evaluation-cronjob.yaml
+  - marketops-jobs-openbao-egress.yaml
+images:
+  - name: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner
+    newTag: 778488efe1be
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: signalops
+      signalops.syncratic.io/stage: production
+      signalops.syncratic.io/production-cutover-allowed: "true"
+patches:
+  # Production MarketOps work must schedule ahead of normal and test work.
+  - target:
+      group: batch
+      version: v1
+      kind: CronJob
+      namespace: signalops-marketops
+    patch: |-
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/priorityClassName
+        value: signalops-marketops-production
+  # This Job previously had no request, so it could not participate safely in
+  # scheduler admission or capacity planning.
+  - target:
+      group: batch
+      version: v1
+      kind: CronJob
+      name: marketops-saf-evaluation
+      namespace: signalops-marketops
+    patch: |-
+      - op: add
+        path: /spec/jobTemplate/spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 128Mi

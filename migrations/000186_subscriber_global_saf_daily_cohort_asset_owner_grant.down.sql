@@ -1,0 +1,2 @@
+REVOKE SELECT ON subscriber_global_assets FROM signalops_subscriber_migrator;
+

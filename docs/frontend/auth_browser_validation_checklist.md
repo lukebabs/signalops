@@ -15,6 +15,9 @@ authorization endpoint is not.
 
 - Backend remains `SIGNALOPS_AUTH_ENABLED=false` for this validation (the frontend
   flow is validated with the backend not yet enforcing tokens).
+- Run `scripts/signalops_oidc_preflight.sh` with the intended issuer, JWKS URL,
+  and audience. It validates discovery/JWKS consistency only; a passing result
+  does not replace the browser steps below.
 - A real browser (Chrome/Firefox/Safari) and the initial operator account
   `lukeb` (member of `/signalops/admins`).
 
@@ -26,6 +29,7 @@ VITE_SIGNALOPS_AUTH_ISSUER=https://auth.syncratic.co/realms/syncratic \
 VITE_SIGNALOPS_AUTH_REALM=syncratic \
 VITE_SIGNALOPS_AUTH_CLIENT_ID=signalops-web \
 VITE_SIGNALOPS_AUTH_AUDIENCE=signalops-api \
+VITE_SIGNALOPS_AUTH_SIGNUP_URL= \
 docker compose -f compose.yaml -f compose.traefik.yaml build web
 ```
 
@@ -49,6 +53,7 @@ Record the result (pass/fail + notes) for the audit.
 
 - [ ] Unauthenticated user sees the compact SignalOps **Sign in** screen (brand
       mark + single primary action; no data loads).
+- [ ] **Create account** is hidden unless `VITE_SIGNALOPS_AUTH_SIGNUP_URL` is configured. If configured, it opens an app/Gateway-hosted enrollment facade on `signalops.syncratic.io`, not raw `auth.syncratic.co`, and does not generate a direct `kc_action=register` URL.
 - [ ] Clicking **Sign in** redirects to `auth.syncratic.co` (Syncratic IdP).
 - [ ] Signing in as `lukeb` returns to SignalOps at the originally requested path
       (or `/`).

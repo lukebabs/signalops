@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: signalops-connect
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: connect
+  annotations:
+    signalops.syncratic.io/responsibility: "Signal-Connect ingestion subsystem: ingress, webhooks, connector workers, accepted-raw outbox."

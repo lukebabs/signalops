@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/lukebabs/signalops/internal/storage"
+	"golang.org/x/sync/errgroup"
 )
 
 func (r *Repository) ListMarketOpsSignalOverviewInputs(ctx context.Context, filter storage.MarketOpsSignalOverviewFilter) (storage.MarketOpsSignalOverviewInputs, error) {
@@ -41,71 +42,47 @@ LIMIT 200`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.Univers
 		return inputs, nil
 	}
 
-	distributionRows, err := r.db.QueryContext(ctx, marketOpsOptionsDistributionSelect+`
-WHERE tenant_id=$1 AND upper(symbol) = ANY($2) AND window_name='10_trade_days'
-  AND trade_date >= $3::date
-ORDER BY trade_date DESC, symbol ASC`, strings.TrimSpace(filter.TenantID), pqArray(symbols), filter.SessionStart.UTC())
-	if err != nil {
-		return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview options distributions: %w", err)
-	}
-	defer distributionRows.Close()
-	for distributionRows.Next() {
-		record, scanErr := scanMarketOpsOptionsDistribution(distributionRows)
-		if scanErr != nil {
-			return storage.MarketOpsSignalOverviewInputs{}, scanErr
-		}
-		inputs.OptionsDistributions = append(inputs.OptionsDistributions, record)
-	}
-	if err := distributionRows.Err(); err != nil {
-		return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview options distribution rows: %w", err)
-	}
-
-	resultRows, err := r.db.QueryContext(ctx, algorithmResultSelect+`
-WHERE tenant_id=$1 AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1'
-  AND upper(COALESCE(result_payload->>'symbol','')) = ANY($2)
-  AND COALESCE(result_payload->>'observation_time','') >= $3
-ORDER BY created_at DESC`, strings.TrimSpace(filter.TenantID), pqArray(symbols), filter.SessionStart.UTC().Format("2006-01-02T15:04:05Z"))
-	if err != nil {
-		return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview risk reward results: %w", err)
-	}
-	defer resultRows.Close()
-	for resultRows.Next() {
-		record, scanErr := scanAlgorithmResult(resultRows)
-		if scanErr != nil {
-			return storage.MarketOpsSignalOverviewInputs{}, scanErr
-		}
-		inputs.AlgorithmResults = append(inputs.AlgorithmResults, record)
-	}
-	if err := resultRows.Err(); err != nil {
-		return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview risk reward rows: %w", err)
-	}
-
-	evaluationRows, err := r.db.QueryContext(ctx, marketOpsHypothesisEvaluationSelect+`
-WHERE tenant_id=$1 AND triggered=true AND invalidated=false AND upper(symbol) = ANY($2)
-  AND session_date >= $3::date
-ORDER BY session_date DESC, hypothesis_key`, strings.TrimSpace(filter.TenantID), pqArray(symbols), filter.SessionStart.UTC())
-	if err != nil {
-		return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview hypothesis evaluations: %w", err)
-	}
-	defer evaluationRows.Close()
-	for evaluationRows.Next() {
-		record, scanErr := scanMarketOpsHypothesisEvaluation(evaluationRows)
-		if scanErr != nil {
-			return storage.MarketOpsSignalOverviewInputs{}, scanErr
-		}
-		inputs.HypothesisEvaluations = append(inputs.HypothesisEvaluations, record)
-	}
-	if err := evaluationRows.Err(); err != nil {
-		return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview hypothesis rows: %w", err)
-	}
-
-	inputs.HypothesisDefinitions, err = r.ListMarketOpsHypothesisDefinitions(ctx, storage.MarketOpsHypothesisDefinitionFilter{TenantID: filter.TenantID, Limit: 200})
-	if err != nil {
+	// These reads are independent after the authorized asset symbols are known.
+	// Run them concurrently so the Dashboard latency is bounded by the slowest
+	// projection instead of the sum of every historical query.
+	group, groupCtx := errgroup.WithContext(ctx)
+	var options []storage.MarketOpsOptionsDistributionRecord
+	var results []storage.AlgorithmResultRecord
+	var evaluations []storage.MarketOpsHypothesisEvaluationRecord
+	var definitions []storage.MarketOpsHypothesisDefinitionRecord
+	var intraday []storage.MarketOpsIntradayConditionSnapshotRecord
+	group.Go(func() error {
+		var queryErr error
+		options, queryErr = r.listSignalOverviewOptions(groupCtx, strings.TrimSpace(filter.TenantID), symbols, filter.SessionStart)
+		return queryErr
+	})
+	group.Go(func() error {
+		var queryErr error
+		results, queryErr = r.listSignalOverviewAlgorithmResults(groupCtx, strings.TrimSpace(filter.TenantID), symbols, filter.SessionStart)
+		return queryErr
+	})
+	group.Go(func() error {
+		var queryErr error
+		evaluations, queryErr = r.listSignalOverviewEvaluations(groupCtx, strings.TrimSpace(filter.TenantID), symbols, filter.SessionStart)
+		return queryErr
+	})
+	group.Go(func() error {
+		var queryErr error
+		definitions, queryErr = r.listSignalOverviewDefinitions(groupCtx, strings.TrimSpace(filter.TenantID))
+		return queryErr
+	})
+	group.Go(func() error {
+		var queryErr error
+		intraday, queryErr = r.listSignalOverviewIntraday(groupCtx, filter)
+		return queryErr
+	})
+	if err := group.Wait(); err != nil {
 		return storage.MarketOpsSignalOverviewInputs{}, err
 	}
-	inputs.IntradayConditionSnaps, err = r.ListMarketOpsIntradayConditionSnapshots(ctx, storage.MarketOpsIntradayConditionSnapshotFilter{TenantID: filter.TenantID, UniverseGroup: filter.UniverseGroup, Limit: 200})
-	if err != nil {
-		return storage.MarketOpsSignalOverviewInputs{}, err
-	}
+	inputs.OptionsDistributions = options
+	inputs.AlgorithmResults = results
+	inputs.HypothesisEvaluations = evaluations
+	inputs.HypothesisDefinitions = definitions
+	inputs.IntradayConditionSnaps = intraday
 	return inputs, nil
 }

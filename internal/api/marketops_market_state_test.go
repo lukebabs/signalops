@@ -211,3 +211,55 @@ func validMarketOpsEvidenceRecord() storage.MarketOpsEvidenceRecord {
 		EvidencePayloadJSON: []byte(`{"observed":true}`), SourceFeatureIDs: []string{"mfo-1"},
 		SourceTransitionIDs: []string{"mtrans-1"}, DeterministicKey: "tenant-1:AAPL:2026-07-19:return-expansion:v1"}
 }
+
+func TestAuthenticatedMarketStateReadsBindTenantAndHideForeignDetails(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	state := validMarketOpsMarketStateRecord()
+	state.TenantID = "tenant-other"
+	evidence := validMarketOpsEvidenceRecord()
+	evidence.TenantID = "tenant-other"
+	feature := validMarketOpsFeatureDefinitionRecord()
+	feature.TenantID = "tenant-other"
+	observation := validMarketOpsFeatureObservationRecord()
+	observation.TenantID = "tenant-other"
+	transition := validMarketOpsStateTransitionRecord()
+	transition.TenantID = "tenant-other"
+	repo := &fakeQueryRepository{
+		marketOpsFeatureDefinitions:  []storage.MarketOpsFeatureDefinitionRecord{feature},
+		marketOpsFeatureObservations: []storage.MarketOpsFeatureObservationRecord{observation},
+		marketOpsMarketStates:        []storage.MarketOpsMarketStateRecord{state},
+		marketOpsStateTransitions:    []storage.MarketOpsStateTransitionRecord{transition},
+		marketOpsEvidence:            []storage.MarketOpsEvidenceRecord{evidence},
+	}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	for _, request := range []struct {
+		path   string
+		tenant func() string
+	}{
+		{path: "/v1/marketops/features/definitions", tenant: func() string { return repo.lastFeatureDefinitionFilter.TenantID }},
+		{path: "/v1/marketops/features/observations", tenant: func() string { return repo.lastFeatureObservationFilter.TenantID }},
+		{path: "/v1/marketops/states", tenant: func() string { return repo.lastMarketStateFilter.TenantID }},
+		{path: "/v1/marketops/transitions", tenant: func() string { return repo.lastStateTransitionFilter.TenantID }},
+		{path: "/v1/marketops/evidence", tenant: func() string { return repo.lastEvidenceFilter.TenantID }},
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, request.path, nil), token))
+		if recorder.Code != http.StatusOK || request.tenant() != "tenant-local" {
+			t.Fatalf("%s status=%d tenant=%q body=%s", request.path, recorder.Code, request.tenant(), recorder.Body.String())
+		}
+	}
+
+	for _, path := range []string{
+		"/v1/marketops/states/" + state.MarketStateID,
+		"/v1/marketops/states/" + state.MarketStateID + "/lineage",
+		"/v1/marketops/evidence/" + evidence.EvidenceID,
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, path, nil), token))
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("%s status=%d body=%s", path, recorder.Code, recorder.Body.String())
+		}
+	}
+}

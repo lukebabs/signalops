@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useLocation } from '@tanstack/react-router';
 import { useSessionExperience } from '../api/queries';
-import { CONSOLE_PROFILE, CYBEROPS_PROFILE, MARKETOPS_PROFILE } from './appProfiles';
+import { CONSOLE_PROFILE, CYBEROPS_PROFILE, MARKETOPS_PROFILE, STREAMS_PROFILE, NARRATIVEOPS_PROFILE } from './appProfiles';
 import { useAuth } from '../auth/session';
 import {
   appIdFromPathname,
@@ -29,7 +29,7 @@ export function AppProfileProvider({ children }: { children: ReactNode }) {
   const { authEnabled } = useAuth();
   const location = useLocation();
   const profiles = useMemo<Array<AppProfile & { permission?: string }>>(() => {
-    if (!authEnabled) return [CONSOLE_PROFILE, MARKETOPS_PROFILE, CYBEROPS_PROFILE];
+    if (!authEnabled) return [CONSOLE_PROFILE, MARKETOPS_PROFILE, CYBEROPS_PROFILE, STREAMS_PROFILE, NARRATIVEOPS_PROFILE];
     return experience.data?.app_profiles ?? [];
   }, [authEnabled, experience.data]);
   const appId = appIdFromPathname(location.pathname);

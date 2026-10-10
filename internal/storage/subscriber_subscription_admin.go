@@ -1,0 +1,374 @@
+package storage
+
+import (
+	"context"
+	"time"
+)
+
+// SubscriberSubscriptionAdministrationRepository is deliberately distinct from
+// read-side subscription resolution. Only a platform subscription administrator
+// may invoke these operations; browser subscribers and tenant administrators
+// cannot self-upgrade a product or create a tenant contract.
+type SubscriberSubscriptionAdministrationRepository interface {
+	ListSubscriberSubscriptionAdministration(context.Context, SubscriberSubscriptionAdministrationFilter) (SubscriberSubscriptionAdministrationSnapshot, error)
+	ListSubscriberUserActivity(context.Context, SubscriberUserActivityFilter) (SubscriberUserActivitySnapshot, error)
+	RecordSubscriberUserActivity(context.Context, SubscriberUserActivityRecordInput) error
+	RecordSubscriberUpgradeInteraction(context.Context, SubscriberUpgradeInteractionInput) error
+	CreateSubscriberCheckoutSession(context.Context, SubscriberCheckoutSessionInput) error
+	UpdateSubscriberSubscriptionProduct(context.Context, SubscriberSubscriptionProductMutation) error
+	UpdateSubscriberSubscriptionProductBilling(context.Context, SubscriberSubscriptionProductBillingMutation) error
+	UpsertSubscriberSubjectSubscription(context.Context, SubscriberSubjectSubscriptionMutation) error
+	UpdateSubscriberSubjectSubscriptionBilling(context.Context, SubscriberSubjectSubscriptionBillingMutation) error
+	UpsertSubscriberTenantSubscription(context.Context, SubscriberTenantSubscriptionMutation) error
+	UpdateSubscriberTenantSubscriptionBilling(context.Context, SubscriberTenantSubscriptionBillingMutation) error
+	UpsertSubscriberSubscriptionSeat(context.Context, SubscriberSubscriptionSeatMutation) error
+	ProcessSubscriberStripeWebhook(context.Context, SubscriberStripeWebhookMutation) (SubscriberBillingWebhookEventRecord, error)
+	CreateSubscriberRefundRequest(context.Context, SubscriberRefundRequestInput) (SubscriberRefundRequestRecord, error)
+	UpdateSubscriberRefundRequest(context.Context, SubscriberRefundRequestMutation) (SubscriberRefundRequestRecord, error)
+}
+
+type SubscriberSubjectSubscriptionMutation struct {
+	TenantID      string
+	Subject       string
+	ProductKey    string
+	Status        string
+	ActorSubject  string
+	CorrelationID string
+}
+
+type SubscriberSubjectSubscriptionBillingMutation struct {
+	TenantID             string
+	Subject              string
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	Status               string
+	CurrentPeriodEndsAt  *time.Time
+	GraceEndsAt          *time.Time
+	CanceledAt           *time.Time
+	ActorSubject         string
+	CorrelationID        string
+}
+
+type SubscriberTenantSubscriptionMutation struct {
+	TenantID      string
+	ProductKey    string
+	Status        string
+	ActorSubject  string
+	CorrelationID string
+}
+
+type SubscriberTenantSubscriptionBillingMutation struct {
+	TenantID             string
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	Status               string
+	CurrentPeriodEndsAt  *time.Time
+	GraceEndsAt          *time.Time
+	CanceledAt           *time.Time
+	ActorSubject         string
+	CorrelationID        string
+}
+
+type SubscriberSubscriptionSeatMutation struct {
+	TenantID      string
+	Subject       string
+	SeatRole      string
+	Status        string
+	ActorSubject  string
+	CorrelationID string
+}
+
+type SubscriberSubscriptionAdministrationFilter struct {
+	TenantID string
+}
+
+type SubscriberUserActivityFilter struct {
+	TenantID       string
+	Subject        string
+	Query          string
+	EventType      string
+	OccurredAtFrom *time.Time
+	OccurredAtTo   *time.Time
+	Limit          int
+}
+
+type SubscriberUserActivitySnapshot struct {
+	TenantID  string
+	Summaries []SubscriberUserActivitySummaryRecord
+	Events    []SubscriberUserActivityEventRecord
+}
+
+type SubscriberUserActivitySummaryRecord struct {
+	Subject             string
+	SubjectDisplayName  string
+	SubjectEmail        string
+	LastActivityAt      *time.Time
+	LastLoginAt         *time.Time
+	LastLogoutAt        *time.Time
+	LoginCount          int
+	FeatureViewCount    int
+	MutationCount       int
+	FailedMutationCount int
+	TopFeatureKey       string
+}
+
+type SubscriberUserActivityEventRecord struct {
+	ActivityID         string
+	TenantID           string
+	Subject            string
+	SubjectDisplayName string
+	SubjectEmail       string
+	AppID              string
+	EventType          string
+	FeatureKey         string
+	HTTPMethod         string
+	RoutePath          string
+	StatusCode         int
+	CorrelationID      string
+	MetadataJSON       []byte
+	OccurredAt         time.Time
+}
+
+type SubscriberUserActivityRecordInput struct {
+	TenantID           string
+	Subject            string
+	SubjectDisplayName string
+	SubjectEmail       string
+	AppID              string
+	EventType          string
+	FeatureKey         string
+	HTTPMethod         string
+	RoutePath          string
+	StatusCode         int
+	CorrelationID      string
+	MetadataJSON       []byte
+}
+
+// SubscriberUpgradeInteractionRecord captures upgrade prompt impressions and
+// clicks for conversion attribution. It is deliberately separate from generic
+// user activity so analytics can distinguish research behavior from commerce UX.
+type SubscriberUpgradeInteractionRecord struct {
+	InteractionID      string
+	TenantID           string
+	Subject            string
+	SubjectDisplayName string
+	SubjectEmail       string
+	AppID              string
+	InteractionType    string
+	SourceFeature      string
+	SourceRoute        string
+	SourceURL          string
+	AssetSymbol        string
+	CurrentTier        string
+	RequiredTier       string
+	PromptVariant      string
+	CTALabel           string
+	CorrelationID      string
+	MetadataJSON       []byte
+	OccurredAt         time.Time
+}
+
+type SubscriberUpgradeInteractionInput struct {
+	TenantID        string
+	Subject         string
+	AppID           string
+	InteractionType string
+	SourceFeature   string
+	SourceRoute     string
+	SourceURL       string
+	AssetSymbol     string
+	CurrentTier     string
+	RequiredTier    string
+	PromptVariant   string
+	CTALabel        string
+	CorrelationID   string
+	MetadataJSON    []byte
+}
+
+type SubscriberCheckoutSessionInput struct {
+	CheckoutRef         string
+	TenantID            string
+	Subject             string
+	ProductKey          string
+	BillingPeriod       string
+	StripePriceID       string
+	StripeSessionID     string
+	Status              string
+	ActorSubject        string
+	CorrelationID       string
+	CheckoutURLReturned bool
+}
+
+type SubscriberSubscriptionAdministrationSnapshot struct {
+	TenantID             string
+	Products             []SubscriberSubscriptionProductRecord
+	SubjectSubscriptions []SubscriberSubjectSubscriptionRecord
+	TenantSubscriptions  []SubscriberTenantSubscriptionRecord
+	Seats                []SubscriberSubscriptionSeatRecord
+	AuditEvents          []SubscriberSubscriptionAuditEventRecord
+	BillingWebhookEvents []SubscriberBillingWebhookEventRecord
+	UpgradeInteractions  []SubscriberUpgradeInteractionRecord
+	RefundRequests       []SubscriberRefundRequestRecord
+}
+
+type SubscriberSubjectSubscriptionRecord struct {
+	TenantID             string
+	Subject              string
+	SubjectDisplayName   string
+	SubjectEmail         string
+	SubscriptionID       string
+	ProductKey           string
+	DisplayName          string
+	Status               string
+	TrialEndsAt          *time.Time
+	CurrentPeriodEndsAt  *time.Time
+	GraceEndsAt          *time.Time
+	CanceledAt           *time.Time
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	ProvisionedBy        string
+	CorrelationID        string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+type SubscriberTenantSubscriptionRecord struct {
+	TenantID             string
+	SubscriptionID       string
+	ProductKey           string
+	DisplayName          string
+	Status               string
+	CurrentPeriodEndsAt  *time.Time
+	GraceEndsAt          *time.Time
+	CanceledAt           *time.Time
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	ProvisionedBy        string
+	CorrelationID        string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+type SubscriberSubscriptionSeatRecord struct {
+	TenantID              string
+	Subject               string
+	SubjectDisplayName    string
+	SubjectEmail          string
+	TenantSubscriptionID  string
+	SeatRole              string
+	Status                string
+	AssignedBy            string
+	AssignedByDisplayName string
+	AssignedByEmail       string
+	CorrelationID         string
+	AssignedAt            time.Time
+	RevokedAt             *time.Time
+}
+
+type SubscriberRefundRequestInput struct {
+	TenantID             string
+	Subject              string
+	Reason               string
+	RequestedAmountCents *int
+	Currency             string
+	CorrelationID        string
+}
+
+type SubscriberRefundRequestMutation struct {
+	TenantID        string
+	RefundRequestID string
+	Status          string
+	AdminNote       string
+	ActorSubject    string
+	CorrelationID   string
+}
+
+type SubscriberRefundRequestRecord struct {
+	RefundRequestID      string
+	TenantID             string
+	Subject              string
+	SubjectDisplayName   string
+	SubjectEmail         string
+	SubscriptionID       string
+	ProductKey           string
+	DisplayName          string
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	StripeSessionID      string
+	RequestedAmountCents *int
+	Currency             string
+	Reason               string
+	Status               string
+	AdminNote            string
+	RequestedAt          time.Time
+	UpdatedAt            time.Time
+	ResolvedAt           *time.Time
+	ActorSubject         string
+	ActorDisplayName     string
+	ActorEmail           string
+	CorrelationID        string
+}
+
+type SubscriberSubscriptionAuditEventRecord struct {
+	AuditID            string
+	TenantID           string
+	Subject            string
+	SubjectDisplayName string
+	SubjectEmail       string
+	SubscriptionID     string
+	ActorSubject       string
+	ActorDisplayName   string
+	ActorEmail         string
+	EventType          string
+	BeforeStateJSON    []byte
+	AfterStateJSON     []byte
+	CorrelationID      string
+	OccurredAt         time.Time
+}
+
+type SubscriberSubscriptionProductMutation struct {
+	TenantID          string
+	ProductKey        string
+	DisplayName       string
+	IsFree            bool
+	TrialDays         int
+	FeaturePolicyJSON []byte
+	LimitPolicyJSON   []byte
+	Active            bool
+	ActorSubject      string
+	CorrelationID     string
+}
+
+type SubscriberSubscriptionProductBillingMutation struct {
+	TenantID             string
+	ProductKey           string
+	StripeProductID      string
+	StripeMonthlyPriceID string
+	StripeAnnualPriceID  string
+	MonthlyDisplayPrice  string
+	AnnualDisplayPrice   string
+	ActorSubject         string
+	CorrelationID        string
+}
+
+type SubscriberStripeWebhookMutation struct {
+	ProviderEventID      string
+	EventType            string
+	PayloadJSON          []byte
+	CheckoutRef          string
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	Status               string
+	CurrentPeriodEndsAt  *time.Time
+	GraceEndsAt          *time.Time
+	CanceledAt           *time.Time
+}
+
+type SubscriberBillingWebhookEventRecord struct {
+	ProviderEventID  string
+	EventType        string
+	ProcessingStatus string
+	ErrorMessage     string
+	ReceivedAt       time.Time
+	ProcessedAt      *time.Time
+}

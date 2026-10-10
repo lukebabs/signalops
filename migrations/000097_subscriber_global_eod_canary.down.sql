@@ -1,0 +1,3 @@
+REVOKE ALL ON subscriber_global_eod_canary_members, subscriber_global_eod_canary_runs FROM signalops_subscriber_global_eod;
+DROP TABLE IF EXISTS subscriber_global_eod_canary_members;
+DROP TABLE IF EXISTS subscriber_global_eod_canary_runs;

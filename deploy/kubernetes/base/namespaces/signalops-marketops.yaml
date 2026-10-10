@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: signalops-marketops
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: marketops
+  annotations:
+    signalops.syncratic.io/responsibility: "MarketOps scheduled jobs, provider polling, analytical workers, SAF, and Syncratic Intelligence workers."

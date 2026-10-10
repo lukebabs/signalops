@@ -1,0 +1,14 @@
+REVOKE SELECT ON subscriber_gateway_global_signal_assurance_observations,
+  subscriber_gateway_global_canonical_assets
+  FROM signalops_subscriber_global_eod_runtime, signalops_subscriber_global_eod;
+
+REVOKE SELECT ON subscriber_global_assets, subscriber_watchlist_memberships FROM signalops_subscriber_global_eod_runtime, signalops_subscriber_global_eod;
+
+REVOKE SELECT, INSERT ON subscriber_global_saf_benchmark_observations FROM signalops_subscriber_global_eod;
+REVOKE EXECUTE ON FUNCTION subscriber_global_saf_benchmark_observation_immutable_guard() FROM signalops_subscriber_global_eod;
+
+REVOKE SELECT ON subscriber_global_marketops_evidence_records,
+  subscriber_global_marketops_evidence_runs,
+  subscriber_global_asset_identity_resolutions,
+  subscriber_global_saf_benchmark_observations
+  FROM signalops_subscriber_global_eod_runtime, signalops_subscriber_global_eod;

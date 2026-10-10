@@ -1,0 +1,2 @@
+REVOKE ALL ON subscriber_gateway_global_market_states FROM signalops_subscriber_gateway;
+DROP VIEW IF EXISTS subscriber_gateway_global_market_states;

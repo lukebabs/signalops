@@ -2,7 +2,7 @@
 Description=Run SignalOps MarketOps workflow after the U.S. market close
 
 [Timer]
-OnCalendar=Mon..Fri *-*-* 18:01:55 America/New_York
+OnCalendar=Mon..Fri *-*-* 16:30:00 America/New_York
 Persistent=true
 AccuracySec=1s
 Unit=signalops-marketops-daily.service

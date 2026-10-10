@@ -34,9 +34,20 @@ type MarketOpsSRISnapshotRecord struct {
 	DeterministicKey                                                                                               string
 }
 type MarketOpsSRISnapshotFilter struct {
-	TenantID, SegmentID, SegmentType, State string
-	SessionStart, SessionEnd                time.Time
-	Limit                                   int
+	TenantID, SegmentID, SegmentType, State, QualityState string
+	SessionStart, SessionEnd                              time.Time
+	Limit                                                 int
+}
+type MarketOpsSRIETFHoldingsSnapshotRecord struct {
+	SnapshotID, TenantID, ETFSymbol, FundName, Source, SourceURL, ContentHash string
+	EffectiveDate, RetrievedAt                                                time.Time
+	HoldingsCount                                                             int
+	TotalWeight, TopTenWeight                                                 float64
+}
+type MarketOpsSRIETFHoldingRecord struct {
+	SnapshotID, HoldingKey, Ticker, Name, Identifier, SEDOL, Sector, Currency string
+	HoldingRank                                                               int
+	Weight, SharesHeld                                                        float64
 }
 type MarketOpsSRIRepository interface {
 	ListMarketOpsSRISegments(context.Context, string, bool, int) ([]MarketOpsSRISegmentRecord, error)
@@ -45,4 +56,8 @@ type MarketOpsSRIRepository interface {
 	UpsertMarketOpsSRIETF(context.Context, MarketOpsSRIETFRecord) error
 	UpsertMarketOpsSRISnapshot(context.Context, MarketOpsSRISnapshotRecord) error
 	ListMarketOpsSRISnapshots(context.Context, MarketOpsSRISnapshotFilter) ([]MarketOpsSRISnapshotRecord, error)
+	UpsertMarketOpsSRIETFHoldingsSnapshot(context.Context, MarketOpsSRIETFHoldingsSnapshotRecord) error
+	UpsertMarketOpsSRIETFHolding(context.Context, MarketOpsSRIETFHoldingRecord) error
+	GetLatestMarketOpsSRIETFHoldingsSnapshot(context.Context, string, string) (MarketOpsSRIETFHoldingsSnapshotRecord, bool, error)
+	ListMarketOpsSRIETFHoldings(context.Context, string, int) ([]MarketOpsSRIETFHoldingRecord, error)
 }

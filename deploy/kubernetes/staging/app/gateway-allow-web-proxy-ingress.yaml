@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-web-gateway-proxy-ingress
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-gateway
+    signalops.syncratic.io/stage: staging
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-gateway
+      app.kubernetes.io/part-of: signalops
+      signalops.syncratic.io/stage: staging
+      signalops.syncratic.io/production-cutover-allowed: "false"
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signalops-web
+              app.kubernetes.io/part-of: signalops
+              signalops.syncratic.io/stage: staging
+              signalops.syncratic.io/production-cutover-allowed: "false"
+      ports:
+        - protocol: TCP
+          port: 8080

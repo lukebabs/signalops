@@ -1,0 +1,2 @@
+-- Restoring the former guard would again make source priorities 3+ impossible
+-- to freeze into bounded execution slots, so rollback is intentionally a no-op.

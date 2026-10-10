@@ -6,9 +6,11 @@ const (
 	DefaultAppID   = "console"
 	DefaultUseCase = "general"
 
-	AppConsole   = "console"
-	AppMarketOps = "marketops"
-	AppCyberOps  = "cyberops"
+	AppConsole      = "console"
+	AppMarketOps    = "marketops"
+	AppCyberOps     = "cyberops"
+	AppStreams      = "streams"
+	AppNarrativeOps = "narrativeops"
 )
 
 type Metadata struct {
@@ -61,6 +63,26 @@ var Profiles = []Profile{
 		DashboardProfile: "security.default",
 		LandingSummary:   "Firewall evidence, deterministic detections, and focused security investigation.",
 		RoutePrefix:      "/cyberops",
+	},
+	{
+		AppID:            AppStreams,
+		Label:            "Streams",
+		DefaultRoute:     "/streams",
+		Domains:          []string{"operations", "media"},
+		EnabledModules:   []string{"dashboard", "sources", "media", "transcripts", "retention", "settings"},
+		DashboardProfile: "streams.default",
+		LandingSummary:   "Live audio capture, retained recordings, transcripts, and storage-efficient retention policy management.",
+		RoutePrefix:      "/streams",
+	},
+	{
+		AppID:            AppNarrativeOps,
+		Label:            "NarrativeOps",
+		DefaultRoute:     "/narrativeops",
+		Domains:          []string{"market_data", "operations", "intelligence"},
+		EnabledModules:   []string{"dashboard", "narratives", "evidence", "replay", "divergence", "operations"},
+		DashboardProfile: "narrativeops.default",
+		LandingSummary:   "Evidence-backed market narratives, replay, divergence, and operational qualification.",
+		RoutePrefix:      "/narrativeops",
 	},
 }
 

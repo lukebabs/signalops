@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS subscriber_options_capture_named_approvals;
+DROP FUNCTION IF EXISTS subscriber_options_capture_named_approval_guard();

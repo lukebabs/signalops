@@ -245,7 +245,7 @@ describe('askSyncraticContextWindow (G090)', () => {
 
     await api.askSyncraticContextWindow('synctx-1', {
       tenant_id: 'tenant-local',
-      max_prompt_bytes: 12000,
+      max_prompt_bytes: 10000,
       force: false,
     });
 
@@ -255,7 +255,7 @@ describe('askSyncraticContextWindow (G090)', () => {
     expect(fetchMock.mock.calls[0][1].headers['Content-Type']).toBe('application/json');
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
       tenant_id: 'tenant-local',
-      max_prompt_bytes: 12000,
+      max_prompt_bytes: 10000,
       force: false,
     });
   });

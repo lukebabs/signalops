@@ -1,0 +1,4 @@
+REVOKE SELECT ON subscriber_gateway_global_risk_reward_snapshots,
+  subscriber_global_marketops_evidence_records,
+  subscriber_global_marketops_evidence_runs
+  FROM signalops_subscriber_migrator;

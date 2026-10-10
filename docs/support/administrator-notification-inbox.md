@@ -21,7 +21,7 @@ The System workbench polls the inbox every 15 seconds. It displays unread count,
 
 ## Scheduler wiring
 
-`scripts/marketops_scheduled_job.sh` emits the status artifact first, then invokes the isolated `administration-notification-recorder` Docker service when policy requires an inbox event. The recorder is built by `scripts/install_marketops_daily_user_timer.sh` and is supplied the database URL only through Compose.
+`scripts/marketops_scheduled_job.sh` records scheduler state in the dedicated MarketOps database first, writes ignored local JSON only as fallback/debug output, then invokes the isolated `administration-notification-recorder` Docker service when policy requires an inbox event. The recorder is built by the scheduler-install path and is supplied the database URL only through Compose.
 
 ## Deferred delivery
 

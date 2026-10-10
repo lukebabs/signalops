@@ -2,7 +2,9 @@
 Description=Run SignalOps MarketOps governed task retries
 
 [Timer]
-OnCalendar=Mon..Fri *-*-* 18:30/15:00
+OnCalendar=Mon..Fri *-*-* 16:45:00
+OnCalendar=Mon..Fri *-*-* 17..19:00,15,30,45:00
+OnCalendar=Mon..Fri *-*-* 20:00:00
 Timezone=America/New_York
 Persistent=true
 Unit=signalops-marketops-task-retry.service

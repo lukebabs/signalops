@@ -1,0 +1,18 @@
+# Dedicated MarketOps retention governance runner.
+#
+# This is intentionally separate from the legacy `retention-governor` service in
+# compose.yaml, which is wired to the shared SignalOps database for CyberOps and
+# platform retention. Subscriber/MarketOps activity retention must execute
+# against the dedicated MarketOps primary database after the data-boundary
+# cutover.
+services:
+  marketops-retention-governor:
+    profiles: ["marketops-retention-governance"]
+    build:
+      context: .
+      target: retention-governor
+    depends_on:
+      marketops-postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}

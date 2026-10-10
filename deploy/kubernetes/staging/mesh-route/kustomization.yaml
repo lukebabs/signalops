@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - signalops-app-public-ingress-namespace-label.yaml
+  - signalops-staging-tls.yaml
+  - signalops-istio-staging-route.yaml
+  - allow-istio-public-ingress-to-signalops-app.yaml
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: signalops
+      signalops.syncratic.io/stage: staging
+      signalops.syncratic.io/production-cutover-allowed: "false"

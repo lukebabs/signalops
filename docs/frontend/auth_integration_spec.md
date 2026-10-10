@@ -115,6 +115,8 @@ VITE_SIGNALOPS_AUTH_AUDIENCE=signalops-api
 
 Do not put secrets in frontend env. `signalops-web` is public and must not use a client secret.
 
+2026-08-25 update: public account creation is not a direct Keycloak `kc_action=register` redirect from the SPA. If registration is exposed, configure `VITE_SIGNALOPS_AUTH_SIGNUP_URL` to an app/Gateway-hosted enrollment facade on the deployment host. The live Keycloak client used by sign-in must exist in the realm and carry the same audience/tenant mapper contract; `signalops-web` in this older gate is not a production assumption unless reconciled in Keycloak.
+
 ## Recommended Library
 
 Use a proven OIDC SPA client rather than hand-rolling Authorization Code + PKCE.
@@ -337,7 +339,7 @@ Build-time settings:
 
 ```text
 VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES=30
-VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS=300
+VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS=60
 ```
 
 The IdP session idle/max settings remain authoritative and must allow at least the

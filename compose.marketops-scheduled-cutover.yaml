@@ -1,0 +1,133 @@
+# Dedicated URLs for MarketOps batch runners. This file is intentionally not
+# loaded by default and must be used only by the root-owned scheduler launcher.
+x-marketops-scheduled-boundary: &marketops-scheduled-boundary
+  SIGNALOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+  SIGNALOPS_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:?inject dedicated MarketOps temporal URL}
+
+services:
+  marketops-intraday-monitor:
+    environment: *marketops-scheduled-boundary
+  marketops-valuation-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-tactical-valuation-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-eroc-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-eeom-runner:
+    environment: *marketops-scheduled-boundary
+  massive-puller:
+    environment: *marketops-scheduled-boundary
+  massive-scheduler:
+    environment: *marketops-scheduled-boundary
+  marketops-asset-backfill-worker:
+    environment: *marketops-scheduled-boundary
+  marketops-algorithm-adjudicator:
+    environment: *marketops-scheduled-boundary
+  marketops-options-feature-materializer:
+    environment: *marketops-scheduled-boundary
+  algorithm-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-options-coverage-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-intelligence-cohort-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-syncratic-intelligence-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-sri-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-sri-holdings-runner:
+    environment: *marketops-scheduled-boundary
+  marketops-signal-assurance-worker:
+    environment: *marketops-scheduled-boundary
+
+  subscriber-global-marketops-parity-manifest:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-marketops-parity-manifest
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+  subscriber-global-marketops-evidence-materializer:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-marketops-evidence-materializer
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+  subscriber-global-eod-history-materializer:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-eod-history-materializer
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:?inject dedicated MarketOps temporal URL}
+  subscriber-global-saf-benchmark-materializer:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-saf-benchmark-materializer
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_TEMPORAL_DATABASE_URL: ${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:?inject dedicated MarketOps temporal URL}
+  subscriber-global-annual-financial-refresh:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-annual-financial-refresh
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+      SIGNALOPS_FMP_BASE_URL: ${SIGNALOPS_FMP_BASE_URL:-}
+      SIGNALOPS_FMP_API_KEY: ${SIGNALOPS_FMP_API_KEY:-${fmp_apikey:-}}
+  subscriber-global-annual-valuation-materializer:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-annual-valuation-materializer
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+  subscriber-global-annual-financial-task-worker:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-annual-financial-task-worker
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+      SIGNALOPS_FMP_BASE_URL: ${SIGNALOPS_FMP_BASE_URL:-}
+      SIGNALOPS_FMP_API_KEY: ${SIGNALOPS_FMP_API_KEY:-${fmp_apikey:-}}
+  subscriber-global-ranking-import:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-ranking-import
+    environment:
+      SIGNALOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+    volumes:
+      - ./companies.csv:/input/companies.csv:ro
+  subscriber-global-catalog-admission:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-catalog-admission
+    environment:
+      SIGNALOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}
+  subscriber-global-eod-shadow-planner:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-eod-shadow-planner
+    environment:
+      SIGNALOPS_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+
+
+  subscriber-global-intraday-shadow-capture:
+    profiles: ["subscriber-global-evidence"]
+    build:
+      context: .
+      target: subscriber-global-intraday-shadow-capture
+    environment:
+      SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL: ${SIGNALOPS_MARKETOPS_DATABASE_URL:?inject dedicated MarketOps primary URL}
+      SIGNALOPS_MASSIVE_BASE_URL: ${SIGNALOPS_MASSIVE_BASE_URL:-}
+      SIGNALOPS_MASSIVE_API_KEY: ${SIGNALOPS_MASSIVE_API_KEY:-}

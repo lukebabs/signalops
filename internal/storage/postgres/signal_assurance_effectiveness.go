@@ -16,20 +16,21 @@ const signalAssuranceMetricDefinitionVersion = "saf_effectiveness.v1"
 const signalAssuranceMinimumRankedSample = 30
 
 type effectivenessObservation struct {
-	source, algorithm, version, signalType, direction, state string
-	confidence, absoluteReturn, relativeReturn, mfe, mae     *float64
-	horizon                                                  int
-	complete                                                 bool
-	legacyHit                                                *bool
-	id, referenceID, symbol, evaluationMode                  string
-	score                                                    *float64
-	originAt, outcomeAt                                      *time.Time
-	calculationVersion, calculationRunID                     string
+	source, algorithm, version, signalType, direction, state                   string
+	confidence, absoluteReturn, relativeReturn, sectorRelativeReturn, mfe, mae *float64
+	broadMarketBenchmarkState, sectorBenchmarkState                            string
+	horizon                                                                    int
+	complete                                                                   bool
+	legacyHit                                                                  *bool
+	id, referenceID, symbol, evaluationMode                                    string
+	score                                                                      *float64
+	originAt, outcomeAt                                                        *time.Time
+	calculationVersion, calculationRunID                                       string
 }
 type effectivenessAccumulator struct {
 	sample, hits, materialized, invalidated, expired, censored, excluded int
-	absoluteSum, relativeSum, mfeSum, maeSum                             float64
-	absoluteN, relativeN, mfeN, maeN                                     int
+	absoluteSum, relativeSum, sectorRelativeSum, mfeSum, maeSum          float64
+	absoluteN, relativeN, sectorRelativeN, mfeN, maeN                    int
 }
 
 func (r *Repository) ListSignalAssuranceEffectiveness(ctx context.Context, f storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessRecord, error) {
@@ -48,6 +49,7 @@ func (r *Repository) ListSignalAssuranceEffectiveness(ctx context.Context, f sto
 		}
 		observations = append(observations, values...)
 	}
+	observations = filterEffectivenessObservationsByOutcomeStart(observations, f.OutcomeNotBefore)
 	return aggregateEffectiveness(observations, normalizedEffectivenessDimension(f.Dimension)), nil
 }
 func (r *Repository) ListSignalAssuranceEffectivenessObservations(ctx context.Context, f storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessObservationRecord, error) {
@@ -74,6 +76,7 @@ func (r *Repository) ListSignalAssuranceEffectivenessObservations(ctx context.Co
 			}
 		}
 	}
+	values = filterEffectivenessObservationsByOutcomeStart(values, f.OutcomeNotBefore)
 	sort.Slice(values, func(i, j int) bool {
 		if values[i].outcomeAt == nil {
 			return false
@@ -110,7 +113,7 @@ func (r *Repository) ListSignalAssuranceEffectivenessObservations(ctx context.Co
 			}
 			directionalReturn = &v
 		}
-		out = append(out, storage.SignalAssuranceEffectivenessObservationRecord{EvidenceSource: value.source, ObservationID: value.id, ReferenceID: value.referenceID, Symbol: value.symbol, SignalType: value.signalType, Direction: value.direction, Algorithm: value.algorithm, AlgorithmVersion: value.version, State: value.state, EvaluationMode: value.evaluationMode, HorizonSessions: value.horizon, SignalScore: value.score, Confidence: value.confidence, DirectionalHit: hit, AbsoluteReturn: value.absoluteReturn, DirectionalReturn: directionalReturn, RelativeReturn: value.relativeReturn, MFE: value.mfe, MAE: value.mae, OriginAt: value.originAt, OutcomeAt: value.outcomeAt, CalculationVersion: value.calculationVersion, CalculationRunID: value.calculationRunID})
+		out = append(out, storage.SignalAssuranceEffectivenessObservationRecord{EvidenceSource: value.source, ObservationID: value.id, ReferenceID: value.referenceID, Symbol: value.symbol, SignalType: value.signalType, Direction: value.direction, Algorithm: value.algorithm, AlgorithmVersion: value.version, State: value.state, EvaluationMode: value.evaluationMode, HorizonSessions: value.horizon, SignalScore: value.score, Confidence: value.confidence, DirectionalHit: hit, AbsoluteReturn: value.absoluteReturn, DirectionalReturn: directionalReturn, RelativeReturn: value.relativeReturn, SectorRelativeReturn: value.sectorRelativeReturn, MFE: value.mfe, MAE: value.mae, OriginAt: value.originAt, OutcomeAt: value.outcomeAt, CalculationVersion: value.calculationVersion, CalculationRunID: value.calculationRunID})
 	}
 	return out, nil
 }
@@ -185,6 +188,27 @@ func (r *Repository) listLegacyEffectivenessObservations(ctx context.Context, f 
 	}
 	return out, rows.Err()
 }
+
+func filterEffectivenessObservationsByOutcomeStart(values []effectivenessObservation, cutoff *time.Time) []effectivenessObservation {
+	if cutoff == nil {
+		return values
+	}
+	out := make([]effectivenessObservation, 0, len(values))
+	for _, value := range values {
+		effectiveAt := value.outcomeAt
+		if effectiveAt == nil {
+			effectiveAt = value.originAt
+		}
+		if effectiveAt == nil {
+			continue
+		}
+		if !effectiveAt.Before(*cutoff) {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
 func effectivenessObservationIncluded(x effectivenessObservation) bool {
 	terminal := x.source == "LEGACY" || x.state == storage.SignalAssertionMaterialized || x.state == storage.SignalAssertionInvalidated || x.state == storage.SignalAssertionExpired || x.state == storage.SignalAssertionSuperseded || x.state == storage.SignalAssertionClosed
 	return terminal && x.complete
@@ -233,6 +257,7 @@ func aggregateEffectiveness(values []effectivenessObservation, dimension string)
 		}
 		addMetric(&a.absoluteSum, &a.absoluteN, x.absoluteReturn)
 		addMetric(&a.relativeSum, &a.relativeN, x.relativeReturn)
+		addMetric(&a.sectorRelativeSum, &a.sectorRelativeN, x.sectorRelativeReturn)
 		addMetric(&a.mfeSum, &a.mfeN, x.mfe)
 		addMetric(&a.maeSum, &a.maeN, x.mae)
 	}
@@ -255,6 +280,9 @@ func aggregateEffectiveness(values []effectivenessObservation, dimension string)
 		}
 		record.AverageReturn = averageMetric(a.absoluteSum, a.absoluteN)
 		record.AverageRelativeReturn = averageMetric(a.relativeSum, a.relativeN)
+		record.AverageSectorRelativeReturn = averageMetric(a.sectorRelativeSum, a.sectorRelativeN)
+		record.BroadMarketBenchmarkSampleSize = a.relativeN
+		record.SectorBenchmarkSampleSize = a.sectorRelativeN
 		record.AverageMFE = averageMetric(a.mfeSum, a.mfeN)
 		record.AverageMAE = averageMetric(a.maeSum, a.maeN)
 		out = append(out, record)
@@ -265,10 +293,16 @@ func aggregateEffectiveness(values []effectivenessObservation, dimension string)
 	return out
 }
 func (r *Repository) ListSignalAssuranceRecommendations(ctx context.Context, f storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceRecommendationRecord, error) {
+	return signalAssuranceRecommendations(f, func(filter storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessRecord, error) {
+		return r.ListSignalAssuranceEffectiveness(ctx, filter)
+	})
+}
+
+func signalAssuranceRecommendations(f storage.SignalAssuranceEffectivenessFilter, list func(storage.SignalAssuranceEffectivenessFilter) ([]storage.SignalAssuranceEffectivenessRecord, error)) ([]storage.SignalAssuranceRecommendationRecord, error) {
 	dimensions := []string{"algorithm_version", "signal_type", "confidence_band"}
 	out := []storage.SignalAssuranceRecommendationRecord{}
 	for _, dimension := range dimensions {
-		rows, err := r.ListSignalAssuranceEffectiveness(ctx, storage.SignalAssuranceEffectivenessFilter{TenantID: f.TenantID, EvidenceSource: f.EvidenceSource, EvaluationMode: f.EvaluationMode, Dimension: dimension})
+		rows, err := list(storage.SignalAssuranceEffectivenessFilter{TenantID: f.TenantID, EvidenceSource: f.EvidenceSource, EvaluationMode: f.EvaluationMode, Dimension: dimension, OutcomeNotBefore: f.OutcomeNotBefore})
 		if err != nil {
 			return nil, err
 		}
@@ -300,7 +334,7 @@ func effectivenessSources(value string) []string {
 }
 func normalizedEffectivenessDimension(value string) string {
 	switch strings.TrimSpace(value) {
-	case "algorithm_version", "signal_type", "direction", "confidence_band", "horizon":
+	case "algorithm_version", "signal_type", "direction", "confidence_band", "horizon", "benchmark_coverage":
 		return strings.TrimSpace(value)
 	default:
 		return "overall"
@@ -321,10 +355,24 @@ func dimensionValue(x effectivenessObservation, dimension string) string {
 		return confidenceBand(x.confidence)
 	case "horizon":
 		return strconv.Itoa(x.horizon) + " sessions"
+	case "benchmark_coverage":
+		return benchmarkCoverageBand(x)
 	default:
 		return "all"
 	}
 }
+func benchmarkCoverageBand(x effectivenessObservation) string {
+	broad := strings.TrimSpace(x.broadMarketBenchmarkState)
+	sector := strings.TrimSpace(x.sectorBenchmarkState)
+	if broad == "" {
+		broad = "not_recorded"
+	}
+	if sector == "" {
+		sector = "not_recorded"
+	}
+	return "broad=" + broad + "; sector=" + sector
+}
+
 func confidenceBand(value *float64) string {
 	if value == nil {
 		return "unknown"

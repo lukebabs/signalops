@@ -1,0 +1,84 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-signalops-production-web-ingress-egress
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-web
+    signalops.syncratic.io/stage: production
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-web
+      app.kubernetes.io/part-of: signalops
+      signalops.syncratic.io/stage: production
+      signalops.syncratic.io/production-cutover-allowed: "true"
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+          podSelector:
+            matchLabels:
+              gateway.networking.k8s.io/gateway-name: public-ingress
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signalops-gateway
+              app.kubernetes.io/part-of: signalops
+              signalops.syncratic.io/stage: production
+              signalops.syncratic.io/production-cutover-allowed: "true"
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-istio-public-ingress-to-signalops-production-gateway
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-gateway
+    signalops.syncratic.io/stage: production
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-gateway
+      app.kubernetes.io/part-of: signalops
+      signalops.syncratic.io/stage: production
+      signalops.syncratic.io/production-cutover-allowed: "true"
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+          podSelector:
+            matchLabels:
+              gateway.networking.k8s.io/gateway-name: public-ingress
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signalops-web
+              app.kubernetes.io/part-of: signalops
+              signalops.syncratic.io/stage: production
+              signalops.syncratic.io/production-cutover-allowed: "true"
+      ports:
+        - protocol: TCP
+          port: 8080

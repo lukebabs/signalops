@@ -1,0 +1,5 @@
+REVOKE ALL ON subscriber_global_warm_eod_assets, subscriber_global_hot_intraday_assets FROM signalops_subscriber_global_eod;
+REVOKE ALL ON subscriber_global_eod_warm_set_activations FROM signalops_subscriber_global_eod;
+DROP VIEW IF EXISTS subscriber_global_hot_intraday_assets;
+DROP VIEW IF EXISTS subscriber_global_warm_eod_assets;
+DROP TABLE IF EXISTS subscriber_global_eod_warm_set_activations;

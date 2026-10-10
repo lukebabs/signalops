@@ -161,6 +161,19 @@ services:
       SIGNALOPS_AUTH_AUDIENCE: ${SIGNALOPS_AUTH_AUDIENCE:-signalops-api}
       SIGNALOPS_AUTH_CLIENT_ID: ${SIGNALOPS_AUTH_CLIENT_ID:-signalops-web}
       SIGNALOPS_NOTIFICATION_ENCRYPTION_KEY: ${SIGNALOPS_NOTIFICATION_ENCRYPTION_KEY:-}
+      SIGNALOPS_SUBSCRIBER_LISTS_ENABLED: ${SIGNALOPS_SUBSCRIBER_LISTS_ENABLED:-false}
+      SIGNALOPS_SUBSCRIPTIONS_ENABLED: ${SIGNALOPS_SUBSCRIPTIONS_ENABLED:-false}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_API_KEY: ${STRIPE_API_KEY:-}
+      STRIPE_RESTRICTED_API_KEY: ${STRIPE_RESTRICTED_API_KEY:-}
+      SIGNALOPS_STRIPE_CHECKOUT_SUCCESS_URL: ${SIGNALOPS_STRIPE_CHECKOUT_SUCCESS_URL:-https://signalops.syncratic.io/marketops/subscription/return?session_id={CHECKOUT_SESSION_ID}}
+      SIGNALOPS_STRIPE_CHECKOUT_CANCEL_URL: ${SIGNALOPS_STRIPE_CHECKOUT_CANCEL_URL:-https://signalops.syncratic.io/marketops/pricing}
+      SIGNALOPS_STRIPE_PORTAL_RETURN_URL: ${SIGNALOPS_STRIPE_PORTAL_RETURN_URL:-https://signalops.syncratic.io/marketops/pricing}
+      SIGNALOPS_SUBSCRIBER_LISTS_PILOT_TENANTS: ${SIGNALOPS_SUBSCRIBER_LISTS_PILOT_TENANTS:-}
+      SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID: ${SIGNALOPS_SUBSCRIBER_B2C_TENANT_ID:-tenant-local}
+      SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER: ${SIGNALOPS_SUBSCRIBER_B2C_AUTO_ACTIVATE_EXPLORER:-false}
+      SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION: ${SIGNALOPS_SUBSCRIBER_B2C_REQUIRE_SUBSCRIPTION:-true}
+      SIGNALOPS_SUBSCRIBER_GATEWAY_DATABASE_URL: postgres://signalops_subscriber_gateway_runtime:${SIGNALOPS_SUBSCRIBER_GATEWAY_PASSWORD:-}@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_SCHEDULE_STATUS_DIR: /var/lib/signalops/scheduled-jobs
       SYNCRATIC_API_BASE_URL: ${SYNCRATIC_API_BASE_URL:-}
       SYNCRATIC_AUTH_MODE: ${SYNCRATIC_AUTH_MODE:-api_key}
@@ -186,8 +199,9 @@ services:
         VITE_SIGNALOPS_AUTH_REALM: ${VITE_SIGNALOPS_AUTH_REALM:-syncratic}
         VITE_SIGNALOPS_AUTH_CLIENT_ID: ${VITE_SIGNALOPS_AUTH_CLIENT_ID:-signalops-web}
         VITE_SIGNALOPS_AUTH_AUDIENCE: ${VITE_SIGNALOPS_AUTH_AUDIENCE:-signalops-api}
+        VITE_SIGNALOPS_AUTH_SIGNUP_URL: ${VITE_SIGNALOPS_AUTH_SIGNUP_URL:-}
         VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES: ${VITE_SIGNALOPS_AUTH_IDLE_TIMEOUT_MINUTES:-30}
-        VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS: ${VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS:-300}
+        VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS: ${VITE_SIGNALOPS_AUTH_RENEW_BEFORE_EXPIRY_SECONDS:-60}
     depends_on:
       gateway:
         condition: service_started
@@ -509,6 +523,7 @@ services:
     build:
       context: .
       target: normalizer
+    restart: unless-stopped
     depends_on:
       redpanda:
         condition: service_healthy
@@ -531,6 +546,7 @@ services:
     build:
       context: .
       target: signal-persister
+    restart: unless-stopped
     depends_on:
       redpanda:
         condition: service_healthy
@@ -552,6 +568,7 @@ services:
     build:
       context: .
       target: marketops-signal-assurance-registrar
+    restart: unless-stopped
     depends_on:
       redpanda:
         condition: service_healthy
@@ -571,6 +588,7 @@ services:
     build:
       context: .
       target: marketops-signal-assurance-outbox
+    restart: unless-stopped
     depends_on:
       redpanda:
         condition: service_healthy
@@ -597,6 +615,18 @@ services:
       SIGNALOPS_ENV: local
       SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
       SIGNALOPS_TEMPORAL_DATABASE_URL: postgres://signalops:signalops@timescaledb:5432/signalops_temporal?sslmode=disable
+
+  marketops-sri-holdings-runner:
+    profiles: ["marketops-daily"]
+    build:
+      context: .
+      target: marketops-sri-holdings-runner
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SIGNALOPS_ENV: local
+      SIGNALOPS_DATABASE_URL: postgres://signalops:signalops@postgres:5432/signalops?sslmode=disable
 
   marketops-signal-assurance-worker:
     profiles: ["marketops-daily"]

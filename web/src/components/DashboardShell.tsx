@@ -2,6 +2,8 @@ import { Suspense } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Activity,
+  UserRound,
+  Wrench,
   CircleDollarSign,
   ListTree,
   Database,
@@ -22,16 +24,18 @@ import {
   Monitor,
   Telescope,
   LineChart,
+  LockKeyhole,
   type LucideIcon,
 } from 'lucide-react';
 import { HealthIndicator } from './HealthIndicator';
 import { useAuth } from '../auth/session';
-import { displayIdentity } from '../auth/claims';
+import { displayIdentity, hasPlatformAdmin, hasSubscriptionAdministrator, rolesFromClaims } from '../auth/claims';
 import { useTheme, type ThemePreference } from '../theme/theme';
 import { useAppProfile } from '../apps/AppProfileContext';
 import { defaultRouteForApp } from '../apps/appRouting';
 import syncraticPortalLogo from '../assets/syncratic-portal-logo.svg';
 import type { AppProfile } from '../types';
+import { useSubscription } from '../subscriber/SubscriptionContext';
 
 const navItem =
   'inline-flex items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-gray-600 hover:bg-gray-50';
@@ -48,6 +52,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   sources: DatabaseZap,
   providers: DatabaseZap,
   symbols: CircleDollarSign,
+  watchlists: ListTree,
   pipelines: Workflow,
   rules: ShieldCheck,
   replay: History,
@@ -64,6 +69,9 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   indicator_reel: Radar,
   access: ShieldCheck,
   settings: ShieldCheck,
+  profile: UserRound,
+  tools: Wrench,
+  subscriptions: ShieldCheck,
 };
 
 export function DashboardShell() {
@@ -71,6 +79,8 @@ export function DashboardShell() {
   const { preference, setPreference } = useTheme();
   const identity = authEnabled ? displayIdentity(claims) : undefined;
   const { profiles, currentApp, currentAppId, nav, superAdmin } = useAppProfile();
+  const { allows } = useSubscription();
+  const marketOpsToolsAllowed = hasPlatformAdmin(claims) || rolesFromClaims(claims).includes('signalops:operator');
   const location = useLocation();
   const isLanding = location.pathname === "/";
   const navigate = useNavigate();
@@ -120,9 +130,10 @@ export function DashboardShell() {
           </label>
           <HealthIndicator />
           {superAdmin && <Link to="/admin/dashboard" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Administration</Link>}
+          {!superAdmin && hasSubscriptionAdministrator(claims) && <Link to="/admin/subscriptions" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Subscription Administration</Link>}
           {identity && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-600">{identity}</span>
+              <Link to="/marketops/profile" className="rounded px-1 py-0.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">{identity}</Link>
               <button
                 type="button"
                 onClick={() => void signOut()}
@@ -137,8 +148,14 @@ export function DashboardShell() {
         </div>
       </header>
       {!isLanding && <nav className="flex flex-wrap gap-1 border-b border-gray-200 bg-white px-2">
-        {nav.map((item) => {
+        {nav.filter((item) => item.module !== 'tools' || marketOpsToolsAllowed).map((item) => {
           const Icon = MODULE_ICONS[item.module] ?? Activity;
+          const locked = !allows(item.subscriptionFeature);
+          if (locked) return (
+            <span key={item.to} title="Requires an included MarketOps subscription" className={` cursor-not-allowed text-gray-400`} aria-disabled="true">
+              <LockKeyhole size={14} /> {item.label}
+            </span>
+          );
           return (
             <Link key={item.to} to={item.to} className={navItem} activeProps={{ className: navItemActive }}>
               <Icon size={14} /> {item.label}

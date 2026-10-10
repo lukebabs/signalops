@@ -10,6 +10,18 @@ Each card shows the segment ID, composite score, context state, rank, evidence q
 
 The screen never treats a card as a trade instruction. Its visible evidence note states that the Foundation does not claim rotation, breadth, diffusion, flows, or a recommendation.
 
+## ETF progression
+
+The **ETF progression** tab lists the 16 scored primary ETFs in the same dense, sortable table pattern as Assets. Its columns expose rank, ETF and segment identity, composite score, state, relative strength, momentum, acceleration, quality, and completed session. Select a row to open its inline chart without leaving the page. The chart defaults to composite score and can switch to relative strength, momentum, or acceleration. Each point retains its session date, state, rank, and quality in the tooltip.
+
+The history endpoint returns up to 60 usable, common completed market sessions, so incomplete snapshots do not displace a scored session in the chart. On a narrow viewport, the table supports horizontal swipe and selecting a row scrolls its inline chart into view.
+
+The selected-row panel also has an **ETF makeup** tab. It shows a current, issuer-published holdings snapshot, its effective date, reported total and top-ten weights, a source link, and a compact scrollable constituent table. The makeup is explicitly representational: it does not alter SRI scores and does not claim to recreate historical holdings.
+
+State Street daily holdings files provide this free snapshot for 12 of the 16 current SRI primary ETFs: KRE and the eleven Select Sector SPDR ETFs. IBB, IGV, OIH, and SMH remain transparently unavailable until a separately governed public source is added.
+
+For source coverage, provenance, API behavior, schedule, and troubleshooting, see [SRI Current ETF Makeup](../operations/sri_etf_makeup.md).
+
 ## Color language
 
 Color reinforces, but never replaces, the text state:

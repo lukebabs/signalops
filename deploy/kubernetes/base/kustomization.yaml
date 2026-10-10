@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespaces/signalops-app.yaml
+  - namespaces/signalops-connect.yaml
+  - namespaces/signalops-cyberops.yaml
+  - namespaces/signalops-data.yaml
+  - namespaces/signalops-identity.yaml
+  - namespaces/signalops-marketops.yaml
+  - namespaces/signalops-observability.yaml
+  - rbac/signalops-app-serviceaccounts.yaml
+  - rbac/signalops-connect-serviceaccounts.yaml
+  - rbac/signalops-cyberops-serviceaccounts.yaml
+  - rbac/signalops-data-serviceaccounts.yaml
+  - rbac/signalops-identity-serviceaccounts.yaml
+  - rbac/signalops-marketops-serviceaccounts.yaml
+  - rbac/signalops-observability-serviceaccounts.yaml
+  - network-policies/app-allow-gateway-egress.yaml
+  - network-policies/app-allow-openbao-egress.yaml
+  - network-policies/app-allow-traefik-ingress.yaml
+  - network-policies/connect-allow-data-egress.yaml
+  - network-policies/cyberops-allow-data-egress.yaml
+  - network-policies/data-allow-platform-ingress.yaml
+  - network-policies/identity-allow-app-ingress.yaml
+  - network-policies/marketops-allow-data-and-provider-egress.yaml
+  - network-policies/observability-allow-scrape-egress.yaml
+  - network-policies/signalops-app-default-deny.yaml
+  - network-policies/signalops-connect-default-deny.yaml
+  - network-policies/signalops-cyberops-default-deny.yaml
+  - network-policies/signalops-data-default-deny.yaml
+  - network-policies/signalops-identity-default-deny.yaml
+  - network-policies/signalops-marketops-default-deny.yaml
+  - network-policies/signalops-observability-default-deny.yaml
+  - secrets/secret-class-policy.yaml
+  - secrets/openbao/openbao-agent-injection-policy.yaml
+  - secrets/openbao/signalops-app-secret-reader.yaml
+  - secrets/openbao/signalops-connect-secret-reader.yaml
+  - secrets/openbao/signalops-cyberops-secret-reader.yaml
+  - secrets/openbao/signalops-data-secret-reader.yaml
+  - secrets/openbao/signalops-identity-secret-reader.yaml
+  - secrets/openbao/signalops-marketops-secret-reader.yaml
+  - secrets/openbao/signalops-observability-secret-reader.yaml
