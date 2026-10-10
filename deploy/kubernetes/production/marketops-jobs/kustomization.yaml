@@ -6,7 +6,7 @@ resources:
   - marketops-jobs-openbao-egress.yaml
 images:
   - name: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner
-    newTag: 778488efe1be
+    newTag: a49a7d5ea0a8
 labels:
   - includeSelectors: false
     pairs:
