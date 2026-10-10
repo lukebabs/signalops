@@ -10311,3 +10311,10 @@ Next-cycle priority:
 - Restored shared targets passed parity checks: `signalops` 159 tables and `signalops_temporal` six tables. The recovery baseline remains encrypted pgBackRest backup `20260914-044935F`.
 - K8s gateway startup exposed a restore limitation: PostgreSQL role passwords and LOGIN attributes are not carried by database dumps. Synchronized `signalops_subscriber_gateway_runtime` from the protected runtime configuration and enabled LOGIN without exposing the credential.
 - Restarted the internal K8s production gateway; both replicas are `2/2 Running`, web replicas remain healthy, and gateway logs show normal startup with MarketOps dedicated-data routing. Public traffic remains on Docker pending the separate traffic-authority gate.
+
+### 2026-10-10 — Primary EOD selector reconciled
+
+- Production inspection found the governed tenant-local primary projection contained 225 active symbols (the UI currently shows 224 with usable downstream evidence), while the warm-EOD view contained 1,000 assets and omitted 11 primary symbols (`ARM`, `ASML`, `BABA`, `ETSY`, `FSLY`, `GOOG`, `GTLB`, `HSBC`, `NVS`, `TCEHY`, `TSM`).
+- Added migration `000191_marketops_primary_eod_selector`, creating the query-time `marketops_primary_assets` view over the governed `marketops_universal_assets` projection. The view is dynamic and preserves the existing priority/rank order, so primary-list changes are picked up by the next run.
+- Routed production post-close, Risk/Reward, SAF, daily post-close, recovery, and algorithm-corroboration selectors through this single view. The migration was applied to the K8s production MarketOps database and verified at 225 active primary assets.
+- Latest EOD task evidence showed 131 completed and 94 `skipped_no_data`; those skips are dependency evidence (VC/DOSM or same-session technical inputs), not silent cohort omission. The source selector now remains complete and auditable even when an individual algorithm lacks inputs.

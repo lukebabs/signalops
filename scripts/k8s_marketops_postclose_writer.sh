@@ -8,7 +8,7 @@ start_date="${MARKETOPS_POSTCLOSE_WINDOW_START:-$session_date}"
 ack="${MARKETOPS_POSTCLOSE_ACKNOWLEDGE_WRITES:-false}"
 [[ "$ack" == true ]] || { echo "postclose writer requires MARKETOPS_POSTCLOSE_ACKNOWLEDGE_WRITES=true" >&2; exit 2; }
 : "${SIGNALOPS_MARKETOPS_DATABASE_URL:?dedicated MarketOps database required}"
-mapfile -t symbols < <(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "SELECT ticker FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY rank NULLS LAST,ticker")
+mapfile -t symbols < <(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "SELECT ticker FROM marketops_primary_assets WHERE tenant_id='tenant-local' ORDER BY universe_priority,rank NULLS LAST,ticker")
 ((${#symbols[@]} > 0)) || { echo "no active MarketOps symbols" >&2; exit 3; }
 # SRI is platform-global and consumes a fixed ETF source set that is not part
 # of the tenant-local stock universe. Capture those 24 ETFs in this same

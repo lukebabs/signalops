@@ -57,9 +57,9 @@ exec 9>"$recovery_lock"
 flock -n 9 || { printf 'post-close recovery already running\n'; exit 0; }
 
 compact() { tr -d '[:space:]'; }
-active_symbols="$(marketops_primary_psql -Atc "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank) FROM (SELECT DISTINCT ON (ticker) ticker, universe_priority, rank FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active ORDER BY ticker, universe_priority, rank) canonical;" | compact)"
+active_symbols="$(marketops_primary_psql -Atc "SELECT string_agg(ticker, ',' ORDER BY universe_priority, rank NULLS LAST, ticker) FROM marketops_primary_assets WHERE tenant_id='tenant-local';" | compact)"
 [[ -n "$active_symbols" ]] || { printf 'active equity universe is empty\n' >&2; exit 4; }
-expected="$(marketops_primary_psql -Atc "SELECT count(DISTINCT ticker) FROM marketops_universal_assets WHERE tenant_id='tenant-local' AND is_active;" | compact)"
+expected="$(marketops_primary_psql -Atc "SELECT count(*) FROM marketops_primary_assets WHERE tenant_id='tenant-local';" | compact)"
 [[ "$expected" =~ ^[1-9][0-9]*$ ]] || { printf 'invalid active universe count: %s\n' "$expected" >&2; exit 4; }
 
 sri_output_tenant="${SIGNALOPS_SRI_OUTPUT_TENANT_ID:-platform-global}"
