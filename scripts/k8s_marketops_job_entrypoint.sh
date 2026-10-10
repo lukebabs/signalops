@@ -132,7 +132,10 @@ case "$job_id" in
       signalops-marketops-intraday-monitor
       --tenant-id "${MARKETOPS_INTRADAY_TENANT_ID:-tenant-local}"
       --universe-group "${MARKETOPS_INTRADAY_UNIVERSE_GROUP:-all_active}"
-      --max-symbols "${MARKETOPS_INTRADAY_MAX_SYMBOLS:-200}"
+      # The governed primary cohort is dynamic (currently 225 assets). Keep
+      # the worker limit above that cohort so no tail assets silently miss
+      # intraday monitoring.
+      --max-symbols "${MARKETOPS_INTRADAY_MAX_SYMBOLS:-500}"
     )
     if [[ "$mode_flag" == "--dry-run" ]]; then
       command_args+=(--dry-run)

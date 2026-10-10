@@ -512,7 +512,7 @@ if $write_mode; then
   log "research signal assurance evaluation started as_of=$session_date"
   marketops_compose --profile marketops-daily run --rm marketops-signal-assurance-worker --tenant-id tenant-local --as-of "$session_date" --mode RESEARCH --run-id saf-research-materializations-v1
   log "universal completed-close refresh started symbols=${#workflow_symbols[@]}"
-  marketops_compose --profile marketops-intraday run --rm marketops-intraday-monitor --tenant-id tenant-local --universe-group all_active --max-symbols 200 --allow-outside-session
+  marketops_compose --profile marketops-intraday run --rm marketops-intraday-monitor --tenant-id tenant-local --universe-group all_active --max-symbols 500 --allow-outside-session
   bash ./scripts/marketops_universal_completion_gate.sh "$session_date" "$workflow_universe_symbols" "${#workflow_symbols[@]}" || exit 8
   marketops_compose --profile marketops-daily run --build --rm marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
   bash ./scripts/marketops_global_dashboard_projection.sh "$session_date" || exit 9
