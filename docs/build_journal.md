@@ -10327,3 +10327,8 @@ Next-cycle priority:
 - Completion now requires a current snapshot for every primary asset while allowing the algorithm result count to reflect only the ready subset. The primary selector remains the single dynamic source of truth.
 - The Assets Risk/Reward API now includes current partial/unavailable rows instead of filtering them out. This prevents an asset with a current but incomplete evidence row from falling back to “Awaiting EOD analysis”; the UI can distinguish current evidence from an asserted signal.
 - Reconciliation evidence: `marketops_risk_reward_snapshots=225`, `subscriber_gateway_global_risk_reward_snapshots=225` for 2026-10-09; TTE is present with `usable_input_count=4/8`, `eligible=false`, and `quality_state=partial`.
+
+### 2026-10-10 — Primary cohort takes precedence over stale global-EOD fallback
+
+- Root cause for assets such as TRV showing `Global EOD only` was API projection precedence, not missing MarketOps data. TRV was already in the 225-asset primary cohort with normalized 2026-10-09 EOD data, Market State, technical features, and Risk/Reward; the watchlist fallback instead selected an old subscriber global EOD context dated 2026-08-31.
+- The Assets endpoint now loads up to 500 governed assets and prefers the current primary MarketOps row for watchlist members. Subscriber global EOD fallback is retained only for assets not yet in the operational primary cohort.

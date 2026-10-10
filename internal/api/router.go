@@ -2792,7 +2792,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		}
 		universeGroup := strings.TrimSpace(r.URL.Query().Get("universe_group"))
 		activeOnly := !strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("active_only")), "false")
-		assets, err := repo.ListMarketOpsAssets(r.Context(), tenantID, universeGroup, activeOnly, 200)
+		// The governed primary projection currently contains 225 assets and is
+		// intentionally dynamic. Keep the API limit above that cohort so the
+		// watchlist projection cannot silently drop the tail of the task set.
+		assets, err := repo.ListMarketOpsAssets(r.Context(), tenantID, universeGroup, activeOnly, 500)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list MarketOps assets")
 			return
@@ -2801,7 +2804,9 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		if subscriberWatchlistContextEnabled(cfg, tenantID) {
 			visible := make([]storage.MarketOpsAssetRecord, 0, len(assets))
 			visibleTickers := map[string]struct{}{}
+			primaryByTicker := make(map[string]storage.MarketOpsAssetRecord, len(assets))
 			for _, asset := range assets {
+				primaryByTicker[strings.ToUpper(asset.Ticker)] = asset
 				if _, allowed := watchlistContext.Tickers[strings.ToUpper(asset.Ticker)]; allowed {
 					visible = append(visible, asset)
 					visibleTickers[strings.ToUpper(asset.Ticker)] = struct{}{}
@@ -2828,6 +2833,14 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			for _, item := range watchlistContext.Items {
 				ticker := strings.ToUpper(item.Ticker)
 				if _, alreadyVisible := visibleTickers[ticker]; alreadyVisible {
+					continue
+				}
+				// Prefer the current governed MarketOps primary row. The global
+				// EOD fallback is only for watchlist assets that have not yet
+				// entered the tenant-local operational cohort.
+				if primary, found := primaryByTicker[ticker]; found {
+					visible = append(visible, primary)
+					visibleTickers[ticker] = struct{}{}
 					continue
 				}
 				if current, found := currentByTicker[ticker]; found {
