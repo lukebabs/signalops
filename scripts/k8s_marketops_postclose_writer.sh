@@ -30,12 +30,12 @@ if [[ "$normalized" =~ ^[0-9]+$ && "$normalized" -lt "$option_count" ]]; then ec
 # Reconcile only missing equity EOD rows after the initial pull. This is
 # intentionally separate from the provider pull so a transient failure for one
 # asset cannot block the rest of the post-close algorithms. The reconciler
-# discovers the canonical 225-asset operational union from all_active, reuses
+# discovers the live primary operational union from all_active, reuses
 # any raw events already present, retries missing symbols at most twice, and
 # reports an actionable recovery state when a provider gap remains.
 reconciliation_degraded=false
 if ! signalops-massive-puller --mode reconcile-equity --date "$session_date" --universe-group all_active \
-  --max-provider-requests "${MARKETOPS_EOD_RECONCILIATION_MAX_PROVIDER_REQUESTS:-225}" \
+  --max-provider-requests "${MARKETOPS_EOD_RECONCILIATION_MAX_PROVIDER_REQUESTS:-0}" \
   --max-attempts "${MARKETOPS_EOD_RECONCILIATION_MAX_ATTEMPTS:-2}" \
   --deadline "${MARKETOPS_EOD_RECONCILIATION_DEADLINE:-15m}" \
   --retry-backoffs "${MARKETOPS_EOD_RECONCILIATION_BACKOFFS:-30s,2m}" \

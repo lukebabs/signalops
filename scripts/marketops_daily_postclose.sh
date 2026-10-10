@@ -158,7 +158,7 @@ reconciliation_command=(marketops_compose --profile massive-pull run --rm massiv
   --mode reconcile-equity
   --date "$session_date"
   --universe-group all_active
-  --max-provider-requests 150
+  --max-provider-requests 0
   --max-attempts "$reconciliation_attempts"
   --deadline "$reconciliation_deadline"
   --retry-backoffs "$reconciliation_backoffs"
