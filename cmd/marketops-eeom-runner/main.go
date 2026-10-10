@@ -82,6 +82,7 @@ func run(ctx context.Context) error {
 		}
 	}
 	written, projected, globalProjected := 0, 0, 0
+	unmappedEvents := 0
 	for _, event := range events {
 		symbol := strings.ToUpper(event.Symbol)
 		if !active[symbol] {
@@ -99,7 +100,16 @@ func run(ctx context.Context) error {
 		if !*dry {
 			globalAssetID, resolveErr := repo.ResolveSubscriberGlobalCanonicalAssetID(ctx, symbol)
 			if resolveErr != nil {
-				return fmt.Errorf("resolve global asset for FMP earnings event %s: %w", symbol, resolveErr)
+				// Provider calendars can contain symbols that are not yet in the
+				// governed canonical catalog (for example a newly listed or
+				// malformed provider symbol).  That event is not safe to project,
+				// but it must not abort the entire post-close cohort.  Keep the
+				// failure visible and continue with the remaining assets so one bad
+				// provider row cannot suppress Market State, Risk/Reward, or EEOM
+				// materialization for the rest of the universe.
+				unmappedEvents++
+				fmt.Fprintf(os.Stderr, "skip unmapped FMP earnings event symbol=%s: %v\n", symbol, resolveErr)
+				continue
 			}
 			globalEventID := "fmp_earnings_" + stable("fmp", symbol, event.Date)
 			globalPayload, _ := json.Marshal(earningsEventPayload(symbol, date, retrievedAt, event))
@@ -137,7 +147,7 @@ func run(ctx context.Context) error {
 		}
 		written++
 	}
-	fmt.Printf("eeom completed provider=fmp calendar_events=%d projected_events=%d global_projected_events=%d results=%d fmp_calls=%d dry_run=%t events_only=%t\n", len(events), projected, globalProjected, written, calendarClient.Calls(), *dry, *eventsOnly)
+	fmt.Printf("eeom completed provider=fmp calendar_events=%d projected_events=%d global_projected_events=%d results=%d unmapped_events=%d fmp_calls=%d dry_run=%t events_only=%t\n", len(events), projected, globalProjected, written, unmappedEvents, calendarClient.Calls(), *dry, *eventsOnly)
 	return nil
 }
 func earningsEventPayload(symbol string, date, retrievedAt time.Time, event fmp.EarningsCalendarRecord) map[string]any {
