@@ -55,6 +55,51 @@ for symbol in "${ready_symbols[@]}"; do
     --min-samples 2 \
     --z-threshold 3.0
 done
+psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -v session_date="$session_date" <<'SQL'
+WITH primary_assets AS (
+  SELECT ticker FROM marketops_primary_assets WHERE tenant_id='tenant-local'
+), coverage AS (
+  SELECT p.ticker,
+         count(DISTINCT o.feature_key) FILTER (
+           WHERE o.quality_state IN ('usable','usable_with_warning')
+             AND o.numeric_value IS NOT NULL
+             AND o.feature_key IN ('range_position_252d','rsi_14','return_5d','volume_ratio_10d',
+                                   'distance_sma_50_pct','distance_sma_200_pct',
+                                   'sma_50_slope_20d_pct','atr_14_pct')
+         )::integer AS usable_count
+  FROM primary_assets p
+  LEFT JOIN marketops_feature_observations o
+    ON o.tenant_id='tenant-local' AND o.app_id='marketops'
+   AND o.symbol=p.ticker AND o.session_date=:'session_date'::date
+  GROUP BY p.ticker
+), missing AS (
+  SELECT c.* FROM coverage c
+  LEFT JOIN marketops_risk_reward_snapshots existing
+    ON existing.tenant_id='tenant-local' AND existing.symbol=c.ticker
+   AND existing.session_date=:'session_date'::date
+  WHERE existing.snapshot_id IS NULL
+)
+INSERT INTO marketops_risk_reward_snapshots (
+  snapshot_id,tenant_id,algorithm_result_id,execution_request_id,symbol,
+  session_date,observed_at,technical_score,technical_direction,risk_level,
+  confidence,usable_input_count,required_input_count,eligible,result_payload,input_snapshot
+)
+SELECT 'rr-unavailable-'||md5('tenant-local:'||ticker||':'||:'session_date'),
+  'tenant-local',
+  'rr-unavailable-result-'||md5('tenant-local:'||ticker||':'||:'session_date'),
+  'marketops-risk-reward-'||:'session_date'||'-'||ticker,
+  ticker,:'session_date'::date,:'session_date'::timestamptz+interval '20 hours',
+  0,'neutral','unavailable',0,usable_count,8,false,
+  jsonb_build_object('status','unavailable','reason','required technical inputs unavailable',
+                     'session_date',:'session_date','source','marketops_primary_assets'),
+  jsonb_build_object('usable_input_count',usable_count,'required_input_count',8)
+FROM missing
+ON CONFLICT (tenant_id,algorithm_result_id) DO UPDATE SET
+  usable_input_count=EXCLUDED.usable_input_count,
+  result_payload=EXCLUDED.result_payload,
+  input_snapshot=EXCLUDED.input_snapshot,
+  created_at=now();
+SQL
 result_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(DISTINCT result_payload->>'symbol') FROM algorithm_results WHERE tenant_id='tenant-local' AND algorithm_id='signalops.algorithms.risk_reward_temporal_v1' AND correlation_id='marketops-risk-reward-${session_date}';")"
 snapshot_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(DISTINCT symbol) FROM marketops_risk_reward_snapshots WHERE tenant_id='tenant-local' AND session_date=DATE '${session_date}';")"
 if [[ ! "$result_count" =~ ^[0-9]+$ || ! "$snapshot_count" =~ ^[0-9]+$ || "$result_count" -eq 0 || "$snapshot_count" -eq 0 ]]; then
@@ -62,10 +107,9 @@ if [[ ! "$result_count" =~ ^[0-9]+$ || ! "$snapshot_count" =~ ^[0-9]+$ || "$resu
   exit 4
 fi
 ready_count="${#ready_symbols[@]}"
-if [[ "$result_count" -lt "$ready_count" || "$snapshot_count" -lt "$ready_count" ]]; then
+if [[ "$result_count" -lt "$ready_count" || "$snapshot_count" -lt "$expected_count" ]]; then
   echo "marketops_k8s_risk_reward_degraded session=${session_date} expected=${expected_count} results=${result_count} snapshots=${snapshot_count}" >&2
   exit 42
 else
-  echo "marketops_k8s_risk_reward_executed session=${session_date} results=${result_count} snapshots=${snapshot_count} ready=${ready_count} active=${expected_count}"
-  (( ready_count == expected_count )) || exit 42
+  echo "marketops_k8s_risk_reward_executed session=${session_date} results=${result_count} snapshots=${snapshot_count} ready=${ready_count} unavailable=$((expected_count - ready_count)) active=${expected_count}"
 fi

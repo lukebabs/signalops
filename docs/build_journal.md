@@ -10319,3 +10319,9 @@ Next-cycle priority:
 - Routed production post-close, Risk/Reward, SAF, daily post-close, recovery, and algorithm-corroboration selectors through this single view. The migration was applied to the K8s production MarketOps database and verified at 225 active primary assets.
 - Latest EOD task evidence showed 131 completed and 94 `skipped_no_data`; those skips are dependency evidence (VC/DOSM or same-session technical inputs), not silent cohort omission. The source selector now remains complete and auditable even when an individual algorithm lacks inputs.
 - Published worker image `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:9239b78569a9` and applied it to all 15 production MarketOps CronJobs. The reconciliation path no longer has a fixed 225/150 provider-request cap; it resolves the live primary set and uses bounded retry/deadline controls instead.
+
+### 2026-10-10 — Risk/Reward cohort completeness guard
+
+- Root cause: the 225-asset primary cohort was selected correctly, but Risk/Reward only persisted snapshots for symbols with all eight technical inputs. On 2026-10-09 this produced 85 snapshots, leaving valid primary assets such as TTE displayed as “Awaiting EOD analysis” and leaving Dashboard breadth incomplete.
+- Updated the production Risk/Reward worker to emit an explicit, deterministic `unavailable` snapshot for every primary asset missing required technical inputs. These rows carry the actual usable-input count, `eligible=false`, neutral direction, zero confidence, and a reason payload; no score or direction is invented.
+- Completion now requires a current snapshot for every primary asset while allowing the algorithm result count to reflect only the ready subset. The primary selector remains the single dynamic source of truth.
