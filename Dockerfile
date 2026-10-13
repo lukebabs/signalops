@@ -444,6 +444,7 @@ COPY --from=build /out/signalops-subscriber-global-annual-financial-task-worker 
 COPY --from=build /out/signalops-subscriber-global-saf-benchmark-materializer /usr/local/bin/signalops-subscriber-global-saf-benchmark-materializer
 COPY --from=build /out/signalops-subscriber-global-marketops-parity-manifest /usr/local/bin/signalops-subscriber-global-marketops-parity-manifest
 COPY --from=build /out/signalops-subscriber-global-marketops-evidence-materializer /usr/local/bin/signalops-subscriber-global-marketops-evidence-materializer
+COPY --from=build /out/signalops-subscriber-global-eod-history-materializer /usr/local/bin/signalops-subscriber-global-eod-history-materializer
 COPY --from=build /out/signalops-retention-governor /usr/local/bin/signalops-retention-governor
 COPY scripts/k8s_marketops_job_entrypoint.sh /usr/local/bin/signalops-k8s-marketops-job
 COPY scripts/k8s_marketops_postclose_writer.sh /usr/local/bin/k8s-marketops-postclose-writer
