@@ -44,7 +44,7 @@ if ! signalops-massive-puller --mode reconcile-equity --date "$session_date" --u
   --deadline "${MARKETOPS_EOD_RECONCILIATION_DEADLINE:-15m}" \
   --retry-backoffs "${MARKETOPS_EOD_RECONCILIATION_BACKOFFS:-30s,2m}" \
   --normalization-poll "${MARKETOPS_EOD_RECONCILIATION_POLL:-5s}" \
-  --requeue-failed --acknowledge-writes; then
+  --requeue-failed --acknowledge-writes --dry-run=false; then
   reconciliation_degraded=true
   echo "marketops_k8s_postclose_eod_reconciliation_degraded session=$session_date; continuing algorithm stages" >&2
 fi
