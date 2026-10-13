@@ -65,6 +65,13 @@ signalops-marketops-tactical-valuation-runner --tenant-id tenant-local --univers
 signalops-marketops-eroc-runner --tenant-id tenant-local --universe-group primary_eod --session-date "$session_date" --dry-run=false
 signalops-marketops-eeom-runner --tenant-id tenant-local --session-date "$session_date" --dry-run=false
 signalops-marketops-syncratic-intelligence-runner --tenant-id tenant-local --session-date "$session_date"
+# The Assets view reads the global gateway EOD context, which must be
+# materialized from the retained normalized ledger in the same post-close
+# transaction boundary as the analytical projections. Keep this append-only
+# stage here so the UI cannot drift behind Market State/Risk/Reward again.
+signalops-subscriber-global-eod-history-materializer --execute \
+  --start-date "$session_date" --end-date "$session_date" --limit 50000 \
+  --correlation-id "postclose-eod-context-${session_date}"
 # Refresh the subscriber-facing global projection after all source algorithms finish.
 # This is append-only and runs against the dedicated K8s MarketOps database.
 k8s-marketops-global-dashboard-projection "$session_date"
