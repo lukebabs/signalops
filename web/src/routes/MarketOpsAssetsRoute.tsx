@@ -378,10 +378,10 @@ export function MarketOpsAssetsRoute() {
                       </div>
                     </div>
                   </td>
-                  <MarketDataCell quote={quoteMap.get(a.ticker.toUpperCase())} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
+                  <MarketDataCell quote={quoteMap.get(a.ticker.toUpperCase())} intraday={conditionMap.get(a.ticker.toUpperCase())} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
                   <IntradayConditionsCell snapshot={conditionMap.get(a.ticker.toUpperCase())} loading={conditionsQ.isLoading} error={conditionsQ.isError} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
                   <RiskRewardCell summary={riskRewardMap.get(a.ticker.toUpperCase())} loading={riskRewardQ.isLoading} error={riskRewardQ.isError} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
-                  <MarketDataUpdatedCell quote={quoteMap.get(a.ticker.toUpperCase())} refreshedAt={quotesQ.data?.refreshed_at ?? null} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
+                  <MarketDataUpdatedCell quote={quoteMap.get(a.ticker.toUpperCase())} intraday={conditionMap.get(a.ticker.toUpperCase())} refreshedAt={quotesQ.data?.refreshed_at ?? null} sharedEOD={sharedEODContext(a)} pending={!!a.subscriberCoverage} />
                 </tr>
                 {selectedTicker === a.ticker ? (
                   <tr className="bg-brand-50">
@@ -432,12 +432,12 @@ function AssetMobileCard({ asset, selected, onSelect, tenantId, quote, condition
         <span className="shrink-0 text-xs font-medium text-brand-700">{selected ? "Close" : "Inspect"}</span>
       </div>
       <div className="mt-3 grid gap-2">
-        <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Current Market Data</div><MarketDataCell quote={quote} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
+        <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Current Market Data</div><MarketDataCell quote={quote} intraday={condition} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
         <div className="grid grid-cols-1 gap-2 min-[390px]:grid-cols-2">
           <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Intraday</div><IntradayConditionsCell snapshot={condition} loading={conditionsLoading} error={conditionsError} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
           <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Risk/Reward</div><RiskRewardCell summary={riskReward} loading={riskRewardLoading} error={riskRewardError} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
         </div>
-        <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Updated</div><MarketDataUpdatedCell quote={quote} refreshedAt={quotesRefreshedAt} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
+        <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Updated</div><MarketDataUpdatedCell quote={quote} intraday={condition} refreshedAt={quotesRefreshedAt} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
       </div>
     </button>
     {selected ? <div className="mt-3">{asset.subscriberCoverage ? <PendingAssetCoveragePanel asset={asset.subscriberCoverage} onClose={onClose} /> : sharedEOD ? <SharedGlobalEODPanel context={sharedEOD} onClose={onClose} /> : <AssetOptionsPanel tenantId={tenantId} symbol={asset.ticker} onClose={onClose} />}</div> : null}
@@ -516,8 +516,15 @@ function IntradayConditionsCell({ snapshot, loading, error, sharedEOD, pending }
   return <td className="px-3 py-2 text-xs"><div className="space-y-1">{top.map((item) => <div key={item.key} title={item.evidence + " " + item.interpretation} className={item.tone === "positive" ? "cursor-help text-green-700" : item.tone === "negative" ? "cursor-help text-red-700" : "cursor-help text-gray-700"}>{item.title}</div>)}{snapshot.conditions.length > 2 ? <div className="text-[10px] text-gray-500">+{snapshot.conditions.length - 2} more</div> : null}<div className="text-[10px] text-gray-400">{snapshot.stale ? "Stale" : "15m monitor"}</div></div></td>;
 }
 
-function MarketDataCell({ quote, sharedEOD, pending }: { quote?: MarketOpsAssetQuote; sharedEOD?: SharedEODContext; pending?: boolean }) {
+function MarketDataCell({ quote, intraday, sharedEOD, pending }: { quote?: MarketOpsAssetQuote; intraday?: MarketOpsIntradayConditionSnapshot; sharedEOD?: SharedEODContext; pending?: boolean }) {
   if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; no completed-session close is available.">Coverage pending<div className="text-[10px]">No central close yet</div></td>;
+  const intradayPrice = typeof intraday?.source?.price === "number" && Number.isFinite(intraday.source.price) ? intraday.source.price : undefined;
+  const intradayChange = typeof intraday?.source?.change_percent === "number" && Number.isFinite(intraday.source.change_percent) ? intraday.source.change_percent : undefined;
+  if (intraday && !intraday.stale && intradayPrice != null) {
+    const positive = intradayChange != null && intradayChange > 0;
+    const negative = intradayChange != null && intradayChange < 0;
+    return <td className="px-3 py-2 text-xs" title={`Fresh 15-minute monitor quote from ${intraday.as_of_time}. The completed-session reference remains ${sharedEOD?.sessionDate ?? "the prior close"}.`}><span className={positive ? "inline-flex items-center gap-1 font-medium text-green-700" : negative ? "inline-flex items-center gap-1 font-medium text-red-700" : "inline-flex items-center gap-1 text-gray-700"}>{positive ? <ArrowUp size={14} aria-label="Up" /> : negative ? <ArrowDown size={14} aria-label="Down" /> : null}{intradayPrice.toFixed(2)} · {intradayChange == null ? "—" : `${intradayChange > 0 ? "+" : ""}${intradayChange.toFixed(2)}%`}<span className="rounded bg-green-100 px-1 text-[9px] font-medium text-green-700">15m</span></span></td>;
+  }
   if (sharedEOD) return <td className="px-3 py-2 text-xs text-emerald-800" title={"Verified global completed-session EOD from " + sharedEOD.provider + "; quality " + sharedEOD.qualityState + "."}><div className="font-medium">{sharedEOD.close == null ? "Close unavailable" : sharedEOD.close.toFixed(2)} <span className="rounded bg-emerald-100 px-1 text-[9px] font-medium text-emerald-700">Global EOD</span></div><div className="text-[10px] text-emerald-700">{sharedEOD.sessionDate} · {sharedEOD.provider}</div></td>;
   if (quote?.price == null) {
     return <td className="px-3 py-2 text-xs text-gray-500" title="No delayed intraday aggregate or completed daily close is currently available from the market-data provider.">Unavailable</td>;
@@ -547,8 +554,9 @@ function MarketDataCell({ quote, sharedEOD, pending }: { quote?: MarketOpsAssetQ
   );
 }
 
-function MarketDataUpdatedCell({ quote, refreshedAt, sharedEOD, pending }: { quote?: MarketOpsAssetQuote; refreshedAt?: string | null; sharedEOD?: SharedEODContext; pending?: boolean }) {
+function MarketDataUpdatedCell({ quote, intraday, refreshedAt, sharedEOD, pending }: { quote?: MarketOpsAssetQuote; intraday?: MarketOpsIntradayConditionSnapshot; refreshedAt?: string | null; sharedEOD?: SharedEODContext; pending?: boolean }) {
   if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; there is no completed-session timestamp yet.">Coverage pending</td>;
+  if (intraday && !intraday.stale && intraday.as_of_time) return <td className="px-3 py-2 text-xs text-gray-600" title={`Fresh 15-minute monitor snapshot as of ${formatUtc(intraday.as_of_time)}.`}>15m · {formatUtc(intraday.as_of_time)}</td>;
   if (sharedEOD) return <td className="px-3 py-2 text-xs text-emerald-800" title={"Verified global EOD observation from " + sharedEOD.provider + "."}>Global EOD · {sharedEOD.sessionDate}</td>;
   if (quote?.market_status === 'end_of_day') {
     const sessionDate = quote.timestamp ? quote.timestamp.slice(0, 10) : 'latest session';
@@ -1194,8 +1202,8 @@ export function WatchlistControls({ tenantId, onChanged }: { tenantId: string; o
       <button type="submit" disabled={busy} className="rounded bg-brand-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">Validate ticker</button>
     </form>
     {validation ? <div className="mt-3 space-y-2 border-t border-brand-200 pt-3 text-xs">
-      <div><span className="font-semibold">{validation.ticker}</span> � {validation.company} � {validation.exchange || "exchange unavailable"}</div>
-      <div className="text-gray-600">Sector: {validation.sector || "Not supplied"} � Industry: {validation.industry || "Not supplied"}</div>
+      <div><span className="font-semibold">{validation.ticker}</span> · {validation.company} · {validation.exchange || "exchange unavailable"}</div>
+      <div className="text-gray-600">Sector: {validation.sector || "Not supplied"} · Industry: {validation.industry || "Not supplied"}</div>
       <div className="text-gray-600">A historical equity backfill is queued for research depth. Daily analysis always evaluates this active asset and records any missing inputs explicitly.</div>
       <div className="flex flex-wrap gap-2"><label>Start<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5" /></label><label>End<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5" /></label></div>
       <button type="button" disabled={busy} onClick={() => void onboard()} className="rounded border border-brand-700 px-3 py-1.5 text-xs font-medium text-brand-700 disabled:opacity-50">Add validated asset</button>
