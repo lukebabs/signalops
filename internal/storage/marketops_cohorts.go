@@ -15,26 +15,29 @@ const (
 )
 
 type MarketOpsIntelligenceCohortRunRecord struct {
-	RunID            string
-	TenantID         string
-	AppID            string
-	UniverseGroup    string
-	RequestedSymbols []string
-	ResolvedSymbols  []string
-	Stages           []string
-	MaxSymbols       int
-	DryRun           bool
-	ContinueOnError  bool
-	Status           string
-	AggregateJSON    []byte
-	ErrorsJSON       []byte
-	Actor            string
-	SessionStart     time.Time
-	SessionEnd       time.Time
-	StartedAt        time.Time
-	CompletedAt      *time.Time
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	RunID                string
+	TenantID             string
+	AppID                string
+	UniverseGroup        string
+	RequestedSymbols     []string
+	ResolvedSymbols      []string
+	Stages               []string
+	MaxSymbols           int
+	DryRun               bool
+	ContinueOnError      bool
+	Status               string
+	AggregateJSON        []byte
+	ErrorsJSON           []byte
+	Actor                string
+	SessionStart         time.Time
+	SessionEnd           time.Time
+	StartedAt            time.Time
+	CompletedAt          *time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	AssetListID          string
+	AssetListRevision    int64
+	AssetListFingerprint string
 }
 
 type MarketOpsIntelligenceCohortSymbolResultRecord struct {

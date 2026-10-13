@@ -14,7 +14,13 @@ func (r *Repository) UpsertMarketOpsTaskWorkflow(ctx context.Context, x storage.
 	if strings.TrimSpace(x.WorkflowID) == "" || strings.TrimSpace(x.TenantID) == "" || strings.TrimSpace(x.WorkflowType) == "" || strings.TrimSpace(x.Status) == "" || x.SessionDate.IsZero() {
 		return fmt.Errorf("invalid marketops task workflow")
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO marketops_task_workflows (workflow_id,tenant_id,session_date,workflow_type,status,schedule_job_id,coverage,failure_class,error_message,started_at,completed_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (tenant_id,session_date,workflow_type) DO UPDATE SET status=EXCLUDED.status,schedule_job_id=EXCLUDED.schedule_job_id,coverage=EXCLUDED.coverage,failure_class=EXCLUDED.failure_class,error_message=EXCLUDED.error_message,started_at=COALESCE(EXCLUDED.started_at,marketops_task_workflows.started_at),completed_at=EXCLUDED.completed_at,updated_at=now()`, x.WorkflowID, x.TenantID, x.SessionDate.UTC(), x.WorkflowType, x.Status, x.ScheduleJobID, jsonOrEmpty(x.CoverageJSON), x.FailureClass, x.ErrorMessage, x.StartedAt, x.CompletedAt)
+	if x.AssetListID == "" {
+		id, revision, fingerprint, err := r.currentMarketOpsAssetList(ctx, x.TenantID)
+		if err == nil {
+			x.AssetListID, x.AssetListRevision, x.AssetListFingerprint = id, revision, fingerprint
+		}
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO marketops_task_workflows (workflow_id,tenant_id,session_date,workflow_type,status,schedule_job_id,coverage,failure_class,error_message,started_at,completed_at,asset_list_id,asset_list_revision,asset_list_fingerprint) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (tenant_id,session_date,workflow_type) DO UPDATE SET status=EXCLUDED.status,schedule_job_id=EXCLUDED.schedule_job_id,coverage=EXCLUDED.coverage,failure_class=EXCLUDED.failure_class,error_message=EXCLUDED.error_message,started_at=COALESCE(EXCLUDED.started_at,marketops_task_workflows.started_at),completed_at=EXCLUDED.completed_at,asset_list_id=COALESCE(EXCLUDED.asset_list_id,marketops_task_workflows.asset_list_id),asset_list_revision=COALESCE(EXCLUDED.asset_list_revision,marketops_task_workflows.asset_list_revision),asset_list_fingerprint=COALESCE(EXCLUDED.asset_list_fingerprint,marketops_task_workflows.asset_list_fingerprint),updated_at=now()`, x.WorkflowID, x.TenantID, x.SessionDate.UTC(), x.WorkflowType, x.Status, x.ScheduleJobID, jsonOrEmpty(x.CoverageJSON), x.FailureClass, x.ErrorMessage, x.StartedAt, x.CompletedAt, x.AssetListID, x.AssetListRevision, x.AssetListFingerprint)
 	return err
 }
 
@@ -28,12 +34,22 @@ func (r *Repository) UpsertMarketOpsTaskItem(ctx context.Context, x storage.Mark
 	if x.NextAttemptAt.IsZero() {
 		x.NextAttemptAt = time.Now().UTC()
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO marketops_task_items (task_id,workflow_id,tenant_id,session_date,task_type,symbol,status,attempt_count,max_attempts,next_attempt_at,lease_expires_at,provider,failure_class,provider_status,error_message,result,completed_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) ON CONFLICT (tenant_id,session_date,task_type,symbol) DO UPDATE SET workflow_id=EXCLUDED.workflow_id,status=EXCLUDED.status,attempt_count=EXCLUDED.attempt_count,max_attempts=EXCLUDED.max_attempts,next_attempt_at=EXCLUDED.next_attempt_at,lease_expires_at=EXCLUDED.lease_expires_at,provider=EXCLUDED.provider,failure_class=EXCLUDED.failure_class,provider_status=EXCLUDED.provider_status,error_message=EXCLUDED.error_message,result=EXCLUDED.result,completed_at=EXCLUDED.completed_at,updated_at=now()`, x.TaskID, x.WorkflowID, x.TenantID, x.SessionDate.UTC(), x.TaskType, strings.ToUpper(strings.TrimSpace(x.Symbol)), x.Status, x.AttemptCount, x.MaxAttempts, x.NextAttemptAt, x.LeaseExpiresAt, x.Provider, x.FailureClass, x.ProviderStatus, x.ErrorMessage, jsonOrEmpty(x.ResultJSON), x.CompletedAt)
+	if x.AssetListID == "" {
+		id, revision, _, err := r.currentMarketOpsAssetList(ctx, x.TenantID)
+		if err == nil {
+			x.AssetListID, x.AssetListRevision = id, revision
+		}
+	}
+	symbol := strings.ToUpper(strings.TrimSpace(x.Symbol))
+	if x.GlobalAssetID == "" && symbol != "" {
+		x.GlobalAssetID = "ticker:" + symbol
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO marketops_task_items (task_id,workflow_id,tenant_id,session_date,task_type,symbol,status,attempt_count,max_attempts,next_attempt_at,lease_expires_at,provider,failure_class,provider_status,error_message,result,completed_at,global_asset_id,asset_list_id,asset_list_revision) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) ON CONFLICT (tenant_id,session_date,task_type,symbol) DO UPDATE SET workflow_id=EXCLUDED.workflow_id,status=EXCLUDED.status,attempt_count=EXCLUDED.attempt_count,max_attempts=EXCLUDED.max_attempts,next_attempt_at=EXCLUDED.next_attempt_at,lease_expires_at=EXCLUDED.lease_expires_at,provider=EXCLUDED.provider,failure_class=EXCLUDED.failure_class,provider_status=EXCLUDED.provider_status,error_message=EXCLUDED.error_message,result=EXCLUDED.result,completed_at=EXCLUDED.completed_at,global_asset_id=COALESCE(EXCLUDED.global_asset_id,marketops_task_items.global_asset_id),asset_list_id=COALESCE(EXCLUDED.asset_list_id,marketops_task_items.asset_list_id),asset_list_revision=COALESCE(EXCLUDED.asset_list_revision,marketops_task_items.asset_list_revision),updated_at=now()`, x.TaskID, x.WorkflowID, x.TenantID, x.SessionDate.UTC(), x.TaskType, symbol, x.Status, x.AttemptCount, x.MaxAttempts, x.NextAttemptAt, x.LeaseExpiresAt, x.Provider, x.FailureClass, x.ProviderStatus, x.ErrorMessage, jsonOrEmpty(x.ResultJSON), x.CompletedAt, x.GlobalAssetID, x.AssetListID, x.AssetListRevision)
 	return err
 }
 
 func (r *Repository) ListMarketOpsTaskItems(ctx context.Context, f storage.MarketOpsTaskItemFilter) ([]storage.MarketOpsTaskItemRecord, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT task_id,workflow_id,tenant_id,session_date,task_type,symbol,status,attempt_count,max_attempts,next_attempt_at,lease_expires_at,provider,failure_class,provider_status,error_message,result,completed_at,created_at,updated_at FROM marketops_task_items WHERE ($1='' OR tenant_id=$1) AND ($2='' OR workflow_id=$2) AND ($3='' OR task_type=$3) AND ($4='' OR symbol=$4) AND ($5='' OR status=$5) AND ($6::date IS NULL OR session_date=$6::date) ORDER BY session_date DESC, task_type, symbol LIMIT $7`, strings.TrimSpace(f.TenantID), strings.TrimSpace(f.WorkflowID), strings.TrimSpace(f.TaskType), strings.ToUpper(strings.TrimSpace(f.Symbol)), strings.TrimSpace(f.Status), nullTime(f.SessionDate), clampLimit(f.Limit))
+	rows, err := r.db.QueryContext(ctx, `SELECT task_id,workflow_id,tenant_id,session_date,task_type,symbol,status,attempt_count,max_attempts,next_attempt_at,lease_expires_at,provider,failure_class,provider_status,error_message,result,completed_at,created_at,updated_at,global_asset_id,asset_list_id,asset_list_revision FROM marketops_task_items WHERE ($1='' OR tenant_id=$1) AND ($2='' OR workflow_id=$2) AND ($3='' OR task_type=$3) AND ($4='' OR symbol=$4) AND ($5='' OR status=$5) AND ($6::date IS NULL OR session_date=$6::date) ORDER BY session_date DESC, task_type, symbol LIMIT $7`, strings.TrimSpace(f.TenantID), strings.TrimSpace(f.WorkflowID), strings.TrimSpace(f.TaskType), strings.ToUpper(strings.TrimSpace(f.Symbol)), strings.TrimSpace(f.Status), nullTime(f.SessionDate), clampLimit(f.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list marketops task items: %w", err)
 	}
@@ -43,7 +59,7 @@ func (r *Repository) ListMarketOpsTaskItems(ctx context.Context, f storage.Marke
 		var x storage.MarketOpsTaskItemRecord
 		var lease, done sql.NullTime
 		var code sql.NullInt32
-		if err := rows.Scan(&x.TaskID, &x.WorkflowID, &x.TenantID, &x.SessionDate, &x.TaskType, &x.Symbol, &x.Status, &x.AttemptCount, &x.MaxAttempts, &x.NextAttemptAt, &lease, &x.Provider, &x.FailureClass, &code, &x.ErrorMessage, &x.ResultJSON, &done, &x.CreatedAt, &x.UpdatedAt); err != nil {
+		if err := rows.Scan(&x.TaskID, &x.WorkflowID, &x.TenantID, &x.SessionDate, &x.TaskType, &x.Symbol, &x.Status, &x.AttemptCount, &x.MaxAttempts, &x.NextAttemptAt, &lease, &x.Provider, &x.FailureClass, &code, &x.ErrorMessage, &x.ResultJSON, &done, &x.CreatedAt, &x.UpdatedAt, &x.GlobalAssetID, &x.AssetListID, &x.AssetListRevision); err != nil {
 			return nil, err
 		}
 		if lease.Valid {
