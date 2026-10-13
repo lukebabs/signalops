@@ -10357,3 +10357,11 @@ Next-cycle priority:
 - Latest output coverage: Market State 225/225, Risk/Reward 225/225, valuation results 225/225, EROC 225/225, EEOM 129, options 224, SRI 16 segments, and intraday 200 with the last snapshot at 2026-10-09. SAF daily validation contains 225 rows for 2026-10-12, but zero outcomes are mature for that session by design.
 - Historical intraday/post-close failures were caused by the pre-rollout worker querying removed `display_name` data. The corrected immutable image is deployed; the next scheduled cycle is required to prove the fix in production.
 - Backfilled the 49 missing workflow fingerprints as metadata-only repair. No provider polling, output deletion, or schedule-policy change was performed during this audit.
+
+### 2026-10-13 — Dedicated MarketOps database boundary repaired and reconciled
+
+- Root cause: the K8s MarketOps runtime injected dedicated primary and temporal URLs, but several worker binaries read the legacy `SIGNALOPS_DATABASE_URL`/`SIGNALOPS_TEMPORAL_DATABASE_URL` variables. Post-close cohort stages therefore wrote to the shared SignalOps database after the MarketOps split.
+- Fixed the boundary in `scripts/k8s_marketops_job_entrypoint.sh`: when the dedicated-data boundary is required, the dedicated MarketOps URLs are validated and exported as the canonical database variables before any worker starts. Missing dedicated URLs now fail closed.
+- Published immutable worker image `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:4a66d898547c` and updated all 15 production MarketOps CronJobs. Schedules, `Forbid` concurrency, and `suspend=false` remain unchanged.
+- Ran the bounded 2026-10-12 post-close reconciliation with provider-backed inputs. The job completed successfully; all materialization stages reported success and new cohort run `k8s-postclose-2026-10-12-000` exists in the dedicated MarketOps database and not in the shared SignalOps database.
+- Options coverage completed for the reconciled symbols with explicit partial-quality evidence where provider surfaces were incomplete. No DNS or scheduler-policy changes were made.
