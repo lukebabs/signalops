@@ -2815,11 +2815,16 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			pending := make([]map[string]any, 0)
 			currentByTicker := map[string]storage.SubscriberCurrentEODContextRecord{}
 			if currentEODReader, available := any(marketOpsQueryRepository).(storage.SubscriberCurrentEODContextBatchRepository); available {
-				symbols := make([]string, 0, len(watchlistContext.Items))
+				// The global EOD context is authoritative for displayed market data,
+				// including assets already present in the tenant primary projection.
+				// Previously we queried it only for pending watchlist assets, which
+				// allowed primary rows to keep stale prices indefinitely.
+				symbols := make([]string, 0, len(assets)+len(watchlistContext.Items))
+				for _, asset := range assets {
+					symbols = append(symbols, asset.Ticker)
+				}
 				for _, item := range watchlistContext.Items {
-					if _, alreadyVisible := visibleTickers[strings.ToUpper(item.Ticker)]; !alreadyVisible {
-						symbols = append(symbols, item.Ticker)
-					}
+					symbols = append(symbols, item.Ticker)
 				}
 				currents, currentErr := currentEODReader.ListSubscriberCurrentEODContexts(r.Context(), symbols)
 				if currentErr != nil {
@@ -2828,6 +2833,11 @@ func NewRouter(cfg RouterConfig) http.Handler {
 				}
 				for _, current := range currents {
 					currentByTicker[strings.ToUpper(current.Symbol)] = current
+				}
+			}
+			for index, asset := range visible {
+				if current, found := currentByTicker[strings.ToUpper(asset.Ticker)]; found {
+					visible[index] = overlaySubscriberCurrentEODMetadata(asset, current)
 				}
 			}
 			for _, item := range watchlistContext.Items {
@@ -4651,6 +4661,27 @@ func subscriberWatchlistCurrentEODAsset(tenantID string, item storage.Subscriber
 		AssetType: item.AssetType, Exchange: item.Exchange, Sector: item.Sector, SectorKey: strings.ToLower(item.Sector), IsActive: true, MetadataJSON: metadata,
 		CreatedAt: item.AddedAt, UpdatedAt: current.AsOfTime,
 	}
+}
+
+func overlaySubscriberCurrentEODMetadata(asset storage.MarketOpsAssetRecord, current storage.SubscriberCurrentEODContextRecord) storage.MarketOpsAssetRecord {
+	metadata := map[string]any{}
+	if len(asset.MetadataJSON) > 0 {
+		_ = json.Unmarshal(asset.MetadataJSON, &metadata)
+	}
+	metadata["current_eod_session_date"] = current.SessionDate.Format("2006-01-02")
+	metadata["current_eod_close"] = current.Close
+	metadata["current_eod_as_of_time"] = current.AsOfTime
+	metadata["current_eod_quality_state"] = current.QualityState
+	metadata["current_eod_provider"] = current.Provider
+	metadata["current_eod_global_asset_id"] = current.GlobalAssetID
+	asset.MetadataJSON, _ = json.Marshal(metadata)
+	// Mark the response as backed by the governed global EOD context so the
+	// Assets UI renders the verified session rather than the primary-row cache.
+	asset.SourceID = "subscriber_global_eod"
+	if current.AsOfTime.After(asset.UpdatedAt) {
+		asset.UpdatedAt = current.AsOfTime
+	}
+	return asset
 }
 
 func marketOpsAssetResponses(records []storage.MarketOpsAssetRecord) []marketOpsAssetDTO {
