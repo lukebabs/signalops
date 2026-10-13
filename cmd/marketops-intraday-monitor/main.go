@@ -51,7 +51,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	tenant := flag.String("tenant-id", "tenant-local", "tenant id")
 	group := flag.String("universe-group", "all_active", "asset universe")
 	symbols := flag.String("symbols", "", "optional comma-separated asset scope")
-	max := flag.Int("max-symbols", 200, "maximum active assets")
+	max := flag.Int("max-symbols", 5000, "maximum active assets; the governed asset list is the source of truth")
 	allowOutsideSession := flag.Bool("allow-outside-session", false, "persist the provider latest completed close outside regular and extended sessions")
 	dry := flag.Bool("dry-run", false, "calculate without persisting")
 	flag.Parse()
