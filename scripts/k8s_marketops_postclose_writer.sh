@@ -64,7 +64,8 @@ for ((i=0;i<${#symbols[@]};i+=10)); do
     echo "marketops_k8s_postclose_cohort_batch_continued batch=$i session=$session_date reason=duplicate_or_partial_ledger" >&2
   fi
 done
-signalops-marketops-valuation-runner --tenant-id tenant-local --universe-group primary_eod --session-date "$session_date" --dry-run=false --fmp-max-requests 300 --refresh-financials
+valuation_fmp_budget=$(( ${#symbols[@]} * 3 ))
+signalops-marketops-valuation-runner --tenant-id tenant-local --universe-group primary_eod --session-date "$session_date" --dry-run=false --fmp-max-requests "$valuation_fmp_budget" --refresh-financials
 signalops-marketops-tactical-valuation-runner --tenant-id tenant-local --universe-group primary_eod --session-date "$session_date"
 signalops-marketops-eroc-runner --tenant-id tenant-local --universe-group primary_eod --session-date "$session_date" --dry-run=false
 signalops-marketops-eeom-runner --tenant-id tenant-local --session-date "$session_date" --dry-run=false

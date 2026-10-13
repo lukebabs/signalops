@@ -51,7 +51,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	symbols := flag.String("symbols", "", "comma-separated symbols")
 	dateValue := flag.String("session-date", "", "completed YYYY-MM-DD session")
 	dry := flag.Bool("dry-run", false, "calculate only")
-	fmpBudget := flag.Int("fmp-max-requests", 240, "maximum FMP requests per daily allowance")
+	fmpBudget := flag.Int("fmp-max-requests", 1000, "maximum FMP requests for this bounded run")
 	refreshFinancials := flag.Bool("refresh-financials", false, "permit FMP polling for missing or stale financials")
 	flag.Parse()
 	if app.DatabaseURL == "" {
