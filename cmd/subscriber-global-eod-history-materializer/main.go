@@ -148,7 +148,20 @@ func parseDate(value string) (time.Time, error) {
 	return d.UTC(), nil
 }
 func loadWarmAssets(ctx context.Context, db *sql.DB) ([]warmAsset, error) {
-	rows, err := db.QueryContext(ctx, `SELECT global_asset_id,canonical_symbol FROM subscriber_global_warm_eod_assets ORDER BY priority,global_asset_id`)
+	// The historical name is retained for compatibility, but the gateway
+	// projection must cover the mutable primary operational list as well as the
+	// 1000-asset warm cohort. Otherwise newly promoted primary assets can have
+	// provider evidence and still remain absent from Assets/current context.
+	rows, err := db.QueryContext(ctx, `
+SELECT global_asset_id, canonical_symbol
+FROM subscriber_global_warm_eod_assets
+UNION
+SELECT global_asset_id, upper(ticker)
+FROM marketops_primary_assets primary_asset
+JOIN subscriber_global_assets global_asset
+  ON upper(global_asset.canonical_symbol)=upper(primary_asset.ticker)
+WHERE primary_asset.tenant_id='tenant-local' AND primary_asset.is_active
+ORDER BY canonical_symbol, global_asset_id`)
 	if err != nil {
 		return nil, fmt.Errorf("load warm cohort: %w", err)
 	}
@@ -203,7 +216,15 @@ FROM (
 }
 func appendEvidence(ctx context.Context, db *sql.DB, bars []sourceBar, correlation string) (int, error) {
 	byAsset := map[string]string{}
-	rows, err := db.QueryContext(ctx, `SELECT global_asset_id,upper(canonical_symbol) FROM subscriber_global_warm_eod_assets`)
+	rows, err := db.QueryContext(ctx, `
+SELECT global_asset_id, upper(canonical_symbol)
+FROM subscriber_global_warm_eod_assets
+UNION
+SELECT global_asset_id, upper(ticker)
+FROM marketops_primary_assets primary_asset
+JOIN subscriber_global_assets global_asset
+  ON upper(global_asset.canonical_symbol)=upper(primary_asset.ticker)
+WHERE primary_asset.tenant_id='tenant-local' AND primary_asset.is_active`)
 	if err != nil {
 		return 0, err
 	}
