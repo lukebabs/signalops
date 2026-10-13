@@ -9,6 +9,10 @@ active_symbols="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -A
 IFS=',' read -r -a symbols <<< "$active_symbols"
 expected_count="$(printf '%s' "$active_symbols" | awk -F',' '{print NF}')"
 required_features="range_position_252d,rsi_14,return_5d,volume_ratio_10d,distance_sma_50_pct,distance_sma_200_pct,sma_50_slope_20d_pct,atr_14_pct"
+# The algorithm requires five usable technical inputs for an eligible result;
+# do not gate the run on the presence of every optional feature.  This keeps
+# newly-added assets with a valid partial vector in the Risk/Reward cohort.
+minimum_usable_inputs="${MARKETOPS_RISK_REWARD_MIN_INPUTS:-5}"
 wait_seconds="${MARKETOPS_RISK_REWARD_WAIT_SECONDS:-1200}"
 deadline=$((SECONDS + wait_seconds))
 # The post-close writer persists feature observations in serialized batches.
@@ -18,7 +22,7 @@ deadline=$((SECONDS + wait_seconds))
 ready_grace_seconds="${MARKETOPS_RISK_REWARD_GRACE_SECONDS:-120}"
 ready_since=""
 while true; do
-  complete_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM (SELECT o.symbol FROM marketops_feature_observations o WHERE o.tenant_id='tenant-local' AND o.app_id='marketops' AND o.session_date=DATE '${session_date}' AND o.feature_key = ANY(string_to_array('${required_features}', ',')) GROUP BY o.symbol HAVING count(DISTINCT o.feature_key) = 8) complete;")"
+  complete_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM (SELECT o.symbol FROM marketops_feature_observations o WHERE o.tenant_id='tenant-local' AND o.app_id='marketops' AND o.session_date=DATE '${session_date}' AND o.feature_key = ANY(string_to_array('${required_features}', ',')) AND o.quality_state IN ('usable','usable_with_warning') AND o.numeric_value IS NOT NULL GROUP BY o.symbol HAVING count(DISTINCT o.feature_key) >= ${minimum_usable_inputs}) complete;")"
   if [[ "$complete_count" =~ ^[0-9]+$ && "$complete_count" -ge "$expected_count" ]]; then
     echo "marketops_k8s_risk_reward_dependency_ready session=${session_date} symbols=${complete_count}/${expected_count}"
     break
@@ -36,7 +40,7 @@ while true; do
   fi
   sleep 10
 done
-mapfile -t ready_symbols < <(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT o.symbol FROM marketops_feature_observations o WHERE o.tenant_id='tenant-local' AND o.app_id='marketops' AND o.session_date=DATE '${session_date}' AND o.feature_key = ANY(string_to_array('${required_features}', ',')) GROUP BY o.symbol HAVING count(DISTINCT o.feature_key) = 8 ORDER BY o.symbol;")
+mapfile -t ready_symbols < <(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT o.symbol FROM marketops_feature_observations o WHERE o.tenant_id='tenant-local' AND o.app_id='marketops' AND o.session_date=DATE '${session_date}' AND o.feature_key = ANY(string_to_array('${required_features}', ',')) AND o.quality_state IN ('usable','usable_with_warning') AND o.numeric_value IS NOT NULL GROUP BY o.symbol HAVING count(DISTINCT o.feature_key) >= ${minimum_usable_inputs} ORDER BY o.symbol;")
 for symbol in "${ready_symbols[@]}"; do
   signalops-algorithm-runner \
     --execution-request-id "marketops-risk-reward-${session_date}-${symbol}" \
