@@ -1864,13 +1864,22 @@ LIMIT $4`
 		// primary_eod is the governed production cohort. It is a live view so
 		// every dependent job picks up additions/removals on its next run.
 		query = `
+WITH primary_rows AS (
+  SELECT DISTINCT ON (u.ticker)
+    u.*, p.universe_priority AS primary_priority, p.rank AS primary_rank
+  FROM marketops_primary_assets p
+  JOIN marketops_universal_assets u
+    ON u.tenant_id = p.tenant_id AND u.ticker = p.ticker AND u.is_active = true
+  WHERE p.tenant_id = $1
+  ORDER BY u.ticker, p.universe_priority, p.rank NULLS LAST, u.universe_group
+)
 SELECT tenant_id, app_id, domain, use_case, source_id, universe_group,
-  row_number() OVER (ORDER BY universe_priority, rank NULLS LAST, ticker)::int AS rank,
+  row_number() OVER (ORDER BY primary_priority, primary_rank NULLS LAST, ticker)::int AS rank,
   ticker, ticker_key, company, company_key, display_name, display_sector, asset_type,
   exchange, sector, sector_key, industry, industry_key, is_active, metadata,
   created_at, updated_at
-FROM marketops_primary_assets
-WHERE tenant_id = $1
+FROM primary_rows
+ORDER BY primary_priority, primary_rank NULLS LAST, ticker
 LIMIT $2`
 		args = []any{strings.TrimSpace(tenantID), clampLimit(limit)}
 	}
