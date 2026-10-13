@@ -203,7 +203,15 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	return nil
 }
 func cachedFundamentals(ctx context.Context, repo storage.MarketOpsValuationRepository, tenant, ticker string, allowStale bool) (fmp.FundamentalSnapshot, bool, error) {
-	snapshot, err := repo.LatestMarketOpsValuationSnapshot(ctx, tenant, ticker, "fmp")
+	// Cached valuation snapshots are deliberately tagged fmp_cache after the
+	// first successful materialization.  Looking only for provider=fmp made
+	// every subsequent post-close run miss the cache, consume the bounded FMP
+	// budget, and leave a mixed-session projection.  Prefer the cache tag and
+	// retain fmp as a compatibility fallback for older snapshots.
+	snapshot, err := repo.LatestMarketOpsValuationSnapshot(ctx, tenant, ticker, "fmp_cache")
+	if err != nil {
+		snapshot, err = repo.LatestMarketOpsValuationSnapshot(ctx, tenant, ticker, "fmp")
+	}
 	if err != nil {
 		return fmp.FundamentalSnapshot{}, false, nil
 	}
