@@ -18,6 +18,18 @@ fi
 export SIGNALOPS_ENV="${SIGNALOPS_ENV:-kubernetes-staging}"
 export SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED="${SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED:-true}"
 
+# Every binary launched by this entrypoint is part of the MarketOps data plane.
+# Make the dedicated stores authoritative at the process boundary so binaries
+# that still read the legacy SIGNALOPS_DATABASE_URL cannot silently write to
+# shared SignalOps after the database split. Keep the shared URL available only
+# to explicitly separate platform services.
+if [[ "$SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED" == "true" ]]; then
+  : "${SIGNALOPS_MARKETOPS_DATABASE_URL:?dedicated MarketOps database URL is required}"
+  : "${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:?dedicated MarketOps temporal database URL is required}"
+  export SIGNALOPS_DATABASE_URL="$SIGNALOPS_MARKETOPS_DATABASE_URL"
+  export SIGNALOPS_TEMPORAL_DATABASE_URL="$SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL"
+fi
+
 mode_flag="--execute"
 if [[ "${MARKETOPS_K8S_DRY_RUN:-false}" == "true" ]]; then
   mode_flag="--dry-run"
