@@ -490,9 +490,9 @@ function AlgorithmEvidencePanel({ results, loading, error }: { results: Algorith
 
 function RiskRewardCell({ summary, loading, error, sharedEOD, pending }: { summary?: MarketOpsRiskRewardSummary; loading: boolean; error: boolean; sharedEOD?: SharedEODContext; pending?: boolean }) {
   if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; no Risk/Reward evidence is available.">Coverage pending<div className="text-[10px]">Risk/Reward unavailable</div></td>;
-  if (sharedEOD) return <td className="px-3 py-2 text-xs text-slate-600" title="Verified global EOD exists, but global Risk/Reward evidence has not been materialized.">Global EOD only<div className="text-[10px] text-slate-500">Risk/Reward pending</div></td>;
   if (error && !summary) return <td className="px-3 py-2 text-xs text-red-700" title="The persisted post-close Risk/Reward summary could not be loaded. This does not indicate an asset-level signal.">Risk/Reward unavailable</td>;
   if (loading && !summary) return <td className="px-3 py-2 text-xs text-gray-500" title="Loading the latest persisted post-close technical Risk/Reward analysis.">Loading EOD analysis…</td>;
+  if (sharedEOD && !summary) return <td className="px-3 py-2 text-xs text-slate-600" title="Verified global EOD exists, but global Risk/Reward evidence has not been materialized.">Global EOD only<div className="text-[10px] text-slate-500">Risk/Reward pending</div></td>;
   if (!summary) return <td className="px-3 py-2 text-xs text-gray-500" title="No persisted post-close Risk/Reward analysis is available yet. The scheduled EOD algorithm will populate this after its first completed run.">Awaiting EOD analysis</td>;
   const direction = summary.direction === "bullish" ? "Bullish" : summary.direction === "bearish" ? "Bearish" : "Neutral";
   const score = `${summary.score > 0 ? "+" : ""}${summary.score.toFixed(0)}`;
@@ -507,9 +507,9 @@ function RiskRewardCell({ summary, loading, error, sharedEOD, pending }: { summa
 
 function IntradayConditionsCell({ snapshot, loading, error, sharedEOD, pending }: { snapshot?: MarketOpsIntradayConditionSnapshot; loading: boolean; error: boolean; sharedEOD?: SharedEODContext; pending?: boolean }) {
   if (pending) return <td className="px-3 py-2 text-xs text-amber-800" title="Central coverage is pending; no intraday evidence is available.">Coverage pending<div className="text-[10px]">Intraday unavailable</div></td>;
-  if (sharedEOD) return <td className="px-3 py-2 text-xs text-slate-600" title="No global intraday monitor snapshot has been materialized for this shared asset.">Global EOD only<div className="text-[10px] text-slate-500">Intraday pending</div></td>;
   if (error && !snapshot) return <td className="px-3 py-2 text-xs text-red-700" title="The persisted intraday-condition request failed; this does not mean monitoring has not run.">Monitor data unavailable</td>;
   if (loading && !snapshot) return <td className="px-3 py-2 text-xs text-gray-500" title="Loading the latest persisted 15-minute condition snapshot.">Loading monitor…</td>;
+  if (sharedEOD && !snapshot) return <td className="px-3 py-2 text-xs text-slate-600" title="No global intraday monitor snapshot has been materialized for this shared asset.">Global EOD only<div className="text-[10px] text-slate-500">Intraday pending</div></td>;
   if (!snapshot) return <td className="px-3 py-2 text-xs text-gray-500" title="No persisted 15-minute condition snapshot is available yet.">Awaiting monitor</td>;
   if (!snapshot.conditions.length) return <td className="px-3 py-2 text-xs text-gray-500" title="The latest monitor snapshot found no price-action condition above its thresholds.">No active condition</td>;
   const top = snapshot.conditions.slice().sort((a, b) => b.score - a.score).slice(0, 2);
