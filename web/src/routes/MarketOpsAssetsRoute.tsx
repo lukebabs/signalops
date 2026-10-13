@@ -373,7 +373,7 @@ export function MarketOpsAssetsRoute() {
                         {editSelectedAssetKey === assetRowKey(a) && displaySectorError ? <div className="mt-1 text-[10px] text-red-700">{displaySectorError}</div> : null}
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span>{a.asset_type}</span>
-                          {sharedEODContext(a) || a.subscriberCoverage ? <span title={a.subscriberCoverage ? "Central coverage is pending; no Market State exists yet." : "This shared row has verified global EOD only. Global Market State is not materialized yet."} className="text-gray-500">{a.subscriberCoverage ? "Coverage pending" : "Global evidence pending"}</span> : <Link to="/marketops/state" search={{ symbol: a.ticker }} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} className="text-brand-700 underline hover:text-brand-800">Open Market State</Link>}
+                          {sharedEODContext(a) || a.subscriberCoverage ? <span title={a.subscriberCoverage ? "Central coverage is pending; no Market State exists yet." : "Verified global EOD and live monitor data are available; the derived Global Market State row is still pending."} className="text-gray-500">{a.subscriberCoverage ? "Coverage pending" : "Market State pending"}</span> : <Link to="/marketops/state" search={{ symbol: a.ticker }} onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()} className="text-brand-700 underline hover:text-brand-800">Open Market State</Link>}
                         </div>
                       </div>
                     </div>
