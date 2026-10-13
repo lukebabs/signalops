@@ -33,9 +33,13 @@ if [[ "$normalized" =~ ^[0-9]+$ && "$normalized" -lt "$option_count" ]]; then ec
 # discovers the live primary operational union from all_active, reuses
 # any raw events already present, retries missing symbols at most twice, and
 # reports an actionable recovery state when a provider gap remains.
+# A reconciliation that cannot call the provider is only a ledger check; it
+# cannot repair a symbol missed by the initial capture. Keep provider retries
+# bounded to the current mutable primary cohort by default, while preserving
+# an explicit operator override for constrained runs.
 reconciliation_degraded=false
 if ! signalops-massive-puller --mode reconcile-equity --date "$session_date" --universe-group primary_eod \
-  --max-provider-requests "${MARKETOPS_EOD_RECONCILIATION_MAX_PROVIDER_REQUESTS:-0}" \
+  --max-provider-requests "${MARKETOPS_EOD_RECONCILIATION_MAX_PROVIDER_REQUESTS:-${#symbols[@]}}" \
   --max-attempts "${MARKETOPS_EOD_RECONCILIATION_MAX_ATTEMPTS:-2}" \
   --deadline "${MARKETOPS_EOD_RECONCILIATION_DEADLINE:-15m}" \
   --retry-backoffs "${MARKETOPS_EOD_RECONCILIATION_BACKOFFS:-30s,2m}" \
