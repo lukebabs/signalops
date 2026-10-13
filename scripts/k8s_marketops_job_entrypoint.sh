@@ -220,12 +220,18 @@ case "$job_id" in
     fi
     ;;
   marketops-fmp-continuation)
-    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-fmp-continuation requires a separately approved production K8s scheduler cutover"
-    command_args=(
-      bash
-      -ec
-      'workflow_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_scheduled_job_runs WHERE job_id=\$job\$marketops-fmp-annual-financial\$job\$")"; echo "marketops_k8s_fmp_continuation_dry_run_verified annual_workflow_rows=${workflow_count}"'
-    )
+    if [[ "$mode_flag" == "--dry-run" ]]; then
+      command_args=(
+        bash
+        -ec
+        'workflow_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_scheduled_job_runs WHERE job_id=\$job\$marketops-fmp-annual-financial\$job\$")"; echo "marketops_k8s_fmp_continuation_dry_run_verified annual_workflow_rows=${workflow_count}"'
+      )
+    else
+      # Continue deferred VC/DOSM fundamentals against the live primary list.
+      # This runs on the next provider day, so the daily FMP budget is fresh;
+      # it must still use the dedicated MarketOps database boundary.
+      command_args=(signalops-marketops-valuation-runner --tenant-id tenant-local --universe-group primary_eod --session-date "${MARKETOPS_SESSION_DATE:-$(date -u +%F)}" --fmp-max-requests "${MARKETOPS_FMP_CONTINUATION_MAX_REQUESTS:-300}" --refresh-financials)
+    fi
     ;;
   marketops-operations-monitor)
     command_args=(
