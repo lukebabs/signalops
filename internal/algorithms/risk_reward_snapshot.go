@@ -11,7 +11,10 @@ import (
 
 const (
 	riskRewardRequiredInputs = 8
-	riskRewardMinimumUsable  = 5
+	// Four core technical inputs are sufficient for a deterministic partial
+	// posture. Confidence still reflects the missing inputs (4/8), so newer
+	// assets are not excluded from the universal cohort.
+	riskRewardMinimumUsable = 4
 )
 
 func riskRewardSnapshotRecord(cfg Config, result storage.AlgorithmResultRecord, item struct {

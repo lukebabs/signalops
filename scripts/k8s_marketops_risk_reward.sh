@@ -12,7 +12,7 @@ required_features="range_position_252d,rsi_14,return_5d,volume_ratio_10d,distanc
 # The algorithm requires five usable technical inputs for an eligible result;
 # do not gate the run on the presence of every optional feature.  This keeps
 # newly-added assets with a valid partial vector in the Risk/Reward cohort.
-minimum_usable_inputs="${MARKETOPS_RISK_REWARD_MIN_INPUTS:-5}"
+minimum_usable_inputs="${MARKETOPS_RISK_REWARD_MIN_INPUTS:-4}"
 wait_seconds="${MARKETOPS_RISK_REWARD_WAIT_SECONDS:-1200}"
 deadline=$((SECONDS + wait_seconds))
 # The post-close writer persists feature observations in serialized batches.
