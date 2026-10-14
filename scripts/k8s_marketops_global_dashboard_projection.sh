@@ -25,6 +25,9 @@ project_kind valuation signalops.algorithms.eroc_v6
 project_kind valuation signalops.algorithms.valuation_composite_v3
 project_kind valuation signalops.algorithms.distressed_opportunity_scoring_v3
 project_kind eeom
-risk_global="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "SELECT count(*) FROM subscriber_gateway_global_risk_reward_snapshots WHERE session_date=DATE '$session_date'")"
-[[ "$risk_global" =~ ^[0-9]+$ && "$risk_global" -gt 0 ]] || { echo "global risk/reward projection incomplete: session=$session_date rows=$risk_global" >&2; exit 4; }
-echo "k8s_global_dashboard_projection_verified session=$session_date risk_reward=$risk_global"
+read -r expected_assets risk_global risk_eligible <<<"$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -Atc "SELECT (SELECT count(*) FROM marketops_primary_assets WHERE tenant_id='tenant-local'), count(*), count(*) FILTER (WHERE eligible AND quality_state='usable') FROM subscriber_gateway_global_risk_reward_snapshots WHERE session_date=DATE '$session_date'")"
+if [[ ! "$expected_assets" =~ ^[0-9]+$ || ! "$risk_global" =~ ^[0-9]+$ || ! "$risk_eligible" =~ ^[0-9]+$ || "$risk_global" -ne "$expected_assets" || "$risk_eligible" -ne "$expected_assets" ]]; then
+  echo "global risk/reward projection incomplete: session=$session_date expected=$expected_assets rows=$risk_global usable=$risk_eligible" >&2
+  exit 4
+fi
+echo "k8s_global_dashboard_projection_verified session=$session_date risk_reward=$risk_global usable=$risk_eligible asset_list=$expected_assets"
