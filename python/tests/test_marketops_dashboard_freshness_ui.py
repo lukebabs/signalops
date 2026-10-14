@@ -70,7 +70,14 @@ def test_dashboard_and_market_state_share_the_latest_completed_session(browser: 
         context = payload.get("watchlist_context")
         assert isinstance(context, dict) and context.get("selection_mode") == "list", "Dashboard did not use a selected watchlist"
         assert context.get("list_name") == "MarketOps Legacy Default", context
-        assert payload.get("asset_count") == 132, f"Dashboard did not retain the tenant-local legacy cohort: {payload.get('asset_count')}"
+        # The selected list is mutable.  Assert the Dashboard follows the
+        # current list membership instead of freezing the historical 132-row
+        # cohort in the UI contract.
+        expected_count = context.get("member_count")
+        assert isinstance(expected_count, int) and expected_count > 0, context
+        assert payload.get("asset_count") == expected_count, (
+            f"Dashboard asset scope {payload.get('asset_count')} diverged from selected list {expected_count}"
+        )
         points = payload.get("risk_reward", {}).get("points", [])
         latest_risk_session = max((str(point.get("trade_date", "")) for point in points), default="")
         assert latest_risk_session, "Dashboard returned no Risk/Reward session"
