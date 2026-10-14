@@ -24,4 +24,5 @@ FROM subscriber_global_marketops_legacy_parity_source_v3 source;
 
 ALTER VIEW subscriber_global_marketops_legacy_parity_source_v4 OWNER TO signalops_subscriber_migrator;
 REVOKE ALL ON subscriber_global_marketops_legacy_parity_source_v4 FROM PUBLIC;
+GRANT SELECT ON subscriber_global_marketops_legacy_parity_source_v3 TO signalops_subscriber_migrator;
 GRANT SELECT ON subscriber_global_marketops_legacy_parity_source_v4 TO signalops_subscriber_global_eod;
