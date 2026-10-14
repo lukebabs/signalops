@@ -23,6 +23,7 @@ spec:
           labels:
             app.kubernetes.io/name: signalops-marketops-k8s-job-runner
             app.kubernetes.io/component: projection-worker
+            app.kubernetes.io/part-of: signalops
             signalops.syncratic.io/plane: marketops
             signalops.syncratic.io/stage: production
             signalops.syncratic.io/production-cutover-allowed: "true"
