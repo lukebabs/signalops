@@ -9,7 +9,10 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-const riskRewardMinimumUsableInputs = 5
+// Four core technical inputs are the adaptive minimum used by the worker and
+// global projection. Keep API coverage classification aligned with that
+// contract so newer assets are not reported as insufficient after projection.
+const riskRewardMinimumUsableInputs = 4
 
 type riskRewardOverviewCandidate struct {
 	member   signalOverviewMember
