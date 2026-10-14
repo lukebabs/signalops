@@ -1,0 +1,6 @@
+REVOKE ALL ON subscriber_options_capture_canary_evidence_events, subscriber_options_capture_canary_members, subscriber_options_capture_canary_plans FROM signalops_subscriber_options_capture;
+DROP TABLE IF EXISTS subscriber_options_capture_canary_evidence_events;
+DROP TABLE IF EXISTS subscriber_options_capture_canary_members;
+DROP TABLE IF EXISTS subscriber_options_capture_canary_plans;
+DROP FUNCTION IF EXISTS subscriber_options_capture_canary_evidence_disabled_guard();
+DROP FUNCTION IF EXISTS subscriber_options_capture_canary_member_guard();

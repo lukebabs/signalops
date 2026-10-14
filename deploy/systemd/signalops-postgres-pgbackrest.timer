@@ -1,0 +1,11 @@
+[Unit]
+Description=Create daily SignalOps PostgreSQL recovery point
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 UTC
+Persistent=true
+AccuracySec=1m
+Unit=signalops-postgres-pgbackrest.service
+
+[Install]
+WantedBy=timers.target

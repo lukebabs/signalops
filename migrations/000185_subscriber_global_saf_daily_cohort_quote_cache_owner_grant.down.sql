@@ -1,0 +1,1 @@
+REVOKE SELECT ON marketops_asset_quote_cache FROM signalops_subscriber_migrator;

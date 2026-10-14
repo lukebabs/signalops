@@ -2,7 +2,9 @@ import { lazy, useEffect } from 'react';
 import { createRouter, createRoute, createRootRoute, useNavigate } from '@tanstack/react-router';
 import { DashboardShell } from './components/DashboardShell';
 import { AppProfileProvider } from './apps/AppProfileContext';
+import { SubscriptionProvider } from './subscriber/SubscriptionContext';
 import { LoadingState } from './components/States';
+import { SubscriptionFeatureGate } from './subscriber/SubscriptionFeatureGate';
 
 // Route-level code splitting: AG Grid / ECharts only load when the Runs or
 // Raw Events views are visited.
@@ -50,8 +52,13 @@ const ReplayJobsRoute = lazy(() =>
   import('./routes/ReplayJobsRoute').then((m) => ({ default: m.ReplayJobsRoute })),
 );
 const MarketOpsSettingsRoute = lazy(() => import('./routes/MarketOpsSettingsRoute').then((m) => ({ default: m.MarketOpsSettingsRoute })));
+const MarketOpsProfileRoute = lazy(() => import('./routes/MarketOpsProfileRoute').then((m) => ({ default: m.MarketOpsProfileRoute })));
+const MarketOpsToolsRoute = lazy(() => import('./routes/MarketOpsToolsRoute').then((m) => ({ default: m.MarketOpsToolsRoute })));
 const MarketOpsAssetsRoute = lazy(() =>
   import('./routes/MarketOpsAssetsRoute').then((m) => ({ default: m.MarketOpsAssetsRoute })),
+);
+const MarketOpsWatchlistsRoute = lazy(() =>
+  import('./routes/MarketOpsWatchlistsRoute').then((m) => ({ default: m.MarketOpsWatchlistsRoute })),
 );
 const CyberOpsDashboardRoute = lazy(() =>
   import("./routes/CyberOpsDashboardRoute").then((m) => ({ default: m.CyberOpsDashboardRoute })),
@@ -94,7 +101,14 @@ const MarketOpsBacktestsRoute = lazy(() =>
 const MarketOpsSyncraticRoute = lazy(() =>
   import('./routes/MarketOpsSyncraticRoute').then((m) => ({ default: m.MarketOpsSyncraticRoute })),
 );
+const MarketOpsPricingRoute = lazy(() =>
+  import('./routes/MarketOpsPricingRoute').then((m) => ({ default: m.MarketOpsPricingRoute })),
+);
+const MarketOpsSubscriptionReturnRoute = lazy(() =>
+  import('./routes/MarketOpsSubscriptionReturnRoute').then((m) => ({ default: m.MarketOpsSubscriptionReturnRoute })),
+);
 const AccessManagementRoute = lazy(() => import('./routes/AccessManagementRoute').then((m) => ({ default: m.AccessManagementRoute })));
+const SubscriptionAdministrationRoute = lazy(() => import('./routes/SubscriptionAdministrationRoute').then((m) => ({ default: m.SubscriptionAdministrationRoute })));
 const AlgorithmsRoute = lazy(() =>
   import('./routes/AlgorithmsRoute').then((m) => ({ default: m.AlgorithmsRoute })),
 );
@@ -105,7 +119,9 @@ const AlgorithmsRoute = lazy(() =>
 function AppRoot() {
   return (
     <AppProfileProvider>
-      <DashboardShell />
+      <SubscriptionProvider>
+        <DashboardShell />
+      </SubscriptionProvider>
     </AppProfileProvider>
   );
 }
@@ -132,6 +148,7 @@ const adminAlertsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/
 const adminInsightsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/insights', component: InsightsRoute });
 const adminAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/algorithms', component: AlgorithmsRoute });
 const adminAccessRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/access', component: AccessManagementRoute });
+const adminSubscriptionsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/subscriptions', component: SubscriptionAdministrationRoute });
 const adminSystemRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/system', component: SystemRoute });
 const adminStorageRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/storage', component: StorageRoute });
 
@@ -236,8 +253,11 @@ const marketopsInsightsRoute = createRoute({ getParentRoute: () => rootRoute, pa
 const marketopsReplayRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/replay', component: () => <LegacyRedirect to="/admin/replay" /> });
 const marketopsPipelinesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/pipelines', component: () => <LegacyRedirect to="/admin/pipelines" /> });
 const marketopsHealthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/health', component: () => <LegacyRedirect to="/admin/system" /> });
-const marketOpsSettingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/settings', component: MarketOpsSettingsRoute });
+const marketOpsSettingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/settings', validateSearch: (search: Record<string, unknown>): { tab?: string } => ({ tab: typeof search.tab === 'string' ? search.tab : undefined }), component: MarketOpsSettingsRoute });
+const marketopsProfileRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/profile', component: MarketOpsProfileRoute });
+const marketopsToolsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/tools', component: MarketOpsToolsRoute });
 const marketopsAssetsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assets', component: MarketOpsAssetsRoute });
+const marketopsWatchlistsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/watchlists', component: MarketOpsWatchlistsRoute });
 const marketopsHypothesesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/hypotheses', component: MarketOpsHypothesesRoute });
 const marketopsIndicatorReelRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/indicator-reel', component: MarketOpsIndicatorReelRoute });
 const marketopsStateRoute = createRoute({
@@ -261,9 +281,9 @@ const marketopsStateRoute = createRoute({
   component: MarketOpsStateRoute,
 });
 const marketopsDsmRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/dsm', component: () => <LegacyRedirect to="/admin/signals" /> });
-const marketopsValuationRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/valuation", component: MarketOpsValuationRoute });
-const marketopsERocRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/eroc", component: MarketOpsEROCRoute });
-const marketopsEEOMRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/earnings", component: MarketOpsEEOMRoute });
+const marketopsValuationRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/valuation", component: () => <SubscriptionFeatureGate feature="value_intelligence" title="Value & Distressed Opportunity Intelligence"><MarketOpsValuationRoute /></SubscriptionFeatureGate> });
+const marketopsERocRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/eroc", component: () => <SubscriptionFeatureGate feature="distressed_opportunity_intelligence" title="Distressed Opportunity Intelligence"><MarketOpsEROCRoute /></SubscriptionFeatureGate> });
+const marketopsEEOMRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/earnings", component: () => <SubscriptionFeatureGate feature="earnings_opportunity_intelligence" title="Earnings Opportunity Intelligence"><MarketOpsEEOMRoute /></SubscriptionFeatureGate> });
 const marketopsOpportunitiesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/marketops/opportunities',
@@ -274,10 +294,35 @@ const marketopsOpportunitiesRoute = createRoute({
   }),
   component: MarketOpsOpportunitiesRoute,
 });
-const marketopsSignalAssuranceRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assurance', component: MarketOpsSignalAssuranceRoute });
+const marketopsSignalAssuranceRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/assurance', component: () => <SubscriptionFeatureGate feature="signal_assurance_analytics" title="Signal Assurance Analytics"><MarketOpsSignalAssuranceRoute /></SubscriptionFeatureGate> });
 const marketopsSRIRoute = createRoute({ getParentRoute: () => rootRoute, path: "/marketops/sectors", component: MarketOpsSRIRoute });
 const marketopsBacktestsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/backtests', component: MarketOpsBacktestsRoute });
-const marketopsSyncraticRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/syncratic', component: MarketOpsSyncraticRoute });
+const marketopsSyncraticRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/marketops/syncratic',
+  validateSearch: (search: Record<string, unknown>): { tab?: string; insight_id?: string } => ({
+    tab: typeof search.tab === 'string' ? search.tab : undefined,
+    insight_id: typeof search.insight_id === 'string' ? search.insight_id : undefined,
+  }),
+  component: MarketOpsSyncraticRoute,
+});
+const marketopsPricingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/marketops/pricing',
+  validateSearch: (search: Record<string, unknown>): { source_feature?: string; return_url?: string } => ({
+    source_feature: typeof search.source_feature === 'string' ? search.source_feature : undefined,
+    return_url: typeof search.return_url === 'string' ? search.return_url : undefined,
+  }),
+  component: MarketOpsPricingRoute,
+});
+const marketopsSubscriptionReturnRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/marketops/subscription/return',
+  validateSearch: (search: Record<string, unknown>): { session_id?: string } => ({
+    session_id: typeof search.session_id === 'string' ? search.session_id : undefined,
+  }),
+  component: MarketOpsSubscriptionReturnRoute,
+});
 const marketopsAlgorithmsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketops/algorithms', component: () => <LegacyRedirect to="/admin/algorithms" /> });
 
 function CyberOpsIndexRouteComponent() {
@@ -315,7 +360,7 @@ const authCallbackRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
-  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminAccessRoute, adminSystemRoute, adminStorageRoute,
+  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminAccessRoute, adminSubscriptionsRoute, adminSystemRoute, adminStorageRoute,
   indexRoute,
   runsRoute,
   rawEventsRoute,
@@ -343,8 +388,11 @@ const routeTree = rootRoute.addChildren([
   marketopsReplayRoute,
   marketopsPipelinesRoute,
   marketopsHealthRoute,
+  marketopsProfileRoute,
   marketOpsSettingsRoute,
+  marketopsToolsRoute,
   marketopsAssetsRoute,
+  marketopsWatchlistsRoute,
   marketopsHypothesesRoute,
   marketopsIndicatorReelRoute,
   marketopsStateRoute,
@@ -355,6 +403,8 @@ const routeTree = rootRoute.addChildren([
   marketopsSRIRoute,
   marketopsBacktestsRoute,
   marketopsSyncraticRoute,
+  marketopsPricingRoute,
+  marketopsSubscriptionReturnRoute,
   marketopsAlgorithmsRoute,
   cyberopsIndexRoute,
   cyberopsDashboardRoute,

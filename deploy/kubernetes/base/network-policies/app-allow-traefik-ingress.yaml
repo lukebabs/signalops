@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traefik-to-web-and-gateway
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: app
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - signalops-web
+          - signalops-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              signalops.syncratic.io/ingress-plane: traefik
+      ports:
+        - protocol: TCP
+          port: 8080

@@ -19,6 +19,7 @@ import (
 var governedSuccessJobs = map[string]bool{
 	"marketops-daily-postclose":      true,
 	"marketops-fmp-continuation":     true,
+	"marketops-fmp-annual-financial": true,
 	"signalops-storage-monitor":      true,
 	"signalops-retention-governance": true,
 }
@@ -39,7 +40,7 @@ func run(ctx context.Context) error {
 	var in input
 	flag.StringVar(&in.TenantID, "tenant-id", "tenant-local", "tenant owning the scheduled job")
 	flag.StringVar(&in.JobID, "job-id", "", "scheduled job id")
-	flag.StringVar(&in.Status, "status", "", "succeeded or failed")
+	flag.StringVar(&in.Status, "status", "", "scheduled job status")
 	flag.StringVar(&in.Schedule, "schedule", "", "human schedule")
 	flag.StringVar(&in.Timezone, "timezone", "America/New_York", "schedule timezone")
 	flag.StringVar(&in.StartedAt, "started-at", "", "RFC3339 start time")
@@ -48,8 +49,8 @@ func run(ctx context.Context) error {
 	flag.Parse()
 	in.JobID = strings.TrimSpace(in.JobID)
 	in.Status = strings.ToLower(strings.TrimSpace(in.Status))
-	if in.JobID == "" || (in.Status != "succeeded" && in.Status != "failed") {
-		return fmt.Errorf("job-id and status (succeeded or failed) are required")
+	if in.JobID == "" || !validSchedulerStatus(in.Status) {
+		return fmt.Errorf("job-id and valid scheduler status are required")
 	}
 	if in.Status == "succeeded" && !governedSuccessJobs[in.JobID] {
 		return nil
@@ -80,12 +81,34 @@ func run(ctx context.Context) error {
 
 func notificationContent(in input) (category, severity, title, summary string) {
 	label := strings.ReplaceAll(in.JobID, "-", " ")
-	if in.Status == "failed" {
+	switch in.Status {
+	case "failed":
 		return "routine_job_failure", "warning", "Scheduled job failed: " + label,
 			fmt.Sprintf("%s exited with code %d at %s. Repeated failures are consolidated and escalate after the third occurrence.", in.JobID, in.ExitCode, in.CompletedAt)
+	case "degraded":
+		return "routine_job_degraded", "warning", "Scheduled job degraded: " + label,
+			fmt.Sprintf("%s completed with degraded evidence at %s. Review provider gaps and freshness before treating the session as fully complete.", in.JobID, in.CompletedAt)
+	case "recovery_needed":
+		return "routine_job_recovery_needed", "warning", "Scheduled job needs recovery: " + label,
+			fmt.Sprintf("%s needs recovery as of %s. The recovery guard should reconcile missing completion evidence.", in.JobID, in.CompletedAt)
+	case "recovering":
+		return "routine_job_recovering", "info", "Scheduled job recovering: " + label,
+			fmt.Sprintf("%s entered bounded recovery at %s.", in.JobID, in.CompletedAt)
+	case "skipped":
+		return "routine_job_skipped", "info", "Scheduled job skipped: " + label,
+			fmt.Sprintf("%s was intentionally skipped at %s.", in.JobID, in.CompletedAt)
 	}
 	return "governed_job_success", "info", "Scheduled job completed: " + label,
 		fmt.Sprintf("%s completed successfully at %s.", in.JobID, in.CompletedAt)
+}
+
+func validSchedulerStatus(status string) bool {
+	switch status {
+	case "succeeded", "failed", "degraded", "recovery_needed", "recovering", "skipped":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseTime(raw string, fallback time.Time) time.Time {

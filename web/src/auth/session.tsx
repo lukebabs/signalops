@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { User } from 'oidc-client-ts';
 import { authConfig } from './config';
-import { consumeRedirectPath, getUserManager, rememberRedirectPath } from './oidc';
+import { clearRedirectPath, consumeRedirectPath, getUserManager, rememberRedirectPath, recordAuthDiagnostic, clearAuthDiagnostic } from './oidc';
 import type { AuthClaims } from './claims';
 import { displayIdentity, hasPlatformAdmin, mergeSessionClaims } from './claims';
 
@@ -22,6 +22,7 @@ export interface SessionState {
   claims: AuthClaims | null;
   error: string | null;
   signIn: () => Promise<void>;
+  signUp: () => Promise<void>;
   finishCallback: () => Promise<string>;
   signOut: () => Promise<void>;
 }
@@ -31,18 +32,114 @@ const SessionContext = createContext<SessionState | null>(null);
 // Module-level access-token holder so the non-React api/client.ts can attach the
 // current Bearer token without React context. The provider updates it on user changes.
 let currentAccessToken: string | null = null;
+let authFailureRedirectInFlight = false;
+const TOKEN_EXPIRY_SAFETY_SECONDS = 10;
+const AUTH_FAILURE_RETRY_KEY = 'signalops.auth.failure.retry';
+type AuthFailureOptions = { automaticRetry?: boolean };
+
+function clearAuthFailureRetry(): void {
+  try {
+    window.sessionStorage.removeItem(AUTH_FAILURE_RETRY_KEY);
+  } catch {
+    // Storage may be unavailable in privacy-restricted browser contexts.
+  }
+}
+
+function tokenExpiresWithin(token: string, windowSeconds: number): boolean {
+  const [, payload] = token.split('.');
+  if (!payload || typeof globalThis.atob !== 'function') return false;
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const parsed = JSON.parse(globalThis.atob(padded)) as { exp?: unknown };
+    if (typeof parsed.exp !== 'number') return false;
+    return parsed.exp <= Math.floor(Date.now() / 1000) + windowSeconds;
+  } catch {
+    return false;
+  }
+}
 
 export function getAccessToken(): string | null {
+  if (currentAccessToken && tokenExpiresWithin(currentAccessToken, TOKEN_EXPIRY_SAFETY_SECONDS)) {
+    currentAccessToken = null;
+    void redirectToSignInForAuthFailure();
+    return null;
+  }
   return currentAccessToken;
+}
+
+/**
+ * Recover from a token that is expired, malformed, or bound to a different
+ * tenant than the request. Clearing the oidc-client user before redirecting is
+ * important: otherwise the SPA keeps restoring the rejected token and the
+ * operator is trapped on the error screen until browser storage is cleared.
+ */
+export async function redirectToSignInForAuthFailure(options: AuthFailureOptions = {}): Promise<void> {
+  if (!authConfig.authEnabled || authFailureRedirectInFlight) return;
+  authFailureRedirectInFlight = true;
+  currentAccessToken = null;
+  try {
+    const manager = getUserManager();
+    if (options.automaticRetry === false) {
+      await manager.removeUser();
+      clearAuthFailureRetry();
+      clearRedirectPath();
+      authFailureRedirectInFlight = false;
+      window.location.replace('/?auth_error=tenant_context');
+      return;
+    }
+    // A service account (or a user with no tenant assignment) can receive the
+    // same invalid token after a fresh OIDC login. Allow one clean retry, then
+    // stop on the login screen instead of recursively starting OIDC forever.
+    const alreadyRetried = window.sessionStorage.getItem(AUTH_FAILURE_RETRY_KEY) === '1';
+    if (alreadyRetried) {
+      await manager.removeUser();
+      authFailureRedirectInFlight = false;
+      return;
+    }
+    window.sessionStorage.setItem(AUTH_FAILURE_RETRY_KEY, '1');
+    const path = `${window.location.pathname}${window.location.search}`;
+    rememberRedirectPath(path);
+    await manager.removeUser();
+    await manager.signinRedirect();
+  } catch {
+    authFailureRedirectInFlight = false;
+  }
+}
+
+// Kept as a compatibility export for existing callers and test seams.
+export async function redirectToSignInForExpiredSession(): Promise<void> {
+  return redirectToSignInForAuthFailure();
 }
 
 // Test seam: set/clear the token holder without a provider.
 export function setAccessTokenForTest(token: string | null): void {
   currentAccessToken = token;
+  authFailureRedirectInFlight = false;
 }
 
 function errMsg(e: unknown): string {
   return String((e as Error)?.message ?? e);
+}
+
+async function sendSessionActivity(eventType: 'login' | 'logout', token: string | null): Promise<void> {
+  if (!authConfig.authEnabled || !token) return;
+  try {
+    await fetch('/v1/session/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        event_type: eventType,
+        app_id: 'marketops',
+        feature_key: 'session',
+        route_path: window.location.pathname,
+        correlation_id: `session-${eventType}-${Date.now()}`,
+      }),
+      keepalive: eventType === 'logout',
+    });
+  } catch {
+    // Activity capture is best-effort and must never interrupt authentication.
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -81,7 +178,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const renewed = await manager.signinSilent();
         if (renewed) applyUser(renewed);
       } catch (e) {
-        if (!cancelled) setError(`Session renewal failed: ${errMsg(e)}`);
+        if (!cancelled) {
+          currentAccessToken = null;
+          userRef.current = null;
+          setUser(null);
+          setError(`Session renewal failed: ${errMsg(e)}`);
+          void redirectToSignInForAuthFailure();
+        }
       } finally {
         renewingRef.current = false;
       }
@@ -146,8 +249,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // "No matching state found in storage" and bouncing the user to login.
   const signIn = useCallback(async () => {
     try {
-      rememberRedirectPath(window.location.pathname + window.location.search);
-      await getUserManager().signinRedirect();
+      clearAuthFailureRetry();
+      const tenantContextFailure = new URLSearchParams(window.location.search).get('auth_error') === 'tenant_context';
+      if (tenantContextFailure) clearRedirectPath();
+      else rememberRedirectPath(window.location.pathname + window.location.search);
+      recordAuthDiagnostic('redirect_started', { destination: window.location.pathname + window.location.search });
+      await getUserManager().signinRedirect(
+        tenantContextFailure ? { extraQueryParams: { prompt: 'login' } } : undefined,
+      );
+    } catch (e) {
+      setError(errMsg(e));
+    }
+  }, []);
+
+  const signUp = useCallback(async () => {
+    try {
+      clearAuthFailureRetry();
+      rememberRedirectPath('/marketops/dashboard');
+      const configuredURL = authConfig.signUpUrl.trim();
+      if (configuredURL) {
+        const url = new URL(configuredURL, window.location.origin);
+        if (url.origin === window.location.origin && url.pathname === '/auth/login' && !url.searchParams.has('intent')) {
+          url.searchParams.set('intent', 'register');
+        }
+        window.location.assign(url.toString());
+        return;
+      }
+      setError('Account creation is not configured for this deployment. Use Sign in or contact support.');
     } catch (e) {
       setError(errMsg(e));
     }
@@ -161,7 +289,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     lastActivityRef.current = Date.now();
     setUser(u);
     currentAccessToken = u?.access_token ?? null;
-    return consumeRedirectPath();
+    void sendSessionActivity('login', currentAccessToken);
+    recordAuthDiagnostic('callback_succeeded', { destination: window.location.pathname });
+    clearAuthDiagnostic();
+    const restoredPath = consumeRedirectPath();
+    return restoredPath;
   }, []);
 
   const signOut = useCallback(async () => {
@@ -169,7 +301,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clear the app-held session before navigating away. Some IdPs complete their
     // logout redirect even when their browser SSO cookie remains, and without
     // this step oidc-client-ts restores the cached user at `/`.
+    const token = currentAccessToken;
+    void sendSessionActivity('logout', token);
     currentAccessToken = null;
+    clearAuthFailureRetry();
     userRef.current = null;
     setUser(null);
     try {
@@ -190,10 +325,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       claims: mergeSessionClaims((user?.profile as AuthClaims | undefined) ?? null, user?.access_token),
       error,
       signIn,
+      signUp,
       finishCallback,
       signOut,
     }),
-    [user, loading, error, signIn, finishCallback, signOut],
+    [user, loading, error, signIn, signUp, finishCallback, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

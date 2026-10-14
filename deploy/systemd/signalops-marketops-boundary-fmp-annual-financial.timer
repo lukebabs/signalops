@@ -1,0 +1,11 @@
+[Unit]
+Description=Run governed FMP annual financial capture
+
+[Timer]
+OnCalendar=Sat *-*-* 02:30:00 America/New_York
+Persistent=true
+AccuracySec=1min
+Unit=signalops-marketops-boundary-schedule@marketops-fmp-annual-financial.service
+
+[Install]
+WantedBy=timers.target

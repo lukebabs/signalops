@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redpanda-staging-self-and-dns
+  namespace: signalops-data
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: data
+    signalops.syncratic.io/purpose: signal-connect-k8s-staging
+    signalops.syncratic.io/stage: staging
+    signalops.syncratic.io/production-cutover-allowed: "false"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-redpanda-staging
+      app.kubernetes.io/component: broker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signalops-redpanda-staging
+              app.kubernetes.io/component: broker
+      ports:
+        - protocol: TCP
+          port: 9092
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: signalops-redpanda-staging
+              app.kubernetes.io/component: broker
+      ports:
+        - protocol: TCP
+          port: 9092

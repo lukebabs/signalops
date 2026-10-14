@@ -1,0 +1,3 @@
+REVOKE ALL ON subscriber_global_eod_resolved_observations, subscriber_global_eod_revision_selection_policies FROM signalops_subscriber_global_eod;
+DROP VIEW IF EXISTS subscriber_global_eod_resolved_observations;
+DROP TABLE IF EXISTS subscriber_global_eod_revision_selection_policies;

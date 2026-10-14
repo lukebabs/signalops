@@ -11,40 +11,70 @@ import (
 
 type algorithmEvaluationReadRepository struct {
 	*fakeQueryRepository
-	run      storage.MarketOpsAlgorithmEvaluationRunRecord
-	result   storage.MarketOpsAlgorithmEvaluationResultRecord
-	outcome  storage.MarketOpsAlgorithmEvaluationOutcomeRecord
-	campaign storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord
+	run                storage.MarketOpsAlgorithmEvaluationRunRecord
+	result             storage.MarketOpsAlgorithmEvaluationResultRecord
+	outcome            storage.MarketOpsAlgorithmEvaluationOutcomeRecord
+	campaign           storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord
+	lastRunFilter      storage.MarketOpsAlgorithmEvaluationRunFilter
+	lastResultFilter   storage.MarketOpsAlgorithmEvaluationResultFilter
+	lastOutcomeFilter  storage.MarketOpsAlgorithmEvaluationOutcomeFilter
+	lastCampaignFilter storage.MarketOpsAlgorithmEvaluationBackfillCampaignFilter
+	lastRunTenant      string
+	lastCampaignTenant string
 }
 
 func (r *algorithmEvaluationReadRepository) UpsertMarketOpsAlgorithmEvaluationRun(context.Context, storage.MarketOpsAlgorithmEvaluationRunRecord) error {
 	return nil
 }
-func (r *algorithmEvaluationReadRepository) GetMarketOpsAlgorithmEvaluationRun(context.Context, string, string) (storage.MarketOpsAlgorithmEvaluationRunRecord, error) {
+func (r *algorithmEvaluationReadRepository) GetMarketOpsAlgorithmEvaluationRun(_ context.Context, tenantID, runID string) (storage.MarketOpsAlgorithmEvaluationRunRecord, error) {
+	r.lastRunTenant = tenantID
+	if tenantID != r.run.TenantID || runID != r.run.RunID {
+		return storage.MarketOpsAlgorithmEvaluationRunRecord{}, storage.ErrNotFound
+	}
 	return r.run, nil
 }
-func (r *algorithmEvaluationReadRepository) ListMarketOpsAlgorithmEvaluationRuns(context.Context, storage.MarketOpsAlgorithmEvaluationRunFilter) ([]storage.MarketOpsAlgorithmEvaluationRunRecord, error) {
+func (r *algorithmEvaluationReadRepository) ListMarketOpsAlgorithmEvaluationRuns(_ context.Context, filter storage.MarketOpsAlgorithmEvaluationRunFilter) ([]storage.MarketOpsAlgorithmEvaluationRunRecord, error) {
+	r.lastRunFilter = filter
+	if filter.TenantID != r.run.TenantID {
+		return []storage.MarketOpsAlgorithmEvaluationRunRecord{}, nil
+	}
 	return []storage.MarketOpsAlgorithmEvaluationRunRecord{r.run}, nil
 }
 func (r *algorithmEvaluationReadRepository) InsertMarketOpsAlgorithmEvaluationResult(context.Context, storage.MarketOpsAlgorithmEvaluationResultRecord) error {
 	return nil
 }
-func (r *algorithmEvaluationReadRepository) ListMarketOpsAlgorithmEvaluationResults(context.Context, storage.MarketOpsAlgorithmEvaluationResultFilter) ([]storage.MarketOpsAlgorithmEvaluationResultRecord, error) {
+func (r *algorithmEvaluationReadRepository) ListMarketOpsAlgorithmEvaluationResults(_ context.Context, filter storage.MarketOpsAlgorithmEvaluationResultFilter) ([]storage.MarketOpsAlgorithmEvaluationResultRecord, error) {
+	r.lastResultFilter = filter
+	if filter.TenantID != r.result.TenantID {
+		return []storage.MarketOpsAlgorithmEvaluationResultRecord{}, nil
+	}
 	return []storage.MarketOpsAlgorithmEvaluationResultRecord{r.result}, nil
 }
 func (r *algorithmEvaluationReadRepository) UpsertMarketOpsAlgorithmEvaluationOutcome(context.Context, storage.MarketOpsAlgorithmEvaluationOutcomeRecord) error {
 	return nil
 }
-func (r *algorithmEvaluationReadRepository) ListMarketOpsAlgorithmEvaluationOutcomes(context.Context, storage.MarketOpsAlgorithmEvaluationOutcomeFilter) ([]storage.MarketOpsAlgorithmEvaluationOutcomeRecord, error) {
+func (r *algorithmEvaluationReadRepository) ListMarketOpsAlgorithmEvaluationOutcomes(_ context.Context, filter storage.MarketOpsAlgorithmEvaluationOutcomeFilter) ([]storage.MarketOpsAlgorithmEvaluationOutcomeRecord, error) {
+	r.lastOutcomeFilter = filter
+	if filter.TenantID != r.outcome.TenantID {
+		return []storage.MarketOpsAlgorithmEvaluationOutcomeRecord{}, nil
+	}
 	return []storage.MarketOpsAlgorithmEvaluationOutcomeRecord{r.outcome}, nil
 }
 func (r *algorithmEvaluationReadRepository) UpsertMarketOpsAlgorithmEvaluationBackfillCampaign(context.Context, storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord) error {
 	return nil
 }
-func (r *algorithmEvaluationReadRepository) GetMarketOpsAlgorithmEvaluationBackfillCampaign(context.Context, string, string) (storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord, error) {
+func (r *algorithmEvaluationReadRepository) GetMarketOpsAlgorithmEvaluationBackfillCampaign(_ context.Context, tenantID, campaignID string) (storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord, error) {
+	r.lastCampaignTenant = tenantID
+	if tenantID != r.campaign.TenantID || campaignID != r.campaign.CampaignID {
+		return storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord{}, storage.ErrNotFound
+	}
 	return r.campaign, nil
 }
-func (r *algorithmEvaluationReadRepository) ListMarketOpsAlgorithmEvaluationBackfillCampaigns(context.Context, storage.MarketOpsAlgorithmEvaluationBackfillCampaignFilter) ([]storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord, error) {
+func (r *algorithmEvaluationReadRepository) ListMarketOpsAlgorithmEvaluationBackfillCampaigns(_ context.Context, filter storage.MarketOpsAlgorithmEvaluationBackfillCampaignFilter) ([]storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord, error) {
+	r.lastCampaignFilter = filter
+	if filter.TenantID != r.campaign.TenantID {
+		return []storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord{}, nil
+	}
 	return []storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord{r.campaign}, nil
 }
 
@@ -85,6 +115,50 @@ func TestMarketOpsAlgorithmEvaluationReadAPIsRejectInvalidQueries(t *testing.T) 
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("path=%s status=%d body=%s", path, recorder.Code, recorder.Body.String())
+		}
+	}
+}
+
+func TestAuthenticatedAlgorithmEvaluationReadsBindPrincipalTenant(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	repo := &algorithmEvaluationReadRepository{
+		fakeQueryRepository: &fakeQueryRepository{},
+		run:                 storage.MarketOpsAlgorithmEvaluationRunRecord{RunID: "eval-foreign", TenantID: "tenant-other"},
+		result:              storage.MarketOpsAlgorithmEvaluationResultRecord{EvaluationResultID: "result-foreign", RunID: "eval-foreign", TenantID: "tenant-other"},
+		outcome:             storage.MarketOpsAlgorithmEvaluationOutcomeRecord{EvaluationOutcomeID: "outcome-foreign", RunID: "eval-foreign", TenantID: "tenant-other"},
+		campaign:            storage.MarketOpsAlgorithmEvaluationBackfillCampaignRecord{CampaignID: "campaign-foreign", TenantID: "tenant-other"},
+	}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleOperator}}})
+
+	list := httptest.NewRecorder()
+	router.ServeHTTP(list, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/algorithm-evaluations", nil), token))
+	if list.Code != http.StatusOK || repo.lastRunFilter.TenantID != "tenant-local" {
+		t.Fatalf("list status=%d tenant=%q body=%s", list.Code, repo.lastRunFilter.TenantID, list.Body.String())
+	}
+
+	foreign := httptest.NewRecorder()
+	router.ServeHTTP(foreign, withBearer(httptest.NewRequest(http.MethodGet, "/v1/marketops/algorithm-evaluations/eval-foreign", nil), token))
+	if foreign.Code != http.StatusNotFound || repo.lastRunTenant != "tenant-local" {
+		t.Fatalf("foreign status=%d tenant=%q body=%s", foreign.Code, repo.lastRunTenant, foreign.Body.String())
+	}
+
+	for _, request := range []struct {
+		path   string
+		tenant func() string
+	}{
+		{path: "/v1/marketops/algorithm-evaluations/eval-foreign/results", tenant: func() string { return repo.lastResultFilter.TenantID }},
+		{path: "/v1/marketops/algorithm-evaluations/eval-foreign/outcomes", tenant: func() string { return repo.lastOutcomeFilter.TenantID }},
+		{path: "/v1/marketops/algorithm-evaluation-backfills", tenant: func() string { return repo.lastCampaignFilter.TenantID }},
+		{path: "/v1/marketops/algorithm-evaluation-backfills/campaign-foreign", tenant: func() string { return repo.lastCampaignTenant }},
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, withBearer(httptest.NewRequest(http.MethodGet, request.path, nil), token))
+		if recorder.Code != http.StatusOK && recorder.Code != http.StatusNotFound {
+			t.Fatalf("%s status=%d body=%s", request.path, recorder.Code, recorder.Body.String())
+		}
+		if request.tenant() != "tenant-local" {
+			t.Fatalf("%s tenant=%q", request.path, request.tenant())
 		}
 	}
 }

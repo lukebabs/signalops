@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
+
 	"github.com/lukebabs/signalops/internal/appmeta"
 	"github.com/lukebabs/signalops/internal/storage"
-	"strings"
 )
 
 const accessColumns = `tenant_id,subject,display_name,email,app_id,permission,granted_by,granted_at,updated_at`
@@ -79,6 +80,40 @@ func (r *Repository) UpsertTenantUserAccess(ctx context.Context, x storage.Tenan
 	}
 	return out, tx.Commit()
 }
+func (r *Repository) CreateInitialTenantUserAccess(ctx context.Context, x storage.TenantUserAccessRecord, actorSubject, actorName string) (storage.TenantUserAccessRecord, bool, error) {
+	if strings.TrimSpace(x.TenantID) == "" || strings.TrimSpace(x.Subject) == "" || !isRegisteredUseCaseApp(x.AppID) || (x.Permission != "read" && x.Permission != "write") {
+		return x, false, fmt.Errorf("invalid tenant user access")
+	}
+	tx, e := r.db.BeginTx(ctx, nil)
+	if e != nil {
+		return x, false, e
+	}
+	defer tx.Rollback()
+	if _, e = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, x.TenantID); e != nil {
+		return x, false, e
+	}
+	var provisioned bool
+	if e = tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM tenant_user_access WHERE tenant_id=$1) OR EXISTS (SELECT 1 FROM tenant_user_access_audit WHERE tenant_id=$1)`, x.TenantID).Scan(&provisioned); e != nil {
+		return x, false, e
+	}
+	if provisioned {
+		return x, false, nil
+	}
+	row := tx.QueryRowContext(ctx, `INSERT INTO tenant_user_access (`+accessColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,now(),now()) RETURNING `+accessColumns, x.TenantID, x.Subject, x.DisplayName, x.Email, x.AppID, x.Permission, x.GrantedBy)
+	out, e := scanAccess(row)
+	if e != nil {
+		return x, false, e
+	}
+	after := `{"permission":"` + out.Permission + `"}`
+	if _, e = tx.ExecContext(ctx, `INSERT INTO tenant_user_access_audit (tenant_id,subject,app_id,mutation,actor_subject,actor_display_name,before_value,after_value) VALUES ($1,$2,$3,'grant',$4,$5,'{}'::jsonb,$6::jsonb)`, x.TenantID, x.Subject, x.AppID, actorSubject, actorName, after); e != nil {
+		return x, false, e
+	}
+	if e = tx.Commit(); e != nil {
+		return x, false, e
+	}
+	return out, true, nil
+}
+
 func accessAuditJSON(v string) string {
 	if strings.TrimSpace(v) == "" {
 		return "{}"

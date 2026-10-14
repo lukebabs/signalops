@@ -81,7 +81,15 @@ func runEquityReconciliation(
 		return report, errors.New("provider client and broker publisher are required for reconciliation writes")
 	}
 
-	assets, err := repo.ListMarketOpsAssets(ctx, cfg.TenantID, cfg.UniverseGroup, true, cfg.MaxProviderRequests)
+	// A provider-request budget is not an asset-universe limit.  When the
+	// budget is unlimited, load the complete governed cohort (up to the
+	// repository safety ceiling) so list growth cannot silently truncate
+	// reconciliation at the historical 100-asset default.
+	assetLimit := cfg.MaxProviderRequests
+	if assetLimit <= 0 {
+		assetLimit = 5000
+	}
+	assets, err := repo.ListMarketOpsAssets(ctx, cfg.TenantID, cfg.UniverseGroup, true, assetLimit)
 	if err != nil {
 		return report, fmt.Errorf("load active equity universe: %w", err)
 	}
@@ -203,7 +211,7 @@ func runEquityReconciliation(
 		}
 	}
 	if report.DeadlineReached {
-		return report, fmt.Errorf("equity reconciliation deadline reached with %d/50 normalized", report.FinalComplete)
+		return report, fmt.Errorf("equity reconciliation deadline reached with %d/%d normalized", report.FinalComplete, len(assets))
 	}
 	if report.FinalComplete != len(assets) {
 		return report, fmt.Errorf("equity reconciliation incomplete: %d/%d normalized", report.FinalComplete, len(assets))
@@ -247,7 +255,7 @@ func processEquityReconciliationTask(
 	if !errors.Is(err, storage.ErrNotFound) {
 		return err
 	}
-	if report.ProviderRequests >= cfg.MaxProviderRequests {
+	if cfg.MaxProviderRequests > 0 && report.ProviderRequests >= cfg.MaxProviderRequests {
 		return failReconciliationTask(ctx, repo, task, fmt.Sprintf("global provider request budget %d exhausted", cfg.MaxProviderRequests))
 	}
 	if task.ProviderAttempts >= task.MaxProviderAttempts {
@@ -420,9 +428,6 @@ func normalizeEquityReconciliationConfig(cfg equityReconciliationConfig) equityR
 	}
 	if cfg.MaxProviderAttempts <= 0 {
 		cfg.MaxProviderAttempts = 2
-	}
-	if cfg.MaxProviderRequests <= 0 {
-		cfg.MaxProviderRequests = 100
 	}
 	if cfg.Deadline <= 0 {
 		cfg.Deadline = 15 * time.Minute

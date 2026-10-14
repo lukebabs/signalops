@@ -23,13 +23,7 @@ func registerSessionExperienceRoute(mux *http.ServeMux, cfg RouterConfig) {
 			if profile.AppID == appmeta.AppConsole {
 				continue
 			}
-			permission := ""
-			switch {
-			case !cfg.Auth.Enabled, principal.SuperAdmin:
-				permission = "write"
-			case principal.Access != nil:
-				permission = principal.Access[profile.AppID]
-			}
+			permission := sessionProfilePermission(cfg, principal, profile)
 			if permission != "" {
 				profiles = append(profiles, sessionExperienceProfile{Profile: profile, Permission: permission})
 			}
@@ -40,4 +34,21 @@ func registerSessionExperienceRoute(mux *http.ServeMux, cfg RouterConfig) {
 			"app_profiles": profiles,
 		})
 	})
+}
+
+func sessionProfilePermission(cfg RouterConfig, principal Principal, profile appmeta.Profile) string {
+	// NarrativeOps is an administrative intelligence workspace. Keep it out of
+	// landing cards for ordinary users even if a stale or overly broad access
+	// grant exists.
+	if cfg.Auth.Enabled && profile.AppID == appmeta.AppNarrativeOps && !principal.SuperAdmin {
+		return ""
+	}
+	switch {
+	case !cfg.Auth.Enabled, principal.SuperAdmin:
+		return "write"
+	case principal.Access != nil:
+		return principal.Access[profile.AppID]
+	default:
+		return ""
+	}
 }

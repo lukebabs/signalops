@@ -19,7 +19,8 @@ func (q *fakeQueryRepository) UpsertMarketOpsIntelligenceCohortSymbolResult(_ co
 	q.cohortResults = append(q.cohortResults, x)
 	return nil
 }
-func (q *fakeQueryRepository) ListMarketOpsIntelligenceCohortRuns(_ context.Context, _ storage.MarketOpsIntelligenceCohortRunFilter) ([]storage.MarketOpsIntelligenceCohortRunRecord, error) {
+func (q *fakeQueryRepository) ListMarketOpsIntelligenceCohortRuns(_ context.Context, filter storage.MarketOpsIntelligenceCohortRunFilter) ([]storage.MarketOpsIntelligenceCohortRunRecord, error) {
+	q.lastCohortRunFilter = filter
 	return q.cohortRuns, nil
 }
 func (q *fakeQueryRepository) GetMarketOpsIntelligenceCohortRun(_ context.Context, tenantID, runID string) (storage.MarketOpsIntelligenceCohortRunRecord, error) {
@@ -40,6 +41,7 @@ func (q *fakeQueryRepository) ListMarketOpsIntelligenceCohortSymbolResults(_ con
 	return out, nil
 }
 func (q *fakeQueryRepository) ListMarketOpsIntelligenceReadiness(_ context.Context, f storage.MarketOpsIntelligenceReadinessFilter) ([]storage.MarketOpsIntelligenceCohortSymbolResultRecord, error) {
+	q.lastCohortReadinessFilter = f
 	out := []storage.MarketOpsIntelligenceCohortSymbolResultRecord{}
 	for _, x := range q.cohortResults {
 		if x.TenantID == f.TenantID {

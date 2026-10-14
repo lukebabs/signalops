@@ -16,8 +16,11 @@ type Repository interface {
 	ListMarketOpsEODEvents(context.Context, string, []string) ([]storage.NormalizedEventLedgerRecord, error)
 }
 type Config struct {
-	TenantID, RunID string
-	AsOf            time.Time
+	// TenantID is the destination data scope. InputTenantID permits a bounded
+	// legacy-input bridge while all new SRI configuration and snapshots are
+	// written to platform-global.
+	TenantID, InputTenantID, RunID string
+	AsOf                           time.Time
 }
 type Result struct {
 	Segments  int
@@ -25,6 +28,84 @@ type Result struct {
 	Partial   int
 }
 
+type RangeResult struct {
+	Sessions                  int
+	Snapshots                 int
+	Partial                   int
+	FirstSession, LastSession time.Time
+}
+
+// RunRecentSessions materializes a bounded progression history from canonical prices.
+// A session is eligible only when every registry ETF has an EOD point.
+func RunRecentSessions(ctx context.Context, repo Repository, cfg Config, sessions int) (RangeResult, error) {
+	if strings.TrimSpace(cfg.TenantID) == "" {
+		return RangeResult{}, fmt.Errorf("tenant id is required")
+	}
+	if sessions < 1 || sessions > 120 {
+		return RangeResult{}, fmt.Errorf("backfill sessions must be between 1 and 120")
+	}
+	if cfg.AsOf.IsZero() {
+		cfg.AsOf = time.Now().UTC()
+	}
+	_, etfs := FoundationRegistry(cfg.TenantID)
+	symbols := []string{}
+	seen := map[string]bool{}
+	for _, etf := range etfs {
+		if !seen[etf.ETFSymbol] {
+			seen[etf.ETFSymbol] = true
+			symbols = append(symbols, etf.ETFSymbol)
+		}
+	}
+	events, err := repo.ListMarketOpsEODEvents(ctx, sriInputTenantID(cfg), symbols)
+	if err != nil {
+		return RangeResult{}, err
+	}
+	prices := priceHistory(events, cfg.AsOf)
+	common := commonSessions(prices, symbols)
+	if len(common) < sessions {
+		return RangeResult{}, fmt.Errorf("only %d common SRI sessions are available; need %d", len(common), sessions)
+	}
+	selected := common[len(common)-sessions:]
+	report := RangeResult{Sessions: len(selected), FirstSession: selected[0], LastSession: selected[len(selected)-1]}
+	for _, session := range selected {
+		runCfg := cfg
+		runCfg.AsOf = session
+		result, runErr := Run(ctx, repo, runCfg)
+		if runErr != nil {
+			return report, runErr
+		}
+		report.Snapshots += result.Snapshots
+		report.Partial += result.Partial
+	}
+	return report, nil
+}
+
+func commonSessions(prices map[string][]PricePoint, symbols []string) []time.Time {
+	if len(symbols) == 0 {
+		return nil
+	}
+	byDate := map[string]map[string]struct{}{}
+	for _, symbol := range symbols {
+		for _, point := range prices[symbol] {
+			date := point.Session.UTC().Format("2006-01-02")
+			if byDate[date] == nil {
+				byDate[date] = map[string]struct{}{}
+			}
+			byDate[date][symbol] = struct{}{}
+		}
+	}
+	common := make([]time.Time, 0, len(byDate))
+	for date, available := range byDate {
+		if len(available) != len(symbols) {
+			continue
+		}
+		if session, err := time.Parse("2006-01-02", date); err == nil {
+			common = append(common, session.UTC())
+		}
+	}
+	sort.Slice(common, func(i, j int) bool { return common[i].Before(common[j]) })
+	return common
+}
 func Run(ctx context.Context, repo Repository, cfg Config) (Result, error) {
 	if strings.TrimSpace(cfg.TenantID) == "" {
 		return Result{}, fmt.Errorf("tenant id is required")
@@ -51,7 +132,7 @@ func Run(ctx context.Context, repo Repository, cfg Config) (Result, error) {
 			symbols = append(symbols, x.ETFSymbol)
 		}
 	}
-	events, err := repo.ListMarketOpsEODEvents(ctx, cfg.TenantID, symbols)
+	events, err := repo.ListMarketOpsEODEvents(ctx, sriInputTenantID(cfg), symbols)
 	if err != nil {
 		return Result{}, err
 	}
@@ -78,6 +159,13 @@ func Run(ctx context.Context, repo Repository, cfg Config) (Result, error) {
 	}
 	return result, nil
 }
+func sriInputTenantID(cfg Config) string {
+	if tenant := strings.TrimSpace(cfg.InputTenantID); tenant != "" {
+		return tenant
+	}
+	return cfg.TenantID
+}
+
 func priceHistory(events []storage.NormalizedEventLedgerRecord, asOf time.Time) map[string][]PricePoint {
 	by := map[string]map[string]PricePoint{}
 	for _, e := range events {

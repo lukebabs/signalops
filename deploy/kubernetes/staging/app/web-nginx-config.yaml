@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: signalops-web-nginx-staging
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-web
+    app.kubernetes.io/component: web
+    signalops.syncratic.io/plane: app
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      server_name _;
+
+      root /usr/share/nginx/html;
+      index index.html;
+
+      location / {
+        try_files $uri $uri/ /index.html;
+      }
+
+      resolver 10.43.0.10 valid=30s ipv6=off;
+      set $signalops_gateway_upstream signalops-gateway.signalops-app.svc.cluster.local:8080;
+
+      location = /healthz {
+        proxy_pass http://$signalops_gateway_upstream/healthz;
+      }
+
+      location = /readyz {
+        proxy_pass http://$signalops_gateway_upstream/readyz;
+      }
+
+      location /v1/ {
+        proxy_pass http://$signalops_gateway_upstream;
+      }
+    }

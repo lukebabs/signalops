@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS subscriber_global_asset_identity_resolutions;

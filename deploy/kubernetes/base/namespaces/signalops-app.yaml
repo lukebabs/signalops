@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: signalops-app
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: app
+  annotations:
+    signalops.syncratic.io/responsibility: "User-facing web, gateway/API, admin workbench, subscription and billing APIs."

@@ -54,3 +54,36 @@ func TestRiskRewardOverviewExposesInsufficientInputsInsteadOfNeutral(t *testing.
 		}
 	}
 }
+
+func TestRiskRewardOverviewUsesHistoricalEvidenceCohortAfterAssetListExpansion(t *testing.T) {
+	payload := func(symbol, date string, usable int) []byte {
+		value, err := json.Marshal(map[string]any{
+			"symbol": symbol, "observation_time": date + "T20:00:00Z", "technical_score": 50,
+			"technical_direction": "bullish", "confidence_basis": map[string]any{"usable_technical_inputs": usable},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	results := []storage.AlgorithmResultRecord{
+		{AlgorithmID: riskRewardAlgorithmID, ResultPayloadJSON: payload("AAA", "2026-10-12", 5)},
+		{AlgorithmID: riskRewardAlgorithmID, ResultPayloadJSON: payload("BBB", "2026-10-12", 5)},
+		{AlgorithmID: riskRewardAlgorithmID, ResultPayloadJSON: payload("AAA", "2026-10-13", 5)},
+	}
+	active := map[string]struct{}{"AAA": {}, "BBB": {}, "CCC": {}}
+	points := signalOverviewRiskRewardBest(results, active, 10)
+	if len(points) != 2 {
+		t.Fatalf("point count = %d, want 2", len(points))
+	}
+	byDate := map[string]map[string]int{}
+	for _, point := range points {
+		byDate[point["trade_date"].(string)] = point["coverage"].(map[string]int)
+	}
+	if got := byDate["2026-10-12"]["unprocessed"]; got != 0 {
+		t.Fatalf("historical unprocessed = %d, want 0 for the two-member historical cohort", got)
+	}
+	if got := byDate["2026-10-13"]["unprocessed"]; got != 2 {
+		t.Fatalf("latest unprocessed = %d, want 2 against the current three-member list", got)
+	}
+}

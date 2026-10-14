@@ -1,0 +1,310 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+job_id="${1:-}"
+runtime_env_file="${SIGNALOPS_K8S_RUNTIME_ENV_FILE:-/vault/secrets/marketops-worker-runtime.env}"
+
+fail() {
+  echo "signalops_k8s_marketops_job_failed: $*" >&2
+  exit 2
+}
+
+[[ -n "$job_id" ]] || fail "job id is required"
+if [[ -f "$runtime_env_file" ]]; then
+  # shellcheck disable=SC1090
+  source "$runtime_env_file"
+fi
+
+export SIGNALOPS_ENV="${SIGNALOPS_ENV:-kubernetes-staging}"
+export SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED="${SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED:-true}"
+
+# Every binary launched by this entrypoint is part of the MarketOps data plane.
+# Make the dedicated stores authoritative at the process boundary so binaries
+# that still read the legacy SIGNALOPS_DATABASE_URL cannot silently write to
+# shared SignalOps after the database split. Keep the shared URL available only
+# to explicitly separate platform services.
+if [[ "$SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED" == "true" ]]; then
+  : "${SIGNALOPS_MARKETOPS_DATABASE_URL:?dedicated MarketOps database URL is required}"
+  : "${SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL:?dedicated MarketOps temporal database URL is required}"
+  export SIGNALOPS_DATABASE_URL="$SIGNALOPS_MARKETOPS_DATABASE_URL"
+  export SIGNALOPS_TEMPORAL_DATABASE_URL="$SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE_URL"
+fi
+
+mode_flag="--execute"
+if [[ "${MARKETOPS_K8S_DRY_RUN:-false}" == "true" ]]; then
+  mode_flag="--dry-run"
+fi
+
+started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+run_id="${MARKETOPS_K8S_RUN_ID:-${job_id}-k8s-$(date -u +%Y%m%dT%H%M%SZ)}"
+schedule_label="${MARKETOPS_K8S_SCHEDULE_LABEL:-Kubernetes staging suspended CronJob}"
+timezone_label="${MARKETOPS_K8S_TIMEZONE:-UTC}"
+runner_label="${MARKETOPS_K8S_RUNNER_ID:-kubernetes}"
+status_database_url="${SIGNALOPS_K8S_STATUS_DATABASE_URL:-${SIGNALOPS_MARKETOPS_DATABASE_URL:-${SIGNALOPS_SUBSCRIBER_GLOBAL_EOD_DATABASE_URL:-}}}"
+status_required="${SIGNALOPS_K8S_STATUS_RECORDING_REQUIRED:-true}"
+
+# Run-now requests can arrive on weekends. Keep post-close work tied to the
+# most recent weekday unless the scheduler supplied an explicit session date.
+if [[ -z "${MARKETOPS_SESSION_DATE:-}" && "$job_id" =~ ^marketops-(warm-eod|daily-postclose|risk-reward|saf-|sri-|task-retry|postclose-recovery|syncratic-intelligence)$ ]]; then
+  candidate="$(TZ=America/New_York date +%F)"
+  if [[ "$(TZ=America/New_York date +%u)" -gt 5 ]]; then
+    candidate="$(TZ=America/New_York date -d 'yesterday' +%F)"
+    while [[ "$(TZ=America/New_York date -d "$candidate" +%u)" -gt 5 ]]; do
+      candidate="$(TZ=America/New_York date -d "$candidate - 1 day" +%F)"
+    done
+  fi
+  export MARKETOPS_SESSION_DATE="$candidate"
+fi
+
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+record_status() {
+  local status="$1"
+  local completed_at="${2:-}"
+  local exit_code="${3:-}"
+  local reason="${4:-}"
+
+  if [[ -z "$status_database_url" ]]; then
+    [[ "$status_required" != "true" ]] || fail "status database URL is required for Kubernetes scheduled-job parity"
+    echo "warning: skipping Kubernetes job status record because status database URL is empty" >&2
+    return 0
+  fi
+  command -v psql >/dev/null 2>&1 || {
+    [[ "$status_required" != "true" ]] || fail "psql is required for Kubernetes scheduled-job parity"
+    echo "warning: skipping Kubernetes job status record because psql is unavailable" >&2
+    return 0
+  }
+
+  psql "$status_database_url" -q -v ON_ERROR_STOP=1 \
+    -v run_id="$run_id" \
+    -v job_id="$job_id" \
+    -v schedule="$schedule_label" \
+    -v timezone="$timezone_label" \
+    -v status="$status" \
+    -v started_at="$started_at" \
+    -v completed_at="$completed_at" \
+    -v exit_code="$exit_code" \
+    -v reason="$reason" \
+    -v mode="$mode_flag" \
+    -v dry_run="$dry_run_json" \
+    -v runner="$runner_label" <<'SQL'
+WITH upsert_status AS (
+  INSERT INTO marketops_scheduled_job_statuses (
+    job_id, schedule, timezone, status, reason, started_at, completed_at,
+    exit_code, detail, runner, updated_at
+  ) VALUES (
+    :'job_id', :'schedule', :'timezone', :'status', COALESCE(:'reason',''),
+    NULLIF(:'started_at','')::timestamptz,
+    NULLIF(:'completed_at','')::timestamptz,
+    NULLIF(:'exit_code','')::integer,
+    jsonb_build_object('mode', :'mode', 'dry_run', (:'dry_run')::boolean),
+    COALESCE(:'runner',''), now()
+  )
+  ON CONFLICT (job_id) DO UPDATE SET
+    schedule = EXCLUDED.schedule,
+    timezone = EXCLUDED.timezone,
+    status = EXCLUDED.status,
+    reason = EXCLUDED.reason,
+    started_at = EXCLUDED.started_at,
+    completed_at = EXCLUDED.completed_at,
+    exit_code = EXCLUDED.exit_code,
+    detail = EXCLUDED.detail,
+    runner = EXCLUDED.runner,
+    updated_at = now()
+  RETURNING 1
+)
+INSERT INTO marketops_scheduled_job_runs (
+  run_id, job_id, schedule, timezone, status, reason, started_at, completed_at,
+  exit_code, detail, runner, updated_at
+) VALUES (
+  :'run_id', :'job_id', :'schedule', :'timezone', :'status', COALESCE(:'reason',''),
+  NULLIF(:'started_at','')::timestamptz,
+  NULLIF(:'completed_at','')::timestamptz,
+  NULLIF(:'exit_code','')::integer,
+  jsonb_build_object('mode', :'mode', 'dry_run', (:'dry_run')::boolean),
+  COALESCE(:'runner',''), now()
+)
+ON CONFLICT (run_id) DO UPDATE SET
+  status = EXCLUDED.status,
+  reason = EXCLUDED.reason,
+  completed_at = EXCLUDED.completed_at,
+  exit_code = EXCLUDED.exit_code,
+  detail = EXCLUDED.detail,
+  runner = EXCLUDED.runner,
+  updated_at = now();
+SQL
+}
+
+command_args=()
+case "$job_id" in
+  marketops-intraday)
+    command_args=(
+      signalops-marketops-intraday-monitor
+      --tenant-id "${MARKETOPS_INTRADAY_TENANT_ID:-tenant-local}"
+      --universe-group "${MARKETOPS_INTRADAY_UNIVERSE_GROUP:-primary_eod}"
+      # The governed primary cohort is dynamic (currently 225 assets). Keep
+      # the worker limit above that cohort so no tail assets silently miss
+      # intraday monitoring.
+      --max-symbols "${MARKETOPS_INTRADAY_MAX_SYMBOLS:-500}"
+    )
+    if [[ "$mode_flag" == "--dry-run" ]]; then
+      command_args+=(--dry-run)
+    fi
+    ;;
+  marketops-sri-refresh)
+    command_args=(k8s-marketops-sri-refresh "$mode_flag")
+    ;;
+  marketops-sri-holdings-refresh)
+    command_args=(
+      signalops-marketops-sri-holdings-runner
+      --tenant-id "${SIGNALOPS_SRI_OUTPUT_TENANT_ID:-platform-global}"
+    )
+    ;;
+  marketops-fmp-annual-financial)
+    command_args=(
+      signalops-subscriber-global-annual-financial-task-worker
+      "$mode_flag"
+      --max-assets "${MARKETOPS_FMP_ANNUAL_MAX_ASSETS:-1000}"
+      --max-retries "${MARKETOPS_FMP_ANNUAL_MAX_RETRIES:-2}"
+      --session-date "${MARKETOPS_SESSION_DATE:-}"
+      --correlation-id "${MARKETOPS_FMP_ANNUAL_CORRELATION_ID:-$run_id}"
+    )
+    ;;
+  marketops-saf-benchmark)
+    command_args=(
+      signalops-subscriber-global-saf-benchmark-materializer
+      "$mode_flag"
+      --cohort "${MARKETOPS_SAF_BENCHMARK_COHORT:-primary_eod}"
+      --max-observations "${MARKETOPS_SAF_BENCHMARK_MAX_OBSERVATIONS:-500}"
+      --calculation-version "${MARKETOPS_SAF_BENCHMARK_CALCULATION_VERSION:-saf_benchmark.k8s_staging}"
+      --correlation-id "${MARKETOPS_SAF_BENCHMARK_CORRELATION_ID:-k8s-staging-cronjob}"
+    )
+    ;;
+
+  marketops-saf-evaluation)
+    command_args=(k8s-marketops-saf-evaluation)
+    ;;
+  marketops-syncratic-intelligence)
+    command_args=(
+      signalops-marketops-syncratic-intelligence-runner
+      --tenant-id "${MARKETOPS_SYNCRATIC_TENANT_ID:-tenant-local}"
+      --session-date "${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"
+    )
+    ;;
+  marketops-daily-postclose)
+    if [[ "$mode_flag" == "--dry-run" ]]; then
+      command_args=(bash -ec 'echo "marketops_k8s_daily_postclose_dry_run_verified session=${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"')
+    else
+      command_args=(k8s-marketops-postclose-writer)
+    fi
+    ;;
+  marketops-global-dashboard-projection)
+    projection_date="${MARKETOPS_SESSION_DATE:-$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT max(session_date)::text FROM marketops_market_states" | tr -d '[:space:]')}"
+    [[ "$projection_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || fail "no completed MarketOps session is available for global projection"
+    command_args=(k8s-marketops-global-dashboard-projection "$projection_date")
+    ;;
+  marketops-postclose-recovery)
+    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-postclose-recovery requires a separately approved production K8s scheduler cutover"
+    command_args=(
+      bash
+      -ec
+        'session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"; latest="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT COALESCE(max(completed_at)::text,\$none\$none\$none\$) FROM marketops_scheduled_job_runs WHERE job_id IN (\$daily\$marketops-daily-postclose\$daily\$,\$risk\$marketops-risk-reward\$risk\$)")"; echo "marketops_k8s_postclose_recovery_dry_run_verified session=${session_date} latest_dependency_completion=${latest}"'
+    )
+    ;;
+  marketops-risk-reward)
+    if [[ "$mode_flag" == "--dry-run" ]]; then
+      command_args=(
+        bash
+        -ec
+        'session_date="${MARKETOPS_SESSION_DATE:-$(date -u +%F)}"; snapshot_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT COALESCE(count(*),0) FROM marketops_scheduled_job_statuses")"; echo "marketops_k8s_risk_reward_dry_run_verified session=${session_date} status_rows=${snapshot_count}"'
+      )
+    else
+      command_args=(k8s-marketops-risk-reward)
+    fi
+    ;;
+  marketops-fmp-continuation)
+    if [[ "$mode_flag" == "--dry-run" ]]; then
+      command_args=(
+        bash
+        -ec
+        'workflow_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM marketops_scheduled_job_runs WHERE job_id=\$job\$marketops-fmp-annual-financial\$job\$")"; echo "marketops_k8s_fmp_continuation_dry_run_verified annual_workflow_rows=${workflow_count}"'
+      )
+    else
+      # Continue deferred VC/DOSM fundamentals against the live primary list.
+      # This runs on the next provider day, so the daily FMP budget is fresh;
+      # it must still use the dedicated MarketOps database boundary.
+      command_args=(signalops-marketops-valuation-runner --tenant-id tenant-local --universe-group primary_eod --session-date "${MARKETOPS_SESSION_DATE:-$(date -u +%F)}" --fmp-max-requests "${MARKETOPS_FMP_CONTINUATION_MAX_REQUESTS:-300}" --refresh-financials)
+    fi
+    ;;
+  marketops-operations-monitor)
+    command_args=(k8s-marketops-operations-monitor)
+    ;;
+  marketops-retention-governance)
+    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-retention-governance is K8s-staging dry-run only until production scheduler cutover is approved"
+    command_args=(
+      bash
+      -ec
+      'signalops-retention-governor --tenant-id tenant-local --policy-id subscriber.user_activity_180d; signalops-retention-governor --tenant-id tenant-pilot-b --policy-id subscriber.user_activity_180d; echo marketops_k8s_retention_governance_dry_run_verified'
+    )
+    ;;
+
+  marketops-task-retry)
+    command_args=(k8s-marketops-task-retry)
+    ;;
+  marketops-warm-eod)
+    if [[ "$mode_flag" == "--dry-run" ]]; then
+      command_args=(
+        bash
+        -ec
+        'warm_count="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM subscriber_global_warm_eod_assets")"; [[ "$warm_count" =~ ^[0-9]+$ ]] || exit 4; echo "marketops_k8s_warm_eod_dry_run_verified warm_assets=$warm_count"'
+      )
+    else
+      command_args=(
+        bash
+        -ec
+        'symbols="$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT string_agg(canonical_symbol, chr(44) ORDER BY canonical_symbol) FROM subscriber_global_warm_eod_assets")"; [[ -n "$symbols" ]] || { echo "warm EOD cohort is empty" >&2; exit 4; }; signalops-massive-puller --mode pull --date "${MARKETOPS_SESSION_DATE}" --symbols "$symbols" --allow-unseeded-symbols --datasets equity --max-companies 1000 --max-provider-requests 0 --max-events-built 0 --max-events-published 0 --max-retries 0 --continue-on-error=true --dry-run=false --tenant-id tenant-local --source-id src-massive'
+      )
+    fi
+    ;;
+  *)
+    fail "unsupported MarketOps Kubernetes job id: $job_id"
+    ;;
+esac
+
+dry_run_json=false
+if [[ "$mode_flag" == "--dry-run" ]]; then
+  dry_run_json=true
+fi
+record_status "running" "" "" ""
+
+set +e
+"${command_args[@]}"
+exit_code=$?
+set -e
+
+completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+status="succeeded"
+reason=""
+if [[ "$exit_code" -ne 0 ]]; then
+  if [[ "$exit_code" -eq 42 ]]; then
+    status="recovery_needed"
+    if [[ "$job_id" == "marketops-sri-refresh" ]]; then
+      reason="sri_canonical_etf_source_incomplete"
+    elif [[ "$job_id" == "marketops-risk-reward" ]]; then
+      reason="risk_reward_postclose_feature_dependency_incomplete"
+    else
+      reason="recoverable_dependency_incomplete"
+    fi
+  else
+    status="failed"
+  fi
+fi
+record_status "$status" "$completed_at" "$exit_code" "$reason"
+if [[ "$status" == "recovery_needed" ]]; then
+  # This is an expected, recoverable source gap. Keep the CronJob green so
+  # Kubernetes does not waste retries; the task ledger remains actionable.
+  exit 0
+fi
+exit "$exit_code"

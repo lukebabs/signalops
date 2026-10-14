@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: signalops-gateway
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/name: signalops-gateway
+    app.kubernetes.io/component: gateway
+    signalops.syncratic.io/plane: app
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: signalops-gateway
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/stage: staging
+    signalops.syncratic.io/production-cutover-allowed: "false"
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

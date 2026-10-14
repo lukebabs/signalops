@@ -25,6 +25,7 @@ type TenantUserAccessAuditRecord struct {
 type TenantUserAccessRepository interface {
 	ListTenantUserAccess(context.Context, string) ([]TenantUserAccessRecord, error)
 	ListTenantUserAccessForSubject(context.Context, string, string) ([]TenantUserAccessRecord, error)
+	CreateInitialTenantUserAccess(context.Context, TenantUserAccessRecord, string, string) (TenantUserAccessRecord, bool, error)
 	UpsertTenantUserAccess(context.Context, TenantUserAccessRecord, string, string) (TenantUserAccessRecord, error)
 	DeleteTenantUserAccess(context.Context, string, string, string, string, string) error
 	ListTenantUserAccessAudit(context.Context, string, string, int) ([]TenantUserAccessAuditRecord, error)

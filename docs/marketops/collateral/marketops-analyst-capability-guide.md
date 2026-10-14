@@ -28,10 +28,10 @@ The Asset overview remains the detailed source for the price/sentiment/corrobora
 
 ## Use strategic valuation as context, not timing
 
-The **Valuation & DOSM** view has two related but different results:
+The **Value Intelligence & Distressed Opportunity Intelligence** view has two related but different results:
 
-- **Valuation Composite (VC):** a 0–10 relative-valuation context based on P/S, GAAP P/E, and EV/EBITDA, with peer adjustment only when coverage is adequate.
-- **Distressed Opportunity Scoring Model (DOSM):** a 0–10 strategic research rank combining VC with operating quality, profitability, free cash flow, debt profile, capital efficiency, and a bounded technical adjustment.
+- **Value Intelligence (Valuation Composite / VC):** a 0–10 relative-valuation context based on P/S, GAAP P/E, and EV/EBITDA, with peer adjustment only when coverage is adequate.
+- **Distressed Opportunity Intelligence (DOSM):** a 0–10 strategic research rank combining Value Intelligence with operating quality, profitability, free cash flow, debt profile, capital efficiency, and a bounded technical adjustment.
 
 Select an asset row to open the calculation details directly below it. Inspect metric provenance, model version, data profile, component scores, confidence, and withheld inputs before drawing a conclusion.
 
@@ -42,7 +42,7 @@ Current production behavior is TTM-only. Revenue CAGR and the high-valuation/low
 | View or result | What it means | Appropriate analyst use |
 |---|---|---|
 | Risk/Reward Temporal | A bounded technical posture based on range, RSI, returns, volume, SMAs, ATR, and separately labeled put/call context | Assess current price/technical condition; do not use it as a standalone instruction |
-| Tactical Market Posture | Constructive, neutral, or caution daily context from RSI, five-day return, SMA position, and slope | Add concise daily context to strategic VC/DOSM research |
+| Tactical Market Posture | Constructive, neutral, or caution daily context from RSI, five-day return, SMA position, and slope | Add concise daily context to strategic Value and Distressed Opportunity Intelligence research |
 | Exhaustive Reversal | A signed stance for an extended up/down drift whose participation may be fading or climactic | Decide whether a potential reversal deserves investigation, while checking whether the trend remains supported |
 | Options-flow extreme | Aggregate put/call volume outside defined thresholds and above activity minimum | Treat as descriptive participation context; never infer intent by itself |
 
@@ -77,14 +77,14 @@ Aggregate options activity cannot show whether positions were bought or sold, op
 
 ## Add cross-sectional sector context
 
-Use **Sector Intelligence** before narrowing to an individual asset when the question is where relative price strength and momentum are concentrated across the implemented sector and industry ETF registry. The view compares 5-, 20-, and 60-session behavior against an SPY/QQQ/RSP benchmark basket, ranks the eligible cross-section, and exposes the components and input provenance.
+Use **Sector Rotation Intelligence (SRI)** before narrowing to an individual asset when the question is where relative price strength and momentum are concentrated across the implemented sector and industry ETF registry. The view compares 5-, 20-, and 60-session behavior against an SPY/QQQ/RSP benchmark basket, ranks the eligible cross-section, and exposes the components and input provenance.
 
 The states are bounded context labels: Leading, Improving, Neutral, Weakening, and Lagging. They are not sector-rotation assertions and do not measure breadth, flows, holdings, options activity, or future return. Color is a scanning aid only; read the state, score, completed session, and quality label together. A usable ranking requires at least 61 sessions for the primary ETF and every benchmark.
 
 ## Analyst checklist
 
 1. Confirm the completed session and freshness of the data.
-2. Separate strategic VC/DOSM context from daily tactical evidence.
+2. Separate strategic Value and Distressed Opportunity Intelligence context from daily tactical evidence.
 3. Read score explanations and withheld-data reasons; do not substitute missing inputs with assumptions.
 4. Treat options flow as context, not intent.
 5. Prioritize convergent items, but investigate disagreement when it is material.

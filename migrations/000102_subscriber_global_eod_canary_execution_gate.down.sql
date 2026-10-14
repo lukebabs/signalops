@@ -1,0 +1,8 @@
+REVOKE ALL ON FUNCTION subscriber_global_eod_canary_execution_member_guard() FROM signalops_subscriber_global_eod;
+REVOKE ALL ON FUNCTION subscriber_global_eod_canary_evidence_disabled_guard() FROM signalops_subscriber_global_eod;
+REVOKE ALL ON subscriber_global_eod_canary_evidence_events, subscriber_global_eod_canary_execution_members, subscriber_global_eod_canary_execution_plans FROM signalops_subscriber_global_eod;
+DROP TABLE IF EXISTS subscriber_global_eod_canary_evidence_events;
+DROP TABLE IF EXISTS subscriber_global_eod_canary_execution_members;
+DROP TABLE IF EXISTS subscriber_global_eod_canary_execution_plans;
+DROP FUNCTION IF EXISTS subscriber_global_eod_canary_evidence_disabled_guard();
+DROP FUNCTION IF EXISTS subscriber_global_eod_canary_execution_member_guard();

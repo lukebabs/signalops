@@ -1,0 +1,1 @@
+REVOKE SELECT ON subscriber_gateway_global_saf_daily_cohort_validation FROM signalops_subscriber_gateway_runtime;

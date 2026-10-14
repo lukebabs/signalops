@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { Link } from '@tanstack/react-router';
 import { MarketOpsPriceSentimentChart } from "./MarketOpsAssetsRoute";
+import { MarketOpsWatchlistSelector } from "../components/MarketOpsWatchlistContext";
+import { useTenant } from "../auth/session";
 
 type CandidateFilter = "all" | "complete" | "incomplete" | "fading_drift" | "climactic_extension" | "trend_supported";
 type CandidateSort = "assessment" | "asset" | "extension" | "participation" | "flow";
@@ -22,11 +24,12 @@ const candidateValue = (row: any, key: CandidateSort) => {
 };
 
 export function MarketOpsEROCRoute() {
+  const tenantId = useTenant();
   const [selected, setSelected] = useState<string | null>(null);
   const [tickerFilter, setTickerFilter] = useState("");
   const [candidateFilter, setCandidateFilter] = useState<CandidateFilter>("all");
   const [sort, setSort] = useState<{ key: CandidateSort; asc: boolean }>({ key: "assessment", asc: false });
-  const q = useQuery({ queryKey: ["marketops-eroc", "tenant-local"], queryFn: () => api.getMarketOpsEROC("tenant-local"), refetchInterval: 5 * 60 * 1000 });
+  const q = useQuery({ queryKey: ["marketops-eroc", tenantId], queryFn: () => api.getMarketOpsEROC(tenantId), refetchInterval: 5 * 60 * 1000 });
   const { candidates, monitor } = useMemo(() => {
     const term = tickerFilter.trim().toUpperCase();
     const all = (q.data?.results ?? []).filter((row: any) => !term || String(row.ticker ?? "").toUpperCase().includes(term));
@@ -45,7 +48,7 @@ export function MarketOpsEROCRoute() {
   const clear = () => { setTickerFilter(""); setCandidateFilter("all"); };
   const active = tickerFilter || candidateFilter !== "all";
   return <div className="space-y-3">
-    <div><h1 className="text-lg font-semibold">Exhaustive Reversal</h1><p className="text-xs text-gray-500">Daily review queue for fading or climactic price extensions. Trend-supported assets are promoted into the review queue as context; only fading or climactic regimes are reversal-ranked.</p></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><div><h1 className="text-lg font-semibold">Exhaustive Reversal</h1><p className="text-xs text-gray-500">Daily review queue for fading or climactic price extensions. Trend-supported assets are promoted into the review queue as context; only fading or climactic regimes are reversal-ranked.</p></div><MarketOpsWatchlistSelector /></div>
     <div className="flex flex-wrap items-end gap-3 rounded border border-gray-200 bg-gray-50 p-3"><label className="text-xs font-medium text-gray-700">Asset<input value={tickerFilter} onChange={event => setTickerFilter(event.target.value)} placeholder="Ticker" className="mt-1 block w-28 rounded border border-gray-300 bg-white px-2 py-1.5 font-mono text-sm" /></label><label className="text-xs font-medium text-gray-700">Review queue<select value={candidateFilter} onChange={event => setCandidateFilter(event.target.value as CandidateFilter)} className="mt-1 block rounded border border-gray-300 bg-white px-2 py-1.5 text-sm"><option value="all">All candidates</option><option value="complete">Complete evidence</option><option value="incomplete">Incomplete evidence</option><option value="fading_drift">Fading drift</option><option value="climactic_extension">Climactic extension</option><option value="trend_supported">Trend-supported context</option></select></label>{active && <button type="button" onClick={clear} className="rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-yellow-50">Clear filters</button>}<span className="pb-1 text-xs text-gray-500">{candidates.length} review rows · {monitor.length} unresolved assets</span></div>
     <section className="rounded border border-gray-200 bg-white"><div className="border-b border-gray-200 bg-gray-50 px-3 py-2"><h2 className="text-sm font-semibold">Reversal review queue</h2><p className="text-xs text-gray-500">Reversal candidates rank ahead of trend-supported context. A score prioritizes review; it is not a reversal prediction.</p></div>{candidates.length ? <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr>{([ ["Asset", "asset"], ["Review assessment", "assessment"], ["Regime", null], ["Price extension", "extension"], ["Participation", "participation"], ["Reversal flow", "flow"] ] as const).map(([label, key]) => <th key={label} className="px-3 py-2">{key ? <button type="button" onClick={() => toggleSort(key)} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-yellow-500">{label}<span className={sort.key === key ? "text-brand-700" : "text-gray-300"}>{sort.key === key ? sort.asc ? "↑" : "↓" : "↕"}</span></button> : label}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">{candidates.map((row: any) => <CandidateRows key={row.ticker} row={row} selected={selected === row.ticker} onSelect={() => setSelected(selected === row.ticker ? null : row.ticker)} />)}</tbody></table></div> : <div className="p-3 text-sm text-gray-500">No reversal candidates match the current filter.</div>}</section>
     <details className="rounded border border-gray-200 bg-white"><summary className="cursor-pointer px-3 py-2 text-sm font-semibold">Unresolved monitor <span className="font-normal text-gray-500">({monitor.length})</span></summary><p className="border-t border-gray-200 px-3 py-2 text-xs text-gray-500">These assets have not established a reversal or trend-supported regime.</p><div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-left text-xs uppercase text-gray-500"><tr><th className="px-3 py-2">Asset</th><th className="px-3 py-2">Monitor state</th><th className="px-3 py-2">10-day drift</th><th className="px-3 py-2">Participation</th><th className="px-3 py-2">Trend flow</th></tr></thead><tbody className="divide-y divide-gray-100">{monitor.map((row: any) => <MonitorRows key={row.ticker} row={row} selected={selected === row.ticker} onSelect={() => setSelected(selected === row.ticker ? null : row.ticker)} />)}</tbody></table></div></details>

@@ -13,20 +13,25 @@ func (r *Repository) UpsertMarketOpsIntelligenceCohortRun(ctx context.Context, x
 	if strings.TrimSpace(x.RunID) == "" || strings.TrimSpace(x.TenantID) == "" || strings.TrimSpace(x.Actor) == "" || x.MaxSymbols < 1 || x.MaxSymbols > 10 || x.SessionStart.IsZero() || x.SessionEnd.Before(x.SessionStart) {
 		return fmt.Errorf("cohort run requires run_id, tenant_id, actor, valid sessions, and max_symbols 1..10")
 	}
+	if x.AssetListID == "" {
+		if id, revision, fingerprint, err := r.currentMarketOpsAssetList(ctx, x.TenantID); err == nil {
+			x.AssetListID, x.AssetListRevision, x.AssetListFingerprint = id, revision, fingerprint
+		}
+	}
 	result, err := r.db.ExecContext(ctx, `
 INSERT INTO marketops_intelligence_cohort_runs
-(run_id,tenant_id,app_id,universe_group,requested_symbols,resolved_symbols,stages,max_symbols,dry_run,continue_on_error,status,aggregate_metrics,errors,actor,session_start,session_end,started_at,completed_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+(run_id,tenant_id,app_id,universe_group,requested_symbols,resolved_symbols,stages,max_symbols,dry_run,continue_on_error,status,aggregate_metrics,errors,actor,session_start,session_end,started_at,completed_at,asset_list_id,asset_list_revision,asset_list_fingerprint)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 ON CONFLICT (run_id) DO UPDATE SET
  status=EXCLUDED.status, aggregate_metrics=EXCLUDED.aggregate_metrics, errors=EXCLUDED.errors,
- completed_at=EXCLUDED.completed_at, updated_at=now()
+ completed_at=EXCLUDED.completed_at, asset_list_id=COALESCE(EXCLUDED.asset_list_id,marketops_intelligence_cohort_runs.asset_list_id), asset_list_revision=COALESCE(EXCLUDED.asset_list_revision,marketops_intelligence_cohort_runs.asset_list_revision), asset_list_fingerprint=COALESCE(EXCLUDED.asset_list_fingerprint,marketops_intelligence_cohort_runs.asset_list_fingerprint), updated_at=now()
 WHERE marketops_intelligence_cohort_runs.tenant_id=EXCLUDED.tenant_id
  AND marketops_intelligence_cohort_runs.requested_symbols=EXCLUDED.requested_symbols
  AND marketops_intelligence_cohort_runs.resolved_symbols=EXCLUDED.resolved_symbols
  AND marketops_intelligence_cohort_runs.stages=EXCLUDED.stages
  AND marketops_intelligence_cohort_runs.session_start=EXCLUDED.session_start
  AND marketops_intelligence_cohort_runs.session_end=EXCLUDED.session_end
-`, x.RunID, x.TenantID, recordAppID(x.AppID), x.UniverseGroup, pqArray(x.RequestedSymbols), pqArray(x.ResolvedSymbols), pqArray(x.Stages), x.MaxSymbols, x.DryRun, x.ContinueOnError, x.Status, jsonOrEmpty(x.AggregateJSON), jsonArrayOrEmpty(x.ErrorsJSON), x.Actor, x.SessionStart, x.SessionEnd, x.StartedAt, x.CompletedAt)
+`, x.RunID, x.TenantID, recordAppID(x.AppID), x.UniverseGroup, pqArray(x.RequestedSymbols), pqArray(x.ResolvedSymbols), pqArray(x.Stages), x.MaxSymbols, x.DryRun, x.ContinueOnError, x.Status, jsonOrEmpty(x.AggregateJSON), jsonArrayOrEmpty(x.ErrorsJSON), x.Actor, x.SessionStart, x.SessionEnd, x.StartedAt, x.CompletedAt, x.AssetListID, x.AssetListRevision, x.AssetListFingerprint)
 	if err != nil {
 		return fmt.Errorf("upsert intelligence cohort run: %w", err)
 	}
@@ -71,7 +76,7 @@ ON CONFLICT (run_id,symbol) DO UPDATE SET
 const cohortRunSelect = `SELECT run_id,tenant_id,app_id,universe_group,
  COALESCE(array_to_json(requested_symbols),'[]'::json)::text,COALESCE(array_to_json(resolved_symbols),'[]'::json)::text,
  COALESCE(array_to_json(stages),'[]'::json)::text,max_symbols,dry_run,continue_on_error,status,aggregate_metrics,errors,
- actor,session_start,session_end,started_at,completed_at,created_at,updated_at FROM marketops_intelligence_cohort_runs`
+ actor,session_start,session_end,started_at,completed_at,created_at,updated_at,asset_list_id,asset_list_revision,asset_list_fingerprint FROM marketops_intelligence_cohort_runs`
 
 func (r *Repository) ListMarketOpsIntelligenceCohortRuns(ctx context.Context, f storage.MarketOpsIntelligenceCohortRunFilter) ([]storage.MarketOpsIntelligenceCohortRunRecord, error) {
 	rows, err := r.db.QueryContext(ctx, cohortRunSelect+` WHERE ($1='' OR tenant_id=$1) AND ($2='' OR universe_group=$2) AND ($3='' OR status=$3) ORDER BY started_at DESC LIMIT $4`, f.TenantID, f.UniverseGroup, f.Status, clampLimit(f.Limit))
@@ -97,7 +102,7 @@ func (r *Repository) GetMarketOpsIntelligenceCohortRun(ctx context.Context, tena
 func scanCohortRun(s interface{ Scan(...any) error }) (storage.MarketOpsIntelligenceCohortRunRecord, error) {
 	var x storage.MarketOpsIntelligenceCohortRunRecord
 	var requested, resolved, stages string
-	if err := s.Scan(&x.RunID, &x.TenantID, &x.AppID, &x.UniverseGroup, &requested, &resolved, &stages, &x.MaxSymbols, &x.DryRun, &x.ContinueOnError, &x.Status, &x.AggregateJSON, &x.ErrorsJSON, &x.Actor, &x.SessionStart, &x.SessionEnd, &x.StartedAt, &x.CompletedAt, &x.CreatedAt, &x.UpdatedAt); err != nil {
+	if err := s.Scan(&x.RunID, &x.TenantID, &x.AppID, &x.UniverseGroup, &requested, &resolved, &stages, &x.MaxSymbols, &x.DryRun, &x.ContinueOnError, &x.Status, &x.AggregateJSON, &x.ErrorsJSON, &x.Actor, &x.SessionStart, &x.SessionEnd, &x.StartedAt, &x.CompletedAt, &x.CreatedAt, &x.UpdatedAt, &x.AssetListID, &x.AssetListRevision, &x.AssetListFingerprint); err != nil {
 		return x, mapScanError("scan intelligence cohort run", err)
 	}
 	for _, p := range []struct {

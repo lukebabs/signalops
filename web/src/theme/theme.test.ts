@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { readThemePreference, resolveTheme } from './theme';
 
 describe('theme preference', () => {
-  it('uses a valid persisted preference and safely falls back to system', () => {
+  it('uses a valid persisted preference and falls back to the product default', () => {
     expect(readThemePreference('dark')).toBe('dark');
-    expect(readThemePreference('invalid')).toBe('system');
-    expect(readThemePreference(null)).toBe('system');
+    expect(readThemePreference('invalid')).toBe('dark');
+    expect(readThemePreference(null)).toBe('dark');
   });
 
   it('resolves system preference from the operating system', () => {

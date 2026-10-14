@@ -12,7 +12,7 @@ MarketOps algorithms are deterministic, research-only artifacts. They run on per
 
 ## Strategic algorithms
 
-### Valuation Composite (VC)
+### Value Intelligence (Valuation Composite / VC)
 
 **Registry ID:** `signalops.algorithms.valuation_composite_v3`  
 **Question answered:** Given retained trailing financials and the canonical price/market-cap snapshot, how relatively expensive or attractive is this equity on the defined valuation measures?
@@ -23,7 +23,7 @@ The displayed fair-value anchor is `price × exp(0.1 × (VC − 5))`. It is an e
 
 **Completeness boundaries:** VC requires usable TTM statements, a valid completed-session price, and market capitalization. In the current profile, FMP supplies four quarterly rows per statement. Three-year revenue CAGR and its valuation penalty are withheld pending the 16-quarter history gate.
 
-### Distressed Opportunity Scoring Model (DOSM)
+### Distressed Opportunity Intelligence (DOSM)
 
 **Registry ID:** `signalops.algorithms.distressed_opportunity_scoring_v3`  
 **Question answered:** Which assets have a relatively attractive or distressed strategic evidence profile that warrants research?

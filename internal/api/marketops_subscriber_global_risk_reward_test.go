@@ -1,0 +1,358 @@
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sort"
+	"testing"
+	"time"
+
+	"github.com/lukebabs/signalops/internal/storage"
+)
+
+type subscriberGlobalRiskRewardOverviewFake struct {
+	*fakeQueryRepository
+	snapshots     []storage.MarketOpsRiskRewardSnapshotRecord
+	options       []storage.MarketOpsOptionsDistributionRecord
+	symbols       []string
+	optionSymbols []string
+	eodSymbols    []string
+}
+
+func (f *subscriberGlobalRiskRewardOverviewFake) ListSubscriberGlobalRiskRewardSnapshots(_ context.Context, symbols []string, _ time.Time, _ int) ([]storage.MarketOpsRiskRewardSnapshotRecord, error) {
+	f.symbols = append([]string(nil), symbols...)
+	return f.snapshots, nil
+}
+
+func (f *subscriberGlobalRiskRewardOverviewFake) ListSubscriberGlobalOptionsDistributions(_ context.Context, symbols []string, _ time.Time, _ int) ([]storage.MarketOpsOptionsDistributionRecord, error) {
+	f.optionSymbols = append([]string(nil), symbols...)
+	return f.options, nil
+}
+
+func (f *subscriberGlobalRiskRewardOverviewFake) ListSubscriberCurrentEODContexts(_ context.Context, symbols []string) ([]storage.SubscriberCurrentEODContextRecord, error) {
+	f.eodSymbols = append([]string(nil), symbols...)
+	return nil, nil
+}
+
+func TestSubscriberSignalOverviewUsesGlobalRiskRewardProjection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	tradeDate := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	repo := &subscriberGlobalRiskRewardOverviewFake{
+		fakeQueryRepository: &fakeQueryRepository{
+			algorithmResults: []storage.AlgorithmResultRecord{{
+				TenantID: "tenant-pilot-b", AlgorithmID: riskRewardAlgorithmID,
+				ResultPayloadJSON: []byte("{\"symbol\":\"AAPL\",\"observation_time\":\"2026-08-13T20:00:00Z\",\"technical_direction\":\"bearish\",\"technical_score\":-99}"),
+			}},
+			marketOpsAssets: []storage.MarketOpsAssetRecord{{TenantID: "tenant-pilot-b", Ticker: "AAPL", IsActive: true}},
+		},
+		snapshots: []storage.MarketOpsRiskRewardSnapshotRecord{{
+			SnapshotID: "global-risk-aapl-20260814", TenantID: "platform-global", Symbol: "AAPL",
+			SessionDate: tradeDate, ObservedAt: tradeDate.Add(20 * time.Hour),
+			TechnicalScore: 42, TechnicalDirection: "bullish", RiskLevel: "medium",
+			Confidence: .82, UsableInputCount: 6, RequiredInputCount: 8, Eligible: true,
+			ResultPayloadJSON: []byte("{\"symbol\":\"AAPL\",\"observation_time\":\"2026-08-14T20:00:00Z\",\"technical_score\":42,\"technical_direction\":\"bullish\",\"confidence_basis\":{\"usable_technical_inputs\":6}}"),
+		}},
+		options: []storage.MarketOpsOptionsDistributionRecord{{TenantID: "platform-global", Symbol: "AAPL", TradeDate: tradeDate, WindowName: "10_trade_days", ContractCount: 10, TotalCallVolume: 2000, TotalPutVolume: 200}},
+	}
+	router := NewRouter(RouterConfig{
+		Auth:                          fixture.authCfg,
+		QueryRepository:               repo,
+		SubscriberListsEnabled:        true,
+		SubscriberListsPilotTenants:   map[string]struct{}{"tenant-pilot-b": {}},
+		SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{},
+	})
+	token := fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/assets/signal-overview?window=10_trade_days", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	sort.Strings(repo.symbols)
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" || len(repo.optionSymbols) != 1 || repo.optionSymbols[0] != "AAPL" || len(repo.eodSymbols) != 1 || repo.eodSymbols[0] != "AAPL" {
+		t.Fatalf("global reader symbols risk=%v options=%v, want [AAPL]", repo.symbols, repo.optionSymbols)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := response["shared_eod_coverage"]; present {
+		t.Fatalf("diagnostic shared EOD coverage leaked into dashboard response: %#v", response)
+	}
+	points := response["risk_reward"].(map[string]any)["points"].([]any)
+	if len(points) != 1 {
+		t.Fatalf("risk/reward points=%#v", points)
+	}
+	point := points[0].(map[string]any)
+	if point["trade_date"] != "2026-08-14" {
+		t.Fatalf("subscriber dashboard used stale tenant-local data: %#v", point)
+	}
+	flow := response["options_flow_extremes"].(map[string]any)
+	if flow["as_of"] != "2026-08-14" {
+		t.Fatalf("subscriber dashboard used stale tenant-local Options data: %#v", flow)
+	}
+}
+
+type subscriberGlobalMarketStateFake struct {
+	*fakeQueryRepository
+	states  []storage.MarketOpsMarketStateRecord
+	symbols []string
+}
+
+func (f *subscriberGlobalMarketStateFake) ListSubscriberGlobalMarketOpsMarketStates(_ context.Context, symbols []string, _ storage.MarketOpsMarketStateFilter) ([]storage.MarketOpsMarketStateRecord, error) {
+	f.symbols = append([]string(nil), symbols...)
+	return f.states, nil
+}
+
+func TestSubscriberMarketStateUsesGlobalProjection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	globalDate := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	globalState := validMarketOpsMarketStateRecord()
+	globalState.MarketStateID = "global-state-aapl-20260814"
+	globalState.TenantID = "platform-global"
+	globalState.SessionDate = globalDate
+	globalState.AsOfTime = globalDate.Add(20 * time.Hour)
+	legacyState := validMarketOpsMarketStateRecord()
+	legacyState.TenantID = "tenant-pilot-b"
+	legacyState.SessionDate = globalDate.AddDate(0, 0, -1)
+	repo := &subscriberGlobalMarketStateFake{
+		fakeQueryRepository: &fakeQueryRepository{marketOpsMarketStates: []storage.MarketOpsMarketStateRecord{legacyState}},
+		states:              []storage.MarketOpsMarketStateRecord{globalState},
+	}
+	router := NewRouter(RouterConfig{
+		Auth:                          fixture.authCfg,
+		QueryRepository:               repo,
+		SubscriberListsEnabled:        true,
+		SubscriberListsPilotTenants:   map[string]struct{}{"tenant-pilot-b": {}},
+		SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{},
+	})
+	request := httptest.NewRequest(http.MethodGet, "/v1/marketops/states?tenant_id=tenant-pilot-b&symbol=AAPL", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" {
+		t.Fatalf("global state symbols=%v, want [AAPL]", repo.symbols)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	states := response["market_states"].([]any)
+	if len(states) != 1 {
+		t.Fatalf("market states=%#v", states)
+	}
+	state := states[0].(map[string]any)
+	if state["market_state_id"] != globalState.MarketStateID || state["session_date"] != "2026-08-14T00:00:00Z" || state["tenant_id"] != "platform-global" {
+		t.Fatalf("subscriber market state did not use the global projection: %#v", state)
+	}
+}
+
+type subscriberGlobalEROCFake struct {
+	*fakeQueryRepository
+	results          []storage.MarketOpsValuationResultRecord
+	legacyResults    []storage.MarketOpsValuationResultRecord
+	valuationResults []storage.MarketOpsValuationResultRecord
+	symbols          []string
+}
+
+func (f *subscriberGlobalEROCFake) ListSubscriberGlobalEROCResults(_ context.Context, symbols []string, _ int) ([]storage.MarketOpsValuationResultRecord, error) {
+	f.symbols = append([]string(nil), symbols...)
+	return f.results, nil
+}
+
+func (f *subscriberGlobalEROCFake) ListSubscriberGlobalValuationResults(_ context.Context, symbols []string, _ bool, _ int) ([]storage.MarketOpsValuationResultRecord, error) {
+	f.symbols = append([]string(nil), symbols...)
+	return f.valuationResults, nil
+}
+
+func (f *subscriberGlobalEROCFake) UpsertMarketOpsValuationSnapshot(context.Context, storage.MarketOpsValuationSnapshotRecord) error {
+	return nil
+}
+func (f *subscriberGlobalEROCFake) UpsertMarketOpsValuationResult(context.Context, storage.MarketOpsValuationResultRecord) error {
+	return nil
+}
+func (f *subscriberGlobalEROCFake) LatestMarketOpsValuationSnapshot(context.Context, string, string, string) (storage.MarketOpsValuationSnapshotRecord, error) {
+	return storage.MarketOpsValuationSnapshotRecord{}, storage.ErrNotFound
+}
+func (f *subscriberGlobalEROCFake) ListMarketOpsValuationResults(context.Context, storage.MarketOpsValuationFilter) ([]storage.MarketOpsValuationResultRecord, error) {
+	return f.legacyResults, nil
+}
+
+func TestSubscriberEROCUsesGlobalProjection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	globalDate := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	globalResult := storage.MarketOpsValuationResultRecord{ResultID: "global-eroc-aapl-20260814", TenantID: "platform-global", Symbol: "AAPL", SessionDate: globalDate, AlgorithmID: erocAlgorithmID, ModelVersion: "v6", Score: 77, Classification: "confirmed", Eligible: true, ResultJSON: []byte("{\"direction\":\"BULLISH\"}")}
+	legacyResult := globalResult
+	legacyResult.ResultID, legacyResult.TenantID, legacyResult.SessionDate, legacyResult.Score = "legacy-eroc-aapl-20260813", "tenant-pilot-b", globalDate.AddDate(0, 0, -1), 12
+	repo := &subscriberGlobalEROCFake{fakeQueryRepository: &fakeQueryRepository{}, legacyResults: []storage.MarketOpsValuationResultRecord{legacyResult}, results: []storage.MarketOpsValuationResultRecord{globalResult}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-pilot-b": {}}, SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{}})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/eroc?symbol=AAPL", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" {
+		t.Fatalf("global EROC symbols=%v, want [AAPL]", repo.symbols)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	results := response["results"].([]any)
+	if len(results) != 1 {
+		t.Fatalf("EROC results=%#v", results)
+	}
+	result := results[0].(map[string]any)
+	if result["score"] != 77.0 || result["trade_date"] != "2026-08-14" {
+		t.Fatalf("subscriber EROC did not use global projection: %#v", result)
+	}
+}
+
+func TestSubscriberValuationUsesGlobalProjection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	globalDate := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	vc := storage.MarketOpsValuationResultRecord{ResultID: "global-vc-aapl-20260814", TenantID: "platform-global", Symbol: "AAPL", SessionDate: globalDate, AlgorithmID: valuationCompositeAlgorithmID, ModelVersion: "v3", Score: 55, Classification: "fair", Eligible: true, ResultJSON: []byte("{}")}
+	dosm := storage.MarketOpsValuationResultRecord{ResultID: "global-dosm-aapl-20260814", TenantID: "platform-global", Symbol: "AAPL", SessionDate: globalDate, AlgorithmID: dosmAlgorithmID, ModelVersion: "v3", Score: 71, Classification: "opportunity", Eligible: true, ResultJSON: []byte("{}")}
+	legacy := dosm
+	legacy.ResultID, legacy.TenantID, legacy.SessionDate, legacy.Score = "legacy-dosm-aapl-20260813", "tenant-pilot-b", globalDate.AddDate(0, 0, -1), 12
+	repo := &subscriberGlobalEROCFake{fakeQueryRepository: &fakeQueryRepository{}, legacyResults: []storage.MarketOpsValuationResultRecord{legacy}, valuationResults: []storage.MarketOpsValuationResultRecord{vc, dosm}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-pilot-b": {}}, SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{}})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/valuation?symbol=AAPL", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" {
+		t.Fatalf("global valuation symbols=%v, want [AAPL]", repo.symbols)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	results := response["results"].([]any)
+	if len(results) != 1 {
+		t.Fatalf("valuation results=%#v", results)
+	}
+	result := results[0].(map[string]any)
+	if result["data_scope"] != "platform-global" || result["trade_date"] != "2026-08-14" {
+		t.Fatalf("subscriber valuation did not use global projection: %#v", result)
+	}
+	if dosmOutput, _ := result["dosm"].(map[string]any); dosmOutput["data_scope"] != "platform-global" || dosmOutput["score"] != 71.0 {
+		t.Fatalf("subscriber DOSM output did not use global projection: %#v", dosmOutput)
+	}
+}
+
+type subscriberGlobalEEOMFake struct {
+	*fakeQueryRepository
+	results []storage.MarketOpsEEOMResultRecord
+	symbols []string
+}
+
+func (f *subscriberGlobalEEOMFake) ListSubscriberGlobalEEOMResults(_ context.Context, symbols []string, _ storage.MarketOpsEEOMFilter) ([]storage.MarketOpsEEOMResultRecord, error) {
+	f.symbols = append([]string(nil), symbols...)
+	return f.results, nil
+}
+
+func TestSubscriberEEOMUsesGlobalProjection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	globalDate := time.Date(2026, 8, 14, 0, 0, 0, 0, time.UTC)
+	globalResult := storage.MarketOpsEEOMResultRecord{ResultID: "global-eeom-aapl-20260814", TenantID: "platform-global", Symbol: "AAPL", EarningsEventID: "earnings-aapl", EarningsDate: globalDate.AddDate(0, 0, 7), SessionDate: globalDate, ModelVersion: "eeom-v1", Score: 7.2, Posture: "bullish", Classification: "setup", EvidenceQuality: "usable", Eligible: true, ResultJSON: []byte("{}")}
+	repo := &subscriberGlobalEEOMFake{fakeQueryRepository: &fakeQueryRepository{}, results: []storage.MarketOpsEEOMResultRecord{globalResult}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-pilot-b": {}}, SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{}})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/earnings-opportunities?symbol=AAPL&start_date=2026-08-14&end_date=2026-08-30", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" {
+		t.Fatalf("global EEOM symbols=%v, want [AAPL]", repo.symbols)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	results := response["results"].([]any)
+	if len(results) != 1 {
+		t.Fatalf("EEOM results=%#v", results)
+	}
+	result := results[0].(map[string]any)
+	if result["data_scope"] != "platform-global" || result["trade_date"] != "2026-08-14" {
+		t.Fatalf("subscriber EEOM did not use global projection: %#v", result)
+	}
+}
+
+func TestSubscriberEEOMCollapsesConflictingHistoricalRowsByTicker(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	earningsDateCurrent := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	earningsDateSuperseded := time.Date(2026, 9, 2, 0, 0, 0, 0, time.UTC)
+	repo := &subscriberGlobalEEOMFake{fakeQueryRepository: &fakeQueryRepository{}, results: []storage.MarketOpsEEOMResultRecord{
+		{ResultID: "aapl-new", TenantID: "platform-global", Symbol: "AAPL", EarningsEventID: "fmp-current", EarningsDate: earningsDateCurrent, SessionDate: time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC), ModelVersion: "eeom-v1", Score: 5.11, Posture: "bullish", Classification: "setup", EvidenceQuality: "complete", Eligible: true, ResultJSON: []byte("{}")},
+		{ResultID: "aapl-old", TenantID: "platform-global", Symbol: "AAPL", EarningsEventID: "fmp-superseded", EarningsDate: earningsDateSuperseded, SessionDate: time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC), ModelVersion: "eeom-v1", Score: 4.89, Posture: "bearish", Classification: "setup", EvidenceQuality: "partial", Eligible: true, ResultJSON: []byte("{}")},
+	}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-pilot-b": {}}, SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{}})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/earnings-opportunities?symbol=AAPL&start_date=2026-09-01&end_date=2026-09-30", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	results := response["results"].([]any)
+	if len(results) != 1 {
+		t.Fatalf("EEOM should collapse conflicting rows to one current row, got %#v", results)
+	}
+	result := results[0].(map[string]any)
+	if result["ticker"] != "AAPL" || result["posture"] != "bullish" || result["earnings_event_id"] != "fmp-current" {
+		t.Fatalf("EEOM returned superseded/conflicting row: %#v", result)
+	}
+}
+
+type subscriberGlobalMaterialEventFake struct {
+	*fakeQueryRepository
+	events  []storage.SubscriberGlobalMaterialEventRecord
+	symbols []string
+}
+
+func (f *subscriberGlobalMaterialEventFake) ListSubscriberGlobalMaterialEvents(_ context.Context, symbols []string, _ time.Time, _ int) ([]storage.SubscriberGlobalMaterialEventRecord, error) {
+	f.symbols = append([]string(nil), symbols...)
+	return f.events, nil
+}
+
+func TestSubscriberMaterialEventsUsesGlobalProjection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	payload := []byte(`{"symbol":"AAPL","event_type":"earnings","event_date":"` + now.AddDate(0, 0, 5).Format("2006-01-02") + `","known_at":"` + now.Format(time.RFC3339) + `"}`)
+	repo := &subscriberGlobalMaterialEventFake{fakeQueryRepository: &fakeQueryRepository{}, events: []storage.SubscriberGlobalMaterialEventRecord{{GlobalAssetID: "subglobal-aapl", Symbol: "AAPL", EventID: "fmp-aapl-event", SessionDate: now, ObservedAt: now.Add(20 * time.Hour), QualityState: "usable", PayloadJSON: payload}}}
+	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo, SubscriberListsEnabled: true, SubscriberListsPilotTenants: map[string]struct{}{"tenant-pilot-b": {}}, SubscriberWatchlistRepository: &subscriberWatchlistAPIFake{}})
+	request := httptest.NewRequest(http.MethodGet, "/v1/tenants/tenant-pilot-b/marketops/material-events?symbol=AAPL", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, withBearer(request, fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b"})))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(repo.symbols) != 1 || repo.symbols[0] != "AAPL" {
+		t.Fatalf("global Material Events symbols=%v, want [AAPL]", repo.symbols)
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	events := response["events"].([]any)
+	if len(events) != 1 {
+		t.Fatalf("material events=%#v", events)
+	}
+	event := events[0].(map[string]any)
+	if event["event_id"] != "fmp-aapl-event" || event["data_scope"] != "platform-global" {
+		t.Fatalf("subscriber Material Events did not use global projection: %#v", event)
+	}
+}

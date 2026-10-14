@@ -138,6 +138,8 @@ func policyTargets(p policy, tenant string, cutoff time.Time) []target {
 		return []target{{"cyberops_iot_daily_features", "feature_date", "tenant_id=$1 AND feature_date < $2::date", arg, false}, {"algorithm_results", "created_at", "tenant_id=$1 AND algorithm_id='signalops.algorithms.cyberops_iot_anomaly_v1' AND created_at < $2", arg, false}}
 	case "platform.idempotency_35d":
 		return []target{{"idempotency_records", "last_seen_at", "tenant_id=$1 AND last_seen_at < $2", arg, false}}
+	case "subscriber.user_activity_180d":
+		return []target{{"subscriber_user_activity_events", "occurred_at", "tenant_id=$1 AND occurred_at < $2", arg, false}}
 	}
 	return nil
 }
