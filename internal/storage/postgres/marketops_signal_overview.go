@@ -17,7 +17,7 @@ SELECT tenant_id, app_id, domain, use_case, source_id, universe_group, rank, tic
 FROM marketops_universal_assets
 WHERE tenant_id=$1 AND is_active=true AND ($2='' OR $2='all_active' OR universe_group=$2)
 ORDER BY rank ASC
-LIMIT 200`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.UniverseGroup))
+`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.UniverseGroup))
 	if err != nil {
 		return storage.MarketOpsSignalOverviewInputs{}, fmt.Errorf("list signal overview assets: %w", err)
 	}

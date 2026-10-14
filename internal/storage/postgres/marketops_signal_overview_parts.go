@@ -83,5 +83,8 @@ func (r *Repository) listSignalOverviewDefinitions(ctx context.Context, tenant s
 }
 
 func (r *Repository) listSignalOverviewIntraday(ctx context.Context, filter storage.MarketOpsSignalOverviewFilter) ([]storage.MarketOpsIntradayConditionSnapshotRecord, error) {
-	return r.ListMarketOpsIntradayConditionSnapshots(ctx, storage.MarketOpsIntradayConditionSnapshotFilter{TenantID: filter.TenantID, UniverseGroup: filter.UniverseGroup, Limit: 200})
+	// The governed asset list is mutable and may exceed the historical 200-row
+	// ceiling.  Read the full active cohort so dashboard projections cannot
+	// silently omit newly added members.
+	return r.ListMarketOpsIntradayConditionSnapshots(ctx, storage.MarketOpsIntradayConditionSnapshotFilter{TenantID: filter.TenantID, UniverseGroup: filter.UniverseGroup, Limit: 20000})
 }
