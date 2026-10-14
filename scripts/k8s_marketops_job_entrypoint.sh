@@ -201,7 +201,9 @@ case "$job_id" in
     fi
     ;;
   marketops-global-dashboard-projection)
-    command_args=(k8s-marketops-global-dashboard-projection "${MARKETOPS_SESSION_DATE:-$(date -u +%F)}")
+    projection_date="${MARKETOPS_SESSION_DATE:-$(psql "$SIGNALOPS_MARKETOPS_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT max(session_date)::text FROM marketops_market_states" | tr -d '[:space:]')}"
+    [[ "$projection_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || fail "no completed MarketOps session is available for global projection"
+    command_args=(k8s-marketops-global-dashboard-projection "$projection_date")
     ;;
   marketops-postclose-recovery)
     [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-postclose-recovery requires a separately approved production K8s scheduler cutover"

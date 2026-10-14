@@ -262,8 +262,7 @@ FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
     # retired Docker/Compose projection path.
     job_name="marketops-global-dashboard-projection-${session_date//[^a-zA-Z0-9-]/-}-$(date -u +%s)"
     run kubectl -n signalops-marketops create job "$job_name" --from=cronjob/marketops-global-dashboard-projection
-    run kubectl -n signalops-marketops set env job/"$job_name" MARKETOPS_SESSION_DATE="$session_date"
-    printf 'k8s_projection_job=%s session=%s\n' "$job_name" "$session_date"
+    printf 'k8s_projection_job=%s requested_session=%s\n' "$job_name" "$session_date"
     ;;
   marketops-sri-refresh:*)
     session_date="${action#marketops-sri-refresh:}"
