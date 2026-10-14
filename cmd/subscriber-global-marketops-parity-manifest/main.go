@@ -167,7 +167,7 @@ FROM pg_roles WHERE rolname=current_user`).Scan(&currentUser, &superuser, &creat
 	}
 	var viewRead, manifestWrite, rawFeatureRead, rawStateRead, rawOptionsRead, rawRiskRewardRead, rawIntradayRead bool
 	if err := db.QueryRowContext(ctx, `SELECT
-  has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_source_v3', 'SELECT'),
+  has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_source_v4', 'SELECT'),
   has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_runs', 'SELECT,INSERT'),
   has_table_privilege(current_user,'marketops_feature_observations', 'SELECT'),
   has_table_privilege(current_user,'marketops_market_states', 'SELECT'),
@@ -194,7 +194,7 @@ func readManifestEntries(ctx context.Context, db *sql.DB, kinds []string, algori
 	rows, err := db.QueryContext(ctx, `SELECT source.evidence_kind,source.legacy_record_id,source.legacy_symbol,source.legacy_session_date,
   source.legacy_algorithm_id,source.legacy_algorithm_version,source.legacy_quality_state,source.legacy_payload::text,source.legacy_created_at,
   mapping.canonical_global_asset_id,mapping.match_count
-FROM subscriber_global_marketops_legacy_parity_source_v3 source
+FROM subscriber_global_marketops_legacy_parity_source_v4 source
 LEFT JOIN LATERAL (
   SELECT min(resolution.canonical_global_asset_id) AS canonical_global_asset_id,
     count(DISTINCT resolution.canonical_global_asset_id)::integer AS match_count

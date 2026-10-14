@@ -1,0 +1,1 @@
+DROP VIEW IF EXISTS subscriber_global_marketops_legacy_parity_source_v4;

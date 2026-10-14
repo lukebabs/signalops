@@ -142,7 +142,7 @@ func run(ctx context.Context, args []string) error {
 func validateWorker(ctx context.Context, db *sql.DB) error {
 	var user string
 	var superuser, createRole, bypass, member, selectorRead, legacyRead, evidenceWrite, runWrite, rawWatchlistRead bool
-	err := db.QueryRowContext(ctx, `SELECT current_user,rolsuper,rolcreaterole,rolbypassrls,pg_has_role(current_user,'signalops_subscriber_global_eod','member'),has_table_privilege(current_user,'subscriber_global_hot_intraday_assets','SELECT'),has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_source_v3','SELECT'),has_table_privilege(current_user,'subscriber_global_marketops_evidence_runs','SELECT,INSERT'),has_table_privilege(current_user,'subscriber_global_intraday_shadow_capture_runs','SELECT,INSERT'),has_table_privilege(current_user,'subscriber_watchlist_memberships','SELECT') FROM pg_roles WHERE rolname=current_user`).Scan(&user, &superuser, &createRole, &bypass, &member, &selectorRead, &legacyRead, &evidenceWrite, &runWrite, &rawWatchlistRead)
+	err := db.QueryRowContext(ctx, `SELECT current_user,rolsuper,rolcreaterole,rolbypassrls,pg_has_role(current_user,'signalops_subscriber_global_eod','member'),has_table_privilege(current_user,'subscriber_global_hot_intraday_assets','SELECT'),has_table_privilege(current_user,'subscriber_global_marketops_legacy_parity_source_v4','SELECT'),has_table_privilege(current_user,'subscriber_global_marketops_evidence_runs','SELECT,INSERT'),has_table_privilege(current_user,'subscriber_global_intraday_shadow_capture_runs','SELECT,INSERT'),has_table_privilege(current_user,'subscriber_watchlist_memberships','SELECT') FROM pg_roles WHERE rolname=current_user`).Scan(&user, &superuser, &createRole, &bypass, &member, &selectorRead, &legacyRead, &evidenceWrite, &runWrite, &rawWatchlistRead)
 	if err != nil {
 		return fmt.Errorf("inspect shadow worker identity: %w", err)
 	}
@@ -168,7 +168,7 @@ func selected(ctx context.Context, db *sql.DB, limit int) ([]selectedAsset, erro
 	return assets, rows.Err()
 }
 func latestLegacy(ctx context.Context, db *sql.DB) (map[string]legacySnapshot, error) {
-	rows, err := db.QueryContext(ctx, `SELECT DISTINCT ON (upper(legacy_symbol)) upper(legacy_symbol),legacy_record_id,(legacy_payload->>'as_of_time')::timestamptz FROM subscriber_global_marketops_legacy_parity_source_v3 WHERE evidence_kind='intraday_snapshot' AND NULLIF(legacy_payload->>'as_of_time','') IS NOT NULL ORDER BY upper(legacy_symbol),(legacy_payload->>'as_of_time')::timestamptz DESC,legacy_record_id DESC`)
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT ON (upper(legacy_symbol)) upper(legacy_symbol),legacy_record_id,(legacy_payload->>'as_of_time')::timestamptz FROM subscriber_global_marketops_legacy_parity_source_v4 WHERE evidence_kind='intraday_snapshot' AND NULLIF(legacy_payload->>'as_of_time','') IS NOT NULL ORDER BY upper(legacy_symbol),(legacy_payload->>'as_of_time')::timestamptz DESC,legacy_record_id DESC`)
 	if err != nil {
 		return nil, err
 	}
