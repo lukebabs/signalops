@@ -258,17 +258,12 @@ FROM latest, task_counts, evidence_counts;" | tr -d '[:space:]')"
       audit rejected
       exit 2
     }
-    set -a
-    # shellcheck disable=SC1091
-    source /etc/signalops/marketops-cutover.env
-    set +a
-    export SIGNALOPS_MARKETOPS_PRIMARY_DB_SERVICE=marketops-postgres
-    export SIGNALOPS_MARKETOPS_PRIMARY_DATABASE=marketops
-    export SIGNALOPS_MARKETOPS_TEMPORAL_DB_SERVICE=marketops-timescaledb
-    export SIGNALOPS_MARKETOPS_TEMPORAL_DATABASE=marketops_temporal
-    export SIGNALOPS_ACTOR=subscriber-global-eod-reconciler
-    cd "$repository_dir"
-    run "$repository_dir/scripts/marketops_global_dashboard_projection.sh" "$session_date"
+    # K8s is authoritative in production. This action must never invoke the
+    # retired Docker/Compose projection path.
+    job_name="marketops-global-dashboard-projection-${session_date//[^a-zA-Z0-9-]/-}-$(date -u +%s)"
+    run kubectl -n signalops-marketops create job "$job_name" --from=cronjob/marketops-global-dashboard-projection
+    run kubectl -n signalops-marketops set env job/"$job_name" MARKETOPS_SESSION_DATE="$session_date"
+    printf 'k8s_projection_job=%s session=%s\n' "$job_name" "$session_date"
     ;;
   marketops-sri-refresh:*)
     session_date="${action#marketops-sri-refresh:}"

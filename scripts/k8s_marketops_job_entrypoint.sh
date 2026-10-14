@@ -200,6 +200,9 @@ case "$job_id" in
       command_args=(k8s-marketops-postclose-writer)
     fi
     ;;
+  marketops-global-dashboard-projection)
+    command_args=(k8s-marketops-global-dashboard-projection "${MARKETOPS_SESSION_DATE:-$(date -u +%F)}")
+    ;;
   marketops-postclose-recovery)
     [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-postclose-recovery requires a separately approved production K8s scheduler cutover"
     command_args=(

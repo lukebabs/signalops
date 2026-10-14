@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - scheduled-cronjobs.yaml
   - saf-evaluation-cronjob.yaml
+  - global-dashboard-projection-cronjob.yaml
   - marketops-jobs-openbao-egress.yaml
 images:
   - name: ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner
