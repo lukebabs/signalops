@@ -386,7 +386,7 @@ export function MarketOpsAssetsRoute() {
                 {selectedTicker === a.ticker ? (
                   <tr className="bg-brand-50">
                     <td colSpan={7} className="p-3">
-                      <AssetPreviewPanel asset={a} tenantId={TENANT_ID} condition={conditionMap.get(a.ticker.toUpperCase())} riskReward={riskRewardMap.get(a.ticker.toUpperCase())} onClose={() => setSelectedTicker(null)} />
+                      {a.subscriberCoverage ? <PendingAssetCoveragePanel asset={a.subscriberCoverage} onClose={() => setSelectedTicker(null)} /> : sharedEODContext(a) ? <SharedGlobalEODPanel context={sharedEODContext(a)!} onClose={() => setSelectedTicker(null)} /> : <AssetOptionsPanel tenantId={TENANT_ID} symbol={selectedTicker} onClose={() => setSelectedTicker(null)} />}
                     </td>
                   </tr>
                 ) : null}
@@ -409,45 +409,12 @@ export function MarketOpsAssetsRoute() {
     </div>
   );
 }
-
-/**
- * The asset preview is intentionally a frontend composition only.  The
- * catalogue/watchlist projection remains authoritative; this restores the
- * original click-to-preview experience without reintroducing tenant-local
- * asset reads or inventing data for assets that are still warming.
- */
-function AssetPreviewPanel({ asset, tenantId, condition, riskReward, onClose }: { asset: DisplayAsset; tenantId: string; condition?: MarketOpsIntradayConditionSnapshot; riskReward?: MarketOpsRiskRewardSummary; onClose: () => void }) {
-  const sharedEOD = sharedEODContext(asset);
-  return (
-    <div data-testid={`marketops-asset-preview-${asset.ticker}`} className="space-y-3 rounded border border-brand-200 bg-white p-3 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-gray-200 pb-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-gray-900">{asset.display_name || asset.company || asset.ticker}</h2>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">{asset.ticker}</span>
-          </div>
-          <p className="mt-1 text-[11px] text-gray-500">Asset preview · persisted MarketOps evidence and intelligence</p>
-        </div>
-        <button type="button" onClick={onClose} className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50">
-          <X size={14} /> Close preview
-        </button>
-      </div>
-      {asset.subscriberCoverage ? <PendingAssetCoveragePanel asset={asset.subscriberCoverage} onClose={onClose} /> : sharedEOD ? <SharedGlobalEODPanel context={sharedEOD} hasIntradayEvidence={Boolean(condition)} hasRiskRewardEvidence={Boolean(riskReward)} onClose={onClose} /> : null}
-      <AssetOptionsPanel tenantId={tenantId} symbol={asset.ticker} onClose={onClose} />
-    </div>
-  );
-}
-
 function PendingAssetCoveragePanel({ asset, onClose }: { asset: MarketOpsPendingAsset; onClose: () => void }) {
   return <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="font-semibold">{asset.ticker} is in the selected watchlist</div><p className="mt-1 text-xs">Central MarketOps coverage is {asset.coverage_state}. Until it is ready, this asset remains visible without fabricated market data, scores, or signals.</p><div className="mt-2 text-xs text-amber-800">Eligibility {asset.eligibility_status} · coverage mode {asset.coverage_mode}</div></div><button type="button" onClick={onClose} className="text-xs text-amber-800 underline">Close</button></div></div>;
 }
 
-function SharedGlobalEODPanel({ context, hasIntradayEvidence, hasRiskRewardEvidence, onClose }: { context: SharedEODContext; hasIntradayEvidence?: boolean; hasRiskRewardEvidence?: boolean; onClose: () => void }) {
-  const pending = [!hasIntradayEvidence ? "intraday" : null, !hasRiskRewardEvidence ? "Risk/Reward" : null, "Market State", "options"].filter(Boolean);
-  const status = pending.length === 4
-    ? "Derived MarketOps evidence is still materializing from this global baseline. MarketOps does not substitute tenant-local results or imply a signal."
-    : `${hasIntradayEvidence ? "Intraday and " : ""}${hasRiskRewardEvidence ? "Risk/Reward evidence are " : ""}available for this asset. ${pending.slice(0, 2).join(" and ") || "Additional derived views"} remain pending; MarketOps does not substitute tenant-local results or imply a signal.`;
-  return <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="font-semibold">Verified global EOD evidence</div><p className="mt-1 text-xs">Close {context.close == null ? "unavailable" : context.close.toFixed(2)} · session {context.sessionDate} · {context.provider} · {context.qualityState}.</p><p className="mt-2 text-xs text-emerald-800">{status}</p></div><button type="button" onClick={onClose} className="text-xs text-emerald-800 underline">Close</button></div></div>;
+function SharedGlobalEODPanel({ context, onClose }: { context: SharedEODContext; onClose: () => void }) {
+  return <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="font-semibold">Verified global EOD evidence</div><p className="mt-1 text-xs">Close {context.close == null ? "unavailable" : context.close.toFixed(2)} · session {context.sessionDate} · {context.provider} · {context.qualityState}.</p><p className="mt-2 text-xs text-emerald-800">Global Market State, intraday, Risk/Reward, and options evidence are not materialized yet. MarketOps does not substitute tenant-local results or imply a signal.</p></div><button type="button" onClick={onClose} className="text-xs text-emerald-800 underline">Close</button></div></div>;
 }
 
 function AssetMobileCard({ asset, selected, onSelect, tenantId, quote, condition, riskReward, sharedEOD, quotesRefreshedAt, conditionsLoading, conditionsError, riskRewardLoading, riskRewardError, onClose }: { asset: DisplayAsset; selected: boolean; onSelect: () => void; tenantId: string; quote?: MarketOpsAssetQuote; condition?: MarketOpsIntradayConditionSnapshot; riskReward?: MarketOpsRiskRewardSummary; sharedEOD?: SharedEODContext; quotesRefreshedAt: string | null; conditionsLoading: boolean; conditionsError: boolean; riskRewardLoading: boolean; riskRewardError: boolean; onClose: () => void }) {
@@ -473,7 +440,7 @@ function AssetMobileCard({ asset, selected, onSelect, tenantId, quote, condition
         <div className="rounded border border-gray-100 bg-white p-2"><div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Updated</div><MarketDataUpdatedCell quote={quote} intraday={condition} refreshedAt={quotesRefreshedAt} sharedEOD={sharedEOD} pending={!!asset.subscriberCoverage} /></div>
       </div>
     </button>
-    {selected ? <div className="mt-3"><AssetPreviewPanel asset={asset} tenantId={tenantId} condition={condition} riskReward={riskReward} onClose={onClose} /></div> : null}
+    {selected ? <div className="mt-3">{asset.subscriberCoverage ? <PendingAssetCoveragePanel asset={asset.subscriberCoverage} onClose={onClose} /> : sharedEOD ? <SharedGlobalEODPanel context={sharedEOD} onClose={onClose} /> : <AssetOptionsPanel tenantId={tenantId} symbol={asset.ticker} onClose={onClose} />}</div> : null}
   </article>;
 }
 
