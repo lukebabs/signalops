@@ -72,7 +72,6 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   profile: UserRound,
   tools: Wrench,
   subscriptions: ShieldCheck,
-  orchestration: Workflow,
 };
 
 export function DashboardShell() {
@@ -132,9 +131,9 @@ export function DashboardShell() {
           <HealthIndicator />
           {superAdmin && <Link to="/admin/dashboard" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Administration</Link>}
           {!superAdmin && hasSubscriptionAdministrator(claims) && <Link to="/admin/subscriptions" className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><ShieldCheck size={14} /> Subscription Administration</Link>}
-          {authEnabled && (
+          {identity && (
             <div className="flex items-center gap-2">
-              {identity && <Link to="/marketops/profile" className="rounded px-1 py-0.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">{identity}</Link>}
+              <Link to="/marketops/profile" className="rounded px-1 py-0.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">{identity}</Link>
               <button
                 type="button"
                 onClick={() => void signOut()}
@@ -149,7 +148,7 @@ export function DashboardShell() {
         </div>
       </header>
       {!isLanding && <nav className="flex flex-wrap gap-1 border-b border-gray-200 bg-white px-2">
-        {nav.filter((item) => (item.module !== 'tools' || marketOpsToolsAllowed) && (item.module !== 'orchestration' || superAdmin)).map((item) => {
+        {nav.filter((item) => item.module !== 'tools' || marketOpsToolsAllowed).map((item) => {
           const Icon = MODULE_ICONS[item.module] ?? Activity;
           const locked = !allows(item.subscriptionFeature);
           if (locked) return (
