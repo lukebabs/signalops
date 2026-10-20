@@ -1,0 +1,74 @@
+name: Build and publish SignalOps K8s images
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: signalops-k8s-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  GATEWAY_IMAGE: ghcr.io/syncratic-inc/signalops-gateway
+  WEB_IMAGE: ghcr.io/syncratic-inc/signalops-web
+
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up BuildKit
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish gateway
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: gateway
+          push: true
+          tags: ${{ env.GATEWAY_IMAGE }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=signalops-gateway
+          cache-to: type=gha,mode=max,scope=signalops-gateway
+
+      - name: Build and publish web
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          target: web
+          push: true
+          tags: ${{ env.WEB_IMAGE }}:sha-${{ github.sha }}
+          build-args: |
+            VITE_SIGNALOPS_AUTH_ENABLED=true
+            VITE_SIGNALOPS_AUTH_ISSUER=https://auth.syncratic.co/realms/syncratic
+            VITE_SIGNALOPS_AUTH_REALM=syncratic
+            VITE_SIGNALOPS_AUTH_CLIENT_ID=signalops-web
+            VITE_SIGNALOPS_AUTH_AUDIENCE=signalops-api
+          cache-from: type=gha,scope=signalops-web
+          cache-to: type=gha,mode=max,scope=signalops-web
+
+      - name: Publish immutable image references
+        run: |
+          {
+            echo '### SignalOps K8s images'
+            echo
+            echo "- Gateway: \`${GATEWAY_IMAGE}:sha-${GITHUB_SHA}\`"
+            echo "- Web: \`${WEB_IMAGE}:sha-${GITHUB_SHA}\`"
+            echo
+            echo 'No Kubernetes deployment or traffic change is performed by this workflow.'
+          } >> "$GITHUB_STEP_SUMMARY"
