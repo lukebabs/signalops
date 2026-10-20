@@ -12,8 +12,10 @@ ghcr.io/syncratic-inc/signalops-gateway:sha-<commit>
 ghcr.io/syncratic-inc/signalops-web:sha-<commit>
 ```
 
-The workflow uses `GITHUB_TOKEN` with package-write permission. It does not require, read, or publish any `.env` secret and it
-does not deploy, alter DNS, enable schedulers, or move traffic.
+The workflow uses repository secrets `GHCR_USER` and `GHCR_KEY` because the source repository and the private `syncratic-inc`
+packages are owned by different GitHub principals. The token must have package write permission for both target packages. The
+secret values are never written to the repository or included in image build arguments. The workflow does not deploy, alter DNS,
+enable schedulers, or move traffic.
 
 ## Deployment authority
 
