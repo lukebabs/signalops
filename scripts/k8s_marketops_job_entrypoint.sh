@@ -45,7 +45,7 @@ status_required="${SIGNALOPS_K8S_STATUS_RECORDING_REQUIRED:-true}"
 
 # Run-now requests can arrive on weekends. Keep post-close work tied to the
 # most recent weekday unless the scheduler supplied an explicit session date.
-if [[ -z "${MARKETOPS_SESSION_DATE:-}" && "$job_id" =~ ^marketops-(warm-eod|daily-postclose|risk-reward|saf-|sri-|task-retry|postclose-recovery|syncratic-intelligence)$ ]]; then
+if [[ -z "${MARKETOPS_SESSION_DATE:-}" && "$job_id" =~ ^marketops-(warm-eod|daily-postclose|risk-reward|saf-|sri-|task-retry|postclose-recovery|syncratic-intelligence|fmp-continuation)$ ]]; then
   candidate="$(TZ=America/New_York date +%F)"
   if [[ "$(TZ=America/New_York date +%u)" -gt 5 ]]; then
     candidate="$(TZ=America/New_York date -d 'yesterday' +%F)"
@@ -206,7 +206,7 @@ case "$job_id" in
     command_args=(k8s-marketops-global-dashboard-projection "$projection_date")
     ;;
   marketops-postclose-recovery)
-    [[ "$mode_flag" == "--dry-run" ]] || fail "marketops-postclose-recovery requires a separately approved production K8s scheduler cutover"
+    [[ "$mode_flag" == "--dry-run" || "${MARKETOPS_SCHEDULER_AUTHORITY:-}" == "dagster" ]] || fail "marketops-postclose-recovery requires a separately approved production K8s scheduler cutover"
     command_args=(
       bash
       -ec

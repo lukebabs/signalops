@@ -10368,3 +10368,50 @@ Next-cycle priority:
 - The reconciliation audit also found a separate hidden cap: the equity reconciler used the provider-request budget as its SQL `LIMIT`, and the unlimited value (`0`) was normalized to 100. That caused a false 100-asset reconciliation report even though the governed list had 225 members. The reconciler now separates asset loading from provider budgeting and loads the full governed cohort; image `4e78a01e893d` is deployed.
 - The remaining 49 VC/DOSM omissions are the expected FMP budget deferrals (three FMP calls per asset under the 300-call provider window), not missing primary-list members. Production FMP continuation is now enabled in the worker image `29b44151c079` and remains scheduled for the next provider window; it processes the live `primary_eod` list against dedicated MarketOps storage.
 - Assets-view freshness gap closed: the post-close projection updated MarketOps state/Risk/Reward but did not append the retained normalized EOD bars into the global gateway EOD context. Added the existing EOD history materializer to the K8s worker image `ba852d9c8fa0`, ran an append-only October 12 materialization (`991` rows inserted), and verified `subscriber_gateway_current_eod_context` now reaches 2026-10-12 (`NVDA=226.32`, `AAPL=340.97`). Production gateway replicas were restarted successfully.
+
+### 2026-10-15 — Dagster shadow dependency gate deployed
+
+- Deployed Dagster 1.13.26 in the private `signalops-orchestration` namespace with no public ingress and one queued run at a time. The workspace now loads `marketops_dependency_shadow_graph` from the private GHCR definitions image.
+- Added a least-privilege PostgreSQL role `signalops_dagster_readonly` on the dedicated MarketOps primary. It has only database connect, schema usage, and SELECT on the three dependency tables used by the shadow watermark check; a write probe returned SQLSTATE `42501`.
+- Added OpenBao path `signalops/k8s/orchestration/dagster-marketops-readonly-production` and role `signalops-dagster-shadow`, bound only to the Dagster user-code service account. The injected URL is never committed or printed.
+- Added namespace-scoped egress/ingress policies for OpenBao and the MarketOps primary. A read-only Dagster run completed successfully against session `2026-10-14` and deterministically reported `expected_assets=225`, `ready_assets=225`, `eligible_projected_assets=81`, `status=blocked`. This independently confirms the existing 144-row projection gap without writing or polling providers.
+- No production scheduler authority, writer workload, DNS, or public traffic was changed. The next gate is to wire the shadow result into the existing task ledger and compare dependency watermarks before any Dagster-controlled production scheduling.
+
+### 2026-10-15 — Dagster watermark persisted to the task ledger
+
+- Applied migration `000198_marketops_dependency_watermark_ledger` to the dedicated MarketOps database. It adds an idempotent `marketops_dependency_watermarks` ledger and a constrained security-definer recording function that also updates `marketops_job_dependency_evaluations`.
+- The Dagster shadow role can execute only that recording function; it retains no direct INSERT/UPDATE privileges. The watermark function is restricted to the tenant-local primary list.
+- The 2026-10-14 shadow result is persisted as `blocked|225|225|81` under correlation job `dagster.marketops_dependency_shadow_graph`, proving the ledger path and preserving the incomplete projection evidence for downstream orchestration.
+## 2026-10-15 — Dashboard projection fail-closed watermark guard
+
+Published `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:20261015-watermark-guard` (digest `sha256:783cf7f11365d0dd5a5065c658e1a971c04b356c5bab183a90c95c43697494ad`) and applied it to the production MarketOps CronJobs. The global dashboard projection now requires a persisted dependency watermark for the current mutable asset-list revision and exact expected/ready/projected parity before publishing. A bounded smoke from the suspended projection CronJob failed closed for 2026-10-14 with `status=blocked`, `expected=225`, `ready=225`, `projected=81`, and was deleted after evidence capture. No schedules were enabled and no provider polling occurred.
+
+- The first guard image exposed a delimiter parsing defect in both shell `read` statements; the corrected `20261015-watermark-guard-v3` image (`sha256:221690ebf0d9f96f3c5f34b4cb1ae9916aa54a7bdc7cc7769688cff0df20ddc0`) uses whitespace-safe `psql` formatting. A bounded reconciliation then produced `225/225` Risk/Reward snapshots, materialized the missing `144` global rows, advanced the watermark to `ready|225|225|225`, and completed the guarded projection with `risk_reward=225 usable=225 asset_list=225`. Temporary reconciliation Jobs were removed afterward.
+
+### 2026-10-15 — Dagster became the MarketOps scheduler authority
+
+- Published immutable definitions image `ghcr.io/syncratic-inc/signalops-dagster-definitions:20261015-authoritative-scheduler-v2` and loaded 16 MarketOps schedules.
+- Added least-privilege RBAC for Dagster to read MarketOps CronJob templates and create/watch child Jobs.
+- Added Cilium-scoped Kubernetes API egress for Dagster definitions pods; verified the service and backend API paths.
+- Bounded operations-monitor smoke created and completed a Dagster child Job successfully.
+- Started all 16 Dagster schedules and suspended every equivalent MarketOps Kubernetes CronJob to prevent duplicate execution. Dagster daemon, webserver, and definitions deployments are healthy.
+- Rollback is documented as stopping Dagster schedules and unsuspending the immutable-template CronJobs; no DNS, provider, or database changes were made.
+### 2026-10-15 — Dagster schedule gRPC timeout repaired
+
+- The operations-monitor schedule initially failed with `DagsterUserCodeUnreachableError` because the definitions pod could not reach Dagster's own PostgreSQL service; its gRPC server remained healthy but database retries exceeded the 60-second scheduler deadline.
+- Added a least-privilege TCP/5432 egress rule from the Dagster definitions pods to the `signalops-dagster-postgresql` master endpoint only.
+- The schedule retried successfully, launched run `fd3b7243-8227-4473-92c5-3ea627cc9095`, and the Dagster child Job completed successfully. No CronJobs were unsuspended.
+
+### 2026-10-15 — Dagster production scheduler authority and dependency ordering repaired
+
+- Root cause of the post-close recovery failures: the worker still required the old manual production-scheduler flag. Dagster-launched child Jobs now receive `MARKETOPS_SCHEDULER_AUTHORITY=dagster`, and the entrypoint accepts that explicit authority without weakening the dry-run guard.
+- Root cause of the daily post-close and SAF projection failures: the dependency-watermark schedule was not registered, and those upstream jobs attempted global projection before the watermark gate. Added the Dagster dependency-watermark schedule at 18:50 ET and defer projection from post-close/SAF until the dedicated projection gate runs.
+- Published definitions image `ghcr.io/syncratic-inc/signalops-dagster-definitions:20261015-authoritative-scheduler-v3` and worker image `ghcr.io/syncratic-inc/signalops-marketops-k8s-job-runner:20261015-dagster-authority-v1` (digest `sha256:e36bc6e4d8f6a892de5b067d859449a93e8fc99032e9bf1b7a17a3158bfd988e`). All 16 suspended MarketOps CronJob templates now reference the immutable worker image.
+- All 17 Dagster schedules are running; legacy Kubernetes CronJobs remain suspended, preserving single-scheduler authority. A bounded post-close recovery smoke completed successfully and confirmed the current dependency watermark without provider polling. Source validation, Kubernetes rendering, and API tests passed.
+
+### 2026-10-15 — Dagster reconciliation and watermark circular-gate fix
+
+- Reconciliation exposed a second ordering defect: the watermark required projected-count parity before the projection job could run, creating a circular block. The watermark now gates on upstream `expected_assets == ready_assets`; the projection records final projected parity after materialization.
+- Published definitions image `20261015-watermark-order-v1` (digest `sha256:2d831e1ac957975c3cb8b9f1a485fe61381eb65b4fb29a1b92971ba2c1d1484f`) and worker image `20261015-watermark-order-v1` (digest `sha256:9300d3d964a3c877dd02b79f5c889456127e39d82eb9bb143548e57f972242e1`).
+- Replayed the dependency watermark, Risk/Reward, SAF evaluation, global dashboard projection, and operations monitor through Dagster. Final evidence: `ready|225|225|225`; global projection verified `risk_reward=225 usable=225`; operations monitor reported `failed_jobs=0 stale_running=0 dry_run_mutating=0 stale_intraday=0`.
+- The prior daily post-close failure was reconciled as `succeeded` with preserved failure provenance (`projection_reconciled`); no provider polling or CronJob unsuspension was performed.

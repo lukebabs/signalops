@@ -77,9 +77,14 @@ signalops-marketops-syncratic-intelligence-runner --tenant-id tenant-local --ses
 signalops-subscriber-global-eod-history-materializer --execute \
   --start-date "$session_date" --end-date "$session_date" --limit 50000 \
   --correlation-id "postclose-eod-context-${session_date}"
-# Refresh the subscriber-facing global projection after all source algorithms finish.
-# This is append-only and runs against the dedicated K8s MarketOps database.
-k8s-marketops-global-dashboard-projection "$session_date"
+# Refresh the subscriber-facing global projection only when the dependency
+# watermark has been recorded. Dagster runs this writer before the watermark
+# gate and launches the final projection as a separate downstream schedule.
+if [[ "${MARKETOPS_DEFER_GLOBAL_PROJECTION:-false}" == true ]]; then
+  echo "marketops_k8s_postclose_global_projection_deferred session=$session_date"
+else
+  k8s-marketops-global-dashboard-projection "$session_date"
+fi
 echo "marketops_k8s_postclose_writer_completed session=$session_date symbols=${#symbols[@]}"
 if [[ "$reconciliation_degraded" == true ]]; then
   echo "marketops_k8s_postclose_writer_recovery_needed session=$session_date reason=equity_eod_reconciliation_incomplete" >&2

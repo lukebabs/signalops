@@ -99,6 +99,8 @@ spec:
               value: "signalops-api"
             - name: SIGNALOPS_AUTH_CLIENT_ID
               value: "signalops-web"
+            - name: SIGNALOPS_DAGSTER_READONLY_URL
+              value: "http://signalops-dagster-dagster-webserver-read-only.signalops-orchestration.svc.cluster.local"
             - name: SIGNALOPS_MARKETOPS_DATA_BOUNDARY_REQUIRED
               value: "true"
             - name: SIGNALOPS_SUBSCRIBER_LISTS_ENABLED

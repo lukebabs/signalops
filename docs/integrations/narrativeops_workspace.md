@@ -27,6 +27,40 @@ Production uses the shared SignalOps OIDC session and `signalops-web` client. Na
 
 Local development remains mock/header based. `X-Tenant-ID` is accepted only in development/test mode; it is not a production identity mechanism.
 
+### Syncratic narrative reader (2026-11-13)
+
+The dedicated Keycloak client `syncratic-narrativeops-reader` is enabled for
+`client_credentials` with `aud=signalops-api`, `tenant_id=tenant-local` and only
+the `narrativeops:reader` realm role. It has no browser, password-grant or
+implicit flow and no SignalOps admin role. Its secret was not printed or
+persisted in the integration repository. SignalOps' HTTPRoute forwards the
+mounted API path directly to NarrativeOps; NarrativeOps verifies the signed
+token and applies the exact-client, GET-only route guard.
+
+The reader may use only the narrative list, narrative detail, evidence,
+timeline and history GET routes under `/narrativeops/api/v1/narratives`.
+Operations, processing and context-query routes retain the existing admin
+requirement. NarrativeOps derives the tenant from the validated token and
+replaces any caller-supplied `X-Tenant-ID` header. The local content-silent
+probe reads a bounded page and outputs only aggregate state; it does not
+access NarrativeOps Redis or PostgreSQL.
+
+Live acceptance: API 2/2 Ready; missing bearer returned 401; the reader was
+denied on operations and processing routes with 403; a forged tenant header
+did not widen the returned tenant. One 25-item page was visible, with 20
+generated and five deterministic-fallback synthesis statuses. This is a
+sample, not a full-stream total or a claim about narrative quality.
+
+The SignalOps **Administration → Access** source change adds a dedicated
+`Syncratic NarrativeOps reader` control for tenant-local super-admins. It
+reads the exact service client's Keycloak role status and can idempotently
+grant only `narrativeops:reader` after checking its service-only settings,
+audience and tenant mappers. The operator's bearer token must itself have the
+required Keycloak realm-management permission; the UI never reads or shows a
+client secret. This source change is not a deployment or a Syncratic credential
+installation. Syncratic still needs its own approved Secret reference before
+the consumer can authenticate.
+
 ## Reading the SignalOps asset list
 
 NarrativeOps should use SignalOps as the authority for the tenant's resolved asset selection. Do not maintain a second asset catalog

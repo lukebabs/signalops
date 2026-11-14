@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import re
+import time
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +25,30 @@ class SyncraticSmokeConfig:
     password: str
 
 
+def auth_state_path() -> Path:
+    path = Path(os.getenv("SIGNALOPS_E2E_AUTH_STATE", "/tmp/signalops-e2e-artifacts/syncratic-ask-auth-state.json"))
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path.parent.chmod(0o700)
+    return path
+
+
+def load_auth_state(path: Path) -> dict[str, object]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def new_authenticated_context(browser: Browser, path: Path, **kwargs):
+    bundle = load_auth_state(path)
+    context = browser.new_context(storage_state=bundle.get("storage_state") or {}, **kwargs)
+    session_storage = bundle.get("session_storage") or {}
+    context.add_init_script(
+        f"""() => {{
+          const entries = {json.dumps(session_storage)};
+          for (const [key, value] of Object.entries(entries)) sessionStorage.setItem(key, value);
+        }}""",
+    )
+    return context
+
+
 @pytest.fixture(scope="session")
 def syncratic_config() -> SyncraticSmokeConfig:
     username = os.getenv("SIGNALOPS_E2E_ADMIN_USERNAME", "").strip()
@@ -33,8 +59,43 @@ def syncratic_config() -> SyncraticSmokeConfig:
     return SyncraticSmokeConfig(base_url=base_url, username=username, password=password)
 
 
+@pytest.fixture(scope="session")
+def authenticated_storage_state(syncratic_config: SyncraticSmokeConfig, browser: Browser) -> str:
+    state_path = auth_state_path()
+    max_age = int(os.getenv("SIGNALOPS_E2E_AUTH_STATE_MAX_AGE_SECONDS", "1200"))
+    if state_path.exists() and time.time() - state_path.stat().st_mtime <= max_age:
+        context = new_authenticated_context(browser, state_path)
+        page = context.new_page()
+        try:
+            page.goto(f"{syncratic_config.base_url}/marketops/syncratic", wait_until="domcontentloaded", timeout=30_000)
+            if page.get_by_role("heading", name="Syncratic Intelligence").is_visible(timeout=10_000):
+                return str(state_path)
+        finally:
+            context.close()
+        state_path.unlink(missing_ok=True)
+
+    context = browser.new_context()
+    page = context.new_page()
+    try:
+        login(page, syncratic_config)
+        bundle = {
+            "storage_state": context.storage_state(),
+            "session_storage": page.evaluate("() => Object.fromEntries(Object.entries(sessionStorage))"),
+        }
+        state_path.write_text(json.dumps(bundle), encoding="utf-8")
+        state_path.chmod(0o600)
+        return str(state_path)
+    finally:
+        context.close()
+
+
 @pytest.fixture
-def syncratic_page(syncratic_config: SyncraticSmokeConfig, browser: Browser, request: pytest.FixtureRequest) -> Page:
+def syncratic_page(
+    syncratic_config: SyncraticSmokeConfig,
+    authenticated_storage_state: str,
+    browser: Browser,
+    request: pytest.FixtureRequest,
+) -> Page:
     artifact_dir = Path(os.getenv("SIGNALOPS_E2E_ARTIFACT_DIR", "/tmp/signalops-e2e-artifacts"))
     artifact_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     artifact_dir.chmod(0o700)
@@ -42,7 +103,12 @@ def syncratic_page(syncratic_config: SyncraticSmokeConfig, browser: Browser, req
     har_path = artifact_dir / f"{stem}.har"
     trace_path = artifact_dir / f"{stem}.zip"
     screenshot_path = artifact_dir / f"{stem}.png"
-    context = browser.new_context(record_har_path=str(har_path), record_har_mode="minimal")
+    context = new_authenticated_context(
+        browser,
+        Path(authenticated_storage_state),
+        record_har_path=str(har_path),
+        record_har_mode="minimal",
+    )
     context.tracing.start(screenshots=True, snapshots=True, sources=True)
     page = context.new_page()
     try:
@@ -68,6 +134,8 @@ def login(page: Page, config: SyncraticSmokeConfig) -> None:
     for attempt in range(3):
         try:
             page.goto(f"{base_url}/marketops/syncratic", wait_until="domcontentloaded", timeout=30_000)
+            if "Incapsula incident ID" in (page.locator("body").text_content() or ""):
+                raise AssertionError("auth_callback_failed:waf_blocked")
             if heading.is_visible(timeout=5_000):
                 return
             sign_in = page.get_by_role("button", name="Sign in")
@@ -88,6 +156,10 @@ def login(page: Page, config: SyncraticSmokeConfig) -> None:
             expect(heading).to_be_visible(timeout=30_000)
             return
         except PlaywrightTimeoutError as exc:
+            if "auth/callback" in page.url:
+                if "Incapsula incident ID" in (page.locator("body").text_content() or ""):
+                    raise AssertionError("auth_callback_failed:waf_blocked") from exc
+                raise AssertionError("auth_callback_failed:session_exchange_or_route") from exc
             last_error = exc
             page.wait_for_timeout(1_000 * (attempt + 1))
     if last_error is not None:
@@ -95,8 +167,21 @@ def login(page: Page, config: SyncraticSmokeConfig) -> None:
     raise AssertionError("Syncratic Ask UI smoke could not reach the login page after retries")
 
 
+def test_syncratic_oidc_login_smoke(authenticated_storage_state: str, browser: Browser, syncratic_config: SyncraticSmokeConfig) -> None:
+    context = new_authenticated_context(browser, Path(authenticated_storage_state))
+    page = context.new_page()
+    try:
+        page.goto(f"{syncratic_config.base_url}/marketops/syncratic", wait_until="domcontentloaded", timeout=30_000)
+        expect(page.get_by_role("heading", name="Syncratic Intelligence")).to_be_visible(timeout=30_000)
+        assert "/auth/callback" not in page.url, "oidc_session_redirected_back_to_callback"
+    finally:
+        context.close()
+
+
 def test_syncratic_daily_narrative_ask_smoke(syncratic_page: Page, syncratic_config: SyncraticSmokeConfig) -> None:
-    login(syncratic_page, syncratic_config)
+    syncratic_page.goto(f"{syncratic_config.base_url}/marketops/syncratic", wait_until="domcontentloaded", timeout=30_000)
+    expect(syncratic_page.get_by_role("heading", name="Syncratic Intelligence")).to_be_visible(timeout=30_000)
+    assert "/auth/callback" not in syncratic_page.url, "ask_ui_redirected_to_oidc_callback"
     force_regenerate = os.getenv("SIGNALOPS_SYNCRATIC_FORCE_REGENERATE", "").strip() == "1"
     ask_button_name = "Regenerate" if force_regenerate else "Explain with Syncratic"
 
@@ -118,7 +203,14 @@ def test_syncratic_daily_narrative_ask_smoke(syncratic_page: Page, syncratic_con
         ) as response_info:
             ask_button.click()
         response = response_info.value
-        assert response.status == 200, f"{response.url} returned HTTP {response.status}: {response.text()[:500]}"
+        if response.status != 200:
+            if response.status in {401, 403}:
+                failure_class = "ask_policy_rejected"
+            elif response.status in {502, 503, 504}:
+                failure_class = "ask_upstream_failed"
+            else:
+                failure_class = "ask_request_failed"
+            raise AssertionError(f"{failure_class}:http_{response.status}")
         payload = response.json()
         ask_result = payload.get("ask_result")
         assert isinstance(ask_result, dict), "Ask response did not include ask_result"

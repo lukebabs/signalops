@@ -10,6 +10,7 @@ import (
 
 func registerAccessManagementRoutes(mux *http.ServeMux, cfg RouterConfig) {
 	registerIDPDirectoryRoute(mux, cfg)
+	registerNarrativeOpsReaderAccessRoute(mux, cfg)
 	mux.HandleFunc("POST /v1/administration/tenant-provisioning/access", func(w http.ResponseWriter, r *http.Request) {
 		repo := cfg.AccessRepository
 		if repo == nil {

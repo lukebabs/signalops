@@ -81,6 +81,10 @@ type RouterConfig struct {
 	MarketQuoteClient                              interface {
 		GetEquityQuote(context.Context, string) (massive.EquityQuote, error)
 	}
+	// DagsterReadonlyURL is the private, read-only Dagster webserver used by
+	// the platform-admin orchestration view. It is intentionally proxied through
+	// the gateway so Dagster never becomes a public authentication authority.
+	DagsterReadonlyURL string
 }
 
 // NewRouter creates the HTTP routes owned by the SignalOps gateway.
@@ -116,6 +120,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	registerRetentionGovernanceRoutes(mux, cfg.QueryRepository)
 	registerAdministrationNotificationRoutes(mux, cfg)
 	registerAdministrationSMTPRoutes(mux, cfg)
+	registerDagsterAdministrationRoutes(mux, cfg)
 	if cfg.SubscriberListsEnabled {
 		registerSubscriberWatchlistRoutes(mux, cfg)
 		registerSubscriberWatchlistContextRoutes(mux, cfg)

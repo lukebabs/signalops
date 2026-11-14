@@ -21,6 +21,13 @@ spec:
     - matches:
         - path:
             type: PathPrefix
+            value: /admin/orchestration/dagster
+      backendRefs:
+        - name: signalops-gateway-production
+          port: 8080
+    - matches:
+        - path:
+            type: PathPrefix
             value: /v1
         - path:
             type: PathPrefix

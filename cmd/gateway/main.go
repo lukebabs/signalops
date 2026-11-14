@@ -80,6 +80,7 @@ func main() {
 		StripeCheckoutSuccessURL:          cfg.StripeCheckoutSuccessURL,
 		StripeCheckoutCancelURL:           cfg.StripeCheckoutCancelURL,
 		StripePortalReturnURL:             cfg.StripePortalReturnURL,
+		DagsterReadonlyURL:                strings.TrimSpace(os.Getenv("SIGNALOPS_DAGSTER_READONLY_URL")),
 	}
 	if cfg.SubscriberSubscriptionsEnabled && !cfg.SubscriberListsEnabled {
 		logger.Error("subscription enforcement requires the subscriber catalog gateway database")

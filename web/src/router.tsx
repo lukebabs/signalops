@@ -109,6 +109,7 @@ const MarketOpsSubscriptionReturnRoute = lazy(() =>
 );
 const AccessManagementRoute = lazy(() => import('./routes/AccessManagementRoute').then((m) => ({ default: m.AccessManagementRoute })));
 const SubscriptionAdministrationRoute = lazy(() => import('./routes/SubscriptionAdministrationRoute').then((m) => ({ default: m.SubscriptionAdministrationRoute })));
+const DagsterAdministrationRoute = lazy(() => import('./routes/DagsterAdministrationRoute').then((m) => ({ default: m.DagsterAdministrationRoute })));
 const AlgorithmsRoute = lazy(() =>
   import('./routes/AlgorithmsRoute').then((m) => ({ default: m.AlgorithmsRoute })),
 );
@@ -151,6 +152,7 @@ const adminAccessRoute = createRoute({ getParentRoute: () => rootRoute, path: '/
 const adminSubscriptionsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/subscriptions', component: SubscriptionAdministrationRoute });
 const adminSystemRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/system', component: SystemRoute });
 const adminStorageRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/storage', component: StorageRoute });
+const adminOrchestrationRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin/orchestration', component: DagsterAdministrationRoute });
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -360,7 +362,7 @@ const authCallbackRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
-  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminAccessRoute, adminSubscriptionsRoute, adminSystemRoute, adminStorageRoute,
+  adminDashboardRoute, adminRunsRoute, adminRawEventsRoute, adminNormalizedRoute, adminIdempotencyRoute, adminSourcesRoute, adminPipelinesRoute, adminRulesRoute, adminReplayRoute, adminSignalsRoute, adminAlertsRoute, adminInsightsRoute, adminAlgorithmsRoute, adminAccessRoute, adminSubscriptionsRoute, adminOrchestrationRoute, adminSystemRoute, adminStorageRoute,
   indexRoute,
   runsRoute,
   rawEventsRoute,

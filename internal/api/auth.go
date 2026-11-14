@@ -12,6 +12,7 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -96,16 +97,36 @@ func authMiddleware(next http.Handler, cfg AuthConfig) http.Handler {
 	}
 	verifier := newAuthVerifier(cfg)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isPublicRoute(r) || !strings.HasPrefix(r.URL.Path, "/v1/") {
+		protectedDagster := strings.HasPrefix(r.URL.Path, dagsterAdminPrefix)
+		if isPublicRoute(r) || (!strings.HasPrefix(r.URL.Path, "/v1/") && !protectedDagster) {
 			next.ServeHTTP(w, r)
 			return
 		}
+		// Top-level Dagster navigation cannot attach a JavaScript-held bearer
+		// token. The bootstrap endpoint sets a short-lived, path-scoped cookie;
+		// translate it back into the normal verifier input without widening the
+		// cookie's scope or changing authorization semantics.
+		if protectedDagster && strings.TrimSpace(r.Header.Get("Authorization")) == "" {
+			if cookie, cookieErr := r.Cookie(dagsterSessionCookie); cookieErr == nil && strings.TrimSpace(cookie.Value) != "" {
+				r = r.Clone(r.Context())
+				r.Header.Set("Authorization", "Bearer "+cookie.Value)
+			}
+		}
 		principal, err := verifier.authenticate(r)
 		if err != nil {
+			if protectedDagster {
+				redirect := "/auth/login?redirect=" + url.QueryEscape(r.URL.RequestURI())
+				http.Redirect(w, r, redirect, http.StatusFound)
+				return
+			}
 			writeError(w, http.StatusUnauthorized, "unauthorized", err.Error())
 			return
 		}
 		if strings.TrimSpace(principal.TenantID) == "" {
+			if protectedDagster {
+				http.Redirect(w, r, "/auth/login?redirect="+url.QueryEscape(r.URL.RequestURI()), http.StatusFound)
+				return
+			}
 			writeError(w, http.StatusForbidden, "missing_tenant_claim", "token must include tenant_id")
 			return
 		}
@@ -336,6 +357,9 @@ func requireInitialProvisioningTenant(w http.ResponseWriter, r *http.Request, re
 }
 
 func authorizedForRequest(r *http.Request, principal Principal) bool {
+	if r.Method == http.MethodPost && r.URL.Path == dagsterSessionPath {
+		return principal.SuperAdmin
+	}
 	if isSubscriberCoverageManifestRequest(r) {
 		return hasAnyRole(principal, roleSubscriberCatalogReader, roleViewer, roleOperator, roleAdmin)
 	}

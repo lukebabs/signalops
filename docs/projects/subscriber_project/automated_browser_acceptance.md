@@ -198,3 +198,19 @@ The controlled tenant-local Syncratic Ask smoke is available through `scripts/ru
 The first live failure identified two upstream gates: missing `Idempotency-Key`, then `gateway_price_catalog_not_found`. SignalOps now sends the required idempotency header, and after the AI Gateway price-catalog configuration propagated the smoke passed: `1 passed in 1.43s`. This smoke is now required after Syncratic-related Gateway deployments, AI Gateway policy/catalog changes, and before subscription production gates.
 
 The standing readiness contract is maintained in [Syncratic Ask Readiness Checklist](syncratic_ask_readiness_checklist.md). That checklist is the source of truth for required controls, expected commands, failure interpretation, and remaining production-hardening work.
+
+### Syncratic Ask authentication separation — 2026-10-23
+
+The Ask harness now separates the OIDC/session gate from the Ask request gate. A
+successful login creates a protected, short-lived Playwright storage state under
+`/tmp/signalops-e2e-artifacts` (600 permissions, 20-minute default lifetime),
+and subsequent Ask checks reuse that state instead of initiating a new browser
+login. The suite reports OIDC/WAF failures as `auth_callback_failed:*` and Ask
+HTTP failures as `ask_*`, so an authentication incident cannot be misreported as
+an AI Gateway failure. The session state is never printed or committed.
+
+The suite now collects two checks: `test_syncratic_oidc_login_smoke` and
+`test_syncratic_daily_narrative_ask_smoke`. A callback during the second check is
+treated as session drift. On 2026-10-23 the live run was blocked at the OIDC
+gate by an Imperva/Incapsula challenge before any Ask request reached Gateway;
+no Syncratic Ask upstream error was inferred from that run.

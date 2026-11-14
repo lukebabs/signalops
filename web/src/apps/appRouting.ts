@@ -22,6 +22,7 @@ export type AppRoutePath =
   | '/admin/system'
   | '/admin/storage'
   | '/admin/subscriptions'
+  | '/admin/orchestration'
   | '/'
   | '/runs'
   | '/raw-events'
@@ -109,7 +110,7 @@ export function defaultRouteForApp(profile: AppProfile): AppRoutePath {
 }
 
 const CONSOLE_NAV: NavItem[] = [
-  { module: 'dashboard', to: '/admin/dashboard', label: 'Dashboard' }, { module: 'runs', to: '/admin/runs', label: 'Runs' }, { module: 'raw_events', to: '/admin/raw-events', label: 'Raw Events' }, { module: 'normalized', to: '/admin/normalized-events', label: 'Normalized' }, { module: 'idempotency', to: '/admin/idempotency', label: 'Idempotency' }, { module: 'sources', to: '/admin/sources', label: 'Sources' }, { module: 'pipelines', to: '/admin/pipelines', label: 'Pipelines' }, { module: 'rules', to: '/admin/rules', label: 'Rules' }, { module: 'replay', to: '/admin/replay', label: 'Replay' }, { module: 'signals', to: '/admin/signals', label: 'Signals' }, { module: 'alerts', to: '/admin/alerts', label: 'Alerts' }, { module: 'insights', to: '/admin/insights', label: 'Insights' }, { module: 'algorithms', to: '/admin/algorithms', label: 'Algorithms' }, { module: 'access', to: '/admin/access', label: 'Access' }, { module: 'storage', to: '/admin/storage', label: 'Storage' }, { module: 'health', to: '/admin/system', label: 'System' }, { module: 'subscriptions', to: '/admin/subscriptions', label: 'Subscriptions' },
+  { module: 'dashboard', to: '/admin/dashboard', label: 'Dashboard' }, { module: 'runs', to: '/admin/runs', label: 'Runs' }, { module: 'raw_events', to: '/admin/raw-events', label: 'Raw Events' }, { module: 'normalized', to: '/admin/normalized-events', label: 'Normalized' }, { module: 'idempotency', to: '/admin/idempotency', label: 'Idempotency' }, { module: 'sources', to: '/admin/sources', label: 'Sources' }, { module: 'pipelines', to: '/admin/pipelines', label: 'Pipelines' }, { module: 'rules', to: '/admin/rules', label: 'Rules' }, { module: 'replay', to: '/admin/replay', label: 'Replay' }, { module: 'signals', to: '/admin/signals', label: 'Signals' }, { module: 'alerts', to: '/admin/alerts', label: 'Alerts' }, { module: 'insights', to: '/admin/insights', label: 'Insights' }, { module: 'algorithms', to: '/admin/algorithms', label: 'Algorithms' }, { module: 'access', to: '/admin/access', label: 'Access' }, { module: 'storage', to: '/admin/storage', label: 'Storage' }, { module: 'health', to: '/admin/system', label: 'System' }, { module: 'subscriptions', to: '/admin/subscriptions', label: 'Subscriptions' }, { module: 'orchestration', to: '/admin/orchestration', label: 'Orchestration' },
 ];
 
 const MARKETOPS_NAV: NavItem[] = [

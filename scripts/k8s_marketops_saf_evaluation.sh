@@ -12,5 +12,9 @@ for ((i=0; i<${#symbols[@]}; i+=10)); do
   signalops-marketops-intelligence-cohort-runner --tenant-id tenant-local --symbols "$csv" --max-symbols "${#batch[@]}" --session-start "$start_date" --session-end "$session_date" --stages outcome_materialization --continue-on-error=true --dry-run=false --acknowledge-writes --run-id "k8s-saf-outcomes-${session_date}-$(printf '%03d' "$i")"
 done
 signalops-marketops-signal-assurance-worker --tenant-id tenant-local --as-of "$session_date" --mode RESEARCH --run-id saf-research-materializations-v1
-k8s-marketops-global-dashboard-projection "$session_date"
+if [[ "${MARKETOPS_DEFER_GLOBAL_PROJECTION:-false}" == true ]]; then
+  echo "marketops_k8s_saf_global_projection_deferred session=$session_date"
+else
+  k8s-marketops-global-dashboard-projection "$session_date"
+fi
 echo "marketops_k8s_saf_evaluation_completed session=$session_date symbols=${#symbols[@]} lookback_days=$lookback_days"

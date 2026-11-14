@@ -1,0 +1,63 @@
+-- Allow a complete projection with explicit unavailable assets.
+-- A degraded watermark is publishable only when every expected asset has a
+-- persisted Risk/Reward row; unavailable rows remain visible and retryable.
+ALTER TABLE marketops_dependency_watermarks
+  DROP CONSTRAINT IF EXISTS marketops_dependency_watermarks_status_check;
+ALTER TABLE marketops_dependency_watermarks
+  ADD CONSTRAINT marketops_dependency_watermarks_status_check
+  CHECK (status IN ('ready', 'degraded', 'blocked'));
+
+DO $grant$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'signalops_dagster_readonly') THEN
+    GRANT SELECT ON marketops_risk_reward_snapshots TO signalops_dagster_readonly;
+  END IF;
+END;
+$grant$;
+
+CREATE OR REPLACE FUNCTION marketops_record_dependency_watermark(
+  p_watermark_id text,
+  p_tenant_id text,
+  p_session_date date,
+  p_asset_list_id text,
+  p_asset_list_revision bigint,
+  p_asset_list_fingerprint text,
+  p_expected_assets integer,
+  p_ready_assets integer,
+  p_projected_assets integer,
+  p_required_minimum_inputs integer,
+  p_status text,
+  p_reason text,
+  p_correlation_id text
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $function$
+BEGIN
+  IF p_tenant_id <> 'tenant-local' THEN RAISE EXCEPTION 'dependency watermark tenant is not permitted'; END IF;
+  IF p_asset_list_id <> 'marketops-primary-tenant-local' THEN RAISE EXCEPTION 'dependency watermark asset list is not permitted'; END IF;
+  IF p_status NOT IN ('ready','degraded','blocked') THEN RAISE EXCEPTION 'dependency watermark status is not permitted'; END IF;
+  INSERT INTO marketops_dependency_watermarks (
+    watermark_id, tenant_id, session_date, asset_list_id, asset_list_revision,
+    asset_list_fingerprint, expected_assets, ready_assets, projected_assets,
+    required_minimum_inputs, status, reason, correlation_id
+  ) VALUES (
+    p_watermark_id,p_tenant_id,p_session_date,p_asset_list_id,p_asset_list_revision,
+    COALESCE(p_asset_list_fingerprint,''),p_expected_assets,p_ready_assets,p_projected_assets,
+    p_required_minimum_inputs,p_status,COALESCE(p_reason,''),p_correlation_id
+  )
+  ON CONFLICT (tenant_id,session_date,asset_list_id,asset_list_revision) DO UPDATE SET
+    asset_list_fingerprint=EXCLUDED.asset_list_fingerprint, expected_assets=EXCLUDED.expected_assets,
+    ready_assets=EXCLUDED.ready_assets, projected_assets=EXCLUDED.projected_assets,
+    required_minimum_inputs=EXCLUDED.required_minimum_inputs, status=EXCLUDED.status,
+    reason=EXCLUDED.reason, correlation_id=EXCLUDED.correlation_id, observed_at=now();
+  INSERT INTO marketops_job_dependency_evaluations (
+    evaluation_id,session_date,job_id,state,reason,dependencies,correlation_id
+  ) VALUES (
+    p_watermark_id,p_session_date,'dagster.marketops_dependency_shadow_graph',p_status,COALESCE(p_reason,''),
+    jsonb_build_object('asset_list_id',p_asset_list_id,'asset_list_revision',p_asset_list_revision,
+      'expected_assets',p_expected_assets,'ready_assets',p_ready_assets,'projected_assets',p_projected_assets,
+      'required_minimum_inputs',p_required_minimum_inputs),p_correlation_id
+  ) ON CONFLICT (evaluation_id) DO UPDATE SET state=EXCLUDED.state,reason=EXCLUDED.reason,
+    dependencies=EXCLUDED.dependencies,correlation_id=EXCLUDED.correlation_id,evaluated_at=now();
+END;
+$function$;

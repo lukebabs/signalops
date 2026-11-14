@@ -1,0 +1,68 @@
+# Private Dagster control plane. The webserver is exposed only through the
+# platform-admin gateway route and runs in read-only mode.
+ingress:
+  enabled: false
+imagePullSecrets:
+  - name: signalops-ghcr-pull
+dagsterWebserver:
+  pathPrefix: /admin/orchestration/dagster
+  enableReadOnly: true
+  # Dagster serves its health endpoint beneath the configured path prefix.
+  readinessProbe:
+    httpGet: null
+    exec:
+      command:
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:80/admin/orchestration/dagster/server_info', timeout=5)
+    periodSeconds: 20
+    timeoutSeconds: 10
+    successThreshold: 1
+    failureThreshold: 3
+  service:
+    type: ClusterIP
+  workspace:
+    enabled: true
+    servers:
+      - host: signalops-dagster-definitions
+        port: 3030
+        name: signalops-dagster-definitions
+dagster-user-deployments:
+  enabled: true
+  imagePullSecrets:
+    - name: signalops-ghcr-pull
+  deployments:
+    - name: signalops-dagster-definitions
+      image:
+        repository: ghcr.io/syncratic-inc/signalops-dagster-definitions
+        tag: 20261111-degraded-watermark-v2
+        pullPolicy: IfNotPresent
+      dagsterApiGrpcArgs:
+        - "-m"
+        - "signalops_dagster.definitions"
+      port: 3030
+      replicaCount: 1
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+        vault.hashicorp.com/role: "signalops-dagster-shadow"
+        vault.hashicorp.com/service: "https://openbao.openbao.svc:8200"
+        vault.hashicorp.com/tls-secret: "signalops-openbao-ca"
+        vault.hashicorp.com/ca-cert: "/vault/tls/ca.crt"
+        vault.hashicorp.com/agent-inject-secret-marketops-runtime.env: "signalops/data/k8s/orchestration/dagster-marketops-readonly-production"
+        vault.hashicorp.com/agent-inject-template-marketops-runtime.env: |
+          {{- with secret "signalops/data/k8s/orchestration/dagster-marketops-readonly-production" -}}
+          export MARKETOPS_DATABASE_URL='{{ .Data.data.MARKETOPS_DATABASE_URL }}'
+          {{- end }}
+dagsterDaemon:
+  enabled: true
+  runCoordinator:
+    config:
+      queuedRunCoordinator:
+        maxConcurrentRuns: 1
+postgresql:
+  enabled: true
+  persistence:
+    enabled: true
