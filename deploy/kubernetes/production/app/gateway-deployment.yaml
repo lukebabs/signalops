@@ -68,7 +68,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: gateway
-          image: ghcr.io/syncratic-inc/signalops-gateway:production
+          image: ghcr.io/syncratic-inc/signalops-gateway:64bc683063d9
           imagePullPolicy: Always
           command: ["/bin/sh", "-ec"]
           args:
