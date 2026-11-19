@@ -1546,8 +1546,15 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list Syncratic insights")
 			return
 		}
-		contextWindows, err := repo.ListSyncraticContextWindows(r.Context(), storage.SyncraticContextWindowFilter{TenantID: filter.TenantID, AppID: filter.AppID, Domain: filter.Domain, UseCase: filter.UseCase, SubjectSymbol: filter.SubjectSymbol, Limit: 5000})
-		if err != nil {
+		contextFilter := storage.SyncraticContextWindowFilter{TenantID: filter.TenantID, AppID: filter.AppID, Domain: filter.Domain, UseCase: filter.UseCase, SubjectSymbol: filter.SubjectSymbol, Limit: 5000}
+		var contextWindows []storage.SyncraticContextWindowRecord
+		var contextErr error
+		if currentnessRepo, ok := repo.(storage.SyncraticContextWindowCurrentnessRepository); ok {
+			contextWindows, contextErr = currentnessRepo.ListSyncraticContextWindowCurrentness(r.Context(), contextFilter)
+		} else {
+			contextWindows, contextErr = repo.ListSyncraticContextWindows(r.Context(), contextFilter)
+		}
+		if contextErr != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to derive Syncratic insight currentness")
 			return
 		}

@@ -1805,6 +1805,13 @@ type SyncraticRepository interface {
 	GetSyncraticInsight(ctx context.Context, syncraticInsightID string) (SyncraticInsightRecord, error)
 }
 
+// SyncraticContextWindowCurrentnessRepository provides the metadata-only
+// projection needed to determine which insight is current. It intentionally
+// omits the large evidence arrays used by detail views.
+type SyncraticContextWindowCurrentnessRepository interface {
+	ListSyncraticContextWindowCurrentness(ctx context.Context, filter SyncraticContextWindowFilter) ([]SyncraticContextWindowRecord, error)
+}
+
 // SyncraticIntelligenceJobRepository is intentionally optional for legacy
 // query repositories while the asynchronous intelligence schema rolls out.
 type SyncraticIntelligenceJobRepository interface {
